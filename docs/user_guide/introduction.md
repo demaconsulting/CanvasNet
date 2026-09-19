@@ -70,12 +70,15 @@ is fully transparent (all channels zero) until pixels are explicitly set.
 
 **Parameters:**
 
-- `width` (int): The width of the surface, in pixels. Must be greater than zero.
-- `height` (int): The height of the surface, in pixels. Must be greater than zero.
+- `width` (int): The width of the surface, in pixels. Must be greater than zero and no more than
+  16384.
+- `height` (int): The height of the surface, in pixels. Must be greater than zero and no more than
+  16384.
 
 **Exceptions:**
 
-- `ArgumentOutOfRangeException`: Thrown when `width` or `height` is less than or equal to zero.
+- `ArgumentOutOfRangeException`: Thrown when `width` or `height` is less than or equal to zero, or
+  greater than 16384.
 
 #### Surface Properties
 
