@@ -1,0 +1,28 @@
+---
+# System.Numerics.Tensors OTS Software Requirements
+#
+# Requirements for the System.Numerics.Tensors runtime library functionality.
+
+sections:
+  - title: OTS Software Requirements
+    sections:
+      - title: System.Numerics.Tensors Requirements
+        requirements:
+          - id: CanvasNet-OTS-SystemNumericsTensors
+            title: >-
+              System.Numerics.Tensors shall provide vectorized numeric primitives correctly
+              exercised by Surface's bulk pixel operations.
+            justification: |
+              System.Numerics.Tensors (TensorPrimitives) is CanvasNet's only shipped runtime NuGet
+              dependency, used by Surface's PremultiplyAlpha, UnpremultiplyAlpha, and CompositeOver
+              implementations for vectorized per-channel arithmetic. It has no injectable seams or
+              CLI to self-validate, so it is verified indirectly: the existing Surface unit tests
+              that exercise every TensorPrimitives method used (ConvertSaturating, Round, Multiply,
+              Divide, Add, Subtract) and assert exact expected pixel results are direct evidence
+              that the library computes correctly.
+            tags: [ots]
+            tests:
+              - Surface_PremultiplyAlpha_VariousValues_ComputesExpectedPixels
+              - Surface_UnpremultiplyAlpha_VariousValues_ComputesExpectedPixels
+              - Surface_CompositeOverSurface_PartialAlpha_MatchesIndependentlyComputedResult
+              - Surface_CompositeOverColor_PartialAlpha_MatchesIndependentlyComputedResult

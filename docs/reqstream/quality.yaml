@@ -106,3 +106,16 @@ sections:
         children:
           - CanvasNet-OTS-SysML2Tools-Lint
           - CanvasNet-OTS-SysML2Tools-Render
+
+      - id: Quality-RuntimeDependencies
+        title: The repository shall rely on System.Numerics.Tensors to provide vectorized numeric primitives.
+        tags: [quality]
+        justification: |
+          Unlike every other OTS item in this document (build-time and quality-pipeline
+          tooling), System.Numerics.Tensors is CanvasNet's one shipped runtime NuGet
+          dependency, used by the Surface unit's vectorized bulk pixel operations. This
+          grouping requirement links its OTS requirement to the quality root, following the
+          same pattern used for every other OTS item, so it participates in orphan detection
+          without being falsely reported as disconnected from library functionality.
+        children:
+          - CanvasNet-OTS-SystemNumericsTensors
