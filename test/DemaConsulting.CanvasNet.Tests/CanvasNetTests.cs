@@ -164,4 +164,44 @@ public class CanvasNetTests
         // Assert: the system produces the expected integrated compositing result
         Assert.Equal(new Rgba32(128, 127, 0, 255), surface[0, 0]);
     }
+
+    /// <summary>
+    ///     Proves that the system can convert a Surface's pixel buffer from straight to
+    ///     premultiplied alpha through the public API, producing the expected rounded result.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_PremultiplyAlpha_ReturnsExpectedPixel()
+    {
+        // Arrange: construct a surface through the public API and set a straight-alpha pixel
+        var surface = new Surface(2, 2);
+        surface[0, 0] = new Rgba32(200, 100, 50, 128);
+
+        // Act: premultiply the surface's alpha in place
+        surface.PremultiplyAlpha();
+
+        // Assert: the system produces the expected integrated premultiplied pixel value
+        // (round(200*128/255)=100, round(100*128/255)=50, round(50*128/255)=25; alpha unchanged)
+        Assert.Equal(new Rgba32(100, 50, 25, 128), surface[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that the system can convert a Surface's pixel buffer from premultiplied back to
+    ///     straight alpha through the public API, including the load-bearing clamp when the
+    ///     division overshoots 255.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_UnpremultiplyAlpha_ReturnsExpectedPixel()
+    {
+        // Arrange: construct a surface through the public API and set a premultiplied pixel whose
+        // red channel overshoots 255 when unpremultiplied, exercising the documented clamp
+        var surface = new Surface(2, 2);
+        surface[0, 0] = new Rgba32(100, 10, 0, 50);
+
+        // Act: unpremultiply the surface's alpha in place
+        surface.UnpremultiplyAlpha();
+
+        // Assert: the system produces the expected integrated unpremultiplied pixel value
+        // (round(100*255/50)=510, clamped to 255; round(10*255/50)=51; 0 stays 0; alpha unchanged)
+        Assert.Equal(new Rgba32(255, 51, 0, 50), surface[0, 0]);
+    }
 }

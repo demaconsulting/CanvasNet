@@ -111,15 +111,17 @@ The system exposes the following public API to external consumers:
 
 ## Dependencies
 
-CanvasNet has zero runtime NuGet dependencies — the `Surface`, `BmpCodec`, `PngCodec`,
-`TiffCodec`, and `JpegCodec` units are implemented exclusively against the .NET Base Class Library
-(`Surface`'s use of `Span<T>` and `MemoryMarshal` are BCL APIs available natively on every target
-framework, with no runtime NuGet package required; `BmpCodec` uses only
-`System.IO` types; `PngCodec` and `TiffCodec` additionally use
-`System.IO.Compression.DeflateStream`; `JpegCodec` additionally uses `System.Numerics.Vector<T>`
-for optional SIMD acceleration; all of these are BCL APIs available on every target framework,
-with no new runtime NuGet package). The following OTS items are used for building and verifying
-this system (not consumed at runtime); see
+CanvasNet has one runtime NuGet dependency: `System.Numerics.Tensors`, used by the `Surface`
+unit's vectorized bulk pixel operations (`PremultiplyAlpha`, `UnpremultiplyAlpha`,
+`CompositeOver`) for their `TensorPrimitives`-based numeric work — see _Surface Unit Design_
+(`canvas/surface.md`) for details. Every other member of `Surface`, and all of `BmpCodec`,
+`PngCodec`, `TiffCodec`, and `JpegCodec`, are implemented exclusively against the .NET Base Class
+Library (`Surface`'s remaining use of `Span<T>` and `MemoryMarshal` are BCL APIs available
+natively on every target framework; `BmpCodec` uses only `System.IO` types; `PngCodec` and
+`TiffCodec` additionally use `System.IO.Compression.DeflateStream`; `JpegCodec` additionally uses
+`System.Numerics.Vector<T>` for optional SIMD acceleration; all of these are BCL APIs available on
+every target framework, with no additional runtime NuGet package required). The following OTS
+items are used for building and verifying this system (not consumed at runtime); see
 _OTS Integration Design_ (`docs/design/ots.md`) and each item's dedicated design document for
 details:
 

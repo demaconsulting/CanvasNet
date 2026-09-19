@@ -93,7 +93,8 @@ sections:
           - CanvasNet-Canvas-PremultiplyAlpha
           - CanvasNet-Canvas-UnpremultiplyAlpha
         tests:
-          - CanvasNet_SystemIntegration_CompositeColorOverSurface_ReturnsExpectedPixel
+          - CanvasNet_SystemIntegration_PremultiplyAlpha_ReturnsExpectedPixel
+          - CanvasNet_SystemIntegration_UnpremultiplyAlpha_ReturnsExpectedPixel
 
       - id: CanvasNet-Lib-CanvasComposite
         title: >-
