@@ -214,7 +214,7 @@ Hand-builds a TIFF declaring a `BitsPerSample` value of 16, and asserts `Load` t
 `TiffCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException`
 
 Hand-builds a TIFF declaring an `ImageWidth` value one greater than `Surface.MaxDimension`
-(16384), and separately an `ImageLength` value one greater, and asserts `Load` throws
+(8192), and separately an `ImageLength` value one greater, and asserts `Load` throws
 `InvalidDataException` (not the `ArgumentOutOfRangeException` that would otherwise escape from
 `Surface`'s constructor) in both cases, confirming the dimension check happens before the
 row-byte-width (`width * samplesPerPixel`) arithmetic performed later in `Load`.
@@ -286,4 +286,4 @@ error or unexpected exception; any unexpected exception type or wrong return/byt
 constitutes a failure. Across `TiffCodecTests.cs` and `TiffFixtureTests.cs`, this totals 68 test
 methods (49 in `TiffCodecTests.cs` and 19 in `TiffFixtureTests.cs`, including every `[Theory]`
 case), plus the single system-level integration scenario documented in
-`docs/verification/surface-net.md`.
+`docs/verification/canvas-net.md`.

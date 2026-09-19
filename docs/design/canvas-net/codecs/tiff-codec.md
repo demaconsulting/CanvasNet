@@ -111,7 +111,7 @@ tag, so that tiled files receive a specific, actionable error rather than a misl
 sample, that `Compression` is one of the four supported values, that
 `PhotometricInterpretation` is Grayscale (1) or RGB (2), that `PlanarConfiguration` is Chunky (1),
 and that `Predictor` (if present) is None (1) or horizontal differencing (2). Also validates that
-`ImageWidth` and `ImageLength` are positive and do not exceed `Surface.MaxDimension` (16384) —
+`ImageWidth` and `ImageLength` are positive and do not exceed `Surface.MaxDimension` (8192) —
 checked immediately after parsing the mandatory tags and before the row-byte-width
 (`width * samplesPerPixel`) arithmetic used to size and index strip data. For RGB images with
 4 samples per pixel, requires an `ExtraSamples` tag of 2 (unassociated alpha); for 3 samples per

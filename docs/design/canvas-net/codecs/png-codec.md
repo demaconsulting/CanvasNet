@@ -91,7 +91,7 @@ and written by explicit byte composition (bit shifting), never `BitConverter` or
 Reads a PNG image from an open stream. Validates the 8-byte PNG signature, then reads chunks
 until `IEND` is found: each chunk's CRC-32 is validated regardless of type; `IHDR` is parsed and
 validated (bit depth 8; color type 2 or 6; compression method 0; filter method 0; interlace
-method 0; width and height are positive and do not exceed `Surface.MaxDimension` (16384) — checked
+method 0; width and height are positive and do not exceed `Surface.MaxDimension` (8192) — checked
 before any width/height arithmetic, including the row-byte-width (`width * channels`) computation
 performed both while decoding scanlines and by `Load` itself); `IDAT` chunk data is concatenated
 across as many chunks as are present; any other chunk type (for example `tEXt`, `pHYs`, `gAMA`) is

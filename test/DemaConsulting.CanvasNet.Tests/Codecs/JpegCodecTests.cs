@@ -382,7 +382,7 @@ public class JpegCodecTests
     }
 
     /// <summary>
-    ///     Verifies that Load rejects a frame width exceeding Surface.MaxDimension (16384) with
+    ///     Verifies that Load rejects a frame width exceeding Surface.MaxDimension (8192) with
     ///     InvalidDataException rather than an ArgumentOutOfRangeException escaping from the
     ///     Surface constructor, and before any MCU-grid width/height arithmetic performed while
     ///     decoding the scan is ever reached.
@@ -399,7 +399,7 @@ public class JpegCodecTests
     }
 
     /// <summary>
-    ///     Verifies that Load rejects a frame height exceeding Surface.MaxDimension (16384) with
+    ///     Verifies that Load rejects a frame height exceeding Surface.MaxDimension (8192) with
     ///     InvalidDataException rather than an ArgumentOutOfRangeException escaping from the
     ///     Surface constructor.
     /// </summary>

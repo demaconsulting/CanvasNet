@@ -148,7 +148,7 @@ Builds a baseline SOF0 stream declaring four components and asserts `Load` throw
 **Tests**: `JpegCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException`,
 `JpegCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException`
 
-Builds a SOF0 stream declaring a frame width one greater than `Surface.MaxDimension` (16384), and
+Builds a SOF0 stream declaring a frame width one greater than `Surface.MaxDimension` (8192), and
 separately a frame height one greater, and asserts `Load` throws `InvalidDataException` (not the
 `ArgumentOutOfRangeException` that would otherwise escape from `Surface`'s constructor) in both
 cases, confirming the dimension check happens immediately after parsing the SOF segment, before
@@ -218,4 +218,4 @@ unexpected exception type or wrong return/value relationship constitutes a failu
 `JpegCodecTests.cs` and `JpegFixtureTests.cs`, this totals 30 test methods (26 in
 `JpegCodecTests.cs` and 4 in `JpegFixtureTests.cs`), which expand to 42 executed xUnit test cases
 when every `[Theory]` data row is included, plus the single system-level integration scenario
-documented in `docs/verification/surface-net.md`.
+documented in `docs/verification/canvas-net.md`.

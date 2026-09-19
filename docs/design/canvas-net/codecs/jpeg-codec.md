@@ -91,7 +91,7 @@ Reads a JPEG image from an open stream by buffering the remaining bytes into mem
 SOI marker, parsing DQT/DHT/DRI/SOF/SOS segments, and decoding one or more baseline or progressive
 scans into coefficient blocks. Immediately after parsing the SOF segment, and before any MCU-grid
 width/height arithmetic used to size the coefficient buffers, validates that the frame's width and
-height are positive and do not exceed `Surface.MaxDimension` (16384). After entropy decoding, it
+height are positive and do not exceed `Surface.MaxDimension` (8192). After entropy decoding, it
 dequantizes, performs a separable float IDCT, upsamples chroma as required by the frame's sampling
 factors, converts YCbCr back to RGB, and writes fully opaque pixels into a new `Surface`.
 

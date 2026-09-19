@@ -105,7 +105,7 @@ The system exposes the following public API to external consumers:
 
 | Interface                        | Direction        | Format                         | Constraints                  |
 | -------------------------------- | ---------------- | ------------------------------ | ---------------------------- |
-| `Surface(int, int)`              | Inbound          | Constructor call               | `width`, `height` in 1-16384 |
+| `Surface(int, int)`              | Inbound          | Constructor call               | `width`, `height` in 1-8192  |
 | `Surface[int, int]`              | Inbound/Outbound | Indexer get/set                | `x`, `y` within bounds       |
 | `Surface.GetRowSpanBytes(int)`   | Outbound         | `Span<byte>` return            | `y` within bounds            |
 | `Surface.GetRowSpan(int)`        | Outbound         | `Span<Rgba32>` return          | `y` within bounds            |

@@ -157,7 +157,7 @@ Builds a header declaring `biHeight = -1` and asserts `Load` throws `InvalidData
 **Tests**: `BmpCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException`,
 `BmpCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException`
 
-Builds a header declaring `biWidth` one greater than `Surface.MaxDimension` (16384), and
+Builds a header declaring `biWidth` one greater than `Surface.MaxDimension` (8192), and
 separately `biHeight` one greater, and asserts `Load` throws `InvalidDataException` (not the
 `ArgumentOutOfRangeException` that would otherwise escape from `Surface`'s constructor) in both
 cases, confirming the dimension check happens before any row/stride arithmetic performed later in

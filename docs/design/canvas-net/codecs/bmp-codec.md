@@ -66,7 +66,7 @@ endianness.
 Reads a BMP image from an open stream. Validates the `"BM"` signature, that `biSize == 40`
 (rejecting both `BITMAPCOREHEADER` and V4/V5 headers in one check), that `biCompression == 0`
 (BI_RGB), that `biBitCount` is 24 or 32, and that `biHeight` is not negative. Also validates that
-neither `biWidth` nor `biHeight` exceeds `Surface.MaxDimension` (16384) — checked immediately
+neither `biWidth` nor `biHeight` exceeds `Surface.MaxDimension` (8192) — checked immediately
 after the existing non-positive/negative-height checks and before any padded-row-size arithmetic,
 so an oversized declared dimension is rejected with `InvalidDataException` rather than reaching
 `Surface`'s constructor as an unhandled `ArgumentOutOfRangeException`. Skips forward to

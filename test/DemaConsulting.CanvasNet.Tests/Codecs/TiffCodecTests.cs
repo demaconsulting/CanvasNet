@@ -1273,7 +1273,7 @@ public class TiffCodecTests
     }
 
     /// <summary>
-    ///     Verifies that Load rejects a width exceeding Surface.MaxDimension (16384) with
+    ///     Verifies that Load rejects a width exceeding Surface.MaxDimension (8192) with
     ///     InvalidDataException rather than an ArgumentOutOfRangeException escaping from the
     ///     Surface constructor, and before any row-byte-width arithmetic derived from the
     ///     declared width is ever performed.
@@ -1290,7 +1290,7 @@ public class TiffCodecTests
     }
 
     /// <summary>
-    ///     Verifies that Load rejects a height exceeding Surface.MaxDimension (16384) with
+    ///     Verifies that Load rejects a height exceeding Surface.MaxDimension (8192) with
     ///     InvalidDataException rather than an ArgumentOutOfRangeException escaping from the
     ///     Surface constructor.
     /// </summary>

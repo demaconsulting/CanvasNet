@@ -437,7 +437,7 @@ public class PngCodecTests
     }
 
     /// <summary>
-    ///     Proves that Load rejects a width exceeding Surface.MaxDimension (16384) with
+    ///     Proves that Load rejects a width exceeding Surface.MaxDimension (8192) with
     ///     InvalidDataException rather than an ArgumentOutOfRangeException escaping from the
     ///     Surface constructor, and before the width*channels row-byte-width arithmetic
     ///     performed later in Load is ever reached.
@@ -455,7 +455,7 @@ public class PngCodecTests
     }
 
     /// <summary>
-    ///     Proves that Load rejects a height exceeding Surface.MaxDimension (16384) with
+    ///     Proves that Load rejects a height exceeding Surface.MaxDimension (8192) with
     ///     InvalidDataException rather than an ArgumentOutOfRangeException escaping from the
     ///     Surface constructor.
     /// </summary>

@@ -43,9 +43,9 @@ public sealed class Surface
     ///     The largest permitted value for either <see cref="Width"/> or <see cref="Height"/>.
     ///     Chosen so that the padded-stride and total-buffer-size arithmetic performed in the
     ///     constructor is provably safe using plain <see cref="int"/> arithmetic: with both
-    ///     dimensions bounded by this value, the padded row width is at most 16384 pixels, the row
-    ///     stride is at most <c>16384 * 4 = 65536</c> bytes, and the total buffer size is at most
-    ///     <c>16384 * 65536 = 1,073,741,824</c> bytes - comfortably below <see cref="int.MaxValue"/>
+    ///     dimensions bounded by this value, the padded row width is at most 8192 pixels, the row
+    ///     stride is at most <c>8192 * 4 = 32768</c> bytes, and the total buffer size is at most
+    ///     <c>8192 * 32768 = 268,435,456</c> bytes - comfortably below <see cref="int.MaxValue"/>
     ///     (2,147,483,647), with no risk of overflow.
     /// </summary>
     /// <remarks>
@@ -56,7 +56,7 @@ public sealed class Surface
     ///     <see cref="System.IO.InvalidDataException"/> instead of letting the out-of-range value
     ///     reach this constructor and surface as an <see cref="ArgumentOutOfRangeException"/>.
     /// </remarks>
-    internal const int MaxDimension = 16384;
+    internal const int MaxDimension = 8192;
 
     /// <summary>
     ///     The number of bytes physically occupied by a single row in <see cref="_buffer"/>,
@@ -79,15 +79,15 @@ public sealed class Surface
     ///     dimensions, fully transparent (all pixel bytes zero).
     /// </summary>
     /// <param name="width">
-    ///     The width of the surface, in pixels. Must be greater than zero and no more than 16384.
+    ///     The width of the surface, in pixels. Must be greater than zero and no more than 8192.
     /// </param>
     /// <param name="height">
-    ///     The height of the surface, in pixels. Must be greater than zero and no more than 16384.
+    ///     The height of the surface, in pixels. Must be greater than zero and no more than 8192.
     /// </param>
     /// <exception cref="ArgumentOutOfRangeException">
     ///     Thrown when <paramref name="width"/> or <paramref name="height"/> is less than or
     ///     equal to zero, or when <paramref name="width"/> or <paramref name="height"/> exceeds
-    ///     16384.
+    ///     8192.
     /// </exception>
     /// <remarks>
     ///     Architectural decision: a freshly constructed surface is always fully transparent black
@@ -118,12 +118,12 @@ public sealed class Surface
         // bound analysis)
         if (width > MaxDimension)
         {
-            throw new ArgumentOutOfRangeException(nameof(width), width, "Width must not exceed 16384.");
+            throw new ArgumentOutOfRangeException(nameof(width), width, "Width must not exceed 8192.");
         }
 
         if (height > MaxDimension)
         {
-            throw new ArgumentOutOfRangeException(nameof(height), height, "Height must not exceed 16384.");
+            throw new ArgumentOutOfRangeException(nameof(height), height, "Height must not exceed 8192.");
         }
 
         Width = width;
@@ -131,8 +131,8 @@ public sealed class Surface
 
         // Width and height are now validated to be within (0, MaxDimension] above, so the
         // following plain int arithmetic is provably safe from overflow: the padded row width is
-        // at most MaxDimension (16384) pixels, the row stride is at most 16384 * 4 = 65536 bytes,
-        // and the total buffer size is at most 16384 * 65536 = 1,073,741,824 bytes - comfortably
+        // at most MaxDimension (8192) pixels, the row stride is at most 8192 * 4 = 32768 bytes,
+        // and the total buffer size is at most 8192 * 32768 = 268,435,456 bytes - comfortably
         // under int.MaxValue (2,147,483,647). No long/checked arithmetic is required.
         // Round the row width up to the next multiple of RowAlignmentPixels, then convert to
         // bytes, so every physical row is a whole number of vector-width chunks (see

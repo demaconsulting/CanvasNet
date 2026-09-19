@@ -407,7 +407,7 @@ public class BmpCodecTests
     }
 
     /// <summary>
-    ///     Proves that Load rejects a width exceeding Surface.MaxDimension (16384) with
+    ///     Proves that Load rejects a width exceeding Surface.MaxDimension (8192) with
     ///     InvalidDataException rather than an ArgumentOutOfRangeException escaping from the
     ///     Surface constructor.
     /// </summary>
@@ -425,7 +425,7 @@ public class BmpCodecTests
     }
 
     /// <summary>
-    ///     Proves that Load rejects a height exceeding Surface.MaxDimension (16384) with
+    ///     Proves that Load rejects a height exceeding Surface.MaxDimension (8192) with
     ///     InvalidDataException rather than an ArgumentOutOfRangeException escaping from the
     ///     Surface constructor.
     /// </summary>
