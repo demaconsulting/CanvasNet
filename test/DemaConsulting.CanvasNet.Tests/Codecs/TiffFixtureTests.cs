@@ -38,15 +38,11 @@ public class TiffFixtureTests
     ///     used instead of <see cref="Path.Combine(string, string)"/> purely to avoid CodeQL's
     ///     <c>cs/path-combine</c> rule, since <c>Path.Join</c> does not discard
     ///     <paramref name="baseDirectory"/> when <paramref name="fileName"/> looks rooted.
-    ///     <c>Path.Join</c> is unavailable on .NET Framework, so the net481 target falls back to
-    ///     <see cref="Path.Combine(string, string)"/>.
+    ///     <c>Path.Join</c> is natively available on the modern .NET targets, and is polyfilled
+    ///     onto net481 by the <c>Polyfill</c> package referenced by this project.
     /// </summary>
     private static string ResolveFixturePath(string baseDirectory, string fileName) =>
-#if NETFRAMEWORK
-        Path.Combine(baseDirectory, Path.GetFileName(fileName));
-#else
         Path.Join(baseDirectory, fileName);
-#endif
 
     /// <summary>
     ///     Every TIFF fixture file name, for tests that only need to prove successful loading with
