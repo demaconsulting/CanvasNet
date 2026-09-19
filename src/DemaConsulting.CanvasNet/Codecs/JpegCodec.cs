@@ -1424,21 +1424,27 @@ public static class JpegCodec
 
         private static void DecodeAcRefine(int[] block, HuffmanTable acTable, BitReader reader, int ss, int se, int al, ref int eobRun)
         {
-            var p1 = 1 << al;
-            var m1 = -1 << al;
+            var rp = new RefinementParams(reader, se, 1 << al, -1 << al);
             var k = ss;
 
             if (eobRun == 0)
             {
-                DecodeAcRefineNewCoefficients(block, acTable, reader, se, p1, m1, ref k, ref eobRun);
+                DecodeAcRefineNewCoefficients(block, acTable, rp, ref k, ref eobRun);
             }
 
             if (eobRun > 0)
             {
-                RefineRemainingCoefficients(block, ref k, se, reader, p1, m1);
+                RefineRemainingCoefficients(block, ref k, rp);
                 eobRun--;
             }
         }
+
+        /// <summary>
+        ///     Groups the successive-approximation refinement state (ITU-T T.81 section G.1.2.3)
+        ///     shared by the AC-refinement coefficient walkers: the bit reader, the end-of-band
+        ///     index, and the positive/negative refinement bit values.
+        /// </summary>
+        private readonly record struct RefinementParams(BitReader Reader, int Se, int P1, int M1);
 
         /// <summary>
         ///     Applies a successive-approximation refinement bit to a single already-nonzero
@@ -1446,24 +1452,24 @@ public static class JpegCodec
         ///     coefficient only nudged toward zero-away) when the coefficient's next refinement
         ///     bit position is still unset.
         /// </summary>
-        private static void RefineNonZeroCoefficient(int[] block, int k, BitReader reader, int p1, int m1)
+        private static void RefineNonZeroCoefficient(int[] block, int k, RefinementParams rp)
         {
-            if (block[k] != 0 && reader.ReadBit() != 0 && (block[k] & p1) == 0)
+            if (block[k] != 0 && rp.Reader.ReadBit() != 0 && (block[k] & rp.P1) == 0)
             {
-                block[k] += block[k] >= 0 ? p1 : m1;
+                block[k] += block[k] >= 0 ? rp.P1 : rp.M1;
             }
         }
 
         /// <summary>
         ///     Refines every remaining nonzero coefficient from <paramref name="k"/> through
-        ///     <paramref name="se"/> without placing any new coefficients, used while an
-        ///     end-of-band run inherited from an earlier RS pair is still being consumed.
+        ///     <paramref name="rp"/>'s end-of-band index without placing any new coefficients, used
+        ///     while an end-of-band run inherited from an earlier RS pair is still being consumed.
         /// </summary>
-        private static void RefineRemainingCoefficients(int[] block, ref int k, int se, BitReader reader, int p1, int m1)
+        private static void RefineRemainingCoefficients(int[] block, ref int k, RefinementParams rp)
         {
-            while (k <= se)
+            while (k <= rp.Se)
             {
-                RefineNonZeroCoefficient(block, k, reader, p1, m1);
+                RefineNonZeroCoefficient(block, k, rp);
                 k++;
             }
         }
@@ -1476,11 +1482,11 @@ public static class JpegCodec
         ///     <see cref="RefineNonZeroCoefficient"/>.
         /// </summary>
         private static void DecodeAcRefineNewCoefficients(
-            int[] block, HuffmanTable acTable, BitReader reader, int se, int p1, int m1, ref int k, ref int eobRun)
+            int[] block, HuffmanTable acTable, RefinementParams rp, ref int k, ref int eobRun)
         {
-            while (k <= se)
+            while (k <= rp.Se)
             {
-                var rs = BitReader.Decode(acTable, reader);
+                var rs = BitReader.Decode(acTable, rp.Reader);
                 var r = rs >> 4;
                 var s = rs & 0xF;
                 var newValue = 0;
@@ -1492,7 +1498,7 @@ public static class JpegCodec
                         eobRun = 1 << r;
                         if (r > 0)
                         {
-                            eobRun += reader.ReadBits(r);
+                            eobRun += rp.Reader.ReadBits(r);
                         }
 
                         r = 64; // sentinel: skip remaining coefficients (refinement only) below
@@ -1500,29 +1506,29 @@ public static class JpegCodec
                 }
                 else
                 {
-                    newValue = reader.ReadBit() != 0 ? p1 : m1;
+                    newValue = rp.Reader.ReadBit() != 0 ? rp.P1 : rp.M1;
                 }
 
-                RefineOrPlaceCoefficient(block, ref k, se, reader, p1, m1, r, newValue);
+                RefineOrPlaceCoefficient(block, ref k, rp, r, newValue);
             }
         }
 
         /// <summary>
-        ///     Walks coefficients from <paramref name="k"/> through <paramref name="se"/>,
-        ///     refining every already-nonzero coefficient, and counting down
+        ///     Walks coefficients from <paramref name="k"/> through <paramref name="rp"/>'s
+        ///     end-of-band index, refining every already-nonzero coefficient, and counting down
         ///     <paramref name="zeroRunLength"/> zero coefficients before placing
         ///     <paramref name="newValue"/> (if nonzero) into the next zero coefficient slot and
         ///     stopping.
         /// </summary>
         private static void RefineOrPlaceCoefficient(
-            int[] block, ref int k, int se, BitReader reader, int p1, int m1, int zeroRunLength, int newValue)
+            int[] block, ref int k, RefinementParams rp, int zeroRunLength, int newValue)
         {
             var r = zeroRunLength;
-            while (k <= se)
+            while (k <= rp.Se)
             {
                 if (block[k] != 0)
                 {
-                    RefineNonZeroCoefficient(block, k, reader, p1, m1);
+                    RefineNonZeroCoefficient(block, k, rp);
                 }
                 else
                 {
