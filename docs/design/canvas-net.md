@@ -113,8 +113,8 @@ The system exposes the following public API to external consumers:
 
 CanvasNet has zero runtime NuGet dependencies — the `Surface`, `BmpCodec`, `PngCodec`,
 `TiffCodec`, and `JpegCodec` units are implemented exclusively against the .NET Base Class Library
-(`Surface`'s use of `Span<T>` and `MemoryMarshal` on `netstandard2.0` is satisfied by the existing
-`Polyfill` build dependency, not by any new runtime NuGet package; `BmpCodec` uses only
+(`Surface`'s use of `Span<T>` and `MemoryMarshal` are BCL APIs available natively on every target
+framework, with no runtime NuGet package required; `BmpCodec` uses only
 `System.IO` types; `PngCodec` and `TiffCodec` additionally use
 `System.IO.Compression.DeflateStream`; `JpegCodec` additionally uses `System.Numerics.Vector<T>`
 for optional SIMD acceleration; all of these are BCL APIs available on every target framework,
@@ -278,12 +278,11 @@ measures (IEC 62304 §5.3.3).
 
 ### Platform Support
 
-The library targets the following frameworks, enabling broad compatibility across modern .NET
-runtimes and legacy environments:
+The library targets the following frameworks, enabling compatibility across modern, currently
+supported .NET runtimes:
 
 | Target Framework | Runtime / Environment                             |
 | ---------------- | ------------------------------------------------- |
-| `netstandard2.0` | .NET Standard 2.0 (implemented by .NET FX 4.8.1+) |
 | `net8.0`         | .NET 8 LTS                                        |
 | `net9.0`         | .NET 9                                            |
 | `net10.0`        | .NET 10                                           |

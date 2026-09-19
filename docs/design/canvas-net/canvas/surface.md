@@ -125,9 +125,8 @@ written, and before the destination surface is mutated in `Crop`.
 ### Dependencies
 
 N/A - `Surface` has no dependencies beyond the .NET base class library
-(`System.Runtime.InteropServices.MemoryMarshal` and `System.Span<T>`), which are available on all
-of CanvasNet's target frameworks (including `netstandard2.0`, via the existing `Polyfill` build
-dependency already used across the library — no new runtime NuGet dependency was required).
+(`System.Runtime.InteropServices.MemoryMarshal` and `System.Span<T>`), which are available
+natively on all of CanvasNet's target frameworks — no runtime NuGet dependency was required.
 
 ### Callers
 

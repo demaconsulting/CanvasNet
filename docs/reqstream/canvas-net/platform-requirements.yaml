@@ -15,7 +15,6 @@
 #   net8.0@TestName   - proves the test passed under the .NET 8 runtime
 #   net9.0@TestName   - proves the test passed under the .NET 9 runtime
 #   net10.0@TestName  - proves the test passed under the .NET 10 runtime
-#   net481@TestName   - proves the test passed under .NET Framework 4.8.1 (implements .NET Standard 2.0)
 
 sections:
   - title: Platform Support
@@ -70,16 +69,3 @@ sections:
           .NET 10 support ensures the library remains compatible with the latest .NET ecosystem.
         tests:
           - "net10.0@CanvasNet_SystemIntegration_CanvasConstructAndSetPixel_ReturnsExpectedPixel"
-
-      - id: CanvasNet-Platform-NetStd20
-        title: The library shall support the .NET Standard 2.0 target framework.
-        tags: [system]
-        justification: |
-          .NET Standard 2.0 is a widely-supported target framework that enables the library to
-          be used in MSBuild extensions and other tooling that requires .NET Standard compatibility.
-          Supporting this target framework ensures the library can be integrated into a broader
-          range of .NET projects, including those targeting .NET Framework and older .NET Core versions.
-          Because .NET Framework 4.8.1 implements .NET Standard 2.0, a passing test on net481
-          demonstrates .NET Standard 2.0 compatibility.
-        tests:
-          - "net481@CanvasNet_SystemIntegration_CanvasConstructAndSetPixel_ReturnsExpectedPixel"

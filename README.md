@@ -29,7 +29,7 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 - 🖨️ **TIFF Codec** - Load and save 8-bit RGB/RGBA/Grayscale TIFF files with PackBits/LZW/Deflate
 - 🗜️ **JPEG Codec** - Load baseline/progressive JPEG and save baseline 4:2:0 JPEG with quality control
 - ⚡ **Span-Based** - Fast, allocation-conscious row and pixel access
-- 🔄 **Multi-Target** - Supports .NET Standard 2.0, .NET 8, 9, and 10
+- 🔄 **Multi-Target** - Supports .NET 8, 9, and 10
 - 📦 **NuGet Ready** - Easy integration via NuGet package
 
 ## Installation

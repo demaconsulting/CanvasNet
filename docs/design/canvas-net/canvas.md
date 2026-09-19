@@ -23,8 +23,8 @@ other subsystem: the `Codecs` subsystem depends on `Canvas`, not the other way a
 ### Dependencies
 
 N/A - the `Canvas` subsystem has no dependencies beyond the .NET base class library
-(`System.Runtime.InteropServices.MemoryMarshal` and `System.Span<T>`), available on all of
-CanvasNet's target frameworks via the existing `Polyfill` build dependency.
+(`System.Runtime.InteropServices.MemoryMarshal` and `System.Span<T>`), available natively on
+all of CanvasNet's target frameworks.
 
 ### Callers
 
