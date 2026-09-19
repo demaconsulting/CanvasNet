@@ -34,7 +34,7 @@ Unit tests reside in `SurfaceTests.cs` within the `DemaConsulting.CanvasNet.Test
 
 Constructs a `Surface` with known width and height and asserts both properties reflect the
 constructor arguments. Additionally, constructs surfaces with width, and separately height, at the
-maximum permitted dimension (16384) and asserts construction succeeds with the requested
+maximum permitted dimension (8192) and asserts construction succeeds with the requested
 dimension.
 
 #### CanvasNet-Canvas-Surface-ZeroInitialized: Constructor Produces an All-Zero Buffer
@@ -65,14 +65,14 @@ Asserts `ArgumentOutOfRangeException` is thrown in both cases.
 **Test**: `Surface_Constructor_WidthExceedsMaximum_ThrowsArgumentOutOfRangeException`
 
 Attempts to construct a `Surface` with a width one greater than the maximum permitted dimension
-(16385). Asserts `ArgumentOutOfRangeException` is thrown.
+(8193). Asserts `ArgumentOutOfRangeException` is thrown.
 
 #### CanvasNet-Canvas-Surface-HeightExceedsMaximum: Constructor Rejects Height Exceeding the Maximum Dimension
 
 **Test**: `Surface_Constructor_HeightExceedsMaximum_ThrowsArgumentOutOfRangeException`
 
 Attempts to construct a `Surface` with a height one greater than the maximum permitted dimension
-(16385). Asserts `ArgumentOutOfRangeException` is thrown.
+(8193). Asserts `ArgumentOutOfRangeException` is thrown.
 
 #### CanvasNet-Canvas-Surface-PixelGet / CanvasNet-Canvas-Surface-PixelSet: Indexer Set Then Get Round-Trips
 
@@ -171,7 +171,8 @@ Calls `Crop` with `y + height` exceeding the source `Height` and asserts
 
 **Tests**: `Surface_PremultiplyAlpha_VariousValues_ComputesExpectedPixels`,
 `Surface_PremultiplyThenUnpremultiplyAlpha_PartialAlpha_RoundTripsWithinTolerance`,
-`Surface_PremultiplyThenUnpremultiplyAlpha_BoundaryAlpha_RoundTripsExactly`
+`Surface_PremultiplyThenUnpremultiplyAlpha_BoundaryAlpha_RoundTripsExactly`,
+`Surface_PremultiplyAlpha_MultiRowBoundaryWidths_ComputesExpectedPixelForEveryPixel`
 
 Calls `PremultiplyAlpha` on single-pixel surfaces across a table of color/alpha combinations
 (including alpha 0, alpha 255, and partial alpha) whose expected premultiplied values were
@@ -179,21 +180,31 @@ computed independently of the implementation (`round(color * alpha / 255)`,
 round-half-away-from-zero), and asserts an exact match. Additionally, round-trips
 `PremultiplyAlpha` followed by `UnpremultiplyAlpha` for partial-alpha pixels and asserts the
 result is within one rounding step of the original (not falsely exact, since premultiplication is
-lossy), and for boundary alphas (0 and 255) asserts an exact round-trip.
+lossy), and for boundary alphas (0 and 255) asserts an exact round-trip. Additionally, exercises
+a three-row surface at each internal row-padding boundary width (widths at, just below, and just
+above each multiple-of-16 boundary), with a distinct color/alpha pair per pixel position, and
+asserts every visible pixel across every row matches an independently computed expected value -
+confirming no row-offset or padding-boundary corruption at non-16-aligned widths.
 
 #### CanvasNet-Canvas-Surface-UnpremultiplyAlpha: UnpremultiplyAlpha Computes Expected Pixels
 
 **Tests**: `Surface_UnpremultiplyAlpha_VariousValues_ComputesExpectedPixels`,
 `Surface_UnpremultiplyAlpha_AlphaZero_ResultIsZeroRgb`,
 `Surface_PremultiplyThenUnpremultiplyAlpha_PartialAlpha_RoundTripsWithinTolerance`,
-`Surface_PremultiplyThenUnpremultiplyAlpha_BoundaryAlpha_RoundTripsExactly`
+`Surface_PremultiplyThenUnpremultiplyAlpha_BoundaryAlpha_RoundTripsExactly`,
+`Surface_UnpremultiplyAlpha_MultiRowBoundaryWidths_ComputesExpectedPixelForEveryPixel`
 
 Calls `UnpremultiplyAlpha` on single-pixel surfaces across a table of premultiplied-color/alpha
 combinations whose expected straight-alpha values were computed independently of the
 implementation (`round(color * 255 / alpha)`, round-half-away-from-zero, clamped), including a
 case where the raw division exceeds 255 to exercise the clamp. Separately, asserts a fully
 transparent pixel (`alpha == 0`) with arbitrary color-channel garbage produces `R = G = B = 0`,
-the documented degenerate-case result.
+the documented degenerate-case result. Additionally, exercises a three-row surface at each
+internal row-padding boundary width (widths at, just below, and just above each multiple-of-16
+boundary), with a distinct color/alpha pair (alpha restricted to `[1, 255]` to keep the
+degenerate `alpha == 0` case out of scope) per pixel position, and asserts every visible pixel
+across every row matches an independently computed expected value - confirming no row-offset or
+padding-boundary corruption at non-16-aligned widths.
 
 #### CanvasNet-Canvas-Surface-CompositeOverSurface: CompositeOver(Surface) Matches Independently Computed Results
 

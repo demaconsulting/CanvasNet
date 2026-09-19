@@ -196,6 +196,7 @@ sections:
                   - Surface_PremultiplyAlpha_VariousValues_ComputesExpectedPixels
                   - Surface_PremultiplyThenUnpremultiplyAlpha_PartialAlpha_RoundTripsWithinTolerance
                   - Surface_PremultiplyThenUnpremultiplyAlpha_BoundaryAlpha_RoundTripsExactly
+                  - Surface_PremultiplyAlpha_MultiRowBoundaryWidths_ComputesExpectedPixelForEveryPixel
 
               - id: CanvasNet-Canvas-Surface-UnpremultiplyAlpha
                 title: >-
@@ -211,6 +212,7 @@ sections:
                   - Surface_UnpremultiplyAlpha_AlphaZero_ResultIsZeroRgb
                   - Surface_PremultiplyThenUnpremultiplyAlpha_PartialAlpha_RoundTripsWithinTolerance
                   - Surface_PremultiplyThenUnpremultiplyAlpha_BoundaryAlpha_RoundTripsExactly
+                  - Surface_UnpremultiplyAlpha_MultiRowBoundaryWidths_ComputesExpectedPixelForEveryPixel
 
               - id: CanvasNet-Canvas-Surface-CompositeOverSurface
                 title: >-

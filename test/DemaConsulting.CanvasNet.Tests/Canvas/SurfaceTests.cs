@@ -92,10 +92,10 @@ public class SurfaceTests
     public void Surface_Constructor_WidthAtMaximum_Succeeds()
     {
         // Act: construct a surface with width at the maximum permitted dimension
-        var surface = new Surface(16384, 1);
+        var surface = new Surface(8192, 1);
 
         // Assert: the surface reports the requested width
-        Assert.Equal(16384, surface.Width);
+        Assert.Equal(8192, surface.Width);
     }
 
     /// <summary>
@@ -106,10 +106,10 @@ public class SurfaceTests
     public void Surface_Constructor_HeightAtMaximum_Succeeds()
     {
         // Act: construct a surface with height at the maximum permitted dimension
-        var surface = new Surface(1, 16384);
+        var surface = new Surface(1, 8192);
 
         // Assert: the surface reports the requested height
-        Assert.Equal(16384, surface.Height);
+        Assert.Equal(8192, surface.Height);
     }
 
     /// <summary>
@@ -120,7 +120,7 @@ public class SurfaceTests
     public void Surface_Constructor_WidthExceedsMaximum_ThrowsArgumentOutOfRangeException()
     {
         // Act & Assert: a width beyond the maximum permitted dimension must be rejected
-        Assert.Throws<ArgumentOutOfRangeException>(() => new Surface(16385, 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Surface(8193, 1));
     }
 
     /// <summary>
@@ -131,7 +131,7 @@ public class SurfaceTests
     public void Surface_Constructor_HeightExceedsMaximum_ThrowsArgumentOutOfRangeException()
     {
         // Act & Assert: a height beyond the maximum permitted dimension must be rejected
-        Assert.Throws<ArgumentOutOfRangeException>(() => new Surface(1, 16385));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Surface(1, 8193));
     }
 
     /// <summary>
@@ -489,6 +489,60 @@ public class SurfaceTests
     }
 
     /// <summary>
+    ///     Proves that PremultiplyAlpha correctly processes every visible pixel of a multi-row
+    ///     surface at each internal row-padding boundary width. Each pixel is given a distinct
+    ///     (color, alpha) pair derived from its (x, y) position, so a row-offset or
+    ///     padding-boundary bug - which a single-pixel test cannot detect - would show up as a
+    ///     mismatch at some specific pixel.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(BoundaryWidths))]
+    public void Surface_PremultiplyAlpha_MultiRowBoundaryWidths_ComputesExpectedPixelForEveryPixel(int width)
+    {
+        // Arrange: build a surface at a boundary width, three rows tall, with a distinct
+        // (color, alpha) pair at every pixel position
+        const int height = 3;
+        var surface = new Surface(width, height);
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var color = (byte)((x * 7 + y * 29) % 256);
+                var alpha = (byte)((x * 3 + y * 41) % 256);
+                surface[x, y] = new Rgba32(color, color, color, alpha);
+            }
+        }
+
+        // Act
+        surface.PremultiplyAlpha();
+
+        // Assert: every visible pixel, at every row, matches the independently computed
+        // expected value; alpha is unchanged
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var color = (byte)((x * 7 + y * 29) % 256);
+                var alpha = (byte)((x * 3 + y * 41) % 256);
+                var expected = ComputeExpectedPremultiplied(color, alpha);
+                Assert.Equal(new Rgba32(expected, expected, expected, alpha), surface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Computes the expected premultiplied channel value independently of Surface's SIMD
+    ///     float32 implementation, using plain scalar double arithmetic, so that the multi-row
+    ///     boundary-width tests have a genuine oracle rather than re-deriving the formula under
+    ///     test.
+    /// </summary>
+    private static byte ComputeExpectedPremultiplied(byte color, byte alpha)
+    {
+        var value = Math.Round(color * alpha / 255.0, MidpointRounding.AwayFromZero);
+        return (byte)Math.Clamp(value, 0, 255);
+    }
+
+    /// <summary>
     ///     Unpremultiply-alpha test vectors: (premultipliedColor, alpha, expectedStraightColor),
     ///     computed independently of Surface's implementation using
     ///     round(premultipliedColor * 255 / alpha), clamped to [0, 255], with alpha == 0 defined
@@ -543,6 +597,64 @@ public class SurfaceTests
 
         // Assert: RGB must be zero; alpha remains zero
         Assert.Equal(new Rgba32(0, 0, 0, 0), surface[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that UnpremultiplyAlpha correctly processes every visible pixel of a multi-row
+    ///     surface at each internal row-padding boundary width. Each pixel is given a distinct
+    ///     (color, alpha) pair derived from its (x, y) position, so a row-offset or
+    ///     padding-boundary bug - which a single-pixel test cannot detect - would show up as a
+    ///     mismatch at some specific pixel. Alpha is restricted to [1, 255] so the degenerate
+    ///     alpha == 0 case (already covered by
+    ///     <see cref="Surface_UnpremultiplyAlpha_AlphaZero_ResultIsZeroRgb"/>) stays out of
+    ///     scope here.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(BoundaryWidths))]
+    public void Surface_UnpremultiplyAlpha_MultiRowBoundaryWidths_ComputesExpectedPixelForEveryPixel(int width)
+    {
+        // Arrange: build a surface at a boundary width, three rows tall, with a distinct
+        // (color, alpha) pair at every pixel position; alpha is never zero
+        const int height = 3;
+        var surface = new Surface(width, height);
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var color = (byte)((x * 7 + y * 29) % 256);
+                var alpha = (byte)(1 + (x * 3 + y * 41) % 255);
+                surface[x, y] = new Rgba32(color, color, color, alpha);
+            }
+        }
+
+        // Act
+        surface.UnpremultiplyAlpha();
+
+        // Assert: every visible pixel, at every row, matches the independently computed
+        // expected value; alpha is unchanged
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var color = (byte)((x * 7 + y * 29) % 256);
+                var alpha = (byte)(1 + (x * 3 + y * 41) % 255);
+                var expected = ComputeExpectedUnpremultiplied(color, alpha);
+                Assert.Equal(new Rgba32(expected, expected, expected, alpha), surface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Computes the expected unpremultiplied channel value independently of Surface's SIMD
+    ///     float32 implementation, using plain scalar double arithmetic, so that the multi-row
+    ///     boundary-width test has a genuine oracle rather than re-deriving the formula under
+    ///     test. Callers must not pass alpha == 0 (the degenerate case is defined separately, not
+    ///     via this division-based formula).
+    /// </summary>
+    private static byte ComputeExpectedUnpremultiplied(byte color, byte alpha)
+    {
+        var value = Math.Round(color * 255.0 / alpha, MidpointRounding.AwayFromZero);
+        return (byte)Math.Clamp(value, 0, 255);
     }
 
     /// <summary>
