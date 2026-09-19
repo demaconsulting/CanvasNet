@@ -484,21 +484,21 @@ public class JpegCodecTests
     ///     <see cref="JpegCodec_Load_TruncatedSegmentPayload_ThrowsInvalidDataException"/>, each of
     ///     which declares a segment length claiming more payload bytes than are actually present.
     /// </summary>
-    public static IEnumerable<object[]> TruncatedSegmentPayloadCases()
+    public static TheoryData<byte[]> TruncatedSegmentPayloadCases()
     {
-        // DQT segment claims 0x45 payload bytes but supplies none.
-        yield return [new byte[] { MarkerPrefix, MarkerSoi, MarkerPrefix, MarkerDqt, 0x00, 0x45 }];
+        var cases = new TheoryData<byte[]>
+        {
+            // DQT segment claims 0x45 payload bytes but supplies none.
+            new byte[] { MarkerPrefix, MarkerSoi, MarkerPrefix, MarkerDqt, 0x00, 0x45 },
 
-        // DHT segment claims 0x45 payload bytes but supplies none.
-        yield return [new byte[] { MarkerPrefix, MarkerSoi, MarkerPrefix, MarkerDht, 0x00, 0x45 }];
+            // DHT segment claims 0x45 payload bytes but supplies none.
+            new byte[] { MarkerPrefix, MarkerSoi, MarkerPrefix, MarkerDht, 0x00, 0x45 },
 
-        // SOF0 segment claims 0x20 payload bytes but supplies none.
-        yield return [new byte[] { MarkerPrefix, MarkerSoi, MarkerPrefix, MarkerSof0, 0x00, 0x20 }];
+            // SOF0 segment claims 0x20 payload bytes but supplies none.
+            new byte[] { MarkerPrefix, MarkerSoi, MarkerPrefix, MarkerSof0, 0x00, 0x20 },
 
-        // SOS segment (preceded by well-formed DQT/DHT/SOF0 segments) claims 0x20 payload bytes
-        // but supplies none.
-        yield return
-        [
+            // SOS segment (preceded by well-formed DQT/DHT/SOF0 segments) claims 0x20 payload
+            // bytes but supplies none.
             BuildJpeg(
                 [
                     BuildMinimalDqtSegment(),
@@ -508,7 +508,9 @@ public class JpegCodecTests
                 ],
                 entropyData: null,
                 includeEoi: false)
-        ];
+        };
+
+        return cases;
     }
 
     /// <summary>

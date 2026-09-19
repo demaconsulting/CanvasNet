@@ -30,6 +30,16 @@ public class JpegFixtureTests
     private static string PngSuitePath => Path.Combine(AppContext.BaseDirectory, "PngSuite");
 
     /// <summary>
+    ///     Resolves a fixture file within <paramref name="baseDirectory"/>, stripping any
+    ///     directory component from <paramref name="fileName"/> first. The file names always
+    ///     originate from this class's own <c>TheoryData</c> literals rather than external input,
+    ///     so this is a static-analysis hardening (guards against path traversal via
+    ///     <see cref="Path.Combine(string, string)"/>) rather than a behavior change.
+    /// </summary>
+    private static string ResolveFixturePath(string baseDirectory, string fileName) =>
+        Path.Combine(baseDirectory, Path.GetFileName(fileName));
+
+    /// <summary>
     ///     Every JPEG fixture file name, for tests that only need to prove successful loading with
     ///     the expected dimensions.
     /// </summary>
@@ -116,7 +126,7 @@ public class JpegFixtureTests
     [MemberData(nameof(AllFixtureFiles))]
     public void JpegCodec_Load_Fixture_ReturnsCanvasWithExpectedDimensions(string fileName)
     {
-        var surface = JpegCodec.Load(Path.Combine(AssetsPath, fileName));
+        var surface = JpegCodec.Load(ResolveFixturePath(AssetsPath, fileName));
 
         Assert.Equal(32, surface.Width);
         Assert.Equal(32, surface.Height);
@@ -132,7 +142,7 @@ public class JpegFixtureTests
     public void JpegCodec_Load_ColorFixture_MatchesSourcePngWithinTolerance(string fileName, int tolerancePerChannel)
     {
         var expected = PngCodec.Load(Path.Combine(PngSuitePath, "basn2c08.png"));
-        var actual = JpegCodec.Load(Path.Combine(AssetsPath, fileName));
+        var actual = JpegCodec.Load(ResolveFixturePath(AssetsPath, fileName));
 
         AssertPixelsApproximatelyEqual(expected, actual, tolerancePerChannel);
     }
@@ -145,7 +155,7 @@ public class JpegFixtureTests
     [MemberData(nameof(GrayscaleFixtureFiles))]
     public void JpegCodec_Load_GrayscaleFixture_HasEqualRgbChannels(string fileName)
     {
-        var surface = JpegCodec.Load(Path.Combine(AssetsPath, fileName));
+        var surface = JpegCodec.Load(ResolveFixturePath(AssetsPath, fileName));
 
         Assert.Equal(32, surface.Width);
         Assert.Equal(32, surface.Height);

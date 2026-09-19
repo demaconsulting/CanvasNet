@@ -618,7 +618,7 @@ public static class JpegCodec
             var ck = k == 0 ? 1.0 / Math.Sqrt(2.0) : 1.0;
             for (var n = 0; n < 8; n++)
             {
-                basis[k][n] = ck * Math.Cos((2 * n + 1) * k * Math.PI / 16.0);
+                basis[k][n] = ck * Math.Cos((2.0 * n + 1) * k * Math.PI / 16.0);
             }
         }
 
@@ -755,16 +755,7 @@ public static class JpegCodec
                 throw new InvalidDataException("Not a JPEG file (missing SOI marker).");
             }
 
-            var quantTables = new Dictionary<int, int[]>();
-            var dcTables = new Dictionary<int, HuffmanTable>();
-            var acTables = new Dictionary<int, HuffmanTable>();
-            Component[]? components = null;
-            var width = 0;
-            var height = 0;
-            var progressive = false;
-            var restartInterval = 0;
-            var sofSeen = false;
-            var sosSeen = false;
+            var state = new DecodeState();
 
             var pos = 2;
             while (true)
@@ -778,70 +769,120 @@ public static class JpegCodec
                     break;
                 }
 
-                switch (marker)
-                {
-                    case MarkerDqt:
-                        pos = ReadDqt(file, pos, quantTables);
-                        break;
-
-                    case MarkerDht:
-                        pos = ReadDht(file, pos, dcTables, acTables);
-                        break;
-
-                    case MarkerDri:
-                        var driLength = ReadUInt16Be(file, pos);
-                        restartInterval = ReadUInt16Be(file, pos + 2);
-                        pos += driLength;
-                        break;
-
-                    case MarkerSof0:
-                    case MarkerSof2:
-                        if (sofSeen)
-                        {
-                            throw new InvalidDataException("Multiple SOF markers are not supported.");
-                        }
-
-                        progressive = marker == MarkerSof2;
-                        pos = ReadSof(file, pos, out width, out height, out components);
-                        sofSeen = true;
-                        break;
-
-                    case MarkerSos:
-                        if (!sofSeen)
-                        {
-                            throw new InvalidDataException("SOS marker encountered before any SOF marker.");
-                        }
-
-                        pos = DecodeScan(file, pos, width, height, components!, dcTables, acTables, progressive, restartInterval);
-                        sosSeen = true;
-                        break;
-
-                    case >= 0xD0 and <= 0xD7:
-                        // Stray restart marker outside entropy-coded data; ignore.
-                        break;
-
-                    case 0xC1 or 0xC3 or 0xC5 or 0xC6 or 0xC7 or 0xC9 or 0xCA or 0xCB or
-                         0xCD or 0xCE or 0xCF:
-                        throw new InvalidDataException(
-                            $"Unsupported JPEG SOF marker 0x{marker:X2}; only baseline (SOF0) and progressive (SOF2) are supported.");
-
-                    case 0xC8 or 0xCC:
-                        throw new InvalidDataException("Arithmetic-coded and JPG-extension JPEG variants are not supported.");
-
-                    default:
-                        // APPn, COM, and any other length-prefixed segment we do not act on: skip.
-                        var length = ReadUInt16Be(file, pos);
-                        pos += length;
-                        break;
-                }
+                pos = ProcessSegment(file, pos, marker, state);
             }
 
-            if (!sofSeen || !sosSeen || components == null)
+            if (!state.SofSeen || !state.SosSeen || state.Components == null)
             {
                 throw new InvalidDataException("JPEG stream is missing a mandatory SOF or SOS segment.");
             }
 
-            return AssembleCanvas(width, height, components, quantTables);
+            return AssembleCanvas(state.Width, state.Height, state.Components, state.QuantTables);
+        }
+
+        /// <summary>
+        ///     Mutable state threaded through <see cref="ProcessSegment"/> while <see cref="Decode"/>
+        ///     walks the marker segments of a JPEG stream, accumulating the quantization/Huffman
+        ///     tables and frame parameters needed once the SOS-terminated scan is fully decoded.
+        /// </summary>
+        private sealed class DecodeState
+        {
+            /// <summary>Quantization tables keyed by table selector, populated by DQT segments.</summary>
+            public Dictionary<int, int[]> QuantTables { get; } = [];
+
+            /// <summary>DC Huffman tables keyed by table selector, populated by DHT segments.</summary>
+            public Dictionary<int, HuffmanTable> DcTables { get; } = [];
+
+            /// <summary>AC Huffman tables keyed by table selector, populated by DHT segments.</summary>
+            public Dictionary<int, HuffmanTable> AcTables { get; } = [];
+
+            /// <summary>The frame's component descriptors, populated by the SOF segment.</summary>
+            public Component[]? Components { get; set; }
+
+            /// <summary>The frame width in pixels, populated by the SOF segment.</summary>
+            public int Width { get; set; }
+
+            /// <summary>The frame height in pixels, populated by the SOF segment.</summary>
+            public int Height { get; set; }
+
+            /// <summary>Whether the frame uses progressive (SOF2) rather than baseline (SOF0) encoding.</summary>
+            public bool Progressive { get; set; }
+
+            /// <summary>The restart interval in MCUs, populated by a DRI segment (0 if none seen).</summary>
+            public int RestartInterval { get; set; }
+
+            /// <summary>Whether a SOF segment has been seen yet.</summary>
+            public bool SofSeen { get; set; }
+
+            /// <summary>Whether a SOS segment has been seen yet.</summary>
+            public bool SosSeen { get; set; }
+        }
+
+        /// <summary>
+        ///     Processes a single marker segment encountered by <see cref="Decode"/> (DQT, DHT, DRI,
+        ///     SOF0/SOF2, SOS, a stray restart marker, an unsupported SOF variant, or a generically
+        ///     skipped length-prefixed segment such as APPn/COM), updating <paramref name="state"/>
+        ///     in place and returning the stream position immediately following the segment.
+        /// </summary>
+        private static int ProcessSegment(byte[] file, int pos, int marker, DecodeState state)
+        {
+            switch (marker)
+            {
+                case MarkerDqt:
+                    return ReadDqt(file, pos, state.QuantTables);
+
+                case MarkerDht:
+                    return ReadDht(file, pos, state.DcTables, state.AcTables);
+
+                case MarkerDri:
+                    var driLength = ReadUInt16Be(file, pos);
+                    state.RestartInterval = ReadUInt16Be(file, pos + 2);
+                    return pos + driLength;
+
+                case MarkerSof0:
+                case MarkerSof2:
+                    if (state.SofSeen)
+                    {
+                        throw new InvalidDataException("Multiple SOF markers are not supported.");
+                    }
+
+                    state.Progressive = marker == MarkerSof2;
+                    var sofPos = ReadSof(file, pos, out var width, out var height, out var components);
+                    state.Width = width;
+                    state.Height = height;
+                    state.Components = components;
+                    state.SofSeen = true;
+                    return sofPos;
+
+                case MarkerSos:
+                    if (!state.SofSeen)
+                    {
+                        throw new InvalidDataException("SOS marker encountered before any SOF marker.");
+                    }
+
+                    var scanContext = new ScanDecodeContext(
+                        state.Components!, state.DcTables, state.AcTables, state.Progressive, state.RestartInterval);
+                    var sosPos = DecodeScan(file, pos, state.Width, state.Height, scanContext);
+                    state.SosSeen = true;
+                    return sosPos;
+
+                case >= 0xD0 and <= 0xD7:
+                    // Stray restart marker outside entropy-coded data; ignore.
+                    return pos;
+
+                case 0xC1 or 0xC3 or 0xC5 or 0xC6 or 0xC7 or 0xC9 or 0xCA or 0xCB or
+                     0xCD or 0xCE or 0xCF:
+                    throw new InvalidDataException(
+                        $"Unsupported JPEG SOF marker 0x{marker:X2}; only baseline (SOF0) and progressive (SOF2) are supported.");
+
+                case 0xC8 or 0xCC:
+                    throw new InvalidDataException("Arithmetic-coded and JPG-extension JPEG variants are not supported.");
+
+                default:
+                    // APPn, COM, and any other length-prefixed segment we do not act on: skip.
+                    var length = ReadUInt16Be(file, pos);
+                    return pos + length;
+            }
         }
 
         private static int SkipToMarker(byte[] file, int pos)
@@ -1023,16 +1064,60 @@ public static class JpegCodec
             return end;
         }
 
-        private static int DecodeScan(
-            byte[] file,
-            int pos,
-            int frameWidth,
-            int frameHeight,
-            Component[] components,
-            Dictionary<int, HuffmanTable> dcTables,
-            Dictionary<int, HuffmanTable> acTables,
-            bool progressive,
-            int restartInterval)
+        /// <summary>
+        ///     The tables and frame-level parameters shared by every scan within a JPEG stream,
+        ///     grouped into a single parameter so <see cref="DecodeScan"/> does not need to accept
+        ///     each one individually.
+        /// </summary>
+        private readonly record struct ScanDecodeContext(
+            Component[] Components,
+            Dictionary<int, HuffmanTable> DcTables,
+            Dictionary<int, HuffmanTable> AcTables,
+            bool Progressive,
+            int RestartInterval);
+
+        /// <summary>
+        ///     The component selectors and spectral-selection/successive-approximation parameters
+        ///     parsed from a single SOS segment, produced by <see cref="ParseScanHeader"/>.
+        /// </summary>
+        private readonly record struct ScanHeader(Component[] ScanComponents, int Ss, int Se, int Ah, int Al);
+
+        /// <summary>
+        ///     The MCU-grid dimensions shared by every scan in the frame, derived from the maximum
+        ///     component sampling factors and the frame's pixel dimensions.
+        /// </summary>
+        private readonly record struct McuGrid(int HMax, int VMax, int McusAcross, int McusDown);
+
+        private static int DecodeScan(byte[] file, int pos, int frameWidth, int frameHeight, ScanDecodeContext context)
+        {
+            var (header, p) = ParseScanHeader(file, pos, context.Components, context.Progressive);
+
+            // Determine (and allocate, on first use) the MCU-grid dimensions shared by every scan.
+            var hMax = context.Components.Max(c => c.H);
+            var vMax = context.Components.Max(c => c.V);
+            var mcusAcross = (frameWidth + (8 * hMax) - 1) / (8 * hMax);
+            var mcusDown = (frameHeight + (8 * vMax) - 1) / (8 * vMax);
+            var grid = new McuGrid(hMax, vMax, mcusAcross, mcusDown);
+
+            EnsureComponentBlocksAllocated(context.Components, mcusAcross, mcusDown);
+
+            foreach (var component in header.ScanComponents)
+            {
+                component.DcPredictor = 0;
+            }
+
+            var reader = new BitReader(file, p);
+
+            return DecodeScanUnits(reader, header, context, frameWidth, frameHeight, grid);
+        }
+
+        /// <summary>
+        ///     Parses a SOS segment's component selectors (assigning each referenced component's
+        ///     DC/AC Huffman table selectors) and spectral-selection/successive-approximation
+        ///     parameters, validating the segment length and baseline spectral-range constraints.
+        /// </summary>
+        private static (ScanHeader Header, int Position) ParseScanHeader(
+            byte[] file, int pos, Component[] components, bool progressive)
         {
             var length = ReadUInt16Be(file, pos);
             var p = pos + 2;
@@ -1065,56 +1150,62 @@ public static class JpegCodec
                 throw new InvalidDataException("Baseline JPEG scan must cover the full spectral range with no successive approximation.");
             }
 
-            // Determine (and allocate, on first use) the MCU-grid dimensions shared by every scan.
-            var hMax = components.Max(c => c.H);
-            var vMax = components.Max(c => c.V);
-            var mcusAcross = (frameWidth + (8 * hMax) - 1) / (8 * hMax);
-            var mcusDown = (frameHeight + (8 * vMax) - 1) / (8 * vMax);
+            return (new ScanHeader(scanComponents, ss, se, ah, al), p);
+        }
 
-            foreach (var component in components)
+        /// <summary>
+        ///     Allocates each component's block storage the first time it is referenced by any
+        ///     scan, sized to the shared MCU grid so later scans referencing the same component
+        ///     reuse the same block array.
+        /// </summary>
+        private static void EnsureComponentBlocksAllocated(Component[] components, int mcusAcross, int mcusDown)
+        {
+            foreach (var component in components.Where(component => component.Blocks == null))
             {
-                if (component.Blocks == null)
+                component.BlocksPerLineMcu = mcusAcross * component.H;
+                component.BlocksPerColumnMcu = mcusDown * component.V;
+                var count = component.BlocksPerLineMcu * component.BlocksPerColumnMcu;
+                component.Blocks = new int[count][];
+                for (var i = 0; i < count; i++)
                 {
-                    component.BlocksPerLineMcu = mcusAcross * component.H;
-                    component.BlocksPerColumnMcu = mcusDown * component.V;
-                    var count = component.BlocksPerLineMcu * component.BlocksPerColumnMcu;
-                    component.Blocks = new int[count][];
-                    for (var i = 0; i < count; i++)
-                    {
-                        component.Blocks[i] = new int[64];
-                    }
+                    component.Blocks[i] = new int[64];
                 }
             }
+        }
 
-            foreach (var component in scanComponents)
-            {
-                component.DcPredictor = 0;
-            }
-
-            var reader = new BitReader(file, p);
+        /// <summary>
+        ///     Decodes every MCU (interleaved scan) or block (non-interleaved scan) in the scan,
+        ///     honoring restart markers at the configured restart interval, and returns the stream
+        ///     position immediately following the last decoded unit.
+        /// </summary>
+        private static int DecodeScanUnits(
+            BitReader reader, ScanHeader header, ScanDecodeContext context, int frameWidth, int frameHeight, McuGrid grid)
+        {
             var eobRun = 0;
-
-            var interleaved = numComponentsInScan > 1;
+            var scanComponents = header.ScanComponents;
+            var interleaved = scanComponents.Length > 1;
             int totalUnits;
             int nonInterleavedBlocksPerLine = 0;
             if (interleaved)
             {
-                totalUnits = mcusAcross * mcusDown;
+                totalUnits = grid.McusAcross * grid.McusDown;
             }
             else
             {
                 var comp = scanComponents[0];
-                var compSamplesPerLine = ((frameWidth * comp.H) + hMax - 1) / hMax;
-                var compSamplesPerColumn = ((frameHeight * comp.V) + vMax - 1) / vMax;
+                var compSamplesPerLine = ((frameWidth * comp.H) + grid.HMax - 1) / grid.HMax;
+                var compSamplesPerColumn = ((frameHeight * comp.V) + grid.VMax - 1) / grid.VMax;
                 nonInterleavedBlocksPerLine = (compSamplesPerLine + 7) / 8;
                 var blocksPerColumn = (compSamplesPerColumn + 7) / 8;
                 totalUnits = nonInterleavedBlocksPerLine * blocksPerColumn;
             }
 
             var unitsSinceRestart = 0;
+            var blockContext = new BlockDecodeContext(
+                context.DcTables, context.AcTables, context.Progressive, header.Ss, header.Se, header.Ah, header.Al);
             for (var unit = 0; unit < totalUnits; unit++)
             {
-                if (restartInterval > 0 && unitsSinceRestart == restartInterval)
+                if (context.RestartInterval > 0 && unitsSinceRestart == context.RestartInterval)
                 {
                     reader.Realign();
                     reader.ExpectRestartMarker();
@@ -1129,22 +1220,7 @@ public static class JpegCodec
 
                 if (interleaved)
                 {
-                    var mcuX = unit % mcusAcross;
-                    var mcuY = unit / mcusAcross;
-                    foreach (var component in scanComponents)
-                    {
-                        for (var v = 0; v < component.V; v++)
-                        {
-                            for (var h = 0; h < component.H; h++)
-                            {
-                                var blockCol = (mcuX * component.H) + h;
-                                var blockRow = (mcuY * component.V) + v;
-                                var block = component.Blocks![(blockRow * component.BlocksPerLineMcu) + blockCol];
-                                DecodeBlock(
-                                    block, component, reader, dcTables, acTables, progressive, ss, se, ah, al, ref eobRun);
-                            }
-                        }
-                    }
+                    DecodeInterleavedUnit(unit, grid.McusAcross, scanComponents, reader, blockContext, ref eobRun);
                 }
                 else
                 {
@@ -1152,7 +1228,7 @@ public static class JpegCodec
                     var blockCol = unit % nonInterleavedBlocksPerLine;
                     var blockRow = unit / nonInterleavedBlocksPerLine;
                     var block = comp.Blocks![(blockRow * comp.BlocksPerLineMcu) + blockCol];
-                    DecodeBlock(block, comp, reader, dcTables, acTables, progressive, ss, se, ah, al, ref eobRun);
+                    DecodeBlock(block, comp, reader, blockContext, ref eobRun);
                 }
 
                 unitsSinceRestart++;
@@ -1161,89 +1237,145 @@ public static class JpegCodec
             return reader.Position;
         }
 
-        private static void DecodeBlock(
+        /// <summary>
+        ///     Decodes every block of every scan component making up a single interleaved MCU at
+        ///     the given MCU index.
+        /// </summary>
+        private static void DecodeInterleavedUnit(
+            int unit,
+            int mcusAcross,
+            Component[] scanComponents,
+            BitReader reader,
+            BlockDecodeContext blockContext,
+            ref int eobRun)
+        {
+            var mcuX = unit % mcusAcross;
+            var mcuY = unit / mcusAcross;
+            foreach (var component in scanComponents)
+            {
+                for (var v = 0; v < component.V; v++)
+                {
+                    for (var h = 0; h < component.H; h++)
+                    {
+                        var blockCol = (mcuX * component.H) + h;
+                        var blockRow = (mcuY * component.V) + v;
+                        var block = component.Blocks![(blockRow * component.BlocksPerLineMcu) + blockCol];
+                        DecodeBlock(block, component, reader, blockContext, ref eobRun);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        ///     The Huffman tables and spectral-selection/successive-approximation parameters
+        ///     shared by every block decoded within a single scan, grouped into a single parameter
+        ///     so <see cref="DecodeBlock"/> does not need to accept each one individually.
+        /// </summary>
+        private readonly record struct BlockDecodeContext(
+            Dictionary<int, HuffmanTable> DcTables,
+            Dictionary<int, HuffmanTable> AcTables,
+            bool Progressive,
+            int Ss,
+            int Se,
+            int Ah,
+            int Al);
+
+        private static void DecodeBlock(int[] block, Component component, BitReader reader, BlockDecodeContext context, ref int eobRun)
+        {
+            if (!context.Progressive)
+            {
+                DecodeBaselineBlock(block, component, reader, context.DcTables, context.AcTables);
+                return;
+            }
+
+            if (context.Ss == 0)
+            {
+                DecodeProgressiveDc(block, component, reader, context.DcTables, context.Ah, context.Al);
+                return;
+            }
+
+            var acTableProgressive = GetTable(context.AcTables, component.AcSelector, "AC");
+            if (context.Ah == 0)
+            {
+                DecodeAcFirst(block, acTableProgressive, reader, context.Ss, context.Se, context.Al, ref eobRun);
+            }
+            else
+            {
+                DecodeAcRefine(block, acTableProgressive, reader, context.Ss, context.Se, context.Al, ref eobRun);
+            }
+        }
+
+        /// <summary>
+        ///     Decodes a single baseline (sequential DCT) block: the DC coefficient via
+        ///     differential prediction, followed by all non-zero AC coefficients in zigzag order
+        ///     up to the first end-of-block run or index 63.
+        /// </summary>
+        private static void DecodeBaselineBlock(
             int[] block,
             Component component,
             BitReader reader,
             Dictionary<int, HuffmanTable> dcTables,
-            Dictionary<int, HuffmanTable> acTables,
-            bool progressive,
-            int ss,
-            int se,
-            int ah,
-            int al,
-            ref int eobRun)
+            Dictionary<int, HuffmanTable> acTables)
         {
-            if (!progressive)
+            var dcTable = GetTable(dcTables, component.DcSelector, "DC");
+            var acTable = GetTable(acTables, component.AcSelector, "AC");
+
+            var t = BitReader.Decode(dcTable, reader);
+            var diff = reader.Receive(t);
+            component.DcPredictor += diff;
+            block[0] = component.DcPredictor;
+
+            var k = 1;
+            while (k < 64)
             {
-                var dcTable = GetTable(dcTables, component.DcSelector, "DC");
-                var acTable = GetTable(acTables, component.AcSelector, "AC");
-
-                var t = BitReader.Decode(dcTable, reader);
-                var diff = reader.Receive(t);
-                component.DcPredictor += diff;
-                block[0] = component.DcPredictor;
-
-                var k = 1;
-                while (k < 64)
+                var rs = BitReader.Decode(acTable, reader);
+                var r = rs >> 4;
+                var s = rs & 0xF;
+                if (s == 0)
                 {
-                    var rs = BitReader.Decode(acTable, reader);
-                    var r = rs >> 4;
-                    var s = rs & 0xF;
-                    if (s == 0)
+                    if (r != 15)
                     {
-                        if (r != 15)
-                        {
-                            break;
-                        }
-
-                        k += 16;
+                        break;
                     }
-                    else
-                    {
-                        k += r;
-                        if (k > 63)
-                        {
-                            throw new InvalidDataException("Malformed JPEG entropy-coded data: AC coefficient index out of range.");
-                        }
 
-                        block[k] = reader.Receive(s);
-                        k++;
-                    }
-                }
-
-                return;
-            }
-
-            if (ss == 0)
-            {
-                if (ah == 0)
-                {
-                    var dcTable = GetTable(dcTables, component.DcSelector, "DC");
-                    var t = BitReader.Decode(dcTable, reader);
-                    var diff = reader.Receive(t);
-                    component.DcPredictor += diff;
-                    block[0] = component.DcPredictor << al;
+                    k += 16;
                 }
                 else
                 {
-                    if (reader.ReadBit() != 0)
+                    k += r;
+                    if (k > 63)
                     {
-                        block[0] |= 1 << al;
+                        throw new InvalidDataException("Malformed JPEG entropy-coded data: AC coefficient index out of range.");
                     }
+
+                    block[k] = reader.Receive(s);
+                    k++;
                 }
-
-                return;
             }
+        }
 
-            var acTableProgressive = GetTable(acTables, component.AcSelector, "AC");
+        /// <summary>
+        ///     Decodes the DC coefficient of a progressive-scan block: a full Huffman-coded
+        ///     magnitude/diff on the first DC scan (successive approximation high bit), or a
+        ///     single successive-approximation refinement bit on any later DC scan.
+        /// </summary>
+        private static void DecodeProgressiveDc(
+            int[] block, Component component, BitReader reader, Dictionary<int, HuffmanTable> dcTables, int ah, int al)
+        {
             if (ah == 0)
             {
-                DecodeAcFirst(block, acTableProgressive, reader, ss, se, al, ref eobRun);
+                var dcTable = GetTable(dcTables, component.DcSelector, "DC");
+                var t = BitReader.Decode(dcTable, reader);
+                var diff = reader.Receive(t);
+                component.DcPredictor += diff;
+                block[0] = component.DcPredictor << al;
             }
             else
             {
-                DecodeAcRefine(block, acTableProgressive, reader, ss, se, al, ref eobRun);
+                if (reader.ReadBit() != 0)
+                {
+                    block[0] |= 1 << al;
+                }
             }
         }
 
@@ -1298,71 +1430,117 @@ public static class JpegCodec
 
             if (eobRun == 0)
             {
-                while (k <= se)
-                {
-                    var rs = BitReader.Decode(acTable, reader);
-                    var r = rs >> 4;
-                    var s = rs & 0xF;
-                    var newValue = 0;
-
-                    if (s == 0)
-                    {
-                        if (r < 15)
-                        {
-                            eobRun = 1 << r;
-                            if (r > 0)
-                            {
-                                eobRun += reader.ReadBits(r);
-                            }
-
-                            r = 64; // sentinel: skip remaining coefficients (refinement only) below
-                        }
-                    }
-                    else
-                    {
-                        newValue = reader.ReadBit() != 0 ? p1 : m1;
-                    }
-
-                    while (k <= se)
-                    {
-                        if (block[k] != 0 && reader.ReadBit() != 0 && (block[k] & p1) == 0)
-                        {
-                            block[k] += block[k] >= 0 ? p1 : m1;
-                        }
-                        else if (block[k] == 0)
-                        {
-                            if (r == 0)
-                            {
-                                if (newValue != 0)
-                                {
-                                    block[k] = newValue;
-                                }
-
-                                k++;
-                                break;
-                            }
-
-                            r--;
-                        }
-
-                        k++;
-                    }
-                }
+                DecodeAcRefineNewCoefficients(block, acTable, reader, se, p1, m1, ref k, ref eobRun);
             }
 
             if (eobRun > 0)
             {
-                while (k <= se)
-                {
-                    if (block[k] != 0 && reader.ReadBit() != 0 && (block[k] & p1) == 0)
-                    {
-                        block[k] += block[k] >= 0 ? p1 : m1;
-                    }
+                RefineRemainingCoefficients(block, ref k, se, reader, p1, m1);
+                eobRun--;
+            }
+        }
 
-                    k++;
+        /// <summary>
+        ///     Applies a successive-approximation refinement bit to a single already-nonzero
+        ///     coefficient, per ITU-T T.81 section G.1.2.3: the bit is only consumed (and the
+        ///     coefficient only nudged toward zero-away) when the coefficient's next refinement
+        ///     bit position is still unset.
+        /// </summary>
+        private static void RefineNonZeroCoefficient(int[] block, int k, BitReader reader, int p1, int m1)
+        {
+            if (block[k] != 0 && reader.ReadBit() != 0 && (block[k] & p1) == 0)
+            {
+                block[k] += block[k] >= 0 ? p1 : m1;
+            }
+        }
+
+        /// <summary>
+        ///     Refines every remaining nonzero coefficient from <paramref name="k"/> through
+        ///     <paramref name="se"/> without placing any new coefficients, used while an
+        ///     end-of-band run inherited from an earlier RS pair is still being consumed.
+        /// </summary>
+        private static void RefineRemainingCoefficients(int[] block, ref int k, int se, BitReader reader, int p1, int m1)
+        {
+            while (k <= se)
+            {
+                RefineNonZeroCoefficient(block, k, reader, p1, m1);
+                k++;
+            }
+        }
+
+        /// <summary>
+        ///     Decodes RS (run-length/size) pairs from the AC refinement scan, each of which
+        ///     either starts a new end-of-band run (terminating this method) or specifies how many
+        ///     zero coefficients to skip before placing one new nonzero coefficient; every
+        ///     already-nonzero coefficient encountered along the way is refined per
+        ///     <see cref="RefineNonZeroCoefficient"/>.
+        /// </summary>
+        private static void DecodeAcRefineNewCoefficients(
+            int[] block, HuffmanTable acTable, BitReader reader, int se, int p1, int m1, ref int k, ref int eobRun)
+        {
+            while (k <= se)
+            {
+                var rs = BitReader.Decode(acTable, reader);
+                var r = rs >> 4;
+                var s = rs & 0xF;
+                var newValue = 0;
+
+                if (s == 0)
+                {
+                    if (r < 15)
+                    {
+                        eobRun = 1 << r;
+                        if (r > 0)
+                        {
+                            eobRun += reader.ReadBits(r);
+                        }
+
+                        r = 64; // sentinel: skip remaining coefficients (refinement only) below
+                    }
+                }
+                else
+                {
+                    newValue = reader.ReadBit() != 0 ? p1 : m1;
                 }
 
-                eobRun--;
+                RefineOrPlaceCoefficient(block, ref k, se, reader, p1, m1, r, newValue);
+            }
+        }
+
+        /// <summary>
+        ///     Walks coefficients from <paramref name="k"/> through <paramref name="se"/>,
+        ///     refining every already-nonzero coefficient, and counting down
+        ///     <paramref name="zeroRunLength"/> zero coefficients before placing
+        ///     <paramref name="newValue"/> (if nonzero) into the next zero coefficient slot and
+        ///     stopping.
+        /// </summary>
+        private static void RefineOrPlaceCoefficient(
+            int[] block, ref int k, int se, BitReader reader, int p1, int m1, int zeroRunLength, int newValue)
+        {
+            var r = zeroRunLength;
+            while (k <= se)
+            {
+                if (block[k] != 0)
+                {
+                    RefineNonZeroCoefficient(block, k, reader, p1, m1);
+                }
+                else
+                {
+                    if (r == 0)
+                    {
+                        if (newValue != 0)
+                        {
+                            block[k] = newValue;
+                        }
+
+                        k++;
+                        break;
+                    }
+
+                    r--;
+                }
+
+                k++;
             }
         }
 
@@ -1415,11 +1593,38 @@ public static class JpegCodec
             return natural;
         }
 
+        /// <summary>
+        ///     The reconstructed spatial-domain sample plane for each frame component, alongside
+        ///     each plane's row stride (which may exceed the frame width when the component's
+        ///     MCU-aligned block grid is wider than the actual image).
+        /// </summary>
+        private readonly record struct ComponentPlanes(byte[][] Planes, int[] Strides);
+
         private static Surface AssembleCanvas(int width, int height, Component[] components, Dictionary<int, int[]> quantTables)
         {
             var hMax = components.Max(c => c.H);
             var vMax = components.Max(c => c.V);
 
+            var planes = ReconstructComponentPlanes(components, quantTables);
+
+            var surface = new Surface(width, height);
+
+            if (components.Length == 1)
+            {
+                WriteGrayscaleSurface(surface, planes.Planes[0], planes.Strides[0], width, height);
+                return surface;
+            }
+
+            WriteColorSurface(surface, components, planes, width, height, hMax, vMax);
+            return surface;
+        }
+
+        /// <summary>
+        ///     Dequantizes and inverse-DCTs every block of every frame component, assembling each
+        ///     component's blocks into a single MCU-aligned spatial-domain sample plane.
+        /// </summary>
+        private static ComponentPlanes ReconstructComponentPlanes(Component[] components, Dictionary<int, int[]> quantTables)
+        {
             var planes = new byte[components.Length][];
             var planeStrides = new int[components.Length];
 
@@ -1436,60 +1641,78 @@ public static class JpegCodec
                 var plane = new byte[planeWidth * planeHeight];
                 planeStrides[ci] = planeWidth;
 
-                for (var blockRow = 0; blockRow < component.BlocksPerColumnMcu; blockRow++)
-                {
-                    for (var blockCol = 0; blockCol < component.BlocksPerLineMcu; blockCol++)
-                    {
-                        var block = component.Blocks![(blockRow * component.BlocksPerLineMcu) + blockCol];
-                        var natural = Dequantize(block, quant);
-                        var spatial = Idct2D(natural);
-
-                        for (var y = 0; y < 8; y++)
-                        {
-                            var rowOffset = ((blockRow * 8) + y) * planeWidth + (blockCol * 8);
-                            for (var x = 0; x < 8; x++)
-                            {
-                                plane[rowOffset + x] = ClampToByte(spatial[y][x] + 128.0);
-                            }
-                        }
-                    }
-                }
+                ReconstructComponentBlocks(component, quant, plane, planeWidth);
 
                 planes[ci] = plane;
             }
 
-            var surface = new Surface(width, height);
+            return new ComponentPlanes(planes, planeStrides);
+        }
 
-            if (components.Length == 1)
+        /// <summary>
+        ///     Dequantizes, inverse-DCTs, and level-shifts every 8x8 block of a single component
+        ///     into its destination position within the component's spatial-domain sample plane.
+        /// </summary>
+        private static void ReconstructComponentBlocks(Component component, int[] quant, byte[] plane, int planeWidth)
+        {
+            for (var blockRow = 0; blockRow < component.BlocksPerColumnMcu; blockRow++)
             {
-                var plane = planes[0];
-                var stride = planeStrides[0];
-                for (var y = 0; y < height; y++)
+                for (var blockCol = 0; blockCol < component.BlocksPerLineMcu; blockCol++)
                 {
-                    var rowBytes = surface.GetRowSpanBytes(y);
-                    var srcRow = y * stride;
-                    for (var x = 0; x < width; x++)
+                    var block = component.Blocks![(blockRow * component.BlocksPerLineMcu) + blockCol];
+                    var natural = Dequantize(block, quant);
+                    var spatial = Idct2D(natural);
+
+                    for (var y = 0; y < 8; y++)
                     {
-                        var v = plane[srcRow + x];
-                        var idx = x * 4;
-                        rowBytes[idx] = v;
-                        rowBytes[idx + 1] = v;
-                        rowBytes[idx + 2] = v;
-                        rowBytes[idx + 3] = 255;
+                        var rowOffset = ((blockRow * 8) + y) * planeWidth + (blockCol * 8);
+                        for (var x = 0; x < 8; x++)
+                        {
+                            plane[rowOffset + x] = ClampToByte(spatial[y][x] + 128.0);
+                        }
                     }
                 }
-
-                return surface;
             }
+        }
 
+        /// <summary>
+        ///     Writes a single-component (grayscale) plane into the destination surface, expanding
+        ///     each sample to an opaque R == G == B pixel.
+        /// </summary>
+        private static void WriteGrayscaleSurface(Surface surface, byte[] plane, int stride, int width, int height)
+        {
+            for (var y = 0; y < height; y++)
+            {
+                var rowBytes = surface.GetRowSpanBytes(y);
+                var srcRow = y * stride;
+                for (var x = 0; x < width; x++)
+                {
+                    var v = plane[srcRow + x];
+                    var idx = x * 4;
+                    rowBytes[idx] = v;
+                    rowBytes[idx + 1] = v;
+                    rowBytes[idx + 2] = v;
+                    rowBytes[idx + 3] = 255;
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Writes a three-component (Y/Cb/Cr) set of planes into the destination surface,
+        ///     upsampling any subsampled chroma planes to full resolution and converting each row
+        ///     to opaque RGB.
+        /// </summary>
+        private static void WriteColorSurface(
+            Surface surface, Component[] components, ComponentPlanes planes, int width, int height, int hMax, int vMax)
+        {
             var cbComp = components[1];
             var crComp = components[2];
-            var yPlane = planes[0];
-            var cbPlane = planes[1];
-            var crPlane = planes[2];
-            var yStride = planeStrides[0];
-            var cbStride = planeStrides[1];
-            var crStride = planeStrides[2];
+            var yPlane = planes.Planes[0];
+            var cbPlane = planes.Planes[1];
+            var crPlane = planes.Planes[2];
+            var yStride = planes.Strides[0];
+            var cbStride = planes.Strides[1];
+            var crStride = planes.Strides[2];
 
             var yRow = new byte[width];
             var cbRow = new byte[width];
@@ -1523,8 +1746,6 @@ public static class JpegCodec
                     rowBytes[idx + 3] = 255;
                 }
             }
-
-            return surface;
         }
     }
 
@@ -1612,9 +1833,11 @@ public static class JpegCodec
             var paddedWidth = mcusAcross * 16;
             var paddedHeight = mcusDown * 16;
 
-            BuildPlanes(
-                surface, width, height, paddedWidth, paddedHeight,
-                out var yPlane, out var cbPlane, out var crPlane, out var chromaWidth);
+            var planes = BuildPlanes(surface, new PlaneDimensions(width, height, paddedWidth, paddedHeight));
+            var yPlane = planes.Y;
+            var cbPlane = planes.Cb;
+            var crPlane = planes.Cr;
+            var chromaWidth = planes.ChromaWidth;
 
             WriteSoi(stream);
             WriteDqt(stream, 0, lumaQuantZigZag);
@@ -1701,10 +1924,27 @@ public static class JpegCodec
             return result;
         }
 
-        private static void BuildPlanes(
-            Surface surface, int width, int height, int paddedWidth, int paddedHeight,
-            out byte[] yPlane, out byte[] cbPlane, out byte[] crPlane, out int chromaWidth)
+        /// <summary>
+        ///     The source image dimensions together with the MCU-padded dimensions used for
+        ///     chroma subsampling, grouped into a single parameter so <see cref="BuildPlanes"/>
+        ///     does not need to accept each one individually.
+        /// </summary>
+        private readonly record struct PlaneDimensions(int Width, int Height, int PaddedWidth, int PaddedHeight);
+
+        /// <summary>
+        ///     The Y/Cb/Cr sample planes produced by <see cref="BuildPlanes"/>: a full-resolution
+        ///     luma plane and 2x2 box-downsampled, MCU-padded chroma planes, alongside the chroma
+        ///     planes' shared row stride.
+        /// </summary>
+        private readonly record struct PlaneSet(byte[] Y, byte[] Cb, byte[] Cr, int ChromaWidth);
+
+        private static PlaneSet BuildPlanes(Surface surface, PlaneDimensions dimensions)
         {
+            var width = dimensions.Width;
+            var height = dimensions.Height;
+            var paddedWidth = dimensions.PaddedWidth;
+            var paddedHeight = dimensions.PaddedHeight;
+
             var fullY = new byte[width * height];
             var fullCb = new byte[width * height];
             var fullCr = new byte[width * height];
@@ -1723,15 +1963,15 @@ public static class JpegCodec
                 }
             }
 
-            yPlane = PadReplicate(fullY, width, height, paddedWidth, paddedHeight);
+            var yPlane = PadReplicate(fullY, width, height, paddedWidth, paddedHeight);
             var paddedCb = PadReplicate(fullCb, width, height, paddedWidth, paddedHeight);
             var paddedCr = PadReplicate(fullCr, width, height, paddedWidth, paddedHeight);
 
-            chromaWidth = paddedWidth / 2;
-            var chromaHeight = paddedHeight / 2;
-            cbPlane = DownsampleBox2X2(paddedCb, paddedWidth, paddedHeight);
-            crPlane = DownsampleBox2X2(paddedCr, paddedWidth, paddedHeight);
-            _ = chromaHeight;
+            var chromaWidth = paddedWidth / 2;
+            var cbPlane = DownsampleBox2X2(paddedCb, paddedWidth, paddedHeight);
+            var crPlane = DownsampleBox2X2(paddedCr, paddedWidth, paddedHeight);
+
+            return new PlaneSet(yPlane, cbPlane, crPlane, chromaWidth);
         }
 
         private static byte[] PadReplicate(byte[] source, int width, int height, int paddedWidth, int paddedHeight)

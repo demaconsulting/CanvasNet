@@ -205,6 +205,19 @@ sections:
                 tests:
                   - PngCodec_Load_TruncatedStream_ThrowsInvalidDataException
 
+              - id: CanvasNet-Codecs-PngCodec-LoadChunkBeforeIhdr
+                title: >-
+                  The PngCodec class shall reject a PNG stream in which an IDAT or IEND chunk appears
+                  before the mandatory IHDR chunk, with InvalidDataException naming IHDR as the cause.
+                justification: |
+                  IHDR is required by the PNG specification to be the first chunk and supplies the
+                  width, height, and color type every later chunk depends on; encountering IDAT or IEND
+                  first means no header has been parsed, so failing clearly here (rather than decoding
+                  pixel data from default/uninitialized header fields) prevents returning an incorrect
+                  surface.
+                tests:
+                  - PngCodec_Load_IendBeforeIhdr_ThrowsInvalidDataExceptionMentioningIhdr
+
               - id: CanvasNet-Codecs-PngCodec-PngSuiteSupported
                 title: >-
                   The PngCodec class shall successfully load every PngSuite conformance file within its

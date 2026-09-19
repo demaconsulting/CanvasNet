@@ -32,6 +32,16 @@ public class TiffFixtureTests
     private static string PngSuitePath => Path.Combine(AppContext.BaseDirectory, "PngSuite");
 
     /// <summary>
+    ///     Resolves a fixture file within <paramref name="baseDirectory"/>, stripping any
+    ///     directory component from <paramref name="fileName"/> first. The file names always
+    ///     originate from this class's own <c>TheoryData</c> literals rather than external input,
+    ///     so this is a static-analysis hardening (guards against path traversal via
+    ///     <see cref="Path.Combine(string, string)"/>) rather than a behavior change.
+    /// </summary>
+    private static string ResolveFixturePath(string baseDirectory, string fileName) =>
+        Path.Combine(baseDirectory, Path.GetFileName(fileName));
+
+    /// <summary>
     ///     Every TIFF fixture file name, for tests that only need to prove successful loading with
     ///     the expected dimensions.
     /// </summary>
@@ -106,7 +116,7 @@ public class TiffFixtureTests
     [MemberData(nameof(AllFixtureFiles))]
     public void TiffCodec_Load_Fixture_ReturnsCanvasWithExpectedDimensions(string fileName)
     {
-        var surface = TiffCodec.Load(Path.Combine(AssetsPath, fileName));
+        var surface = TiffCodec.Load(ResolveFixturePath(AssetsPath, fileName));
 
         Assert.Equal(32, surface.Width);
         Assert.Equal(32, surface.Height);
@@ -121,7 +131,7 @@ public class TiffFixtureTests
     public void TiffCodec_Load_RgbFixture_MatchesSourcePngWithOpaqueAlpha(string fileName)
     {
         var expected = PngCodec.Load(Path.Combine(PngSuitePath, "basn2c08.png"));
-        var actual = TiffCodec.Load(Path.Combine(AssetsPath, fileName));
+        var actual = TiffCodec.Load(ResolveFixturePath(AssetsPath, fileName));
 
         Assert.Equal(expected.Width, actual.Width);
         Assert.Equal(expected.Height, actual.Height);
@@ -148,7 +158,7 @@ public class TiffFixtureTests
     public void TiffCodec_Load_RgbaFixture_MatchesSourcePngExactly(string fileName)
     {
         var expected = PngCodec.Load(Path.Combine(PngSuitePath, "basn6a08.png"));
-        var actual = TiffCodec.Load(Path.Combine(AssetsPath, fileName));
+        var actual = TiffCodec.Load(ResolveFixturePath(AssetsPath, fileName));
 
         Assert.Equal(expected.Width, actual.Width);
         Assert.Equal(expected.Height, actual.Height);
@@ -171,7 +181,7 @@ public class TiffFixtureTests
     [MemberData(nameof(GrayscaleFixtureFiles))]
     public void TiffCodec_Load_GrayscaleFixture_HasEqualRgbChannels(string fileName)
     {
-        var surface = TiffCodec.Load(Path.Combine(AssetsPath, fileName));
+        var surface = TiffCodec.Load(ResolveFixturePath(AssetsPath, fileName));
 
         Assert.Equal(32, surface.Width);
         Assert.Equal(32, surface.Height);

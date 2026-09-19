@@ -335,6 +335,29 @@ public class PngCodecTests
     }
 
     /// <summary>
+    ///     Proves that Load rejects a stream containing a valid signature and a structurally
+    ///     valid <c>IEND</c> chunk (correct CRC-32) but no <c>IHDR</c> chunk, with
+    ///     <see cref="InvalidDataException"/> naming <c>IHDR</c> as the missing chunk, rather
+    ///     than proceeding to decode pixel data using default/uninitialized header fields.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_IendBeforeIhdr_ThrowsInvalidDataExceptionMentioningIhdr()
+    {
+        // Arrange: a valid signature followed directly by a well-formed IEND chunk, with no
+        // IHDR chunk present anywhere in the stream
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var iend = BuildChunk("IEND", []);
+        stream.Write(iend, 0, iend.Length);
+        stream.Position = 0;
+
+        // Act & Assert: the missing IHDR chunk must be rejected, with the exception message
+        // identifying IHDR as the cause
+        var exception = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        Assert.Contains("IHDR", exception.Message);
+    }
+
+    /// <summary>
     ///     Proves that Load rejects a grayscale (color type 0) IHDR with InvalidDataException.
     /// </summary>
     [Fact]

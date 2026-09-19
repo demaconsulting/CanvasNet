@@ -180,6 +180,14 @@ Builds a valid signature and `IHDR` chunk but omits every chunk that should foll
 `IEND`), and asserts `Load` throws `InvalidDataException` when the stream ends while looking for
 the next chunk.
 
+#### CanvasNet-Codecs-PngCodec-LoadChunkBeforeIhdr: Load Rejects a Chunk Preceding IHDR
+
+**Test**: `PngCodec_Load_IendBeforeIhdr_ThrowsInvalidDataExceptionMentioningIhdr`
+
+Builds a valid signature followed directly by a well-formed `IEND` chunk (correct CRC-32), with
+no `IHDR` chunk present anywhere in the stream, and asserts `Load` throws
+`InvalidDataException` with a message naming `IHDR` as the missing chunk.
+
 #### CanvasNet-Codecs-PngCodec-PngSuiteSupported: PngSuite Files Within Scope Load Successfully
 
 **Test**: `PngCodec_Load_PngSuiteSupportedFile_ReturnsCanvas` (`[Theory]` over 30 PngSuite files)

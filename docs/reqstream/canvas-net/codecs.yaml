@@ -196,7 +196,8 @@ sections:
             title: >-
               The Codecs subsystem shall reject malformed or unsupported PNG data (bad signature,
               unsupported color type, unsupported bit depth, interlacing, corrupt chunk CRC-32, corrupt
-              Adler-32 checksum, or a truncated stream) with InvalidDataException.
+              Adler-32 checksum, a chunk preceding IHDR, or a truncated stream) with
+              InvalidDataException.
             justification: |
               Callers must be able to distinguish a genuinely malformed or unsupported PNG file from a
               successful load, and receive a clear, actionable error rather than incorrect pixel data.
@@ -208,6 +209,7 @@ sections:
               - CanvasNet-Codecs-PngCodec-LoadCorruptCrc
               - CanvasNet-Codecs-PngCodec-AdlerValidation
               - CanvasNet-Codecs-PngCodec-LoadTruncatedStream
+              - CanvasNet-Codecs-PngCodec-LoadChunkBeforeIhdr
               - CanvasNet-Codecs-PngCodec-PngSuiteUnsupported
               - CanvasNet-Codecs-PngCodec-PngSuiteCorrupt
             tests:
@@ -219,6 +221,7 @@ sections:
               - PngCodec_Load_CorruptChunkCrc_ThrowsInvalidDataException
               - PngCodec_Load_CorruptAdlerTrailer_ThrowsInvalidDataException
               - PngCodec_Load_TruncatedStream_ThrowsInvalidDataException
+              - PngCodec_Load_IendBeforeIhdr_ThrowsInvalidDataExceptionMentioningIhdr
 
           - id: CanvasNet-Codecs-TiffSave
             title: >-
