@@ -1,11 +1,11 @@
 ---
-title: Template DotNet Library Verification Design Document
-subtitle: A .NET Reference Implementation for Libraries
+title: CanvasNet Verification Design Document
+subtitle: Canvas rendering library for .NET
 author: DEMA Consulting
-description: Verification design document for the Template DotNet Library
+description: Verification design document for CanvasNet
 lang: en-US
 keywords:
-  - Template DotNet Library
+  - CanvasNet
   - .NET
   - Library
   - Verification

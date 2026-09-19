@@ -1,0 +1,154 @@
+---
+# Software Unit Requirements for Surface
+#
+# These requirements describe the design-level behavior of the Surface unit, within the
+# Canvas subsystem.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Canvas Requirements
+        sections:
+          - title: Surface Requirements
+            requirements:
+              - id: CanvasNet-Canvas-Surface-Construction
+                title: The Surface class shall construct a pixel buffer with the specified width and height.
+                justification: |
+                  Callers must be able to allocate a pixel buffer of a chosen size before any pixel data
+                  can be stored or manipulated; this is the entry point for all Surface functionality.
+                tests:
+                  - Surface_Constructor_ValidDimensions_SetsWidthAndHeight
+
+              - id: CanvasNet-Canvas-Surface-ZeroInitialized
+                title: The Surface class shall initialize a newly constructed pixel buffer to fully transparent.
+                justification: |
+                  A predictable, documented initial state (fully transparent black) lets callers rely on
+                  untouched regions contributing nothing to composited output, without needing to
+                  explicitly clear the buffer themselves.
+                tests:
+                  - Surface_Constructor_ValidDimensions_BufferIsAllZero
+
+              - id: CanvasNet-Canvas-Surface-InvalidWidth
+                title: The Surface class shall reject a non-positive width argument with ArgumentOutOfRangeException.
+                justification: |
+                  A zero or negative width cannot back a valid pixel buffer; rejecting it at construction
+                  time prevents an unusable instance from ever being created.
+                tests:
+                  - Surface_Constructor_ZeroWidth_ThrowsArgumentOutOfRangeException
+                  - Surface_Constructor_NegativeWidth_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Canvas-Surface-InvalidHeight
+                title: The Surface class shall reject a non-positive height argument with ArgumentOutOfRangeException.
+                justification: |
+                  A zero or negative height cannot back a valid pixel buffer; rejecting it at construction
+                  time prevents an unusable instance from ever being created.
+                tests:
+                  - Surface_Constructor_ZeroHeight_ThrowsArgumentOutOfRangeException
+                  - Surface_Constructor_NegativeHeight_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Canvas-Surface-PixelGet
+                title: The Surface class shall allow reading the pixel at a specified coordinate.
+                justification: |
+                  Single-pixel inspection is a fundamental capability for callers that need to examine or
+                  verify individual pixel values without processing an entire row.
+                tests:
+                  - Surface_Indexer_SetThenGet_ReturnsStoredPixel
+
+              - id: CanvasNet-Canvas-Surface-PixelSet
+                title: The Surface class shall allow writing the pixel at a specified coordinate.
+                justification: |
+                  Single-pixel modification is a fundamental capability for callers that need to draw or
+                  update individual pixel values without processing an entire row.
+                tests:
+                  - Surface_Indexer_SetThenGet_ReturnsStoredPixel
+
+              - id: CanvasNet-Canvas-Surface-RowSpanBytes
+                title: The Surface class shall expose a row's raw bytes as a mutable Span<byte>.
+                justification: |
+                  Bulk, allocation-free access to a row's raw bytes is required for efficient pixel
+                  processing and for interoperating with byte-oriented APIs (for example codecs).
+                tests:
+                  - Surface_GetRowSpanBytes_WriteToSpan_IndexerReflectsChange
+
+              - id: CanvasNet-Canvas-Surface-RowSpanPixels
+                title: The Surface class shall expose a row's pixels as a mutable Span<Rgba32>.
+                justification: |
+                  Bulk, allocation-free access to a row's pixels as strongly typed Rgba32 values is
+                  required for efficient pixel processing without manual byte-offset arithmetic.
+                tests:
+                  - Surface_GetRowSpan_WriteToSpan_IndexerReflectsChange
+
+              - id: CanvasNet-Canvas-Surface-Crop
+                title: The Surface class shall create a new surface containing a copy of a rectangular sub-region.
+                justification: |
+                  Extracting a sub-region into its own buffer is required for callers that need to work
+                  with, save, or further process a portion of a larger surface independently.
+                tests:
+                  - Surface_Crop_ValidRegion_ReturnsExpectedPixels
+
+              - id: CanvasNet-Canvas-Surface-CropIndependent
+                title: >-
+                  The Surface class shall ensure the buffer returned by Crop does not share storage
+                  with the source.
+                justification: |
+                  Callers must be able to mutate either the cropped result or the original surface without
+                  unexpected side effects on the other; shared storage would violate this expectation.
+                tests:
+                  - Surface_Crop_ModifyResult_DoesNotAffectSource
+                  - Surface_Crop_ModifySource_DoesNotAffectResult
+
+              - id: CanvasNet-Canvas-Surface-CropInvalidX
+                title: The Surface class shall reject a negative x argument to Crop with ArgumentOutOfRangeException.
+                justification: |
+                  A negative x coordinate cannot identify a valid region of the source surface; rejecting
+                  it prevents an out-of-bounds read.
+                tests:
+                  - Surface_Crop_NegativeX_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Canvas-Surface-CropInvalidY
+                title: The Surface class shall reject a negative y argument to Crop with ArgumentOutOfRangeException.
+                justification: |
+                  A negative y coordinate cannot identify a valid region of the source surface; rejecting
+                  it prevents an out-of-bounds read.
+                tests:
+                  - Surface_Crop_NegativeY_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Canvas-Surface-CropInvalidWidth
+                title: >-
+                  The Surface class shall reject a non-positive width argument to Crop with
+                  ArgumentOutOfRangeException.
+                justification: |
+                  A zero or negative width cannot describe a valid region to copy; rejecting it prevents
+                  an unusable or empty result surface from being created.
+                tests:
+                  - Surface_Crop_ZeroWidth_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Canvas-Surface-CropInvalidHeight
+                title: >-
+                  The Surface class shall reject a non-positive height argument to Crop with
+                  ArgumentOutOfRangeException.
+                justification: |
+                  A zero or negative height cannot describe a valid region to copy; rejecting it prevents
+                  an unusable or empty result surface from being created.
+                tests:
+                  - Surface_Crop_ZeroHeight_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Canvas-Surface-CropExceedsWidth
+                title: >-
+                  The Surface class shall reject a Crop region whose x plus width exceeds the source width
+                  with ArgumentOutOfRangeException.
+                justification: |
+                  A region extending past the right edge of the source surface would require reading
+                  out-of-bounds memory; rejecting it prevents an invalid or corrupted copy.
+                tests:
+                  - Surface_Crop_WidthExceedsSourceBounds_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Canvas-Surface-CropExceedsHeight
+                title: >-
+                  The Surface class shall reject a Crop region whose y plus height exceeds the source
+                  height with ArgumentOutOfRangeException.
+                justification: |
+                  A region extending past the bottom edge of the source surface would require reading
+                  out-of-bounds memory; rejecting it prevents an invalid or corrupted copy.
+                tests:
+                  - Surface_Crop_HeightExceedsSourceBounds_ThrowsArgumentOutOfRangeException

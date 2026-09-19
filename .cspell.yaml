@@ -14,27 +14,85 @@ language: en
 
 # Project-specific technical terms and tool names
 words:
+  - Adler
+  - apimark
+  - ApiMark
+  - basn
+  - BGRA
+  - BITMAPCOREHEADER
+  - BITMAPFILEHEADER
+  - BITMAPINFOHEADER
+  - BITMAPV
   - buildmark
+  - CMYK
+  - coeffs
+  - dequantize
+  - dequantizes
+  - Deflate
+  - defilter
+  - Defilter
+  - defiltered
+  - defilters
+  - downsamples
   - DEMA
   - Dema
+  - FDCT
+  - FCHECK
   - FileAssert
   - fileassert
+  - blittable
+  - colorspace
+  - gAMA
+  - Grayscale
+  - grayscale
+  - IDAT
+  - IDCT
+  - IEND
+  - IHDR
+  - interoperating
+  - JFIF
+  - libjpeg
+  - luma
+  - magick
+  - mcus
+  - misdecoded
+  - nameof
+  - quantizer
+  - subsampled
+  - unstuffed
+  - upsamples
   - xunit
+  - YCCK
+  - Paeth
   - Pandoc
+  - packbits
+  - PackBits
+  - pHYs
+  - Pels
   - Qube
   - reqstream
   - reviewmark
+  - Rgba
   - Sarif
   - SARIF
   - sarifmark
+  - scanline
+  - scanlines
   - sonarmark
+  - Subsampling
+  - subsampling
   - sysml
+  - tEXt
+  - Truecolor
   - versionmark
   - Weasy
   - WeasyPrint
   - weasyprint
   - netstandard
   - yamlfix
+  - zlib
+  - Schaik
+  - Willem
 
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
@@ -47,6 +105,8 @@ ignorePaths:
   - "**/generated/**"
   - "**/AGENT_REPORT_*.md"
   - "**/.agent-logs/**"
+  - "src/**/api/**"
   - "**/bin/**"
   - "**/obj/**"
   - package-lock.json
+  - "**/PngSuite/**"

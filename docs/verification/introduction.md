@@ -1,12 +1,12 @@
 # Introduction
 
-This document provides the verification design for the Template DotNet Library, a .NET library
-demonstrating best practices for DEMA Consulting DotNet Libraries.
+This document provides the verification design for CanvasNet, a .NET library
+providing a canvas-based drawing and rendering API.
 
 ## Purpose
 
 The purpose of this document is to serve as the verification design entry point and document how
-requirements will be tested across all software items in the Template DotNet Library system. This
+requirements will be tested across all software items in the CanvasNet system. This
 documentation enables formal review by mapping every requirement to named test scenarios, supports
 compliance auditing by providing clear traceability from requirements through verification design
 to tests, and ensures test completeness can be assessed without reading implementation code.
@@ -20,11 +20,14 @@ This document is intended for:
 
 ## Scope
 
-This document covers the verification design for the Template DotNet Library system and its
+This document covers the verification design for the CanvasNet system and its
 constituent software items, specifically:
 
-- **TemplateDotNetLibrary (System)** — The complete .NET library template system
-- **Demo (Unit)** — Demonstration greeting class providing example functionality
+- **CanvasNet (System)** — The complete .NET library system
+- **Canvas (Subsystem)** — Pixel-buffer primitives: the `Surface` unit (mutable, in-memory
+  32-bit RGBA pixel buffer with span-based row access) and the `Rgba32` unit
+- **Codecs (Subsystem)** — Image format codecs: `BmpCodec`, `PngCodec`, `TiffCodec`, and
+  `JpegCodec`, each converting to and from a `Surface` pixel buffer
 
 The following OTS items are also covered:
 
@@ -41,8 +44,7 @@ The following OTS items are also covered:
 
 This verification documentation covers the same software items as the design documentation.
 
-Version applicability: This verification design applies to all versions of the Template DotNet
-Library.
+Version applicability: This verification design applies to all versions of CanvasNet.
 
 The following topics are explicitly excluded from this verification documentation:
 
@@ -69,6 +71,6 @@ Review-sets: defined in `.reviewmark.yaml`
 
 ## References
 
-- Template DotNet Library User Guide — the compiled User Guide document for this repository.
-- Template DotNet Library Repository — the TemplateDotNetLibrary source repository hosted on
+- CanvasNet User Guide — the compiled User Guide document for this repository.
+- CanvasNet Repository — the CanvasNet source repository hosted on
   GitHub.

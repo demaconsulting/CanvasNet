@@ -1,5 +1,5 @@
 ---
-# Quality/process requirements grouping TemplateDotNetLibrary's use of off-the-shelf
+# Quality/process requirements grouping CanvasNet's use of off-the-shelf
 # (OTS) process tooling. These requirements exist so that OTS-derived requirements
 # (which describe capabilities the repository's build/quality pipeline relies on
 # from third-party tools, not user-visible library functionality) are not reported
@@ -16,8 +16,8 @@ sections:
           to the quality root so they participate in orphan detection without being
           falsely reported as disconnected from library functionality.
         children:
-          - Template-OTS-xUnit-Execute
-          - Template-OTS-xUnit-Report
+          - CanvasNet-OTS-xUnit-Execute
+          - CanvasNet-OTS-xUnit-Report
 
       - id: Quality-BuildIntegrity
         title: >-
@@ -31,9 +31,9 @@ sections:
           orphan detection without being falsely reported as disconnected from
           library functionality.
         children:
-          - Template-OTS-BuildMark
-          - Template-OTS-VersionMark
-          - Template-OTS-VersionMark-Lint
+          - CanvasNet-OTS-BuildMark
+          - CanvasNet-OTS-VersionMark
+          - CanvasNet-OTS-VersionMark-Lint
 
       - id: Quality-StaticAnalysis
         title: The repository shall rely on SarifMark and SonarMark to enforce static-analysis quality gates.
@@ -45,9 +45,9 @@ sections:
           detection without being falsely reported as disconnected from library
           functionality.
         children:
-          - Template-OTS-SarifMark
-          - Template-OTS-SarifMark-Enforcement
-          - Template-OTS-SonarMark
+          - CanvasNet-OTS-SarifMark
+          - CanvasNet-OTS-SarifMark-Enforcement
+          - CanvasNet-OTS-SonarMark
 
       - id: Quality-PeerReview
         title: The repository shall rely on ReviewMark to enforce peer-review tracking and reporting.
@@ -59,12 +59,12 @@ sections:
           participate in orphan detection without being falsely reported as
           disconnected from library functionality.
         children:
-          - Template-OTS-ReviewMark
-          - Template-OTS-ReviewMark-IndexScan
-          - Template-OTS-ReviewMark-Enforce
-          - Template-OTS-ReviewMark-Elaborate
-          - Template-OTS-ReviewMark-Lint
-          - Template-OTS-ReviewMark-DirectoryOverride
+          - CanvasNet-OTS-ReviewMark
+          - CanvasNet-OTS-ReviewMark-IndexScan
+          - CanvasNet-OTS-ReviewMark-Enforce
+          - CanvasNet-OTS-ReviewMark-Elaborate
+          - CanvasNet-OTS-ReviewMark-Lint
+          - CanvasNet-OTS-ReviewMark-DirectoryOverride
 
       - id: Quality-DocumentationGeneration
         title: The repository shall rely on Pandoc and WeasyPrint to generate HTML and PDF documentation.
@@ -75,8 +75,8 @@ sections:
           requirements to the quality root so they participate in orphan detection
           without being falsely reported as disconnected from library functionality.
         children:
-          - Template-OTS-Pandoc
-          - Template-OTS-WeasyPrint
+          - CanvasNet-OTS-Pandoc
+          - CanvasNet-OTS-WeasyPrint
 
       - id: Quality-RequirementsTraceability
         title: >-
@@ -90,9 +90,9 @@ sections:
           root so they participate in orphan detection without being falsely
           reported as disconnected from library functionality.
         children:
-          - Template-OTS-ReqStream
-          - Template-OTS-ReqStream-Lint
-          - Template-OTS-FileAssert
+          - CanvasNet-OTS-ReqStream
+          - CanvasNet-OTS-ReqStream-Lint
+          - CanvasNet-OTS-FileAssert
 
       - id: Quality-SoftwareStructureModeling
         title: The repository shall rely on SysML2Tools to lint and render software-structure models.
@@ -104,5 +104,5 @@ sections:
           detection without being falsely reported as disconnected from library
           functionality.
         children:
-          - Template-OTS-SysML2Tools-Lint
-          - Template-OTS-SysML2Tools-Render
+          - CanvasNet-OTS-SysML2Tools-Lint
+          - CanvasNet-OTS-SysML2Tools-Render

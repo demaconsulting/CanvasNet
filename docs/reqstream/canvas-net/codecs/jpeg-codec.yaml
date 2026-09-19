@@ -1,0 +1,240 @@
+---
+# Software Unit Requirements for JpegCodec
+#
+# These requirements describe the design-level behavior of the JpegCodec unit.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Codecs Requirements
+        sections:
+          - title: JpegCodec Requirements
+            requirements:
+              - id: CanvasNet-Codecs-JpegCodec-SaveLoadBaseline420
+                title: >-
+                  The JpegCodec class shall save a Surface as a baseline, 3-component YCbCr, 4:2:0
+                  chroma-subsampled JPEG stream and load it back with RGB pixels matching the source
+                  within the documented per-channel tolerance, with alpha forced to 255.
+                justification: |
+                  JpegCodec's only encoder path writes baseline 4:2:0 JPEG. Callers need that default
+                  save path to remain interoperable with the decoder while preserving visually equivalent
+                  image content across aligned, odd-sized, and endpoint-quality images.
+                tests:
+                  - JpegCodec_SaveThenLoad_AlignedCanvas_RoundTripsWithinTolerance
+                  - JpegCodec_SaveThenLoad_OddSizedCanvas_RoundTripsWithinTolerance
+                  - JpegCodec_SaveThenLoad_QualityEndpoints_Succeed
+
+              - id: CanvasNet-Codecs-JpegCodec-LoadBaseline444
+                title: >-
+                  The JpegCodec class shall load a baseline 3-component JPEG using 4:4:4 chroma sampling,
+                  producing the expected dimensions and RGB pixels within the documented fixture
+                  tolerance, with alpha forced to 255.
+                justification: |
+                  Baseline 4:4:4 JPEG is a common interchange format that carries full-resolution chroma;
+                  callers need it to decode successfully and produce pixels acceptably close to the source
+                  image.
+                tests:
+                  - JpegCodec_Load_Fixture_ReturnsCanvasWithExpectedDimensions
+                  - JpegCodec_Load_ColorFixture_MatchesSourcePngWithinTolerance
+
+              - id: CanvasNet-Codecs-JpegCodec-LoadBaseline422
+                title: >-
+                  The JpegCodec class shall load a baseline 3-component JPEG using 4:2:2 chroma sampling,
+                  producing the expected dimensions and RGB pixels within the documented fixture
+                  tolerance, with alpha forced to 255.
+                justification: |
+                  Baseline 4:2:2 JPEG is widely used by cameras and other imaging tools; callers need it
+                  to decode successfully with the expected visual fidelity.
+                tests:
+                  - JpegCodec_Load_Fixture_ReturnsCanvasWithExpectedDimensions
+                  - JpegCodec_Load_ColorFixture_MatchesSourcePngWithinTolerance
+
+              - id: CanvasNet-Codecs-JpegCodec-LoadProgressive
+                title: >-
+                  The JpegCodec class shall load a progressive 3-component JPEG, including multi-scan DC
+                  and AC refinement, producing the expected dimensions and RGB pixels within the
+                  documented fixture tolerance, with alpha forced to 255.
+                justification: |
+                  Progressive JPEG remains common on the web and in third-party tools; callers need the
+                  decoder to accept standards-compliant progressive streams, not just baseline ones.
+                tests:
+                  - JpegCodec_Load_Fixture_ReturnsCanvasWithExpectedDimensions
+                  - JpegCodec_Load_ColorFixture_MatchesSourcePngWithinTolerance
+
+              - id: CanvasNet-Codecs-JpegCodec-LoadGrayscale
+                title: >-
+                  The JpegCodec class shall load a 1-component grayscale JPEG with the expected dimensions,
+                  expanding each sample to R = G = B and forcing alpha to 255.
+                justification: |
+                  Grayscale JPEG is a common variant with no chroma components; callers need a uniform
+                  RGBA surface result whose gray value appears identically in every color channel.
+                tests:
+                  - JpegCodec_Load_Fixture_ReturnsCanvasWithExpectedDimensions
+                  - JpegCodec_Load_GrayscaleFixture_HasEqualRgbChannels
+
+              - id: CanvasNet-Codecs-JpegCodec-SaveNullCanvas
+                title: The JpegCodec class shall reject a null surface argument to Save with ArgumentNullException.
+                justification: |
+                  A null surface has no pixel data to encode; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - JpegCodec_SaveStream_NullCanvas_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-JpegCodec-SaveNullStream
+                title: The JpegCodec class shall reject a null stream argument to Save with ArgumentNullException.
+                justification: |
+                  A null stream cannot receive encoded bytes; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - JpegCodec_SaveStream_NullStream_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-JpegCodec-SaveNullPath
+                title: The JpegCodec class shall reject a null path argument to Save with ArgumentNullException.
+                justification: |
+                  A null path cannot identify a destination file; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - JpegCodec_SavePath_NullPath_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-JpegCodec-SaveEmptyPath
+                title: The JpegCodec class shall reject an empty path argument to Save with ArgumentException.
+                justification: |
+                  An empty path cannot identify a destination file; rejecting it immediately prevents an
+                  obscure file-system error.
+                tests:
+                  - JpegCodec_SavePath_EmptyPath_ThrowsArgumentException
+
+              - id: CanvasNet-Codecs-JpegCodec-SaveInvalidQuality
+                title: >-
+                  The JpegCodec class shall reject quality values outside the inclusive range 1-100 with
+                  ArgumentOutOfRangeException.
+                justification: |
+                  Quality values outside the documented range cannot be mapped to the encoder's quantizer
+                  scaling formula and must be rejected rather than silently clamped.
+                tests:
+                  - JpegCodec_SaveStream_QualityBelowRange_ThrowsArgumentOutOfRangeException
+                  - JpegCodec_SaveStream_QualityAboveRange_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Codecs-JpegCodec-LoadNullStream
+                title: The JpegCodec class shall reject a null stream argument to Load with ArgumentNullException.
+                justification: |
+                  A null stream has no encoded bytes to read; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - JpegCodec_LoadStream_NullStream_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-JpegCodec-LoadNullPath
+                title: The JpegCodec class shall reject a null path argument to Load with ArgumentNullException.
+                justification: |
+                  A null path cannot identify a source file; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - JpegCodec_LoadPath_NullPath_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-JpegCodec-LoadEmptyPath
+                title: The JpegCodec class shall reject an empty path argument to Load with ArgumentException.
+                justification: |
+                  An empty path cannot identify a source file; rejecting it immediately prevents an
+                  obscure file-system error.
+                tests:
+                  - JpegCodec_LoadPath_EmptyPath_ThrowsArgumentException
+
+              - id: CanvasNet-Codecs-JpegCodec-RejectMalformedMarker
+                title: >-
+                  The JpegCodec class shall reject a stream whose marker sequence does not begin with the
+                  required SOI marker with InvalidDataException.
+                justification: |
+                  Data that does not begin with SOI is not a JPEG file; failing clearly here prevents
+                  attempting to interpret arbitrary bytes as JPEG segments.
+                tests:
+                  - JpegCodec_Load_MissingSoiMarker_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-JpegCodec-RejectUnsupportedSof
+                title: >-
+                  The JpegCodec class shall reject any SOF marker other than baseline SOF0 or progressive
+                  SOF2 with InvalidDataException.
+                justification: |
+                  Other SOF markers denote JPEG variants this codec does not implement, such as extended,
+                  lossless, or arithmetic-coded forms, and must be rejected rather than misdecoded.
+                tests:
+                  - JpegCodec_Load_UnsupportedSofMarker_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-JpegCodec-RejectFourComponent
+                title: >-
+                  The JpegCodec class shall reject a frame declaring four image components with
+                  InvalidDataException.
+                justification: |
+                  Four-component CMYK or YCCK JPEG streams use color models this codec does not implement;
+                  rejecting them prevents misinterpreting the component planes as RGB.
+                tests:
+                  - JpegCodec_Load_FourComponentSof0_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-JpegCodec-RejectMissingSegments
+                title: >-
+                  The JpegCodec class shall reject a JPEG stream missing any mandatory SOF, DHT, DQT, or
+                  SOS segment with InvalidDataException.
+                justification: |
+                  Each of those segment classes is required to determine frame structure, entropy decoding,
+                  or scan layout; a file missing any one of them cannot be decoded correctly.
+                tests:
+                  - JpegCodec_Load_MissingSofSegment_ThrowsInvalidDataException
+                  - JpegCodec_Load_MissingDhtSegment_ThrowsInvalidDataException
+                  - JpegCodec_Load_MissingDqtSegment_ThrowsInvalidDataException
+                  - JpegCodec_Load_MissingSosSegment_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-JpegCodec-RejectTruncatedStream
+                title: >-
+                  The JpegCodec class shall reject a stream that ends before all required marker headers or
+                  entropy-coded scan data has been read with InvalidDataException.
+                justification: |
+                  A truncated stream cannot supply a complete, valid JPEG file; failing clearly here
+                  prevents returning a surface built from incomplete coefficient data.
+                tests:
+                  - JpegCodec_Load_TruncatedHeader_ThrowsInvalidDataException
+                  - JpegCodec_Load_TruncatedEntropyData_ThrowsInvalidDataException
+                  - JpegCodec_Load_TruncatedSegmentPayload_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-JpegCodec-RestartMarkers
+                title: >-
+                  The JpegCodec class shall correctly decode JPEG streams that use a DRI-declared restart
+                  interval and RSTn restart markers within the entropy-coded scan data, resetting the DC
+                  predictor and end-of-block run at each restart, producing the same pixels as an
+                  equivalent stream without restart markers.
+                justification: |
+                  The original feature request explicitly named restart markers (DRI/RSTn) as a capability
+                  that "must be handled correctly." A hand-built synthetic stream containing a DRI segment
+                  and an RST0 marker demonstrates the decoder's restart-handling logic
+                  (BitReader.Realign/ExpectRestartMarker and the DC-predictor/eobRun reset) produces
+                  correct, verifiable output rather than being implemented but untested.
+                tests:
+                  - JpegCodec_Load_WithRestartMarkers_DecodesIdenticallyToWithoutRestartMarkers
+
+              - id: CanvasNet-Codecs-JpegCodec-FixtureSupported
+                title: >-
+                  The JpegCodec class shall successfully load every file in the JpegFixtures conformance
+                  corpus, with the source PNG dimensions confirmed as 32x32, color fixtures matching the
+                  source within the documented per-channel tolerances, and grayscale fixtures expanding to
+                  equal RGB channels with alpha forced to 255.
+                justification: |
+                  The JpegFixtures corpus was generated by a real-world third-party encoder
+                  (ImageMagick), spanning baseline 4:4:4/4:2:2/4:2:0, progressive 4:2:0, and grayscale
+                  JPEG variants. Successfully loading every file and comparing them to the known PngSuite
+                  source demonstrates interoperability with real-world encoder output, not just
+                  hand-built test streams.
+                tests:
+                  - JpegFixtures_SourcePngDimensions_Are32x32
+                  - JpegCodec_Load_Fixture_ReturnsCanvasWithExpectedDimensions
+                  - JpegCodec_Load_ColorFixture_MatchesSourcePngWithinTolerance
+                  - JpegCodec_Load_GrayscaleFixture_HasEqualRgbChannels
+
+              - id: CanvasNet-Codecs-JpegCodec-SimdMatchesScalar
+                title: >-
+                  The JpegCodec class shall produce the same RGB output from its vectorized YCbCr-to-RGB
+                  row conversion as from its scalar reference implementation, including vector-width
+                  remainder handling.
+                justification: |
+                  SIMD acceleration is an internal optimization, not a behavioral change. A direct
+                  cross-check against the scalar reference path proves the optimization preserves the same
+                  observable output.
+                tests:
+                  - JpegCodec_ConvertYCbCrRowToRgb_VectorAndScalarRemainder_MatchesScalarReference

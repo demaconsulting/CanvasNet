@@ -18,102 +18,104 @@ run for all scenarios constitutes evidence that both requirements are satisfied.
 
 ### Test Scenarios
 
-#### Demo_DemoMethod_DefaultPrefix_ReturnsGreeting
+#### Surface_Constructor_ValidDimensions_SetsWidthAndHeight
 
-**Scenario**: xUnit discovers and runs this test; the test verifies that DemoMethod returns the
-expected greeting using the default prefix.
-
-**Expected**: xUnit executes the test, the test passes, and the result appears in the TRX output.
-
-**Requirement coverage**: `Template-OTS-xUnit-Execute`, `Template-OTS-xUnit-Report`.
-
-#### Demo_DemoMethod_CustomPrefix_ReturnsGreeting
-
-**Scenario**: xUnit discovers and runs this test; the test verifies that DemoMethod returns the
-expected greeting using a custom prefix.
+**Scenario**: xUnit discovers and runs this test; the test verifies that constructing a `Surface`
+with valid dimensions sets the `Width` and `Height` properties correctly.
 
 **Expected**: xUnit executes the test, the test passes, and the result appears in the TRX output.
 
-**Requirement coverage**: `Template-OTS-xUnit-Execute`, `Template-OTS-xUnit-Report`.
+**Requirement coverage**: `CanvasNet-OTS-xUnit-Execute`, `CanvasNet-OTS-xUnit-Report`.
 
-#### Demo_DemoMethod_NullInput_ThrowsArgumentNullException
+#### Surface_Constructor_ValidDimensions_BufferIsAllZero
 
-**Scenario**: xUnit discovers and runs this test; the test verifies that DemoMethod rejects a null
-argument with ArgumentNullException.
-
-**Expected**: xUnit executes the test, the test passes, and the result appears in the TRX output.
-
-**Requirement coverage**: `Template-OTS-xUnit-Execute`, `Template-OTS-xUnit-Report`.
-
-#### Demo_DemoMethod_EmptyInput_ThrowsArgumentException
-
-**Scenario**: xUnit discovers and runs this test; the test verifies that DemoMethod rejects an
-empty string argument with ArgumentException.
+**Scenario**: xUnit discovers and runs this test; the test verifies that a newly constructed
+`Surface` is fully transparent (zero-initialized).
 
 **Expected**: xUnit executes the test, the test passes, and the result appears in the TRX output.
 
-**Requirement coverage**: `Template-OTS-xUnit-Execute`, `Template-OTS-xUnit-Report`.
+**Requirement coverage**: `CanvasNet-OTS-xUnit-Execute`, `CanvasNet-OTS-xUnit-Report`.
 
-#### Demo_Constructor_NullPrefix_ThrowsArgumentNullException
+#### Surface_Constructor_ZeroWidth_ThrowsArgumentOutOfRangeException
 
-**Scenario**: xUnit discovers and runs this test; the test verifies that the constructor rejects a
-null prefix with ArgumentNullException.
-
-**Expected**: xUnit executes the test, the test passes, and the result appears in the TRX output.
-
-**Requirement coverage**: `Template-OTS-xUnit-Execute`, `Template-OTS-xUnit-Report`.
-
-#### Demo_Constructor_EmptyPrefix_ThrowsArgumentException
-
-**Scenario**: xUnit discovers and runs this test; the test verifies that the constructor rejects an
-empty string prefix with ArgumentException.
+**Scenario**: xUnit discovers and runs this test; the test verifies that constructing a `Surface`
+with zero width throws `ArgumentOutOfRangeException`.
 
 **Expected**: xUnit executes the test, the test passes, and the result appears in the TRX output.
 
-**Requirement coverage**: `Template-OTS-xUnit-Execute`, `Template-OTS-xUnit-Report`.
+**Requirement coverage**: `CanvasNet-OTS-xUnit-Execute`, `CanvasNet-OTS-xUnit-Report`.
 
-#### Demo_DefaultPrefix_Read_IsHello
+#### Surface_Constructor_NegativeWidth_ThrowsArgumentOutOfRangeException
 
-**Scenario**: xUnit discovers and runs this test; the test verifies that the DefaultPrefix constant
-has the value "Hello".
-
-**Expected**: xUnit executes the test, the test passes, and the result appears in the TRX output.
-
-**Requirement coverage**: `Template-OTS-xUnit-Execute`, `Template-OTS-xUnit-Report`.
-
-#### Demo_Prefix_WithCustomConstruction_ReturnsCustomPrefix
-
-**Scenario**: xUnit discovers and runs this test; the test verifies that the Prefix property
-returns the value supplied at construction.
+**Scenario**: xUnit discovers and runs this test; the test verifies that constructing a `Surface`
+with negative width throws `ArgumentOutOfRangeException`.
 
 **Expected**: xUnit executes the test, the test passes, and the result appears in the TRX output.
 
-**Requirement coverage**: `Template-OTS-xUnit-Execute`, `Template-OTS-xUnit-Report`.
+**Requirement coverage**: `CanvasNet-OTS-xUnit-Execute`, `CanvasNet-OTS-xUnit-Report`.
 
-#### Demo_DefaultConstructor_WithNoArgs_SetsDefaultPrefix
+#### Surface_Constructor_ZeroHeight_ThrowsArgumentOutOfRangeException
 
-**Scenario**: xUnit discovers and runs this test; the test verifies that the default constructor
-sets Prefix to the DefaultPrefix constant.
+**Scenario**: xUnit discovers and runs this test; the test verifies that constructing a `Surface`
+with zero height throws `ArgumentOutOfRangeException`.
 
 **Expected**: xUnit executes the test, the test passes, and the result appears in the TRX output.
 
-**Requirement coverage**: `Template-OTS-xUnit-Execute`, `Template-OTS-xUnit-Report`.
+**Requirement coverage**: `CanvasNet-OTS-xUnit-Execute`, `CanvasNet-OTS-xUnit-Report`.
+
+#### Surface_Constructor_NegativeHeight_ThrowsArgumentOutOfRangeException
+
+**Scenario**: xUnit discovers and runs this test; the test verifies that constructing a `Surface`
+with negative height throws `ArgumentOutOfRangeException`.
+
+**Expected**: xUnit executes the test, the test passes, and the result appears in the TRX output.
+
+**Requirement coverage**: `CanvasNet-OTS-xUnit-Execute`, `CanvasNet-OTS-xUnit-Report`.
+
+#### Surface_Indexer_SetThenGet_ReturnsStoredPixel
+
+**Scenario**: xUnit discovers and runs this test; the test verifies that a pixel set through the
+`Surface` indexer is returned unchanged by a subsequent get.
+
+**Expected**: xUnit executes the test, the test passes, and the result appears in the TRX output.
+
+**Requirement coverage**: `CanvasNet-OTS-xUnit-Execute`, `CanvasNet-OTS-xUnit-Report`.
+
+#### Surface_GetRowSpanBytes_WriteToSpan_IndexerReflectsChange
+
+**Scenario**: xUnit discovers and runs this test; the test verifies that writing through the
+`Span<byte>` returned by `GetRowSpanBytes` is reflected by the indexer.
+
+**Expected**: xUnit executes the test, the test passes, and the result appears in the TRX output.
+
+**Requirement coverage**: `CanvasNet-OTS-xUnit-Execute`, `CanvasNet-OTS-xUnit-Report`.
+
+#### Surface_GetRowSpan_WriteToSpan_IndexerReflectsChange
+
+**Scenario**: xUnit discovers and runs this test; the test verifies that writing through the
+`Span<Rgba32>` returned by `GetRowSpan` is reflected by the indexer.
+
+**Expected**: xUnit executes the test, the test passes, and the result appears in the TRX output.
+
+**Requirement coverage**: `CanvasNet-OTS-xUnit-Execute`, `CanvasNet-OTS-xUnit-Report`.
 
 ### Requirements Coverage
 
-- **`Template-OTS-xUnit-Execute`**: Demo_DemoMethod_DefaultPrefix_ReturnsGreeting,
-  Demo_DemoMethod_CustomPrefix_ReturnsGreeting,
-  Demo_DemoMethod_NullInput_ThrowsArgumentNullException,
-  Demo_DemoMethod_EmptyInput_ThrowsArgumentException,
-  Demo_Constructor_NullPrefix_ThrowsArgumentNullException,
-  Demo_Constructor_EmptyPrefix_ThrowsArgumentException, Demo_DefaultPrefix_Read_IsHello,
-  Demo_Prefix_WithCustomConstruction_ReturnsCustomPrefix,
-  Demo_DefaultConstructor_WithNoArgs_SetsDefaultPrefix
-- **`Template-OTS-xUnit-Report`**: Demo_DemoMethod_DefaultPrefix_ReturnsGreeting,
-  Demo_DemoMethod_CustomPrefix_ReturnsGreeting,
-  Demo_DemoMethod_NullInput_ThrowsArgumentNullException,
-  Demo_DemoMethod_EmptyInput_ThrowsArgumentException,
-  Demo_Constructor_NullPrefix_ThrowsArgumentNullException,
-  Demo_Constructor_EmptyPrefix_ThrowsArgumentException, Demo_DefaultPrefix_Read_IsHello,
-  Demo_Prefix_WithCustomConstruction_ReturnsCustomPrefix,
-  Demo_DefaultConstructor_WithNoArgs_SetsDefaultPrefix
+- **`CanvasNet-OTS-xUnit-Execute`**: Surface_Constructor_ValidDimensions_SetsWidthAndHeight,
+  Surface_Constructor_ValidDimensions_BufferIsAllZero,
+  Surface_Constructor_ZeroWidth_ThrowsArgumentOutOfRangeException,
+  Surface_Constructor_NegativeWidth_ThrowsArgumentOutOfRangeException,
+  Surface_Constructor_ZeroHeight_ThrowsArgumentOutOfRangeException,
+  Surface_Constructor_NegativeHeight_ThrowsArgumentOutOfRangeException,
+  Surface_Indexer_SetThenGet_ReturnsStoredPixel,
+  Surface_GetRowSpanBytes_WriteToSpan_IndexerReflectsChange,
+  Surface_GetRowSpan_WriteToSpan_IndexerReflectsChange
+- **`CanvasNet-OTS-xUnit-Report`**: Surface_Constructor_ValidDimensions_SetsWidthAndHeight,
+  Surface_Constructor_ValidDimensions_BufferIsAllZero,
+  Surface_Constructor_ZeroWidth_ThrowsArgumentOutOfRangeException,
+  Surface_Constructor_NegativeWidth_ThrowsArgumentOutOfRangeException,
+  Surface_Constructor_ZeroHeight_ThrowsArgumentOutOfRangeException,
+  Surface_Constructor_NegativeHeight_ThrowsArgumentOutOfRangeException,
+  Surface_Indexer_SetThenGet_ReturnsStoredPixel,
+  Surface_GetRowSpanBytes_WriteToSpan_IndexerReflectsChange,
+  Surface_GetRowSpan_WriteToSpan_IndexerReflectsChange

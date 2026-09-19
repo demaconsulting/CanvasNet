@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DemaConsulting.CanvasNet/DemaConsulting.CanvasNet.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test/DemaConsulting.CanvasNet.Tests/DemaConsulting.CanvasNet.Tests.csproj" />
+  </Folder>
+</Solution>

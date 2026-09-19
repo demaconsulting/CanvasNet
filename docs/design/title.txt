@@ -1,11 +1,11 @@
 ---
-title: Template DotNet Library Software Design Document
-subtitle: A .NET Reference Implementation for Libraries
+title: CanvasNet Software Design Document
+subtitle: Canvas rendering library for .NET
 author: DEMA Consulting
-description: Detailed design document for the Template DotNet Library
+description: Detailed design document for CanvasNet
 lang: en-US
 keywords:
-  - Template DotNet Library
+  - CanvasNet
   - .NET
   - Library
   - Design

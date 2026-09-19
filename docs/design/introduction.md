@@ -1,12 +1,12 @@
 # Introduction
 
-This document provides the detailed design for the Template DotNet Library, a .NET library
-demonstrating best practices for DEMA Consulting DotNet Libraries.
+This document provides the detailed design for CanvasNet, a .NET library
+providing a canvas-based drawing and rendering API.
 
 ## Purpose
 
 The purpose of this document is to serve as the design entry point and provide detailed design
-specifications for the Template DotNet Library system. This documentation enables formal code
+specifications for the CanvasNet system. This documentation enables formal code
 review by providing implementation specifications, supports compliance auditing by maintaining
 clear traceability from requirements through design to code, aids maintenance by documenting
 system structure and interactions, and ensures quality assurance through detailed technical
@@ -21,11 +21,14 @@ This document is intended for:
 
 ## Scope
 
-This document covers the detailed design of the Template DotNet Library system and its constituent
+This document covers the detailed design of the CanvasNet system and its constituent
 software items, specifically:
 
-- **TemplateDotNetLibrary (System)** — The complete .NET library template system
-- **Demo (Unit)** — Demonstration greeting class providing example functionality
+- **CanvasNet (System)** — The complete .NET library system
+- **Canvas (Subsystem)** — Pixel-buffer primitives: the `Surface` unit (mutable, in-memory
+  32-bit RGBA pixel buffer with span-based row access) and the `Rgba32` unit
+- **Codecs (Subsystem)** — Image format codecs: `BmpCodec`, `PngCodec`, `TiffCodec`, and
+  `JpegCodec`, each converting to and from a `Surface` pixel buffer
 
 The following OTS items are also covered:
 
@@ -41,7 +44,7 @@ The following OTS items are also covered:
 - **WeasyPrint** — HTML-to-PDF conversion tool
 - **xUnit** — unit-testing framework
 
-Version applicability: This design applies to all versions of the Template DotNet Library.
+Version applicability: This design applies to all versions of CanvasNet.
 
 The following topics are explicitly excluded from this design documentation:
 
@@ -60,10 +63,13 @@ diagram or the prose below.
 
 ![Software Structure](SoftwareStructureView.svg)
 
-This template demonstrates a minimal system structure with no subsystems — it contains only the
-`Demo` unit directly under the system level. In more complex implementations, subsystems would
-organize related units and provide architectural boundaries with well-defined interfaces and
-responsibilities.
+CanvasNet is organized into two subsystems under the system level: the `Canvas` subsystem
+(the `Surface` and `Rgba32` units, namespace `CanvasNet.Canvas`) and the `Codecs` subsystem
+(the `BmpCodec`, `PngCodec`, `TiffCodec`, and `JpegCodec` units, namespace `CanvasNet.Codecs`,
+flat — no further nesting). A third subsystem, `Drawing`, is reserved for future work (shapes,
+brushes, pens, transforms) and has no folder, namespace, or documentation yet. As additional
+functionality is added, further subsystems and nested subsystems would organize related units and
+provide architectural boundaries with well-defined interfaces and responsibilities.
 
 ## Folder Layout
 
@@ -71,13 +77,22 @@ The source code folder structure mirrors the software structure organization, wi
 and descriptions as follows:
 
 ```text
-src/DemaConsulting.TemplateDotNetLibrary/
-└── Demo.cs                     — Demonstration greeting class implementing template functionality
+src/DemaConsulting.CanvasNet/
+├── Canvas/
+│   ├── Surface.cs               — Mutable, in-memory 32-bit RGBA pixel buffer
+│   ├── Rgba32.cs                — Single 32-bit RGBA pixel value type
+│   └── NamespaceDoc.cs          — Namespace-level XML documentation
+└── Codecs/
+    ├── BmpCodec.cs               — Uncompressed 24-bit/32-bit Windows BMP loader/saver
+    ├── PngCodec.cs               — 8-bit Truecolor/Truecolor-with-alpha PNG loader/saver
+    ├── TiffCodec.cs              — 8-bit RGB/RGBA/Grayscale, strip-based TIFF loader/saver
+    ├── JpegCodec.cs              — Baseline/progressive JPEG loader and baseline JPEG saver
+    └── NamespaceDoc.cs           — Namespace-level XML documentation
 ```
 
-This flat folder structure reflects the single-unit nature of this template system. As the system
-grows with additional subsystems and units, the folder structure will expand to mirror the
-software architecture with subsystem-specific folders containing their respective units.
+This two-subsystem folder structure reflects the small number of subsystems in the system today.
+As the system grows with additional subsystems and units (including the reserved `Drawing`
+subsystem), the folder structure will expand further to mirror the software architecture.
 
 ## Document Conventions
 
@@ -103,6 +118,6 @@ Each software item has corresponding artifacts in parallel directory trees:
 
 ## References
 
-- Template DotNet Library User Guide — the compiled User Guide document for this repository.
-- Template DotNet Library Repository — the TemplateDotNetLibrary source repository hosted on
+- CanvasNet User Guide — the compiled User Guide document for this repository.
+- CanvasNet Repository — the CanvasNet source repository hosted on
   GitHub.

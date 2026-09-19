@@ -8,9 +8,15 @@
 root-tags: [system, quality]
 includes:
   - docs/reqstream/quality.yaml
-  - docs/reqstream/template-dot-net-library.yaml
-  - docs/reqstream/template-dot-net-library/demo.yaml
-  - docs/reqstream/template-dot-net-library/platform-requirements.yaml
+  - docs/reqstream/canvas-net.yaml
+  - docs/reqstream/canvas-net/canvas.yaml
+  - docs/reqstream/canvas-net/canvas/surface.yaml
+  - docs/reqstream/canvas-net/codecs.yaml
+  - docs/reqstream/canvas-net/codecs/bmp-codec.yaml
+  - docs/reqstream/canvas-net/codecs/png-codec.yaml
+  - docs/reqstream/canvas-net/codecs/tiff-codec.yaml
+  - docs/reqstream/canvas-net/codecs/jpeg-codec.yaml
+  - docs/reqstream/canvas-net/platform-requirements.yaml
   - docs/reqstream/ots/xunit.yaml
   - docs/reqstream/ots/reqstream.yaml
   - docs/reqstream/ots/buildmark.yaml

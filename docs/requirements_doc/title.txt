@@ -1,11 +1,11 @@
 ---
-title: Template DotNet Library Requirements
-subtitle: Requirements Specification for the Template DotNet Library
+title: CanvasNet Requirements
+subtitle: Requirements Specification for CanvasNet
 author: DEMA Consulting
-description: Requirements Specification for the Template DotNet Library
+description: Requirements Specification for CanvasNet
 lang: en-US
 keywords:
-  - Template DotNet Library
+  - CanvasNet
   - Requirements
   - Specification
   - .NET

@@ -1,21 +1,13 @@
 # Project Overview
 
-> **Downstream customization required**: Replace the `TODO` values below with
-> values specific to the target repository. These values are the canonical source
-> for project-wide template placeholders used throughout the repository.
-
-- **project-name**: TODO — repository/project name (e.g., `ReqStream`)
-- **organization**: TODO — organization name for document authorship (e.g., `DEMA Consulting`)
-- **project-tagline**: TODO — document subtitle; 4–8 words, noun phrase, no period
-  (e.g., `Requirements traceability for .NET projects`)
-- **description**: TODO — full project description, may be multiple sentences
-- **languages**: TODO — programming languages used (e.g., `C#`, `C++`)
-- **technologies**: TODO — key technologies and frameworks (e.g., `.NET`, `CMake`)
+- **project-name**: `CanvasNet`
+- **organization**: `DEMA Consulting`
+- **project-tagline**: `Canvas rendering library for .NET`
+- **description**: CanvasNet is a .NET library providing a canvas-based drawing and rendering API.
+- **languages**: `C#`
+- **technologies**: `.NET`
 
 # Project Structure
-
-> **Downstream customization required**: Replace `{project}` and
-> `{test-project}` with the actual source and test project folder names.
 
 ```text
 ├── docs/
@@ -31,9 +23,9 @@
 │   ├── user_guide/
 │   └── verification/
 ├── src/
-│   └── {project}/
+│   └── DemaConsulting.CanvasNet/
 └── test/
-    └── {test-project}/
+    └── DemaConsulting.CanvasNet.Tests/
 ```
 
 # Language and Spelling (ALL Agents)

@@ -1,6 +1,6 @@
 ---
 name: ✨ Feature Request
-description: Suggest a new feature or enhancement for the TemplateDotNetLibrary
+description: Suggest a new feature or enhancement for CanvasNet
 title: "[Feature]: "
 labels: ["enhancement"]
 assignees: []
@@ -43,8 +43,8 @@ body:
       placeholder: |
         ```csharp
         // Example usage
-        var demo = new Demo("Greetings");
-        var result = demo.DemoMethod("User");
+        var canvas = new Canvas(4, 4);
+        canvas[0, 0] = new Rgba32(255, 0, 0, 255);
         ```
       render: csharp
 
@@ -52,7 +52,7 @@ body:
     id: benefits
     attributes:
       label: Benefits
-      description: Explain why this enhancement would be useful to TemplateDotNetLibrary users
+      description: Explain why this enhancement would be useful to CanvasNet users
       placeholder: This would be useful because...
     validations:
       required: true

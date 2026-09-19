@@ -1,0 +1,323 @@
+---
+# Software Unit Requirements for TiffCodec
+#
+# These requirements describe the design-level behavior of the TiffCodec unit.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Codecs Requirements
+        sections:
+          - title: TiffCodec Requirements
+            requirements:
+              - id: CanvasNet-Codecs-TiffCodec-SaveLoadRgba
+                title: >-
+                  The TiffCodec class shall save a Surface to an 8-bit RGBA TIFF stream (samples per
+                  pixel 4, ExtraSamples = 2) and load it back with matching RGBA pixel values, including
+                  alpha.
+                justification: |
+                  Callers need a TIFF representation that preserves the surface's alpha channel exactly
+                  for full round-trip fidelity, matching this codec's alpha-preserving default.
+                tests:
+                  - TiffCodec_SaveThenLoad_AllCompressions_RoundTripsExactly
+
+              - id: CanvasNet-Codecs-TiffCodec-LoadRgbForcesOpaqueAlpha
+                title: >-
+                  The TiffCodec class shall load a 3-samples-per-pixel RGB TIFF (no ExtraSamples tag)
+                  with matching RGB pixel values and alpha forced to 255 (opaque).
+                justification: |
+                  A 3-sample RGB TIFF has no alpha channel; forcing alpha to 255 on load gives callers a
+                  consistent, fully opaque result rather than an undefined value.
+                tests:
+                  - TiffCodec_Load_LittleEndianRgbSingleStrip_ReturnsExpectedPixels
+                  - TiffCodec_Load_RgbFixture_MatchesSourcePngWithOpaqueAlpha
+
+              - id: CanvasNet-Codecs-TiffCodec-LoadGrayscale
+                title: >-
+                  The TiffCodec class shall load a BlackIsZero Grayscale TIFF (photometric
+                  interpretation 1) with R=G=B set to the gray sample value and alpha forced to 255.
+                justification: |
+                  Grayscale is a common real-world TIFF photometric interpretation; representing it as
+                  equal R/G/B channels lets callers treat every loaded surface uniformly as RGBA.
+                tests:
+                  - TiffCodec_Load_Grayscale_ReturnsGrayPixelsWithFullAlpha
+                  - TiffCodec_Load_GrayscaleFixture_HasEqualRgbChannels
+
+              - id: CanvasNet-Codecs-TiffCodec-LoadLittleEndian
+                title: >-
+                  The TiffCodec class shall load a TIFF file whose byte-order mark is "II"
+                  (little-endian).
+                justification: |
+                  Little-endian is one of the two byte orders permitted by the TIFF 6.0 specification and
+                  is commonly produced by real-world encoders; both must be supported for
+                  interoperability.
+                tests:
+                  - TiffCodec_Load_LittleEndianRgbSingleStrip_ReturnsExpectedPixels
+                  - TiffCodec_Load_Fixture_ReturnsCanvasWithExpectedDimensions
+
+              - id: CanvasNet-Codecs-TiffCodec-LoadBigEndian
+                title: >-
+                  The TiffCodec class shall load a TIFF file whose byte-order mark is "MM"
+                  (big-endian).
+                justification: |
+                  Big-endian is the other byte order permitted by the TIFF 6.0 specification; supporting
+                  it ensures files produced by big-endian-preferring encoders load correctly.
+                tests:
+                  - TiffCodec_Load_BigEndianRgbSingleStrip_ReturnsExpectedPixels
+                  - TiffCodec_Load_Fixture_ReturnsCanvasWithExpectedDimensions
+
+              - id: CanvasNet-Codecs-TiffCodec-LoadMultiStrip
+                title: >-
+                  The TiffCodec class shall correctly reassemble an image whose pixel data is split
+                  across multiple strips, using the StripOffsets, StripByteCounts, and RowsPerStrip tags.
+                justification: |
+                  Real-world TIFF encoders commonly split large images across multiple strips rather than
+                  one; a decoder that only handles a single strip would fail on such files.
+                tests:
+                  - TiffCodec_Load_MultiStrip_ReturnsExpectedPixels
+                  - TiffCodec_Load_MultiStripWithTwoRowsPerStrip_ReturnsExpectedPixels
+
+              - id: CanvasNet-Codecs-TiffCodec-CompressionNone
+                title: The TiffCodec class shall save and load a TIFF image using TiffCompression.None.
+                justification: |
+                  Uncompressed TIFF is the simplest baseline representation and must round-trip pixel
+                  data exactly.
+                tests:
+                  - TiffCodec_SaveThenLoad_AllCompressions_RoundTripsExactly
+                  - TiffCodec_Save_WithoutPredictorCompression_OmitsPredictorTag
+
+              - id: CanvasNet-Codecs-TiffCodec-CompressionPackBits
+                title: The TiffCodec class shall save and load a TIFF image using TiffCompression.PackBits.
+                justification: |
+                  PackBits is a simple, widely supported run-length compression scheme for TIFF; it must
+                  round-trip pixel data exactly.
+                tests:
+                  - TiffCodec_SaveThenLoad_AllCompressions_RoundTripsExactly
+                  - TiffCodec_Load_PackBitsCompressedStrip_DecodesUsingIndependentEncoder
+                  - TiffCodec_Load_RgbFixture_MatchesSourcePngWithOpaqueAlpha
+
+              - id: CanvasNet-Codecs-TiffCodec-CompressionLzw
+                title: The TiffCodec class shall save and load a TIFF image using TiffCompression.Lzw.
+                justification: |
+                  LZW is a widely used, patent-free lossless TIFF compression scheme; it must round-trip
+                  pixel data exactly, including against real-world third-party encoder output.
+                tests:
+                  - TiffCodec_SaveThenLoad_AllCompressions_RoundTripsExactly
+                  - TiffCodec_Load_LzwCompressedStrip_DecodesUsingIndependentEncoder
+                  - TiffCodec_Load_LzwCompressedRepeatingData_DecodesUsingIndependentEncoder
+                  - TiffCodec_Load_RgbFixture_MatchesSourcePngWithOpaqueAlpha
+                  - TiffCodec_Load_RgbaFixture_MatchesSourcePngExactly
+                  - TiffCodec_Load_GrayscaleFixture_HasEqualRgbChannels
+
+              - id: CanvasNet-Codecs-TiffCodec-CompressionDeflate
+                title: The TiffCodec class shall save and load a TIFF image using TiffCompression.Deflate.
+                justification: |
+                  Deflate/zlib compression offers strong compression ratios for TIFF; it must round-trip
+                  pixel data exactly.
+                tests:
+                  - TiffCodec_SaveThenLoad_AllCompressions_RoundTripsExactly
+                  - TiffCodec_Load_DeflateCompressedStrip_DecodesUsingIndependentEncoder
+                  - TiffCodec_Load_RgbFixture_MatchesSourcePngWithOpaqueAlpha
+
+              - id: CanvasNet-Codecs-TiffCodec-PredictorRoundTrip
+                title: >-
+                  The TiffCodec class shall automatically apply the horizontal-differencing predictor
+                  (Predictor tag = 2) when saving with TiffCompression.Lzw or TiffCompression.Deflate,
+                  and shall correctly reverse it when loading.
+                justification: |
+                  The horizontal-differencing predictor materially improves the compression ratio for
+                  typical image data when paired with LZW or Deflate; applying it automatically gives
+                  callers this benefit with no extra effort, and it must be reversed correctly on load.
+                tests:
+                  - TiffCodec_Save_WithPredictorCompression_WritesPredictorTagAndIndependentlyDecodesToSameBytes
+                  - TiffCodec_Load_PredictorWithLzw_DecodesUsingIndependentEncoder
+                  - TiffCodec_Load_PredictorWithDeflate_DecodesUsingIndependentEncoder
+
+              - id: CanvasNet-Codecs-TiffCodec-LoadFromPath
+                title: The TiffCodec class shall load a Surface from a TIFF file given a file path.
+                justification: |
+                  Callers commonly have TIFF images stored as files and need a convenient way to load
+                  them without manually opening a stream.
+                tests:
+                  - TiffCodec_SaveThenLoad_PathRoundTrip_ReturnsExpectedPixel
+
+              - id: CanvasNet-Codecs-TiffCodec-SaveToPath
+                title: The TiffCodec class shall save a Surface to a TIFF file given a file path.
+                justification: |
+                  Callers commonly need to persist a surface as a TIFF file without manually opening a
+                  stream.
+                tests:
+                  - TiffCodec_SaveThenLoad_PathRoundTrip_ReturnsExpectedPixel
+
+              - id: CanvasNet-Codecs-TiffCodec-SaveNullCanvas
+                title: The TiffCodec class shall reject a null surface argument to Save with ArgumentNullException.
+                justification: |
+                  A null surface has no pixel data to write; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - TiffCodec_SaveStream_NullCanvas_ThrowsArgumentNullException
+                  - TiffCodec_SavePath_NullCanvas_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-TiffCodec-SaveNullStream
+                title: The TiffCodec class shall reject a null stream argument to Save with ArgumentNullException.
+                justification: |
+                  A null stream cannot be written to; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - TiffCodec_SaveStream_NullStream_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-TiffCodec-SaveNullPath
+                title: The TiffCodec class shall reject a null path argument to Save with ArgumentNullException.
+                justification: |
+                  A null path cannot identify a destination file; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - TiffCodec_SavePath_NullPath_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-TiffCodec-SaveEmptyPath
+                title: The TiffCodec class shall reject an empty path argument to Save with ArgumentException.
+                justification: |
+                  An empty path cannot identify a destination file; rejecting it immediately prevents an
+                  obscure file-system error.
+                tests:
+                  - TiffCodec_SavePath_EmptyPath_ThrowsArgumentException
+
+              - id: CanvasNet-Codecs-TiffCodec-SaveInvalidCompression
+                title: >-
+                  The TiffCodec class shall reject an undefined TiffCompression argument to Save with
+                  ArgumentOutOfRangeException.
+                justification: |
+                  An undefined compression value cannot be encoded to a valid TIFF file; rejecting it
+                  immediately prevents a malformed file from being written.
+                tests:
+                  - TiffCodec_SaveStream_UndefinedCompression_ThrowsArgumentOutOfRangeException
+                  - TiffCodec_SavePath_UndefinedCompression_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Codecs-TiffCodec-LoadNullStream
+                title: The TiffCodec class shall reject a null stream argument to Load with ArgumentNullException.
+                justification: |
+                  A null stream has no data to read; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - TiffCodec_LoadStream_NullStream_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-TiffCodec-LoadNullPath
+                title: The TiffCodec class shall reject a null path argument to Load with ArgumentNullException.
+                justification: |
+                  A null path cannot identify a source file; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - TiffCodec_LoadPath_NullPath_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-TiffCodec-LoadEmptyPath
+                title: The TiffCodec class shall reject an empty path argument to Load with ArgumentException.
+                justification: |
+                  An empty path cannot identify a source file; rejecting it immediately prevents an
+                  obscure file-system error.
+                tests:
+                  - TiffCodec_LoadPath_EmptyPath_ThrowsArgumentException
+
+              - id: CanvasNet-Codecs-TiffCodec-LoadBadByteOrder
+                title: >-
+                  The TiffCodec class shall reject a stream whose byte-order mark is neither "II" nor
+                  "MM" with InvalidDataException.
+                justification: |
+                  Data not beginning with a valid TIFF byte-order mark is not a TIFF file; failing
+                  clearly here prevents attempting to interpret arbitrary data as TIFF structure.
+                tests:
+                  - TiffCodec_Load_BadByteOrderMark_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-TiffCodec-LoadUnsupportedBitDepth
+                title: >-
+                  The TiffCodec class shall reject a TIFF whose BitsPerSample value is not 8 with
+                  InvalidDataException.
+                justification: |
+                  Bit depths other than 8 pack or extend samples differently than this codec implements;
+                  failing clearly here prevents misinterpreting sample bytes.
+                tests:
+                  - TiffCodec_Load_UnsupportedBitsPerSample_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-TiffCodec-LoadUnsupportedPhotometric
+                title: >-
+                  The TiffCodec class shall reject a TIFF whose photometric interpretation is not
+                  Grayscale (1) or RGB (2), such as Palette (3), CMYK (5), or YCbCr (6), with
+                  InvalidDataException.
+                justification: |
+                  Palette, CMYK, YCbCr, and other photometric interpretations use pixel encodings this
+                  codec does not implement; failing clearly here prevents misinterpreting their samples
+                  as direct RGB values.
+                tests:
+                  - TiffCodec_Load_UnsupportedPhotometricPalette_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-TiffCodec-LoadUnsupportedCompression
+                title: >-
+                  The TiffCodec class shall reject a TIFF whose Compression tag value is not one of
+                  1 (None), 5 (LZW), 8 (Deflate), or 32773 (PackBits) with InvalidDataException.
+                justification: |
+                  Any other compression value uses an encoding this codec does not implement; failing
+                  clearly here prevents misinterpreting compressed strip data.
+                tests:
+                  - TiffCodec_Load_UnsupportedCompression_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-TiffCodec-LoadPlanarConfiguration
+                title: >-
+                  The TiffCodec class shall reject a TIFF with PlanarConfiguration = 2 (Planar) with
+                  InvalidDataException.
+                justification: |
+                  Planar configuration stores each sample plane in a separate contiguous block rather
+                  than interleaved per pixel; this codec only implements Chunky (interleaved) layout, so
+                  failing clearly here prevents misinterpreting planar data as chunky.
+                tests:
+                  - TiffCodec_Load_PlanarConfigurationPlanar_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-TiffCodec-LoadTiled
+                title: >-
+                  The TiffCodec class shall reject a tiled TIFF (identified by the presence of a
+                  TileWidth or TileLength tag) with InvalidDataException.
+                justification: |
+                  Tiled TIFF images store pixel data in a fundamentally different layout (fixed-size
+                  tiles rather than strips) that this codec does not implement; failing clearly here
+                  avoids misinterpreting tile data as strip data.
+                tests:
+                  - TiffCodec_Load_TiledTiff_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-TiffCodec-LoadMissingMandatoryTag
+                title: >-
+                  The TiffCodec class shall reject a TIFF missing any of the mandatory ImageWidth,
+                  ImageLength, BitsPerSample, Compression, PhotometricInterpretation, StripOffsets,
+                  RowsPerStrip, or StripByteCounts tags with InvalidDataException.
+                justification: |
+                  Each of these tags is required to determine the image's dimensions, pixel encoding, or
+                  strip layout; a file missing any one of them cannot be decoded correctly and must be
+                  rejected rather than guessed at.
+                tests:
+                  - TiffCodec_Load_MissingMandatoryTag_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-TiffCodec-LoadTruncatedStream
+                title: >-
+                  The TiffCodec class shall reject a stream that ends before all declared header, IFD, or
+                  strip data has been read with InvalidDataException.
+                justification: |
+                  A truncated stream cannot supply a complete, valid TIFF file; failing clearly here
+                  prevents returning a surface built from incomplete data.
+                tests:
+                  - TiffCodec_Load_TruncatedHeader_ThrowsInvalidDataException
+                  - TiffCodec_Load_TruncatedStripData_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-TiffCodec-FixtureSupported
+                title: >-
+                  The TiffCodec class shall successfully load every file in the TiffFixtures conformance
+                  corpus, with RGB/RGBA fixtures' pixels matching their PngSuite source exactly (alpha
+                  forced to 255 for RGB fixtures) and grayscale fixtures satisfying R == G == B.
+                justification: |
+                  The TiffFixtures corpus was generated by a real-world third-party encoder
+                  (ImageMagick), covering both byte orders and every supported compression method;
+                  successfully loading every file and matching pixel values against the known PngSuite
+                  source demonstrates interoperability with real-world encoder output, not just
+                  hand-built test streams.
+                tests:
+                  - TiffFixtures_SourcePngDimensions_Are32x32
+                  - TiffCodec_Load_Fixture_ReturnsCanvasWithExpectedDimensions
+                  - TiffCodec_Load_RgbFixture_MatchesSourcePngWithOpaqueAlpha
+                  - TiffCodec_Load_RgbaFixture_MatchesSourcePngExactly
+                  - TiffCodec_Load_GrayscaleFixture_HasEqualRgbChannels

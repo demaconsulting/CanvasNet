@@ -1,0 +1,197 @@
+---
+# Software Unit Requirements for BmpCodec
+#
+# These requirements describe the design-level behavior of the BmpCodec unit.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Codecs Requirements
+        sections:
+          - title: BmpCodec Requirements
+            requirements:
+              - id: CanvasNet-Codecs-BmpCodec-SaveLoad24Bit
+                title: >-
+                  The BmpCodec class shall save a Surface to an uncompressed 24-bit BMP stream and load it
+                  back with matching RGB pixel values and fully opaque alpha.
+                justification: |
+                  Callers need a smaller, alpha-free BMP representation for surfaces whose transparency
+                  is not needed, while still round-tripping color data exactly.
+                tests:
+                  - BmpCodec_SaveThenLoad_24Bit_ReturnsExpectedPixelsWithOpaqueAlpha
+
+              - id: CanvasNet-Codecs-BmpCodec-SaveLoad32Bit
+                title: >-
+                  The BmpCodec class shall save a Surface to an uncompressed 32-bit BMP stream and load it
+                  back with matching RGBA pixel values, including alpha.
+                justification: |
+                  Callers need a BMP representation that preserves the surface's alpha channel exactly for
+                  full round-trip fidelity.
+                tests:
+                  - BmpCodec_SaveThenLoad_32Bit_ReturnsExpectedPixelsIncludingAlpha
+
+              - id: CanvasNet-Codecs-BmpCodec-RowPadding
+                title: >-
+                  The BmpCodec class shall pad each written pixel row to a multiple of four bytes with
+                  zero bytes, as required by the BMP file format.
+                justification: |
+                  The BMP format mandates 4-byte row alignment; producing files without this padding, or
+                  with uninitialized padding bytes, would create malformed or non-deterministic files.
+                tests:
+                  - BmpCodec_Save_WidthRequiringPadding_ProducesCorrectlyPaddedRows
+
+              - id: CanvasNet-Codecs-BmpCodec-BottomUpOrientation
+                title: >-
+                  The BmpCodec class shall write pixel rows to a BMP stream in bottom-up order, with the
+                  surface's last row written first.
+                justification: |
+                  Uncompressed Windows BMP files store rows bottom-up by convention; writing top-down
+                  would produce a file that other BMP readers display upside down.
+                tests:
+                  - BmpCodec_Save_DistinctTopAndBottomRows_WritesBottomRowFirstInFile
+
+              - id: CanvasNet-Codecs-BmpCodec-LoadFromPath
+                title: The BmpCodec class shall load a Surface from a BMP file given a file path.
+                justification: |
+                  Callers commonly have BMP images stored as files and need a convenient way to load them
+                  without manually opening a stream.
+                tests:
+                  - BmpCodec_Load_FromFilePath_ReturnsExpectedPixels
+
+              - id: CanvasNet-Codecs-BmpCodec-SaveToPath
+                title: The BmpCodec class shall save a Surface to a BMP file given a file path.
+                justification: |
+                  Callers commonly need to persist a surface as a BMP file without manually opening a
+                  stream.
+                tests:
+                  - BmpCodec_Load_FromFilePath_ReturnsExpectedPixels
+
+              - id: CanvasNet-Codecs-BmpCodec-SaveNullCanvas
+                title: The BmpCodec class shall reject a null surface argument to Save with ArgumentNullException.
+                justification: |
+                  A null surface has no pixel data to write; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - BmpCodec_Save_NullCanvas_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-BmpCodec-SaveNullStream
+                title: The BmpCodec class shall reject a null stream argument to Save with ArgumentNullException.
+                justification: |
+                  A null stream cannot be written to; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - BmpCodec_Save_NullStream_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-BmpCodec-SaveNullPath
+                title: The BmpCodec class shall reject a null path argument to Save with ArgumentNullException.
+                justification: |
+                  A null path cannot identify a destination file; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - BmpCodec_Save_NullPath_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-BmpCodec-SaveEmptyPath
+                title: The BmpCodec class shall reject an empty path argument to Save with ArgumentException.
+                justification: |
+                  An empty path cannot identify a destination file; rejecting it immediately prevents an
+                  obscure file-system error.
+                tests:
+                  - BmpCodec_Save_EmptyPath_ThrowsArgumentException
+
+              - id: CanvasNet-Codecs-BmpCodec-SaveInvalidBitDepth
+                title: >-
+                  The BmpCodec class shall reject an undefined BmpBitDepth argument to Save with
+                  ArgumentOutOfRangeException.
+                justification: |
+                  An undefined bit depth cannot be encoded to a valid BMP file; rejecting it immediately
+                  prevents a malformed file from being written.
+                tests:
+                  - BmpCodec_Save_UndefinedBitDepth_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Codecs-BmpCodec-LoadNullStream
+                title: The BmpCodec class shall reject a null stream argument to Load with ArgumentNullException.
+                justification: |
+                  A null stream has no data to read; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - BmpCodec_Load_NullStream_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-BmpCodec-LoadNullPath
+                title: The BmpCodec class shall reject a null path argument to Load with ArgumentNullException.
+                justification: |
+                  A null path cannot identify a source file; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - BmpCodec_Load_NullPath_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-BmpCodec-LoadEmptyPath
+                title: The BmpCodec class shall reject an empty path argument to Load with ArgumentException.
+                justification: |
+                  An empty path cannot identify a source file; rejecting it immediately prevents an
+                  obscure file-system error.
+                tests:
+                  - BmpCodec_Load_EmptyPath_ThrowsArgumentException
+
+              - id: CanvasNet-Codecs-BmpCodec-LoadBadSignature
+                title: >-
+                  The BmpCodec class shall reject a stream that does not begin with the "BM" signature
+                  with InvalidDataException.
+                justification: |
+                  Data not beginning with the "BM" signature is not a BMP file; failing clearly here
+                  prevents attempting to interpret arbitrary data as pixel information.
+                tests:
+                  - BmpCodec_Load_BadSignature_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-BmpCodec-LoadUnsupportedHeaderSize
+                title: >-
+                  The BmpCodec class shall reject a BMP whose info header size is not 40 bytes
+                  (BITMAPINFOHEADER) with InvalidDataException.
+                justification: |
+                  BITMAPCOREHEADER (12 bytes) and BITMAPV4/V5HEADER (108/124 bytes) use different field
+                  layouts than BITMAPINFOHEADER; failing clearly here prevents misinterpreting their
+                  fields as BITMAPINFOHEADER fields and producing incorrect pixels.
+                tests:
+                  - BmpCodec_Load_Bitmapcoreheader12Bytes_ThrowsInvalidDataException
+                  - BmpCodec_Load_UnsupportedHeaderSizeV4_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-BmpCodec-LoadUnsupportedCompression
+                title: >-
+                  The BmpCodec class shall reject a BMP whose compression method is not BI_RGB with
+                  InvalidDataException.
+                justification: |
+                  RLE and other compressed BMP variants require decompression logic this codec does not
+                  implement; failing clearly here prevents attempting to interpret compressed data as raw
+                  pixel bytes.
+                tests:
+                  - BmpCodec_Load_RleCompression_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-BmpCodec-LoadUnsupportedBitDepth
+                title: >-
+                  The BmpCodec class shall reject a BMP whose bit depth is not 24 or 32 bits per pixel
+                  with InvalidDataException.
+                justification: |
+                  Palette-based bit depths (1/4/8 bits per pixel) store color-table indices, not direct
+                  RGB values; failing clearly here prevents misinterpreting palette indices as pixel
+                  color components.
+                tests:
+                  - BmpCodec_Load_8BitPaletteDepth_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-BmpCodec-LoadUnsupportedTopDown
+                title: >-
+                  The BmpCodec class shall reject a BMP with a negative (top-down) height with
+                  InvalidDataException.
+                justification: |
+                  Top-down row order is the reverse of the bottom-up order this codec implements; failing
+                  clearly here prevents silently producing a vertically flipped image.
+                tests:
+                  - BmpCodec_Load_TopDownNegativeHeight_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-BmpCodec-LoadTruncatedStream
+                title: >-
+                  The BmpCodec class shall reject a stream that ends before all declared header or pixel
+                  data has been read with InvalidDataException.
+                justification: |
+                  A truncated stream cannot supply complete pixel data; failing clearly here prevents
+                  returning a surface with uninitialized or partially read pixel rows.
+                tests:
+                  - BmpCodec_Load_TruncatedStream_ThrowsInvalidDataException

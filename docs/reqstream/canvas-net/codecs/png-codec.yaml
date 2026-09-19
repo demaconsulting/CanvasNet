@@ -1,0 +1,243 @@
+---
+# Software Unit Requirements for PngCodec
+#
+# These requirements describe the design-level behavior of the PngCodec unit.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Codecs Requirements
+        sections:
+          - title: PngCodec Requirements
+            requirements:
+              - id: CanvasNet-Codecs-PngCodec-SaveLoadRgb
+                title: >-
+                  The PngCodec class shall save a Surface to an 8-bit Truecolor (RGB) PNG stream and load
+                  it back with matching RGB pixel values and fully opaque alpha.
+                justification: |
+                  Callers need a smaller, alpha-free PNG representation for surfaces whose transparency
+                  is not needed, while still round-tripping color data exactly.
+                tests:
+                  - PngCodec_SaveThenLoad_Rgb_ReturnsExpectedPixelsWithOpaqueAlpha
+
+              - id: CanvasNet-Codecs-PngCodec-SaveLoadRgba
+                title: >-
+                  The PngCodec class shall save a Surface to an 8-bit Truecolor-with-alpha (RGBA) PNG
+                  stream and load it back with matching RGBA pixel values, including alpha.
+                justification: |
+                  Callers need a PNG representation that preserves the surface's alpha channel exactly for
+                  full round-trip fidelity.
+                tests:
+                  - PngCodec_SaveThenLoad_Rgba_ReturnsExpectedPixelsIncludingAlpha
+
+              - id: CanvasNet-Codecs-PngCodec-MultiIdatChunks
+                title: >-
+                  The PngCodec class shall concatenate a PNG's compressed image data across multiple IDAT
+                  chunks before decompressing it.
+                justification: |
+                  The PNG format permits (and large images commonly require) IDAT data to be split across
+                  several chunks; treating each chunk in isolation would corrupt the compressed stream.
+                tests:
+                  - PngCodec_Load_MultipleIdatChunks_ReturnsExpectedPixels
+
+              - id: CanvasNet-Codecs-PngCodec-AdlerValidation
+                title: >-
+                  The PngCodec class shall validate the Adler-32 checksum of the decompressed zlib
+                  payload against the trailer stored in the file.
+                justification: |
+                  A mismatched Adler-32 checksum indicates the decompressed scanline data is corrupt;
+                  failing clearly here prevents returning a surface built from incorrect pixel data.
+                tests:
+                  - PngCodec_SaveThenLoad_Rgba_ReturnsExpectedPixelsIncludingAlpha
+                  - PngCodec_Load_CorruptAdlerTrailer_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-FilterReconstruction
+                title: >-
+                  The PngCodec class shall reconstruct scanlines encoded with any of the five standard
+                  PNG filter types (None, Sub, Up, Average, Paeth).
+                justification: |
+                  A compliant PNG decoder must support every standard filter type, since any encoder may
+                  choose any filter type for any scanline; supporting only a subset would reject valid
+                  PNG files produced by other tools.
+                tests:
+                  - PngCodec_Load_FilterTypeSub_ReconstructsExpectedPixels
+                  - PngCodec_Load_FilterTypeUp_ReconstructsExpectedPixels
+                  - PngCodec_Load_FilterTypeAverage_ReconstructsExpectedPixels
+                  - PngCodec_Load_FilterTypePaeth_ReconstructsExpectedPixels
+
+              - id: CanvasNet-Codecs-PngCodec-LoadFromPath
+                title: The PngCodec class shall load a Surface from a PNG file given a file path.
+                justification: |
+                  Callers commonly have PNG images stored as files and need a convenient way to load them
+                  without manually opening a stream.
+                tests:
+                  - PngCodec_Load_FromFilePath_ReturnsExpectedPixels
+
+              - id: CanvasNet-Codecs-PngCodec-SaveToPath
+                title: The PngCodec class shall save a Surface to a PNG file given a file path.
+                justification: |
+                  Callers commonly need to persist a surface as a PNG file without manually opening a
+                  stream.
+                tests:
+                  - PngCodec_Load_FromFilePath_ReturnsExpectedPixels
+
+              - id: CanvasNet-Codecs-PngCodec-SaveNullCanvas
+                title: The PngCodec class shall reject a null surface argument to Save with ArgumentNullException.
+                justification: |
+                  A null surface has no pixel data to write; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - PngCodec_Save_NullCanvas_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-PngCodec-SaveNullStream
+                title: The PngCodec class shall reject a null stream argument to Save with ArgumentNullException.
+                justification: |
+                  A null stream cannot be written to; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - PngCodec_Save_NullStream_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-PngCodec-SaveNullPath
+                title: The PngCodec class shall reject a null path argument to Save with ArgumentNullException.
+                justification: |
+                  A null path cannot identify a destination file; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - PngCodec_Save_NullPath_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-PngCodec-SaveEmptyPath
+                title: The PngCodec class shall reject an empty path argument to Save with ArgumentException.
+                justification: |
+                  An empty path cannot identify a destination file; rejecting it immediately prevents an
+                  obscure file-system error.
+                tests:
+                  - PngCodec_Save_EmptyPath_ThrowsArgumentException
+
+              - id: CanvasNet-Codecs-PngCodec-SaveInvalidColorType
+                title: >-
+                  The PngCodec class shall reject an undefined PngColorType argument to Save with
+                  ArgumentOutOfRangeException.
+                justification: |
+                  An undefined color type cannot be encoded to a valid PNG file; rejecting it immediately
+                  prevents a malformed file from being written.
+                tests:
+                  - PngCodec_Save_UndefinedColorType_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Codecs-PngCodec-LoadNullStream
+                title: The PngCodec class shall reject a null stream argument to Load with ArgumentNullException.
+                justification: |
+                  A null stream has no data to read; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - PngCodec_Load_NullStream_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-PngCodec-LoadNullPath
+                title: The PngCodec class shall reject a null path argument to Load with ArgumentNullException.
+                justification: |
+                  A null path cannot identify a source file; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - PngCodec_Load_NullPath_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-PngCodec-LoadEmptyPath
+                title: The PngCodec class shall reject an empty path argument to Load with ArgumentException.
+                justification: |
+                  An empty path cannot identify a source file; rejecting it immediately prevents an
+                  obscure file-system error.
+                tests:
+                  - PngCodec_Load_EmptyPath_ThrowsArgumentException
+
+              - id: CanvasNet-Codecs-PngCodec-LoadBadSignature
+                title: >-
+                  The PngCodec class shall reject a stream that does not begin with the standard 8-byte
+                  PNG signature with InvalidDataException.
+                justification: |
+                  Data not beginning with the PNG signature is not a PNG file; failing clearly here
+                  prevents attempting to interpret arbitrary data as chunk information.
+                tests:
+                  - PngCodec_Load_BadSignature_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-LoadUnsupportedColorType
+                title: >-
+                  The PngCodec class shall reject a PNG whose color type is not Truecolor (2) or
+                  Truecolor with alpha (6) with InvalidDataException.
+                justification: |
+                  Grayscale, grayscale-with-alpha, and palette/indexed color types use pixel encodings
+                  this codec does not implement; failing clearly here prevents misinterpreting their
+                  samples as direct RGB(A) values.
+                tests:
+                  - PngCodec_Load_UnsupportedColorTypeGrayscale_ThrowsInvalidDataException
+                  - PngCodec_Load_UnsupportedColorTypePalette_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-LoadUnsupportedBitDepth
+                title: The PngCodec class shall reject a PNG whose bit depth is not 8 bits with InvalidDataException.
+                justification: |
+                  Bit depths other than 8 (1, 2, 4, or 16) pack or extend samples differently than this
+                  codec implements; failing clearly here prevents misinterpreting sample bytes.
+                tests:
+                  - PngCodec_Load_UnsupportedBitDepth_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-LoadUnsupportedInterlace
+                title: The PngCodec class shall reject an interlaced (Adam7) PNG with InvalidDataException.
+                justification: |
+                  Adam7 interlacing reorders scanline data into seven sequential passes that this codec
+                  does not decode; failing clearly here prevents silently producing a scrambled image.
+                tests:
+                  - PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-LoadCorruptCrc
+                title: >-
+                  The PngCodec class shall reject a PNG chunk whose CRC-32 does not match its type and
+                  data with InvalidDataException.
+                justification: |
+                  A chunk with a mismatched CRC-32 is corrupt; failing clearly here prevents interpreting
+                  corrupted bytes as valid image data.
+                tests:
+                  - PngCodec_Load_CorruptChunkCrc_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-LoadTruncatedStream
+                title: >-
+                  The PngCodec class shall reject a stream that ends before all declared chunk data (and
+                  the mandatory IEND chunk) has been read with InvalidDataException.
+                justification: |
+                  A truncated stream cannot supply a complete, valid PNG file; failing clearly here
+                  prevents returning a surface built from incomplete data.
+                tests:
+                  - PngCodec_Load_TruncatedStream_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-PngSuiteSupported
+                title: >-
+                  The PngCodec class shall successfully load every PngSuite conformance file within its
+                  supported feature set (8-bit-per-channel Truecolor or Truecolor-with-alpha,
+                  non-interlaced).
+                justification: |
+                  The PngSuite corpus is the industry-standard conformance suite for PNG decoders;
+                  successfully loading every file within the codec's declared supported feature set
+                  demonstrates interoperability with real-world encoder output, not just hand-built test
+                  streams.
+                tests:
+                  - PngCodec_Load_PngSuiteSupportedFile_ReturnsCanvas
+
+              - id: CanvasNet-Codecs-PngCodec-PngSuiteUnsupported
+                title: >-
+                  The PngCodec class shall reject every PngSuite conformance file using a color type, bit
+                  depth, or interlace method outside its supported feature set with
+                  InvalidDataException.
+                justification: |
+                  Grayscale, grayscale-with-alpha, palette/indexed, non-8-bit, and interlaced PNG files
+                  are structurally valid but use encodings this codec does not implement; the PngSuite
+                  corpus exercises every such combination and confirms each is rejected clearly rather
+                  than silently misinterpreted.
+                tests:
+                  - PngCodec_Load_PngSuiteUnsupportedFile_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-PngSuiteCorrupt
+                title: >-
+                  The PngCodec class shall reject every deliberately corrupt PngSuite conformance file
+                  with InvalidDataException.
+                justification: |
+                  The PngSuite corpus includes files with deliberate corruption (bad signature, bad IHDR
+                  CRC-32, invalid color-type/bit-depth combinations); confirming each is rejected clearly
+                  demonstrates robustness against malformed real-world input.
+                tests:
+                  - PngCodec_Load_PngSuiteCorruptFile_ThrowsInvalidDataException

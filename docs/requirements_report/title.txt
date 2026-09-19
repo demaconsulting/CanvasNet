@@ -1,11 +1,11 @@
 ---
-title: Template DotNet Library Trace Matrix
-subtitle: Requirements Traceability Matrix for the Template DotNet Library
+title: CanvasNet Trace Matrix
+subtitle: Requirements Traceability Matrix for CanvasNet
 author: DEMA Consulting
-description: Requirements Traceability Matrix for the Template DotNet Library
+description: Requirements Traceability Matrix for CanvasNet
 lang: en-US
 keywords:
-  - Template DotNet Library
+  - CanvasNet
   - Trace Matrix
   - Traceability
   - Requirements

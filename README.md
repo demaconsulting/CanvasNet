@@ -1,4 +1,7 @@
-# Template DotNet Library
+# CanvasNet
+
+<!-- IMPORTANT: All links in this file must be absolute URLs.
+     This file is distributed in packages and relative links will not resolve. -->
 
 [![GitHub forks][badge-forks]][link-forks]
 [![GitHub stars][badge-stars]][link-stars]
@@ -9,52 +12,76 @@
 [![Security][badge-security]][link-security]
 [![NuGet][badge-nuget]][link-nuget]
 
-DEMA Consulting template project for DotNet Libraries, demonstrating best practices for building reusable .NET libraries.
+.NET canvas library for loading, saving, and cropping images
+
+## Overview
+
+CanvasNet is a .NET library providing a mutable, span-based 32-bit RGBA pixel buffer along with
+codecs for loading and saving images in common file formats. It's designed for fast, allocation-conscious
+image operations using `Span<T>`, and supports independent-copy cropping for load/crop/save workflows.
 
 ## Features
 
-This template demonstrates:
-
-- **Simple Library Structure**: Demo class with example methods
-- **Multi-Platform Support**: Builds and runs on Windows, Linux, and macOS
-- **Multi-Runtime Support**: Targets .NET Standard 2.0, .NET 8, 9, and 10
-- **xUnit v3**: Modern unit testing with xUnit framework version 3
-- **Comprehensive CI/CD**: GitHub Actions workflows with quality checks and builds
-- **Linting Enforcement**: markdownlint, cspell, and yamllint enforced on every CI run
-- **Continuous Compliance**: Compliance evidence generated automatically on every CI run, following
-  the [Continuous Compliance][link-continuous-compliance] methodology
-- **SonarCloud Integration**: Quality gate and security analysis on every build
-- **Documentation Generation**: Automated build notes, user guide, code quality reports,
-  requirements, justifications, and trace matrix
-- **Requirements Traceability**: Requirements linked to passing tests with auto-generated trace matrix
+- 🖼️ **Pixel Buffer** - Mutable 32-bit RGBA `Surface` with span-based row access
+- ✂️ **Cropping** - Independent-copy cropping for load/crop/save workflows
+- 📀 **BMP Codec** - Load and save 24-bit and 32-bit uncompressed Windows BMP files
+- 🎨 **PNG Codec** - Load and save 8-bit Truecolor (RGB) and Truecolor-with-alpha (RGBA) PNG files
+- 🖨️ **TIFF Codec** - Load and save 8-bit RGB/RGBA/Grayscale TIFF files with PackBits/LZW/Deflate
+- 🗜️ **JPEG Codec** - Load baseline/progressive JPEG and save baseline 4:2:0 JPEG with quality control
+- ⚡ **Span-Based** - Fast, allocation-conscious row and pixel access
+- 🔄 **Multi-Target** - Supports .NET Standard 2.0, .NET 8, 9, and 10
+- 📦 **NuGet Ready** - Easy integration via NuGet package
 
 ## Installation
 
-Install the library using the .NET CLI:
-
 ```bash
-dotnet add package TemplateDotNetLibrary
+dotnet add package CanvasNet
+```
+
+Or via Package Manager Console:
+
+```powershell
+Install-Package CanvasNet
 ```
 
 ## Usage
 
 ```csharp
-using TemplateDotNetLibrary;
+using CanvasNet.Canvas;
+using CanvasNet.Codecs;
 
-var demo = new Demo();
-var result = demo.DemoMethod("World"); // result = "Hello, World!"
+var surface = new Surface(4, 4);
+surface[1, 1] = new Rgba32(255, 0, 0, 255); // set a red, opaque pixel
+var cropped = surface.Crop(0, 0, 2, 2);     // independent 2x2 copy
+
+BmpCodec.Save(surface, "surface.bmp");        // save as a 32-bit BMP file
+var reloaded = BmpCodec.Load("surface.bmp"); // load it back
+
+PngCodec.Save(surface, "surface.png");        // save as an RGBA PNG file
+var reloadedPng = PngCodec.Load("surface.png"); // load it back
+
+TiffCodec.Save(surface, "surface.tiff");        // save as an RGBA TIFF file
+var reloadedTiff = TiffCodec.Load("surface.tiff"); // load it back
+
+JpegCodec.Save(surface, "surface.jpg", 90);        // save as a baseline JPEG file
+var reloadedJpeg = JpegCodec.Load("surface.jpg"); // load it back
 ```
 
-## Documentation
+## Building
 
-Generated documentation includes:
+```pwsh
+pwsh ./build.ps1
+```
 
-- **Build Notes**: Release information and changes
-- **User Guide**: Comprehensive usage documentation
-- **Code Quality Report**: CodeQL and SonarCloud analysis results
-- **Requirements**: Functional and non-functional requirements
-- **Requirements Justifications**: Detailed requirement rationale
-- **Trace Matrix**: Requirements to test traceability
+## API Documentation
+
+Detailed API documentation for all public types and members is distributed in the `api/` folder
+of the NuGet package.
+
+## User Guide
+
+The CanvasNet User Guide is available on the
+[CanvasNet releases page][link-releases].
 
 ## Contributing
 
@@ -67,24 +94,31 @@ Copyright (c) DEMA Consulting. Licensed under the MIT License. See [LICENSE][lin
 
 By contributing to this project, you agree that your contributions will be licensed under the MIT License.
 
+## Support
+
+- [Report a bug or request a feature][link-issues]
+- [Ask a question or start a discussion][link-discussions]
+
 <!-- Badge References -->
-[badge-forks]: https://img.shields.io/github/forks/demaconsulting/TemplateDotNetLibrary?style=plastic
-[badge-stars]: https://img.shields.io/github/stars/demaconsulting/TemplateDotNetLibrary?style=plastic
-[badge-contributors]: https://img.shields.io/github/contributors/demaconsulting/TemplateDotNetLibrary?style=plastic
-[badge-license]: https://img.shields.io/github/license/demaconsulting/TemplateDotNetLibrary?style=plastic
-[badge-build]: https://img.shields.io/github/actions/workflow/status/demaconsulting/TemplateDotNetLibrary/build_on_push.yaml?style=plastic
-[badge-quality]: https://sonarcloud.io/api/project_badges/measure?project=demaconsulting_TemplateDotNetLibrary&metric=alert_status
-[badge-security]: https://sonarcloud.io/api/project_badges/measure?project=demaconsulting_TemplateDotNetLibrary&metric=security_rating
-[badge-nuget]: https://img.shields.io/nuget/v/TemplateDotNetLibrary?style=plastic
+[badge-forks]: https://img.shields.io/github/forks/demaconsulting/CanvasNet?style=plastic
+[badge-stars]: https://img.shields.io/github/stars/demaconsulting/CanvasNet?style=plastic
+[badge-contributors]: https://img.shields.io/github/contributors/demaconsulting/CanvasNet?style=plastic
+[badge-license]: https://img.shields.io/github/license/demaconsulting/CanvasNet?style=plastic
+[badge-build]: https://img.shields.io/github/actions/workflow/status/demaconsulting/CanvasNet/build_on_push.yaml?style=plastic
+[badge-quality]: https://sonarcloud.io/api/project_badges/measure?project=demaconsulting_CanvasNet&metric=alert_status
+[badge-security]: https://sonarcloud.io/api/project_badges/measure?project=demaconsulting_CanvasNet&metric=security_rating
+[badge-nuget]: https://img.shields.io/nuget/v/CanvasNet?style=plastic
 
 <!-- Link References -->
-[link-forks]: https://github.com/demaconsulting/TemplateDotNetLibrary/network/members
-[link-stars]: https://github.com/demaconsulting/TemplateDotNetLibrary/stargazers
-[link-contributors]: https://github.com/demaconsulting/TemplateDotNetLibrary/graphs/contributors
-[link-license]: https://github.com/demaconsulting/TemplateDotNetLibrary/blob/main/LICENSE
-[link-build]: https://github.com/demaconsulting/TemplateDotNetLibrary/actions/workflows/build_on_push.yaml
-[link-quality]: https://sonarcloud.io/dashboard?id=demaconsulting_TemplateDotNetLibrary
-[link-security]: https://sonarcloud.io/dashboard?id=demaconsulting_TemplateDotNetLibrary
-[link-nuget]: https://www.nuget.org/packages/TemplateDotNetLibrary
-[link-continuous-compliance]: https://github.com/demaconsulting/ContinuousCompliance
-[link-contributing]: https://github.com/demaconsulting/TemplateDotNetLibrary/blob/main/CONTRIBUTING.md
+[link-forks]: https://github.com/demaconsulting/CanvasNet/network/members
+[link-stars]: https://github.com/demaconsulting/CanvasNet/stargazers
+[link-contributors]: https://github.com/demaconsulting/CanvasNet/graphs/contributors
+[link-license]: https://github.com/demaconsulting/CanvasNet/blob/main/LICENSE
+[link-build]: https://github.com/demaconsulting/CanvasNet/actions/workflows/build_on_push.yaml
+[link-quality]: https://sonarcloud.io/dashboard?id=demaconsulting_CanvasNet
+[link-security]: https://sonarcloud.io/dashboard?id=demaconsulting_CanvasNet
+[link-nuget]: https://www.nuget.org/packages/CanvasNet
+[link-contributing]: https://github.com/demaconsulting/CanvasNet/blob/main/CONTRIBUTING.md
+[link-releases]: https://github.com/demaconsulting/CanvasNet/releases
+[link-issues]: https://github.com/demaconsulting/CanvasNet/issues
+[link-discussions]: https://github.com/demaconsulting/CanvasNet/discussions

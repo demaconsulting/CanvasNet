@@ -1,0 +1,428 @@
+---
+# Software Subsystem Requirements for Codecs
+#
+# These requirements decompose the CanvasNet system's image format support into the Codecs
+# subsystem's own responsibility: providing loaders and savers for BMP, PNG, TIFF, and JPEG,
+# each converting to and from a CanvasNet.Canvas.Surface pixel buffer. Each requirement here
+# links down to the codec unit requirements that implement it.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Codecs Requirements
+        requirements:
+          - id: CanvasNet-Codecs-BmpSave
+            title: >-
+              The Codecs subsystem shall save a Surface as an uncompressed 24-bit or 32-bit BMP file, to
+              either a stream or a file path.
+            justification: |
+              Callers need to persist rendered or loaded pixel data in a widely supported, uncompressed
+              image format for interchange with other tools.
+            children:
+              - CanvasNet-Codecs-BmpCodec-SaveLoad24Bit
+              - CanvasNet-Codecs-BmpCodec-SaveLoad32Bit
+              - CanvasNet-Codecs-BmpCodec-RowPadding
+              - CanvasNet-Codecs-BmpCodec-BottomUpOrientation
+              - CanvasNet-Codecs-BmpCodec-SaveToPath
+            tests:
+              - CanvasNet_SystemIntegration_BmpSaveThenLoad_ReturnsExpectedPixel
+
+          - id: CanvasNet-Codecs-BmpLoad
+            title: >-
+              The Codecs subsystem shall load a Surface from an uncompressed 24-bit or 32-bit BMP file,
+              from either a stream or a file path.
+            justification: |
+              Callers need to import existing BMP images as pixel buffers for further processing or
+              display.
+            children:
+              - CanvasNet-Codecs-BmpCodec-SaveLoad24Bit
+              - CanvasNet-Codecs-BmpCodec-SaveLoad32Bit
+              - CanvasNet-Codecs-BmpCodec-LoadFromPath
+            tests:
+              - CanvasNet_SystemIntegration_BmpSaveThenLoad_ReturnsExpectedPixel
+
+          - id: CanvasNet-Codecs-BmpValidationNull
+            title: >-
+              The Codecs subsystem shall reject null Surface, stream, or path arguments to BMP save and
+              load operations with ArgumentNullException.
+            justification: |
+              Passing null to any BMP save or load operation is a programming error. Throwing
+              ArgumentNullException immediately surfaces the mistake and prevents obscure failures deeper
+              in the call stack.
+            children:
+              - CanvasNet-Codecs-BmpCodec-SaveNullCanvas
+              - CanvasNet-Codecs-BmpCodec-SaveNullStream
+              - CanvasNet-Codecs-BmpCodec-SaveNullPath
+              - CanvasNet-Codecs-BmpCodec-LoadNullStream
+              - CanvasNet-Codecs-BmpCodec-LoadNullPath
+            tests:
+              - BmpCodec_Save_NullCanvas_ThrowsArgumentNullException
+              - BmpCodec_Save_NullStream_ThrowsArgumentNullException
+              - BmpCodec_Save_NullPath_ThrowsArgumentNullException
+              - BmpCodec_Load_NullStream_ThrowsArgumentNullException
+              - BmpCodec_Load_NullPath_ThrowsArgumentNullException
+
+          - id: CanvasNet-Codecs-BmpValidationEmptyPath
+            title: >-
+              The Codecs subsystem shall reject an empty path argument to BMP save and load operations
+              with ArgumentException.
+            justification: |
+              Passing an empty path to any BMP save or load operation is a programming error. Throwing
+              ArgumentException immediately surfaces the mistake and prevents an obscure file-system
+              error.
+            children:
+              - CanvasNet-Codecs-BmpCodec-SaveEmptyPath
+              - CanvasNet-Codecs-BmpCodec-LoadEmptyPath
+            tests:
+              - BmpCodec_Save_EmptyPath_ThrowsArgumentException
+              - BmpCodec_Load_EmptyPath_ThrowsArgumentException
+
+          - id: CanvasNet-Codecs-BmpValidationBitDepth
+            title: >-
+              The Codecs subsystem shall reject an undefined bit depth argument to BMP save with
+              ArgumentOutOfRangeException.
+            justification: |
+              An undefined bit depth cannot be encoded to a valid BMP file; rejecting it immediately
+              prevents a malformed file from being written.
+            children:
+              - CanvasNet-Codecs-BmpCodec-SaveInvalidBitDepth
+            tests:
+              - BmpCodec_Save_UndefinedBitDepth_ThrowsArgumentOutOfRangeException
+
+          - id: CanvasNet-Codecs-BmpUnsupportedFormatValidation
+            title: >-
+              The Codecs subsystem shall reject malformed or unsupported BMP data (bad signature,
+              unsupported header size, unsupported compression, unsupported bit depth, top-down
+              orientation, or a truncated stream) with InvalidDataException.
+            justification: |
+              Callers must be able to distinguish a genuinely malformed or unsupported BMP file from a
+              successful load, and receive a clear, actionable error rather than incorrect pixel data.
+            children:
+              - CanvasNet-Codecs-BmpCodec-LoadBadSignature
+              - CanvasNet-Codecs-BmpCodec-LoadUnsupportedHeaderSize
+              - CanvasNet-Codecs-BmpCodec-LoadUnsupportedCompression
+              - CanvasNet-Codecs-BmpCodec-LoadUnsupportedBitDepth
+              - CanvasNet-Codecs-BmpCodec-LoadUnsupportedTopDown
+              - CanvasNet-Codecs-BmpCodec-LoadTruncatedStream
+            tests:
+              - BmpCodec_Load_BadSignature_ThrowsInvalidDataException
+              - BmpCodec_Load_Bitmapcoreheader12Bytes_ThrowsInvalidDataException
+              - BmpCodec_Load_UnsupportedHeaderSizeV4_ThrowsInvalidDataException
+              - BmpCodec_Load_RleCompression_ThrowsInvalidDataException
+              - BmpCodec_Load_8BitPaletteDepth_ThrowsInvalidDataException
+              - BmpCodec_Load_TopDownNegativeHeight_ThrowsInvalidDataException
+              - BmpCodec_Load_TruncatedStream_ThrowsInvalidDataException
+
+          - id: CanvasNet-Codecs-PngSave
+            title: >-
+              The Codecs subsystem shall save a Surface as an 8-bit-per-channel Truecolor (RGB) or
+              Truecolor-with-alpha (RGBA) PNG file, to either a stream or a file path.
+            justification: |
+              Callers need to persist rendered or loaded pixel data in the widely supported PNG format
+              for interchange with other tools.
+            children:
+              - CanvasNet-Codecs-PngCodec-SaveLoadRgb
+              - CanvasNet-Codecs-PngCodec-SaveLoadRgba
+              - CanvasNet-Codecs-PngCodec-SaveToPath
+            tests:
+              - CanvasNet_SystemIntegration_PngSaveThenLoad_ReturnsExpectedPixel
+
+          - id: CanvasNet-Codecs-PngLoad
+            title: >-
+              The Codecs subsystem shall load a Surface from an 8-bit-per-channel Truecolor (RGB) or
+              Truecolor-with-alpha (RGBA) PNG file, from either a stream or a file path.
+            justification: |
+              Callers need to import existing PNG images as pixel buffers for further processing or
+              display.
+            children:
+              - CanvasNet-Codecs-PngCodec-SaveLoadRgb
+              - CanvasNet-Codecs-PngCodec-SaveLoadRgba
+              - CanvasNet-Codecs-PngCodec-MultiIdatChunks
+              - CanvasNet-Codecs-PngCodec-FilterReconstruction
+              - CanvasNet-Codecs-PngCodec-LoadFromPath
+              - CanvasNet-Codecs-PngCodec-PngSuiteSupported
+            tests:
+              - CanvasNet_SystemIntegration_PngSaveThenLoad_ReturnsExpectedPixel
+
+          - id: CanvasNet-Codecs-PngValidationNull
+            title: >-
+              The Codecs subsystem shall reject null Surface, stream, or path arguments to PNG save and
+              load operations with ArgumentNullException.
+            justification: |
+              Passing null to any PNG save or load operation is a programming error. Throwing
+              ArgumentNullException immediately surfaces the mistake and prevents obscure failures deeper
+              in the call stack.
+            children:
+              - CanvasNet-Codecs-PngCodec-SaveNullCanvas
+              - CanvasNet-Codecs-PngCodec-SaveNullStream
+              - CanvasNet-Codecs-PngCodec-SaveNullPath
+              - CanvasNet-Codecs-PngCodec-LoadNullStream
+              - CanvasNet-Codecs-PngCodec-LoadNullPath
+            tests:
+              - PngCodec_Save_NullCanvas_ThrowsArgumentNullException
+              - PngCodec_Save_NullStream_ThrowsArgumentNullException
+              - PngCodec_Save_NullPath_ThrowsArgumentNullException
+              - PngCodec_Load_NullStream_ThrowsArgumentNullException
+              - PngCodec_Load_NullPath_ThrowsArgumentNullException
+
+          - id: CanvasNet-Codecs-PngValidationEmptyPath
+            title: >-
+              The Codecs subsystem shall reject an empty path argument to PNG save and load operations
+              with ArgumentException.
+            justification: |
+              Passing an empty path to any PNG save or load operation is a programming error. Throwing
+              ArgumentException immediately surfaces the mistake and prevents an obscure file-system
+              error.
+            children:
+              - CanvasNet-Codecs-PngCodec-SaveEmptyPath
+              - CanvasNet-Codecs-PngCodec-LoadEmptyPath
+            tests:
+              - PngCodec_Save_EmptyPath_ThrowsArgumentException
+              - PngCodec_Load_EmptyPath_ThrowsArgumentException
+
+          - id: CanvasNet-Codecs-PngValidationColorType
+            title: >-
+              The Codecs subsystem shall reject an undefined color type argument to PNG save with
+              ArgumentOutOfRangeException.
+            justification: |
+              An undefined color type cannot be encoded to a valid PNG file; rejecting it immediately
+              prevents a malformed file from being written.
+            children:
+              - CanvasNet-Codecs-PngCodec-SaveInvalidColorType
+            tests:
+              - PngCodec_Save_UndefinedColorType_ThrowsArgumentOutOfRangeException
+
+          - id: CanvasNet-Codecs-PngUnsupportedFormatValidation
+            title: >-
+              The Codecs subsystem shall reject malformed or unsupported PNG data (bad signature,
+              unsupported color type, unsupported bit depth, interlacing, corrupt chunk CRC-32, corrupt
+              Adler-32 checksum, or a truncated stream) with InvalidDataException.
+            justification: |
+              Callers must be able to distinguish a genuinely malformed or unsupported PNG file from a
+              successful load, and receive a clear, actionable error rather than incorrect pixel data.
+            children:
+              - CanvasNet-Codecs-PngCodec-LoadBadSignature
+              - CanvasNet-Codecs-PngCodec-LoadUnsupportedColorType
+              - CanvasNet-Codecs-PngCodec-LoadUnsupportedBitDepth
+              - CanvasNet-Codecs-PngCodec-LoadUnsupportedInterlace
+              - CanvasNet-Codecs-PngCodec-LoadCorruptCrc
+              - CanvasNet-Codecs-PngCodec-AdlerValidation
+              - CanvasNet-Codecs-PngCodec-LoadTruncatedStream
+              - CanvasNet-Codecs-PngCodec-PngSuiteUnsupported
+              - CanvasNet-Codecs-PngCodec-PngSuiteCorrupt
+            tests:
+              - PngCodec_Load_BadSignature_ThrowsInvalidDataException
+              - PngCodec_Load_UnsupportedColorTypeGrayscale_ThrowsInvalidDataException
+              - PngCodec_Load_UnsupportedColorTypePalette_ThrowsInvalidDataException
+              - PngCodec_Load_UnsupportedBitDepth_ThrowsInvalidDataException
+              - PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsInvalidDataException
+              - PngCodec_Load_CorruptChunkCrc_ThrowsInvalidDataException
+              - PngCodec_Load_CorruptAdlerTrailer_ThrowsInvalidDataException
+              - PngCodec_Load_TruncatedStream_ThrowsInvalidDataException
+
+          - id: CanvasNet-Codecs-TiffSave
+            title: >-
+              The Codecs subsystem shall save a Surface as an 8-bit RGBA TIFF file (with optional
+              None/PackBits/LZW/Deflate compression), to either a stream or a file path.
+            justification: |
+              Callers need to persist rendered or loaded pixel data in the widely supported TIFF format
+              for interchange with other tools.
+            children:
+              - CanvasNet-Codecs-TiffCodec-SaveLoadRgba
+              - CanvasNet-Codecs-TiffCodec-CompressionNone
+              - CanvasNet-Codecs-TiffCodec-CompressionPackBits
+              - CanvasNet-Codecs-TiffCodec-CompressionLzw
+              - CanvasNet-Codecs-TiffCodec-CompressionDeflate
+              - CanvasNet-Codecs-TiffCodec-PredictorRoundTrip
+              - CanvasNet-Codecs-TiffCodec-SaveToPath
+            tests:
+              - CanvasNet_SystemIntegration_TiffSaveThenLoad_ReturnsExpectedPixel
+
+          - id: CanvasNet-Codecs-TiffLoad
+            title: >-
+              The Codecs subsystem shall load a Surface from an 8-bit RGB, RGBA, or Grayscale TIFF file
+              (either byte order, single- or multi-strip, with None/PackBits/LZW/Deflate compression),
+              from either a stream or a file path.
+            justification: |
+              Callers need to import existing TIFF images as pixel buffers for further processing or
+              display, including files produced by real-world third-party TIFF encoders.
+            children:
+              - CanvasNet-Codecs-TiffCodec-SaveLoadRgba
+              - CanvasNet-Codecs-TiffCodec-LoadRgbForcesOpaqueAlpha
+              - CanvasNet-Codecs-TiffCodec-LoadGrayscale
+              - CanvasNet-Codecs-TiffCodec-LoadLittleEndian
+              - CanvasNet-Codecs-TiffCodec-LoadBigEndian
+              - CanvasNet-Codecs-TiffCodec-LoadMultiStrip
+              - CanvasNet-Codecs-TiffCodec-LoadFromPath
+              - CanvasNet-Codecs-TiffCodec-FixtureSupported
+            tests:
+              - CanvasNet_SystemIntegration_TiffSaveThenLoad_ReturnsExpectedPixel
+
+          - id: CanvasNet-Codecs-TiffValidationNull
+            title: >-
+              The Codecs subsystem shall reject null Surface, stream, or path arguments to TIFF save and
+              load operations with ArgumentNullException.
+            justification: |
+              Passing null to any TIFF save or load operation is a programming error. Throwing
+              ArgumentNullException immediately surfaces the mistake and prevents obscure failures deeper
+              in the call stack.
+            children:
+              - CanvasNet-Codecs-TiffCodec-SaveNullCanvas
+              - CanvasNet-Codecs-TiffCodec-SaveNullStream
+              - CanvasNet-Codecs-TiffCodec-SaveNullPath
+              - CanvasNet-Codecs-TiffCodec-LoadNullStream
+              - CanvasNet-Codecs-TiffCodec-LoadNullPath
+            tests:
+              - TiffCodec_SaveStream_NullCanvas_ThrowsArgumentNullException
+              - TiffCodec_SaveStream_NullStream_ThrowsArgumentNullException
+              - TiffCodec_SavePath_NullCanvas_ThrowsArgumentNullException
+              - TiffCodec_SavePath_NullPath_ThrowsArgumentNullException
+              - TiffCodec_LoadStream_NullStream_ThrowsArgumentNullException
+              - TiffCodec_LoadPath_NullPath_ThrowsArgumentNullException
+
+          - id: CanvasNet-Codecs-TiffValidationEmptyPath
+            title: >-
+              The Codecs subsystem shall reject an empty path argument to TIFF save and load operations
+              with ArgumentException.
+            justification: |
+              Passing an empty path to any TIFF save or load operation is a programming error. Throwing
+              ArgumentException immediately surfaces the mistake and prevents an obscure file-system
+              error.
+            children:
+              - CanvasNet-Codecs-TiffCodec-SaveEmptyPath
+              - CanvasNet-Codecs-TiffCodec-LoadEmptyPath
+            tests:
+              - TiffCodec_SavePath_EmptyPath_ThrowsArgumentException
+              - TiffCodec_LoadPath_EmptyPath_ThrowsArgumentException
+
+          - id: CanvasNet-Codecs-TiffValidationCompression
+            title: >-
+              The Codecs subsystem shall reject an undefined TiffCompression argument to TIFF save with
+              ArgumentOutOfRangeException.
+            justification: |
+              An undefined compression value cannot be encoded to a valid TIFF file; rejecting it
+              immediately prevents a malformed file from being written.
+            children:
+              - CanvasNet-Codecs-TiffCodec-SaveInvalidCompression
+            tests:
+              - TiffCodec_SaveStream_UndefinedCompression_ThrowsArgumentOutOfRangeException
+              - TiffCodec_SavePath_UndefinedCompression_ThrowsArgumentOutOfRangeException
+
+          - id: CanvasNet-Codecs-TiffUnsupportedFormatValidation
+            title: >-
+              The Codecs subsystem shall reject malformed or unsupported TIFF data (bad byte-order mark,
+              unsupported bit depth, unsupported photometric interpretation, unsupported compression,
+              Planar configuration, tiled layout, a missing mandatory tag, or a truncated stream) with
+              InvalidDataException.
+            justification: |
+              Callers must be able to distinguish a genuinely malformed or unsupported TIFF file from a
+              successful load, and receive a clear, actionable error rather than incorrect pixel data.
+            children:
+              - CanvasNet-Codecs-TiffCodec-LoadBadByteOrder
+              - CanvasNet-Codecs-TiffCodec-LoadUnsupportedBitDepth
+              - CanvasNet-Codecs-TiffCodec-LoadUnsupportedPhotometric
+              - CanvasNet-Codecs-TiffCodec-LoadUnsupportedCompression
+              - CanvasNet-Codecs-TiffCodec-LoadPlanarConfiguration
+              - CanvasNet-Codecs-TiffCodec-LoadTiled
+              - CanvasNet-Codecs-TiffCodec-LoadMissingMandatoryTag
+              - CanvasNet-Codecs-TiffCodec-LoadTruncatedStream
+            tests:
+              - TiffCodec_Load_BadByteOrderMark_ThrowsInvalidDataException
+              - TiffCodec_Load_UnsupportedBitsPerSample_ThrowsInvalidDataException
+              - TiffCodec_Load_UnsupportedPhotometricPalette_ThrowsInvalidDataException
+              - TiffCodec_Load_UnsupportedCompression_ThrowsInvalidDataException
+              - TiffCodec_Load_PlanarConfigurationPlanar_ThrowsInvalidDataException
+              - TiffCodec_Load_TiledTiff_ThrowsInvalidDataException
+              - TiffCodec_Load_MissingMandatoryTag_ThrowsInvalidDataException
+              - TiffCodec_Load_TruncatedHeader_ThrowsInvalidDataException
+              - TiffCodec_Load_TruncatedStripData_ThrowsInvalidDataException
+
+          - id: CanvasNet-Codecs-JpegSave
+            title: >-
+              The Codecs subsystem shall save a Surface as a baseline, 3-component YCbCr, 4:2:0
+              chroma-subsampled JPEG file, to either a stream or a file path.
+            justification: |
+              Callers need to persist rendered or loaded pixel data in the widely supported JPEG format
+              for interchange with other tools, with a caller-controlled quality setting.
+            children:
+              - CanvasNet-Codecs-JpegCodec-SaveLoadBaseline420
+            tests:
+              - CanvasNet_SystemIntegration_JpegSaveThenLoad_ReturnsExpectedPixel
+
+          - id: CanvasNet-Codecs-JpegLoad
+            title: >-
+              The Codecs subsystem shall load a Surface from a supported JPEG file, from either a stream
+              or a file path, including grayscale, baseline 4:4:4/4:2:2/4:2:0, and progressive JPEG.
+            justification: |
+              Callers need to import existing JPEG images as pixel buffers for further processing or
+              display, including files produced by real-world third-party encoders.
+            children:
+              - CanvasNet-Codecs-JpegCodec-LoadBaseline444
+              - CanvasNet-Codecs-JpegCodec-LoadBaseline422
+              - CanvasNet-Codecs-JpegCodec-LoadProgressive
+              - CanvasNet-Codecs-JpegCodec-LoadGrayscale
+              - CanvasNet-Codecs-JpegCodec-FixtureSupported
+              - CanvasNet-Codecs-JpegCodec-RestartMarkers
+            tests:
+              - CanvasNet_SystemIntegration_JpegSaveThenLoad_ReturnsExpectedPixel
+
+          - id: CanvasNet-Codecs-JpegValidationNull
+            title: >-
+              The Codecs subsystem shall reject null Surface, stream, or path arguments to JPEG save and
+              load operations with ArgumentNullException.
+            justification: |
+              Passing null to any JPEG save or load operation is a programming error. Throwing
+              ArgumentNullException immediately surfaces the mistake and prevents obscure failures deeper
+              in the call stack.
+            children:
+              - CanvasNet-Codecs-JpegCodec-SaveNullCanvas
+              - CanvasNet-Codecs-JpegCodec-SaveNullStream
+              - CanvasNet-Codecs-JpegCodec-SaveNullPath
+              - CanvasNet-Codecs-JpegCodec-LoadNullStream
+              - CanvasNet-Codecs-JpegCodec-LoadNullPath
+            tests:
+              - CanvasNet_SystemIntegration_JpegSaveThenLoad_ReturnsExpectedPixel
+
+          - id: CanvasNet-Codecs-JpegValidationEmptyPath
+            title: >-
+              The Codecs subsystem shall reject an empty path argument to JPEG save and load operations
+              with ArgumentException.
+            justification: |
+              Passing an empty path to any JPEG save or load operation is a programming error. Throwing
+              ArgumentException immediately surfaces the mistake and prevents an obscure file-system
+              error.
+            children:
+              - CanvasNet-Codecs-JpegCodec-SaveEmptyPath
+              - CanvasNet-Codecs-JpegCodec-LoadEmptyPath
+            tests:
+              - CanvasNet_SystemIntegration_JpegSaveThenLoad_ReturnsExpectedPixel
+
+          - id: CanvasNet-Codecs-JpegValidationQuality
+            title: >-
+              The Codecs subsystem shall reject a JPEG save quality value outside the inclusive range
+              1-100 with ArgumentOutOfRangeException.
+            justification: |
+              An out-of-range quality value cannot be mapped to the encoder's documented quality scale
+              and must be rejected rather than silently clamped.
+            children:
+              - CanvasNet-Codecs-JpegCodec-SaveInvalidQuality
+            tests:
+              - CanvasNet_SystemIntegration_JpegSaveThenLoad_ReturnsExpectedPixel
+
+          - id: CanvasNet-Codecs-JpegUnsupportedFormatValidation
+            title: >-
+              The Codecs subsystem shall reject malformed or unsupported JPEG data (missing SOI,
+              unsupported SOF marker, unsupported component count, a missing mandatory segment, or a
+              truncated stream) with InvalidDataException.
+            justification: |
+              Callers must be able to distinguish a genuinely malformed or unsupported JPEG file from a
+              successful load, and receive a clear, actionable error rather than incorrect pixel data.
+            children:
+              - CanvasNet-Codecs-JpegCodec-RejectMalformedMarker
+              - CanvasNet-Codecs-JpegCodec-RejectUnsupportedSof
+              - CanvasNet-Codecs-JpegCodec-RejectFourComponent
+              - CanvasNet-Codecs-JpegCodec-RejectMissingSegments
+              - CanvasNet-Codecs-JpegCodec-RejectTruncatedStream
+              - CanvasNet-Codecs-JpegCodec-SimdMatchesScalar
+            tests:
+              - CanvasNet_SystemIntegration_JpegSaveThenLoad_ReturnsExpectedPixel

@@ -1,0 +1,453 @@
+---
+# Software System Requirements for CanvasNet
+#
+# These requirements describe the externally visible behavior of the library
+# from the perspective of its consumers, without specifying implementation details.
+
+sections:
+  - title: Canvas API
+    requirements:
+      - id: CanvasNet-Lib-CanvasConstruction
+        title: >-
+          The library shall allow constructing a 2D RGBA pixel buffer with a given width and
+          height, initialized fully transparent.
+        tags: [system]
+        justification: |
+          A pixel buffer is the foundational primitive for any drawing, rendering, or codec
+          functionality the library will provide; callers need a predictable, ready-to-use
+          starting state.
+        children:
+          - CanvasNet-Canvas-Construction
+          - CanvasNet-Canvas-ZeroInitialized
+          - CanvasNet-Canvas-InvalidWidth
+          - CanvasNet-Canvas-InvalidHeight
+        tests:
+          - CanvasNet_SystemIntegration_CanvasConstructAndSetPixel_ReturnsExpectedPixel
+
+      - id: CanvasNet-Lib-CanvasPixelAccess
+        title: The library shall provide get and set access to individual pixels in 32-bit RGBA format.
+        tags: [system]
+        justification: |
+          Callers need a simple, direct way to inspect or modify a single pixel without working
+          with raw byte offsets.
+        children:
+          - CanvasNet-Canvas-PixelGet
+          - CanvasNet-Canvas-PixelSet
+        tests:
+          - CanvasNet_SystemIntegration_CanvasConstructAndSetPixel_ReturnsExpectedPixel
+
+      - id: CanvasNet-Lib-CanvasSpanAccess
+        title: >-
+          The library shall provide allocation-free Span-based access to pixel rows, both as raw
+          bytes and as RGBA pixels.
+        tags: [system]
+        justification: |
+          High-performance pixel processing (for example future drawing primitives or codecs)
+          requires bulk, allocation-free access to whole rows rather than repeated single-pixel
+          calls.
+        children:
+          - CanvasNet-Canvas-RowSpanBytes
+          - CanvasNet-Canvas-RowSpanPixels
+        tests:
+          - CanvasNet_SystemIntegration_CanvasConstructAndSetPixel_ReturnsExpectedPixel
+
+      - id: CanvasNet-Lib-CanvasCrop
+        title: The library shall allow extracting an independent copy of a rectangular sub-region of a pixel buffer.
+        tags: [system]
+        justification: |
+          Callers frequently need to isolate and work with a portion of a larger surface (for
+          example a sprite or tile) as its own independent buffer.
+        children:
+          - CanvasNet-Canvas-Crop
+          - CanvasNet-Canvas-CropIndependent
+        tests:
+          - CanvasNet_SystemIntegration_CanvasCrop_ReturnsIndependentSubRegion
+
+      - id: CanvasNet-Lib-CanvasCropValidation
+        title: The library shall reject invalid crop parameters with ArgumentOutOfRangeException.
+        tags: [system]
+        justification: |
+          Invalid crop parameters (negative coordinates, non-positive sizes, or regions exceeding
+          the source bounds) cannot describe a valid sub-region and must be rejected immediately
+          to prevent out-of-bounds reads.
+        children:
+          - CanvasNet-Canvas-CropInvalidX
+          - CanvasNet-Canvas-CropInvalidY
+          - CanvasNet-Canvas-CropInvalidWidth
+          - CanvasNet-Canvas-CropInvalidHeight
+          - CanvasNet-Canvas-CropExceedsWidth
+          - CanvasNet-Canvas-CropExceedsHeight
+        tests:
+          - CanvasNet_SystemIntegration_CanvasCrop_ReturnsIndependentSubRegion
+
+  - title: BMP Codec API
+    requirements:
+      - id: CanvasNet-Lib-BmpSave
+        title: >-
+          The library shall save a Surface as an uncompressed 24-bit or 32-bit BMP file, to either
+          a stream or a file path.
+        tags: [system]
+        justification: |
+          Callers need to persist rendered or loaded pixel data in a widely supported,
+          uncompressed image format for interchange with other tools.
+        children:
+          - CanvasNet-Codecs-BmpSave
+        tests:
+          - CanvasNet_SystemIntegration_BmpSaveThenLoad_ReturnsExpectedPixel
+
+      - id: CanvasNet-Lib-BmpLoad
+        title: >-
+          The library shall load a Surface from an uncompressed 24-bit or 32-bit BMP file, from
+          either a stream or a file path.
+        tags: [system]
+        justification: |
+          Callers need to import existing BMP images as pixel buffers for further processing or
+          display.
+        children:
+          - CanvasNet-Codecs-BmpLoad
+        tests:
+          - CanvasNet_SystemIntegration_BmpSaveThenLoad_ReturnsExpectedPixel
+
+      - id: CanvasNet-Lib-BmpValidationNull
+        title: >-
+          The library shall reject null Surface, stream, or path arguments to BMP save and load
+          operations with ArgumentNullException.
+        tags: [system]
+        justification: |
+          Passing null to any BMP save or load operation is a programming error. Throwing
+          ArgumentNullException immediately surfaces the mistake and prevents obscure failures
+          deeper in the call stack.
+        children:
+          - CanvasNet-Codecs-BmpValidationNull
+        tests:
+          - BmpCodec_Save_NullCanvas_ThrowsArgumentNullException
+          - BmpCodec_Save_NullStream_ThrowsArgumentNullException
+          - BmpCodec_Save_NullPath_ThrowsArgumentNullException
+          - BmpCodec_Load_NullStream_ThrowsArgumentNullException
+          - BmpCodec_Load_NullPath_ThrowsArgumentNullException
+
+      - id: CanvasNet-Lib-BmpValidationEmptyPath
+        title: >-
+          The library shall reject an empty path argument to BMP save and load operations with
+          ArgumentException.
+        tags: [system]
+        justification: |
+          Passing an empty path to any BMP save or load operation is a programming error. Throwing
+          ArgumentException immediately surfaces the mistake and prevents an obscure file-system
+          error.
+        children:
+          - CanvasNet-Codecs-BmpValidationEmptyPath
+        tests:
+          - BmpCodec_Save_EmptyPath_ThrowsArgumentException
+          - BmpCodec_Load_EmptyPath_ThrowsArgumentException
+
+      - id: CanvasNet-Lib-BmpValidationBitDepth
+        title: The library shall reject an undefined bit depth argument to BMP save with ArgumentOutOfRangeException.
+        tags: [system]
+        justification: |
+          An undefined bit depth cannot be encoded to a valid BMP file; rejecting it immediately
+          prevents a malformed file from being written.
+        children:
+          - CanvasNet-Codecs-BmpValidationBitDepth
+        tests:
+          - BmpCodec_Save_UndefinedBitDepth_ThrowsArgumentOutOfRangeException
+
+      - id: CanvasNet-Lib-BmpUnsupportedFormatValidation
+        title: >-
+          The library shall reject malformed or unsupported BMP data (bad signature, unsupported
+          header size, unsupported compression, unsupported bit depth, top-down orientation, or a
+          truncated stream) with InvalidDataException.
+        tags: [system]
+        justification: |
+          Callers must be able to distinguish a genuinely malformed or unsupported BMP file from a
+          successful load, and receive a clear, actionable error rather than incorrect pixel data.
+        children:
+          - CanvasNet-Codecs-BmpUnsupportedFormatValidation
+        tests:
+          - BmpCodec_Load_BadSignature_ThrowsInvalidDataException
+          - BmpCodec_Load_Bitmapcoreheader12Bytes_ThrowsInvalidDataException
+          - BmpCodec_Load_UnsupportedHeaderSizeV4_ThrowsInvalidDataException
+          - BmpCodec_Load_RleCompression_ThrowsInvalidDataException
+          - BmpCodec_Load_8BitPaletteDepth_ThrowsInvalidDataException
+          - BmpCodec_Load_TopDownNegativeHeight_ThrowsInvalidDataException
+          - BmpCodec_Load_TruncatedStream_ThrowsInvalidDataException
+
+  - title: PNG Codec API
+    requirements:
+      - id: CanvasNet-Lib-PngSave
+        title: >-
+          The library shall save a Surface as an 8-bit-per-channel Truecolor (RGB) or
+          Truecolor-with-alpha (RGBA) PNG file, to either a stream or a file path.
+        tags: [system]
+        justification: |
+          Callers need to persist rendered or loaded pixel data in the widely supported PNG
+          format for interchange with other tools.
+        children:
+          - CanvasNet-Codecs-PngSave
+        tests:
+          - CanvasNet_SystemIntegration_PngSaveThenLoad_ReturnsExpectedPixel
+
+      - id: CanvasNet-Lib-PngLoad
+        title: >-
+          The library shall load a Surface from an 8-bit-per-channel Truecolor (RGB) or
+          Truecolor-with-alpha (RGBA) PNG file, from either a stream or a file path.
+        tags: [system]
+        justification: |
+          Callers need to import existing PNG images as pixel buffers for further processing or
+          display.
+        children:
+          - CanvasNet-Codecs-PngLoad
+        tests:
+          - CanvasNet_SystemIntegration_PngSaveThenLoad_ReturnsExpectedPixel
+
+      - id: CanvasNet-Lib-PngValidationNull
+        title: >-
+          The library shall reject null Surface, stream, or path arguments to PNG save and load
+          operations with ArgumentNullException.
+        tags: [system]
+        justification: |
+          Passing null to any PNG save or load operation is a programming error. Throwing
+          ArgumentNullException immediately surfaces the mistake and prevents obscure failures
+          deeper in the call stack.
+        children:
+          - CanvasNet-Codecs-PngValidationNull
+        tests:
+          - PngCodec_Save_NullCanvas_ThrowsArgumentNullException
+          - PngCodec_Save_NullStream_ThrowsArgumentNullException
+          - PngCodec_Save_NullPath_ThrowsArgumentNullException
+          - PngCodec_Load_NullStream_ThrowsArgumentNullException
+          - PngCodec_Load_NullPath_ThrowsArgumentNullException
+
+      - id: CanvasNet-Lib-PngValidationEmptyPath
+        title: >-
+          The library shall reject an empty path argument to PNG save and load operations with
+          ArgumentException.
+        tags: [system]
+        justification: |
+          Passing an empty path to any PNG save or load operation is a programming error. Throwing
+          ArgumentException immediately surfaces the mistake and prevents an obscure file-system
+          error.
+        children:
+          - CanvasNet-Codecs-PngValidationEmptyPath
+        tests:
+          - PngCodec_Save_EmptyPath_ThrowsArgumentException
+          - PngCodec_Load_EmptyPath_ThrowsArgumentException
+
+      - id: CanvasNet-Lib-PngValidationColorType
+        title: >-
+          The library shall reject an undefined color type argument to PNG save with
+          ArgumentOutOfRangeException.
+        tags: [system]
+        justification: |
+          An undefined color type cannot be encoded to a valid PNG file; rejecting it immediately
+          prevents a malformed file from being written.
+        children:
+          - CanvasNet-Codecs-PngValidationColorType
+        tests:
+          - PngCodec_Save_UndefinedColorType_ThrowsArgumentOutOfRangeException
+
+      - id: CanvasNet-Lib-PngUnsupportedFormatValidation
+        title: >-
+          The library shall reject malformed or unsupported PNG data (bad signature, unsupported
+          color type, unsupported bit depth, interlacing, corrupt chunk CRC-32, corrupt Adler-32
+          checksum, or a truncated stream) with InvalidDataException.
+        tags: [system]
+        justification: |
+          Callers must be able to distinguish a genuinely malformed or unsupported PNG file from a
+          successful load, and receive a clear, actionable error rather than incorrect pixel data.
+        children:
+          - CanvasNet-Codecs-PngUnsupportedFormatValidation
+        tests:
+          - PngCodec_Load_BadSignature_ThrowsInvalidDataException
+          - PngCodec_Load_UnsupportedColorTypeGrayscale_ThrowsInvalidDataException
+          - PngCodec_Load_UnsupportedColorTypePalette_ThrowsInvalidDataException
+          - PngCodec_Load_UnsupportedBitDepth_ThrowsInvalidDataException
+          - PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsInvalidDataException
+          - PngCodec_Load_CorruptChunkCrc_ThrowsInvalidDataException
+          - PngCodec_Load_CorruptAdlerTrailer_ThrowsInvalidDataException
+          - PngCodec_Load_TruncatedStream_ThrowsInvalidDataException
+
+  - title: TIFF Codec API
+    requirements:
+      - id: CanvasNet-Lib-TiffSave
+        title: >-
+          The library shall save a Surface as an 8-bit RGBA TIFF file (with optional
+          None/PackBits/LZW/Deflate compression), to either a stream or a file path.
+        tags: [system]
+        justification: |
+          Callers need to persist rendered or loaded pixel data in the widely supported TIFF
+          format for interchange with other tools.
+        children:
+          - CanvasNet-Codecs-TiffSave
+        tests:
+          - CanvasNet_SystemIntegration_TiffSaveThenLoad_ReturnsExpectedPixel
+
+      - id: CanvasNet-Lib-TiffLoad
+        title: >-
+          The library shall load a Surface from an 8-bit RGB, RGBA, or Grayscale TIFF file (either
+          byte order, single- or multi-strip, with None/PackBits/LZW/Deflate compression), from
+          either a stream or a file path.
+        tags: [system]
+        justification: |
+          Callers need to import existing TIFF images as pixel buffers for further processing or
+          display, including files produced by real-world third-party TIFF encoders.
+        children:
+          - CanvasNet-Codecs-TiffLoad
+        tests:
+          - CanvasNet_SystemIntegration_TiffSaveThenLoad_ReturnsExpectedPixel
+
+      - id: CanvasNet-Lib-TiffValidationNull
+        title: >-
+          The library shall reject null Surface, stream, or path arguments to TIFF save and load
+          operations with ArgumentNullException.
+        tags: [system]
+        justification: |
+          Passing null to any TIFF save or load operation is a programming error. Throwing
+          ArgumentNullException immediately surfaces the mistake and prevents obscure failures
+          deeper in the call stack.
+        children:
+          - CanvasNet-Codecs-TiffValidationNull
+        tests:
+          - TiffCodec_SaveStream_NullCanvas_ThrowsArgumentNullException
+          - TiffCodec_SaveStream_NullStream_ThrowsArgumentNullException
+          - TiffCodec_SavePath_NullCanvas_ThrowsArgumentNullException
+          - TiffCodec_SavePath_NullPath_ThrowsArgumentNullException
+          - TiffCodec_LoadStream_NullStream_ThrowsArgumentNullException
+          - TiffCodec_LoadPath_NullPath_ThrowsArgumentNullException
+
+      - id: CanvasNet-Lib-TiffValidationEmptyPath
+        title: >-
+          The library shall reject an empty path argument to TIFF save and load operations with
+          ArgumentException.
+        tags: [system]
+        justification: |
+          Passing an empty path to any TIFF save or load operation is a programming error.
+          Throwing ArgumentException immediately surfaces the mistake and prevents an obscure
+          file-system error.
+        children:
+          - CanvasNet-Codecs-TiffValidationEmptyPath
+        tests:
+          - TiffCodec_SavePath_EmptyPath_ThrowsArgumentException
+          - TiffCodec_LoadPath_EmptyPath_ThrowsArgumentException
+
+      - id: CanvasNet-Lib-TiffValidationCompression
+        title: >-
+          The library shall reject an undefined TiffCompression argument to TIFF save with
+          ArgumentOutOfRangeException.
+        tags: [system]
+        justification: |
+          An undefined compression value cannot be encoded to a valid TIFF file; rejecting it
+          immediately prevents a malformed file from being written.
+        children:
+          - CanvasNet-Codecs-TiffValidationCompression
+        tests:
+          - TiffCodec_SaveStream_UndefinedCompression_ThrowsArgumentOutOfRangeException
+          - TiffCodec_SavePath_UndefinedCompression_ThrowsArgumentOutOfRangeException
+
+      - id: CanvasNet-Lib-TiffUnsupportedFormatValidation
+        title: >-
+          The library shall reject malformed or unsupported TIFF data (bad byte-order mark,
+          unsupported bit depth, unsupported photometric interpretation, unsupported compression,
+          Planar configuration, tiled layout, a missing mandatory tag, or a truncated stream)
+          with InvalidDataException.
+        tags: [system]
+        justification: |
+          Callers must be able to distinguish a genuinely malformed or unsupported TIFF file from
+          a successful load, and receive a clear, actionable error rather than incorrect pixel
+          data.
+        children:
+          - CanvasNet-Codecs-TiffUnsupportedFormatValidation
+        tests:
+          - TiffCodec_Load_BadByteOrderMark_ThrowsInvalidDataException
+          - TiffCodec_Load_UnsupportedBitsPerSample_ThrowsInvalidDataException
+          - TiffCodec_Load_UnsupportedPhotometricPalette_ThrowsInvalidDataException
+          - TiffCodec_Load_UnsupportedCompression_ThrowsInvalidDataException
+          - TiffCodec_Load_PlanarConfigurationPlanar_ThrowsInvalidDataException
+          - TiffCodec_Load_TiledTiff_ThrowsInvalidDataException
+          - TiffCodec_Load_MissingMandatoryTag_ThrowsInvalidDataException
+          - TiffCodec_Load_TruncatedHeader_ThrowsInvalidDataException
+          - TiffCodec_Load_TruncatedStripData_ThrowsInvalidDataException
+
+  - title: JPEG Codec API
+    requirements:
+      - id: CanvasNet-Lib-JpegSave
+        title: >-
+          The library shall save a Surface as a baseline, 3-component YCbCr, 4:2:0
+          chroma-subsampled JPEG file, to either a stream or a file path.
+        tags: [system]
+        justification: |
+          Callers need to persist rendered or loaded pixel data in the widely supported JPEG
+          format for interchange with other tools, with a caller-controlled quality setting.
+        children:
+          - CanvasNet-Codecs-JpegSave
+        tests:
+          - CanvasNet_SystemIntegration_JpegSaveThenLoad_ReturnsExpectedPixel
+
+      - id: CanvasNet-Lib-JpegLoad
+        title: >-
+          The library shall load a Surface from a supported JPEG file, from either a stream or a
+          file path, including grayscale, baseline 4:4:4/4:2:2/4:2:0, and progressive JPEG.
+        tags: [system]
+        justification: |
+          Callers need to import existing JPEG images as pixel buffers for further processing or
+          display, including files produced by real-world third-party encoders.
+        children:
+          - CanvasNet-Codecs-JpegLoad
+        tests:
+          - CanvasNet_SystemIntegration_JpegSaveThenLoad_ReturnsExpectedPixel
+
+      - id: CanvasNet-Lib-JpegValidationNull
+        title: >-
+          The library shall reject null Surface, stream, or path arguments to JPEG save and load
+          operations with ArgumentNullException.
+        tags: [system]
+        justification: |
+          Passing null to any JPEG save or load operation is a programming error. Throwing
+          ArgumentNullException immediately surfaces the mistake and prevents obscure failures
+          deeper in the call stack.
+        children:
+          - CanvasNet-Codecs-JpegValidationNull
+        tests:
+          - CanvasNet_SystemIntegration_JpegSaveThenLoad_ReturnsExpectedPixel
+
+      - id: CanvasNet-Lib-JpegValidationEmptyPath
+        title: >-
+          The library shall reject an empty path argument to JPEG save and load operations with
+          ArgumentException.
+        tags: [system]
+        justification: |
+          Passing an empty path to any JPEG save or load operation is a programming error.
+          Throwing ArgumentException immediately surfaces the mistake and prevents an obscure
+          file-system error.
+        children:
+          - CanvasNet-Codecs-JpegValidationEmptyPath
+        tests:
+          - CanvasNet_SystemIntegration_JpegSaveThenLoad_ReturnsExpectedPixel
+
+      - id: CanvasNet-Lib-JpegValidationQuality
+        title: >-
+          The library shall reject a JPEG save quality value outside the inclusive range 1-100
+          with ArgumentOutOfRangeException.
+        tags: [system]
+        justification: |
+          An out-of-range quality value cannot be mapped to the encoder's documented quality scale
+          and must be rejected rather than silently clamped.
+        children:
+          - CanvasNet-Codecs-JpegValidationQuality
+        tests:
+          - CanvasNet_SystemIntegration_JpegSaveThenLoad_ReturnsExpectedPixel
+
+      - id: CanvasNet-Lib-JpegUnsupportedFormatValidation
+        title: >-
+          The library shall reject malformed or unsupported JPEG data (missing SOI, unsupported
+          SOF marker, unsupported component count, a missing mandatory segment, or a truncated
+          stream) with InvalidDataException.
+        tags: [system]
+        justification: |
+          Callers must be able to distinguish a genuinely malformed or unsupported JPEG file from
+          a successful load, and receive a clear, actionable error rather than incorrect pixel
+          data.
+        children:
+          - CanvasNet-Codecs-JpegUnsupportedFormatValidation
+        tests:
+          - CanvasNet_SystemIntegration_JpegSaveThenLoad_ReturnsExpectedPixel

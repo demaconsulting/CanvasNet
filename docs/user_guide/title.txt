@@ -1,11 +1,11 @@
 ---
-title: Template DotNet Library User Guide
-subtitle: A .NET Reference Implementation for Libraries
+title: CanvasNet User Guide
+subtitle: Canvas rendering library for .NET
 author: DEMA Consulting
-description: A .NET Reference Implementation for Libraries
+description: CanvasNet is a .NET library providing a canvas-based drawing and rendering API.
 lang: en-US
 keywords:
-  - Template DotNet Library
+  - CanvasNet
   - .NET
   - Library
   - Documentation

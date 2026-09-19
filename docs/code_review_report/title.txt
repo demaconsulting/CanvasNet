@@ -1,11 +1,11 @@
 ---
-title: Template DotNet Library Review Report
-subtitle: File Review Report for the Template DotNet Library
+title: CanvasNet Review Report
+subtitle: File Review Report for CanvasNet
 author: DEMA Consulting
-description: File Review Report for the Template DotNet Library
+description: File Review Report for CanvasNet
 lang: en-US
 keywords:
-  - Template DotNet Library
+  - CanvasNet
   - Review Report
   - File Reviews
   - .NET

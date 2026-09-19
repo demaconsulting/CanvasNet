@@ -90,6 +90,9 @@ __pycache__/
 # Generated documentation
 **/generated/
 
+# ApiMark generated API reference (regenerated on every build)
+src/**/api/
+
 # Test results
 TestResults/
 *.trx
