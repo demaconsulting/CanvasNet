@@ -407,7 +407,43 @@ public class BmpCodecTests
     }
 
     /// <summary>
-    ///     Builds the minimal byte sequence for a 1x{biHeight}-pixel-wide BMP file with the
+    ///     Proves that Load rejects a width exceeding Surface.MaxDimension (16384) with
+    ///     InvalidDataException rather than an ArgumentOutOfRangeException escaping from the
+    ///     Surface constructor.
+    /// </summary>
+    [Fact]
+    public void BmpCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException()
+    {
+        // Arrange: a valid header declaring a width one above Surface.MaxDimension
+        var bytes = MakeMinimalBmpBytes(
+            biSize: 40, biBitCount: 24, biCompression: 0, biHeight: 1, biWidth: Surface.MaxDimension + 1);
+        using var stream = new MemoryStream(bytes);
+
+        // Act & Assert: the oversized width must be rejected as malformed data, not as an
+        // out-of-range constructor argument
+        Assert.Throws<InvalidDataException>(() => BmpCodec.Load(stream));
+    }
+
+    /// <summary>
+    ///     Proves that Load rejects a height exceeding Surface.MaxDimension (16384) with
+    ///     InvalidDataException rather than an ArgumentOutOfRangeException escaping from the
+    ///     Surface constructor.
+    /// </summary>
+    [Fact]
+    public void BmpCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException()
+    {
+        // Arrange: a valid header declaring a height one above Surface.MaxDimension
+        var bytes = MakeMinimalBmpBytes(
+            biSize: 40, biBitCount: 24, biCompression: 0, biHeight: Surface.MaxDimension + 1);
+        using var stream = new MemoryStream(bytes);
+
+        // Act & Assert: the oversized height must be rejected as malformed data, not as an
+        // out-of-range constructor argument
+        Assert.Throws<InvalidDataException>(() => BmpCodec.Load(stream));
+    }
+
+    /// <summary>
+    ///     Builds the minimal byte sequence for a {biWidth}x{biHeight}-pixel BMP file with the
     ///     specified header field values, for use in malformed/unsupported-format failure tests.
     /// </summary>
     private static byte[] MakeMinimalBmpBytes(
@@ -415,7 +451,8 @@ public class BmpCodecTests
         int biBitCount,
         int biCompression,
         int biHeight,
-        bool includePixelData = true)
+        bool includePixelData = true,
+        int biWidth = 1)
     {
         using var stream = new MemoryStream();
 
@@ -435,7 +472,7 @@ public class BmpCodecTests
         WriteLe32(infoHeader, 0, biSize);
         if (biSize >= InfoHeaderFieldsSize)
         {
-            WriteLe32(infoHeader, 4, 1); // biWidth = 1
+            WriteLe32(infoHeader, 4, biWidth); // biWidth
             WriteLe32(infoHeader, 8, biHeight);
             WriteLe16(infoHeader, 12, 1); // biPlanes
             WriteLe16(infoHeader, 14, (ushort)biBitCount);

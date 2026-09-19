@@ -237,6 +237,21 @@ sections:
                 tests:
                   - TiffCodec_Load_UnsupportedBitsPerSample_ThrowsInvalidDataException
 
+              - id: CanvasNet-Codecs-TiffCodec-LoadExceedsMaxDimension
+                title: >-
+                  The TiffCodec class shall reject a TIFF whose ImageWidth or ImageLength tag value
+                  exceeds Surface.MaxDimension with InvalidDataException.
+                justification: |
+                  A width or height beyond Surface's maximum permitted dimension would otherwise reach
+                  the Surface constructor unchecked and surface as an ArgumentOutOfRangeException, and
+                  would also make the row-byte-width (width * samplesPerPixel) arithmetic performed
+                  before the Surface is constructed unsafe; validating it against the same bound
+                  immediately after reading the image dimensions keeps the documented InvalidDataException
+                  contract for all malformed/unsupported TIFF data.
+                tests:
+                  - TiffCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException
+                  - TiffCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException
+
               - id: CanvasNet-Codecs-TiffCodec-LoadUnsupportedPhotometric
                 title: >-
                   The TiffCodec class shall reject a TIFF whose photometric interpretation is not

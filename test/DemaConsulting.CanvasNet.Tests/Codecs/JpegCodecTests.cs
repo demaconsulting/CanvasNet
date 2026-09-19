@@ -382,6 +382,39 @@ public class JpegCodecTests
     }
 
     /// <summary>
+    ///     Verifies that Load rejects a frame width exceeding Surface.MaxDimension (16384) with
+    ///     InvalidDataException rather than an ArgumentOutOfRangeException escaping from the
+    ///     Surface constructor, and before any MCU-grid width/height arithmetic performed while
+    ///     decoding the scan is ever reached.
+    /// </summary>
+    [Fact]
+    public void JpegCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException()
+    {
+        var jpeg = BuildJpeg(
+        [
+            BuildSofSegment(MarkerSof0, Surface.MaxDimension + 1, 1, (1, 0x11, 0))
+        ]);
+
+        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(new MemoryStream(jpeg)));
+    }
+
+    /// <summary>
+    ///     Verifies that Load rejects a frame height exceeding Surface.MaxDimension (16384) with
+    ///     InvalidDataException rather than an ArgumentOutOfRangeException escaping from the
+    ///     Surface constructor.
+    /// </summary>
+    [Fact]
+    public void JpegCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException()
+    {
+        var jpeg = BuildJpeg(
+        [
+            BuildSofSegment(MarkerSof0, 1, Surface.MaxDimension + 1, (1, 0x11, 0))
+        ]);
+
+        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(new MemoryStream(jpeg)));
+    }
+
+    /// <summary>
     ///     Verifies that Load rejects a stream whose SOS segment appears before any SOF marker.
     /// </summary>
     [Fact]

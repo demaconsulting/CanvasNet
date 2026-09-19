@@ -137,11 +137,12 @@ public static class PngCodec
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
     /// <exception cref="System.IO.InvalidDataException">
     ///     Thrown when the stream does not contain a valid, supported PNG image: the 8-byte PNG
-    ///     signature is missing, the <c>IHDR</c> chunk is missing, malformed, or describes an
-    ///     unsupported bit depth, color type, compression method, filter method, or interlace
-    ///     method; any chunk's CRC-32 does not match; the decompressed scanline data has an
-    ///     unexpected length; an unsupported scanline filter type is encountered; or the stream
-    ///     ends before all header, chunk, or pixel data has been read.
+    ///     signature is missing, the <c>IHDR</c> chunk is missing, malformed, describes
+    ///     non-positive or oversized (exceeding <see cref="Surface.MaxDimension"/>) dimensions,
+    ///     or describes an unsupported bit depth, color type, compression method, filter method,
+    ///     or interlace method; any chunk's CRC-32 does not match; the decompressed scanline data
+    ///     has an unexpected length; an unsupported scanline filter type is encountered; or the
+    ///     stream ends before all header, chunk, or pixel data has been read.
     /// </exception>
     /// <example>
     ///     <code>
@@ -499,9 +500,10 @@ public static class PngCodec
     /// <param name="data">The raw <c>IHDR</c> chunk data (must be exactly 13 bytes).</param>
     /// <returns>The parsed image width, height, and PNG color type byte.</returns>
     /// <exception cref="System.IO.InvalidDataException">
-    ///     Thrown when <paramref name="data"/> is not 13 bytes, describes non-positive
-    ///     dimensions, or describes an unsupported bit depth, color type, compression method,
-    ///     filter method, or interlace method.
+    ///     Thrown when <paramref name="data"/> is not 13 bytes, describes non-positive or
+    ///     oversized (exceeding <see cref="Surface.MaxDimension"/>) dimensions, or describes an
+    ///     unsupported bit depth, color type, compression method, filter method, or interlace
+    ///     method.
     /// </exception>
     private static (int Width, int Height, int ColorType) ParseIhdr(byte[] data)
     {
@@ -521,6 +523,18 @@ public static class PngCodec
         if (width <= 0 || height <= 0)
         {
             throw new InvalidDataException($"Invalid PNG dimensions {width}x{height}.");
+        }
+
+        // Reject dimensions above Surface.MaxDimension here, before ParseIhdr returns and before
+        // any width/height arithmetic (e.g. DecodeScanlines' rowBytes = width * channels, which
+        // is computed before its Surface is constructed) is performed, so an oversized value
+        // surfaces as the documented InvalidDataException rather than an
+        // ArgumentOutOfRangeException escaping from deep inside Surface's constructor
+        if (width > Surface.MaxDimension || height > Surface.MaxDimension)
+        {
+            throw new InvalidDataException(
+                $"PNG dimensions {width}x{height} exceed the maximum supported size of " +
+                $"{Surface.MaxDimension}x{Surface.MaxDimension}.");
         }
 
         if (bitDepth != BitDepth)

@@ -48,7 +48,15 @@ public sealed class Surface
     ///     <c>16384 * 65536 = 1,073,741,824</c> bytes - comfortably below <see cref="int.MaxValue"/>
     ///     (2,147,483,647), with no risk of overflow.
     /// </summary>
-    private const int MaxDimension = 16384;
+    /// <remarks>
+    ///     Declared <see langword="internal"/> (rather than <see langword="private"/>) so that the
+    ///     codecs in the same assembly can validate a decoded file's width/height against this same
+    ///     bound before performing their own header-derived arithmetic (stride/buffer-size
+    ///     calculations), and reject oversized images with a codec-appropriate
+    ///     <see cref="System.IO.InvalidDataException"/> instead of letting the out-of-range value
+    ///     reach this constructor and surface as an <see cref="ArgumentOutOfRangeException"/>.
+    /// </remarks>
+    internal const int MaxDimension = 16384;
 
     /// <summary>
     ///     The number of bytes physically occupied by a single row in <see cref="_buffer"/>,

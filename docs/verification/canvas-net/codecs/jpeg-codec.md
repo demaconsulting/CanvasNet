@@ -143,6 +143,17 @@ Builds JPEG streams whose frame marker is not SOF0 or SOF2, and asserts `Load` t
 Builds a baseline SOF0 stream declaring four components and asserts `Load` throws
 `InvalidDataException`.
 
+#### CanvasNet-Codecs-JpegCodec-RejectExceedsMaxDimension: Load Rejects Dimensions Exceeding Surface.MaxDimension
+
+**Tests**: `JpegCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException`,
+`JpegCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException`
+
+Builds a SOF0 stream declaring a frame width one greater than `Surface.MaxDimension` (16384), and
+separately a frame height one greater, and asserts `Load` throws `InvalidDataException` (not the
+`ArgumentOutOfRangeException` that would otherwise escape from `Surface`'s constructor) in both
+cases, confirming the dimension check happens immediately after parsing the SOF segment, before
+any MCU-grid width/height arithmetic performed while decoding the scan.
+
 #### CanvasNet-Codecs-JpegCodec-RejectMissingSegments: Load Rejects Streams Missing Mandatory Segments
 
 **Tests**: `JpegCodec_Load_MissingSofSegment_ThrowsInvalidDataException`,
@@ -204,7 +215,7 @@ identical.
 
 A unit test run passes when all test methods above pass without error or unexpected exception; any
 unexpected exception type or wrong return/value relationship constitutes a failure. Across
-`JpegCodecTests.cs` and `JpegFixtureTests.cs`, this totals 28 test methods (24 in
-`JpegCodecTests.cs` and 4 in `JpegFixtureTests.cs`), which expand to 40 executed xUnit test cases
+`JpegCodecTests.cs` and `JpegFixtureTests.cs`, this totals 30 test methods (26 in
+`JpegCodecTests.cs` and 4 in `JpegFixtureTests.cs`), which expand to 42 executed xUnit test cases
 when every `[Theory]` data row is included, plus the single system-level integration scenario
 documented in `docs/verification/surface-net.md`.

@@ -437,6 +437,41 @@ public class PngCodecTests
     }
 
     /// <summary>
+    ///     Proves that Load rejects a width exceeding Surface.MaxDimension (16384) with
+    ///     InvalidDataException rather than an ArgumentOutOfRangeException escaping from the
+    ///     Surface constructor, and before the width*channels row-byte-width arithmetic
+    ///     performed later in Load is ever reached.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException()
+    {
+        // Arrange: a minimal PNG IHDR declaring a width one above Surface.MaxDimension
+        var bytes = BuildMinimalPngHeaderOnly(colorType: (byte)PngColorType.Rgb, width: Surface.MaxDimension + 1);
+        using var stream = new MemoryStream(bytes);
+
+        // Act & Assert: the oversized width must be rejected as malformed data, not as an
+        // out-of-range constructor argument
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+    }
+
+    /// <summary>
+    ///     Proves that Load rejects a height exceeding Surface.MaxDimension (16384) with
+    ///     InvalidDataException rather than an ArgumentOutOfRangeException escaping from the
+    ///     Surface constructor.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException()
+    {
+        // Arrange: a minimal PNG IHDR declaring a height one above Surface.MaxDimension
+        var bytes = BuildMinimalPngHeaderOnly(colorType: (byte)PngColorType.Rgb, height: Surface.MaxDimension + 1);
+        using var stream = new MemoryStream(bytes);
+
+        // Act & Assert: the oversized height must be rejected as malformed data, not as an
+        // out-of-range constructor argument
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+    }
+
+    /// <summary>
     ///     Proves that Save rejects a null surface with ArgumentNullException.
     /// </summary>
     [Fact]

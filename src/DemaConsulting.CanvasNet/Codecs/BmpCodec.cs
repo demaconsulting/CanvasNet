@@ -95,7 +95,8 @@ public static class BmpCodec
     ///     Thrown when the stream does not contain a valid, supported BMP image: the
     ///     BITMAPFILEHEADER signature is not "BM", the info header is not a 40-byte
     ///     BITMAPINFOHEADER, the compression method is not BI_RGB, the bit depth is not 24 or 32,
-    ///     the height is negative (top-down), or the stream ends before all header or pixel data
+    ///     the height is negative (top-down), the width or height exceeds
+    ///     <see cref="Surface.MaxDimension"/>, or the stream ends before all header or pixel data
     ///     has been read.
     /// </exception>
     /// <example>
@@ -160,6 +161,17 @@ public static class BmpCodec
         if (width <= 0 || height == 0)
         {
             throw new InvalidDataException($"Invalid BMP dimensions {width}x{height}.");
+        }
+
+        // Reject dimensions above Surface.MaxDimension before any width/height arithmetic
+        // (row/stride sizing below, or the Surface constructor itself) is performed, so an
+        // oversized value surfaces as the documented InvalidDataException rather than an
+        // ArgumentOutOfRangeException escaping from deep inside Surface's constructor
+        if (width > Surface.MaxDimension || height > Surface.MaxDimension)
+        {
+            throw new InvalidDataException(
+                $"BMP dimensions {width}x{height} exceed the maximum supported size of " +
+                $"{Surface.MaxDimension}x{Surface.MaxDimension}.");
         }
 
         // Skip forward to the pixel data, tolerating any gap left by a color table or extra

@@ -89,9 +89,11 @@ then applies the usual libjpeg-style quality scaling formula for caller-supplied
 
 Reads a JPEG image from an open stream by buffering the remaining bytes into memory, validating the
 SOI marker, parsing DQT/DHT/DRI/SOF/SOS segments, and decoding one or more baseline or progressive
-scans into coefficient blocks. After entropy decoding, it dequantizes, performs a separable float
-IDCT, upsamples chroma as required by the frame's sampling factors, converts YCbCr back to RGB,
-and writes fully opaque pixels into a new `Surface`.
+scans into coefficient blocks. Immediately after parsing the SOF segment, and before any MCU-grid
+width/height arithmetic used to size the coefficient buffers, validates that the frame's width and
+height are positive and do not exceed `Surface.MaxDimension` (16384). After entropy decoding, it
+dequantizes, performs a separable float IDCT, upsamples chroma as required by the frame's sampling
+factors, converts YCbCr back to RGB, and writes fully opaque pixels into a new `Surface`.
 
 **Architectural decision:** `Load` supports both baseline (SOF0) and progressive (SOF2) JPEG, and
 builds every Huffman and quantization table from the file's own DHT/DQT segments rather than
@@ -101,9 +103,10 @@ assuming any implicit standard tables are present.
 
 - `ArgumentNullException` — `stream` is null
 - `InvalidDataException` — the stream does not begin with SOI; an unsupported SOF marker,
-  arithmetic-coded variant, or unsupported component count is encountered; a referenced DHT/DQT
-  table is missing; a mandatory SOF/DHT/DQT/SOS segment is missing; the marker/segment structure
-  is malformed; or the stream ends before all header or entropy-coded data has been read
+  arithmetic-coded variant, or unsupported component count is encountered; a frame width or height
+  that is non-positive or exceeds `Surface.MaxDimension`; a referenced DHT/DQT table is missing; a
+  mandatory SOF/DHT/DQT/SOS segment is missing; the marker/segment structure is malformed; or the
+  stream ends before all header or entropy-coded data has been read
 
 #### Load(string path)
 

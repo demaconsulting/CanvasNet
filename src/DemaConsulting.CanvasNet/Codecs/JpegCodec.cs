@@ -213,10 +213,11 @@ public static class JpegCodec
     /// <exception cref="System.IO.InvalidDataException">
     ///     Thrown when the stream does not contain a valid, supported JPEG image: it does not
     ///     start with the SOI marker, an unsupported SOF marker is present (anything other than
-    ///     SOF0/SOF2, including arithmetic-coding variants), the component count is not 1 or 3, a
-    ///     DHT/DQT table referenced by SOF/SOS is missing, a mandatory segment (SOF, DHT, DQT, or
-    ///     SOS) is missing, the marker structure is malformed, or the stream ends before all
-    ///     header or entropy-coded data has been read.
+    ///     SOF0/SOF2, including arithmetic-coding variants), the component count is not 1 or 3,
+    ///     the frame width or height exceeds <see cref="Surface.MaxDimension"/>, a DHT/DQT table
+    ///     referenced by SOF/SOS is missing, a mandatory segment (SOF, DHT, DQT, or SOS) is
+    ///     missing, the marker structure is malformed, or the stream ends before all header or
+    ///     entropy-coded data has been read.
     /// </exception>
     /// <example>
     ///     <code>
@@ -1029,6 +1030,19 @@ public static class JpegCodec
             if (width <= 0 || height <= 0)
             {
                 throw new InvalidDataException($"Invalid JPEG dimensions {width}x{height}.");
+            }
+
+            // Reject dimensions above Surface.MaxDimension here, before ReadSof returns and
+            // before any width/height arithmetic (e.g. MCU-grid block sizing performed while
+            // decoding the SOS-terminated scan, well before AssembleCanvas constructs the
+            // Surface) is performed, so an oversized value surfaces as the documented
+            // InvalidDataException rather than an ArgumentOutOfRangeException escaping from
+            // deep inside Surface's constructor
+            if (width > Surface.MaxDimension || height > Surface.MaxDimension)
+            {
+                throw new InvalidDataException(
+                    $"JPEG dimensions {width}x{height} exceed the maximum supported size of " +
+                    $"{Surface.MaxDimension}x{Surface.MaxDimension}.");
             }
 
             var numComponents = ReadByte(file, p++);

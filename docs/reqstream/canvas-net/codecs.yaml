@@ -93,7 +93,8 @@ sections:
             title: >-
               The Codecs subsystem shall reject malformed or unsupported BMP data (bad signature,
               unsupported header size, unsupported compression, unsupported bit depth, top-down
-              orientation, or a truncated stream) with InvalidDataException.
+              orientation, dimensions exceeding Surface.MaxDimension, or a truncated stream) with
+              InvalidDataException.
             justification: |
               Callers must be able to distinguish a genuinely malformed or unsupported BMP file from a
               successful load, and receive a clear, actionable error rather than incorrect pixel data.
@@ -103,6 +104,7 @@ sections:
               - CanvasNet-Codecs-BmpCodec-LoadUnsupportedCompression
               - CanvasNet-Codecs-BmpCodec-LoadUnsupportedBitDepth
               - CanvasNet-Codecs-BmpCodec-LoadUnsupportedTopDown
+              - CanvasNet-Codecs-BmpCodec-LoadExceedsMaxDimension
               - CanvasNet-Codecs-BmpCodec-LoadTruncatedStream
             tests:
               - BmpCodec_Load_BadSignature_ThrowsInvalidDataException
@@ -111,6 +113,8 @@ sections:
               - BmpCodec_Load_RleCompression_ThrowsInvalidDataException
               - BmpCodec_Load_8BitPaletteDepth_ThrowsInvalidDataException
               - BmpCodec_Load_TopDownNegativeHeight_ThrowsInvalidDataException
+              - BmpCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException
+              - BmpCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException
               - BmpCodec_Load_TruncatedStream_ThrowsInvalidDataException
 
           - id: CanvasNet-Codecs-PngSave
@@ -195,9 +199,9 @@ sections:
           - id: CanvasNet-Codecs-PngUnsupportedFormatValidation
             title: >-
               The Codecs subsystem shall reject malformed or unsupported PNG data (bad signature,
-              unsupported color type, unsupported bit depth, interlacing, corrupt chunk CRC-32, corrupt
-              Adler-32 checksum, a chunk preceding IHDR, or a truncated stream) with
-              InvalidDataException.
+              unsupported color type, unsupported bit depth, interlacing, dimensions exceeding
+              Surface.MaxDimension, corrupt chunk CRC-32, corrupt Adler-32 checksum, a chunk preceding
+              IHDR, or a truncated stream) with InvalidDataException.
             justification: |
               Callers must be able to distinguish a genuinely malformed or unsupported PNG file from a
               successful load, and receive a clear, actionable error rather than incorrect pixel data.
@@ -206,6 +210,7 @@ sections:
               - CanvasNet-Codecs-PngCodec-LoadUnsupportedColorType
               - CanvasNet-Codecs-PngCodec-LoadUnsupportedBitDepth
               - CanvasNet-Codecs-PngCodec-LoadUnsupportedInterlace
+              - CanvasNet-Codecs-PngCodec-LoadExceedsMaxDimension
               - CanvasNet-Codecs-PngCodec-LoadCorruptCrc
               - CanvasNet-Codecs-PngCodec-AdlerValidation
               - CanvasNet-Codecs-PngCodec-LoadTruncatedStream
@@ -218,6 +223,8 @@ sections:
               - PngCodec_Load_UnsupportedColorTypePalette_ThrowsInvalidDataException
               - PngCodec_Load_UnsupportedBitDepth_ThrowsInvalidDataException
               - PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsInvalidDataException
+              - PngCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException
+              - PngCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException
               - PngCodec_Load_CorruptChunkCrc_ThrowsInvalidDataException
               - PngCodec_Load_CorruptAdlerTrailer_ThrowsInvalidDataException
               - PngCodec_Load_TruncatedStream_ThrowsInvalidDataException
@@ -314,15 +321,16 @@ sections:
           - id: CanvasNet-Codecs-TiffUnsupportedFormatValidation
             title: >-
               The Codecs subsystem shall reject malformed or unsupported TIFF data (bad byte-order mark,
-              unsupported bit depth, unsupported photometric interpretation, unsupported compression,
-              Planar configuration, tiled layout, a missing mandatory tag, or a truncated stream) with
-              InvalidDataException.
+              unsupported bit depth, dimensions exceeding Surface.MaxDimension, unsupported photometric
+              interpretation, unsupported compression, Planar configuration, tiled layout, a missing
+              mandatory tag, or a truncated stream) with InvalidDataException.
             justification: |
               Callers must be able to distinguish a genuinely malformed or unsupported TIFF file from a
               successful load, and receive a clear, actionable error rather than incorrect pixel data.
             children:
               - CanvasNet-Codecs-TiffCodec-LoadBadByteOrder
               - CanvasNet-Codecs-TiffCodec-LoadUnsupportedBitDepth
+              - CanvasNet-Codecs-TiffCodec-LoadExceedsMaxDimension
               - CanvasNet-Codecs-TiffCodec-LoadUnsupportedPhotometric
               - CanvasNet-Codecs-TiffCodec-LoadUnsupportedCompression
               - CanvasNet-Codecs-TiffCodec-LoadPlanarConfiguration
@@ -332,6 +340,8 @@ sections:
             tests:
               - TiffCodec_Load_BadByteOrderMark_ThrowsInvalidDataException
               - TiffCodec_Load_UnsupportedBitsPerSample_ThrowsInvalidDataException
+              - TiffCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException
+              - TiffCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException
               - TiffCodec_Load_UnsupportedPhotometricPalette_ThrowsInvalidDataException
               - TiffCodec_Load_UnsupportedCompression_ThrowsInvalidDataException
               - TiffCodec_Load_PlanarConfigurationPlanar_ThrowsInvalidDataException
@@ -415,8 +425,9 @@ sections:
           - id: CanvasNet-Codecs-JpegUnsupportedFormatValidation
             title: >-
               The Codecs subsystem shall reject malformed or unsupported JPEG data (missing SOI,
-              unsupported SOF marker, unsupported component count, a missing mandatory segment, or a
-              truncated stream) with InvalidDataException.
+              unsupported SOF marker, unsupported component count, dimensions exceeding
+              Surface.MaxDimension, a missing mandatory segment, or a truncated stream) with
+              InvalidDataException.
             justification: |
               Callers must be able to distinguish a genuinely malformed or unsupported JPEG file from a
               successful load, and receive a clear, actionable error rather than incorrect pixel data.
@@ -424,6 +435,7 @@ sections:
               - CanvasNet-Codecs-JpegCodec-RejectMalformedMarker
               - CanvasNet-Codecs-JpegCodec-RejectUnsupportedSof
               - CanvasNet-Codecs-JpegCodec-RejectFourComponent
+              - CanvasNet-Codecs-JpegCodec-RejectExceedsMaxDimension
               - CanvasNet-Codecs-JpegCodec-RejectMissingSegments
               - CanvasNet-Codecs-JpegCodec-RejectTruncatedStream
               - CanvasNet-Codecs-JpegCodec-SimdMatchesScalar

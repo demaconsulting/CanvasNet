@@ -169,6 +169,21 @@ sections:
                 tests:
                   - JpegCodec_Load_FourComponentSof0_ThrowsInvalidDataException
 
+              - id: CanvasNet-Codecs-JpegCodec-RejectExceedsMaxDimension
+                title: >-
+                  The JpegCodec class shall reject a SOF frame whose width or height exceeds
+                  Surface.MaxDimension with InvalidDataException.
+                justification: |
+                  A width or height beyond Surface's maximum permitted dimension would otherwise reach
+                  the Surface constructor unchecked and surface as an ArgumentOutOfRangeException, and
+                  would also make the MCU-grid width/height arithmetic performed while decoding the scan
+                  unsafe; validating it against the same bound immediately after parsing the SOF segment
+                  keeps the documented InvalidDataException contract for all malformed/unsupported JPEG
+                  data.
+                tests:
+                  - JpegCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException
+                  - JpegCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException
+
               - id: CanvasNet-Codecs-JpegCodec-RejectMissingSegments
                 title: >-
                   The JpegCodec class shall reject a JPEG stream missing any mandatory SOF, DHT, DQT, or

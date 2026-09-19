@@ -195,3 +195,16 @@ sections:
                   returning a surface with uninitialized or partially read pixel rows.
                 tests:
                   - BmpCodec_Load_TruncatedStream_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-BmpCodec-LoadExceedsMaxDimension
+                title: >-
+                  The BmpCodec class shall reject a BMP whose declared width or height exceeds
+                  Surface.MaxDimension with InvalidDataException.
+                justification: |
+                  A width or height beyond Surface's maximum permitted dimension would otherwise reach
+                  the Surface constructor unchecked and surface as an ArgumentOutOfRangeException;
+                  validating it against the same bound before any row/stride arithmetic keeps the
+                  documented InvalidDataException contract for all malformed/unsupported BMP data.
+                tests:
+                  - BmpCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException
+                  - BmpCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException
