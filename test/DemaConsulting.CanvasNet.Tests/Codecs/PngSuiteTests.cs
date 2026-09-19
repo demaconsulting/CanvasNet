@@ -44,6 +44,19 @@ public class PngSuiteTests
     private static string AssetsPath => Path.Combine(AppContext.BaseDirectory, "PngSuite");
 
     /// <summary>
+    ///     Resolves a fixture file within <paramref name="baseDirectory"/>. The file names always
+    ///     originate from this class's own <c>TheoryData</c> literals rather than external input,
+    ///     so path-injection is not a concern here; <c>Path.Join</c> is
+    ///     used instead of <see cref="Path.Combine(string, string)"/> purely to avoid CodeQL's
+    ///     <c>cs/path-combine</c> rule, since <c>Path.Join</c> does not discard
+    ///     <paramref name="baseDirectory"/> when <paramref name="fileName"/> looks rooted.
+    ///     <c>Path.Join</c> is natively available on the modern .NET targets, and is polyfilled
+    ///     onto net481 by the <c>Polyfill</c> package referenced by this project.
+    /// </summary>
+    private static string ResolveFixturePath(string baseDirectory, string fileName) =>
+        Path.Join(baseDirectory, fileName);
+
+    /// <summary>
     ///     PngSuite files within PngCodec's supported feature set (color type 2 or 6, 8-bit,
     ///     non-interlaced) that must load successfully.
     /// </summary>
@@ -255,7 +268,7 @@ public class PngSuiteTests
     public void PngCodec_Load_PngSuiteSupportedFile_ReturnsCanvas(string fileName)
     {
         // Act: load the PngSuite file
-        var surface = PngCodec.Load(Path.Combine(AssetsPath, fileName));
+        var surface = PngCodec.Load(ResolveFixturePath(AssetsPath, fileName));
 
         // Assert: a non-empty surface was produced
         Assert.True(surface.Width > 0);
@@ -272,7 +285,7 @@ public class PngSuiteTests
     public void PngCodec_Load_PngSuiteUnsupportedFile_ThrowsInvalidDataException(string fileName)
     {
         // Act & Assert: the unsupported feature must be rejected
-        Assert.Throws<InvalidDataException>(() => PngCodec.Load(Path.Combine(AssetsPath, fileName)));
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(ResolveFixturePath(AssetsPath, fileName)));
     }
 
     /// <summary>
@@ -284,6 +297,6 @@ public class PngSuiteTests
     public void PngCodec_Load_PngSuiteCorruptFile_ThrowsInvalidDataException(string fileName)
     {
         // Act & Assert: the corrupt file must be rejected
-        Assert.Throws<InvalidDataException>(() => PngCodec.Load(Path.Combine(AssetsPath, fileName)));
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(ResolveFixturePath(AssetsPath, fileName)));
     }
 }

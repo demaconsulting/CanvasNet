@@ -216,7 +216,57 @@ public static class TiffCodec
         ArgumentNullException.ThrowIfNull(stream);
 
         var file = ReadAllBytes(stream);
+        var (bigEndian, ifdOffset) = ParseTiffHeader(file);
+        var tags = ParseIfd(file, ifdOffset, bigEndian);
 
+        if (tags.ContainsKey(TagTileWidth) || tags.ContainsKey(TagTileLength))
+        {
+            throw new InvalidDataException("Tiled TIFF images are not supported; only strip-based images are supported.");
+        }
+
+        var info = ReadTiffImageInfo(file, tags, bigEndian);
+
+        return DecodeStrips(file, tags, info, bigEndian);
+    }
+
+
+    /// <summary>
+    ///     Loads a <see cref="Surface"/> from a TIFF file at the specified path.
+    /// </summary>
+    /// <param name="path">The path of the TIFF file to load. Must not be null or empty.</param>
+    /// <returns>
+    ///     A new <see cref="Surface"/> containing the decoded pixels; see <see cref="Load(Stream)"/>
+    ///     for the decoding contract.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="path"/> is an empty string.</exception>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown for the same malformed/unsupported-format conditions as <see cref="Load(Stream)"/>.
+    /// </exception>
+    /// <remarks>
+    ///     File-system exceptions (for example <see cref="FileNotFoundException"/>,
+    ///     <see cref="DirectoryNotFoundException"/>, <see cref="UnauthorizedAccessException"/>,
+    ///     or <see cref="IOException"/>) raised while opening <paramref name="path"/> propagate
+    ///     uncaught to the caller.
+    /// </remarks>
+    public static Surface Load(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        if (path.Length == 0)
+        {
+            throw new ArgumentException("Path must not be empty.", nameof(path));
+        }
+
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
+        return Load(stream);
+    }
+
+    /// <summary>
+    ///     Reads and validates the 8-byte TIFF file header (byte-order mark and magic number),
+    ///     returning the detected endianness and the offset of the first Image File Directory.
+    /// </summary>
+    private static (bool BigEndian, uint IfdOffset) ParseTiffHeader(byte[] file)
+    {
         if (file.Length < 8)
         {
             throw new InvalidDataException("Unexpected end of stream while reading the TIFF header.");
@@ -243,13 +293,29 @@ public static class TiffCodec
         }
 
         var ifdOffset = ReadUInt32(file, 4, bigEndian);
-        var tags = ParseIfd(file, ifdOffset, bigEndian);
+        return (bigEndian, ifdOffset);
+    }
 
-        if (tags.ContainsKey(TagTileWidth) || tags.ContainsKey(TagTileLength))
-        {
-            throw new InvalidDataException("Tiled TIFF images are not supported; only strip-based images are supported.");
-        }
+    /// <summary>
+    ///     The subset of TIFF IFD tag values needed to decode strip-based pixel data, parsed and
+    ///     validated up front by <see cref="ReadTiffImageInfo"/>.
+    /// </summary>
+    private readonly record struct TiffImageInfo(
+        int Width,
+        int Height,
+        int SamplesPerPixel,
+        TiffCompression Compression,
+        int Photometric,
+        int PlanarConfiguration,
+        int Predictor);
 
+    /// <summary>
+    ///     Reads and validates the image-level TIFF tags (dimensions, bits per sample, samples
+    ///     per pixel, compression, photometric interpretation, planar configuration, and
+    ///     predictor), throwing <see cref="InvalidDataException"/> for any unsupported value.
+    /// </summary>
+    private static TiffImageInfo ReadTiffImageInfo(byte[] file, Dictionary<ushort, IfdEntry> tags, bool bigEndian)
+    {
         var width = (int)RequireTagValues(file, tags, TagImageWidth, "ImageWidth", bigEndian)[0];
         var height = (int)RequireTagValues(file, tags, TagImageLength, "ImageLength", bigEndian)[0];
         if (width <= 0 || height <= 0)
@@ -270,7 +336,7 @@ public static class TiffCodec
             : bitsPerSample.Length;
 
         var compressionValue = (int)RequireTagValues(file, tags, TagCompression, "Compression", bigEndian)[0];
-        if (!Enum.IsDefined(typeof(TiffCompression), compressionValue))
+        if (!Enum.IsDefined((TiffCompression)compressionValue))
         {
             throw new InvalidDataException(
                 $"Unsupported TIFF compression {compressionValue}; only None (1), LZW (5), Deflate (8), and PackBits (32773) are supported.");
@@ -303,6 +369,23 @@ public static class TiffCodec
                 $"Unsupported TIFF predictor {predictor}; only None (1) and horizontal differencing (2) are supported.");
         }
 
+        ValidateSamplesPerPixel(file, tags, photometric, samplesPerPixel, bigEndian);
+
+        return new TiffImageInfo(width, height, samplesPerPixel, compression, photometric, planarConfiguration, predictor);
+    }
+
+    /// <summary>
+    ///     Validates that <paramref name="samplesPerPixel"/> is a supported value for the given
+    ///     <paramref name="photometric"/> interpretation, including the RGBA
+    ///     <c>ExtraSamples</c>-tag requirement for 4-sample RGB images.
+    /// </summary>
+    private static void ValidateSamplesPerPixel(
+        byte[] file,
+        Dictionary<ushort, IfdEntry> tags,
+        int photometric,
+        int samplesPerPixel,
+        bool bigEndian)
+    {
         if (photometric == PhotometricRgb)
         {
             if (samplesPerPixel == 4)
@@ -325,7 +408,21 @@ public static class TiffCodec
             throw new InvalidDataException(
                 $"Unsupported TIFF samples per pixel {samplesPerPixel} for Grayscale photometric interpretation; only 1 is supported.");
         }
+    }
 
+    /// <summary>
+    ///     The strip-layout tag values needed to iterate a TIFF image's strips: how many rows
+    ///     each strip holds, and the byte width of one decompressed, unpacked pixel row.
+    /// </summary>
+    private readonly record struct StripLayout(int RowsPerStrip, int RowBytes);
+
+    /// <summary>
+    ///     Reads the <c>StripOffsets</c>/<c>RowsPerStrip</c>/<c>StripByteCounts</c> tags, then
+    ///     decodes every strip in order into a new <see cref="Surface"/>, verifying afterward
+    ///     that the strips cover the full declared image height.
+    /// </summary>
+    private static Surface DecodeStrips(byte[] file, Dictionary<ushort, IfdEntry> tags, TiffImageInfo info, bool bigEndian)
+    {
         var stripOffsets = RequireTagValues(file, tags, TagStripOffsets, "StripOffsets", bigEndian);
         var rowsPerStrip = (int)RequireTagValues(file, tags, TagRowsPerStrip, "RowsPerStrip", bigEndian)[0];
         var stripByteCounts = RequireTagValues(file, tags, TagStripByteCounts, "StripByteCounts", bigEndian);
@@ -339,53 +436,23 @@ public static class TiffCodec
             throw new InvalidDataException("StripOffsets and StripByteCounts entry counts do not match.");
         }
 
-        var surface = new Surface(width, height);
-        var rowBytes = width * samplesPerPixel;
+        var surface = new Surface(info.Width, info.Height);
+        var layout = new StripLayout(rowsPerStrip, info.Width * info.SamplesPerPixel);
         var destinationRow = 0;
 
         for (var stripIndex = 0; stripIndex < stripOffsets.Length; stripIndex++)
         {
-            var stripOffset = checked((int)stripOffsets[stripIndex]);
-            var stripByteCount = checked((int)stripByteCounts[stripIndex]);
-            CheckBounds(file, stripOffset, stripByteCount, "strip data");
-            var stripBytes = file.AsSpan(stripOffset, stripByteCount).ToArray();
-
-            var decompressed = compression switch
-            {
-                TiffCompression.None => stripBytes,
-                TiffCompression.PackBits => DecodePackBits(stripBytes),
-                TiffCompression.Lzw => DecodeLzw(stripBytes),
-                TiffCompression.Deflate => ZlibDecompress(stripBytes),
-                _ => throw new InvalidDataException($"Unsupported TIFF compression {compression}.")
-            };
-
-            var rowsInStrip = Math.Min(rowsPerStrip, height - destinationRow);
-            if (rowsInStrip <= 0)
-            {
-                continue;
-            }
-
-            var expectedLength = (long)rowBytes * rowsInStrip;
-            if (decompressed.LongLength < expectedLength)
-            {
-                throw new InvalidDataException(
-                    "Decompressed TIFF strip data is shorter than expected (corrupt or truncated image data).");
-            }
-
-            for (var row = 0; row < rowsInStrip; row++)
-            {
-                var rowSpan = decompressed.AsSpan(row * rowBytes, rowBytes);
-                if (predictor == PredictorHorizontal)
-                {
-                    RemoveHorizontalPredictor(rowSpan, samplesPerPixel);
-                }
-
-                UnpackRow(rowSpan, surface.GetRowSpanBytes(destinationRow), width, samplesPerPixel, photometric);
-                destinationRow++;
-            }
+            destinationRow = DecodeStrip(
+                file,
+                stripOffsets[stripIndex],
+                stripByteCounts[stripIndex],
+                info,
+                layout,
+                surface,
+                destinationRow);
         }
 
-        if (destinationRow != height)
+        if (destinationRow != info.Height)
         {
             throw new InvalidDataException("TIFF strips do not cover the full declared image height.");
         }
@@ -394,34 +461,59 @@ public static class TiffCodec
     }
 
     /// <summary>
-    ///     Loads a <see cref="Surface"/> from a TIFF file at the specified path.
+    ///     Decompresses one TIFF strip and unpacks its rows (reversing the horizontal predictor
+    ///     first, if applicable) into <paramref name="surface"/> starting at
+    ///     <paramref name="destinationRow"/>, returning the updated destination row index.
     /// </summary>
-    /// <param name="path">The path of the TIFF file to load. Must not be null or empty.</param>
-    /// <returns>
-    ///     A new <see cref="Surface"/> containing the decoded pixels; see <see cref="Load(Stream)"/>
-    ///     for the decoding contract.
-    /// </returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is null.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="path"/> is an empty string.</exception>
-    /// <exception cref="System.IO.InvalidDataException">
-    ///     Thrown for the same malformed/unsupported-format conditions as <see cref="Load(Stream)"/>.
-    /// </exception>
-    /// <remarks>
-    ///     File-system exceptions (for example <see cref="FileNotFoundException"/>,
-    ///     <see cref="DirectoryNotFoundException"/>, <see cref="UnauthorizedAccessException"/>,
-    ///     or <see cref="IOException"/>) raised while opening <paramref name="path"/> propagate
-    ///     uncaught to the caller.
-    /// </remarks>
-    public static Surface Load(string path)
+    private static int DecodeStrip(
+        byte[] file,
+        uint stripOffsetValue,
+        uint stripByteCountValue,
+        TiffImageInfo info,
+        StripLayout layout,
+        Surface surface,
+        int destinationRow)
     {
-        ArgumentNullException.ThrowIfNull(path);
-        if (path.Length == 0)
+        var stripOffset = checked((int)stripOffsetValue);
+        var stripByteCount = checked((int)stripByteCountValue);
+        CheckBounds(file, stripOffset, stripByteCount, "strip data");
+        var stripBytes = file.AsSpan(stripOffset, stripByteCount).ToArray();
+
+        var decompressed = info.Compression switch
         {
-            throw new ArgumentException("Path must not be empty.", nameof(path));
+            TiffCompression.None => stripBytes,
+            TiffCompression.PackBits => DecodePackBits(stripBytes),
+            TiffCompression.Lzw => DecodeLzw(stripBytes),
+            TiffCompression.Deflate => ZlibDecompress(stripBytes),
+            _ => throw new InvalidDataException($"Unsupported TIFF compression {info.Compression}.")
+        };
+
+        var rowsInStrip = Math.Min(layout.RowsPerStrip, info.Height - destinationRow);
+        if (rowsInStrip <= 0)
+        {
+            return destinationRow;
         }
 
-        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
-        return Load(stream);
+        var expectedLength = (long)layout.RowBytes * rowsInStrip;
+        if (decompressed.LongLength < expectedLength)
+        {
+            throw new InvalidDataException(
+                "Decompressed TIFF strip data is shorter than expected (corrupt or truncated image data).");
+        }
+
+        for (var row = 0; row < rowsInStrip; row++)
+        {
+            var rowSpan = decompressed.AsSpan(row * layout.RowBytes, layout.RowBytes);
+            if (info.Predictor == PredictorHorizontal)
+            {
+                RemoveHorizontalPredictor(rowSpan, info.SamplesPerPixel);
+            }
+
+            UnpackRow(rowSpan, surface.GetRowSpanBytes(destinationRow), info.Width, info.SamplesPerPixel, info.Photometric);
+            destinationRow++;
+        }
+
+        return destinationRow;
     }
 
     /// <summary>
@@ -465,7 +557,7 @@ public static class TiffCodec
     {
         ArgumentNullException.ThrowIfNull(surface);
         ArgumentNullException.ThrowIfNull(stream);
-        if (!Enum.IsDefined(typeof(TiffCompression), compression))
+        if (!Enum.IsDefined<TiffCompression>(compression))
         {
             throw new ArgumentOutOfRangeException(
                 nameof(compression), compression, "Compression must be a defined TiffCompression value.");
@@ -838,11 +930,7 @@ public static class TiffCodec
         var i = 0;
         while (i < data.Length)
         {
-            var runLength = 1;
-            while (i + runLength < data.Length && runLength < 128 && data[i + runLength] == data[i])
-            {
-                runLength++;
-            }
+            var runLength = FindPackBitsRunLength(data, i);
 
             if (runLength >= 2)
             {
@@ -853,30 +941,51 @@ public static class TiffCodec
             else
             {
                 var start = i;
-                var length = 0;
-                while (i < data.Length && length < 128)
-                {
-                    var lookaheadRun = 1;
-                    while (i + lookaheadRun < data.Length && lookaheadRun < 128 && data[i + lookaheadRun] == data[i])
-                    {
-                        lookaheadRun++;
-                    }
-
-                    if (lookaheadRun >= 2)
-                    {
-                        break;
-                    }
-
-                    i++;
-                    length++;
-                }
-
+                var length = FindPackBitsLiteralLength(data, ref i);
                 output.WriteByte((byte)(length - 1));
                 output.Write(data, start, length);
             }
         }
 
         return output.ToArray();
+    }
+
+    /// <summary>
+    ///     Counts how many bytes starting at <paramref name="start"/> repeat the value at
+    ///     <paramref name="start"/>, capped at the PackBits maximum run length of 128.
+    /// </summary>
+    private static int FindPackBitsRunLength(byte[] data, int start)
+    {
+        var runLength = 1;
+        while (start + runLength < data.Length && runLength < 128 && data[start + runLength] == data[start])
+        {
+            runLength++;
+        }
+
+        return runLength;
+    }
+
+    /// <summary>
+    ///     Advances <paramref name="i"/> past a run of non-repeating ("literal") bytes, stopping
+    ///     as soon as a repeat run of 2 or more is found or the PackBits maximum literal length of
+    ///     128 is reached, and returns the number of literal bytes found.
+    /// </summary>
+    private static int FindPackBitsLiteralLength(byte[] data, ref int i)
+    {
+        var length = 0;
+        while (i < data.Length && length < 128)
+        {
+            var lookaheadRun = FindPackBitsRunLength(data, i);
+            if (lookaheadRun >= 2)
+            {
+                break;
+            }
+
+            i++;
+            length++;
+        }
+
+        return length;
     }
 
     /// <summary>
@@ -973,46 +1082,69 @@ public static class TiffCodec
                 continue;
             }
 
-            byte[] entry;
-            if (code < 256)
-            {
-                entry = [(byte)code];
-            }
-            else if (code - LzwFirstCode < table.Count)
-            {
-                entry = table[code - LzwFirstCode];
-            }
-            else if (code - LzwFirstCode == table.Count && previousEntry is not null)
-            {
-                entry = new byte[previousEntry.Length + 1];
-                previousEntry.CopyTo(entry, 0);
-                entry[^1] = previousEntry[0];
-            }
-            else
-            {
-                throw new InvalidDataException("Invalid TIFF LZW code sequence.");
-            }
-
+            var entry = ResolveLzwEntry(code, table, previousEntry);
             output.Write(entry, 0, entry.Length);
 
             if (previousEntry is not null)
             {
-                var newEntry = new byte[previousEntry.Length + 1];
-                previousEntry.CopyTo(newEntry, 0);
-                newEntry[^1] = entry[0];
-                table.Add(newEntry);
-
-                var nextCode = LzwFirstCode + table.Count;
-                if (nextCode is 511 or 1023 or 2047)
-                {
-                    codeSize++;
-                }
+                codeSize = AddLzwTableEntry(table, previousEntry, entry, codeSize);
             }
 
             previousEntry = entry;
         }
 
         return output.ToArray();
+    }
+
+    /// <summary>
+    ///     Resolves the byte sequence for a single decoded LZW <paramref name="code"/>: a literal
+    ///     byte value for codes below 256, an existing table entry for already-known codes, or
+    ///     the classic LZW "KwKwK" reconstruction (previous entry plus its own first byte) for
+    ///     the one code that is always exactly one past the current table end.
+    /// </summary>
+    /// <exception cref="System.IO.InvalidDataException">Thrown when <paramref name="code"/> is invalid.</exception>
+    private static byte[] ResolveLzwEntry(int code, List<byte[]> table, byte[]? previousEntry)
+    {
+        if (code < 256)
+        {
+            return [(byte)code];
+        }
+
+        if (code - LzwFirstCode < table.Count)
+        {
+            return table[code - LzwFirstCode];
+        }
+
+        if (code - LzwFirstCode == table.Count && previousEntry is not null)
+        {
+            var entry = new byte[previousEntry.Length + 1];
+            previousEntry.CopyTo(entry, 0);
+            entry[^1] = previousEntry[0];
+            return entry;
+        }
+
+        throw new InvalidDataException("Invalid TIFF LZW code sequence.");
+    }
+
+    /// <summary>
+    ///     Appends a new table entry formed from <paramref name="previousEntry"/> plus the first
+    ///     byte of <paramref name="entry"/>, then widens <paramref name="codeSize"/> if the table
+    ///     has just grown past a code-width boundary, returning the (possibly updated) code size.
+    /// </summary>
+    private static int AddLzwTableEntry(List<byte[]> table, byte[] previousEntry, byte[] entry, int codeSize)
+    {
+        var newEntry = new byte[previousEntry.Length + 1];
+        previousEntry.CopyTo(newEntry, 0);
+        newEntry[^1] = entry[0];
+        table.Add(newEntry);
+
+        var nextCode = LzwFirstCode + table.Count;
+        if (nextCode is 511 or 1023 or 2047)
+        {
+            codeSize++;
+        }
+
+        return codeSize;
     }
 
     /// <summary>

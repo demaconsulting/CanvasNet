@@ -161,118 +161,21 @@ public static class PngCodec
 
         // Validate the fixed 8-byte PNG signature before attempting to interpret anything else
         // as chunk data
-        var signature = ReadExactly(stream, Signature.Length, "PNG signature");
-        for (var i = 0; i < Signature.Length; i++)
-        {
-            if (signature[i] != Signature[i])
-            {
-                throw new InvalidDataException("Not a PNG file (missing PNG signature).");
-            }
-        }
+        ValidateSignature(stream);
 
-        var ihdrSeen = false;
-        var iendSeen = false;
-        var width = 0;
-        var height = 0;
-        var colorType = 0;
-        using var idatStream = new MemoryStream();
+        var header = ReadChunks(stream, out var idatData);
 
-        // Read chunks until IEND is encountered; ReadExactly throws InvalidDataException if the
-        // stream ends before IEND is found, which correctly rejects a truncated stream
-        while (!iendSeen)
-        {
-            var lengthBytes = ReadExactly(stream, 4, "chunk length");
-            var length = ReadUInt32Be(lengthBytes, 0);
-            if (length > int.MaxValue)
-            {
-                throw new InvalidDataException("Chunk length exceeds the supported range.");
-            }
-
-            var typeBytes = ReadExactly(stream, 4, "chunk type");
-            var data = length == 0 ? [] : ReadExactly(stream, (int)length, "chunk data");
-            var crcBytes = ReadExactly(stream, 4, "chunk CRC");
-            var expectedCrc = ReadUInt32Be(crcBytes, 0);
-
-            // The CRC-32 covers the chunk type and data, but not the length field itself
-            var crcInput = new byte[4 + data.Length];
-            typeBytes.CopyTo(crcInput, 0);
-            data.CopyTo(crcInput, 4);
-            var actualCrc = ComputeCrc32(crcInput);
-            if (actualCrc != expectedCrc)
-            {
-                throw new InvalidDataException("Corrupt PNG chunk (CRC-32 mismatch).");
-            }
-
-            if (ChunkTypeIs(typeBytes, "IHDR"))
-            {
-                if (ihdrSeen)
-                {
-                    throw new InvalidDataException("Duplicate IHDR chunk.");
-                }
-
-                (width, height, colorType) = ParseIhdr(data);
-                ihdrSeen = true;
-            }
-            else if (ChunkTypeIs(typeBytes, "IDAT"))
-            {
-                if (!ihdrSeen)
-                {
-                    throw new InvalidDataException("IDAT chunk encountered before IHDR.");
-                }
-
-                idatStream.Write(data, 0, data.Length);
-            }
-            else if (ChunkTypeIs(typeBytes, "IEND"))
-            {
-                if (!ihdrSeen)
-                {
-                    throw new InvalidDataException("IEND chunk encountered before IHDR.");
-                }
-
-                iendSeen = true;
-            }
-
-            // Any other chunk type (for example "tEXt", "pHYs", "gAMA") is an ancillary chunk
-            // this codec does not need; its CRC-32 has already been validated above, and its
-            // data is simply not accumulated anywhere, effectively skipping it
-        }
-
-        if (!ihdrSeen)
-        {
-            throw new InvalidDataException("Missing IHDR chunk.");
-        }
-
-        var channels = colorType == (int)PngColorType.Rgba ? 4 : 3;
-        var rowBytes = width * channels;
-        var rawData = ZlibDecompress(idatStream.ToArray());
-        var expectedRawLength = (long)(rowBytes + 1) * height;
+        var channels = header.ColorType == (int)PngColorType.Rgba ? 4 : 3;
+        var rowBytes = header.Width * channels;
+        var rawData = ZlibDecompress(idatData);
+        var expectedRawLength = (long)(rowBytes + 1) * header.Height;
         if (rawData.LongLength != expectedRawLength)
         {
             throw new InvalidDataException(
                 "PNG scanline data has an unexpected length (corrupt or truncated image data).");
         }
 
-        var surface = new Surface(width, height);
-        var previousRow = new byte[rowBytes];
-        var currentRow = new byte[rowBytes];
-        var offset = 0;
-        for (var y = 0; y < height; y++)
-        {
-            var filterType = rawData[offset];
-            offset++;
-            var filtered = rawData.AsSpan(offset, rowBytes);
-            offset += rowBytes;
-
-            DefilterRow(filterType, filtered, previousRow, currentRow, channels);
-            UnpackRow(currentRow, surface.GetRowSpanBytes(y), width, channels);
-
-            // Swap buffers rather than copying: the just-defiltered row becomes the "previous
-            // row" reference for the next iteration, and the old previous-row buffer is reused
-            // (and fully overwritten) as the next iteration's output buffer
-            (previousRow, currentRow) = (currentRow, previousRow);
-        }
-
-        return surface;
+        return DecodeScanlines(rawData, header.Width, header.Height, channels);
     }
 
     /// <summary>
@@ -304,6 +207,168 @@ public static class PngCodec
 
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
         return Load(stream);
+    }
+
+    /// <summary>
+    ///     Validates that <paramref name="stream"/> begins with the fixed 8-byte PNG signature,
+    ///     consuming exactly those 8 bytes.
+    /// </summary>
+    private static void ValidateSignature(Stream stream)
+    {
+        var signature = ReadExactly(stream, Signature.Length, "PNG signature");
+        for (var i = 0; i < Signature.Length; i++)
+        {
+            if (signature[i] != Signature[i])
+            {
+                throw new InvalidDataException("Not a PNG file (missing PNG signature).");
+            }
+        }
+    }
+
+    /// <summary>
+    ///     The width, height, and color type parsed from a PNG's <c>IHDR</c> chunk, produced by
+    ///     <see cref="ReadChunks"/> once the chunk stream has been fully consumed through
+    ///     <c>IEND</c>.
+    /// </summary>
+    private readonly record struct PngHeader(int Width, int Height, int ColorType);
+
+    /// <summary>
+    ///     Tracks whether the mandatory <c>IHDR</c> chunk has been seen and accumulates the
+    ///     header's field values as chunks are read, threaded through <see cref="ProcessChunk"/>
+    ///     while <see cref="ReadChunks"/> walks the chunk stream.
+    /// </summary>
+    private sealed class ChunkReadState
+    {
+        /// <summary>Whether the mandatory IHDR chunk has been seen yet.</summary>
+        public bool IhdrSeen { get; set; }
+
+        /// <summary>Whether the mandatory IEND chunk has been seen yet.</summary>
+        public bool IendSeen { get; set; }
+
+        /// <summary>The image width in pixels, populated by the IHDR chunk.</summary>
+        public int Width { get; set; }
+
+        /// <summary>The image height in pixels, populated by the IHDR chunk.</summary>
+        public int Height { get; set; }
+
+        /// <summary>The PNG color type, populated by the IHDR chunk.</summary>
+        public int ColorType { get; set; }
+    }
+
+    /// <summary>
+    ///     Reads and validates every chunk from <paramref name="stream"/> until (and including)
+    ///     <c>IEND</c>, accumulating <c>IDAT</c> payload bytes into <paramref name="idatData"/>
+    ///     and returning the parsed <c>IHDR</c> fields.
+    /// </summary>
+    private static PngHeader ReadChunks(Stream stream, out byte[] idatData)
+    {
+        var state = new ChunkReadState();
+        using var idatStream = new MemoryStream();
+
+        // Read chunks until IEND is encountered; ReadExactly throws InvalidDataException if the
+        // stream ends before IEND is found, which correctly rejects a truncated stream
+        while (!state.IendSeen)
+        {
+            ProcessChunk(stream, idatStream, state);
+        }
+
+        idatData = idatStream.ToArray();
+        return new PngHeader(state.Width, state.Height, state.ColorType);
+    }
+
+    /// <summary>
+    ///     Reads, CRC-validates, and dispatches a single chunk: <c>IHDR</c> populates
+    ///     <paramref name="state"/>'s header fields, <c>IDAT</c> data is appended to
+    ///     <paramref name="idatStream"/>, <c>IEND</c> marks the chunk stream complete, and any
+    ///     other chunk type is validated but otherwise skipped.
+    /// </summary>
+    private static void ProcessChunk(Stream stream, MemoryStream idatStream, ChunkReadState state)
+    {
+        var lengthBytes = ReadExactly(stream, 4, "chunk length");
+        var length = ReadUInt32Be(lengthBytes, 0);
+        if (length > int.MaxValue)
+        {
+            throw new InvalidDataException("Chunk length exceeds the supported range.");
+        }
+
+        var typeBytes = ReadExactly(stream, 4, "chunk type");
+        var data = length == 0 ? [] : ReadExactly(stream, (int)length, "chunk data");
+        var crcBytes = ReadExactly(stream, 4, "chunk CRC");
+        var expectedCrc = ReadUInt32Be(crcBytes, 0);
+
+        // The CRC-32 covers the chunk type and data, but not the length field itself
+        var crcInput = new byte[4 + data.Length];
+        typeBytes.CopyTo(crcInput, 0);
+        data.CopyTo(crcInput, 4);
+        var actualCrc = ComputeCrc32(crcInput);
+        if (actualCrc != expectedCrc)
+        {
+            throw new InvalidDataException("Corrupt PNG chunk (CRC-32 mismatch).");
+        }
+
+        if (ChunkTypeIs(typeBytes, "IHDR"))
+        {
+            if (state.IhdrSeen)
+            {
+                throw new InvalidDataException("Duplicate IHDR chunk.");
+            }
+
+            (state.Width, state.Height, state.ColorType) = ParseIhdr(data);
+            state.IhdrSeen = true;
+        }
+        else if (ChunkTypeIs(typeBytes, "IDAT"))
+        {
+            if (!state.IhdrSeen)
+            {
+                throw new InvalidDataException("IDAT chunk encountered before IHDR.");
+            }
+
+            idatStream.Write(data, 0, data.Length);
+        }
+        else if (ChunkTypeIs(typeBytes, "IEND"))
+        {
+            if (!state.IhdrSeen)
+            {
+                throw new InvalidDataException("IEND chunk encountered before IHDR.");
+            }
+
+            state.IendSeen = true;
+        }
+
+        // Any other chunk type (for example "tEXt", "pHYs", "gAMA") is an ancillary chunk
+        // this codec does not need; its CRC-32 has already been validated above, and its
+        // data is simply not accumulated anywhere, effectively skipping it
+    }
+
+    /// <summary>
+    ///     Defilters and unpacks every scanline of decompressed PNG raw data into a new
+    ///     <see cref="Surface"/>, reconstructing each row from the previous row per the PNG
+    ///     filtering specification.
+    /// </summary>
+    private static Surface DecodeScanlines(byte[] rawData, int width, int height, int channels)
+    {
+        var rowBytes = width * channels;
+        var surface = new Surface(width, height);
+        var previousRow = new byte[rowBytes];
+        var currentRow = new byte[rowBytes];
+        var offset = 0;
+        for (var y = 0; y < height; y++)
+        {
+            var filterType = rawData[offset];
+            offset++;
+            var filtered = rawData.AsSpan(offset, rowBytes);
+            offset += rowBytes;
+
+            DefilterRow(filterType, filtered, previousRow, currentRow, channels);
+            UnpackRow(currentRow, surface.GetRowSpanBytes(y), width, channels);
+
+            // Swap buffers rather than copying: the just-defiltered row becomes the "previous
+            // row" reference for the next iteration, and the old previous-row buffer is reused
+            // (and fully overwritten) as the next iteration's output buffer
+            (previousRow, currentRow) = (currentRow, previousRow);
+        }
+
+        return surface;
     }
 
     /// <summary>
@@ -566,46 +631,74 @@ public static class PngCodec
                 break;
 
             case 1: // Sub
-                for (var i = 0; i < filtered.Length; i++)
-                {
-                    int left = i >= bpp ? output[i - bpp] : 0;
-                    output[i] = (byte)(filtered[i] + left);
-                }
-
+                DefilterSub(filtered, output, bpp);
                 break;
 
             case 2: // Up
-                for (var i = 0; i < filtered.Length; i++)
-                {
-                    output[i] = (byte)(filtered[i] + previousRow[i]);
-                }
-
+                DefilterUp(filtered, previousRow, output);
                 break;
 
             case 3: // Average
-                for (var i = 0; i < filtered.Length; i++)
-                {
-                    int left = i >= bpp ? output[i - bpp] : 0;
-                    int up = previousRow[i];
-                    output[i] = (byte)(filtered[i] + (left + up) / 2);
-                }
-
+                DefilterAverage(filtered, previousRow, output, bpp);
                 break;
 
             case 4: // Paeth
-                for (var i = 0; i < filtered.Length; i++)
-                {
-                    int left = i >= bpp ? output[i - bpp] : 0;
-                    int up = previousRow[i];
-                    int upperLeft = i >= bpp ? previousRow[i - bpp] : 0;
-                    output[i] = (byte)(filtered[i] + PaethPredictor(left, up, upperLeft));
-                }
-
+                DefilterPaeth(filtered, previousRow, output, bpp);
                 break;
 
             default:
                 throw new InvalidDataException(
                     $"Unsupported PNG filter type {filterType}; only filter types 0-4 are supported.");
+        }
+    }
+
+    /// <summary>Reconstructs a scanline filtered with PNG filter type 1 (Sub).</summary>
+    private static void DefilterSub(ReadOnlySpan<byte> filtered, Span<byte> output, int bpp)
+    {
+        for (var i = 0; i < filtered.Length; i++)
+        {
+            int left = i >= bpp ? output[i - bpp] : 0;
+            output[i] = (byte)(filtered[i] + left);
+        }
+    }
+
+    /// <summary>Reconstructs a scanline filtered with PNG filter type 2 (Up).</summary>
+    private static void DefilterUp(ReadOnlySpan<byte> filtered, ReadOnlySpan<byte> previousRow, Span<byte> output)
+    {
+        for (var i = 0; i < filtered.Length; i++)
+        {
+            output[i] = (byte)(filtered[i] + previousRow[i]);
+        }
+    }
+
+    /// <summary>Reconstructs a scanline filtered with PNG filter type 3 (Average).</summary>
+    private static void DefilterAverage(
+        ReadOnlySpan<byte> filtered,
+        ReadOnlySpan<byte> previousRow,
+        Span<byte> output,
+        int bpp)
+    {
+        for (var i = 0; i < filtered.Length; i++)
+        {
+            int left = i >= bpp ? output[i - bpp] : 0;
+            int up = previousRow[i];
+            output[i] = (byte)(filtered[i] + (left + up) / 2);
+        }
+    }
+
+    /// <summary>Reconstructs a scanline filtered with PNG filter type 4 (Paeth).</summary>
+    private static void DefilterPaeth(
+        ReadOnlySpan<byte> filtered,
+        ReadOnlySpan<byte> previousRow,
+        Span<byte> output,
+        int bpp)
+    {
+        for (var i = 0; i < filtered.Length; i++)
+        {
+            int left = i >= bpp ? output[i - bpp] : 0;
+            int up = previousRow[i];
+            int upperLeft = i >= bpp ? previousRow[i - bpp] : 0;
+            output[i] = (byte)(filtered[i] + PaethPredictor(left, up, upperLeft));
         }
     }
 

@@ -102,11 +102,12 @@ standard filter types) and unpacked into the destination `Surface`'s rows via
 **Throws:**
 
 - `ArgumentNullException` — `stream` is null
-- `InvalidDataException` — missing PNG signature; missing, duplicate, or malformed `IHDR`;
-  unsupported bit depth, color type, compression method, filter method, or interlace method; any
-  chunk's CRC-32 mismatch; a malformed or unsupported zlib header; an Adler-32 checksum mismatch;
-  an unexpected decompressed data length; an unsupported scanline filter type; or the stream ends
-  before all header, chunk, or pixel data has been read
+- `InvalidDataException` — missing PNG signature; missing, duplicate, or malformed `IHDR`; an
+  `IDAT` or `IEND` chunk encountered before `IHDR`; unsupported bit depth, color type, compression
+  method, filter method, or interlace method; any chunk's CRC-32 mismatch; a malformed or
+  unsupported zlib header; an Adler-32 checksum mismatch; an unexpected decompressed data length;
+  an unsupported scanline filter type; or the stream ends before all header, chunk, or pixel data
+  has been read
 
 #### Load(string path)
 

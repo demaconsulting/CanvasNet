@@ -38,6 +38,7 @@
 
     <!-- Polyfill Configuration -->
     <PolyArgumentExceptions>true</PolyArgumentExceptions>
+    <PolyUseEmbeddedAttribute>true</PolyUseEmbeddedAttribute>
 
     <!-- SBOM Configuration -->
     <GenerateSBOM>true</GenerateSBOM>
