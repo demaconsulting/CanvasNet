@@ -85,18 +85,18 @@ the stored value.
 #### CanvasNet-Canvas-Surface-RowSpanBytes: Writes Through the Byte Row Span Are Visible via the Indexer
 
 **Tests**: `Surface_GetRowSpanBytes_WriteToSpan_IndexerReflectsChange`,
-`Surface_GetRowSpanBytes_BoundaryWidths_ReturnsWidthTimesFourLength`,
-`Surface_PngCodecRoundTrip_BoundaryWidths_ReturnsExpectedPixels`
+`Surface_GetRowSpanBytes_BoundaryWidths_ReturnsWidthTimesFourLength`
 
 Obtains the raw byte span for a row via `GetRowSpanBytes`, writes four bytes representing one
 pixel directly into the span, and asserts the indexer at the corresponding coordinate returns the
 matching `Rgba32` value — confirming the span aliases the surface's own storage. Additionally,
 constructs surfaces at internal row-padding boundary widths (1, 15, 16, 17, 31, 32, 33, 100, 257 —
 straddling the 16-pixel padding boundary from both sides) and asserts `GetRowSpanBytes` always
-returns a span of exactly `Width * 4` bytes regardless of the internal padding, and that a PNG
-save/load round-trip at each of those widths reproduces every pixel byte-exactly — together
-proving the internal row-stride/padding change is never observable through the public byte-row
-accessor or through codec round-tripping.
+returns a span of exactly `Width * 4` bytes regardless of the internal padding. (The
+codec-round-trip regression at these same boundary widths is a system-level scenario — see
+`CanvasNet_SystemIntegration_PngCodecRoundTrip_BoundaryWidths_ReturnsExpectedPixels` in the system
+verification design, `../../canvas-net.md` — because it exercises the `Codecs` → `Surface`
+integration boundary rather than `Surface` in isolation.)
 
 #### CanvasNet-Canvas-Surface-RowSpanPixels: Writes Through the Pixel Row Span Are Visible via the Indexer
 
@@ -199,14 +199,18 @@ the documented degenerate-case result.
 
 **Tests**: `Surface_CompositeOverSurface_OpaqueForeground_ReplacesBackground`,
 `Surface_CompositeOverSurface_TransparentForeground_LeavesBackgroundUnchanged`,
+`Surface_CompositeOverSurface_BothFullyTransparent_ResultIsZero`,
 `Surface_CompositeOverSurface_PartialAlpha_MatchesIndependentlyComputedResult`
 
 Composites a fully opaque foreground pixel over a distinct background pixel and asserts the
 result exactly equals the foreground. Separately, composites a fully transparent foreground pixel
 (with garbage color channels) over a background and asserts the background is completely
-unaffected. Separately, composites two partially transparent pixels and asserts the result
-exactly matches a value independently hand-computed via the Porter-Duff "over" formula in a
-separate float32 simulation (not by re-deriving the same formula under test).
+unaffected. Separately, composites a fully transparent foreground pixel (with garbage color
+channels) over a fully transparent background (also with garbage color channels) and asserts the
+result is exactly zero RGB and zero alpha, exercising the `outA == 0` division-guard path that a
+nonzero-alpha background never reaches. Separately, composites two partially transparent pixels
+and asserts the result exactly matches a value independently hand-computed via the Porter-Duff
+"over" formula in a separate float32 simulation (not by re-deriving the same formula under test).
 
 #### CanvasNet-Canvas-Surface-CompositeOverSurfaceNull: CompositeOver(Surface) Rejects a Null Foreground
 
@@ -227,16 +231,21 @@ separately whose height differs, and asserts `ArgumentException` is thrown in bo
 
 **Tests**: `Surface_CompositeOverColor_OpaqueColor_ReplacesBackground`,
 `Surface_CompositeOverColor_TransparentColor_LeavesBackgroundUnchanged`,
+`Surface_CompositeOverColor_BothFullyTransparent_ResultIsZero`,
 `Surface_CompositeOverColor_PartialAlpha_MatchesIndependentlyComputedResult`,
 `Surface_CompositeOverColor_MultiRowSurface_AppliesToEveryPixel`
 
 Composites a fully opaque constant color over a background pixel and asserts the result exactly
 equals the color. Separately, composites a fully transparent constant color (with garbage color
 channels) over a background and asserts the background is unaffected. Separately, composites a
-partially transparent constant color over an opaque background and asserts the result exactly
-matches an independently hand-computed value. Separately, composites a constant opaque color over
-a multi-row, multi-column surface and asserts every pixel is replaced, confirming the per-row
-loop is applied uniformly across the whole surface, not just a single pixel.
+fully transparent constant color (with garbage color channels) over a fully transparent
+background pixel (also with garbage color channels) and asserts the result is exactly zero RGB
+and zero alpha, exercising the `outA == 0` division-guard path that a nonzero-alpha background
+never reaches. Separately, composites a partially transparent constant color over an opaque
+background and asserts the result exactly matches an independently hand-computed value.
+Separately, composites a constant opaque color over a multi-row, multi-column surface and asserts
+every pixel is replaced, confirming the per-row loop is applied uniformly across the whole
+surface, not just a single pixel.
 
 #### Rgba32 Sanity Checks (no requirement link)
 
@@ -250,5 +259,5 @@ operators. These sanity tests support the other `Surface` scenarios above (which
 ### Acceptance Criteria
 
 A unit test run passes when every requirement-linked scenario above, plus the two `Rgba32`
-sanity tests and the additional boundary-width/round-trip regression tests, pass without error or
+sanity tests and the additional boundary-width regression tests, pass without error or
 unexpected exception; any unexpected exception type or wrong return value constitutes a failure.

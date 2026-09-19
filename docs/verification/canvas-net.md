@@ -124,8 +124,23 @@ overshoots 255) through the public indexer, converts it to straight alpha via
 expected rounded-and-clamped value, confirming the system's public unpremultiply API integrates
 correctly with `Surface`, including its documented clamping behavior.
 
+### Integration: PNG Codec Round-Trip at Boundary Widths Returns Expected Pixels
+
+**Test**: `CanvasNet_SystemIntegration_PngCodecRoundTrip_BoundaryWidths_ReturnsExpectedPixels`
+
+Exercises end-to-end system behavior across the `Surface` and `PngCodec` units at every internal
+row-padding boundary width (1, 15, 16, 17, 31, 32, 33, 100, 257 pixels — straddling the 16-pixel
+padding boundary from both sides): constructs a `Surface` with distinct, non-trivial per-pixel
+values at each boundary width, saves it to an in-memory PNG stream via `PngCodec.Save`, and loads
+it back via `PngCodec.Load`. Asserts every pixel round-trips byte-exactly, confirming that
+`Surface`'s internal row-stride/padding storage detail (owned by the `Surface` unit) is never
+observable through the `PngCodec` unit's save/load API. This is a system-level scenario, not a
+`Surface` unit scenario, because it exercises the `Codecs` → `Surface` integration boundary
+(`PngCodec` depends on `Surface`, not vice versa); a `Surface` unit test may only depend on
+`Surface` itself and its documented dependencies.
+
 ## Acceptance Criteria
 
-A system-level test run passes when all ten scenarios above pass without error or exception beyond
-those explicitly asserted. Any unexpected exception, wrong exception type, or wrong return value
-constitutes a failure.
+A system-level test run passes when all eleven scenarios above pass without error or exception
+beyond those explicitly asserted. Any unexpected exception, wrong exception type, or wrong return
+value constitutes a failure.

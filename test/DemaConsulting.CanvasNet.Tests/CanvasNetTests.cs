@@ -228,4 +228,55 @@ public class CanvasNetTests
         // (round(100*255/50)=510, clamped to 255; round(10*255/50)=51; 0 stays 0; alpha unchanged)
         Assert.Equal(new Rgba32(255, 51, 0, 50), surface[0, 0]);
     }
+
+    /// <summary>
+    ///     Row widths, in pixels, that exercise Surface's internal row-padding boundary (padding
+    ///     is applied in multiples of 16 pixels): widths at, just below, and just above each
+    ///     boundary, plus a couple of larger "normal" widths.
+    /// </summary>
+    public static TheoryData<int> BoundaryWidths =>
+    [
+        1, 15, 16, 17, 31, 32, 33, 100, 257
+    ];
+
+    /// <summary>
+    ///     Proves that a PNG save/load round-trip remains byte-exact at Surface's internal
+    ///     row-padding boundary widths, confirming Surface's stride/padding storage detail is not
+    ///     observable through the PNG codec. This is a system-level test (not a Surface unit
+    ///     test) because it exercises the Codecs -> Surface integration boundary rather than
+    ///     Surface in isolation: Surface's unit tests must only depend on Surface itself, and
+    ///     Codecs depend on Surface (not vice versa), so a codec round-trip belongs here.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(BoundaryWidths))]
+    public void CanvasNet_SystemIntegration_PngCodecRoundTrip_BoundaryWidths_ReturnsExpectedPixels(int width)
+    {
+        // Arrange: build a surface at a boundary width with distinct, non-trivial pixel values
+        var surface = new Surface(width, 3);
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                surface[x, y] = new Rgba32((byte)(x * 17 + 1), (byte)(y * 23 + 2), (byte)(x + y + 3), (byte)(200 - (x % 200)));
+            }
+        }
+
+        using var stream = new MemoryStream();
+
+        // Act: save and reload the surface through the PNG codec
+        PngCodec.Save(surface, stream, PngColorType.Rgba);
+        stream.Position = 0;
+        var reloaded = PngCodec.Load(stream);
+
+        // Assert: every pixel must round-trip exactly
+        Assert.Equal(surface.Width, reloaded.Width);
+        Assert.Equal(surface.Height, reloaded.Height);
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                Assert.Equal(surface[x, y], reloaded[x, y]);
+            }
+        }
+    }
 }

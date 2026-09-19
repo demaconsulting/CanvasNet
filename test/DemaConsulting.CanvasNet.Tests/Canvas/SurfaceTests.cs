@@ -1,5 +1,4 @@
 using CanvasNet.Canvas;
-using CanvasNet.Codecs;
 
 namespace DemaConsulting.CanvasNet.Tests.Canvas;
 
@@ -418,44 +417,6 @@ public class SurfaceTests
     }
 
     /// <summary>
-    ///     Proves that a PNG save/load round-trip remains byte-exact at internal row-padding
-    ///     boundary widths, confirming the stride/padding change is not observable through the
-    ///     PNG codec.
-    /// </summary>
-    [Theory]
-    [MemberData(nameof(BoundaryWidths))]
-    public void Surface_PngCodecRoundTrip_BoundaryWidths_ReturnsExpectedPixels(int width)
-    {
-        // Arrange: build a surface at a boundary width with distinct, non-trivial pixel values
-        var surface = new Surface(width, 3);
-        for (var y = 0; y < surface.Height; y++)
-        {
-            for (var x = 0; x < surface.Width; x++)
-            {
-                surface[x, y] = new Rgba32((byte)(x * 17 + 1), (byte)(y * 23 + 2), (byte)(x + y + 3), (byte)(200 - (x % 200)));
-            }
-        }
-
-        using var stream = new MemoryStream();
-
-        // Act: save and reload the surface through the PNG codec
-        PngCodec.Save(surface, stream, PngColorType.Rgba);
-        stream.Position = 0;
-        var reloaded = PngCodec.Load(stream);
-
-        // Assert: every pixel must round-trip exactly
-        Assert.Equal(surface.Width, reloaded.Width);
-        Assert.Equal(surface.Height, reloaded.Height);
-        for (var y = 0; y < surface.Height; y++)
-        {
-            for (var x = 0; x < surface.Width; x++)
-            {
-                Assert.Equal(surface[x, y], reloaded[x, y]);
-            }
-        }
-    }
-
-    /// <summary>
     ///     Proves that Rgba32 fields store the values supplied to the constructor.
     /// </summary>
     [Fact]
@@ -677,6 +638,29 @@ public class SurfaceTests
     }
 
     /// <summary>
+    ///     Proves that CompositeOver(Surface) zeroes the result when both the background and
+    ///     foreground are fully transparent, exercising the <c>outA == 0</c> guard path that
+    ///     avoids a NaN 0/0 division: with a nonzero-alpha background, <c>outA</c> is never zero,
+    ///     so no existing test observes this path.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSurface_BothFullyTransparent_ResultIsZero()
+    {
+        // Arrange: both background and foreground fully transparent, with distinct nonzero
+        // "garbage" RGB values that must not survive into the result
+        var background = new Surface(1, 1);
+        background[0, 0] = new Rgba32(200, 50, 30, 0);
+        var foreground = new Surface(1, 1);
+        foreground[0, 0] = new Rgba32(10, 220, 90, 0);
+
+        // Act
+        background.CompositeOver(foreground);
+
+        // Assert: outA == 0 must force every channel to exactly zero, not NaN or garbage
+        Assert.Equal(new Rgba32(0, 0, 0, 0), background[0, 0]);
+    }
+
+    /// <summary>
     ///     Proves that CompositeOver(Surface) with partially transparent foreground and
     ///     background pixels matches an independently hand-computed Porter-Duff "over" result
     ///     (computed separately from Surface's own implementation, not by re-deriving the same
@@ -797,6 +781,27 @@ public class SurfaceTests
         // Assert: expected value independently computed (Porter-Duff "over" against an opaque
         // background simplifies to the standard alpha-blend formula: outC = fgC*a + bgC*(1-a))
         Assert.Equal(new Rgba32(128, 127, 0, 255), background[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOver(Rgba32) zeroes the result when both the background pixel
+    ///     and the overlay color are fully transparent, exercising the <c>outA == 0</c> guard
+    ///     path that avoids a NaN 0/0 division: with a nonzero-alpha background, <c>outA</c> is
+    ///     never zero, so no existing test observes this path.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverColor_BothFullyTransparent_ResultIsZero()
+    {
+        // Arrange: a fully transparent background pixel and a fully transparent overlay color,
+        // both with distinct nonzero "garbage" RGB values that must not survive into the result
+        var background = new Surface(1, 1);
+        background[0, 0] = new Rgba32(200, 50, 30, 0);
+
+        // Act
+        background.CompositeOver(new Rgba32(10, 220, 90, 0));
+
+        // Assert: outA == 0 must force every channel to exactly zero, not NaN or garbage
+        Assert.Equal(new Rgba32(0, 0, 0, 0), background[0, 0]);
     }
 
     /// <summary>

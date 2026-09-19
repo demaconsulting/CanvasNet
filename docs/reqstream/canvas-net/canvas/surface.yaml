@@ -96,7 +96,6 @@ sections:
                 tests:
                   - Surface_GetRowSpanBytes_WriteToSpan_IndexerReflectsChange
                   - Surface_GetRowSpanBytes_BoundaryWidths_ReturnsWidthTimesFourLength
-                  - Surface_PngCodecRoundTrip_BoundaryWidths_ReturnsExpectedPixels
 
               - id: CanvasNet-Canvas-Surface-RowSpanPixels
                 title: The Surface class shall expose a row's pixels as a mutable Span<Rgba32>.
@@ -224,6 +223,7 @@ sections:
                 tests:
                   - Surface_CompositeOverSurface_OpaqueForeground_ReplacesBackground
                   - Surface_CompositeOverSurface_TransparentForeground_LeavesBackgroundUnchanged
+                  - Surface_CompositeOverSurface_BothFullyTransparent_ResultIsZero
                   - Surface_CompositeOverSurface_PartialAlpha_MatchesIndependentlyComputedResult
 
               - id: CanvasNet-Canvas-Surface-CompositeOverSurfaceNull
@@ -259,5 +259,6 @@ sections:
                 tests:
                   - Surface_CompositeOverColor_OpaqueColor_ReplacesBackground
                   - Surface_CompositeOverColor_TransparentColor_LeavesBackgroundUnchanged
+                  - Surface_CompositeOverColor_BothFullyTransparent_ResultIsZero
                   - Surface_CompositeOverColor_PartialAlpha_MatchesIndependentlyComputedResult
                   - Surface_CompositeOverColor_MultiRowSurface_AppliesToEveryPixel
