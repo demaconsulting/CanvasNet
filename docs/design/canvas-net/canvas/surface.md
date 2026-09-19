@@ -76,11 +76,14 @@ through any public accessor. `Crop` and all four codecs (`BmpCodec`, `PngCodec`,
 
 #### Surface(int width, int height)
 
-Constructs a surface of the given size. Validates `width > 0` and `height > 0`, throwing
-`ArgumentOutOfRangeException(nameof(width))` or `ArgumentOutOfRangeException(nameof(height))`
+Constructs a surface of the given size. Validates `0 < width <= 16384` and `0 < height <= 16384`,
+throwing `ArgumentOutOfRangeException(nameof(width))` or `ArgumentOutOfRangeException(nameof(height))`
 respectively. Allocates a `byte[]` of `Height * _strideBytes` bytes, where `_strideBytes` rounds
 `width` up to the next multiple of 16 pixels then converts to bytes (see
-[Row Storage Layout](#row-storage-layout)).
+[Row Storage Layout](#row-storage-layout)). The 16384 upper bound guarantees that this padded-
+stride/buffer-size arithmetic — `paddedWidthPixels <= 16384`, `_strideBytes <= 16384 * 4 = 65536`,
+and `height * _strideBytes <= 16384 * 65536 = 1,073,741,824` — stays within plain `int` range with
+margin to spare below `int.MaxValue` (2,147,483,647), so no `long`/`checked` arithmetic is needed.
 
 **Architectural decision**: a freshly constructed surface is always fully transparent black (every
 channel, including alpha, is zero). This is deliberate: a newly allocated `byte[]` is already
@@ -90,8 +93,8 @@ something is explicitly drawn into them.
 
 **Throws:**
 
-- `ArgumentOutOfRangeException` — when `width` is less than or equal to zero
-- `ArgumentOutOfRangeException` — when `height` is less than or equal to zero
+- `ArgumentOutOfRangeException` — when `width` is less than or equal to zero, or exceeds 16384
+- `ArgumentOutOfRangeException` — when `height` is less than or equal to zero, or exceeds 16384
 
 #### this[int x, int y]
 
@@ -219,12 +222,13 @@ destination surface is mutated in `Crop`.
 
 ### Dependencies
 
-`Surface` has no build-time dependencies beyond the .NET base class library
-(`System.Runtime.InteropServices.MemoryMarshal` and `System.Span<T>`), which are available
-natively on all of CanvasNet's target frameworks. It has one runtime NuGet dependency,
-`System.Numerics.Tensors` (pinned to a version compatible with `net8.0`), used exclusively by the
-vectorized bulk pixel operations (`PremultiplyAlpha`, `UnpremultiplyAlpha`, `CompositeOver`) for
-their `TensorPrimitives`-based numeric work; no other member of `Surface` depends on it.
+`Surface` has one NuGet package dependency, `System.Numerics.Tensors` (pinned to a version
+compatible with `net8.0`), used both at compile time (for its `TensorPrimitives` API surface) and
+at runtime by the vectorized bulk pixel operations (`PremultiplyAlpha`, `UnpremultiplyAlpha`,
+`CompositeOver`); no other member of `Surface` depends on it. Every other member of `Surface` is
+implemented exclusively against the .NET Base Class Library
+(`System.Runtime.InteropServices.MemoryMarshal` and `System.Span<T>`), which is available natively
+on all of CanvasNet's target frameworks.
 
 ### Callers
 

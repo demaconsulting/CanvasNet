@@ -40,6 +40,17 @@ public sealed class Surface
     private const int RowAlignmentPixels = 16;
 
     /// <summary>
+    ///     The largest permitted value for either <see cref="Width"/> or <see cref="Height"/>.
+    ///     Chosen so that the padded-stride and total-buffer-size arithmetic performed in the
+    ///     constructor is provably safe using plain <see cref="int"/> arithmetic: with both
+    ///     dimensions bounded by this value, the padded row width is at most 16384 pixels, the row
+    ///     stride is at most <c>16384 * 4 = 65536</c> bytes, and the total buffer size is at most
+    ///     <c>16384 * 65536 = 1,073,741,824</c> bytes - comfortably below <see cref="int.MaxValue"/>
+    ///     (2,147,483,647), with no risk of overflow.
+    /// </summary>
+    private const int MaxDimension = 16384;
+
+    /// <summary>
     ///     The number of bytes physically occupied by a single row in <see cref="_buffer"/>,
     ///     including any trailing padding bytes beyond <c>Width * 4</c>. Always a multiple of
     ///     <c>RowAlignmentPixels * BytesPerPixel</c> (64 bytes).
@@ -59,11 +70,16 @@ public sealed class Surface
     ///     Initializes a new instance of the <see cref="Surface"/> class with the specified
     ///     dimensions, fully transparent (all pixel bytes zero).
     /// </summary>
-    /// <param name="width">The width of the surface, in pixels. Must be greater than zero.</param>
-    /// <param name="height">The height of the surface, in pixels. Must be greater than zero.</param>
+    /// <param name="width">
+    ///     The width of the surface, in pixels. Must be greater than zero and no more than 16384.
+    /// </param>
+    /// <param name="height">
+    ///     The height of the surface, in pixels. Must be greater than zero and no more than 16384.
+    /// </param>
     /// <exception cref="ArgumentOutOfRangeException">
     ///     Thrown when <paramref name="width"/> or <paramref name="height"/> is less than or
-    ///     equal to zero.
+    ///     equal to zero, or when <paramref name="width"/> or <paramref name="height"/> exceeds
+    ///     16384.
     /// </exception>
     /// <remarks>
     ///     Architectural decision: a freshly constructed surface is always fully transparent black
@@ -89,9 +105,27 @@ public sealed class Surface
             throw new ArgumentOutOfRangeException(nameof(height), height, "Height must be greater than zero.");
         }
 
+        // Reject dimensions above MaxDimension so that the padded-stride/buffer-size arithmetic
+        // below is guaranteed to stay within plain int range (see MaxDimension for the exact
+        // bound analysis)
+        if (width > MaxDimension)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width), width, "Width must not exceed 16384.");
+        }
+
+        if (height > MaxDimension)
+        {
+            throw new ArgumentOutOfRangeException(nameof(height), height, "Height must not exceed 16384.");
+        }
+
         Width = width;
         Height = height;
 
+        // Width and height are now validated to be within (0, MaxDimension] above, so the
+        // following plain int arithmetic is provably safe from overflow: the padded row width is
+        // at most MaxDimension (16384) pixels, the row stride is at most 16384 * 4 = 65536 bytes,
+        // and the total buffer size is at most 16384 * 65536 = 1,073,741,824 bytes - comfortably
+        // under int.MaxValue (2,147,483,647). No long/checked arithmetic is required.
         // Round the row width up to the next multiple of RowAlignmentPixels, then convert to
         // bytes, so every physical row is a whole number of vector-width chunks (see
         // RowAlignmentPixels for the rationale)

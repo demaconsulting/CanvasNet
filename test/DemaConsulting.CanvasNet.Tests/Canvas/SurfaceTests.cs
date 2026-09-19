@@ -86,6 +86,56 @@ public class SurfaceTests
     }
 
     /// <summary>
+    ///     Proves that constructing a surface with width at the maximum permitted dimension
+    ///     succeeds.
+    /// </summary>
+    [Fact]
+    public void Surface_Constructor_WidthAtMaximum_Succeeds()
+    {
+        // Act: construct a surface with width at the maximum permitted dimension
+        var surface = new Surface(16384, 1);
+
+        // Assert: the surface reports the requested width
+        Assert.Equal(16384, surface.Width);
+    }
+
+    /// <summary>
+    ///     Proves that constructing a surface with height at the maximum permitted dimension
+    ///     succeeds.
+    /// </summary>
+    [Fact]
+    public void Surface_Constructor_HeightAtMaximum_Succeeds()
+    {
+        // Act: construct a surface with height at the maximum permitted dimension
+        var surface = new Surface(1, 16384);
+
+        // Assert: the surface reports the requested height
+        Assert.Equal(16384, surface.Height);
+    }
+
+    /// <summary>
+    ///     Proves that constructing a surface with a width exceeding the maximum permitted
+    ///     dimension throws ArgumentOutOfRangeException.
+    /// </summary>
+    [Fact]
+    public void Surface_Constructor_WidthExceedsMaximum_ThrowsArgumentOutOfRangeException()
+    {
+        // Act & Assert: a width beyond the maximum permitted dimension must be rejected
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Surface(16385, 1));
+    }
+
+    /// <summary>
+    ///     Proves that constructing a surface with a height exceeding the maximum permitted
+    ///     dimension throws ArgumentOutOfRangeException.
+    /// </summary>
+    [Fact]
+    public void Surface_Constructor_HeightExceedsMaximum_ThrowsArgumentOutOfRangeException()
+    {
+        // Act & Assert: a height beyond the maximum permitted dimension must be rejected
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Surface(1, 16385));
+    }
+
+    /// <summary>
     ///     Proves that setting a pixel through the indexer and reading it back returns the
     ///     stored value.
     /// </summary>

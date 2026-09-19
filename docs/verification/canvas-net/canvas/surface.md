@@ -29,10 +29,13 @@ Unit tests reside in `SurfaceTests.cs` within the `DemaConsulting.CanvasNet.Test
 
 #### CanvasNet-Canvas-Surface-Construction: Constructor Sets Width and Height
 
-**Test**: `Surface_Constructor_ValidDimensions_SetsWidthAndHeight`
+**Tests**: `Surface_Constructor_ValidDimensions_SetsWidthAndHeight`,
+`Surface_Constructor_WidthAtMaximum_Succeeds`, `Surface_Constructor_HeightAtMaximum_Succeeds`
 
 Constructs a `Surface` with known width and height and asserts both properties reflect the
-constructor arguments.
+constructor arguments. Additionally, constructs surfaces with width, and separately height, at the
+maximum permitted dimension (16384) and asserts construction succeeds with the requested
+dimension.
 
 #### CanvasNet-Canvas-Surface-ZeroInitialized: Constructor Produces an All-Zero Buffer
 
@@ -56,6 +59,20 @@ Attempts to construct a `Surface` with a zero width, and separately with a negat
 
 Attempts to construct a `Surface` with a zero height, and separately with a negative height.
 Asserts `ArgumentOutOfRangeException` is thrown in both cases.
+
+#### CanvasNet-Canvas-Surface-WidthExceedsMaximum: Constructor Rejects Width Exceeding the Maximum Dimension
+
+**Test**: `Surface_Constructor_WidthExceedsMaximum_ThrowsArgumentOutOfRangeException`
+
+Attempts to construct a `Surface` with a width one greater than the maximum permitted dimension
+(16385). Asserts `ArgumentOutOfRangeException` is thrown.
+
+#### CanvasNet-Canvas-Surface-HeightExceedsMaximum: Constructor Rejects Height Exceeding the Maximum Dimension
+
+**Test**: `Surface_Constructor_HeightExceedsMaximum_ThrowsArgumentOutOfRangeException`
+
+Attempts to construct a `Surface` with a height one greater than the maximum permitted dimension
+(16385). Asserts `ArgumentOutOfRangeException` is thrown.
 
 #### CanvasNet-Canvas-Surface-PixelGet / CanvasNet-Canvas-Surface-PixelSet: Indexer Set Then Get Round-Trips
 
@@ -232,7 +249,6 @@ operators. These sanity tests support the other `Surface` scenarios above (which
 
 ### Acceptance Criteria
 
-A unit test run passes when all twenty-four requirement-linked scenarios above, plus the two
-`Rgba32` sanity tests and the additional boundary-width/round-trip regression tests, pass without
-error or unexpected exception; any unexpected exception type or wrong return value constitutes a
-failure.
+A unit test run passes when every requirement-linked scenario above, plus the two `Rgba32`
+sanity tests and the additional boundary-width/round-trip regression tests, pass without error or
+unexpected exception; any unexpected exception type or wrong return value constitutes a failure.

@@ -18,6 +18,8 @@ sections:
                   can be stored or manipulated; this is the entry point for all Surface functionality.
                 tests:
                   - Surface_Constructor_ValidDimensions_SetsWidthAndHeight
+                  - Surface_Constructor_WidthAtMaximum_Succeeds
+                  - Surface_Constructor_HeightAtMaximum_Succeeds
 
               - id: CanvasNet-Canvas-Surface-ZeroInitialized
                 title: The Surface class shall initialize a newly constructed pixel buffer to fully transparent.
@@ -45,6 +47,28 @@ sections:
                 tests:
                   - Surface_Constructor_ZeroHeight_ThrowsArgumentOutOfRangeException
                   - Surface_Constructor_NegativeHeight_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Canvas-Surface-WidthExceedsMaximum
+                title: >-
+                  The Surface class shall reject a width argument exceeding MaxDimension with
+                  ArgumentOutOfRangeException.
+                justification: |
+                  A width beyond the maximum permitted dimension would make the row-stride and
+                  buffer-size arithmetic in the constructor unsafe from plain int overflow; rejecting it
+                  at construction time prevents an instance from ever being created with an unsafe size.
+                tests:
+                  - Surface_Constructor_WidthExceedsMaximum_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Canvas-Surface-HeightExceedsMaximum
+                title: >-
+                  The Surface class shall reject a height argument exceeding MaxDimension with
+                  ArgumentOutOfRangeException.
+                justification: |
+                  A height beyond the maximum permitted dimension would make the row-stride and
+                  buffer-size arithmetic in the constructor unsafe from plain int overflow; rejecting it
+                  at construction time prevents an instance from ever being created with an unsafe size.
+                tests:
+                  - Surface_Constructor_HeightExceedsMaximum_ThrowsArgumentOutOfRangeException
 
               - id: CanvasNet-Canvas-Surface-PixelGet
                 title: The Surface class shall allow reading the pixel at a specified coordinate.

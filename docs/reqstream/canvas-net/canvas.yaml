@@ -55,6 +55,32 @@ sections:
               - Surface_Constructor_ZeroHeight_ThrowsArgumentOutOfRangeException
               - Surface_Constructor_NegativeHeight_ThrowsArgumentOutOfRangeException
 
+          - id: CanvasNet-Canvas-WidthExceedsMaximum
+            title: >-
+              The Canvas subsystem shall reject a width argument exceeding the maximum permitted
+              dimension with ArgumentOutOfRangeException.
+            justification: |
+              A width beyond the maximum permitted dimension would make the row-stride and
+              buffer-size arithmetic unsafe from plain int overflow; rejecting it at construction
+              time prevents an instance from ever being created with an unsafe size.
+            children:
+              - CanvasNet-Canvas-Surface-WidthExceedsMaximum
+            tests:
+              - Surface_Constructor_WidthExceedsMaximum_ThrowsArgumentOutOfRangeException
+
+          - id: CanvasNet-Canvas-HeightExceedsMaximum
+            title: >-
+              The Canvas subsystem shall reject a height argument exceeding the maximum permitted
+              dimension with ArgumentOutOfRangeException.
+            justification: |
+              A height beyond the maximum permitted dimension would make the row-stride and
+              buffer-size arithmetic unsafe from plain int overflow; rejecting it at construction
+              time prevents an instance from ever being created with an unsafe size.
+            children:
+              - CanvasNet-Canvas-Surface-HeightExceedsMaximum
+            tests:
+              - Surface_Constructor_HeightExceedsMaximum_ThrowsArgumentOutOfRangeException
+
           - id: CanvasNet-Canvas-PixelGet
             title: The Canvas subsystem shall allow reading the pixel at a specified coordinate.
             justification: |

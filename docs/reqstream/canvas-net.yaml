@@ -21,6 +21,8 @@ sections:
           - CanvasNet-Canvas-ZeroInitialized
           - CanvasNet-Canvas-InvalidWidth
           - CanvasNet-Canvas-InvalidHeight
+          - CanvasNet-Canvas-WidthExceedsMaximum
+          - CanvasNet-Canvas-HeightExceedsMaximum
         tests:
           - CanvasNet_SystemIntegration_CanvasConstructAndSetPixel_ReturnsExpectedPixel
 
