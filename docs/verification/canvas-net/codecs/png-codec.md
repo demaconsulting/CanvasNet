@@ -230,6 +230,9 @@ bytes), and asserts `Load` throws `InvalidDataException` for every one.
 
 ### Acceptance Criteria
 
-A unit test run passes when all twenty-seven test methods above (including each `[Theory]` case,
-covering the full 175-file PngSuite conformance corpus) pass without error or unexpected
-exception; any unexpected exception type or wrong return/byte value constitutes a failure.
+A unit test run passes when all test methods above pass without error or unexpected exception; any
+unexpected exception type or wrong return/byte value constitutes a failure. Across
+`PngCodecTests.cs` and `PngSuiteTests.cs`, this totals 30 test methods (27 in `PngCodecTests.cs`
+and 3 in `PngSuiteTests.cs`), which expand to a much larger number of executed xUnit test cases
+when every `[Theory]` data row is included, covering the full 175-file PngSuite conformance
+corpus.
