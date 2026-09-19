@@ -103,25 +103,25 @@ The system exposes the following public API to external consumers:
   `ArgumentException` for an empty `path`, and `ArgumentOutOfRangeException` for an out-of-range
   `quality`.
 
-| Interface                        | Direction        | Format                         | Constraints                 |
-| -------------------------------- | ---------------- | ------------------------------ | --------------------------- |
-| `Surface(int, int)`              | Inbound          | Constructor call               | `width > 0`, `height > 0`   |
-| `Surface[int, int]`              | Inbound/Outbound | Indexer get/set                | `x`, `y` within bounds      |
-| `Surface.GetRowSpanBytes(int)`   | Outbound         | `Span<byte>` return            | `y` within bounds           |
-| `Surface.GetRowSpan(int)`        | Outbound         | `Span<Rgba32>` return          | `y` within bounds           |
-| `Surface.Crop(int,int,int,int)`  | Inbound/Outbound | Method call / `Surface` return | Region within source bounds |
-| `Surface.PremultiplyAlpha()`     | Inbound          | Method call                    | None                        |
-| `Surface.UnpremultiplyAlpha()`   | Inbound          | Method call                    | None                        |
-| `Surface.CompositeOver(Surface)` | Inbound          | Method call                    | Equal dimensions, non-null  |
-| `Surface.CompositeOver(Rgba32)`  | Inbound          | Method call                    | None                        |
-| `BmpCodec.Load(...)`             | Inbound/Outbound | Method call / `Surface` return | Valid BMP stream or path    |
-| `BmpCodec.Save(...)`             | Inbound          | Method call                    | `surface` non-null          |
-| `PngCodec.Load(...)`             | Inbound/Outbound | Method call / `Surface` return | Valid PNG stream or path    |
-| `PngCodec.Save(...)`             | Inbound          | Method call                    | `surface` non-null          |
-| `TiffCodec.Load(...)`            | Inbound/Outbound | Method call / `Surface` return | Valid TIFF stream or path   |
-| `TiffCodec.Save(...)`            | Inbound          | Method call                    | `surface` non-null          |
-| `JpegCodec.Load(...)`            | Inbound/Outbound | Method call / `Surface` return | Valid JPEG stream or path   |
-| `JpegCodec.Save(...)`            | Inbound          | Method call                    | `surface` non-null          |
+| Interface                        | Direction        | Format                         | Constraints                  |
+| -------------------------------- | ---------------- | ------------------------------ | ---------------------------- |
+| `Surface(int, int)`              | Inbound          | Constructor call               | `width`, `height` in 1-16384 |
+| `Surface[int, int]`              | Inbound/Outbound | Indexer get/set                | `x`, `y` within bounds       |
+| `Surface.GetRowSpanBytes(int)`   | Outbound         | `Span<byte>` return            | `y` within bounds            |
+| `Surface.GetRowSpan(int)`        | Outbound         | `Span<Rgba32>` return          | `y` within bounds            |
+| `Surface.Crop(int,int,int,int)`  | Inbound/Outbound | Method call / `Surface` return | Region within source bounds  |
+| `Surface.PremultiplyAlpha()`     | Inbound          | Method call                    | None                         |
+| `Surface.UnpremultiplyAlpha()`   | Inbound          | Method call                    | None                         |
+| `Surface.CompositeOver(Surface)` | Inbound          | Method call                    | Equal dimensions, non-null   |
+| `Surface.CompositeOver(Rgba32)`  | Inbound          | Method call                    | None                         |
+| `BmpCodec.Load(...)`             | Inbound/Outbound | Method call / `Surface` return | Valid BMP stream or path     |
+| `BmpCodec.Save(...)`             | Inbound          | Method call                    | `surface` non-null           |
+| `PngCodec.Load(...)`             | Inbound/Outbound | Method call / `Surface` return | Valid PNG stream or path     |
+| `PngCodec.Save(...)`             | Inbound          | Method call                    | `surface` non-null           |
+| `TiffCodec.Load(...)`            | Inbound/Outbound | Method call / `Surface` return | Valid TIFF stream or path    |
+| `TiffCodec.Save(...)`            | Inbound          | Method call                    | `surface` non-null           |
+| `JpegCodec.Load(...)`            | Inbound/Outbound | Method call / `Surface` return | Valid JPEG stream or path    |
+| `JpegCodec.Save(...)`            | Inbound          | Method call                    | `surface` non-null           |
 
 ## Dependencies
 
