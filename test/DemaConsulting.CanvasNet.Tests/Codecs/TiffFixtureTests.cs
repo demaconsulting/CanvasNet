@@ -32,14 +32,21 @@ public class TiffFixtureTests
     private static string PngSuitePath => Path.Combine(AppContext.BaseDirectory, "PngSuite");
 
     /// <summary>
-    ///     Resolves a fixture file within <paramref name="baseDirectory"/>, stripping any
-    ///     directory component from <paramref name="fileName"/> first. The file names always
+    ///     Resolves a fixture file within <paramref name="baseDirectory"/>. The file names always
     ///     originate from this class's own <c>TheoryData</c> literals rather than external input,
-    ///     so this is a static-analysis hardening (guards against path traversal via
-    ///     <see cref="Path.Combine(string, string)"/>) rather than a behavior change.
+    ///     so path-injection is not a concern here; <c>Path.Join</c> is
+    ///     used instead of <see cref="Path.Combine(string, string)"/> purely to avoid CodeQL's
+    ///     <c>cs/path-combine</c> rule, since <c>Path.Join</c> does not discard
+    ///     <paramref name="baseDirectory"/> when <paramref name="fileName"/> looks rooted.
+    ///     <c>Path.Join</c> is unavailable on .NET Framework, so the net481 target falls back to
+    ///     <see cref="Path.Combine(string, string)"/>.
     /// </summary>
     private static string ResolveFixturePath(string baseDirectory, string fileName) =>
+#if NETFRAMEWORK
         Path.Combine(baseDirectory, Path.GetFileName(fileName));
+#else
+        Path.Join(baseDirectory, fileName);
+#endif
 
     /// <summary>
     ///     Every TIFF fixture file name, for tests that only need to prove successful loading with
