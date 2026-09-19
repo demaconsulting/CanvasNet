@@ -112,6 +112,7 @@ sections:
           - CanvasNet-Canvas-CompositeOverColor
         tests:
           - CanvasNet_SystemIntegration_CompositeColorOverSurface_ReturnsExpectedPixel
+          - CanvasNet_SystemIntegration_CompositeSurfaceOverSurface_ReturnsExpectedPixel
 
       - id: CanvasNet-Lib-CanvasCompositeValidation
         title: >-

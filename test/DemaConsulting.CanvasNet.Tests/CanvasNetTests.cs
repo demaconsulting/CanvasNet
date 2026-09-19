@@ -166,6 +166,30 @@ public class CanvasNetTests
     }
 
     /// <summary>
+    ///     Proves that the system can composite a semi-transparent Surface over another Surface
+    ///     through the public API, producing the expected Porter-Duff "over" result.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_CompositeSurfaceOverSurface_ReturnsExpectedPixel()
+    {
+        // Arrange: construct an opaque blue background surface, and a semi-transparent yellow
+        // foreground surface, both through the public API
+        var background = new Surface(2, 2);
+        background[0, 0] = new Rgba32(0, 0, 255, 255);
+        var foreground = new Surface(2, 2);
+        foreground[0, 0] = new Rgba32(255, 255, 0, 128);
+
+        // Act: composite the foreground surface over the background surface in place
+        background.CompositeOver(foreground);
+
+        // Assert: expected value independently computed (Porter-Duff "over", normalized [0, 1]
+        // math, round-half-away-from-zero, clamped) - not copied from the CompositeOver(Rgba32)
+        // test above, since fgA=128/255, bgA=1 gives outA=1 exactly, outR=outG=255*128/255=128,
+        // and outB=255*(1-128/255)=127
+        Assert.Equal(new Rgba32(128, 128, 127, 255), background[0, 0]);
+    }
+
+    /// <summary>
     ///     Proves that the system can convert a Surface's pixel buffer from straight to
     ///     premultiplied alpha through the public API, producing the expected rounded result.
     /// </summary>

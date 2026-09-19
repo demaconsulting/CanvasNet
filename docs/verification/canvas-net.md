@@ -92,6 +92,17 @@ opaque background `Surface`, composites a semi-transparent solid color over it v
 the resulting pixel exactly matches the expected Porter-Duff "over" compositing result, confirming
 the system's public compositing API integrates correctly with `Surface`.
 
+### Integration: Composite Surface Over Surface Returns Expected Pixel
+
+**Test**: `CanvasNet_SystemIntegration_CompositeSurfaceOverSurface_ReturnsExpectedPixel`
+
+Exercises end-to-end system behavior for the `Surface` unit's `CompositeOver(Surface)` overload:
+constructs an opaque background `Surface` and a semi-transparent foreground `Surface`, both
+through the public API, composites the foreground over the background via
+`Surface.CompositeOver(Surface)`, then reads the result back through the public indexer. Asserts
+the resulting pixel exactly matches the expected Porter-Duff "over" compositing result, confirming
+the system's public `CompositeOver(Surface)` API integrates correctly with `Surface`.
+
 ### Integration: Premultiply Alpha Returns Expected Pixel
 
 **Test**: `CanvasNet_SystemIntegration_PremultiplyAlpha_ReturnsExpectedPixel`
@@ -115,6 +126,6 @@ correctly with `Surface`, including its documented clamping behavior.
 
 ## Acceptance Criteria
 
-A system-level test run passes when all nine scenarios above pass without error or exception beyond
+A system-level test run passes when all ten scenarios above pass without error or exception beyond
 those explicitly asserted. Any unexpected exception, wrong exception type, or wrong return value
 constitutes a failure.
