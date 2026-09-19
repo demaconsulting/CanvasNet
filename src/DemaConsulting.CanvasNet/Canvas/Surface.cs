@@ -769,14 +769,17 @@ public sealed class Surface
 
         public void Dispose()
         {
-            ArrayPool<byte>.Shared.Return(RBytes);
-            ArrayPool<byte>.Shared.Return(GBytes);
-            ArrayPool<byte>.Shared.Return(BBytes);
-            ArrayPool<byte>.Shared.Return(ABytes);
-            ArrayPool<float>.Shared.Return(RFloat);
-            ArrayPool<float>.Shared.Return(GFloat);
-            ArrayPool<float>.Shared.Return(BFloat);
-            ArrayPool<float>.Shared.Return(AFloat);
+            // Clear rented arrays on return: they hold caller-provided pixel channel data, and
+            // ArrayPool.Return defaults to clearArray: false, which would otherwise let a later
+            // renter of ArrayPool<T>.Shared observe leftover image data from this operation.
+            ArrayPool<byte>.Shared.Return(RBytes, clearArray: true);
+            ArrayPool<byte>.Shared.Return(GBytes, clearArray: true);
+            ArrayPool<byte>.Shared.Return(BBytes, clearArray: true);
+            ArrayPool<byte>.Shared.Return(ABytes, clearArray: true);
+            ArrayPool<float>.Shared.Return(RFloat, clearArray: true);
+            ArrayPool<float>.Shared.Return(GFloat, clearArray: true);
+            ArrayPool<float>.Shared.Return(BFloat, clearArray: true);
+            ArrayPool<float>.Shared.Return(AFloat, clearArray: true);
         }
     }
 
@@ -817,14 +820,17 @@ public sealed class Surface
 
         public void Dispose()
         {
-            ArrayPool<float>.Shared.Return(OutR);
-            ArrayPool<float>.Shared.Return(OutG);
-            ArrayPool<float>.Shared.Return(OutB);
-            ArrayPool<float>.Shared.Return(OutA);
-            ArrayPool<float>.Shared.Return(BgAn);
-            ArrayPool<float>.Shared.Return(FgAn);
-            ArrayPool<float>.Shared.Return(OneMinusFgA);
-            ArrayPool<float>.Shared.Return(Term);
+            // Clear rented arrays on return: they hold derived pixel-channel values, and
+            // ArrayPool.Return defaults to clearArray: false, which would otherwise let a later
+            // renter of ArrayPool<T>.Shared observe leftover image data from this operation.
+            ArrayPool<float>.Shared.Return(OutR, clearArray: true);
+            ArrayPool<float>.Shared.Return(OutG, clearArray: true);
+            ArrayPool<float>.Shared.Return(OutB, clearArray: true);
+            ArrayPool<float>.Shared.Return(OutA, clearArray: true);
+            ArrayPool<float>.Shared.Return(BgAn, clearArray: true);
+            ArrayPool<float>.Shared.Return(FgAn, clearArray: true);
+            ArrayPool<float>.Shared.Return(OneMinusFgA, clearArray: true);
+            ArrayPool<float>.Shared.Return(Term, clearArray: true);
         }
     }
 }
