@@ -63,27 +63,41 @@ the stored value.
 
 #### CanvasNet-Canvas-Surface-RowSpanBytes: Writes Through the Byte Row Span Are Visible via the Indexer
 
-**Test**: `Surface_GetRowSpanBytes_WriteToSpan_IndexerReflectsChange`
+**Tests**: `Surface_GetRowSpanBytes_WriteToSpan_IndexerReflectsChange`,
+`Surface_GetRowSpanBytes_BoundaryWidths_ReturnsWidthTimesFourLength`,
+`Surface_PngCodecRoundTrip_BoundaryWidths_ReturnsExpectedPixels`
 
 Obtains the raw byte span for a row via `GetRowSpanBytes`, writes four bytes representing one
 pixel directly into the span, and asserts the indexer at the corresponding coordinate returns the
-matching `Rgba32` value — confirming the span aliases the surface's own storage.
+matching `Rgba32` value — confirming the span aliases the surface's own storage. Additionally,
+constructs surfaces at internal row-padding boundary widths (1, 15, 16, 17, 31, 32, 33, 100, 257 —
+straddling the 16-pixel padding boundary from both sides) and asserts `GetRowSpanBytes` always
+returns a span of exactly `Width * 4` bytes regardless of the internal padding, and that a PNG
+save/load round-trip at each of those widths reproduces every pixel byte-exactly — together
+proving the internal row-stride/padding change is never observable through the public byte-row
+accessor or through codec round-tripping.
 
 #### CanvasNet-Canvas-Surface-RowSpanPixels: Writes Through the Pixel Row Span Are Visible via the Indexer
 
-**Test**: `Surface_GetRowSpan_WriteToSpan_IndexerReflectsChange`
+**Tests**: `Surface_GetRowSpan_WriteToSpan_IndexerReflectsChange`,
+`Surface_GetRowSpan_BoundaryWidths_ReturnsWidthLength`
 
 Obtains the pixel span for a row via `GetRowSpan`, writes an `Rgba32` value directly into the
 span, and asserts the indexer at the corresponding coordinate returns the same value — confirming
-the span aliases the surface's own storage.
+the span aliases the surface's own storage. Additionally, constructs surfaces at the same
+internal row-padding boundary widths listed above and asserts `GetRowSpan` always returns a span
+of exactly `Width` pixels regardless of the internal padding.
 
 #### CanvasNet-Canvas-Surface-Crop: Crop Returns the Expected Pixels
 
-**Test**: `Surface_Crop_ValidRegion_ReturnsExpectedPixels`
+**Tests**: `Surface_Crop_ValidRegion_ReturnsExpectedPixels`,
+`Surface_Crop_BoundaryWidths_ReturnsExpectedPixels`
 
 Constructs a surface with a distinct pixel value at every coordinate, crops a sub-region, and
 asserts the cropped surface has the requested dimensions and that each of its pixels matches the
-corresponding source pixel.
+corresponding source pixel. Additionally, repeats this at each internal row-padding boundary
+width, cropping the entire surface, to confirm `Crop` remains byte-exact regardless of the
+internal padding.
 
 #### CanvasNet-Canvas-Surface-CropIndependent: Cropped Result and Source Do Not Share Storage
 
@@ -144,5 +158,6 @@ operators. These sanity tests support the other `Surface` scenarios above (which
 ### Acceptance Criteria
 
 A unit test run passes when all eighteen requirement-linked scenarios above, plus the two
-`Rgba32` sanity tests, pass without error or unexpected exception; any unexpected exception type
-or wrong return value constitutes a failure.
+`Rgba32` sanity tests and the additional boundary-width/round-trip regression tests, pass without
+error or unexpected exception; any unexpected exception type or wrong return value constitutes a
+failure.

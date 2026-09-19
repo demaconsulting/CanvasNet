@@ -66,17 +66,24 @@ sections:
                 title: The Surface class shall expose a row's raw bytes as a mutable Span<byte>.
                 justification: |
                   Bulk, allocation-free access to a row's raw bytes is required for efficient pixel
-                  processing and for interoperating with byte-oriented APIs (for example codecs).
+                  processing and for interoperating with byte-oriented APIs (for example codecs). The
+                  returned span's length must remain exactly Width * 4 bytes regardless of the surface's
+                  internal row-padding boundaries (an implementation detail with no observable effect).
                 tests:
                   - Surface_GetRowSpanBytes_WriteToSpan_IndexerReflectsChange
+                  - Surface_GetRowSpanBytes_BoundaryWidths_ReturnsWidthTimesFourLength
+                  - Surface_PngCodecRoundTrip_BoundaryWidths_ReturnsExpectedPixels
 
               - id: CanvasNet-Canvas-Surface-RowSpanPixels
                 title: The Surface class shall expose a row's pixels as a mutable Span<Rgba32>.
                 justification: |
                   Bulk, allocation-free access to a row's pixels as strongly typed Rgba32 values is
-                  required for efficient pixel processing without manual byte-offset arithmetic.
+                  required for efficient pixel processing without manual byte-offset arithmetic. The
+                  returned span's length must remain exactly Width pixels regardless of the surface's
+                  internal row-padding boundaries (an implementation detail with no observable effect).
                 tests:
                   - Surface_GetRowSpan_WriteToSpan_IndexerReflectsChange
+                  - Surface_GetRowSpan_BoundaryWidths_ReturnsWidthLength
 
               - id: CanvasNet-Canvas-Surface-Crop
                 title: The Surface class shall create a new surface containing a copy of a rectangular sub-region.
@@ -85,6 +92,7 @@ sections:
                   with, save, or further process a portion of a larger surface independently.
                 tests:
                   - Surface_Crop_ValidRegion_ReturnsExpectedPixels
+                  - Surface_Crop_BoundaryWidths_ReturnsExpectedPixels
 
               - id: CanvasNet-Canvas-Surface-CropIndependent
                 title: >-

@@ -12,6 +12,13 @@ namespace CanvasNet.Canvas;
 ///     (red, green, blue, alpha), so that entire rows can be exposed as <see cref="Span{T}"/>
 ///     without any copying, and so that <see cref="Crop"/> can copy whole rows at once rather than
 ///     iterating pixel by pixel.
+///
+///     Internally, each row is physically padded up to a multiple of 16 pixels (64 bytes) so that
+///     whole-row vectorized bulk pixel operations never need scalar-remainder handling. This
+///     padding is purely an internal storage-layout detail: <see cref="Width"/>/<see cref="Height"/>
+///     and every public row accessor (<see cref="GetRowSpanBytes"/>, <see cref="GetRowSpan"/>)
+///     always return exactly <c>Width</c>-length data - the padding bytes are never observable
+///     through any public member.
 /// </remarks>
 public sealed class Surface
 {
@@ -21,7 +28,28 @@ public sealed class Surface
     private const int BytesPerPixel = 4;
 
     /// <summary>
-    ///     The contiguous, row-major pixel buffer, sized <c>Width * Height * 4</c> bytes.
+    ///     The row alignment, in pixels, that every physical row is padded up to. Chosen as the
+    ///     smallest common multiple of the vector widths CanvasNet's target platforms are likely
+    ///     to use for elementwise per-channel operations: SSE2 (4 px), AVX2 (8 px), and AVX-512
+    ///     (16 px) all divide evenly into 16 px, so a full-row SIMD loop over the padded stride
+    ///     processes only whole vector-width chunks, with zero scalar remainder handling required
+    ///     regardless of which vector width the runtime picks at JIT time.
+    /// </summary>
+    private const int RowAlignmentPixels = 16;
+
+    /// <summary>
+    ///     The number of bytes physically occupied by a single row in <see cref="_buffer"/>,
+    ///     including any trailing padding bytes beyond <c>Width * 4</c>. Always a multiple of
+    ///     <c>RowAlignmentPixels * BytesPerPixel</c> (64 bytes).
+    /// </summary>
+    private readonly int _strideBytes;
+
+    /// <summary>
+    ///     The contiguous, row-major pixel buffer, sized <c>Height * _strideBytes</c> bytes. Each
+    ///     row occupies <see cref="_strideBytes"/> bytes, which may be larger than
+    ///     <c>Width * 4</c> to satisfy the row-alignment padding documented on
+    ///     <see cref="RowAlignmentPixels"/>; the padding bytes are never exposed by any public
+    ///     accessor.
     /// </summary>
     private readonly byte[] _buffer;
 
@@ -62,9 +90,15 @@ public sealed class Surface
         Width = width;
         Height = height;
 
+        // Round the row width up to the next multiple of RowAlignmentPixels, then convert to
+        // bytes, so every physical row is a whole number of vector-width chunks (see
+        // RowAlignmentPixels for the rationale)
+        var paddedWidthPixels = ((width + RowAlignmentPixels - 1) / RowAlignmentPixels) * RowAlignmentPixels;
+        _strideBytes = paddedWidthPixels * BytesPerPixel;
+
         // A newly allocated array is already zero-filled by the runtime, which is exactly the
         // "fully transparent" initial state documented above - no explicit clearing is needed
-        _buffer = new byte[width * height * BytesPerPixel];
+        _buffer = new byte[height * _strideBytes];
     }
 
     /// <summary>
@@ -133,6 +167,10 @@ public sealed class Surface
     /// <remarks>
     ///     The returned span aliases this surface's internal buffer directly - no data is copied,
     ///     so writes through the span are immediately visible through the indexer and vice versa.
+    ///     The span's length is always exactly <c>Width * 4</c>, regardless of the surface's
+    ///     internal row padding (see the class-level remarks): any padding bytes physically
+    ///     stored beyond the row's <c>Width * 4</c> pixel bytes are never included in, or
+    ///     observable through, the returned span.
     /// </remarks>
     public Span<byte> GetRowSpanBytes(int y)
     {
@@ -141,7 +179,7 @@ public sealed class Surface
             throw new ArgumentOutOfRangeException(nameof(y), y, "Y must be within the surface height.");
         }
 
-        return _buffer.AsSpan(y * Width * BytesPerPixel, Width * BytesPerPixel);
+        return _buffer.AsSpan(y * _strideBytes, Width * BytesPerPixel);
     }
 
     /// <summary>

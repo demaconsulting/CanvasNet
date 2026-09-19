@@ -19,7 +19,8 @@ sub-region. It has no external dependencies and performs no I/O.
 | --------------- | ----------- | -------------------------------------------------------------------- |
 | `Width`         | `int`       | The width of the surface, in pixels (read-only after construction).  |
 | `Height`        | `int`       | The height of the surface, in pixels (read-only after construction). |
-| `_buffer`       | `byte[]`    | Contiguous, row-major pixel storage, sized `Width * Height * 4`.     |
+| `_buffer`       | `byte[]`    | Contiguous, row-major pixel storage, sized `Height * _strideBytes`.  |
+| `_strideBytes`  | `int`       | The physical byte size of one row, including trailing padding.       |
 | `BytesPerPixel` | `const int` | The number of bytes per pixel (always 4: R, G, B, A).                |
 
 A supporting value type, `Rgba32`, represents a single pixel:
@@ -39,13 +40,42 @@ application and test code. It is documented here, inline within the `Surface` un
 its own software unit, because it has no independent behavior beyond being a 4-byte data carrier
 consumed exclusively by `Surface`.
 
+### Row Storage Layout
+
+Internally, each row is physically padded up to a multiple of 16 pixels (64 bytes), rather than
+being packed at exactly `Width * 4` bytes. `_strideBytes` is computed once in the constructor as
+`ceil(Width / 16) * 16 * 4`, and `_buffer` is allocated as `Height * _strideBytes` bytes rather
+than `Width * Height * 4` bytes.
+
+**Architectural decision**: 16 pixels is the smallest common multiple of the vector widths
+CanvasNet's target platforms are likely to use for elementwise per-channel pixel operations:
+SSE2 (4 px / 16 B), AVX2 (8 px / 32 B), and AVX-512 (16 px / 64 B) all divide evenly into 16 px.
+Padding every row's physical storage up to a whole multiple of 16 pixels means a full-row SIMD
+loop over the padded stride processes only whole vector-width chunks, with zero scalar-remainder
+handling required regardless of which vector width the runtime selects at JIT time. This benefits
+the vectorized bulk pixel operations described below (`PremultiplyAlpha`, `UnpremultiplyAlpha`,
+`CompositeOver`).
+
+This padding is **purely an internal storage-layout detail with no observable effect**: `Width`
+and `Height` are unaffected, and both public row accessors (`GetRowSpanBytes`, `GetRowSpan`)
+continue to return spans of exactly `Width * 4` bytes / `Width` pixels — the trailing padding
+bytes of each row are never included in, or reachable through, any public member. A private
+helper, `GetPaddedRowSpanBytes(int y)`, returns the full `_strideBytes`-length row (including the
+padding bytes) for internal use only by the vectorized bulk pixel operations, which need to
+process the complete physical row in one pass; its padding-region contents are never read back
+through any public accessor. `Crop` and all four codecs (`BmpCodec`, `PngCodec`, `TiffCodec`,
+`JpegCodec`) are unaffected because they already exclusively use the public, `Width`-scoped
+`GetRowSpanBytes` accessor rather than assuming a flat, gap-free `Width * Height * 4` buffer.
+
 ### Key Methods
 
 #### Surface(int width, int height)
 
 Constructs a surface of the given size. Validates `width > 0` and `height > 0`, throwing
 `ArgumentOutOfRangeException(nameof(width))` or `ArgumentOutOfRangeException(nameof(height))`
-respectively. Allocates a `byte[]` of `width * height * 4` bytes.
+respectively. Allocates a `byte[]` of `Height * _strideBytes` bytes, where `_strideBytes` rounds
+`width` up to the next multiple of 16 pixels then converts to bytes (see
+[Row Storage Layout](#row-storage-layout)).
 
 **Architectural decision**: a freshly constructed surface is always fully transparent black (every
 channel, including alpha, is zero). This is deliberate: a newly allocated `byte[]` is already
@@ -76,7 +106,8 @@ many pixels in the same row should obtain the row span once instead of repeatedl
 
 Returns a `Span<byte>` of length `Width * 4` aliasing row `y`'s raw bytes directly over
 `_buffer` — no data is copied, so writes through the span are immediately visible through the
-indexer and vice versa.
+indexer and vice versa. The returned length is always exactly `Width * 4`, regardless of
+`_strideBytes`'s internal padding (see [Row Storage Layout](#row-storage-layout)).
 
 **Throws:**
 

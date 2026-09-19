@@ -1,4 +1,5 @@
 using CanvasNet.Canvas;
+using CanvasNet.Codecs;
 
 namespace DemaConsulting.CanvasNet.Tests.Canvas;
 
@@ -287,6 +288,121 @@ public class SurfaceTests
 
         // Act & Assert: y + height exceeding Height must be rejected
         Assert.Throws<ArgumentOutOfRangeException>(() => surface.Crop(0, 3, 2, 2));
+    }
+
+    /// <summary>
+    ///     Row widths, in pixels, that exercise the internal row-padding boundary (padding is
+    ///     applied in multiples of 16 pixels): widths at, just below, and just above each
+    ///     boundary, plus a couple of larger "normal" widths.
+    /// </summary>
+    public static TheoryData<int> BoundaryWidths =>
+    [
+        1, 15, 16, 17, 31, 32, 33, 100, 257
+    ];
+
+    /// <summary>
+    ///     Proves that GetRowSpanBytes always returns a span of exactly Width * 4 bytes,
+    ///     regardless of internal row-padding boundaries, for every row of the surface.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(BoundaryWidths))]
+    public void Surface_GetRowSpanBytes_BoundaryWidths_ReturnsWidthTimesFourLength(int width)
+    {
+        // Arrange: construct a surface at a boundary width, with a couple of rows
+        var surface = new Surface(width, 2);
+
+        // Act & Assert: every row's byte span must be exactly Width * 4 bytes long
+        for (var y = 0; y < surface.Height; y++)
+        {
+            Assert.Equal(width * 4, surface.GetRowSpanBytes(y).Length);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that GetRowSpan always returns a span of exactly Width pixels, regardless of
+    ///     internal row-padding boundaries, for every row of the surface.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(BoundaryWidths))]
+    public void Surface_GetRowSpan_BoundaryWidths_ReturnsWidthLength(int width)
+    {
+        // Arrange: construct a surface at a boundary width, with a couple of rows
+        var surface = new Surface(width, 2);
+
+        // Act & Assert: every row's pixel span must be exactly Width pixels long
+        for (var y = 0; y < surface.Height; y++)
+        {
+            Assert.Equal(width, surface.GetRowSpan(y).Length);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that Crop remains byte-exact at internal row-padding boundary widths,
+    ///     confirming the stride/padding change is not observable through Crop.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(BoundaryWidths))]
+    public void Surface_Crop_BoundaryWidths_ReturnsExpectedPixels(int width)
+    {
+        // Arrange: build a surface at a boundary width with a distinct pixel value per column
+        var surface = new Surface(width, 3);
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                surface[x, y] = new Rgba32((byte)(x % 256), (byte)(y * 10), 7, 255);
+            }
+        }
+
+        // Act: crop the full surface
+        var cropped = surface.Crop(0, 0, width, 3);
+
+        // Assert: every pixel must survive the crop unchanged
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                Assert.Equal(surface[x, y], cropped[x, y]);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves that a PNG save/load round-trip remains byte-exact at internal row-padding
+    ///     boundary widths, confirming the stride/padding change is not observable through the
+    ///     PNG codec.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(BoundaryWidths))]
+    public void Surface_PngCodecRoundTrip_BoundaryWidths_ReturnsExpectedPixels(int width)
+    {
+        // Arrange: build a surface at a boundary width with distinct, non-trivial pixel values
+        var surface = new Surface(width, 3);
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                surface[x, y] = new Rgba32((byte)(x * 17 + 1), (byte)(y * 23 + 2), (byte)(x + y + 3), (byte)(200 - (x % 200)));
+            }
+        }
+
+        using var stream = new MemoryStream();
+
+        // Act: save and reload the surface through the PNG codec
+        PngCodec.Save(surface, stream, PngColorType.Rgba);
+        stream.Position = 0;
+        var reloaded = PngCodec.Load(stream);
+
+        // Assert: every pixel must round-trip exactly
+        Assert.Equal(surface.Width, reloaded.Width);
+        Assert.Equal(surface.Height, reloaded.Height);
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                Assert.Equal(surface[x, y], reloaded[x, y]);
+            }
+        }
     }
 
     /// <summary>

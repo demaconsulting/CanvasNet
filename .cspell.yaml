@@ -36,6 +36,7 @@ words:
   - downsamples
   - DEMA
   - Dema
+  - elementwise
   - FDCT
   - FCHECK
   - FileAssert
@@ -69,6 +70,9 @@ words:
   - PackBits
   - pHYs
   - Pels
+  - Premultiply
+  - premultiplied
+  - premultiplies
   - Qube
   - reqstream
   - reviewmark
@@ -84,6 +88,9 @@ words:
   - sysml
   - tEXt
   - Truecolor
+  - Unpremultiply
+  - unpremultiplied
+  - unpremultiplies
   - versionmark
   - Weasy
   - WeasyPrint
