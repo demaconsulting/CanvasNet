@@ -82,8 +82,39 @@ per-channel tolerance rather than exact equality because JPEG is lossy; passing 
 channel of the reloaded pixel to remain within the documented tolerance bound while alpha remains
 opaque.
 
+### Integration: Composite Color Over Surface Returns Expected Pixel
+
+**Test**: `CanvasNet_SystemIntegration_CompositeColorOverSurface_ReturnsExpectedPixel`
+
+Exercises end-to-end system behavior for the `Surface` unit's compositing operation: constructs an
+opaque background `Surface`, composites a semi-transparent solid color over it via
+`Surface.CompositeOver(Rgba32)`, then reads the result back through the public indexer. Asserts
+the resulting pixel exactly matches the expected Porter-Duff "over" compositing result, confirming
+the system's public compositing API integrates correctly with `Surface`.
+
+### Integration: Premultiply Alpha Returns Expected Pixel
+
+**Test**: `CanvasNet_SystemIntegration_PremultiplyAlpha_ReturnsExpectedPixel`
+
+Exercises end-to-end system behavior for the `Surface` unit's alpha-premultiplication operation:
+constructs a `Surface`, sets a straight-alpha pixel through the public indexer, converts it to
+premultiplied alpha via `Surface.PremultiplyAlpha`, then reads it back. Asserts the resulting pixel
+exactly matches the expected rounded premultiplied value, confirming the system's public
+premultiply API integrates correctly with `Surface`.
+
+### Integration: Unpremultiply Alpha Returns Expected Pixel
+
+**Test**: `CanvasNet_SystemIntegration_UnpremultiplyAlpha_ReturnsExpectedPixel`
+
+Exercises end-to-end system behavior for the `Surface` unit's alpha-unpremultiplication operation:
+constructs a `Surface`, sets a premultiplied-alpha pixel (chosen so the unpremultiplied red channel
+overshoots 255) through the public indexer, converts it to straight alpha via
+`Surface.UnpremultiplyAlpha`, then reads it back. Asserts the resulting pixel exactly matches the
+expected rounded-and-clamped value, confirming the system's public unpremultiply API integrates
+correctly with `Surface`, including its documented clamping behavior.
+
 ## Acceptance Criteria
 
-A system-level test run passes when all six scenarios above pass without error or exception beyond
+A system-level test run passes when all nine scenarios above pass without error or exception beyond
 those explicitly asserted. Any unexpected exception, wrong exception type, or wrong return value
 constitutes a failure.
