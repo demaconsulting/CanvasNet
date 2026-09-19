@@ -6,10 +6,14 @@ supporting `Rgba32` value type).
 ### Verification Approach
 
 The `Surface` unit is verified through unit tests that exercise each public constructor, property,
-indexer, span accessor, and the `Crop` method in isolation. Because `Surface` has no external
-dependencies beyond the .NET base class library, no mocking or stubbing is required. Tests supply
-controlled inputs and assert on returned values, span-observable side effects, and thrown
-exception types.
+indexer, span accessor, the `Crop` method, and the vectorized bulk pixel operations
+(`PremultiplyAlpha`, `UnpremultiplyAlpha`, `CompositeOver`) in isolation. `Surface`'s only runtime
+dependency, `System.Numerics.Tensors`, is not injectable and has no seams to mock — it is
+exercised indirectly, end-to-end, through its observable effect on pixel bytes, so no mocking or
+stubbing is required. Tests supply controlled inputs and assert on returned values,
+span-observable side effects, and thrown exception types. Expected values for the compositing and
+premultiplication tests are computed independently of the implementation (via a separate float32
+simulation), not by re-deriving the formula under test.
 
 Unit tests reside in `SurfaceTests.cs` within the `DemaConsulting.CanvasNet.Tests` project.
 
@@ -146,6 +150,77 @@ Calls `Crop` with `x + width` exceeding the source `Width` and asserts
 Calls `Crop` with `y + height` exceeding the source `Height` and asserts
 `ArgumentOutOfRangeException` is thrown.
 
+#### CanvasNet-Canvas-Surface-PremultiplyAlpha: PremultiplyAlpha Computes Expected Pixels and Round-Trips
+
+**Tests**: `Surface_PremultiplyAlpha_VariousValues_ComputesExpectedPixels`,
+`Surface_PremultiplyThenUnpremultiplyAlpha_PartialAlpha_RoundTripsWithinTolerance`,
+`Surface_PremultiplyThenUnpremultiplyAlpha_BoundaryAlpha_RoundTripsExactly`
+
+Calls `PremultiplyAlpha` on single-pixel surfaces across a table of color/alpha combinations
+(including alpha 0, alpha 255, and partial alpha) whose expected premultiplied values were
+computed independently of the implementation (`round(color * alpha / 255)`,
+round-half-away-from-zero), and asserts an exact match. Additionally, round-trips
+`PremultiplyAlpha` followed by `UnpremultiplyAlpha` for partial-alpha pixels and asserts the
+result is within one rounding step of the original (not falsely exact, since premultiplication is
+lossy), and for boundary alphas (0 and 255) asserts an exact round-trip.
+
+#### CanvasNet-Canvas-Surface-UnpremultiplyAlpha: UnpremultiplyAlpha Computes Expected Pixels
+
+**Tests**: `Surface_UnpremultiplyAlpha_VariousValues_ComputesExpectedPixels`,
+`Surface_UnpremultiplyAlpha_AlphaZero_ResultIsZeroRgb`,
+`Surface_PremultiplyThenUnpremultiplyAlpha_PartialAlpha_RoundTripsWithinTolerance`,
+`Surface_PremultiplyThenUnpremultiplyAlpha_BoundaryAlpha_RoundTripsExactly`
+
+Calls `UnpremultiplyAlpha` on single-pixel surfaces across a table of premultiplied-color/alpha
+combinations whose expected straight-alpha values were computed independently of the
+implementation (`round(color * 255 / alpha)`, round-half-away-from-zero, clamped), including a
+case where the raw division exceeds 255 to exercise the clamp. Separately, asserts a fully
+transparent pixel (`alpha == 0`) with arbitrary color-channel garbage produces `R = G = B = 0`,
+the documented degenerate-case result.
+
+#### CanvasNet-Canvas-Surface-CompositeOverSurface: CompositeOver(Surface) Matches Independently Computed Results
+
+**Tests**: `Surface_CompositeOverSurface_OpaqueForeground_ReplacesBackground`,
+`Surface_CompositeOverSurface_TransparentForeground_LeavesBackgroundUnchanged`,
+`Surface_CompositeOverSurface_PartialAlpha_MatchesIndependentlyComputedResult`
+
+Composites a fully opaque foreground pixel over a distinct background pixel and asserts the
+result exactly equals the foreground. Separately, composites a fully transparent foreground pixel
+(with garbage color channels) over a background and asserts the background is completely
+unaffected. Separately, composites two partially transparent pixels and asserts the result
+exactly matches a value independently hand-computed via the Porter-Duff "over" formula in a
+separate float32 simulation (not by re-deriving the same formula under test).
+
+#### CanvasNet-Canvas-Surface-CompositeOverSurfaceNull: CompositeOver(Surface) Rejects a Null Foreground
+
+**Test**: `Surface_CompositeOverSurface_NullForeground_ThrowsArgumentNullException`
+
+Calls `CompositeOver` with a `null` foreground surface and asserts `ArgumentNullException` is
+thrown.
+
+#### CanvasNet-Canvas-Surface-CompositeOverSurfaceDimensionMismatch: CompositeOver(Surface) Rejects a Size Mismatch
+
+**Tests**: `Surface_CompositeOverSurface_WidthMismatch_ThrowsArgumentException`,
+`Surface_CompositeOverSurface_HeightMismatch_ThrowsArgumentException`
+
+Calls `CompositeOver` with a foreground surface whose width differs from this surface's, and
+separately whose height differs, and asserts `ArgumentException` is thrown in both cases.
+
+#### CanvasNet-Canvas-Surface-CompositeOverColor: CompositeOver(Rgba32) Matches Independently Computed Results
+
+**Tests**: `Surface_CompositeOverColor_OpaqueColor_ReplacesBackground`,
+`Surface_CompositeOverColor_TransparentColor_LeavesBackgroundUnchanged`,
+`Surface_CompositeOverColor_PartialAlpha_MatchesIndependentlyComputedResult`,
+`Surface_CompositeOverColor_MultiRowSurface_AppliesToEveryPixel`
+
+Composites a fully opaque constant color over a background pixel and asserts the result exactly
+equals the color. Separately, composites a fully transparent constant color (with garbage color
+channels) over a background and asserts the background is unaffected. Separately, composites a
+partially transparent constant color over an opaque background and asserts the result exactly
+matches an independently hand-computed value. Separately, composites a constant opaque color over
+a multi-row, multi-column surface and asserts every pixel is replaced, confirming the per-row
+loop is applied uniformly across the whole surface, not just a single pixel.
+
 #### Rgba32 Sanity Checks (no requirement link)
 
 **Tests**: `Rgba32_FieldAssignment_StoresChannelValues`, `Rgba32_Equals_SameChannelValues_ReturnsTrue`
@@ -157,7 +232,7 @@ operators. These sanity tests support the other `Surface` scenarios above (which
 
 ### Acceptance Criteria
 
-A unit test run passes when all eighteen requirement-linked scenarios above, plus the two
+A unit test run passes when all twenty-four requirement-linked scenarios above, plus the two
 `Rgba32` sanity tests and the additional boundary-width/round-trip regression tests, pass without
 error or unexpected exception; any unexpected exception type or wrong return value constitutes a
 failure.

@@ -53,6 +53,16 @@
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.401" PrivateAssets="All" />
   </ItemGroup>
 
+  <!-- Runtime Dependencies -->
+  <ItemGroup>
+    <!-- Provides TensorPrimitives, used by Surface's vectorized bulk pixel operations
+         (PremultiplyAlpha, UnpremultiplyAlpha, CompositeOver) to accelerate per-channel
+         floating-point arithmetic. In-box on net9.0/net10.0; supplied via this package on
+         net8.0. Pinned to the same version across all three TFMs for a single, auditable,
+         identical API surface rather than relying on an implicit framework reference. -->
+    <PackageReference Include="System.Numerics.Tensors" Version="10.0.12" />
+  </ItemGroup>
+
   <!-- Code Analysis Dependencies -->
   <ItemGroup>
     <!-- Analyzer packages use child-element form to configure both PrivateAssets and IncludeAssets:

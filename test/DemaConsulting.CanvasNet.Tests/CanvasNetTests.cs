@@ -146,4 +146,22 @@ public class CanvasNetTests
         Assert.True(Math.Abs(expected.G - actual.G) <= tolerance, $"G delta {Math.Abs(expected.G - actual.G)} exceeded tolerance");
         Assert.True(Math.Abs(expected.B - actual.B) <= tolerance, $"B delta {Math.Abs(expected.B - actual.B)} exceeded tolerance");
     }
+
+    /// <summary>
+    ///     Proves that the system can composite a semi-transparent constant color over a Surface
+    ///     through the public API, producing the expected Porter-Duff "over" result.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_CompositeColorOverSurface_ReturnsExpectedPixel()
+    {
+        // Arrange: construct an opaque green background surface through the public API
+        var surface = new Surface(2, 2);
+        surface[0, 0] = new Rgba32(0, 255, 0, 255);
+
+        // Act: composite a semi-transparent red overlay over the surface in place
+        surface.CompositeOver(new Rgba32(255, 0, 0, 128));
+
+        // Assert: the system produces the expected integrated compositing result
+        Assert.Equal(new Rgba32(128, 127, 0, 255), surface[0, 0]);
+    }
 }

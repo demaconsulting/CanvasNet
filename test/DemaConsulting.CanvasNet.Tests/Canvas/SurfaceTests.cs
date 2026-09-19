@@ -436,4 +436,346 @@ public class SurfaceTests
         Assert.True(first == second);
         Assert.False(first != second);
     }
+
+    /// <summary>
+    ///     Premultiply-alpha test vectors: (color, alpha, expectedPremultipliedColor), computed
+    ///     independently of Surface's implementation using round(color * alpha / 255) with
+    ///     round-half-away-from-zero.
+    /// </summary>
+    public static TheoryData<byte, byte, byte> PremultiplyVectors =>
+    new()
+    {
+        { 200, 128, 100 },
+        { 100, 128, 50 },
+        { 50, 128, 25 },
+        { 255, 255, 255 },
+        { 0, 255, 0 },
+        { 255, 0, 0 },
+        { 37, 17, 2 },
+        { 250, 10, 10 },
+    };
+
+    /// <summary>
+    ///     Proves that PremultiplyAlpha converts each color channel to
+    ///     round(channel * alpha / 255), leaving alpha unchanged, for a range of representative
+    ///     color/alpha combinations including full transparency, full opacity, and partial alpha.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(PremultiplyVectors))]
+    public void Surface_PremultiplyAlpha_VariousValues_ComputesExpectedPixels(byte color, byte alpha, byte expected)
+    {
+        // Arrange: a single-pixel surface with the same component value in every color channel
+        var surface = new Surface(1, 1);
+        surface[0, 0] = new Rgba32(color, color, color, alpha);
+
+        // Act
+        surface.PremultiplyAlpha();
+
+        // Assert: every color channel matches the independently computed expected value; alpha
+        // is unchanged
+        var pixel = surface[0, 0];
+        Assert.Equal(new Rgba32(expected, expected, expected, alpha), pixel);
+    }
+
+    /// <summary>
+    ///     Unpremultiply-alpha test vectors: (premultipliedColor, alpha, expectedStraightColor),
+    ///     computed independently of Surface's implementation using
+    ///     round(premultipliedColor * 255 / alpha), clamped to [0, 255], with alpha == 0 defined
+    ///     as producing 0.
+    /// </summary>
+    public static TheoryData<byte, byte, byte> UnpremultiplyVectors =>
+    new()
+    {
+        { 100, 128, 199 },
+        { 0, 0, 0 },
+        { 255, 255, 255 },
+        { 1, 17, 15 },
+        { 250, 10, 255 }, // exercises the load-bearing clamp: the raw division exceeds 255
+    };
+
+    /// <summary>
+    ///     Proves that UnpremultiplyAlpha converts each color channel to
+    ///     round(channel * 255 / alpha), clamped to [0, 255], leaving alpha unchanged, for a
+    ///     range of representative premultiplied-color/alpha combinations.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(UnpremultiplyVectors))]
+    public void Surface_UnpremultiplyAlpha_VariousValues_ComputesExpectedPixels(byte color, byte alpha, byte expected)
+    {
+        // Arrange: a single-pixel surface with the same component value in every color channel
+        var surface = new Surface(1, 1);
+        surface[0, 0] = new Rgba32(color, color, color, alpha);
+
+        // Act
+        surface.UnpremultiplyAlpha();
+
+        // Assert: every color channel matches the independently computed expected value; alpha
+        // is unchanged
+        var pixel = surface[0, 0];
+        Assert.Equal(new Rgba32(expected, expected, expected, alpha), pixel);
+    }
+
+    /// <summary>
+    ///     Proves that UnpremultiplyAlpha maps a fully transparent pixel (alpha == 0) to
+    ///     R = G = B = 0, the documented degenerate case, regardless of the (unrecoverable) input
+    ///     color channel values.
+    /// </summary>
+    [Fact]
+    public void Surface_UnpremultiplyAlpha_AlphaZero_ResultIsZeroRgb()
+    {
+        // Arrange: a fully transparent pixel with arbitrary, non-zero color channel garbage
+        var surface = new Surface(1, 1);
+        surface[0, 0] = new Rgba32(123, 45, 67, 0);
+
+        // Act
+        surface.UnpremultiplyAlpha();
+
+        // Assert: RGB must be zero; alpha remains zero
+        Assert.Equal(new Rgba32(0, 0, 0, 0), surface[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that premultiplying then unpremultiplying a non-degenerate (non-zero,
+    ///     non-255-alpha) pixel round-trips within the documented lossy rounding tolerance,
+    ///     rather than asserting false exactness.
+    /// </summary>
+    [Theory]
+    [InlineData(200, 128)]
+    [InlineData(37, 90)]
+    [InlineData(10, 200)]
+    public void Surface_PremultiplyThenUnpremultiplyAlpha_PartialAlpha_RoundTripsWithinTolerance(byte color, byte alpha)
+    {
+        // Arrange
+        var surface = new Surface(1, 1);
+        surface[0, 0] = new Rgba32(color, color, color, alpha);
+
+        // Act: round-trip through premultiply then unpremultiply
+        surface.PremultiplyAlpha();
+        surface.UnpremultiplyAlpha();
+
+        // Assert: each channel must be within 1 of the original value - premultiply is lossy
+        // (integer rounding on the way in), so exact equality is not guaranteed, but the error
+        // must not exceed a single rounding step
+        var pixel = surface[0, 0];
+        Assert.InRange(pixel.R, (byte)Math.Max(0, color - 1), (byte)Math.Min(255, color + 1));
+        Assert.Equal(alpha, pixel.A);
+    }
+
+    /// <summary>
+    ///     Proves that premultiplying then unpremultiplying alpha 0 and alpha 255 pixels
+    ///     round-trips exactly (no rounding loss at these boundary alpha values).
+    /// </summary>
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(0, 255)]
+    [InlineData(255, 255)]
+    [InlineData(128, 255)]
+    public void Surface_PremultiplyThenUnpremultiplyAlpha_BoundaryAlpha_RoundTripsExactly(byte color, byte alpha)
+    {
+        // Arrange
+        var surface = new Surface(1, 1);
+        surface[0, 0] = new Rgba32(color, color, color, alpha);
+        var expected = alpha == 0 ? new Rgba32(0, 0, 0, 0) : new Rgba32(color, color, color, alpha);
+
+        // Act
+        surface.PremultiplyAlpha();
+        surface.UnpremultiplyAlpha();
+
+        // Assert
+        Assert.Equal(expected, surface[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOver(Surface) with a fully opaque foreground replaces the
+    ///     background pixel entirely, for every color channel.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSurface_OpaqueForeground_ReplacesBackground()
+    {
+        // Arrange: an opaque foreground pixel and a distinctly different background pixel
+        var background = new Surface(1, 1);
+        background[0, 0] = new Rgba32(10, 20, 30, 255);
+        var foreground = new Surface(1, 1);
+        foreground[0, 0] = new Rgba32(200, 150, 100, 255);
+
+        // Act
+        background.CompositeOver(foreground);
+
+        // Assert: the result must exactly equal the opaque foreground pixel
+        Assert.Equal(new Rgba32(200, 150, 100, 255), background[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOver(Surface) with a fully transparent foreground leaves the
+    ///     background pixel entirely unchanged.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSurface_TransparentForeground_LeavesBackgroundUnchanged()
+    {
+        // Arrange: a fully transparent foreground pixel (color channels are garbage - they must
+        // not affect the result) and a distinct, partially transparent background pixel
+        var background = new Surface(1, 1);
+        background[0, 0] = new Rgba32(80, 160, 240, 120);
+        var foreground = new Surface(1, 1);
+        foreground[0, 0] = new Rgba32(30, 60, 90, 0);
+
+        // Act
+        background.CompositeOver(foreground);
+
+        // Assert: the background must be completely unaffected
+        Assert.Equal(new Rgba32(80, 160, 240, 120), background[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOver(Surface) with partially transparent foreground and
+    ///     background pixels matches an independently hand-computed Porter-Duff "over" result
+    ///     (computed separately from Surface's own implementation, not by re-deriving the same
+    ///     formula under test).
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSurface_PartialAlpha_MatchesIndependentlyComputedResult()
+    {
+        // Arrange: both operands partially transparent
+        var background = new Surface(1, 1);
+        background[0, 0] = new Rgba32(80, 160, 240, 120);
+        var foreground = new Surface(1, 1);
+        foreground[0, 0] = new Rgba32(30, 60, 90, 180);
+
+        // Act
+        background.CompositeOver(foreground);
+
+        // Assert: expected value independently computed (Porter-Duff "over", normalized [0,1]
+        // math, round-half-away-from-zero, clamped) - see the developer's companion computation
+        Assert.Equal(new Rgba32(38, 76, 115, 215), background[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOver(Surface) throws ArgumentNullException when the foreground
+    ///     argument is null.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSurface_NullForeground_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var background = new Surface(2, 2);
+
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => background.CompositeOver((Surface)null!));
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOver(Surface) throws ArgumentException when the foreground's
+    ///     width does not match this surface's width.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSurface_WidthMismatch_ThrowsArgumentException()
+    {
+        // Arrange
+        var background = new Surface(3, 2);
+        var foreground = new Surface(4, 2);
+
+        // Act & Assert
+        Assert.Throws<ArgumentException>(() => background.CompositeOver(foreground));
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOver(Surface) throws ArgumentException when the foreground's
+    ///     height does not match this surface's height.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSurface_HeightMismatch_ThrowsArgumentException()
+    {
+        // Arrange
+        var background = new Surface(3, 2);
+        var foreground = new Surface(3, 5);
+
+        // Act & Assert
+        Assert.Throws<ArgumentException>(() => background.CompositeOver(foreground));
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOver(Rgba32) with a fully opaque color replaces the background
+    ///     pixel entirely, for every color channel.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverColor_OpaqueColor_ReplacesBackground()
+    {
+        // Arrange
+        var background = new Surface(1, 1);
+        background[0, 0] = new Rgba32(10, 20, 30, 255);
+
+        // Act
+        background.CompositeOver(new Rgba32(200, 150, 100, 255));
+
+        // Assert
+        Assert.Equal(new Rgba32(200, 150, 100, 255), background[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOver(Rgba32) with a fully transparent color leaves the
+    ///     background pixel entirely unchanged.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverColor_TransparentColor_LeavesBackgroundUnchanged()
+    {
+        // Arrange
+        var background = new Surface(1, 1);
+        background[0, 0] = new Rgba32(80, 160, 240, 120);
+
+        // Act: color channels are garbage on a fully transparent color - they must not affect
+        // the result
+        background.CompositeOver(new Rgba32(30, 60, 90, 0));
+
+        // Assert
+        Assert.Equal(new Rgba32(80, 160, 240, 120), background[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOver(Rgba32) with a partially transparent color over an opaque
+    ///     background matches an independently hand-computed Porter-Duff "over" result.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverColor_PartialAlpha_MatchesIndependentlyComputedResult()
+    {
+        // Arrange: opaque background, semi-transparent overlay color
+        var background = new Surface(1, 1);
+        background[0, 0] = new Rgba32(0, 255, 0, 255);
+
+        // Act
+        background.CompositeOver(new Rgba32(255, 0, 0, 128));
+
+        // Assert: expected value independently computed (Porter-Duff "over" against an opaque
+        // background simplifies to the standard alpha-blend formula: outC = fgC*a + bgC*(1-a))
+        Assert.Equal(new Rgba32(128, 127, 0, 255), background[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOver(Rgba32) applies the constant color identically to every
+    ///     pixel across multiple rows and columns, not just a single-pixel surface.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverColor_MultiRowSurface_AppliesToEveryPixel()
+    {
+        // Arrange: a 3x2 opaque background surface, uniformly filled
+        var background = new Surface(3, 2);
+        for (var y = 0; y < background.Height; y++)
+        {
+            for (var x = 0; x < background.Width; x++)
+            {
+                background[x, y] = new Rgba32(10, 20, 30, 255);
+            }
+        }
+
+        // Act: composite a fully opaque color over every pixel
+        background.CompositeOver(new Rgba32(200, 150, 100, 255));
+
+        // Assert: every pixel must equal the opaque overlay color
+        for (var y = 0; y < background.Height; y++)
+        {
+            for (var x = 0; x < background.Width; x++)
+            {
+                Assert.Equal(new Rgba32(200, 150, 100, 255), background[x, y]);
+            }
+        }
+    }
 }

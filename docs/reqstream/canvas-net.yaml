@@ -80,6 +80,53 @@ sections:
         tests:
           - CanvasNet_SystemIntegration_CanvasCrop_ReturnsIndependentSubRegion
 
+      - id: CanvasNet-Lib-CanvasPremultiply
+        title: >-
+          The library shall convert a pixel buffer, in place, between straight (unassociated) and
+          premultiplied alpha representations.
+        tags: [system]
+        justification: |
+          Premultiplied alpha is required for numerically correct alpha compositing; callers
+          performing custom pixel math need to convert an in-memory buffer between the two
+          representations.
+        children:
+          - CanvasNet-Canvas-PremultiplyAlpha
+          - CanvasNet-Canvas-UnpremultiplyAlpha
+        tests:
+          - CanvasNet_SystemIntegration_CompositeColorOverSurface_ReturnsExpectedPixel
+
+      - id: CanvasNet-Lib-CanvasComposite
+        title: >-
+          The library shall composite a pixel buffer, or a constant color, "over" a pixel buffer
+          in place, using standard Porter-Duff "over" alpha compositing.
+        tags: [system]
+        justification: |
+          Alpha compositing (layering a semi-transparent overlay onto a background, or tinting a
+          buffer with a constant color) is a fundamental raster-graphics operation callers need
+          without hand-rolling the per-pixel math themselves.
+        children:
+          - CanvasNet-Canvas-CompositeOverSurface
+          - CanvasNet-Canvas-CompositeOverColor
+        tests:
+          - CanvasNet_SystemIntegration_CompositeColorOverSurface_ReturnsExpectedPixel
+
+      - id: CanvasNet-Lib-CanvasCompositeValidation
+        title: >-
+          The library shall reject an invalid CompositeOver(Surface) call with
+          ArgumentNullException or ArgumentException.
+        tags: [system]
+        justification: |
+          A null foreground, or a foreground whose dimensions do not match the target buffer,
+          cannot be composited; rejecting these immediately prevents an out-of-bounds or
+          otherwise ill-defined operation.
+        children:
+          - CanvasNet-Canvas-CompositeOverSurfaceNull
+          - CanvasNet-Canvas-CompositeOverSurfaceDimensionMismatch
+        tests:
+          - Surface_CompositeOverSurface_NullForeground_ThrowsArgumentNullException
+          - Surface_CompositeOverSurface_WidthMismatch_ThrowsArgumentException
+          - Surface_CompositeOverSurface_HeightMismatch_ThrowsArgumentException
+
   - title: BMP Codec API
     requirements:
       - id: CanvasNet-Lib-BmpSave

@@ -3,15 +3,20 @@
 ![Canvas Structure](CanvasView.svg)
 
 The `Surface` class is the second software unit in CanvasNet. It provides a mutable, in-memory
-32-bit RGBA pixel buffer with allocation-free row access and independent-copy cropping, forming
-the core pixel-storage primitive on which future drawing and codec functionality will build.
+32-bit RGBA pixel buffer with allocation-free row access, independent-copy cropping, and
+vectorized bulk pixel operations, forming the core pixel-storage primitive on which future
+drawing and codec functionality will build.
 
 ### Purpose
 
 `Surface` stores pixel data for a rectangular image in a single contiguous byte array. It exposes
 single-pixel get/set access, row-level `Span<T>` access (both as raw bytes and as strongly typed
-`Rgba32` pixels), and a `Crop` operation that produces an independent copy of a rectangular
-sub-region. It has no external dependencies and performs no I/O.
+`Rgba32` pixels), a `Crop` operation that produces an independent copy of a rectangular
+sub-region, and vectorized bulk pixel operations for alpha premultiplication and Porter-Duff
+"over" alpha compositing (`PremultiplyAlpha`, `UnpremultiplyAlpha`, `CompositeOver`). It performs
+no I/O, and its only runtime dependency beyond the .NET base class library is
+`System.Numerics.Tensors` (used internally by the bulk pixel operations; see
+[Dependencies](#dependencies)).
 
 ### Data Model
 
@@ -144,20 +149,82 @@ both simpler and faster than iterating pixel by pixel for contiguous row data.
 
 - `ArgumentOutOfRangeException` — for any of the six invalid conditions listed above
 
+#### PremultiplyAlpha()
+
+Converts this surface's pixel buffer, in place, from straight (unassociated) alpha to
+premultiplied alpha: for every pixel, each color channel is replaced by
+`round(channel * alpha / 255)` (round-half-away-from-zero, clamped to `[0, 255]`); the alpha
+channel is unchanged. Every possible input byte pattern is valid, so this method never throws.
+
+#### UnpremultiplyAlpha()
+
+Converts this surface's pixel buffer, in place, from premultiplied alpha back to straight alpha —
+the inverse of `PremultiplyAlpha`. For every pixel with non-zero alpha, each color channel is
+replaced by `round(channel * 255 / alpha)` (round-half-away-from-zero, clamped to `[0, 255]` —
+the clamp is load-bearing since premultiplication is lossy and this division can genuinely
+overshoot 255). For a fully transparent pixel (`alpha == 0`), no color information is
+recoverable; the defined result is `R = G = B = 0`, matching common raster-graphics convention.
+Every possible input byte pattern is valid, so this method never throws.
+
+#### CompositeOver(Surface foreground)
+
+Composites `foreground` "over" this surface using standard Porter-Duff "over" alpha compositing,
+writing the result back into this surface in place. Both surfaces are assumed to hold straight
+(unassociated) alpha on input and the result is also straight alpha — callers do not need to call
+`PremultiplyAlpha` first.
+
+**Formula** (per channel, normalized to `[0, 1]` by dividing by 255):
+
+```text
+outA = fgA + bgA * (1 - fgA)
+outC = 0                                              if outA == 0
+     = (fgC * fgA + bgC * bgA * (1 - fgA)) / outA      otherwise
+```
+
+Results are converted back to bytes with round-half-away-from-zero, clamped to `[0, 255]`.
+
+**Throws:**
+
+- `ArgumentNullException` — when `foreground` is `null`
+- `ArgumentException` — when `foreground.Width != Width` or `foreground.Height != Height`
+
+#### CompositeOver(Rgba32 color)
+
+Composites the constant `color` "over" every pixel of this surface, using the same formula and
+rounding rule as `CompositeOver(Surface)`, with `color` acting as the foreground at every pixel.
+Every possible `Rgba32` value is valid, so this method never throws.
+
+**Implementation note (all three bulk pixel operations)**: each row is deinterleaved from RGBA
+byte order into planar `R`/`G`/`B`/`A` arrays via a simple scalar loop (this transform is layout
+work, not numeric work, so clarity is prioritized over vectorizing it), then the numerically
+heavy work — byte→float widening, multiply, divide, rounding, float→byte narrowing — is performed
+via `System.Numerics.Tensors.TensorPrimitives` calls (`ConvertSaturating`, `Multiply`, `Divide`,
+`Add`, `Subtract`, `Round` with `MidpointRounding.AwayFromZero`) operating on the planar float
+spans, before reinterleaving back to RGBA byte order. The one exception that cannot be expressed
+as a branch-free vector formula — the `alpha == 0` degenerate cases in `UnpremultiplyAlpha` and
+`CompositeOver` — is handled by a small scalar fix-up loop afterward, since `TensorPrimitives` has
+no conditional-select primitive. Since `netstandard2.0` support has been dropped, there is a
+single, unconditional code path shared by `net8.0`, `net9.0`, and `net10.0` — no `#if`
+target-framework gating is required.
+
 ### Error Handling
 
-All validation is performed at the start of the constructor, indexer, `GetRowSpanBytes`, and
-`Crop`, using `ArgumentOutOfRangeException` naming the specific invalid parameter. `Surface`
-performs no local error handling or recovery — validation failures are detected at the point of
-entry and the resulting exception propagates directly to the caller uncaught. There is no
-internal state to roll back because invalid arguments are rejected before any field is read or
-written, and before the destination surface is mutated in `Crop`.
+All validation is performed at the start of the constructor, indexer, `GetRowSpanBytes`, `Crop`,
+and `CompositeOver(Surface)`, using `ArgumentOutOfRangeException`/`ArgumentNullException`/
+`ArgumentException` naming the specific invalid parameter. `Surface` performs no local error
+handling or recovery — validation failures are detected at the point of entry and the resulting
+exception propagates directly to the caller uncaught. There is no internal state to roll back
+because invalid arguments are rejected before any field is read or written, and before the
+destination surface is mutated in `Crop`.
 
 ### Dependencies
 
-N/A - `Surface` has no dependencies beyond the .NET base class library
+`Surface` has no build-time dependencies beyond the .NET base class library
 (`System.Runtime.InteropServices.MemoryMarshal` and `System.Span<T>`), which are available
-natively on all of CanvasNet's target frameworks — no runtime NuGet dependency was required.
+natively on all of CanvasNet's target frameworks. It has one runtime NuGet dependency,
+`System.Numerics.Tensors` (pinned to a version compatible with `net8.0`), used exclusively by the
+vectorized bulk pixel operations (`PremultiplyAlpha`, `UnpremultiplyAlpha`, `CompositeOver`) for
+their `TensorPrimitives`-based numeric work; no other member of `Surface` depends on it.
 
 ### Callers
 
