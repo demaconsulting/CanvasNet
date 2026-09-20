@@ -247,6 +247,16 @@ Hand-builds a TIFF declaring `PlanarConfiguration = 2` (Planar), and asserts `Lo
 Hand-builds a TIFF declaring `TileWidth`/`TileLength` tags and no strip tags, and asserts `Load`
 throws `InvalidDataException`.
 
+#### CanvasNet-Codecs-TiffCodec-GetInfoTiledRejection: GetInfo Rejects Tiled TIFF Images Identically to Load
+
+**Tests**: `TiffCodec_GetInfo_Seekable_TiledTiff_ThrowsInvalidDataException`
+
+Hand-builds the same tiled-TIFF byte layout used by `TiffCodec_Load_TiledTiff_ThrowsInvalidDataException`
+and calls `GetInfo` on a seekable `MemoryStream`, asserting `InvalidDataException`. Proves the
+tiled-rejection check lives in the shared `ReadTiffImageInfo` helper used by both `Load` and
+`GetInfo`, rather than only in `Load`, closing the gap where `GetInfo` previously reported
+dimensions for an image `Load` could never actually decode.
+
 #### CanvasNet-Codecs-TiffCodec-LoadMissingMandatoryTag: Load Rejects Files Missing a Mandatory Tag
 
 **Test**: `TiffCodec_Load_MissingMandatoryTag_ThrowsInvalidDataException` (`[Theory]` over each
@@ -265,6 +275,24 @@ Builds a stream that ends before the 8-byte header is complete, and separately a
 data is shorter than the declared image dimensions require, and asserts `Load` throws
 `InvalidDataException` for both.
 
+#### CanvasNet-Codecs-TiffCodec-TagValueBoundsValidation: Load and GetInfo Reject Zero-Count and Overflowing Tag Arithmetic
+
+**Tests**: `TiffCodec_Load_ImageWidthZeroCount_ThrowsInvalidDataExceptionNotIndexOutOfRange`,
+`TiffCodec_GetInfo_Seekable_ImageWidthZeroCount_ThrowsInvalidDataExceptionNotIndexOutOfRange`,
+`TiffCodec_Load_IfdOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException`,
+`TiffCodec_GetInfo_Seekable_IfdOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException`,
+`TiffCodec_Load_OutOfLineTagOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException`,
+`TiffCodec_GetInfo_Seekable_OutOfLineTagOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException`
+
+Hand-builds a TIFF whose `ImageWidth` tag declares `Count = 0`, and asserts `Load` and `GetInfo`
+throw `InvalidDataException` rather than the `IndexOutOfRangeException` that would otherwise
+escape from indexing an empty resolved-values array. Separately hand-builds a TIFF whose IFD
+offset (in the 8-byte header), and separately whose out-of-line tag value offset (for a
+multi-value tag too large to fit inline), is set to a value above `int.MaxValue` (representable
+in the TIFF file format's unsigned 32-bit offset field but not as a .NET array index/count), and
+asserts `Load` and `GetInfo` throw `InvalidDataException` rather than the `OverflowException`
+that would otherwise escape from an unguarded `checked((int)...)` cast.
+
 #### CanvasNet-Codecs-TiffCodec-FixtureSupported: TiffFixtures Corpus Loads Successfully
 
 **Tests**: `TiffFixtures_SourcePngDimensions_Are32x32`,
@@ -279,11 +307,81 @@ dimensions; for RGB/RGBA fixtures, asserts every decoded pixel matches the corre
 source exactly (alpha forced to 255 for RGB fixtures); for grayscale fixtures, asserts only
 successful load, correct dimensions, and R == G == B per pixel.
 
+#### CanvasNet-Codecs-TiffCodec-GetInfo: GetInfo Reports Dimensions/Channels/Alpha Without Decoding Strips
+
+**Tests**: `TiffCodec_GetInfo_Seekable_Rgb_ReturnsExpectedInfoWithoutAlpha`,
+`TiffCodec_GetInfo_Seekable_Rgba_ReturnsExpectedInfoWithAlpha`,
+`TiffCodec_GetInfo_Seekable_PositionStaysWellBelowFullLength`,
+`TiffCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows`,
+`TiffCodec_GetInfo_SucceedsWithTruncatedStripData_ButLoadThrows`,
+`TiffCodec_GetInfo_Seekable_SamplesPerPixelTagOmitted_DefaultsToBitsPerSampleCount`,
+`TiffCodec_GetInfo_Seekable_UnsupportedBitsPerSample_ThrowsInvalidDataException`,
+`TiffCodec_GetInfo_Seekable_StreamNotAtPositionZero_ReturnsCorrectImageInfo`,
+`TiffCodec_GetInfo_NonSeekableStream_ThrowsNotSupportedException`,
+`TiffCodec_GetInfo_NonSeekableStream_ThrowsBeforeReadingAnyBytes`
+
+Builds a seekable RGB TIFF and separately an RGBA TIFF (with an `ExtraSamples` tag), calls
+`GetInfo` on a `MemoryStream` for each, and asserts the returned `ImageInfo` reports the correct
+width/height, `Channels` (3 or 4), and `HasAlpha` (false or true). Proves the seekable path never
+reads strip data by building a 100x100 image with substantial strip data and asserting
+`stream.Position` after `GetInfo` returns is well below `stream.Length / 2`. Proves `GetInfo` does
+not enforce `Surface.MaxDimension` by building an RGB image one pixel wider than
+`Surface.MaxDimension`, asserting `GetInfo` returns that raw oversized width without throwing, and
+then asserting `Load` on the exact same bytes still throws `InvalidDataException`. Proves the
+seekable path never needs strip data at all by truncating a valid file's trailing strip bytes
+entirely and asserting `GetInfo` still succeeds while `Load` on the same truncated bytes throws
+`InvalidDataException`. Proves `GetInfo`'s `SamplesPerPixel`-absent default (the regression
+scenario for the historical divergence described in the design documentation): builds a TIFF with
+the `SamplesPerPixel` tag omitted and asserts `GetInfo` returns `Channels == 3` (derived from
+`BitsPerSample`'s entry count, not defaulted to 1); separately builds a TIFF declaring
+`BitsPerSample = 16,16,16` (otherwise a valid RGB image) and asserts `GetInfo` throws
+`InvalidDataException`, proving the full format-support validation applies to the seekable path.
+Proves the stream-position fix (`GetInfo` resolving `StreamTiffDataSource` reads relative to the
+stream's starting position rather than absolute byte 0): writes a non-empty byte prefix to a
+`MemoryStream`, then a valid TIFF, sets `stream.Position` past the prefix, and asserts `GetInfo`
+returns the correct `ImageInfo` for the TIFF that follows the prefix rather than misinterpreting
+bytes at absolute offset 0. Proves `GetInfo` rejects a non-seekable stream immediately with
+`NotSupportedException`, even for a completely valid, well-formed TIFF image: wraps the valid TIFF
+bytes in a test-only stream that reports `CanSeek == false` while otherwise forwarding every
+member (`Position`, `Seek`, `Read`, `Length`) to a fully functional inner `MemoryStream`, so the
+test genuinely exercises `GetInfo`'s dedicated seekable-stream guard rather than incidentally
+observing some unrelated stream member throw `NotSupportedException` of its own accord. Proves
+that rejection happens before any bytes are read from the stream: wraps a stream whose `Read`
+throws `InvalidOperationException` (a different, distinguishable exception type) and asserts
+`GetInfo` still throws `NotSupportedException`, proving the guard rejects the stream before ever
+calling `Read`.
+
+#### CanvasNet-Codecs-TiffCodec-TagValueCountUpperBound: GetInfo Rejects an Implausibly Large Tag Count
+
+**Tests**: `TiffCodec_GetInfo_Seekable_BitsPerSampleCountImplausiblyLarge_ThrowsWithoutLargeAllocation`
+
+Hand-builds a TIFF file large enough that a `BitsPerSample` tag declaring a `Count` of 2,000,000
+still satisfies the pre-existing stream-bounds check (the file genuinely contains that many bytes
+at the declared offset), so only the new upper-bound cardinality cap (`MaxImageLevelTagCount`) can
+reject it. Measures `GC.GetAllocatedBytesForCurrentThread()` immediately before and after calling
+`GetInfo` on the seekable stream, and asserts both that `InvalidDataException` is thrown and that
+the allocated-bytes delta stays under a small bound (proving the multi-megabyte `uint[]` the count
+would otherwise require is never allocated).
+
+#### CanvasNet-Codecs-TiffCodec-GetInfoValidation: GetInfo Rejects Invalid Arguments and Malformed Headers
+
+**Tests**: `TiffCodec_GetInfo_NullStream_ThrowsArgumentNullException`,
+`TiffCodec_GetInfo_NullPath_ThrowsArgumentNullException`,
+`TiffCodec_GetInfo_EmptyPath_ThrowsArgumentException`,
+`TiffCodec_GetInfo_BadByteOrderMark_ThrowsInvalidDataException`
+
+Calls `GetInfo(Stream)` with a null stream, `GetInfo(string)` with a null path and separately an
+empty path, and `GetInfo(Stream)` with an 8-byte header carrying an invalid byte-order mark,
+asserting `ArgumentNullException`, `ArgumentNullException`, `ArgumentException`, and
+`InvalidDataException` respectively — the same exception contract as the corresponding `Load`
+scenarios.
+
 ### Acceptance Criteria
 
 A unit test run passes when all test methods above (including each `[Theory]` case) pass without
 error or unexpected exception; any unexpected exception type or wrong return/byte value
-constitutes a failure. Across `TiffCodecTests.cs` and `TiffFixtureTests.cs`, this totals 68 test
-methods (49 in `TiffCodecTests.cs` and 19 in `TiffFixtureTests.cs`, including every `[Theory]`
-case), plus the system-level integration scenarios documented in
+constitutes a failure. Across `TiffCodecTests.cs` and `TiffFixtureTests.cs`, this totals 70 test
+methods (65 in `TiffCodecTests.cs` and 5 in `TiffFixtureTests.cs`; several of these are `[Theory]`
+methods that additionally expand to multiple executed xUnit test cases, one per fixture file or
+data row), plus the system-level integration scenarios documented in
 `docs/verification/canvas-net.md`.

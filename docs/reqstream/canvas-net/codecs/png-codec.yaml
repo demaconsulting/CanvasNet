@@ -233,6 +233,46 @@ sections:
                 tests:
                   - PngCodec_Load_IendBeforeIhdr_ThrowsInvalidDataExceptionMentioningIhdr
 
+              - id: CanvasNet-Codecs-PngCodec-GetInfo
+                title: >-
+                  The PngCodec class shall report a PNG's width, height, channel count, and alpha
+                  presence via GetInfo, given a stream or a file path, by reading only the signature
+                  and IHDR chunk, without decoding IDAT pixel data and without enforcing
+                  Surface.MaxDimension. The first chunk's type, and (only once confirmed IHDR) its
+                  declared length, shall both be validated to be IHDR / exactly 13 before any
+                  length-dependent allocation or read of the chunk's data payload is attempted.
+                justification: |
+                  Callers need to inspect a PNG's declared dimensions and color type (for example to
+                  reject unreasonably large images before allocating a Surface) without paying the cost
+                  of inflating and decoding the full pixel buffer, and without GetInfo itself
+                  preemptively rejecting dimensions that only Load's allocation path needs to guard
+                  against. Because GetInfo exists specifically to let callers cheaply triage untrusted
+                  input, a crafted first chunk declaring an attacker-controlled multi-gigabyte length
+                  must never be allocated/read before its type and length are known to be valid.
+                tests:
+                  - PngCodec_GetInfo_Rgb_ReturnsExpectedInfoWithoutAlpha
+                  - PngCodec_GetInfo_Rgba_ReturnsExpectedInfoWithAlpha
+                  - PngCodec_GetInfo_NeverReadsPastIhdr
+                  - PngCodec_GetInfo_SucceedsWithCorruptIdatRegion_ButLoadThrows
+                  - PngCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows
+                  - PngCodec_GetInfo_NonIhdrFirstChunkWithHugeDeclaredLength_ThrowsWithoutLargeAllocation
+                  - PngCodec_GetInfo_IhdrChunkWithWrongDeclaredLength_ThrowsWithoutLargeAllocation
+
+              - id: CanvasNet-Codecs-PngCodec-GetInfoValidation
+                title: >-
+                  The PngCodec class shall reject null stream/path, empty path, and malformed-signature
+                  arguments to GetInfo with the same exception contract as Load (ArgumentNullException,
+                  ArgumentException, or InvalidDataException respectively).
+                justification: |
+                  Callers need GetInfo's failure behavior to be exactly as predictable as Load's, so
+                  invalid arguments or unreadable PNG data are rejected the same way regardless of which
+                  entry point is used.
+                tests:
+                  - PngCodec_GetInfo_NullStream_ThrowsArgumentNullException
+                  - PngCodec_GetInfo_NullPath_ThrowsArgumentNullException
+                  - PngCodec_GetInfo_EmptyPath_ThrowsArgumentException
+                  - PngCodec_GetInfo_BadSignature_ThrowsInvalidDataException
+
               - id: CanvasNet-Codecs-PngCodec-PngSuiteSupported
                 title: >-
                   The PngCodec class shall successfully load every PngSuite conformance file within its

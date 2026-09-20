@@ -1,6 +1,7 @@
 using System.Numerics;
 using CanvasNet.Canvas;
 using CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Tests.TestSupport;
 
 namespace DemaConsulting.CanvasNet.Tests.Codecs;
 
@@ -361,6 +362,31 @@ public class JpegCodecTests
     }
 
     /// <summary>
+    ///     Regression test for finding #5: <see cref="JpegCodec.GetInfo(Stream)"/>'s marker scan
+    ///     used to treat an unsupported SOF/frame marker (e.g. SOF1/SOF3) exactly like any other
+    ///     unrecognized segment - skipping over it via its length prefix - and would then happily
+    ///     report dimensions from a subsequent, valid SOF0 segment, silently disagreeing with
+    ///     <see cref="JpegCodec.Load(Stream)"/>, which has always rejected the same bytes.
+    ///     Builds a file with an unsupported SOF marker followed by a valid SOF0 segment and
+    ///     proves both Load and GetInfo now reject it identically with
+    ///     <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Theory]
+    [InlineData(0xC1)]
+    [InlineData(0xC3)]
+    public void JpegCodec_UnsupportedSofMarkerFollowedByValidSof0_BothLoadAndGetInfoThrow(byte marker)
+    {
+        var jpeg = BuildJpeg(
+        [
+            BuildSofSegment(marker, 2, 2, (1, 0x11, 0)),
+            BuildSofSegment(MarkerSof0, 4, 3, (1, 0x11, 0))
+        ]);
+
+        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(new MemoryStream(jpeg)));
+        Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(new MemoryStream(jpeg)));
+    }
+
+    /// <summary>
     ///     Verifies that Load rejects a baseline SOF0 frame declaring four components.
     /// </summary>
     [Fact]
@@ -704,5 +730,315 @@ public class JpegCodecTests
             Assert.Equal(expectedG, actualG);
             Assert.Equal(expectedB, actualB);
         }
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // GetInfo
+    // ------------------------------------------------------------------------------------------
+
+    /// <summary>
+    ///     Verifies that GetInfo reports the correct width, height, and single-channel/no-alpha
+    ///     result for a grayscale (1-component) SOF0 frame, without requiring an SOS segment or
+    ///     any entropy-coded scan data.
+    /// </summary>
+    [Fact]
+    public void JpegCodec_GetInfo_Grayscale_ReturnsExpectedInfoWithoutSosOrEntropyData()
+    {
+        var jpeg = BuildJpeg(
+        [
+            BuildMinimalDqtSegment(),
+            BuildMinimalDhtSegment(),
+            BuildSofSegment(MarkerSof0, 4, 3, (1, 0x11, 0))
+        ], includeEoi: false);
+
+        var info = JpegCodec.GetInfo(new MemoryStream(jpeg));
+
+        Assert.Equal(new ImageInfo(4, 3, 1, false), info);
+    }
+
+    /// <summary>
+    ///     Verifies that GetInfo reports the correct width, height, and 3-channel/no-alpha result
+    ///     for a color (3-component) SOF0 frame. JPEG has no alpha channel, so HasAlpha is always
+    ///     false regardless of component count.
+    /// </summary>
+    [Fact]
+    public void JpegCodec_GetInfo_Color_ReturnsExpectedInfo()
+    {
+        var jpeg = BuildJpeg(
+        [
+            BuildMinimalDqtSegment(),
+            BuildMinimalDhtSegment(),
+            BuildSofSegment(MarkerSof0, 6, 4, (1, 0x22, 0), (2, 0x11, 1), (3, 0x11, 1))
+        ]);
+
+        var info = JpegCodec.GetInfo(new MemoryStream(jpeg));
+
+        Assert.Equal(new ImageInfo(6, 4, 3, false), info);
+    }
+
+    /// <summary>
+    ///     Verifies that GetInfo(string) round-trips through a real file exactly like
+    ///     GetInfo(Stream).
+    /// </summary>
+    [Fact]
+    public void JpegCodec_GetInfoPath_ReturnsExpectedInfo()
+    {
+        var jpeg = BuildJpeg(
+        [
+            BuildMinimalDqtSegment(),
+            BuildMinimalDhtSegment(),
+            BuildSofSegment(MarkerSof0, 5, 2, (1, 0x11, 0))
+        ]);
+
+        var path = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllBytes(path, jpeg);
+
+            var info = JpegCodec.GetInfo(path);
+
+            Assert.Equal(new ImageInfo(5, 2, 1, false), info);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    /// <summary>
+    ///     Verifies that GetInfo(Stream) rejects a null stream argument.
+    /// </summary>
+    [Fact]
+    public void JpegCodec_GetInfoStream_NullStream_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => JpegCodec.GetInfo((Stream)null!));
+    }
+
+    /// <summary>
+    ///     Verifies that GetInfo(string) rejects a null path argument.
+    /// </summary>
+    [Fact]
+    public void JpegCodec_GetInfoPath_NullPath_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => JpegCodec.GetInfo((string)null!));
+    }
+
+    /// <summary>
+    ///     Verifies that GetInfo(string) rejects an empty path argument.
+    /// </summary>
+    [Fact]
+    public void JpegCodec_GetInfoPath_EmptyPath_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentException>(() => JpegCodec.GetInfo(string.Empty));
+    }
+
+    /// <summary>
+    ///     Verifies that GetInfo rejects a stream missing the SOI marker with the same
+    ///     InvalidDataException contract as Load.
+    /// </summary>
+    [Fact]
+    public void JpegCodec_GetInfo_MissingSoiMarker_ThrowsInvalidDataException()
+    {
+        var jpeg = new byte[] { 0x00, 0x00, 0x00, 0x00 };
+
+        Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(new MemoryStream(jpeg)));
+    }
+
+    /// <summary>
+    ///     Verifies that GetInfo throws InvalidDataException when the stream ends before any
+    ///     SOF0/SOF2 marker is found (distinct from the probe-limit-exceeded case).
+    /// </summary>
+    [Fact]
+    public void JpegCodec_GetInfo_TruncatedBeforeSofFound_ThrowsInvalidDataException()
+    {
+        var jpeg = BuildJpeg([BuildMinimalDqtSegment()], includeEoi: false);
+
+        Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(new MemoryStream(jpeg)));
+    }
+
+    /// <summary>
+    ///     Verifies that GetInfo throws InvalidDataException when an SOS segment is encountered
+    ///     before any SOF0/SOF2 marker.
+    /// </summary>
+    [Fact]
+    public void JpegCodec_GetInfo_SosBeforeSof_ThrowsInvalidDataException()
+    {
+        var jpeg = BuildJpeg([BuildSosSegment((1, 0x00))]);
+
+        Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(new MemoryStream(jpeg)));
+    }
+
+    /// <summary>
+    ///     Verifies that GetInfo throws InvalidDataException, with a message distinguishable from
+    ///     the truncated-stream case, when no SOF0/SOF2 marker is found within the
+    ///     MaxProbeHeaderBytes probe cap even though the stream itself is much larger.
+    /// </summary>
+    [Fact]
+    public void JpegCodec_GetInfo_ProbeLimitExceededWithoutSof_ThrowsInvalidDataException()
+    {
+        // Filler bytes containing no 0xFF marker byte at all, long enough to exceed the 1 MiB
+        // probe cap before any SOF0/SOF2 marker could ever be found.
+        var filler = new byte[1_100_000];
+
+        var jpeg = BuildJpeg([], entropyData: filler, includeEoi: false);
+
+        var exception = Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(new MemoryStream(jpeg)));
+        Assert.Contains("probe limit", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    ///     Regression test: when the SOF0/SOF2 marker itself is found within the
+    ///     MaxProbeHeaderBytes cap, but its declared segment length would require reading past the
+    ///     cap, <c>IncrementalProbeBuffer.ToExactArray</c> used to report the generic
+    ///     "unexpected end of stream" message unconditionally - even though the stream is not
+    ///     actually truncated, and plenty more data follows - because it ignored
+    ///     <c>CapReached</c>. Verifies the exception message now correctly attributes this case to
+    ///     the probe limit, matching <see cref="JpegCodec_GetInfo_ProbeLimitExceededWithoutSof_ThrowsInvalidDataException"/>'s
+    ///     wording for the analogous marker-scan-side case.
+    /// </summary>
+    [Fact]
+    public void JpegCodec_GetInfo_SofSegmentExtendsBeyondProbeLimit_ThrowsWithProbeLimitMessage()
+    {
+        // Filler APP0 segments (each just under the 64 KiB segment-length limit) to advance the
+        // scan position to just under the 1 MiB probe cap without ever encountering a SOF marker.
+        const int fillerSegmentPayloadLength = 65_000;
+        var segments = new List<byte[]>();
+        for (var total = 0; total < 1_000_000; total += fillerSegmentPayloadLength + 2)
+        {
+            segments.Add(BuildSegment(0xE0, new byte[fillerSegmentPayloadLength]));
+        }
+
+        // An SOF0 marker whose declared segment length (65535, the maximum a ushort can express)
+        // pushes the required end position well past the 1 MiB cap, even though the underlying
+        // stream continues for a long time afterwards (so this is not a genuine truncation).
+        var sofMarker = new byte[] { MarkerPrefix, MarkerSof0, 0xFF, 0xFF };
+        segments.Add(sofMarker);
+
+        var jpeg = BuildJpeg([.. segments], entropyData: new byte[200_000], includeEoi: false);
+
+        var exception = Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(new MemoryStream(jpeg)));
+        Assert.Contains("probe limit", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo does not decode the full file: for a stream much larger than the
+    ///     MaxProbeHeaderBytes cap, the stream position after GetInfo returns is capped at
+    ///     MaxProbeHeaderBytes even though the underlying stream is several times longer.
+    /// </summary>
+    [Fact]
+    public void JpegCodec_GetInfo_LargeStream_NeverReadsPastProbeLimit()
+    {
+        var filler = new byte[3_000_000];
+
+        var jpeg = BuildJpeg(
+        [
+            BuildMinimalDqtSegment(),
+            BuildMinimalDhtSegment(),
+            BuildSofSegment(MarkerSof0, 4, 3, (1, 0x11, 0))
+        ], entropyData: filler);
+
+        using var stream = new MemoryStream(jpeg);
+
+        var info = JpegCodec.GetInfo(stream);
+
+        Assert.Equal(new ImageInfo(4, 3, 1, false), info);
+        Assert.True(stream.Length > 1_048_576, "Test fixture must exceed the probe cap.");
+        Assert.True(stream.Position <= 1_048_576, "GetInfo must not read past the probe cap.");
+    }
+
+    /// <summary>
+    ///     Regression test for finding #6: <see cref="JpegCodec.GetInfo(Stream)"/> used to
+    ///     eagerly read a full <c>MaxProbeHeaderBytes</c> (1 MiB) buffer from the stream up front
+    ///     before scanning any markers at all, so even a file whose SOF segment appears within
+    ///     the first few dozen bytes still forced up to 1 MiB of stream reads. Wraps a JPEG whose
+    ///     SOF0 segment appears near the start (followed by several MB of filler entropy data) in
+    ///     a <see cref="BoundedReadStream"/> configured to throw if more than a small, generous
+    ///     budget is ever read, and proves GetInfo still succeeds - i.e. it now parses
+    ///     incrementally and stops once the SOF has been fully read, rather than always reading
+    ///     up to the full probe cap regardless of where the SOF actually is.
+    /// </summary>
+    [Fact]
+    public void JpegCodec_GetInfo_SofNearStart_DoesNotReadFarBeyondWhatIsNeeded()
+    {
+        var filler = new byte[5_000_000];
+
+        var jpeg = BuildJpeg(
+        [
+            BuildMinimalDqtSegment(),
+            BuildMinimalDhtSegment(),
+            BuildSofSegment(MarkerSof0, 4, 3, (1, 0x11, 0))
+        ], entropyData: filler);
+
+        // The SOF segment finishes well within the first few hundred bytes of the file; a
+        // generous 16 KiB budget is far below both the file's total length and the 1 MiB probe
+        // cap, so this only passes if GetInfo stops scanning once the SOF has been fully parsed
+        // rather than always reading up to the full probe cap (or the whole file).
+        using var bounded = new BoundedReadStream(new MemoryStream(jpeg), maxBytes: 16 * 1024);
+
+        var info = JpegCodec.GetInfo(bounded);
+
+        Assert.Equal(new ImageInfo(4, 3, 1, false), info);
+    }
+
+    /// <summary>
+    ///     Independent re-verification of finding #4 (originally reported as a JPEG zero-length
+    ///     segment infinite loop). The planning agent's investigation found this to already be a
+    ///     false positive - a zero-length length-prefixed segment causes
+    ///     <c>SkipLengthPrefixedSegment</c> to return the same position it started from (pointing
+    ///     just past the marker code, at the 2-byte length field itself), after which the next
+    ///     iteration's marker scan advances forward looking for the next real <c>0xFF</c> marker
+    ///     byte, so the position always strictly advances rather than looping forever. This test
+    ///     independently reproduces that scenario and bounds it with
+    ///     <see cref="Task.Wait(TimeSpan)"/> (never wall-clock timing as a pass/fail signal
+    ///     itself - only the boolean "completed in time" result and the exception type are
+    ///     asserted), locking in that GetInfo terminates promptly with
+    ///     <see cref="InvalidDataException"/> rather than hanging.
+    /// </summary>
+    [Fact]
+    public async Task JpegCodec_GetInfo_ZeroLengthSegment_TerminatesPromptlyWithInvalidDataException()
+    {
+        // SOI, then an APP0 marker whose 2-byte length field declares a length of 0 (invalid:
+        // the length field must include itself, so the minimum valid value is 2), then EOI.
+        var jpeg = new byte[] { 0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x00, 0xFF, 0xD9 };
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        InvalidDataException? caught = null;
+        var task = Task.Run(
+            () =>
+            {
+                try
+                {
+                    JpegCodec.GetInfo(new MemoryStream(jpeg));
+                }
+                catch (InvalidDataException ex)
+                {
+                    caught = ex;
+                }
+            },
+            cancellationToken);
+
+        var completedTask = await Task.WhenAny(task, Task.Delay(TimeSpan.FromSeconds(10), cancellationToken));
+
+        Assert.Same(task, completedTask);
+        Assert.NotNull(caught);
+    }
+
+    /// <summary>
+    ///     Verifies that GetInfo does not reject frame dimensions exceeding Surface.MaxDimension
+    ///     (it reports the raw header value), while Load on the same bytes still throws
+    ///     InvalidDataException.
+    /// </summary>
+    [Fact]
+    public void JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows()
+    {
+        var jpeg = BuildJpeg(
+        [
+            BuildSofSegment(MarkerSof0, Surface.MaxDimension + 1, 1, (1, 0x11, 0))
+        ]);
+
+        var info = JpegCodec.GetInfo(new MemoryStream(jpeg));
+
+        Assert.Equal(Surface.MaxDimension + 1, info.Width);
+        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(new MemoryStream(jpeg)));
     }
 }

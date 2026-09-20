@@ -228,11 +228,49 @@ Loads every PngSuite conformance file that is deliberately corrupt (bad signatur
 CRC-32, or an invalid color-type/bit-depth combination — verified directly against each file's raw
 bytes), and asserts `Load` throws `InvalidDataException` for every one.
 
+#### CanvasNet-Codecs-PngCodec-GetInfo: GetInfo Reports Dimensions/Channels/Alpha Without Decoding Pixels
+
+**Tests**: `PngCodec_GetInfo_Rgb_ReturnsExpectedInfoWithoutAlpha`,
+`PngCodec_GetInfo_Rgba_ReturnsExpectedInfoWithAlpha`, `PngCodec_GetInfo_NeverReadsPastIhdr`,
+`PngCodec_GetInfo_SucceedsWithCorruptIdatRegion_ButLoadThrows`,
+`PngCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows`,
+`PngCodec_GetInfo_NonIhdrFirstChunkWithHugeDeclaredLength_ThrowsWithoutLargeAllocation`,
+`PngCodec_GetInfo_IhdrChunkWithWrongDeclaredLength_ThrowsWithoutLargeAllocation`
+
+Saves a surface at `Rgb` and separately at `Rgba`, calls `GetInfo` on each, and asserts the
+returned `ImageInfo` reports the correct width/height, `Channels` (3 or 4), and `HasAlpha` (false
+or true). Proves `GetInfo` never reads past the `IHDR` chunk by wrapping a valid RGBA PNG's bytes
+in a `BoundedReadStream` capped at exactly 33 bytes (the signature plus the first chunk frame) and
+asserting `GetInfo` still succeeds. Proves `GetInfo` never needs to decompress `IDAT` by
+corrupting a saved file's final Adler-32 byte and asserting `GetInfo` still returns the correct
+info while `Load` on the same bytes throws `InvalidDataException`. Proves `GetInfo` does not
+enforce `Surface.MaxDimension` by building a minimal `IHDR` declaring a width one greater than
+`Surface.MaxDimension`, asserting `GetInfo` returns that raw oversized width without throwing, and
+then asserting `Load` on the exact same bytes still throws `InvalidDataException`. Proves, by
+measuring `GC.GetAllocatedBytesForCurrentThread()` before/after the call (never wall-clock time),
+that a crafted first chunk declaring a huge (100 MB) length is rejected by `ReadIhdrChunkFrame`
+before any length-dependent allocation is attempted — once for a non-`IHDR` first chunk type, and
+once for an `IHDR` chunk whose declared length is not the mandatory 13 — asserting both a bounded
+(well under 1 MB) allocation delta and `InvalidDataException` in each case.
+
+#### CanvasNet-Codecs-PngCodec-GetInfoValidation: GetInfo Rejects Invalid Arguments and Malformed Headers
+
+**Tests**: `PngCodec_GetInfo_NullStream_ThrowsArgumentNullException`,
+`PngCodec_GetInfo_NullPath_ThrowsArgumentNullException`,
+`PngCodec_GetInfo_EmptyPath_ThrowsArgumentException`,
+`PngCodec_GetInfo_BadSignature_ThrowsInvalidDataException`
+
+Calls `GetInfo(Stream)` with a null stream, `GetInfo(string)` with a null path and separately an
+empty path, and `GetInfo(Stream)` with an 8-byte all-zero buffer (an incorrect signature),
+asserting `ArgumentNullException`, `ArgumentNullException`, `ArgumentException`, and
+`InvalidDataException` respectively — the same exception contract as the corresponding `Load`
+scenarios.
+
 ### Acceptance Criteria
 
 A unit test run passes when all test methods above pass without error or unexpected exception; any
 unexpected exception type or wrong return/byte value constitutes a failure. Across
-`PngCodecTests.cs` and `PngSuiteTests.cs`, this totals 30 test methods (27 in `PngCodecTests.cs`
+`PngCodecTests.cs` and `PngSuiteTests.cs`, this totals 41 test methods (38 in `PngCodecTests.cs`
 and 3 in `PngSuiteTests.cs`), which expand to a much larger number of executed xUnit test cases
 when every `[Theory]` data row is included, covering the full 175-file PngSuite conformance
 corpus.

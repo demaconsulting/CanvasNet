@@ -31,7 +31,13 @@ The `Codecs` subsystem depends on the `Canvas` subsystem's `Surface` unit (const
 and reading/writing rows via `Surface.GetRowSpanBytes`); the `Canvas` subsystem has no dependency
 on `Codecs` or on any other subsystem. Within the `Codecs` subsystem, its four units are flat and
 mutually independent — none of `BmpCodec`, `PngCodec`, `TiffCodec`, or `JpegCodec` depends on any
-other codec. See _Surface Unit Design_ (`canvas/surface.md`), _BmpCodec Unit Design_
+other codec. Each codec also exposes a pair of `GetInfo(Stream)`/`GetInfo(string)` overloads
+returning the shared `ImageInfo` record struct (width, height, channel count, and alpha presence)
+without fully decoding pixel data and without enforcing `Surface.MaxDimension` (now a public
+constant, so callers can perform this comparison themselves before ever calling `Load`) — see
+_Codecs Subsystem Design_ (`codecs.md`) for the shared `ImageInfo` type and header-only-probing
+pattern, and _Surface Unit Design_ (`canvas/surface.md`) for `MaxDimension`. See
+_Surface Unit Design_ (`canvas/surface.md`), _BmpCodec Unit Design_
 (`codecs/bmp-codec.md`), _PngCodec Unit Design_ (`codecs/png-codec.md`),
 _TiffCodec Unit Design_ (`codecs/tiff-codec.md`), and _JpegCodec Unit Design_
 (`codecs/jpeg-codec.md`) for each unit's internal collaboration.

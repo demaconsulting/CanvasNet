@@ -139,6 +139,8 @@ reviews:
       - "docs/reqstream/canvas-net/codecs.yaml"                # subsystem requirements
       - "docs/design/canvas-net/codecs.md"                    # subsystem design
       - "docs/verification/canvas-net/codecs.md"              # subsystem verification
+      - "test/DemaConsulting.CanvasNet.Tests/TestSupport/BoundedReadStream.cs"  # shared test helper
+      - "test/DemaConsulting.CanvasNet.Tests/TestSupport/NonSeekableStream.cs"  # shared test helper
 
   # CanvasNet-Codecs-BmpCodec Review (one per unit)
   - id: CanvasNet-Codecs-BmpCodec
@@ -153,6 +155,7 @@ reviews:
       - "docs/design/canvas-net/codecs/bmp-codec.md"          # unit design
       - "docs/verification/canvas-net/codecs/bmp-codec.md"    # unit verification
       - "src/DemaConsulting.CanvasNet/Codecs/BmpCodec.cs"         # unit source
+      - "src/DemaConsulting.CanvasNet/Codecs/ImageInfo.cs"        # shared header-only probe result type
       - "src/DemaConsulting.CanvasNet/Codecs/NamespaceDoc.cs"     # Codecs namespace documentation
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/BmpCodecTests.cs"  # unit tests
 
@@ -169,6 +172,7 @@ reviews:
       - "docs/design/canvas-net/codecs/png-codec.md"          # unit design
       - "docs/verification/canvas-net/codecs/png-codec.md"    # unit verification
       - "src/DemaConsulting.CanvasNet/Codecs/PngCodec.cs"         # unit source
+      - "src/DemaConsulting.CanvasNet/Codecs/ImageInfo.cs"        # shared header-only probe result type
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/PngCodecTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/PngSuiteTests.cs"  # PngSuite conformance tests
 
@@ -185,6 +189,7 @@ reviews:
       - "docs/design/canvas-net/codecs/tiff-codec.md"         # unit design
       - "docs/verification/canvas-net/codecs/tiff-codec.md"   # unit verification
       - "src/DemaConsulting.CanvasNet/Codecs/TiffCodec.cs"        # unit source
+      - "src/DemaConsulting.CanvasNet/Codecs/ImageInfo.cs"        # shared header-only probe result type
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/TiffCodecTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/TiffFixtureTests.cs"  # fixture conformance tests
 
@@ -201,6 +206,7 @@ reviews:
       - "docs/design/canvas-net/codecs/jpeg-codec.md"         # unit design
       - "docs/verification/canvas-net/codecs/jpeg-codec.md"   # unit verification
       - "src/DemaConsulting.CanvasNet/Codecs/JpegCodec.cs"        # unit source
+      - "src/DemaConsulting.CanvasNet/Codecs/ImageInfo.cs"        # shared header-only probe result type
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/JpegCodecTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/JpegFixtureTests.cs"  # fixture conformance tests
 

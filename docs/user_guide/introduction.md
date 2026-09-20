@@ -98,6 +98,17 @@ public int Height { get; }
 
 Gets the height of the surface, in pixels.
 
+##### MaxDimension
+
+```csharp
+public const int MaxDimension = 8192;
+```
+
+The maximum permitted value for either `width` or `height` passed to the `Surface` constructor.
+Callers can compare a `GetInfo` probe result's `Width`/`Height` (and their product, for a
+memory-size estimate) against this constant before calling a codec's `Load` method, to reject
+untrusted or maliciously oversized image files without decoding any pixel data.
+
 #### Indexer
 
 ##### this[int x, int y]
@@ -221,6 +232,20 @@ throws.
 The `Rgba32` struct represents a single 32-bit RGBA pixel, with public `R`, `G`, `B`, and `A`
 `byte` fields and value equality (`Equals`, `GetHashCode`, `==`, `!=`).
 
+### ImageInfo
+
+```csharp
+public readonly record struct ImageInfo(int Width, int Height, int Channels, bool HasAlpha);
+```
+
+The `ImageInfo` record struct represents the result of a header-only probe of an image file via
+a codec's `GetInfo` method: the image's `Width` and `Height` in pixels, its `Channels` count (3
+for RGB, 4 for RGBA, 1 for grayscale where applicable), and whether it `HasAlpha`. `GetInfo`
+methods read only enough of the file to populate an `ImageInfo` - never decoding pixel data - so
+they are safe to call on untrusted or very large files before deciding whether to call `Load`.
+Unlike `Load`, `GetInfo` does not enforce `Surface.MaxDimension`, so callers should compare the
+returned dimensions against `Surface.MaxDimension` themselves when triaging untrusted input.
+
 ### BmpCodec
 
 The `BmpCodec` static class loads and saves `Surface` pixel buffers as uncompressed Windows BMP
@@ -266,6 +291,34 @@ Loads a `Surface` from a BMP file at the specified path.
 - `ArgumentNullException`: Thrown when `path` is null.
 - `ArgumentException`: Thrown when `path` is an empty string.
 - `InvalidDataException`: Thrown for the same conditions as `Load(Stream)`.
+
+##### GetInfo(Stream stream)
+
+```csharp
+public static ImageInfo GetInfo(Stream stream)
+```
+
+Reads only the BMP header (never pixel data) from an open, readable stream and returns an
+`ImageInfo` describing the image. Does not enforce `Surface.MaxDimension`.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `stream` is null.
+- `InvalidDataException`: Thrown when the stream does not contain a valid BMP header.
+
+##### GetInfo(string path)
+
+```csharp
+public static ImageInfo GetInfo(string path)
+```
+
+Reads only the BMP header from a file at the specified path and returns an `ImageInfo`.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `path` is null.
+- `ArgumentException`: Thrown when `path` is an empty string.
+- `InvalidDataException`: Thrown for the same conditions as `GetInfo(Stream)`.
 
 ##### Save(Surface surface, Stream stream, BmpBitDepth bitDepth = BmpBitDepth.Bit32)
 
@@ -341,6 +394,34 @@ Loads a `Surface` from a PNG file at the specified path.
 - `ArgumentNullException`: Thrown when `path` is null.
 - `ArgumentException`: Thrown when `path` is an empty string.
 - `InvalidDataException`: Thrown for the same conditions as `Load(Stream)`.
+
+##### PngCodec.GetInfo(Stream stream)
+
+```csharp
+public static ImageInfo GetInfo(Stream stream)
+```
+
+Reads only the PNG signature and `IHDR` chunk (never pixel data) from an open, readable stream
+and returns an `ImageInfo` describing the image. Does not enforce `Surface.MaxDimension`.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `stream` is null.
+- `InvalidDataException`: Thrown when the stream does not contain a valid PNG signature/`IHDR`.
+
+##### PngCodec.GetInfo(string path)
+
+```csharp
+public static ImageInfo GetInfo(string path)
+```
+
+Reads only the PNG signature/`IHDR` from a file at the specified path and returns an `ImageInfo`.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `path` is null.
+- `ArgumentException`: Thrown when `path` is an empty string.
+- `InvalidDataException`: Thrown for the same conditions as `GetInfo(Stream)`.
 
 ##### Save(Surface surface, Stream stream, PngColorType colorType = PngColorType.Rgba)
 
@@ -422,6 +503,48 @@ Loads a `Surface` from a TIFF file at the specified path.
 - `ArgumentException`: Thrown when `path` is an empty string.
 - `InvalidDataException`: Thrown for the same conditions as `Load(Stream)`.
 
+##### TiffCodec.GetInfo(Stream stream)
+
+```csharp
+public static ImageInfo GetInfo(Stream stream)
+```
+
+Reads only the TIFF header and the relevant IFD tags (never strip data) and returns an
+`ImageInfo` describing the image. Does not enforce `Surface.MaxDimension`. Requires a seekable
+`stream`: a TIFF's IFD can legitimately be located anywhere in the file (unlike PNG/JPEG/BMP,
+whose headers are always near the start), so no bounded, purely sequential scan can reliably
+resolve every well-formed TIFF from a non-seekable source. If `stream.CanSeek` is `false`,
+`GetInfo` throws `NotSupportedException` immediately, before reading any bytes from `stream` at
+all; a caller with a genuinely non-seekable source (for example a network stream) can trivially
+wrap it in a seekable buffer such as `MemoryStream` first. Once past that check, `stream` resolves
+every tag through the exact same validating parser `Load` itself uses (`ReadTiffImageInfo`). A
+`StreamTiffDataSource` seeks directly to the IFD and reads only the bytes the parser actually asks
+for - the header, IFD entries, and any out-of-line tag value needed (for example a multi-value
+`BitsPerSample` tag) - resolving `ImageWidth`, `ImageLength`, `BitsPerSample`, `SamplesPerPixel`,
+`Compression`, `PhotometricInterpretation`, `PlanarConfiguration`, `Predictor`, and `ExtraSamples`,
+and never reading `StripOffsets`/`RowsPerStrip`/`StripByteCounts` or any strip/pixel data.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `stream` is null.
+- `NotSupportedException`: Thrown when `stream` does not support seeking; wrap a non-seekable
+  source (for example a network stream) in a seekable buffer such as a `MemoryStream` first.
+- `InvalidDataException`: Thrown when the stream does not contain a valid TIFF header/IFD.
+
+##### TiffCodec.GetInfo(string path)
+
+```csharp
+public static ImageInfo GetInfo(string path)
+```
+
+Reads only the TIFF header/IFD from a file at the specified path and returns an `ImageInfo`.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `path` is null.
+- `ArgumentException`: Thrown when `path` is an empty string.
+- `InvalidDataException`: Thrown for the same conditions as `GetInfo(Stream)`.
+
 ##### Save(Surface surface, Stream stream, TiffCompression compression = TiffCompression.None)
 
 ```csharp
@@ -491,6 +614,37 @@ Loads a `Surface` from a JPEG file at the specified path.
 - `ArgumentNullException`: Thrown when `path` is null.
 - `ArgumentException`: Thrown when `path` is an empty string.
 - `InvalidDataException`: Thrown for the same conditions as `Load(Stream)`.
+
+##### JpegCodec.GetInfo(Stream stream)
+
+```csharp
+public static ImageInfo GetInfo(Stream stream)
+```
+
+Scans markers (skipping length-prefixed segments without entropy-decoding any scan data) to find
+the first SOF0/SOF2 marker, and returns an `ImageInfo` describing the image. Does not enforce
+`Surface.MaxDimension`. Reads at most `MaxProbeHeaderBytes` (1,048,576 bytes) before giving up;
+throws `InvalidDataException` if no SOF0/SOF2 marker is found within that limit.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `stream` is null.
+- `InvalidDataException`: Thrown when the stream does not contain a valid JPEG header, or no
+  SOF0/SOF2 marker is found within `MaxProbeHeaderBytes`.
+
+##### JpegCodec.GetInfo(string path)
+
+```csharp
+public static ImageInfo GetInfo(string path)
+```
+
+Scans markers in a file at the specified path and returns an `ImageInfo`.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `path` is null.
+- `ArgumentException`: Thrown when `path` is an empty string.
+- `InvalidDataException`: Thrown for the same conditions as `GetInfo(Stream)`.
 
 ##### JpegCodec.Save(Surface surface, Stream stream, int quality = 90)
 
@@ -643,6 +797,30 @@ Console.WriteLine($"{result.R} {result.G} {result.B} {result.A}"); // Output: 12
 // CompositeOver(Surface) works the same way when the foreground is itself a Surface (for
 // example, one loaded from a PNG file with an alpha channel), pixel by pixel across the whole
 // surface rather than a single constant color.
+```
+
+## Example 8: Header-Only Probing Before Load (Decompression-Bomb Triage)
+
+```csharp
+using CanvasNet.Canvas;
+using CanvasNet.Codecs;
+using System.IO;
+
+// GetInfo reads only the header - never pixel data - so it is safe to call on an untrusted or
+// unexpectedly large file before deciding whether to fully decode it with Load.
+var info = PngCodec.GetInfo("untrusted.png");
+
+var pixelCount = (long)info.Width * info.Height;
+var maxPixelCount = (long)Surface.MaxDimension * Surface.MaxDimension;
+if (info.Width > Surface.MaxDimension || info.Height > Surface.MaxDimension || pixelCount > maxPixelCount)
+{
+    throw new InvalidDataException(
+        $"Refusing to load a {info.Width}x{info.Height} image: exceeds Surface.MaxDimension.");
+}
+
+// Only decode pixel data once the header has been judged safe.
+var surface = PngCodec.Load("untrusted.png");
+Console.WriteLine($"{surface.Width}x{surface.Height}, alpha: {info.HasAlpha}");
 ```
 
 # References

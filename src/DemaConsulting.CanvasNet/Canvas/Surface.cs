@@ -49,14 +49,23 @@ public sealed class Surface
     ///     (2,147,483,647), with no risk of overflow.
     /// </summary>
     /// <remarks>
-    ///     Declared <see langword="internal"/> (rather than <see langword="private"/>) so that the
+    ///     Declared <see langword="public"/> (rather than <see langword="internal"/>) so that the
     ///     codecs in the same assembly can validate a decoded file's width/height against this same
     ///     bound before performing their own header-derived arithmetic (stride/buffer-size
     ///     calculations), and reject oversized images with a codec-appropriate
     ///     <see cref="System.IO.InvalidDataException"/> instead of letting the out-of-range value
-    ///     reach this constructor and surface as an <see cref="ArgumentOutOfRangeException"/>.
+    ///     reach this constructor and surface as an <see cref="ArgumentOutOfRangeException"/>; and
+    ///     so that external callers can perform the same "bomb triage" comparison themselves. Each
+    ///     codec's <c>GetInfo</c> method (for example
+    ///     <see cref="Codecs.BmpCodec.GetInfo(Stream)"/>) reads only a file's header and reports its
+    ///     raw declared dimensions without enforcing this bound, deliberately leaving the decision
+    ///     of whether to reject an oversized image to the caller - comparing the returned
+    ///     <see cref="Codecs.ImageInfo.Width"/>/<see cref="Codecs.ImageInfo.Height"/> against
+    ///     <c>MaxDimension</c> before calling the corresponding <c>Load</c> method lets a caller
+    ///     detect a maliciously or accidentally oversized image ("decompression bomb") without ever
+    ///     allocating the pixel buffer that decoding it would require.
     /// </remarks>
-    internal const int MaxDimension = 8192;
+    public const int MaxDimension = 8192;
 
     /// <summary>
     ///     The number of bytes physically occupied by a single row in <see cref="_buffer"/>,

@@ -208,3 +208,34 @@ sections:
                 tests:
                   - BmpCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException
                   - BmpCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-BmpCodec-GetInfo
+                title: >-
+                  The BmpCodec class shall report a BMP's width, height, channel count, and alpha
+                  presence via GetInfo, given a stream or a file path, without decoding pixel data
+                  and without enforcing Surface.MaxDimension.
+                justification: |
+                  Callers need to inspect a BMP's declared dimensions and channel layout (for example to
+                  reject unreasonably large images before allocating a Surface) without paying the cost
+                  of decoding the full pixel buffer, and without GetInfo itself preemptively rejecting
+                  dimensions that only Load's allocation path needs to guard against.
+                tests:
+                  - BmpCodec_GetInfo_24Bit_ReturnsExpectedInfoWithoutAlpha
+                  - BmpCodec_GetInfo_32Bit_ReturnsExpectedInfoWithAlpha
+                  - BmpCodec_GetInfo_NeverReadsPixelData
+                  - BmpCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows
+
+              - id: CanvasNet-Codecs-BmpCodec-GetInfoValidation
+                title: >-
+                  The BmpCodec class shall reject null stream/path, empty path, and malformed-header
+                  arguments to GetInfo with the same exception contract as Load (ArgumentNullException,
+                  ArgumentException, or InvalidDataException respectively).
+                justification: |
+                  Callers need GetInfo's failure behavior to be exactly as predictable as Load's, so
+                  invalid arguments or unreadable BMP data are rejected the same way regardless of which
+                  entry point is used.
+                tests:
+                  - BmpCodec_GetInfo_NullStream_ThrowsArgumentNullException
+                  - BmpCodec_GetInfo_NullPath_ThrowsArgumentNullException
+                  - BmpCodec_GetInfo_EmptyPath_ThrowsArgumentException
+                  - BmpCodec_GetInfo_BadSignature_ThrowsInvalidDataException

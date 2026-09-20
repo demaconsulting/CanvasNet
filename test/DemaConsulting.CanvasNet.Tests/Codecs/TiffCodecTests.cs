@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using CanvasNet.Canvas;
 using CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Tests.TestSupport;
 
 namespace DemaConsulting.CanvasNet.Tests.Codecs;
 
@@ -264,6 +265,41 @@ public class TiffCodecTests
             .Add(TagSamplesPerPixel, TypeShort, 3)
             .Add(TagRowsPerStrip, TypeLong, (uint)rowsPerStrip)
             .Add(TagPlanarConfiguration, TypeShort, 1);
+
+    /// <summary>
+    ///     Adds the standard set of mandatory tags for an 8-bit RGB (3 samples per pixel) image,
+    ///     deliberately <em>omitting</em> the <c>SamplesPerPixel</c> tag entirely (unlike
+    ///     <see cref="StandardRgbBuilder"/>, which always adds it explicitly), so that tests can
+    ///     exercise the absent-tag defaulting behavior (defaulting to <c>BitsPerSample</c>'s entry
+    ///     count, per <see cref="ImageInfo"/>'s documented TIFF contract). To be combined with
+    ///     <see cref="TestTiffBuilder.WithStrips"/>.
+    /// </summary>
+    private static TestTiffBuilder StandardRgbBuilderWithoutSamplesPerPixel(bool bigEndian, int width, int height, int compression, int rowsPerStrip) =>
+        new TestTiffBuilder(bigEndian)
+            .Add(TagImageWidth, TypeLong, (uint)width)
+            .Add(TagImageLength, TypeLong, (uint)height)
+            .Add(TagBitsPerSample, TypeShort, 8, 8, 8)
+            .Add(TagCompression, TypeShort, (uint)compression)
+            .Add(TagPhotometricInterpretation, TypeShort, 2)
+            .Add(TagRowsPerStrip, TypeLong, (uint)rowsPerStrip)
+            .Add(TagPlanarConfiguration, TypeShort, 1);
+
+    /// <summary>
+    ///     Adds the standard set of mandatory tags for an 8-bit RGBA (4 samples per pixel, with
+    ///     an ExtraSamples tag marking the 4th sample as unassociated alpha) image, to be
+    ///     combined with <see cref="TestTiffBuilder.WithStrips"/>.
+    /// </summary>
+    private static TestTiffBuilder StandardRgbaBuilder(bool bigEndian, int width, int height, int compression, int rowsPerStrip) =>
+        new TestTiffBuilder(bigEndian)
+            .Add(TagImageWidth, TypeLong, (uint)width)
+            .Add(TagImageLength, TypeLong, (uint)height)
+            .Add(TagBitsPerSample, TypeShort, 8, 8, 8, 8)
+            .Add(TagCompression, TypeShort, (uint)compression)
+            .Add(TagPhotometricInterpretation, TypeShort, 2)
+            .Add(TagSamplesPerPixel, TypeShort, 4)
+            .Add(TagRowsPerStrip, TypeLong, (uint)rowsPerStrip)
+            .Add(TagPlanarConfiguration, TypeShort, 1)
+            .Add(TagExtraSamples, TypeShort, 2);
 
     // ------------------------------------------------------------------------------------------
     // Independent test-only PackBits, LZW, predictor, and zlib implementations
@@ -1348,6 +1384,65 @@ public class TiffCodecTests
     }
 
     /// <summary>
+    ///     Regression test for finding #10: the tiled-TIFF rejection used to live only in
+    ///     <see cref="TiffCodec.Load(Stream)"/>, so <see cref="TiffCodec.GetInfo(Stream)"/>'s
+    ///     seekable fast path could return a plausible-looking <see cref="ImageInfo"/> for a
+    ///     tiled TIFF that <c>Load</c> unconditionally rejects. Verifies the tiled check (now
+    ///     shared inside <c>ReadTiffImageInfo</c>) also runs for <c>GetInfo</c>'s seekable path,
+    ///     using the identical fixture as <see cref="TiffCodec_Load_TiledTiff_ThrowsInvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_Seekable_TiledTiff_ThrowsInvalidDataException()
+    {
+        var file = new TestTiffBuilder(false)
+            .Add(TagImageWidth, TypeLong, 16)
+            .Add(TagImageLength, TypeLong, 16)
+            .Add(TagBitsPerSample, TypeShort, 8, 8, 8)
+            .Add(TagCompression, TypeShort, 1)
+            .Add(TagPhotometricInterpretation, TypeShort, 2)
+            .Add(TagSamplesPerPixel, TypeShort, 3)
+            .Add(TagPlanarConfiguration, TypeShort, 1)
+            .Add(TagTileWidth, TypeLong, 16)
+            .Add(TagTileLength, TypeLong, 16)
+            .Build();
+
+        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(file)));
+    }
+
+    /// <summary>
+    ///     Regression test for finding #7: the seekable-stream TIFF data source used to seek to
+    ///     each requested TIFF-file-relative position as an absolute offset from byte 0 of the
+    ///     underlying stream, ignoring wherever the caller's stream was actually positioned when
+    ///     <see cref="TiffCodec.GetInfo(Stream)"/> was invoked. Builds a stream with a non-empty,
+    ///     arbitrary prefix followed by a valid TIFF file, positions the stream past the prefix,
+    ///     and asserts GetInfo still returns the correct <see cref="ImageInfo"/> for the TIFF
+    ///     bytes that actually follow.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_Seekable_StreamNotAtPositionZero_ReturnsCorrectImageInfo()
+    {
+        const int width = 4;
+        const int height = 3;
+        var tiffBytes = StandardRgbBuilder(bigEndian: false, width, height, compression: 1, rowsPerStrip: height)
+            .WithStrips(new byte[width * height * 3])
+            .Build();
+
+        var prefix = new byte[37];
+        Array.Fill(prefix, (byte)0xAB);
+
+        var combined = new byte[prefix.Length + tiffBytes.Length];
+        prefix.CopyTo(combined, 0);
+        tiffBytes.CopyTo(combined, prefix.Length);
+
+        using var stream = new MemoryStream(combined);
+        stream.Position = prefix.Length;
+
+        var info = TiffCodec.GetInfo(stream);
+
+        Assert.Equal(new ImageInfo(width, height, 3, false), info);
+    }
+
+    /// <summary>
     ///     Verifies that Load rejects a file missing any one of the mandatory TIFF tags.
     /// </summary>
     [Theory]
@@ -1410,5 +1505,670 @@ public class TiffCodecTests
         var file = builder.Build();
 
         Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo reports the correct dimensions, channel count, and no-alpha flag
+    ///     for a seekable RGB TIFF, without needing to Load (decode) the strip data.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_Seekable_Rgb_ReturnsExpectedInfoWithoutAlpha()
+    {
+        var file = StandardRgbBuilder(false, 3, 2, 1, 2)
+            .WithStrips(new byte[3 * 3 * 2])
+            .Build();
+
+        var info = TiffCodec.GetInfo(new MemoryStream(file));
+
+        Assert.Equal(new ImageInfo(3, 2, 3, false), info);
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo reports the correct dimensions, channel count, and alpha flag for
+    ///     a seekable RGBA TIFF (with an ExtraSamples tag), without needing to Load (decode) the
+    ///     strip data.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_Seekable_Rgba_ReturnsExpectedInfoWithAlpha()
+    {
+        var file = StandardRgbaBuilder(false, 3, 2, 1, 2)
+            .WithStrips(new byte[3 * 4 * 2])
+            .Build();
+
+        var info = TiffCodec.GetInfo(new MemoryStream(file));
+
+        Assert.Equal(new ImageInfo(3, 2, 4, true), info);
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo's seekable probe path leaves the stream positioned well before the
+    ///     end of a file with substantial strip data, demonstrating that the strip data itself is
+    ///     never read.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_Seekable_PositionStaysWellBelowFullLength()
+    {
+        const int width = 100;
+        const int height = 100;
+        var file = StandardRgbBuilder(false, width, height, 1, height)
+            .WithStrips(new byte[width * height * 3])
+            .Build();
+        using var stream = new MemoryStream(file);
+
+        var info = TiffCodec.GetInfo(stream);
+
+        Assert.Equal(new ImageInfo(width, height, 3, false), info);
+        Assert.True(stream.Position < stream.Length / 2);
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo throws NotSupportedException immediately for a non-seekable
+    ///     stream, even when that stream contains a completely valid, well-formed TIFF image and
+    ///     its <c>Position</c>/<c>Read</c> members would otherwise work perfectly fine. Uses
+    ///     <see cref="FunctionallySeekableButCanSeekFalseStream"/> (which reports
+    ///     <c>CanSeek == false</c> but otherwise forwards every member to a fully functional inner
+    ///     <see cref="MemoryStream"/>) rather than <see cref="NonSeekableStream"/>, so that this
+    ///     test genuinely exercises GetInfo's dedicated seekable-stream guard: if that guard were
+    ///     removed, GetInfo would successfully parse the valid TIFF bytes and return an
+    ///     <see cref="ImageInfo"/> without throwing at all, rather than incidentally still
+    ///     throwing <see cref="NotSupportedException"/> from some unrelated stream member.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_NonSeekableStream_ThrowsNotSupportedException()
+    {
+        // Arrange
+        var file = StandardRgbBuilder(false, 3, 2, 1, 2)
+            .WithStrips(new byte[3 * 3 * 2])
+            .Build();
+        using var stream = new FunctionallySeekableButCanSeekFalseStream(new MemoryStream(file));
+
+        // Act / Assert
+        Assert.Throws<NotSupportedException>(() => TiffCodec.GetInfo(stream));
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo throws NotSupportedException for a non-seekable stream before
+    ///     reading any bytes from it at all: wraps a stream whose <c>Read</c> throws
+    ///     <see cref="InvalidOperationException"/> (rather than merely tolerating a read), so
+    ///     that if the seekable-stream guard were ever bypassed or reordered after some other read,
+    ///     the test would fail with the wrong exception type instead of silently passing.
+    ///     Deliberately avoids <see cref="NonSeekableStream"/> here, since its
+    ///     <see cref="Stream.Position"/> getter itself always throws
+    ///     <see cref="NotSupportedException"/>, which would let this regression test pass even if
+    ///     GetInfo's dedicated seekable-stream guard were removed entirely (the incidental exception
+    ///     from touching <c>Position</c> would mask the missing guard).
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_NonSeekableStream_ThrowsBeforeReadingAnyBytes()
+    {
+        // Arrange
+        using var stream = new ReadThrowsNonSeekableStream();
+
+        // Act / Assert
+        Assert.Throws<NotSupportedException>(() => TiffCodec.GetInfo(stream));
+    }
+
+    /// <summary>
+    ///     A test-only stream that reports <see cref="CanSeek"/> as <see langword="false"/> while
+    ///     forwarding <see cref="Position"/>, <see cref="Seek"/>, <see cref="Read(byte[], int, int)"/>,
+    ///     and <see cref="Length"/> to a fully functional inner stream, used only to prove
+    ///     <see cref="TiffCodec.GetInfo(Stream)"/> rejects a non-seekable stream via its own
+    ///     dedicated <see cref="NotSupportedException"/> guard rather than merely happening to
+    ///     surface some other exception a particular stream implementation's members throw when
+    ///     touched.
+    /// </summary>
+    private sealed class FunctionallySeekableButCanSeekFalseStream(Stream inner) : Stream
+    {
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => inner.Length;
+
+        public override long Position
+        {
+            get => inner.Position;
+            set => inner.Position = value;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, count);
+
+        public override void Flush() => inner.Flush();
+
+        public override long Seek(long offset, SeekOrigin origin) => inner.Seek(offset, origin);
+
+        public override void SetLength(long value) => inner.SetLength(value);
+
+        public override void Write(byte[] buffer, int offset, int count) => inner.Write(buffer, offset, count);
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                inner.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+    }
+
+    /// <summary>
+    ///     A test-only, non-seekable stream whose <see cref="Position"/> getter/setter and
+    ///     <see cref="Read(byte[], int, int)"/> both throw <see cref="InvalidOperationException"/>
+    ///     (not <see cref="NotSupportedException"/>), used only to prove
+    ///     <see cref="TiffCodec.GetInfo(Stream)"/> rejects a non-seekable stream via its own
+    ///     dedicated <see cref="NotSupportedException"/> guard before touching <c>Position</c> or
+    ///     <c>Read</c> at all, rather than merely happening to surface some other exception a
+    ///     particular stream implementation's members throw.
+    /// </summary>
+    private sealed class ReadThrowsNonSeekableStream : Stream
+    {
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new InvalidOperationException("Length must not be read.");
+
+        public override long Position
+        {
+            get => throw new InvalidOperationException("Position must not be read.");
+            set => throw new InvalidOperationException("Position must not be set.");
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            throw new InvalidOperationException("Read must not be called.");
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) =>
+            throw new InvalidOperationException("Seek must not be called.");
+
+        public override void SetLength(long value) => throw new InvalidOperationException("SetLength must not be called.");
+
+        public override void Write(byte[] buffer, int offset, int count) =>
+            throw new InvalidOperationException("Write must not be called.");
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo(Stream) rejects a null stream with ArgumentNullException.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_NullStream_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => TiffCodec.GetInfo((Stream)null!));
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo(string) rejects a null path with ArgumentNullException.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_NullPath_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => TiffCodec.GetInfo((string)null!));
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo(string) rejects an empty path with ArgumentException.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_EmptyPath_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentException>(() => TiffCodec.GetInfo(string.Empty));
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo rejects a stream with an invalid byte-order mark with
+    ///     InvalidDataException, mirroring Load's malformed-header rejection.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_BadByteOrderMark_ThrowsInvalidDataException()
+    {
+        var bytes = new byte[8];
+        bytes[0] = (byte)'X';
+        bytes[1] = (byte)'X';
+
+        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(bytes)));
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo does not enforce Surface.MaxDimension - it returns the raw
+    ///     oversized header dimensions rather than throwing - while Load on the exact same
+    ///     bytes still throws InvalidDataException.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows()
+    {
+        var width = Surface.MaxDimension + 1;
+        var file = StandardRgbBuilder(false, width, 1, 1, 1)
+            .WithStrips(new byte[width * 3])
+            .Build();
+
+        var info = TiffCodec.GetInfo(new MemoryStream(file));
+        Assert.Equal(width, info.Width);
+
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo (seekable path) succeeds on a file with a valid header/IFD but
+    ///     truncated (missing) strip data - which GetInfo never reads - while Load on the same
+    ///     bytes still throws.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_SucceedsWithTruncatedStripData_ButLoadThrows()
+    {
+        const int width = 4;
+        const int height = 4;
+        var file = StandardRgbBuilder(false, width, height, 1, height)
+            .WithStrips(new byte[width * height * 3])
+            .Build();
+
+        // Truncate away the trailing strip data entirely, leaving the header and IFD intact
+        var truncated = file[..(file.Length - (width * height * 3))];
+
+        var info = TiffCodec.GetInfo(new MemoryStream(truncated));
+        Assert.Equal(new ImageInfo(width, height, 3, false), info);
+
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(truncated)));
+    }
+
+    /// <summary>
+    ///     Regression test for the historical architectural divergence between GetInfo's seekable
+    ///     and (formerly-existing) non-seekable code paths: when SamplesPerPixel is absent, the
+    ///     seekable path used to default it to 1 while the non-seekable fallback (reusing Load's
+    ///     parser) correctly defaulted it to BitsPerSample's entry count. Proves the seekable path
+    ///     now defaults Channels to BitsPerSample's entry count (3), not 1.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_Seekable_SamplesPerPixelTagOmitted_DefaultsToBitsPerSampleCount()
+    {
+        // Arrange: build a valid RGB TIFF (BitsPerSample = 8,8,8) with no SamplesPerPixel tag
+        const int width = 3;
+        const int height = 2;
+        var file = StandardRgbBuilderWithoutSamplesPerPixel(false, width, height, 1, height)
+            .WithStrips(new byte[width * height * 3])
+            .Build();
+
+        // Act
+        var seekableInfo = TiffCodec.GetInfo(new MemoryStream(file));
+
+        // Assert: Channels defaults to BitsPerSample's entry count (3)
+        var expected = new ImageInfo(width, height, 3, false);
+        Assert.Equal(expected, seekableInfo);
+    }
+
+    /// <summary>
+    ///     Regression test for the historical architectural divergence between GetInfo's seekable
+    ///     and (formerly-existing) non-seekable code paths: the seekable path used to skip most of
+    ///     ReadTiffImageInfo's format-support validation (including the BitsPerSample == 8 check),
+    ///     so a file rejected by the non-seekable fallback (and by Load) could still succeed on
+    ///     the seekable path. Proves the seekable path now throws InvalidDataException for an
+    ///     unsupported bit depth.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_Seekable_UnsupportedBitsPerSample_ThrowsInvalidDataException()
+    {
+        // Arrange: build an otherwise-valid RGB TIFF declaring 16 bits per sample (unsupported)
+        const int width = 3;
+        const int height = 2;
+        var builder = new TestTiffBuilder(false)
+            .Add(TagImageWidth, TypeLong, (uint)width)
+            .Add(TagImageLength, TypeLong, (uint)height)
+            .Add(TagBitsPerSample, TypeShort, 16, 16, 16)
+            .Add(TagCompression, TypeShort, 1)
+            .Add(TagPhotometricInterpretation, TypeShort, 2)
+            .Add(TagSamplesPerPixel, TypeShort, 3)
+            .Add(TagRowsPerStrip, TypeLong, (uint)height)
+            .Add(TagPlanarConfiguration, TypeShort, 1);
+        var file = builder.WithStrips(new byte[width * height * 3 * 2]).Build();
+
+        // Act / Assert: the seekable stream rejects the file
+        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(file)));
+    }
+
+    /// <summary>
+    ///     Regression test for a memory-exhaustion vulnerability in the internal seekable-stream
+    ///     TIFF data source used by <see cref="TiffCodec.GetInfo(Stream)"/>'s fast path: it used to allocate
+    ///     <c>new byte[length]</c> for an out-of-line tag value array before validating
+    ///     <c>length</c> against the stream's actual size, so a tiny, mostly-garbage TIFF file
+    ///     declaring an attacker-controlled tag <c>Count</c> in the hundreds of millions could
+    ///     force a huge up-front allocation on the very fast path <see cref="TiffCodec.GetInfo(Stream)"/>
+    ///     exists to make safe for untrusted input. Builds a 66-byte file whose
+    ///     <c>BitsPerSample</c> entry declares 900,000,000 out-of-line SHORT values (~1.8 GB) at
+    ///     an offset that only has 16 real trailing bytes, and proves (by measuring actual bytes
+    ///     allocated, not wall-clock time) that the count is rejected (now by the
+    ///     <c>BitsPerSample</c> cardinality cap, before even the out-of-range offset/length
+    ///     bounds check runs) rather than merely failing quickly after allocating.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_Seekable_MaliciousOutOfLineTagLength_ThrowsWithoutUnboundedAllocation()
+    {
+        const uint maliciousCount = 900_000_000;
+        var file = new byte[66];
+
+        // Header: little-endian ("II"), magic 42, first IFD at offset 8
+        file[0] = (byte)'I';
+        file[1] = (byte)'I';
+        file[2] = 42;
+        file[4] = 8;
+
+        // IFD at offset 8: entry count = 3, followed by 3 x 12-byte entries, then a 4-byte
+        // next-IFD offset (left as 0)
+        file[8] = 3;
+
+        WriteMaliciousEntry(file, 0, TagImageWidth, TypeLong, 1, 1);
+        WriteMaliciousEntry(file, 1, TagImageLength, TypeLong, 1, 1);
+        WriteMaliciousEntry(file, 2, TagBitsPerSample, TypeShort, maliciousCount, 50);
+
+        // Measure actual bytes allocated by the call, not wall-clock time: a modern allocator can
+        // zero and hand back a ~1.8 GB buffer in single-digit milliseconds, and the resulting
+        // InvalidDataException's message text is identical whether it comes from the (fixed)
+        // bounds check or from the pre-existing end-of-stream check inside the (buggy) attempted
+        // read - so neither timing nor message content reliably distinguishes the vulnerable code
+        // from the fixed code. The allocated-byte count does: the bug allocates the full
+        // ~1.8 GB claimed by the malicious Count before discovering the stream is too short.
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(file)));
+        var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        Assert.Contains("implausibly large declared value count", ex.Message);
+
+        // The fixed code rejects the range against stream.Length before allocating anything
+        // beyond small, fixed-size working buffers; the vulnerable code allocates ~1.8 GB
+        // (900,000,000 SHORTs * 2 bytes) before failing. 1 MB is a generous margin above any
+        // legitimate fixed-size buffer this call path could use.
+        const long maxExpectedAllocatedBytes = 1024 * 1024;
+        Assert.True(
+            allocatedDuring < maxExpectedAllocatedBytes,
+            $"Expected no large allocation, but {allocatedDuring:N0} bytes were allocated.");
+    }
+
+    /// <summary>
+    ///     Regression test for finding #2: a mandatory tag with a declared value <c>Count</c> of
+    ///     0 used to flow through <c>ReadTagValues</c> as an empty array, then throw
+    ///     <see cref="IndexOutOfRangeException"/> (not the documented
+    ///     <see cref="InvalidDataException"/>) the moment the caller indexed <c>[0]</c> into it.
+    ///     Builds a minimal single-entry IFD declaring <c>ImageWidth</c> with <c>Count = 0</c>
+    ///     and verifies all three callers (<see cref="TiffCodec.Load(Stream)"/> and both
+    ///     <see cref="TiffCodec.GetInfo(Stream)"/> paths) now reject it with
+    ///     <see cref="InvalidDataException"/> specifically.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_Load_ImageWidthZeroCount_ThrowsInvalidDataExceptionNotIndexOutOfRange()
+    {
+        var file = BuildFileWithZeroCountImageWidth();
+
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+    }
+
+    /// <summary>
+    ///     Same as <see cref="TiffCodec_Load_ImageWidthZeroCount_ThrowsInvalidDataExceptionNotIndexOutOfRange"/>,
+    ///     for <see cref="TiffCodec.GetInfo(Stream)"/>'s seekable fast path.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_Seekable_ImageWidthZeroCount_ThrowsInvalidDataExceptionNotIndexOutOfRange()
+    {
+        var file = BuildFileWithZeroCountImageWidth();
+
+        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(file)));
+    }
+
+    /// <summary>
+    ///     Builds a minimal (26-byte) TIFF file whose only IFD entry is <c>ImageWidth</c> with a
+    ///     declared value <c>Count</c> of 0, used only by the finding #2 zero-count regression
+    ///     tests above.
+    /// </summary>
+    private static byte[] BuildFileWithZeroCountImageWidth()
+    {
+        var file = new byte[8 + 2 + 12 + 4];
+        file[0] = (byte)'I';
+        file[1] = (byte)'I';
+        file[2] = 42;
+        file[4] = 8;
+        file[8] = 1; // entry count = 1
+
+        WriteMaliciousEntry(file, 0, TagImageWidth, TypeLong, count: 0, valueOrOffset: 1);
+
+        return file;
+    }
+
+    /// <summary>
+    ///     Regression test for finding #2: a TIFF header declaring an IFD offset above
+    ///     <see cref="int.MaxValue"/> used to be cast via an unguarded <c>checked((int)...)</c>,
+    ///     letting an <see cref="OverflowException"/> (not the documented
+    ///     <see cref="InvalidDataException"/>) escape from <c>ParseIfd</c>. Verifies all three
+    ///     callers now reject it with <see cref="InvalidDataException"/> specifically.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_Load_IfdOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException()
+    {
+        var file = BuildHeaderOnlyFileWithIfdOffset(3_000_000_000);
+
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+    }
+
+    /// <summary>
+    ///     Same as <see cref="TiffCodec_Load_IfdOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException"/>,
+    ///     for <see cref="TiffCodec.GetInfo(Stream)"/>'s seekable fast path.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_Seekable_IfdOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException()
+    {
+        var file = BuildHeaderOnlyFileWithIfdOffset(3_000_000_000);
+
+        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(file)));
+    }
+
+    /// <summary>
+    ///     Builds an 8-byte TIFF header (no IFD data at all) declaring the given IFD offset, used
+    ///     only by the finding #2 IFD-offset-overflow regression tests above.
+    /// </summary>
+    private static byte[] BuildHeaderOnlyFileWithIfdOffset(uint ifdOffset)
+    {
+        var file = new byte[8];
+        file[0] = (byte)'I';
+        file[1] = (byte)'I';
+        file[2] = 42;
+        file[4] = (byte)ifdOffset;
+        file[5] = (byte)(ifdOffset >> 8);
+        file[6] = (byte)(ifdOffset >> 16);
+        file[7] = (byte)(ifdOffset >> 24);
+        return file;
+    }
+
+    /// <summary>
+    ///     Regression test for finding #2: an out-of-line tag value array's stored offset field
+    ///     (a raw <c>uint</c> read directly from the file) above <see cref="int.MaxValue"/> used
+    ///     to be cast via an unguarded <c>checked((int)...)</c> in <c>ReadTagValues</c>, letting
+    ///     an <see cref="OverflowException"/> escape instead of the documented
+    ///     <see cref="InvalidDataException"/>. Verifies all three callers now reject it with
+    ///     <see cref="InvalidDataException"/> specifically.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_Load_OutOfLineTagOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException()
+    {
+        var file = BuildFileWithBitsPerSampleOverride(count: 3, valueOrOffset: 3_000_000_000);
+
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+    }
+
+    /// <summary>
+    ///     Same as <see cref="TiffCodec_Load_OutOfLineTagOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException"/>,
+    ///     for <see cref="TiffCodec.GetInfo(Stream)"/>'s seekable fast path.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_Seekable_OutOfLineTagOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException()
+    {
+        var file = BuildFileWithBitsPerSampleOverride(count: 3, valueOrOffset: 3_000_000_000);
+
+        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(file)));
+    }
+
+    /// <summary>
+    ///     Builds a minimal (50-byte) TIFF file with valid <c>ImageWidth</c>/<c>ImageLength</c>
+    ///     entries (so control reaches <c>BitsPerSample</c> processing) and a <c>BitsPerSample</c>
+    ///     entry with the given declared <c>Count</c> and value-or-offset field, used by both the
+    ///     finding #2 (offset overflow) and finding #3 (cardinality cap) regression tests above/
+    ///     below.
+    /// </summary>
+    private static byte[] BuildFileWithBitsPerSampleOverride(uint count, uint valueOrOffset, ushort type = TypeShort)
+    {
+        var file = new byte[50];
+        file[0] = (byte)'I';
+        file[1] = (byte)'I';
+        file[2] = 42;
+        file[4] = 8;
+        file[8] = 3; // entry count = 3
+
+        WriteMaliciousEntry(file, 0, TagImageWidth, TypeLong, count: 1, valueOrOffset: 1);
+        WriteMaliciousEntry(file, 1, TagImageLength, TypeLong, count: 1, valueOrOffset: 1);
+        WriteMaliciousEntry(file, 2, TagBitsPerSample, type, count, valueOrOffset);
+
+        return file;
+    }
+
+    /// <summary>
+    ///     Regression test for finding #3: even after finding #2's stream-bounds fix, a tag's
+    ///     declared <c>Count</c> had no upper-bound sanity check, so a genuinely large (but
+    ///     otherwise valid, bounds-check-satisfying) TIFF file declaring an implausibly large
+    ///     <c>BitsPerSample</c> count (this codec never resolves more than 4 <c>BitsPerSample</c>
+    ///     values) could still force a large, count-proportional <c>uint[]</c> allocation on
+    ///     <see cref="TiffCodec.GetInfo(Stream)"/>'s seekable fast path - defeating the "cheap
+    ///     triage of untrusted input" purpose <c>GetInfo</c> exists for. Builds a real ~4 MB file
+    ///     (so the pre-existing stream-bounds check alone would <em>not</em> reject it) declaring
+    ///     2,000,000 <c>BitsPerSample</c> values, and proves (by measuring actual bytes
+    ///     allocated, not wall-clock time) that the new cardinality cap rejects it before the
+    ///     large <c>uint[]</c> allocation.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_Seekable_BitsPerSampleCountImplausiblyLarge_ThrowsWithoutLargeAllocation()
+    {
+        const uint bitsPerSampleCount = 2_000_000;
+        const int ifdEndOffset = 50;
+        var file = new byte[ifdEndOffset + (bitsPerSampleCount * 2)];
+
+        file[0] = (byte)'I';
+        file[1] = (byte)'I';
+        file[2] = 42;
+        file[4] = 8;
+        file[8] = 3; // entry count = 3
+
+        WriteMaliciousEntry(file, 0, TagImageWidth, TypeLong, count: 1, valueOrOffset: 1);
+        WriteMaliciousEntry(file, 1, TagImageLength, TypeLong, count: 1, valueOrOffset: 1);
+        WriteMaliciousEntry(file, 2, TagBitsPerSample, TypeShort, bitsPerSampleCount, (uint)ifdEndOffset);
+
+        // This file is large enough (~4 MB) that offset + declared length <= file.Length holds,
+        // so the pre-existing stream-bounds check (finding #2/#7's prior-round fix) alone would
+        // not reject it - only the new cardinality cap can.
+        Assert.True(ifdEndOffset + (bitsPerSampleCount * 2) <= file.Length);
+
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(file)));
+        var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        Assert.Contains("implausibly large declared value count", ex.Message);
+
+        const long maxExpectedAllocatedBytes = 1024 * 1024;
+        Assert.True(
+            allocatedDuring < maxExpectedAllocatedBytes,
+            $"Expected no large allocation, but {allocatedDuring:N0} bytes were allocated.");
+    }
+
+    /// <summary>
+    ///     Regression test for a gap the code-review pass found in the finding #2 fix: unlike
+    ///     every other attacker-controlled TIFF position/length value, <c>DecodeStrip</c>'s
+    ///     <c>StripOffsets</c>/<c>StripByteCounts</c> handling still cast those raw <c>uint</c>
+    ///     tag values via a bare <c>checked((int)...)</c>, so a file declaring a
+    ///     <c>StripOffsets</c> value above <see cref="int.MaxValue"/> let an
+    ///     <see cref="OverflowException"/> escape from <see cref="TiffCodec.Load(Stream)"/>
+    ///     instead of the documented <see cref="InvalidDataException"/>. Only <c>Load</c> ever
+    ///     reaches <c>DecodeStrip</c> (neither <c>GetInfo</c> path resolves strip tags), so this
+    ///     is a <c>Load</c>-only regression test.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_Load_StripOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException()
+    {
+        const int width = 2;
+        const int height = 2;
+        var file = StandardRgbBuilder(false, width, height, 1, height)
+            .WithStrips(new byte[width * height * 3])
+            .Build();
+
+        // StandardRgbBuilder's 8 tags (256, 257, 258, 259, 262, 277, 278, 284) plus the
+        // StripOffsets (273) and StripByteCounts (279) tags WithStrips adds sort ascending to
+        // 256, 257, 258, 259, 262, 273, 277, 278, 279, 284 - StripOffsets is entry index 5. With
+        // a single strip, its Count is 1, so its 4-byte LONG value fits inline in the entry
+        // itself; overwriting it in place does not disturb the file's layout.
+        PatchInlineTagEntryValue(file, entryIndex: 5, value: 3_000_000_000);
+
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+    }
+
+    /// <summary>
+    ///     Same as <see cref="TiffCodec_Load_StripOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException"/>,
+    ///     but for the <c>StripByteCounts</c> tag (entry index 8; see that test for the sorted
+    ///     entry-index derivation) instead of <c>StripOffsets</c>.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_Load_StripByteCountAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException()
+    {
+        const int width = 2;
+        const int height = 2;
+        var file = StandardRgbBuilder(false, width, height, 1, height)
+            .WithStrips(new byte[width * height * 3])
+            .Build();
+
+        PatchInlineTagEntryValue(file, entryIndex: 8, value: 3_000_000_000);
+
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+    }
+
+    /// <summary>
+    ///     Overwrites the inline 4-byte value field of the IFD entry at the given zero-based entry
+    ///     index (within the IFD starting at offset 8) in little-endian byte order, leaving the
+    ///     entry's tag/type/count untouched. Only valid when that entry's value is known to fit
+    ///     inline (total size &lt;= 4 bytes); used by the strip-offset/strip-byte-count overflow
+    ///     regression tests above to substitute an out-of-range value into an otherwise valid,
+    ///     builder-produced file without needing to hand-craft the whole file.
+    /// </summary>
+    private static void PatchInlineTagEntryValue(byte[] file, int entryIndex, uint value)
+    {
+        var pos = 10 + (entryIndex * 12) + 8;
+        file[pos] = (byte)value;
+        file[pos + 1] = (byte)(value >> 8);
+        file[pos + 2] = (byte)(value >> 16);
+        file[pos + 3] = (byte)(value >> 24);
+    }
+
+    /// <summary>
+    ///     Writes one raw 12-byte IFD entry (tag, type, count, value-or-offset) directly into
+    ///     <paramref name="file"/> at the given zero-based entry index within the IFD that starts
+    ///     at offset 8, in little-endian byte order. Used only by
+    ///     <see cref="TiffCodec_GetInfo_Seekable_MaliciousOutOfLineTagLength_ThrowsWithoutUnboundedAllocation"/>
+    ///     to hand-craft a malformed entry that <see cref="TestTiffBuilder"/> cannot express (a
+    ///     declared <c>Count</c> that deliberately does not match the number of real trailing
+    ///     bytes available).
+    /// </summary>
+    private static void WriteMaliciousEntry(byte[] file, int entryIndex, ushort tag, ushort type, uint count, uint valueOrOffset)
+    {
+        var pos = 10 + (entryIndex * 12);
+        file[pos] = (byte)tag;
+        file[pos + 1] = (byte)(tag >> 8);
+        file[pos + 2] = (byte)type;
+        file[pos + 3] = (byte)(type >> 8);
+        file[pos + 4] = (byte)count;
+        file[pos + 5] = (byte)(count >> 8);
+        file[pos + 6] = (byte)(count >> 16);
+        file[pos + 7] = (byte)(count >> 24);
+        file[pos + 8] = (byte)valueOrOffset;
+        file[pos + 9] = (byte)(valueOrOffset >> 8);
+        file[pos + 10] = (byte)(valueOrOffset >> 16);
+        file[pos + 11] = (byte)(valueOrOffset >> 24);
     }
 }

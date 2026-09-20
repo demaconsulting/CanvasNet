@@ -161,6 +161,47 @@ Creates (or overwrites) `path` as a `FileStream` and delegates to `Save(Surface,
 - Underlying file-system exceptions (`UnauthorizedAccessException`, `DirectoryNotFoundException`,
   `IOException`) propagate uncaught
 
+#### GetInfo(Stream stream)
+
+Reads only the 8-byte PNG signature and the first (`IHDR`) chunk — never any subsequent chunk,
+and in particular never any `IDAT` chunk — and returns an `ImageInfo` describing the file. `Load`
+and `GetInfo` share a `ReadIhdrOnly(Stream, bool enforceMaxDimension)` helper, but the two use
+distinct chunk-frame readers: `Load` reuses the general `ReadChunkFrame` helper (which allocates
+and reads a chunk's declared-length data payload before its type is ever inspected — safe for
+`Load`, since `Load` always intends to read every chunk anyway), while `ReadIhdrOnly` calls a
+dedicated `ReadIhdrChunkFrame` helper that validates the chunk type is `IHDR` **and** that the
+declared length is exactly 13 _before_ allocating or reading any data payload at all. This
+ordering matters specifically for `GetInfo`'s "cheap probe of untrusted input" purpose: without
+it, a crafted non-`IHDR` (or wrong-length `IHDR`) first chunk declaring an attacker-controlled
+multi-gigabyte length could force a huge allocation on `GetInfo`'s fast path before the type/length
+mismatch was ever discovered. `ReadIhdrOnly` then parses and validates every other `IHDR` field
+`Load` validates (bit depth, color type, compression/filter/interlace method) except
+`Surface.MaxDimension`, which `GetInfo` deliberately skips (`enforceMaxDimension: false`) so an
+oversized declared width or height is returned as-is rather than throwing. `Channels` is 3 for
+color type 2 (RGB) and 4 for color type 6 (RGBA); `HasAlpha` is `false` for RGB and `true` for
+RGBA.
+
+**Throws:**
+
+- `ArgumentNullException` — `stream` is null
+- `InvalidDataException` — missing PNG signature; a first chunk whose type is not `IHDR`
+  (checked before any length-dependent allocation); an `IHDR` chunk whose declared length is not
+  exactly 13 (also checked before any length-dependent allocation); a bad `IHDR` CRC-32;
+  unsupported bit depth, color type, compression method, filter method, or interlace method;
+  non-positive width or height; the stream ends before the signature and `IHDR` chunk have been
+  fully read (same contract as `Load`, except the `Surface.MaxDimension` check is skipped)
+
+#### GetInfo(string path)
+
+Opens `path` as a read-only `FileStream` and delegates to `GetInfo(Stream)`.
+
+**Throws:**
+
+- `ArgumentNullException` — `path` is null
+- `ArgumentException` — `path` is an empty string
+- `InvalidDataException` — see `GetInfo(Stream)`
+- Underlying file-system exceptions propagate uncaught
+
 ### Error Handling
 
 All argument validation happens at the start of each public method, before any header or pixel
@@ -177,11 +218,13 @@ checks precede any byte write.
 `PngCodec` depends on `Surface` (constructing surfaces in `Load` and reading/writing rows via
 `Surface.GetRowSpanBytes` in `Save`), using only `Surface`'s existing public API exactly as
 `BmpCodec` does. No new public members were added to `Surface` or `Rgba32` to support this codec.
-Beyond `Surface`, `PngCodec` uses only the .NET base class library's `System.IO` namespace
-(`Stream`, `FileStream`, `InvalidDataException`) and `System.IO.Compression.DeflateStream`
-(available on every one of CanvasNet's target frameworks with no new runtime NuGet dependency);
-the zlib wrapper (2-byte header, Adler-32 trailer) and every PNG chunk's CRC-32 are computed by
-hand-rolled algorithms rather than any third-party library.
+`PngCodec` also depends on the `Codecs` subsystem's shared `ImageInfo` record struct as the
+return type of `GetInfo` — see _Codecs Subsystem Design_ (`../codecs.md`). Beyond `Surface` and
+`ImageInfo`, `PngCodec` uses only the .NET base class library's `System.IO` namespace (`Stream`,
+`FileStream`, `InvalidDataException`) and `System.IO.Compression.DeflateStream` (available on
+every one of CanvasNet's target frameworks with no new runtime NuGet dependency); the zlib
+wrapper (2-byte header, Adler-32 trailer) and every PNG chunk's CRC-32 are computed by hand-rolled
+algorithms rather than any third-party library.
 
 ### Conformance Testing
 

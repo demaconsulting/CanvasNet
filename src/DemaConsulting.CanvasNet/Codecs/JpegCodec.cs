@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using CanvasNet.Canvas;
 
@@ -83,6 +84,16 @@ public static class JpegCodec
     private const byte MarkerSos = 0xDA;
     private const byte MarkerRst0 = 0xD0;
     private const byte MarkerRst7 = 0xD7;
+
+    /// <summary>
+    ///     The maximum number of bytes <see cref="GetInfo(Stream)"/> will read while searching for
+    ///     a SOF0/SOF2 marker before giving up with an <see cref="InvalidDataException"/>. Chosen
+    ///     to comfortably bound even a pathological run of maximal-length (65,535-byte) APPn/COM
+    ///     segments preceding the frame header (16 such segments alone would consume roughly 1 MiB),
+    ///     while remaining minuscule next to the entropy-coded body of any real photographic image,
+    ///     which this probe never needs to read.
+    /// </summary>
+    private const int MaxProbeHeaderBytes = 1_048_576;
 
     /// <summary>
     ///     The standard 64-entry zigzag scan order: index <c>z</c> holds the natural (row-major)
@@ -268,6 +279,75 @@ public static class JpegCodec
 
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
         return Load(stream);
+    }
+
+    /// <summary>
+    ///     Reads only as much of a JPEG file's leading marker segments as necessary to find the
+    ///     first SOF0/SOF2 (frame header) marker, and reports its declared dimensions and
+    ///     component count, without ever reaching the entropy-coded scan data.
+    /// </summary>
+    /// <param name="stream">
+    ///     The stream to read the JPEG marker segments from. Reading begins at the stream's
+    ///     current position and consumes at most <see cref="MaxProbeHeaderBytes"/> bytes,
+    ///     incrementally: in practice, only up through the end of the first SOF0/SOF2 segment,
+    ///     since SOS (and any entropy-coded data) is never required to determine
+    ///     <see cref="ImageInfo"/>, and reading grows only as far as the scan actually needs
+    ///     rather than eagerly consuming a full fixed-size prefix regardless of where the SOF
+    ///     marker is.
+    /// </param>
+    /// <returns>
+    ///     An <see cref="ImageInfo"/> describing the file's declared width, height, and component
+    ///     count (1 for grayscale, 3 for YCbCr). <see cref="ImageInfo.HasAlpha"/> is always
+    ///     <see langword="false"/>, since JPEG has no alpha channel.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown when the SOI marker is missing, an SOS marker or end-of-image is reached before
+    ///     any SOF0/SOF2 marker is found, an unsupported SOF/frame marker (for example SOF1/SOF3,
+    ///     the same markers <see cref="Load(Stream)"/> rejects) is encountered, or no SOF0/SOF2
+    ///     marker is found within <see cref="MaxProbeHeaderBytes"/> bytes (whether because the
+    ///     stream ended first, or because the probe's bounded cap was reached while the stream
+    ///     still had more data - the two conditions are reported with distinct messages).
+    ///     <see cref="Surface.MaxDimension"/> is <em>not</em> enforced - the raw header-declared
+    ///     values are always returned; see <see cref="ImageInfo"/> for why.
+    /// </exception>
+    public static ImageInfo GetInfo(Stream stream)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+
+        return Decoder.ProbeDimensions(stream);
+    }
+
+    /// <summary>
+    ///     Reads a JPEG file's leading marker segments at the specified path and reports its
+    ///     declared dimensions and component count, without decoding any entropy-coded scan data.
+    /// </summary>
+    /// <param name="path">The path of the JPEG file to inspect. Must not be null or empty.</param>
+    /// <returns>
+    ///     An <see cref="ImageInfo"/> describing the file; see <see cref="GetInfo(Stream)"/> for
+    ///     the reporting contract.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="path"/> is an empty string.</exception>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown for the same malformed/unsupported-format conditions as <see cref="GetInfo(Stream)"/>.
+    /// </exception>
+    /// <remarks>
+    ///     File-system exceptions (for example <see cref="FileNotFoundException"/>,
+    ///     <see cref="DirectoryNotFoundException"/>, <see cref="UnauthorizedAccessException"/>,
+    ///     or <see cref="IOException"/>) raised while opening <paramref name="path"/> propagate
+    ///     uncaught to the caller.
+    /// </remarks>
+    public static ImageInfo GetInfo(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        if (path.Length == 0)
+        {
+            throw new ArgumentException("Path must not be empty.", nameof(path));
+        }
+
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
+        return GetInfo(stream);
     }
 
     /// <summary>
@@ -751,10 +831,7 @@ public static class JpegCodec
 
         public static Surface Decode(byte[] file)
         {
-            if (file.Length < 4 || file[0] != MarkerPrefix || file[1] != MarkerSoi)
-            {
-                throw new InvalidDataException("Not a JPEG file (missing SOI marker).");
-            }
+            ValidateSoi(file);
 
             var state = new DecodeState();
 
@@ -780,6 +857,231 @@ public static class JpegCodec
 
             return AssembleCanvas(state.Width, state.Height, state.Components, state.QuantTables);
         }
+
+        /// <summary>
+        ///     Validates that <paramref name="file"/> begins with the 2-byte SOI marker
+        ///     (<c>0xFF 0xD8</c>), shared by <see cref="Decode"/> and <see cref="ProbeDimensions"/>.
+        /// </summary>
+        private static void ValidateSoi(byte[] file)
+        {
+            if (file.Length < 4 || file[0] != MarkerPrefix || file[1] != MarkerSoi)
+            {
+                throw new InvalidDataException("Not a JPEG file (missing SOI marker).");
+            }
+        }
+
+        /// <summary>
+        ///     A growable byte buffer backed by a <see cref="Stream"/>, used by
+        ///     <see cref="ProbeDimensions(Stream)"/> to read only as many bytes as the marker scan
+        ///     actually needs at any point, rather than eagerly reading a full fixed-size prefix
+        ///     up front. Grows in small chunks, on demand, up to an outer <paramref name="maxLength"/>
+        ///     safety cap.
+        /// </summary>
+        private sealed class IncrementalProbeBuffer(Stream stream, int maxLength)
+        {
+            /// <summary>The chunk size used for each incremental stream read.</summary>
+            private const int ChunkSize = 4096;
+
+            private byte[] _data = new byte[Math.Min(ChunkSize, maxLength)];
+
+            /// <summary>The number of bytes currently buffered (always &lt;= the outer max-length cap).</summary>
+            public int Length { get; private set; }
+
+            /// <summary>
+            ///     Whether the outer max-length cap was reached without buffering as many bytes as
+            ///     the most recent <see cref="TryEnsureLength"/> call requested (as opposed to the
+            ///     stream itself ending first).
+            /// </summary>
+            public bool CapReached { get; private set; }
+
+            public byte this[int index] => _data[index];
+
+            /// <summary>
+            ///     Ensures at least <paramref name="requiredLength"/> bytes are buffered, reading
+            ///     further chunks from the stream only as needed, never past the outer max-length
+            ///     cap in total.
+            /// </summary>
+            /// <returns>
+            ///     <see langword="true"/> if at least <paramref name="requiredLength"/> bytes are
+            ///     now buffered; <see langword="false"/> if the stream ended, or the outer
+            ///     max-length cap was reached, before that many bytes could be read (see
+            ///     <see cref="CapReached"/> to distinguish the two cases).
+            /// </returns>
+            public bool TryEnsureLength(int requiredLength)
+            {
+                if (requiredLength <= Length)
+                {
+                    return true;
+                }
+
+                var target = Math.Min(requiredLength, maxLength);
+                while (Length < target)
+                {
+                    var chunk = Math.Min(ChunkSize, maxLength - Length);
+                    if (_data.Length < Length + chunk)
+                    {
+                        Array.Resize(ref _data, Length + chunk);
+                    }
+
+                    var read = stream.Read(_data, Length, chunk);
+                    if (read == 0)
+                    {
+                        return false;
+                    }
+
+                    Length += read;
+                }
+
+                if (Length < requiredLength)
+                {
+                    CapReached = true;
+                    return false;
+                }
+
+                return true;
+            }
+
+            /// <summary>
+            ///     Ensures at least <paramref name="length"/> bytes are buffered and returns a new
+            ///     array containing exactly those bytes, for handing off to a method (such as
+            ///     <see cref="ReadSof"/>) that expects a plain, exactly-sized <c>byte[]</c>.
+            /// </summary>
+            public byte[] ToExactArray(int length)
+            {
+                if (!TryEnsureLength(length))
+                {
+                    throw CapReached
+                        ? new InvalidDataException(
+                            $"JPEG segment extends beyond the {JpegCodec.MaxProbeHeaderBytes}-byte header probe limit.")
+                        : new InvalidDataException(
+                            "Unexpected end of stream while reading a JPEG segment during header probing.");
+                }
+
+                return _data.AsSpan(0, length).ToArray();
+            }
+        }
+
+        /// <summary>
+        ///     Scans a JPEG stream's leading marker segments, reading incrementally and only as
+        ///     far as necessary, looking for the first SOF0/SOF2 marker, and returns its declared
+        ///     dimensions and component count without ever reaching <c>SOS</c>/entropy-coded scan
+        ///     data. Reads at most <see cref="JpegCodec.MaxProbeHeaderBytes"/> bytes total from
+        ///     <paramref name="stream"/>, but in the common case where the SOF segment appears
+        ///     near the start of the stream (as it does for essentially all real-world JPEG
+        ///     files), reads only as far as the end of that segment - never a full fixed-size
+        ///     prefix regardless of where the SOF marker actually is.
+        /// </summary>
+        /// <param name="stream">
+        ///     The stream to read JPEG marker segments from, starting at its current position.
+        /// </param>
+        /// <exception cref="System.IO.InvalidDataException">
+        ///     Thrown when the SOI marker is missing, an SOS marker or end-of-image is reached
+        ///     before any SOF0/SOF2 marker is found, an unsupported SOF/frame marker (for example
+        ///     SOF1/SOF3) is encountered, or the bounded prefix is exhausted (either because the
+        ///     stream itself ended, or because <see cref="JpegCodec.MaxProbeHeaderBytes"/> was
+        ///     reached while more data remained) without finding a SOF0/SOF2 marker.
+        /// </exception>
+        public static ImageInfo ProbeDimensions(Stream stream)
+        {
+            var probe = new IncrementalProbeBuffer(stream, JpegCodec.MaxProbeHeaderBytes);
+
+            if (!probe.TryEnsureLength(4) || probe[0] != MarkerPrefix || probe[1] != MarkerSoi)
+            {
+                throw new InvalidDataException("Not a JPEG file (missing SOI marker).");
+            }
+
+            var pos = 2;
+            while (true)
+            {
+                if (!probe.TryEnsureLength(pos + 2))
+                {
+                    throw ProbeExhaustedException(probe);
+                }
+
+                // Skip any fill bytes (0xFF) before the marker code.
+                while (probe[pos] != MarkerPrefix)
+                {
+                    pos++;
+                    if (!probe.TryEnsureLength(pos + 2))
+                    {
+                        throw ProbeExhaustedException(probe);
+                    }
+                }
+
+                while (probe.TryEnsureLength(pos + 2) && probe[pos + 1] == MarkerPrefix)
+                {
+                    pos++;
+                }
+
+                if (!probe.TryEnsureLength(pos + 2))
+                {
+                    throw ProbeExhaustedException(probe);
+                }
+
+                var marker = probe[pos + 1];
+                pos += 2;
+
+                switch (marker)
+                {
+                    case MarkerSof0:
+                    case MarkerSof2:
+                        {
+                            if (!probe.TryEnsureLength(pos + 2))
+                            {
+                                throw ProbeExhaustedException(probe);
+                            }
+
+                            var segmentLength = (ushort)((probe[pos] << 8) | probe[pos + 1]);
+                            var sofBuffer = probe.ToExactArray(pos + segmentLength);
+                            ReadSof(sofBuffer, pos, enforceMaxDimension: false, out var width, out var height, out var components);
+                            return new ImageInfo(width, height, components.Length, HasAlpha: false);
+                        }
+
+                    case MarkerSos:
+                        throw new InvalidDataException(
+                            "JPEG SOS marker encountered before a SOF0/SOF2 marker was found.");
+
+                    case MarkerEoi:
+                        throw new InvalidDataException(
+                            "JPEG end-of-image marker reached before a SOF0/SOF2 marker was found.");
+
+                    case >= MarkerRst0 and <= MarkerRst7:
+                        // Stray restart marker outside entropy-coded data; ignore.
+                        break;
+
+                    case 0xC1 or 0xC3 or 0xC5 or 0xC6 or 0xC7 or 0xC9 or 0xCA or 0xCB or
+                         0xCD or 0xCE or 0xCF or 0xC8 or 0xCC:
+                        // Same unsupported-SOF/frame-marker rejection Decode/ProcessSegment
+                        // applies, so GetInfo can never "probe successfully" a file Load would
+                        // unconditionally reject at this exact marker.
+                        ThrowUnsupportedSofOrFrameMarker(marker);
+                        break;
+
+                    default:
+                        if (!probe.TryEnsureLength(pos + 2))
+                        {
+                            throw ProbeExhaustedException(probe);
+                        }
+
+                        pos += (ushort)((probe[pos] << 8) | probe[pos + 1]);
+                        break;
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Builds the appropriate <see cref="InvalidDataException"/> for
+        ///     <see cref="ProbeDimensions(Stream)"/> running out of buffered/readable data before
+        ///     a SOF0/SOF2 marker was found, distinguishing "the stream itself ended" from "the
+        ///     <see cref="JpegCodec.MaxProbeHeaderBytes"/> probe cap was reached" with separate
+        ///     messages.
+        /// </summary>
+        private static InvalidDataException ProbeExhaustedException(IncrementalProbeBuffer probe) =>
+            probe.CapReached
+                ? new InvalidDataException(
+                    $"JPEG SOF0/SOF2 marker not found within the {JpegCodec.MaxProbeHeaderBytes}-byte header probe limit.")
+                : new InvalidDataException(
+                    "Stream ended before a JPEG SOF0/SOF2 marker was found (truncated or non-JPEG data).");
 
         /// <summary>
         ///     Mutable state threaded through <see cref="ProcessSegment"/> while <see cref="Decode"/>
@@ -848,7 +1150,7 @@ public static class JpegCodec
                     }
 
                     state.Progressive = marker == MarkerSof2;
-                    var sofPos = ReadSof(file, pos, out var width, out var height, out var components);
+                    var sofPos = ReadSof(file, pos, enforceMaxDimension: true, out var width, out var height, out var components);
                     state.Width = width;
                     state.Height = height;
                     state.Components = components;
@@ -872,19 +1174,49 @@ public static class JpegCodec
                     return pos;
 
                 case 0xC1 or 0xC3 or 0xC5 or 0xC6 or 0xC7 or 0xC9 or 0xCA or 0xCB or
-                     0xCD or 0xCE or 0xCF:
-                    throw new InvalidDataException(
-                        $"Unsupported JPEG SOF marker 0x{marker:X2}; only baseline (SOF0) and progressive (SOF2) are supported.");
-
-                case 0xC8 or 0xCC:
-                    throw new InvalidDataException("Arithmetic-coded and JPG-extension JPEG variants are not supported.");
+                     0xCD or 0xCE or 0xCF or 0xC8 or 0xCC:
+                    ThrowUnsupportedSofOrFrameMarker(marker);
+                    return pos;
 
                 default:
                     // APPn, COM, and any other length-prefixed segment we do not act on: skip.
-                    var length = ReadUInt16Be(file, pos);
-                    return pos + length;
+                    return SkipLengthPrefixedSegment(file, pos);
             }
         }
+
+        /// <summary>
+        ///     Rejects a JPEG SOF or frame marker that this decoder does not support (an SOF
+        ///     variant other than baseline (SOF0) or progressive (SOF2), or an arithmetic-coded/
+        ///     JPG-extension marker), throwing the same <see cref="InvalidDataException"/> message
+        ///     for a given marker value regardless of caller. Shared by <see cref="ProcessSegment"/>
+        ///     (used by <see cref="Decode"/>/<see cref="JpegCodec.Load(Stream)"/>) and
+        ///     <see cref="ProbeDimensions(Stream)"/> (used by <see cref="JpegCodec.GetInfo(Stream)"/>)
+        ///     so the two can never diverge on which marker values are rejected, unlike before this
+        ///     helper existed, when <see cref="ProbeDimensions(Stream)"/> silently skipped every one
+        ///     of these markers as if it were a generic, harmless segment.
+        /// </summary>
+        /// <param name="marker">The unsupported marker value; must be one of the values this method rejects.</param>
+        [DoesNotReturn]
+        private static void ThrowUnsupportedSofOrFrameMarker(int marker)
+        {
+            if (marker is 0xC8 or 0xCC)
+            {
+                throw new InvalidDataException("Arithmetic-coded and JPG-extension JPEG variants are not supported.");
+            }
+
+            throw new InvalidDataException(
+                $"Unsupported JPEG SOF marker 0x{marker:X2}; only baseline (SOF0) and progressive (SOF2) are supported.");
+        }
+
+        /// <summary>
+        ///     Skips a generic length-prefixed marker segment (its 2-byte length field, read
+        ///     big-endian, includes itself), returning the position immediately following the
+        ///     segment. Correct for every JPEG marker segment other than SOI/EOI/RSTn/TEM, since
+        ///     all of those are universally length-prefixed immediately after the marker code -
+        ///     this is used by <see cref="ProcessSegment"/>'s generic default case (for APPn/COM
+        ///     and any other segment this decoder does not specially parse).
+        /// </summary>
+        private static int SkipLengthPrefixedSegment(byte[] file, int pos) => pos + ReadUInt16Be(file, pos);
 
         private static int SkipToMarker(byte[] file, int pos)
         {
@@ -1010,7 +1342,13 @@ public static class JpegCodec
             return end;
         }
 
-        private static int ReadSof(byte[] file, int pos, out int width, out int height, out Component[] components)
+        private static int ReadSof(
+            byte[] file,
+            int pos,
+            bool enforceMaxDimension,
+            out int width,
+            out int height,
+            out Component[] components)
         {
             var length = ReadUInt16Be(file, pos);
             var end = pos + length;
@@ -1037,8 +1375,10 @@ public static class JpegCodec
             // decoding the SOS-terminated scan, well before AssembleCanvas constructs the
             // Surface) is performed, so an oversized value surfaces as the documented
             // InvalidDataException rather than an ArgumentOutOfRangeException escaping from
-            // deep inside Surface's constructor
-            if (width > Surface.MaxDimension || height > Surface.MaxDimension)
+            // deep inside Surface's constructor. Skipped entirely when enforceMaxDimension is
+            // false, so GetInfo can report the raw header dimensions even when they exceed the
+            // bound.
+            if (enforceMaxDimension && (width > Surface.MaxDimension || height > Surface.MaxDimension))
             {
                 throw new InvalidDataException(
                     $"JPEG dimensions {width}x{height} exceed the maximum supported size of " +

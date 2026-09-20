@@ -70,6 +70,18 @@ sections:
                 tests:
                   - Surface_Constructor_HeightExceedsMaximum_ThrowsArgumentOutOfRangeException
 
+              - id: CanvasNet-Canvas-Surface-MaxDimensionPublic
+                title: >-
+                  The Surface class shall expose MaxDimension as a public constant, so callers can
+                  compare a candidate image's dimensions against it before constructing a Surface.
+                justification: |
+                  Callers probing untrusted or unknown-source image headers (via each codec's GetInfo)
+                  need to compare the reported width and height against the same maximum dimension
+                  Surface itself enforces, before ever calling Load and allocating a pixel buffer;
+                  without a public constant, callers would have to hard-code or guess this value.
+                tests:
+                  - Surface_MaxDimension_IsPubliclyAccessible_Equals8192
+
               - id: CanvasNet-Canvas-Surface-PixelGet
                 title: The Surface class shall allow reading the pixel at a specified coordinate.
                 justification: |

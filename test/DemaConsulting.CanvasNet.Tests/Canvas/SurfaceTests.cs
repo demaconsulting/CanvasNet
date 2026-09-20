@@ -945,4 +945,31 @@ public class SurfaceTests
             }
         }
     }
+
+    /// <summary>
+    ///     Proves that Surface.MaxDimension is declared as a genuinely public member (not merely
+    ///     internal) and equals the documented maximum of 8192, so that external callers (for
+    ///     example a GetInfo-based caller performing bomb triage before Load) can compare a
+    ///     header-declared dimension against it. A plain compile-time reference to
+    ///     Surface.MaxDimension alone cannot prove this - the test assembly already has
+    ///     InternalsVisibleTo access to the main assembly (see the main project's csproj), so an
+    ///     internal member would compile and read identically here; only a reflection-based check
+    ///     of the field's declared accessibility, which InternalsVisibleTo does not affect, proves
+    ///     the member is truly public.
+    /// </summary>
+    [Fact]
+    public void Surface_MaxDimension_IsPubliclyAccessible_Equals8192()
+    {
+        // Act: read the constant exactly as an external, non-test-internals caller would
+        const int maxDimension = Surface.MaxDimension;
+
+        // Act: reflect on the field's declared accessibility, which is unaffected by this test
+        // assembly's InternalsVisibleTo access, unlike a plain compile-time reference
+        var field = typeof(Surface).GetField(nameof(Surface.MaxDimension))!;
+
+        // Assert: the documented maximum value is unchanged by the visibility widening, and the
+        // field is genuinely declared public (not merely reachable via InternalsVisibleTo)
+        Assert.Equal(8192, maxDimension);
+        Assert.True(field.IsPublic);
+    }
 }

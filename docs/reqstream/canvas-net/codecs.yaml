@@ -117,6 +117,36 @@ sections:
               - BmpCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException
               - BmpCodec_Load_TruncatedStream_ThrowsInvalidDataException
 
+          - id: CanvasNet-Codecs-BmpGetInfo
+            title: >-
+              The Codecs subsystem shall report a BMP's width, height, channel count, and alpha
+              presence via GetInfo, given a stream or a file path, without decoding pixel data and
+              without enforcing Surface.MaxDimension.
+            justification: |
+              Callers need to inspect a BMP's declared dimensions and channel layout without paying
+              the cost of decoding the full pixel buffer.
+            children:
+              - CanvasNet-Codecs-BmpCodec-GetInfo
+            tests:
+              - BmpCodec_GetInfo_24Bit_ReturnsExpectedInfoWithoutAlpha
+              - BmpCodec_GetInfo_32Bit_ReturnsExpectedInfoWithAlpha
+              - BmpCodec_GetInfo_NeverReadsPixelData
+              - BmpCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows
+
+          - id: CanvasNet-Codecs-BmpGetInfoValidation
+            title: >-
+              The Codecs subsystem shall reject invalid arguments or malformed BMP data passed to
+              GetInfo with the same exception contract as Load.
+            justification: |
+              Callers need GetInfo's failure behavior to be exactly as predictable as Load's.
+            children:
+              - CanvasNet-Codecs-BmpCodec-GetInfoValidation
+            tests:
+              - BmpCodec_GetInfo_NullStream_ThrowsArgumentNullException
+              - BmpCodec_GetInfo_NullPath_ThrowsArgumentNullException
+              - BmpCodec_GetInfo_EmptyPath_ThrowsArgumentException
+              - BmpCodec_GetInfo_BadSignature_ThrowsInvalidDataException
+
           - id: CanvasNet-Codecs-PngSave
             title: >-
               The Codecs subsystem shall save a Surface as an 8-bit-per-channel Truecolor (RGB) or
@@ -230,6 +260,42 @@ sections:
               - PngCodec_Load_TruncatedStream_ThrowsInvalidDataException
               - PngCodec_Load_IendBeforeIhdr_ThrowsInvalidDataExceptionMentioningIhdr
 
+          - id: CanvasNet-Codecs-PngGetInfo
+            title: >-
+              The Codecs subsystem shall report a PNG's width, height, channel count, and alpha
+              presence via GetInfo, given a stream or a file path, by reading only the signature and
+              IHDR chunk, without decoding IDAT pixel data and without enforcing Surface.MaxDimension.
+              The first chunk's type and (for IHDR) declared length shall both be validated before any
+              length-dependent allocation is attempted, so a crafted first chunk cannot force a large
+              allocation on this fast probing path.
+            justification: |
+              Callers need to inspect a PNG's declared dimensions and color type without paying the
+              cost of inflating and decoding the full pixel buffer.
+            children:
+              - CanvasNet-Codecs-PngCodec-GetInfo
+            tests:
+              - PngCodec_GetInfo_Rgb_ReturnsExpectedInfoWithoutAlpha
+              - PngCodec_GetInfo_Rgba_ReturnsExpectedInfoWithAlpha
+              - PngCodec_GetInfo_NeverReadsPastIhdr
+              - PngCodec_GetInfo_SucceedsWithCorruptIdatRegion_ButLoadThrows
+              - PngCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows
+              - PngCodec_GetInfo_NonIhdrFirstChunkWithHugeDeclaredLength_ThrowsWithoutLargeAllocation
+              - PngCodec_GetInfo_IhdrChunkWithWrongDeclaredLength_ThrowsWithoutLargeAllocation
+
+          - id: CanvasNet-Codecs-PngGetInfoValidation
+            title: >-
+              The Codecs subsystem shall reject invalid arguments or malformed PNG data passed to
+              GetInfo with the same exception contract as Load.
+            justification: |
+              Callers need GetInfo's failure behavior to be exactly as predictable as Load's.
+            children:
+              - CanvasNet-Codecs-PngCodec-GetInfoValidation
+            tests:
+              - PngCodec_GetInfo_NullStream_ThrowsArgumentNullException
+              - PngCodec_GetInfo_NullPath_ThrowsArgumentNullException
+              - PngCodec_GetInfo_EmptyPath_ThrowsArgumentException
+              - PngCodec_GetInfo_BadSignature_ThrowsInvalidDataException
+
           - id: CanvasNet-Codecs-TiffSave
             title: >-
               The Codecs subsystem shall save a Surface as an 8-bit RGBA TIFF file (with optional
@@ -337,6 +403,8 @@ sections:
               - CanvasNet-Codecs-TiffCodec-LoadTiled
               - CanvasNet-Codecs-TiffCodec-LoadMissingMandatoryTag
               - CanvasNet-Codecs-TiffCodec-LoadTruncatedStream
+              - CanvasNet-Codecs-TiffCodec-TagValueBoundsValidation
+              - CanvasNet-Codecs-TiffCodec-TagValueCountUpperBound
             tests:
               - TiffCodec_Load_BadByteOrderMark_ThrowsInvalidDataException
               - TiffCodec_Load_UnsupportedBitsPerSample_ThrowsInvalidDataException
@@ -349,6 +417,58 @@ sections:
               - TiffCodec_Load_MissingMandatoryTag_ThrowsInvalidDataException
               - TiffCodec_Load_TruncatedHeader_ThrowsInvalidDataException
               - TiffCodec_Load_TruncatedStripData_ThrowsInvalidDataException
+              - TiffCodec_Load_ImageWidthZeroCount_ThrowsInvalidDataExceptionNotIndexOutOfRange
+              - TiffCodec_Load_IfdOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException
+              - TiffCodec_Load_OutOfLineTagOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException
+              - TiffCodec_GetInfo_Seekable_MaliciousOutOfLineTagLength_ThrowsWithoutUnboundedAllocation
+              - TiffCodec_GetInfo_Seekable_BitsPerSampleCountImplausiblyLarge_ThrowsWithoutLargeAllocation
+
+          - id: CanvasNet-Codecs-TiffGetInfo
+            title: >-
+              The Codecs subsystem shall report a TIFF's width, height, samples-per-pixel, and alpha
+              presence via GetInfo, given a stream or a file path, without decoding strip data and
+              without enforcing Surface.MaxDimension, requiring a seekable stream and seeking
+              directly to the IFD rather than buffering the whole file, rejecting a non-seekable
+              stream immediately with NotSupportedException before reading any bytes, rejecting a
+              tiled TIFF, and resolving stream-relative positions from wherever the caller's stream
+              was actually positioned when GetInfo was invoked, identically to Load.
+            justification: |
+              Callers need to inspect a TIFF's declared dimensions and channel layout without paying
+              the cost of decoding strip data, via a handful of small seeks rather than buffering
+              the whole file. Unlike PNG/JPEG/BMP, a TIFF's IFD can legitimately be located
+              anywhere in the file, so no bounded, purely sequential scan can reliably resolve
+              every well-formed TIFF from a non-seekable source; requiring a seekable stream up front
+              keeps GetInfo's behavior identical for every well-formed file regardless of stream
+              capability, rather than risking a divergence a bounded fallback would otherwise
+              introduce.
+            children:
+              - CanvasNet-Codecs-TiffCodec-GetInfo
+              - CanvasNet-Codecs-TiffCodec-GetInfoTiledRejection
+              - CanvasNet-Codecs-TiffCodec-GetInfoStreamBasePosition
+            tests:
+              - TiffCodec_GetInfo_Seekable_Rgb_ReturnsExpectedInfoWithoutAlpha
+              - TiffCodec_GetInfo_Seekable_Rgba_ReturnsExpectedInfoWithAlpha
+              - TiffCodec_GetInfo_Seekable_PositionStaysWellBelowFullLength
+              - TiffCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows
+              - TiffCodec_GetInfo_SucceedsWithTruncatedStripData_ButLoadThrows
+              - TiffCodec_GetInfo_Seekable_TiledTiff_ThrowsInvalidDataException
+              - TiffCodec_GetInfo_Seekable_StreamNotAtPositionZero_ReturnsCorrectImageInfo
+              - TiffCodec_GetInfo_NonSeekableStream_ThrowsNotSupportedException
+              - TiffCodec_GetInfo_NonSeekableStream_ThrowsBeforeReadingAnyBytes
+
+          - id: CanvasNet-Codecs-TiffGetInfoValidation
+            title: >-
+              The Codecs subsystem shall reject invalid arguments or malformed TIFF data passed to
+              GetInfo with the same exception contract as Load.
+            justification: |
+              Callers need GetInfo's failure behavior to be exactly as predictable as Load's.
+            children:
+              - CanvasNet-Codecs-TiffCodec-GetInfoValidation
+            tests:
+              - TiffCodec_GetInfo_NullStream_ThrowsArgumentNullException
+              - TiffCodec_GetInfo_NullPath_ThrowsArgumentNullException
+              - TiffCodec_GetInfo_EmptyPath_ThrowsArgumentException
+              - TiffCodec_GetInfo_BadByteOrderMark_ThrowsInvalidDataException
 
           - id: CanvasNet-Codecs-JpegSave
             title: >-
@@ -441,3 +561,44 @@ sections:
               - CanvasNet-Codecs-JpegCodec-SimdMatchesScalar
             tests:
               - CanvasNet_SystemIntegration_JpegSaveThenLoad_ReturnsExpectedPixel
+
+          - id: CanvasNet-Codecs-JpegGetInfo
+            title: >-
+              The Codecs subsystem shall report a JPEG's width, height, and component count via
+              GetInfo, given a stream or a file path, by scanning markers incrementally for a
+              supported SOF segment without entropy-decoding scan data, without requiring an SOS
+              segment or entropy-coded data, and without enforcing Surface.MaxDimension, reading no
+              more of the stream than necessary once the target SOF has been fully parsed and bounding
+              the scan to a fixed maximum number of probed header bytes as a hard outer cap.
+            justification: |
+              Callers need to inspect a JPEG's declared dimensions and component count without paying
+              the cost of entropy-decoding the scan data, without an unbounded scan over a
+              pathological stream that never presents an SOF marker, and without unconditionally
+              reading up to the full probe cap even when the SOF appears near the start of a much
+              larger stream.
+            children:
+              - CanvasNet-Codecs-JpegCodec-GetInfo
+            tests:
+              - JpegCodec_GetInfo_Grayscale_ReturnsExpectedInfoWithoutSosOrEntropyData
+              - JpegCodec_GetInfo_Color_ReturnsExpectedInfo
+              - JpegCodec_GetInfoPath_ReturnsExpectedInfo
+              - JpegCodec_GetInfo_LargeStream_NeverReadsPastProbeLimit
+              - JpegCodec_GetInfo_SofNearStart_DoesNotReadFarBeyondWhatIsNeeded
+              - JpegCodec_GetInfo_ProbeLimitExceededWithoutSof_ThrowsInvalidDataException
+              - JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows
+
+          - id: CanvasNet-Codecs-JpegGetInfoValidation
+            title: >-
+              The Codecs subsystem shall reject invalid arguments or malformed JPEG data passed to
+              GetInfo with the same exception contract as Load.
+            justification: |
+              Callers need GetInfo's failure behavior to be exactly as predictable as Load's.
+            children:
+              - CanvasNet-Codecs-JpegCodec-GetInfoValidation
+            tests:
+              - JpegCodec_GetInfoStream_NullStream_ThrowsArgumentNullException
+              - JpegCodec_GetInfoPath_NullPath_ThrowsArgumentNullException
+              - JpegCodec_GetInfoPath_EmptyPath_ThrowsArgumentException
+              - JpegCodec_GetInfo_MissingSoiMarker_ThrowsInvalidDataException
+              - JpegCodec_GetInfo_TruncatedBeforeSofFound_ThrowsInvalidDataException
+              - JpegCodec_GetInfo_SosBeforeSof_ThrowsInvalidDataException

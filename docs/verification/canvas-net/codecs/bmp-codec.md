@@ -170,7 +170,34 @@ cases, confirming the dimension check happens before any row/stride arithmetic p
 Builds a valid header for a 1x1, 24-bit image but omits the pixel data that should follow it, and
 asserts `Load` throws `InvalidDataException`.
 
+#### CanvasNet-Codecs-BmpCodec-GetInfo: GetInfo Reports Dimensions/Channels/Alpha Without Decoding Pixels
+
+**Tests**: `BmpCodec_GetInfo_24Bit_ReturnsExpectedInfoWithoutAlpha`,
+`BmpCodec_GetInfo_32Bit_ReturnsExpectedInfoWithAlpha`, `BmpCodec_GetInfo_NeverReadsPixelData`,
+`BmpCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows`
+
+Saves a surface at `Bit24` and separately at `Bit32`, calls `GetInfo` on each, and asserts the
+returned `ImageInfo` reports the correct width/height, `Channels` (3 or 4), and `HasAlpha` (false
+or true). Proves `GetInfo` never reads pixel data by wrapping a valid 32-bit BMP's bytes in a
+`BoundedReadStream` capped at exactly 54 bytes (the header size) and asserting `GetInfo` still
+succeeds. Proves `GetInfo` does not enforce `Surface.MaxDimension` by building a header declaring
+`biWidth` one greater than `Surface.MaxDimension`, asserting `GetInfo` returns that raw oversized
+width without throwing, and then asserting `Load` on the exact same bytes still throws
+`InvalidDataException`.
+
+#### CanvasNet-Codecs-BmpCodec-GetInfoValidation: GetInfo Rejects Invalid Arguments and Malformed Headers
+
+**Tests**: `BmpCodec_GetInfo_NullStream_ThrowsArgumentNullException`,
+`BmpCodec_GetInfo_NullPath_ThrowsArgumentNullException`,
+`BmpCodec_GetInfo_EmptyPath_ThrowsArgumentException`,
+`BmpCodec_GetInfo_BadSignature_ThrowsInvalidDataException`
+
+Calls `GetInfo(Stream)` with a null stream, `GetInfo(string)` with a null path and separately an
+empty path, and `GetInfo(Stream)` with a 14-byte header carrying an incorrect signature, asserting
+`ArgumentNullException`, `ArgumentNullException`, `ArgumentException`, and `InvalidDataException`
+respectively — the same exception contract as the corresponding `Load` scenarios.
+
 ### Acceptance Criteria
 
-A unit test run passes when all twenty-two test methods above pass without error or unexpected
+A unit test run passes when all thirty test methods above pass without error or unexpected
 exception; any unexpected exception type or wrong return/byte value constitutes a failure.
