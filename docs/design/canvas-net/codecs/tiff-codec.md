@@ -62,7 +62,7 @@ byte composition using the byte order determined from the file's own byte-order 
 #### Untrusted-input hardening in tag/value resolution
 
 `ReadTagValues` (the single method that turns an `IfdEntry` into a `uint[]` of resolved values,
-used by both `Load` and both `GetInfo` paths) applies three checks before ever allocating the
+used by both `Load` and `GetInfo`) applies three checks before ever allocating the
 result array, specifically because `GetInfo` exists to let callers cheaply triage untrusted input
 without risking a denial-of-service from a crafted file:
 
@@ -108,7 +108,7 @@ without risking a denial-of-service from a crafted file:
 | 338        | ExtraSamples              | No*      | *Value 2 when SamplesPerPixel is 4 (RGBA).         |
 
 The tiled-TIFF rejection (`TileWidth`/`TileLength` presence) lives in the shared
-`ReadTiffImageInfo` helper, so `Load` and both `GetInfo` paths reject a tiled image identically
+`ReadTiffImageInfo` helper, so `Load` and `GetInfo` reject a tiled image identically
 rather than only when `Load` is used.
 
 #### Horizontal-differencing predictor (Predictor tag = 2)
@@ -141,8 +141,8 @@ formats). Validates the 8-byte header (byte-order mark, magic number 42), parses
 shared `ReadTiffImageInfo` (see the `GetInfo` section below), which rejects a tiled TIFF
 (identified by the presence of a `TileWidth` or `TileLength` tag) before validating any other
 tag, so that tiled files receive a specific, actionable error rather than a misleading
-"missing tag" error - and does so identically whether reached via `Load` or either `GetInfo` path,
-since all three now share this one check rather than `Load` alone performing it. Validates every
+"missing tag" error - and does so identically whether reached via `Load` or `GetInfo`,
+since both now share this one check rather than `Load` alone performing it. Validates every
 mandatory tag is present, that `BitsPerSample` is 8 for every sample, that `Compression` is one of
 the four supported values, that
 `PhotometricInterpretation` is Grayscale (1) or RGB (2), that `PlanarConfiguration` is Chunky (1),
@@ -226,71 +226,61 @@ Creates (or overwrites) `path` as a `FileStream` and delegates to
 Reports a TIFF's width, height, samples-per-pixel-derived channel count, and alpha presence
 without ever decoding strip/pixel data, by resolving every tag through the exact same validating
 parser (`ParseIfd` and `ReadTiffImageInfo(..., enforceMaxDimension: false)`) that `Load` itself
-uses — the same code path for both a seekable and a non-seekable stream, differing only in which
-`ITiffDataSource` implementation backs the reads. This is required because a TIFF's Image File
-Directory is not necessarily near the start of the file (its offset is given by the 8-byte
-header's 4th field, and a well-formed writer may place it anywhere, including after the strip data
-it describes); a purely sequential short-prefix read (as used by `BmpCodec`/`PngCodec`) cannot
-reliably reach it.
+uses. This is required because a TIFF's Image File Directory is not necessarily near the start of
+the file (its offset is given by the 8-byte header's 4th field, and a well-formed writer may place
+it anywhere, including after the strip data it describes); a purely sequential short-prefix read
+(as used by `BmpCodec`/`PngCodec`) cannot reliably reach it. `stream` must be seekable — see the
+non-seekable rejection description below.
 
-**Architectural decision**: `GetInfo`'s seekable and non-seekable branches previously used two
-independently maintained implementations — a hand-written four-tag subset scan for the seekable
-case, and a reuse of `Load`'s full parser for the non-seekable fallback. These disagreed on
-`SamplesPerPixel`'s absent-tag default (1 vs. `BitsPerSample`'s entry count), on how much
-format-support validation was performed, and (until this was fixed) on whether a tiled TIFF was
-rejected at all (the tiled check originally lived only in `Load`, not either `GetInfo` branch), so
-identical file bytes could report a different channel count, accept a tiled TIFF that `Load`
-rejects, or throw only on one path, depending solely on whether the caller's stream happened to be
-seekable. The `ITiffDataSource` abstraction (see below) eliminates this at its root: both branches
-now call the identical `ReadTiffImageInfo` method (which itself performs the tiled-TIFF check
-first, before any other tag validation), so the two cases are guaranteed identical to each other,
-and to `Load`, by construction rather than by three hand-synchronized implementations.
+**Architectural decision**: `GetInfo`'s parsing logic previously diverged from `Load`'s when the
+stream was seekable — a hand-written four-tag subset scan defaulted `SamplesPerPixel`'s absent-tag
+default to 1 (instead of `BitsPerSample`'s entry count) and skipped most of `Load`'s
+format-support validation, so identical file bytes could report a different channel count or
+succeed where `Load` would reject them, depending solely on how `GetInfo` happened to be
+implemented. The `ITiffDataSource` abstraction (see below) eliminates this at its root: `GetInfo`
+now calls the identical `ReadTiffImageInfo` method `Load` uses (which itself performs the
+tiled-TIFF check first, before any other tag validation), so the two are guaranteed identical by
+construction rather than by two hand-synchronized implementations.
 
 `ITiffDataSource` is a small internal interface exposing one member, `ReadBytes(position, length,
 what)`, abstracting "read `length` bytes at absolute file position `position`" over either a
-fully-buffered `byte[]` (`ByteArrayTiffDataSource`) or a seekable `Stream`
-(`StreamTiffDataSource`, which seeks to the requested position and reads directly from the
-stream). `ParseIfd`, `ReadTagValues`, `RequireTagValues`, `TryGetTagValues`, and
-`ReadTiffImageInfo` are all written once against this interface:
+fully-buffered `byte[]` (`ByteArrayTiffDataSource`, used only by `Load`) or a seekable `Stream`
+(`StreamTiffDataSource`, used only by `GetInfo`, which seeks to the requested position and reads
+directly from the stream). `ParseIfd`, `ReadTagValues`, `RequireTagValues`, `TryGetTagValues`, and
+`ReadTiffImageInfo` are all written once against this interface.
 
-- **`stream.CanSeek == true` (the common case):** a `StreamTiffDataSource` backs the parser
-  directly, so only the bytes the parser actually asks for are ever read from the stream — the
-  8-byte header, the IFD entry count and entries, and any out-of-line tag value
-  `ReadTiffImageInfo` needs (for example a multi-value `BitsPerSample` tag, which typically
-  requires one additional seek-and-read of 3-4 bytes). `ReadTiffImageInfo` never resolves
-  `StripOffsets`/`RowsPerStrip`/`StripByteCounts`, so strip/pixel data is never requested — the
-  same "no full decode" guarantee the previous hand-written scan provided, now achieved as a
-  consequence of which tags the shared parser happens to need rather than a hand-picked subset of
-  four tags. `GetInfo(Stream)` captures `stream.Position` *before* reading the header and passes
-  it to `StreamTiffDataSource` as a base offset that every subsequent position/seek is added to,
-  so a caller that has already advanced `stream` past some other content (for example a container
-  format embedding a TIFF payload after a header of its own) is still resolved correctly, rather
-  than `StreamTiffDataSource` treating every TIFF-file-relative position as if it were an absolute
-  offset from byte 0 of the underlying stream.
-- **`stream.CanSeek == false` (fallback):** seeking is impossible, so `GetInfo` instead buffers
-  the stream into memory (prefixing the 8 header bytes already consumed) up to a fixed
-  `MaxNonSeekableProbeBytes` cap (1 MiB, mirroring `JpegCodec`'s equivalent probe cap) and backs
-  the same parser with a `ByteArrayTiffDataSource` over those buffered bytes instead, still
-  stopping short of `DecodeStrips`. Without this cap, a non-seekable stream that is simply larger
-  than any real TIFF header/IFD needs to be (for example a malicious or oversized network stream)
-  would force this "cheap pre-decode bomb triage" API to buffer and allocate the entire stream
-  before ever inspecting a tag. If the IFD or a tag value `ReadTiffImageInfo` needs lies beyond the
-  cap, `ByteArrayTiffDataSource.ReadBytes` rejects the resulting out-of-range request with the
-  usual `InvalidDataException` rather than buffering further — an inherent trade-off for
-  non-seekable header-only probing that legitimate seekable callers (the common case) are
-  unaffected by, since the seekable branch never buffers more than the bytes it actually needs.
+`GetInfo` rejects a non-seekable `stream` immediately, before reading any bytes, with
+`NotSupportedException`. Unlike PNG/JPEG/BMP (whose headers are always near the start of the
+file), a TIFF's IFD can legitimately be located anywhere in the file, so there is no bounded,
+purely-sequential scan that can reliably resolve every well-formed TIFF from a non-seekable
+source — a previous bounded-buffer fallback attempted this but could, for some well-formed files,
+throw `InvalidDataException` where a seekable stream over the same bytes would succeed; requiring
+a seekable stream up front removes that divergence entirely. A caller with a genuinely non-seekable
+source (for example a network stream) can trivially wrap it in a seekable buffer such as
+`MemoryStream` first.
 
-Because both branches now call `ReadTiffImageInfo` with `enforceMaxDimension: false`, `GetInfo`
-performs the full set of format-support validation `Load` performs (bit depth, compression,
-photometric interpretation, planar configuration, predictor, and the RGBA `ExtraSamples`
-requirement) on both a seekable and a non-seekable stream, and `SamplesPerPixel`'s absent-tag
-default is `BitsPerSample`'s entry count on both, identically to `Load`. Neither branch enforces
-`Surface.MaxDimension` — an oversized `ImageWidth`/`ImageLength` is returned as-is in the
-resulting `ImageInfo`.
+Once past that guard, a `StreamTiffDataSource` backs the parser directly, so only the bytes the
+parser actually asks for are ever read from the stream — the 8-byte header, the IFD entry count
+and entries, and any out-of-line tag value `ReadTiffImageInfo` needs (for example a multi-value
+`BitsPerSample` tag, which typically requires one additional seek-and-read of 3-4 bytes).
+`ReadTiffImageInfo` never resolves `StripOffsets`/`RowsPerStrip`/`StripByteCounts`, so strip/pixel
+data is never requested. `GetInfo(Stream)` captures `stream.Position` *before* reading the header
+and passes it to `StreamTiffDataSource` as a base offset that every subsequent position/seek is
+added to, so a caller that has already advanced `stream` past some other content (for example a
+container format embedding a TIFF payload after a header of its own) is still resolved correctly,
+rather than `StreamTiffDataSource` treating every TIFF-file-relative position as if it were an
+absolute offset from byte 0 of the underlying stream.
+
+`GetInfo` performs the full set of format-support validation `Load` performs (bit depth,
+compression, photometric interpretation, planar configuration, predictor, and the RGBA
+`ExtraSamples` requirement), and `SamplesPerPixel`'s absent-tag default is `BitsPerSample`'s entry
+count, identically to `Load`. `GetInfo` does not enforce `Surface.MaxDimension` — an oversized
+`ImageWidth`/`ImageLength` is returned as-is in the resulting `ImageInfo`.
 
 **Throws:**
 
 - `ArgumentNullException` — `stream` is null
+- `NotSupportedException` — `stream` does not support seeking
 - `InvalidDataException` — for the same format-support reasons as `Load` (a tiled TIFF; a missing
   mandatory tag; an unsupported bit depth, compression, photometric interpretation, planar
   configuration, or predictor value; an RGB image with 4 samples per pixel lacking a correct
@@ -299,17 +289,16 @@ resulting `ImageInfo`.
   above the small upper bound enforced for the nine image-level tags `ReadTiffImageInfo` resolves
   (`ImageWidth`, `ImageLength`, `BitsPerSample`, `SamplesPerPixel`, `Compression`,
   `PhotometricInterpretation`, `PlanarConfiguration`, `Predictor`, `ExtraSamples`), an
-  out-of-`int`-range IFD offset, entry offset, or out-of-line tag value offset/length, the stream
-  ending before the header, IFD, or an out-of-line tag value has been fully read, or (for a
-  non-seekable stream only) the IFD or a needed tag value lying beyond the `MaxNonSeekableProbeBytes`
-  cap — **except** that the `Surface.MaxDimension` check is always skipped (an oversized declared
+  out-of-`int`-range IFD offset, entry offset, or out-of-line tag value offset/length, or the
+  stream ending before the header, IFD, or an out-of-line tag value has been fully read —
+  **except** that the `Surface.MaxDimension` check is always skipped (an oversized declared
   width/height is returned, not rejected)
 
 #### GetInfo(string path)
 
 Opens `path` as a read-only `FileStream` and delegates to `GetInfo(Stream)`. Note that a
-`FileStream` is always seekable, so opening by path always exercises `GetInfo`'s seek-based path,
-never its non-seekable fallback.
+`FileStream` is always seekable, so opening by path always exercises `GetInfo`'s seek-based path
+and never triggers its `NotSupportedException` guard.
 
 **Throws:**
 
@@ -323,7 +312,7 @@ never its non-seekable fallback.
 All argument validation happens at the start of each public method, before any header or pixel
 data is read or written. `Load` performs incremental format validation as each tag is inspected,
 failing at the first invalid or missing tag with a message naming the actual invalid value found;
-the tiled-TIFF check (shared with both `GetInfo` paths via `ReadTiffImageInfo`) runs before
+the tiled-TIFF check (shared with `GetInfo` via `ReadTiffImageInfo`) runs before
 mandatory-tag validation so that tiled files get a specific error rather than a misleading
 "missing StripOffsets" error. There is no local recovery or retry logic
 anywhere in `TiffCodec` - every validation failure results in an exception that propagates

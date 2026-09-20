@@ -510,28 +510,25 @@ public static ImageInfo GetInfo(Stream stream)
 ```
 
 Reads only the TIFF header and the relevant IFD tags (never strip data) and returns an
-`ImageInfo` describing the image. Does not enforce `Surface.MaxDimension`. Both a seekable and a
-non-seekable stream resolve every tag through the exact same validating parser `Load` itself uses
-(`ReadTiffImageInfo`), so the two cases produce identical results by construction rather than by
-two independently maintained implementations. When `stream.CanSeek` is `true`, a
+`ImageInfo` describing the image. Does not enforce `Surface.MaxDimension`. Requires a seekable
+`stream`: a TIFF's IFD can legitimately be located anywhere in the file (unlike PNG/JPEG/BMP,
+whose headers are always near the start), so no bounded, purely sequential scan can reliably
+resolve every well-formed TIFF from a non-seekable source. If `stream.CanSeek` is `false`,
+`GetInfo` throws `NotSupportedException` immediately, before reading any bytes from `stream` at
+all; a caller with a genuinely non-seekable source (for example a network stream) can trivially
+wrap it in a seekable buffer such as `MemoryStream` first. Once past that check, `stream` resolves
+every tag through the exact same validating parser `Load` itself uses (`ReadTiffImageInfo`). A
 `StreamTiffDataSource` seeks directly to the IFD and reads only the bytes the parser actually asks
 for - the header, IFD entries, and any out-of-line tag value needed (for example a multi-value
 `BitsPerSample` tag) - resolving `ImageWidth`, `ImageLength`, `BitsPerSample`, `SamplesPerPixel`,
 `Compression`, `PhotometricInterpretation`, `PlanarConfiguration`, `Predictor`, and `ExtraSamples`,
-and never reading `StripOffsets`/`RowsPerStrip`/`StripByteCounts` or any strip/pixel data. When
-`stream.CanSeek` is `false`, `GetInfo` instead buffers up to a fixed `MaxNonSeekableProbeBytes`
-cap (1 MiB) of the stream and backs the same parser with a `ByteArrayTiffDataSource`, still
-stopping short of decoding strips; if the IFD or a needed tag value lies beyond the cap, `GetInfo`
-throws `InvalidDataException` rather than buffering without bound. Because both paths call the
-identical parser, `HasAlpha` (derived from `ExtraSamples`/`SamplesPerPixel`) and every other
-validated field are computed identically regardless of whether the stream is seekable, for any
-file whose IFD and needed tag values lie within the non-seekable cap - the only intentional
-divergence between the two paths is that a non-seekable stream whose data lies beyond the cap is
-rejected where an equivalent seekable stream would still succeed.
+and never reading `StripOffsets`/`RowsPerStrip`/`StripByteCounts` or any strip/pixel data.
 
 **Exceptions:**
 
 - `ArgumentNullException`: Thrown when `stream` is null.
+- `NotSupportedException`: Thrown when `stream` does not support seeking; wrap a non-seekable
+  source (for example a network stream) in a seekable buffer such as a `MemoryStream` first.
 - `InvalidDataException`: Thrown when the stream does not contain a valid TIFF header/IFD.
 
 ##### TiffCodec.GetInfo(string path)

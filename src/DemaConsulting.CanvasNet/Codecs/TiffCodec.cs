@@ -138,19 +138,6 @@ public static class TiffCodec
     /// </summary>
     private const int MaxImageLevelTagCount = 8;
 
-    /// <summary>
-    ///     The maximum total number of bytes <see cref="GetInfo(Stream)"/>'s non-seekable
-    ///     fallback will buffer from a stream before giving up. Bounds the memory a hostile, or
-    ///     merely oversized, non-seekable stream (for example a network stream) can force this
-    ///     "cheap pre-decode bomb triage" API to allocate - without this cap, buffering ran to the
-    ///     stream's end unconditionally, so a stream that is very large (or never ends) could
-    ///     force an unbounded allocation before any header byte was even inspected. Mirrors the
-    ///     equivalent <c>JpegCodec.MaxProbeHeaderBytes</c> cap; real TIFF headers, IFDs, and the
-    ///     out-of-line tag values <see cref="ReadTiffImageInfo"/> resolves (bounded further by
-    ///     <see cref="MaxImageLevelTagCount"/>) are always far smaller than this.
-    /// </summary>
-    private const int MaxNonSeekableProbeBytes = 1_048_576;
-
     private const ushort TypeByte = 1;
     private const ushort TypeShort = 3;
     private const ushort TypeLong = 4;
@@ -303,6 +290,11 @@ public static class TiffCodec
     ///     <c>ExtraSamples</c> tag value of 2).
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
+    /// <exception cref="System.NotSupportedException">
+    ///     Thrown when <paramref name="stream"/> does not support seeking; wrap a non-seekable
+    ///     source (for example a network stream) in a seekable buffer such as a
+    ///     <see cref="MemoryStream"/> first.
+    /// </exception>
     /// <exception cref="System.IO.InvalidDataException">
     ///     Thrown for the same format-support reasons as <see cref="Load(Stream)"/> - a mandatory
     ///     tag (<c>ImageWidth</c>, <c>ImageLength</c>, <c>BitsPerSample</c>, <c>Compression</c>,
@@ -320,16 +312,13 @@ public static class TiffCodec
     ///     raw header-declared values are always returned; see <see cref="ImageInfo"/> for why).
     /// </exception>
     /// <remarks>
-    ///     Both a seekable and a non-seekable <paramref name="stream"/> resolve every tag through
-    ///     the exact same validating parser <see cref="Load(Stream)"/> itself uses
-    ///     (<see cref="ParseIfd"/> and <see cref="ReadTiffImageInfo"/>, with
-    ///     <c>enforceMaxDimension: false</c>), so the two cases are guaranteed identical by
-    ///     construction rather than by two independently maintained implementations - see the
-    ///     <see cref="ITiffDataSource"/> remarks for how random-access reads are abstracted over
-    ///     each stream kind. Only the source of those reads differs:
+    ///     Once past the <see cref="System.NotSupportedException"/> guard below, <paramref name="stream"/>
+    ///     resolves every tag through the exact same validating parser <see cref="Load(Stream)"/>
+    ///     itself uses (<see cref="ParseIfd"/> and <see cref="ReadTiffImageInfo"/>, with
+    ///     <c>enforceMaxDimension: false</c>) - see the <see cref="ITiffDataSource"/> remarks for
+    ///     how random-access reads are abstracted over the stream.
     ///     <para>
-    ///         When <c>stream.CanSeek</c> is <see langword="true"/> (the common case), a
-    ///         <see cref="StreamTiffDataSource"/> seeks directly to each requested position and
+    ///         A <see cref="StreamTiffDataSource"/> seeks directly to each requested position and
     ///         reads only the bytes the parser actually asks for - the 8-byte header, the IFD
     ///         entry count and entries, and any out-of-line tag value the parser needs (for
     ///         example a multi-value <c>BitsPerSample</c> tag). It never reads
@@ -338,58 +327,47 @@ public static class TiffCodec
     ///     </para>
     ///     <para>
     ///         When <c>stream.CanSeek</c> is <see langword="false"/> (for example a network
-    ///         stream), no seek-based reads are possible, so this method falls back to buffering
-    ///         up to <see cref="MaxNonSeekableProbeBytes"/> bytes of the stream and backing the
-    ///         same parser with a <see cref="ByteArrayTiffDataSource"/> instead, stopping short of
-    ///         <see cref="DecodeStrips"/>. This bounded buffering is an intentional divergence
-    ///         from the seekable path for one specific case: a non-seekable stream whose IFD or a
-    ///         needed tag value lies beyond <see cref="MaxNonSeekableProbeBytes"/> throws
-    ///         <see cref="System.IO.InvalidDataException"/>, where an equivalent seekable stream
-    ///         would succeed - a deliberate trade-off so this "cheap pre-decode bomb triage" API
-    ///         cannot be forced to buffer an unbounded amount of memory for a non-seekable stream.
+    ///         stream), this method throws <see cref="System.NotSupportedException"/> immediately,
+    ///         before reading any bytes from <paramref name="stream"/> at all. Unlike PNG/JPEG/BMP
+    ///         (whose headers are always near the start), a TIFF's Image File Directory can
+    ///         legitimately be located anywhere in the file, so there is no bounded, purely
+    ///         sequential scan that can reliably resolve every well-formed TIFF from a non-seekable
+    ///         source; a caller with a genuinely non-seekable source can trivially wrap it in a
+    ///         seekable buffer such as <see cref="MemoryStream"/> first if it wants to probe it.
     ///     </para>
     /// </remarks>
     public static ImageInfo GetInfo(Stream stream)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
-        // Captured before any bytes are read so that, for a seekable stream, every subsequent
-        // absolute-position read/seek performed by StreamTiffDataSource can be expressed relative
-        // to wherever the caller's stream happened to be positioned when GetInfo was invoked,
-        // rather than relative to absolute byte 0 of the underlying stream.
-        var basePosition = stream.CanSeek ? stream.Position : 0L;
+        // Reject a non-seekable stream immediately, before reading any bytes at all - unlike
+        // PNG/JPEG/BMP (whose headers are always near the start), a TIFF's IFD can legitimately
+        // sit anywhere in the file, so there is no bounded forward-scan fallback that can work
+        // for every well-formed file. A caller with a genuinely non-seekable source (for example
+        // a network stream) can trivially wrap it in a seekable buffer (e.g. MemoryStream) first.
+        if (!stream.CanSeek)
+        {
+            throw new NotSupportedException(
+                "TiffCodec.GetInfo requires a seekable stream; wrap non-seekable sources " +
+                "(for example a network stream) in a seekable buffer such as a MemoryStream first.");
+        }
+
+        // Captured before any bytes are read so that every subsequent absolute-position
+        // read/seek performed by StreamTiffDataSource can be expressed relative to wherever the
+        // caller's stream happened to be positioned when GetInfo was invoked, rather than
+        // relative to absolute byte 0 of the underlying stream.
+        var basePosition = stream.Position;
 
         var headerBytes = ReadStreamHeaderBytes(stream);
         var (bigEndian, ifdOffset) = ParseTiffHeader(headerBytes);
 
-        if (stream.CanSeek)
-        {
-            // Seekable fast path: back the shared parser directly with the stream, so only the
-            // header, IFD entries, and any out-of-line tag value actually needed are ever read
-            ITiffDataSource seekableSource = new StreamTiffDataSource(stream, basePosition);
-            var seekableTags = ParseIfd(seekableSource, ifdOffset, bigEndian);
-            var seekableInfo = ReadTiffImageInfo(seekableSource, seekableTags, bigEndian, enforceMaxDimension: false);
-            var seekableHasAlpha = seekableInfo is { Photometric: PhotometricRgb, SamplesPerPixel: 4 };
-            return new ImageInfo(seekableInfo.Width, seekableInfo.Height, seekableInfo.SamplesPerPixel, seekableHasAlpha);
-        }
-
-        // Non-seekable fallback: no random access is possible, so buffer the stream (prefixing
-        // the 8 header bytes already consumed above) up to MaxNonSeekableProbeBytes total and
-        // back the same shared parser with those buffered bytes instead, stopping short of
-        // DecodeStrips. The cap bounds the memory a hostile or merely oversized non-seekable
-        // stream can force this "cheap pre-decode bomb triage" API to allocate; if the IFD or a
-        // tag value it needs lies beyond the cap, ByteArrayTiffDataSource.ReadBytes rejects the
-        // out-of-range request with the usual InvalidDataException rather than buffering further.
-        using var buffered = new MemoryStream();
-        buffered.Write(headerBytes, 0, headerBytes.Length);
-        ReadStreamBounded(stream, buffered, MaxNonSeekableProbeBytes - headerBytes.Length);
-        var file = buffered.ToArray();
-
-        ITiffDataSource bufferedSource = new ByteArrayTiffDataSource(file);
-        var tags = ParseIfd(bufferedSource, ifdOffset, bigEndian);
-        var info = ReadTiffImageInfo(bufferedSource, tags, bigEndian, enforceMaxDimension: false);
-        var fallbackHasAlpha = info is { Photometric: PhotometricRgb, SamplesPerPixel: 4 };
-        return new ImageInfo(info.Width, info.Height, info.SamplesPerPixel, fallbackHasAlpha);
+        // Seek directly to the IFD via the shared parser, reading only the header, IFD entries,
+        // and any out-of-line tag value actually needed
+        ITiffDataSource source = new StreamTiffDataSource(stream, basePosition);
+        var tags = ParseIfd(source, ifdOffset, bigEndian);
+        var info = ReadTiffImageInfo(source, tags, bigEndian, enforceMaxDimension: false);
+        var hasAlpha = info is { Photometric: PhotometricRgb, SamplesPerPixel: 4 };
+        return new ImageInfo(info.Width, info.Height, info.SamplesPerPixel, hasAlpha);
     }
 
     /// <summary>
@@ -446,35 +424,6 @@ public static class TiffCodec
     }
 
     /// <summary>
-    ///     Reads from <paramref name="stream"/> into <paramref name="destination"/> until either
-    ///     the stream ends or <paramref name="maxBytes"/> additional bytes have been read,
-    ///     whichever comes first. Unlike <see cref="Stream.CopyTo(Stream)"/>, this never buffers
-    ///     more than <paramref name="maxBytes"/> bytes, so a stream that is larger than any real
-    ///     TIFF header/IFD needs to be (or never ends) cannot force unbounded memory use.
-    /// </summary>
-    private static void ReadStreamBounded(Stream stream, MemoryStream destination, int maxBytes)
-    {
-        if (maxBytes <= 0)
-        {
-            return;
-        }
-
-        var chunk = new byte[Math.Min(81920, maxBytes)];
-        var remaining = maxBytes;
-        while (remaining > 0)
-        {
-            var read = stream.Read(chunk, 0, Math.Min(chunk.Length, remaining));
-            if (read == 0)
-            {
-                break;
-            }
-
-            destination.Write(chunk, 0, read);
-            remaining -= read;
-        }
-    }
-
-    /// <summary>
     ///     Reads exactly the 8-byte TIFF file header from <paramref name="stream"/>, without
     ///     interpreting it (see <see cref="ParseTiffHeader"/> for that).
     /// </summary>
@@ -492,7 +441,8 @@ public static class TiffCodec
     ///     <see cref="TryGetTagValues"/>, and <see cref="ReadTiffImageInfo"/> can be written once
     ///     against this interface and reused, byte-for-byte identically, by both
     ///     <see cref="Load(Stream)"/> (always byte-array-backed) and <see cref="GetInfo(Stream)"/>
-    ///     (byte-array-backed for a non-seekable stream, stream-backed for a seekable one).
+    ///     (always stream-backed, since <see cref="GetInfo(Stream)"/> now requires a seekable
+    ///     stream).
     /// </summary>
     /// <remarks>
     ///     This abstraction exists to eliminate a correctness divergence that previously existed
@@ -524,11 +474,11 @@ public static class TiffCodec
     }
 
     /// <summary>
-    ///     An <see cref="ITiffDataSource"/> backed by a fully-buffered <c>byte[]</c>, used by
-    ///     <see cref="Load(Stream)"/> (always, unbounded) and by <see cref="GetInfo(Stream)"/>'s
-    ///     non-seekable fallback (after buffering up to <see cref="MaxNonSeekableProbeBytes"/> of
-    ///     the stream). Preserves the exact bounds checking (<see cref="CheckBounds"/>) this codec
-    ///     has always performed for byte-array access.
+    ///     An <see cref="ITiffDataSource"/> backed by a fully-buffered <c>byte[]</c>, used only by
+    ///     <see cref="Load(Stream)"/>/<see cref="Load(string)"/> (always, unbounded - the whole
+    ///     stream is buffered since TIFF's directory and value offsets require random access).
+    ///     Preserves the exact bounds checking (<see cref="CheckBounds"/>) this codec has always
+    ///     performed for byte-array access.
     /// </summary>
     private sealed class ByteArrayTiffDataSource(byte[] file) : ITiffDataSource
     {
@@ -659,8 +609,8 @@ public static class TiffCodec
         bool bigEndian,
         bool enforceMaxDimension)
     {
-        // Shared by Load and both GetInfo paths so a tiled TIFF (which DecodeStrips cannot
-        // handle) is rejected identically everywhere, rather than only when Load is used.
+        // Shared by Load and GetInfo so a tiled TIFF (which DecodeStrips cannot handle) is
+        // rejected identically everywhere, rather than only when Load is used.
         if (tags.ContainsKey(TagTileWidth) || tags.ContainsKey(TagTileLength))
         {
             throw new InvalidDataException("Tiled TIFF images are not supported; only strip-based images are supported.");

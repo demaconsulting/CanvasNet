@@ -1410,29 +1410,6 @@ public class TiffCodecTests
     }
 
     /// <summary>
-    ///     Same as <see cref="TiffCodec_GetInfo_Seekable_TiledTiff_ThrowsInvalidDataException"/>,
-    ///     but for <see cref="TiffCodec.GetInfo(Stream)"/>'s non-seekable fallback path, proving
-    ///     the shared tiled-TIFF check applies identically to both <c>GetInfo</c> branches.
-    /// </summary>
-    [Fact]
-    public void TiffCodec_GetInfo_NonSeekable_TiledTiff_ThrowsInvalidDataException()
-    {
-        var file = new TestTiffBuilder(false)
-            .Add(TagImageWidth, TypeLong, 16)
-            .Add(TagImageLength, TypeLong, 16)
-            .Add(TagBitsPerSample, TypeShort, 8, 8, 8)
-            .Add(TagCompression, TypeShort, 1)
-            .Add(TagPhotometricInterpretation, TypeShort, 2)
-            .Add(TagSamplesPerPixel, TypeShort, 3)
-            .Add(TagPlanarConfiguration, TypeShort, 1)
-            .Add(TagTileWidth, TypeLong, 16)
-            .Add(TagTileLength, TypeLong, 16)
-            .Build();
-
-        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new NonSeekableStream(new MemoryStream(file))));
-    }
-
-    /// <summary>
     ///     Regression test for finding #7: the seekable-stream TIFF data source used to seek to
     ///     each requested TIFF-file-relative position as an absolute offset from byte 0 of the
     ///     underlying stream, ignoring wherever the caller's stream was actually positioned when
@@ -1585,38 +1562,137 @@ public class TiffCodecTests
     }
 
     /// <summary>
-    ///     Proves that GetInfo falls back to buffering the whole stream and reusing Load's
-    ///     directory-parsing path when given a non-seekable stream, still returning the correct
-    ///     dimensions, channel count, and alpha flag.
+    ///     Proves that GetInfo throws NotSupportedException immediately for a non-seekable
+    ///     stream, even when that stream contains a completely valid, well-formed TIFF image and
+    ///     its <c>Position</c>/<c>Read</c> members would otherwise work perfectly fine. Uses
+    ///     <see cref="FunctionallySeekableButCanSeekFalseStream"/> (which reports
+    ///     <c>CanSeek == false</c> but otherwise forwards every member to a fully functional inner
+    ///     <see cref="MemoryStream"/>) rather than <see cref="NonSeekableStream"/>, so that this
+    ///     test genuinely exercises GetInfo's dedicated seekable-stream guard: if that guard were
+    ///     removed, GetInfo would successfully parse the valid TIFF bytes and return an
+    ///     <see cref="ImageInfo"/> without throwing at all, rather than incidentally still
+    ///     throwing <see cref="NotSupportedException"/> from some unrelated stream member.
     /// </summary>
     [Fact]
-    public void TiffCodec_GetInfo_NonSeekable_Rgba_FallsBackAndReturnsExpectedInfo()
+    public void TiffCodec_GetInfo_NonSeekableStream_ThrowsNotSupportedException()
     {
-        var file = StandardRgbaBuilder(false, 3, 2, 1, 2)
-            .WithStrips(new byte[3 * 4 * 2])
-            .Build();
-        using var stream = new NonSeekableStream(new MemoryStream(file));
-
-        var info = TiffCodec.GetInfo(stream);
-
-        Assert.Equal(new ImageInfo(3, 2, 4, true), info);
-    }
-
-    /// <summary>
-    ///     Proves that GetInfo's non-seekable fallback also returns the correct result for a
-    ///     no-alpha RGB image.
-    /// </summary>
-    [Fact]
-    public void TiffCodec_GetInfo_NonSeekable_Rgb_FallsBackAndReturnsExpectedInfo()
-    {
+        // Arrange
         var file = StandardRgbBuilder(false, 3, 2, 1, 2)
             .WithStrips(new byte[3 * 3 * 2])
             .Build();
-        using var stream = new NonSeekableStream(new MemoryStream(file));
+        using var stream = new FunctionallySeekableButCanSeekFalseStream(new MemoryStream(file));
 
-        var info = TiffCodec.GetInfo(stream);
+        // Act / Assert
+        Assert.Throws<NotSupportedException>(() => TiffCodec.GetInfo(stream));
+    }
 
-        Assert.Equal(new ImageInfo(3, 2, 3, false), info);
+    /// <summary>
+    ///     Proves that GetInfo throws NotSupportedException for a non-seekable stream before
+    ///     reading any bytes from it at all: wraps a stream whose <c>Read</c> throws
+    ///     <see cref="InvalidOperationException"/> (rather than merely tolerating a read), so
+    ///     that if the seekable-stream guard were ever bypassed or reordered after some other read,
+    ///     the test would fail with the wrong exception type instead of silently passing.
+    ///     Deliberately avoids <see cref="NonSeekableStream"/> here, since its
+    ///     <see cref="Stream.Position"/> getter itself always throws
+    ///     <see cref="NotSupportedException"/>, which would let this regression test pass even if
+    ///     GetInfo's dedicated seekable-stream guard were removed entirely (the incidental exception
+    ///     from touching <c>Position</c> would mask the missing guard).
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_NonSeekableStream_ThrowsBeforeReadingAnyBytes()
+    {
+        // Arrange
+        using var stream = new ReadThrowsNonSeekableStream();
+
+        // Act / Assert
+        Assert.Throws<NotSupportedException>(() => TiffCodec.GetInfo(stream));
+    }
+
+    /// <summary>
+    ///     A test-only stream that reports <see cref="CanSeek"/> as <see langword="false"/> while
+    ///     forwarding <see cref="Position"/>, <see cref="Seek"/>, <see cref="Read(byte[], int, int)"/>,
+    ///     and <see cref="Length"/> to a fully functional inner stream, used only to prove
+    ///     <see cref="TiffCodec.GetInfo(Stream)"/> rejects a non-seekable stream via its own
+    ///     dedicated <see cref="NotSupportedException"/> guard rather than merely happening to
+    ///     surface some other exception a particular stream implementation's members throw when
+    ///     touched.
+    /// </summary>
+    private sealed class FunctionallySeekableButCanSeekFalseStream(Stream inner) : Stream
+    {
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => inner.Length;
+
+        public override long Position
+        {
+            get => inner.Position;
+            set => inner.Position = value;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, count);
+
+        public override void Flush() => inner.Flush();
+
+        public override long Seek(long offset, SeekOrigin origin) => inner.Seek(offset, origin);
+
+        public override void SetLength(long value) => inner.SetLength(value);
+
+        public override void Write(byte[] buffer, int offset, int count) => inner.Write(buffer, offset, count);
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                inner.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+    }
+
+    /// <summary>
+    ///     A test-only, non-seekable stream whose <see cref="Position"/> getter/setter and
+    ///     <see cref="Read(byte[], int, int)"/> both throw <see cref="InvalidOperationException"/>
+    ///     (not <see cref="NotSupportedException"/>), used only to prove
+    ///     <see cref="TiffCodec.GetInfo(Stream)"/> rejects a non-seekable stream via its own
+    ///     dedicated <see cref="NotSupportedException"/> guard before touching <c>Position</c> or
+    ///     <c>Read</c> at all, rather than merely happening to surface some other exception a
+    ///     particular stream implementation's members throw.
+    /// </summary>
+    private sealed class ReadThrowsNonSeekableStream : Stream
+    {
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new InvalidOperationException("Length must not be read.");
+
+        public override long Position
+        {
+            get => throw new InvalidOperationException("Position must not be read.");
+            set => throw new InvalidOperationException("Position must not be set.");
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            throw new InvalidOperationException("Read must not be called.");
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) =>
+            throw new InvalidOperationException("Seek must not be called.");
+
+        public override void SetLength(long value) => throw new InvalidOperationException("SetLength must not be called.");
+
+        public override void Write(byte[] buffer, int offset, int count) =>
+            throw new InvalidOperationException("Write must not be called.");
     }
 
     /// <summary>
@@ -1704,14 +1780,13 @@ public class TiffCodecTests
 
     /// <summary>
     ///     Regression test for the historical architectural divergence between GetInfo's seekable
-    ///     and non-seekable code paths: when SamplesPerPixel is absent, the seekable path used to
-    ///     default it to 1 while the non-seekable fallback (reusing Load's parser) correctly
-    ///     defaulted it to BitsPerSample's entry count. Proves that, for the exact same file
-    ///     bytes, both a seekable MemoryStream and a NonSeekableStream now return an identical
-    ///     ImageInfo with Channels == 3 (not 1).
+    ///     and (formerly-existing) non-seekable code paths: when SamplesPerPixel is absent, the
+    ///     seekable path used to default it to 1 while the non-seekable fallback (reusing Load's
+    ///     parser) correctly defaulted it to BitsPerSample's entry count. Proves the seekable path
+    ///     now defaults Channels to BitsPerSample's entry count (3), not 1.
     /// </summary>
     [Fact]
-    public void TiffCodec_GetInfo_SeekableAndNonSeekable_SamplesPerPixelTagOmitted_ReturnIdenticalImageInfo()
+    public void TiffCodec_GetInfo_Seekable_SamplesPerPixelTagOmitted_DefaultsToBitsPerSampleCount()
     {
         // Arrange: build a valid RGB TIFF (BitsPerSample = 8,8,8) with no SamplesPerPixel tag
         const int width = 3;
@@ -1720,26 +1795,24 @@ public class TiffCodecTests
             .WithStrips(new byte[width * height * 3])
             .Build();
 
-        // Act: read the same bytes via a seekable stream and via a non-seekable stream
+        // Act
         var seekableInfo = TiffCodec.GetInfo(new MemoryStream(file));
-        var nonSeekableInfo = TiffCodec.GetInfo(new NonSeekableStream(new MemoryStream(file)));
 
-        // Assert: both paths agree, and both default Channels to BitsPerSample's entry count (3)
+        // Assert: Channels defaults to BitsPerSample's entry count (3)
         var expected = new ImageInfo(width, height, 3, false);
         Assert.Equal(expected, seekableInfo);
-        Assert.Equal(expected, nonSeekableInfo);
     }
 
     /// <summary>
     ///     Regression test for the historical architectural divergence between GetInfo's seekable
-    ///     and non-seekable code paths: the seekable path used to skip most of
+    ///     and (formerly-existing) non-seekable code paths: the seekable path used to skip most of
     ///     ReadTiffImageInfo's format-support validation (including the BitsPerSample == 8 check),
     ///     so a file rejected by the non-seekable fallback (and by Load) could still succeed on
-    ///     the seekable path. Proves both paths now throw InvalidDataException identically for an
+    ///     the seekable path. Proves the seekable path now throws InvalidDataException for an
     ///     unsupported bit depth.
     /// </summary>
     [Fact]
-    public void TiffCodec_GetInfo_SeekableAndNonSeekable_UnsupportedBitsPerSample_BothThrowInvalidDataException()
+    public void TiffCodec_GetInfo_Seekable_UnsupportedBitsPerSample_ThrowsInvalidDataException()
     {
         // Arrange: build an otherwise-valid RGB TIFF declaring 16 bits per sample (unsupported)
         const int width = 3;
@@ -1755,9 +1828,8 @@ public class TiffCodecTests
             .Add(TagPlanarConfiguration, TypeShort, 1);
         var file = builder.WithStrips(new byte[width * height * 3 * 2]).Build();
 
-        // Act / Assert: both a seekable and a non-seekable stream reject the file identically
+        // Act / Assert: the seekable stream rejects the file
         Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(file)));
-        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new NonSeekableStream(new MemoryStream(file))));
     }
 
     /// <summary>
@@ -1818,40 +1890,6 @@ public class TiffCodecTests
     }
 
     /// <summary>
-    ///     Regression test: <see cref="TiffCodec.GetInfo(Stream)"/>'s non-seekable fallback used
-    ///     to buffer the entire remainder of the stream via <c>Stream.CopyTo</c> before parsing
-    ///     any tag, so a non-seekable stream (for example a network stream) many megabytes larger
-    ///     than any real TIFF header/IFD needs to be would force this "cheap pre-decode bomb
-    ///     triage" API to allocate and read the whole thing. Builds a small, entirely valid TIFF
-    ///     whose IFD sits at the very start of the file, followed by several megabytes of trailing
-    ///     padding that a genuine probe never needs to inspect, wraps it in a
-    ///     <see cref="NonSeekableStream"/>, and proves the underlying stream is never read past
-    ///     <c>MaxNonSeekableProbeBytes</c> (1 MiB) - the fixed code stops buffering once the cap is
-    ///     reached (and, for this fixture, well before it, since everything needed is resolved from
-    ///     the first few dozen bytes), whereas the vulnerable code read the full multi-megabyte
-    ///     stream every time.
-    /// </summary>
-    [Fact]
-    public void TiffCodec_GetInfo_NonSeekable_LargeStream_NeverReadsPastProbeLimit()
-    {
-        const int trailingPaddingLength = 5_000_000;
-        var file = StandardRgbBuilder(false, 3, 2, 1, 2)
-            .WithStrips(new byte[3 * 3 * 2])
-            .Build();
-        var fileWithPadding = new byte[file.Length + trailingPaddingLength];
-        file.CopyTo(fileWithPadding, 0);
-
-        var inner = new MemoryStream(fileWithPadding);
-        using var stream = new NonSeekableStream(inner);
-
-        var info = TiffCodec.GetInfo(stream);
-
-        Assert.Equal(new ImageInfo(3, 2, 3, false), info);
-        Assert.True(fileWithPadding.Length > 1_048_576, "Test fixture must exceed the probe cap.");
-        Assert.True(inner.Position <= 1_048_576, "GetInfo must not read past the non-seekable probe cap.");
-    }
-
-    /// <summary>
     ///     Regression test for finding #2: a mandatory tag with a declared value <c>Count</c> of
     ///     0 used to flow through <c>ReadTagValues</c> as an empty array, then throw
     ///     <see cref="IndexOutOfRangeException"/> (not the documented
@@ -1879,18 +1917,6 @@ public class TiffCodecTests
         var file = BuildFileWithZeroCountImageWidth();
 
         Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(file)));
-    }
-
-    /// <summary>
-    ///     Same as <see cref="TiffCodec_Load_ImageWidthZeroCount_ThrowsInvalidDataExceptionNotIndexOutOfRange"/>,
-    ///     for <see cref="TiffCodec.GetInfo(Stream)"/>'s non-seekable fallback path.
-    /// </summary>
-    [Fact]
-    public void TiffCodec_GetInfo_NonSeekable_ImageWidthZeroCount_ThrowsInvalidDataExceptionNotIndexOutOfRange()
-    {
-        var file = BuildFileWithZeroCountImageWidth();
-
-        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new NonSeekableStream(new MemoryStream(file))));
     }
 
     /// <summary>
@@ -1940,18 +1966,6 @@ public class TiffCodecTests
     }
 
     /// <summary>
-    ///     Same as <see cref="TiffCodec_Load_IfdOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException"/>,
-    ///     for <see cref="TiffCodec.GetInfo(Stream)"/>'s non-seekable fallback path.
-    /// </summary>
-    [Fact]
-    public void TiffCodec_GetInfo_NonSeekable_IfdOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException()
-    {
-        var file = BuildHeaderOnlyFileWithIfdOffset(3_000_000_000);
-
-        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new NonSeekableStream(new MemoryStream(file))));
-    }
-
-    /// <summary>
     ///     Builds an 8-byte TIFF header (no IFD data at all) declaring the given IFD offset, used
     ///     only by the finding #2 IFD-offset-overflow regression tests above.
     /// </summary>
@@ -1994,18 +2008,6 @@ public class TiffCodecTests
         var file = BuildFileWithBitsPerSampleOverride(count: 3, valueOrOffset: 3_000_000_000);
 
         Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(file)));
-    }
-
-    /// <summary>
-    ///     Same as <see cref="TiffCodec_Load_OutOfLineTagOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException"/>,
-    ///     for <see cref="TiffCodec.GetInfo(Stream)"/>'s non-seekable fallback path.
-    /// </summary>
-    [Fact]
-    public void TiffCodec_GetInfo_NonSeekable_OutOfLineTagOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException()
-    {
-        var file = BuildFileWithBitsPerSampleOverride(count: 3, valueOrOffset: 3_000_000_000);
-
-        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new NonSeekableStream(new MemoryStream(file))));
     }
 
     /// <summary>
@@ -2076,39 +2078,6 @@ public class TiffCodecTests
         Assert.True(
             allocatedDuring < maxExpectedAllocatedBytes,
             $"Expected no large allocation, but {allocatedDuring:N0} bytes were allocated.");
-    }
-
-    /// <summary>
-    ///     Same fixture as <see cref="TiffCodec_GetInfo_Seekable_BitsPerSampleCountImplausiblyLarge_ThrowsWithoutLargeAllocation"/>,
-    ///     verified for <see cref="TiffCodec.GetInfo(Stream)"/>'s non-seekable fallback path.
-    ///     Only the exception type is asserted here (not an allocation bound): the non-seekable
-    ///     path buffers the entire stream up front by design (a pre-existing, documented, and
-    ///     unrelated allocation), so a large real fixture file's buffering allocation would make
-    ///     an allocation-bound assertion meaningless for this path; the cardinality cap's own
-    ///     effect (rejecting before the <c>uint[]</c> array allocation) is still exercised and
-    ///     is what the exception-type/message assertion below proves.
-    /// </summary>
-    [Fact]
-    public void TiffCodec_GetInfo_NonSeekable_BitsPerSampleCountImplausiblyLarge_ThrowsInvalidDataException()
-    {
-        const uint bitsPerSampleCount = 2_000_000;
-        const int ifdEndOffset = 50;
-        var file = new byte[ifdEndOffset + (bitsPerSampleCount * 2)];
-
-        file[0] = (byte)'I';
-        file[1] = (byte)'I';
-        file[2] = 42;
-        file[4] = 8;
-        file[8] = 3; // entry count = 3
-
-        WriteMaliciousEntry(file, 0, TagImageWidth, TypeLong, count: 1, valueOrOffset: 1);
-        WriteMaliciousEntry(file, 1, TagImageLength, TypeLong, count: 1, valueOrOffset: 1);
-        WriteMaliciousEntry(file, 2, TagBitsPerSample, TypeShort, bitsPerSampleCount, (uint)ifdEndOffset);
-
-        var ex = Assert.Throws<InvalidDataException>(
-            () => TiffCodec.GetInfo(new NonSeekableStream(new MemoryStream(file))));
-
-        Assert.Contains("implausibly large declared value count", ex.Message);
     }
 
     /// <summary>

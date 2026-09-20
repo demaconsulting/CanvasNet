@@ -3,9 +3,10 @@ namespace DemaConsulting.CanvasNet.Tests.TestSupport;
 /// <summary>
 ///     A test-only <see cref="Stream"/> wrapper that forces <see cref="CanSeek"/> to
 ///     <see langword="false"/> and rejects any attempt to seek, used to exercise a codec's
-///     non-seekable fallback path (for example <see cref="global::CanvasNet.Codecs.TiffCodec.GetInfo(System.IO.Stream)"/>'s
-///     full-buffer fallback) with a stream that behaves like a genuinely forward-only source such
-///     as a network stream.
+///     non-seekable-stream rejection path (for example
+///     <see cref="global::CanvasNet.Codecs.TiffCodec.GetInfo(System.IO.Stream)"/>'s
+///     <see cref="NotSupportedException"/> guard) with a stream that behaves like a genuinely
+///     forward-only source such as a network stream.
 /// </summary>
 /// <remarks>
 ///     Wraps an inner, fully readable stream (typically a <see cref="MemoryStream"/> containing a

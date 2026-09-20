@@ -51,8 +51,9 @@ namespace CanvasNet.Codecs;
 ///             <description>
 ///                 TIFF: <see cref="Channels"/> is the <c>SamplesPerPixel</c> tag's value,
 ///                 defaulting to <c>BitsPerSample</c>'s entry count when the tag is
-///                 absent, identically on both the seekable and non-seekable probe paths
-///                 (both paths resolve every tag through the same validating parser);
+///                 absent, resolved through the same validating parser for every seekable
+///                 stream (a seekable stream is required; a non-seekable stream causes
+///                 <c>GetInfo</c> to throw <see cref="NotSupportedException"/> immediately);
 ///                 <see cref="HasAlpha"/> is <see langword="true"/> only for an RGB image
 ///                 with 4 samples per pixel and a valid <c>ExtraSamples</c> tag value of
 ///                 2.
