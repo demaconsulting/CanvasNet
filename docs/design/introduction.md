@@ -64,8 +64,8 @@ diagram or the prose below.
 ![Software Structure](SoftwareStructureView.svg)
 
 CanvasNet is organized into two subsystems under the system level: the `Canvas` subsystem
-(the `Surface` and `Rgba32` units, namespace `CanvasNet.Canvas`) and the `Codecs` subsystem
-(the `BmpCodec`, `PngCodec`, `TiffCodec`, and `JpegCodec` units, namespace `CanvasNet.Codecs`,
+(the `Surface` and `Rgba32` units, namespace `DemaConsulting.CanvasNet.Canvas`) and the `Codecs` subsystem
+(the `BmpCodec`, `PngCodec`, `TiffCodec`, and `JpegCodec` units, namespace `DemaConsulting.CanvasNet.Codecs`,
 flat — no further nesting). A third subsystem, `Drawing`, is reserved for future work (shapes,
 brushes, pens, transforms) and has no folder, namespace, or documentation yet. As additional
 functionality is added, further subsystems and nested subsystems would organize related units and

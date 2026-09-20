@@ -35,7 +35,7 @@ compliance evidence is generated automatically on every CI run.
 Install the library using the .NET CLI:
 
 ```bash
-dotnet add package CanvasNet
+dotnet add package DemaConsulting.CanvasNet
 ```
 
 # Usage
@@ -43,8 +43,8 @@ dotnet add package CanvasNet
 ## Basic Usage
 
 ```csharp
-using CanvasNet.Canvas;
-using CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
 
 var surface = new Surface(4, 4);
 surface[0, 0] = new Rgba32(255, 0, 0, 255); // opaque red pixel
@@ -679,8 +679,8 @@ Saves a `Surface` to a file as a JPEG image, overwriting any existing file at `p
 ## Example 1: Surface Pixel Access
 
 ```csharp
-using CanvasNet.Canvas;
-using CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
 
 var surface = new Surface(4, 4);
 surface[1, 1] = new Rgba32(255, 0, 0, 255); // opaque red pixel
@@ -691,8 +691,8 @@ Console.WriteLine(pixel.R); // Output: 255
 ## Example 2: Surface Crop
 
 ```csharp
-using CanvasNet.Canvas;
-using CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
 
 var surface = new Surface(4, 4);
 surface[1, 1] = new Rgba32(0, 255, 0, 255); // opaque green pixel
@@ -706,8 +706,8 @@ Console.WriteLine(cropped[0, 0].G); // Output: 255
 ## Example 3: BMP Load/Save
 
 ```csharp
-using CanvasNet.Canvas;
-using CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
 
 var surface = new Surface(2, 2);
 surface[0, 0] = new Rgba32(255, 0, 0, 128); // semi-transparent red pixel
@@ -726,8 +726,8 @@ Console.WriteLine(loaded24[0, 0].A); // Output: 255
 ## Example 4: PNG Load/Save
 
 ```csharp
-using CanvasNet.Canvas;
-using CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
 
 var surface = new Surface(2, 2);
 surface[0, 0] = new Rgba32(0, 255, 0, 128); // semi-transparent green pixel
@@ -746,8 +746,8 @@ Console.WriteLine(loadedRgb[0, 0].A); // Output: 255
 ## Example 5: TIFF Load/Save
 
 ```csharp
-using CanvasNet.Canvas;
-using CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
 
 var surface = new Surface(2, 2);
 surface[0, 0] = new Rgba32(0, 0, 255, 128); // semi-transparent blue pixel
@@ -766,8 +766,8 @@ Console.WriteLine(loadedLzw[0, 0].B); // Output: 255
 ## Example 6: JPEG Load/Save
 
 ```csharp
-using CanvasNet.Canvas;
-using CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
 
 var surface = new Surface(16, 16);
 surface[0, 0] = new Rgba32(255, 128, 0, 255); // opaque orange pixel
@@ -784,7 +784,7 @@ Console.WriteLine(Math.Abs(loaded[0, 0].R - surface[0, 0].R) <= 15); // Output: 
 ## Example 7: Compositing a Semi-Transparent Color Over a Background
 
 ```csharp
-using CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Canvas;
 
 var background = new Surface(1, 1);
 background[0, 0] = new Rgba32(0, 255, 0, 255); // opaque green background
@@ -802,8 +802,8 @@ Console.WriteLine($"{result.R} {result.G} {result.B} {result.A}"); // Output: 12
 ## Example 8: Header-Only Probing Before Load (Decompression-Bomb Triage)
 
 ```csharp
-using CanvasNet.Canvas;
-using CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
 using System.IO;
 
 // GetInfo reads only the header - never pixel data - so it is safe to call on an untrusted or

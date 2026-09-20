@@ -10,14 +10,14 @@ CanvasNet is a .NET library providing a canvas-based drawing and rendering API, 
 DEMA Consulting best practices. The system consists of two implemented subsystems, plus one
 subsystem reserved for future work:
 
-- **Canvas subsystem** (namespace `CanvasNet.Canvas`, folder
+- **Canvas subsystem** (namespace `DemaConsulting.CanvasNet.Canvas`, folder
   `src/DemaConsulting.CanvasNet/Canvas/`): the pixel-buffer primitives on which all other
   functionality builds — the `Surface` unit (a mutable, in-memory 32-bit RGBA pixel buffer with
   span-based row access and independent-copy cropping) and the `Rgba32` unit (a single-pixel
   value type, documented inline within `Surface`). See _Canvas Subsystem Design_ (`canvas.md`).
-- **Codecs subsystem** (namespace `CanvasNet.Codecs`, folder
+- **Codecs subsystem** (namespace `DemaConsulting.CanvasNet.Codecs`, folder
   `src/DemaConsulting.CanvasNet/Codecs/`, flat — no further nesting): four hand-rolled image
-  format codecs, each converting to and from a `CanvasNet.Canvas.Surface` pixel buffer —
+  format codecs, each converting to and from a `DemaConsulting.CanvasNet.Canvas.Surface` pixel buffer —
   `BmpCodec` (uncompressed 24-bit/32-bit Windows BMP), `PngCodec` (8-bit-per-channel Truecolor
   and Truecolor-with-alpha, non-interlaced PNG), `TiffCodec` (8-bit-per-sample RGB, RGBA, and
   Grayscale, strip-based TIFF 6.0 with None/PackBits/LZW/Deflate compression, either byte order),

@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace CanvasNet.Canvas;
+namespace DemaConsulting.CanvasNet.Canvas;
 
 /// <summary>
 ///     Represents a single 32-bit RGBA pixel (8 bits per channel).

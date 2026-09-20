@@ -1,8 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
-using CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Canvas;
 
-namespace CanvasNet.Codecs;
+namespace DemaConsulting.CanvasNet.Codecs;
 
 /// <summary>
 ///     Provides hand-rolled, dependency-free loading and saving of a common real-world subset of
