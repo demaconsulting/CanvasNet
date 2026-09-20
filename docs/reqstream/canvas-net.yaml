@@ -507,13 +507,16 @@ sections:
           via GetInfo, given a stream or a file path, without decoding strip data and without
           enforcing the maximum permitted dimension. For a seekable stream, GetInfo shall seek
           directly to the IFD instead of buffering the whole file; for a non-seekable stream,
-          GetInfo shall fall back to buffering the whole stream.
+          GetInfo shall fall back to buffering the stream up to a fixed size cap, rejecting
+          metadata that lies beyond it rather than buffering without bound.
         tags: [system]
         justification: |
           Callers need to inspect a TIFF's declared dimensions and channel layout - for example to
           reject unreasonably large images before allocating a Surface - without paying the cost
           of decoding strip data, and ideally without buffering the whole file when the stream
-          supports seeking.
+          supports seeking. The non-seekable fallback's buffering must itself be bounded, so a
+          hostile or merely oversized non-seekable stream cannot force this cheap, pre-decode
+          triage API to allocate an unbounded amount of memory.
         children:
           - CanvasNet-Codecs-TiffGetInfo
         tests:
@@ -524,6 +527,7 @@ sections:
           - TiffCodec_GetInfo_NonSeekable_Rgb_FallsBackAndReturnsExpectedInfo
           - TiffCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows
           - TiffCodec_GetInfo_SucceedsWithTruncatedStripData_ButLoadThrows
+          - TiffCodec_GetInfo_NonSeekable_LargeStream_NeverReadsPastProbeLimit
 
       - id: CanvasNet-Lib-TiffGetInfoValidation
         title: >-

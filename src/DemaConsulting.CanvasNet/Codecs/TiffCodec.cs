@@ -525,10 +525,10 @@ public static class TiffCodec
 
     /// <summary>
     ///     An <see cref="ITiffDataSource"/> backed by a fully-buffered <c>byte[]</c>, used by
-    ///     <see cref="Load(Stream)"/> (always) and by <see cref="GetInfo(Stream)"/>'s
-    ///     non-seekable fallback (after buffering the whole stream). Preserves the exact bounds
-    ///     checking (<see cref="CheckBounds"/>) this codec has always performed for byte-array
-    ///     access.
+    ///     <see cref="Load(Stream)"/> (always, unbounded) and by <see cref="GetInfo(Stream)"/>'s
+    ///     non-seekable fallback (after buffering up to <see cref="MaxNonSeekableProbeBytes"/> of
+    ///     the stream). Preserves the exact bounds checking (<see cref="CheckBounds"/>) this codec
+    ///     has always performed for byte-array access.
     /// </summary>
     private sealed class ByteArrayTiffDataSource(byte[] file) : ITiffDataSource
     {

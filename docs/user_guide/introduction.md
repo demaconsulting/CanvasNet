@@ -519,11 +519,15 @@ for - the header, IFD entries, and any out-of-line tag value needed (for example
 `BitsPerSample` tag) - resolving `ImageWidth`, `ImageLength`, `BitsPerSample`, `SamplesPerPixel`,
 `Compression`, `PhotometricInterpretation`, `PlanarConfiguration`, `Predictor`, and `ExtraSamples`,
 and never reading `StripOffsets`/`RowsPerStrip`/`StripByteCounts` or any strip/pixel data. When
-`stream.CanSeek` is `false`, `GetInfo` instead buffers the entire stream and backs the same parser
-with a `ByteArrayTiffDataSource`, still stopping short of decoding strips. Because both paths call
-the identical parser, `HasAlpha` (derived from `ExtraSamples`/`SamplesPerPixel`) and every other
-validated field are computed identically regardless of whether the stream is seekable - there is
-no discrepancy between the two paths.
+`stream.CanSeek` is `false`, `GetInfo` instead buffers up to a fixed `MaxNonSeekableProbeBytes`
+cap (1 MiB) of the stream and backs the same parser with a `ByteArrayTiffDataSource`, still
+stopping short of decoding strips; if the IFD or a needed tag value lies beyond the cap, `GetInfo`
+throws `InvalidDataException` rather than buffering without bound. Because both paths call the
+identical parser, `HasAlpha` (derived from `ExtraSamples`/`SamplesPerPixel`) and every other
+validated field are computed identically regardless of whether the stream is seekable, for any
+file whose IFD and needed tag values lie within the non-seekable cap - the only intentional
+divergence between the two paths is that a non-seekable stream whose data lies beyond the cap is
+rejected where an equivalent seekable stream would still succeed.
 
 **Exceptions:**
 

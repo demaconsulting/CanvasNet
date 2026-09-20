@@ -429,13 +429,17 @@ sections:
               The Codecs subsystem shall report a TIFF's width, height, samples-per-pixel, and alpha
               presence via GetInfo, given a stream or a file path, without decoding strip data and
               without enforcing Surface.MaxDimension, seeking directly to the IFD when the stream
-              supports seeking and falling back to buffering the whole stream otherwise, rejecting a
-              tiled TIFF and resolving stream-relative positions from wherever the caller's stream was
-              actually positioned when GetInfo was invoked, identically to Load.
+              supports seeking and falling back to buffering the stream up to a fixed size cap
+              otherwise (rejecting metadata that lies beyond that cap with InvalidDataException
+              rather than buffering without bound), rejecting a tiled TIFF and resolving
+              stream-relative positions from wherever the caller's stream was actually positioned
+              when GetInfo was invoked, identically to Load.
             justification: |
               Callers need to inspect a TIFF's declared dimensions and channel layout without paying
               the cost of decoding strip data, ideally via a handful of small seeks rather than
-              buffering the whole file.
+              buffering the whole file. The non-seekable fallback's buffering must itself be
+              bounded, so a hostile or merely oversized non-seekable stream cannot force this
+              cheap, pre-decode triage API to allocate an unbounded amount of memory.
             children:
               - CanvasNet-Codecs-TiffCodec-GetInfo
               - CanvasNet-Codecs-TiffCodec-GetInfoTiledRejection
