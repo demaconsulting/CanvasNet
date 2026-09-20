@@ -1687,8 +1687,9 @@ public class TiffCodecTests
     ///     force a huge up-front allocation on the very fast path <see cref="TiffCodec.GetInfo(Stream)"/>
     ///     exists to make safe for untrusted input. Builds a 66-byte file whose
     ///     <c>BitsPerSample</c> entry declares 900,000,000 out-of-line SHORT values (~1.8 GB) at
-    ///     an offset that only has 16 real trailing bytes, and proves the seekable path now fails
-    ///     fast with <see cref="InvalidDataException"/> instead of attempting the allocation.
+    ///     an offset that only has 16 real trailing bytes, and proves (by measuring actual bytes
+    ///     allocated, not wall-clock time) that the seekable path rejects the out-of-range read
+    ///     before attempting the allocation, rather than merely failing quickly afterward.
     /// </summary>
     [Fact]
     public void TiffCodec_GetInfo_Seekable_MaliciousOutOfLineTagLength_ThrowsWithoutUnboundedAllocation()
@@ -1710,17 +1711,27 @@ public class TiffCodecTests
         WriteMaliciousEntry(file, 1, TagImageLength, TypeLong, 1, 1);
         WriteMaliciousEntry(file, 2, TagBitsPerSample, TypeShort, maliciousCount, 50);
 
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        // Measure actual bytes allocated by the call, not wall-clock time: a modern allocator can
+        // zero and hand back a ~1.8 GB buffer in single-digit milliseconds, and the resulting
+        // InvalidDataException's message text is identical whether it comes from the (fixed)
+        // bounds check or from the pre-existing end-of-stream check inside the (buggy) attempted
+        // read - so neither timing nor message content reliably distinguishes the vulnerable code
+        // from the fixed code. The allocated-byte count does: the bug allocates the full
+        // ~1.8 GB claimed by the malicious Count before discovering the stream is too short.
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
         var ex = Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(file)));
-        stopwatch.Stop();
+        var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
 
         Assert.Contains("tag value array", ex.Message);
 
-        // A bounds-checked failure is near-instant; the pre-fix code would instead attempt a
-        // ~1.8 GB allocation, taking vastly longer (or throwing OutOfMemoryException instead).
+        // The fixed code rejects the range against stream.Length before allocating anything
+        // beyond small, fixed-size working buffers; the vulnerable code allocates ~1.8 GB
+        // (900,000,000 SHORTs * 2 bytes) before failing. 1 MB is a generous margin above any
+        // legitimate fixed-size buffer this call path could use.
+        const long maxExpectedAllocatedBytes = 1024 * 1024;
         Assert.True(
-            stopwatch.ElapsedMilliseconds < 2000,
-            $"Expected a fast bounds-check failure, took {stopwatch.ElapsedMilliseconds}ms.");
+            allocatedDuring < maxExpectedAllocatedBytes,
+            $"Expected no large allocation, but {allocatedDuring:N0} bytes were allocated.");
     }
 
     /// <summary>
