@@ -82,8 +82,65 @@ per-channel tolerance rather than exact equality because JPEG is lossy; passing 
 channel of the reloaded pixel to remain within the documented tolerance bound while alpha remains
 opaque.
 
+### Integration: Composite Color Over Surface Returns Expected Pixel
+
+**Test**: `CanvasNet_SystemIntegration_CompositeColorOverSurface_ReturnsExpectedPixel`
+
+Exercises end-to-end system behavior for the `Surface` unit's compositing operation: constructs an
+opaque background `Surface`, composites a semi-transparent solid color over it via
+`Surface.CompositeOver(Rgba32)`, then reads the result back through the public indexer. Asserts
+the resulting pixel exactly matches the expected Porter-Duff "over" compositing result, confirming
+the system's public compositing API integrates correctly with `Surface`.
+
+### Integration: Composite Surface Over Surface Returns Expected Pixel
+
+**Test**: `CanvasNet_SystemIntegration_CompositeSurfaceOverSurface_ReturnsExpectedPixel`
+
+Exercises end-to-end system behavior for the `Surface` unit's `CompositeOver(Surface)` overload:
+constructs an opaque background `Surface` and a semi-transparent foreground `Surface`, both
+through the public API, composites the foreground over the background via
+`Surface.CompositeOver(Surface)`, then reads the result back through the public indexer. Asserts
+the resulting pixel exactly matches the expected Porter-Duff "over" compositing result, confirming
+the system's public `CompositeOver(Surface)` API integrates correctly with `Surface`.
+
+### Integration: Premultiply Alpha Returns Expected Pixel
+
+**Test**: `CanvasNet_SystemIntegration_PremultiplyAlpha_ReturnsExpectedPixel`
+
+Exercises end-to-end system behavior for the `Surface` unit's alpha-premultiplication operation:
+constructs a `Surface`, sets a straight-alpha pixel through the public indexer, converts it to
+premultiplied alpha via `Surface.PremultiplyAlpha`, then reads it back. Asserts the resulting pixel
+exactly matches the expected rounded premultiplied value, confirming the system's public
+premultiply API integrates correctly with `Surface`.
+
+### Integration: Unpremultiply Alpha Returns Expected Pixel
+
+**Test**: `CanvasNet_SystemIntegration_UnpremultiplyAlpha_ReturnsExpectedPixel`
+
+Exercises end-to-end system behavior for the `Surface` unit's alpha-unpremultiplication operation:
+constructs a `Surface`, sets a premultiplied-alpha pixel (chosen so the unpremultiplied red channel
+overshoots 255) through the public indexer, converts it to straight alpha via
+`Surface.UnpremultiplyAlpha`, then reads it back. Asserts the resulting pixel exactly matches the
+expected rounded-and-clamped value, confirming the system's public unpremultiply API integrates
+correctly with `Surface`, including its documented clamping behavior.
+
+### Integration: PNG Codec Round-Trip at Boundary Widths Returns Expected Pixels
+
+**Test**: `CanvasNet_SystemIntegration_PngCodecRoundTrip_BoundaryWidths_ReturnsExpectedPixels`
+
+Exercises end-to-end system behavior across the `Surface` and `PngCodec` units at every internal
+row-padding boundary width (1, 15, 16, 17, 31, 32, 33, 100, 257 pixels — straddling the 16-pixel
+padding boundary from both sides): constructs a `Surface` with distinct, non-trivial per-pixel
+values at each boundary width, saves it to an in-memory PNG stream via `PngCodec.Save`, and loads
+it back via `PngCodec.Load`. Asserts every pixel round-trips byte-exactly, confirming that
+`Surface`'s internal row-stride/padding storage detail (owned by the `Surface` unit) is never
+observable through the `PngCodec` unit's save/load API. This is a system-level scenario, not a
+`Surface` unit scenario, because it exercises the `Codecs` → `Surface` integration boundary
+(`PngCodec` depends on `Surface`, not vice versa); a `Surface` unit test may only depend on
+`Surface` itself and its documented dependencies.
+
 ## Acceptance Criteria
 
-A system-level test run passes when all six scenarios above pass without error or exception beyond
-those explicitly asserted. Any unexpected exception, wrong exception type, or wrong return value
-constitutes a failure.
+A system-level test run passes when all eleven scenarios above pass without error or exception
+beyond those explicitly asserted. Any unexpected exception, wrong exception type, or wrong return
+value constitutes a failure.

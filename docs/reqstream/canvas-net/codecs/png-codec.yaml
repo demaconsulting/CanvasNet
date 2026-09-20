@@ -185,6 +185,21 @@ sections:
                 tests:
                   - PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsInvalidDataException
 
+              - id: CanvasNet-Codecs-PngCodec-LoadExceedsMaxDimension
+                title: >-
+                  The PngCodec class shall reject a PNG whose IHDR width or height exceeds
+                  Surface.MaxDimension with InvalidDataException.
+                justification: |
+                  A width or height beyond Surface's maximum permitted dimension would otherwise reach
+                  the Surface constructor unchecked and surface as an ArgumentOutOfRangeException, and
+                  would also make the row-byte-width (width * channels) arithmetic performed before the
+                  Surface is constructed unsafe; validating it against the same bound immediately after
+                  parsing IHDR keeps the documented InvalidDataException contract for all
+                  malformed/unsupported PNG data.
+                tests:
+                  - PngCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException
+                  - PngCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException
+
               - id: CanvasNet-Codecs-PngCodec-LoadCorruptCrc
                 title: >-
                   The PngCodec class shall reject a PNG chunk whose CRC-32 does not match its type and

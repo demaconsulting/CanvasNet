@@ -24,12 +24,14 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 
 - 🖼️ **Pixel Buffer** - Mutable 32-bit RGBA `Surface` with span-based row access
 - ✂️ **Cropping** - Independent-copy cropping for load/crop/save workflows
+- 🌈 **Compositing** - Vectorized alpha premultiply/unpremultiply and Porter-Duff "over"
+  compositing (surface-over-surface and surface-over-constant-color)
 - 📀 **BMP Codec** - Load and save 24-bit and 32-bit uncompressed Windows BMP files
 - 🎨 **PNG Codec** - Load and save 8-bit Truecolor (RGB) and Truecolor-with-alpha (RGBA) PNG files
 - 🖨️ **TIFF Codec** - Load and save 8-bit RGB/RGBA/Grayscale TIFF files with PackBits/LZW/Deflate
 - 🗜️ **JPEG Codec** - Load baseline/progressive JPEG and save baseline 4:2:0 JPEG with quality control
 - ⚡ **Span-Based** - Fast, allocation-conscious row and pixel access
-- 🔄 **Multi-Target** - Supports .NET Standard 2.0, .NET 8, 9, and 10
+- 🔄 **Multi-Target** - Supports .NET 8, 9, and 10
 - 📦 **NuGet Ready** - Easy integration via NuGet package
 
 ## Installation

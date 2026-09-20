@@ -22,9 +22,12 @@ other subsystem: the `Codecs` subsystem depends on `Canvas`, not the other way a
 
 ### Dependencies
 
-N/A - the `Canvas` subsystem has no dependencies beyond the .NET base class library
-(`System.Runtime.InteropServices.MemoryMarshal` and `System.Span<T>`), available on all of
-CanvasNet's target frameworks via the existing `Polyfill` build dependency.
+The `Canvas` subsystem's `Surface` unit has one runtime NuGet dependency, `System.Numerics.Tensors`,
+used exclusively by its vectorized bulk pixel operations (`PremultiplyAlpha`, `UnpremultiplyAlpha`,
+`CompositeOver`) — see _Surface Unit Design_ (`canvas/surface.md`) for details. Beyond that, the
+subsystem has no dependencies other than the .NET base class library
+(`System.Runtime.InteropServices.MemoryMarshal` and `System.Span<T>`), available natively on all
+of CanvasNet's target frameworks.
 
 ### Callers
 

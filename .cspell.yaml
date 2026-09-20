@@ -33,9 +33,12 @@ words:
   - Defilter
   - defiltered
   - defilters
+  - Deinterleave
+  - deinterleaved
   - downsamples
   - DEMA
   - Dema
+  - elementwise
   - FDCT
   - FCHECK
   - FileAssert
@@ -61,6 +64,7 @@ words:
   - subsampled
   - unstuffed
   - upsamples
+  - vectorizing
   - xunit
   - YCCK
   - Paeth
@@ -69,10 +73,17 @@ words:
   - PackBits
   - pHYs
   - Pels
+  - Premultiply
+  - premultiplication
+  - premultiplied
+  - premultiplies
+  - premultiplying
   - Qube
   - reqstream
   - reviewmark
   - Rgba
+  - Reinterleave
+  - reinterleaving
   - Sarif
   - SARIF
   - sarifmark
@@ -84,6 +95,11 @@ words:
   - sysml
   - tEXt
   - Truecolor
+  - Unpremultiply
+  - unpremultiplication
+  - unpremultiplied
+  - unpremultiplies
+  - unpremultiplying
   - versionmark
   - Weasy
   - WeasyPrint

@@ -1273,6 +1273,39 @@ public class TiffCodecTests
     }
 
     /// <summary>
+    ///     Verifies that Load rejects a width exceeding Surface.MaxDimension (8192) with
+    ///     InvalidDataException rather than an ArgumentOutOfRangeException escaping from the
+    ///     Surface constructor, and before any row-byte-width arithmetic derived from the
+    ///     declared width is ever performed.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException()
+    {
+        var width = Surface.MaxDimension + 1;
+        var file = StandardRgbBuilder(false, width, 1, 1, 1)
+            .WithStrips(new byte[width * 3])
+            .Build();
+
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+    }
+
+    /// <summary>
+    ///     Verifies that Load rejects a height exceeding Surface.MaxDimension (8192) with
+    ///     InvalidDataException rather than an ArgumentOutOfRangeException escaping from the
+    ///     Surface constructor.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException()
+    {
+        var height = Surface.MaxDimension + 1;
+        var file = StandardRgbBuilder(false, 1, height, 1, height)
+            .WithStrips(new byte[height * 3])
+            .Build();
+
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+    }
+
+    /// <summary>
     ///     Verifies that Load rejects a file with Planar (2) planar configuration.
     /// </summary>
     [Fact]

@@ -91,23 +91,25 @@ and written by explicit byte composition (bit shifting), never `BitConverter` or
 Reads a PNG image from an open stream. Validates the 8-byte PNG signature, then reads chunks
 until `IEND` is found: each chunk's CRC-32 is validated regardless of type; `IHDR` is parsed and
 validated (bit depth 8; color type 2 or 6; compression method 0; filter method 0; interlace
-method 0); `IDAT` chunk data is concatenated across as many chunks as are present; any other
-chunk type (for example `tEXt`, `pHYs`, `gAMA`) is CRC-validated but otherwise skipped. Once
-`IEND` is reached, the concatenated `IDAT` payload is unwrapped as a zlib stream (2-byte header
-validated, `DeflateStream` inflates the DEFLATE data, the 4-byte Adler-32 trailer is validated
-against the decompressed bytes), then each scanline is defiltered (reconstructing all five
-standard filter types) and unpacked into the destination `Surface`'s rows via
-`Surface.GetRowSpanBytes`, forcing alpha to 255 for RGB source data.
+method 0; width and height are positive and do not exceed `Surface.MaxDimension` (8192) — checked
+before any width/height arithmetic, including the row-byte-width (`width * channels`) computation
+performed both while decoding scanlines and by `Load` itself); `IDAT` chunk data is concatenated
+across as many chunks as are present; any other chunk type (for example `tEXt`, `pHYs`, `gAMA`) is
+CRC-validated but otherwise skipped. Once `IEND` is reached, the concatenated `IDAT` payload is
+unwrapped as a zlib stream (2-byte header validated, `DeflateStream` inflates the DEFLATE data,
+the 4-byte Adler-32 trailer is validated against the decompressed bytes), then each scanline is
+defiltered (reconstructing all five standard filter types) and unpacked into the destination
+`Surface`'s rows via `Surface.GetRowSpanBytes`, forcing alpha to 255 for RGB source data.
 
 **Throws:**
 
 - `ArgumentNullException` — `stream` is null
 - `InvalidDataException` — missing PNG signature; missing, duplicate, or malformed `IHDR`; an
   `IDAT` or `IEND` chunk encountered before `IHDR`; unsupported bit depth, color type, compression
-  method, filter method, or interlace method; any chunk's CRC-32 mismatch; a malformed or
-  unsupported zlib header; an Adler-32 checksum mismatch; an unexpected decompressed data length;
-  an unsupported scanline filter type; or the stream ends before all header, chunk, or pixel data
-  has been read
+  method, filter method, or interlace method; non-positive width or height, or width/height
+  exceeding `Surface.MaxDimension`; any chunk's CRC-32 mismatch; a malformed or unsupported zlib
+  header; an Adler-32 checksum mismatch; an unexpected decompressed data length; an unsupported
+  scanline filter type; or the stream ends before all header, chunk, or pixel data has been read
 
 #### Load(string path)
 

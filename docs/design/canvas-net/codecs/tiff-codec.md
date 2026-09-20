@@ -110,7 +110,10 @@ tag, so that tiled files receive a specific, actionable error rather than a misl
 "missing tag" error. Validates every mandatory tag is present, that `BitsPerSample` is 8 for every
 sample, that `Compression` is one of the four supported values, that
 `PhotometricInterpretation` is Grayscale (1) or RGB (2), that `PlanarConfiguration` is Chunky (1),
-and that `Predictor` (if present) is None (1) or horizontal differencing (2). For RGB images with
+and that `Predictor` (if present) is None (1) or horizontal differencing (2). Also validates that
+`ImageWidth` and `ImageLength` are positive and do not exceed `Surface.MaxDimension` (8192) —
+checked immediately after parsing the mandatory tags and before the row-byte-width
+(`width * samplesPerPixel`) arithmetic used to size and index strip data. For RGB images with
 4 samples per pixel, requires an `ExtraSamples` tag of 2 (unassociated alpha); for 3 samples per
 pixel, alpha is forced to 255. Reads each strip's raw bytes (per `StripOffsets`/
 `StripByteCounts`), decompresses it according to `Compression`, reverses the horizontal predictor
@@ -122,7 +125,8 @@ if `Predictor` is 2, and unpacks each row into the destination `Surface`'s rows 
 - `ArgumentNullException` — `stream` is null
 - `InvalidDataException` — bad byte-order mark or magic number; a tiled TIFF; a missing
   mandatory tag; an unsupported bit depth, compression, photometric interpretation, planar
-  configuration, or predictor value; an RGB image with 4 samples per pixel lacking a correct
+  configuration, or predictor value; non-positive `ImageWidth`/`ImageLength`, or either exceeding
+  `Surface.MaxDimension`; an RGB image with 4 samples per pixel lacking a correct
   `ExtraSamples` tag; mismatched `StripOffsets`/`StripByteCounts` entry counts; strip data that
   does not cover the declared image height; or the stream ends before all header, IFD, or strip
   data has been read

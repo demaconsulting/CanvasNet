@@ -208,6 +208,17 @@ asserts `Load` throws `InvalidDataException`.
 Hand-builds a TIFF declaring a `BitsPerSample` value of 16, and asserts `Load` throws
 `InvalidDataException`.
 
+#### CanvasNet-Codecs-TiffCodec-LoadExceedsMaxDimension: Load Rejects Dimensions Exceeding Surface.MaxDimension
+
+**Tests**: `TiffCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException`,
+`TiffCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException`
+
+Hand-builds a TIFF declaring an `ImageWidth` value one greater than `Surface.MaxDimension`
+(8192), and separately an `ImageLength` value one greater, and asserts `Load` throws
+`InvalidDataException` (not the `ArgumentOutOfRangeException` that would otherwise escape from
+`Surface`'s constructor) in both cases, confirming the dimension check happens before the
+row-byte-width (`width * samplesPerPixel`) arithmetic performed later in `Load`.
+
 #### CanvasNet-Codecs-TiffCodec-LoadUnsupportedPhotometric: Load Rejects Unsupported Photometric Interpretations
 
 **Test**: `TiffCodec_Load_UnsupportedPhotometricPalette_ThrowsInvalidDataException`
@@ -272,7 +283,7 @@ successful load, correct dimensions, and R == G == B per pixel.
 
 A unit test run passes when all test methods above (including each `[Theory]` case) pass without
 error or unexpected exception; any unexpected exception type or wrong return/byte value
-constitutes a failure. Across `TiffCodecTests.cs` and `TiffFixtureTests.cs`, this totals 66 test
-methods (47 in `TiffCodecTests.cs` and 19 in `TiffFixtureTests.cs`, including every `[Theory]`
-case), plus the single system-level integration scenario documented in
-`docs/verification/surface-net.md`.
+constitutes a failure. Across `TiffCodecTests.cs` and `TiffFixtureTests.cs`, this totals 68 test
+methods (49 in `TiffCodecTests.cs` and 19 in `TiffFixtureTests.cs`, including every `[Theory]`
+case), plus the system-level integration scenarios documented in
+`docs/verification/canvas-net.md`.

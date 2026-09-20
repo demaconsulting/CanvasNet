@@ -172,6 +172,17 @@ Builds a minimal PNG declaring each unsupported bit depth in turn, and asserts `
 Builds a minimal PNG declaring interlace method 1 (Adam7), and asserts `Load` throws
 `InvalidDataException`.
 
+#### CanvasNet-Codecs-PngCodec-LoadExceedsMaxDimension: Load Rejects Dimensions Exceeding Surface.MaxDimension
+
+**Tests**: `PngCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException`,
+`PngCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException`
+
+Builds a minimal PNG declaring an IHDR width one greater than `Surface.MaxDimension` (8192), and
+separately a height one greater, and asserts `Load` throws `InvalidDataException` (not the
+`ArgumentOutOfRangeException` that would otherwise escape from `Surface`'s constructor) in both
+cases, confirming the dimension check happens before the width-times-channels row-byte-width
+arithmetic performed elsewhere in `Load`.
+
 #### CanvasNet-Codecs-PngCodec-LoadTruncatedStream: Load Rejects a Truncated Stream
 
 **Test**: `PngCodec_Load_TruncatedStream_ThrowsInvalidDataException`
@@ -219,6 +230,9 @@ bytes), and asserts `Load` throws `InvalidDataException` for every one.
 
 ### Acceptance Criteria
 
-A unit test run passes when all thirty test methods above (including each `[Theory]` case,
-covering the full 175-file PngSuite conformance corpus) pass without error or unexpected
-exception; any unexpected exception type or wrong return/byte value constitutes a failure.
+A unit test run passes when all test methods above pass without error or unexpected exception; any
+unexpected exception type or wrong return/byte value constitutes a failure. Across
+`PngCodecTests.cs` and `PngSuiteTests.cs`, this totals 30 test methods (27 in `PngCodecTests.cs`
+and 3 in `PngSuiteTests.cs`), which expand to a much larger number of executed xUnit test cases
+when every `[Theory]` data row is included, covering the full 175-file PngSuite conformance
+corpus.

@@ -18,6 +18,8 @@ sections:
                   can be stored or manipulated; this is the entry point for all Surface functionality.
                 tests:
                   - Surface_Constructor_ValidDimensions_SetsWidthAndHeight
+                  - Surface_Constructor_WidthAtMaximum_Succeeds
+                  - Surface_Constructor_HeightAtMaximum_Succeeds
 
               - id: CanvasNet-Canvas-Surface-ZeroInitialized
                 title: The Surface class shall initialize a newly constructed pixel buffer to fully transparent.
@@ -46,6 +48,28 @@ sections:
                   - Surface_Constructor_ZeroHeight_ThrowsArgumentOutOfRangeException
                   - Surface_Constructor_NegativeHeight_ThrowsArgumentOutOfRangeException
 
+              - id: CanvasNet-Canvas-Surface-WidthExceedsMaximum
+                title: >-
+                  The Surface class shall reject a width argument exceeding MaxDimension with
+                  ArgumentOutOfRangeException.
+                justification: |
+                  A width beyond the maximum permitted dimension would make the row-stride and
+                  buffer-size arithmetic in the constructor unsafe from plain int overflow; rejecting it
+                  at construction time prevents an instance from ever being created with an unsafe size.
+                tests:
+                  - Surface_Constructor_WidthExceedsMaximum_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Canvas-Surface-HeightExceedsMaximum
+                title: >-
+                  The Surface class shall reject a height argument exceeding MaxDimension with
+                  ArgumentOutOfRangeException.
+                justification: |
+                  A height beyond the maximum permitted dimension would make the row-stride and
+                  buffer-size arithmetic in the constructor unsafe from plain int overflow; rejecting it
+                  at construction time prevents an instance from ever being created with an unsafe size.
+                tests:
+                  - Surface_Constructor_HeightExceedsMaximum_ThrowsArgumentOutOfRangeException
+
               - id: CanvasNet-Canvas-Surface-PixelGet
                 title: The Surface class shall allow reading the pixel at a specified coordinate.
                 justification: |
@@ -66,17 +90,23 @@ sections:
                 title: The Surface class shall expose a row's raw bytes as a mutable Span<byte>.
                 justification: |
                   Bulk, allocation-free access to a row's raw bytes is required for efficient pixel
-                  processing and for interoperating with byte-oriented APIs (for example codecs).
+                  processing and for interoperating with byte-oriented APIs (for example codecs). The
+                  returned span's length must remain exactly Width * 4 bytes regardless of the surface's
+                  internal row-padding boundaries (an implementation detail with no observable effect).
                 tests:
                   - Surface_GetRowSpanBytes_WriteToSpan_IndexerReflectsChange
+                  - Surface_GetRowSpanBytes_BoundaryWidths_ReturnsWidthTimesFourLength
 
               - id: CanvasNet-Canvas-Surface-RowSpanPixels
                 title: The Surface class shall expose a row's pixels as a mutable Span<Rgba32>.
                 justification: |
                   Bulk, allocation-free access to a row's pixels as strongly typed Rgba32 values is
-                  required for efficient pixel processing without manual byte-offset arithmetic.
+                  required for efficient pixel processing without manual byte-offset arithmetic. The
+                  returned span's length must remain exactly Width pixels regardless of the surface's
+                  internal row-padding boundaries (an implementation detail with no observable effect).
                 tests:
                   - Surface_GetRowSpan_WriteToSpan_IndexerReflectsChange
+                  - Surface_GetRowSpan_BoundaryWidths_ReturnsWidthLength
 
               - id: CanvasNet-Canvas-Surface-Crop
                 title: The Surface class shall create a new surface containing a copy of a rectangular sub-region.
@@ -85,6 +115,7 @@ sections:
                   with, save, or further process a portion of a larger surface independently.
                 tests:
                   - Surface_Crop_ValidRegion_ReturnsExpectedPixels
+                  - Surface_Crop_BoundaryWidths_ReturnsExpectedPixels
 
               - id: CanvasNet-Canvas-Surface-CropIndependent
                 title: >-
@@ -152,3 +183,84 @@ sections:
                   out-of-bounds memory; rejecting it prevents an invalid or corrupted copy.
                 tests:
                   - Surface_Crop_HeightExceedsSourceBounds_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Canvas-Surface-PremultiplyAlpha
+                title: >-
+                  The Surface class shall convert its pixel buffer, in place, from straight alpha to
+                  premultiplied alpha.
+                justification: |
+                  Premultiplied alpha is required for numerically correct alpha compositing (avoiding
+                  color fringing) and is a prerequisite building block for CompositeOver; callers must be
+                  able to convert an in-memory surface between the two representations.
+                tests:
+                  - Surface_PremultiplyAlpha_VariousValues_ComputesExpectedPixels
+                  - Surface_PremultiplyThenUnpremultiplyAlpha_PartialAlpha_RoundTripsWithinTolerance
+                  - Surface_PremultiplyThenUnpremultiplyAlpha_BoundaryAlpha_RoundTripsExactly
+                  - Surface_PremultiplyAlpha_MultiRowBoundaryWidths_ComputesExpectedPixelForEveryPixel
+
+              - id: CanvasNet-Canvas-Surface-UnpremultiplyAlpha
+                title: >-
+                  The Surface class shall convert its pixel buffer, in place, from premultiplied alpha
+                  back to straight alpha, defining R = G = B = 0 for fully transparent pixels.
+                justification: |
+                  Callers that have premultiplied a surface for compositing must be able to convert it
+                  back to the straight-alpha representation expected by codecs; the fully transparent
+                  case has no recoverable color information, so a documented, deterministic result
+                  (zeroed RGB) is required rather than leaving it undefined.
+                tests:
+                  - Surface_UnpremultiplyAlpha_VariousValues_ComputesExpectedPixels
+                  - Surface_UnpremultiplyAlpha_AlphaZero_ResultIsZeroRgb
+                  - Surface_PremultiplyThenUnpremultiplyAlpha_PartialAlpha_RoundTripsWithinTolerance
+                  - Surface_PremultiplyThenUnpremultiplyAlpha_BoundaryAlpha_RoundTripsExactly
+                  - Surface_UnpremultiplyAlpha_MultiRowBoundaryWidths_ComputesExpectedPixelForEveryPixel
+
+              - id: CanvasNet-Canvas-Surface-CompositeOverSurface
+                title: >-
+                  The Surface class shall composite another surface "over" itself in place, using
+                  standard Porter-Duff "over" alpha compositing.
+                justification: |
+                  Alpha compositing of one surface over another is a fundamental raster-graphics
+                  operation (for example, layering a semi-transparent overlay onto a background) that
+                  callers need without hand-rolling the per-pixel math themselves.
+                tests:
+                  - Surface_CompositeOverSurface_OpaqueForeground_ReplacesBackground
+                  - Surface_CompositeOverSurface_TransparentForeground_LeavesBackgroundUnchanged
+                  - Surface_CompositeOverSurface_BothFullyTransparent_ResultIsZero
+                  - Surface_CompositeOverSurface_PartialAlpha_MatchesIndependentlyComputedResult
+
+              - id: CanvasNet-Canvas-Surface-CompositeOverSurfaceNull
+                title: >-
+                  The Surface class shall reject a null foreground argument to CompositeOver(Surface)
+                  with ArgumentNullException.
+                justification: |
+                  A null foreground surface cannot supply pixel data to composite; rejecting it early
+                  prevents a confusing NullReferenceException deeper in the implementation.
+                tests:
+                  - Surface_CompositeOverSurface_NullForeground_ThrowsArgumentNullException
+
+              - id: CanvasNet-Canvas-Surface-CompositeOverSurfaceDimensionMismatch
+                title: >-
+                  The Surface class shall reject a foreground argument to CompositeOver(Surface) whose
+                  dimensions do not match this surface's with ArgumentException.
+                justification: |
+                  Only equal-size, axis-aligned compositing is supported; a mismatched foreground surface
+                  has no well-defined per-pixel correspondence to this surface's pixels, so it must be
+                  rejected rather than silently truncated or misaligned.
+                tests:
+                  - Surface_CompositeOverSurface_WidthMismatch_ThrowsArgumentException
+                  - Surface_CompositeOverSurface_HeightMismatch_ThrowsArgumentException
+
+              - id: CanvasNet-Canvas-Surface-CompositeOverColor
+                title: >-
+                  The Surface class shall composite a constant color "over" every pixel of itself in
+                  place, using standard Porter-Duff "over" alpha compositing.
+                justification: |
+                  Tinting or overlaying a surface with a single constant color (for example a semi-
+                  transparent color wash) is a common operation that should not require callers to
+                  allocate a full same-size surface filled with that color.
+                tests:
+                  - Surface_CompositeOverColor_OpaqueColor_ReplacesBackground
+                  - Surface_CompositeOverColor_TransparentColor_LeavesBackgroundUnchanged
+                  - Surface_CompositeOverColor_BothFullyTransparent_ResultIsZero
+                  - Surface_CompositeOverColor_PartialAlpha_MatchesIndependentlyComputedResult
+                  - Surface_CompositeOverColor_MultiRowSurface_AppliesToEveryPixel

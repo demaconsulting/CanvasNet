@@ -146,4 +146,137 @@ public class CanvasNetTests
         Assert.True(Math.Abs(expected.G - actual.G) <= tolerance, $"G delta {Math.Abs(expected.G - actual.G)} exceeded tolerance");
         Assert.True(Math.Abs(expected.B - actual.B) <= tolerance, $"B delta {Math.Abs(expected.B - actual.B)} exceeded tolerance");
     }
+
+    /// <summary>
+    ///     Proves that the system can composite a semi-transparent constant color over a Surface
+    ///     through the public API, producing the expected Porter-Duff "over" result.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_CompositeColorOverSurface_ReturnsExpectedPixel()
+    {
+        // Arrange: construct an opaque green background surface through the public API
+        var surface = new Surface(2, 2);
+        surface[0, 0] = new Rgba32(0, 255, 0, 255);
+
+        // Act: composite a semi-transparent red overlay over the surface in place
+        surface.CompositeOver(new Rgba32(255, 0, 0, 128));
+
+        // Assert: the system produces the expected integrated compositing result
+        Assert.Equal(new Rgba32(128, 127, 0, 255), surface[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that the system can composite a semi-transparent Surface over another Surface
+    ///     through the public API, producing the expected Porter-Duff "over" result.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_CompositeSurfaceOverSurface_ReturnsExpectedPixel()
+    {
+        // Arrange: construct an opaque blue background surface, and a semi-transparent yellow
+        // foreground surface, both through the public API
+        var background = new Surface(2, 2);
+        background[0, 0] = new Rgba32(0, 0, 255, 255);
+        var foreground = new Surface(2, 2);
+        foreground[0, 0] = new Rgba32(255, 255, 0, 128);
+
+        // Act: composite the foreground surface over the background surface in place
+        background.CompositeOver(foreground);
+
+        // Assert: expected value independently computed (Porter-Duff "over", normalized [0, 1]
+        // math, round-half-away-from-zero, clamped) - not copied from the CompositeOver(Rgba32)
+        // test above, since fgA=128/255, bgA=1 gives outA=1 exactly, outR=outG=255*128/255=128,
+        // and outB=255*(1-128/255)=127
+        Assert.Equal(new Rgba32(128, 128, 127, 255), background[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that the system can convert a Surface's pixel buffer from straight to
+    ///     premultiplied alpha through the public API, producing the expected rounded result.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_PremultiplyAlpha_ReturnsExpectedPixel()
+    {
+        // Arrange: construct a surface through the public API and set a straight-alpha pixel
+        var surface = new Surface(2, 2);
+        surface[0, 0] = new Rgba32(200, 100, 50, 128);
+
+        // Act: premultiply the surface's alpha in place
+        surface.PremultiplyAlpha();
+
+        // Assert: the system produces the expected integrated premultiplied pixel value
+        // (round(200*128/255)=100, round(100*128/255)=50, round(50*128/255)=25; alpha unchanged)
+        Assert.Equal(new Rgba32(100, 50, 25, 128), surface[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that the system can convert a Surface's pixel buffer from premultiplied back to
+    ///     straight alpha through the public API, including the load-bearing clamp when the
+    ///     division overshoots 255.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_UnpremultiplyAlpha_ReturnsExpectedPixel()
+    {
+        // Arrange: construct a surface through the public API and set a premultiplied pixel whose
+        // red channel overshoots 255 when unpremultiplied, exercising the documented clamp
+        var surface = new Surface(2, 2);
+        surface[0, 0] = new Rgba32(100, 10, 0, 50);
+
+        // Act: unpremultiply the surface's alpha in place
+        surface.UnpremultiplyAlpha();
+
+        // Assert: the system produces the expected integrated unpremultiplied pixel value
+        // (round(100*255/50)=510, clamped to 255; round(10*255/50)=51; 0 stays 0; alpha unchanged)
+        Assert.Equal(new Rgba32(255, 51, 0, 50), surface[0, 0]);
+    }
+
+    /// <summary>
+    ///     Row widths, in pixels, that exercise Surface's internal row-padding boundary (padding
+    ///     is applied in multiples of 16 pixels): widths at, just below, and just above each
+    ///     boundary, plus a couple of larger "normal" widths.
+    /// </summary>
+    public static TheoryData<int> BoundaryWidths =>
+    [
+        1, 15, 16, 17, 31, 32, 33, 100, 257
+    ];
+
+    /// <summary>
+    ///     Proves that a PNG save/load round-trip remains byte-exact at Surface's internal
+    ///     row-padding boundary widths, confirming Surface's stride/padding storage detail is not
+    ///     observable through the PNG codec. This is a system-level test (not a Surface unit
+    ///     test) because it exercises the Codecs -> Surface integration boundary rather than
+    ///     Surface in isolation: Surface's unit tests must only depend on Surface itself, and
+    ///     Codecs depend on Surface (not vice versa), so a codec round-trip belongs here.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(BoundaryWidths))]
+    public void CanvasNet_SystemIntegration_PngCodecRoundTrip_BoundaryWidths_ReturnsExpectedPixels(int width)
+    {
+        // Arrange: build a surface at a boundary width with distinct, non-trivial pixel values
+        var surface = new Surface(width, 3);
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                surface[x, y] = new Rgba32((byte)(x * 17 + 1), (byte)(y * 23 + 2), (byte)(x + y + 3), (byte)(200 - (x % 200)));
+            }
+        }
+
+        using var stream = new MemoryStream();
+
+        // Act: save and reload the surface through the PNG codec
+        PngCodec.Save(surface, stream, PngColorType.Rgba);
+        stream.Position = 0;
+        var reloaded = PngCodec.Load(stream);
+
+        // Assert: every pixel must round-trip exactly
+        Assert.Equal(surface.Width, reloaded.Width);
+        Assert.Equal(surface.Height, reloaded.Height);
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                Assert.Equal(surface[x, y], reloaded[x, y]);
+            }
+        }
+    }
 }

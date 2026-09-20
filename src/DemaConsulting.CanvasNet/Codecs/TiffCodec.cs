@@ -195,9 +195,10 @@ public static class TiffCodec
     ///     <c>StripByteCounts</c>) is missing, the image is tiled (a <c>TileWidth</c> or
     ///     <c>TileLength</c> tag is present), the bit depth is not 8, the photometric
     ///     interpretation is not Grayscale (1) or RGB (2), the compression method is not one of
-    ///     None/LZW/Deflate/PackBits, the planar configuration is not Chunky (1), an RGB image with
-    ///     4 samples per pixel is missing a valid <c>ExtraSamples</c> tag, or the stream ends
-    ///     before all directory, tag value, or strip data has been read.
+    ///     None/LZW/Deflate/PackBits, the planar configuration is not Chunky (1), the width or
+    ///     height exceeds <see cref="Surface.MaxDimension"/>, an RGB image with 4 samples per
+    ///     pixel is missing a valid <c>ExtraSamples</c> tag, or the stream ends before all
+    ///     directory, tag value, or strip data has been read.
     /// </exception>
     /// <example>
     ///     <code>
@@ -321,6 +322,18 @@ public static class TiffCodec
         if (width <= 0 || height <= 0)
         {
             throw new InvalidDataException($"Invalid TIFF dimensions {width}x{height}.");
+        }
+
+        // Reject dimensions above Surface.MaxDimension here, before any width/height arithmetic
+        // (e.g. DecodeStrips' info.Width * info.SamplesPerPixel row-byte-width calculation, which
+        // is computed before its Surface is constructed) is performed, so an oversized value
+        // surfaces as the documented InvalidDataException rather than an
+        // ArgumentOutOfRangeException escaping from deep inside Surface's constructor
+        if (width > Surface.MaxDimension || height > Surface.MaxDimension)
+        {
+            throw new InvalidDataException(
+                $"TIFF dimensions {width}x{height} exceed the maximum supported size of " +
+                $"{Surface.MaxDimension}x{Surface.MaxDimension}.");
         }
 
         var bitsPerSample = RequireTagValues(file, tags, TagBitsPerSample, "BitsPerSample", bigEndian);

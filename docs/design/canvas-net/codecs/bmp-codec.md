@@ -65,7 +65,11 @@ endianness.
 
 Reads a BMP image from an open stream. Validates the `"BM"` signature, that `biSize == 40`
 (rejecting both `BITMAPCOREHEADER` and V4/V5 headers in one check), that `biCompression == 0`
-(BI_RGB), that `biBitCount` is 24 or 32, and that `biHeight` is not negative. Skips forward to
+(BI_RGB), that `biBitCount` is 24 or 32, and that `biHeight` is not negative. Also validates that
+neither `biWidth` nor `biHeight` exceeds `Surface.MaxDimension` (8192) — checked immediately
+after the existing non-positive/negative-height checks and before any padded-row-size arithmetic,
+so an oversized declared dimension is rejected with `InvalidDataException` rather than reaching
+`Surface`'s constructor as an unhandled `ArgumentOutOfRangeException`. Skips forward to
 `bfOffBits` (tolerating any nonstandard gap between the header and pixel data), then reads each
 padded row bottom-up into a reused scratch buffer and unpacks it into the appropriate surface row
 via `Surface.GetRowSpanBytes`, swapping BGR(A) to RGBA and forcing alpha to 255 for 24-bit source
@@ -75,8 +79,9 @@ data.
 
 - `ArgumentNullException` — `stream` is null
 - `InvalidDataException` — missing `"BM"` signature; `biSize != 40`; `biCompression != 0`;
-  `biBitCount` not 24 or 32; negative `biHeight`; non-positive width or zero height; the stream
-  ends before all header or pixel data has been read
+  `biBitCount` not 24 or 32; negative `biHeight`; non-positive width or zero height; `biWidth` or
+  `biHeight` exceeding `Surface.MaxDimension`; the stream ends before all header or pixel data has
+  been read
 
 #### Load(string path)
 

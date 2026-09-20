@@ -55,6 +55,32 @@ sections:
               - Surface_Constructor_ZeroHeight_ThrowsArgumentOutOfRangeException
               - Surface_Constructor_NegativeHeight_ThrowsArgumentOutOfRangeException
 
+          - id: CanvasNet-Canvas-WidthExceedsMaximum
+            title: >-
+              The Canvas subsystem shall reject a width argument exceeding the maximum permitted
+              dimension with ArgumentOutOfRangeException.
+            justification: |
+              A width beyond the maximum permitted dimension would make the row-stride and
+              buffer-size arithmetic unsafe from plain int overflow; rejecting it at construction
+              time prevents an instance from ever being created with an unsafe size.
+            children:
+              - CanvasNet-Canvas-Surface-WidthExceedsMaximum
+            tests:
+              - Surface_Constructor_WidthExceedsMaximum_ThrowsArgumentOutOfRangeException
+
+          - id: CanvasNet-Canvas-HeightExceedsMaximum
+            title: >-
+              The Canvas subsystem shall reject a height argument exceeding the maximum permitted
+              dimension with ArgumentOutOfRangeException.
+            justification: |
+              A height beyond the maximum permitted dimension would make the row-stride and
+              buffer-size arithmetic unsafe from plain int overflow; rejecting it at construction
+              time prevents an instance from ever being created with an unsafe size.
+            children:
+              - CanvasNet-Canvas-Surface-HeightExceedsMaximum
+            tests:
+              - Surface_Constructor_HeightExceedsMaximum_ThrowsArgumentOutOfRangeException
+
           - id: CanvasNet-Canvas-PixelGet
             title: The Canvas subsystem shall allow reading the pixel at a specified coordinate.
             justification: |
@@ -184,3 +210,86 @@ sections:
               - CanvasNet-Canvas-Surface-CropExceedsHeight
             tests:
               - Surface_Crop_HeightExceedsSourceBounds_ThrowsArgumentOutOfRangeException
+
+          - id: CanvasNet-Canvas-PremultiplyAlpha
+            title: >-
+              The Canvas subsystem shall convert a pixel buffer, in place, from straight alpha to
+              premultiplied alpha.
+            justification: |
+              Premultiplied alpha is required for numerically correct alpha compositing and is a
+              prerequisite building block for compositing; callers must be able to convert an
+              in-memory buffer between the two representations.
+            children:
+              - CanvasNet-Canvas-Surface-PremultiplyAlpha
+            tests:
+              - Surface_PremultiplyAlpha_VariousValues_ComputesExpectedPixels
+
+          - id: CanvasNet-Canvas-UnpremultiplyAlpha
+            title: >-
+              The Canvas subsystem shall convert a pixel buffer, in place, from premultiplied alpha
+              back to straight alpha, defining R = G = B = 0 for fully transparent pixels.
+            justification: |
+              Callers that have premultiplied a buffer for compositing must be able to convert it
+              back to the straight-alpha representation expected by codecs; the fully transparent
+              case has no recoverable color information, so a documented, deterministic result is
+              required.
+            children:
+              - CanvasNet-Canvas-Surface-UnpremultiplyAlpha
+            tests:
+              - Surface_UnpremultiplyAlpha_VariousValues_ComputesExpectedPixels
+              - Surface_UnpremultiplyAlpha_AlphaZero_ResultIsZeroRgb
+
+          - id: CanvasNet-Canvas-CompositeOverSurface
+            title: >-
+              The Canvas subsystem shall composite one pixel buffer "over" another in place, using
+              standard Porter-Duff "over" alpha compositing.
+            justification: |
+              Alpha compositing of one buffer over another is a fundamental raster-graphics
+              operation that callers need without hand-rolling the per-pixel math themselves.
+            children:
+              - CanvasNet-Canvas-Surface-CompositeOverSurface
+            tests:
+              - Surface_CompositeOverSurface_OpaqueForeground_ReplacesBackground
+              - Surface_CompositeOverSurface_TransparentForeground_LeavesBackgroundUnchanged
+              - Surface_CompositeOverSurface_PartialAlpha_MatchesIndependentlyComputedResult
+
+          - id: CanvasNet-Canvas-CompositeOverSurfaceNull
+            title: >-
+              The Canvas subsystem shall reject a null foreground argument to composite-over with
+              ArgumentNullException.
+            justification: |
+              A null foreground buffer cannot supply pixel data to composite; rejecting it early
+              prevents a confusing failure deeper in the implementation.
+            children:
+              - CanvasNet-Canvas-Surface-CompositeOverSurfaceNull
+            tests:
+              - Surface_CompositeOverSurface_NullForeground_ThrowsArgumentNullException
+
+          - id: CanvasNet-Canvas-CompositeOverSurfaceDimensionMismatch
+            title: >-
+              The Canvas subsystem shall reject a composite-over foreground argument whose
+              dimensions do not match the target buffer with ArgumentException.
+            justification: |
+              Only equal-size, axis-aligned compositing is supported; a mismatched foreground
+              buffer has no well-defined per-pixel correspondence, so it must be rejected rather
+              than silently truncated or misaligned.
+            children:
+              - CanvasNet-Canvas-Surface-CompositeOverSurfaceDimensionMismatch
+            tests:
+              - Surface_CompositeOverSurface_WidthMismatch_ThrowsArgumentException
+              - Surface_CompositeOverSurface_HeightMismatch_ThrowsArgumentException
+
+          - id: CanvasNet-Canvas-CompositeOverColor
+            title: >-
+              The Canvas subsystem shall composite a constant color "over" every pixel of a buffer
+              in place, using standard Porter-Duff "over" alpha compositing.
+            justification: |
+              Tinting or overlaying a buffer with a single constant color is a common operation
+              that should not require callers to allocate a full same-size buffer filled with that
+              color.
+            children:
+              - CanvasNet-Canvas-Surface-CompositeOverColor
+            tests:
+              - Surface_CompositeOverColor_OpaqueColor_ReplacesBackground
+              - Surface_CompositeOverColor_TransparentColor_LeavesBackgroundUnchanged
+              - Surface_CompositeOverColor_PartialAlpha_MatchesIndependentlyComputedResult

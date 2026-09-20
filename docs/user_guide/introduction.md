@@ -70,12 +70,15 @@ is fully transparent (all channels zero) until pixels are explicitly set.
 
 **Parameters:**
 
-- `width` (int): The width of the surface, in pixels. Must be greater than zero.
-- `height` (int): The height of the surface, in pixels. Must be greater than zero.
+- `width` (int): The width of the surface, in pixels. Must be greater than zero and no more than
+  8192.
+- `height` (int): The height of the surface, in pixels. Must be greater than zero and no more than
+  8192.
 
 **Exceptions:**
 
-- `ArgumentOutOfRangeException`: Thrown when `width` or `height` is less than or equal to zero.
+- `ArgumentOutOfRangeException`: Thrown when `width` or `height` is less than or equal to zero, or
+  greater than 8192.
 
 #### Surface Properties
 
@@ -161,6 +164,57 @@ A new `Surface` containing an independent copy of the requested pixels.
 
 - `ArgumentOutOfRangeException`: Thrown when any argument is invalid or the region exceeds the
   source surface's bounds.
+
+##### PremultiplyAlpha
+
+```csharp
+public void PremultiplyAlpha()
+```
+
+Converts this surface's pixel buffer, in place, from straight (unassociated) alpha to
+premultiplied alpha: each color channel becomes `round(channel * alpha / 255)`
+(round-half-away-from-zero, clamped to `[0, 255]`); alpha is unchanged. Never throws.
+
+##### UnpremultiplyAlpha
+
+```csharp
+public void UnpremultiplyAlpha()
+```
+
+Converts this surface's pixel buffer, in place, from premultiplied alpha back to straight alpha -
+the inverse of `PremultiplyAlpha`. Each color channel becomes `round(channel * 255 / alpha)`
+(round-half-away-from-zero, clamped to `[0, 255]`) for non-zero alpha; fully transparent pixels
+(`alpha == 0`) are defined as `R = G = B = 0`. Never throws.
+
+##### CompositeOver(Surface foreground)
+
+```csharp
+public void CompositeOver(Surface foreground)
+```
+
+Composites `foreground` "over" this surface in place, using standard Porter-Duff "over" alpha
+compositing on straight-alpha pixels (no explicit `PremultiplyAlpha` call is needed by callers).
+
+**Parameters:**
+
+- `foreground` (Surface): The surface to composite over this one. Must be the same size as this
+  surface.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `foreground` is null.
+- `ArgumentException`: Thrown when `foreground`'s `Width` or `Height` does not match this
+  surface's.
+
+##### CompositeOver(Rgba32 color)
+
+```csharp
+public void CompositeOver(Rgba32 color)
+```
+
+Composites the constant `color` "over" every pixel of this surface in place, using the same
+formula as `CompositeOver(Surface)` with `color` acting as the foreground at every pixel. Never
+throws.
 
 ### Rgba32
 
@@ -571,6 +625,24 @@ Console.WriteLine(loaded[0, 0].A); // Output: 255
 
 // JPEG is lossy, so compare color channels with a tolerance rather than exact equality
 Console.WriteLine(Math.Abs(loaded[0, 0].R - surface[0, 0].R) <= 15); // Output: True
+```
+
+## Example 7: Compositing a Semi-Transparent Color Over a Background
+
+```csharp
+using CanvasNet.Canvas;
+
+var background = new Surface(1, 1);
+background[0, 0] = new Rgba32(0, 255, 0, 255); // opaque green background
+
+// Composite a semi-transparent red overlay over the background, in place
+background.CompositeOver(new Rgba32(255, 0, 0, 128));
+var result = background[0, 0];
+Console.WriteLine($"{result.R} {result.G} {result.B} {result.A}"); // Output: 128 127 0 255
+
+// CompositeOver(Surface) works the same way when the foreground is itself a Surface (for
+// example, one loaded from a PNG file with an alpha channel), pixel by pixel across the whole
+// surface rather than a single constant color.
 ```
 
 # References

@@ -14,6 +14,13 @@ detailed approach and named test scenarios.
 
 ## OTS Items
 
+CanvasNet's OTS items fall into two categories: build-time/quality-pipeline tools and the one
+runtime library dependency shipped as a transitive dependency of the compiled NuGet package;
+verification approach differs slightly for the runtime dependency since it has no CLI to self-
+validate (see its individual verification document for detail).
+
+### Build-Time and Quality-Pipeline Tools
+
 | OTS Item    | Verification Approach                                                       |
 |-------------|-----------------------------------------------------------------------------|
 | BuildMark   | Self-validation CLI suite plus pipeline evidence via build-notes document   |
@@ -27,3 +34,9 @@ detailed approach and named test scenarios.
 | VersionMark | Self-validation CLI suite plus pipeline evidence via version data           |
 | WeasyPrint  | Pipeline evidence: FileAssert assertions on each generated PDF document     |
 | xUnit       | Self-validation via discovery, execution, and TRX reporting of tests        |
+
+### Runtime OTS Dependency
+
+| OTS Item                | Verification Approach                                                                      |
+|-------------------------|--------------------------------------------------------------------------------------------|
+| System.Numerics.Tensors | Indirect evidence via `Surface` unit tests exercising every `TensorPrimitives` method used |

@@ -152,6 +152,17 @@ Builds a header declaring `biBitCount = 8` and asserts `Load` throws `InvalidDat
 
 Builds a header declaring `biHeight = -1` and asserts `Load` throws `InvalidDataException`.
 
+#### CanvasNet-Codecs-BmpCodec-LoadExceedsMaxDimension: Load Rejects Dimensions Exceeding Surface.MaxDimension
+
+**Tests**: `BmpCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException`,
+`BmpCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException`
+
+Builds a header declaring `biWidth` one greater than `Surface.MaxDimension` (8192), and
+separately `biHeight` one greater, and asserts `Load` throws `InvalidDataException` (not the
+`ArgumentOutOfRangeException` that would otherwise escape from `Surface`'s constructor) in both
+cases, confirming the dimension check happens before any row/stride arithmetic performed later in
+`Load`.
+
 #### CanvasNet-Codecs-BmpCodec-LoadTruncatedStream: Load Rejects a Truncated Stream
 
 **Test**: `BmpCodec_Load_TruncatedStream_ThrowsInvalidDataException`
@@ -161,5 +172,5 @@ asserts `Load` throws `InvalidDataException`.
 
 ### Acceptance Criteria
 
-A unit test run passes when all twenty test methods above pass without error or unexpected
+A unit test run passes when all twenty-two test methods above pass without error or unexpected
 exception; any unexpected exception type or wrong return/byte value constitutes a failure.

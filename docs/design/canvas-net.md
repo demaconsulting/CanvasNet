@@ -53,6 +53,16 @@ The system exposes the following public API to external consumers:
 - **Surface.Crop(int x, int y, int width, int height)**: Returns a new, independent `Surface`
   containing a copy of the specified sub-region. Throws `ArgumentOutOfRangeException` if any
   argument is invalid or the region exceeds the source bounds.
+- **Surface.PremultiplyAlpha()**: Converts the surface's pixels from straight (unassociated) alpha
+  to premultiplied alpha in place.
+- **Surface.UnpremultiplyAlpha()**: Converts the surface's pixels from premultiplied alpha back to
+  straight (unassociated) alpha in place; a pixel with zero alpha is left as fully transparent
+  black.
+- **Surface.CompositeOver(Surface foreground)**: Composites `foreground` over this surface in
+  place using the Porter-Duff "over" operator. Throws `ArgumentNullException` for a null
+  `foreground`, and `ArgumentException` if `foreground`'s dimensions differ from this surface's.
+- **Surface.CompositeOver(Rgba32 color)**: Composites a single solid `color` over every pixel of
+  this surface in place using the Porter-Duff "over" operator.
 - **BmpCodec.Load(Stream stream)** / **BmpCodec.Load(string path)**: Loads a `Surface` from an
   uncompressed 24-bit or 32-bit BMP stream or file. Throws `ArgumentNullException` for a null
   `stream`/`path`, `ArgumentException` for an empty `path`, and `InvalidDataException` for
@@ -93,33 +103,39 @@ The system exposes the following public API to external consumers:
   `ArgumentException` for an empty `path`, and `ArgumentOutOfRangeException` for an out-of-range
   `quality`.
 
-| Interface                       | Direction        | Format                         | Constraints                 |
-| ------------------------------- | ---------------- | ------------------------------ | --------------------------- |
-| `Surface(int, int)`             | Inbound          | Constructor call               | `width > 0`, `height > 0`   |
-| `Surface[int, int]`             | Inbound/Outbound | Indexer get/set                | `x`, `y` within bounds      |
-| `Surface.GetRowSpanBytes(int)`  | Outbound         | `Span<byte>` return            | `y` within bounds           |
-| `Surface.GetRowSpan(int)`       | Outbound         | `Span<Rgba32>` return          | `y` within bounds           |
-| `Surface.Crop(int,int,int,int)` | Inbound/Outbound | Method call / `Surface` return | Region within source bounds |
-| `BmpCodec.Load(...)`            | Inbound/Outbound | Method call / `Surface` return | Valid BMP stream or path    |
-| `BmpCodec.Save(...)`            | Inbound          | Method call                    | `surface` non-null          |
-| `PngCodec.Load(...)`            | Inbound/Outbound | Method call / `Surface` return | Valid PNG stream or path    |
-| `PngCodec.Save(...)`            | Inbound          | Method call                    | `surface` non-null          |
-| `TiffCodec.Load(...)`           | Inbound/Outbound | Method call / `Surface` return | Valid TIFF stream or path   |
-| `TiffCodec.Save(...)`           | Inbound          | Method call                    | `surface` non-null          |
-| `JpegCodec.Load(...)`           | Inbound/Outbound | Method call / `Surface` return | Valid JPEG stream or path   |
-| `JpegCodec.Save(...)`           | Inbound          | Method call                    | `surface` non-null          |
+| Interface                        | Direction        | Format                         | Constraints                  |
+| -------------------------------- | ---------------- | ------------------------------ | ---------------------------- |
+| `Surface(int, int)`              | Inbound          | Constructor call               | `width`, `height` in 1-8192  |
+| `Surface[int, int]`              | Inbound/Outbound | Indexer get/set                | `x`, `y` within bounds       |
+| `Surface.GetRowSpanBytes(int)`   | Outbound         | `Span<byte>` return            | `y` within bounds            |
+| `Surface.GetRowSpan(int)`        | Outbound         | `Span<Rgba32>` return          | `y` within bounds            |
+| `Surface.Crop(int,int,int,int)`  | Inbound/Outbound | Method call / `Surface` return | Region within source bounds  |
+| `Surface.PremultiplyAlpha()`     | Inbound          | Method call                    | None                         |
+| `Surface.UnpremultiplyAlpha()`   | Inbound          | Method call                    | None                         |
+| `Surface.CompositeOver(Surface)` | Inbound          | Method call                    | Equal dimensions, non-null   |
+| `Surface.CompositeOver(Rgba32)`  | Inbound          | Method call                    | None                         |
+| `BmpCodec.Load(...)`             | Inbound/Outbound | Method call / `Surface` return | Valid BMP stream or path     |
+| `BmpCodec.Save(...)`             | Inbound          | Method call                    | `surface` non-null           |
+| `PngCodec.Load(...)`             | Inbound/Outbound | Method call / `Surface` return | Valid PNG stream or path     |
+| `PngCodec.Save(...)`             | Inbound          | Method call                    | `surface` non-null           |
+| `TiffCodec.Load(...)`            | Inbound/Outbound | Method call / `Surface` return | Valid TIFF stream or path    |
+| `TiffCodec.Save(...)`            | Inbound          | Method call                    | `surface` non-null           |
+| `JpegCodec.Load(...)`            | Inbound/Outbound | Method call / `Surface` return | Valid JPEG stream or path    |
+| `JpegCodec.Save(...)`            | Inbound          | Method call                    | `surface` non-null           |
 
 ## Dependencies
 
-CanvasNet has zero runtime NuGet dependencies — the `Surface`, `BmpCodec`, `PngCodec`,
-`TiffCodec`, and `JpegCodec` units are implemented exclusively against the .NET Base Class Library
-(`Surface`'s use of `Span<T>` and `MemoryMarshal` on `netstandard2.0` is satisfied by the existing
-`Polyfill` build dependency, not by any new runtime NuGet package; `BmpCodec` uses only
-`System.IO` types; `PngCodec` and `TiffCodec` additionally use
-`System.IO.Compression.DeflateStream`; `JpegCodec` additionally uses `System.Numerics.Vector<T>`
-for optional SIMD acceleration; all of these are BCL APIs available on every target framework,
-with no new runtime NuGet package). The following OTS items are used for building and verifying
-this system (not consumed at runtime); see
+CanvasNet has one runtime NuGet dependency: `System.Numerics.Tensors`, used by the `Surface`
+unit's vectorized bulk pixel operations (`PremultiplyAlpha`, `UnpremultiplyAlpha`,
+`CompositeOver`) for their `TensorPrimitives`-based numeric work — see _Surface Unit Design_
+(`canvas/surface.md`) for details. Every other member of `Surface`, and all of `BmpCodec`,
+`PngCodec`, `TiffCodec`, and `JpegCodec`, are implemented exclusively against the .NET Base Class
+Library (`Surface`'s remaining use of `Span<T>` and `MemoryMarshal` are BCL APIs available
+natively on every target framework; `BmpCodec` uses only `System.IO` types; `PngCodec` and
+`TiffCodec` additionally use `System.IO.Compression.DeflateStream`; `JpegCodec` additionally uses
+`System.Numerics.Vector<T>` for optional SIMD acceleration; all of these are BCL APIs available on
+every target framework, with no additional runtime NuGet package required). The following OTS
+items are used for building and verifying this system (not consumed at runtime); see
 _OTS Integration Design_ (`docs/design/ots.md`) and each item's dedicated design document for
 details:
 
@@ -278,12 +294,11 @@ measures (IEC 62304 §5.3.3).
 
 ### Platform Support
 
-The library targets the following frameworks, enabling broad compatibility across modern .NET
-runtimes and legacy environments:
+The library targets the following frameworks, enabling compatibility across modern, currently
+supported .NET runtimes:
 
 | Target Framework | Runtime / Environment                             |
 | ---------------- | ------------------------------------------------- |
-| `netstandard2.0` | .NET Standard 2.0 (implemented by .NET FX 4.8.1+) |
 | `net8.0`         | .NET 8 LTS                                        |
 | `net9.0`         | .NET 9                                            |
 | `net10.0`        | .NET 10                                           |
