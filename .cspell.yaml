@@ -92,8 +92,11 @@ words:
   - sonarmark
   - Subsampling
   - subsampling
+  - seekable
+  - Seekable
   - sysml
   - tEXt
+  - triaging
   - Truecolor
   - Unpremultiply
   - unpremultiplication

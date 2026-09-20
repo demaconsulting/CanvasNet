@@ -211,11 +211,49 @@ Builds synthetic Y/Cb/Cr rows with both exact-vector and vector-plus-remainder l
 the scalar and vectorized conversion paths, and asserts the resulting R/G/B byte rows are
 identical.
 
+#### CanvasNet-Codecs-JpegCodec-GetInfo: GetInfo Reports Dimensions/Components Without Entropy-Decoding
+
+**Tests**: `JpegCodec_GetInfo_Grayscale_ReturnsExpectedInfoWithoutSosOrEntropyData`,
+`JpegCodec_GetInfo_Color_ReturnsExpectedInfo`, `JpegCodec_GetInfoPath_ReturnsExpectedInfo`,
+`JpegCodec_GetInfo_LargeStream_NeverReadsPastProbeLimit`,
+`JpegCodec_GetInfo_ProbeLimitExceededWithoutSof_ThrowsInvalidDataException`,
+`JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows`
+
+Builds a hand-crafted stream containing only SOI/DQT/DHT/SOF0 for a 1-component grayscale frame
+(deliberately omitting SOS and all entropy-coded data), calls `GetInfo`, and asserts the returned
+`ImageInfo` reports the correct width/height, `Channels == 1`, and `HasAlpha == false`; repeats for
+a 3-component color frame. Confirms the file-path overload returns the same result as the stream
+overload via a temporary file. Proves `GetInfo` never reads past its `MaxProbeHeaderBytes`
+(1 MiB) cap by building a stream several megabytes long with the SOF marker near the start and
+asserting `stream.Position` after `GetInfo` returns is at most 1,048,576 even though
+`stream.Length` is much larger. Proves the probe-limit case is rejected distinctly by building
+over 1 MiB of filler bytes containing no SOF marker at all and asserting `GetInfo` throws
+`InvalidDataException` with a message mentioning the probe limit. Proves `GetInfo` does not
+enforce `Surface.MaxDimension` by building an SOF0 segment declaring a width one greater than
+`Surface.MaxDimension`, asserting `GetInfo` returns that raw oversized width without throwing, and
+then asserting `Load` on the exact same bytes still throws `InvalidDataException`.
+
+#### CanvasNet-Codecs-JpegCodec-GetInfoValidation: GetInfo Rejects Invalid Arguments and Malformed Headers
+
+**Tests**: `JpegCodec_GetInfoStream_NullStream_ThrowsArgumentNullException`,
+`JpegCodec_GetInfoPath_NullPath_ThrowsArgumentNullException`,
+`JpegCodec_GetInfoPath_EmptyPath_ThrowsArgumentException`,
+`JpegCodec_GetInfo_MissingSoiMarker_ThrowsInvalidDataException`,
+`JpegCodec_GetInfo_TruncatedBeforeSofFound_ThrowsInvalidDataException`,
+`JpegCodec_GetInfo_SosBeforeSof_ThrowsInvalidDataException`
+
+Calls `GetInfo(Stream)` with a null stream, `GetInfo(string)` with a null path and separately an
+empty path, and `GetInfo(Stream)` with a stream missing the SOI marker, a stream that ends before
+any SOF0/SOF2 marker is found, and a stream presenting an SOS marker before any SOF marker,
+asserting `ArgumentNullException`, `ArgumentNullException`, `ArgumentException`, and
+`InvalidDataException` (three times) respectively — the same exception contract as the
+corresponding `Load` scenarios, plus JPEG-specific malformed-ordering cases `Load` also rejects.
+
 ### Acceptance Criteria
 
 A unit test run passes when all test methods above pass without error or unexpected exception; any
 unexpected exception type or wrong return/value relationship constitutes a failure. Across
-`JpegCodecTests.cs` and `JpegFixtureTests.cs`, this totals 30 test methods (26 in
-`JpegCodecTests.cs` and 4 in `JpegFixtureTests.cs`), which expand to 42 executed xUnit test cases
-when every `[Theory]` data row is included, plus the system-level integration scenarios
-documented in `docs/verification/canvas-net.md`.
+`JpegCodecTests.cs` and `JpegFixtureTests.cs`, this totals 42 test methods (38 in
+`JpegCodecTests.cs` and 4 in `JpegFixtureTests.cs`); several of these are `[Theory]` methods that
+additionally expand to multiple executed xUnit test cases, plus the system-level integration
+scenarios documented in `docs/verification/canvas-net.md`.

@@ -253,3 +253,44 @@ sections:
                   observable output.
                 tests:
                   - JpegCodec_ConvertYCbCrRowToRgb_VectorAndScalarRemainder_MatchesScalarReference
+
+              - id: CanvasNet-Codecs-JpegCodec-GetInfo
+                title: >-
+                  The JpegCodec class shall report a JPEG's width, height, and component count via
+                  GetInfo, given a stream or a file path, by scanning markers for an SOF0/SOF2 segment
+                  (skipping other length-prefixed segments without entropy-decoding scan data), without
+                  requiring an SOS segment or entropy-coded data to be present, and without enforcing
+                  Surface.MaxDimension. GetInfo shall bound its marker scan to at most
+                  MaxProbeHeaderBytes (1,048,576) bytes, throwing InvalidDataException if that limit is
+                  reached before an SOF0/SOF2 marker is found.
+                justification: |
+                  Callers need to inspect a JPEG's declared dimensions and component count (for example
+                  to reject unreasonably large images before allocating a Surface) without paying the
+                  cost of entropy-decoding the scan data, and without an unbounded scan over a
+                  pathological stream that never presents an SOF marker; JPEG has no alpha channel, so
+                  GetInfo always reports HasAlpha as false.
+                tests:
+                  - JpegCodec_GetInfo_Grayscale_ReturnsExpectedInfoWithoutSosOrEntropyData
+                  - JpegCodec_GetInfo_Color_ReturnsExpectedInfo
+                  - JpegCodec_GetInfoPath_ReturnsExpectedInfo
+                  - JpegCodec_GetInfo_LargeStream_NeverReadsPastProbeLimit
+                  - JpegCodec_GetInfo_ProbeLimitExceededWithoutSof_ThrowsInvalidDataException
+                  - JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows
+
+              - id: CanvasNet-Codecs-JpegCodec-GetInfoValidation
+                title: >-
+                  The JpegCodec class shall reject null stream/path, empty path, and malformed-header
+                  (including missing-SOI and SOS-before-SOF) arguments to GetInfo with the same
+                  exception contract as Load (ArgumentNullException, ArgumentException, or
+                  InvalidDataException respectively).
+                justification: |
+                  Callers need GetInfo's failure behavior to be exactly as predictable as Load's, so
+                  invalid arguments or unreadable JPEG data are rejected the same way regardless of which
+                  entry point is used.
+                tests:
+                  - JpegCodec_GetInfoStream_NullStream_ThrowsArgumentNullException
+                  - JpegCodec_GetInfoPath_NullPath_ThrowsArgumentNullException
+                  - JpegCodec_GetInfoPath_EmptyPath_ThrowsArgumentException
+                  - JpegCodec_GetInfo_MissingSoiMarker_ThrowsInvalidDataException
+                  - JpegCodec_GetInfo_TruncatedBeforeSofFound_ThrowsInvalidDataException
+                  - JpegCodec_GetInfo_SosBeforeSof_ThrowsInvalidDataException

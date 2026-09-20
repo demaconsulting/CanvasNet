@@ -20,13 +20,19 @@ section below).
 
 ### Data Model
 
-| Field/Property  | Type        | Description                                                          |
-| --------------- | ----------- | -------------------------------------------------------------------- |
-| `Width`         | `int`       | The width of the surface, in pixels (read-only after construction).  |
-| `Height`        | `int`       | The height of the surface, in pixels (read-only after construction). |
-| `_buffer`       | `byte[]`    | Contiguous, row-major pixel storage, sized `Height * _strideBytes`.  |
-| `_strideBytes`  | `int`       | The physical byte size of one row, including trailing padding.       |
-| `BytesPerPixel` | `const int` | The number of bytes per pixel (always 4: R, G, B, A).                |
+| Field/Property  | Type               | Description                                                          |
+| --------------- | ------------------ | -------------------------------------------------------------------- |
+| `Width`         | `int`              | The width of the surface, in pixels (read-only after construction).  |
+| `Height`        | `int`              | The height of the surface, in pixels (read-only after construction). |
+| `MaxDimension`  | `public const int` | The maximum permitted `width`/`height` value (8192; see below).      |
+| `_buffer`       | `byte[]`           | Contiguous, row-major pixel storage, sized `Height * _strideBytes`.  |
+| `_strideBytes`  | `int`              | The physical byte size of one row, including trailing padding.       |
+| `BytesPerPixel` | `const int`        | The number of bytes per pixel (always 4: R, G, B, A).                |
+
+`MaxDimension` is `public` (not merely internal) so that callers can compare a probed image's
+declared dimensions — for example, a codec's `GetInfo(Stream)`/`GetInfo(string)` result — against
+the same bound `Surface`'s constructor enforces, before ever constructing a `Surface` or calling
+a codec's `Load` method.
 
 A supporting value type, `Rgba32`, represents a single pixel:
 
@@ -76,14 +82,24 @@ through any public accessor. `Crop` and all four codecs (`BmpCodec`, `PngCodec`,
 
 #### Surface(int width, int height)
 
-Constructs a surface of the given size. Validates `0 < width <= 8192` and `0 < height <= 8192`,
-throwing `ArgumentOutOfRangeException(nameof(width))` or `ArgumentOutOfRangeException(nameof(height))`
-respectively. Allocates a `byte[]` of `Height * _strideBytes` bytes, where `_strideBytes` rounds
-`width` up to the next multiple of 16 pixels then converts to bytes (see the Row Storage Layout
-section below). The 8192 upper bound guarantees that this padded-
+Constructs a surface of the given size. Validates `0 < width <= MaxDimension` and
+`0 < height <= MaxDimension` (`MaxDimension` is a public constant equal to 8192 — see the Data
+Model table above), throwing `ArgumentOutOfRangeException(nameof(width))` or
+`ArgumentOutOfRangeException(nameof(height))` respectively. Allocates a `byte[]` of
+`Height * _strideBytes` bytes, where `_strideBytes` rounds `width` up to the next multiple of 16
+pixels then converts to bytes (see the Row Storage Layout section below). The `MaxDimension`
+upper bound guarantees that this padded-
 stride/buffer-size arithmetic — `paddedWidthPixels <= 8192`, `_strideBytes <= 8192 * 4 = 32768`,
 and `height * _strideBytes <= 8192 * 32768 = 268,435,456` — stays within plain `int` range with
 margin to spare below `int.MaxValue` (2,147,483,647), so no `long`/`checked` arithmetic is needed.
+
+**Architectural decision**: `MaxDimension` is `public` (rather than `internal`, as in an earlier
+version of this codec suite) specifically so that each codec's `GetInfo(Stream)`/`GetInfo(string)`
+method — which reports a candidate image's declared dimensions without decoding its pixel data —
+lets callers perform exactly this `width <= Surface.MaxDimension && height <= Surface.MaxDimension`
+comparison themselves before ever calling `Load` and allocating a `Surface`, instead of hard-coding
+or guessing the bound. See _Codecs Subsystem Design_ (`../codecs.md`) for the `GetInfo`/`ImageInfo`
+pattern that motivated this change.
 
 **Architectural decision**: a freshly constructed surface is always fully transparent black (every
 channel, including alpha, is zero). This is deliberate: a newly allocated `byte[]` is already
@@ -93,8 +109,10 @@ something is explicitly drawn into them.
 
 **Throws:**
 
-- `ArgumentOutOfRangeException` — when `width` is less than or equal to zero, or exceeds 8192
-- `ArgumentOutOfRangeException` — when `height` is less than or equal to zero, or exceeds 8192
+- `ArgumentOutOfRangeException` — when `width` is less than or equal to zero, or exceeds
+  `MaxDimension` (8192)
+- `ArgumentOutOfRangeException` — when `height` is less than or equal to zero, or exceeds
+  `MaxDimension` (8192)
 
 #### this[int x, int y]
 
@@ -233,7 +251,9 @@ on all of CanvasNet's target frameworks.
 ### Callers
 
 `Surface` is a public API entry point: it is invoked externally by consumers of the CanvasNet
-package. It is also invoked internally by the in-house `BmpCodec` unit, which depends on
-`Surface` (constructing surfaces and reading/writing rows via `Surface.GetRowSpanBytes`) — see
-_BmpCodec Unit Design_ (`../codecs/bmp-codec.md`) for details of that dependency. `Surface` itself
-has no dependency on `BmpCodec` or on any other unit.
+package. It is also invoked internally by all four in-house codec units (`BmpCodec`, `PngCodec`,
+`TiffCodec`, `JpegCodec`), each of which depends on `Surface` (constructing surfaces and
+reading/writing rows via `Surface.GetRowSpanBytes`, and comparing declared image dimensions
+against the now-public `MaxDimension` constant in their own `Load`/`GetInfo` methods) — see each
+codec's own unit design document under `../codecs/` for details of that dependency. `Surface`
+itself has no dependency on any codec or on any other unit.

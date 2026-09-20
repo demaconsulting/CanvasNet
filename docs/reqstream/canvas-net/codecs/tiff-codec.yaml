@@ -336,3 +336,42 @@ sections:
                   - TiffCodec_Load_RgbFixture_MatchesSourcePngWithOpaqueAlpha
                   - TiffCodec_Load_RgbaFixture_MatchesSourcePngExactly
                   - TiffCodec_Load_GrayscaleFixture_HasEqualRgbChannels
+
+              - id: CanvasNet-Codecs-TiffCodec-GetInfo
+                title: >-
+                  The TiffCodec class shall report a TIFF's width, height, samples-per-pixel, and alpha
+                  presence via GetInfo, given a stream or a file path, without decoding strip data and
+                  without enforcing Surface.MaxDimension. For a seekable stream, GetInfo shall seek
+                  directly to the IFD and decode only the inline ImageWidth, ImageLength,
+                  SamplesPerPixel, and ExtraSamples tag entries; for a non-seekable stream, GetInfo shall
+                  fall back to buffering the whole stream and reusing Load's full IFD-parsing path
+                  (minus strip decoding) to derive the same information.
+                justification: |
+                  Callers need to inspect a TIFF's declared dimensions and channel layout (for example to
+                  reject unreasonably large images before allocating a Surface) without paying the cost
+                  of decoding strip data, ideally via a handful of small seeks rather than buffering the
+                  whole file; a non-seekable stream (for example a network stream) cannot support seeking
+                  to the IFD, so a documented, correctness-preserving fallback is required for that case.
+                tests:
+                  - TiffCodec_GetInfo_Seekable_Rgb_ReturnsExpectedInfoWithoutAlpha
+                  - TiffCodec_GetInfo_Seekable_Rgba_ReturnsExpectedInfoWithAlpha
+                  - TiffCodec_GetInfo_Seekable_PositionStaysWellBelowFullLength
+                  - TiffCodec_GetInfo_NonSeekable_Rgba_FallsBackAndReturnsExpectedInfo
+                  - TiffCodec_GetInfo_NonSeekable_Rgb_FallsBackAndReturnsExpectedInfo
+                  - TiffCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows
+                  - TiffCodec_GetInfo_SucceedsWithTruncatedStripData_ButLoadThrows
+
+              - id: CanvasNet-Codecs-TiffCodec-GetInfoValidation
+                title: >-
+                  The TiffCodec class shall reject null stream/path, empty path, and malformed-header
+                  arguments to GetInfo with the same exception contract as Load (ArgumentNullException,
+                  ArgumentException, or InvalidDataException respectively).
+                justification: |
+                  Callers need GetInfo's failure behavior to be exactly as predictable as Load's, so
+                  invalid arguments or unreadable TIFF data are rejected the same way regardless of which
+                  entry point is used.
+                tests:
+                  - TiffCodec_GetInfo_NullStream_ThrowsArgumentNullException
+                  - TiffCodec_GetInfo_NullPath_ThrowsArgumentNullException
+                  - TiffCodec_GetInfo_EmptyPath_ThrowsArgumentException
+                  - TiffCodec_GetInfo_BadByteOrderMark_ThrowsInvalidDataException

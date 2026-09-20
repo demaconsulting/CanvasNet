@@ -279,11 +279,48 @@ dimensions; for RGB/RGBA fixtures, asserts every decoded pixel matches the corre
 source exactly (alpha forced to 255 for RGB fixtures); for grayscale fixtures, asserts only
 successful load, correct dimensions, and R == G == B per pixel.
 
+#### CanvasNet-Codecs-TiffCodec-GetInfo: GetInfo Reports Dimensions/Channels/Alpha Without Decoding Strips
+
+**Tests**: `TiffCodec_GetInfo_Seekable_Rgb_ReturnsExpectedInfoWithoutAlpha`,
+`TiffCodec_GetInfo_Seekable_Rgba_ReturnsExpectedInfoWithAlpha`,
+`TiffCodec_GetInfo_Seekable_PositionStaysWellBelowFullLength`,
+`TiffCodec_GetInfo_NonSeekable_Rgba_FallsBackAndReturnsExpectedInfo`,
+`TiffCodec_GetInfo_NonSeekable_Rgb_FallsBackAndReturnsExpectedInfo`,
+`TiffCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows`,
+`TiffCodec_GetInfo_SucceedsWithTruncatedStripData_ButLoadThrows`
+
+Builds a seekable RGB TIFF and separately an RGBA TIFF (with an `ExtraSamples` tag), calls
+`GetInfo` on a `MemoryStream` for each, and asserts the returned `ImageInfo` reports the correct
+width/height, `Channels` (3 or 4), and `HasAlpha` (false or true). Proves the seekable path never
+reads strip data by building a 100x100 image with substantial strip data and asserting
+`stream.Position` after `GetInfo` returns is well below `stream.Length / 2`. Proves the
+non-seekable fallback returns the same correct results for both RGB and RGBA images by wrapping
+the same byte layouts in a `NonSeekableStream`. Proves `GetInfo` does not enforce
+`Surface.MaxDimension` by building an RGB image one pixel wider than `Surface.MaxDimension`,
+asserting `GetInfo` returns that raw oversized width without throwing, and then asserting `Load`
+on the exact same bytes still throws `InvalidDataException`. Proves the seekable path never needs
+strip data at all by truncating a valid file's trailing strip bytes entirely and asserting
+`GetInfo` still succeeds while `Load` on the same truncated bytes throws `InvalidDataException`.
+
+#### CanvasNet-Codecs-TiffCodec-GetInfoValidation: GetInfo Rejects Invalid Arguments and Malformed Headers
+
+**Tests**: `TiffCodec_GetInfo_NullStream_ThrowsArgumentNullException`,
+`TiffCodec_GetInfo_NullPath_ThrowsArgumentNullException`,
+`TiffCodec_GetInfo_EmptyPath_ThrowsArgumentException`,
+`TiffCodec_GetInfo_BadByteOrderMark_ThrowsInvalidDataException`
+
+Calls `GetInfo(Stream)` with a null stream, `GetInfo(string)` with a null path and separately an
+empty path, and `GetInfo(Stream)` with an 8-byte header carrying an invalid byte-order mark,
+asserting `ArgumentNullException`, `ArgumentNullException`, `ArgumentException`, and
+`InvalidDataException` respectively — the same exception contract as the corresponding `Load`
+scenarios.
+
 ### Acceptance Criteria
 
 A unit test run passes when all test methods above (including each `[Theory]` case) pass without
 error or unexpected exception; any unexpected exception type or wrong return/byte value
-constitutes a failure. Across `TiffCodecTests.cs` and `TiffFixtureTests.cs`, this totals 68 test
-methods (49 in `TiffCodecTests.cs` and 19 in `TiffFixtureTests.cs`, including every `[Theory]`
-case), plus the system-level integration scenarios documented in
+constitutes a failure. Across `TiffCodecTests.cs` and `TiffFixtureTests.cs`, this totals 53 test
+methods (48 in `TiffCodecTests.cs` and 5 in `TiffFixtureTests.cs`; several of these are `[Theory]`
+methods that additionally expand to multiple executed xUnit test cases, one per fixture file or
+data row), plus the system-level integration scenarios documented in
 `docs/verification/canvas-net.md`.

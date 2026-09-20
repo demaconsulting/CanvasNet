@@ -125,6 +125,36 @@ Creates (or overwrites) `path` as a `FileStream` and delegates to `Save(Surface,
 - Underlying file-system exceptions (`UnauthorizedAccessException`, `DirectoryNotFoundException`,
   `IOException`) propagate uncaught
 
+#### GetInfo(Stream stream)
+
+Reads only the 54-byte BMP header (`BITMAPFILEHEADER` + `BITMAPINFOHEADER`) and returns an
+`ImageInfo` describing the file, without reading any pixel data. Internally, `Load` and `GetInfo`
+share a single private `ParseHeader(Stream, bool enforceMaxDimension)` helper that performs every
+header validation `Load` performs (signature, `biSize`, `biCompression`, `biBitCount`, non-negative
+`biHeight`); `GetInfo` calls it with `enforceMaxDimension: false`, so an oversized declared width or
+height is returned as-is in the resulting `ImageInfo` rather than throwing — only `Load` (which
+calls the same helper with `enforceMaxDimension: true`) rejects it. `Channels` is 3 for a 24-bit
+header and 4 for a 32-bit header; `HasAlpha` is `false` for 24-bit and `true` for 32-bit.
+
+**Throws:**
+
+- `ArgumentNullException` — `stream` is null
+- `InvalidDataException` — missing `"BM"` signature; `biSize != 40`; `biCompression != 0`;
+  `biBitCount` not 24 or 32; negative `biHeight`; non-positive width or zero height; the stream
+  ends before the 54-byte header has been fully read (same contract as `Load`, except the
+  `Surface.MaxDimension` check is skipped)
+
+#### GetInfo(string path)
+
+Opens `path` as a read-only `FileStream` and delegates to `GetInfo(Stream)`.
+
+**Throws:**
+
+- `ArgumentNullException` — `path` is null
+- `ArgumentException` — `path` is an empty string
+- `InvalidDataException` — see `GetInfo(Stream)`
+- Underlying file-system exceptions propagate uncaught
+
 ### Error Handling
 
 All argument validation happens at the start of each public method, before any header or pixel
@@ -140,8 +170,10 @@ validation fails, because all argument checks precede any header write.
 `BmpCodec` depends on `Surface` (constructing surfaces in `Load` and reading rows via
 `Surface.GetRowSpanBytes` in `Save`) — this is the first documented inter-unit dependency in
 CanvasNet. No new public members were added to `Surface` to support this: its existing
-constructor and `GetRowSpanBytes` accessor were already sufficient. Beyond `Surface`, `BmpCodec`
-uses only the .NET base class library's `System.IO` namespace (`Stream`, `FileStream`,
+constructor and `GetRowSpanBytes` accessor were already sufficient. `BmpCodec` also depends on
+the `Codecs` subsystem's shared `ImageInfo` record struct as the return type of `GetInfo` — see
+_Codecs Subsystem Design_ (`../codecs.md`). Beyond `Surface` and `ImageInfo`, `BmpCodec` uses only
+the .NET base class library's `System.IO` namespace (`Stream`, `FileStream`,
 `InvalidDataException`), available on every one of CanvasNet's target frameworks with no new
 runtime NuGet dependency.
 

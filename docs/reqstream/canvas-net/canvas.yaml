@@ -81,6 +81,19 @@ sections:
             tests:
               - Surface_Constructor_HeightExceedsMaximum_ThrowsArgumentOutOfRangeException
 
+          - id: CanvasNet-Canvas-MaxDimensionPublic
+            title: >-
+              The Canvas subsystem shall expose its maximum permitted pixel-buffer dimension as a
+              public constant.
+            justification: |
+              Callers probing untrusted or unknown-source image headers need to compare declared
+              dimensions against the same maximum dimension the Canvas subsystem enforces, before
+              allocating a pixel buffer.
+            children:
+              - CanvasNet-Canvas-Surface-MaxDimensionPublic
+            tests:
+              - Surface_MaxDimension_IsPubliclyAccessible_Equals8192
+
           - id: CanvasNet-Canvas-PixelGet
             title: The Canvas subsystem shall allow reading the pixel at a specified coordinate.
             justification: |

@@ -182,6 +182,71 @@ Creates (or overwrites) `path` as a `FileStream` and delegates to
 - Underlying file-system exceptions (`UnauthorizedAccessException`, `DirectoryNotFoundException`,
   `IOException`) propagate uncaught
 
+#### GetInfo(Stream stream)
+
+Reports a TIFF's width, height, samples-per-pixel-derived channel count, and alpha presence
+**without buffering or decoding strip data whenever the stream supports seeking** — a
+deliberately different strategy from every other `GetInfo` overload in `Codecs`, which read a
+short prefix sequentially. This is required because a TIFF's Image File Directory is not
+necessarily near the start of the file (its offset is given by the 8-byte header's 4th field, and
+a well-formed writer may place it anywhere, including after the strip data it describes); a purely
+sequential short-prefix read (as used by `BmpCodec`/`PngCodec`) cannot reliably reach it.
+
+- **`stream.CanSeek == true` (the common case):** `GetInfo` reads only the 8-byte header, seeks
+  directly to the declared IFD offset, reads the 2-byte entry count, and then reads each 12-byte
+  IFD entry directly from the stream via `ProbeIfdEntriesSeekable`, decoding **only** the four
+  tags relevant to `ImageInfo` — `ImageWidth` (256), `ImageLength` (257), `SamplesPerPixel` (277),
+  and `ExtraSamples` (338, presence alone signals `HasAlpha`) — and **only** when each tag's value
+  fits inline within the 12-byte entry itself (`count == 1` and type BYTE/SHORT/LONG); TIFF entries
+  whose value must be dereferenced through a separate offset are deliberately never followed, so
+  no strip-data-adjacent or arbitrary-offset reads ever occur. If `SamplesPerPixel` is absent,
+  `GetInfo` defaults it to 1 — a simpler default than `Load`'s (which defaults to
+  `BitsPerSample`'s entry count); this is an intentional, documented reduced-fidelity trade-off
+  for the significant read-cost savings of never dereferencing `BitsPerSample`'s own value/offset
+  field. As a minor optimization (not required for correctness), the entry scan may stop early
+  once `ImageWidth` and `ImageLength` have both been found and the current tag number reaches or
+  exceeds 338 (`ExtraSamples`) — safe because every fixture and every file this codec itself
+  writes places IFD entries in ascending tag-number order (the TIFF 6.0-recommended convention),
+  but **not** relied upon for correctness against an arbitrary non-conforming file: a
+  non-ascending-order IFD would simply be read to its end instead, never producing an incorrect
+  result.
+- **`stream.CanSeek == false` (fallback):** seeking is impossible, so `GetInfo` instead buffers
+  the entire stream into memory (prefixing the 8 header bytes already consumed) and reuses the
+  same `ParseIfd` and `ReadTiffImageInfo(..., enforceMaxDimension: false)` helpers `Load` itself
+  uses (only strip decoding is skipped) — trading away the "never read strip data" property for
+  correctness when seeking is unavailable. Because this path reuses `Load`'s richer
+  `SamplesPerPixel`/`Photometric`-aware logic rather than the seekable path's simpler four-tag
+  scan, `HasAlpha` is derived via `SamplesPerPixel == 4 && Photometric == RGB` here, which can in
+  principle disagree with the seekable path's simpler "`ExtraSamples` tag present" signal on a
+  malformed file that presents 4 samples per pixel without an `ExtraSamples` tag; this discrepancy
+  between the two paths is a deliberate, documented consequence of reusing two different
+  tag-reading strategies, not a defect.
+
+Neither path enforces `Surface.MaxDimension` — an oversized `ImageWidth`/`ImageLength` is returned
+as-is in the resulting `ImageInfo`.
+
+**Throws:**
+
+- `ArgumentNullException` — `stream` is null
+- `InvalidDataException` — bad byte-order mark or magic number; the stream ends before the header,
+  entry count, or a declared IFD entry has been fully read (same contract as `Load`, except the
+  `Surface.MaxDimension` check is skipped, and — on the seekable path only — most other
+  tag-presence/value validation `Load` performs is also skipped, since only the four tags above
+  are ever inspected)
+
+#### GetInfo(string path)
+
+Opens `path` as a read-only `FileStream` and delegates to `GetInfo(Stream)`. Note that a
+`FileStream` is always seekable, so opening by path always exercises `GetInfo`'s seek-based path,
+never its non-seekable fallback.
+
+**Throws:**
+
+- `ArgumentNullException` — `path` is null
+- `ArgumentException` — `path` is an empty string
+- `InvalidDataException` — see `GetInfo(Stream)`
+- Underlying file-system exceptions propagate uncaught
+
 ### Error Handling
 
 All argument validation happens at the start of each public method, before any header or pixel
@@ -198,12 +263,13 @@ fails, because all argument checks precede any byte write.
 `TiffCodec` depends on `Surface` (constructing surfaces in `Load` and reading/writing rows via
 `Surface.GetRowSpanBytes` in `Save`), using only `Surface`'s existing public API exactly as
 `BmpCodec`/`PngCodec` do. No new public members were added to `Surface` or `Rgba32` to support this
-codec. Beyond `Surface`, `TiffCodec` uses only the .NET base class library's `System.IO` namespace
-(`Stream`, `FileStream`, `InvalidDataException`) and `System.IO.Compression.DeflateStream`
-(available on every one of CanvasNet's target frameworks with no new runtime NuGet dependency);
-PackBits, TIFF-flavor LZW, the horizontal-differencing predictor, and the zlib wrapper (2-byte
-header, Adler-32 trailer) are all computed by hand-rolled algorithms rather than any third-party
-library.
+codec. `TiffCodec` also depends on the `Codecs` subsystem's shared `ImageInfo` record struct as the
+return type of `GetInfo` — see _Codecs Subsystem Design_ (`../codecs.md`). Beyond `Surface` and
+`ImageInfo`, `TiffCodec` uses only the .NET base class library's `System.IO` namespace (`Stream`,
+`FileStream`, `InvalidDataException`) and `System.IO.Compression.DeflateStream` (available on
+every one of CanvasNet's target frameworks with no new runtime NuGet dependency); PackBits,
+TIFF-flavor LZW, the horizontal-differencing predictor, and the zlib wrapper (2-byte header,
+Adler-32 trailer) are all computed by hand-rolled algorithms rather than any third-party library.
 
 ### Conformance Testing
 

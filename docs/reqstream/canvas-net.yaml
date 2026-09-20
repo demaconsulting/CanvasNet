@@ -131,6 +131,21 @@ sections:
           - Surface_CompositeOverSurface_WidthMismatch_ThrowsArgumentException
           - Surface_CompositeOverSurface_HeightMismatch_ThrowsArgumentException
 
+      - id: CanvasNet-Lib-CanvasMaxDimensionPublic
+        title: >-
+          The library shall expose the maximum permitted pixel-buffer dimension as a public
+          constant (Surface.MaxDimension).
+        tags: [system]
+        justification: |
+          Callers probing untrusted or unknown-source image headers (via each codec's GetInfo) need
+          to compare the reported dimensions against the same maximum dimension the library itself
+          enforces, before ever allocating a pixel buffer; a public constant removes the need to
+          hard-code or guess this value.
+        children:
+          - CanvasNet-Canvas-MaxDimensionPublic
+        tests:
+          - Surface_MaxDimension_IsPubliclyAccessible_Equals8192
+
   - title: BMP Codec API
     requirements:
       - id: CanvasNet-Lib-BmpSave
@@ -222,6 +237,39 @@ sections:
           - BmpCodec_Load_8BitPaletteDepth_ThrowsInvalidDataException
           - BmpCodec_Load_TopDownNegativeHeight_ThrowsInvalidDataException
           - BmpCodec_Load_TruncatedStream_ThrowsInvalidDataException
+
+      - id: CanvasNet-Lib-BmpGetInfo
+        title: >-
+          The library shall report a BMP's width, height, channel count, and alpha presence via
+          GetInfo, given a stream or a file path, without decoding pixel data and without
+          enforcing the maximum permitted dimension.
+        tags: [system]
+        justification: |
+          Callers need to inspect a BMP's declared dimensions and channel layout - for example to
+          reject unreasonably large images before allocating a Surface - without paying the cost
+          of decoding the full pixel buffer.
+        children:
+          - CanvasNet-Codecs-BmpGetInfo
+        tests:
+          - BmpCodec_GetInfo_24Bit_ReturnsExpectedInfoWithoutAlpha
+          - BmpCodec_GetInfo_32Bit_ReturnsExpectedInfoWithAlpha
+          - BmpCodec_GetInfo_NeverReadsPixelData
+          - BmpCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows
+
+      - id: CanvasNet-Lib-BmpGetInfoValidation
+        title: >-
+          The library shall reject invalid arguments or malformed BMP data passed to GetInfo with
+          the same exception contract as Load.
+        tags: [system]
+        justification: |
+          Callers need GetInfo's failure behavior to be exactly as predictable as Load's.
+        children:
+          - CanvasNet-Codecs-BmpGetInfoValidation
+        tests:
+          - BmpCodec_GetInfo_NullStream_ThrowsArgumentNullException
+          - BmpCodec_GetInfo_NullPath_ThrowsArgumentNullException
+          - BmpCodec_GetInfo_EmptyPath_ThrowsArgumentException
+          - BmpCodec_GetInfo_BadSignature_ThrowsInvalidDataException
 
   - title: PNG Codec API
     requirements:
@@ -317,6 +365,40 @@ sections:
           - PngCodec_Load_CorruptChunkCrc_ThrowsInvalidDataException
           - PngCodec_Load_CorruptAdlerTrailer_ThrowsInvalidDataException
           - PngCodec_Load_TruncatedStream_ThrowsInvalidDataException
+
+      - id: CanvasNet-Lib-PngGetInfo
+        title: >-
+          The library shall report a PNG's width, height, channel count, and alpha presence via
+          GetInfo, given a stream or a file path, by reading only the signature and IHDR chunk,
+          without decoding IDAT pixel data and without enforcing the maximum permitted dimension.
+        tags: [system]
+        justification: |
+          Callers need to inspect a PNG's declared dimensions and color type - for example to
+          reject unreasonably large images before allocating a Surface - without paying the cost
+          of inflating and decoding the full pixel buffer.
+        children:
+          - CanvasNet-Codecs-PngGetInfo
+        tests:
+          - PngCodec_GetInfo_Rgb_ReturnsExpectedInfoWithoutAlpha
+          - PngCodec_GetInfo_Rgba_ReturnsExpectedInfoWithAlpha
+          - PngCodec_GetInfo_NeverReadsPastIhdr
+          - PngCodec_GetInfo_SucceedsWithCorruptIdatRegion_ButLoadThrows
+          - PngCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows
+
+      - id: CanvasNet-Lib-PngGetInfoValidation
+        title: >-
+          The library shall reject invalid arguments or malformed PNG data passed to GetInfo with
+          the same exception contract as Load.
+        tags: [system]
+        justification: |
+          Callers need GetInfo's failure behavior to be exactly as predictable as Load's.
+        children:
+          - CanvasNet-Codecs-PngGetInfoValidation
+        tests:
+          - PngCodec_GetInfo_NullStream_ThrowsArgumentNullException
+          - PngCodec_GetInfo_NullPath_ThrowsArgumentNullException
+          - PngCodec_GetInfo_EmptyPath_ThrowsArgumentException
+          - PngCodec_GetInfo_BadSignature_ThrowsInvalidDataException
 
   - title: TIFF Codec API
     requirements:
@@ -419,6 +501,45 @@ sections:
           - TiffCodec_Load_TruncatedHeader_ThrowsInvalidDataException
           - TiffCodec_Load_TruncatedStripData_ThrowsInvalidDataException
 
+      - id: CanvasNet-Lib-TiffGetInfo
+        title: >-
+          The library shall report a TIFF's width, height, samples-per-pixel, and alpha presence
+          via GetInfo, given a stream or a file path, without decoding strip data and without
+          enforcing the maximum permitted dimension. For a seekable stream, GetInfo shall seek
+          directly to the IFD instead of buffering the whole file; for a non-seekable stream,
+          GetInfo shall fall back to buffering the whole stream.
+        tags: [system]
+        justification: |
+          Callers need to inspect a TIFF's declared dimensions and channel layout - for example to
+          reject unreasonably large images before allocating a Surface - without paying the cost
+          of decoding strip data, and ideally without buffering the whole file when the stream
+          supports seeking.
+        children:
+          - CanvasNet-Codecs-TiffGetInfo
+        tests:
+          - TiffCodec_GetInfo_Seekable_Rgb_ReturnsExpectedInfoWithoutAlpha
+          - TiffCodec_GetInfo_Seekable_Rgba_ReturnsExpectedInfoWithAlpha
+          - TiffCodec_GetInfo_Seekable_PositionStaysWellBelowFullLength
+          - TiffCodec_GetInfo_NonSeekable_Rgba_FallsBackAndReturnsExpectedInfo
+          - TiffCodec_GetInfo_NonSeekable_Rgb_FallsBackAndReturnsExpectedInfo
+          - TiffCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows
+          - TiffCodec_GetInfo_SucceedsWithTruncatedStripData_ButLoadThrows
+
+      - id: CanvasNet-Lib-TiffGetInfoValidation
+        title: >-
+          The library shall reject invalid arguments or malformed TIFF data passed to GetInfo with
+          the same exception contract as Load.
+        tags: [system]
+        justification: |
+          Callers need GetInfo's failure behavior to be exactly as predictable as Load's.
+        children:
+          - CanvasNet-Codecs-TiffGetInfoValidation
+        tests:
+          - TiffCodec_GetInfo_NullStream_ThrowsArgumentNullException
+          - TiffCodec_GetInfo_NullPath_ThrowsArgumentNullException
+          - TiffCodec_GetInfo_EmptyPath_ThrowsArgumentException
+          - TiffCodec_GetInfo_BadByteOrderMark_ThrowsInvalidDataException
+
   - title: JPEG Codec API
     requirements:
       - id: CanvasNet-Lib-JpegSave
@@ -502,3 +623,44 @@ sections:
           - CanvasNet-Codecs-JpegUnsupportedFormatValidation
         tests:
           - CanvasNet_SystemIntegration_JpegSaveThenLoad_ReturnsExpectedPixel
+
+      - id: CanvasNet-Lib-JpegGetInfo
+        title: >-
+          The library shall report a JPEG's width, height, and component count via GetInfo, given
+          a stream or a file path, by scanning markers for an SOF0/SOF2 segment without
+          entropy-decoding scan data, without requiring an SOS segment or entropy-coded data, and
+          without enforcing the maximum permitted dimension. GetInfo shall bound its marker scan
+          to a fixed maximum number of probed header bytes, throwing InvalidDataException if that
+          limit is reached before an SOF0/SOF2 marker is found.
+        tags: [system]
+        justification: |
+          Callers need to inspect a JPEG's declared dimensions and component count - for example
+          to reject unreasonably large images before allocating a Surface - without paying the
+          cost of entropy-decoding the scan data, and without an unbounded scan over a
+          pathological stream that never presents an SOF marker.
+        children:
+          - CanvasNet-Codecs-JpegGetInfo
+        tests:
+          - JpegCodec_GetInfo_Grayscale_ReturnsExpectedInfoWithoutSosOrEntropyData
+          - JpegCodec_GetInfo_Color_ReturnsExpectedInfo
+          - JpegCodec_GetInfoPath_ReturnsExpectedInfo
+          - JpegCodec_GetInfo_LargeStream_NeverReadsPastProbeLimit
+          - JpegCodec_GetInfo_ProbeLimitExceededWithoutSof_ThrowsInvalidDataException
+          - JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows
+
+      - id: CanvasNet-Lib-JpegGetInfoValidation
+        title: >-
+          The library shall reject invalid arguments or malformed JPEG data passed to GetInfo with
+          the same exception contract as Load.
+        tags: [system]
+        justification: |
+          Callers need GetInfo's failure behavior to be exactly as predictable as Load's.
+        children:
+          - CanvasNet-Codecs-JpegGetInfoValidation
+        tests:
+          - JpegCodec_GetInfoStream_NullStream_ThrowsArgumentNullException
+          - JpegCodec_GetInfoPath_NullPath_ThrowsArgumentNullException
+          - JpegCodec_GetInfoPath_EmptyPath_ThrowsArgumentException
+          - JpegCodec_GetInfo_MissingSoiMarker_ThrowsInvalidDataException
+          - JpegCodec_GetInfo_TruncatedBeforeSofFound_ThrowsInvalidDataException
+          - JpegCodec_GetInfo_SosBeforeSof_ThrowsInvalidDataException

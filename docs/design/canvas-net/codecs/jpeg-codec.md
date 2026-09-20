@@ -160,6 +160,52 @@ stay synchronized across both public entry points.
 - Underlying file-system exceptions (`UnauthorizedAccessException`, `DirectoryNotFoundException`,
   `IOException`) propagate uncaught
 
+#### GetInfo(Stream stream)
+
+Reports a JPEG's width, height, and component count without ever entropy-decoding scan data (and
+therefore without requiring an SOS segment, restart markers, or any entropy-coded bytes to be
+present at all). Reads a bounded prefix of the stream — at most `MaxProbeHeaderBytes`
+(1,048,576 bytes / 1 MiB) — into an in-memory buffer via `ReadBoundedPrefix`, then scans that
+buffer's markers with `ProbeDimensions`: validating the SOI marker, then repeatedly reading a
+marker and, for any marker other than SOF0/SOF2, skipping over its length-prefixed segment
+(reusing the same `SkipLengthPrefixedSegment` helper `Load`'s own marker loop uses) without
+inspecting its payload, until an SOF0 or SOF2 marker is found and parsed (reusing `Load`'s own
+`ReadSof` helper with `enforceMaxDimension: false`) or the buffer is exhausted. Because scanning
+stops the instant SOF0/SOF2 is found — before ever reaching an SOS marker or any entropy-coded
+byte — a stream containing only SOI/DQT/DHT/SOF and nothing else is a fully valid input to
+`GetInfo`. `Channels` is the SOF frame's component count (1 for grayscale, 3 for YCbCr);
+`HasAlpha` is always `false`, since JPEG has no alpha channel.
+
+**Architectural decision:** unlike `BmpCodec`/`PngCodec` (whose headers have a small, fixed
+maximum size) and unlike `TiffCodec` (which can seek directly to its IFD), a JPEG's SOF marker can
+in principle be preceded by an unbounded run of APPn/COM segments (each up to 65,533 bytes), so an
+unbounded sequential scan is not safe against a pathological or malicious stream. `GetInfo`
+therefore reads and scans at most `MaxProbeHeaderBytes` bytes; if no SOF0/SOF2 marker is found
+within that budget, it throws `InvalidDataException` with a message distinguishing "probe limit
+reached with more data possibly remaining" from "stream ended before an SOF marker was found" (the
+latter also covers the ordinary truncated/malformed-header case).
+
+**Throws:**
+
+- `ArgumentNullException` — `stream` is null
+- `InvalidDataException` — the stream does not begin with SOI; an unsupported SOF marker or
+  unsupported component count is encountered; an SOS marker is encountered before any SOF0/SOF2
+  marker; the marker/segment structure is malformed; the stream ends before an SOF0/SOF2 marker is
+  found; or the `MaxProbeHeaderBytes` probe limit is reached before an SOF0/SOF2 marker is found
+  (same contract as `Load`, except the `Surface.MaxDimension` check is skipped, entropy-coded scan
+  data is never required or read, and the probe-limit case is new to `GetInfo`)
+
+#### GetInfo(string path)
+
+Opens `path` as a read-only `FileStream` and delegates to `GetInfo(Stream)`.
+
+**Throws:**
+
+- `ArgumentNullException` — `path` is null
+- `ArgumentException` — `path` is an empty string
+- `InvalidDataException` — see `GetInfo(Stream)`
+- Underlying file-system exceptions propagate uncaught
+
 ### Error Handling
 
 All argument validation happens at the start of each public method, before any image data is read
@@ -175,7 +221,9 @@ fails fast without producing a partial JPEG.
 `JpegCodec` depends on `Surface` (constructing surfaces in `Load` and reading rows via
 `Surface.GetRowSpanBytes` in `Save`), using only `Surface`'s existing public API exactly as
 `BmpCodec`, `PngCodec`, and `TiffCodec` do. No new public members were added to `Surface` or
-`Rgba32` to support this codec. Beyond `Surface`, `JpegCodec` uses only the .NET base class
+`Rgba32` to support this codec. `JpegCodec` also depends on the `Codecs` subsystem's shared
+`ImageInfo` record struct as the return type of `GetInfo` — see _Codecs Subsystem Design_
+(`../codecs.md`). Beyond `Surface` and `ImageInfo`, `JpegCodec` uses only the .NET base class
 library's `System.IO` namespace (`Stream`, `FileStream`, `MemoryStream`,
 `InvalidDataException`) and `System.Numerics.Vector<T>` for optional vector acceleration in the
 IDCT/FDCT dot-product and YCbCr-to-RGB hot paths. No new runtime NuGet package is introduced.
