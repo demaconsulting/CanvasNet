@@ -67,7 +67,9 @@ so `GetInfo` can never drift out of sync with `Load`'s understanding of a well-f
 (`ArgumentNullException` for a null stream/path, `ArgumentException` for an empty path,
 `InvalidDataException` for a malformed or truncated header) — see each codec's own unit design
 document for the exact header-parsing strategy and any format-specific nuance (in particular
-`TiffCodec`'s seek-based-with-fallback strategy and `JpegCodec`'s bounded marker scan).
+`TiffCodec.GetInfo(Stream)`'s seek-only strategy, which additionally throws
+`NotSupportedException` for a non-seekable stream rather than attempting to buffer it, and
+`JpegCodec`'s bounded marker scan).
 
 The `Codecs` subsystem depends on the `Canvas` subsystem's `Surface` unit (constructing surfaces
 when loading and reading/writing rows via `Surface.GetRowSpanBytes` when saving) — see _Canvas
