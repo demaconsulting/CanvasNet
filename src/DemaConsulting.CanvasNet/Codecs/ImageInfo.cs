@@ -1,6 +1,6 @@
-using CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Canvas;
 
-namespace CanvasNet.Codecs;
+namespace DemaConsulting.CanvasNet.Codecs;
 
 /// <summary>
 ///     Represents the dimensions and pixel-format metadata declared by an image file's header,

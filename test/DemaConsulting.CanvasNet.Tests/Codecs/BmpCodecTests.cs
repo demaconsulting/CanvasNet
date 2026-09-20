@@ -1,5 +1,5 @@
-using CanvasNet.Canvas;
-using CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 
 namespace DemaConsulting.CanvasNet.Tests.Codecs;

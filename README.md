@@ -39,20 +39,20 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 ## Installation
 
 ```bash
-dotnet add package CanvasNet
+dotnet add package DemaConsulting.CanvasNet
 ```
 
 Or via Package Manager Console:
 
 ```powershell
-Install-Package CanvasNet
+Install-Package DemaConsulting.CanvasNet
 ```
 
 ## Usage
 
 ```csharp
-using CanvasNet.Canvas;
-using CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
 using System.IO;
 
 var surface = new Surface(4, 4);
@@ -123,7 +123,7 @@ By contributing to this project, you agree that your contributions will be licen
 [badge-build]: https://img.shields.io/github/actions/workflow/status/demaconsulting/CanvasNet/build_on_push.yaml?style=plastic
 [badge-quality]: https://sonarcloud.io/api/project_badges/measure?project=demaconsulting_CanvasNet&metric=alert_status
 [badge-security]: https://sonarcloud.io/api/project_badges/measure?project=demaconsulting_CanvasNet&metric=security_rating
-[badge-nuget]: https://img.shields.io/nuget/v/CanvasNet?style=plastic
+[badge-nuget]: https://img.shields.io/nuget/v/DemaConsulting.CanvasNet?style=plastic
 
 <!-- Link References -->
 [link-forks]: https://github.com/demaconsulting/CanvasNet/network/members
@@ -133,7 +133,7 @@ By contributing to this project, you agree that your contributions will be licen
 [link-build]: https://github.com/demaconsulting/CanvasNet/actions/workflows/build_on_push.yaml
 [link-quality]: https://sonarcloud.io/dashboard?id=demaconsulting_CanvasNet
 [link-security]: https://sonarcloud.io/dashboard?id=demaconsulting_CanvasNet
-[link-nuget]: https://www.nuget.org/packages/CanvasNet
+[link-nuget]: https://www.nuget.org/packages/DemaConsulting.CanvasNet
 [link-contributing]: https://github.com/demaconsulting/CanvasNet/blob/main/CONTRIBUTING.md
 [link-releases]: https://github.com/demaconsulting/CanvasNet/releases
 [link-issues]: https://github.com/demaconsulting/CanvasNet/issues

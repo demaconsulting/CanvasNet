@@ -4,7 +4,7 @@
 
 The `Codecs` subsystem is the second software subsystem in CanvasNet. It groups the four flat,
 hand-rolled image-format codecs — `BmpCodec`, `PngCodec`, `TiffCodec`, and `JpegCodec` — each of
-which converts to and from a `CanvasNet.Canvas.Surface` pixel buffer.
+which converts to and from a `DemaConsulting.CanvasNet.Canvas.Surface` pixel buffer.
 
 ### Purpose
 

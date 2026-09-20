@@ -1,7 +1,7 @@
 using System.IO.Compression;
-using CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Canvas;
 
-namespace CanvasNet.Codecs;
+namespace DemaConsulting.CanvasNet.Codecs;
 
 /// <summary>
 ///     Identifies the compression method used when saving a <see cref="Surface"/> to TIFF format,

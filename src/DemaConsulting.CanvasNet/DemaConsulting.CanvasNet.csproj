@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
 
     <!-- NuGet Package Configuration -->
-    <PackageId>CanvasNet</PackageId>
+    <PackageId>DemaConsulting.CanvasNet</PackageId>
     <Version>0.0.0</Version>
     <Authors>DEMA Consulting</Authors>
     <Company>DEMA Consulting</Company>
@@ -20,7 +20,7 @@
     <PackageTags>canvas;dotnet-library</PackageTags>
     <Copyright>Copyright DEMA Consulting</Copyright>
     <Title>CanvasNet</Title>
-    <Product>CanvasNet</Product>
+    <Product>DemaConsulting.CanvasNet</Product>
 
     <!-- Symbol Package Configuration -->
     <IncludeSymbols>true</IncludeSymbols>

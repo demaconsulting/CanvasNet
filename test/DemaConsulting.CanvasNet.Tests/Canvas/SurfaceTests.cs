@@ -1,4 +1,4 @@
-using CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Tests.Canvas;
 

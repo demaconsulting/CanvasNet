@@ -1,6 +1,6 @@
-using CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Canvas;
 
-namespace CanvasNet.Codecs;
+namespace DemaConsulting.CanvasNet.Codecs;
 
 /// <summary>
 ///     Identifies the pixel bit depth used when saving a <see cref="Surface"/> to BMP format.

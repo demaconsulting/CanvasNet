@@ -2,7 +2,7 @@ using System.Buffers;
 using System.Numerics.Tensors;
 using System.Runtime.InteropServices;
 
-namespace CanvasNet.Canvas;
+namespace DemaConsulting.CanvasNet.Canvas;
 
 /// <summary>
 ///     Represents a mutable, in-memory 32-bit RGBA pixel buffer.
