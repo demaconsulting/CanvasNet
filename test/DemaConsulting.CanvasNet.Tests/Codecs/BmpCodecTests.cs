@@ -1,5 +1,6 @@
 using CanvasNet.Canvas;
 using CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Tests.TestSupport;
 
 namespace DemaConsulting.CanvasNet.Tests.Codecs;
 
@@ -440,6 +441,133 @@ public class BmpCodecTests
         // Act & Assert: the oversized height must be rejected as malformed data, not as an
         // out-of-range constructor argument
         Assert.Throws<InvalidDataException>(() => BmpCodec.Load(stream));
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo reports the correct dimensions, channel count, and no-alpha flag
+    ///     for a 24-bit BMP, without needing to Load (decode) the pixel data.
+    /// </summary>
+    [Fact]
+    public void BmpCodec_GetInfo_24Bit_ReturnsExpectedInfoWithoutAlpha()
+    {
+        // Arrange: save a 3x2 surface at Bit24
+        using var stream = new MemoryStream();
+        var surface = BuildTestCanvas(3, 2);
+        BmpCodec.Save(surface, stream, BmpBitDepth.Bit24);
+        stream.Position = 0;
+
+        // Act
+        var info = BmpCodec.GetInfo(stream);
+
+        // Assert
+        Assert.Equal(new ImageInfo(3, 2, 3, false), info);
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo reports the correct dimensions, channel count, and alpha flag for
+    ///     a 32-bit BMP, without needing to Load (decode) the pixel data.
+    /// </summary>
+    [Fact]
+    public void BmpCodec_GetInfo_32Bit_ReturnsExpectedInfoWithAlpha()
+    {
+        // Arrange: save a 3x2 surface at Bit32
+        using var stream = new MemoryStream();
+        var surface = BuildTestCanvas(3, 2);
+        BmpCodec.Save(surface, stream, BmpBitDepth.Bit32);
+        stream.Position = 0;
+
+        // Act
+        var info = BmpCodec.GetInfo(stream);
+
+        // Assert
+        Assert.Equal(new ImageInfo(3, 2, 4, true), info);
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo consumes only the 54-byte header, never reading any pixel data,
+    ///     by wrapping a valid BMP's bytes in a stream that throws if more than 54 bytes are read.
+    /// </summary>
+    [Fact]
+    public void BmpCodec_GetInfo_NeverReadsPixelData()
+    {
+        // Arrange: a valid 4x4 32-bit BMP, wrapped so any read past the 54-byte header throws
+        using var source = new MemoryStream();
+        BmpCodec.Save(BuildTestCanvas(4, 4), source, BmpBitDepth.Bit32);
+        var bytes = source.ToArray();
+        using var bounded = new BoundedReadStream(new MemoryStream(bytes), maxBytes: 54);
+
+        // Act
+        var info = BmpCodec.GetInfo(bounded);
+
+        // Assert
+        Assert.Equal(new ImageInfo(4, 4, 4, true), info);
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo(Stream) rejects a null stream with ArgumentNullException.
+    /// </summary>
+    [Fact]
+    public void BmpCodec_GetInfo_NullStream_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => BmpCodec.GetInfo((Stream)null!));
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo(string) rejects a null path with ArgumentNullException.
+    /// </summary>
+    [Fact]
+    public void BmpCodec_GetInfo_NullPath_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => BmpCodec.GetInfo((string)null!));
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo(string) rejects an empty path with ArgumentException.
+    /// </summary>
+    [Fact]
+    public void BmpCodec_GetInfo_EmptyPath_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentException>(() => BmpCodec.GetInfo(string.Empty));
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo rejects a stream not starting with the "BM" signature with
+    ///     InvalidDataException, mirroring Load's malformed-header rejection.
+    /// </summary>
+    [Fact]
+    public void BmpCodec_GetInfo_BadSignature_ThrowsInvalidDataException()
+    {
+        // Arrange: a 14-byte header with an incorrect signature
+        var bytes = new byte[14];
+        bytes[0] = (byte)'X';
+        bytes[1] = (byte)'X';
+        using var stream = new MemoryStream(bytes);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => BmpCodec.GetInfo(stream));
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo does not enforce Surface.MaxDimension - it returns the raw
+    ///     oversized header dimensions rather than throwing - while Load on the exact same
+    ///     bytes still throws InvalidDataException.
+    /// </summary>
+    [Fact]
+    public void BmpCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows()
+    {
+        // Arrange: a header declaring a width one above Surface.MaxDimension
+        var bytes = MakeMinimalBmpBytes(
+            biSize: 40, biBitCount: 24, biCompression: 0, biHeight: 1, biWidth: Surface.MaxDimension + 1,
+            includePixelData: false);
+
+        // Act: GetInfo must not throw, and must report the raw oversized width
+        using var infoStream = new MemoryStream(bytes);
+        var info = BmpCodec.GetInfo(infoStream);
+        Assert.Equal(Surface.MaxDimension + 1, info.Width);
+
+        // Assert: Load on the same bytes still rejects the oversized width
+        using var loadStream = new MemoryStream(bytes);
+        Assert.Throws<InvalidDataException>(() => BmpCodec.Load(loadStream));
     }
 
     /// <summary>

@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using CanvasNet.Canvas;
 using CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Tests.TestSupport;
 
 namespace DemaConsulting.CanvasNet.Tests.Codecs;
 
@@ -264,6 +265,23 @@ public class TiffCodecTests
             .Add(TagSamplesPerPixel, TypeShort, 3)
             .Add(TagRowsPerStrip, TypeLong, (uint)rowsPerStrip)
             .Add(TagPlanarConfiguration, TypeShort, 1);
+
+    /// <summary>
+    ///     Adds the standard set of mandatory tags for an 8-bit RGBA (4 samples per pixel, with
+    ///     an ExtraSamples tag marking the 4th sample as unassociated alpha) image, to be
+    ///     combined with <see cref="TestTiffBuilder.WithStrips"/>.
+    /// </summary>
+    private static TestTiffBuilder StandardRgbaBuilder(bool bigEndian, int width, int height, int compression, int rowsPerStrip) =>
+        new TestTiffBuilder(bigEndian)
+            .Add(TagImageWidth, TypeLong, (uint)width)
+            .Add(TagImageLength, TypeLong, (uint)height)
+            .Add(TagBitsPerSample, TypeShort, 8, 8, 8, 8)
+            .Add(TagCompression, TypeShort, (uint)compression)
+            .Add(TagPhotometricInterpretation, TypeShort, 2)
+            .Add(TagSamplesPerPixel, TypeShort, 4)
+            .Add(TagRowsPerStrip, TypeLong, (uint)rowsPerStrip)
+            .Add(TagPlanarConfiguration, TypeShort, 1)
+            .Add(TagExtraSamples, TypeShort, 2);
 
     // ------------------------------------------------------------------------------------------
     // Independent test-only PackBits, LZW, predictor, and zlib implementations
@@ -1410,5 +1428,177 @@ public class TiffCodecTests
         var file = builder.Build();
 
         Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo reports the correct dimensions, channel count, and no-alpha flag
+    ///     for a seekable RGB TIFF, without needing to Load (decode) the strip data.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_Seekable_Rgb_ReturnsExpectedInfoWithoutAlpha()
+    {
+        var file = StandardRgbBuilder(false, 3, 2, 1, 2)
+            .WithStrips(new byte[3 * 3 * 2])
+            .Build();
+
+        var info = TiffCodec.GetInfo(new MemoryStream(file));
+
+        Assert.Equal(new ImageInfo(3, 2, 3, false), info);
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo reports the correct dimensions, channel count, and alpha flag for
+    ///     a seekable RGBA TIFF (with an ExtraSamples tag), without needing to Load (decode) the
+    ///     strip data.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_Seekable_Rgba_ReturnsExpectedInfoWithAlpha()
+    {
+        var file = StandardRgbaBuilder(false, 3, 2, 1, 2)
+            .WithStrips(new byte[3 * 4 * 2])
+            .Build();
+
+        var info = TiffCodec.GetInfo(new MemoryStream(file));
+
+        Assert.Equal(new ImageInfo(3, 2, 4, true), info);
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo's seekable probe path leaves the stream positioned well before the
+    ///     end of a file with substantial strip data, demonstrating that the strip data itself is
+    ///     never read.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_Seekable_PositionStaysWellBelowFullLength()
+    {
+        const int width = 100;
+        const int height = 100;
+        var file = StandardRgbBuilder(false, width, height, 1, height)
+            .WithStrips(new byte[width * height * 3])
+            .Build();
+        using var stream = new MemoryStream(file);
+
+        var info = TiffCodec.GetInfo(stream);
+
+        Assert.Equal(new ImageInfo(width, height, 3, false), info);
+        Assert.True(stream.Position < stream.Length / 2);
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo falls back to buffering the whole stream and reusing Load's
+    ///     directory-parsing path when given a non-seekable stream, still returning the correct
+    ///     dimensions, channel count, and alpha flag.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_NonSeekable_Rgba_FallsBackAndReturnsExpectedInfo()
+    {
+        var file = StandardRgbaBuilder(false, 3, 2, 1, 2)
+            .WithStrips(new byte[3 * 4 * 2])
+            .Build();
+        using var stream = new NonSeekableStream(new MemoryStream(file));
+
+        var info = TiffCodec.GetInfo(stream);
+
+        Assert.Equal(new ImageInfo(3, 2, 4, true), info);
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo's non-seekable fallback also returns the correct result for a
+    ///     no-alpha RGB image.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_NonSeekable_Rgb_FallsBackAndReturnsExpectedInfo()
+    {
+        var file = StandardRgbBuilder(false, 3, 2, 1, 2)
+            .WithStrips(new byte[3 * 3 * 2])
+            .Build();
+        using var stream = new NonSeekableStream(new MemoryStream(file));
+
+        var info = TiffCodec.GetInfo(stream);
+
+        Assert.Equal(new ImageInfo(3, 2, 3, false), info);
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo(Stream) rejects a null stream with ArgumentNullException.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_NullStream_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => TiffCodec.GetInfo((Stream)null!));
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo(string) rejects a null path with ArgumentNullException.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_NullPath_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => TiffCodec.GetInfo((string)null!));
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo(string) rejects an empty path with ArgumentException.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_EmptyPath_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentException>(() => TiffCodec.GetInfo(string.Empty));
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo rejects a stream with an invalid byte-order mark with
+    ///     InvalidDataException, mirroring Load's malformed-header rejection.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_BadByteOrderMark_ThrowsInvalidDataException()
+    {
+        var bytes = new byte[8];
+        bytes[0] = (byte)'X';
+        bytes[1] = (byte)'X';
+
+        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(bytes)));
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo does not enforce Surface.MaxDimension - it returns the raw
+    ///     oversized header dimensions rather than throwing - while Load on the exact same
+    ///     bytes still throws InvalidDataException.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows()
+    {
+        var width = Surface.MaxDimension + 1;
+        var file = StandardRgbBuilder(false, width, 1, 1, 1)
+            .WithStrips(new byte[width * 3])
+            .Build();
+
+        var info = TiffCodec.GetInfo(new MemoryStream(file));
+        Assert.Equal(width, info.Width);
+
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo (seekable path) succeeds on a file with a valid header/IFD but
+    ///     truncated (missing) strip data - which GetInfo never reads - while Load on the same
+    ///     bytes still throws.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_SucceedsWithTruncatedStripData_ButLoadThrows()
+    {
+        const int width = 4;
+        const int height = 4;
+        var file = StandardRgbBuilder(false, width, height, 1, height)
+            .WithStrips(new byte[width * height * 3])
+            .Build();
+
+        // Truncate away the trailing strip data entirely, leaving the header and IFD intact
+        var truncated = file[..(file.Length - (width * height * 3))];
+
+        var info = TiffCodec.GetInfo(new MemoryStream(truncated));
+        Assert.Equal(new ImageInfo(width, height, 3, false), info);
+
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(truncated)));
     }
 }

@@ -945,4 +945,20 @@ public class SurfaceTests
             }
         }
     }
+
+    /// <summary>
+    ///     Proves that Surface.MaxDimension is publicly accessible (not merely internal) and
+    ///     equals the documented maximum of 8192, so that external callers (for example a
+    ///     GetInfo-based caller performing bomb triage before Load) can compare a header-declared
+    ///     dimension against it without needing InternalsVisibleTo access.
+    /// </summary>
+    [Fact]
+    public void Surface_MaxDimension_IsPubliclyAccessible_Equals8192()
+    {
+        // Act: read the constant exactly as an external, non-test-internals caller would
+        const int maxDimension = Surface.MaxDimension;
+
+        // Assert: the documented maximum value is unchanged by the visibility widening
+        Assert.Equal(8192, maxDimension);
+    }
 }
