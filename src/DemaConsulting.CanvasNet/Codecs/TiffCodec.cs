@@ -475,12 +475,24 @@ public static class TiffCodec
     ///     IFD entry count, the IFD entries themselves, and any out-of-line tag value that
     ///     <see cref="ReadTiffImageInfo"/> needs (for example a multi-value <c>BitsPerSample</c>
     ///     tag); strip/pixel data is never requested, since <see cref="ReadTiffImageInfo"/> never
-    ///     resolves <c>StripOffsets</c>/<c>RowsPerStrip</c>/<c>StripByteCounts</c>.
+    ///     resolves <c>StripOffsets</c>/<c>RowsPerStrip</c>/<c>StripByteCounts</c>. Validates every
+    ///     requested range against <see cref="Stream.Length"/> before allocating a buffer, so a
+    ///     malformed file cannot force a large allocation via a bogus out-of-line tag length.
     /// </summary>
     private sealed class StreamTiffDataSource(Stream stream) : ITiffDataSource
     {
         public byte[] ReadBytes(int position, int length, string what)
         {
+            // Validate the requested range against the stream's actual length before
+            // allocating anything. Without this check, a tiny malformed TIFF could declare
+            // an out-of-line tag value array with an attacker-controlled Count in the
+            // billions, forcing a huge up-front allocation on GetInfo's "cheap probing" fast
+            // path - precisely the resource-exhaustion attack GetInfo exists to guard against.
+            if (position < 0 || length < 0 || position + (long)length > stream.Length)
+            {
+                throw new InvalidDataException($"Unexpected end of stream while reading {what}.");
+            }
+
             stream.Seek(position, SeekOrigin.Begin);
             var buffer = new byte[length];
             ReadStreamExactly(stream, buffer, what);

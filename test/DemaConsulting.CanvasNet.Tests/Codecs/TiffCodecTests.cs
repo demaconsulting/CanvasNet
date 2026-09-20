@@ -1677,4 +1677,75 @@ public class TiffCodecTests
         Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(file)));
         Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new NonSeekableStream(new MemoryStream(file))));
     }
+
+    /// <summary>
+    ///     Regression test for a memory-exhaustion vulnerability in the internal seekable-stream
+    ///     TIFF data source used by <see cref="TiffCodec.GetInfo(Stream)"/>'s fast path: it used to allocate
+    ///     <c>new byte[length]</c> for an out-of-line tag value array before validating
+    ///     <c>length</c> against the stream's actual size, so a tiny, mostly-garbage TIFF file
+    ///     declaring an attacker-controlled tag <c>Count</c> in the hundreds of millions could
+    ///     force a huge up-front allocation on the very fast path <see cref="TiffCodec.GetInfo(Stream)"/>
+    ///     exists to make safe for untrusted input. Builds a 66-byte file whose
+    ///     <c>BitsPerSample</c> entry declares 900,000,000 out-of-line SHORT values (~1.8 GB) at
+    ///     an offset that only has 16 real trailing bytes, and proves the seekable path now fails
+    ///     fast with <see cref="InvalidDataException"/> instead of attempting the allocation.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_Seekable_MaliciousOutOfLineTagLength_ThrowsWithoutUnboundedAllocation()
+    {
+        const uint maliciousCount = 900_000_000;
+        var file = new byte[66];
+
+        // Header: little-endian ("II"), magic 42, first IFD at offset 8
+        file[0] = (byte)'I';
+        file[1] = (byte)'I';
+        file[2] = 42;
+        file[4] = 8;
+
+        // IFD at offset 8: entry count = 3, followed by 3 x 12-byte entries, then a 4-byte
+        // next-IFD offset (left as 0)
+        file[8] = 3;
+
+        WriteMaliciousEntry(file, 0, TagImageWidth, TypeLong, 1, 1);
+        WriteMaliciousEntry(file, 1, TagImageLength, TypeLong, 1, 1);
+        WriteMaliciousEntry(file, 2, TagBitsPerSample, TypeShort, maliciousCount, 50);
+
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var ex = Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(file)));
+        stopwatch.Stop();
+
+        Assert.Contains("tag value array", ex.Message);
+
+        // A bounds-checked failure is near-instant; the pre-fix code would instead attempt a
+        // ~1.8 GB allocation, taking vastly longer (or throwing OutOfMemoryException instead).
+        Assert.True(
+            stopwatch.ElapsedMilliseconds < 2000,
+            $"Expected a fast bounds-check failure, took {stopwatch.ElapsedMilliseconds}ms.");
+    }
+
+    /// <summary>
+    ///     Writes one raw 12-byte IFD entry (tag, type, count, value-or-offset) directly into
+    ///     <paramref name="file"/> at the given zero-based entry index within the IFD that starts
+    ///     at offset 8, in little-endian byte order. Used only by
+    ///     <see cref="TiffCodec_GetInfo_Seekable_MaliciousOutOfLineTagLength_ThrowsWithoutUnboundedAllocation"/>
+    ///     to hand-craft a malformed entry that <see cref="TestTiffBuilder"/> cannot express (a
+    ///     declared <c>Count</c> that deliberately does not match the number of real trailing
+    ///     bytes available).
+    /// </summary>
+    private static void WriteMaliciousEntry(byte[] file, int entryIndex, ushort tag, ushort type, uint count, uint valueOrOffset)
+    {
+        var pos = 10 + (entryIndex * 12);
+        file[pos] = (byte)tag;
+        file[pos + 1] = (byte)(tag >> 8);
+        file[pos + 2] = (byte)type;
+        file[pos + 3] = (byte)(type >> 8);
+        file[pos + 4] = (byte)count;
+        file[pos + 5] = (byte)(count >> 8);
+        file[pos + 6] = (byte)(count >> 16);
+        file[pos + 7] = (byte)(count >> 24);
+        file[pos + 8] = (byte)valueOrOffset;
+        file[pos + 9] = (byte)(valueOrOffset >> 8);
+        file[pos + 10] = (byte)(valueOrOffset >> 16);
+        file[pos + 11] = (byte)(valueOrOffset >> 24);
+    }
 }
