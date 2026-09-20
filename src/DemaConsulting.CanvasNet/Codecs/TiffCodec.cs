@@ -225,7 +225,7 @@ public static class TiffCodec
             throw new InvalidDataException("Tiled TIFF images are not supported; only strip-based images are supported.");
         }
 
-        var info = ReadTiffImageInfo(file, tags, bigEndian);
+        var info = ReadTiffImageInfo(file, tags, bigEndian, enforceMaxDimension: true);
 
         return DecodeStrips(file, tags, info, bigEndian);
     }
@@ -260,6 +260,240 @@ public static class TiffCodec
 
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
         return Load(stream);
+    }
+
+    /// <summary>
+    ///     Reads a TIFF file's header and first Image File Directory and reports its declared
+    ///     dimensions and pixel format, without decoding any strip/pixel data.
+    /// </summary>
+    /// <param name="stream">
+    ///     The stream to read the TIFF header and IFD from.
+    /// </param>
+    /// <returns>
+    ///     An <see cref="ImageInfo"/> describing the file's declared width, height, channel
+    ///     count (the <c>SamplesPerPixel</c> tag's value, defaulting to 1 when absent), and
+    ///     whether an <c>ExtraSamples</c> tag was found (used as the alpha signal).
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown when the byte-order mark is neither <c>"II"</c> nor <c>"MM"</c>, the magic
+    ///     number is not 42, a mandatory <c>ImageWidth</c>/<c>ImageLength</c> tag is missing or
+    ///     describes non-positive dimensions, or the stream ends before the header or directory
+    ///     has been read. <see cref="Surface.MaxDimension"/> is <em>not</em> enforced - the raw
+    ///     header-declared values are always returned; see <see cref="ImageInfo"/> for why.
+    /// </exception>
+    /// <remarks>
+    ///     <para>
+    ///         When <c>stream.CanSeek</c> is <see langword="true"/> (the common case), this method
+    ///         uses a genuinely lightweight, seek-based probe: it reads only the 8-byte file
+    ///         header, seeks directly to the first IFD, and reads each 12-byte directory entry in
+    ///         turn, decoding only the four tags of interest (<c>ImageWidth</c>=256,
+    ///         <c>ImageLength</c>=257, <c>SamplesPerPixel</c>=277, <c>ExtraSamples</c>=338) when
+    ///         their value fits inline within the 12-byte entry (count 1, type Byte/Short/Long).
+    ///         It never buffers the whole file and never reads strip/pixel data. As a bounded
+    ///         optimization (not relied upon for correctness), the scan stops once
+    ///         <c>ImageWidth</c> and <c>ImageLength</c> have both been found and the directory has
+    ///         been scanned at least as far as the <c>ExtraSamples</c> tag number, relying on the
+    ///         TIFF specification's requirement that IFD entries be sorted in ascending tag order;
+    ///         for a non-compliant, unsorted IFD this could in principle stop before an
+    ///         out-of-order <c>ExtraSamples</c>/<c>SamplesPerPixel</c> tag is seen, which is an
+    ///         accepted, documented limitation of this fast path (see the design documentation).
+    ///     </para>
+    ///     <para>
+    ///         When <c>stream.CanSeek</c> is <see langword="false"/> (for example a network
+    ///         stream), no seek-based probe is possible, so this method falls back to buffering
+    ///         the entire stream and reusing <see cref="Load(Stream)"/>'s full directory-parsing
+    ///         path (<see cref="ParseIfd"/> and <see cref="ReadTiffImageInfo"/>), stopping short of
+    ///         <see cref="DecodeStrips"/>. This fallback path derives <c>SamplesPerPixel</c>'s
+    ///         absent-default from <c>BitsPerSample</c>'s length (matching <see cref="Load(Stream)"/>
+    ///         exactly) rather than the seekable path's simpler default of 1, and derives
+    ///         <see cref="ImageInfo.HasAlpha"/> from the same richer, <c>PhotometricInterpretation</c>-
+    ///         cross-validated logic <see cref="Load(Stream)"/> uses, rather than the seekable
+    ///         path's simpler "was the tag present and inline-decodable" signal. This documented
+    ///         discrepancy between the two paths is an accepted consequence of the fallback
+    ///         reusing <see cref="Load(Stream)"/>'s richer parser rather than a hand-rolled
+    ///         simplified one.
+    ///     </para>
+    /// </remarks>
+    public static ImageInfo GetInfo(Stream stream)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+
+        var headerBytes = ReadStreamHeaderBytes(stream);
+        var (bigEndian, ifdOffset) = ParseTiffHeader(headerBytes);
+
+        if (stream.CanSeek)
+        {
+            var (width, height, samplesPerPixel, hasAlpha) = ProbeIfdEntriesSeekable(stream, ifdOffset, bigEndian);
+            return new ImageInfo(width, height, samplesPerPixel, hasAlpha);
+        }
+
+        // Non-seekable fallback: no random access is possible, so buffer the whole remainder of
+        // the stream (prefixing the 8 header bytes already consumed above) and reuse Load's full
+        // directory-parsing path, stopping short of DecodeStrips
+        using var buffered = new MemoryStream();
+        buffered.Write(headerBytes, 0, headerBytes.Length);
+        stream.CopyTo(buffered);
+        var file = buffered.ToArray();
+
+        var tags = ParseIfd(file, ifdOffset, bigEndian);
+        var info = ReadTiffImageInfo(file, tags, bigEndian, enforceMaxDimension: false);
+        var fallbackHasAlpha = info is { Photometric: PhotometricRgb, SamplesPerPixel: 4 };
+        return new ImageInfo(info.Width, info.Height, info.SamplesPerPixel, fallbackHasAlpha);
+    }
+
+    /// <summary>
+    ///     Reads a TIFF file's header at the specified path and reports its declared dimensions
+    ///     and pixel format, without decoding any strip/pixel data.
+    /// </summary>
+    /// <param name="path">The path of the TIFF file to inspect. Must not be null or empty.</param>
+    /// <returns>
+    ///     An <see cref="ImageInfo"/> describing the file; see <see cref="GetInfo(Stream)"/> for
+    ///     the reporting contract.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="path"/> is an empty string.</exception>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown for the same malformed/unsupported-format conditions as <see cref="GetInfo(Stream)"/>.
+    /// </exception>
+    /// <remarks>
+    ///     File-system exceptions (for example <see cref="FileNotFoundException"/>,
+    ///     <see cref="DirectoryNotFoundException"/>, <see cref="UnauthorizedAccessException"/>,
+    ///     or <see cref="IOException"/>) raised while opening <paramref name="path"/> propagate
+    ///     uncaught to the caller. A <see cref="FileStream"/> is always seekable, so
+    ///     <see cref="GetInfo(string)"/> always uses the seek-based probe path.
+    /// </remarks>
+    public static ImageInfo GetInfo(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        if (path.Length == 0)
+        {
+            throw new ArgumentException("Path must not be empty.", nameof(path));
+        }
+
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
+        return GetInfo(stream);
+    }
+
+    /// <summary>
+    ///     Reads exactly <paramref name="buffer"/>'s length worth of bytes from <paramref name="stream"/>,
+    ///     tolerating short reads by looping, and throwing <see cref="InvalidDataException"/> if
+    ///     the stream ends before the buffer is filled.
+    /// </summary>
+    private static void ReadStreamExactly(Stream stream, byte[] buffer, string what)
+    {
+        var totalRead = 0;
+        while (totalRead < buffer.Length)
+        {
+            var read = stream.Read(buffer, totalRead, buffer.Length - totalRead);
+            if (read == 0)
+            {
+                throw new InvalidDataException($"Unexpected end of stream while reading {what}.");
+            }
+
+            totalRead += read;
+        }
+    }
+
+    /// <summary>
+    ///     Reads exactly the 8-byte TIFF file header from <paramref name="stream"/>, without
+    ///     interpreting it (see <see cref="ParseTiffHeader"/> for that).
+    /// </summary>
+    private static byte[] ReadStreamHeaderBytes(Stream stream)
+    {
+        var headerBytes = new byte[8];
+        ReadStreamExactly(stream, headerBytes, "TIFF header");
+        return headerBytes;
+    }
+
+    /// <summary>
+    ///     Reads an inline TIFF tag value (count 1, type Byte/Short/Long, and therefore always
+    ///     fitting within the 12-byte IFD entry's 4-byte value field) directly from a 12-byte
+    ///     entry buffer, without any file/stream offset dereference.
+    /// </summary>
+    private static uint ReadInlineEntryValue(byte[] entryBuffer, ushort type, bool bigEndian) =>
+        type switch
+        {
+            TypeByte => entryBuffer[8],
+            TypeShort => ReadUInt16(entryBuffer, 8, bigEndian),
+            _ => ReadUInt32(entryBuffer, 8, bigEndian)
+        };
+
+    /// <summary>
+    ///     Performs the seek-based IFD-tag probe used by <see cref="GetInfo(Stream)"/> for a
+    ///     seekable stream: seeks directly to the first IFD and reads only the 12-byte entries
+    ///     needed to resolve <c>ImageWidth</c>, <c>ImageLength</c>, <c>SamplesPerPixel</c>, and
+    ///     <c>ExtraSamples</c>, deliberately never dereferencing an out-of-line tag-value offset
+    ///     (see the type-level and <see cref="GetInfo(Stream)"/> documentation for the accepted
+    ///     scope limitations this implies).
+    /// </summary>
+    private static (int Width, int Height, int SamplesPerPixel, bool HasAlpha) ProbeIfdEntriesSeekable(
+        Stream stream,
+        uint ifdOffset,
+        bool bigEndian)
+    {
+        stream.Seek(ifdOffset, SeekOrigin.Begin);
+
+        var countBytes = new byte[2];
+        ReadStreamExactly(stream, countBytes, "IFD entry count");
+        var entryCount = ReadUInt16(countBytes, 0, bigEndian);
+
+        int? width = null;
+        int? height = null;
+        int? samplesPerPixel = null;
+        var hasAlpha = false;
+
+        var entryBuffer = new byte[12];
+        for (var i = 0; i < entryCount; i++)
+        {
+            ReadStreamExactly(stream, entryBuffer, "IFD entry");
+            var tag = ReadUInt16(entryBuffer, 0, bigEndian);
+            var type = ReadUInt16(entryBuffer, 2, bigEndian);
+            var count = ReadUInt32(entryBuffer, 4, bigEndian);
+            var fitsInline = count == 1 && (type == TypeByte || type == TypeShort || type == TypeLong);
+
+            if (fitsInline)
+            {
+                switch (tag)
+                {
+                    case TagImageWidth:
+                        width = (int)ReadInlineEntryValue(entryBuffer, type, bigEndian);
+                        break;
+                    case TagImageLength:
+                        height = (int)ReadInlineEntryValue(entryBuffer, type, bigEndian);
+                        break;
+                    case TagSamplesPerPixel:
+                        samplesPerPixel = (int)ReadInlineEntryValue(entryBuffer, type, bigEndian);
+                        break;
+                    case TagExtraSamples:
+                        hasAlpha = true;
+                        break;
+                }
+            }
+
+            // Bounded early-stop optimization (not relied upon for correctness): once both
+            // dimension tags are known and the scan has reached at least the ExtraSamples tag
+            // number, no further entry can still be one of the four tags of interest, provided
+            // the IFD is sorted in ascending tag order as the TIFF specification requires. An
+            // out-of-order (non-compliant) IFD is not guaranteed correct here; the loop simply
+            // continues scanning every remaining entry in that case, which is always safe.
+            if (width.HasValue && height.HasValue && tag >= TagExtraSamples)
+            {
+                break;
+            }
+        }
+
+        if (!width.HasValue || !height.HasValue)
+        {
+            throw new InvalidDataException("TIFF IFD is missing a mandatory ImageWidth or ImageLength tag.");
+        }
+
+        if (width.Value <= 0 || height.Value <= 0)
+        {
+            throw new InvalidDataException($"Invalid TIFF dimensions {width.Value}x{height.Value}.");
+        }
+
+        return (width.Value, height.Value, samplesPerPixel ?? 1, hasAlpha);
     }
 
     /// <summary>
@@ -315,7 +549,20 @@ public static class TiffCodec
     ///     per pixel, compression, photometric interpretation, planar configuration, and
     ///     predictor), throwing <see cref="InvalidDataException"/> for any unsupported value.
     /// </summary>
-    private static TiffImageInfo ReadTiffImageInfo(byte[] file, Dictionary<ushort, IfdEntry> tags, bool bigEndian)
+    /// <param name="file">The fully buffered file bytes.</param>
+    /// <param name="tags">The parsed IFD tag lookup.</param>
+    /// <param name="bigEndian">The file's detected byte order.</param>
+    /// <param name="enforceMaxDimension">
+    ///     When <see langword="true"/>, rejects a width or height above
+    ///     <see cref="Surface.MaxDimension"/> with an <see cref="InvalidDataException"/>, as
+    ///     <see cref="Load(Stream)"/> requires. When <see langword="false"/>, the raw
+    ///     header-declared width and height are returned without comparison.
+    /// </param>
+    private static TiffImageInfo ReadTiffImageInfo(
+        byte[] file,
+        Dictionary<ushort, IfdEntry> tags,
+        bool bigEndian,
+        bool enforceMaxDimension)
     {
         var width = (int)RequireTagValues(file, tags, TagImageWidth, "ImageWidth", bigEndian)[0];
         var height = (int)RequireTagValues(file, tags, TagImageLength, "ImageLength", bigEndian)[0];
@@ -328,8 +575,10 @@ public static class TiffCodec
         // (e.g. DecodeStrips' info.Width * info.SamplesPerPixel row-byte-width calculation, which
         // is computed before its Surface is constructed) is performed, so an oversized value
         // surfaces as the documented InvalidDataException rather than an
-        // ArgumentOutOfRangeException escaping from deep inside Surface's constructor
-        if (width > Surface.MaxDimension || height > Surface.MaxDimension)
+        // ArgumentOutOfRangeException escaping from deep inside Surface's constructor. Skipped
+        // entirely when enforceMaxDimension is false, so GetInfo can report the raw header
+        // dimensions even when they exceed the bound.
+        if (enforceMaxDimension && (width > Surface.MaxDimension || height > Surface.MaxDimension))
         {
             throw new InvalidDataException(
                 $"TIFF dimensions {width}x{height} exceed the maximum supported size of " +

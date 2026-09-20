@@ -211,6 +211,72 @@ public static class PngCodec
     }
 
     /// <summary>
+    ///     Reads a PNG file's signature and <c>IHDR</c> chunk and reports its declared dimensions
+    ///     and pixel format, without reading any further chunks (in particular, without reading
+    ///     any <c>IDAT</c> pixel data).
+    /// </summary>
+    /// <param name="stream">
+    ///     The stream to read the PNG signature and <c>IHDR</c> chunk from. Reading begins at the
+    ///     stream's current position and consumes exactly the 8-byte signature plus the first
+    ///     chunk frame (4-byte length + 4-byte type + 13-byte IHDR data + 4-byte CRC = 33 bytes);
+    ///     the stream is left positioned immediately after the <c>IHDR</c> chunk.
+    /// </param>
+    /// <returns>
+    ///     An <see cref="ImageInfo"/> describing the file's declared width, height, channel
+    ///     count (3 for Truecolor, 4 for Truecolor with alpha), and whether it has an alpha
+    ///     channel (Truecolor-with-alpha color type only).
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown when the signature does not match, the first chunk is not <c>IHDR</c>, or the
+    ///     same malformed/unsupported-<c>IHDR</c> conditions as <see cref="Load(Stream)"/> apply,
+    ///     except that a width or height above <see cref="Surface.MaxDimension"/> is
+    ///     <em>not</em> rejected - the raw header-declared values are always returned; see
+    ///     <see cref="ImageInfo"/> for why. Any corruption in a subsequent chunk (including
+    ///     <c>IDAT</c> or <c>IEND</c>) is never encountered by <c>GetInfo</c>.
+    /// </exception>
+    public static ImageInfo GetInfo(Stream stream)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+
+        var header = ReadIhdrOnly(stream, enforceMaxDimension: false);
+        var hasAlpha = header.ColorType == (int)PngColorType.Rgba;
+        return new ImageInfo(header.Width, header.Height, hasAlpha ? 4 : 3, hasAlpha);
+    }
+
+    /// <summary>
+    ///     Reads a PNG file's header at the specified path and reports its declared dimensions
+    ///     and pixel format, without reading any pixel data.
+    /// </summary>
+    /// <param name="path">The path of the PNG file to inspect. Must not be null or empty.</param>
+    /// <returns>
+    ///     An <see cref="ImageInfo"/> describing the file; see <see cref="GetInfo(Stream)"/> for
+    ///     the reporting contract.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="path"/> is an empty string.</exception>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown for the same malformed/unsupported-format conditions as <see cref="GetInfo(Stream)"/>.
+    /// </exception>
+    /// <remarks>
+    ///     File-system exceptions (for example <see cref="FileNotFoundException"/>,
+    ///     <see cref="DirectoryNotFoundException"/>, <see cref="UnauthorizedAccessException"/>,
+    ///     or <see cref="IOException"/>) raised while opening <paramref name="path"/> propagate
+    ///     uncaught to the caller.
+    /// </remarks>
+    public static ImageInfo GetInfo(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        if (path.Length == 0)
+        {
+            throw new ArgumentException("Path must not be empty.", nameof(path));
+        }
+
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
+        return GetInfo(stream);
+    }
+
+    /// <summary>
     ///     Validates that <paramref name="stream"/> begins with the fixed 8-byte PNG signature,
     ///     consuming exactly those 8 bytes.
     /// </summary>
@@ -285,27 +351,7 @@ public static class PngCodec
     /// </summary>
     private static void ProcessChunk(Stream stream, MemoryStream idatStream, ChunkReadState state)
     {
-        var lengthBytes = ReadExactly(stream, 4, "chunk length");
-        var length = ReadUInt32Be(lengthBytes, 0);
-        if (length > int.MaxValue)
-        {
-            throw new InvalidDataException("Chunk length exceeds the supported range.");
-        }
-
-        var typeBytes = ReadExactly(stream, 4, "chunk type");
-        var data = length == 0 ? [] : ReadExactly(stream, (int)length, "chunk data");
-        var crcBytes = ReadExactly(stream, 4, "chunk CRC");
-        var expectedCrc = ReadUInt32Be(crcBytes, 0);
-
-        // The CRC-32 covers the chunk type and data, but not the length field itself
-        var crcInput = new byte[4 + data.Length];
-        typeBytes.CopyTo(crcInput, 0);
-        data.CopyTo(crcInput, 4);
-        var actualCrc = ComputeCrc32(crcInput);
-        if (actualCrc != expectedCrc)
-        {
-            throw new InvalidDataException("Corrupt PNG chunk (CRC-32 mismatch).");
-        }
+        var (typeBytes, data) = ReadChunkFrame(stream);
 
         if (ChunkTypeIs(typeBytes, "IHDR"))
         {
@@ -314,7 +360,7 @@ public static class PngCodec
                 throw new InvalidDataException("Duplicate IHDR chunk.");
             }
 
-            (state.Width, state.Height, state.ColorType) = ParseIhdr(data);
+            (state.Width, state.Height, state.ColorType) = ParseIhdr(data, enforceMaxDimension: true);
             state.IhdrSeen = true;
         }
         else if (ChunkTypeIs(typeBytes, "IDAT"))
@@ -339,6 +385,71 @@ public static class PngCodec
         // Any other chunk type (for example "tEXt", "pHYs", "gAMA") is an ancillary chunk
         // this codec does not need; its CRC-32 has already been validated above, and its
         // data is simply not accumulated anywhere, effectively skipping it
+    }
+
+    /// <summary>
+    ///     Reads and CRC-validates a single chunk frame (length, type, data, and CRC-32) from
+    ///     <paramref name="stream"/>, without interpreting the chunk type in any way.
+    /// </summary>
+    /// <param name="stream">The stream to read the chunk frame from.</param>
+    /// <returns>The chunk's 4-byte type field and its data payload.</returns>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown when the declared chunk length exceeds the supported range, the stream ends
+    ///     before the full chunk frame has been read, or the chunk's CRC-32 does not match its
+    ///     type and data.
+    /// </exception>
+    private static (byte[] TypeBytes, byte[] Data) ReadChunkFrame(Stream stream)
+    {
+        var lengthBytes = ReadExactly(stream, 4, "chunk length");
+        var length = ReadUInt32Be(lengthBytes, 0);
+        if (length > int.MaxValue)
+        {
+            throw new InvalidDataException("Chunk length exceeds the supported range.");
+        }
+
+        var typeBytes = ReadExactly(stream, 4, "chunk type");
+        var data = length == 0 ? [] : ReadExactly(stream, (int)length, "chunk data");
+        var crcBytes = ReadExactly(stream, 4, "chunk CRC");
+        var expectedCrc = ReadUInt32Be(crcBytes, 0);
+
+        // The CRC-32 covers the chunk type and data, but not the length field itself
+        var crcInput = new byte[4 + data.Length];
+        typeBytes.CopyTo(crcInput, 0);
+        data.CopyTo(crcInput, 4);
+        var actualCrc = ComputeCrc32(crcInput);
+        if (actualCrc != expectedCrc)
+        {
+            throw new InvalidDataException("Corrupt PNG chunk (CRC-32 mismatch).");
+        }
+
+        return (typeBytes, data);
+    }
+
+    /// <summary>
+    ///     Validates the 8-byte PNG signature and reads exactly the first chunk frame, requiring
+    ///     it to be <c>IHDR</c>, without reading any further chunks.
+    /// </summary>
+    /// <param name="stream">The stream to read the signature and IHDR chunk from.</param>
+    /// <param name="enforceMaxDimension">
+    ///     Forwarded to <see cref="ParseIhdr(byte[], bool)"/>; see its documentation.
+    /// </param>
+    /// <returns>The parsed <c>IHDR</c> fields.</returns>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown when the signature does not match, the first chunk is not <c>IHDR</c>, or the
+    ///     <c>IHDR</c> chunk itself is malformed (see <see cref="ParseIhdr(byte[], bool)"/>).
+    /// </exception>
+    private static PngHeader ReadIhdrOnly(Stream stream, bool enforceMaxDimension)
+    {
+        ValidateSignature(stream);
+
+        var (typeBytes, data) = ReadChunkFrame(stream);
+        if (!ChunkTypeIs(typeBytes, "IHDR"))
+        {
+            throw new InvalidDataException("First PNG chunk is not IHDR.");
+        }
+
+        var (width, height, colorType) = ParseIhdr(data, enforceMaxDimension);
+        return new PngHeader(width, height, colorType);
     }
 
     /// <summary>
@@ -498,14 +609,22 @@ public static class PngCodec
     ///     Parses and validates a 13-byte <c>IHDR</c> chunk payload.
     /// </summary>
     /// <param name="data">The raw <c>IHDR</c> chunk data (must be exactly 13 bytes).</param>
+    /// <param name="enforceMaxDimension">
+    ///     When <see langword="true"/>, rejects a width or height above
+    ///     <see cref="Surface.MaxDimension"/> with an <see cref="InvalidDataException"/>, as
+    ///     <see cref="Load(Stream)"/> requires. When <see langword="false"/>, the raw
+    ///     header-declared width and height are returned without comparison, as
+    ///     <see cref="GetInfo(Stream)"/> requires.
+    /// </param>
     /// <returns>The parsed image width, height, and PNG color type byte.</returns>
     /// <exception cref="System.IO.InvalidDataException">
-    ///     Thrown when <paramref name="data"/> is not 13 bytes, describes non-positive or
-    ///     oversized (exceeding <see cref="Surface.MaxDimension"/>) dimensions, or describes an
+    ///     Thrown when <paramref name="data"/> is not 13 bytes, describes non-positive
+    ///     dimensions (or, when <paramref name="enforceMaxDimension"/> is <see langword="true"/>,
+    ///     oversized dimensions exceeding <see cref="Surface.MaxDimension"/>), or describes an
     ///     unsupported bit depth, color type, compression method, filter method, or interlace
     ///     method.
     /// </exception>
-    private static (int Width, int Height, int ColorType) ParseIhdr(byte[] data)
+    private static (int Width, int Height, int ColorType) ParseIhdr(byte[] data, bool enforceMaxDimension)
     {
         if (data.Length != 13)
         {
@@ -529,8 +648,10 @@ public static class PngCodec
         // any width/height arithmetic (e.g. DecodeScanlines' rowBytes = width * channels, which
         // is computed before its Surface is constructed) is performed, so an oversized value
         // surfaces as the documented InvalidDataException rather than an
-        // ArgumentOutOfRangeException escaping from deep inside Surface's constructor
-        if (width > Surface.MaxDimension || height > Surface.MaxDimension)
+        // ArgumentOutOfRangeException escaping from deep inside Surface's constructor. Skipped
+        // entirely when enforceMaxDimension is false, so GetInfo can report the raw header
+        // dimensions even when they exceed the bound.
+        if (enforceMaxDimension && (width > Surface.MaxDimension || height > Surface.MaxDimension))
         {
             throw new InvalidDataException(
                 $"PNG dimensions {width}x{height} exceed the maximum supported size of " +

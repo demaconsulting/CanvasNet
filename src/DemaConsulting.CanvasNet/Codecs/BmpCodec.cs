@@ -115,6 +115,93 @@ public static class BmpCodec
     {
         ArgumentNullException.ThrowIfNull(stream);
 
+        var header = ParseHeader(stream, enforceMaxDimension: true);
+
+        // Skip forward to the pixel data, tolerating any gap left by a color table or extra
+        // header bytes that a nonstandard-but-otherwise-valid file might include
+        var alreadyRead = FileHeaderSize + InfoHeaderSize;
+        if (header.BfOffBits > alreadyRead)
+        {
+            SkipExactly(stream, header.BfOffBits - alreadyRead);
+        }
+
+        var width = header.Width;
+        var height = header.Height;
+        var biBitCount = header.BiBitCount;
+        var surface = new Surface(width, height);
+        var bytesPerPixel = biBitCount / 8;
+        var rowDataBytes = width * bytesPerPixel;
+        var paddedRowBytes = RoundUpToMultipleOfFour(rowDataBytes);
+        var rowBuffer = new byte[paddedRowBytes];
+
+        // BMP pixel rows are stored bottom-up: the first row read from the file is the bottom
+        // row of the image, so it is unpacked into the last row of the surface, and so on
+        for (var fileRow = 0; fileRow < height; fileRow++)
+        {
+            ReadExactly(stream, rowBuffer, "BMP pixel data");
+            var destination = surface.GetRowSpanBytes(height - 1 - fileRow);
+            UnpackRow(rowBuffer, destination, width, biBitCount == (int)BmpBitDepth.Bit32);
+        }
+
+        return surface;
+    }
+
+    /// <summary>
+    ///     Loads a <see cref="Surface"/> from a BMP file at the specified path.
+    /// </summary>
+    /// <param name="path">The path of the BMP file to load. Must not be null or empty.</param>
+    /// <returns>
+    ///     A new <see cref="Surface"/> containing the decoded pixels; see
+    ///     <see cref="Load(Stream)"/> for the decoding contract.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="path"/> is an empty string.</exception>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown for the same malformed/unsupported-format conditions as <see cref="Load(Stream)"/>.
+    /// </exception>
+    /// <remarks>
+    ///     File-system exceptions (for example <see cref="FileNotFoundException"/>,
+    ///     <see cref="DirectoryNotFoundException"/>, <see cref="UnauthorizedAccessException"/>,
+    ///     or <see cref="IOException"/>) raised while opening <paramref name="path"/> propagate
+    ///     uncaught to the caller.
+    /// </remarks>
+    public static Surface Load(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        if (path.Length == 0)
+        {
+            throw new ArgumentException("Path must not be empty.", nameof(path));
+        }
+
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
+        return Load(stream);
+    }
+
+    /// <summary>
+    ///     Reads and validates a BMP file's 54-byte BITMAPFILEHEADER + BITMAPINFOHEADER, without
+    ///     reading any pixel data, returning the fields both <see cref="Load(Stream)"/> and
+    ///     <see cref="GetInfo(Stream)"/> need.
+    /// </summary>
+    /// <param name="stream">The stream to read the header from. Must already be non-null.</param>
+    /// <param name="enforceMaxDimension">
+    ///     When <see langword="true"/>, rejects a width or height above
+    ///     <see cref="Surface.MaxDimension"/> with an <see cref="InvalidDataException"/>, as
+    ///     <see cref="Load(Stream)"/> requires. When <see langword="false"/>, the raw
+    ///     header-declared width and height are returned without comparison, as
+    ///     <see cref="GetInfo(Stream)"/> requires.
+    /// </param>
+    /// <returns>
+    ///     The decoded width, height, bit depth, and pixel-data offset (<c>bfOffBits</c>).
+    /// </returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown for the same malformed/unsupported-header conditions documented on
+    ///     <see cref="Load(Stream)"/>, other than the <see cref="Surface.MaxDimension"/> check
+    ///     when <paramref name="enforceMaxDimension"/> is <see langword="false"/>.
+    /// </exception>
+    private static (int Width, int Height, int BiBitCount, int BfOffBits) ParseHeader(
+        Stream stream,
+        bool enforceMaxDimension)
+    {
         // Read and validate the 14-byte BITMAPFILEHEADER; only the "BM" signature is checked -
         // bfSize/bfOffBits are not trusted for anything other than skipping to the pixel data
         var fileHeader = ReadExactly(stream, FileHeaderSize, "BITMAPFILEHEADER");
@@ -166,52 +253,64 @@ public static class BmpCodec
         // Reject dimensions above Surface.MaxDimension before any width/height arithmetic
         // (row/stride sizing below, or the Surface constructor itself) is performed, so an
         // oversized value surfaces as the documented InvalidDataException rather than an
-        // ArgumentOutOfRangeException escaping from deep inside Surface's constructor
-        if (width > Surface.MaxDimension || height > Surface.MaxDimension)
+        // ArgumentOutOfRangeException escaping from deep inside Surface's constructor. Skipped
+        // entirely when enforceMaxDimension is false, so GetInfo can report the raw header
+        // dimensions even when they exceed the bound.
+        if (enforceMaxDimension && (width > Surface.MaxDimension || height > Surface.MaxDimension))
         {
             throw new InvalidDataException(
                 $"BMP dimensions {width}x{height} exceed the maximum supported size of " +
                 $"{Surface.MaxDimension}x{Surface.MaxDimension}.");
         }
 
-        // Skip forward to the pixel data, tolerating any gap left by a color table or extra
-        // header bytes that a nonstandard-but-otherwise-valid file might include
-        var alreadyRead = FileHeaderSize + InfoHeaderSize;
-        if (bfOffBits > alreadyRead)
-        {
-            SkipExactly(stream, bfOffBits - alreadyRead);
-        }
-
-        var surface = new Surface(width, height);
-        var bytesPerPixel = biBitCount / 8;
-        var rowDataBytes = width * bytesPerPixel;
-        var paddedRowBytes = RoundUpToMultipleOfFour(rowDataBytes);
-        var rowBuffer = new byte[paddedRowBytes];
-
-        // BMP pixel rows are stored bottom-up: the first row read from the file is the bottom
-        // row of the image, so it is unpacked into the last row of the surface, and so on
-        for (var fileRow = 0; fileRow < height; fileRow++)
-        {
-            ReadExactly(stream, rowBuffer, "BMP pixel data");
-            var destination = surface.GetRowSpanBytes(height - 1 - fileRow);
-            UnpackRow(rowBuffer, destination, width, biBitCount == (int)BmpBitDepth.Bit32);
-        }
-
-        return surface;
+        return (width, height, biBitCount, bfOffBits);
     }
 
     /// <summary>
-    ///     Loads a <see cref="Surface"/> from a BMP file at the specified path.
+    ///     Reads a BMP file's header and reports its declared dimensions and pixel format,
+    ///     without reading any pixel data.
     /// </summary>
-    /// <param name="path">The path of the BMP file to load. Must not be null or empty.</param>
+    /// <param name="stream">
+    ///     The stream to read the BMP header from. Reading begins at the stream's current
+    ///     position and consumes exactly the 54-byte BITMAPFILEHEADER + BITMAPINFOHEADER; no
+    ///     pixel data is read, and the stream is left positioned immediately after the header.
+    /// </param>
     /// <returns>
-    ///     A new <see cref="Surface"/> containing the decoded pixels; see
-    ///     <see cref="Load(Stream)"/> for the decoding contract.
+    ///     An <see cref="ImageInfo"/> describing the file's declared width, height, channel
+    ///     count (3 for 24-bit, 4 for 32-bit), and whether it has an alpha channel (32-bit only).
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown for the same malformed/unsupported-format conditions as
+    ///     <see cref="Load(Stream)"/>, except that a width or height above
+    ///     <see cref="Surface.MaxDimension"/> is <em>not</em> rejected - the raw header-declared
+    ///     values are always returned; see <see cref="ImageInfo"/> for why.
+    /// </exception>
+    public static ImageInfo GetInfo(Stream stream)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+
+        var header = ParseHeader(stream, enforceMaxDimension: false);
+        return new ImageInfo(
+            header.Width,
+            header.Height,
+            header.BiBitCount / 8,
+            header.BiBitCount == (int)BmpBitDepth.Bit32);
+    }
+
+    /// <summary>
+    ///     Reads a BMP file's header at the specified path and reports its declared dimensions
+    ///     and pixel format, without reading any pixel data.
+    /// </summary>
+    /// <param name="path">The path of the BMP file to inspect. Must not be null or empty.</param>
+    /// <returns>
+    ///     An <see cref="ImageInfo"/> describing the file; see <see cref="GetInfo(Stream)"/> for
+    ///     the reporting contract.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="path"/> is an empty string.</exception>
-    /// <exception cref="System.IO.InvalidDataException">
-    ///     Thrown for the same malformed/unsupported-format conditions as <see cref="Load(Stream)"/>.
+    /// <exception cref="InvalidDataException">
+    ///     Thrown for the same malformed/unsupported-format conditions as <see cref="GetInfo(Stream)"/>.
     /// </exception>
     /// <remarks>
     ///     File-system exceptions (for example <see cref="FileNotFoundException"/>,
@@ -219,7 +318,7 @@ public static class BmpCodec
     ///     or <see cref="IOException"/>) raised while opening <paramref name="path"/> propagate
     ///     uncaught to the caller.
     /// </remarks>
-    public static Surface Load(string path)
+    public static ImageInfo GetInfo(string path)
     {
         ArgumentNullException.ThrowIfNull(path);
         if (path.Length == 0)
@@ -228,7 +327,7 @@ public static class BmpCodec
         }
 
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
-        return Load(stream);
+        return GetInfo(stream);
     }
 
     /// <summary>

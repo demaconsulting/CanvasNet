@@ -1,0 +1,79 @@
+using CanvasNet.Canvas;
+
+namespace CanvasNet.Codecs;
+
+/// <summary>
+///     Represents the dimensions and pixel-format metadata declared by an image file's header,
+///     as reported by a codec's <c>GetInfo</c> method (for example
+///     <see cref="BmpCodec.GetInfo(Stream)"/>) without decoding any pixel data.
+/// </summary>
+/// <remarks>
+///     <c>ImageInfo</c> is a small, shared supporting data type used by all four codecs in this
+///     namespace (<see cref="BmpCodec"/>, <see cref="PngCodec"/>, <see cref="TiffCodec"/>, and
+///     <see cref="JpegCodec"/>) rather than being owned by any single one of them, mirroring how
+///     <see cref="Rgba32"/> is a shared supporting type for <see cref="Surface"/>. It exists to
+///     let a caller inspect a file's declared width and height - and therefore estimate the
+///     memory a full decode would allocate - before committing to a full pixel decode via the
+///     corresponding <c>Load</c> method. This "bomb triage" use case is the primary motivation:
+///     a maliciously or accidentally crafted file can declare dimensions large enough to exhaust
+///     memory if decoded blindly, and <c>GetInfo</c> lets a caller reject such a file cheaply,
+///     typically by comparing <see cref="Width"/>/<see cref="Height"/> (or their product) against
+///     <see cref="Surface.MaxDimension"/> before ever calling <c>Load</c>.
+///     <para>
+///         Deliberately, <c>GetInfo</c> never enforces <see cref="Surface.MaxDimension"/> itself -
+///         it always reports the raw header-declared values, even when they exceed that bound.
+///         Enforcing the bound inside <c>GetInfo</c> would defeat its purpose: a caller inspecting
+///         an oversized file specifically to reject it before decoding could never observe the
+///         oversized value if <c>GetInfo</c> itself threw first. The corresponding <c>Load</c>
+///         method continues to enforce <see cref="Surface.MaxDimension"/> exactly as before.
+///     </para>
+///     <para>
+///         This type is a plain, immutable data carrier with no behavior beyond its record-struct
+///         value equality; it deliberately has no new struct type per format, since all four
+///         codecs report the same four properties from their respective header formats:
+///     </para>
+///     <list type="bullet">
+///         <item>
+///             <description>
+///                 BMP: <see cref="Channels"/> is 3 or 4 (bytes per pixel, derived from the
+///                 BITMAPINFOHEADER bit depth); <see cref="HasAlpha"/> is <see langword="true"/>
+///                 only for the 32-bit-per-pixel variant.
+///             </description>
+///         </item>
+///         <item>
+///             <description>
+///                 PNG: <see cref="Channels"/> is 4 for the RGBA color type and 3 for the RGB
+///                 color type (the only two color types this library's codec supports);
+///                 <see cref="HasAlpha"/> is <see langword="true"/> only for the RGBA color type.
+///             </description>
+///         </item>
+///         <item>
+///             <description>
+///                 TIFF: <see cref="Channels"/> is the <c>SamplesPerPixel</c> tag's value,
+///                 defaulting to 1 when the tag is absent; <see cref="HasAlpha"/> reflects
+///                 whether an <c>ExtraSamples</c> tag was found. See <see cref="TiffCodec"/>'s
+///                 design documentation for the documented difference in precision between the
+///                 seekable and non-seekable probe paths.
+///             </description>
+///         </item>
+///         <item>
+///             <description>
+///                 JPEG: <see cref="Channels"/> is the number of components declared in the
+///                 SOF0/SOF2 marker (1 for grayscale, 3 for YCbCr); <see cref="HasAlpha"/> is
+///                 always <see langword="false"/>, since JPEG has no alpha channel.
+///             </description>
+///         </item>
+///     </list>
+/// </remarks>
+/// <param name="Width">The image width, in pixels, as declared by the file's header.</param>
+/// <param name="Height">The image height, in pixels, as declared by the file's header.</param>
+/// <param name="Channels">
+///     The number of color/alpha channels per pixel that decoding this file would produce, as
+///     declared by the file's header (see the per-format derivation in the type-level remarks).
+/// </param>
+/// <param name="HasAlpha">
+///     <see langword="true"/> if the file's header declares an alpha channel;
+///     <see langword="false"/> otherwise (see the per-format derivation in the type-level
+///     remarks).
+/// </param>
+public readonly record struct ImageInfo(int Width, int Height, int Channels, bool HasAlpha);
