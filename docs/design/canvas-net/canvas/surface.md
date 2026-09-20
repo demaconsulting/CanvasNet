@@ -254,6 +254,12 @@ on all of CanvasNet's target frameworks.
 package. It is also invoked internally by all four in-house codec units (`BmpCodec`, `PngCodec`,
 `TiffCodec`, `JpegCodec`), each of which depends on `Surface` (constructing surfaces and
 reading/writing rows via `Surface.GetRowSpanBytes`, and comparing declared image dimensions
-against the now-public `MaxDimension` constant in their own `Load`/`GetInfo` methods) — see each
-codec's own unit design document under `../codecs/` for details of that dependency. `Surface`
-itself has no dependency on any codec or on any other unit.
+against the now-public `MaxDimension` constant in their own `Load` methods before ever
+constructing a `Surface`) — see each codec's own unit design document under `../codecs/` for
+details of that dependency. Only each codec's `Load` method enforces `MaxDimension`; `GetInfo`
+deliberately does not — it reports the raw header-declared dimensions even when they exceed the
+bound (see _Codecs Subsystem Design_, `../codecs.md`, and `ImageInfo`'s own documentation for why).
+Callers of `GetInfo` who want to reject an oversized file before ever calling `Load` must perform
+their own `width <= Surface.MaxDimension && height <= Surface.MaxDimension` comparison against the
+now-public `Surface.MaxDimension`. `Surface` itself has no dependency on any codec or on any other
+unit.
