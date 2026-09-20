@@ -228,12 +228,15 @@ public static class PngCodec
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
     /// <exception cref="System.IO.InvalidDataException">
-    ///     Thrown when the signature does not match, the first chunk is not <c>IHDR</c>, or the
-    ///     same malformed/unsupported-<c>IHDR</c> conditions as <see cref="Load(Stream)"/> apply,
-    ///     except that a width or height above <see cref="Surface.MaxDimension"/> is
-    ///     <em>not</em> rejected - the raw header-declared values are always returned; see
-    ///     <see cref="ImageInfo"/> for why. Any corruption in a subsequent chunk (including
-    ///     <c>IDAT</c> or <c>IEND</c>) is never encountered by <c>GetInfo</c>.
+    ///     Thrown when the signature does not match, the first chunk is not <c>IHDR</c>, the
+    ///     <c>IHDR</c> chunk's declared length is not exactly 13 (validated before any
+    ///     length-dependent allocation, so a crafted huge declared length cannot force a large
+    ///     allocation), or the same malformed/unsupported-<c>IHDR</c> conditions as
+    ///     <see cref="Load(Stream)"/> apply, except that a width or height above
+    ///     <see cref="Surface.MaxDimension"/> is <em>not</em> rejected - the raw header-declared
+    ///     values are always returned; see <see cref="ImageInfo"/> for why. Any corruption in a
+    ///     subsequent chunk (including <c>IDAT</c> or <c>IEND</c>) is never encountered by
+    ///     <c>GetInfo</c>.
     /// </exception>
     public static ImageInfo GetInfo(Stream stream)
     {
@@ -442,14 +445,60 @@ public static class PngCodec
     {
         ValidateSignature(stream);
 
-        var (typeBytes, data) = ReadChunkFrame(stream);
+        var (_, data) = ReadIhdrChunkFrame(stream);
+        var (width, height, colorType) = ParseIhdr(data, enforceMaxDimension);
+        return new PngHeader(width, height, colorType);
+    }
+
+    /// <summary>
+    ///     Reads and CRC-validates the first chunk frame from <paramref name="stream"/>,
+    ///     requiring it to be an <c>IHDR</c> chunk with the exact 13-byte length mandated by the
+    ///     PNG specification. Unlike <see cref="ReadChunkFrame(Stream)"/>, the chunk type and
+    ///     declared length are both validated <em>before</em> the (fixed-size) data payload is
+    ///     allocated or read, so a crafted non-<c>IHDR</c> or wrong-length first chunk with a huge
+    ///     declared length can never force a large allocation.
+    /// </summary>
+    /// <param name="stream">The stream to read the first chunk frame from.</param>
+    /// <returns>The chunk's 4-byte type field (always <c>IHDR</c>) and its 13-byte data payload.</returns>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown when the stream ends before the chunk length and type fields have been read,
+    ///     the first chunk is not <c>IHDR</c>, the <c>IHDR</c> chunk's declared length is not
+    ///     exactly 13, the stream ends before the full chunk frame has been read, or the chunk's
+    ///     CRC-32 does not match its type and data.
+    /// </exception>
+    private static (byte[] TypeBytes, byte[] Data) ReadIhdrChunkFrame(Stream stream)
+    {
+        const int ihdrDataLength = 13;
+
+        var lengthBytes = ReadExactly(stream, 4, "chunk length");
+        var length = ReadUInt32Be(lengthBytes, 0);
+
+        var typeBytes = ReadExactly(stream, 4, "chunk type");
         if (!ChunkTypeIs(typeBytes, "IHDR"))
         {
             throw new InvalidDataException("First PNG chunk is not IHDR.");
         }
 
-        var (width, height, colorType) = ParseIhdr(data, enforceMaxDimension);
-        return new PngHeader(width, height, colorType);
+        if (length != ihdrDataLength)
+        {
+            throw new InvalidDataException("IHDR chunk does not have the required length of 13 bytes.");
+        }
+
+        var data = ReadExactly(stream, ihdrDataLength, "chunk data");
+        var crcBytes = ReadExactly(stream, 4, "chunk CRC");
+        var expectedCrc = ReadUInt32Be(crcBytes, 0);
+
+        // The CRC-32 covers the chunk type and data, but not the length field itself
+        var crcInput = new byte[4 + data.Length];
+        typeBytes.CopyTo(crcInput, 0);
+        data.CopyTo(crcInput, 4);
+        var actualCrc = ComputeCrc32(crcInput);
+        if (actualCrc != expectedCrc)
+        {
+            throw new InvalidDataException("Corrupt PNG chunk (CRC-32 mismatch).");
+        }
+
+        return (typeBytes, data);
     }
 
     /// <summary>

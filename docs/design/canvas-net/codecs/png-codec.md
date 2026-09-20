@@ -165,9 +165,16 @@ Creates (or overwrites) `path` as a `FileStream` and delegates to `Save(Surface,
 
 Reads only the 8-byte PNG signature and the first (`IHDR`) chunk — never any subsequent chunk,
 and in particular never any `IDAT` chunk — and returns an `ImageInfo` describing the file. `Load`
-and `GetInfo` share a `ReadIhdrOnly(Stream, bool enforceMaxDimension)` helper (itself built on a
-`ReadChunkFrame` helper factored out of `Load`'s own chunk-reading loop) that validates the
-signature and that the first chunk present is `IHDR`, then parses and validates every `IHDR` field
+and `GetInfo` share a `ReadIhdrOnly(Stream, bool enforceMaxDimension)` helper, but the two use
+distinct chunk-frame readers: `Load` reuses the general `ReadChunkFrame` helper (which allocates
+and reads a chunk's declared-length data payload before its type is ever inspected — safe for
+`Load`, since `Load` always intends to read every chunk anyway), while `ReadIhdrOnly` calls a
+dedicated `ReadIhdrChunkFrame` helper that validates the chunk type is `IHDR` **and** that the
+declared length is exactly 13 _before_ allocating or reading any data payload at all. This
+ordering matters specifically for `GetInfo`'s "cheap probe of untrusted input" purpose: without
+it, a crafted non-`IHDR` (or wrong-length `IHDR`) first chunk declaring an attacker-controlled
+multi-gigabyte length could force a huge allocation on `GetInfo`'s fast path before the type/length
+mismatch was ever discovered. `ReadIhdrOnly` then parses and validates every other `IHDR` field
 `Load` validates (bit depth, color type, compression/filter/interlace method) except
 `Surface.MaxDimension`, which `GetInfo` deliberately skips (`enforceMaxDimension: false`) so an
 oversized declared width or height is returned as-is rather than throwing. `Channels` is 3 for
@@ -177,11 +184,12 @@ RGBA.
 **Throws:**
 
 - `ArgumentNullException` — `stream` is null
-- `InvalidDataException` — missing PNG signature; an `IDAT` or `IEND` chunk (or any other chunk
-  type) appearing as the first chunk instead of `IHDR`; malformed `IHDR` (wrong length, bad
-  CRC-32); unsupported bit depth, color type, compression method, filter method, or interlace
-  method; non-positive width or height; the stream ends before the signature and `IHDR` chunk have
-  been fully read (same contract as `Load`, except the `Surface.MaxDimension` check is skipped)
+- `InvalidDataException` — missing PNG signature; a first chunk whose type is not `IHDR`
+  (checked before any length-dependent allocation); an `IHDR` chunk whose declared length is not
+  exactly 13 (also checked before any length-dependent allocation); a bad `IHDR` CRC-32;
+  unsupported bit depth, color type, compression method, filter method, or interlace method;
+  non-positive width or height; the stream ends before the signature and `IHDR` chunk have been
+  fully read (same contract as `Load`, except the `Surface.MaxDimension` check is skipped)
 
 #### GetInfo(string path)
 

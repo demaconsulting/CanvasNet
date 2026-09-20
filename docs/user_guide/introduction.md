@@ -510,14 +510,20 @@ public static ImageInfo GetInfo(Stream stream)
 ```
 
 Reads only the TIFF header and the relevant IFD tags (never strip data) and returns an
-`ImageInfo` describing the image. Does not enforce `Surface.MaxDimension`. When `stream.CanSeek`
-is `true`, seeks directly to the IFD and decodes only the `ImageWidth`, `ImageLength`,
-`SamplesPerPixel`, and `ExtraSamples` tags without reading any strip data. When `stream.CanSeek`
-is `false`, falls back to buffering the entire stream and reusing `Load`'s full IFD-parsing logic
-(minus strip decoding); as a result, `HasAlpha` may be derived via a different signal
-(`ExtraSamples` presence for the seekable path vs. a `SamplesPerPixel == 4` pattern match for the
-non-seekable fallback) — both are correct for well-formed files, but this is a documented,
-intentional discrepancy between the two paths.
+`ImageInfo` describing the image. Does not enforce `Surface.MaxDimension`. Both a seekable and a
+non-seekable stream resolve every tag through the exact same validating parser `Load` itself uses
+(`ReadTiffImageInfo`), so the two cases produce identical results by construction rather than by
+two independently maintained implementations. When `stream.CanSeek` is `true`, a
+`StreamTiffDataSource` seeks directly to the IFD and reads only the bytes the parser actually asks
+for - the header, IFD entries, and any out-of-line tag value needed (for example a multi-value
+`BitsPerSample` tag) - resolving `ImageWidth`, `ImageLength`, `BitsPerSample`, `SamplesPerPixel`,
+`Compression`, `PhotometricInterpretation`, `PlanarConfiguration`, `Predictor`, and `ExtraSamples`,
+and never reading `StripOffsets`/`RowsPerStrip`/`StripByteCounts` or any strip/pixel data. When
+`stream.CanSeek` is `false`, `GetInfo` instead buffers the entire stream and backs the same parser
+with a `ByteArrayTiffDataSource`, still stopping short of decoding strips. Because both paths call
+the identical parser, `HasAlpha` (derived from `ExtraSamples`/`SamplesPerPixel`) and every other
+validated field are computed identically regardless of whether the stream is seekable - there is
+no discrepancy between the two paths.
 
 **Exceptions:**
 

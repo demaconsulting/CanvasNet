@@ -233,7 +233,9 @@ bytes), and asserts `Load` throws `InvalidDataException` for every one.
 **Tests**: `PngCodec_GetInfo_Rgb_ReturnsExpectedInfoWithoutAlpha`,
 `PngCodec_GetInfo_Rgba_ReturnsExpectedInfoWithAlpha`, `PngCodec_GetInfo_NeverReadsPastIhdr`,
 `PngCodec_GetInfo_SucceedsWithCorruptIdatRegion_ButLoadThrows`,
-`PngCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows`
+`PngCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows`,
+`PngCodec_GetInfo_NonIhdrFirstChunkWithHugeDeclaredLength_ThrowsWithoutLargeAllocation`,
+`PngCodec_GetInfo_IhdrChunkWithWrongDeclaredLength_ThrowsWithoutLargeAllocation`
 
 Saves a surface at `Rgb` and separately at `Rgba`, calls `GetInfo` on each, and asserts the
 returned `ImageInfo` reports the correct width/height, `Channels` (3 or 4), and `HasAlpha` (false
@@ -244,7 +246,12 @@ corrupting a saved file's final Adler-32 byte and asserting `GetInfo` still retu
 info while `Load` on the same bytes throws `InvalidDataException`. Proves `GetInfo` does not
 enforce `Surface.MaxDimension` by building a minimal `IHDR` declaring a width one greater than
 `Surface.MaxDimension`, asserting `GetInfo` returns that raw oversized width without throwing, and
-then asserting `Load` on the exact same bytes still throws `InvalidDataException`.
+then asserting `Load` on the exact same bytes still throws `InvalidDataException`. Proves, by
+measuring `GC.GetAllocatedBytesForCurrentThread()` before/after the call (never wall-clock time),
+that a crafted first chunk declaring a huge (100 MB) length is rejected by `ReadIhdrChunkFrame`
+before any length-dependent allocation is attempted — once for a non-`IHDR` first chunk type, and
+once for an `IHDR` chunk whose declared length is not the mandatory 13 — asserting both a bounded
+(well under 1 MB) allocation delta and `InvalidDataException` in each case.
 
 #### CanvasNet-Codecs-PngCodec-GetInfoValidation: GetInfo Rejects Invalid Arguments and Malformed Headers
 
@@ -263,7 +270,7 @@ scenarios.
 
 A unit test run passes when all test methods above pass without error or unexpected exception; any
 unexpected exception type or wrong return/byte value constitutes a failure. Across
-`PngCodecTests.cs` and `PngSuiteTests.cs`, this totals 39 test methods (36 in `PngCodecTests.cs`
+`PngCodecTests.cs` and `PngSuiteTests.cs`, this totals 41 test methods (38 in `PngCodecTests.cs`
 and 3 in `PngSuiteTests.cs`), which expand to a much larger number of executed xUnit test cases
 when every `[Theory]` data row is included, covering the full 175-file PngSuite conformance
 corpus.

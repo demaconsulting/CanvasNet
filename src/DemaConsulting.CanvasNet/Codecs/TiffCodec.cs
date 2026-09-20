@@ -124,6 +124,20 @@ public static class TiffCodec
     private const ushort TagPredictor = 317;
     private const ushort TagExtraSamples = 338;
 
+    /// <summary>
+    ///     The maximum declared value <c>Count</c> allowed for the single-valued (or, for
+    ///     <c>BitsPerSample</c>, at-most-4-valued) image-level tags <see cref="ReadTiffImageInfo"/>
+    ///     resolves. Applied before any count-proportional allocation or read, so a malformed file
+    ///     declaring an implausibly large count for one of these tags (for example millions of
+    ///     <c>BitsPerSample</c> entries) cannot force a large allocation on <c>GetInfo</c>'s
+    ///     cheap-probing path even when the declared out-of-line offset/length otherwise passes
+    ///     the stream-bounds check. Deliberately not applied to <c>StripOffsets</c>,
+    ///     <c>RowsPerStrip</c>, or <c>StripByteCounts</c>, which are read only by
+    ///     <see cref="DecodeStrips"/> (a <see cref="Load(Stream)"/>-only path) and can legitimately
+    ///     have large counts for a real, large, multi-strip image.
+    /// </summary>
+    private const int MaxImageLevelTagCount = 8;
+
     private const ushort TypeByte = 1;
     private const ushort TypeShort = 3;
     private const ushort TypeLong = 4;
@@ -192,12 +206,15 @@ public static class TiffCodec
     ///     mark is neither <c>"II"</c> nor <c>"MM"</c>, the magic number is not 42, a mandatory tag
     ///     (<c>ImageWidth</c>, <c>ImageLength</c>, <c>BitsPerSample</c>, <c>Compression</c>,
     ///     <c>PhotometricInterpretation</c>, <c>StripOffsets</c>, <c>RowsPerStrip</c>, or
-    ///     <c>StripByteCounts</c>) is missing, the image is tiled (a <c>TileWidth</c> or
-    ///     <c>TileLength</c> tag is present), the bit depth is not 8, the photometric
-    ///     interpretation is not Grayscale (1) or RGB (2), the compression method is not one of
-    ///     None/LZW/Deflate/PackBits, the planar configuration is not Chunky (1), the width or
-    ///     height exceeds <see cref="Surface.MaxDimension"/>, an RGB image with 4 samples per
-    ///     pixel is missing a valid <c>ExtraSamples</c> tag, or the stream ends before all
+    ///     <c>StripByteCounts</c>) is missing, any tag this method resolves has a declared value
+    ///     <c>Count</c> of 0 or (for the image-level tags also checked by
+    ///     <see cref="GetInfo(Stream)"/>) above <see cref="MaxImageLevelTagCount"/>, or its
+    ///     count/offset arithmetic would overflow a 32-bit integer, the image is tiled (a
+    ///     <c>TileWidth</c> or <c>TileLength</c> tag is present), the bit depth is not 8, the
+    ///     photometric interpretation is not Grayscale (1) or RGB (2), the compression method is
+    ///     not one of None/LZW/Deflate/PackBits, the planar configuration is not Chunky (1), the
+    ///     width or height exceeds <see cref="Surface.MaxDimension"/>, an RGB image with 4 samples
+    ///     per pixel is missing a valid <c>ExtraSamples</c> tag, or the stream ends before all
     ///     directory, tag value, or strip data has been read.
     /// </exception>
     /// <example>
@@ -220,11 +237,6 @@ public static class TiffCodec
         var source = new ByteArrayTiffDataSource(file);
         var (bigEndian, ifdOffset) = ParseTiffHeader(file);
         var tags = ParseIfd(source, ifdOffset, bigEndian);
-
-        if (tags.ContainsKey(TagTileWidth) || tags.ContainsKey(TagTileLength))
-        {
-            throw new InvalidDataException("Tiled TIFF images are not supported; only strip-based images are supported.");
-        }
 
         var info = ReadTiffImageInfo(source, tags, bigEndian, enforceMaxDimension: true);
 
@@ -285,10 +297,12 @@ public static class TiffCodec
     ///     compression method is not one of None/LZW/Deflate/PackBits, the photometric
     ///     interpretation is not Grayscale (1) or RGB (2), the planar configuration is not Chunky
     ///     (1), the predictor is not None (1) or horizontal differencing (2), an RGB image with 4
-    ///     samples per pixel is missing a valid <c>ExtraSamples</c> tag, the byte-order mark is
-    ///     neither <c>"II"</c> nor <c>"MM"</c>, the magic number is not 42, the declared
-    ///     dimensions are non-positive, or the stream ends before the header, directory, or an
-    ///     out-of-line tag value has been read - <em>except</em> for
+    ///     samples per pixel is missing a valid <c>ExtraSamples</c> tag, the image is tiled (a
+    ///     <c>TileWidth</c> or <c>TileLength</c> tag is present), any tag this method resolves has
+    ///     a declared value <c>Count</c> of 0 or above <see cref="MaxImageLevelTagCount"/>, the
+    ///     byte-order mark is neither <c>"II"</c> nor <c>"MM"</c>, the magic number is not 42, the
+    ///     declared dimensions are non-positive, or the stream ends before the header, directory,
+    ///     or an out-of-line tag value has been read - <em>except</em> for
     ///     <see cref="Surface.MaxDimension"/>, which is deliberately <em>not</em> enforced (the
     ///     raw header-declared values are always returned; see <see cref="ImageInfo"/> for why).
     /// </exception>
@@ -320,6 +334,12 @@ public static class TiffCodec
     {
         ArgumentNullException.ThrowIfNull(stream);
 
+        // Captured before any bytes are read so that, for a seekable stream, every subsequent
+        // absolute-position read/seek performed by StreamTiffDataSource can be expressed relative
+        // to wherever the caller's stream happened to be positioned when GetInfo was invoked,
+        // rather than relative to absolute byte 0 of the underlying stream.
+        var basePosition = stream.CanSeek ? stream.Position : 0L;
+
         var headerBytes = ReadStreamHeaderBytes(stream);
         var (bigEndian, ifdOffset) = ParseTiffHeader(headerBytes);
 
@@ -327,7 +347,7 @@ public static class TiffCodec
         {
             // Seekable fast path: back the shared parser directly with the stream, so only the
             // header, IFD entries, and any out-of-line tag value actually needed are ever read
-            ITiffDataSource seekableSource = new StreamTiffDataSource(stream);
+            ITiffDataSource seekableSource = new StreamTiffDataSource(stream, basePosition);
             var seekableTags = ParseIfd(seekableSource, ifdOffset, bigEndian);
             var seekableInfo = ReadTiffImageInfo(seekableSource, seekableTags, bigEndian, enforceMaxDimension: false);
             var seekableHasAlpha = seekableInfo is { Photometric: PhotometricRgb, SamplesPerPixel: 4 };
@@ -479,7 +499,18 @@ public static class TiffCodec
     ///     requested range against <see cref="Stream.Length"/> before allocating a buffer, so a
     ///     malformed file cannot force a large allocation via a bogus out-of-line tag length.
     /// </summary>
-    private sealed class StreamTiffDataSource(Stream stream) : ITiffDataSource
+    /// <param name="stream">The seekable stream to read from.</param>
+    /// <param name="basePosition">
+    ///     The absolute position <paramref name="stream"/> was at when <see cref="GetInfo(Stream)"/>
+    ///     was invoked. All TIFF-file-relative positions the parser requests (the IFD offset, IFD
+    ///     entry positions, and out-of-line tag value offsets - all of which are relative to the
+    ///     start of the TIFF file, not necessarily the start of the underlying stream) are added
+    ///     to this base before seeking or bounds-checking, so a stream that is not already
+    ///     positioned at byte 0 (for example a substream within a larger container, or a stream
+    ///     the caller has already partially consumed) is read correctly rather than from the
+    ///     wrong absolute location.
+    /// </param>
+    private sealed class StreamTiffDataSource(Stream stream, long basePosition) : ITiffDataSource
     {
         public byte[] ReadBytes(int position, int length, string what)
         {
@@ -488,12 +519,13 @@ public static class TiffCodec
             // an out-of-line tag value array with an attacker-controlled Count in the
             // billions, forcing a huge up-front allocation on GetInfo's "cheap probing" fast
             // path - precisely the resource-exhaustion attack GetInfo exists to guard against.
-            if (position < 0 || length < 0 || position + (long)length > stream.Length)
+            var absolutePosition = basePosition + position;
+            if (position < 0 || length < 0 || absolutePosition + length > stream.Length)
             {
                 throw new InvalidDataException($"Unexpected end of stream while reading {what}.");
             }
 
-            stream.Seek(position, SeekOrigin.Begin);
+            stream.Seek(absolutePosition, SeekOrigin.Begin);
             var buffer = new byte[length];
             ReadStreamExactly(stream, buffer, what);
             return buffer;
@@ -562,14 +594,28 @@ public static class TiffCodec
     ///     <see cref="Load(Stream)"/> requires. When <see langword="false"/>, the raw
     ///     header-declared width and height are returned without comparison.
     /// </param>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown, in addition to the format-support conditions documented on
+    ///     <see cref="Load(Stream)"/>/<see cref="GetInfo(Stream)"/>, when the directory contains a
+    ///     <c>TileWidth</c> or <c>TileLength</c> tag (tiled TIFF images are not supported), or when
+    ///     any of the tags this method resolves has a declared value <c>Count</c> of 0 or above
+    ///     <see cref="MaxImageLevelTagCount"/>.
+    /// </exception>
     private static TiffImageInfo ReadTiffImageInfo(
         ITiffDataSource source,
         Dictionary<ushort, IfdEntry> tags,
         bool bigEndian,
         bool enforceMaxDimension)
     {
-        var width = (int)RequireTagValues(source, tags, TagImageWidth, "ImageWidth", bigEndian)[0];
-        var height = (int)RequireTagValues(source, tags, TagImageLength, "ImageLength", bigEndian)[0];
+        // Shared by Load and both GetInfo paths so a tiled TIFF (which DecodeStrips cannot
+        // handle) is rejected identically everywhere, rather than only when Load is used.
+        if (tags.ContainsKey(TagTileWidth) || tags.ContainsKey(TagTileLength))
+        {
+            throw new InvalidDataException("Tiled TIFF images are not supported; only strip-based images are supported.");
+        }
+
+        var width = (int)RequireTagValues(source, tags, TagImageWidth, "ImageWidth", bigEndian, MaxImageLevelTagCount)[0];
+        var height = (int)RequireTagValues(source, tags, TagImageLength, "ImageLength", bigEndian, MaxImageLevelTagCount)[0];
         if (width <= 0 || height <= 0)
         {
             throw new InvalidDataException($"Invalid TIFF dimensions {width}x{height}.");
@@ -589,7 +635,7 @@ public static class TiffCodec
                 $"{Surface.MaxDimension}x{Surface.MaxDimension}.");
         }
 
-        var bitsPerSample = RequireTagValues(source, tags, TagBitsPerSample, "BitsPerSample", bigEndian);
+        var bitsPerSample = RequireTagValues(source, tags, TagBitsPerSample, "BitsPerSample", bigEndian, MaxImageLevelTagCount);
         if (Array.Exists(bitsPerSample, static bits => bits != 8))
         {
             var invalidBits = Array.Find(bitsPerSample, static bits => bits != 8);
@@ -597,11 +643,11 @@ public static class TiffCodec
                 $"Unsupported TIFF bits per sample {invalidBits}; only 8 bits per sample is supported.");
         }
 
-        var samplesPerPixel = TryGetTagValues(source, tags, TagSamplesPerPixel, bigEndian) is { } sppValues
+        var samplesPerPixel = TryGetTagValues(source, tags, TagSamplesPerPixel, bigEndian, MaxImageLevelTagCount) is { } sppValues
             ? (int)sppValues[0]
             : bitsPerSample.Length;
 
-        var compressionValue = (int)RequireTagValues(source, tags, TagCompression, "Compression", bigEndian)[0];
+        var compressionValue = (int)RequireTagValues(source, tags, TagCompression, "Compression", bigEndian, MaxImageLevelTagCount)[0];
         if (!Enum.IsDefined((TiffCompression)compressionValue))
         {
             throw new InvalidDataException(
@@ -610,14 +656,14 @@ public static class TiffCodec
 
         var compression = (TiffCompression)compressionValue;
 
-        var photometric = (int)RequireTagValues(source, tags, TagPhotometricInterpretation, "PhotometricInterpretation", bigEndian)[0];
+        var photometric = (int)RequireTagValues(source, tags, TagPhotometricInterpretation, "PhotometricInterpretation", bigEndian, MaxImageLevelTagCount)[0];
         if (photometric != PhotometricGrayscale && photometric != PhotometricRgb)
         {
             throw new InvalidDataException(
                 $"Unsupported TIFF photometric interpretation {photometric}; only Grayscale (1) and RGB (2) are supported.");
         }
 
-        var planarConfiguration = TryGetTagValues(source, tags, TagPlanarConfiguration, bigEndian) is { } planarValues
+        var planarConfiguration = TryGetTagValues(source, tags, TagPlanarConfiguration, bigEndian, MaxImageLevelTagCount) is { } planarValues
             ? (int)planarValues[0]
             : PlanarChunky;
         if (planarConfiguration != PlanarChunky)
@@ -626,7 +672,7 @@ public static class TiffCodec
                 $"Unsupported TIFF planar configuration {planarConfiguration}; only Chunky (1) is supported.");
         }
 
-        var predictor = TryGetTagValues(source, tags, TagPredictor, bigEndian) is { } predictorValues
+        var predictor = TryGetTagValues(source, tags, TagPredictor, bigEndian, MaxImageLevelTagCount) is { } predictorValues
             ? (int)predictorValues[0]
             : PredictorNone;
         if (predictor != PredictorNone && predictor != PredictorHorizontal)
@@ -656,7 +702,7 @@ public static class TiffCodec
         {
             if (samplesPerPixel == 4)
             {
-                var extraSamples = TryGetTagValues(source, tags, TagExtraSamples, bigEndian);
+                var extraSamples = TryGetTagValues(source, tags, TagExtraSamples, bigEndian, MaxImageLevelTagCount);
                 if (extraSamples is null || extraSamples[0] != ExtraSamplesUnassociatedAlpha)
                 {
                     throw new InvalidDataException(
@@ -750,8 +796,8 @@ public static class TiffCodec
         Surface surface,
         int destinationRow)
     {
-        var stripOffset = checked((int)stripOffsetValue);
-        var stripByteCount = checked((int)stripByteCountValue);
+        var stripOffset = ToInt32Checked(stripOffsetValue, "strip offset");
+        var stripByteCount = ToInt32Checked(stripByteCountValue, "strip byte count");
         CheckBounds(file, stripOffset, stripByteCount, "strip data");
         var stripBytes = file.AsSpan(stripOffset, stripByteCount).ToArray();
 
@@ -1007,11 +1053,12 @@ public static class TiffCodec
     /// </summary>
     private static Dictionary<ushort, IfdEntry> ParseIfd(ITiffDataSource source, uint ifdOffset, bool bigEndian)
     {
-        var countBytes = source.ReadBytes(checked((int)ifdOffset), 2, "IFD entry count");
+        var ifdOffsetInt = ToInt32Checked(ifdOffset, "IFD offset");
+        var countBytes = source.ReadBytes(ifdOffsetInt, 2, "IFD entry count");
         var entryCount = ReadUInt16(countBytes, 0, bigEndian);
 
         var tags = new Dictionary<ushort, IfdEntry>();
-        var pos = (int)ifdOffset + 2;
+        var pos = ToInt32Checked((long)ifdOffsetInt + 2, "IFD entries offset");
         for (var i = 0; i < entryCount; i++)
         {
             var entryBytes = source.ReadBytes(pos, 12, "IFD entry");
@@ -1031,8 +1078,19 @@ public static class TiffCodec
     ///     from the entry's inline 4-byte value field or, when they do not fit inline, from the
     ///     file offset stored in that field (fetched via <paramref name="source"/>).
     /// </summary>
-    private static uint[] ReadTagValues(ITiffDataSource source, IfdEntry entry, bool bigEndian)
+    private static uint[] ReadTagValues(ITiffDataSource source, IfdEntry entry, bool bigEndian, int? maxCount = null)
     {
+        if (entry.Count == 0)
+        {
+            throw new InvalidDataException("TIFF tag has a declared value count of 0, which is not valid.");
+        }
+
+        if (maxCount is { } cap && entry.Count > cap)
+        {
+            throw new InvalidDataException(
+                $"TIFF tag has an implausibly large declared value count {entry.Count}; expected at most {cap}.");
+        }
+
         var typeSize = entry.Type switch
         {
             TypeByte => 1,
@@ -1044,7 +1102,10 @@ public static class TiffCodec
         var totalSize = (long)typeSize * entry.Count;
         var valueBuffer = totalSize <= 4
             ? entry.ValueBytes
-            : source.ReadBytes(checked((int)ReadUInt32(entry.ValueBytes, 0, bigEndian)), checked((int)totalSize), "tag value array");
+            : source.ReadBytes(
+                ToInt32Checked(ReadUInt32(entry.ValueBytes, 0, bigEndian), "tag value offset"),
+                ToInt32Checked(totalSize, "tag value array length"),
+                "tag value array");
 
         var result = new uint[entry.Count];
         for (var i = 0; i < entry.Count; i++)
@@ -1061,26 +1122,63 @@ public static class TiffCodec
     }
 
     /// <summary>
+    ///     Converts a non-negative <see cref="long"/> to an <see cref="int"/>, throwing
+    ///     <see cref="InvalidDataException"/> (rather than letting an <see cref="OverflowException"/>
+    ///     escape) when the value is negative or exceeds <see cref="int.MaxValue"/>. Used for every
+    ///     file-position/length value derived from attacker-controlled TIFF header/tag fields.
+    /// </summary>
+    /// <param name="value">The value to convert.</param>
+    /// <param name="what">A short description of the value, used in the error message.</param>
+    private static int ToInt32Checked(long value, string what)
+    {
+        if (value < 0 || value > int.MaxValue)
+        {
+            throw new InvalidDataException($"TIFF {what} value {value} exceeds the supported range.");
+        }
+
+        return (int)value;
+    }
+
+    /// <summary>
     ///     Resolves a mandatory tag's values, throwing <see cref="InvalidDataException"/> if the
     ///     tag is not present in the directory.
     /// </summary>
+    /// <param name="source">The abstracted, random-access-capable TIFF byte source.</param>
+    /// <param name="tags">The parsed IFD tag lookup.</param>
+    /// <param name="tag">The TIFF tag number to resolve.</param>
+    /// <param name="tagName">The tag's human-readable name, used in the "missing tag" error message.</param>
+    /// <param name="bigEndian">The file's detected byte order.</param>
+    /// <param name="maxCount">
+    ///     When non-null, the maximum declared value <c>Count</c> allowed for this tag; a larger
+    ///     declared count is rejected with <see cref="InvalidDataException"/> before any
+    ///     count-proportional allocation or read is performed.
+    /// </param>
     private static uint[] RequireTagValues(
-        ITiffDataSource source, Dictionary<ushort, IfdEntry> tags, ushort tag, string tagName, bool bigEndian)
+        ITiffDataSource source, Dictionary<ushort, IfdEntry> tags, ushort tag, string tagName, bool bigEndian, int? maxCount = null)
     {
         if (!tags.TryGetValue(tag, out var entry))
         {
             throw new InvalidDataException($"Missing mandatory TIFF tag {tagName}.");
         }
 
-        return ReadTagValues(source, entry, bigEndian);
+        return ReadTagValues(source, entry, bigEndian, maxCount);
     }
 
     /// <summary>
     ///     Resolves an optional tag's values, returning null if the tag is not present in the
     ///     directory.
     /// </summary>
-    private static uint[]? TryGetTagValues(ITiffDataSource source, Dictionary<ushort, IfdEntry> tags, ushort tag, bool bigEndian) =>
-        tags.TryGetValue(tag, out var entry) ? ReadTagValues(source, entry, bigEndian) : null;
+    /// <param name="source">The abstracted, random-access-capable TIFF byte source.</param>
+    /// <param name="tags">The parsed IFD tag lookup.</param>
+    /// <param name="tag">The TIFF tag number to resolve.</param>
+    /// <param name="bigEndian">The file's detected byte order.</param>
+    /// <param name="maxCount">
+    ///     When non-null, the maximum declared value <c>Count</c> allowed for this tag; see
+    ///     <see cref="RequireTagValues"/>.
+    /// </param>
+    private static uint[]? TryGetTagValues(
+        ITiffDataSource source, Dictionary<ushort, IfdEntry> tags, ushort tag, bool bigEndian, int? maxCount = null) =>
+        tags.TryGetValue(tag, out var entry) ? ReadTagValues(source, entry, bigEndian, maxCount) : null;
 
     /// <summary>
     ///     Converts one row of raw TIFF pixel bytes (RGB, RGBA, or Grayscale, 8-bit depth) into

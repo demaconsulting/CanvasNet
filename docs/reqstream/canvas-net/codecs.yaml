@@ -265,6 +265,9 @@ sections:
               The Codecs subsystem shall report a PNG's width, height, channel count, and alpha
               presence via GetInfo, given a stream or a file path, by reading only the signature and
               IHDR chunk, without decoding IDAT pixel data and without enforcing Surface.MaxDimension.
+              The first chunk's type and (for IHDR) declared length shall both be validated before any
+              length-dependent allocation is attempted, so a crafted first chunk cannot force a large
+              allocation on this fast probing path.
             justification: |
               Callers need to inspect a PNG's declared dimensions and color type without paying the
               cost of inflating and decoding the full pixel buffer.
@@ -276,6 +279,8 @@ sections:
               - PngCodec_GetInfo_NeverReadsPastIhdr
               - PngCodec_GetInfo_SucceedsWithCorruptIdatRegion_ButLoadThrows
               - PngCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows
+              - PngCodec_GetInfo_NonIhdrFirstChunkWithHugeDeclaredLength_ThrowsWithoutLargeAllocation
+              - PngCodec_GetInfo_IhdrChunkWithWrongDeclaredLength_ThrowsWithoutLargeAllocation
 
           - id: CanvasNet-Codecs-PngGetInfoValidation
             title: >-
@@ -398,6 +403,8 @@ sections:
               - CanvasNet-Codecs-TiffCodec-LoadTiled
               - CanvasNet-Codecs-TiffCodec-LoadMissingMandatoryTag
               - CanvasNet-Codecs-TiffCodec-LoadTruncatedStream
+              - CanvasNet-Codecs-TiffCodec-TagValueBoundsValidation
+              - CanvasNet-Codecs-TiffCodec-TagValueCountUpperBound
             tests:
               - TiffCodec_Load_BadByteOrderMark_ThrowsInvalidDataException
               - TiffCodec_Load_UnsupportedBitsPerSample_ThrowsInvalidDataException
@@ -410,19 +417,29 @@ sections:
               - TiffCodec_Load_MissingMandatoryTag_ThrowsInvalidDataException
               - TiffCodec_Load_TruncatedHeader_ThrowsInvalidDataException
               - TiffCodec_Load_TruncatedStripData_ThrowsInvalidDataException
+              - TiffCodec_Load_ImageWidthZeroCount_ThrowsInvalidDataExceptionNotIndexOutOfRange
+              - TiffCodec_Load_IfdOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException
+              - TiffCodec_Load_OutOfLineTagOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException
+              - TiffCodec_GetInfo_Seekable_MaliciousOutOfLineTagLength_ThrowsWithoutUnboundedAllocation
+              - TiffCodec_GetInfo_Seekable_BitsPerSampleCountImplausiblyLarge_ThrowsWithoutLargeAllocation
+              - TiffCodec_GetInfo_NonSeekable_BitsPerSampleCountImplausiblyLarge_ThrowsInvalidDataException
 
           - id: CanvasNet-Codecs-TiffGetInfo
             title: >-
               The Codecs subsystem shall report a TIFF's width, height, samples-per-pixel, and alpha
               presence via GetInfo, given a stream or a file path, without decoding strip data and
               without enforcing Surface.MaxDimension, seeking directly to the IFD when the stream
-              supports seeking and falling back to buffering the whole stream otherwise.
+              supports seeking and falling back to buffering the whole stream otherwise, rejecting a
+              tiled TIFF and resolving stream-relative positions from wherever the caller's stream was
+              actually positioned when GetInfo was invoked, identically to Load.
             justification: |
               Callers need to inspect a TIFF's declared dimensions and channel layout without paying
               the cost of decoding strip data, ideally via a handful of small seeks rather than
               buffering the whole file.
             children:
               - CanvasNet-Codecs-TiffCodec-GetInfo
+              - CanvasNet-Codecs-TiffCodec-GetInfoTiledRejection
+              - CanvasNet-Codecs-TiffCodec-GetInfoStreamBasePosition
             tests:
               - TiffCodec_GetInfo_Seekable_Rgb_ReturnsExpectedInfoWithoutAlpha
               - TiffCodec_GetInfo_Seekable_Rgba_ReturnsExpectedInfoWithAlpha
@@ -431,6 +448,9 @@ sections:
               - TiffCodec_GetInfo_NonSeekable_Rgb_FallsBackAndReturnsExpectedInfo
               - TiffCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows
               - TiffCodec_GetInfo_SucceedsWithTruncatedStripData_ButLoadThrows
+              - TiffCodec_GetInfo_Seekable_TiledTiff_ThrowsInvalidDataException
+              - TiffCodec_GetInfo_NonSeekable_TiledTiff_ThrowsInvalidDataException
+              - TiffCodec_GetInfo_Seekable_StreamNotAtPositionZero_ReturnsCorrectImageInfo
 
           - id: CanvasNet-Codecs-TiffGetInfoValidation
             title: >-
@@ -541,14 +561,17 @@ sections:
           - id: CanvasNet-Codecs-JpegGetInfo
             title: >-
               The Codecs subsystem shall report a JPEG's width, height, and component count via
-              GetInfo, given a stream or a file path, by scanning markers for an SOF0/SOF2 segment
-              without entropy-decoding scan data, without requiring an SOS segment or entropy-coded
-              data, and without enforcing Surface.MaxDimension, bounding its marker scan to a fixed
-              maximum number of probed header bytes.
+              GetInfo, given a stream or a file path, by scanning markers incrementally for a
+              supported SOF segment without entropy-decoding scan data, without requiring an SOS
+              segment or entropy-coded data, and without enforcing Surface.MaxDimension, reading no
+              more of the stream than necessary once the target SOF has been fully parsed and bounding
+              the scan to a fixed maximum number of probed header bytes as a hard outer cap.
             justification: |
               Callers need to inspect a JPEG's declared dimensions and component count without paying
-              the cost of entropy-decoding the scan data, and without an unbounded scan over a
-              pathological stream that never presents an SOF marker.
+              the cost of entropy-decoding the scan data, without an unbounded scan over a
+              pathological stream that never presents an SOF marker, and without unconditionally
+              reading up to the full probe cap even when the SOF appears near the start of a much
+              larger stream.
             children:
               - CanvasNet-Codecs-JpegCodec-GetInfo
             tests:
@@ -556,6 +579,7 @@ sections:
               - JpegCodec_GetInfo_Color_ReturnsExpectedInfo
               - JpegCodec_GetInfoPath_ReturnsExpectedInfo
               - JpegCodec_GetInfo_LargeStream_NeverReadsPastProbeLimit
+              - JpegCodec_GetInfo_SofNearStart_DoesNotReadFarBeyondWhatIsNeeded
               - JpegCodec_GetInfo_ProbeLimitExceededWithoutSof_ThrowsInvalidDataException
               - JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows
 

@@ -152,12 +152,16 @@ sections:
               - id: CanvasNet-Codecs-JpegCodec-RejectUnsupportedSof
                 title: >-
                   The JpegCodec class shall reject any SOF marker other than baseline SOF0 or progressive
-                  SOF2 with InvalidDataException.
+                  SOF2 with InvalidDataException, identically via Load and GetInfo (which share a single
+                  rejection helper), so GetInfo cannot wrongly accept a file that Load rejects merely
+                  because a later, valid SOF0/SOF2 segment happens to follow the unsupported marker.
                 justification: |
                   Other SOF markers denote JPEG variants this codec does not implement, such as extended,
-                  lossless, or arithmetic-coded forms, and must be rejected rather than misdecoded.
+                  lossless, or arithmetic-coded forms, and must be rejected rather than misdecoded -
+                  consistently regardless of which public entry point (Load or GetInfo) is used.
                 tests:
                   - JpegCodec_Load_UnsupportedSofMarker_ThrowsInvalidDataException
+                  - JpegCodec_UnsupportedSofMarkerFollowedByValidSof0_BothLoadAndGetInfoThrow
 
               - id: CanvasNet-Codecs-JpegCodec-RejectFourComponent
                 title: >-
@@ -257,25 +261,30 @@ sections:
               - id: CanvasNet-Codecs-JpegCodec-GetInfo
                 title: >-
                   The JpegCodec class shall report a JPEG's width, height, and component count via
-                  GetInfo, given a stream or a file path, by scanning markers for an SOF0/SOF2 segment
-                  (skipping other length-prefixed segments without entropy-decoding scan data), without
-                  requiring an SOS segment or entropy-coded data to be present, and without enforcing
-                  Surface.MaxDimension. GetInfo shall bound its marker scan to at most
-                  MaxProbeHeaderBytes (1,048,576) bytes, throwing InvalidDataException if that limit is
-                  reached before an SOF0/SOF2 marker is found.
+                  GetInfo, given a stream or a file path, by scanning markers incrementally for a
+                  supported SOF segment (skipping other length-prefixed segments without
+                  entropy-decoding scan data, and reading no more of the stream than necessary once the
+                  target SOF has been fully parsed), without requiring an SOS segment or entropy-coded
+                  data to be present, and without enforcing Surface.MaxDimension. GetInfo shall bound
+                  its marker scan to at most MaxProbeHeaderBytes (1,048,576) bytes as a hard outer cap,
+                  throwing InvalidDataException if that limit is reached before a supported SOF marker
+                  is found.
                 justification: |
                   Callers need to inspect a JPEG's declared dimensions and component count (for example
                   to reject unreasonably large images before allocating a Surface) without paying the
-                  cost of entropy-decoding the scan data, and without an unbounded scan over a
-                  pathological stream that never presents an SOF marker; JPEG has no alpha channel, so
-                  GetInfo always reports HasAlpha as false.
+                  cost of entropy-decoding the scan data, without an unbounded scan over a pathological
+                  stream that never presents an SOF marker, and without unconditionally reading up to
+                  the full probe cap even when the SOF appears near the start of a much larger stream;
+                  JPEG has no alpha channel, so GetInfo always reports HasAlpha as false.
                 tests:
                   - JpegCodec_GetInfo_Grayscale_ReturnsExpectedInfoWithoutSosOrEntropyData
                   - JpegCodec_GetInfo_Color_ReturnsExpectedInfo
                   - JpegCodec_GetInfoPath_ReturnsExpectedInfo
                   - JpegCodec_GetInfo_LargeStream_NeverReadsPastProbeLimit
+                  - JpegCodec_GetInfo_SofNearStart_DoesNotReadFarBeyondWhatIsNeeded
                   - JpegCodec_GetInfo_ProbeLimitExceededWithoutSof_ThrowsInvalidDataException
                   - JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows
+                  - JpegCodec_GetInfo_ZeroLengthSegment_TerminatesPromptlyWithInvalidDataException
 
               - id: CanvasNet-Codecs-JpegCodec-GetInfoValidation
                 title: >-

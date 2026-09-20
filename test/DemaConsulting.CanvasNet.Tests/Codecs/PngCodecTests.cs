@@ -630,6 +630,95 @@ public class PngCodecTests
     }
 
     /// <summary>
+    ///     Regression test for finding #1: a non-<c>IHDR</c> first chunk with a huge declared
+    ///     length used to be fully allocated and read (<c>ReadChunkFrame</c>) before the chunk
+    ///     type was ever inspected, so a crafted file could force a multi-gigabyte allocation on
+    ///     <see cref="PngCodec.GetInfo(Stream)"/>'s cheap-probing path. Proves, by measuring
+    ///     actual bytes allocated (never wall-clock time), that the fixed
+    ///     <c>ReadIhdrChunkFrame</c> rejects the non-<c>IHDR</c> type before any length-dependent
+    ///     allocation/read is attempted.
+    /// </summary>
+    [Fact]
+    public void PngCodec_GetInfo_NonIhdrFirstChunkWithHugeDeclaredLength_ThrowsWithoutLargeAllocation()
+    {
+        // Arrange: signature + a "tEXt"-typed chunk header declaring a 100 MB length, with no
+        // real trailing data at all - if the (fixed) code ever attempted to allocate/read the
+        // declared-length payload, it would throw a plain end-of-stream InvalidDataException
+        // instead of the expected "not IHDR" one, and would have allocated ~100 MB first.
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var header = BuildFakeChunkHeader("tEXt", 100_000_000);
+        stream.Write(header, 0, header.Length);
+        stream.Position = 0;
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<InvalidDataException>(() => PngCodec.GetInfo(stream));
+        var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert
+        Assert.Contains("not IHDR", ex.Message, StringComparison.OrdinalIgnoreCase);
+
+        const long maxExpectedAllocatedBytes = 1024 * 1024;
+        Assert.True(
+            allocatedDuring < maxExpectedAllocatedBytes,
+            $"Expected no large allocation, but {allocatedDuring:N0} bytes were allocated.");
+    }
+
+    /// <summary>
+    ///     Regression test for finding #1: an <c>IHDR</c>-typed first chunk with a huge declared
+    ///     length (anything other than the mandatory 13) used to be fully allocated and read
+    ///     before its length was validated, so a crafted file could force a multi-gigabyte
+    ///     allocation on <see cref="PngCodec.GetInfo(Stream)"/>'s cheap-probing path. Proves, by
+    ///     measuring actual bytes allocated (never wall-clock time), that the fixed
+    ///     <c>ReadIhdrChunkFrame</c> rejects the wrong declared length before any length-dependent
+    ///     allocation/read is attempted.
+    /// </summary>
+    [Fact]
+    public void PngCodec_GetInfo_IhdrChunkWithWrongDeclaredLength_ThrowsWithoutLargeAllocation()
+    {
+        // Arrange: signature + an "IHDR"-typed chunk header declaring a 100 MB length instead of
+        // the mandatory 13, with no real trailing data at all.
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var header = BuildFakeChunkHeader("IHDR", 100_000_000);
+        stream.Write(header, 0, header.Length);
+        stream.Position = 0;
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<InvalidDataException>(() => PngCodec.GetInfo(stream));
+        var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert
+        Assert.Contains("13", ex.Message);
+
+        const long maxExpectedAllocatedBytes = 1024 * 1024;
+        Assert.True(
+            allocatedDuring < maxExpectedAllocatedBytes,
+            $"Expected no large allocation, but {allocatedDuring:N0} bytes were allocated.");
+    }
+
+    /// <summary>
+    ///     Builds only a chunk's 8-byte length+type header (a 4-byte big-endian declared length
+    ///     followed by the 4-byte ASCII type), deliberately writing no data or CRC bytes at all -
+    ///     used only by the finding #1 regression tests above to prove the declared length is
+    ///     rejected before any length-dependent allocation is attempted, without needing to
+    ///     actually provide (or allocate) that much real trailing data.
+    /// </summary>
+    private static byte[] BuildFakeChunkHeader(string type, uint declaredLength)
+    {
+        var header = new byte[8];
+        WriteUInt32Be(header, 0, declaredLength);
+        for (var i = 0; i < 4; i++)
+        {
+            header[4 + i] = (byte)type[i];
+        }
+
+        return header;
+    }
+
+    /// <summary>
     ///     Proves that GetInfo succeeds on a file whose IDAT/IEND region is deliberately
     ///     corrupt/truncated (never read by GetInfo), while Load on the same bytes still throws.
     /// </summary>

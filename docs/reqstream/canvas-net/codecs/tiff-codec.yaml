@@ -342,10 +342,13 @@ sections:
                   The TiffCodec class shall report a TIFF's width, height, samples-per-pixel, and alpha
                   presence via GetInfo, given a stream or a file path, without decoding strip data and
                   without enforcing Surface.MaxDimension. For a seekable stream, GetInfo shall seek
-                  directly to the IFD and decode only the inline ImageWidth, ImageLength,
-                  SamplesPerPixel, and ExtraSamples tag entries; for a non-seekable stream, GetInfo shall
+                  directly to the IFD and resolve/validate only the same tags ReadTiffImageInfo needs -
+                  ImageWidth, ImageLength, SamplesPerPixel, BitsPerSample, Compression,
+                  PhotometricInterpretation, PlanarConfiguration, Predictor, and ExtraSamples - never
+                  StripOffsets, RowsPerStrip, or StripByteCounts; for a non-seekable stream, GetInfo shall
                   fall back to buffering the whole stream and reusing Load's full IFD-parsing path
-                  (minus strip decoding) to derive the same information.
+                  (minus strip decoding) to derive the same information via the identical
+                  ReadTiffImageInfo method, so the two paths cannot diverge.
                 justification: |
                   Callers need to inspect a TIFF's declared dimensions and channel layout (for example to
                   reject unreasonably large images before allocating a Surface) without paying the cost
@@ -375,3 +378,72 @@ sections:
                   - TiffCodec_GetInfo_NullPath_ThrowsArgumentNullException
                   - TiffCodec_GetInfo_EmptyPath_ThrowsArgumentException
                   - TiffCodec_GetInfo_BadByteOrderMark_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-TiffCodec-GetInfoTiledRejection
+                title: >-
+                  The TiffCodec class shall reject a tiled TIFF (identified by the presence of a
+                  TileWidth or TileLength tag) with InvalidDataException via GetInfo, identically on
+                  both a seekable and a non-seekable stream, matching Load's rejection of the same file.
+                justification: |
+                  The tiled-TIFF check is shared by Load and both GetInfo paths inside ReadTiffImageInfo,
+                  so a tiled file cannot be silently accepted by GetInfo's fast path merely because the
+                  caller's stream happens to be seekable (or not).
+                tests:
+                  - TiffCodec_GetInfo_Seekable_TiledTiff_ThrowsInvalidDataException
+                  - TiffCodec_GetInfo_NonSeekable_TiledTiff_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-TiffCodec-GetInfoStreamBasePosition
+                title: >-
+                  The TiffCodec class's GetInfo(Stream) shall resolve every TIFF-file-relative
+                  position against wherever the caller's stream was actually positioned when GetInfo was
+                  invoked (its starting Position), not against absolute byte 0 of the underlying stream.
+                justification: |
+                  A caller may pass a stream that has already been advanced past unrelated leading
+                  content (for example a container format embedding a TIFF payload after its own
+                  header); GetInfo must still resolve the TIFF correctly rather than misinterpreting
+                  file-relative offsets as absolute stream offsets.
+                tests:
+                  - TiffCodec_GetInfo_Seekable_StreamNotAtPositionZero_ReturnsCorrectImageInfo
+
+              - id: CanvasNet-Codecs-TiffCodec-TagValueBoundsValidation
+                title: >-
+                  The TiffCodec class shall reject, with InvalidDataException rather than
+                  IndexOutOfRangeException or OverflowException, a tag with a declared value Count of
+                  0 where a value is required, an IFD offset or entry offset outside the representable
+                  int32 range, and an out-of-line tag value's stored offset or computed byte length
+                  outside the representable int32 range - identically via Load and both GetInfo paths.
+                justification: |
+                  Every file-position/length value derived from an attacker-controlled TIFF header or
+                  tag field must be range-checked before being used to index, allocate, or seek; letting
+                  an undocumented IndexOutOfRangeException or OverflowException escape instead of the
+                  documented InvalidDataException contract makes malformed-input handling unpredictable
+                  for callers.
+                tests:
+                  - TiffCodec_Load_ImageWidthZeroCount_ThrowsInvalidDataExceptionNotIndexOutOfRange
+                  - TiffCodec_GetInfo_Seekable_ImageWidthZeroCount_ThrowsInvalidDataExceptionNotIndexOutOfRange
+                  - TiffCodec_GetInfo_NonSeekable_ImageWidthZeroCount_ThrowsInvalidDataExceptionNotIndexOutOfRange
+                  - TiffCodec_Load_IfdOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException
+                  - TiffCodec_GetInfo_Seekable_IfdOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException
+                  - TiffCodec_GetInfo_NonSeekable_IfdOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException
+                  - TiffCodec_Load_OutOfLineTagOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException
+                  - TiffCodec_GetInfo_Seekable_OutOfLineTagOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException
+                  - TiffCodec_GetInfo_NonSeekable_OutOfLineTagOffsetAboveInt32Range_ThrowsInvalidDataExceptionNotOverflowException
+
+              - id: CanvasNet-Codecs-TiffCodec-TagValueCountUpperBound
+                title: >-
+                  The TiffCodec class shall reject, with InvalidDataException, a declared value Count
+                  above a small upper bound (MaxImageLevelTagCount) for each of the nine tags
+                  ReadTiffImageInfo resolves at the image level (ImageWidth, ImageLength,
+                  BitsPerSample, SamplesPerPixel, Compression, PhotometricInterpretation,
+                  PlanarConfiguration, Predictor, ExtraSamples), before allocating the resolved value
+                  array, identically via Load and both GetInfo paths.
+                justification: |
+                  None of these nine tags ever legitimately needs more than a handful of values; without
+                  an upper bound, a small but otherwise well-formed file could still declare an
+                  implausibly large Count for one of them, forcing a large, count-proportional
+                  allocation on GetInfo's fast path even though the pre-existing stream-length bounds
+                  check alone would not reject it.
+                tests:
+                  - TiffCodec_GetInfo_Seekable_MaliciousOutOfLineTagLength_ThrowsWithoutUnboundedAllocation
+                  - TiffCodec_GetInfo_Seekable_BitsPerSampleCountImplausiblyLarge_ThrowsWithoutLargeAllocation
+                  - TiffCodec_GetInfo_NonSeekable_BitsPerSampleCountImplausiblyLarge_ThrowsInvalidDataException

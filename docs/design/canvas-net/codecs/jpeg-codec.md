@@ -164,31 +164,54 @@ stay synchronized across both public entry points.
 
 Reports a JPEG's width, height, and component count without ever entropy-decoding scan data (and
 therefore without requiring an SOS segment, restart markers, or any entropy-coded bytes to be
-present at all). Reads a bounded prefix of the stream — at most `MaxProbeHeaderBytes`
-(1,048,576 bytes / 1 MiB) — into an in-memory buffer via `ReadBoundedPrefix`, then scans that
-buffer's markers with `ProbeDimensions`: validating the SOI marker, then repeatedly reading a
-marker and, for any marker other than SOF0/SOF2, skipping over its length-prefixed segment
-(reusing the same `SkipLengthPrefixedSegment` helper `Load`'s own marker loop uses) without
-inspecting its payload, until an SOF0 or SOF2 marker is found and parsed (reusing `Load`'s own
-`ReadSof` helper with `enforceMaxDimension: false`) or the buffer is exhausted. Because scanning
-stops the instant SOF0/SOF2 is found — before ever reaching an SOS marker or any entropy-coded
-byte — a stream containing only SOI/DQT/DHT/SOF and nothing else is a fully valid input to
-`GetInfo`. `Channels` is the SOF frame's component count (1 for grayscale, 3 for YCbCr);
-`HasAlpha` is always `false`, since JPEG has no alpha channel.
+present at all). `Decoder.ProbeDimensions(Stream)` scans the stream incrementally: validating the
+SOI marker, then repeatedly reading a marker and, for any marker other than a supported SOF
+(SOF0/SOF2), an unsupported SOF/frame marker (see below), or SOS, skipping over its
+length-prefixed segment (reusing the same `SkipLengthPrefixedSegment` helper `Load`'s own marker
+loop uses) without inspecting its payload, until a supported SOF is found and fully parsed
+(reusing `Load`'s own `ReadSof` helper with `enforceMaxDimension: false`) or the scan's outer
+safety cap is reached. Because scanning stops the instant a supported SOF has been fully parsed —
+before ever reaching an SOS marker or any entropy-coded byte — a stream containing only
+SOI/DQT/DHT/SOF and nothing else is a fully valid input to `GetInfo`. `Channels` is the SOF
+frame's component count (1 for grayscale, 3 for YCbCr); `HasAlpha` is always `false`, since JPEG
+has no alpha channel.
 
-**Architectural decision:** unlike `BmpCodec`/`PngCodec` (whose headers have a small, fixed
-maximum size) and unlike `TiffCodec` (which can seek directly to its IFD), a JPEG's SOF marker can
-in principle be preceded by an unbounded run of APPn/COM segments (each up to 65,533 bytes), so an
-unbounded sequential scan is not safe against a pathological or malicious stream. `GetInfo`
-therefore reads and scans at most `MaxProbeHeaderBytes` bytes; if no SOF0/SOF2 marker is found
-within that budget, it throws `InvalidDataException` with a message distinguishing "probe limit
-reached with more data possibly remaining" from "stream ended before an SOF marker was found" (the
-latter also covers the ordinary truncated/malformed-header case).
+**Architectural decision (unsupported SOF/frame markers rejected identically to `Load`):**
+`ProcessSegment` (used by `Load`/`Decode`) and `ProbeDimensions` (used by `GetInfo`) both call a
+single shared `ThrowUnsupportedSofOrFrameMarker` helper whenever an SOF variant other than
+SOF0/SOF2, or an arithmetic-coded/JPG-extension marker, is encountered. Previously,
+`ProbeDimensions` treated every marker it did not specifically recognize (including these
+unsupported SOF/frame markers) as a generic, harmless segment to skip over - so a file with, say,
+an SOF1 marker followed by a valid SOF0 marker would be rejected by `Load` but wrongly *accepted*
+by `GetInfo`, which would report the dimensions from the later, valid SOF0. Sharing one rejection
+helper between both call sites makes this divergence structurally impossible rather than merely
+untested.
+
+**Architectural decision (incremental scanning, not full-budget up-front buffering):**
+`GetInfo` used to unconditionally read a full `MaxProbeHeaderBytes` (1 MiB) buffer from the stream
+before scanning a single marker, so even a file whose SOF appears in its first few dozen bytes
+still forced up to 1 MiB of stream reads. `ProbeDimensions` now reads from the stream
+incrementally, in small growing chunks, via an internal `IncrementalProbeBuffer` helper, and stops
+issuing further reads the moment the target SOF segment has been fully materialized - only a
+pathological file with no SOF anywhere near the start (or an attacker deliberately padding with
+filler before the SOF) causes it to approach the unchanged `MaxProbeHeaderBytes` outer safety cap,
+which still bounds the *total* number of bytes `GetInfo` will ever read from the stream, exactly
+as before.
+
+Unlike `BmpCodec`/`PngCodec` (whose headers have a small, fixed maximum size) and unlike
+`TiffCodec` (which can seek directly to its IFD), a JPEG's SOF marker can in principle be preceded
+by an unbounded run of APPn/COM segments (each up to 65,533 bytes), so an unbounded sequential
+scan is not safe against a pathological or malicious stream; `MaxProbeHeaderBytes` remains the
+hard outer cap for exactly this reason. If no SOF0/SOF2 marker is found within that budget, it
+throws `InvalidDataException` with a message distinguishing "probe limit reached with more data
+possibly remaining" from "stream ended before an SOF marker was found" (the latter also covers the
+ordinary truncated/malformed-header case).
 
 **Throws:**
 
 - `ArgumentNullException` — `stream` is null
-- `InvalidDataException` — the stream does not begin with SOI; an unsupported SOF marker or
+- `InvalidDataException` — the stream does not begin with SOI; an unsupported SOF/frame marker
+  (any SOF variant other than SOF0/SOF2, or an arithmetic-coded/JPG-extension marker) or
   unsupported component count is encountered; an SOS marker is encountered before any SOF0/SOF2
   marker; the marker/segment structure is malformed; the stream ends before an SOF0/SOF2 marker is
   found; or the `MaxProbeHeaderBytes` probe limit is reached before an SOF0/SOF2 marker is found
@@ -222,7 +245,7 @@ fails fast without producing a partial JPEG.
 `Surface.GetRowSpanBytes` in `Save`), using only `Surface`'s existing public API exactly as
 `BmpCodec`, `PngCodec`, and `TiffCodec` do. No new public members were added to `Surface` or
 `Rgba32` to support this codec. `JpegCodec` also depends on the `Codecs` subsystem's shared
-`ImageInfo` record struct as the return type of `GetInfo` — see _Codecs Subsystem Design_
+`ImageInfo` record struct as the return type of `GetInfo` — see *Codecs Subsystem Design*
 (`../codecs.md`). Beyond `Surface` and `ImageInfo`, `JpegCodec` uses only the .NET base class
 library's `System.IO` namespace (`Stream`, `FileStream`, `MemoryStream`,
 `InvalidDataException`) and `System.Numerics.Vector<T>` for optional vector acceleration in the
@@ -245,5 +268,5 @@ then load scenarios.
 ### Callers
 
 `JpegCodec` is a public API entry point invoked directly by consumers of the CanvasNet package; it
-is not called by any other unit within this system. It calls into `Surface` (see _Dependencies_
+is not called by any other unit within this system. It calls into `Surface` (see *Dependencies*
 above) but nothing calls into it from within CanvasNet itself.

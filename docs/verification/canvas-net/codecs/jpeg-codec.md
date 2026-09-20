@@ -128,13 +128,19 @@ Calls `Load` with an empty path and asserts `ArgumentException` is thrown.
 Builds a byte stream that does not begin with SOI and asserts `Load` throws
 `InvalidDataException`.
 
-#### CanvasNet-Codecs-JpegCodec-RejectUnsupportedSof: Load Rejects Unsupported SOF Markers
+#### CanvasNet-Codecs-JpegCodec-RejectUnsupportedSof: Load and GetInfo Reject Unsupported SOF Markers Identically
 
-**Test**: `JpegCodec_Load_UnsupportedSofMarker_ThrowsInvalidDataException` (`[Theory]` over
-three unsupported markers)
+**Tests**: `JpegCodec_Load_UnsupportedSofMarker_ThrowsInvalidDataException` (`[Theory]` over
+three unsupported markers), `JpegCodec_UnsupportedSofMarkerFollowedByValidSof0_BothLoadAndGetInfoThrow`
+(`[Theory]` over SOF1 and SOF3)
 
 Builds JPEG streams whose frame marker is not SOF0 or SOF2, and asserts `Load` throws
-`InvalidDataException` for each unsupported marker.
+`InvalidDataException` for each unsupported marker. Separately builds a stream containing an
+unsupported SOF marker (SOF1 or SOF3) immediately followed by a second, valid SOF0 segment, and
+asserts that both `Load` and `GetInfo` throw `InvalidDataException` — the regression scenario for
+the historical divergence where `GetInfo`'s marker scan would skip past the unsupported SOF marker
+(since it wasn't a recognized SOF0/SOF2) and wrongly succeed against the later valid SOF0, using
+the same shared rejection helper `Load` already relied on.
 
 #### CanvasNet-Codecs-JpegCodec-RejectFourComponent: Load Rejects Four-Component Frames
 
@@ -216,22 +222,33 @@ identical.
 **Tests**: `JpegCodec_GetInfo_Grayscale_ReturnsExpectedInfoWithoutSosOrEntropyData`,
 `JpegCodec_GetInfo_Color_ReturnsExpectedInfo`, `JpegCodec_GetInfoPath_ReturnsExpectedInfo`,
 `JpegCodec_GetInfo_LargeStream_NeverReadsPastProbeLimit`,
+`JpegCodec_GetInfo_SofNearStart_DoesNotReadFarBeyondWhatIsNeeded`,
 `JpegCodec_GetInfo_ProbeLimitExceededWithoutSof_ThrowsInvalidDataException`,
-`JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows`
+`JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows`,
+`JpegCodec_GetInfo_ZeroLengthSegment_TerminatesPromptlyWithInvalidDataException`
 
 Builds a hand-crafted stream containing only SOI/DQT/DHT/SOF0 for a 1-component grayscale frame
 (deliberately omitting SOS and all entropy-coded data), calls `GetInfo`, and asserts the returned
 `ImageInfo` reports the correct width/height, `Channels == 1`, and `HasAlpha == false`; repeats for
 a 3-component color frame. Confirms the file-path overload returns the same result as the stream
 overload via a temporary file. Proves `GetInfo` never reads past its `MaxProbeHeaderBytes`
-(1 MiB) cap by building a stream several megabytes long with the SOF marker near the start and
-asserting `stream.Position` after `GetInfo` returns is at most 1,048,576 even though
-`stream.Length` is much larger. Proves the probe-limit case is rejected distinctly by building
-over 1 MiB of filler bytes containing no SOF marker at all and asserting `GetInfo` throws
-`InvalidDataException` with a message mentioning the probe limit. Proves `GetInfo` does not
-enforce `Surface.MaxDimension` by building an SOF0 segment declaring a width one greater than
-`Surface.MaxDimension`, asserting `GetInfo` returns that raw oversized width without throwing, and
-then asserting `Load` on the exact same bytes still throws `InvalidDataException`.
+(1 MiB) hard outer cap by building a stream several megabytes long with the SOF marker near the
+start and asserting `stream.Position` after `GetInfo` returns is at most 1,048,576 even though
+`stream.Length` is much larger. Proves `GetInfo` parses incrementally rather than upfront-buffering
+the full 1 MiB budget: using a bounded-read test stream (`BoundedReadStream`) that fails the test if
+more bytes are requested than a small margin beyond what the leading SOI/DQT/DHT/SOF0 segments
+actually require, asserts `GetInfo` still succeeds and never triggers that bound. Proves the
+probe-limit case is rejected distinctly by building over 1 MiB of filler bytes containing no SOF
+marker at all and asserting `GetInfo` throws `InvalidDataException` with a message mentioning the
+probe limit. Proves `GetInfo` does not enforce `Surface.MaxDimension` by building an SOF0 segment
+declaring a width one greater than `Surface.MaxDimension`, asserting `GetInfo` returns that raw
+oversized width without throwing, and then asserting `Load` on the exact same bytes still throws
+`InvalidDataException`. Proves the previously-suspected zero-length-segment infinite loop is (and
+remains) a false positive: builds a stream containing a marker segment that declares a length of
+zero, runs `GetInfo` on a background `Task` bounded by a short timeout via `Task.WhenAny`, and
+asserts the task completes (rather than the timeout winning the race) and that it completes with
+`InvalidDataException`, locking in that `GetInfo` already terminates promptly rather than looping
+forever re-reading the same zero-length segment.
 
 #### CanvasNet-Codecs-JpegCodec-GetInfoValidation: GetInfo Rejects Invalid Arguments and Malformed Headers
 
@@ -253,7 +270,7 @@ corresponding `Load` scenarios, plus JPEG-specific malformed-ordering cases `Loa
 
 A unit test run passes when all test methods above pass without error or unexpected exception; any
 unexpected exception type or wrong return/value relationship constitutes a failure. Across
-`JpegCodecTests.cs` and `JpegFixtureTests.cs`, this totals 42 test methods (38 in
+`JpegCodecTests.cs` and `JpegFixtureTests.cs`, this totals 45 test methods (41 in
 `JpegCodecTests.cs` and 4 in `JpegFixtureTests.cs`); several of these are `[Theory]` methods that
 additionally expand to multiple executed xUnit test cases, plus the system-level integration
 scenarios documented in `docs/verification/canvas-net.md`.
