@@ -268,9 +268,17 @@ stream). `ParseIfd`, `ReadTagValues`, `RequireTagValues`, `TryGetTagValues`, and
   than `StreamTiffDataSource` treating every TIFF-file-relative position as if it were an absolute
   offset from byte 0 of the underlying stream.
 - **`stream.CanSeek == false` (fallback):** seeking is impossible, so `GetInfo` instead buffers
-  the entire stream into memory (prefixing the 8 header bytes already consumed) and backs the same
-  parser with a `ByteArrayTiffDataSource` over those buffered bytes instead, still stopping short
-  of `DecodeStrips`.
+  the stream into memory (prefixing the 8 header bytes already consumed) up to a fixed
+  `MaxNonSeekableProbeBytes` cap (1 MiB, mirroring `JpegCodec`'s equivalent probe cap) and backs
+  the same parser with a `ByteArrayTiffDataSource` over those buffered bytes instead, still
+  stopping short of `DecodeStrips`. Without this cap, a non-seekable stream that is simply larger
+  than any real TIFF header/IFD needs to be (for example a malicious or oversized network stream)
+  would force this "cheap pre-decode bomb triage" API to buffer and allocate the entire stream
+  before ever inspecting a tag. If the IFD or a tag value `ReadTiffImageInfo` needs lies beyond the
+  cap, `ByteArrayTiffDataSource.ReadBytes` rejects the resulting out-of-range request with the
+  usual `InvalidDataException` rather than buffering further — an inherent trade-off for
+  non-seekable header-only probing that legitimate seekable callers (the common case) are
+  unaffected by, since the seekable branch never buffers more than the bytes it actually needs.
 
 Because both branches now call `ReadTiffImageInfo` with `enforceMaxDimension: false`, `GetInfo`
 performs the full set of format-support validation `Load` performs (bit depth, compression,
@@ -291,9 +299,10 @@ resulting `ImageInfo`.
   above the small upper bound enforced for the nine image-level tags `ReadTiffImageInfo` resolves
   (`ImageWidth`, `ImageLength`, `BitsPerSample`, `SamplesPerPixel`, `Compression`,
   `PhotometricInterpretation`, `PlanarConfiguration`, `Predictor`, `ExtraSamples`), an
-  out-of-`int`-range IFD offset, entry offset, or out-of-line tag value offset/length, or the
-  stream ending before the header, IFD, or an out-of-line tag value has been fully read —
-  **except** that the `Surface.MaxDimension` check is always skipped (an oversized declared
+  out-of-`int`-range IFD offset, entry offset, or out-of-line tag value offset/length, the stream
+  ending before the header, IFD, or an out-of-line tag value has been fully read, or (for a
+  non-seekable stream only) the IFD or a needed tag value lying beyond the `MaxNonSeekableProbeBytes`
+  cap — **except** that the `Surface.MaxDimension` check is always skipped (an oversized declared
   width/height is returned, not rejected)
 
 #### GetInfo(string path)

@@ -138,6 +138,19 @@ public static class TiffCodec
     /// </summary>
     private const int MaxImageLevelTagCount = 8;
 
+    /// <summary>
+    ///     The maximum total number of bytes <see cref="GetInfo(Stream)"/>'s non-seekable
+    ///     fallback will buffer from a stream before giving up. Bounds the memory a hostile, or
+    ///     merely oversized, non-seekable stream (for example a network stream) can force this
+    ///     "cheap pre-decode bomb triage" API to allocate - without this cap, buffering ran to the
+    ///     stream's end unconditionally, so a stream that is very large (or never ends) could
+    ///     force an unbounded allocation before any header byte was even inspected. Mirrors the
+    ///     equivalent <c>JpegCodec.MaxProbeHeaderBytes</c> cap; real TIFF headers, IFDs, and the
+    ///     out-of-line tag values <see cref="ReadTiffImageInfo"/> resolves (bounded further by
+    ///     <see cref="MaxImageLevelTagCount"/>) are always far smaller than this.
+    /// </summary>
+    private const int MaxNonSeekableProbeBytes = 1_048_576;
+
     private const ushort TypeByte = 1;
     private const ushort TypeShort = 3;
     private const ushort TypeLong = 4;
@@ -326,8 +339,14 @@ public static class TiffCodec
     ///     <para>
     ///         When <c>stream.CanSeek</c> is <see langword="false"/> (for example a network
     ///         stream), no seek-based reads are possible, so this method falls back to buffering
-    ///         the entire stream and backing the same parser with a <see cref="ByteArrayTiffDataSource"/>
-    ///         instead, stopping short of <see cref="DecodeStrips"/>.
+    ///         up to <see cref="MaxNonSeekableProbeBytes"/> bytes of the stream and backing the
+    ///         same parser with a <see cref="ByteArrayTiffDataSource"/> instead, stopping short of
+    ///         <see cref="DecodeStrips"/>. This bounded buffering is an intentional divergence
+    ///         from the seekable path for one specific case: a non-seekable stream whose IFD or a
+    ///         needed tag value lies beyond <see cref="MaxNonSeekableProbeBytes"/> throws
+    ///         <see cref="System.IO.InvalidDataException"/>, where an equivalent seekable stream
+    ///         would succeed - a deliberate trade-off so this "cheap pre-decode bomb triage" API
+    ///         cannot be forced to buffer an unbounded amount of memory for a non-seekable stream.
     ///     </para>
     /// </remarks>
     public static ImageInfo GetInfo(Stream stream)
@@ -354,12 +373,16 @@ public static class TiffCodec
             return new ImageInfo(seekableInfo.Width, seekableInfo.Height, seekableInfo.SamplesPerPixel, seekableHasAlpha);
         }
 
-        // Non-seekable fallback: no random access is possible, so buffer the whole remainder of
-        // the stream (prefixing the 8 header bytes already consumed above) and back the same
-        // shared parser with those buffered bytes instead, stopping short of DecodeStrips
+        // Non-seekable fallback: no random access is possible, so buffer the stream (prefixing
+        // the 8 header bytes already consumed above) up to MaxNonSeekableProbeBytes total and
+        // back the same shared parser with those buffered bytes instead, stopping short of
+        // DecodeStrips. The cap bounds the memory a hostile or merely oversized non-seekable
+        // stream can force this "cheap pre-decode bomb triage" API to allocate; if the IFD or a
+        // tag value it needs lies beyond the cap, ByteArrayTiffDataSource.ReadBytes rejects the
+        // out-of-range request with the usual InvalidDataException rather than buffering further.
         using var buffered = new MemoryStream();
         buffered.Write(headerBytes, 0, headerBytes.Length);
-        stream.CopyTo(buffered);
+        ReadStreamBounded(stream, buffered, MaxNonSeekableProbeBytes - headerBytes.Length);
         var file = buffered.ToArray();
 
         ITiffDataSource bufferedSource = new ByteArrayTiffDataSource(file);
@@ -419,6 +442,35 @@ public static class TiffCodec
             }
 
             totalRead += read;
+        }
+    }
+
+    /// <summary>
+    ///     Reads from <paramref name="stream"/> into <paramref name="destination"/> until either
+    ///     the stream ends or <paramref name="maxBytes"/> additional bytes have been read,
+    ///     whichever comes first. Unlike <see cref="Stream.CopyTo(Stream)"/>, this never buffers
+    ///     more than <paramref name="maxBytes"/> bytes, so a stream that is larger than any real
+    ///     TIFF header/IFD needs to be (or never ends) cannot force unbounded memory use.
+    /// </summary>
+    private static void ReadStreamBounded(Stream stream, MemoryStream destination, int maxBytes)
+    {
+        if (maxBytes <= 0)
+        {
+            return;
+        }
+
+        var chunk = new byte[Math.Min(81920, maxBytes)];
+        var remaining = maxBytes;
+        while (remaining > 0)
+        {
+            var read = stream.Read(chunk, 0, Math.Min(chunk.Length, remaining));
+            if (read == 0)
+            {
+                break;
+            }
+
+            destination.Write(chunk, 0, read);
+            remaining -= read;
         }
     }
 

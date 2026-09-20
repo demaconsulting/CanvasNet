@@ -887,6 +887,40 @@ public class JpegCodecTests
     }
 
     /// <summary>
+    ///     Regression test: when the SOF0/SOF2 marker itself is found within the
+    ///     MaxProbeHeaderBytes cap, but its declared segment length would require reading past the
+    ///     cap, <c>IncrementalProbeBuffer.ToExactArray</c> used to report the generic
+    ///     "unexpected end of stream" message unconditionally - even though the stream is not
+    ///     actually truncated, and plenty more data follows - because it ignored
+    ///     <c>CapReached</c>. Verifies the exception message now correctly attributes this case to
+    ///     the probe limit, matching <see cref="JpegCodec_GetInfo_ProbeLimitExceededWithoutSof_ThrowsInvalidDataException"/>'s
+    ///     wording for the analogous marker-scan-side case.
+    /// </summary>
+    [Fact]
+    public void JpegCodec_GetInfo_SofSegmentExtendsBeyondProbeLimit_ThrowsWithProbeLimitMessage()
+    {
+        // Filler APP0 segments (each just under the 64 KiB segment-length limit) to advance the
+        // scan position to just under the 1 MiB probe cap without ever encountering a SOF marker.
+        const int fillerSegmentPayloadLength = 65_000;
+        var segments = new List<byte[]>();
+        for (var total = 0; total < 1_000_000; total += fillerSegmentPayloadLength + 2)
+        {
+            segments.Add(BuildSegment(0xE0, new byte[fillerSegmentPayloadLength]));
+        }
+
+        // An SOF0 marker whose declared segment length (65535, the maximum a ushort can express)
+        // pushes the required end position well past the 1 MiB cap, even though the underlying
+        // stream continues for a long time afterwards (so this is not a genuine truncation).
+        var sofMarker = new byte[] { MarkerPrefix, MarkerSof0, 0xFF, 0xFF };
+        segments.Add(sofMarker);
+
+        var jpeg = BuildJpeg([.. segments], entropyData: new byte[200_000], includeEoi: false);
+
+        var exception = Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(new MemoryStream(jpeg)));
+        Assert.Contains("probe limit", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     ///     Proves that GetInfo does not decode the full file: for a stream much larger than the
     ///     MaxProbeHeaderBytes cap, the stream position after GetInfo returns is capped at
     ///     MaxProbeHeaderBytes even though the underlying stream is several times longer.

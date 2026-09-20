@@ -950,8 +950,11 @@ public static class JpegCodec
             {
                 if (!TryEnsureLength(length))
                 {
-                    throw new InvalidDataException(
-                        "Unexpected end of stream while reading a JPEG segment during header probing.");
+                    throw CapReached
+                        ? new InvalidDataException(
+                            $"JPEG segment extends beyond the {JpegCodec.MaxProbeHeaderBytes}-byte header probe limit.")
+                        : new InvalidDataException(
+                            "Unexpected end of stream while reading a JPEG segment during header probing.");
                 }
 
                 return _data.AsSpan(0, length).ToArray();

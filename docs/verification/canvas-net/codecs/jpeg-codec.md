@@ -224,6 +224,7 @@ identical.
 `JpegCodec_GetInfo_LargeStream_NeverReadsPastProbeLimit`,
 `JpegCodec_GetInfo_SofNearStart_DoesNotReadFarBeyondWhatIsNeeded`,
 `JpegCodec_GetInfo_ProbeLimitExceededWithoutSof_ThrowsInvalidDataException`,
+`JpegCodec_GetInfo_SofSegmentExtendsBeyondProbeLimit_ThrowsWithProbeLimitMessage`,
 `JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows`,
 `JpegCodec_GetInfo_ZeroLengthSegment_TerminatesPromptlyWithInvalidDataException`
 
@@ -240,7 +241,13 @@ more bytes are requested than a small margin beyond what the leading SOI/DQT/DHT
 actually require, asserts `GetInfo` still succeeds and never triggers that bound. Proves the
 probe-limit case is rejected distinctly by building over 1 MiB of filler bytes containing no SOF
 marker at all and asserting `GetInfo` throws `InvalidDataException` with a message mentioning the
-probe limit. Proves `GetInfo` does not enforce `Surface.MaxDimension` by building an SOF0 segment
+probe limit. Proves the same probe-limit attribution applies once an SOF0/SOF2 marker has already
+been found but its declared segment length would require reading past the cap: pads a stream with
+filler APPn segments up to just under the cap, appends an SOF0 marker declaring the maximum
+possible segment length (65,535), and asserts `GetInfo` throws `InvalidDataException` whose message
+still mentions the probe limit rather than misleadingly reporting an unexpected end of stream (the
+underlying stream is not actually truncated - it simply is not read any further). Proves `GetInfo`
+does not enforce `Surface.MaxDimension` by building an SOF0 segment
 declaring a width one greater than `Surface.MaxDimension`, asserting `GetInfo` returns that raw
 oversized width without throwing, and then asserting `Load` on the exact same bytes still throws
 `InvalidDataException`. Proves the previously-suspected zero-length-segment infinite loop is (and

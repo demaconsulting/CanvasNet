@@ -1818,6 +1818,40 @@ public class TiffCodecTests
     }
 
     /// <summary>
+    ///     Regression test: <see cref="TiffCodec.GetInfo(Stream)"/>'s non-seekable fallback used
+    ///     to buffer the entire remainder of the stream via <c>Stream.CopyTo</c> before parsing
+    ///     any tag, so a non-seekable stream (for example a network stream) many megabytes larger
+    ///     than any real TIFF header/IFD needs to be would force this "cheap pre-decode bomb
+    ///     triage" API to allocate and read the whole thing. Builds a small, entirely valid TIFF
+    ///     whose IFD sits at the very start of the file, followed by several megabytes of trailing
+    ///     padding that a genuine probe never needs to inspect, wraps it in a
+    ///     <see cref="NonSeekableStream"/>, and proves the underlying stream is never read past
+    ///     <c>MaxNonSeekableProbeBytes</c> (1 MiB) - the fixed code stops buffering once the cap is
+    ///     reached (and, for this fixture, well before it, since everything needed is resolved from
+    ///     the first few dozen bytes), whereas the vulnerable code read the full multi-megabyte
+    ///     stream every time.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_NonSeekable_LargeStream_NeverReadsPastProbeLimit()
+    {
+        const int trailingPaddingLength = 5_000_000;
+        var file = StandardRgbBuilder(false, 3, 2, 1, 2)
+            .WithStrips(new byte[3 * 3 * 2])
+            .Build();
+        var fileWithPadding = new byte[file.Length + trailingPaddingLength];
+        file.CopyTo(fileWithPadding, 0);
+
+        var inner = new MemoryStream(fileWithPadding);
+        using var stream = new NonSeekableStream(inner);
+
+        var info = TiffCodec.GetInfo(stream);
+
+        Assert.Equal(new ImageInfo(3, 2, 3, false), info);
+        Assert.True(fileWithPadding.Length > 1_048_576, "Test fixture must exceed the probe cap.");
+        Assert.True(inner.Position <= 1_048_576, "GetInfo must not read past the non-seekable probe cap.");
+    }
+
+    /// <summary>
     ///     Regression test for finding #2: a mandatory tag with a declared value <c>Count</c> of
     ///     0 used to flow through <c>ReadTagValues</c> as an empty array, then throw
     ///     <see cref="IndexOutOfRangeException"/> (not the documented

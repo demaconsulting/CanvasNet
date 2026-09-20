@@ -324,7 +324,8 @@ successful load, correct dimensions, and R == G == B per pixel.
 `TiffCodec_GetInfo_SucceedsWithTruncatedStripData_ButLoadThrows`,
 `TiffCodec_GetInfo_SeekableAndNonSeekable_SamplesPerPixelTagOmitted_ReturnIdenticalImageInfo`,
 `TiffCodec_GetInfo_SeekableAndNonSeekable_UnsupportedBitsPerSample_BothThrowInvalidDataException`,
-`TiffCodec_GetInfo_Seekable_StreamNotAtPositionZero_ReturnsCorrectImageInfo`
+`TiffCodec_GetInfo_Seekable_StreamNotAtPositionZero_ReturnsCorrectImageInfo`,
+`TiffCodec_GetInfo_NonSeekable_LargeStream_NeverReadsPastProbeLimit`
 
 Builds a seekable RGB TIFF and separately an RGBA TIFF (with an `ExtraSamples` tag), calls
 `GetInfo` on a `MemoryStream` for each, and asserts the returned `ImageInfo` reports the correct
@@ -349,7 +350,13 @@ format-support validation now applies on both paths. Proves the stream-position 
 resolving `StreamTiffDataSource` reads relative to the stream's starting position rather than
 absolute byte 0): writes a non-empty byte prefix to a `MemoryStream`, then a valid TIFF, sets
 `stream.Position` past the prefix, and asserts `GetInfo` returns the correct `ImageInfo` for the
-TIFF that follows the prefix rather than misinterpreting bytes at absolute offset 0.
+TIFF that follows the prefix rather than misinterpreting bytes at absolute offset 0. Proves the
+non-seekable fallback's buffering is bounded (not unconditional read-to-end): builds a small,
+entirely valid TIFF whose IFD sits at the start of the file, appends 5,000,000 bytes of trailing
+padding a genuine probe never needs to inspect, wraps it in a `NonSeekableStream`, and asserts both
+that `GetInfo` still returns the correct `ImageInfo` and that the wrapped `MemoryStream`'s
+`Position` afterward never exceeds the 1 MiB `MaxNonSeekableProbeBytes` cap, even though the
+fixture is several times larger than that cap.
 
 #### CanvasNet-Codecs-TiffCodec-TagValueCountUpperBound: GetInfo Rejects an Implausibly Large Tag Count
 

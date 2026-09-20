@@ -205,7 +205,11 @@ scan is not safe against a pathological or malicious stream; `MaxProbeHeaderByte
 hard outer cap for exactly this reason. If no SOF0/SOF2 marker is found within that budget, it
 throws `InvalidDataException` with a message distinguishing "probe limit reached with more data
 possibly remaining" from "stream ended before an SOF marker was found" (the latter also covers the
-ordinary truncated/malformed-header case).
+ordinary truncated/malformed-header case). The same distinction applies once an SOF0/SOF2 marker
+*has* been found but its declared segment length would require reading past the cap:
+`IncrementalProbeBuffer.ToExactArray` checks `CapReached` before throwing, so this case is also
+reported as the probe limit rather than misleadingly worded as an unexpected end of stream (the
+underlying stream is not actually truncated in this case; it simply was not read any further).
 
 **Throws:**
 
