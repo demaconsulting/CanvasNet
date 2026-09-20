@@ -53,6 +53,7 @@ Install-Package CanvasNet
 ```csharp
 using CanvasNet.Canvas;
 using CanvasNet.Codecs;
+using System.IO;
 
 var surface = new Surface(4, 4);
 surface[1, 1] = new Rgba32(255, 0, 0, 255); // set a red, opaque pixel

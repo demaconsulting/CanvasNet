@@ -797,6 +797,7 @@ Console.WriteLine($"{result.R} {result.G} {result.B} {result.A}"); // Output: 12
 ```csharp
 using CanvasNet.Canvas;
 using CanvasNet.Codecs;
+using System.IO;
 
 // GetInfo reads only the header - never pixel data - so it is safe to call on an untrusted or
 // unexpectedly large file before deciding whether to fully decode it with Load.
