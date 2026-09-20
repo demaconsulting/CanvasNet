@@ -287,7 +287,9 @@ successful load, correct dimensions, and R == G == B per pixel.
 `TiffCodec_GetInfo_NonSeekable_Rgba_FallsBackAndReturnsExpectedInfo`,
 `TiffCodec_GetInfo_NonSeekable_Rgb_FallsBackAndReturnsExpectedInfo`,
 `TiffCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows`,
-`TiffCodec_GetInfo_SucceedsWithTruncatedStripData_ButLoadThrows`
+`TiffCodec_GetInfo_SucceedsWithTruncatedStripData_ButLoadThrows`,
+`TiffCodec_GetInfo_SeekableAndNonSeekable_SamplesPerPixelTagOmitted_ReturnIdenticalImageInfo`,
+`TiffCodec_GetInfo_SeekableAndNonSeekable_UnsupportedBitsPerSample_BothThrowInvalidDataException`
 
 Builds a seekable RGB TIFF and separately an RGBA TIFF (with an `ExtraSamples` tag), calls
 `GetInfo` on a `MemoryStream` for each, and asserts the returned `ImageInfo` reports the correct
@@ -301,6 +303,14 @@ asserting `GetInfo` returns that raw oversized width without throwing, and then 
 on the exact same bytes still throws `InvalidDataException`. Proves the seekable path never needs
 strip data at all by truncating a valid file's trailing strip bytes entirely and asserting
 `GetInfo` still succeeds while `Load` on the same truncated bytes throws `InvalidDataException`.
+Proves seekable/non-seekable parity directly (the regression scenario for the historical
+divergence described in the design documentation): builds one set of identical TIFF bytes with the
+`SamplesPerPixel` tag omitted, feeds the same bytes to `GetInfo` via a seekable `MemoryStream` and
+via a `NonSeekableStream`, and asserts both return the identical `ImageInfo` with `Channels == 3`
+(derived from `BitsPerSample`'s entry count, not defaulted to 1); separately builds a TIFF
+declaring `BitsPerSample = 16,16,16` (otherwise a valid RGB image) and asserts `GetInfo` throws
+`InvalidDataException` identically via both a seekable and a non-seekable stream, proving the full
+format-support validation now applies on both paths.
 
 #### CanvasNet-Codecs-TiffCodec-GetInfoValidation: GetInfo Rejects Invalid Arguments and Malformed Headers
 
@@ -319,8 +329,8 @@ scenarios.
 
 A unit test run passes when all test methods above (including each `[Theory]` case) pass without
 error or unexpected exception; any unexpected exception type or wrong return/byte value
-constitutes a failure. Across `TiffCodecTests.cs` and `TiffFixtureTests.cs`, this totals 53 test
-methods (48 in `TiffCodecTests.cs` and 5 in `TiffFixtureTests.cs`; several of these are `[Theory]`
+constitutes a failure. Across `TiffCodecTests.cs` and `TiffFixtureTests.cs`, this totals 55 test
+methods (50 in `TiffCodecTests.cs` and 5 in `TiffFixtureTests.cs`; several of these are `[Theory]`
 methods that additionally expand to multiple executed xUnit test cases, one per fixture file or
 data row), plus the system-level integration scenarios documented in
 `docs/verification/canvas-net.md`.

@@ -50,10 +50,12 @@ namespace CanvasNet.Codecs;
 ///         <item>
 ///             <description>
 ///                 TIFF: <see cref="Channels"/> is the <c>SamplesPerPixel</c> tag's value,
-///                 defaulting to 1 when the tag is absent; <see cref="HasAlpha"/> reflects
-///                 whether an <c>ExtraSamples</c> tag was found. See <see cref="TiffCodec"/>'s
-///                 design documentation for the documented difference in precision between the
-///                 seekable and non-seekable probe paths.
+///                 defaulting to <c>BitsPerSample</c>'s entry count when the tag is
+///                 absent, identically on both the seekable and non-seekable probe paths
+///                 (both paths resolve every tag through the same validating parser);
+///                 <see cref="HasAlpha"/> is <see langword="true"/> only for an RGB image
+///                 with 4 samples per pixel and a valid <c>ExtraSamples</c> tag value of
+///                 2.
 ///             </description>
 ///         </item>
 ///         <item>

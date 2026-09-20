@@ -267,6 +267,24 @@ public class TiffCodecTests
             .Add(TagPlanarConfiguration, TypeShort, 1);
 
     /// <summary>
+    ///     Adds the standard set of mandatory tags for an 8-bit RGB (3 samples per pixel) image,
+    ///     deliberately <em>omitting</em> the <c>SamplesPerPixel</c> tag entirely (unlike
+    ///     <see cref="StandardRgbBuilder"/>, which always adds it explicitly), so that tests can
+    ///     exercise the absent-tag defaulting behavior (defaulting to <c>BitsPerSample</c>'s entry
+    ///     count, per <see cref="ImageInfo"/>'s documented TIFF contract). To be combined with
+    ///     <see cref="TestTiffBuilder.WithStrips"/>.
+    /// </summary>
+    private static TestTiffBuilder StandardRgbBuilderWithoutSamplesPerPixel(bool bigEndian, int width, int height, int compression, int rowsPerStrip) =>
+        new TestTiffBuilder(bigEndian)
+            .Add(TagImageWidth, TypeLong, (uint)width)
+            .Add(TagImageLength, TypeLong, (uint)height)
+            .Add(TagBitsPerSample, TypeShort, 8, 8, 8)
+            .Add(TagCompression, TypeShort, (uint)compression)
+            .Add(TagPhotometricInterpretation, TypeShort, 2)
+            .Add(TagRowsPerStrip, TypeLong, (uint)rowsPerStrip)
+            .Add(TagPlanarConfiguration, TypeShort, 1);
+
+    /// <summary>
     ///     Adds the standard set of mandatory tags for an 8-bit RGBA (4 samples per pixel, with
     ///     an ExtraSamples tag marking the 4th sample as unassociated alpha) image, to be
     ///     combined with <see cref="TestTiffBuilder.WithStrips"/>.
@@ -1600,5 +1618,63 @@ public class TiffCodecTests
         Assert.Equal(new ImageInfo(width, height, 3, false), info);
 
         Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(truncated)));
+    }
+
+    /// <summary>
+    ///     Regression test for the historical architectural divergence between GetInfo's seekable
+    ///     and non-seekable code paths: when SamplesPerPixel is absent, the seekable path used to
+    ///     default it to 1 while the non-seekable fallback (reusing Load's parser) correctly
+    ///     defaulted it to BitsPerSample's entry count. Proves that, for the exact same file
+    ///     bytes, both a seekable MemoryStream and a NonSeekableStream now return an identical
+    ///     ImageInfo with Channels == 3 (not 1).
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_SeekableAndNonSeekable_SamplesPerPixelTagOmitted_ReturnIdenticalImageInfo()
+    {
+        // Arrange: build a valid RGB TIFF (BitsPerSample = 8,8,8) with no SamplesPerPixel tag
+        const int width = 3;
+        const int height = 2;
+        var file = StandardRgbBuilderWithoutSamplesPerPixel(false, width, height, 1, height)
+            .WithStrips(new byte[width * height * 3])
+            .Build();
+
+        // Act: read the same bytes via a seekable stream and via a non-seekable stream
+        var seekableInfo = TiffCodec.GetInfo(new MemoryStream(file));
+        var nonSeekableInfo = TiffCodec.GetInfo(new NonSeekableStream(new MemoryStream(file)));
+
+        // Assert: both paths agree, and both default Channels to BitsPerSample's entry count (3)
+        var expected = new ImageInfo(width, height, 3, false);
+        Assert.Equal(expected, seekableInfo);
+        Assert.Equal(expected, nonSeekableInfo);
+    }
+
+    /// <summary>
+    ///     Regression test for the historical architectural divergence between GetInfo's seekable
+    ///     and non-seekable code paths: the seekable path used to skip most of
+    ///     ReadTiffImageInfo's format-support validation (including the BitsPerSample == 8 check),
+    ///     so a file rejected by the non-seekable fallback (and by Load) could still succeed on
+    ///     the seekable path. Proves both paths now throw InvalidDataException identically for an
+    ///     unsupported bit depth.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_GetInfo_SeekableAndNonSeekable_UnsupportedBitsPerSample_BothThrowInvalidDataException()
+    {
+        // Arrange: build an otherwise-valid RGB TIFF declaring 16 bits per sample (unsupported)
+        const int width = 3;
+        const int height = 2;
+        var builder = new TestTiffBuilder(false)
+            .Add(TagImageWidth, TypeLong, (uint)width)
+            .Add(TagImageLength, TypeLong, (uint)height)
+            .Add(TagBitsPerSample, TypeShort, 16, 16, 16)
+            .Add(TagCompression, TypeShort, 1)
+            .Add(TagPhotometricInterpretation, TypeShort, 2)
+            .Add(TagSamplesPerPixel, TypeShort, 3)
+            .Add(TagRowsPerStrip, TypeLong, (uint)height)
+            .Add(TagPlanarConfiguration, TypeShort, 1);
+        var file = builder.WithStrips(new byte[width * height * 3 * 2]).Build();
+
+        // Act / Assert: both a seekable and a non-seekable stream reject the file identically
+        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(file)));
+        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new NonSeekableStream(new MemoryStream(file))));
     }
 }
