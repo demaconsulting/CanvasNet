@@ -20,7 +20,9 @@ self-validation mode and no injectable seam to mock in isolation, so it is verif
 end-to-end, through its observable effect on pixel bytes: the existing `Surface` unit tests
 (in `SurfaceTests.cs`) that exercise `PremultiplyAlpha`, `UnpremultiplyAlpha`, and
 `CompositeOver(Surface)`/`CompositeOver(Rgba32)` assert exact expected pixel values, computed
-independently of the implementation via a separate float32 simulation. A passing test run for
+independently of the implementation via scalar `double` arithmetic (for the
+premultiply/unpremultiply scenarios) or hand-computed Porter-Duff results (for the compositing
+scenarios). A passing test run for
 each named scenario below is direct evidence that every `TensorPrimitives` method `Surface` calls
 computed the correct result.
 
@@ -50,7 +52,7 @@ direction across a table of premultiplied-color/alpha combinations.
 `Add` to compute the Porter-Duff "over" formula for two partially transparent pixels.
 
 **Expected**: The resulting pixel exactly matches a value independently hand-computed via the
-Porter-Duff "over" formula in a separate float32 simulation.
+Porter-Duff "over" formula.
 
 **Requirement coverage**: `CanvasNet-OTS-SystemNumericsTensors`.
 

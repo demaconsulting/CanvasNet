@@ -12,8 +12,9 @@ dependency, `System.Numerics.Tensors`, is not injectable and has no seams to moc
 exercised indirectly, end-to-end, through its observable effect on pixel bytes, so no mocking or
 stubbing is required. Tests supply controlled inputs and assert on returned values,
 span-observable side effects, and thrown exception types. Expected values for the compositing and
-premultiplication tests are computed independently of the implementation (via a separate float32
-simulation), not by re-deriving the formula under test.
+premultiplication tests are computed independently of the implementation (via hand-computed
+Porter-Duff results for compositing, and via scalar `double` arithmetic for
+premultiply/unpremultiply), not by re-deriving the formula under test.
 
 Unit tests reside in `SurfaceTests.cs` within the `DemaConsulting.CanvasNet.Tests` project.
 
@@ -221,7 +222,7 @@ channels) over a fully transparent background (also with garbage color channels)
 result is exactly zero RGB and zero alpha, exercising the `outA == 0` division-guard path that a
 nonzero-alpha background never reaches. Separately, composites two partially transparent pixels
 and asserts the result exactly matches a value independently hand-computed via the Porter-Duff
-"over" formula in a separate float32 simulation (not by re-deriving the same formula under test).
+"over" formula (not by re-deriving the same formula under test).
 
 #### CanvasNet-Canvas-Surface-CompositeOverSurfaceNull: CompositeOver(Surface) Rejects a Null Foreground
 

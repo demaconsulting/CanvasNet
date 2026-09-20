@@ -217,5 +217,5 @@ A unit test run passes when all test methods above pass without error or unexpec
 unexpected exception type or wrong return/value relationship constitutes a failure. Across
 `JpegCodecTests.cs` and `JpegFixtureTests.cs`, this totals 30 test methods (26 in
 `JpegCodecTests.cs` and 4 in `JpegFixtureTests.cs`), which expand to 42 executed xUnit test cases
-when every `[Theory]` data row is included, plus the single system-level integration scenario
+when every `[Theory]` data row is included, plus the system-level integration scenarios
 documented in `docs/verification/canvas-net.md`.

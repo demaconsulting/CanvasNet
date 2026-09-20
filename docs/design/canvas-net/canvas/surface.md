@@ -15,8 +15,8 @@ single-pixel get/set access, row-level `Span<T>` access (both as raw bytes and a
 sub-region, and vectorized bulk pixel operations for alpha premultiplication and Porter-Duff
 "over" alpha compositing (`PremultiplyAlpha`, `UnpremultiplyAlpha`, `CompositeOver`). It performs
 no I/O, and its only runtime dependency beyond the .NET base class library is
-`System.Numerics.Tensors` (used internally by the bulk pixel operations; see
-[Dependencies](#dependencies)).
+`System.Numerics.Tensors` (used internally by the bulk pixel operations; see the Dependencies
+section below).
 
 ### Data Model
 
@@ -79,8 +79,8 @@ through any public accessor. `Crop` and all four codecs (`BmpCodec`, `PngCodec`,
 Constructs a surface of the given size. Validates `0 < width <= 8192` and `0 < height <= 8192`,
 throwing `ArgumentOutOfRangeException(nameof(width))` or `ArgumentOutOfRangeException(nameof(height))`
 respectively. Allocates a `byte[]` of `Height * _strideBytes` bytes, where `_strideBytes` rounds
-`width` up to the next multiple of 16 pixels then converts to bytes (see
-[Row Storage Layout](#row-storage-layout)). The 8192 upper bound guarantees that this padded-
+`width` up to the next multiple of 16 pixels then converts to bytes (see the Row Storage Layout
+section below). The 8192 upper bound guarantees that this padded-
 stride/buffer-size arithmetic — `paddedWidthPixels <= 8192`, `_strideBytes <= 8192 * 4 = 32768`,
 and `height * _strideBytes <= 8192 * 32768 = 268,435,456` — stays within plain `int` range with
 margin to spare below `int.MaxValue` (2,147,483,647), so no `long`/`checked` arithmetic is needed.
@@ -115,7 +115,7 @@ many pixels in the same row should obtain the row span once instead of repeatedl
 Returns a `Span<byte>` of length `Width * 4` aliasing row `y`'s raw bytes directly over
 `_buffer` — no data is copied, so writes through the span are immediately visible through the
 indexer and vice versa. The returned length is always exactly `Width * 4`, regardless of
-`_strideBytes`'s internal padding (see [Row Storage Layout](#row-storage-layout)).
+`_strideBytes`'s internal padding (see the Row Storage Layout section below).
 
 **Throws:**
 
