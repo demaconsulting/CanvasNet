@@ -75,6 +75,17 @@ Attempts to construct a `Surface` with a width one greater than the maximum perm
 Attempts to construct a `Surface` with a height one greater than the maximum permitted dimension
 (8193). Asserts `ArgumentOutOfRangeException` is thrown.
 
+#### CanvasNet-Canvas-Surface-MaxDimensionPublic: MaxDimension Is Publicly Accessible
+
+**Test**: `Surface_MaxDimension_IsPubliclyAccessible_Equals8192`
+
+Asserts `Surface.MaxDimension` equals the documented value of 8192, and, via reflection on
+`typeof(Surface).GetField(nameof(Surface.MaxDimension))`, asserts the field's declared
+accessibility is genuinely `public` - a plain compile-time reference to `Surface.MaxDimension`
+alone cannot distinguish `public` from `internal` here, since the test assembly already has
+`InternalsVisibleTo` access to the main assembly, so the reflection-based accessibility check is
+required to prove the requirement.
+
 #### CanvasNet-Canvas-Surface-PixelGet / CanvasNet-Canvas-Surface-PixelSet: Indexer Set Then Get Round-Trips
 
 **Test**: `Surface_Indexer_SetThenGet_ReturnsStoredPixel`
