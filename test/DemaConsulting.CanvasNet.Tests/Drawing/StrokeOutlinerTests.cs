@@ -2,7 +2,7 @@ using System.Linq;
 using System.Numerics;
 using DemaConsulting.CanvasNet.Drawing;
 
-// cspell:ignore Outliner underflows
+// cspell:ignore Outliner underflows inradius
 
 namespace DemaConsulting.CanvasNet.Tests.Drawing;
 
@@ -284,6 +284,107 @@ public class StrokeOutlinerTests
         Assert.Equal(3f, maxY);
     }
 
+    /// <summary>
+    ///     Proves that stroking a closed contour with a half-width that EXCEEDS the contour's
+    ///     inradius (the largest half-width for which the stroke band still leaves an unfilled
+    ///     hole) does not produce an invalid, collapsed "inner ring" hole - the entire interior
+    ///     must instead render as solid stroke, exactly as a true geometric erosion of the contour
+    ///     by that half-width would (an empty inner boundary once half-width exceeds the
+    ///     inradius).
+    /// </summary>
+    /// <remarks>
+    ///     The 4x4 square (2,2)-(6,2)-(6,6)-(2,6) has an inradius of only 2 (half its 4-unit side
+    ///     length). At <c>Width: 10</c> (half-width 5), the naive per-vertex exact offset-edge
+    ///     intersection used to build the inner/hole ring produces corners far OUTSIDE the
+    ///     original square (around <c>[-3,11]</c> for the outer ring and a wrongly inverted,
+    ///     oversized square around <c>[1,7]</c> for what would have been the "inner" ring, per the
+    ///     original bug report), rather than correctly collapsing to nothing. Before the fix, this
+    ///     produced two counter-wound rings and left a bogus, unfilled square hole spanning
+    ///     roughly <c>[1,7]</c> - larger than the original 4x4 square itself. After the fix, the
+    ///     inner ring's collapse is detected and the hole is omitted entirely, leaving a single
+    ///     outer ring whose interior fully covers the original square (and a comfortable margin
+    ///     beyond it).
+    /// </remarks>
+    [Fact]
+    public void StrokeOutliner_Outline_ClosedSquareHalfWidthExceedsInradius_ProducesNoInvalidHole()
+    {
+        // Arrange: a 4x4 square (inradius 2) stroked with half-width 5, well past the inradius.
+        var points = new List<Vector2>
+        {
+            new(2, 2),
+            new(6, 2),
+            new(6, 6),
+            new(2, 6)
+        };
+        var style = new StrokeStyle(10f);
+
+        // Act
+        var polygons = StrokeOutliner.Outline(points, isClosed: true, style, flattenTolerance: 0.25f);
+
+        // Assert: exactly one polygon (no hole) - the whole square interior renders as stroke.
+        var polygon = Assert.Single(polygons);
+
+        // The entire original square, and a reasonable margin around it, must lie within the
+        // single outer polygon (no unfilled hole anywhere within the square).
+        Vector2[] mustBeCovered =
+        [
+            new(4, 4), // center
+            new(2.5f, 2.5f),
+            new(5.5f, 2.5f),
+            new(5.5f, 5.5f),
+            new(2.5f, 5.5f),
+            new(2, 2),
+            new(6, 6)
+        ];
+        foreach (var point in mustBeCovered)
+        {
+            Assert.True(
+                IsPointInPolygon(point, polygon),
+                $"Expected {point} to be covered by the stroke band (no unfilled hole), but it was not.");
+        }
+    }
+
+    /// <summary>
+    ///     Proves that a half-width comfortably NEAR but still below the contour's inradius still
+    ///     produces the correct, valid (non-collapsed) hole - the fix for over-erosion must not
+    ///     regress the ordinary case where the inner ring remains geometrically valid.
+    /// </summary>
+    [Fact]
+    public void StrokeOutliner_Outline_ClosedSquareHalfWidthNearButBelowInradius_ProducesValidHole()
+    {
+        // Arrange: the same 4x4 square (inradius 2), now stroked with half-width 1.9 - close to,
+        // but still below, the inradius.
+        var points = new List<Vector2>
+        {
+            new(2, 2),
+            new(6, 2),
+            new(6, 6),
+            new(2, 6)
+        };
+        var style = new StrokeStyle(3.8f);
+
+        // Act
+        var polygons = StrokeOutliner.Outline(points, isClosed: true, style, flattenTolerance: 0.25f);
+
+        // Assert: two counter-wound rings (a genuine hole is still produced).
+        Assert.Equal(2, polygons.Count);
+        Assert.True(GetSignedArea(polygons[0]) * GetSignedArea(polygons[1]) < 0f);
+
+        // The center of the square (the deepest interior point, furthest from every edge) must
+        // fall within the small remaining hole, not be covered by the stroke band.
+        var outerRing = polygons[0];
+        var innerRing = polygons[1];
+        Assert.True(IsPointInPolygon(new Vector2(4, 4), outerRing));
+        Assert.True(IsPointInPolygon(new Vector2(4, 4), innerRing));
+
+        // The hole must remain nested well within the original square, not spill outside it.
+        foreach (var vertex in innerRing)
+        {
+            Assert.InRange(vertex.X, 2f, 6f);
+            Assert.InRange(vertex.Y, 2f, 6f);
+        }
+    }
+
     private static float GetSignedArea(IReadOnlyList<Vector2> points)
     {
         var area = 0f;
@@ -295,5 +396,26 @@ public class StrokeOutlinerTests
         }
 
         return area / 2f;
+    }
+
+    /// <summary>
+    ///     Determines whether a point lies within a simple polygon using the standard ray-casting
+    ///     (even-odd crossing) test.
+    /// </summary>
+    private static bool IsPointInPolygon(Vector2 point, IReadOnlyList<Vector2> polygon)
+    {
+        var inside = false;
+        for (int i = 0, j = polygon.Count - 1; i < polygon.Count; j = i++)
+        {
+            var vi = polygon[i];
+            var vj = polygon[j];
+            if (((vi.Y > point.Y) != (vj.Y > point.Y)) &&
+                (point.X < (vj.X - vi.X) * (point.Y - vi.Y) / (vj.Y - vi.Y) + vi.X))
+            {
+                inside = !inside;
+            }
+        }
+
+        return inside;
     }
 }

@@ -1,6 +1,6 @@
 using System.Numerics;
 
-// cspell:ignore Outliner outliner underflows underflowed
+// cspell:ignore Outliner outliner underflows underflowed inradius
 
 namespace DemaConsulting.CanvasNet.Drawing;
 
@@ -296,11 +296,29 @@ internal static class StrokeOutliner
         var area = ComputeSignedArea(points);
         var outerSideSign = area >= 0f ? -1f : +1f;
 
-        var outerRing = BuildClosedSide(points, outerSideSign, style, halfWidth, flattenTolerance);
-        var innerRing = BuildClosedSide(points, -outerSideSign, style, halfWidth, flattenTolerance);
-        if (outerRing.Count < 3 || innerRing.Count < 3)
+        var outerRing = BuildClosedSide(points, outerSideSign, style, halfWidth, flattenTolerance, out _);
+        if (outerRing.Count < 3)
         {
             return [];
+        }
+
+        var innerRing = BuildClosedSide(points, -outerSideSign, style, halfWidth, flattenTolerance, out var innerRingCollapsed);
+
+        // When the stroke half-width exceeds the contour's local inradius somewhere along its
+        // length, the "inner" ring's exact offset-edge intersection points (see BuildClosedSide's
+        // forceExactIntersection) are no longer a valid inward offset: the offset edges for two
+        // adjacent source edges have been pushed so far toward (and past) each other that the
+        // shared offset segment between their exact intersection points runs BACKWARDS relative
+        // to its source edge's direction, rather than forwards. BuildClosedSide detects this via
+        // innerRingCollapsed. Feeding such a ring to the NonZero fill as a hole would carve out a
+        // nonsensical region (potentially larger than the source contour itself, and wound so it
+        // no longer nests inside the outer ring) instead of correctly leaving the entire interior
+        // filled. Omit the hole entirely in that case, so the whole interior renders as solid
+        // stroke - the same outcome a true geometric erosion of the contour by half-width would
+        // produce once half-width exceeds the inradius (an empty inner boundary).
+        if (innerRing.Count < 3 || innerRingCollapsed)
+        {
+            return [outerRing];
         }
 
         // Regardless of how many vertices were locally reflex on each ring, the two rings must
@@ -450,15 +468,28 @@ internal static class StrokeOutliner
     ///     locally convex side) or force the exact offset-edge intersection (the locally concave
     ///     side, where a stylized corner would carve away or add stroke area).
     /// </remarks>
+    /// <param name="collapsed">
+    ///     Set to <see langword="true"/> when the stroke half-width exceeds this contour's local
+    ///     inradius somewhere along its length, so that two adjacent forced exact-intersection
+    ///     vertices' shared offset edge runs backwards relative to its source edge - the ring is
+    ///     no longer a valid inward offset and must not be used as a fill hole.
+    /// </param>
     private static List<Vector2> BuildClosedSide(
         IReadOnlyList<Vector2> points,
         float sideSign,
         StrokeStyle style,
         float halfWidth,
-        float flattenTolerance)
+        float flattenTolerance,
+        out bool collapsed)
     {
         var frames = BuildSegmentFrames(points, isClosed: true);
         var ring = new List<Vector2>(points.Count * 2);
+
+        // Tracks, for each source vertex, the ring index of the single plain offset point emitted
+        // for it (see the remarks below), or -1 if that vertex instead emitted a styled join
+        // (Round/Bevel/Miter, or a Miter/exact-intersection fallback) that can contribute zero,
+        // one, or more than one point not directly tied to a single shared offset edge.
+        var plainPointIndex = new int[points.Count];
         for (var i = 0; i < points.Count; i++)
         {
             var previousFrame = frames[(i + frames.Length - 1) % frames.Length];
@@ -468,10 +499,12 @@ internal static class StrokeOutliner
             if (MathF.Abs(turn) <= NearZeroDistance && dot > 0f)
             {
                 AddPointIfDistinct(ring, points[i] + sideSign * nextFrame.Normal * halfWidth);
+                plainPointIndex[i] = ring.Count - 1;
                 continue;
             }
 
             var isConvexOnThisSide = turn * sideSign < 0f;
+            var countBefore = ring.Count;
             AppendStyledJoin(
                 ring,
                 points[i],
@@ -484,6 +517,38 @@ internal static class StrokeOutliner
                 halfWidth,
                 flattenTolerance,
                 forceExactIntersection: !isConvexOnThisSide);
+
+            // Only a locally concave (forceExactIntersection) vertex that emitted exactly one
+            // point is a "plain" vertex whose single point is the shared endpoint of two adjacent
+            // offset edges - see the collapse check below. A locally convex (styled-join) vertex,
+            // or a concave vertex whose lines were parallel and fell back to the two un-joined
+            // offset points, is excluded from that check.
+            plainPointIndex[i] = !isConvexOnThisSide && ring.Count - countBefore == 1 ? ring.Count - 1 : -1;
+        }
+
+        // Detect inner-ring collapse: when the stroke half-width exceeds the contour's local
+        // inradius, two adjacent plain (forced exact-intersection) vertices' shared offset edge -
+        // which must run in the SAME direction as its source edge's tangent for the ring to be a
+        // valid inward offset - instead runs BACKWARDS, because the offset lines were pushed past
+        // each other. A single such reversal invalidates the whole ring as a hole (see
+        // CreateClosedStrokePolygons).
+        collapsed = false;
+        for (var i = 0; i < points.Count; i++)
+        {
+            var next = (i + 1) % points.Count;
+            var currentIndex = plainPointIndex[i];
+            var nextIndex = plainPointIndex[next];
+            if (currentIndex < 0 || nextIndex < 0)
+            {
+                continue;
+            }
+
+            var edgeVector = ring[nextIndex] - ring[currentIndex];
+            if (Vector2.Dot(edgeVector, frames[i].Tangent) <= NearZeroDistance)
+            {
+                collapsed = true;
+                break;
+            }
         }
 
         RemoveTrailingDuplicateOfFirst(ring);

@@ -1,4 +1,4 @@
-<!-- cspell:ignore Outliner -->
+<!-- cspell:ignore Outliner inradius -->
 
 ## PathStroker
 
@@ -120,6 +120,18 @@ instances directly. Every emitted polygon becomes one closed subpath in the resu
   always assigned to the correct ring even as convexity flips along a concave contour. The two
   rings are then wound in opposite directions so `FillRule.NonZero` fills only the shell between
   them, regardless of how many vertices on each ring ended up locally reflex.
+- **Inner-ring collapse (half-width exceeding the local inradius).** The forced exact-edge
+  intersections above are only valid while the stroke half-width stays within the contour's local
+  inradius (the largest half-width for which the offset ring still nests inside the source
+  contour). Once half-width exceeds it somewhere along the contour, two adjacent forced
+  intersection vertices' shared offset edge runs backwards relative to its source edge's
+  direction, instead of forwards - the classic "erosion has gone empty" case from polygon
+  offsetting, except the naive per-vertex intersection construction does not notice on its own and
+  instead produces an invalid, oversized, wrongly wound ring. `StrokeOutliner` detects this
+  per-edge direction reversal while building each ring and, when found on the ring that would
+  otherwise become the hole, omits that ring entirely rather than emitting it as a hole - matching
+  what a true geometric erosion of the contour by that half-width would produce (an empty inner
+  boundary) and leaving the whole interior filled as solid stroke.
 - **Degenerate subpaths.** A single point (or a path collapsed to one effective point after
   duplicate-vertex simplification) renders as a cap-shaped mark: round creates a full circle,
   square creates an axis-aligned width-by-width square, and butt creates nothing.

@@ -113,6 +113,8 @@ public styling values are preserved exactly.
 - `StrokeOutliner_Outline_ClosedSubpath_ProducesTwoCounterWoundRings`
 - `StrokeOutliner_Outline_MiterJoinWithinLimit_ProducesSharpVertex`
 - `StrokeOutliner_Outline_MiterJoinExceedingLimit_FallsBackToBevelVertex`
+- `StrokeOutliner_Outline_ClosedSquareHalfWidthExceedsInradius_ProducesNoInvalidHole`
+- `StrokeOutliner_Outline_ClosedSquareHalfWidthNearButBelowInradius_ProducesValidHole`
 
 These tests verify the intermediate geometry contracts that feed the public API: preserving
 open/closed state, applying SVG-style dash semantics, stitching seam-wrapping visible runs, and
@@ -125,4 +127,4 @@ _PathStroker Unit Design_ (`../../../design/canvas-net/drawing/path-stroker.md`)
 analysis and code review only. There are intentionally **no** timing-based tests, elapsed-time
 assertions, or `Stopwatch`-based guards in this unit's automated verification because those are
 not stable compliance evidence on heterogeneous CI hardware.
-<!-- cspell:ignore Outliner -->
+<!-- cspell:ignore Outliner inradius -->
