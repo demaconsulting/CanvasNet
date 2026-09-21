@@ -32,6 +32,7 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 - 🗜️ **JPEG Codec** - Load baseline/progressive JPEG and save baseline 4:2:0 JPEG with quality control
 - 🔍 **Header-Only Probing** - `GetInfo` reads only image headers (dimensions/channels/alpha) without
   decoding pixel data, letting callers triage untrusted files before calling `Load`
+- 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of closed vector paths onto a `Surface`
 - ⚡ **Span-Based** - Fast, allocation-conscious row and pixel access
 - 🔄 **Multi-Target** - Supports .NET 8, 9, and 10
 - 📦 **NuGet Ready** - Easy integration via NuGet package
@@ -81,6 +82,25 @@ if (info.Width > Surface.MaxDimension
 }
 
 var safeSurface = PngCodec.Load("untrusted.png"); // safe to decode fully
+```
+
+Filling a vector path onto a surface:
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Drawing;
+using DemaConsulting.CanvasNet.Geometry;
+using System.Numerics;
+
+var canvas = new Surface(64, 64);
+var triangle = new PathBuilder()
+    .MoveTo(new Vector2(8, 56))
+    .LineTo(new Vector2(56, 56))
+    .LineTo(new Vector2(32, 8))
+    .Close()
+    .Build();
+
+PathFiller.Fill(canvas, triangle, new Rgba32(0, 128, 255, 255)); // antialiased solid fill
 ```
 
 ## Building

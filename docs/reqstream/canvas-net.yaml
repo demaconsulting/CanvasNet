@@ -730,3 +730,53 @@ sections:
           - CanvasNet-Geometry-SvgArcConverter
         tests:
           - CanvasNet_SystemIntegration_BuildFlattenAndBoundPath_ReturnsExpectedBounds
+
+  - title: Drawing API
+    requirements:
+      - id: CanvasNet-Lib-DrawingPathFill
+        title: >-
+          The library shall fill a closed Path with a solid color onto a Surface, using an
+          antialiased scanline-coverage rasterizer supporting both nonzero and even-odd fill
+          rules, with a caller-adjustable curve-flattening tolerance.
+        tags: [system]
+        justification: |
+          Solid-color fill of arbitrary vector geometry is the foundational rendering operation
+          future Drawing functionality (strokes, gradients, fonts) will build upon; callers need
+          it available directly without hand-rolling rasterization.
+        children:
+          - CanvasNet-Drawing-PathFill
+        tests:
+          - CanvasNet_SystemIntegration_BuildAndFillTrianglePath_ReturnsExpectedPixels
+
+      - id: CanvasNet-Lib-DrawingPathFillNoOp
+        title: >-
+          The library shall silently no-op, without throwing, when filling an empty Path or a
+          Path whose bounds do not intersect the target Surface.
+        tags: [system]
+        justification: |
+          Callers building up scenes incrementally will routinely fill paths that are empty or
+          fall entirely outside the visible surface; this must be a cheap, well-defined no-op
+          rather than a special case callers must detect and avoid themselves.
+        children:
+          - CanvasNet-Drawing-PathFillNoOp
+        tests:
+          - PathFiller_Fill_EmptyPath_NoOpLeavesSurfaceUnchanged
+          - PathFiller_Fill_PathFullyOutsideSurfaceBounds_NoOpLeavesSurfaceUnchanged
+
+      - id: CanvasNet-Lib-DrawingPathFillValidation
+        title: >-
+          The library shall reject a null Surface or Path argument to the fill operation with
+          ArgumentNullException, and a non-positive flatten-tolerance argument with
+          ArgumentOutOfRangeException.
+        tags: [system]
+        justification: |
+          A null surface or path cannot supply a valid fill target or geometry, and a
+          non-positive flattening tolerance cannot bound curve subdivision to a meaningful
+          accuracy; rejecting these early prevents a confusing failure deeper in the
+          implementation.
+        children:
+          - CanvasNet-Drawing-PathFillValidation
+        tests:
+          - PathFiller_Fill_NullSurface_ThrowsArgumentNullException
+          - PathFiller_Fill_NullPath_ThrowsArgumentNullException
+          - PathFiller_Fill_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException

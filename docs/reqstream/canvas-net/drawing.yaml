@@ -1,0 +1,64 @@
+---
+# Software Subsystem Requirements for Drawing
+#
+# These requirements decompose the CanvasNet system's Drawing API responsibilities into the
+# Drawing subsystem's own responsibility: antialiased scanline-coverage filling of closed
+# Geometry.Path geometry with a solid color onto a Canvas.Surface (the PathFiller unit, which
+# also covers the supporting FillRule, EdgeFlattener, and ScanlineRasterizer types). Each
+# requirement here links down to the unit requirement that implements it.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Drawing Requirements
+        requirements:
+          - id: CanvasNet-Drawing-PathFill
+            title: >-
+              The Drawing subsystem shall fill a closed Path with a solid color onto a Surface,
+              using an antialiased scanline-coverage rasterizer supporting both nonzero and
+              even-odd fill rules, with a caller-adjustable curve-flattening tolerance.
+            justification: |
+              Solid-color fill of arbitrary vector geometry (straight lines, Bezier curves, and
+              SVG-style arcs, potentially across multiple subpaths forming holes) is the
+              foundational rendering operation future Drawing functionality (strokes, gradients,
+              fonts) will build upon; callers need it available directly on a Surface without
+              hand-rolling rasterization.
+            children:
+              - CanvasNet-Drawing-PathFiller-Fill
+              - CanvasNet-Drawing-PathFiller-FillRule
+              - CanvasNet-Drawing-PathFiller-ImplicitClose
+              - CanvasNet-Drawing-PathFiller-Antialiasing
+              - CanvasNet-Drawing-PathFiller-Holes
+            tests:
+              - CanvasNet_SystemIntegration_BuildAndFillTrianglePath_ReturnsExpectedPixels
+
+          - id: CanvasNet-Drawing-PathFillNoOp
+            title: >-
+              The Drawing subsystem shall silently no-op, without allocating a full-surface
+              buffer or throwing, when filling an empty Path or a Path whose bounds do not
+              intersect the target Surface.
+            justification: |
+              Callers building up scenes incrementally will routinely fill paths that are empty
+              or fall entirely outside the visible surface (for example, off-screen geometry);
+              this must be a cheap, well-defined no-op rather than a special case callers must
+              detect and avoid themselves.
+            children:
+              - CanvasNet-Drawing-PathFiller-EmptyOrOutOfBoundsNoOp
+            tests:
+              - CanvasNet_SystemIntegration_BuildAndFillTrianglePath_ReturnsExpectedPixels
+
+          - id: CanvasNet-Drawing-PathFillValidation
+            title: >-
+              The Drawing subsystem shall reject a null Surface or Path argument with
+              ArgumentNullException, and a non-positive flatten-tolerance argument with
+              ArgumentOutOfRangeException.
+            justification: |
+              A null surface or path cannot supply a valid fill target or geometry, and a
+              non-positive flattening tolerance cannot bound curve subdivision to a meaningful
+              accuracy; rejecting these early prevents a confusing failure, or an infinite/absurd
+              amount of curve subdivision, deeper in the implementation.
+            children:
+              - CanvasNet-Drawing-PathFiller-NullArguments
+              - CanvasNet-Drawing-PathFiller-NonPositiveTolerance
+            tests:
+              - CanvasNet_SystemIntegration_BuildAndFillTrianglePath_ReturnsExpectedPixels

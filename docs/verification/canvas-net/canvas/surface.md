@@ -270,6 +270,41 @@ Separately, composites a constant opaque color over a multi-row, multi-column su
 every pixel is replaced, confirming the per-row loop is applied uniformly across the whole
 surface, not just a single pixel.
 
+#### CanvasNet-Canvas-Surface-CompositeOverSpan: CompositeOverSpan Matches Independently Computed Results
+
+**Tests**: `Surface_CompositeOverSpan_FullCoverage_MatchesCompositeOverColor`,
+`Surface_CompositeOverSpan_ZeroCoverage_LeavesBackgroundUnchanged`,
+`Surface_CompositeOverSpan_PartialCoverage_MatchesLinearInterpolationOracle`,
+`Surface_CompositeOverSpan_MultiPixelRun_AppliesPerPixelCoverage`,
+`Surface_CompositeOverSpan_EmptyCoverageAtWidthBoundary_NoOp`
+
+Composites a constant color over a row with a coverage of exactly `1` at every pixel via
+`CompositeOverSpan`, and separately composites the same color over an identical background via
+`CompositeOver(Rgba32)`, and asserts the two results are byte-identical - full coverage must be
+indistinguishable from the existing full-pixel overload. Separately, composites a constant color
+with a coverage of exactly `0` and asserts the background pixel is completely unaffected.
+Separately, composites a constant color at a fractional coverage value and asserts the result
+exactly matches an independently hand-computed linear-interpolation oracle (not the same formula
+under test). Separately, composites a constant color across a multi-pixel run with a distinct
+coverage value per pixel (`0`, a fractional value, and `1`) and asserts each pixel reflects its
+own coverage value independently, confirming per-pixel (not per-row-uniform) scaling. Separately,
+calls `CompositeOverSpan` with an empty coverage span starting exactly at `x == Width` and asserts
+this is accepted as a no-op rather than throwing, confirming the boundary case of a zero-length
+run at the surface's right edge is valid.
+
+#### CanvasNet-Canvas-Surface-CompositeOverSpanValidation: CompositeOverSpan Rejects Out-of-Range Row/Column Arguments
+
+**Tests**: `Surface_CompositeOverSpan_NegativeY_ThrowsArgumentOutOfRangeException`,
+`Surface_CompositeOverSpan_YAtHeight_ThrowsArgumentOutOfRangeException`,
+`Surface_CompositeOverSpan_NegativeX_ThrowsArgumentOutOfRangeException`,
+`Surface_CompositeOverSpan_RunExceedsWidth_ThrowsArgumentOutOfRangeException`
+
+Calls `CompositeOverSpan` with a negative `y`, and separately with `y` equal to `Height` (one
+past the last valid row), and asserts `ArgumentOutOfRangeException` is thrown in both cases.
+Separately, calls `CompositeOverSpan` with a negative `x`, and separately with a coverage run
+whose `x + coverage.Length` exceeds `Width`, and asserts `ArgumentOutOfRangeException` is thrown
+in both cases.
+
 #### Rgba32 Sanity Checks (no requirement link)
 
 **Tests**: `Rgba32_FieldAssignment_StoresChannelValues`, `Rgba32_Equals_SameChannelValues_ReturnsTrue`

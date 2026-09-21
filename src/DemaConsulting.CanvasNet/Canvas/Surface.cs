@@ -573,6 +573,97 @@ public sealed class Surface
     }
 
     /// <summary>
+    ///     Composites a single constant <paramref name="color"/> "over" a horizontal run of
+    ///     pixels in row <paramref name="y"/> starting at column <paramref name="x"/>, scaling
+    ///     <paramref name="color"/>'s effective alpha at each pixel by the corresponding entry of
+    ///     <paramref name="coverage"/>, using standard Porter-Duff "over" alpha compositing.
+    /// </summary>
+    /// <param name="y">The zero-based row to composite into. Must be within <c>[0, Height)</c>.</param>
+    /// <param name="x">
+    ///     The zero-based column at which the run starts. Must be within <c>[0, Width]</c> (equal
+    ///     to <see cref="Width"/> is permitted only when <paramref name="coverage"/> is empty).
+    /// </param>
+    /// <param name="coverage">
+    ///     One coverage value per pixel of the run, in left-to-right order. Each value is
+    ///     implicitly clamped to <c>[0, 1]</c>: a value less than or equal to zero leaves that
+    ///     pixel unchanged, a value greater than or equal to one is equivalent to calling
+    ///     <see cref="CompositeOver(Rgba32)"/> at that one pixel, and values in between linearly
+    ///     scale <paramref name="color"/>'s alpha before compositing.
+    /// </param>
+    /// <param name="color">The constant foreground color to composite over the run.</param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <paramref name="y"/> is outside <c>[0, Height)</c>, or when
+    ///     <paramref name="x"/> or <c>x + coverage.Length</c> is outside <c>[0, Width]</c>.
+    /// </exception>
+    /// <remarks>
+    ///     This is the first partial-row compositing primitive in <see cref="Surface"/>: every
+    ///     other <c>CompositeOver</c> overload always processes a full row (or the whole
+    ///     surface). It exists so per-pixel-coverage callers - such as
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer"/>'s antialiased fill
+    ///     rasterizer - can composite an arbitrary sub-range of a row directly, without allocating
+    ///     a full-row or full-surface buffer merely to hold mostly-untouched pixels. It reuses the
+    ///     exact same private per-channel <see cref="CompositeOverRow"/> pipeline as every other
+    ///     <c>CompositeOver</c> overload - only the foreground buffer's population differs (here,
+    ///     a constant color whose per-pixel alpha is scaled by <paramref name="coverage"/>, rather
+    ///     than a constant alpha or another surface's pixels) - so the blend math itself is never
+    ///     duplicated.
+    /// </remarks>
+    public void CompositeOverSpan(int y, int x, ReadOnlySpan<float> coverage, Rgba32 color)
+    {
+        if (y < 0 || y >= Height)
+        {
+            throw new ArgumentOutOfRangeException(nameof(y), y, "Y must be within the surface height.");
+        }
+
+        if (x < 0 || x > Width)
+        {
+            throw new ArgumentOutOfRangeException(nameof(x), x, "X must be within the surface width.");
+        }
+
+        if (x + coverage.Length > Width)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(coverage), coverage.Length, "X plus the coverage length must not exceed the surface width.");
+        }
+
+        var count = coverage.Length;
+        if (count == 0)
+        {
+            return;
+        }
+
+        using var bg = new RowChannelBuffers(count);
+        using var fg = new RowChannelBuffers(count);
+        using var work = new CompositeWorkBuffers(count);
+
+        var bgRow = GetRowSpanBytes(y).Slice(x * BytesPerPixel, count * BytesPerPixel);
+
+        DeinterleaveRow(bgRow, bg, count);
+        WidenAllToFloat(bg, count);
+
+        for (var i = 0; i < count; i++)
+        {
+            fg.RBytes[i] = color.R;
+            fg.GBytes[i] = color.G;
+            fg.BBytes[i] = color.B;
+            var scaledAlpha = color.A * Math.Clamp(coverage[i], 0f, 1f);
+            fg.ABytes[i] = (byte)Math.Clamp(MathF.Round(scaledAlpha), 0f, 255f);
+        }
+
+        WidenAllToFloat(fg, count);
+
+        CompositeOverRow(bg, fg, work, count);
+
+        NarrowRoundedClamp(work.OutR, bg.RBytes, count);
+        NarrowRoundedClamp(work.OutG, bg.GBytes, count);
+        NarrowRoundedClamp(work.OutB, bg.BBytes, count);
+        NarrowRoundedClamp(work.OutA, bg.ABytes, count);
+        ZeroColorWhereAlphaByteIsZero(bg.ABytes, bg.RBytes, bg.GBytes, bg.BBytes, count);
+
+        ReinterleaveRow(bgRow, bg, count);
+    }
+
+    /// <summary>
     ///     Splits an interleaved RGBA row into the four planar byte channels of
     ///     <paramref name="destination"/>. This is a layout transform, not numeric work, so it is
     ///     kept as a plain scalar loop for clarity rather than forced through a tensor API.

@@ -276,3 +276,39 @@ sections:
                   - Surface_CompositeOverColor_BothFullyTransparent_ResultIsZero
                   - Surface_CompositeOverColor_PartialAlpha_MatchesIndependentlyComputedResult
                   - Surface_CompositeOverColor_MultiRowSurface_AppliesToEveryPixel
+
+              - id: CanvasNet-Canvas-Surface-CompositeOverSpan
+                title: >-
+                  The Surface class shall composite a constant color "over" a horizontal run of
+                  pixels within a single row of itself in place, scaling the color's effective alpha
+                  at each pixel by a caller-supplied per-pixel coverage value in [0, 1], using
+                  standard Porter-Duff "over" alpha compositing, reusing the same per-channel
+                  compositing pipeline as every other CompositeOver overload.
+                justification: |
+                  This is the first partial-row compositing primitive on Surface: every other
+                  CompositeOver overload always processes a full row or the whole surface. A
+                  per-pixel-coverage caller (for example an antialiased fill rasterizer) needs to
+                  composite an arbitrary sub-range of a single row directly, without allocating a
+                  full-row or full-surface buffer merely to hold mostly-untouched pixels, and without
+                  duplicating the existing blend math.
+                tests:
+                  - Surface_CompositeOverSpan_FullCoverage_MatchesCompositeOverColor
+                  - Surface_CompositeOverSpan_ZeroCoverage_LeavesBackgroundUnchanged
+                  - Surface_CompositeOverSpan_PartialCoverage_MatchesLinearInterpolationOracle
+                  - Surface_CompositeOverSpan_MultiPixelRun_AppliesPerPixelCoverage
+                  - Surface_CompositeOverSpan_EmptyCoverageAtWidthBoundary_NoOp
+
+              - id: CanvasNet-Canvas-Surface-CompositeOverSpanValidation
+                title: >-
+                  The Surface class shall reject a row argument outside [0, Height), or a column
+                  range extending outside [0, Width], to CompositeOverSpan with
+                  ArgumentOutOfRangeException.
+                justification: |
+                  A row outside this surface's height, or a column plus coverage-run length beyond
+                  this surface's width, cannot identify a valid run of pixels to composite; rejecting
+                  it prevents an out-of-bounds read or write.
+                tests:
+                  - Surface_CompositeOverSpan_NegativeY_ThrowsArgumentOutOfRangeException
+                  - Surface_CompositeOverSpan_YAtHeight_ThrowsArgumentOutOfRangeException
+                  - Surface_CompositeOverSpan_NegativeX_ThrowsArgumentOutOfRangeException
+                  - Surface_CompositeOverSpan_RunExceedsWidth_ThrowsArgumentOutOfRangeException

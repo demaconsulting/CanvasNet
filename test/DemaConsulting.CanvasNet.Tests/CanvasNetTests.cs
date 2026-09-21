@@ -1,6 +1,7 @@
 using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Geometry;
 
 namespace DemaConsulting.CanvasNet.Tests;
@@ -321,5 +322,43 @@ public class CanvasNetTests
         Assert.False(bounds.IsEmpty);
         Assert.True(bounds.Width > 0);
         Assert.True(bounds.Height > 0);
+    }
+
+    /// <summary>
+    ///     Proves that the system can build a closed triangular Path via PathBuilder and fill it
+    ///     onto a Surface with a solid color through PathFiller's public API, exercising the
+    ///     Geometry -> Drawing -> Canvas integration end to end: interior pixels are fully
+    ///     opaque, exterior pixels are untouched, and a slanted-edge pixel is antialiased to a
+    ///     fractional coverage strictly between fully transparent and fully opaque.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_BuildAndFillTrianglePath_ReturnsExpectedPixels()
+    {
+        // Arrange: an 8x8 surface, and a right triangle with one vertical edge (x=1), one
+        // horizontal edge (y=6), and one slanted hypotenuse - built entirely through the public
+        // PathBuilder API
+        var surface = new Surface(8, 8);
+        var path = new PathBuilder()
+            .MoveTo(new Vector2(1, 1))
+            .LineTo(new Vector2(1, 6))
+            .LineTo(new Vector2(6, 6))
+            .Close()
+            .Build();
+        var color = new Rgba32(255, 0, 0, 255);
+
+        // Act: fill the path through the public PathFiller API
+        PathFiller.Fill(surface, path, color);
+
+        // Assert: a pixel deep in the triangle's interior is fully opaque red
+        Assert.Equal(color, surface[2, 5]);
+
+        // Assert: a pixel well outside the triangle's bounding box is untouched (still fully
+        // transparent, the surface's initial state)
+        Assert.Equal(new Rgba32(0, 0, 0, 0), surface[7, 0]);
+
+        // Assert: a pixel straddling the slanted hypotenuse is antialiased to a fractional
+        // coverage - neither fully transparent nor fully opaque
+        var edgePixel = surface[4, 4];
+        Assert.True(edgePixel.A > 0 && edgePixel.A < 255, $"Expected a fractional alpha, got {edgePixel.A}");
     }
 }

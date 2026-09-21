@@ -215,6 +215,38 @@ Composites the constant `color` "over" every pixel of this surface, using the sa
 rounding rule as `CompositeOver(Surface)`, with `color` acting as the foreground at every pixel.
 Every possible `Rgba32` value is valid, so this method never throws.
 
+#### CompositeOverSpan(int y, int x, ReadOnlySpan\<float\> coverage, Rgba32 color)
+
+Composites the constant `color` "over" a horizontal run of `coverage.Length` pixels within row
+`y`, starting at column `x`, using the same Porter-Duff "over" formula and rounding rule as
+`CompositeOver(Rgba32)`, except that `color`'s effective alpha at pixel `i` is additionally
+scaled by `coverage[i]` before compositing: a `coverage[i] <= 0` leaves that pixel unchanged, a
+`coverage[i] >= 1` is equivalent to `CompositeOver(Rgba32)` at that pixel, and any value in
+between blends proportionally. Values are clamped to `[0, 1]` implicitly (a `coverage[i]` outside
+that range behaves as if clamped). A no-op if `coverage` is empty.
+
+**Architectural note (first partial-row compositing primitive)**: every other `CompositeOver`
+overload always processes either a full row (`CompositeOver(Surface)`) or the whole surface
+(`CompositeOver(Rgba32)`). `CompositeOverSpan` is the first member of `Surface` that composites an
+arbitrary sub-range of a single row, driven by a per-pixel coverage value rather than a uniform
+alpha — this is exactly what an antialiased rasterizer (the `Drawing` subsystem's `PathFiller`
+unit; see `../drawing/path-filler.md`) needs: it can composite each rasterized row's fractional
+pixel coverage directly, without ever allocating a full-row or full-surface buffer merely to hold
+mostly-untouched pixels.
+
+**Algorithm**: builds a small, `coverage.Length`-sized foreground channel buffer with constant
+`R`/`G`/`B` equal to `color.R`/`color.G`/`color.B` and per-pixel `A` equal to
+`round(color.A * clamp(coverage[i], 0, 1))` (round-half-away-from-zero, clamped to `[0, 255]`),
+then reuses the exact same private per-row compositing pipeline as `CompositeOver(Rgba32)`
+(deinterleave, widen to float, blend via `TensorPrimitives`, narrow/round/clamp, zero color where
+alpha is zero, reinterleave) applied to the `[x, x + coverage.Length)` sub-range of row `y`'s
+byte span — no blend-math is duplicated between the two overloads.
+
+**Throws:**
+
+- `ArgumentOutOfRangeException` — when `y` is outside `[0, Height)`
+- `ArgumentOutOfRangeException` — when `x` is negative, or `x + coverage.Length` exceeds `Width`
+
 **Implementation note (all three bulk pixel operations)**: each row is deinterleaved from RGBA
 byte order into planar `R`/`G`/`B`/`A` arrays via a simple scalar loop (this transform is layout
 work, not numeric work, so clarity is prioritized over vectorizing it), then the numerically
@@ -231,12 +263,12 @@ target-framework gating is required.
 ### Error Handling
 
 All validation is performed at the start of the constructor, indexer, `GetRowSpanBytes`, `Crop`,
-and `CompositeOver(Surface)`, using `ArgumentOutOfRangeException`/`ArgumentNullException`/
-`ArgumentException` naming the specific invalid parameter. `Surface` performs no local error
-handling or recovery — validation failures are detected at the point of entry and the resulting
-exception propagates directly to the caller uncaught. There is no internal state to roll back
-because invalid arguments are rejected before any field is read or written, and before the
-destination surface is mutated in `Crop`.
+`CompositeOver(Surface)`, and `CompositeOverSpan`, using `ArgumentOutOfRangeException`/
+`ArgumentNullException`/`ArgumentException` naming the specific invalid parameter. `Surface`
+performs no local error handling or recovery — validation failures are detected at the point of
+entry and the resulting exception propagates directly to the caller uncaught. There is no
+internal state to roll back because invalid arguments are rejected before any field is read or
+written, and before the destination surface is mutated in `Crop`.
 
 ### Dependencies
 
@@ -261,5 +293,8 @@ deliberately does not — it reports the raw header-declared dimensions even whe
 bound (see _Codecs Subsystem Design_, `../codecs.md`, and `ImageInfo`'s own documentation for why).
 Callers of `GetInfo` who want to reject an oversized file before ever calling `Load` must perform
 their own `width <= Surface.MaxDimension && height <= Surface.MaxDimension` comparison against the
-now-public `Surface.MaxDimension`. `Surface` itself has no dependency on any codec or on any other
-unit.
+now-public `Surface.MaxDimension`. `Surface` is also invoked internally by the `Drawing`
+subsystem's `PathFiller` unit, which calls `CompositeOverSpan` to composite each rasterized row's
+antialiased coverage directly — see _PathFiller Unit Design_ (`../drawing/path-filler.md`) for
+details of that dependency. `Surface` itself has no dependency on any codec, on `Drawing`, or on
+any other unit.

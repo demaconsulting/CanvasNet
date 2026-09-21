@@ -674,6 +674,36 @@ Saves a `Surface` to a file as a JPEG image, overwriting any existing file at `p
 - `ArgumentException`: Thrown when `path` is an empty string.
 - `ArgumentOutOfRangeException`: Thrown when `quality` is less than 1 or greater than 100.
 
+### PathFiller
+
+The `PathFiller` static class fills a closed `Geometry.Path` with a solid color onto a `Surface`,
+using an antialiased scanline-coverage rasterizer. It supports both `FillRule.NonZero` (the
+default) and `FillRule.EvenOdd` winding resolution, correctly renders holes via nested,
+counter-wound subpaths, and treats every subpath as implicitly closed for fill purposes,
+regardless of whether the path explicitly called `Close`.
+
+#### PathFiller Methods
+
+##### PathFiller.Fill(Surface surface, Path path, Rgba32 color, FillRule fillRule, float flattenTolerance)
+
+```csharp
+public static void Fill(
+    Surface surface,
+    Path path,
+    Rgba32 color,
+    FillRule fillRule = FillRule.NonZero,
+    float flattenTolerance = 0.25f)
+```
+
+Fills `path` with the solid `color` onto `surface`. Curves and arcs are flattened to line
+segments within `flattenTolerance` before rasterization (see `BezierFlattening`). No-ops, without
+throwing, if `path` is empty or its bounds do not intersect `surface`'s pixel extent.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `surface` or `path` is null.
+- `ArgumentOutOfRangeException`: Thrown when `flattenTolerance` is less than or equal to zero.
+
 # Examples
 
 ## Example 1: Surface Pixel Access
@@ -821,6 +851,27 @@ if (info.Width > Surface.MaxDimension || info.Height > Surface.MaxDimension || p
 // Only decode pixel data once the header has been judged safe.
 var surface = PngCodec.Load("untrusted.png");
 Console.WriteLine($"{surface.Width}x{surface.Height}, alpha: {info.HasAlpha}");
+```
+
+## Example 9: Filling a Vector Path
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Drawing;
+using DemaConsulting.CanvasNet.Geometry;
+using System.Numerics;
+
+var canvas = new Surface(64, 64);
+var triangle = new PathBuilder()
+    .MoveTo(new Vector2(8, 56))
+    .LineTo(new Vector2(56, 56))
+    .LineTo(new Vector2(32, 8))
+    .Close()
+    .Build();
+
+// Antialiased solid fill using the default NonZero fill rule and 0.25f flatten tolerance
+PathFiller.Fill(canvas, triangle, new Rgba32(0, 128, 255, 255));
+Console.WriteLine(canvas[32, 40].A); // Output: 255 (well inside the triangle)
 ```
 
 # References
