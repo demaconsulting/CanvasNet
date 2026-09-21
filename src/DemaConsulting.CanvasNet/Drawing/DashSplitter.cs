@@ -66,7 +66,7 @@ internal static class DashSplitter
 
         var cumulativeLengths = BuildCumulativeLengths(points, isClosed);
         var totalLength = cumulativeLengths[^1];
-        if (totalLength <= 0f)
+        if (totalLength <= 0d)
         {
             return IsDashOnAtStart(pattern, dashOffset) ? [(new List<Vector2>(points), isClosed)] : [];
         }
@@ -202,10 +202,23 @@ internal static class DashSplitter
     ///     Computes one cumulative path-length entry per vertex boundary, including the seam edge
     ///     for a closed polyline.
     /// </summary>
-    private static float[] BuildCumulativeLengths(IReadOnlyList<Vector2> points, bool isClosed)
+    /// <remarks>
+    ///     Accumulated in <see langword="double"/> rather than <see langword="float"/>: each
+    ///     individual edge length is only float32-precise (it comes from
+    ///     <see cref="Vector2.Distance"/> over float32 coordinates), but summing many edges of a
+    ///     long path in float32 accumulates rounding error, and - critically - once the running
+    ///     total's magnitude grows large enough that its float32 ULP (unit in the last place)
+    ///     exceeds a typical edge or dash-span length, adding a further small value can round back
+    ///     to the same total, silently discarding forward progress. A double-precision running
+    ///     total keeps its ULP many orders of magnitude smaller at any length this library is
+    ///     expected to support, so every dash-span comparison and step against it downstream (see
+    ///     <see cref="BuildOnIntervals"/>) remains numerically meaningful instead of eventually
+    ///     stalling.
+    /// </remarks>
+    private static double[] BuildCumulativeLengths(IReadOnlyList<Vector2> points, bool isClosed)
     {
         var edgeCount = isClosed ? points.Count : points.Count - 1;
-        var cumulative = new float[edgeCount + 1];
+        var cumulative = new double[edgeCount + 1];
         for (var i = 0; i < edgeCount; i++)
         {
             var start = points[i];
@@ -347,29 +360,43 @@ internal static class DashSplitter
     /// <summary>
     ///     Produces the path-length intervals where the dash pattern is "on".
     /// </summary>
-    private static List<(float Start, float End)> BuildOnIntervals(
+    /// <remarks>
+    ///     <paramref name="totalLength"/>, the running <c>position</c> cursor, and the emitted
+    ///     interval boundaries are all <see langword="double"/> rather than <see langword="float"/>:
+    ///     at path lengths in the millions of units, float32's ULP (unit in the last place) can
+    ///     grow to meet or exceed a fine dash span (e.g. <c>[1, 1]</c>), so <c>position += span</c>
+    ///     could round back to the same <c>position</c> and this loop would never reach
+    ///     <paramref name="totalLength"/> - an unconditional infinite loop, not merely a slow one.
+    ///     Double keeps its ULP negligible relative to any dash span at path lengths this library
+    ///     supports. As a second, magnitude-independent line of defense (in case some future caller
+    ///     supplies a path long enough to exhaust even double precision), the loop explicitly
+    ///     detects a step that fails to advance <c>position</c> and forces it to the next
+    ///     representable value rather than silently spinning.
+    /// </remarks>
+    private static List<(double Start, double End)> BuildOnIntervals(
         IReadOnlyList<float> pattern,
         float dashOffset,
-        float totalLength,
+        double totalLength,
         bool isClosed,
         out bool encounteredPositiveOffSpan)
     {
         encounteredPositiveOffSpan = false;
-        var intervals = new List<(float Start, float End)>();
+        var intervals = new List<(double Start, double End)>();
         var patternLength = GetPatternLength(pattern);
-        var (dashIndex, remainingInDash) = LocatePhase(pattern, dashOffset, patternLength);
+        var (dashIndex, remainingInDashFloat) = LocatePhase(pattern, dashOffset, patternLength);
+        double remainingInDash = remainingInDashFloat;
 
-        var position = 0f;
+        var position = 0d;
         while (position < totalLength)
         {
-            if (remainingInDash <= 0f)
+            if (remainingInDash <= 0d)
             {
                 AdvanceDash(pattern, ref dashIndex, ref remainingInDash);
                 continue;
             }
 
-            var span = MathF.Min(remainingInDash, totalLength - position);
-            if (span <= 0f)
+            var span = Math.Min(remainingInDash, totalLength - position);
+            if (span <= 0d)
             {
                 break;
             }
@@ -378,12 +405,22 @@ internal static class DashSplitter
             {
                 intervals.Add((position, position + span));
             }
-            else if (span > 0f)
+            else if (span > 0d)
             {
                 encounteredPositiveOffSpan = true;
             }
 
-            position += span;
+            var nextPosition = position + span;
+            if (nextPosition <= position)
+            {
+                // Defensive guard: some step failed to advance position (only expected at
+                // magnitudes beyond what double precision can resolve against the dash span in
+                // play). Force forward progress to the next representable double so the loop is
+                // guaranteed to terminate rather than spin forever.
+                nextPosition = Math.BitIncrement(position);
+            }
+
+            position = nextPosition;
             remainingInDash -= span;
         }
 
@@ -398,7 +435,7 @@ internal static class DashSplitter
     /// <summary>
     ///     Advances to the next positive-length dash entry.
     /// </summary>
-    private static void AdvanceDash(IReadOnlyList<float> pattern, ref int dashIndex, ref float remainingInDash)
+    private static void AdvanceDash(IReadOnlyList<float> pattern, ref int dashIndex, ref double remainingInDash)
     {
         var traversed = 0;
         do
@@ -407,7 +444,7 @@ internal static class DashSplitter
             remainingInDash = pattern[dashIndex];
             traversed++;
         }
-        while (remainingInDash <= 0f && traversed <= pattern.Count);
+        while (remainingInDash <= 0d && traversed <= pattern.Count);
     }
 
     /// <summary>
@@ -425,9 +462,9 @@ internal static class DashSplitter
     private static List<Vector2> ExtractIntervalPolyline(
         IReadOnlyList<Vector2> points,
         bool isClosed,
-        IReadOnlyList<float> cumulativeLengths,
-        float startDistance,
-        float endDistance,
+        IReadOnlyList<double> cumulativeLengths,
+        double startDistance,
+        double endDistance,
         ref int vertexCursor,
         ref int pointCursor)
     {
@@ -469,11 +506,11 @@ internal static class DashSplitter
     private static Vector2 GetPointAtDistance(
         IReadOnlyList<Vector2> points,
         bool isClosed,
-        IReadOnlyList<float> cumulativeLengths,
-        float distance,
+        IReadOnlyList<double> cumulativeLengths,
+        double distance,
         ref int edgeCursor)
     {
-        if (distance <= 0f)
+        if (distance <= 0d)
         {
             return points[0];
         }
@@ -495,13 +532,13 @@ internal static class DashSplitter
         var edgeStart = points[edgeCursor];
         var edgeEnd = points[(edgeCursor + 1) % points.Count];
         var edgeLength = endLength - startLength;
-        if (edgeLength <= 0f)
+        if (edgeLength <= 0d)
         {
             return edgeStart;
         }
 
         var t = (distance - startLength) / edgeLength;
-        return Vector2.Lerp(edgeStart, edgeEnd, t);
+        return Vector2.Lerp(edgeStart, edgeEnd, (float)t);
     }
 
     /// <summary>
@@ -519,5 +556,5 @@ internal static class DashSplitter
     ///     Determines whether <paramref name="value"/> is close enough to zero to be treated as a
     ///     seam-aligned dash boundary.
     /// </summary>
-    private static bool IsNearZero(float value) => MathF.Abs(value) <= 1e-5f;
+    private static bool IsNearZero(double value) => Math.Abs(value) <= 1e-5d;
 }

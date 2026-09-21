@@ -109,6 +109,7 @@ public styling values are preserved exactly.
 - `DashSplitter_Split_ClosedPolylineDashWrappingSeam_StitchesSegmentAcrossStartPoint`
 - `DashSplitter_Split_PatternLongerThanPolyline_ReturnsSinglePartialOnSegment`
 - `DashSplitter_Split_AllZeroDashArray_TreatedAsSolid`
+- `DashSplitter_Split_FineDashPatternOnVeryLongPath_CompletesWithCorrectSegments`
 - `StrokeOutliner_Outline_ClosedSubpath_ProducesTwoCounterWoundRings`
 - `StrokeOutliner_Outline_MiterJoinWithinLimit_ProducesSharpVertex`
 - `StrokeOutliner_Outline_MiterJoinExceedingLimit_FallsBackToBevelVertex`

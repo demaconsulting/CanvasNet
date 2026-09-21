@@ -241,4 +241,59 @@ public class DashSplitterTests
         // entry, so no segments are emitted
         Assert.Empty(segments);
     }
+
+    /// <summary>
+    ///     Proves that a long path (millions of units) combined with a fine dash pattern
+    ///     completes and produces numerically correct dash intervals, rather than hanging.
+    /// </summary>
+    /// <remarks>
+    ///     Prior to the fix, the path-length accumulator (<c>position</c>) in
+    ///     <c>BuildOnIntervals</c> was a <see langword="float"/>. At a magnitude of roughly
+    ///     17,000,000 units, float32's ULP (unit in the last place) grows to about 2, which is
+    ///     larger than the 1-unit dash span in the <c>[1, 1]</c> pattern used here: adding a
+    ///     1-unit span to <c>position</c> would round straight back to the same value, so the
+    ///     loop's exit condition (<c>position &lt; totalLength</c>) was never reached - an
+    ///     unconditional infinite loop, not merely a slow one. This test makes no timing
+    ///     assertion (matching <see cref="DashSplitter_Split_OverflowProneDashArrayWithNegativeOffset_CompletesWithoutHanging"/>
+    ///     above): it relies on the call actually returning at all to prove the loop terminates.
+    ///     The path is built from unit-length edges (rather than one giant edge) so that a sample
+    ///     of segments comfortably below float32's ~8,388,608 exact-integer boundary can be
+    ///     asserted at their bit-exact expected positions: with a single giant edge, interpolating
+    ///     a point uses <c>t * hugeEdgeLength</c>, which amplifies float32's relative rounding
+    ///     error in <c>t</c> into an absolute error of roughly half a unit even for "small"
+    ///     positions - an artifact of that interpolation shape, unrelated to the accumulator fix
+    ///     under test here. Interpolating within short, unit-length edges avoids that amplification
+    ///     entirely.
+    /// </remarks>
+    [Fact]
+    public void DashSplitter_Split_FineDashPatternOnVeryLongPath_CompletesWithCorrectSegments()
+    {
+        // Arrange: a 17,000,000-unit straight path built from unit-length edges (so per-edge
+        // interpolation stays precise), comfortably past float32's ~16,777,216-unit
+        // exact-integer boundary, with a fine 1-on/1-off dash pattern.
+        const int length = 17_000_000;
+        var points = new List<Vector2>(length + 1);
+        for (var i = 0; i <= length; i++)
+        {
+            points.Add(new Vector2(i, 0));
+        }
+
+        // Act
+        var segments = DashSplitter.Split(points, isClosed: false, dashArray: [1f, 1f], dashOffset: 0f);
+
+        // Assert: the call returned (did not hang) with exactly the expected number of "on"
+        // segments - itself strong evidence the interval-building loop correctly advanced across
+        // the whole path instead of stalling. The first segment and a segment comfortably below
+        // float32's 2^23 integer-precision boundary are asserted at their exact expected
+        // positions; the very last segment sits above that boundary, where Vector2's float32
+        // coordinates cannot represent every unit integer exactly (a pre-existing, unrelated
+        // limitation of the public Vector2-based API, not of the dash-interval math itself under
+        // test here), so only a loose positional sanity check is made for it.
+        Assert.Equal(length / 2, segments.Count);
+        Assert.Equal([new Vector2(0, 0), new Vector2(1, 0)], segments[0].Points);
+        Assert.Equal(
+            [new Vector2(6_000_000, 0), new Vector2(6_000_001, 0)],
+            segments[3_000_000].Points);
+        Assert.True(segments[^1].Points[0].X >= length - 10f);
+    }
 }
