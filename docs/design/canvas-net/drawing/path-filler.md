@@ -146,50 +146,53 @@ approximation converging only as the sample count grows.
    active-edge list is maintained: edges are added from the sorted edge table once the sweep
    reaches their `TopY`, and removed once the sweep passes their `BottomY` - bounding the total
    maintenance work to `O(edges + total edge-row crossings)` rather than `O(edges x rows)`.
-3. **Per-row interval resolution**: unlike a naive design that would accumulate every active
-   edge's raw signed coverage into one shared per-pixel scalar for the whole row and only apply
-   the fill rule to that aggregate afterward - which double-counts area wherever more than one
-   edge's fractional contribution lands in the same cell within the same row (for example,
-   duplicate/coincident polygons, or any two overlapping shapes) - this unit instead resolves the
-   fill rule's boundary structure **before** any area is accumulated, per row:
-   - Each active edge's extent within the row is captured as a `RowEdge` (its `x` at the row's
-     top and bottom, its vertical span within the row, and its winding `Direction`).
-   - The row is split into sub-intervals at every `RowEdge`'s own top/bottom `y` (deduplicated
-     within `NearZeroDisplacement`), so that within any single sub-interval the exact same set of
-     edges is active from its start to its end - no edge starts or stops partway through a
-     sub-interval. This invariant is what makes a single left-to-right sort of edges by `x`
-     meaningful for the whole sub-interval.
-   - Within each sub-interval, the active `RowEdge`s are converted to their `x` position at that
-     sub-interval's `y`-range (`SpanningEdge`) and sorted ascending by `x`. Walking left to right,
-     an integer winding count is accumulated one `RowEdge.Direction` at a time. Between each pair
-     of consecutive boundaries, `IsInside(winding, fillRule)` decides whether that gap is "inside"
-     the fill (`NonZero`: `winding != 0`; `EvenOdd`: `winding` is odd) - if so, the *exact*
-     trapezoidal area between those two boundary lines, across the sub-interval's `y`-range, is
-     added to the row's `cover`/`area` accumulators (reusing the same single-edge
-     cover/area/prefix-sum accumulation math as a generic "boundary line" primitive, with a
-     purely geometric `+1`/`-1` direction convention for "left"/"right" boundary of the gap,
-     independent of the original edges' own winding directions). If not, that gap contributes
-     nothing.
-   - This resolves the fill rule's inside/outside decision **once per genuinely distinct
-     winding-count region**, rather than once per pixel-scalar aggregate - so overlapping,
-     duplicate, or self-intersecting polygon geometry produces the mathematically correct
-     resolved coverage under both fill rules, matching the AGG/FreeType approach of resolving
-     winding per crossing interval rather than folding a summed raw value after the fact.
-   - **Known limitation**: if two edges within the same sub-interval genuinely cross each other
-     (their relative `x`-order changes partway through `[ya, yb)`), the single sort-by-`x`
-     approximation could momentarily mis-order them. This does not occur for the simple polygons
-     (rectangles, triangles, coincident/overlapping duplicates) this library currently produces
-     via `EdgeFlattener`, whose edges only meet at shared vertices (which already fall on
-     sub-interval boundaries), so it is accepted as a documented engineering trade-off rather
-     than solved with full segment-intersection handling.
-4. **Prefix sum and compositing**: left to right across the row, `acc += cover[x]` is a running
-   total of the exact areas banked by the per-interval resolution above, and each pixel's
-   resolved coverage is `acc + area[x]`, already in `[0, 1]` (no further fill-rule folding or
-   clamping is needed at this stage, since the fill rule was already resolved per interval in
-   step 3). The resulting per-pixel `float[]` coverage row for the row's clipped `[minX, maxX)`
-   sub-range is composited directly via `Surface.CompositeOverSpan(y, minX, coverage, color)` - no
-   full-row or full-surface coverage buffer is ever allocated; only the current row's
-   `cover`/`area`/coverage arrays exist at any time.
+3. **Per-row cell accumulation, not per-interval edge sorting**: every active edge's extent within
+   the row is captured as a `RowEdge` (its `x` at the row's top and bottom, its vertical span
+   within the row, and its winding `Direction`). Each `RowEdge` is then accumulated
+   **independently** into two shared, dense per-column arrays for the row - `cover[x]` (the net
+   signed vertical extent contributed by every edge slice passing through column `x`) and `area[x]`
+   (the exact signed sub-cell area of column `x` lying to the right of every edge slice passing
+   through it) - via `AccumulateRowEdge` (reusing the same `AccumulateSingleColumn`/
+   `AccumulateSlantedSpan` per-edge geometry as a single-edge design would use). This is a single
+   `O(edges)` pass with **no sorting of edges by `x` and no pairing of edges into "inside gaps"
+   whatsoever**.
+4. **Single left-to-right sweep and fill-rule resolution**: a running `accumulatedCover` total
+   starts at zero. At each column `x`, the row's raw signed value is
+   `accumulatedCover + area[x]` (everything fully to the left of this column, as a running
+   winding total, plus this column's own partial-edge geometry), converted to a `[0, 1]` coverage
+   fraction by `ResolveCoverage` per `FillRule` (`NonZero`: `min(1, abs(total))`; `EvenOdd`: fold
+   `total` into `[0, 2)` and reflect, `folded > 1 ? 2 - folded : folded`) - then
+   `accumulatedCover` is advanced by `cover[x]` before moving to the next column. The resulting
+   per-pixel `float[]` coverage row for the row's clipped `[minX, maxX)` sub-range is composited
+   directly via `Surface.CompositeOverSpan(y, minX, coverage, color)` - no full-row or
+   full-surface coverage buffer is ever allocated; only the current row's `cover`/`area`/coverage
+   arrays exist at any time.
+   - **Why this handles crossing/self-intersecting edges correctly, not merely assumed absent**:
+     a prior revision of this algorithm split each row into sub-intervals at every edge's own
+     start/end `y`, sorted the edges spanning each sub-interval by `x` once, and relied on that
+     order staying fixed for the sub-interval's whole vertical extent. That assumption fails
+     whenever two edges actually cross each other's `x`-order strictly inside a sub-interval (not
+     at a shared vertex or row boundary) - which happens for ordinary self-intersecting polygons
+     such as a bowtie or star, which `EdgeFlattener` does not detect or split - producing gross
+     over-filling (reproduced: ~100% fill where a dense-supersampling ground truth reference is
+     ~67%, under both fill rules, for a simple two-edge bowtie crossing mid-row). Cell-based
+     accumulation sidesteps this entirely: each edge only ever contributes to the specific
+     column(s) it geometrically passes through, independently of every other edge, and the
+     sweep's running total reconstructs the correct winding number at every `x` purely via
+     summation - which is
+     associative/commutative regardless of the order in which edges cross one another. No
+     comparison between edges' `x`-positions is ever needed, so crossing and self-intersecting
+     edges are handled correctly by construction, not merely assumed absent.
+   - **Accepted trade-off: exactly coincident/duplicate edges within the same cell.** Because each
+     edge's contribution is accumulated independently rather than resolved against a per-cell
+     winding decision first, two edges that occupy the same, or overlapping, sub-pixel position
+     within one cell (for example, an identical polygon submitted twice, or two distinct
+     overlapping shapes whose boundaries both land in the same pixel column) have their raw
+     signed cover/area contributions sum linearly, which can exceed the single-shape value before
+     `ResolveCoverage` folds the total back into `[0, 1]` - this is the same documented, accepted
+     behavior of AGG/FreeType/`stb_truetype` for coincident/overlapping contours within one cell,
+     and is a materially rarer case in practice than ordinary self-intersecting geometry, which is
+     why this trade-off is accepted in exchange for fixing the crossing-edge bug above.
 
 **Degenerate input**: an empty `polygons` list, or a polygon reduced (after edge-table
 construction skips horizontal edges) to fewer than 2 usable non-horizontal edges, contributes no

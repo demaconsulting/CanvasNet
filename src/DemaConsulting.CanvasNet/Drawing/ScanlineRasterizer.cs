@@ -28,34 +28,50 @@ namespace DemaConsulting.CanvasNet.Drawing;
 ///     crossings)</c> rather than <c>O(edges x rows)</c>.
 ///     </para>
 ///     <para>
-///     <b>Winding resolution is per-interval, not per-pixel raw-scalar-sum.</b> Within a row, the
-///     active edges are first restricted to the portion of their vertical extent overlapping that
-///     row (<see cref="RowEdge"/>), then the row is split into sub-intervals at every one of those
-///     restricted edges' own start/end y (<see cref="CollectYBoundaries"/>) - so within any single
-///     resulting sub-interval, the exact same set of edges spans the whole sub-interval; none
-///     starts or stops partway through it. Within each sub-interval, the spanning edges are
-///     ordered left-to-right by x (<see cref="CollectSpanningRowEdges"/>), and a running signed
-///     winding count is accumulated exactly as a classic polygon scanline fill would: after
-///     crossing the <c>i</c>-th edge, the strip between it and the next edge is "inside" if
-///     <see cref="FillRule"/> resolves the accumulated winding count to filled (nonzero winding,
-///     or odd winding for even-odd - see <see cref="IsInside"/>), and only then is the exact
-///     trapezoidal area of that strip (clipped to the visible column range) added to the row's
-///     resolved coverage (<see cref="AddIntervalArea"/>).
+///     <b>Cell-based signed area/cover accumulation, not per-interval edge sorting.</b> Every row
+///     maintains two dense per-column accumulators, <c>cover[x]</c> (the net signed vertical
+///     extent of every edge slice passing through column <c>x</c>) and <c>area[x]</c> (the exact,
+///     signed sub-cell area of column <c>x</c> lying to the right of every edge slice passing
+///     through it) - this is exactly the technique used by AGG's <c>scanline_u8</c>, FreeType's
+///     "smooth" rasterizer, and <c>stb_truetype</c>. Every active edge restricted to the row
+///     (<see cref="RowEdge"/>) is accumulated independently into these two shared arrays via
+///     <see cref="AccumulateRowEdge"/> - a single <c>O(edges)</c> pass with **no sorting and no
+///     reasoning about edges' relative x-order whatsoever**. The row is then swept left to right
+///     exactly once (<c>O(width)</c>): a running <c>accumulatedCover</c> total starts at zero, and
+///     at each column <c>x</c> the resolved raw signed value is
+///     <c>accumulatedCover + area[x]</c> (everything fully to the left of this column, as a
+///     running winding total, plus this column's own partial-edge geometry), converted to a
+///     <c>[0, 1]</c> coverage fraction by <see cref="ResolveCoverage"/> per <see cref="FillRule"/>,
+///     before <c>accumulatedCover</c> is advanced by <c>cover[x]</c> for the next column.
 ///     </para>
 ///     <para>
-///     This is deliberately different from summing every edge's raw signed coverage contribution
-///     into a single scalar per pixel first, and only afterward folding that aggregate scalar
-///     through the fill rule: that naive approach double-counts antialiased overlap between
-///     multiple edges that both pass through the same pixel cell in the same row. For example,
-///     two exactly coincident polygons each contribute their own fractional edge coverage to the
-///     same cell; summing before resolving winding yields twice the correct area under NonZero
-///     (instead of clamping or, correctly, just the single shape's own area), and a spurious
-///     nonzero result under EvenOdd (instead of the correct fully-transparent cancellation).
-///     Resolving winding per interval - asking only "is this specific x-range inside the fill?"
-///     via an integer winding count, then adding that interval's exact area once - handles
-///     duplicate/overlapping edges within the same cell with the same exactness as a single edge,
-///     because the winding decision and the area contribution are never conflated into one
-///     fractional value the way the raw-sum approach does.
+///     <b>Why this fixes crossing/self-intersecting edges by construction.</b> A prior revision
+///     of this algorithm split each row into sub-intervals at every edge's own start/end y, sorted
+///     the edges spanning each sub-interval by x once, and relied on that order staying fixed for
+///     the sub-interval's whole vertical extent. That assumption fails whenever two edges actually
+///     cross each other's x-order strictly inside a sub-interval (not at a shared vertex or row
+///     boundary) - which happens for ordinary self-intersecting polygons such as a bowtie or star,
+///     which <see cref="EdgeFlattener"/> does not detect or split - producing gross over-filling
+///     (observed: ~100% fill where a dense-supersampling ground truth reference is ~67%, under
+///     both fill rules, for a simple two-edge bowtie crossing mid-row). Cell-based accumulation
+///     sidesteps this entirely: each edge only ever contributes to the specific column(s) it
+///     geometrically passes through, independently of every other edge, and the sweep's running
+///     total
+///     reconstructs the correct winding number at every x purely via summation - which is
+///     associative/commutative regardless of the order in which edges cross one another. No
+///     comparison between edges' positions is ever needed, so crossing/self-intersecting edges are
+///     handled correctly, not merely assumed absent.
+///     </para>
+///     <para>
+///     <b>Trade-off: exactly coincident/duplicate edges within the same cell.</b> Because each
+///     edge's contribution is accumulated independently rather than resolved against a per-cell
+///     winding decision first, two edges that occupy the exact same sub-pixel position within one
+///     cell (for example, an identical polygon submitted twice) have their raw signed
+///     cover/area contributions sum linearly, which can exceed the single-shape value before
+///     <see cref="ResolveCoverage"/> folds it back into <c>[0, 1]</c> - this is the same
+///     documented, accepted behavior of AGG/FreeType/<c>stb_truetype</c> for coincident contours,
+///     and is a materially rarer case in practice than ordinary self-intersecting geometry, which
+///     is why this trade-off is accepted in exchange for fixing the crossing-edge bug.
 ///     </para>
 ///     <para>
 ///     Edges lying entirely to the left of the clipped column range, or spanning across it, are
@@ -70,17 +86,16 @@ internal static class ScanlineRasterizer
     /// <summary>
     ///     The maximum horizontal or vertical displacement, in path-space units, still treated as
     ///     exactly zero when classifying an edge as horizontal (zero vertical extent, contributing
-    ///     no coverage), a boundary-line segment as vertical (a single-column contribution), or
-    ///     two row sub-interval y-boundaries as coincident (merged into a single boundary rather
-    ///     than an ultra-thin, floating-point-noise sub-interval).
-    /// </summary>
+    ///     no coverage) or a row-restricted edge segment as vertical (a single-column
+    ///     contribution).
+    ///     </summary>
     /// <remarks>
-    ///     A genuinely horizontal, vertical, or coincident boundary always lands well within this
-    ///     threshold (its displacement is exactly zero); the threshold exists so a value that is
-    ///     zero only up to ordinary floating-point rounding is treated identically, rather than
-    ///     falling through to the general formula and dividing by (or sub-dividing at) a
-    ///     near-zero denominator/interval. This is far smaller than any meaningful sub-pixel
-    ///     distance, so it never affects the antialiasing accuracy of genuinely distinct geometry.
+    ///     A genuinely horizontal or vertical edge always lands well within this threshold (its
+    ///     displacement is exactly zero); the threshold exists so a value that is zero only up to
+    ///     ordinary floating-point rounding is treated identically, rather than falling through to
+    ///     the general formula and dividing by a near-zero denominator. This is far smaller than
+    ///     any meaningful sub-pixel distance, so it never affects the antialiasing accuracy of
+    ///     genuinely distinct geometry.
     /// </remarks>
     private const float NearZeroDisplacement = 1e-6f;
 
@@ -123,20 +138,18 @@ internal static class ScanlineRasterizer
             return;
         }
 
-        // Dense per-row scratch buffers. "rowCoverage" accumulates the row's final, already
-        // fill-rule-resolved coverage per column (see the type-level remarks); "tempCover"/
-        // "tempArea" are reused, per sub-interval, purely as scratch space inside
-        // AddIntervalArea's two-boundary trapezoid-area computation - "tempCover" is sized
-        // width + 1 for the same "harmless overflow slot" reason the per-edge accumulation below
-        // needs.
+        // Dense per-row accumulators. "cover"/"area" are the shared cell accumulators every active
+        // edge's row-restricted slice contributes into independently (see the type-level
+        // remarks) - "cover" is sized width + 1 for the same "harmless overflow slot" reason
+        // AccumulateSingleColumn/AccumulateSlantedSpan's own bank-index clamping needs.
+        // "rowCoverage" holds the final, already fill-rule-resolved coverage per column, produced
+        // by the single left-to-right sweep over "cover"/"area".
+        var cover = new float[width + 1];
+        var area = new float[width];
         var rowCoverage = new float[width];
-        var tempCover = new float[width + 1];
-        var tempArea = new float[width];
 
         var activeEdges = new List<Edge>();
         var rowEdges = new List<RowEdge>();
-        var boundaries = new List<float>();
-        var spanning = new List<SpanningEdge>();
         var nextEdgeIndex = 0;
 
         for (var y = clipMinY; y < clipMaxY; y++)
@@ -165,25 +178,26 @@ internal static class ScanlineRasterizer
                 continue;
             }
 
-            Array.Clear(rowCoverage);
-            CollectYBoundaries(rowEdges, rowTop, rowBottom, boundaries);
-
-            for (var k = 0; k < boundaries.Count - 1; k++)
+            // Accumulate every active edge's row-restricted slice into the shared cell arrays -
+            // a single O(edges) pass, with no sorting and no pairing of edges into "inside gaps".
+            Array.Clear(cover);
+            Array.Clear(area);
+            foreach (var edge in rowEdges)
             {
-                var ya = boundaries[k];
-                var yb = boundaries[k + 1];
-                if (yb - ya <= NearZeroDisplacement)
-                {
-                    continue;
-                }
-
-                CollectSpanningRowEdges(rowEdges, ya, yb, spanning);
-                ResolveIntervalCoverage(spanning, ya, yb, fillRule, clipMinX, clipMaxX, tempCover, tempArea, rowCoverage);
+                AccumulateRowEdge(edge, clipMinX, clipMaxX, cover, area);
             }
 
+            // Single left-to-right sweep: "accumulatedCover" is the running winding total for
+            // everything fully to the left of the current column; each column's raw signed value
+            // is that running total plus its own partial-edge geometry ("area[x]"), resolved to a
+            // [0, 1] coverage fraction per fill rule, before the running total is advanced by this
+            // column's own "cover[x]" for the next column.
+            var accumulatedCover = 0f;
             for (var i = 0; i < width; i++)
             {
-                rowCoverage[i] = Math.Clamp(rowCoverage[i], 0f, 1f);
+                accumulatedCover += cover[i];
+                var total = accumulatedCover + area[i];
+                rowCoverage[i] = ResolveCoverage(total, fillRule);
             }
 
             surface.CompositeOverSpan(y, clipMinX, rowCoverage, color);
@@ -191,102 +205,47 @@ internal static class ScanlineRasterizer
     }
 
     /// <summary>
-    ///     Walks <paramref name="spanning"/> (already sorted ascending by x by
-    ///     <see cref="CollectSpanningRowEdges"/>) left to right, accumulating a running signed
-    ///     winding count and adding the exact trapezoidal area of every "inside" strip (per
-    ///     <paramref name="fillRule"/>) between consecutive edges to <paramref name="rowCoverage"/>.
+    ///     Converts a column's raw signed accumulated cell value (<c>accumulatedCover +
+    ///     area[x]</c>, see <see cref="Fill"/>) into a <c>[0, 1]</c> coverage fraction per
+    ///     <paramref name="fillRule"/>.
     /// </summary>
-    private static void ResolveIntervalCoverage(
-        List<SpanningEdge> spanning,
-        float ya,
-        float yb,
-        FillRule fillRule,
-        int clipMinX,
-        int clipMaxX,
-        float[] tempCover,
-        float[] tempArea,
-        float[] rowCoverage)
+    /// <remarks>
+    ///     <c>NonZero</c> is <c>min(1, abs(total))</c>: any nonzero magnitude is fully "inside",
+    ///     clamped to a whole pixel's worth of coverage. <c>EvenOdd</c> folds <paramref name="total"/>
+    ///     into a <c>[0, 2)</c> triangle wave and reflects it (<c>folded > 1 ? 2 - folded :
+    ///     folded</c>), matching the classic even-odd "every crossing toggles inside/outside"
+    ///     semantics applied to a continuous, analytically accumulated value rather than an
+    ///     integer winding count.
+    /// </remarks>
+    private static float ResolveCoverage(float total, FillRule fillRule)
     {
-        var winding = 0;
-        for (var i = 0; i < spanning.Count - 1; i++)
+        var magnitude = MathF.Abs(total);
+        if (fillRule == FillRule.NonZero)
         {
-            winding += spanning[i].Direction;
-            if (!IsInside(winding, fillRule))
-            {
-                continue;
-            }
-
-            AddIntervalArea(
-                spanning[i].XAtYa, spanning[i].XAtYb,
-                spanning[i + 1].XAtYa, spanning[i + 1].XAtYb,
-                ya, yb, clipMinX, clipMaxX, tempCover, tempArea, rowCoverage);
+            return Math.Clamp(magnitude, 0f, 1f);
         }
+
+        var folded = magnitude % 2f;
+        return folded > 1f ? 2f - folded : folded;
     }
 
     /// <summary>
-    ///     Determines whether <paramref name="fillRule"/> treats an accumulated signed
-    ///     <paramref name="winding"/> count as "inside" (filled).
+    ///     Accumulates one row-restricted edge slice's contribution into the row's shared
+    ///     <paramref name="cover"/>/<paramref name="area"/> cell arrays (see <see cref="Fill"/>),
+    ///     reusing the same single-edge geometry as <see cref="AccumulateSingleColumn"/>/
+    ///     <see cref="AccumulateSlantedSpan"/> - the only change from a single-edge design is that
+    ///     every <see cref="RowEdge"/> for the row is accumulated into the same shared arrays
+    ///     rather than each edge (or interval boundary) getting its own scratch buffer.
     /// </summary>
-    /// <remarks>
-    ///     EvenOdd uses a bitwise AND with 1 (rather than a modulo) so the correct odd/even parity
-    ///     is obtained directly from the two's-complement bit pattern regardless of the sign of
-    ///     <paramref name="winding"/>, without the negative-operand caveats of C#'s <c>%</c>
-    ///     operator (which can return a negative result for a negative left-hand operand).
-    /// </remarks>
-    private static bool IsInside(int winding, FillRule fillRule) =>
-        fillRule == FillRule.NonZero ? winding != 0 : (winding & 1) != 0;
-
-    /// <summary>
-    ///     Adds the exact area of the strip between two skew boundary lines - a left boundary
-    ///     from <c>(xL0, ya)</c> to <c>(xL1, yb)</c> and a right boundary from <c>(xR0, ya)</c> to
-    ///     <c>(xR1, yb)</c> - to <paramref name="rowCoverage"/>, per visible column.
-    /// </summary>
-    /// <remarks>
-    ///     Computed as "area to the right of the left boundary" minus "area to the right of the
-    ///     right boundary": both terms are exactly the per-edge cover/area/prefix-sum computation
-    ///     a single-edge design would use, applied here to a temporary, per-interval buffer pair
-    ///     (cleared and reused for every interval) with direction <c>+1</c> for the left boundary
-    ///     and <c>-1</c> for the right boundary, regardless of either original edge's own winding
-    ///     direction - this is deliberately a request for a raw geometric area between two lines,
-    ///     not a further winding accumulation (that already happened in
-    ///     <see cref="ResolveIntervalCoverage"/> to decide whether to call this method at all).
-    /// </remarks>
-    private static void AddIntervalArea(
-        float xL0, float xL1, float xR0, float xR1,
-        float ya, float yb,
-        int clipMinX, int clipMaxX,
-        float[] tempCover, float[] tempArea, float[] rowCoverage)
+    private static void AccumulateRowEdge(RowEdge edge, int clipMinX, int clipMaxX, float[] cover, float[] area)
     {
-        Array.Clear(tempCover);
-        Array.Clear(tempArea);
-
-        AccumulateBoundaryEdge(xL0, ya, xL1, yb, 1, clipMinX, clipMaxX, tempCover, tempArea);
-        AccumulateBoundaryEdge(xR0, ya, xR1, yb, -1, clipMinX, clipMaxX, tempCover, tempArea);
-
-        var acc = 0f;
-        for (var i = 0; i < rowCoverage.Length; i++)
+        if (MathF.Abs(edge.XAtY1 - edge.XAtY0) <= NearZeroDisplacement)
         {
-            acc += tempCover[i];
-            rowCoverage[i] += acc + tempArea[i];
-        }
-    }
-
-    /// <summary>
-    ///     Adds one boundary line's contribution - for the portion of the line from
-    ///     <c>(xa, ya)</c> to <c>(xb, yb)</c> - to <paramref name="cover"/> and
-    ///     <paramref name="area"/>, exactly as a single polygon edge's row contribution would be
-    ///     computed (see <see cref="AccumulateSingleColumn"/>/<see cref="AccumulateSlantedSpan"/>).
-    /// </summary>
-    private static void AccumulateBoundaryEdge(
-        float xa, float ya, float xb, float yb, int direction, int clipMinX, int clipMaxX, float[] cover, float[] area)
-    {
-        if (MathF.Abs(xb - xa) <= NearZeroDisplacement)
-        {
-            AccumulateSingleColumn(xa, yb - ya, direction, clipMinX, clipMaxX, cover, area);
+            AccumulateSingleColumn(edge.XAtY0, edge.Y1 - edge.Y0, edge.Direction, clipMinX, clipMaxX, cover, area);
             return;
         }
 
-        AccumulateSlantedSpan(xa, ya, xb, yb, direction, clipMinX, clipMaxX, cover, area);
+        AccumulateSlantedSpan(edge.XAtY0, edge.Y0, edge.XAtY1, edge.Y1, edge.Direction, clipMinX, clipMaxX, cover, area);
     }
 
     /// <summary>
@@ -416,77 +375,6 @@ internal static class ScanlineRasterizer
     }
 
     /// <summary>
-    ///     Collects the sorted, de-duplicated set of y-values at which any <paramref name="rowEdges"/>
-    ///     entry starts or ends within <c>[rowTop, rowBottom]</c>, always including
-    ///     <paramref name="rowTop"/> and <paramref name="rowBottom"/> themselves, into
-    ///     <paramref name="boundaries"/>.
-    /// </summary>
-    /// <remarks>
-    ///     Splitting the row at every edge's own entry/exit y guarantees that, within any single
-    ///     resulting sub-interval, the exact same set of edges spans the whole sub-interval - none
-    ///     starts or stops partway through it - which is what lets
-    ///     <see cref="CollectSpanningRowEdges"/> and <see cref="ResolveIntervalCoverage"/> treat
-    ///     each sub-interval's active edge set, and their relative x-order, as fixed throughout.
-    /// </remarks>
-    private static void CollectYBoundaries(List<RowEdge> rowEdges, float rowTop, float rowBottom, List<float> boundaries)
-    {
-        boundaries.Clear();
-        boundaries.Add(rowTop);
-        boundaries.Add(rowBottom);
-
-        foreach (var edge in rowEdges)
-        {
-            boundaries.Add(edge.Y0);
-            boundaries.Add(edge.Y1);
-        }
-
-        boundaries.Sort();
-
-        // De-duplicate near-equal boundary values in place (already sorted ascending), so two
-        // edges sharing a common endpoint y (the overwhelmingly common case - most edges meet at
-        // shared polygon vertices) do not create a spurious ultra-thin sub-interval between them.
-        var writeIndex = 1;
-        for (var readIndex = 1; readIndex < boundaries.Count; readIndex++)
-        {
-            if (boundaries[readIndex] - boundaries[writeIndex - 1] > NearZeroDisplacement)
-            {
-                boundaries[writeIndex] = boundaries[readIndex];
-                writeIndex++;
-            }
-        }
-
-        boundaries.RemoveRange(writeIndex, boundaries.Count - writeIndex);
-    }
-
-    /// <summary>
-    ///     Collects every <paramref name="rowEdges"/> entry that spans the entire sub-interval
-    ///     <c>[ya, yb]</c> (that is, started at or before <paramref name="ya"/> and ends at or
-    ///     after <paramref name="yb"/>) into <paramref name="spanning"/>, as a
-    ///     <see cref="SpanningEdge"/> giving its x-coordinate at exactly <paramref name="ya"/> and
-    ///     <paramref name="yb"/>, and sorts the result ascending by that x-position.
-    /// </summary>
-    /// <remarks>
-    ///     Every entry in <paramref name="rowEdges"/> either fully spans <c>[ya, yb]</c> or has no
-    ///     overlap with it at all, never partially - <see cref="CollectYBoundaries"/> already split
-    ///     the row at every edge's own start/end y, so no edge can start or stop strictly inside a
-    ///     sub-interval boundary produced from that same set of edges.
-    /// </remarks>
-    private static void CollectSpanningRowEdges(List<RowEdge> rowEdges, float ya, float yb, List<SpanningEdge> spanning)
-    {
-        spanning.Clear();
-
-        foreach (var edge in rowEdges)
-        {
-            if (edge.Y0 <= ya + NearZeroDisplacement && edge.Y1 >= yb - NearZeroDisplacement)
-            {
-                spanning.Add(edge.AtInterval(ya, yb));
-            }
-        }
-
-        spanning.Sort((left, right) => (left.XAtYa + left.XAtYb).CompareTo(right.XAtYa + right.XAtYb));
-    }
-
-    /// <summary>
     ///     Builds the edge table: every non-horizontal edge of every polygon, normalized so
     ///     <see cref="Edge.TopY"/> is less than <see cref="Edge.BottomY"/>, sorted ascending by
     ///     <see cref="Edge.TopY"/> so the active-list sweep in <see cref="Fill"/> can add edges
@@ -569,8 +457,8 @@ internal static class ScanlineRasterizer
     /// <summary>
     ///     One <see cref="Edge"/> restricted to the portion of a single row's vertical extent it
     ///     overlaps, with its x-coordinate at both endpoints of that restricted range
-    ///     precomputed, so <see cref="CollectYBoundaries"/> and <see cref="CollectSpanningRowEdges"/>
-    ///     never need to re-derive <see cref="Edge.Slope"/>-based interpolation themselves.
+    ///     precomputed, so <see cref="AccumulateRowEdge"/> never needs to re-derive
+    ///     <see cref="Edge.Slope"/>-based interpolation itself.
     /// </summary>
     private readonly struct RowEdge(float y0, float y1, float xAtY0, float xAtY1, int direction)
     {
@@ -585,47 +473,14 @@ internal static class ScanlineRasterizer
         public float Y1 { get; } = y1;
 
         /// <summary>
-        ///     The winding contribution direction; see <see cref="Edge.Direction"/>.
+        ///     This segment's x-coordinate at <see cref="Y0"/>.
         /// </summary>
-        public int Direction { get; } = direction;
+        public float XAtY0 { get; } = xAtY0;
 
         /// <summary>
-        ///     Computes this segment's x-coordinate at both bounds of a sub-interval
-        ///     <c>[ya, yb]</c> (both within <c>[Y0, Y1]</c>), linearly interpolated between this
-        ///     segment's own endpoint x-coordinates at <see cref="Y0"/> and <see cref="Y1"/>.
+        ///     This segment's x-coordinate at <see cref="Y1"/>.
         /// </summary>
-        public SpanningEdge AtInterval(float ya, float yb)
-        {
-            var span = Y1 - Y0;
-            if (span <= NearZeroDisplacement)
-            {
-                // This row-restricted segment has (up to floating-point rounding) zero vertical
-                // extent - both interval bounds resolve to its single x-position.
-                return new SpanningEdge(xAtY0, xAtY0, Direction);
-            }
-
-            var xAtYa = xAtY0 + (xAtY1 - xAtY0) * (ya - Y0) / span;
-            var xAtYb = xAtY0 + (xAtY1 - xAtY0) * (yb - Y0) / span;
-            return new SpanningEdge(xAtYa, xAtYb, Direction);
-        }
-    }
-
-    /// <summary>
-    ///     One <see cref="RowEdge"/>'s x-coordinate at both bounds of a specific sub-interval
-    ///     within its row-restricted extent, as computed by <see cref="RowEdge.AtInterval"/> and
-    ///     consumed by <see cref="ResolveIntervalCoverage"/>/<see cref="AddIntervalArea"/>.
-    /// </summary>
-    private readonly struct SpanningEdge(float xAtYa, float xAtYb, int direction)
-    {
-        /// <summary>
-        ///     The x-coordinate at the sub-interval's start y.
-        /// </summary>
-        public float XAtYa { get; } = xAtYa;
-
-        /// <summary>
-        ///     The x-coordinate at the sub-interval's end y.
-        /// </summary>
-        public float XAtYb { get; } = xAtYb;
+        public float XAtY1 { get; } = xAtY1;
 
         /// <summary>
         ///     The winding contribution direction; see <see cref="Edge.Direction"/>.

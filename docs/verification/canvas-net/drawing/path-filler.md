@@ -185,25 +185,48 @@ rounds to `64` under round-half-away-from-zero).
 #### CanvasNet-Drawing-PathFiller-ScanlineFillRuleResolution: Fill-Rule Resolution Formulas Are Verified Directly
 
 **Tests**: `ScanlineRasterizer_Fill_RawWindingOfTwo_NonZeroClampsEvenOddFoldsToZero`,
-`ScanlineRasterizer_Fill_SubPixelOffsetDuplicatePolygons_NonZeroMatchesSingleShapeEvenOddCancelsToZero`,
-`ScanlineRasterizer_Fill_OverlappingSubPixelSquares_MatchesHandComputedPerRegionCoverage`
+`ScanlineRasterizer_Fill_SubPixelOffsetDuplicatePolygons_SumsCoincidentContributionsPerCellAlgorithm`,
+`ScanlineRasterizer_Fill_OverlappingSubPixelSquares_SumsPerCellContributionsPerCellAlgorithm`
 
 Constructs geometry that produces an exact raw winding count of 2 at a given pixel (via
 overlapping same-wound, pixel-aligned polygons) and rasterizes it once under each fill rule,
 asserting `NonZero` resolves to fully opaque and `EvenOdd` resolves to fully transparent, directly
-exercising both resolution formulas against a known raw winding value rather than only the
-aggregate fill result. Separately, two further tests specifically target the per-interval winding
-resolution algorithm at **sub-pixel** offsets, where the two fill rules must diverge from - and
-would not diverge under - a naive "sum every edge's own raw fractional coverage into one
-per-pixel scalar, then fold the aggregate" approach: filling two exactly coincident,
-sub-pixel-offset duplicate rectangles asserts `NonZero` reproduces the single shape's own true
-covered fraction (not a doubled-then-clamped value) while `EvenOdd` correctly cancels to fully
-transparent everywhere (not a spurious nonzero fold); filling two overlapping (not coincident),
-sub-pixel-offset squares asserts `NonZero` yields the union region's coverage fraction while
-`EvenOdd` yields only the singly-covered symmetric-difference region's coverage fraction, against
-independently hand-computed reference values for each covered pixel - both scenarios would
-produce numerically different (and wrong) results under the old aggregate-sum-then-fold
-algorithm, so together they are regression tests for the per-interval winding-resolution fix.
+exercising both resolution formulas (`ResolveCoverage`) against a known raw value rather than only
+the aggregate fill result. Separately, two further tests target the cell-based signed area/cover
+accumulation algorithm's known, accepted trade-off for edges that fall within the same pixel
+column: filling two exactly coincident, sub-pixel-offset duplicate rectangles, and separately
+filling two overlapping (not coincident) sub-pixel-offset squares whose boundaries both land in
+the same column, each assert the alpha values that independently verified hand-calculation (see
+the type-level remarks on `ScanlineRasterizer`) predicts for this algorithm - both edges'
+raw signed contributions summing linearly within the shared cell before `ResolveCoverage` folds
+the total into `[0, 1]`. This is the documented, industry-standard (AGG/FreeType) trade-off
+accepted in exchange for the crossing-edge correctness fix below, and both tests exist to detect
+any accidental regression in that specific, intentional behavior.
+
+#### CanvasNet-Drawing-PathFiller-ScanlineCrossingEdges: Self-Intersecting Polygons Produce Correct Partial Coverage
+
+**Test**: `ScanlineRasterizer_Fill_BowtieSelfIntersectingPolygon_ProducesCorrectPartialCoverageNotFullFill`
+
+Rasterizes a self-intersecting "bowtie" polygon (`(0,0)->(4,3)->(4,0)->(0,3)->close`) whose two
+diagonal edges cross each other strictly inside a row (not at a shared vertex or row boundary),
+and asserts the row containing the crossing point resolves to the analytically correct partial
+coverage (`255, 170, 170, 255` across the four columns) under both fill rules, matching an
+independently computed dense-supersampling ray-casting ground truth (not merely the value
+reported in the originating code review). This is a regression test for the critical bug the
+cell-based rewrite fixes: the prior sub-interval/sort-by-x algorithm produced ~100% over-fill for
+this exact case, because it assumed edges spanning a sub-interval never change their relative
+x-order within it - an assumption that crossing/self-intersecting edges violate by construction.
+
+#### CanvasNet-Drawing-PathFiller-ScanlinePerformanceScaling: Many Overlapping Edges Scale Roughly Linearly
+
+**Test**: `ScanlineRasterizer_Fill_ManyOverlappingRectangles_ScalesRoughlyLinearlyWithEdgeCount`
+
+Fills two batches of many overlapping full-width rectangles in the same rows - one 8x larger than
+the other - and asserts the larger batch's elapsed wall-clock time is no more than roughly 8x the
+smaller batch's (with a generous tolerance to absorb CI scheduling noise), directly detecting the
+medium-severity performance bug the cell-based rewrite fixes: the prior algorithm re-swept full
+row-width buffers once per qualifying "inside" gap per sub-interval, producing measured
+super-linear (~`O(edges^2 x width)`) scaling instead of the intended `O(edges + width)` per row.
 
 #### CanvasNet-Drawing-PathFiller-ScanlineActiveEdgeList: Active-Edge-List Add/Remove Occurs at the Correct Rows
 
