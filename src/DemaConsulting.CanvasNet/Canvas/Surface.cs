@@ -660,6 +660,29 @@ public sealed class Surface
         NarrowRoundedClamp(work.OutA, bg.ABytes, count);
         ZeroColorWhereAlphaByteIsZero(bg.ABytes, bg.RBytes, bg.GBytes, bg.BBytes, count);
 
+        // Restore the original background bytes for every column whose coverage was zero or
+        // negative: per the documented contract such a column must be left completely untouched,
+        // but it still flowed through the shared blend/normalization pipeline above (with its
+        // foreground alpha forced to zero) so its blended result can be discarded here. Without
+        // this, ZeroColorWhereAlphaByteIsZero would overwrite a fully-transparent background
+        // pixel that legitimately holds nonzero RGB (for example, a premultiplied-adjacent
+        // transparent fringe pixel) with (0, 0, 0, 0), corrupting data the caller never asked to
+        // change. "bgRow" still holds the untouched original surface bytes at this point, because
+        // only ReinterleaveRow (below) ever writes back into it.
+        for (var i = 0; i < count; i++)
+        {
+            if (coverage[i] > 0f)
+            {
+                continue;
+            }
+
+            var offset = i * BytesPerPixel;
+            bg.RBytes[i] = bgRow[offset];
+            bg.GBytes[i] = bgRow[offset + 1];
+            bg.BBytes[i] = bgRow[offset + 2];
+            bg.ABytes[i] = bgRow[offset + 3];
+        }
+
         ReinterleaveRow(bgRow, bg, count);
     }
 

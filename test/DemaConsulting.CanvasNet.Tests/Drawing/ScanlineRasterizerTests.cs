@@ -318,6 +318,88 @@ public class ScanlineRasterizerTests
     }
 
     /// <summary>
+    ///     Proves the fix for the medium-severity active-edge-list bookkeeping bug: sweeping a
+    ///     tall region containing many long-lived edges (each spanning nearly the whole clip
+    ///     height) scales roughly linearly in the combined edge-and-row count, rather than the
+    ///     quadratic blowup a full <c>activeEdges.RemoveAll(...)</c> re-scan of the whole active
+    ///     list on every single row would produce once both the edge count and the row count
+    ///     grow together.
+    /// </summary>
+    /// <remarks>
+    ///     The prior <see cref="ScanlineRasterizer_Fill_ManyOverlappingRectangles_ScalesRoughlyLinearlyWithEdgeCount"/>
+    ///     regression test fixed <c>height = 4</c>, which bounds any per-row bookkeeping cost to
+    ///     a small constant multiplier regardless of edge count and therefore cannot expose an
+    ///     expiry-bookkeeping cost that scales with the number of rows. This test instead grows
+    ///     both the edge count and the row count together (mirroring "many edges over a tall
+    ///     region"): doubling both would produce a ~4x slowdown under quadratic <c>O(edges x
+    ///     rows)</c> bookkeeping, but only a ~2x slowdown under the documented <c>O(edges +
+    ///     edge-row crossings)</c> bound. A generous tolerance is used to absorb CI scheduling
+    ///     noise while still failing hard on genuine quadratic-or-worse scaling.
+    /// </remarks>
+    [Fact]
+    public void ScanlineRasterizer_Fill_TallRegionWithManyLongLivedEdges_ScalesRoughlyLinearlyNotQuadratically()
+    {
+        // Arrange
+        const int width = 40;
+        var color = new Rgba32(1, 2, 3, 255);
+
+        var small = MeasureTallFillMilliseconds(rectangleCount: 300, height: 300, width, color);
+        var large = MeasureTallFillMilliseconds(rectangleCount: 1200, height: 1200, width, color);
+
+        // Assert: quadrupling both the edge count and the row count together took no more than
+        // roughly 4x as long (quadratic-in-the-combined-size expectation), not the tens/hundreds
+        // of times blowup a quadratic-in-edges-times-rows bookkeeping bug would additionally
+        // stack on top of that
+        Assert.True(
+            large.Milliseconds <= Math.Max(small.Milliseconds, 1) * 4 * 6 + 50,
+            $"Expected roughly linear-in-crossings scaling: {small.RectangleCount} rectangles over " +
+            $"{small.Height} rows took {small.Milliseconds}ms, but {large.RectangleCount} rectangles " +
+            $"over {large.Height} rows took {large.Milliseconds}ms.");
+    }
+
+    /// <summary>
+    ///     Fills <paramref name="rectangleCount"/> overlapping, nearly-full-height rectangles
+    ///     (each shifted by a fraction of a pixel so every rectangle contributes distinct,
+    ///     overlapping fractional edges) onto a surface of the given tall size, and returns the
+    ///     best-of-several-repeats elapsed wall-clock time (after an unmeasured warmup run) to reduce
+    ///     JIT/GC scheduling noise.
+    /// </summary>
+    private static (int RectangleCount, int Height, long Milliseconds) MeasureTallFillMilliseconds(
+        int rectangleCount, int height, int width, Rgba32 color)
+    {
+        var clipBounds = new Rect(0, 0, width, height);
+        var polygons = new List<List<Vector2>>(rectangleCount);
+        for (var i = 0; i < rectangleCount; i++)
+        {
+            var offset = i * 0.0001f;
+            polygons.Add(
+            [
+                new Vector2(0.1f + offset, 0f),
+                new Vector2(width - 0.1f + offset, 0f),
+                new Vector2(width - 0.1f + offset, height),
+                new Vector2(0.1f + offset, height),
+                new Vector2(0.1f + offset, 0f)
+            ]);
+        }
+
+        // Unmeasured warmup: absorbs JIT tiering-up cost so the measured run reflects steady-state
+        // throughput rather than first-call compilation overhead.
+        ScanlineRasterizer.Fill(new Surface(width, height), polygons, color, FillRule.NonZero, clipBounds);
+
+        var best = long.MaxValue;
+        for (var repeat = 0; repeat < 3; repeat++)
+        {
+            var surface = new Surface(width, height);
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            ScanlineRasterizer.Fill(surface, polygons, color, FillRule.NonZero, clipBounds);
+            stopwatch.Stop();
+            best = Math.Min(best, stopwatch.ElapsedMilliseconds);
+        }
+
+        return (rectangleCount, height, best);
+    }
+
+    /// <summary>
     ///     Proves that the active-edge-list sweep correctly starts and stops an edge's
     ///     contribution at the exact rows its vertical extent covers: a rectangle spanning only
     ///     rows 1-3 of a 6-row surface leaves row 0 (before the edges start) and rows 4-5 (after

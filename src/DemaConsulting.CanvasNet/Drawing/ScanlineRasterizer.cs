@@ -23,9 +23,11 @@ namespace DemaConsulting.CanvasNet.Drawing;
 ///     <b>Algorithm</b>: every polygon edge is bucketed by its topmost scanline row into an edge
 ///     table, then rows are swept top-to-bottom from <c>clipBounds.Top</c> to
 ///     <c>clipBounds.Bottom</c>, maintaining an active-edge list of edges whose vertical extent
-///     overlaps the current row (added from the edge table when reached, removed once their
-///     vertical extent is exhausted) - bounding total work to <c>O(edges + total edge-row
-///     crossings)</c> rather than <c>O(edges x rows)</c>.
+///     overlaps the current row (added from the edge table when reached, removed - via a second,
+///     symmetric per-row expiration bucket keyed by the row each edge stops overlapping, rather
+///     than re-scanning the whole active list every row - once their vertical extent is exhausted)
+///     - bounding total work to <c>O(edges + total edge-row crossings)</c> rather than
+///     <c>O(edges x rows)</c>.
 ///     </para>
 ///     <para>
 ///     <b>Cell-based signed area/cover accumulation, not per-interval edge sorting.</b> Every row
@@ -150,6 +152,9 @@ internal static class ScanlineRasterizer
         var rowCoverage = new float[width];
 
         var activeEdges = new List<Edge>();
+        var activeEdgeIds = new List<int>();
+        var activeEdgePositions = new Dictionary<int, int>();
+        var expiringEdgeIds = new List<int>?[clipMaxY - clipMinY];
         var rowEdges = new List<RowEdge>();
         var nextEdgeIndex = 0;
 
@@ -158,13 +163,43 @@ internal static class ScanlineRasterizer
             var rowTop = (float)y;
             var rowBottom = rowTop + 1f;
 
-            // Remove edges whose vertical extent is fully exhausted, then add edges from the
-            // edge table whose top row has now been reached - each edge is added and removed
-            // exactly once across the whole sweep, bounding this bookkeeping to O(edges) overall.
-            activeEdges.RemoveAll(edge => edge.BottomY <= rowTop);
+            // Remove every edge bucketed to expire at this row (see the bucketing below): this
+            // touches exactly the edges that actually expire on this row, never the whole active
+            // list, so - unlike a full "activeEdges.RemoveAll(edge => edge.BottomY <= rowTop)"
+            // scan of every still-active edge on every row - this bookkeeping never re-examines an
+            // edge that still has rows left to contribute to.
+            var expiringHere = expiringEdgeIds[y - clipMinY];
+            if (expiringHere != null)
+            {
+                foreach (var expiredId in expiringHere)
+                {
+                    RemoveActiveEdge(expiredId, activeEdges, activeEdgeIds, activeEdgePositions);
+                }
+            }
+
             while (nextEdgeIndex < edges.Count && edges[nextEdgeIndex].TopY < rowBottom)
             {
-                activeEdges.Add(edges[nextEdgeIndex]);
+                // Each edge is identified by its own fixed position in the sorted edge table
+                // ("edges"), which never changes and is never reused, so it is a stable id to
+                // bucket by even though its position within the unordered "activeEdges" list
+                // itself can move (see RemoveActiveEdge's swap-remove).
+                var edgeId = nextEdgeIndex;
+                var edge = edges[edgeId];
+                activeEdgePositions[edgeId] = activeEdges.Count;
+                activeEdges.Add(edge);
+                activeEdgeIds.Add(edgeId);
+
+                // Bucket this edge's removal at the earliest row it can actually be observed as
+                // expired. Removal always happens at the *start* of a row, before this row's own
+                // additions, so an edge just added this row cannot be examined for expiry until at
+                // least the next row - hence the "y + 1" floor alongside the edge's own BottomY.
+                var expireRow = Math.Max((int)MathF.Ceiling(edge.BottomY), y + 1);
+                if (expireRow < clipMaxY)
+                {
+                    var bucket = expiringEdgeIds[expireRow - clipMinY] ??= [];
+                    bucket.Add(edgeId);
+                }
+
                 nextEdgeIndex++;
             }
 
@@ -202,6 +237,41 @@ internal static class ScanlineRasterizer
 
             surface.CompositeOverSpan(y, clipMinX, rowCoverage, color);
         }
+    }
+
+    /// <summary>
+    ///     Removes the active-list entry identified by <paramref name="edgeId"/> (its fixed index
+    ///     in the sorted edge table) from <paramref name="activeEdges"/>/<paramref
+    ///     name="activeEdgeIds"/> in <c>O(1)</c>, via swap-remove with the last entry rather than
+    ///     a linear shift of every subsequent element.
+    /// </summary>
+    /// <remarks>
+    ///     Swap-remove is safe here specifically because active-edge order never matters to any
+    ///     downstream consumer (<see cref="BuildRowEdges"/> and the cell accumulation it feeds are
+    ///     associative/commutative regardless of edge order - see the type-level remarks) - unlike
+    ///     a naive "scan every active edge every row" removal, this keeps the whole sweep's
+    ///     bookkeeping bounded to <c>O(edges)</c> total (one add, one lookup, and one removal per
+    ///     edge), never <c>O(edges x rows)</c>, no matter how many rows an edge remains active for.
+    /// </remarks>
+    private static void RemoveActiveEdge(
+        int edgeId, List<Edge> activeEdges, List<int> activeEdgeIds, Dictionary<int, int> activeEdgePositions)
+    {
+        if (!activeEdgePositions.Remove(edgeId, out var position))
+        {
+            return;
+        }
+
+        var lastIndex = activeEdges.Count - 1;
+        if (position != lastIndex)
+        {
+            var movedEdgeId = activeEdgeIds[lastIndex];
+            activeEdges[position] = activeEdges[lastIndex];
+            activeEdgeIds[position] = movedEdgeId;
+            activeEdgePositions[movedEdgeId] = position;
+        }
+
+        activeEdges.RemoveAt(lastIndex);
+        activeEdgeIds.RemoveAt(lastIndex);
     }
 
     /// <summary>

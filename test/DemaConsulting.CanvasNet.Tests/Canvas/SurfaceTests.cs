@@ -1022,6 +1022,71 @@ public class SurfaceTests
     }
 
     /// <summary>
+    ///     Proves that CompositeOverSpan with a coverage of exactly 0 leaves a background pixel
+    ///     that is fully transparent but still holds nonzero RGB (for example, a
+    ///     premultiplied-adjacent transparent fringe pixel) completely untouched, rather than
+    ///     routing it through the shared blend/normalization pipeline - which would otherwise
+    ///     force the foreground alpha to zero, resolve the blended alpha to zero, and then have
+    ///     the degenerate "alpha == 0 implies every color channel is 0" normalization overwrite
+    ///     the pixel's legitimate nonzero RGB with (0, 0, 0, 0).
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpan_ZeroCoverageOnTransparentPixelWithNonzeroColor_LeavesPixelUnchanged()
+    {
+        // Arrange: a fully-transparent background pixel that legitimately carries nonzero RGB
+        var surface = new Surface(1, 1);
+        surface[0, 0] = new Rgba32(80, 160, 240, 0);
+
+        // Act
+        surface.CompositeOverSpan(0, 0, [0f], new Rgba32(30, 60, 90, 255));
+
+        // Assert: the pixel is byte-for-byte unchanged, not zeroed out
+        Assert.Equal(new Rgba32(80, 160, 240, 0), surface[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOverSpan treats a negative coverage value identically to zero
+    ///     coverage - per its documented contract ("a value less than or equal to zero leaves
+    ///     that pixel unchanged") - leaving a fully-transparent, nonzero-RGB background pixel
+    ///     completely untouched.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpan_NegativeCoverageOnTransparentPixelWithNonzeroColor_LeavesPixelUnchanged()
+    {
+        // Arrange: a fully-transparent background pixel that legitimately carries nonzero RGB
+        var surface = new Surface(1, 1);
+        surface[0, 0] = new Rgba32(80, 160, 240, 0);
+
+        // Act
+        surface.CompositeOverSpan(0, 0, [-0.5f], new Rgba32(30, 60, 90, 255));
+
+        // Assert: the pixel is byte-for-byte unchanged, not zeroed out
+        Assert.Equal(new Rgba32(80, 160, 240, 0), surface[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOverSpan's zero-coverage skip applies independently per column: a
+    ///     multi-pixel run mixing a zero-coverage column (over a fully-transparent, nonzero-RGB
+    ///     pixel) with a full-coverage column applies the correct, distinct outcome to each.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpan_MixedZeroAndFullCoverageRun_OnlyTouchesFullCoverageColumn()
+    {
+        // Arrange
+        var surface = new Surface(2, 1);
+        surface[0, 0] = new Rgba32(80, 160, 240, 0);
+        surface[1, 0] = new Rgba32(80, 160, 240, 0);
+        var color = new Rgba32(30, 60, 90, 255);
+
+        // Act: column 0 gets zero coverage, column 1 gets full coverage
+        surface.CompositeOverSpan(0, 0, [0f, 1f], color);
+
+        // Assert: column 0 untouched, column 1 fully replaced by the overlay color
+        Assert.Equal(new Rgba32(80, 160, 240, 0), surface[0, 0]);
+        Assert.Equal(color, surface[1, 0]);
+    }
+
+    /// <summary>
     ///     Proves that CompositeOverSpan with a fractional coverage matches an independently
     ///     computed linear-interpolation oracle: scaling the color's alpha by the coverage value
     ///     before applying the ordinary Porter-Duff "over" formula.
