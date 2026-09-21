@@ -33,6 +33,8 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 - 🔍 **Header-Only Probing** - `GetInfo` reads only image headers (dimensions/channels/alpha) without
   decoding pixel data, letting callers triage untrusted files before calling `Load`
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of closed vector paths onto a `Surface`
+- 🖊️ **Stroke-to-Fill** - Convert stroked vector paths (caps, joins, dashes, miter limits) into
+  fillable outline geometry and render them through the same antialiased fill pipeline
 - ⚡ **Span-Based** - Fast, allocation-conscious row and pixel access
 - 🔄 **Multi-Target** - Supports .NET 8, 9, and 10
 - 📦 **NuGet Ready** - Easy integration via NuGet package
@@ -101,6 +103,31 @@ var triangle = new PathBuilder()
     .Build();
 
 PathFiller.Fill(canvas, triangle, new Rgba32(0, 128, 255, 255)); // antialiased solid fill
+```
+
+Stroking a vector path onto a surface:
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Drawing;
+using DemaConsulting.CanvasNet.Geometry;
+using System.Numerics;
+
+var canvas = new Surface(64, 64);
+var polyline = new PathBuilder()
+    .MoveTo(new Vector2(8, 48))
+    .LineTo(new Vector2(32, 16))
+    .LineTo(new Vector2(56, 48))
+    .Build();
+
+var style = new StrokeStyle(
+    width: 6f,
+    cap: LineCap.Round,
+    join: LineJoin.Round,
+    dashArray: [10f, 6f]);
+
+var strokedOutline = PathStroker.Stroke(polyline, style);
+PathFiller.Fill(canvas, strokedOutline, new Rgba32(255, 128, 0, 255));
 ```
 
 ## Building

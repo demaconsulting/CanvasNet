@@ -1,0 +1,289 @@
+---
+# cspell:ignore Outliner strokable inradius
+# Software Unit Requirements for PathStroker
+#
+# These requirements describe the design-level behavior of the PathStroker unit within the
+# Drawing subsystem. PathStroker is a public static class exposing a single Stroke entry point;
+# it is supported by the public StrokeStyle/LineCap/LineJoin types and the internal
+# StrokePathFlattener/DashSplitter/StrokeOutliner helpers documented here as part of the same
+# unit.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Drawing Requirements
+        sections:
+          - title: PathStroker Requirements
+            requirements:
+              - id: CanvasNet-Drawing-PathStroker-Stroke
+                title: >-
+                  The PathStroker class shall convert a path and stroke style into a new path
+                  whose closed subpaths describe the stroked area, suitable for filling with the
+                  nonzero fill rule at the specified curve-flattening tolerance.
+                justification: |
+                  Stroke-to-fill conversion lets the library reuse one antialiased rasterization
+                  pipeline for both fills and strokes, while still exposing a public stroking API
+                  callers can compose or inspect before rendering.
+                tests:
+                  - PathStroker_Stroke_HorizontalLineButtCap_FillsExactRectangleNoExtension
+
+              - id: CanvasNet-Drawing-PathStroker-Caps
+                title: >-
+                  The PathStroker class shall support butt, round, and square end-cap shapes for
+                  open stroked segments, rendering no extension, semicircular ends, or half-width
+                  square extension respectively.
+                justification: |
+                  End-cap shape is a visible part of a stroke's public appearance, especially for
+                  open polylines and dashed segments whose individual dash runs each expose two
+                  ends.
+                tests:
+                  - PathStroker_Stroke_HorizontalLineButtCap_FillsExactRectangleNoExtension
+                  - PathStroker_Stroke_HorizontalLineRoundCap_FillsRectanglePlusSemicircularEnds
+                  - PathStroker_Stroke_HorizontalLineSquareCap_FillsRectanglePlusHalfWidthExtension
+                  - StrokeOutliner_Outline_RoundCapAtTypicalScale_MatchesExpectedSegmentCount
+
+              - id: CanvasNet-Drawing-PathStroker-Joins
+                title: >-
+                  The PathStroker class shall support miter, round, and bevel corner joins for
+                  open stroked polylines, rendering a sharp point, rounded corner, or flat clipped
+                  corner respectively.
+                justification: |
+                  Join shape is a primary visible characteristic of vector strokes, and callers
+                  need the standard corner styles offered by other 2D graphics APIs.
+                tests:
+                  - PathStroker_Stroke_RightAngleCornerMiterJoin_FillsSharpMiteredCorner
+                  - PathStroker_Stroke_RightAngleCornerRoundJoin_FillsRoundedCorner
+                  - PathStroker_Stroke_RightAngleCornerBevelJoin_FillsFlatBeveledCorner
+                  - StrokeOutliner_Outline_RoundJoinAtExtremeScale_ProducesCurvedNotStraightJoin
+                  - StrokeOutliner_Outline_RoundJoinSmallSweepAtExtremeScale_ProducesMultiSegmentCurve
+
+              - id: CanvasNet-Drawing-PathStroker-MiterLimit
+                title: >-
+                  The PathStroker class shall fall back from a sharp mitered corner to a flat
+                  beveled corner when the configured miter limit is exceeded.
+                justification: |
+                  Sharp-angled strokes can produce unbounded miter spikes; a caller-configurable
+                  limit keeps the rendered geometry bounded and matches the behavior callers expect
+                  from SVG-style stroke rendering.
+                tests:
+                  - PathStroker_Stroke_SharpAngleExceedingMiterLimit_FallsBackToBevel
+
+              - id: CanvasNet-Drawing-PathStroker-ClosedContours
+                title: >-
+                  The PathStroker class shall stroke a closed contour as a shell whose exterior and
+                  interior boundaries remain unfilled outside the stroke band and within the
+                  original contour's interior.
+                justification: |
+                  A closed stroked outline is visually a ring, not a solid expansion of the
+                  entire shape, so the returned path must preserve the hole between the outer and
+                  inner boundaries.
+                tests:
+                  - PathStroker_Stroke_ClosedRectangle_FillsRingLeavingInteriorAndExteriorUnfilled
+                  - StrokeOutliner_Outline_ClosedSquareHalfWidthExceedsInradius_ProducesNoInvalidHole
+                  - StrokeOutliner_Outline_ClosedSquareHalfWidthNearButBelowInradius_ProducesValidHole
+
+              - id: CanvasNet-Drawing-PathStroker-DegenerateClosedContours
+                title: >-
+                  The PathStroker class shall render a degenerate closed contour - one with fewer
+                  than three distinct vertices, or with three or more vertices that all lie on a
+                  single line - as a visible stroke rather than an empty result.
+                justification: |
+                  A closed contour that encloses no area still represents a visible line the
+                  caller asked to stroke; silently rendering nothing for a degenerate closed
+                  contour would be surprising and inconsistent with how a stroked open line or
+                  point behaves.
+                tests:
+                  - PathStroker_Stroke_ClosedTwoPointSubpath_FillsStrokedSegmentAreaNotEmpty
+                  - PathStroker_Stroke_ClosedThreePointCollinearSubpath_FillsStrokedSegmentAreaNotEmpty
+                  - StrokeOutliner_Outline_ThreePointCollinearClosedContour_ProducesVisibleStroke
+                  - StrokeOutliner_Outline_CollinearClosedContourWithDuplicatePoints_ProducesVisibleStroke
+
+              - id: CanvasNet-Drawing-PathStroker-OverlapUnion
+                title: >-
+                  The PathStroker class shall render the overlapping region of two independently
+                  emitted outer stroke outlines produced by the same Stroke call as solid union
+                  fill, not as a canceled hole.
+                justification: |
+                  Callers expect two overlapping strokes from a single stroking pass (for example
+                  a stroked line whose point-cap circle overlaps a stroked closed contour) to
+                  reinforce each other visually; incorrectly canceling their overlap to a hole
+                  under the nonzero fill rule would be a visibly wrong rendering artifact.
+                tests:
+                  - PathStroker_Stroke_OverlappingLineAndPointCapOutlines_FillsOverlapRegionSolid
+                  - StrokeOutliner_Outline_OpenLineAndPointCapCircle_ShareSameOuterWinding
+                  - StrokeOutliner_Outline_ClosedContourReversedSourceWinding_NormalizesOuterRingConsistently
+
+              - id: CanvasNet-Drawing-PathStroker-InnerCornerExactIntersection
+                title: >-
+                  The PathStroker class shall render a closed contour's inner stroke corner as the
+                  exact offset-edge intersection point, distinct from the outer corner's styled
+                  join (miter, round, or bevel).
+                justification: |
+                  A closed contour's inner boundary is a hole edge, not a visible corner; applying
+                  the outer join style to it would round or bevel a filled interior edge that
+                  should instead follow the exact geometric intersection of the two adjoining
+                  offset edges, regardless of which join style the caller configured.
+                tests:
+                  - PathStroker_Stroke_ClosedRectangleBevelJoin_InnerCornerMatchesExactIntersectionNotBevel
+                  - PathStroker_Stroke_ClosedRectangleRoundJoin_InnerCornerMatchesExactIntersectionNotArc
+                  - PathStroker_Stroke_ClosedRectangleMiterJoin_InnerCornerMatchesExactIntersection
+
+              - id: CanvasNet-Drawing-PathStroker-ConcaveJoinResolution
+                title: >-
+                  The PathStroker class shall resolve each closed contour vertex's join
+                  independently based on that vertex's own local convexity, so styled joins and
+                  exact-intersection corners remain correct even when a contour's convexity varies
+                  along its length (for example, a concave polygon).
+                justification: |
+                  Real-world closed shapes are frequently concave; a caller must see the correct
+                  join or exact-intersection corner at every vertex of such a shape, not only at
+                  vertices of a globally convex contour.
+                tests:
+                  - PathStroker_Stroke_ConcaveClosedContourBevelJoin_AppliesJoinsByLocalVertexConvexity
+                  - StrokeOutliner_Outline_ConcaveClosedContourBevelJoin_ResolvesJoinPerVertexFromLocalTurn
+
+              - id: CanvasNet-Drawing-PathStroker-Dashing
+                title: >-
+                  The PathStroker class shall apply dash arrays and dash offsets so that only the
+                  visible dash runs are stroked, leaving the gap runs unfilled.
+                justification: |
+                  Dashed strokes are a standard vector-graphics feature and must be visibly
+                  equivalent to repeatedly starting and stopping the stroke along the path.
+                tests:
+                  - PathStroker_Stroke_DashedLine_FillsOnlyOnSegmentsLeavingGapsUnfilled
+
+              - id: CanvasNet-Drawing-PathStroker-DashRobustness
+                title: >-
+                  The PathStroker class shall produce a correct, promptly-completing dashed
+                  stroke result for dash arrays and dash offsets at the numeric edges of the
+                  supported range, including a dash offset far larger in magnitude than the dash
+                  pattern and a tiny negative offset applied against a very large dash pattern.
+                justification: |
+                  Callers may supply dash arrays and offsets derived from arbitrary upstream data;
+                  such pathological but valid combinations must still render the correct visible
+                  dash phase and must never hang, rather than only being handled for typical
+                  in-range values.
+                tests:
+                  - PathStroker_Stroke_OverflowProneDashArrayWithNegativeOffset_CompletesWithoutHanging
+                  - DashSplitter_Split_OverflowProneDashArrayWithNegativeOffset_CompletesWithoutHanging
+                  - DashSplitter_Split_TinyNegativeOffsetAgainstHugePattern_ProducesCorrectPhase
+                  - DashSplitter_Split_TinyNegativeOffsetAgainstAsymmetricHugePattern_ProducesCorrectPhase
+
+              - id: CanvasNet-Drawing-PathStroker-NumericRobustness
+                title: >-
+                  The PathStroker class shall produce a correct, finite stroke outline for
+                  segments and closed contours whose vertex coordinates lie near the edges of the
+                  supported floating-point range, rather than collapsing to a degenerate, NaN, or
+                  Infinity result.
+                justification: |
+                  Callers may supply geometry derived from upstream transforms or user input whose
+                  coordinates approach the representable range's edges; a stroke result must
+                  remain a valid, finite outline for any such legitimately large but finite input,
+                  not merely for typical small-scale coordinates.
+                tests:
+                  - StrokeOutliner_Outline_SegmentSpanningExtremeFloat32Coordinates_ProducesValidNonDegenerateOutline
+                  - StrokeOutliner_Outline_ClosedContourWithExtremeFloat32NonCollinearCoordinates_ProducesValidShellOutline
+                  - DashSplitter_Split_EdgeSpanningExtremeFloat32Coordinates_CompletesWithFiniteSegments
+
+              - id: CanvasNet-Drawing-PathStroker-DegenerateSubpaths
+                title: >-
+                  The PathStroker class shall stroke a zero-length or single-point subpath as a
+                  cap-shaped mark: a full circle for round caps, a width-by-width square for
+                  square caps, and no rendered area for butt caps.
+                justification: |
+                  Degenerate path segments arise in real-world vector data and still need a
+                  deterministic visible result where standard stroke semantics define one.
+                tests:
+                  - PathStroker_Stroke_ZeroLengthSubpathRoundCap_FillsCircleOfRadiusHalfWidth
+                  - PathStroker_Stroke_ZeroLengthSubpathSquareCap_FillsSquareOfSideWidth
+                  - PathStroker_Stroke_ZeroLengthSubpathButtCap_ProducesNoFilledPixels
+                  - PathStroker_Stroke_SinglePointSubpath_MatchesZeroLengthSubpathBehavior
+
+              - id: CanvasNet-Drawing-PathStroker-EmptyNoOp
+                title: >-
+                  The PathStroker class shall return an empty path, without throwing, when the
+                  input path contains no strokable geometry or every visible dash run is omitted.
+                justification: |
+                  Callers routinely compose paths incrementally or stroke conditional geometry; an
+                  empty result must be a cheap, well-defined no-op rather than a special case.
+                tests:
+                  - PathStroker_Stroke_EmptyPath_ReturnsEmptyPathNoOp
+
+              - id: CanvasNet-Drawing-PathStroker-Validation
+                title: >-
+                  The PathStroker class shall reject a null path or stroke style with
+                  ArgumentNullException, and shall reject a non-positive or non-finite
+                  flatten-tolerance argument with ArgumentOutOfRangeException.
+                justification: |
+                  A null path or style cannot supply valid stroke geometry, and a non-positive or
+                  non-finite flattening tolerance cannot bound curve approximation meaningfully.
+                tests:
+                  - PathStroker_Stroke_NullPath_ThrowsArgumentNullException
+                  - PathStroker_Stroke_NullStrokeStyle_ThrowsArgumentNullException
+                  - PathStroker_Stroke_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Drawing-PathStroker-StyleValidation
+                title: >-
+                  The PathStroker unit shall reject an invalid stroke width, miter limit, or dash
+                  pattern, while preserving the caller-specified valid stroke-style values without
+                  modification.
+                justification: |
+                  Stroke styling is entirely caller-controlled data; invalid style values must fail
+                  fast at construction time, while valid values must round-trip exactly so later
+                  stroke conversion is predictable.
+                tests:
+                  - StrokeStyle_Constructor_NonPositiveWidth_ThrowsArgumentOutOfRangeException
+                  - StrokeStyle_Constructor_MiterLimitBelowOne_ThrowsArgumentOutOfRangeException
+                  - StrokeStyle_Constructor_DefaultMiterLimit_IsFour
+                  - StrokeStyle_Constructor_NullOrEmptyDashArray_IsTreatedAsSolid
+                  - StrokeStyle_Constructor_DashArrayWithNegativeEntry_ThrowsArgumentException
+                  - StrokeStyle_Constructor_DashArrayAllZero_ThrowsArgumentException
+                  - StrokeStyle_Constructor_ValidValues_PropertiesRoundTrip
+
+              - id: CanvasNet-Drawing-PathStroker-OpenClosedPreservation
+                title: >-
+                  The PathStroker unit shall preserve whether each source subpath is open or
+                  closed while flattening curves, because open subpaths require end caps and closed
+                  subpaths require shell boundaries with no caps.
+                justification: |
+                  Filling deliberately ignores open-vs-closed state, but stroking cannot: the
+                  rendered appearance changes visibly at every path end.
+                tests:
+                  - StrokePathFlattener_Flatten_OpenSubpath_PreservesIsClosedFalse
+                  - StrokePathFlattener_Flatten_ClosedSubpath_PreservesIsClosedTrueWithNoImplicitDuplicatePoint
+                  - StrokePathFlattener_Flatten_CurveCommands_DelegatesToBezierFlattening
+                  - StrokePathFlattener_Flatten_MultipleSubpaths_RemainSeparate
+                  - StrokePathFlattener_Flatten_EmptyPath_ReturnsEmptyList
+
+              - id: CanvasNet-Drawing-PathStroker-DashPhaseSemantics
+                title: >-
+                  The PathStroker unit shall interpret odd-length dash arrays as repeating on/off
+                  cycles, phase-shift the visible dash runs by the dash offset, and stitch a
+                  closed contour's seam-crossing visible dash run into one contiguous segment.
+                justification: |
+                  Dash patterns are visible public styling behavior; callers expect the same
+                  repeating-cycle and seam-wrapping semantics they see in established vector
+                  graphics systems.
+                tests:
+                  - DashSplitter_Split_NullOrEmptyDashArray_ReturnsWholeSegmentUnchanged
+                  - DashSplitter_Split_OddLengthDashArray_DuplicatesArrayConceptually
+                  - DashSplitter_Split_WithDashOffset_ShiftsPhaseOfFirstSegment
+                  - DashSplitter_Split_ClosedPolylineDashWrappingSeam_StitchesSegmentAcrossStartPoint
+                  - DashSplitter_Split_PatternLongerThanPolyline_ReturnsSinglePartialOnSegment
+                  - DashSplitter_Split_AllZeroDashArray_TreatedAsSolid
+                  - DashSplitter_Split_FineDashPatternOnVeryLongPath_CompletesWithCorrectSegments
+                  - DashSplitter_Split_ZeroLengthLeadingDashEntryOnZeroLengthPath_StartsInFollowingOffEntry
+
+              - id: CanvasNet-Drawing-PathStroker-ShellWinding
+                title: >-
+                  The PathStroker unit shall produce opposite-wound outer and inner shell
+                  boundaries for a closed stroked contour, and shall bevel rather than spike a
+                  sharp corner when the configured miter limit is exceeded.
+                justification: |
+                  The returned outline path is intended for filling under the nonzero fill rule;
+                  opposite winding between the outer and inner shell boundaries is what makes the
+                  interior hole remain unfilled.
+                tests:
+                  - StrokeOutliner_Outline_ClosedSubpath_ProducesTwoCounterWoundRings
+                  - StrokeOutliner_Outline_MiterJoinWithinLimit_ProducesSharpVertex
+                  - StrokeOutliner_Outline_MiterJoinExceedingLimit_FallsBackToBevelVertex

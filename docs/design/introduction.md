@@ -38,8 +38,10 @@ software items, specifically:
 - **Drawing (Subsystem)** — An antialiased scanline-coverage fill rasterizer for closed
   `Geometry.Path` geometry with solid-color paint: the `PathFiller` unit (a public static `Fill`
   entry point, covering the supporting `FillRule` enum and the internal
-  `EdgeFlattener`/`ScanlineRasterizer` helpers inline). Strokes, gradients, and fonts are
-  reserved for later phases.
+  `EdgeFlattener`/`ScanlineRasterizer` helpers inline), and the `PathStroker` unit (a public
+  static `Stroke` entry point, covering the supporting `LineCap`/`LineJoin`/`StrokeStyle` types
+  and the internal `StrokePathFlattener`/`DashSplitter`/`StrokeOutliner` helpers inline).
+  Gradients and fonts are reserved for later phases.
 
 The following OTS items are also covered:
 
@@ -80,7 +82,9 @@ CanvasNet is organized into four subsystems under the system level: the `Canvas`
 flat — no further nesting), the `Geometry` subsystem (the `Rect`, `Path`, `BezierFlattening`, and
 `SvgArcConverter` units, namespace `DemaConsulting.CanvasNet.Geometry`, flat — no further nesting),
 and the `Drawing` subsystem (the `PathFiller` unit, covering the supporting `FillRule` enum and
-the internal `EdgeFlattener`/`ScanlineRasterizer` helpers inline, namespace
+the internal `EdgeFlattener`/`ScanlineRasterizer` helpers inline, and the `PathStroker` unit,
+covering the supporting `LineCap`/`LineJoin`/`StrokeStyle` types and the internal
+`StrokePathFlattener`/`DashSplitter`/`StrokeOutliner` helpers inline, namespace
 `DemaConsulting.CanvasNet.Drawing`, flat — no further nesting). As additional functionality is
 added, further subsystems and nested subsystems would organize related units and provide
 architectural boundaries with well-defined interfaces and responsibilities.
@@ -117,13 +121,21 @@ src/DemaConsulting.CanvasNet/
     ├── EdgeFlattener.cs           — Converts a Path's subpaths into closed polygons
     ├── ScanlineRasterizer.cs      — Analytic coverage-accumulation scanline rasterizer
     ├── PathFiller.cs              — Public entry point: fills a Path onto a Surface
+    ├── LineCap.cs                 — Stroke end-cap enumeration
+    ├── LineJoin.cs                — Stroke corner-join enumeration
+    ├── StrokeStyle.cs             — Immutable stroke-style configuration snapshot
+    ├── StrokePathFlattener.cs     — Flattens subpaths while preserving open/closed state
+    ├── DashSplitter.cs            — Applies dash-array and dash-offset semantics
+    ├── StrokeOutliner.cs          — Converts stroked polylines into outline polygons
+    ├── PathStroker.cs             — Public entry point: strokes a Path into outline geometry
     └── NamespaceDoc.cs            — Namespace-level XML documentation
 ```
 
 This four-subsystem folder structure reflects the small number of subsystems in the system
 today. As the system grows with additional subsystems and units, the folder structure will
-expand further to mirror the software architecture. `Canvas/Surface.cs` also gained a new
-`CompositeOverSpan` method this phase, consumed internally by `Drawing/PathFiller.cs`.
+expand further to mirror the software architecture. `Canvas/Surface.cs` also gained a
+`CompositeOverSpan` method used internally by `Drawing/PathFiller.cs`, and the `Drawing`
+subsystem now includes the additional stroking files listed above.
 
 ## Document Conventions
 
@@ -152,3 +164,4 @@ Each software item has corresponding artifacts in parallel directory trees:
 - CanvasNet User Guide — the compiled User Guide document for this repository.
 - CanvasNet Repository — the CanvasNet source repository hosted on
   GitHub.
+<!-- cspell:ignore Outliner -->
