@@ -269,6 +269,81 @@ public class SvgArcConverterTests
     }
 
     /// <summary>
+    ///     Proves the SVG spec's radius scale-up path (endpoint-to-center parameterization
+    ///     appendix F, the "lambda &gt; 1" correction): when the supplied rx/ry are too small to
+    ///     reach between start and end at all, both radii must be scaled up by the same factor
+    ///     (sqrt(lambda)) so a valid ellipse exists, per the SVG specification. Regression test
+    ///     for previously-untested radii (existing tests all use radii already larger than the
+    ///     half-chord distance, so this scale-up branch was never exercised).
+    /// </summary>
+    [Fact]
+    public void SvgArcConverter_ToBeziers_RadiiSmallerThanChord_ScalesUpAndReachesEndpoint()
+    {
+        // Arrange: rx=20, ry=10 with a start/end 100 units apart along the x-axis (no rotation),
+        // so x1' = -50, y1' = 0 and lambda = 50^2/20^2 = 6.25 > 1, forcing the scale-up path.
+        // The mathematically-derived scale factor is sqrt(6.25) = 2.5, so the corrected radii
+        // are expected to be rx=50, ry=25 (derived independently here, not by reading
+        // SvgArcConverter's implementation)
+        var start = new Vector2(0, 0);
+        var end = new Vector2(100, 0);
+        var requestedRadius = new Vector2(20, 10);
+        const double expectedScale = 2.5;
+        const double expectedRx = 20 * expectedScale;
+        const double expectedRy = 10 * expectedScale;
+        var output = new List<(Vector2 Control1, Vector2 Control2, Vector2 End)>();
+
+        // Act
+        SvgArcConverter.ToBeziers(start, requestedRadius, 0, largeArc: false, sweep: true, end, output);
+
+        // Assert: chain connects end-to-end and lands exactly on the declared end point
+        AssertChainConnects(start, end, output);
+
+        // Assert: the independently computed center (which itself performs the same lambda
+        // correction from the SVG spec text) combined with the analytically-derived scaled radii
+        // above places every sampled point on the corrected (scaled-up) ellipse, proving the
+        // scale-up was applied rather than the original, too-small radii
+        var (cx, cy, _, _) = ComputeCenter(start, end, requestedRadius.X, requestedRadius.Y, 0, largeArc: false, sweep: true);
+        AssertChainLiesOnEllipse(start, output, cx, cy, expectedRx, expectedRy, rotationDegrees: 0, tolerance: 1.0);
+    }
+
+    /// <summary>
+    ///     Asserts that every sampled point along a Bezier chain lies within <paramref name="tolerance"/>
+    ///     of the given (possibly non-circular, possibly rotated) ellipse.
+    /// </summary>
+    private static void AssertChainLiesOnEllipse(
+        Vector2 start,
+        IReadOnlyList<(Vector2 Control1, Vector2 Control2, Vector2 End)> chain,
+        double cx, double cy, double rx, double ry, double rotationDegrees, double tolerance)
+    {
+        var phi = rotationDegrees * Math.PI / 180.0;
+        var cosPhi = Math.Cos(phi);
+        var sinPhi = Math.Sin(phi);
+
+        var segmentStart = start;
+        foreach (var segment in chain)
+        {
+            for (var i = 0; i <= 20; i++)
+            {
+                var t = i / 20f;
+                var point = EvaluateCubic(segmentStart, segment.Control1, segment.Control2, segment.End, t);
+
+                // Translate to the ellipse's center, then rotate back to axis-aligned, then normalize by the radii -
+                // a point exactly on the ellipse maps to a unit vector under this transform
+                var dx = point.X - cx;
+                var dy = point.Y - cy;
+                var ux = cosPhi * dx + sinPhi * dy;
+                var uy = -sinPhi * dx + cosPhi * dy;
+                var normalized = Math.Sqrt(ux * ux / (rx * rx) + uy * uy / (ry * ry));
+
+                Assert.True(Math.Abs(normalized - 1.0) <= tolerance / Math.Min(rx, ry),
+                    $"Point {point} normalized to {normalized}, expected approximately 1 (on the ellipse)");
+            }
+
+            segmentStart = segment.End;
+        }
+    }
+
+    /// <summary>
     ///     Asserts that a Bezier chain's segments connect end-to-end from <paramref name="start"/>
     ///     through to <paramref name="end"/> with no gaps.
     /// </summary>

@@ -46,9 +46,28 @@ correctly measured against that endpoint rather than being wrongly judged "flat"
 (potentially much smaller) distance to the infinite line. If every interior control point's
 distance is `<= tolerance`, the curve is accepted as flat enough and only its end point is
 appended. Otherwise, the curve is split at `t = 0.5` via de Casteljau's algorithm into two
-half-curves, and both halves are flattened recursively. A maximum recursion depth (20) guards
-against runaway recursion for pathological input; at the depth limit, the current sub-curve is
-accepted regardless of its flatness, guaranteeing the algorithm always terminates.
+half-curves, and both halves are flattened recursively.
+
+**Architectural decision: `MaxRecursionDepth` (20) is a resource/termination safety bound, not a
+tolerance guarantee.** Once recursion reaches this depth, the current sub-curve's end point is
+accepted and appended *regardless of whether it actually passes the flatness test*. This mirrors
+the well-established `curve_recursion_limit` convention from Anti-Grain Geometry (AGG) - the
+reference implementation most 2D vector graphics libraries derive their curve-flattening approach
+from -
+whose own documented default is 32, and whose own implementation likewise emits the segment
+unconditionally once the limit is hit. This repository deliberately keeps 20 rather than matching
+AGG's 32 verbatim: for any well-formed curve, the guard is never reached at either value, so the
+only real difference between them is the worst-case bound placed on a genuinely pathological or
+adversarial input that never converges under the flatness test - which is exactly the scenario
+this limit exists to bound. At depth 20 that worst case is 2^20 (about one million) output points
+for a single input curve; at depth 32 it is 2^32 (over four billion) - no longer a "safety valve"
+for a pathological input, but a multi-gigabyte allocation and an unbounded-feeling hang. For all
+realistic, well-formed curves at any sane tolerance, this limit is never reached in practice - the
+tolerance guarantee described above holds unconditionally for such input. Only pathological input
+(near-coincident control points at floating-point precision limits, or a tolerance far tighter
+than float precision can resolve) - for which perfect convergence is not achievable at any
+reasonable depth in the first place - can exercise this safety valve, and for that input only the
+termination/bounded-output-size guarantee applies, not the tolerance guarantee.
 
 **Bug found and fixed**: an earlier version measured distance to the *infinite line* through the
 chord (via a cross product divided by chord length) rather than the finite chord segment. A
@@ -67,6 +86,11 @@ distance fixes this.
 No other input throws, including coincident or collinear control points - these are simply
 degenerate curves that flatten to very few points (or terminate immediately, if already flat
 enough by the flatness test).
+
+**Recursion depth is a resource guarantee, not a tolerance guarantee.** See the architectural
+decision above: `MaxRecursionDepth` bounds worst-case output size and guarantees termination for
+every input, but for the rare pathological input that hits the limit, the tolerance contract does
+not apply.
 
 ### Error Handling
 

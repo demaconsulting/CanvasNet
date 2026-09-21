@@ -20,6 +20,14 @@ points lies within a small multiple of `tolerance` of the nearest point on the f
 polyline. This verifies the actual contract (the flattened polyline hugs the true curve within
 tolerance) without over-specifying the exact flattening implementation.
 
+A separate, deliberately distinct test verifies the `MaxRecursionDepth` safety valve itself: it
+supplies a pathological curve and an extremely tight tolerance chosen so the flatness test can
+never be satisfied at any practical depth, and asserts only that the call terminates with a
+bounded output point count - it does not assert (and must not assert) that the result satisfies
+the tolerance, because the recursion-depth guard is documented as a termination/resource
+guarantee, distinct from the tolerance guarantee, following the well-established
+`curve_recursion_limit` convention from Anti-Grain Geometry (AGG).
+
 Unit tests reside in `BezierFlatteningTests.cs` within the
 `DemaConsulting.CanvasNet.Tests.Geometry` project namespace.
 
@@ -71,6 +79,18 @@ resulting output point count never increases as tolerance increases.
 Flattens a cubic curve whose control points are coincident with an endpoint, and separately, a
 cubic curve whose control points are collinear with the chord between its endpoints, and asserts
 both terminate promptly (without throwing or hanging) with a geometrically sensible result.
+
+#### CanvasNet-Geometry-BezierFlattening-RecursionDepthSafetyValve: Pathological Input Still Terminates
+
+**Test**: `BezierFlattening_FlattenCubic_PathologicalNonConvergingCurve_TerminatesWithBoundedOutput`
+
+Flattens a curved cubic at an extremely tight tolerance (`1e-10`) that a curve of this scale can
+never satisfy under float32 precision at any practical recursion depth, forcing the
+`MaxRecursionDepth` safety valve to be exercised, and asserts the call still terminates promptly
+with a bounded output point count (at most `2^MaxRecursionDepth`) ending at the curve's declared
+end point. This test proves the documented safety-valve behavior itself (bounded termination) -
+it deliberately does not assert that the tolerance is met, since `MaxRecursionDepth`'s remarks
+document that the tolerance guarantee does not extend to input that hits this limit.
 
 #### CanvasNet-Geometry-BezierFlattening-NonPositiveTolerance: Non-Positive Tolerance Is Rejected
 

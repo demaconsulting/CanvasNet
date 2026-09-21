@@ -27,6 +27,7 @@ sections:
                   - SvgArcConverter_ToBeziers_Semicircle_ProducesContinuousChainOnExpectedCircle
                   - SvgArcConverter_ToBeziers_AllFourFlagCombinations_ProducesContinuousChainOnExpectedCircle
                   - SvgArcConverter_ToBeziers_RotatedEllipticalArc_ConnectsAndMatchesIndependentEllipse
+                  - SvgArcConverter_ToBeziers_RadiiSmallerThanChord_ScalesUpAndReachesEndpoint
 
               - id: CanvasNet-Geometry-SvgArcConverter-StartEqualsEnd
                 title: >-
@@ -70,3 +71,4 @@ sections:
                   - SvgArcConverter_ToBeziers_ZeroXRadius_EmitsSingleStraightLineEquivalentCubic
                   - SvgArcConverter_ToBeziers_ZeroYRadius_EmitsSingleStraightLineEquivalentCubic
                   - SvgArcConverter_ToBeziers_AllFourFlagCombinations_ProducesContinuousChainOnExpectedCircle
+                  - SvgArcConverter_ToBeziers_RadiiSmallerThanChord_ScalesUpAndReachesEndpoint

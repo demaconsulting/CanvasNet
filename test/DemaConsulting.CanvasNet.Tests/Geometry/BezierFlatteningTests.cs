@@ -252,6 +252,40 @@ public class BezierFlatteningTests
     }
 
     /// <summary>
+    ///     Regression test for the <c>MaxRecursionDepth</c> safety valve: proves that a
+    ///     pathological cubic curve that can never satisfy the flatness test (two collapsed
+    ///     control points positioned so subdivision cannot converge, combined with an extremely
+    ///     tight tolerance) still terminates promptly and produces a bounded output point count,
+    ///     rather than recursing indefinitely. This deliberately tests the documented safety-valve
+    ///     behavior itself (bounded termination), not a tolerance violation - see
+    ///     <c>MaxRecursionDepth</c>'s remarks for why the guard does not guarantee tolerance is met
+    ///     for input like this.
+    /// </summary>
+    [Fact]
+    public void BezierFlattening_FlattenCubic_PathologicalNonConvergingCurve_TerminatesWithBoundedOutput()
+    {
+        // Arrange: an extremely tight tolerance (1e-10, far below what float32 precision can
+        // resolve for a curve of this scale) that a well-formed, non-degenerate curve can never
+        // satisfy at any practical recursion depth, forcing the recursion guard to be exercised
+        var p0 = new Vector2(0, 0);
+        var p1 = new Vector2(0, 50);
+        var p2 = new Vector2(100, -50);
+        var p3 = new Vector2(100, 0);
+        const float tolerance = 1e-10f;
+        var output = new List<Vector2>();
+
+        // Act
+        BezierFlattening.FlattenCubic(p0, p1, p2, p3, tolerance, output);
+
+        // Assert: the call must return (proving termination) with a bounded output size - at
+        // most 2^MaxRecursionDepth (2^20, documented as ~1,048,576) leaves are possible, and the
+        // final point must still be the curve's declared end point
+        Assert.NotEmpty(output);
+        Assert.True(output.Count <= 1_048_576, $"Expected a bounded output size, but got {output.Count} points");
+        Assert.Equal(p3, output[^1]);
+    }
+
+    /// <summary>
     ///     Proves that a non-positive tolerance throws ArgumentOutOfRangeException for both
     ///     FlattenCubic and FlattenQuadratic.
     /// </summary>

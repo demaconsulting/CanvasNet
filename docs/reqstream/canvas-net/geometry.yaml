@@ -82,6 +82,7 @@ sections:
               - CanvasNet-Geometry-BezierFlattening-FlattenCubic
               - CanvasNet-Geometry-BezierFlattening-FlattenQuadratic
               - CanvasNet-Geometry-BezierFlattening-ToleranceConvergence
+              - CanvasNet-Geometry-BezierFlattening-RecursionDepthSafetyValve
               - CanvasNet-Geometry-BezierFlattening-MonotonicSegmentCount
               - CanvasNet-Geometry-BezierFlattening-DegenerateControlPoints
               - CanvasNet-Geometry-BezierFlattening-NonPositiveTolerance

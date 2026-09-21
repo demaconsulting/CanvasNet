@@ -42,11 +42,13 @@ reason.
 2. If either radius component is zero, emit exactly one synthetic straight-line-equivalent cubic
    Bezier, with control points at one-third and two-thirds along the `start`-`end` chord (see the
    degenerate-case decision below).
-3. Otherwise, apply the spec's out-of-range radius correction (the Lambda scale-factor formula),
-   compute the center parameterization (`cx`, `cy`, `theta1`, `deltaTheta`), split `deltaTheta`
-   into sub-arcs of at most 90 degrees each, and convert each sub-arc to a cubic Bezier via the
-   standard `kappa = 4/3 * tan(delta/4)` control-point-distance formula, expressed on the unit
-   circle then mapped through the ellipse's radii, x-axis rotation, and center offset.
+3. Otherwise, apply the spec's out-of-range radius correction (the Lambda scale-factor formula:
+   if the requested radii are too small to reach between `start` and `end` at all, both are
+   scaled up by the same factor, `sqrt(lambda)`, so a valid ellipse exists), compute the center
+   parameterization (`cx`, `cy`, `theta1`, `deltaTheta`), split `deltaTheta` into sub-arcs of at
+   most 90 degrees each, and convert each sub-arc to a cubic Bezier via the standard
+   `kappa = 4/3 * tan(delta/4)` control-point-distance formula, expressed on the unit circle then
+   mapped through the ellipse's radii, x-axis rotation, and center offset.
 
 **Architectural decision: the final segment's `End` is forced to exactly the caller-supplied
 `end` parameter**, rather than the value obtained by evaluating trigonometric functions at the
@@ -61,7 +63,11 @@ while keeping this unit's output contract uniform (always cubic Bezier segments)
 caller, rather than requiring every consumer to special-case a line-segment result type.
 
 `ToBeziers` never throws for any SVG-valid input, including out-of-range radii (corrected per the
-specification) and all four `largeArc`/`sweep` flag combinations.
+specification) and all four `largeArc`/`sweep` flag combinations. The out-of-range radius
+correction (Step 3 above) is exercised specifically by a regression test using radii smaller than
+the `start`-`end` chord distance, which forces the `lambda > 1` scale-up path and verifies the
+resulting Bezier chain both reaches the declared `end` point and follows the corrected
+(scaled-up), not the originally requested, ellipse geometry.
 
 ### Error Handling
 

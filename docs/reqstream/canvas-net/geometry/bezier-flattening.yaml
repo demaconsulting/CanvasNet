@@ -44,7 +44,9 @@ sections:
                   within the requested tolerance of the true curve, for both FlattenCubic and
                   FlattenQuadratic, using a flatness test based on the distance of the interior
                   control point(s) from the finite chord *segment* between the curve's endpoints
-                  (not the infinite line through it).
+                  (not the infinite line through it), except when pathological input exhausts the
+                  recursion-depth safety bound described in
+                  CanvasNet-Geometry-BezierFlattening-RecursionDepthSafetyValve.
                 justification: |
                   The tolerance parameter is the entire contract callers rely on to trade accuracy
                   against point count; the flattened output must actually honor it, verified here
@@ -84,6 +86,26 @@ sections:
                 tests:
                   - BezierFlattening_FlattenCubic_CoincidentControlPoints_TerminatesWithSinglePoint
                   - BezierFlattening_FlattenCubic_CollinearControlPoints_TerminatesWithCollinearPoints
+
+              - id: CanvasNet-Geometry-BezierFlattening-RecursionDepthSafetyValve
+                title: >-
+                  The BezierFlattening class shall terminate with a bounded output point count for
+                  any input curve, including a pathological curve that never satisfies the
+                  flatness test at any practical subdivision depth, rather than recursing
+                  indefinitely; such input is accepted at the recursion depth limit regardless of
+                  whether it passes the flatness test, so the tolerance guarantee does not apply
+                  to it.
+                justification: |
+                  A resource/termination safety bound is required so that no input, however
+                  pathological (near-coincident control points at floating-point precision limits,
+                  or a tolerance far tighter than float precision can resolve), can cause unbounded
+                  recursion or unbounded output size; this mirrors the well-established
+                  curve_recursion_limit convention used by Anti-Grain Geometry (AGG), the reference
+                  implementation most 2D vector graphics libraries derive their curve-flattening approach
+                  from. This is a resource guarantee distinct from, and does not extend, the
+                  tolerance guarantee in CanvasNet-Geometry-BezierFlattening-ToleranceConvergence.
+                tests:
+                  - BezierFlattening_FlattenCubic_PathologicalNonConvergingCurve_TerminatesWithBoundedOutput
 
               - id: CanvasNet-Geometry-BezierFlattening-NonPositiveTolerance
                 title: >-

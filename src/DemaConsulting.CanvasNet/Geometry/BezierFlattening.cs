@@ -22,11 +22,39 @@ public static class BezierFlattening
     ///     The maximum recursive subdivision depth for both flattening methods.
     /// </summary>
     /// <remarks>
-    ///     Bounds worst-case recursion for pathological inputs (coincident control points,
-    ///     near-cusp curves) that might otherwise converge very slowly under the flatness test.
-    ///     At depth 20, a single input curve can produce at most 2^20 (a little over one million)
-    ///     output segments - already far beyond any practical flattening need - so this guard
-    ///     never affects a well-behaved curve's output, only pathological ones.
+    ///     <para>
+    ///     This is a resource/termination safety bound, not a per-input guarantee that the
+    ///     returned polyline is within <c>tolerance</c> of the true curve. It guarantees the
+    ///     algorithm always terminates, with a bounded output size, even for pathological input
+    ///     (near-coincident control points at floating-point precision limits, or degenerate
+    ///     near-zero-length curves combined with an extremely tight tolerance) that might
+    ///     otherwise never satisfy the flatness test at any depth. Once this depth is reached, the
+    ///     current sub-curve is accepted and its end point is appended <i>regardless of whether it
+    ///     actually passes the flatness test</i>.
+    ///     </para>
+    ///     <para>
+    ///     This is the same design used by Anti-Grain Geometry (AGG) - the reference
+    ///     implementation most 2D vector graphics libraries derive their curve-flattening approach from -
+    ///     whose <c>curve_recursion_limit</c> (documented default of 32) is likewise an explicit
+    ///     resource/pathological-input safety valve rather than a tolerance guarantee, and whose
+    ///     implementation likewise emits the segment once the limit is hit regardless of flatness.
+    ///     </para>
+    ///     <para>
+    ///     This value deliberately keeps 20 rather than matching AGG's 32 verbatim. Both values
+    ///     are equally "never reached" for any well-formed curve, so the only thing that
+    ///     distinguishes them is the worst-case bound they place on a genuinely pathological or
+    ///     adversarial input that never converges under the flatness test - and that is precisely
+    ///     the scenario this limit exists to bound. At depth 20, that worst case is 2^20 (about
+    ///     one million) output points per input curve: large, but a single flattening call still
+    ///     completes in a bounded, modest amount of time and memory. At depth 32, the same
+    ///     worst case is 2^32 (over four billion) output points per input curve - for a
+    ///     pathological or adversarially crafted input, that is no longer a "safety valve" at all;
+    ///     it is a multi-gigabyte allocation and a multi-minute-or-worse hang, i.e. the exact
+    ///     resource-exhaustion outcome this limit is meant to prevent. AGG's 32 default was chosen
+    ///     for its own historical/precision context and is not a reason to accept a worst case four
+    ///     thousand times larger here purely for the sake of matching it; 20 is kept as the
+    ///     deliberately tighter, still-astronomically-generous bound.
+    ///     </para>
     /// </remarks>
     private const int MaxRecursionDepth = 20;
 
@@ -40,7 +68,9 @@ public static class BezierFlattening
     /// <param name="p3">The curve's end point. Always the last point written to <paramref name="output"/>.</param>
     /// <param name="tolerance">
     ///     The maximum allowed perpendicular deviation, in the same units as the input points,
-    ///     between the flattened polyline and the true curve. Must be greater than zero.
+    ///     between the flattened polyline and the true curve. Must be greater than zero. See
+    ///     <see cref="MaxRecursionDepth"/>'s remarks for the pathological-input safety-valve
+    ///     caveat to this guarantee.
     /// </param>
     /// <param name="output">The list to append the flattened points to.</param>
     /// <exception cref="ArgumentOutOfRangeException">
@@ -71,7 +101,9 @@ public static class BezierFlattening
     /// <param name="p2">The curve's end point. Always the last point written to <paramref name="output"/>.</param>
     /// <param name="tolerance">
     ///     The maximum allowed perpendicular deviation, in the same units as the input points,
-    ///     between the flattened polyline and the true curve. Must be greater than zero.
+    ///     between the flattened polyline and the true curve. Must be greater than zero. See
+    ///     <see cref="MaxRecursionDepth"/>'s remarks for the pathological-input safety-valve
+    ///     caveat to this guarantee.
     /// </param>
     /// <param name="output">The list to append the flattened points to.</param>
     /// <exception cref="ArgumentOutOfRangeException">

@@ -68,11 +68,24 @@ Converts a rotated, non-circular elliptical arc (`rx != ry`, 30-degree x-axis ro
 the chain connects continuously from `start` to `end`, and that the independently computed
 ellipse's point at the expected end angle matches the arc's declared end point.
 
+**Test**: `SvgArcConverter_ToBeziers_RadiiSmallerThanChord_ScalesUpAndReachesEndpoint`
+
+Converts an arc whose requested radii are smaller than the half-chord distance between `start`
+and `end` (`rx=20`, `ry=10` for a 100-unit chord along the x-axis), forcing the SVG specification's
+`lambda > 1` radius scale-up correction. Asserts the resulting chain connects continuously to the
+declared `end` point, and that every sampled point along the chain lies on the mathematically
+derived, corrected ellipse (`rx=50`, `ry=25` - the analytically computed `sqrt(lambda) = 2.5`
+scale factor applied to the requested radii), proving the scale-up correction was actually applied
+rather than the original, too-small radii. This is a regression test: the existing golden
+scenarios above all use radii already larger than their chord's half-distance, so none of them
+previously exercised this correction path.
+
 #### CanvasNet-Geometry-SvgArcConverter-NeverThrows: Never Throws for SVG-Valid Input
 
 Covered by every test above: none of them expects or catches an exception, and each supplies
-SVG-valid input (including both degenerate cases and every flag combination), so a passing test
-run is itself evidence that `ToBeziers` never throws for these inputs.
+SVG-valid input (including both degenerate cases, every flag combination, and out-of-range radii
+requiring the scale-up correction), so a passing test run is itself evidence that `ToBeziers`
+never throws for these inputs.
 
 ### Acceptance Criteria
 
