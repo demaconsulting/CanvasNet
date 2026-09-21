@@ -102,7 +102,7 @@ src/DemaConsulting.CanvasNet/
 │   ├── TiffCodec.cs              — 8-bit RGB/RGBA/Grayscale, strip-based TIFF loader/saver
 │   ├── JpegCodec.cs              — Baseline/progressive JPEG loader and baseline JPEG saver
 │   └── NamespaceDoc.cs           — Namespace-level XML documentation
-└── Geometry/
+├── Geometry/
     ├── Rect.cs                   — Axis-aligned bounding rectangle (position plus size)
     ├── PathCommandType.cs        — Enumeration of path drawing command kinds
     ├── PathCommand.cs            — Tagged-union path drawing command value
