@@ -16,6 +16,11 @@ includes:
   - docs/reqstream/canvas-net/codecs/png-codec.yaml
   - docs/reqstream/canvas-net/codecs/tiff-codec.yaml
   - docs/reqstream/canvas-net/codecs/jpeg-codec.yaml
+  - docs/reqstream/canvas-net/geometry.yaml
+  - docs/reqstream/canvas-net/geometry/rect.yaml
+  - docs/reqstream/canvas-net/geometry/path.yaml
+  - docs/reqstream/canvas-net/geometry/bezier-flattening.yaml
+  - docs/reqstream/canvas-net/geometry/svg-arc-converter.yaml
   - docs/reqstream/canvas-net/platform-requirements.yaml
   - docs/reqstream/ots/xunit.yaml
   - docs/reqstream/ots/reqstream.yaml

@@ -1,0 +1,183 @@
+---
+# Software Unit Requirements for Path / PathBuilder
+#
+# These requirements describe the design-level behavior of the Path and PathBuilder unit,
+# within the Geometry subsystem. Path is an immutable snapshot produced only by
+# PathBuilder.Build(); PathBuilder is the mutable, fluent builder used to construct it. The
+# supporting types Subpath, PathCommand, and PathCommandType have no requirements of their own
+# (they are plain data carriers with no independently testable behavior) and are covered here
+# inline, following the precedent set by Rgba32 being covered inline within the Surface unit's
+# requirements.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Geometry Requirements
+        sections:
+          - title: Path Requirements
+            requirements:
+              - id: CanvasNet-Geometry-Path-BuildEveryCommandType
+                title: >-
+                  The PathBuilder class shall record, in order, every drawing command issued
+                  through MoveTo, LineTo, QuadraticBezierTo, CubicBezierTo, ArcTo, and Close, and
+                  Build shall return an immutable Path snapshot exposing them via Subpaths.
+                justification: |
+                  Callers need to describe an arbitrary vector path (straight lines, quadratic and
+                  cubic Bezier curves, SVG-style elliptical arcs, and closed contours) using a
+                  single, fluent, allocation-conscious builder, and to obtain an immutable result
+                  they can safely share or cache once built.
+                tests:
+                  - PathBuilder_Build_EveryCommandType_RecordsCommandsInOrder
+
+              - id: CanvasNet-Geometry-Path-ArcToStoresRawParameters
+                title: >-
+                  The PathBuilder class shall store the raw SVG arc parameters (radius, rotation,
+                  large-arc-flag, sweep-flag, end point) passed to ArcTo without pre-inspecting or
+                  pre-converting them to Bezier curves.
+                justification: |
+                  A consumer that never needs Bezier segments (for example, a hit-testing
+                  implementation with its own arc math) must never pay the cost of a conversion it
+                  does not use; conversion is deferred to SvgArcConverter, invoked lazily only when
+                  a consumer (such as Path.GetBounds) actually needs Bezier segments.
+                tests:
+                  - PathBuilder_Build_EveryCommandType_RecordsCommandsInOrder
+
+              - id: CanvasNet-Geometry-Path-MultipleSubpaths
+                title: >-
+                  The PathBuilder class shall treat each MoveTo as the start of a new,
+                  independent subpath, preserving every previously started subpath's own commands
+                  unaffected.
+                justification: |
+                  A single Path commonly represents multiple disjoint contours (for example,
+                  letters with holes, or several disconnected shapes); each must be tracked
+                  independently rather than merged into a single command sequence.
+                tests:
+                  - PathBuilder_Build_MultipleSubpaths_PreservesEachIndependently
+                  - PathBuilder_MoveTo_WhilePreviousSubpathOpen_CommitsPreviousSubpathAsOpen
+
+              - id: CanvasNet-Geometry-Path-Close
+                title: >-
+                  The PathBuilder class shall mark the current subpath as closed when Close is
+                  called, recording a Close command and setting the resulting Subpath's IsClosed
+                  to true.
+                justification: |
+                  Many shapes (polygons, filled regions) require an explicit closing segment back
+                  to the subpath's start point; callers need a way to declare this without
+                  manually computing and appending a final LineTo back to the start point.
+                tests:
+                  - PathBuilder_Close_OpenSubpath_MarksSubpathClosedWithCloseCommand
+
+              - id: CanvasNet-Geometry-Path-MoveToAfterClose
+                title: >-
+                  The PathBuilder class shall allow a MoveTo issued after Close to start a new
+                  subpath.
+                justification: |
+                  Close ends only the current subpath, not the whole path; callers must be able to
+                  continue describing further independent subpaths afterward.
+                tests:
+                  - PathBuilder_MoveTo_AfterClose_StartsNewSubpath
+
+              - id: CanvasNet-Geometry-Path-GuardBeforeMoveTo
+                title: >-
+                  The PathBuilder class shall throw InvalidOperationException from LineTo,
+                  QuadraticBezierTo, CubicBezierTo, ArcTo, or Close when called before the first
+                  MoveTo.
+                justification: |
+                  Every drawing command implicitly continues from a current point established by
+                  MoveTo; without a current point, a drawing command's start is undefined and must
+                  be rejected rather than silently assumed to be the origin.
+                tests:
+                  - PathBuilder_LineTo_BeforeFirstMoveTo_ThrowsInvalidOperationException
+                  - PathBuilder_EveryDrawingCommand_BeforeFirstMoveTo_ThrowsInvalidOperationException
+
+              - id: CanvasNet-Geometry-Path-GuardAfterCloseWithoutMoveTo
+                title: >-
+                  The PathBuilder class shall throw InvalidOperationException from any drawing
+                  command issued after Close without an intervening MoveTo.
+                justification: |
+                  Close ends the current subpath; issuing a further drawing command without first
+                  starting a new subpath via MoveTo has no well-defined current point to continue
+                  from, and must be rejected rather than silently reopening the closed subpath.
+                tests:
+                  - PathBuilder_LineTo_AfterCloseWithoutMoveTo_ThrowsInvalidOperationException
+
+              - id: CanvasNet-Geometry-Path-BuildSnapshotIndependence
+                title: >-
+                  The PathBuilder class shall return, from Build, a Path snapshot that is
+                  unaffected by subsequent mutation of the builder, and the builder shall remain
+                  usable to build further, independent Path instances afterward.
+                justification: |
+                  Callers commonly build one Path, continue mutating the same builder instance to
+                  build another (avoiding repeated allocation of a new builder), and must be able
+                  to trust that the first Path they obtained never changes underneath them.
+                tests:
+                  - PathBuilder_Build_ThenMutateBuilder_DoesNotAffectPreviouslyBuiltPath
+
+              - id: CanvasNet-Geometry-Path-BuildEmpty
+                title: >-
+                  The PathBuilder class shall return a Path with zero Subpaths from Build when no
+                  commands have been issued.
+                justification: |
+                  A builder that has never been used is a valid, well-defined state that must
+                  produce a valid (if trivial) Path rather than throwing or returning null.
+                tests:
+                  - PathBuilder_Build_NoCommandsIssued_ReturnsPathWithNoSubpaths
+
+              - id: CanvasNet-Geometry-Path-Clear
+                title: >-
+                  The PathBuilder class shall reset itself, via Clear, to the same empty state as
+                  a newly constructed builder, without allocating new backing storage where
+                  avoidable.
+                justification: |
+                  Reusing a single builder instance across many paths (for example, once per frame
+                  in a hot rendering loop) requires resetting its accumulated state without paying
+                  the allocation cost of a brand-new builder each time.
+                tests:
+                  - PathBuilder_Clear_AfterBuildingAPath_ResetsBuilderToEmptyState
+
+              - id: CanvasNet-Geometry-Path-EmptySingleton
+                title: >-
+                  The Path class shall expose a static Empty singleton with zero Subpaths, whose
+                  GetBounds returns Rect.Empty.
+                justification: |
+                  A well-known, reusable representation of "no path at all" avoids every caller
+                  needing to special-case a null or freshly-built empty Path, and composes
+                  correctly with Rect's own Empty union-identity convention.
+                tests:
+                  - Path_Empty_HasNoSubpathsAndEmptyBounds
+
+              - id: CanvasNet-Geometry-Path-GetBoundsConservative
+                title: >-
+                  The Path class shall compute, by default (a non-positive flattenTolerance), a
+                  conservative axis-aligned bounding Rect directly from each command's raw control
+                  points and endpoints, relying on the convex-hull property of Bezier curves,
+                  without flattening any curve.
+                justification: |
+                  Many callers (for example, coarse culling or invalidation) need only a cheap,
+                  possibly loose bound, and should not pay the cost of flattening every curve in
+                  the path just to compute a bounding box.
+                tests:
+                  - Path_GetBounds_ConservativeMode_CubicWithControlPointsOutsideChord_ReturnsControlPointConvexHull
+
+              - id: CanvasNet-Geometry-Path-GetBoundsFlattened
+                title: >-
+                  The Path class shall compute, when a positive flattenTolerance is supplied, a
+                  tighter axis-aligned bounding Rect by first flattening every curve (including
+                  ArcTo commands, converted via SvgArcConverter first) to a polyline within that
+                  tolerance via BezierFlattening.
+                justification: |
+                  Callers needing an accurate bound (for example, precise invalidation or
+                  culling) must be able to trade additional computation for a materially tighter
+                  bounding box than the conservative control-point convex hull provides.
+                tests:
+                  - Path_GetBounds_FlattenMode_TighterThanConservativeMode_ForCurveWithWideControlPolygon
+
+              - id: CanvasNet-Geometry-Path-GetBoundsMultipleSubpaths
+                title: >-
+                  The Path class shall compute GetBounds as the union of every subpath's own
+                  bounds, across all subpaths in the path.
+                justification: |
+                  A path's overall bounds must account for every disjoint contour it contains, not
+                  merely its first subpath.
+                tests:
+                  - Path_GetBounds_MultipleSubpaths_UnionsAllSubpaths

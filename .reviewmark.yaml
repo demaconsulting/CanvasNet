@@ -210,6 +210,82 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/JpegCodecTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/JpegFixtureTests.cs"  # fixture conformance tests
 
+  # CanvasNet-Geometry Review (one per subsystem)
+  - id: CanvasNet-Geometry
+    title: Review that CanvasNet Geometry Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/geometry.yaml"              # subsystem requirements
+      - "docs/design/canvas-net/geometry.md"                  # subsystem design
+      - "docs/verification/canvas-net/geometry.md"            # subsystem verification
+
+  # CanvasNet-Geometry-Rect Review (one per unit)
+  - id: CanvasNet-Geometry-Rect
+    title: Review that CanvasNet Geometry Rect Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/geometry.md"
+      - "docs/reqstream/canvas-net/geometry.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/geometry/rect.yaml"        # unit requirements
+      - "docs/design/canvas-net/geometry/rect.md"            # unit design
+      - "docs/verification/canvas-net/geometry/rect.md"      # unit verification
+      - "src/DemaConsulting.CanvasNet/Geometry/Rect.cs"           # unit source
+      - "src/DemaConsulting.CanvasNet/Geometry/NamespaceDoc.cs"   # Geometry namespace documentation
+      - "test/DemaConsulting.CanvasNet.Tests/Geometry/RectTests.cs"  # unit tests
+
+  # CanvasNet-Geometry-Path Review (one per unit)
+  - id: CanvasNet-Geometry-Path
+    title: Review that CanvasNet Geometry Path Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/geometry.md"
+      - "docs/reqstream/canvas-net/geometry.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/geometry/path.yaml"        # unit requirements
+      - "docs/design/canvas-net/geometry/path.md"            # unit design
+      - "docs/verification/canvas-net/geometry/path.md"      # unit verification
+      - "src/DemaConsulting.CanvasNet/Geometry/Path.cs"           # unit source
+      - "src/DemaConsulting.CanvasNet/Geometry/PathBuilder.cs"    # unit source
+      - "src/DemaConsulting.CanvasNet/Geometry/Subpath.cs"        # supporting data type source
+      - "src/DemaConsulting.CanvasNet/Geometry/PathCommand.cs"    # supporting data type source
+      - "src/DemaConsulting.CanvasNet/Geometry/PathCommandType.cs"  # supporting data type source
+      - "test/DemaConsulting.CanvasNet.Tests/Geometry/PathBuilderTests.cs"  # unit tests
+
+  # CanvasNet-Geometry-BezierFlattening Review (one per unit)
+  - id: CanvasNet-Geometry-BezierFlattening
+    title: Review that CanvasNet Geometry BezierFlattening Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/geometry.md"
+      - "docs/reqstream/canvas-net/geometry.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/geometry/bezier-flattening.yaml"  # unit requirements
+      - "docs/design/canvas-net/geometry/bezier-flattening.md"      # unit design
+      - "docs/verification/canvas-net/geometry/bezier-flattening.md"  # unit verification
+      - "src/DemaConsulting.CanvasNet/Geometry/BezierFlattening.cs"      # unit source
+      - "test/DemaConsulting.CanvasNet.Tests/Geometry/BezierFlatteningTests.cs"  # unit tests
+
+  # CanvasNet-Geometry-SvgArcConverter Review (one per unit)
+  - id: CanvasNet-Geometry-SvgArcConverter
+    title: Review that CanvasNet Geometry SvgArcConverter Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/geometry.md"
+      - "docs/reqstream/canvas-net/geometry.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/geometry/svg-arc-converter.yaml"  # unit requirements
+      - "docs/design/canvas-net/geometry/svg-arc-converter.md"      # unit design
+      - "docs/verification/canvas-net/geometry/svg-arc-converter.md"  # unit verification
+      - "src/DemaConsulting.CanvasNet/Geometry/SvgArcConverter.cs"      # unit source
+      - "test/DemaConsulting.CanvasNet.Tests/Geometry/SvgArcConverterTests.cs"  # unit tests
+
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark
     title: Review that BuildMark Provides Required Functionality

@@ -1,5 +1,7 @@
+using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Geometry;
 
 namespace DemaConsulting.CanvasNet.Tests;
 
@@ -278,5 +280,46 @@ public class CanvasNetTests
                 Assert.Equal(surface[x, y], reloaded[x, y]);
             }
         }
+    }
+
+    /// <summary>
+    ///     Proves that the system can construct a Path via PathBuilder using a MoveTo/
+    ///     CubicBezierTo/ArcTo/Close sequence, flatten it to a polyline, and compute its
+    ///     axis-aligned bounding Rect - exercising the Geometry namespace's public types end to
+    ///     end through the public API.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_BuildFlattenAndBoundPath_ReturnsExpectedBounds()
+    {
+        // Arrange: build a path with a move, a cubic Bezier, an SVG-style arc, and a close
+        var builder = new PathBuilder();
+        var path = builder
+            .MoveTo(new Vector2(0, 0))
+            .CubicBezierTo(new Vector2(0, 50), new Vector2(50, 50), new Vector2(50, 0))
+            .ArcTo(new Vector2(25, 25), 0, largeArc: false, sweep: true, new Vector2(0, 0))
+            .Close()
+            .Build();
+
+        // Act: flatten the cubic segment directly through the public API, and compute the path's
+        // conservative bounding rectangle
+        var flattened = new List<Vector2>();
+        BezierFlattening.FlattenCubic(
+            new Vector2(0, 0),
+            new Vector2(0, 50),
+            new Vector2(50, 50),
+            new Vector2(50, 0),
+            0.5f,
+            flattened);
+        var bounds = path.GetBounds();
+
+        // Assert: the system produces one closed subpath, a non-empty flattened polyline ending
+        // at the curve's true end point, and a bounding rectangle enclosing every command
+        var subpath = Assert.Single(path.Subpaths);
+        Assert.True(subpath.IsClosed);
+        Assert.NotEmpty(flattened);
+        Assert.Equal(new Vector2(50, 0), flattened[^1]);
+        Assert.False(bounds.IsEmpty);
+        Assert.True(bounds.Width > 0);
+        Assert.True(bounds.Height > 0);
     }
 }

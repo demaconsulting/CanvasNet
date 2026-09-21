@@ -139,8 +139,23 @@ observable through the `PngCodec` unit's save/load API. This is a system-level s
 (`PngCodec` depends on `Surface`, not vice versa); a `Surface` unit test may only depend on
 `Surface` itself and its documented dependencies.
 
+### Integration: Build, Flatten, and Bound a Path Returns Expected Bounds
+
+**Test**: `CanvasNet_SystemIntegration_BuildFlattenAndBoundPath_ReturnsExpectedBounds`
+
+Exercises end-to-end system behavior across the `Geometry` subsystem's four units together:
+constructs a `PathBuilder`, issues a `MoveTo`/`CubicBezierTo`/`ArcTo`/`Close` command sequence, and
+calls `Build()` to obtain an immutable `Path`. Separately flattens the same cubic segment directly
+via `BezierFlattening.FlattenCubic` and asserts the resulting polyline is non-empty and ends
+exactly at the curve's declared end point. Calls `Path.GetBounds()` (the default, conservative
+mode) and asserts the result is non-empty with positive width and height. Asserts the built
+`Path` contains exactly one subpath and that it is closed. This is a system-level scenario, not a
+single-unit scenario, because it exercises the collaboration between `PathBuilder`, `Path`
+(including its internal use of `SvgArcConverter` to convert the `ArcTo` command), and
+`BezierFlattening` together, rather than any one of the four `Geometry` units in isolation.
+
 ## Acceptance Criteria
 
-A system-level test run passes when all eleven scenarios above pass without error or exception
+A system-level test run passes when all twelve scenarios above pass without error or exception
 beyond those explicitly asserted. Any unexpected exception, wrong exception type, or wrong return
 value constitutes a failure.
