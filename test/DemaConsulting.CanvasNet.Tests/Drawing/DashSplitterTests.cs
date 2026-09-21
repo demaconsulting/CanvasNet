@@ -1,6 +1,8 @@
 using System.Numerics;
 using DemaConsulting.CanvasNet.Drawing;
 
+// cspell:ignore Lerp
+
 namespace DemaConsulting.CanvasNet.Tests.Drawing;
 
 /// <summary>
@@ -345,5 +347,55 @@ public class DashSplitterTests
                 Assert.True(float.IsFinite(point.Y));
             }
         }
+    }
+
+    /// <summary>
+    ///     Proves that a dash interval boundary landing strictly inside an edge spanning extreme
+    ///     float32 coordinates (from <c>-<see cref="float.MaxValue"/></c> to
+    ///     <see cref="float.MaxValue"/>) produces a FINITE, numerically reasonable interpolated
+    ///     point, rather than a point with <see cref="float.PositiveInfinity"/>/<c>NaN</c>
+    ///     coordinates.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="Vector2.Lerp(Vector2, Vector2, float)"/>'s documented contract computes
+    ///     <c>start + (end - start) * t</c> with the <c>end - start</c> subtraction performed on
+    ///     float32 endpoints: for this edge, that subtraction is
+    ///     <c>float.MaxValue - (-float.MaxValue)</c>, which overflows float32's representable
+    ///     range to <see cref="float.PositiveInfinity"/>, even though the true (double-precision)
+    ///     delta - <c>2 * float.MaxValue</c> - is finite. Relying on
+    ///     <see cref="Vector2.Lerp(Vector2, Vector2, float)"/> for this step would therefore be
+    ///     fragile: its documented formula would poison the interpolated point with
+    ///     <c>Infinity</c>/<c>NaN</c> for this edge if evaluated literally as documented, even
+    ///     though the edge itself is entirely legal and finite (whether or not a given runtime's
+    ///     internal implementation happens to avoid that in practice is not part of its documented
+    ///     contract). Interpolating each coordinate explicitly in <see langword="double"/>
+    ///     precision before narrowing back to <see langword="float"/> guarantees correctness
+    ///     regardless of that implementation detail.
+    /// </remarks>
+    [Fact]
+    public void DashSplitter_Split_DashBoundaryInsideExtremeFloat32Edge_ProducesFinitePoint()
+    {
+        // Arrange: a single edge from -float.MaxValue to float.MaxValue (length ~6.8e38, finite in
+        // double precision). A dash pattern of [1e38 (on), 1e38 (off)] places the first "on"/"off"
+        // boundary at distance 1e38, which - since the edge is ~6.8e38 long - falls strictly
+        // inside the edge, forcing GetPointAtDistance to interpolate an interior point rather than
+        // simply returning one of the edge's own endpoints.
+        var points = new List<Vector2> { new(-float.MaxValue, 0f), new(float.MaxValue, 0f) };
+
+        // Act
+        var segments = DashSplitter.Split(points, isClosed: false, dashArray: [1e38f, 1e38f], dashOffset: 0f);
+
+        // Assert: the first "on" segment runs from the edge start to the first dash boundary at
+        // distance 1e38 (strictly inside the edge), so its final point is the interpolated one.
+        var segment = Assert.Single(segments, s => s.Points[0] == points[0]);
+        var interpolated = segment.Points[^1];
+        Assert.True(float.IsFinite(interpolated.X), $"Expected finite X but got {interpolated.X}");
+        Assert.True(float.IsFinite(interpolated.Y), $"Expected finite Y but got {interpolated.Y}");
+
+        const double edgeLength = 2d * float.MaxValue;
+        const double expectedT = 1e38d / edgeLength;
+        var expectedX = -(double)float.MaxValue + edgeLength * expectedT;
+        Assert.Equal(expectedX, interpolated.X, Math.Abs(expectedX) * 1e-5);
+        Assert.Equal(0f, interpolated.Y);
     }
 }

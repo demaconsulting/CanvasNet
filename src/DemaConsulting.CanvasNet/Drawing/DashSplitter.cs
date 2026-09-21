@@ -517,6 +517,23 @@ internal static class DashSplitter
     ///     resuming the edge-bracket search from wherever the previous call left off - rather than
     ///     restarting from edge zero - keeps the search across all calls linear in the number of
     ///     polyline edges instead of quadratic in edges times calls.
+    ///     <para>
+    ///     The interpolated point's X and Y coordinates are each computed as
+    ///     <c>start + (end - start) * t</c> in <see langword="double"/> precision rather than via
+    ///     <see cref="Vector2.Lerp(Vector2, Vector2, float)"/>. The public contract of
+    ///     <see cref="Vector2.Lerp(Vector2, Vector2, float)"/> is documented as computing
+    ///     <c>start + (end - start) * amount</c> with the subtraction performed on float32
+    ///     endpoints, which for an edge spanning near-extreme float32 coordinates (e.g. one
+    ///     endpoint near <see cref="float.MinValue"/> and the other near <see cref="float.MaxValue"/>)
+    ///     would overflow that subtraction to <see cref="float.PositiveInfinity"/> even though the
+    ///     true delta is finite in double precision - the same class of float32-overflow bug
+    ///     already fixed for edge-length accumulation in <see cref="BuildCumulativeLengths"/>.
+    ///     Computing the delta explicitly in double before narrowing the final result back to
+    ///     <see langword="float"/> guarantees correctness for such edges regardless of how any
+    ///     given runtime happens to implement <see cref="Vector2.Lerp(Vector2, Vector2, float)"/>
+    ///     internally, rather than depending on an implementation detail outside its documented
+    ///     contract.
+    ///     </para>
     /// </remarks>
     private static Vector2 GetPointAtDistance(
         IReadOnlyList<Vector2> points,
@@ -553,7 +570,9 @@ internal static class DashSplitter
         }
 
         var t = (distance - startLength) / edgeLength;
-        return Vector2.Lerp(edgeStart, edgeEnd, (float)t);
+        var x = edgeStart.X + ((double)edgeEnd.X - edgeStart.X) * t;
+        var y = edgeStart.Y + ((double)edgeEnd.Y - edgeStart.Y) * t;
+        return new Vector2((float)x, (float)y);
     }
 
     /// <summary>
