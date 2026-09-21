@@ -13,7 +13,7 @@ namespace DemaConsulting.CanvasNet.Drawing;
 ///     changes here never ripple back into either foundational namespace. Stroking, gradient or
 ///     pattern paint, transform-aware fills, clip regions beyond the surface's own bounds, and
 ///     font/text rendering are all reserved for later phases; this namespace's sole responsibility
-///     this phase is solid-color fill.
+///     in this phase is solid-color fill.
 /// </summary>
 internal static class NamespaceDoc
 {

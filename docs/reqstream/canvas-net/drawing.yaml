@@ -51,7 +51,8 @@ sections:
             children:
               - CanvasNet-Drawing-PathFiller-EmptyOrOutOfBoundsNoOp
             tests:
-              - CanvasNet_SystemIntegration_BuildAndFillTrianglePath_ReturnsExpectedPixels
+              - PathFiller_Fill_EmptyPath_NoOpLeavesSurfaceUnchanged
+              - PathFiller_Fill_PathFullyOutsideSurfaceBounds_NoOpLeavesSurfaceUnchanged
 
           - id: CanvasNet-Drawing-PathFillValidation
             title: >-
@@ -67,4 +68,6 @@ sections:
               - CanvasNet-Drawing-PathFiller-NullArguments
               - CanvasNet-Drawing-PathFiller-NonPositiveTolerance
             tests:
-              - CanvasNet_SystemIntegration_BuildAndFillTrianglePath_ReturnsExpectedPixels
+              - PathFiller_Fill_NullSurface_ThrowsArgumentNullException
+              - PathFiller_Fill_NullPath_ThrowsArgumentNullException
+              - PathFiller_Fill_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException

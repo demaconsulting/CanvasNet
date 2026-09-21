@@ -1040,7 +1040,7 @@ public class SurfaceTests
 
         // Assert: the oracle scales alpha by coverage first (round-half-away-from-zero, clamped
         // to [0, 255]), then applies the same "over" formula CompositeOver(Rgba32) itself uses
-        var scaledAlpha = (byte)Math.Clamp(MathF.Round(color.A * coverage), 0f, 255f);
+        var scaledAlpha = (byte)Math.Clamp(MathF.Round(color.A * coverage, MidpointRounding.AwayFromZero), 0f, 255f);
         var oracle = new Surface(1, 1);
         oracle[0, 0] = new Rgba32(0, 255, 0, 255);
         oracle.CompositeOver(new Rgba32(color.R, color.G, color.B, scaledAlpha));

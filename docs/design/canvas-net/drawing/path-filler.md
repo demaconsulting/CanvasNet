@@ -62,20 +62,34 @@ subsystem grows a dedicated transform concept.
 
 **Algorithm**:
 
-1. Validate `surface` and `path` are non-null, and `flattenTolerance > 0`.
-2. Compute `path.GetBounds(flattenTolerance)` and intersect it with `surface`'s
-   `[0, Width) x [0, Height)` pixel extent via `Rect.Intersect`. If `path`'s bounds or the
-   intersection is empty (`Rect.IsEmpty`), return immediately - a cheap, well-defined no-op with
-   no allocation beyond computing the bounds.
-3. Otherwise, call `EdgeFlattener.Flatten(path, flattenTolerance)` to obtain one closed polygon
-   per subpath, then `ScanlineRasterizer.Fill(surface, polygons, color, fillRule, clipBounds)` to
-   rasterize and composite them, where `clipBounds` is the intersected `Rect` from step 2.
+1. Validate `surface` and `path` are non-null, and `flattenTolerance` is finite and strictly
+   positive (`float.IsFinite(flattenTolerance) && flattenTolerance > 0`) - a non-finite tolerance
+   (`NaN`/`+-Infinity`) is rejected here rather than being allowed to silently reach
+   `EdgeFlattener`/`BezierFlattening`, where flatness comparisons involving a non-finite tolerance
+   never succeed and curve subdivision would instead recurse to its maximum depth, wastefully
+   allocating on the order of a million points before ultimately producing a meaningless result.
+2. Call `EdgeFlattener.Flatten(path, flattenTolerance)` **first** to obtain one closed polygon per
+   subpath. Curve/arc flattening is the expensive part of this method, so it is performed exactly
+   once; there is deliberately no separate, earlier call to `Path.GetBounds(flattenTolerance)`
+   (which would flatten every curve a second time purely to compute a bounding box).
+3. Compute the path's bounds directly from the already-flattened polygons' own vertices (folding
+   `Rect.Union` over each vertex, starting from `Rect.Empty`) and intersect that bounds with
+   `surface`'s `[0, Width) x [0, Height)` pixel extent via `Rect.Intersect`. If the flattened
+   bounds or the intersection is empty (`Rect.IsEmpty`), return immediately - a well-defined
+   no-op. Because flattening has already occurred by this point, this no-op check no longer
+   avoids the flattening cost itself, only the cost of the rasterize-and-composite step -
+   flattening an out-of-bounds or degenerate path is cheap relative to full rasterization, so this
+   remains an acceptable trade-off for avoiding the double-flatten.
+4. Call `ScanlineRasterizer.Fill(surface, polygons, color, fillRule, clipBounds)` to rasterize and
+   composite the already-flattened polygons, where `clipBounds` is the intersected `Rect` from
+   step 3.
 
 **Throws:**
 
 - `ArgumentNullException` - when `surface` or `path` is `null`
-- `ArgumentOutOfRangeException` - when `flattenTolerance` is less than or equal to zero (matching
-  `BezierFlattening`'s own tolerance-validation convention)
+- `ArgumentOutOfRangeException` - when `flattenTolerance` is non-finite, or less than or equal to
+  zero (matching `BezierFlattening`'s own tolerance-validation convention, extended to also reject
+  `NaN`/`Infinity` explicitly rather than relying on comparison operators alone)
 
 #### EdgeFlattener.Flatten(Path path, float tolerance) (internal)
 
@@ -92,11 +106,20 @@ below).
 purposes, regardless of `Subpath.IsClosed`.** A fill operation has no meaningful notion of an
 "open" boundary - unlike a future stroke operation, which would need to distinguish an open path
 (rendering flat/round/square end caps) from a closed one. After walking a subpath's commands, if
-its last emitted point does not already coincide with `Start` (compared with the same
-`NearZeroDisplacement` epsilon tolerance used throughout this unit, not exact floating-point
-equality), an explicit closing point equal to `Start` is appended. If the last point already
-coincides with `Start` (for example, an explicitly closed subpath whose final command's end point
-already equals `Start`), no duplicate closing point is appended.
+its last emitted point does not already coincide with `Start` (compared with **exact
+floating-point equality**, not an epsilon tolerance), an explicit closing point equal to `Start`
+is appended. If the last point already coincides with `Start` (for example, an explicitly closed
+subpath whose final command's end point already equals `Start`), no duplicate closing point is
+appended. Exact equality is correct (not merely convenient) here because both
+`BezierFlattening.FlattenCubic`/`FlattenQuadratic` and `SvgArcConverter.ToBeziers` are
+deliberately designed so the very last point written for any command is always the original,
+caller-supplied `PathCommand.EndPoint` verbatim - `SvgArcConverter` explicitly forces its final
+Bezier segment's end point to the caller-supplied `end` rather than a value obtained from
+trigonometric evaluation, precisely so no residual floating-point drift can occur. Since the last
+emitted point is therefore never a computed approximation, the only way it can differ from
+`Start` is a genuine, intentional gap in the path data - not floating-point rounding - so an
+epsilon comparison would risk silently dropping a real closing edge rather than guarding against
+any actual rounding error.
 
 **Degenerate subpaths** (a subpath whose walked points, after the implicit-close step, number
 fewer than 3) are passed through as-is with no special-casing here - `ScanlineRasterizer`
@@ -123,40 +146,50 @@ approximation converging only as the sample count grows.
    active-edge list is maintained: edges are added from the sorted edge table once the sweep
    reaches their `TopY`, and removed once the sweep passes their `BottomY` - bounding the total
    maintenance work to `O(edges + total edge-row crossings)` rather than `O(edges x rows)`.
-3. **Per-row accumulation**: two `float` arrays, `cover` and `area`, sized to the clipped row
-   width plus one column and cleared at the start of every row, accumulate each active edge's
-   contribution for that row:
-   - The edge's vertical extent actually within this row (`[max(TopY, rowTop), min(BottomY,
-     rowBottom))`) is computed, along with its x-range across that sub-interval.
-   - If the edge's x-range within the row is (within epsilon) a single column, its full signed
-     `Direction * deltaY` extent is banked as `area` in that column (the analytic sub-pixel
-     trapezoidal term for the specific cell the edge passes through) plus `cover` one column to
-     the right (so the prefix sum below propagates the edge's full vertical contribution to every
-     pixel further right, matching "this edge is entirely to my left" for those columns).
-   - Otherwise (a slanted edge spanning multiple columns within the row), the edge's row-local
-     x-range is first clipped to `[clipMinX, clipMaxX]` - any portion to the left of the clip is
-     banked in bulk at column 0 (its exact `deltaY` share is recovered via linear interpolation
-     of the y-split at `clipMinX`), any portion to the right of the clip is dropped entirely
-     (contributes nothing observable) - then each pixel column the (now-bounded) visible x-range
-     crosses is walked individually, computing that column's exact `deltaY` share and its
-     average sub-pixel x-fraction, banking the resulting trapezoidal `area` in that column and
-     the remaining `cover` one column to the right.
-   - Edges are classified using `NearZeroDisplacement` (`1e-6f`) rather than exact `==`/`!=`
-     comparisons, both to satisfy this repository's floating-point-equality analyzer rule and,
-     more importantly, because it avoids near-zero-denominator division when computing slope for
-     a near-vertical edge or when detecting a near-horizontal one.
-4. **Prefix sum and fill-rule resolution**: left to right across the row, `acc += cover[x]` is a
-   running signed winding total, and each pixel's raw coverage is `acc + area[x]`. This raw value
-   is resolved to an alpha in `[0, 1]` according to `fillRule`:
-   - `FillRule.NonZero`: `alpha = min(1, abs(rawCoverage))`.
-   - `FillRule.EvenOdd`: `rawCoverage` is folded into `[0, 2)` via modulo (handling negative
-     values), then a triangle wave (`t <= 1 ? t : 2 - t`) maps the folded value to `[0, 1]`,
-     matching the "every edge crossing toggles fill state" semantics of even-odd winding.
-5. **Compositing**: the resulting per-pixel `float[]` coverage row for the row's clipped
-   `[minX, maxX)` sub-range is composited directly via
-   `Surface.CompositeOverSpan(y, minX, coverage, color)` - no full-row or full-surface coverage
-   buffer is ever allocated; only the current row's `cover`/`area`/coverage arrays exist at any
-   time.
+3. **Per-row interval resolution**: unlike a naive design that would accumulate every active
+   edge's raw signed coverage into one shared per-pixel scalar for the whole row and only apply
+   the fill rule to that aggregate afterward - which double-counts area wherever more than one
+   edge's fractional contribution lands in the same cell within the same row (for example,
+   duplicate/coincident polygons, or any two overlapping shapes) - this unit instead resolves the
+   fill rule's boundary structure **before** any area is accumulated, per row:
+   - Each active edge's extent within the row is captured as a `RowEdge` (its `x` at the row's
+     top and bottom, its vertical span within the row, and its winding `Direction`).
+   - The row is split into sub-intervals at every `RowEdge`'s own top/bottom `y` (deduplicated
+     within `NearZeroDisplacement`), so that within any single sub-interval the exact same set of
+     edges is active from its start to its end - no edge starts or stops partway through a
+     sub-interval. This invariant is what makes a single left-to-right sort of edges by `x`
+     meaningful for the whole sub-interval.
+   - Within each sub-interval, the active `RowEdge`s are converted to their `x` position at that
+     sub-interval's `y`-range (`SpanningEdge`) and sorted ascending by `x`. Walking left to right,
+     an integer winding count is accumulated one `RowEdge.Direction` at a time. Between each pair
+     of consecutive boundaries, `IsInside(winding, fillRule)` decides whether that gap is "inside"
+     the fill (`NonZero`: `winding != 0`; `EvenOdd`: `winding` is odd) - if so, the *exact*
+     trapezoidal area between those two boundary lines, across the sub-interval's `y`-range, is
+     added to the row's `cover`/`area` accumulators (reusing the same single-edge
+     cover/area/prefix-sum accumulation math as a generic "boundary line" primitive, with a
+     purely geometric `+1`/`-1` direction convention for "left"/"right" boundary of the gap,
+     independent of the original edges' own winding directions). If not, that gap contributes
+     nothing.
+   - This resolves the fill rule's inside/outside decision **once per genuinely distinct
+     winding-count region**, rather than once per pixel-scalar aggregate - so overlapping,
+     duplicate, or self-intersecting polygon geometry produces the mathematically correct
+     resolved coverage under both fill rules, matching the AGG/FreeType approach of resolving
+     winding per crossing interval rather than folding a summed raw value after the fact.
+   - **Known limitation**: if two edges within the same sub-interval genuinely cross each other
+     (their relative `x`-order changes partway through `[ya, yb)`), the single sort-by-`x`
+     approximation could momentarily mis-order them. This does not occur for the simple polygons
+     (rectangles, triangles, coincident/overlapping duplicates) this library currently produces
+     via `EdgeFlattener`, whose edges only meet at shared vertices (which already fall on
+     sub-interval boundaries), so it is accepted as a documented engineering trade-off rather
+     than solved with full segment-intersection handling.
+4. **Prefix sum and compositing**: left to right across the row, `acc += cover[x]` is a running
+   total of the exact areas banked by the per-interval resolution above, and each pixel's
+   resolved coverage is `acc + area[x]`, already in `[0, 1]` (no further fill-rule folding or
+   clamping is needed at this stage, since the fill rule was already resolved per interval in
+   step 3). The resulting per-pixel `float[]` coverage row for the row's clipped `[minX, maxX)`
+   sub-range is composited directly via `Surface.CompositeOverSpan(y, minX, coverage, color)` - no
+   full-row or full-surface coverage buffer is ever allocated; only the current row's
+   `cover`/`area`/coverage arrays exist at any time.
 
 **Degenerate input**: an empty `polygons` list, or a polygon reduced (after edge-table
 construction skips horizontal edges) to fewer than 2 usable non-horizontal edges, contributes no
@@ -190,7 +223,7 @@ method, before any bounds computation or rasterization begins (see above). `Edge
 `System.Numerics.Vector2` (in-box BCL type), the `Geometry` subsystem's `Path`, `Subpath`,
 `PathCommand`, `Rect`, `BezierFlattening`, and `SvgArcConverter` (via `EdgeFlattener`), and the
 `Canvas` subsystem's `Surface`, `Rgba32`, and `Surface.CompositeOverSpan` (via
-`ScanlineRasterizer`; see _Surface Unit Design_, `../canvas/surface.md`, for that method's own
+`ScanlineRasterizer`; see *Surface Unit Design*, `../canvas/surface.md`, for that method's own
 documentation). No new runtime NuGet package is introduced.
 
 ### Callers

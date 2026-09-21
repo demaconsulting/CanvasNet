@@ -647,7 +647,7 @@ public sealed class Surface
             fg.GBytes[i] = color.G;
             fg.BBytes[i] = color.B;
             var scaledAlpha = color.A * Math.Clamp(coverage[i], 0f, 1f);
-            fg.ABytes[i] = (byte)Math.Clamp(MathF.Round(scaledAlpha), 0f, 255f);
+            fg.ABytes[i] = (byte)Math.Clamp(MathF.Round(scaledAlpha, MidpointRounding.AwayFromZero), 0f, 255f);
         }
 
         WidenAllToFloat(fg, count);

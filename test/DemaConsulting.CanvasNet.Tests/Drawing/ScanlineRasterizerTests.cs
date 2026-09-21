@@ -76,6 +76,128 @@ public class ScanlineRasterizerTests
     }
 
     /// <summary>
+    ///     Proves that two exactly coincident, sub-pixel-offset polygons resolve to the correct
+    ///     analytic result under both fill rules - not the naive "sum each polygon's own raw
+    ///     fractional coverage, then fold the aggregate" approach, which would incorrectly double
+    ///     the covered fraction (clamping it to fully opaque under NonZero, instead of leaving it
+    ///     at the single shape's true covered fraction) and would incorrectly report a nonzero
+    ///     result under EvenOdd (instead of correctly cancelling to fully transparent, since the
+    ///     two duplicate shapes cover exactly the same points and even-odd toggles per crossing).
+    /// </summary>
+    /// <remarks>
+    ///     Arrange: a rectangle from <c>x = 0.25</c> to <c>x = 1.75</c> (spanning both columns of
+    ///     a 2x2 surface with a fractional edge in each), duplicated twice in the polygon list.
+    ///     Hand-computed reference: a single instance of this rectangle covers each column by
+    ///     exactly <c>0.75</c> of its unit cell (column 0: from <c>x = 0.25</c> to <c>x = 1</c>;
+    ///     column 1: from <c>x = 1</c> to <c>x = 1.75</c>) - since the duplicate is an exact copy
+    ///     occupying precisely the same points, the true covered fraction remains <c>0.75</c>
+    ///     under NonZero (raw winding 2 throughout the covered region, but the covered region
+    ///     itself is unchanged by duplication), while EvenOdd toggles back to uncovered
+    ///     everywhere the duplicate's edges coincide with the original's, correctly cancelling to
+    ///     <c>0</c> everywhere. Under the old, buggy "sum raw fractional coverage, then fold"
+    ///     approach, this scenario instead incorrectly produces a NonZero raw coverage of
+    ///     <c>1.5</c> per column (clamped to fully opaque, alpha 255, not 191) and an EvenOdd
+    ///     triangle-fold of <c>0.5</c> (alpha 128, not 0).
+    /// </remarks>
+    [Fact]
+    public void ScanlineRasterizer_Fill_SubPixelOffsetDuplicatePolygons_NonZeroMatchesSingleShapeEvenOddCancelsToZero()
+    {
+        // Arrange
+        var rectangle = new List<Vector2>
+        {
+            new(0.25f, 0f),
+            new(1.75f, 0f),
+            new(1.75f, 2f),
+            new(0.25f, 2f),
+            new(0.25f, 0f)
+        };
+        var color = new Rgba32(9, 8, 7, 255);
+        var clipBounds = new Rect(0, 0, 2, 2);
+
+        var nonZeroSurface = new Surface(2, 2);
+        ScanlineRasterizer.Fill(nonZeroSurface, [rectangle, rectangle], color, FillRule.NonZero, clipBounds);
+
+        var evenOddSurface = new Surface(2, 2);
+        ScanlineRasterizer.Fill(evenOddSurface, [rectangle, rectangle], color, FillRule.EvenOdd, clipBounds);
+
+        // Assert: NonZero matches the single shape's own true covered fraction (0.75 * 255 =
+        // 191.25, rounds to 191), not a doubled-and-clamped 255, at every covered pixel
+        Assert.Equal((byte)191, nonZeroSurface[0, 0].A);
+        Assert.Equal((byte)191, nonZeroSurface[1, 0].A);
+        Assert.Equal((byte)191, nonZeroSurface[0, 1].A);
+        Assert.Equal((byte)191, nonZeroSurface[1, 1].A);
+
+        // Assert: EvenOdd correctly cancels to fully transparent everywhere, not a spurious 128
+        Assert.Equal((byte)0, evenOddSurface[0, 0].A);
+        Assert.Equal((byte)0, evenOddSurface[1, 0].A);
+        Assert.Equal((byte)0, evenOddSurface[0, 1].A);
+        Assert.Equal((byte)0, evenOddSurface[1, 1].A);
+    }
+
+    /// <summary>
+    ///     Proves that two overlapping (not coincident), sub-pixel-offset polygons resolve to the
+    ///     correct per-region analytic result under both fill rules, matching an independently
+    ///     hand-computed reference rather than the naive raw-coverage-sum-then-fold approach.
+    /// </summary>
+    /// <remarks>
+    ///     Arrange: on a 2x1 surface, square 1 spans <c>x</c> in <c>[0.25, 1.25)</c> and square 2
+    ///     spans <c>x</c> in <c>[0.75, 1.75)</c> (both full-height), so <c>x</c> in
+    ///     <c>[0.75, 1.25)</c> is doubly covered (raw winding 2), while <c>[0.25, 0.75)</c> and
+    ///     <c>[1.25, 1.75)</c> are singly covered (raw winding 1). Hand-computed reference: under
+    ///     NonZero, the entire union <c>[0.25, 1.75)</c> is "inside" regardless of winding
+    ///     magnitude, so column 0 (<c>x</c> in <c>[0, 1)</c>) covers exactly <c>[0.25, 1)</c>
+    ///     (fraction <c>0.75</c>) and column 1 (<c>x</c> in <c>[1, 2)</c>) covers exactly
+    ///     <c>[1, 1.75)</c> (fraction <c>0.75</c>). Under EvenOdd, only the singly-covered
+    ///     sub-regions are "inside": column 0 covers <c>[0.25, 0.75)</c> (fraction <c>0.5</c>,
+    ///     since <c>[0.75, 1)</c> falls in the doubly-covered, therefore even/uncovered, region)
+    ///     and column 1 covers <c>[1.25, 1.75)</c> (fraction <c>0.5</c>, since <c>[1, 1.25)</c>
+    ///     falls in the doubly-covered region). Under the old, buggy "sum raw fractional coverage,
+    ///     then fold" approach, column 0's raw coverage instead sums to <c>1.0</c> (from both
+    ///     squares' own left-edge fractional contributions), which folds to fully opaque (alpha
+    ///     255) under both NonZero <i>and</i> EvenOdd - failing to distinguish the two fill rules
+    ///     at all for this pixel, unlike the correct <c>191</c>/<c>128</c> divergence asserted
+    ///     below.
+    /// </remarks>
+    [Fact]
+    public void ScanlineRasterizer_Fill_OverlappingSubPixelSquares_MatchesHandComputedPerRegionCoverage()
+    {
+        // Arrange
+        var square1 = new List<Vector2>
+        {
+            new(0.25f, 0f),
+            new(1.25f, 0f),
+            new(1.25f, 1f),
+            new(0.25f, 1f),
+            new(0.25f, 0f)
+        };
+        var square2 = new List<Vector2>
+        {
+            new(0.75f, 0f),
+            new(1.75f, 0f),
+            new(1.75f, 1f),
+            new(0.75f, 1f),
+            new(0.75f, 0f)
+        };
+        var color = new Rgba32(1, 1, 1, 255);
+        var clipBounds = new Rect(0, 0, 2, 1);
+
+        var nonZeroSurface = new Surface(2, 1);
+        ScanlineRasterizer.Fill(nonZeroSurface, [square1, square2], color, FillRule.NonZero, clipBounds);
+
+        var evenOddSurface = new Surface(2, 1);
+        ScanlineRasterizer.Fill(evenOddSurface, [square1, square2], color, FillRule.EvenOdd, clipBounds);
+
+        // Assert: NonZero yields the union area's coverage fraction (0.75 * 255 = 191.25 -> 191)
+        Assert.Equal((byte)191, nonZeroSurface[0, 0].A);
+        Assert.Equal((byte)191, nonZeroSurface[1, 0].A);
+
+        // Assert: EvenOdd yields only the singly-covered symmetric-difference fraction
+        // (0.5 * 255 = 127.5 -> 128 under round-half-away-from-zero)
+        Assert.Equal((byte)128, evenOddSurface[0, 0].A);
+        Assert.Equal((byte)128, evenOddSurface[1, 0].A);
+    }
+
+    /// <summary>
     ///     Proves that the active-edge-list sweep correctly starts and stops an edge's
     ///     contribution at the exact rows its vertical extent covers: a rectangle spanning only
     ///     rows 1-3 of a 6-row surface leaves row 0 (before the edges start) and rows 4-5 (after

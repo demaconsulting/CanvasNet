@@ -14,8 +14,8 @@ geometry under test - the exact fraction of each pixel's unit cell (`[x, x+1) x 
 the coordinate convention documented in _PathFiller Unit Design_, `../../design/canvas-net/
 drawing/path-filler.md`) lying inside the filled region - independently of the implementation
 under test, not by re-deriving the same rasterization formula. Byte-level expected alpha values
-account for .NET's default `MidpointRounding.ToEven` behavior where relevant (for example,
-`255 * 0.5 = 127.5` rounds to `128`, since `128` is even).
+account for `Surface`'s `MidpointRounding.AwayFromZero` blend-pipeline convention where relevant
+(for example, `255 * 0.5 = 127.5` rounds to `128` under round-half-away-from-zero).
 
 Unit tests reside in `PathFillerTests.cs`, `EdgeFlattenerTests.cs`, and
 `ScanlineRasterizerTests.cs` within the `DemaConsulting.CanvasNet.Tests.Drawing` project
@@ -35,7 +35,7 @@ across the scenarios below:
 - **Axis-aligned rectangle with a fractional-pixel edge**: a rectangle from `(0.5, 0.5)` to
   `(3.5, 2.5)` on a 4x4 surface. Interior columns 1 and 2 (at row 1) are fully covered (alpha
   `255`); edge columns 0 and 3 are covered at exactly half (raw coverage `0.5`, alpha
-  `255 * 0.5 = 127.5`, which rounds to `128` under round-half-to-even since `128` is even).
+  `255 * 0.5 = 127.5`, which rounds to `128` under round-half-away-from-zero).
 - **Right triangle with a diagonal hypotenuse**: the triangle `(0,0)`, `(2,0)`, `(0,2)` on a 2x2
   surface. Cell `(0,0)` lies entirely inside the triangle (coverage `1.0`, alpha `255`); cells
   `(1,0)` and `(0,1)` are each split exactly in half by the diagonal hypotenuse (coverage `0.5`,
@@ -71,7 +71,8 @@ fully covered pixel, not merely "some" blend.
 #### CanvasNet-Drawing-PathFiller-Antialiasing: Antialiased Coverage Matches Hand-Computed Reference Values
 
 **Tests**: `PathFiller_Fill_AxisAlignedRectangleFractionalEdges_InteriorOpaqueEdgesAntialiased`,
-`PathFiller_Fill_DiagonalTriangle_MatchesHandComputedCoverageGradient`
+`PathFiller_Fill_DiagonalTriangle_MatchesHandComputedCoverageGradient`,
+`PathFiller_Fill_QuadraticCurveShape_TotalCoverageMatchesAnalyticBezierBulgeArea`
 
 Fills the fractional-edge rectangle described above and asserts interior columns are alpha `255`,
 edge columns are alpha `128` (exactly half coverage), and a pixel entirely outside the rectangle's
@@ -80,6 +81,15 @@ described above and asserts the fully interior cell is alpha `255`, the two half
 straddling the hypotenuse are each alpha `128`, and the fully exterior cell is alpha `0` -
 together confirming the analytic rasterizer produces genuine, correctly graded fractional
 coverage along both an axis-aligned edge and a diagonal edge, not a hard-edged approximation.
+Separately, fills a shape with a genuinely curved edge (a quadratic Bezier from `(0, 0)` to
+`(4, 4)` with control point `(4, 0)`, implicitly closed by a straight chord) and asserts the sum
+of every rendered pixel's fractional coverage across the whole surface matches the curve's own
+analytic enclosed area (`2/3` of the control-point triangle's area, a standard Green's-theorem
+identity for a quadratic Bezier's bulge area, evaluating to `16/3`) - this exercises actual
+rendered pixel coverage end to end through `PathFiller` + `EdgeFlattener` + `ScanlineRasterizer`
+for a curved edge, which the straight-edged rectangle/triangle scenarios above do not, and which
+the `EdgeFlattener`-only tests (see below) do not either since they check flattened vertex
+positions in isolation rather than integrated fill coverage.
 
 #### CanvasNet-Drawing-PathFiller-FillRule: NonZero and EvenOdd Diverge on Self-Overlapping Geometry
 
@@ -170,17 +180,30 @@ Rasterizes a unit square offset by a known sub-pixel amount (for example `(0.5, 
 `(1.5, 1.5)` on a 2x2 surface, where every one of the four pixels is covered by exactly one
 quarter of its unit cell) directly via `ScanlineRasterizer.Fill`, and asserts every pixel's
 resulting alpha exactly equals the hand-computed expected value (`255 * 0.25 = 63.75`, which
-rounds to `64` under round-half-to-even).
+rounds to `64` under round-half-away-from-zero).
 
 #### CanvasNet-Drawing-PathFiller-ScanlineFillRuleResolution: Fill-Rule Resolution Formulas Are Verified Directly
 
-**Test**: `ScanlineRasterizer_Fill_RawWindingOfTwo_NonZeroClampsEvenOddFoldsToZero`
+**Tests**: `ScanlineRasterizer_Fill_RawWindingOfTwo_NonZeroClampsEvenOddFoldsToZero`,
+`ScanlineRasterizer_Fill_SubPixelOffsetDuplicatePolygons_NonZeroMatchesSingleShapeEvenOddCancelsToZero`,
+`ScanlineRasterizer_Fill_OverlappingSubPixelSquares_MatchesHandComputedPerRegionCoverage`
 
 Constructs geometry that produces an exact raw winding count of 2 at a given pixel (via
-overlapping same-wound polygons) and rasterizes it once under each fill rule, asserting `NonZero`
-resolves to fully opaque (`min(1, abs(2)) = 1`) and `EvenOdd` resolves to fully transparent
-(`2 mod 2 = 0`), directly exercising both resolution formulas against a known raw winding value
-rather than only the aggregate fill result.
+overlapping same-wound, pixel-aligned polygons) and rasterizes it once under each fill rule,
+asserting `NonZero` resolves to fully opaque and `EvenOdd` resolves to fully transparent, directly
+exercising both resolution formulas against a known raw winding value rather than only the
+aggregate fill result. Separately, two further tests specifically target the per-interval winding
+resolution algorithm at **sub-pixel** offsets, where the two fill rules must diverge from - and
+would not diverge under - a naive "sum every edge's own raw fractional coverage into one
+per-pixel scalar, then fold the aggregate" approach: filling two exactly coincident,
+sub-pixel-offset duplicate rectangles asserts `NonZero` reproduces the single shape's own true
+covered fraction (not a doubled-then-clamped value) while `EvenOdd` correctly cancels to fully
+transparent everywhere (not a spurious nonzero fold); filling two overlapping (not coincident),
+sub-pixel-offset squares asserts `NonZero` yields the union region's coverage fraction while
+`EvenOdd` yields only the singly-covered symmetric-difference region's coverage fraction, against
+independently hand-computed reference values for each covered pixel - both scenarios would
+produce numerically different (and wrong) results under the old aggregate-sum-then-fold
+algorithm, so together they are regression tests for the per-interval winding-resolution fix.
 
 #### CanvasNet-Drawing-PathFiller-ScanlineActiveEdgeList: Active-Edge-List Add/Remove Occurs at the Correct Rows
 
@@ -202,17 +225,25 @@ remains completely unmodified in both cases, without throwing.
 
 ### Floating-Point Tolerance
 
-Every hand-computed coverage value used in these tests (`0.25`, `0.5`, and `1.0` covered
-fractions) resolves, after compositing through `Surface`'s existing round-half-to-even byte
-rounding, to an exact expected byte value with no residual floating-point error observable at the
-byte level - so every assertion in `PathFillerTests`, `EdgeFlattenerTests`, and
-`ScanlineRasterizerTests` uses exact equality (`Assert.Equal` on `byte`/`Rgba32`/`Vector2`
-values), not an epsilon-based comparison. No test in this unit currently needs a floating-point
-tolerance; if a future test exercises a coverage fraction that does not resolve to an exact byte
-value, the appropriate tolerance would be the same `NearZeroDisplacement` epsilon (`1e-6f`) used
-internally by `ScanlineRasterizer` to classify near-horizontal/near-vertical edges, since the
-analytic accumulation itself is exact arithmetic up to ordinary floating-point rounding at that
-scale.
+Every hand-computed coverage value used in most of these tests (`0.25`, `0.5`, `0.75`, and `1.0`
+covered fractions) resolves, after compositing through `Surface`'s existing
+round-half-away-from-zero byte rounding, to an exact expected byte value with no residual
+floating-point error observable at the byte level - so the corresponding assertions in
+`PathFillerTests`, `EdgeFlattenerTests`, and `ScanlineRasterizerTests` use exact equality
+(`Assert.Equal` on `byte`/`Rgba32`/`Vector2` values), not an epsilon-based comparison. The one
+exception is `PathFiller_Fill_QuadraticCurveShape_TotalCoverageMatchesAnalyticBezierBulgeArea`
+(see _CanvasNet-Drawing-PathFiller-Antialiasing_ above), which sums fractional coverage across an
+entire flattened curved region rather than comparing a single pixel's exact byte value - its
+expected total (`16/3`) is compared using xUnit's `Assert.Equal(double, double, int precision)`
+overload (the established convention for tolerance-bearing floating-point comparisons elsewhere in
+this codebase, for example `SvgArcConverterTests`/`RectTests`), at a precision loose enough to
+absorb the curve-flattening polygon's small, tolerance-bounded deviation from the true analytic
+curve without masking any genuine coverage-computation defect. No other test in this unit
+currently needs a floating-point tolerance; if a future test exercises a coverage fraction that
+does not resolve to an exact byte value at the single-pixel level, the appropriate tolerance would
+be the same `NearZeroDisplacement` epsilon (`1e-6f`) used internally by `ScanlineRasterizer` to
+classify near-horizontal/near-vertical edges, since the analytic accumulation itself is exact
+arithmetic up to ordinary floating-point rounding at that scale.
 
 ### Acceptance Criteria
 

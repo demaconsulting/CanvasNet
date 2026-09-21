@@ -40,7 +40,7 @@ public class PathFillerTests
         Assert.Equal((byte)255, surface[2, 1].A);
 
         // Assert: edge columns (0, 3) at row 1 are antialiased to exactly half coverage
-        // (255 * 0.5 = 127.5, rounds to 128 under round-half-to-even, since 128 is even)
+        // (255 * 0.5 = 127.5, rounds to 128 under round-half-away-from-zero)
         Assert.Equal((byte)128, surface[0, 1].A);
         Assert.Equal((byte)128, surface[3, 1].A);
 
@@ -190,6 +190,51 @@ public class PathFillerTests
                 Assert.Equal(closedSurface[x, y], openSurface[x, y]);
             }
         }
+    }
+
+    /// <summary>
+    ///     Proves that a genuinely curved edge is correctly integrated end-to-end through
+    ///     <see cref="EdgeFlattener"/> and <see cref="ScanlineRasterizer"/> - not merely that the
+    ///     curve is flattened to the expected vertex positions (see
+    ///     <c>EdgeFlattenerTests</c> for that), but that the resulting rendered pixel coverage
+    ///     matches the curve's true analytic area. A quadratic Bezier curve from <c>(0, 0)</c> to
+    ///     <c>(4, 4)</c> with control point <c>(4, 0)</c>, implicitly closed by a straight edge
+    ///     back to <c>(0, 0)</c>, encloses an area with a well-known closed form: the area between
+    ///     a quadratic Bezier curve and its own chord equals exactly 2/3 of the area of the
+    ///     triangle formed by the curve's start, control, and end points (a standard identity
+    ///     obtained by applying Green's theorem to the curve's quadratic parametric form), and
+    ///     since the implicit closing edge here runs exactly along that chord, the closed shape's
+    ///     total area is exactly that bulge area: 2/3 * (0.5 * 4 * 4) = 16/3.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_QuadraticCurveShape_TotalCoverageMatchesAnalyticBezierBulgeArea()
+    {
+        // Arrange: a small surface comfortably enclosing the curve's bounding box, and a tight
+        // flatten tolerance so the flattened polygon's area is negligibly close to the true
+        // curve's analytic area
+        var surface = new Surface(6, 6);
+        var path = new PathBuilder()
+            .MoveTo(new Vector2(0, 0))
+            .QuadraticBezierTo(new Vector2(4, 0), new Vector2(4, 4))
+            .Build();
+        var color = new Rgba32(255, 255, 255, 255);
+
+        // Act
+        PathFiller.Fill(surface, path, color, flattenTolerance: 0.001f);
+
+        // Sum every pixel's fractional coverage (alpha / 255) across the whole surface - this
+        // exercises the actual rendered pixel output, not just the flattened vertex positions
+        double totalCoverage = 0;
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                totalCoverage += surface[x, y].A / 255.0;
+            }
+        }
+
+        // Assert: the rasterized total coverage matches the analytic Bezier bulge area (16/3)
+        Assert.Equal(16.0 / 3.0, totalCoverage, 1);
     }
 
     /// <summary>

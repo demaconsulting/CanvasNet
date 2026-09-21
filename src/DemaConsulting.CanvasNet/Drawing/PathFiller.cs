@@ -1,3 +1,4 @@
+using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Geometry;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
@@ -29,7 +30,9 @@ public static class PathFiller
     ///     Thrown when <paramref name="surface"/> or <paramref name="path"/> is <see langword="null"/>.
     /// </exception>
     /// <exception cref="ArgumentOutOfRangeException">
-    ///     Thrown when <paramref name="flattenTolerance"/> is less than or equal to zero.
+    ///     Thrown when <paramref name="flattenTolerance"/> is not a finite value greater than
+    ///     zero (this includes <see cref="float.NaN"/> and either infinity, not only zero or
+    ///     negative values).
     /// </exception>
     /// <remarks>
     ///     <para>
@@ -50,6 +53,13 @@ public static class PathFiller
     ///     when <paramref name="path"/>'s bounding box does not overlap <paramref name="surface"/>'s
     ///     pixel extent at all.
     ///     </para>
+    ///     <para>
+    ///     <paramref name="path"/> is flattened via <see cref="EdgeFlattener.Flatten"/> exactly
+    ///     once: the resulting polygons' own vertices are reused both to compute the clip bounds
+    ///     below (rather than calling <see cref="Path.GetBounds"/>, which would independently
+    ///     re-flatten every curve a second time) and to rasterize. This avoids paying curve
+    ///     subdivision cost twice for the same path.
+    ///     </para>
     /// </remarks>
     public static void Fill(
         Surface surface,
@@ -61,13 +71,23 @@ public static class PathFiller
         ArgumentNullException.ThrowIfNull(surface);
         ArgumentNullException.ThrowIfNull(path);
 
-        if (flattenTolerance <= 0)
+        // Reject non-finite values (NaN or +/-Infinity), not only non-positive ones: NaN in
+        // particular compares false against every relational operator (including "<= 0"), so a
+        // naive non-positive check alone silently lets it through - which, left unchecked, later
+        // makes every BezierFlattening flatness comparison fail and forces the recursive curve
+        // subdivision to its maximum depth (allocating on the order of a million points) instead
+        // of failing fast here with the documented exception.
+        if (!float.IsFinite(flattenTolerance) || flattenTolerance <= 0)
         {
             throw new ArgumentOutOfRangeException(
-                nameof(flattenTolerance), flattenTolerance, "Tolerance must be greater than zero.");
+                nameof(flattenTolerance), flattenTolerance, "Tolerance must be a finite value greater than zero.");
         }
 
-        var pathBounds = path.GetBounds(flattenTolerance);
+        // Flatten once, then derive the clip bounds from the flattened polygons' own vertices
+        // (rather than calling Path.GetBounds(flattenTolerance), which would independently
+        // re-flatten every curve a second time) - see this method's remarks.
+        var polygons = EdgeFlattener.Flatten(path, flattenTolerance);
+        var pathBounds = GetPolygonBounds(polygons);
         var surfaceBounds = new Rect(0, 0, surface.Width, surface.Height);
         var clipBounds = Rect.Intersect(pathBounds, surfaceBounds);
         if (clipBounds.IsEmpty)
@@ -75,7 +95,30 @@ public static class PathFiller
             return;
         }
 
-        var polygons = EdgeFlattener.Flatten(path, flattenTolerance);
         ScanlineRasterizer.Fill(surface, polygons, color, fillRule, clipBounds);
+    }
+
+    /// <summary>
+    ///     Computes the axis-aligned bounding box enclosing every vertex of every already-flattened
+    ///     polygon in <paramref name="polygons"/>.
+    /// </summary>
+    /// <param name="polygons">The flattened polygons produced by <see cref="EdgeFlattener.Flatten"/>.</param>
+    /// <returns>
+    ///     The smallest axis-aligned rectangle enclosing every vertex, or <see cref="Rect.Empty"/>
+    ///     if <paramref name="polygons"/> contains no vertices at all (for example, an empty path).
+    /// </returns>
+    private static Rect GetPolygonBounds(IReadOnlyList<List<Vector2>> polygons)
+    {
+        var bounds = Rect.Empty;
+
+        foreach (var polygon in polygons)
+        {
+            foreach (var point in polygon)
+            {
+                bounds = bounds.Union(new Rect(point.X, point.Y, 0, 0));
+            }
+        }
+
+        return bounds;
     }
 }

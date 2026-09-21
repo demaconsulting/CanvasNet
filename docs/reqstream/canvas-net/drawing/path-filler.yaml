@@ -70,6 +70,7 @@ sections:
                 tests:
                   - PathFiller_Fill_AxisAlignedRectangleFractionalEdges_InteriorOpaqueEdgesAntialiased
                   - PathFiller_Fill_DiagonalTriangle_MatchesHandComputedCoverageGradient
+                  - PathFiller_Fill_QuadraticCurveShape_TotalCoverageMatchesAnalyticBezierBulgeArea
 
               - id: CanvasNet-Drawing-PathFiller-ImplicitClose
                 title: >-
