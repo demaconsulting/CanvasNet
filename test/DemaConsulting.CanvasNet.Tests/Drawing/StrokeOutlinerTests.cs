@@ -1,7 +1,8 @@
+using System.Linq;
 using System.Numerics;
 using DemaConsulting.CanvasNet.Drawing;
 
-// cspell:ignore Outliner
+// cspell:ignore Outliner underflows
 
 namespace DemaConsulting.CanvasNet.Tests.Drawing;
 
@@ -70,6 +71,65 @@ public class StrokeOutlinerTests
         Assert.DoesNotContain(new Vector2(10, 2), polygon);
         Assert.Contains(new Vector2(8, 2), polygon);
         Assert.Contains(new Vector2(10, 4), polygon);
+    }
+
+    /// <summary>
+    ///     Proves that a round join at an extreme stroke half-width (large enough that
+    ///     <c>flattenTolerance / radius</c> underflows float32 precision) still produces a
+    ///     genuinely curved (multi-segment) outline rather than silently degrading into the same
+    ///     straight chord a bevel join would produce.
+    /// </summary>
+    [Fact]
+    public void StrokeOutliner_Outline_RoundJoinAtExtremeScale_ProducesCurvedNotStraightJoin()
+    {
+        // Arrange: a sharp (~177 degree) turn so the round join's convex side sweeps a large
+        // angle, paired with a stroke half-width many orders of magnitude larger than the
+        // ~1.19e-7 relative float32 precision floor (so flattenTolerance / radius underflows to
+        // zero for any reasonable flattenTolerance).
+        var points = new List<Vector2> { new(0, 0), new(10, 0), new(0, 0.5f) };
+        const float extremeWidth = 2e13f;
+        var halfWidth = extremeWidth / 2f;
+        var roundStyle = new StrokeStyle(extremeWidth, join: LineJoin.Round);
+        var bevelStyle = new StrokeStyle(extremeWidth, join: LineJoin.Bevel);
+
+        // Act
+        var roundPolygon = Assert.Single(StrokeOutliner.Outline(points, isClosed: false, roundStyle, flattenTolerance: 0.25f));
+        var bevelPolygon = Assert.Single(StrokeOutliner.Outline(points, isClosed: false, bevelStyle, flattenTolerance: 0.25f));
+
+        // Assert: the round join must contribute at least one vertex that sits substantially away
+        // from every vertex the (straight-chord) bevel join produces at the same geometry and
+        // scale. A genuine multi-segment arc bulges far off the previous/next tangent-point chord
+        // (here, by nearly the full half-width), whereas a collapsed single-chord arc endpoint
+        // would land within float32 noise (~halfWidth * 1.2e-7) of the bevel join's own vertex.
+        // The threshold below sits comfortably between those two scales.
+        var maxDistanceFromBevel = roundPolygon
+            .Select(roundVertex => bevelPolygon.Min(bevelVertex => Vector2.Distance(roundVertex, bevelVertex)))
+            .Max();
+        Assert.True(
+            maxDistanceFromBevel > halfWidth * 0.1f,
+            $"Expected a round-join vertex more than {halfWidth * 0.1f} units from any bevel-join vertex " +
+            $"(found max {maxDistanceFromBevel}): a small distance indicates the flattenTolerance/radius " +
+            "underflow regression has returned and the round join collapsed to a single straight chord.");
+    }
+
+    /// <summary>
+    ///     Proves that the extreme-scale safety fallback does not change tessellation at ordinary,
+    ///     well-conditioned scales: a round-capped point stroke must still produce exactly the
+    ///     segment count implied by the flattening-tolerance formula.
+    /// </summary>
+    [Fact]
+    public void StrokeOutliner_Outline_RoundCapAtTypicalScale_MatchesExpectedSegmentCount()
+    {
+        // Arrange: with a half-width of 2 and a flattening tolerance of 0.25, the tolerance-based
+        // formula yields a maximum chord angle of roughly 1.010465 radians, which requires
+        // exactly 7 segments to sweep a full circle within tolerance.
+        var style = new StrokeStyle(4f, cap: LineCap.Round);
+
+        // Act
+        var polygon = Assert.Single(StrokeOutliner.Outline([new Vector2(0, 0)], isClosed: false, style, flattenTolerance: 0.25f));
+
+        // Assert
+        Assert.Equal(7, polygon.Count);
     }
 
     private static float GetSignedArea(IReadOnlyList<Vector2> points)

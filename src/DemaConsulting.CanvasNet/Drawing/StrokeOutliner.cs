@@ -1,6 +1,6 @@
 using System.Numerics;
 
-// cspell:ignore Outliner outliner
+// cspell:ignore Outliner outliner underflows underflowed
 
 namespace DemaConsulting.CanvasNet.Drawing;
 
@@ -545,9 +545,29 @@ internal static class StrokeOutliner
     }
 
     /// <summary>
+    ///     The angle (in radians) swept by a single segment when falling back to the
+    ///     angle-based minimum segment count heuristic (see <see cref="GetArcSegmentCount"/>).
+    /// </summary>
+    private const float FallbackSegmentAngle = MathF.PI / 2f;
+
+    /// <summary>
     ///     Computes the number of straight segments needed to keep an arc's sagitta within the
     ///     requested flattening tolerance.
     /// </summary>
+    /// <remarks>
+    ///     At sufficiently large <paramref name="radius"/> (or sufficiently small
+    ///     <paramref name="flattenTolerance"/>), <c>flattenTolerance / radius</c> underflows
+    ///     float32 precision (below ~1.19e-7), which would make <c>1f - flattenTolerance / radius</c>
+    ///     round to exactly <c>1.0f</c> and <see cref="MathF.Acos(float)"/> return <c>0</c>. Rather
+    ///     than let that precision loss silently collapse the arc to a single straight chord, this
+    ///     method falls back to a conservative angle-based minimum segment count (one segment per
+    ///     <see cref="FallbackSegmentAngle"/> radians of sweep) so round joins/caps always produce a
+    ///     genuinely curved outline for any valid, finite radius and sweep. This mirrors the
+    ///     established convention (see
+    ///     <see cref="DemaConsulting.CanvasNet.Geometry.BezierFlattening"/>'s
+    ///     <c>MaxRecursionDepth</c>) of explicitly bounding pathological-input behavior instead of
+    ///     degrading silently.
+    /// </remarks>
     private static int GetArcSegmentCount(float radius, float sweepMagnitude, float flattenTolerance)
     {
         if (radius <= 0f || sweepMagnitude <= 0f)
@@ -555,9 +575,11 @@ internal static class StrokeOutliner
             return 1;
         }
 
+        var fallbackCount = Math.Max(1, (int)MathF.Ceiling(sweepMagnitude / FallbackSegmentAngle));
+
         if (flattenTolerance >= radius)
         {
-            return Math.Max(1, (int)MathF.Ceiling(sweepMagnitude / (MathF.PI / 2f)));
+            return fallbackCount;
         }
 
         var cosine = 1f - flattenTolerance / radius;
@@ -565,10 +587,13 @@ internal static class StrokeOutliner
         var maxAngle = 2f * MathF.Acos(cosine);
         if (!float.IsFinite(maxAngle) || maxAngle <= 0f)
         {
-            return 1;
+            // flattenTolerance / radius underflowed to (effectively) zero: the tolerance-based
+            // computation cannot distinguish this arc from a full circle, so fall back to the
+            // angle-based heuristic instead of returning 1 (a single straight chord).
+            return fallbackCount;
         }
 
-        return Math.Max(1, (int)MathF.Ceiling(sweepMagnitude / maxAngle));
+        return Math.Max(fallbackCount, (int)MathF.Ceiling(sweepMagnitude / maxAngle));
     }
 
     /// <summary>
