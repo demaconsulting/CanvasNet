@@ -311,3 +311,22 @@ subsystem's `PathFiller` unit, which calls `CompositeOverSpan` to composite each
 antialiased coverage directly — see _PathFiller Unit Design_ (`../drawing/path-filler.md`) for
 details of that dependency. `Surface` itself has no dependency on any codec, on `Drawing`, or on
 any other unit.
+
+### Internal workspace-reuse overload (allocation-reduction refactor)
+
+`ScanlineRasterizer.Fill` calls `CompositeOverSpan` once per rasterized row, and each call would
+otherwise rent (and, on return, clear and release) three fresh `RowChannelBuffers`/
+`CompositeWorkBuffers`-style scratch buffer sets from `ArrayPool<T>.Shared` - per-row churn that
+is unnecessary because every row of a single `ScanlineRasterizer.Fill` call composites a span of
+the same fixed width. To eliminate this, `Surface` exposes an `internal` nested
+`CompositeSpanWorkspace` type bundling one reusable set of these scratch buffers, sized once to a
+caller-chosen capacity, plus an `internal` `CompositeOverSpan(int, int, ReadOnlySpan<float>,
+Rgba32, CompositeSpanWorkspace)` overload that reuses the supplied workspace's buffers instead of
+renting its own. `ScanlineRasterizer.Fill` constructs one `CompositeSpanWorkspace` sized to its
+row width before its row loop, reuses it for every row's `CompositeOverSpan` call, and disposes it
+once after the loop - so the whole fill rents each scratch buffer exactly once, not once per row.
+Both overloads share the same private blend body (`CompositeOverSpanCore`); the only difference
+between them is where their `RowChannelBuffers`/`CompositeWorkBuffers` come from, so the blend
+math itself is never duplicated. This overload is `internal`, not `public`: it exposes an
+allocation-strategy implementation detail, not new externally observable behavior - for identical
+inputs it produces byte-for-byte identical output to the public overload.

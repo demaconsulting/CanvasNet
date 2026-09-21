@@ -18,16 +18,15 @@ sections:
             requirements:
               - id: CanvasNet-Drawing-PathFiller-Fill
                 title: >-
-                  The PathFiller class shall expose a static Fill(Surface, Path, Rgba32,
-                  FillRule, float) method that flattens the path's subpaths into polygons and
-                  rasterizes them onto the surface using the AGG/FreeType-style analytic
-                  signed-area/coverage-accumulation scanline algorithm, compositing each row's
-                  resulting coverage directly via Surface.CompositeOverSpan.
+                  The PathFiller class shall fill a closed path onto a surface with a solid
+                  color, rendering the path's interior (as resolved by its curves, subpaths,
+                  and the selected fill rule) with per-pixel coverage antialiasing, at the
+                  specified curve-flattening tolerance.
                 justification: |
-                  A single, explicit entry point that performs flattening and rasterization
-                  together lets callers fill a path in one call, while internally reusing the
-                  existing EdgeFlattener and ScanlineRasterizer helpers and the existing
-                  CompositeOverSpan compositing primitive without duplicating blend math.
+                  A single, explicit entry point that performs a complete path fill in one call
+                  lets callers render arbitrary path geometry - including curves and multiple
+                  subpaths - without needing to flatten geometry or resolve pixel coverage
+                  themselves.
                 tests:
                   - PathFiller_Fill_FullyCoveredInteriorPixel_ColorAndAlphaMatchOverOracle
 
@@ -174,15 +173,14 @@ sections:
 
               - id: CanvasNet-Drawing-PathFiller-ScanlineCoverageMath
                 title: >-
-                  The internal ScanlineRasterizer helper shall compute per-pixel signed
-                  coverage for a row via a prefix sum of per-column cover and area
-                  contributions from each active polygon edge, matching hand-computed exact
-                  cover/area results for a sub-pixel-offset test polygon.
+                  The internal ScanlineRasterizer helper shall compute per-pixel antialiased
+                  fill coverage that exactly matches an independently hand-computed geometric
+                  coverage reference for a sub-pixel-offset test polygon.
                 justification: |
-                  The analytic coverage algorithm's correctness rests entirely on the per-edge
-                  cover/area contribution formulas; verifying the accumulated per-pixel coverage
-                  against an independently hand-computed reference value is the only way to
-                  catch a subtle sign or off-by-one error in that arithmetic.
+                  Correct sub-pixel coverage is fundamental to antialiased fill fidelity;
+                  verifying computed coverage against an independently hand-computed reference
+                  value is the only way to catch a subtle rasterization error that an
+                  end-to-end visual check could miss.
                 tests:
                   - ScanlineRasterizer_Fill_SubPixelOffsetSquare_MatchesHandComputedCoverage
 

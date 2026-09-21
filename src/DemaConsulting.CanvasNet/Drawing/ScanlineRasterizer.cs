@@ -37,9 +37,23 @@ namespace DemaConsulting.CanvasNet.Drawing;
 ///     through it) - this is exactly the technique used by AGG's <c>scanline_u8</c>, FreeType's
 ///     "smooth" rasterizer, and <c>stb_truetype</c>. Every active edge restricted to the row
 ///     (<see cref="RowEdge"/>) is accumulated independently into these two shared arrays via
-///     <see cref="AccumulateRowEdge"/> - a single <c>O(edges)</c> pass with **no sorting and no
-///     reasoning about edges' relative x-order whatsoever**. The row is then swept left to right
-///     exactly once (<c>O(width)</c>): a running <c>accumulatedCover</c> total starts at zero, and
+///     <see cref="AccumulateRowEdge"/> - <b>no sorting and no reasoning about edges' relative
+///     x-order whatsoever</b>. Accumulating a single near-vertical edge
+///     (<see cref="AccumulateSingleColumn"/>) is <c>O(1)</c>, but accumulating a slanted edge
+///     (<see cref="AccumulateSlantedSpan"/>) walks every pixel column the edge's row-restricted
+///     segment crosses, so it costs <c>O(1 + columns crossed)</c> - up to <c>O(width)</c> for a
+///     single edge that is nearly horizontal within the row and spans the whole visible width.
+///     This entire accumulation phase therefore costs <c>O(edges + total columns crossed by every
+///     edge's row-restricted segment)</c>, not a flat <c>O(edges)</c>: it only approaches
+///     <c>O(edges)</c> for the common case of edges that are steep relative to the row height (few
+///     columns crossed per edge), and degrades toward <c>O(edges x width)</c> in the pathological
+///     case of many edges that are each nearly horizontal within a single row. This is the same
+///     trade-off AGG's own <c>rasterizer_cells_aa::line</c>/FreeType's <c>gray_render_line</c>
+///     accept: producing exact per-pixel coverage fundamentally requires visiting every pixel a
+///     slanted edge's row-restricted segment actually crosses, so this cost cannot be avoided
+///     without abandoning per-pixel coverage output altogether. The row is then swept left to
+///     right exactly once (<c>O(width)</c>): a running <c>accumulatedCover</c> total starts at
+///     zero, and
 ///     at each column <c>x</c>, <c>accumulatedCover</c> is first advanced by <c>cover[x]</c>
 ///     (folding this column's own vertical edge crossings into the running winding total), and
 ///     only then is the resolved raw signed value - <c>accumulatedCover + area[x]</c> (the
@@ -158,6 +172,13 @@ internal static class ScanlineRasterizer
         var rowEdges = new List<RowEdge>();
         var nextEdgeIndex = 0;
 
+        // Every row in this loop composites the same fixed-width "rowCoverage" span
+        // (clipMinX..clipMaxX), so a single workspace sized to that width can serve every row's
+        // CompositeOverSpan call - amortizing the per-row ArrayPool rent/return of
+        // Surface.CompositeOverSpan's scratch buffers across the whole fill instead of paying it
+        // once per rasterized row.
+        using var compositeWorkspace = new Surface.CompositeSpanWorkspace(width);
+
         for (var y = clipMinY; y < clipMaxY; y++)
         {
             var rowTop = (float)y;
@@ -235,7 +256,7 @@ internal static class ScanlineRasterizer
                 rowCoverage[i] = ResolveCoverage(total, fillRule);
             }
 
-            surface.CompositeOverSpan(y, clipMinX, rowCoverage, color);
+            surface.CompositeOverSpan(y, clipMinX, rowCoverage, color, compositeWorkspace);
         }
     }
 

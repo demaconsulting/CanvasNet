@@ -158,9 +158,20 @@ approximation converging only as the sample count grows.
    signed vertical extent contributed by every edge slice passing through column `x`) and `area[x]`
    (the exact signed sub-cell area of column `x` lying to the right of every edge slice passing
    through it) - via `AccumulateRowEdge` (reusing the same `AccumulateSingleColumn`/
-   `AccumulateSlantedSpan` per-edge geometry as a single-edge design would use). This is a single
-   `O(edges)` pass with **no sorting of edges by `x` and no pairing of edges into "inside gaps"
-   whatsoever**.
+   `AccumulateSlantedSpan` per-edge geometry as a single-edge design would use), with **no sorting
+   of edges by `x` and no pairing of edges into "inside gaps" whatsoever**. `AccumulateSingleColumn`
+   (near-vertical edges) is `O(1)` per edge, but `AccumulateSlantedSpan` (slanted edges) walks
+   every pixel column the edge's row-restricted segment crosses, costing `O(1 + columns crossed)`
+   - up to `O(clippedWidth)` for a single edge that is nearly horizontal within the row and spans
+   the whole visible width. So this phase costs `O(edges + total columns crossed by every edge's
+   row-restricted segment)`, not a flat `O(edges)`: it approaches `O(edges)` only for edges that
+   are steep relative to the row height, and degrades toward `O(edges * clippedWidth)` for many
+   edges that are each nearly horizontal within one row. This mirrors AGG's own
+   `rasterizer_cells_aa::line`/FreeType's `gray_render_line`, which pay the same per-crossed-pixel
+   cost for the same reason: exact per-pixel coverage output fundamentally requires visiting every
+   pixel a slanted edge's row-restricted segment actually crosses - there is no way to produce
+   antialiased per-pixel coverage without that visit, so this cost is accepted rather than
+   "fixed".
 4. **Single left-to-right sweep and fill-rule resolution**: a running `accumulatedCover` total
    starts at zero. At each column `x`, `accumulatedCover` is first advanced by this column's own
    `cover[x]` (folding this column's own vertical edge crossings into the running winding total),
@@ -170,9 +181,14 @@ approximation converging only as the sample count grows.
    `min(1, abs(total))`; `EvenOdd`: fold `total` into `[0, 2)` and reflect,
    `folded > 1 ? 2 - folded : folded`). The resulting
    per-pixel `float[]` coverage row for the row's clipped `[minX, maxX)` sub-range is composited
-   directly via `Surface.CompositeOverSpan(y, minX, coverage, color)` - no full-row or
-   full-surface coverage buffer is ever allocated; only the current row's `cover`/`area`/coverage
-   arrays exist at any time.
+   directly via the internal, workspace-reusing
+   `Surface.CompositeOverSpan(y, minX, coverage, color, workspace)` overload - a single
+   `Surface.CompositeSpanWorkspace` is constructed once, sized to the row width, before this
+   method's row loop begins, and reused for every row's composite call, so `CompositeOverSpan`'s
+   scratch buffers are rented from `ArrayPool<T>.Shared` exactly once per `Fill` call rather than
+   once per row (see _Surface Unit Design_, `../canvas/surface.md`, for the workspace type
+   itself) - no full-row or full-surface coverage buffer is ever allocated; only the current
+   row's `cover`/`area`/coverage arrays exist at any time.
    - **Why this handles crossing/self-intersecting edges correctly, not merely assumed absent**:
      a prior revision of this algorithm split each row into sub-intervals at every edge's own
      start/end `y`, sorted the edges spanning each sub-interval by `x` once, and relied on that
@@ -214,10 +230,14 @@ cross that row - an acceptable trade-off given `clipBounds` already restricts th
 the path's own bounds intersected with the surface, not the surface's full width.
 
 **Complexity**: edge-table construction is `O(edges log edges)` (it sorts the edge table by
-top-Y so the sweep can add edges via a single forward-only pointer); the sweep is `O(edges +
-total edge-row crossings)` for active-edge-list maintenance, plus `O(rows * clippedWidth)` for the
-dense per-row buffers - i.e. bounded by the clipped bounding box of the path, not the full
-surface, and never revisiting an edge for rows outside its own vertical extent.
+top-Y so the sweep can add edges via a single forward-only pointer); active-edge-list maintenance
+is `O(edges + total edge-row crossings)`; per-row cell accumulation is `O(edges + total columns
+crossed by every edge's row-restricted segment within that row)` (see the per-row cell
+accumulation step above for why this is not a flat `O(edges)`, and degrades toward
+`O(edges * clippedWidth)` only for the atypical case of many edges nearly horizontal within a
+single row); and the dense per-row buffers themselves cost `O(rows * clippedWidth)` regardless of
+edge count - i.e. every term is bounded by the clipped bounding box of the path, not the full
+surface, and no edge is ever revisited for rows outside its own vertical extent.
 
 These complexity properties (in particular, avoiding an `O(edges^2)` or `O(edges * rows)`
 blowup) are established by this design-level analysis and confirmed by code/design review of
@@ -239,7 +259,7 @@ method, before any bounds computation or rasterization begins (see above). `Edge
 `System.Numerics.Vector2` (in-box BCL type), the `Geometry` subsystem's `Path`, `Subpath`,
 `PathCommand`, `Rect`, `BezierFlattening`, and `SvgArcConverter` (via `EdgeFlattener`), and the
 `Canvas` subsystem's `Surface`, `Rgba32`, and `Surface.CompositeOverSpan` (via
-`ScanlineRasterizer`; see *Surface Unit Design*, `../canvas/surface.md`, for that method's own
+`ScanlineRasterizer`; see _Surface Unit Design_, `../canvas/surface.md`, for that method's own
 documentation). No new runtime NuGet package is introduced.
 
 ### Callers

@@ -610,21 +610,11 @@ public sealed class Surface
     /// </remarks>
     public void CompositeOverSpan(int y, int x, ReadOnlySpan<float> coverage, Rgba32 color)
     {
-        if (y < 0 || y >= Height)
-        {
-            throw new ArgumentOutOfRangeException(nameof(y), y, "Y must be within the surface height.");
-        }
-
-        if (x < 0 || x > Width)
-        {
-            throw new ArgumentOutOfRangeException(nameof(x), x, "X must be within the surface width.");
-        }
-
-        if (x + coverage.Length > Width)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(coverage), coverage.Length, "X plus the coverage length must not exceed the surface width.");
-        }
+        // The public entry point always rents its own scratch buffers for the single call - see
+        // CompositeOverSpan(int, int, ReadOnlySpan<float>, Rgba32, CompositeSpanWorkspace) for the
+        // amortized-workspace overload used by hot loops such as
+        // DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer.Fill.
+        ValidateCompositeOverSpanArgs(y, x, coverage.Length);
 
         var count = coverage.Length;
         if (count == 0)
@@ -636,6 +626,107 @@ public sealed class Surface
         using var fg = new RowChannelBuffers(count);
         using var work = new CompositeWorkBuffers(count);
 
+        CompositeOverSpanCore(y, x, coverage, color, bg, fg, work, count);
+    }
+
+    /// <summary>
+    ///     Amortized-workspace counterpart of <see cref="CompositeOverSpan(int, int, ReadOnlySpan{float}, Rgba32)"/>
+    ///     for callers - such as <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer.Fill"/> -
+    ///     that composite many equal-or-smaller-width spans in a tight per-row loop.
+    /// </summary>
+    /// <param name="y">The zero-based row to composite into. Must be within <c>[0, Height)</c>.</param>
+    /// <param name="x">
+    ///     The zero-based column at which the run starts. Must be within <c>[0, Width]</c> (equal
+    ///     to <see cref="Width"/> is permitted only when <paramref name="coverage"/> is empty).
+    /// </param>
+    /// <param name="coverage">
+    ///     One coverage value per pixel of the run, in left-to-right order. Same semantics as
+    ///     <see cref="CompositeOverSpan(int, int, ReadOnlySpan{float}, Rgba32)"/>.
+    /// </param>
+    /// <param name="color">The constant foreground color to composite over the run.</param>
+    /// <param name="workspace">
+    ///     A previously constructed <see cref="CompositeSpanWorkspace"/> whose
+    ///     <see cref="CompositeSpanWorkspace.Capacity"/> is at least <c>coverage.Length</c>. The
+    ///     caller owns this workspace's lifetime - typically allocating it once before, and
+    ///     disposing it once after, a whole row loop - so its rented scratch buffers are reused
+    ///     across every call instead of being rented and returned per call.
+    /// </param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown for the same reasons as
+    ///     <see cref="CompositeOverSpan(int, int, ReadOnlySpan{float}, Rgba32)"/>, or when
+    ///     <c>coverage.Length</c> exceeds <paramref name="workspace"/>'s capacity.
+    /// </exception>
+    /// <remarks>
+    ///     This overload is internal because it exposes an implementation-detail allocation
+    ///     strategy (buffer reuse), not new externally observable behavior: for a given
+    ///     <paramref name="y"/>/<paramref name="x"/>/<paramref name="coverage"/>/<paramref name="color"/>,
+    ///     it produces byte-for-byte identical surface output to the public overload - see
+    ///     <c>ScanlineRasterizerFillWorkspaceTests</c> for the equivalence proof.
+    /// </remarks>
+    internal void CompositeOverSpan(int y, int x, ReadOnlySpan<float> coverage, Rgba32 color, CompositeSpanWorkspace workspace)
+    {
+        ValidateCompositeOverSpanArgs(y, x, coverage.Length);
+        ArgumentNullException.ThrowIfNull(workspace);
+
+        var count = coverage.Length;
+        if (count == 0)
+        {
+            return;
+        }
+
+        if (count > workspace.Capacity)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(coverage), coverage.Length, "Coverage length must not exceed the workspace's capacity.");
+        }
+
+        CompositeOverSpanCore(y, x, coverage, color, workspace.Bg, workspace.Fg, workspace.Work, count);
+    }
+
+    /// <summary>
+    ///     Validates the <paramref name="y"/>/<paramref name="x"/>/<paramref name="coverageLength"/>
+    ///     arguments shared by both <c>CompositeOverSpan</c> overloads.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <paramref name="y"/> is outside <c>[0, Height)</c>, or when
+    ///     <paramref name="x"/> or <c>x + coverageLength</c> is outside <c>[0, Width]</c>.
+    /// </exception>
+    private void ValidateCompositeOverSpanArgs(int y, int x, int coverageLength)
+    {
+        if (y < 0 || y >= Height)
+        {
+            throw new ArgumentOutOfRangeException(nameof(y), y, "Y must be within the surface height.");
+        }
+
+        if (x < 0 || x > Width)
+        {
+            throw new ArgumentOutOfRangeException(nameof(x), x, "X must be within the surface width.");
+        }
+
+        // Compare without computing "x + coverageLength": that sum can overflow a positive x
+        // with an enormous coverageLength, wrapping negative and bypassing this check entirely.
+        // "Width - x" cannot itself overflow because the check above already guarantees
+        // "x <= Width", so "Width - x >= 0" always holds here.
+        if (coverageLength > Width - x)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(coverageLength), coverageLength, "X plus the coverage length must not exceed the surface width.");
+        }
+    }
+
+    /// <summary>
+    ///     Shared blend body for both <c>CompositeOverSpan</c> overloads: reads the background
+    ///     row via <see cref="DeinterleaveRow"/>, populates a per-pixel-coverage-scaled-alpha
+    ///     foreground from <paramref name="color"/>, blends via the shared
+    ///     <see cref="CompositeOverRow"/> pipeline, and writes the result back into the surface
+    ///     via <see cref="ReinterleaveRow"/>. Extracted so the buffer-provenance decision
+    ///     (freshly rented vs. reused workspace) is the only difference between the two
+    ///     public/internal entry points - the blend math itself is never duplicated.
+    /// </summary>
+    private void CompositeOverSpanCore(
+        int y, int x, ReadOnlySpan<float> coverage, Rgba32 color, RowChannelBuffers bg, RowChannelBuffers fg,
+        CompositeWorkBuffers work, int count)
+    {
         var bgRow = GetRowSpanBytes(y).Slice(x * BytesPerPixel, count * BytesPerPixel);
 
         DeinterleaveRow(bgRow, bg, count);
@@ -868,7 +959,7 @@ public sealed class Surface
     ///     reused across every row of a single bulk pixel operation, released together on
     ///     <see cref="Dispose"/>.
     /// </summary>
-    private sealed class RowChannelBuffers : IDisposable
+    internal sealed class RowChannelBuffers : IDisposable
     {
         public RowChannelBuffers(int pixelsPerRow)
         {
@@ -919,7 +1010,7 @@ public sealed class Surface
     ///     accumulate the intermediate and final results of the "over" compositing formula for a
     ///     single row, released together on <see cref="Dispose"/>.
     /// </summary>
-    private sealed class CompositeWorkBuffers : IDisposable
+    internal sealed class CompositeWorkBuffers : IDisposable
     {
         public CompositeWorkBuffers(int pixelsPerRow)
         {
@@ -962,6 +1053,74 @@ public sealed class Surface
             ArrayPool<float>.Shared.Return(FgAn, clearArray: true);
             ArrayPool<float>.Shared.Return(OneMinusFgA, clearArray: true);
             ArrayPool<float>.Shared.Return(Term, clearArray: true);
+        }
+    }
+
+    /// <summary>
+    ///     A reusable set of scratch buffers for the internal
+    ///     <see cref="CompositeOverSpan(int, int, ReadOnlySpan{float}, Rgba32, CompositeSpanWorkspace)"/>
+    ///     overload, so a caller that composites many spans of the same or smaller width in a
+    ///     tight loop - for example <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer.Fill"/>,
+    ///     once per rasterized row - can rent its <see cref="RowChannelBuffers"/>/
+    ///     <see cref="CompositeWorkBuffers"/> scratch arrays exactly once for the whole loop
+    ///     instead of once per row, eliminating that hot path's per-row
+    ///     <see cref="ArrayPool{T}"/> rent/return churn.
+    /// </summary>
+    /// <remarks>
+    ///     Internal (not public): this type exposes an implementation-detail allocation strategy,
+    ///     not new externally observable behavior. Construct one instance sized to the largest
+    ///     span width used within a loop, reuse it for every call in that loop, then dispose it
+    ///     once the loop completes.
+    /// </remarks>
+    internal sealed class CompositeSpanWorkspace : IDisposable
+    {
+        /// <summary>
+        ///     Initializes a workspace whose scratch buffers can serve any span of up to
+        ///     <paramref name="capacity"/> pixels.
+        /// </summary>
+        /// <param name="capacity">
+        ///     The largest coverage-span length this workspace will be asked to serve. Must be
+        ///     greater than zero.
+        /// </param>
+        /// <exception cref="ArgumentOutOfRangeException">
+        ///     Thrown when <paramref name="capacity"/> is less than or equal to zero.
+        /// </exception>
+        public CompositeSpanWorkspace(int capacity)
+        {
+            if (capacity <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(capacity), capacity, "Capacity must be greater than zero.");
+            }
+
+            Capacity = capacity;
+            Bg = new RowChannelBuffers(capacity);
+            Fg = new RowChannelBuffers(capacity);
+            Work = new CompositeWorkBuffers(capacity);
+        }
+
+        /// <summary>
+        ///     The largest coverage-span length this workspace's buffers can serve.
+        /// </summary>
+        public int Capacity { get; }
+
+        /// <summary>The reused background per-channel scratch buffers.</summary>
+        internal RowChannelBuffers Bg { get; }
+
+        /// <summary>The reused foreground per-channel scratch buffers.</summary>
+        internal RowChannelBuffers Fg { get; }
+
+        /// <summary>The reused blend intermediate/result scratch buffers.</summary>
+        internal CompositeWorkBuffers Work { get; }
+
+        /// <summary>
+        ///     Returns every rented scratch array to <see cref="ArrayPool{T}.Shared"/>. Must be
+        ///     called once the whole loop reusing this workspace has completed.
+        /// </summary>
+        public void Dispose()
+        {
+            Bg.Dispose();
+            Fg.Dispose();
+            Work.Dispose();
         }
     }
 }

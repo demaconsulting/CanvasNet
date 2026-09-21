@@ -289,6 +289,102 @@ public class ScanlineRasterizerTests
     }
 
     /// <summary>
+    ///     Proves that <c>AccumulateSlantedSpan</c>'s left-clip-boundary branch produces the
+    ///     analytically correct coverage for a slanted edge that starts outside the visible
+    ///     column range and ends inside it within the same row - not merely a polygon that is
+    ///     entirely inside or entirely outside the surface (the gap the existing tests left).
+    /// </summary>
+    /// <remarks>
+    ///     Arrange: a trapezoid with vertices <c>(-2,0)-(3,0)-(3,1)-(1,1)</c> on a 4x1 surface.
+    ///     Its bottom/top edges are horizontal (contribute no coverage); its right edge is the
+    ///     vertical line <c>x = 3</c>; its left edge slants from <c>(-2,0)</c> to <c>(1,1)</c>, so
+    ///     <c>x_left(y) = -2 + 3y</c> - starting at <c>x = -2</c> (left of the visible
+    ///     <c>[0, 4)</c> column range) and ending at <c>x = 1</c> (inside it), strictly crossing
+    ///     <c>x = 0</c> at <c>y = 2/3</c>. Independently hand-derived reference (plain calculus,
+    ///     not the algorithm under test): column 0's interior region is <c>{(x, y) : 0 &lt;= x &lt; 1,
+    ///     y &lt;= (x + 2) / 3}</c>, whose area is <c>integral_0^1 (x + 2) / 3 dx = 5/6</c> (alpha
+    ///     <c>255 * 5/6 = 212.5</c>, rounds to 213); columns 1 and 2 lie entirely to the right of
+    ///     the left edge's full extent (<c>x_left &lt;= 1</c> always) and to the left of the right
+    ///     edge (<c>x = 3</c>), so both are fully covered (alpha 255); column 3 lies entirely to
+    ///     the right of the right edge (<c>x &gt;= 3</c>), so it is fully uncovered (alpha 0).
+    /// </remarks>
+    [Fact]
+    public void ScanlineRasterizer_Fill_SlantedEdgeCrossingLeftClipBoundary_MatchesHandComputedCoverage()
+    {
+        // Arrange: left edge starts at x=-2 (outside the visible [0,4) column range) and ends at
+        // x=1 (inside it); right edge is the vertical line x=3, fully inside the visible range
+        var trapezoid = new List<Vector2>
+        {
+            new(-2, 0),
+            new(3, 0),
+            new(3, 1),
+            new(1, 1),
+            new(-2, 0)
+        };
+        var surface = new Surface(4, 1);
+        var color = new Rgba32(255, 255, 255, 255);
+        var clipBounds = new Rect(0, 0, 4, 1);
+
+        // Act
+        ScanlineRasterizer.Fill(surface, [trapezoid], color, FillRule.NonZero, clipBounds);
+
+        // Assert: matches the independently hand-derived areas above
+        Assert.Equal((byte)213, surface[0, 0].A);
+        Assert.Equal((byte)255, surface[1, 0].A);
+        Assert.Equal((byte)255, surface[2, 0].A);
+        Assert.Equal((byte)0, surface[3, 0].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>AccumulateSlantedSpan</c>'s right-clip-boundary branch produces the
+    ///     analytically correct coverage for a slanted edge that starts inside the visible column
+    ///     range and ends outside it within the same row - the mirror-image scenario of
+    ///     <see cref="ScanlineRasterizer_Fill_SlantedEdgeCrossingLeftClipBoundary_MatchesHandComputedCoverage"/>.
+    /// </summary>
+    /// <remarks>
+    ///     Arrange: the previous test's trapezoid reflected about <c>x = 2</c> (the visible
+    ///     <c>[0, 4)</c> range's center), giving vertices
+    ///     <c>(6,0)-(1,0)-(1,1)-(3,1)</c>. Its left edge is now the vertical line <c>x = 1</c>;
+    ///     its right edge slants from <c>(3,1)</c> to <c>(6,0)</c>, so
+    ///     <c>x_right(y) = 6 - 3y</c> - starting at <c>x = 6</c> (right of the visible range) and
+    ///     ending at <c>x = 3</c> (inside it), strictly crossing <c>x = 4</c> at <c>y = 2/3</c>.
+    ///     Independently hand-derived reference: column 3's interior region is
+    ///     <c>{(x, y) : 3 &lt;= x &lt; 4, y &lt;= (6 - x) / 3}</c>, whose area is
+    ///     <c>integral_3^4 (6 - x) / 3 dx = 5/6</c> (alpha 213, by the same calculation as the
+    ///     mirrored column 0 case above); columns 1 and 2 lie entirely to the right of the left
+    ///     edge (<c>x = 1</c>) and to the left of the right edge's full extent
+    ///     (<c>x_right &gt;= 3</c> always), so both are fully covered (alpha 255); column 0 lies
+    ///     entirely to the left of the left edge (<c>x &lt; 1</c>), so it is fully uncovered
+    ///     (alpha 0).
+    /// </remarks>
+    [Fact]
+    public void ScanlineRasterizer_Fill_SlantedEdgeCrossingRightClipBoundary_MatchesHandComputedCoverage()
+    {
+        // Arrange: right edge starts at x=6 (outside the visible [0,4) column range) and ends at
+        // x=3 (inside it); left edge is the vertical line x=1, fully inside the visible range
+        var trapezoid = new List<Vector2>
+        {
+            new(6, 0),
+            new(1, 0),
+            new(1, 1),
+            new(3, 1),
+            new(6, 0)
+        };
+        var surface = new Surface(4, 1);
+        var color = new Rgba32(255, 255, 255, 255);
+        var clipBounds = new Rect(0, 0, 4, 1);
+
+        // Act
+        ScanlineRasterizer.Fill(surface, [trapezoid], color, FillRule.NonZero, clipBounds);
+
+        // Assert: matches the independently hand-derived areas above
+        Assert.Equal((byte)0, surface[0, 0].A);
+        Assert.Equal((byte)255, surface[1, 0].A);
+        Assert.Equal((byte)255, surface[2, 0].A);
+        Assert.Equal((byte)213, surface[3, 0].A);
+    }
+
+    /// <summary>
     ///     Proves that Fill is a no-op for an empty polygon list.
     /// </summary>
     [Fact]

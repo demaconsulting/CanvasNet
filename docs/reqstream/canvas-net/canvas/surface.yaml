@@ -282,15 +282,15 @@ sections:
                   The Surface class shall composite a constant color "over" a horizontal run of
                   pixels within a single row of itself in place, scaling the color's effective alpha
                   at each pixel by a caller-supplied per-pixel coverage value in [0, 1], using
-                  standard Porter-Duff "over" alpha compositing, reusing the same per-channel
-                  compositing pipeline as every other CompositeOver overload.
+                  standard Porter-Duff "over" alpha compositing, such that a coverage of 0 leaves
+                  the pixel unchanged and a coverage of 1 produces the same result as compositing
+                  the color at its own alpha.
                 justification: |
                   This is the first partial-row compositing primitive on Surface: every other
                   CompositeOver overload always processes a full row or the whole surface. A
                   per-pixel-coverage caller (for example an antialiased fill rasterizer) needs to
                   composite an arbitrary sub-range of a single row directly, without allocating a
-                  full-row or full-surface buffer merely to hold mostly-untouched pixels, and without
-                  duplicating the existing blend math.
+                  full-row or full-surface buffer merely to hold mostly-untouched pixels.
                 tests:
                   - Surface_CompositeOverSpan_FullCoverage_MatchesCompositeOverColor
                   - Surface_CompositeOverSpan_ZeroCoverage_LeavesBackgroundUnchanged

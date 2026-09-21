@@ -11,7 +11,7 @@ dedicated unit tests for the internal `EdgeFlattener` and `ScanlineRasterizer` h
 to the test project via `InternalsVisibleTo`) that verify their narrower contracts in isolation.
 Expected antialiased coverage values throughout are **hand-computed analytically** from the
 geometry under test - the exact fraction of each pixel's unit cell (`[x, x+1) x [y, y+1)`, per
-the coordinate convention documented in _PathFiller Unit Design_, `../../design/canvas-net/
+the coordinate convention documented in _PathFiller Unit Design_, `../../../design/canvas-net/
 drawing/path-filler.md`) lying inside the filled region - independently of the implementation
 under test, not by re-deriving the same rasterization formula. Byte-level expected alpha values
 account for `Surface`'s `MidpointRounding.AwayFromZero` blend-pipeline convention where relevant
