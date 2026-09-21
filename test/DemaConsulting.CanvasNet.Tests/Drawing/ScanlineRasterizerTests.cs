@@ -319,71 +319,124 @@ public class ScanlineRasterizerTests
 
     /// <summary>
     ///     Proves the fix for the medium-severity active-edge-list bookkeeping bug: sweeping a
-    ///     tall region containing many long-lived edges (each spanning nearly the whole clip
-    ///     height, so they sit in the active-edge list for essentially every row of the sweep)
-    ///     completes within a bound calibrated against the fixed implementation, rather than the
-    ///     substantially higher time a full <c>activeEdges.RemoveAll(...)</c> re-scan of the
-    ///     *entire* active list on every single row costs on top of the unavoidable per-row
-    ///     rendering cost.
+    ///     tall region containing many edges that genuinely expire at staggered rows throughout
+    ///     the sweep (rather than all abandoned together at the very last row) completes within a
+    ///     bound calibrated against the fixed implementation, rather than the substantially higher
+    ///     time a full <c>activeEdges.RemoveAll(...)</c> re-scan of the *entire* active list on
+    ///     every single row costs on top of the unavoidable per-row rendering cost.
     /// </summary>
     /// <remarks>
     ///     <para>
-    ///         Unlike a variant that places every rectangle entirely below the visible clip region
-    ///         (which never adds anything to the active-edge list at all - the list stays empty
-    ///         for the whole sweep, so a full-re-scan regression has *nothing* to re-scan and the
-    ///         test would pass unchanged whether or not the bug is present), every rectangle here
-    ///         genuinely overlaps nearly every visible row, so the active-edge list actually grows
-    ///         to hold every rectangle's edges concurrently and stays that large for essentially
-    ///         the whole sweep - this is what makes <c>RemoveActiveEdge</c>/the expiration-bucket
-    ///         removal path (and, under the regression, the full-list re-scan replacing it) do real,
-    ///         non-trivial work on every row.
+    ///         <b>Edge construction actually exercises <c>RemoveActiveEdge</c>.</b> Every rectangle
+    ///         shares the same top row (0), but each rectangle's bottom row is staggered evenly
+    ///         across the *entire* clip height (rectangle <c>i</c> of <c>N</c> ends at row
+    ///         <c>(i + 1) * height / N</c>), so on essentially every row of the sweep at least one
+    ///         edge's bucketed expiration row is strictly less than <c>clipMaxY</c> and is
+    ///         genuinely removed via the expiration bucket/<c>RemoveActiveEdge</c> mid-sweep -
+    ///         unlike an earlier version of this test where every edge's <c>BottomY</c> exactly
+    ///         equalled <c>clipMaxY</c>, making the bucketed-removal condition
+    ///         (<c>expireRow &lt; clipMaxY</c>) always false and <c>RemoveActiveEdge</c> never
+    ///         actually invoked (edges were only ever abandoned unremoved at the end of the sweep).
+    ///         Despite every edge eventually expiring, the active-edge list still grows to, and
+    ///         stays near, its full size for most of the sweep (rectangle <c>i</c> remains active
+    ///         until row <c>(i + 1) * height / N</c>, so on average half of all rectangles are
+    ///         still active at any given row) - this is what makes both the genuine
+    ///         <c>RemoveActiveEdge</c> traffic *and* the unavoidable per-row rendering cost
+    ///         (<c>BuildRowEdges</c>/cell accumulation, which must visit every still-active edge
+    ///         regardless of removal mechanism) substantial on every row.
     ///     </para>
     ///     <para>
-    ///         A single fixed-size configuration (8,000 long-lived edges over 8,000 rows) is used
-    ///         rather than comparing two differently-scaled runs: empirically, the smaller
-    ///         reference configuration needed for a ratio-based comparison is fast enough (tens of
-    ///         milliseconds) that its own run-to-run timing noise (JIT/GC warmup effects that
-    ///         persist even after an unmeasured warmup call) rivals or exceeds the actual signal
-    ///         being measured, making a ratio derived from it unreliable. The single-configuration,
-    ///         median-of-seven measurement used here is far more stable in practice (observed
-    ///         spread well under 5% across repeated runs against the fixed implementation) while
-    ///         still cleanly separating the fixed implementation from the regression.
+    ///         <b>Why the measured separation is a modest, bounded multiplier, not an order of
+    ///         magnitude, and why that is expected.</b> Because the per-row rendering cost
+    ///         (<c>BuildRowEdges</c> plus cell accumulation) already visits every currently-active
+    ///         edge regardless of which removal mechanism is used, that unavoidable cost is
+    ///         identical for the fixed implementation and the regression; the regression's
+    ///         <c>RemoveAll</c> only adds *one more* <c>O(active-list size)</c> pass on top of the
+    ///         (already <c>O(active-list size)</c>-per-row) rendering passes - so the maximum
+    ///         possible overhead is bounded by roughly "one extra pass out of the several the
+    ///         render step already performs", not a difference in complexity *class*. This was
+    ///         verified empirically: across many edge-construction strategies tried while
+    ///         developing this test (no genuine expiry at all; genuine expiry staggered evenly
+    ///         across the whole sweep as used here; a bounded sliding window of concurrently-active
+    ///         edges; wildly different edge-to-row ratios from 300:1 down to 1:400) the regression
+    ///         consistently measured only around 30-45% slower than the fixed implementation in
+    ///         every configuration - genuine mid-sweep expiration exercises the correct code path
+    ///         (fixing the factual claim this test previously made) but does not, and structurally
+    ///         cannot, unlock a dramatically larger separation for *this specific* bug, because the
+    ///         bug is a constant-factor overhead rather than an asymptotic complexity regression.
+    ///     </para>
+    ///     <para>
+    ///         <b>Why an absolute wall-clock threshold is used instead of a same-run relative
+    ///         scaling-ratio assertion</b> (contrast with the two sibling tests below, and with
+    ///         <see cref="ScanlineRasterizer_Fill_ManyOverlappingRectangles_ScalesRoughlyLinearlyWithEdgeCount"/>).
+    ///         A scaling-ratio test asserts that doubling the input size does not more than
+    ///         roughly double (or quadruple, etc.) the elapsed time under *whatever implementation
+    ///         is currently present* - it is designed to catch a change in complexity *class*
+    ///         (e.g. O(n) becoming O(n^2)). Because this specific regression preserves the same
+    ///         complexity class as the fix (both are O(edges x rows) for this edge shape - see
+    ///         above) and only changes the constant multiplier, doubling the input size doubles
+    ///         the time under *both* the fixed implementation and the regression alike, so a
+    ///         same-run scaling-ratio comparison cannot distinguish them (this was confirmed
+    ///         empirically while developing this test: holding either edges or rows fixed and
+    ///         scaling the other, exactly as the two sibling tests below already do, reproduces
+    ///         the same ~30-45% gap at every scale rather than a growing one). Only a direct,
+    ///         single-configuration wall-clock comparison against the two implementations'
+    ///         independently measured ranges can distinguish a constant-factor regression like
+    ///         this one, so that is what this test uses, with as much headroom as the measured
+    ///         separation allows (see below) and a larger, more time-stable configuration than the
+    ///         prior version of this test used to widen the absolute margin.
     ///     </para>
     ///     <para>
     ///         Verified by temporarily reintroducing a full per-row re-scan of the whole
     ///         active-edge list (<c>activeEdges.RemoveAll(edge => edge.BottomY &lt;= rowTop)</c>,
     ///         replacing the bucketed removal) into <c>ScanlineRasterizer.Fill</c> and re-running
-    ///         this exact test across all three target frameworks: the fixed implementation
-    ///         consistently measured a median around 780ms (observed range roughly 760-805ms
-    ///         across repeated runs), while the regression consistently measured a median around
-    ///         1060ms (observed range roughly 1050-1085ms) - comfortably and reliably on opposite
-    ///         sides of the threshold below, with no observed overlap across many repeated runs.
+    ///         this exact test across all three target frameworks, including under this
+    ///         repository's own <c>build.ps1</c>, which runs all three target frameworks'
+    ///         test binaries concurrently on the same machine: the fixed implementation
+    ///         consistently measured a fastest-of-eleven time around 1,100-1,150ms, while the
+    ///         regression consistently measured a fastest-of-eleven time around 1,376-1,790ms -
+    ///         reliably and comfortably on opposite sides of the threshold below on the machine
+    ///         used for verification, even under that concurrent contention (a plain median-of-N
+    ///         was observed to falsely exceed the threshold under concurrent contention with the
+    ///         *fixed* implementation - see the "Act" comment below - which is why the minimum,
+    ///         not the median, is used). Because CI runners (across the 9 OS/target-framework
+    ///         combinations this project builds for) can differ from that machine, and from each
+    ///         other, by more than the internal run-to-run spread observed here, some residual
+    ///         flakiness risk from cross-machine baseline speed differences remains inherent to
+    ///         any fixed-threshold approach to a constant-factor regression like this one - it is
+    ///         not fully avoidable the way a scaling-ratio assertion would be, precisely because
+    ///         a scaling-ratio assertion cannot detect this particular bug at all (see above).
     ///     </para>
     /// </remarks>
     [Fact]
     public void ScanlineRasterizer_Fill_TallRegionWithManyLongLivedEdges_ScalesRoughlyLinearlyNotQuadratically()
     {
-        // Arrange: 8,000 nearly-full-height rectangles (each shifted by a fraction of a pixel so
-        // every rectangle contributes distinct, overlapping edges) swept over 8,000 rows on a
-        // 1-pixel-wide surface - every edge remains in the active-edge list for essentially the
-        // whole sweep, so RemoveActiveEdge/the expiration-bucket removal (or, under the
-        // regression, the full-list re-scan replacing it) does real, non-trivial work every row.
+        // Arrange: 32,000 rectangles, all starting at row 0 but each ending at a different,
+        // evenly-staggered row spread across the full 8,000-row clip height, swept on a
+        // 1-pixel-wide surface. On average half of all rectangles are concurrently active at any
+        // given row (so the active-edge list - and therefore both the unavoidable per-row
+        // rendering cost and, under the regression, the full-list re-scan cost - stays large for
+        // most of the sweep), while genuinely staggered BottomY values mean at least one edge's
+        // bucketed expiration is actually exercised via RemoveActiveEdge on essentially every row,
+        // rather than every edge being abandoned, unremoved, only at the very last row.
         const int width = 1;
         const int height = 8000;
-        const int rectangleCount = 8000;
+        const int rectangleCount = 32_000;
+        const float topY = 0f;
         var color = new Rgba32(1, 2, 3, 255);
         var clipBounds = new Rect(0, 0, width, height);
         var polygons = new List<List<Vector2>>(rectangleCount);
         for (var i = 0; i < rectangleCount; i++)
         {
             var offset = i * 0.0001f;
+            var bottomY = (i + 1) * (float)height / rectangleCount;
             polygons.Add(
             [
-                new Vector2(0.1f + offset, 0f),
-                new Vector2(width - 0.1f + offset, 0f),
-                new Vector2(width - 0.1f + offset, height),
-                new Vector2(0.1f + offset, height),
-                new Vector2(0.1f + offset, 0f)
+                new Vector2(0.1f + offset, topY),
+                new Vector2(width - 0.1f + offset, topY),
+                new Vector2(width - 0.1f + offset, bottomY),
+                new Vector2(0.1f + offset, bottomY),
+                new Vector2(0.1f + offset, topY)
             ]);
         }
 
@@ -391,8 +444,19 @@ public class ScanlineRasterizerTests
         // throughput rather than first-call compilation overhead.
         ScanlineRasterizer.Fill(new Surface(width, height), polygons, color, FillRule.NonZero, clipBounds);
 
-        // Act: median-of-seven wall-clock measurement, robust to one-off GC/scheduler hiccups.
-        var samples = new long[7];
+        // Act: minimum-of-eleven wall-clock measurement. Unlike a median, the minimum is immune to
+        // *any number* of samples being slowed down by transient contention (GC pauses, scheduler
+        // noise, or - as observed empirically when this project's three target frameworks' test
+        // binaries run concurrently, e.g. under this repository's own build.ps1 - other heavy
+        // tests executing at the same time on the same machine): contention can only ever make a
+        // sample slower than the implementation's true unhindered cost, never faster, so the
+        // fastest of many repeated samples is a robust, noise-resistant estimate of that true
+        // cost, whereas a median can still land on a contention-inflated value once enough of the
+        // samples happen to be affected (observed directly: under concurrent load the first few
+        // samples stayed in the fixed implementation's normal ~1,100-1,150ms range while later
+        // samples spiked to 1,300-1,600+ms, pulling a median-of-nine above threshold even though
+        // the implementation was unchanged).
+        var samples = new long[11];
         for (var i = 0; i < samples.Length; i++)
         {
             var surface = new Surface(width, height);
@@ -403,15 +467,16 @@ public class ScanlineRasterizerTests
         }
 
         Array.Sort(samples);
-        var median = samples[samples.Length / 2];
+        var fastest = samples[0];
 
-        // Assert: comfortably above the fixed implementation's observed ~760-805ms range and
-        // comfortably below the regression's observed ~1050-1085ms range (see remarks above).
+        // Assert: comfortably above the fixed implementation's observed ~1,100-1,150ms floor and
+        // comfortably below the regression's observed ~1,376-1,790ms floor (see remarks above).
         Assert.True(
-            median <= 950,
-            $"Expected the fixed active-edge-list bookkeeping's median time (~780ms observed) " +
-            $"rather than a full-list-re-scan regression's median time (~1060ms observed), but " +
-            $"measured a median of {median}ms across samples [{string.Join(", ", samples)}].");
+            fastest <= 1250,
+            $"Expected the fixed active-edge-list bookkeeping's fastest observed time (~1,100-" +
+            $"1,150ms observed) rather than a full-list-re-scan regression's fastest observed " +
+            $"time (~1,376-1,790ms observed), but the fastest of {samples.Length} samples was " +
+            $"{fastest}ms across samples [{string.Join(", ", samples)}].");
     }
 
     /// <summary>
