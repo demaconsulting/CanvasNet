@@ -29,6 +29,12 @@ sections:
               - CanvasNet-Drawing-PathFiller-ImplicitClose
               - CanvasNet-Drawing-PathFiller-Antialiasing
               - CanvasNet-Drawing-PathFiller-Holes
+              - CanvasNet-Drawing-PathFiller-EdgeFlattenerConversion
+              - CanvasNet-Drawing-PathFiller-EdgeFlattenerImplicitClose
+              - CanvasNet-Drawing-PathFiller-ScanlineCoverageMath
+              - CanvasNet-Drawing-PathFiller-ScanlineFillRuleResolution
+              - CanvasNet-Drawing-PathFiller-ScanlineActiveEdgeList
+              - CanvasNet-Drawing-PathFiller-ScanlineDegenerateInputNoOp
             tests:
               - CanvasNet_SystemIntegration_BuildAndFillTrianglePath_ReturnsExpectedPixels
 

@@ -110,6 +110,7 @@ sections:
         children:
           - CanvasNet-Canvas-CompositeOverSurface
           - CanvasNet-Canvas-CompositeOverColor
+          - CanvasNet-Canvas-CompositeOverSpan
         tests:
           - CanvasNet_SystemIntegration_CompositeColorOverSurface_ReturnsExpectedPixel
           - CanvasNet_SystemIntegration_CompositeSurfaceOverSurface_ReturnsExpectedPixel
@@ -126,6 +127,7 @@ sections:
         children:
           - CanvasNet-Canvas-CompositeOverSurfaceNull
           - CanvasNet-Canvas-CompositeOverSurfaceDimensionMismatch
+          - CanvasNet-Canvas-CompositeOverSpanValidation
         tests:
           - Surface_CompositeOverSurface_NullForeground_ThrowsArgumentNullException
           - Surface_CompositeOverSurface_WidthMismatch_ThrowsArgumentException
