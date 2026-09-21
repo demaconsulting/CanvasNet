@@ -242,6 +242,19 @@ then reuses the exact same private per-row compositing pipeline as `CompositeOve
 alpha is zero, reinterleave) applied to the `[x, x + coverage.Length)` sub-range of row `y`'s
 byte span — no blend-math is duplicated between the two overloads.
 
+After the shared blend pipeline runs, every column whose `coverage[i]` was zero or negative has
+its blended bytes discarded and replaced with the original, untouched background bytes read from
+the surface before compositing began. This restoration step exists because a zero/negative
+coverage column still flows through the shared pipeline (with its foreground alpha forced to
+zero by the rounding above), and that pipeline's `alpha == 0` degenerate-case handling
+unconditionally zeroes a pixel's color channels whenever its resulting alpha byte is zero. A
+fully transparent background pixel that legitimately holds nonzero RGB (for example, a
+premultiplied-adjacent transparent fringe pixel) would otherwise be corrupted to `(0, 0, 0, 0)`
+by that shared zero-alpha handling, even though the documented contract requires a zero/negative
+coverage column to be left completely untouched. Restoring the original bytes for exactly those
+columns preserves the documented "leave unchanged" contract without special-casing the shared
+blend pipeline itself.
+
 **Throws:**
 
 - `ArgumentOutOfRangeException` — when `y` is outside `[0, Height)`

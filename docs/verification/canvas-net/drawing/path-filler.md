@@ -249,6 +249,20 @@ after its bottom edge remain completely untouched, while the rectangle's own row
 filled - confirming each edge is added to, and removed from, the active edge list at exactly its
 own `TopY`/`BottomY`, not the surface's full height.
 
+#### CanvasNet-Drawing-PathFiller-ScanlineActiveEdgeRemovalPerformance: Active-Edge Removal Scales Roughly Linearly
+
+**Test**: `ScanlineRasterizer_Fill_TallRegionWithManyLongLivedEdges_ScalesRoughlyLinearlyNotQuadratically`
+
+Fills two batches of many overlapping, nearly-full-height rectangles onto a tall surface - one
+batch with 4x as many rectangles over 4x as many rows as the other - and asserts the larger
+batch's elapsed wall-clock time is no more than roughly 4x the smaller batch's (with a generous
+tolerance to absorb CI scheduling noise). This is a regression test for the active-edge-removal
+performance bug fixed by `RemoveActiveEdge`'s `O(1)` swap-remove (removing an edge by swapping it
+with the last active edge and popping, rather than a linear scan/shift of every active edge every
+row): without it, a taller region with many long-lived active edges would scale
+super-linearly - `O(edges x rows)` - as every row's removal work re-scanned the entire active
+edge list, instead of the intended `O(edges + rows)` total.
+
 #### CanvasNet-Drawing-PathFiller-ScanlineDegenerateInputNoOp: Degenerate Input Is a No-Op
 
 **Tests**: `ScanlineRasterizer_Fill_NoPolygons_NoOp`, `ScanlineRasterizer_Fill_DegeneratePolygon_ContributesZeroCoverage`

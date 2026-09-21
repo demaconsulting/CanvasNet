@@ -292,6 +292,23 @@ calls `CompositeOverSpan` with an empty coverage span starting exactly at `x == 
 this is accepted as a no-op rather than throwing, confirming the boundary case of a zero-length
 run at the surface's right edge is valid.
 
+#### CanvasNet-Canvas-Surface-CompositeOverSpanZeroCoveragePreservesBytes: Zero/Negative Coverage Preserves Original Bytes
+
+**Tests**: `Surface_CompositeOverSpan_ZeroCoverageOnTransparentPixelWithNonzeroColor_LeavesPixelUnchanged`,
+`Surface_CompositeOverSpan_NegativeCoverageOnTransparentPixelWithNonzeroColor_LeavesPixelUnchanged`,
+`Surface_CompositeOverSpan_MixedZeroAndFullCoverageRun_OnlyTouchesFullCoverageColumn`
+
+Composites over a fully transparent background pixel that legitimately carries nonzero RGB (for
+example, a premultiplied-adjacent transparent fringe pixel) with a coverage of exactly `0`, and
+asserts the pixel is byte-for-byte unchanged rather than zeroed out - a regression test for a
+zero-coverage pixel-corruption bug in which the shared blend pipeline's zero-alpha degenerate-case
+handling incorrectly overwrote such a pixel's untouched RGB bytes with `(0, 0, 0, 0)`. Separately,
+repeats the same assertion for a negative coverage value, confirming negative coverage is treated
+identically to zero coverage per the documented contract. Separately, composites a two-pixel run
+mixing a zero-coverage column (over a fully transparent, nonzero-RGB pixel) with a full-coverage
+column and asserts only the full-coverage column is modified, confirming the byte-restoration
+step applies independently per column rather than skipping the whole row.
+
 #### CanvasNet-Canvas-Surface-CompositeOverSpanValidation: CompositeOverSpan Rejects Out-of-Range Row/Column Arguments
 
 **Tests**: `Surface_CompositeOverSpan_NegativeY_ThrowsArgumentOutOfRangeException`,
