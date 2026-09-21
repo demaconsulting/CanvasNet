@@ -65,6 +65,7 @@ words:
   - luma
   - magick
   - mcus
+  - microarchitecture
   - misdecoded
   - nameof
   - nonzero
@@ -94,6 +95,7 @@ words:
   - Rgba
   - Reinterleave
   - reinterleaving
+  - rescan
   - Sarif
   - SARIF
   - sarifmark
