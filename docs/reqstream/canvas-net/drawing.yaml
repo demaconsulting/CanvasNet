@@ -98,6 +98,12 @@ sections:
               - CanvasNet-Drawing-PathStroker-DegenerateSubpaths
               - CanvasNet-Drawing-PathStroker-ClosedContours
               - CanvasNet-Drawing-PathStroker-ShellWinding
+              - CanvasNet-Drawing-PathStroker-DegenerateClosedContours
+              - CanvasNet-Drawing-PathStroker-OverlapUnion
+              - CanvasNet-Drawing-PathStroker-InnerCornerExactIntersection
+              - CanvasNet-Drawing-PathStroker-ConcaveJoinResolution
+              - CanvasNet-Drawing-PathStroker-DashRobustness
+              - CanvasNet-Drawing-PathStroker-NumericRobustness
             tests:
               - PathStroker_Stroke_HorizontalLineButtCap_FillsExactRectangleNoExtension
               - PathStroker_Stroke_HorizontalLineRoundCap_FillsRectanglePlusSemicircularEnds
