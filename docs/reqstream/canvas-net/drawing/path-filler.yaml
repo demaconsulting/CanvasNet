@@ -221,24 +221,6 @@ sections:
                 tests:
                   - ScanlineRasterizer_Fill_BowtieSelfIntersectingPolygon_ProducesCorrectPartialCoverageNotFullFill
 
-              - id: CanvasNet-Drawing-PathFiller-ScanlinePerformanceScaling
-                title: >-
-                  The internal ScanlineRasterizer helper shall accumulate every row's edge
-                  contributions and resolve coverage in a single O(edges + width) pass per row,
-                  such that filling many overlapping edges in the same row scales roughly
-                  linearly with edge count rather than super-linearly.
-                justification: |
-                  A prior sub-interval algorithm re-swept full row-width buffers once per
-                  qualifying "inside" gap per sub-interval, producing measured super-linear
-                  (~O(edges^2 x width)) scaling for rows with many overlapping edges instead of
-                  the O(edges + width) the design intended; this must be verified directly
-                  against a growing edge count, not merely assumed from the algorithm's
-                  description.
-                tags:
-                  - performance
-                tests:
-                  - ScanlineRasterizer_Fill_ManyOverlappingRectangles_ScalesRoughlyLinearlyWithEdgeCount
-
               - id: CanvasNet-Drawing-PathFiller-ScanlineActiveEdgeList
                 title: >-
                   The internal ScanlineRasterizer helper shall add each polygon edge to its

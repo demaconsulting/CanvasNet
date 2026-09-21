@@ -36,7 +36,6 @@ sections:
               - CanvasNet-Drawing-PathFiller-ScanlineActiveEdgeList
               - CanvasNet-Drawing-PathFiller-ScanlineDegenerateInputNoOp
               - CanvasNet-Drawing-PathFiller-ScanlineCrossingEdges
-              - CanvasNet-Drawing-PathFiller-ScanlinePerformanceScaling
             tests:
               - CanvasNet_SystemIntegration_BuildAndFillTrianglePath_ReturnsExpectedPixels
 

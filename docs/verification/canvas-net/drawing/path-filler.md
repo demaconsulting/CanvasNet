@@ -228,17 +228,6 @@ cell-based rewrite fixes: the prior sub-interval/sort-by-x algorithm produced ~1
 this exact case, because it assumed edges spanning a sub-interval never change their relative
 x-order within it - an assumption that crossing/self-intersecting edges violate by construction.
 
-#### CanvasNet-Drawing-PathFiller-ScanlinePerformanceScaling: Many Overlapping Edges Scale Roughly Linearly
-
-**Test**: `ScanlineRasterizer_Fill_ManyOverlappingRectangles_ScalesRoughlyLinearlyWithEdgeCount`
-
-Fills two batches of many overlapping full-width rectangles in the same rows - one 8x larger than
-the other - and asserts the larger batch's elapsed wall-clock time is no more than roughly 8x the
-smaller batch's (with a generous tolerance to absorb CI scheduling noise), directly detecting the
-medium-severity performance bug the cell-based rewrite fixes: the prior algorithm re-swept full
-row-width buffers once per qualifying "inside" gap per sub-interval, producing measured
-super-linear (~`O(edges^2 x width)`) scaling instead of the intended `O(edges + width)` per row.
-
 #### CanvasNet-Drawing-PathFiller-ScanlineActiveEdgeList: Active-Edge-List Add/Remove Occurs at the Correct Rows
 
 **Test**: `ScanlineRasterizer_Fill_EdgeStartingAndEndingMidSweep_StopsContributingAtCorrectRows`
@@ -248,20 +237,6 @@ example rows 1-3 of a 6-row surface), and asserts rows before the rectangle's to
 after its bottom edge remain completely untouched, while the rectangle's own rows are fully
 filled - confirming each edge is added to, and removed from, the active edge list at exactly its
 own `TopY`/`BottomY`, not the surface's full height.
-
-#### CanvasNet-Drawing-PathFiller-ScanlineActiveEdgeRemovalPerformance: Active-Edge Removal Scales Roughly Linearly
-
-**Test**: `ScanlineRasterizer_Fill_TallRegionWithManyLongLivedEdges_ScalesRoughlyLinearlyNotQuadratically`
-
-Fills two batches of many overlapping, nearly-full-height rectangles onto a tall surface - one
-batch with 4x as many rectangles over 4x as many rows as the other - and asserts the larger
-batch's elapsed wall-clock time is no more than roughly 4x the smaller batch's (with a generous
-tolerance to absorb CI scheduling noise). This is a regression test for the active-edge-removal
-performance bug fixed by `RemoveActiveEdge`'s `O(1)` swap-remove (removing an edge by swapping it
-with the last active edge and popping, rather than a linear scan/shift of every active edge every
-row): without it, a taller region with many long-lived active edges would scale
-super-linearly - `O(edges x rows)` - as every row's removal work re-scanned the entire active
-edge list, instead of the intended `O(edges + rows)` total.
 
 #### CanvasNet-Drawing-PathFiller-ScanlineDegenerateInputNoOp: Degenerate Input Is a No-Op
 

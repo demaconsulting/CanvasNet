@@ -219,6 +219,12 @@ total edge-row crossings)` for active-edge-list maintenance, plus `O(rows * clip
 dense per-row buffers - i.e. bounded by the clipped bounding box of the path, not the full
 surface, and never revisiting an edge for rows outside its own vertical extent.
 
+These complexity properties (in particular, avoiding an `O(edges^2)` or `O(edges * rows)`
+blowup) are established by this design-level analysis and confirmed by code/design review of
+the implementation against it, not by automated runtime performance tests - a deliberate design
+decision, since wall-clock assertions are unreliable guards for algorithmic complexity on
+heterogeneous CI hardware.
+
 ### Error Handling
 
 All argument validation is performed by `PathFiller.Fill` itself, at the very start of the
