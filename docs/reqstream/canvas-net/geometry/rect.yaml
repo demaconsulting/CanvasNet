@@ -75,15 +75,19 @@ sections:
                 title: >-
                   The Rect struct shall compute the overlapping region of two rectangles passed to
                   Intersect, as both an instance method and a static method, returning Empty when
-                  the rectangles are disjoint.
+                  the rectangles are disjoint, including when they merely touch along an edge with
+                  no actual overlapping area.
                 justification: |
                   Determining whether, and where, two rectangles overlap is required for clipping
-                  and hit-testing; returning the canonical Empty sentinel for disjoint input keeps
-                  the result composable with Union and IsEmpty rather than returning an arbitrary
-                  negative-size rectangle.
+                  and hit-testing; returning the canonical Empty sentinel for disjoint input,
+                  including the boundary case of edge-only contact, keeps the result composable
+                  with Union and IsEmpty rather than returning a zero-width/zero-height rectangle
+                  that is not itself recognized as Empty.
                 tests:
                   - Rect_Intersect_TwoOverlappingRectangles_ReturnsOverlapRegion
                   - Rect_Intersect_DisjointRectangles_ReturnsEmpty
+                  - Rect_Intersect_RectanglesTouchingAlongVerticalEdge_ReturnsEmpty
+                  - Rect_Intersect_RectanglesTouchingAlongHorizontalEdge_ReturnsEmpty
 
               - id: CanvasNet-Geometry-Rect-Transform
                 title: >-

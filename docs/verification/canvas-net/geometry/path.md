@@ -124,6 +124,18 @@ conservative-mode result while still containing the true curve.
 Builds a path with two disjoint subpaths at different locations, calls `GetBounds()`, and asserts
 the result exactly equals the hand-computed union of each subpath's own bounds.
 
+#### CanvasNet-Geometry-Path-Immutability: Subpaths and Commands Resist Downcast Mutation
+
+**Tests**: `Path_Subpaths_DowncastToIList_ThrowsNotSupportedExceptionOnMutation`,
+`Subpath_Commands_DowncastToIList_ThrowsNotSupportedExceptionOnMutation`
+
+Builds a `Path`, downcasts its `Subpaths` (respectively a `Subpath`'s `Commands`) from the
+compile-time `IReadOnlyList<T>` view to the mutable `IList<T>` interface that its underlying
+`ReadOnlyCollection<T>` still implements, and asserts every mutating member exercised (`Add`,
+`RemoveAt`, `Clear`) throws `NotSupportedException` regardless of the cast - proving `Path` and
+`Subpath` cannot be mutated in place even by a caller deliberately bypassing the read-only
+compile-time type.
+
 ### Acceptance Criteria
 
 A unit test run passes when every scenario above passes without error or unexpected exception.

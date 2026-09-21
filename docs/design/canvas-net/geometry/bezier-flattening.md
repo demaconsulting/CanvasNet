@@ -37,14 +37,27 @@ known), and every subsequent curve segment's `p0` is the same point as the previ
 `pEnd` (already the last point in `output`), so writing it again would produce a duplicate point
 at every segment boundary.
 
-**Algorithm**: the flatness test measures the perpendicular (cross-product-based, no square root)
-distance of the curve's interior control point(s) from the chord between its endpoints
-(`p0`-`p3` for cubic, `p0`-`p2` for quadratic). If every interior control point's distance is
-`<= tolerance`, the curve is accepted as flat enough and only its end point is appended. Otherwise,
-the curve is split at `t = 0.5` via de Casteljau's algorithm into two half-curves, and both halves
-are flattened recursively. A maximum recursion depth (20) guards against runaway recursion for
-pathological input; at the depth limit, the current sub-curve is accepted regardless of its
-flatness, guaranteeing the algorithm always terminates.
+**Algorithm**: the flatness test measures the distance of the curve's interior control point(s)
+from the finite chord *segment* between its endpoints (`p0`-`p3` for cubic, `p0`-`p2` for
+quadratic) - not the infinite line through that chord. Each control point is projected onto the
+chord and the projection parameter is clamped to `[0, 1]` before measuring distance to that
+clamped point, so a control point whose unclamped projection falls beyond a chord endpoint is
+correctly measured against that endpoint rather than being wrongly judged "flat" via its
+(potentially much smaller) distance to the infinite line. If every interior control point's
+distance is `<= tolerance`, the curve is accepted as flat enough and only its end point is
+appended. Otherwise, the curve is split at `t = 0.5` via de Casteljau's algorithm into two
+half-curves, and both halves are flattened recursively. A maximum recursion depth (20) guards
+against runaway recursion for pathological input; at the depth limit, the current sub-curve is
+accepted regardless of its flatness, guaranteeing the algorithm always terminates.
+
+**Bug found and fixed**: an earlier version measured distance to the *infinite line* through the
+chord (via a cross product divided by chord length) rather than the finite chord segment. A
+control point whose projection landed beyond a chord endpoint could then be wrongly judged "flat"
+
+- its distance to the infinite line small - even though the curve it belongs to travels far
+outside the flattened output's chord segment, producing a flattened polyline that silently
+violated the requested tolerance. Clamping the projection parameter to `[0, 1]` before measuring
+distance fixes this.
 
 **Throws:**
 
@@ -53,7 +66,7 @@ flatness, guaranteeing the algorithm always terminates.
 
 No other input throws, including coincident or collinear control points - these are simply
 degenerate curves that flatten to very few points (or terminate immediately, if already flat
-enough by the cross-product test).
+enough by the flatness test).
 
 ### Error Handling
 
@@ -69,5 +82,5 @@ package) and `System.Collections.Generic.IList<T>` from the .NET Base Class Libr
 
 `BezierFlattening` is a public API entry point, invoked externally by consumers of the CanvasNet
 package. It is also invoked internally by `Path.GetBounds`'s flattening mode (a positive
-`flattenTolerance`) - see _Path Unit Design_ (`path.md`). `BezierFlattening` has no dependency on
+`flattenTolerance`) - see *Path Unit Design* (`path.md`). `BezierFlattening` has no dependency on
 `Path`, `Rect`, or `SvgArcConverter`.

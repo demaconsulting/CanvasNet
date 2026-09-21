@@ -73,10 +73,11 @@ Returns the smallest rectangle enclosing both input rectangles, computed as
 #### Intersect(Rect) / Intersect(Rect, Rect)
 
 Returns the overlapping region of both input rectangles, computed as `(max(Left), max(Top))` to
-`(min(Right), min(Bottom))`. If the rectangles are disjoint on either axis (`right < left` or
-`bottom < top`), returns the canonical `Empty` sentinel rather than a rectangle with a
-non-canonical negative size. Available as both an instance method and a static method. Never
-throws.
+`(min(Right), min(Bottom))`. If the rectangles are disjoint on either axis, including the boundary
+case where they merely touch along an edge with no actual overlapping area (`right <= left` or
+`bottom <= top`), returns the canonical `Empty` sentinel rather than a rectangle with a
+non-canonical negative size or a zero-width/zero-height non-`Empty` rectangle. Available as both
+an instance method and a static method. Never throws.
 
 #### Transform(Matrix3x2 matrix)
 

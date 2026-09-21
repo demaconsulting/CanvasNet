@@ -27,6 +27,15 @@ rendering loop.
 | `Path`            | Sealed class: `Subpaths` (`IReadOnlyList<Subpath>`); no public constructor.   |
 | `PathBuilder`     | Sealed class: mutable, fluent; produces `Path` via `Build()`.                 |
 
+**Architectural decision: `Subpaths`/`Commands` are wrapped in `ReadOnlyCollection<T>`, not just
+typed as `IReadOnlyList<T>`.** `IReadOnlyList<T>` only hides mutating members from the
+compile-time API; the concrete `List<T>` instance backing it still implements `IList<T>`, so a
+caller could downcast `Path.Subpaths` or `Subpath.Commands` back to `IList<T>` and mutate a
+supposedly-immutable `Path`/`Subpath` in place. Wrapping the backing list in
+`System.Collections.ObjectModel.ReadOnlyCollection<T>` before exposing it closes that hole: its
+own mutating members throw `NotSupportedException` regardless of how the exposed reference is
+cast, so immutability is enforced at runtime, not merely documented at compile time.
+
 **Architectural decision: `MoveTo` is not a `PathCommandType`.** A path always begins a subpath
 with a "move", but representing it as an ordinary command (as SVG's own `M`/`m` path-data command
 does) would allow a `Subpath` with no move at all, or with a move anywhere other than first -
@@ -86,7 +95,10 @@ afterward: further commands (and further `Build()` calls) do not affect a previo
 #### PathBuilder.Clear()
 
 Resets the builder to the same empty state as a freshly constructed instance, so it can be reused
-to build further, unrelated paths without allocating a new builder instance.
+to build further, unrelated paths without allocating a new builder instance. The internal
+current-commands buffer is reset via its own `Clear()` method rather than being replaced with a
+new list, preserving its already-grown capacity across builds - so repeatedly building
+similarly-sized paths in a loop does not repeatedly reallocate that buffer.
 
 #### Path.Empty
 

@@ -186,7 +186,7 @@ public sealed class PathBuilder
     public void Clear()
     {
         _subpaths.Clear();
-        _currentCommands = [];
+        _currentCommands.Clear();
         _hasCurrentSubpath = false;
         _currentStart = default;
     }

@@ -183,7 +183,10 @@ public readonly struct Rect : IEquatable<Rect>
     ///     Returns the intersection of this rectangle and <paramref name="other"/>.
     /// </summary>
     /// <param name="other">The other rectangle to intersect with.</param>
-    /// <returns>The overlapping region, or <see cref="Empty"/> if the rectangles are disjoint.</returns>
+    /// <returns>
+    ///     The overlapping region, or <see cref="Empty"/> if the rectangles are disjoint or merely
+    ///     touch along an edge (zero-area contact is treated as no overlap).
+    /// </returns>
     public Rect Intersect(Rect other) => Intersect(this, other);
 
     /// <summary>
@@ -191,7 +194,10 @@ public readonly struct Rect : IEquatable<Rect>
     /// </summary>
     /// <param name="a">The first rectangle.</param>
     /// <param name="b">The second rectangle.</param>
-    /// <returns>The overlapping region, or <see cref="Empty"/> if the rectangles are disjoint.</returns>
+    /// <returns>
+    ///     The overlapping region, or <see cref="Empty"/> if the rectangles are disjoint or merely
+    ///     touch along an edge (zero-area contact is treated as no overlap).
+    /// </returns>
     public static Rect Intersect(Rect a, Rect b)
     {
         var left = Math.Max(a.Left, b.Left);
@@ -199,10 +205,12 @@ public readonly struct Rect : IEquatable<Rect>
         var right = Math.Min(a.Right, b.Right);
         var bottom = Math.Min(a.Bottom, b.Bottom);
 
-        // A non-positive extent on either axis means the rectangles do not overlap - return the
-        // canonical Empty sentinel rather than a rectangle with a nonsensical negative-but-not-
-        // canonical size
-        return right < left || bottom < top ? Empty : new Rect(left, top, right - left, bottom - top);
+        // A non-positive extent on either axis means the rectangles do not overlap - including
+        // the boundary case where they merely touch along an edge (right == left or
+        // bottom == top), which yields a zero-width or zero-height rectangle with no actual
+        // overlapping area. Return the canonical Empty sentinel rather than a rectangle with a
+        // nonsensical negative-but-not-canonical size (or a non-Empty rectangle with zero area).
+        return right <= left || bottom <= top ? Empty : new Rect(left, top, right - left, bottom - top);
     }
 
     /// <summary>

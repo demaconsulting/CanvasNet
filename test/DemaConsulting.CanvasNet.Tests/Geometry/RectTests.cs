@@ -141,6 +141,47 @@ public class RectTests
     }
 
     /// <summary>
+    ///     Proves that Intersect returns Rect.Empty for two rectangles that merely touch along an
+    ///     edge (share a boundary line but no interior area) on either axis, rather than a
+    ///     zero-width or zero-height non-Empty rectangle. Regression test for a bug where the
+    ///     disjoint comparisons used strict "&lt;" instead of "&lt;=", so edge-touching
+    ///     rectangles produced a zero-extent rectangle that was not recognized as Empty.
+    /// </summary>
+    [Fact]
+    public void Rect_Intersect_RectanglesTouchingAlongVerticalEdge_ReturnsEmpty()
+    {
+        // Arrange: b's left edge exactly equals a's right edge (touching, not overlapping)
+        var a = new Rect(0, 0, 10, 10);
+        var b = new Rect(10, 0, 10, 10);
+
+        // Act
+        var intersection = a.Intersect(b);
+
+        // Assert
+        Assert.Equal(Rect.Empty, intersection);
+        Assert.True(intersection.IsEmpty);
+    }
+
+    /// <summary>
+    ///     Proves that Intersect returns Rect.Empty for two rectangles that merely touch along a
+    ///     horizontal edge (b's top edge exactly equals a's bottom edge).
+    /// </summary>
+    [Fact]
+    public void Rect_Intersect_RectanglesTouchingAlongHorizontalEdge_ReturnsEmpty()
+    {
+        // Arrange: b's top edge exactly equals a's bottom edge (touching, not overlapping)
+        var a = new Rect(0, 0, 10, 10);
+        var b = new Rect(0, 10, 10, 10);
+
+        // Act
+        var intersection = a.Intersect(b);
+
+        // Assert
+        Assert.Equal(Rect.Empty, intersection);
+        Assert.True(intersection.IsEmpty);
+    }
+
+    /// <summary>
     ///     Proves that Transform under a pure translation matrix simply offsets the rectangle's
     ///     position, leaving its size unchanged.
     /// </summary>

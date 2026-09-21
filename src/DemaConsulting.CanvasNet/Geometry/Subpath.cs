@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Numerics;
 
 namespace DemaConsulting.CanvasNet.Geometry;
@@ -44,10 +45,16 @@ public readonly struct Subpath
     /// <param name="start">The point this subpath starts at.</param>
     /// <param name="commands">The ordered sequence of drawing commands following <paramref name="start"/>.</param>
     /// <param name="isClosed">Whether this subpath ends with an explicit close command.</param>
-    internal Subpath(Vector2 start, IReadOnlyList<PathCommand> commands, bool isClosed)
+    /// <remarks>
+    ///     Wraps <paramref name="commands"/> in a <see cref="ReadOnlyCollection{T}"/> rather than
+    ///     exposing it directly, so a caller cannot downcast <see cref="Commands"/> back to
+    ///     <see cref="IList{T}"/> and mutate it - see <see cref="Path"/>'s constructor remarks for
+    ///     the same rationale applied there.
+    /// </remarks>
+    internal Subpath(Vector2 start, IList<PathCommand> commands, bool isClosed)
     {
         Start = start;
-        Commands = commands;
+        Commands = new ReadOnlyCollection<PathCommand>(commands);
         IsClosed = isClosed;
     }
 }

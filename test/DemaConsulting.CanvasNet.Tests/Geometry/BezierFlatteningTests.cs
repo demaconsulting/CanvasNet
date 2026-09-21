@@ -212,6 +212,46 @@ public class BezierFlatteningTests
     }
 
     /// <summary>
+    ///     Proves that the flatness test measures distance to the finite chord *segment*, not the
+    ///     infinite line through it: a control point whose projection onto the chord falls beyond
+    ///     the chord's end (here, p1's projection lands well past p3) must still force
+    ///     subdivision if its distance to the finite segment exceeds tolerance, even though its
+    ///     distance to the infinite line is small. Regression test for a bug where such a control
+    ///     point was wrongly judged "flat", causing the flattened polyline to deviate from the
+    ///     true curve by far more than the requested tolerance.
+    /// </summary>
+    [Fact]
+    public void BezierFlattening_FlattenCubic_ControlPointProjectsBeyondChordEnd_StaysWithinTolerance()
+    {
+        // Arrange: p1's projection onto the p0-p3 chord falls beyond p3 (t > 1), so its distance
+        // to the infinite line through the chord (~0.4) is well within tolerance, but its
+        // distance to the finite chord segment (clamped to p3, ~10) is not - the true curve bulges
+        // past x=10 as a result (e.g. at t=0.4, the curve reaches about (10.72, 0.17), over 0.7
+        // units from the p0-p3 segment)
+        var p0 = new Vector2(0, 0);
+        var p1 = new Vector2(20, 0.4f);
+        var p2 = new Vector2(5, 0);
+        var p3 = new Vector2(10, 0);
+        const float tolerance = 0.5f;
+        var output = new List<Vector2> { p0 };
+
+        // Act
+        BezierFlattening.FlattenCubic(p0, p1, p2, p3, tolerance, output);
+
+        // Assert: the curve must have been subdivided (a single segment could not possibly stay
+        // within tolerance here), and every densely sampled true-curve point must lie within
+        // tolerance of the flattened polyline
+        Assert.True(output.Count > 2, $"Expected subdivision to occur, but only got {output.Count} output points");
+        for (var i = 0; i <= 1000; i++)
+        {
+            var t = i / 1000f;
+            var truePoint = EvaluateCubic(p0, p1, p2, p3, t);
+            var distance = DistanceToPolyline(truePoint, output);
+            Assert.True(distance <= tolerance * 2, $"t={t}: distance {distance} exceeded tolerance {tolerance}");
+        }
+    }
+
+    /// <summary>
     ///     Proves that a non-positive tolerance throws ArgumentOutOfRangeException for both
     ///     FlattenCubic and FlattenQuadratic.
     /// </summary>

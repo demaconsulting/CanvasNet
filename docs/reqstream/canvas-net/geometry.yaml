@@ -60,6 +60,7 @@ sections:
               - CanvasNet-Geometry-Path-BuildSnapshotIndependence
               - CanvasNet-Geometry-Path-BuildEmpty
               - CanvasNet-Geometry-Path-Clear
+              - CanvasNet-Geometry-Path-Immutability
               - CanvasNet-Geometry-Path-EmptySingleton
               - CanvasNet-Geometry-Path-GetBoundsConservative
               - CanvasNet-Geometry-Path-GetBoundsFlattened

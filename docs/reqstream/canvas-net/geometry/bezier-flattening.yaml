@@ -42,17 +42,22 @@ sections:
                 title: >-
                   The BezierFlattening class shall produce a flattened polyline whose points lie
                   within the requested tolerance of the true curve, for both FlattenCubic and
-                  FlattenQuadratic, using a flatness test based on the perpendicular
-                  (cross-product-based, no square root) distance of the interior control point(s)
-                  from the chord between the curve's endpoints.
+                  FlattenQuadratic, using a flatness test based on the distance of the interior
+                  control point(s) from the finite chord *segment* between the curve's endpoints
+                  (not the infinite line through it).
                 justification: |
                   The tolerance parameter is the entire contract callers rely on to trade accuracy
                   against point count; the flattened output must actually honor it, verified here
                   by densely sampling the true curve and checking every flattened point falls
-                  within a small multiple of the requested tolerance.
+                  within a small multiple of the requested tolerance. Measuring against the
+                  infinite line through the chord, rather than the finite chord segment, would
+                  wrongly accept a control point whose projection falls beyond a chord endpoint as
+                  "flat" even though the curve it belongs to travels well outside the chord
+                  segment.
                 tests:
                   - BezierFlattening_FlattenCubic_VariousTolerances_SampledCurvePointsWithinTolerance
                   - BezierFlattening_FlattenQuadratic_VariousTolerances_SampledCurvePointsWithinTolerance
+                  - BezierFlattening_FlattenCubic_ControlPointProjectsBeyondChordEnd_StaysWithinTolerance
 
               - id: CanvasNet-Geometry-BezierFlattening-MonotonicSegmentCount
                 title: >-

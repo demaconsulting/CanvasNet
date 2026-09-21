@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Numerics;
 
 namespace DemaConsulting.CanvasNet.Geometry;
@@ -23,7 +24,7 @@ public sealed class Path
     ///     <see cref="Rect"/>'s union-identity convention: an empty path contributes nothing to
     ///     any bounds it is combined with.
     /// </remarks>
-    public static readonly Path Empty = new([]);
+    public static readonly Path Empty = new(new List<Subpath>());
 
     /// <summary>
     ///     The ordered collection of independent subpaths making up this path.
@@ -36,9 +37,18 @@ public sealed class Path
     ///     responsible for guaranteeing every subpath is well-formed.
     /// </summary>
     /// <param name="subpaths">The ordered collection of independent subpaths.</param>
-    internal Path(IReadOnlyList<Subpath> subpaths)
+    /// <remarks>
+    ///     Wraps <paramref name="subpaths"/> in a <see cref="ReadOnlyCollection{T}"/> rather than
+    ///     exposing it directly: <see cref="IReadOnlyList{T}"/> only hides mutating members from
+    ///     the compile-time API, but a caller could still downcast <see cref="Subpaths"/> back to
+    ///     <see cref="IList{T}"/> (its underlying <see cref="List{T}"/> implements it) and mutate
+    ///     a supposedly-immutable <see cref="Path"/> in place. <see cref="ReadOnlyCollection{T}"/>
+    ///     closes that hole - its own mutating members throw <see cref="NotSupportedException"/>
+    ///     regardless of how it is cast.
+    /// </remarks>
+    internal Path(IList<Subpath> subpaths)
     {
-        Subpaths = subpaths;
+        Subpaths = new ReadOnlyCollection<Subpath>(subpaths);
     }
 
     /// <summary>

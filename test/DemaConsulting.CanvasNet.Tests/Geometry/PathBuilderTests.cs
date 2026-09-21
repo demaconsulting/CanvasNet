@@ -248,6 +248,54 @@ public class PathBuilderTests
     }
 
     /// <summary>
+    ///     Proves that Path is truly immutable: even though Subpaths is typed as
+    ///     IReadOnlyList&lt;Subpath&gt;, a caller cannot bypass that by casting it down to
+    ///     IList&lt;Subpath&gt; and mutating in place - the underlying collection throws
+    ///     NotSupportedException regardless of how it is cast. Regression test for a bug where
+    ///     Subpaths was backed by a plain List&lt;Subpath&gt;, which was mutable via exactly that
+    ///     downcast.
+    /// </summary>
+    [Fact]
+    public void Path_Subpaths_DowncastToIList_ThrowsNotSupportedExceptionOnMutation()
+    {
+        // Arrange
+        var builder = new PathBuilder();
+        builder.MoveTo(new Vector2(0, 0)).LineTo(new Vector2(1, 0));
+        var path = builder.Build();
+
+        // Act: cast the read-only view back down to a mutable interface
+        var mutable = Assert.IsAssignableFrom<IList<Subpath>>(path.Subpaths);
+
+        // Assert: every mutating member throws, regardless of the compile-time IReadOnlyList<T> type
+        Assert.Throws<NotSupportedException>(() => mutable.Add(default));
+        Assert.Throws<NotSupportedException>(() => mutable.RemoveAt(0));
+        Assert.Throws<NotSupportedException>(() => mutable.Clear());
+    }
+
+    /// <summary>
+    ///     Proves that Subpath is truly immutable in the same way as <see cref="GeoPath"/>: Commands
+    ///     cannot be mutated via a downcast to IList&lt;PathCommand&gt;. Regression test for a bug
+    ///     where Commands was backed by a plain List&lt;PathCommand&gt;.
+    /// </summary>
+    [Fact]
+    public void Subpath_Commands_DowncastToIList_ThrowsNotSupportedExceptionOnMutation()
+    {
+        // Arrange
+        var builder = new PathBuilder();
+        builder.MoveTo(new Vector2(0, 0)).LineTo(new Vector2(1, 0)).LineTo(new Vector2(2, 0));
+        var path = builder.Build();
+        var subpath = path.Subpaths[0];
+
+        // Act
+        var mutable = Assert.IsAssignableFrom<IList<PathCommand>>(subpath.Commands);
+
+        // Assert
+        Assert.Throws<NotSupportedException>(() => mutable.Add(default));
+        Assert.Throws<NotSupportedException>(() => mutable.RemoveAt(0));
+        Assert.Throws<NotSupportedException>(() => mutable.Clear());
+    }
+
+    /// <summary>
     ///     Proves that Path.Empty has zero subpaths and its GetBounds() returns Rect.Empty.
     /// </summary>
     [Fact]

@@ -135,6 +135,24 @@ sections:
                 tests:
                   - PathBuilder_Clear_AfterBuildingAPath_ResetsBuilderToEmptyState
 
+              - id: CanvasNet-Geometry-Path-Immutability
+                title: >-
+                  The Path and Subpath types shall prevent mutation of their exposed Subpaths and
+                  Commands collections even when a caller downcasts the exposed
+                  IReadOnlyList<T> reference back to IList<T>, throwing NotSupportedException
+                  from any such attempted mutation.
+                justification: |
+                  Path is documented as immutable, and Subpath's Commands must uphold the same
+                  guarantee; typing the exposed property as IReadOnlyList<T> alone only hides
+                  mutating members from the compile-time API, since the underlying List<T> still
+                  implements IList<T> and remains mutable through a downcast. Wrapping the backing
+                  list in ReadOnlyCollection<T> closes that hole at runtime, so a supposedly
+                  immutable Path/Subpath cannot be mutated in place regardless of how a caller
+                  casts the exposed reference.
+                tests:
+                  - Path_Subpaths_DowncastToIList_ThrowsNotSupportedExceptionOnMutation
+                  - Subpath_Commands_DowncastToIList_ThrowsNotSupportedExceptionOnMutation
+
               - id: CanvasNet-Geometry-Path-EmptySingleton
                 title: >-
                   The Path class shall expose a static Empty singleton with zero Subpaths, whose

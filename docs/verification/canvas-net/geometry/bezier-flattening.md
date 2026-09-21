@@ -43,12 +43,18 @@ curve's end point.
 #### CanvasNet-Geometry-BezierFlattening-ToleranceConvergence: Flattened Points Stay Within Tolerance
 
 **Tests**: `BezierFlattening_FlattenCubic_VariousTolerances_SampledCurvePointsWithinTolerance`,
-`BezierFlattening_FlattenQuadratic_VariousTolerances_SampledCurvePointsWithinTolerance`
+`BezierFlattening_FlattenQuadratic_VariousTolerances_SampledCurvePointsWithinTolerance`,
+`BezierFlattening_FlattenCubic_ControlPointProjectsBeyondChordEnd_StaysWithinTolerance`
 
 For a table of tolerances, flattens a representative curved cubic (and, separately, quadratic)
 Bezier curve, densely samples the true curve at 1000 points via an independently implemented
 evaluation formula, and asserts the distance from every sampled point to the nearest point on the
-flattened polyline is within a small multiple of the requested tolerance.
+flattened polyline is within a small multiple of the requested tolerance. A further regression
+test uses a cubic curve whose control point's projection onto the endpoint chord falls beyond the
+chord's end - so its distance to the infinite line through the chord is small, but its distance to
+the finite chord segment is not - and asserts the flattener still subdivides and stays within
+tolerance, guarding against a bug where the flatness test measured distance to the infinite line
+rather than the finite chord segment.
 
 #### CanvasNet-Geometry-BezierFlattening-MonotonicSegmentCount: Segment Count Is Monotonic
 

@@ -59,11 +59,15 @@ result exactly equals the hand-computed smallest enclosing rectangle.
 #### CanvasNet-Geometry-Rect-Intersect: Intersect of Overlapping and Disjoint Rectangles
 
 **Tests**: `Rect_Intersect_TwoOverlappingRectangles_ReturnsOverlapRegion`,
-`Rect_Intersect_DisjointRectangles_ReturnsEmpty`
+`Rect_Intersect_DisjointRectangles_ReturnsEmpty`,
+`Rect_Intersect_RectanglesTouchingAlongVerticalEdge_ReturnsEmpty`,
+`Rect_Intersect_RectanglesTouchingAlongHorizontalEdge_ReturnsEmpty`
 
 Intersects two overlapping rectangles and asserts the result exactly equals the hand-computed
 overlap region. Separately, intersects two disjoint rectangles and asserts the result exactly
-equals `Rect.Empty`.
+equals `Rect.Empty`. Two further regression tests intersect rectangles that merely touch along a
+vertical or horizontal edge (zero-width/zero-height overlap) and assert `Empty` is returned rather
+than a non-`Empty` zero-extent `Rect`, since edge-only contact contains no points.
 
 #### CanvasNet-Geometry-Rect-Transform: Transform Considers All Four Corners
 

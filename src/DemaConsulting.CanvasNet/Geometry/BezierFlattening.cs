@@ -98,10 +98,8 @@ public static class BezierFlattening
     /// </summary>
     private static void FlattenCubicRecursive(Vector2 p0, Vector2 p1, Vector2 p2, Vector2 p3, float tolerance, IList<Vector2> output, int depth)
     {
-        // Flatness test: the perpendicular distance of each interior control point from the
-        // chord p0-p3, computed via the 2D cross product (magnitude = |chord| * distance) to
-        // avoid a square root per candidate point; dividing by the chord length converts back to
-        // a true perpendicular distance for comparison against tolerance
+        // Flatness test: distance of each interior control point from the finite chord segment
+        // p0-p3 (not the infinite line through it) must be within tolerance
         if (depth >= MaxRecursionDepth || IsFlatEnough(p0, p1, p3, tolerance) && IsFlatEnough(p0, p2, p3, tolerance))
         {
             output.Add(p3);
@@ -143,27 +141,29 @@ public static class BezierFlattening
 
     /// <summary>
     ///     Tests whether control point <paramref name="control"/> lies within
-    ///     <paramref name="tolerance"/> of the chord from <paramref name="chordStart"/> to
-    ///     <paramref name="chordEnd"/>, measured as perpendicular distance.
+    ///     <paramref name="tolerance"/> of the finite chord segment from <paramref name="chordStart"/>
+    ///     to <paramref name="chordEnd"/>.
     /// </summary>
     private static bool IsFlatEnough(Vector2 chordStart, Vector2 control, Vector2 chordEnd, float tolerance)
     {
         var chord = chordEnd - chordStart;
         var toControl = control - chordStart;
 
-        // The magnitude of the 2D cross product equals |chord| * (perpendicular distance from
-        // control to the chord's infinite line); dividing by |chord| isolates that distance
-        // without a square root on the numerator
-        var chordLength = chord.Length();
-        if (chordLength <= float.Epsilon)
+        var chordLengthSquared = chord.LengthSquared();
+        if (chordLengthSquared <= float.Epsilon)
         {
-            // A zero-length chord (p0 == pEnd) has no well-defined perpendicular direction -
-            // fall back to the straight-line distance from the chord point to the control point
+            // A zero-length chord (p0 == pEnd) has no well-defined projection - fall back to the
+            // straight-line distance from the chord point to the control point
             return toControl.Length() <= tolerance;
         }
 
-        var cross = chord.X * toControl.Y - chord.Y * toControl.X;
-        var distance = Math.Abs(cross) / chordLength;
-        return distance <= tolerance;
+        // Distance to the finite chord *segment*, not the infinite line through it: project
+        // control onto the chord and clamp the parameter to [0, 1] before measuring distance to
+        // that clamped point. Measuring against the infinite line alone would accept a control
+        // point whose projection falls beyond chordEnd as "flat" even though the curve it belongs
+        // to travels well outside the [chordStart, chordEnd] segment.
+        var t = Math.Clamp(Vector2.Dot(toControl, chord) / chordLengthSquared, 0f, 1f);
+        var closest = chordStart + t * chord;
+        return Vector2.Distance(control, closest) <= tolerance;
     }
 }
