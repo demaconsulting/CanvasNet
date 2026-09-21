@@ -37,6 +37,86 @@ public class StrokeOutlinerTests
     }
 
     /// <summary>
+    ///     Proves that every independently-emitted OUTER outline shares the same fixed winding
+    ///     direction, regardless of the kind of geometry that produced it: an open-line stroke
+    ///     outline and an unrelated point-cap circle must wind the same way.
+    /// </summary>
+    /// <remarks>
+    ///     Before the winding-normalization fix, an open-line outline was always wound one way
+    ///     (clockwise, i.e. negative signed area) while a point-cap circle was always wound the
+    ///     other way (counterclockwise, i.e. positive signed area) - see
+    ///     the review thread that reported this defect. Two such outlines from the same
+    ///     <see cref="PathStroker.Stroke"/> call would then carry opposite signed winding under
+    ///     <see cref="FillRule.NonZero"/>, so an overlap between them would cancel to a hole
+    ///     instead of reinforcing (unioning). This test proves the two outline kinds now always
+    ///     agree in sign.
+    /// </remarks>
+    [Fact]
+    public void StrokeOutliner_Outline_OpenLineAndPointCapCircle_ShareSameOuterWinding()
+    {
+        // Arrange
+        var lineStyle = new StrokeStyle(2f, cap: LineCap.Round);
+        var linePoints = new List<Vector2> { new(2, 4), new(6, 4) };
+        var pointStyle = new StrokeStyle(6f, cap: LineCap.Round);
+        var pointPoints = new List<Vector2> { new(4, 4) };
+
+        // Act
+        var linePolygon = Assert.Single(StrokeOutliner.Outline(linePoints, isClosed: false, lineStyle, flattenTolerance: 0.25f));
+        var circlePolygon = Assert.Single(StrokeOutliner.Outline(pointPoints, isClosed: false, pointStyle, flattenTolerance: 0.25f));
+
+        // Assert
+        Assert.True(
+            GetSignedArea(linePolygon) * GetSignedArea(circlePolygon) > 0f,
+            "Expected the open-line outline and the point-cap circle to share the same signed " +
+            "winding direction, so overlapping strokes reinforce rather than cancel under " +
+            "FillRule.NonZero.");
+    }
+
+    /// <summary>
+    ///     Proves that a closed contour's OUTER ring normalizes to the same fixed winding
+    ///     direction whether the source contour is authored clockwise or counterclockwise.
+    /// </summary>
+    /// <remarks>
+    ///     Before the winding-normalization fix, the outer ring's winding followed whichever
+    ///     direction the source contour happened to be authored in, so a reversed-winding source
+    ///     contour's outer ring would end up wound oppositely from an equivalent
+    ///     forward-authored contour, and could cancel against it under
+    ///     <see cref="FillRule.NonZero"/> if the two overlapped.
+    /// </remarks>
+    [Fact]
+    public void StrokeOutliner_Outline_ClosedContourReversedSourceWinding_NormalizesOuterRingConsistently()
+    {
+        // Arrange: the same 4x4 square authored once counterclockwise and once clockwise.
+        var counterClockwise = new List<Vector2>
+        {
+            new(2, 2),
+            new(6, 2),
+            new(6, 6),
+            new(2, 6)
+        };
+        var clockwise = new List<Vector2>
+        {
+            new(2, 2),
+            new(2, 6),
+            new(6, 6),
+            new(6, 2)
+        };
+        var style = new StrokeStyle(2f);
+
+        // Act
+        var ccwPolygons = StrokeOutliner.Outline(counterClockwise, isClosed: true, style, flattenTolerance: 0.25f);
+        var cwPolygons = StrokeOutliner.Outline(clockwise, isClosed: true, style, flattenTolerance: 0.25f);
+
+        // Assert: both outer rings (index 0) share the same signed-winding direction.
+        Assert.Equal(2, ccwPolygons.Count);
+        Assert.Equal(2, cwPolygons.Count);
+        Assert.True(
+            GetSignedArea(ccwPolygons[0]) * GetSignedArea(cwPolygons[0]) > 0f,
+            "Expected both source-winding variants' outer rings to share the same signed " +
+            "winding direction.");
+    }
+
+    /// <summary>
     ///     Proves that a miter join within the configured limit emits the sharp intersection
     ///     vertex.
     /// </summary>
@@ -383,6 +463,51 @@ public class StrokeOutlinerTests
             Assert.InRange(vertex.X, 2f, 6f);
             Assert.InRange(vertex.Y, 2f, 6f);
         }
+    }
+
+    /// <summary>
+    ///     Proves that a segment spanning near-extreme float32 coordinates - far enough apart
+    ///     that the naive float32 <c>dx*dx + dy*dy</c> computation inside
+    ///     <see cref="Vector2.Length()"/> overflows to <see cref="float.PositiveInfinity"/> even
+    ///     though the true edge length remains comfortably finite - still produces a valid,
+    ///     non-degenerate stroke outline.
+    /// </summary>
+    /// <remarks>
+    ///     A segment from <c>(-1e20, 0)</c> to <c>(1e20, 0)</c> has a true length of <c>2e20</c>,
+    ///     itself well within float32's representable range (max ~3.4e38). But squaring that delta
+    ///     in float32 - <c>(2e20)^2 = 4e40</c> - overflows float32's range before the square root
+    ///     is ever taken, collapsing <c>Vector2.Length()</c> to <see cref="float.PositiveInfinity"/>
+    ///     for a perfectly valid, finite edge. Before the fix, dividing the (finite) delta by that
+    ///     infinite length produced a zero tangent/normal, which silently collapsed the segment's
+    ///     offset to zero and dropped the whole outline (fewer than 3 vertices after
+    ///     deduplication). This test proves the segment now offsets by the full half-width as
+    ///     normal, with no <c>NaN</c>/<c>Infinity</c> coordinates anywhere in the result.
+    /// </remarks>
+    [Fact]
+    public void StrokeOutliner_Outline_SegmentSpanningExtremeFloat32Coordinates_ProducesValidNonDegenerateOutline()
+    {
+        // Arrange: a horizontal segment whose endpoints are individually well within float32's
+        // representable range, but whose squared length overflows float32 before the fix.
+        var points = new List<Vector2> { new(-1e20f, 0f), new(1e20f, 0f) };
+        var style = new StrokeStyle(2f, cap: LineCap.Butt);
+
+        // Act
+        var polygons = StrokeOutliner.Outline(points, isClosed: false, style, flattenTolerance: 0.25f);
+
+        // Assert: exactly one valid quadrilateral outline, offset by the full half-width (1) on
+        // each side, with every coordinate finite.
+        var polygon = Assert.Single(polygons);
+        Assert.Equal(4, polygon.Count);
+        foreach (var vertex in polygon)
+        {
+            Assert.True(float.IsFinite(vertex.X), $"Expected a finite X coordinate but found {vertex.X}.");
+            Assert.True(float.IsFinite(vertex.Y), $"Expected a finite Y coordinate but found {vertex.Y}.");
+        }
+
+        Assert.Contains(polygon, vertex => MathF.Abs(vertex.Y - 1f) < 1e-6f);
+        Assert.Contains(polygon, vertex => MathF.Abs(vertex.Y - -1f) < 1e-6f);
+        Assert.Contains(polygon, vertex => MathF.Abs(vertex.X - -1e20f) < 1e13f);
+        Assert.Contains(polygon, vertex => MathF.Abs(vertex.X - 1e20f) < 1e13f);
     }
 
     private static float GetSignedArea(IReadOnlyList<Vector2> points)

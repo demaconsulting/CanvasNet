@@ -167,19 +167,20 @@ internal static class StrokeOutliner
         switch (cap)
         {
             case LineCap.Round:
-                return [CreateCirclePolygon(center, halfWidth, flattenTolerance)];
+                var circle = CreateCirclePolygon(center, halfWidth, flattenTolerance);
+                NormalizeOuterWinding(circle);
+                return [circle];
 
             case LineCap.Square:
-                return
-                [
-                    new List<Vector2>
-                    {
-                        new(center.X - halfWidth, center.Y - halfWidth),
-                        new(center.X + halfWidth, center.Y - halfWidth),
-                        new(center.X + halfWidth, center.Y + halfWidth),
-                        new(center.X - halfWidth, center.Y + halfWidth)
-                    }
-                ];
+                var square = new List<Vector2>
+                {
+                    new(center.X - halfWidth, center.Y - halfWidth),
+                    new(center.X + halfWidth, center.Y - halfWidth),
+                    new(center.X + halfWidth, center.Y + halfWidth),
+                    new(center.X - halfWidth, center.Y + halfWidth)
+                };
+                NormalizeOuterWinding(square);
+                return [square];
 
             case LineCap.Butt:
             default:
@@ -253,7 +254,13 @@ internal static class StrokeOutliner
         }
 
         RemoveTrailingDuplicateOfFirst(polygon);
-        return polygon.Count >= 3 ? [polygon] : [];
+        if (polygon.Count < 3)
+        {
+            return [];
+        }
+
+        NormalizeOuterWinding(polygon);
+        return [polygon];
     }
 
     /// <summary>
@@ -302,6 +309,17 @@ internal static class StrokeOutliner
             return [];
         }
 
+        // Normalize the outer ring's own winding to the same fixed direction used for every other
+        // independently-emitted outer outline (open-line outlines, point-cap circles/squares - see
+        // NormalizeOuterWinding), regardless of the source contour's authored orientation. Without
+        // this, a source contour authored in reversed order flips outerSideSign's resulting
+        // winding to follow it, so two overlapping stroked elements from the same Stroke call can
+        // end up with opposite signed winding under FillRule.NonZero and cancel to a hole in their
+        // overlap instead of reinforcing (unioning). The inner ring is intentionally NOT
+        // normalized here - it is fixed up below to remain OPPOSITE the (now-normalized) outer
+        // ring, which is the unrelated, already-correct hole-vs-shell invariant.
+        NormalizeOuterWinding(outerRing);
+
         var innerRing = BuildClosedSide(points, -outerSideSign, style, halfWidth, flattenTolerance, out var innerRingCollapsed);
 
         // When the stroke half-width exceeds the contour's local inradius somewhere along its
@@ -337,6 +355,21 @@ internal static class StrokeOutliner
     /// <summary>
     ///     Computes one tangent/normal pair per segment of an open or closed polyline.
     /// </summary>
+    /// <remarks>
+    ///     The edge delta and its length are computed in <see langword="double"/> precision
+    ///     rather than via <see cref="Vector2"/> subtraction and <see cref="Vector2.Length()"/>:
+    ///     both of those operate in float32, and for an edge spanning near-extreme float32
+    ///     coordinates (e.g. one endpoint near <c>-1e20</c> and the other near <c>1e20</c>), the
+    ///     float32 <c>dx*dx + dy*dy</c> computation overflows to
+    ///     <see cref="float.PositiveInfinity"/> well before the true length would, even though the
+    ///     same computation in double precision remains finite. That overflow would otherwise
+    ///     collapse the tangent/normal for a legitimately huge but finite edge to something
+    ///     degenerate (zero, <c>NaN</c>, or <c>Infinity</c>), silently producing no stroke area for
+    ///     that segment - the same class of float32-overflow bug already fixed for edge-length
+    ///     accumulation in <see cref="DashSplitter.BuildCumulativeLengths"/>. Normalizing in
+    ///     double before narrowing back to <see cref="Vector2"/> keeps the tangent/normal
+    ///     computation correct for any finite edge, however extreme its coordinates.
+    /// </remarks>
     private static (Vector2 Tangent, Vector2 Normal)[] BuildSegmentFrames(IReadOnlyList<Vector2> points, bool isClosed)
     {
         var segmentCount = isClosed ? points.Count : points.Count - 1;
@@ -345,15 +378,16 @@ internal static class StrokeOutliner
         {
             var start = points[i];
             var end = points[(i + 1) % points.Count];
-            var direction = end - start;
-            var length = direction.Length();
+            var dx = (double)end.X - start.X;
+            var dy = (double)end.Y - start.Y;
+            var length = Math.Sqrt(dx * dx + dy * dy);
             if (length <= NearZeroDistance)
             {
                 frames[i] = (Vector2.UnitX, new Vector2(0f, 1f));
                 continue;
             }
 
-            var tangent = direction / length;
+            var tangent = new Vector2((float)(dx / length), (float)(dy / length));
             frames[i] = (tangent, new Vector2(-tangent.Y, tangent.X));
         }
 
@@ -945,6 +979,45 @@ internal static class StrokeOutliner
         }
 
         return normalized;
+    }
+
+    /// <summary>
+    ///     Reverses <paramref name="ring"/> in place, if necessary, so every independently-emitted
+    ///     OUTER outline (an open-line outline, a point-cap circle or square, or a closed
+    ///     contour's outer shell ring) ends up with the same fixed winding direction, regardless
+    ///     of the source subpath's authored orientation.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="PathStroker.Stroke(DemaConsulting.CanvasNet.Geometry.Path, StrokeStyle, float)"/>
+    ///     emits every stroked subpath's outline(s) as independent closed subpaths in one output
+    ///     <see cref="DemaConsulting.CanvasNet.Geometry.Path"/>, documented to be filled with
+    ///     <see cref="FillRule.NonZero"/>. Under NonZero, two overlapping subpaths only reinforce
+    ///     (union) each other when they carry the SAME signed winding; if their windings happen to
+    ///     be opposite, their overlap's winding numbers cancel and NonZero incorrectly renders a
+    ///     hole there instead of solid fill. Before this normalization, an open-line stroke
+    ///     outline was always wound one way, point-cap circles/squares were always wound the other
+    ///     way, and a closed contour's outer ring followed whatever direction its source contour
+    ///     happened to be authored in - so two overlapping outer outlines from the very same
+    ///     <see cref="PathStroker.Stroke"/> call could easily end up with opposite winding purely
+    ///     by chance of which outline kind produced each one. Forcing every outer outline to the
+    ///     same fixed sign (positive, matching this file's <see cref="ComputeSignedArea"/>
+    ///     convention) eliminates that chance cancellation while leaving each outline's actual
+    ///     vertex positions - and therefore its filled shape - completely unchanged; reversing a
+    ///     polygon's vertex order only flips its signed winding, not its silhouette.
+    ///     <para>
+    ///     This must only ever be applied to an OUTER outline. A closed contour's INNER ring (the
+    ///     hole) must remain the OPPOSITE winding of its own outer ring - that asymmetry is the
+    ///     mechanism by which <see cref="FillRule.NonZero"/> renders the shell between the two
+    ///     rings rather than the solid disc of one ring - so callers fix the inner ring up
+    ///     relative to the (already-normalized) outer ring instead of normalizing it here.
+    ///     </para>
+    /// </remarks>
+    private static void NormalizeOuterWinding(List<Vector2> ring)
+    {
+        if (ComputeSignedArea(ring) < 0f)
+        {
+            ring.Reverse();
+        }
     }
 
     /// <summary>

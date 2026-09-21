@@ -62,6 +62,7 @@ limit, proving that the rendered result matches the bevel case rather than the u
 #### Closed Contours, Dashing, and Degenerate Subpaths
 
 - `PathStroker_Stroke_ClosedRectangle_FillsRingLeavingInteriorAndExteriorUnfilled`
+- `PathStroker_Stroke_OverlappingLineAndPointCapOutlines_FillsOverlapRegionSolid`
 - `PathStroker_Stroke_DashedLine_FillsOnlyOnSegmentsLeavingGapsUnfilled`
 - `PathStroker_Stroke_ZeroLengthSubpathRoundCap_FillsCircleOfRadiusHalfWidth`
 - `PathStroker_Stroke_ZeroLengthSubpathSquareCap_FillsSquareOfSideWidth`
@@ -70,9 +71,11 @@ limit, proving that the rendered result matches the bevel case rather than the u
 - `PathStroker_Stroke_EmptyPath_ReturnsEmptyPathNoOp`
 
 These scenarios verify the boundary conditions most likely to produce either missing geometry or
-wrong winding: closed contours must leave their interior hole unfilled; dashed lines must paint
-only visible runs; degenerate subpaths must follow cap semantics exactly; and an empty path must
-remain a no-op.
+wrong winding: closed contours must leave their interior hole unfilled; two independently-emitted
+outer outlines (an open-line outline and a point-cap circle) that overlap must render the overlap
+region solidly filled rather than as a winding-cancellation hole; dashed lines must paint only
+visible runs; degenerate subpaths must follow cap semantics exactly; and an empty path must remain
+a no-op.
 
 #### Public API Validation
 
@@ -111,14 +114,21 @@ public styling values are preserved exactly.
 - `DashSplitter_Split_AllZeroDashArray_TreatedAsSolid`
 - `DashSplitter_Split_FineDashPatternOnVeryLongPath_CompletesWithCorrectSegments`
 - `StrokeOutliner_Outline_ClosedSubpath_ProducesTwoCounterWoundRings`
+- `StrokeOutliner_Outline_OpenLineAndPointCapCircle_ShareSameOuterWinding`
+- `StrokeOutliner_Outline_ClosedContourReversedSourceWinding_NormalizesOuterRingConsistently`
+- `StrokeOutliner_Outline_SegmentSpanningExtremeFloat32Coordinates_ProducesValidNonDegenerateOutline`
 - `StrokeOutliner_Outline_MiterJoinWithinLimit_ProducesSharpVertex`
 - `StrokeOutliner_Outline_MiterJoinExceedingLimit_FallsBackToBevelVertex`
 - `StrokeOutliner_Outline_ClosedSquareHalfWidthExceedsInradius_ProducesNoInvalidHole`
 - `StrokeOutliner_Outline_ClosedSquareHalfWidthNearButBelowInradius_ProducesValidHole`
 
 These tests verify the intermediate geometry contracts that feed the public API: preserving
-open/closed state, applying SVG-style dash semantics, stitching seam-wrapping visible runs, and
-producing shell rings with opposite winding for `FillRule.NonZero`.
+open/closed state, applying SVG-style dash semantics, stitching seam-wrapping visible runs,
+normalizing every independently-emitted outer outline (open-line outlines, point-cap circles, and
+closed-contour outer rings) to a single consistent winding direction regardless of outline kind or
+source authoring order, tolerating segments spanning near-extreme float32 coordinates without
+overflowing to a degenerate outline, and producing shell rings with opposite winding for
+`FillRule.NonZero`.
 
 ### Complexity Verification Policy
 

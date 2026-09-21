@@ -165,6 +165,52 @@ public class PathStrokerTests
     }
 
     /// <summary>
+    ///     Proves that two independently-emitted OUTER stroke outlines from ONE
+    ///     <see cref="PathStroker.Stroke"/> call - an open-line outline and an unrelated
+    ///     point-cap circle - whose areas overlap render the overlap region as FULLY FILLED, not
+    ///     as an unfilled hole.
+    /// </summary>
+    /// <remarks>
+    ///     Before the winding-normalization fix, an open-line outline was always wound clockwise
+    ///     while a point-cap circle was always wound counterclockwise (see
+    ///     the review thread that reported this defect). <see cref="PathStroker.Stroke"/> emits each stroked
+    ///     subpath's outline as an independent closed subpath in one output <see cref="Path"/>,
+    ///     documented to be filled with <see cref="FillRule.NonZero"/>; when two such outlines
+    ///     overlap with opposite signed winding, their winding numbers in the overlap cancel to
+    ///     zero and <see cref="FillRule.NonZero"/> incorrectly renders a hole there instead of
+    ///     solid fill. This path strokes a horizontal line (producing a rectangle-shaped outline,
+    ///     ignoring its round-cap bulges) and, in a second subpath, a single point at the line's
+    ///     midpoint using the SAME <see cref="StrokeStyle.Width"/> (so the resulting cap circle's
+    ///     radius exactly equals the line's half-width) - the circle therefore sits entirely
+    ///     within the line's rectangle. Before the fix, the whole circle region cancels to an
+    ///     unfilled hole; after the fix, it reinforces and stays solidly filled.
+    /// </remarks>
+    [Fact]
+    public void PathStroker_Stroke_OverlappingLineAndPointCapOutlines_FillsOverlapRegionSolid()
+    {
+        // Arrange: a horizontal line from (2,4) to (10,4), plus a zero-length point subpath at
+        // its midpoint (6,4), both stroked with the same Width: 4 (half-width 2) Round-cap style.
+        // The point subpath's round cap becomes a radius-2 circle centered at (6,4), which is
+        // entirely enclosed within the line's rectangle-shaped outline (x:[2,10], y:[2,6]).
+        var path = new PathBuilder()
+            .MoveTo(new Vector2(2, 4))
+            .LineTo(new Vector2(10, 4))
+            .MoveTo(new Vector2(6, 4))
+            .LineTo(new Vector2(6, 4))
+            .Build();
+        var style = new StrokeStyle(4f, cap: LineCap.Round);
+
+        // Act
+        var surface = RenderStroke(path, style, 13, 8);
+
+        // Assert: the point-cap circle's center - deep inside both the circle and the
+        // surrounding line rectangle - must render fully opaque, not as an unfilled hole.
+        Assert.Equal((byte)255, surface[6, 4].A);
+        Assert.Equal((byte)255, surface[5, 3].A);
+        Assert.Equal((byte)255, surface[7, 4].A);
+    }
+
+    /// <summary>
     ///     Proves that a closed contour's inner (hole) corner is always the geometrically exact
     ///     offset-edge intersection, never the outer <see cref="LineJoin"/> style stylization,
     ///     using a Bevel join where the two constructions diverge sharply.

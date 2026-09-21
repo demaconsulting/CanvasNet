@@ -81,6 +81,20 @@ as a brand-new `Path`:
      side in reverse, and the start cap.
    - **Closed contours** produce two closed rings (outer and inner) wound in opposite directions
      so `FillRule.NonZero` fills only the shell between them.
+   - **Outer-outline winding normalization.** `Stroke` appends every stroked subpath's outline(s)
+     as independent closed subpaths in one output `Path`, and the whole result is documented to be
+     filled with `FillRule.NonZero`. Because NonZero only reinforces (unions) two overlapping
+     subpaths when they carry the *same* signed winding, every independently-emitted **outer**
+     outline - an open-line outline, a point-cap circle or square, or a closed contour's outer
+     shell ring - is normalized to one fixed winding direction regardless of the source subpath's
+     authored orientation. Without this, two overlapping outer outlines produced by the same
+     `Stroke` call could end up with opposite signed winding purely by chance of which outline kind
+     produced each one (or by the caller's authored point order for a closed contour), and their
+     overlap would cancel to an incorrect unfilled hole instead of solid fill. A closed contour's
+     **inner** ring is deliberately *not* normalized to this same fixed direction: it is fixed up
+     relative to its own (already-normalized) outer ring instead, so it always remains the
+     opposite winding of that ring - the unrelated mechanism that makes `FillRule.NonZero` render
+     the shell between the two rings rather than the solid disc of one ring.
    - **Miter joins** intersect the two offset lines and then compare the distance from the source
      vertex to that intersection against `MiterLimit * (Width / 2)`. This single offset line sits
      half the stroke width from the source vertex, so this distance is exactly half of the SVG
@@ -120,6 +134,23 @@ instances directly. Every emitted polygon becomes one closed subpath in the resu
   always assigned to the correct ring even as convexity flips along a concave contour. The two
   rings are then wound in opposite directions so `FillRule.NonZero` fills only the shell between
   them, regardless of how many vertices on each ring ended up locally reflex.
+- **Outer-outline winding normalization.** Every independently-emitted OUTER outline - an
+  open-line outline (`CreateOpenStrokePolygons`), a point-cap circle or square
+  (`CreatePointStrokePolygons`), or a closed contour's outer shell ring
+  (`CreateClosedStrokePolygons`) - is normalized to one fixed signed-winding direction via a shared
+  `NormalizeOuterWinding` helper before it is returned. Without this, an open-line outline was
+  always wound one way, a point-cap circle/square the other way, and a closed contour's outer ring
+  simply followed whichever direction its source contour happened to be authored in - so two
+  overlapping outer outlines from the same `PathStroker.Stroke` call could easily end up with
+  opposite signed winding purely by coincidence, which `FillRule.NonZero` would then cancel to an
+  incorrect unfilled hole in their overlap instead of reinforcing (unioning) them. Reversing a
+  polygon's vertex order only flips its signed winding, never its silhouette, so this
+  normalization changes no filled shape on its own - it only removes the accidental sign mismatch
+  between independently-produced outer outlines. A closed contour's inner (hole) ring is
+  deliberately excluded from this normalization: it is fixed up separately, immediately after, to
+  remain the *opposite* winding of its own (already-normalized) outer ring, which is the unrelated,
+  pre-existing mechanism that makes the shell between the two rings render instead of the solid
+  disc of one ring.
 - **Inner-ring collapse (half-width exceeding the local inradius).** The forced exact-edge
   intersections above are only valid while the stroke half-width stays within the contour's local
   inradius (the largest half-width for which the offset ring still nests inside the source
