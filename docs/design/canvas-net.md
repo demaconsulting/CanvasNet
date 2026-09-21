@@ -189,7 +189,8 @@ The system exposes the following public API to external consumers:
   (`FillRule.NonZero` by default, or `FillRule.EvenOdd`) and a curve-flattening tolerance
   (`0.25f` by default). No-ops if the path is empty or its bounds do not intersect the surface.
   Throws `ArgumentNullException` for a null `surface`/`path`, and
-  `ArgumentOutOfRangeException` for a non-finite or non-positive `flattenTolerance`.
+  `ArgumentOutOfRangeException` for an undefined `fillRule` value or a non-finite or
+  non-positive `flattenTolerance`.
 
 | Interface                        | Direction        | Format                         | Constraints                   |
 | -------------------------------- | ---------------- | ------------------------------ | ----------------------------- |
@@ -219,7 +220,7 @@ The system exposes the following public API to external consumers:
 | `Path.GetBounds(float)`          | Outbound         | Method call / `Rect` return    | None                          |
 | `BezierFlattening.Flatten*(...)` | Inbound/Outbound | Method call / list append      | `tolerance` greater than zero |
 | `SvgArcConverter.ToBeziers(...)` | Inbound/Outbound | Method call / list append      | None                          |
-| `PathFiller.Fill(...)`           | Inbound          | Method call                    | Non-null; tolerance > 0       |
+| `PathFiller.Fill(...)`           | Inbound          | Method call                    | Non-null; fillRule ok; tol>0  |
 
 ## Dependencies
 

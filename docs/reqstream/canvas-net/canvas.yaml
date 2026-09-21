@@ -314,10 +314,10 @@ sections:
               pixel by a caller-supplied per-pixel coverage value, using standard Porter-Duff
               "over" alpha compositing.
             justification: |
-              A per-pixel-coverage caller (for example an antialiased fill rasterizer in a future
-              Drawing subsystem) needs to composite an arbitrary sub-range of a single row
-              directly, without allocating a full-row or full-surface buffer merely to hold
-              mostly-untouched pixels.
+              A per-pixel-coverage caller (for example the Drawing subsystem's antialiased fill
+              rasterizer, which already consumes this method via `PathFiller.Fill`) needs to
+              composite an arbitrary sub-range of a single row directly, without allocating a
+              full-row or full-surface buffer merely to hold mostly-untouched pixels.
             children:
               - CanvasNet-Canvas-Surface-CompositeOverSpan
             tests:

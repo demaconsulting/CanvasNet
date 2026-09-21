@@ -117,13 +117,15 @@ sections:
 
       - id: CanvasNet-Lib-CanvasCompositeValidation
         title: >-
-          The library shall reject an invalid CompositeOver(Surface) call with
-          ArgumentNullException or ArgumentException.
+          The library shall reject an invalid CompositeOver(Surface) call, or an invalid
+          CompositeOverSpan call, with ArgumentNullException or ArgumentException.
         tags: [system]
         justification: |
           A null foreground, or a foreground whose dimensions do not match the target buffer,
-          cannot be composited; rejecting these immediately prevents an out-of-bounds or
-          otherwise ill-defined operation.
+          cannot be composited via CompositeOver(Surface); and a CompositeOverSpan call whose row
+          or run falls outside the buffer's bounds, or whose coverage buffer is null or the wrong
+          length, cannot be composited either. Rejecting these immediately prevents an
+          out-of-bounds or otherwise ill-defined operation.
         children:
           - CanvasNet-Canvas-CompositeOverSurfaceNull
           - CanvasNet-Canvas-CompositeOverSurfaceDimensionMismatch
@@ -762,8 +764,7 @@ sections:
         children:
           - CanvasNet-Drawing-PathFillNoOp
         tests:
-          - PathFiller_Fill_EmptyPath_NoOpLeavesSurfaceUnchanged
-          - PathFiller_Fill_PathFullyOutsideSurfaceBounds_NoOpLeavesSurfaceUnchanged
+          - CanvasNet_SystemIntegration_FillEmptyOrOutOfBoundsPath_NoOpLeavesSurfaceUnchanged
 
       - id: CanvasNet-Lib-DrawingPathFillValidation
         title: >-

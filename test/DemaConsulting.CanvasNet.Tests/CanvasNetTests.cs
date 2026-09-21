@@ -325,6 +325,40 @@ public class CanvasNetTests
     }
 
     /// <summary>
+    ///     Proves that the system silently no-ops, through PathFiller's public API, when filling
+    ///     an empty Path or a Path whose bounds do not intersect the target Surface - in both
+    ///     cases leaving every pixel of the Surface at its initial, fully transparent state.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_FillEmptyOrOutOfBoundsPath_NoOpLeavesSurfaceUnchanged()
+    {
+        // Arrange: a surface, an empty path built through the public PathBuilder API, and a
+        // closed path entirely outside the surface's bounds
+        var surface = new Surface(4, 4);
+        var emptyPath = new PathBuilder().Build();
+        var outOfBoundsPath = new PathBuilder()
+            .MoveTo(new Vector2(100, 100))
+            .LineTo(new Vector2(120, 100))
+            .LineTo(new Vector2(110, 120))
+            .Close()
+            .Build();
+        var color = new Rgba32(255, 0, 0, 255);
+
+        // Act: fill both paths through the public PathFiller API
+        PathFiller.Fill(surface, emptyPath, color);
+        PathFiller.Fill(surface, outOfBoundsPath, color);
+
+        // Assert: every pixel remains at the surface's initial, fully transparent state
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                Assert.Equal(new Rgba32(0, 0, 0, 0), surface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>
     ///     Proves that the system can build a closed triangular Path via PathBuilder and fill it
     ///     onto a Surface with a solid color through PathFiller's public API, exercising the
     ///     Geometry -> Drawing -> Canvas integration end to end: interior pixels are fully

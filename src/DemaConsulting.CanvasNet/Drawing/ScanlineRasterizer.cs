@@ -38,11 +38,12 @@ namespace DemaConsulting.CanvasNet.Drawing;
 ///     <see cref="AccumulateRowEdge"/> - a single <c>O(edges)</c> pass with **no sorting and no
 ///     reasoning about edges' relative x-order whatsoever**. The row is then swept left to right
 ///     exactly once (<c>O(width)</c>): a running <c>accumulatedCover</c> total starts at zero, and
-///     at each column <c>x</c> the resolved raw signed value is
-///     <c>accumulatedCover + area[x]</c> (everything fully to the left of this column, as a
-///     running winding total, plus this column's own partial-edge geometry), converted to a
-///     <c>[0, 1]</c> coverage fraction by <see cref="ResolveCoverage"/> per <see cref="FillRule"/>,
-///     before <c>accumulatedCover</c> is advanced by <c>cover[x]</c> for the next column.
+///     at each column <c>x</c>, <c>accumulatedCover</c> is first advanced by <c>cover[x]</c>
+///     (folding this column's own vertical edge crossings into the running winding total), and
+///     only then is the resolved raw signed value - <c>accumulatedCover + area[x]</c> (the
+///     updated running total, including this column, plus this column's own partial-edge
+///     geometry) - converted to a <c>[0, 1]</c> coverage fraction by
+///     <see cref="ResolveCoverage"/> per <see cref="FillRule"/>.
 ///     </para>
 ///     <para>
 ///     <b>Why this fixes crossing/self-intersecting edges by construction.</b> A prior revision
@@ -187,11 +188,10 @@ internal static class ScanlineRasterizer
                 AccumulateRowEdge(edge, clipMinX, clipMaxX, cover, area);
             }
 
-            // Single left-to-right sweep: "accumulatedCover" is the running winding total for
-            // everything fully to the left of the current column; each column's raw signed value
-            // is that running total plus its own partial-edge geometry ("area[x]"), resolved to a
-            // [0, 1] coverage fraction per fill rule, before the running total is advanced by this
-            // column's own "cover[x]" for the next column.
+            // Single left-to-right sweep: "accumulatedCover" is the running winding total. At
+            // each column, "accumulatedCover" is first advanced by this column's own "cover[x]",
+            // then the updated running total plus this column's own partial-edge geometry
+            // ("area[x]") is resolved to a [0, 1] coverage fraction per fill rule.
             var accumulatedCover = 0f;
             for (var i = 0; i < width; i++)
             {

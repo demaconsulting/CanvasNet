@@ -162,12 +162,13 @@ approximation converging only as the sample count grows.
    `O(edges)` pass with **no sorting of edges by `x` and no pairing of edges into "inside gaps"
    whatsoever**.
 4. **Single left-to-right sweep and fill-rule resolution**: a running `accumulatedCover` total
-   starts at zero. At each column `x`, the row's raw signed value is
-   `accumulatedCover + area[x]` (everything fully to the left of this column, as a running
-   winding total, plus this column's own partial-edge geometry), converted to a `[0, 1]` coverage
-   fraction by `ResolveCoverage` per `FillRule` (`NonZero`: `min(1, abs(total))`; `EvenOdd`: fold
-   `total` into `[0, 2)` and reflect, `folded > 1 ? 2 - folded : folded`) - then
-   `accumulatedCover` is advanced by `cover[x]` before moving to the next column. The resulting
+   starts at zero. At each column `x`, `accumulatedCover` is first advanced by this column's own
+   `cover[x]` (folding this column's own vertical edge crossings into the running winding total),
+   and only then is the row's raw signed value resolved as `accumulatedCover + area[x]` (the
+   updated running total, including this column, plus this column's own partial-edge geometry),
+   converted to a `[0, 1]` coverage fraction by `ResolveCoverage` per `FillRule` (`NonZero`:
+   `min(1, abs(total))`; `EvenOdd`: fold `total` into `[0, 2)` and reflect,
+   `folded > 1 ? 2 - folded : folded`). The resulting
    per-pixel `float[]` coverage row for the row's clipped `[minX, maxX)` sub-range is composited
    directly via `Surface.CompositeOverSpan(y, minX, coverage, color)` - no full-row or
    full-surface coverage buffer is ever allocated; only the current row's `cover`/`area`/coverage
