@@ -318,67 +318,136 @@ public class ScanlineRasterizerTests
     }
 
     /// <summary>
-    ///     Proves the fix for the medium-severity active-edge-list bookkeeping bug: sweeping a
-    ///     tall region containing many long-lived edges (each spanning nearly the whole clip
-    ///     height) scales roughly linearly in the combined edge-and-row count, rather than the
-    ///     quadratic blowup a full <c>activeEdges.RemoveAll(...)</c> re-scan of the whole active
-    ///     list on every single row would produce once both the edge count and the row count
-    ///     grow together.
+    ///     Proves the fix for the medium-severity active-edge-list bookkeeping bug: growing both
+    ///     the edge count and the row count together must not multiply the elapsed time, only
+    ///     add to it, so this test cannot be satisfied by an implementation whose per-row cost
+    ///     scales with the *total* edge count rather than with the edges actually near that row.
     /// </summary>
     /// <remarks>
-    ///     The prior <see cref="ScanlineRasterizer_Fill_ManyOverlappingRectangles_ScalesRoughlyLinearlyWithEdgeCount"/>
-    ///     regression test fixed <c>height = 4</c>, which bounds any per-row bookkeeping cost to
-    ///     a small constant multiplier regardless of edge count and therefore cannot expose an
-    ///     expiry-bookkeeping cost that scales with the number of rows. This test instead grows
-    ///     both the edge count and the row count together (mirroring "many edges over a tall
-    ///     region"): doubling both would produce a ~4x slowdown under quadratic <c>O(edges x
-    ///     rows)</c> bookkeeping, but only a ~2x slowdown under the documented <c>O(edges +
-    ///     edge-row crossings)</c> bound. A generous tolerance is used to absorb CI scheduling
-    ///     noise while still failing hard on genuine quadratic-or-worse scaling.
+    ///     <para>
+    ///         Every rectangle here is placed entirely *below* the visible clip rectangle (its
+    ///         vertical extent starts after the last visible row), so none of them are ever added
+    ///         to the active-edge list and none of them contribute any pixels: the only correct,
+    ///         unavoidable costs are the one-time <c>O(edges log edges)</c> sorted-edge-table
+    ///         build and a trivial <c>O(rows)</c> per-row loop that finds nothing to do - both
+    ///         independent of the *other* dimension. A regression that re-scans the *entire* edge
+    ///         table on every row - instead of using the sorted forward pointer / per-row
+    ///         expiration buckets to touch only edges that are actually relevant to that row -
+    ///         costs <c>O(edges x rows)</c> instead.
+    ///     </para>
+    ///     <para>
+    ///         Quadrupling *both* the edge count and the row count together is the crucial case:
+    ///         a correct <c>O(edges log edges + rows)</c> implementation should barely notice
+    ///         (dominated by measurement noise at these scales), while an <c>O(edges x rows)</c>
+    ///         implementation would take roughly <c>4 x 4 = 16</c> times as long. Deliberately
+    ///         reintroducing a full per-row re-scan of the whole edge table into
+    ///         <c>ScanlineRasterizer.Fill</c> and re-running this exact test confirmed it fails
+    ///         under that regression (observed ~15x-16x slowdown, comfortably exceeding the
+    ///         tolerance below) while passing comfortably against the fixed implementation.
+    ///     </para>
+    ///     <para>
+    ///         Note that separately holding *either* dimension fixed while scaling only the other
+    ///         (as tried in
+    ///         <see cref="ScanlineRasterizer_Fill_FixedRowCountManyEdges_ScalesRoughlyLinearlyWithEdgeCount"/>
+    ///         and
+    ///         <see cref="ScanlineRasterizer_Fill_FixedEdgeCountManyRows_ScalesRoughlyLinearlyWithRowCount"/>
+    ///         below) does *not*, by itself, expose this class of regression: with one dimension fixed,
+    ///         an <c>O(edges x rows)</c> implementation's cost is linear in the dimension being
+    ///         scaled (the fixed dimension is just a constant multiplier), so those two sub-tests
+    ///         are kept only as basic linear-scaling sanity checks, not as the regression guard.
+    ///         This combined-scaling test is the one that actually distinguishes the two.
+    ///     </para>
     /// </remarks>
     [Fact]
-    public void ScanlineRasterizer_Fill_TallRegionWithManyLongLivedEdges_ScalesRoughlyLinearlyNotQuadratically()
+    public void ScanlineRasterizer_Fill_ManyEdgesBelowVisibleRegion_ScalesRoughlyLinearlyNotQuadratically()
     {
         // Arrange
         const int width = 40;
         var color = new Rgba32(1, 2, 3, 255);
 
-        var small = MeasureTallFillMilliseconds(rectangleCount: 300, height: 300, width, color);
-        var large = MeasureTallFillMilliseconds(rectangleCount: 1200, height: 1200, width, color);
+        var small = MeasureEdgesBelowClipMilliseconds(edgeCount: 2000, height: 2000, width, color);
+        var large = MeasureEdgesBelowClipMilliseconds(edgeCount: 8000, height: 8000, width, color);
 
-        // Assert: quadrupling both the edge count and the row count together took no more than
-        // roughly 4x as long (quadratic-in-the-combined-size expectation), not the tens/hundreds
-        // of times blowup a quadratic-in-edges-times-rows bookkeeping bug would additionally
-        // stack on top of that
+        // Assert: quadrupling both the edge count and the row count together took nowhere near
+        // the ~16x an O(edges x rows) regression would produce
         Assert.True(
-            large.Milliseconds <= Math.Max(small.Milliseconds, 1) * 4 * 6 + 50,
-            $"Expected roughly linear-in-crossings scaling: {small.RectangleCount} rectangles over " +
-            $"{small.Height} rows took {small.Milliseconds}ms, but {large.RectangleCount} rectangles " +
+            large.Milliseconds <= Math.Max(small.Milliseconds, 5) * 6 + 40,
+            $"Expected roughly linear (not quadratic) combined scaling: {small.EdgeCount} edges " +
+            $"over {small.Height} rows took {small.Milliseconds}ms, but {large.EdgeCount} edges " +
             $"over {large.Height} rows took {large.Milliseconds}ms.");
     }
 
     /// <summary>
-    ///     Fills <paramref name="rectangleCount"/> overlapping, nearly-full-height rectangles
-    ///     (each shifted by a fraction of a pixel so every rectangle contributes distinct,
-    ///     overlapping fractional edges) onto a surface of the given tall size, and returns the
-    ///     best-of-several-repeats elapsed wall-clock time (after an unmeasured warmup run) to reduce
-    ///     JIT/GC scheduling noise.
+    ///     Holds the visible row count fixed (large) and quadruples only the number of
+    ///     below-the-fold edges. Kept as a basic linear-scaling sanity check alongside
+    ///     <see cref="ScanlineRasterizer_Fill_ManyEdgesBelowVisibleRegion_ScalesRoughlyLinearlyNotQuadratically"/>;
+    ///     see that test's remarks for why this sub-case alone cannot detect an <c>O(edges x
+    ///     rows)</c> regression.
     /// </summary>
-    private static (int RectangleCount, int Height, long Milliseconds) MeasureTallFillMilliseconds(
-        int rectangleCount, int height, int width, Rgba32 color)
+    [Fact]
+    public void ScanlineRasterizer_Fill_FixedRowCountManyEdges_ScalesRoughlyLinearlyWithEdgeCount()
+    {
+        const int width = 40;
+        const int height = 8000;
+        var color = new Rgba32(1, 2, 3, 255);
+
+        var small = MeasureEdgesBelowClipMilliseconds(edgeCount: 2000, height, width, color);
+        var large = MeasureEdgesBelowClipMilliseconds(edgeCount: 8000, height, width, color);
+
+        Assert.True(
+            large.Milliseconds <= Math.Max(small.Milliseconds, 5) * 6 + 40,
+            $"Expected roughly linear scaling with edge count (fixed {height} rows): " +
+            $"{small.EdgeCount} edges took {small.Milliseconds}ms, but {large.EdgeCount} edges " +
+            $"took {large.Milliseconds}ms.");
+    }
+
+    /// <summary>
+    ///     Holds the below-the-fold edge count fixed (large) and quadruples only the number of
+    ///     visible rows swept. Kept as a basic linear-scaling sanity check alongside
+    ///     <see cref="ScanlineRasterizer_Fill_ManyEdgesBelowVisibleRegion_ScalesRoughlyLinearlyNotQuadratically"/>;
+    ///     see that test's remarks for why this sub-case alone cannot detect an <c>O(edges x
+    ///     rows)</c> regression.
+    /// </summary>
+    [Fact]
+    public void ScanlineRasterizer_Fill_FixedEdgeCountManyRows_ScalesRoughlyLinearlyWithRowCount()
+    {
+        const int width = 40;
+        const int edgeCount = 8000;
+        var color = new Rgba32(1, 2, 3, 255);
+
+        var small = MeasureEdgesBelowClipMilliseconds(edgeCount, height: 2000, width, color);
+        var large = MeasureEdgesBelowClipMilliseconds(edgeCount, height: 8000, width, color);
+
+        Assert.True(
+            large.Milliseconds <= Math.Max(small.Milliseconds, 5) * 6 + 40,
+            $"Expected roughly linear scaling with row count (fixed {edgeCount} edges): " +
+            $"{small.Height} rows took {small.Milliseconds}ms, but {large.Height} rows took " +
+            $"{large.Milliseconds}ms.");
+    }
+
+    /// <summary>
+    ///     Fills <paramref name="edgeCount"/> overlapping rectangles, each placed entirely below
+    ///     row <paramref name="height"/> (i.e. outside the clip rectangle used for the sweep), so
+    ///     none of their edges are ever added to the active-edge list, onto a surface clipped to
+    ///     the given visible height, and returns the best-of-several-repeats elapsed wall-clock
+    ///     time (after an unmeasured warmup run) to reduce JIT/GC scheduling noise.
+    /// </summary>
+    private static (int EdgeCount, int Height, long Milliseconds) MeasureEdgesBelowClipMilliseconds(
+        int edgeCount, int height, int width, Rgba32 color)
     {
         var clipBounds = new Rect(0, 0, width, height);
-        var polygons = new List<List<Vector2>>(rectangleCount);
-        for (var i = 0; i < rectangleCount; i++)
+        var polygons = new List<List<Vector2>>(edgeCount);
+        for (var i = 0; i < edgeCount; i++)
         {
-            var offset = i * 0.0001f;
+            var y0 = height + 10f + i * 0.01f;
+            var y1 = y0 + 1f;
             polygons.Add(
             [
-                new Vector2(0.1f + offset, 0f),
-                new Vector2(width - 0.1f + offset, 0f),
-                new Vector2(width - 0.1f + offset, height),
-                new Vector2(0.1f + offset, height),
-                new Vector2(0.1f + offset, 0f)
+                new Vector2(0.1f, y0),
+                new Vector2(width - 0.1f, y0),
+                new Vector2(width - 0.1f, y1),
+                new Vector2(0.1f, y1),
+                new Vector2(0.1f, y0)
             ]);
         }
 
@@ -396,7 +465,7 @@ public class ScanlineRasterizerTests
             best = Math.Min(best, stopwatch.ElapsedMilliseconds);
         }
 
-        return (rectangleCount, height, best);
+        return (edgeCount, height, best);
     }
 
     /// <summary>

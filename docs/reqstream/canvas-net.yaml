@@ -123,9 +123,10 @@ sections:
         justification: |
           A null foreground, or a foreground whose dimensions do not match the target buffer,
           cannot be composited via CompositeOver(Surface); and a CompositeOverSpan call whose row
-          or run falls outside the buffer's bounds, or whose coverage buffer is null or the wrong
-          length, cannot be composited either. Rejecting these immediately prevents an
-          out-of-bounds or otherwise ill-defined operation.
+          (y) falls outside the buffer's height, or whose starting column (x) combined with the
+          coverage span's length would extend past the buffer's width, cannot be composited
+          either. Rejecting these immediately prevents an out-of-bounds or otherwise ill-defined
+          operation.
         children:
           - CanvasNet-Canvas-CompositeOverSurfaceNull
           - CanvasNet-Canvas-CompositeOverSurfaceDimensionMismatch

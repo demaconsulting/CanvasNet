@@ -113,13 +113,13 @@ sections:
 
               - id: CanvasNet-Drawing-PathFiller-NonPositiveTolerance
                 title: >-
-                  The PathFiller class shall reject a non-positive flattenTolerance argument to
-                  Fill with ArgumentOutOfRangeException.
+                  The PathFiller class shall reject a non-positive or non-finite (NaN or either
+                  infinity) flattenTolerance argument to Fill with ArgumentOutOfRangeException.
                 justification: |
-                  A non-positive flattening tolerance cannot bound curve subdivision to a
-                  meaningful accuracy and could cause unbounded or nonsensical subdivision;
-                  rejecting it at the call boundary matches BezierFlattening's own tolerance
-                  validation convention.
+                  A non-positive, NaN, or infinite flattening tolerance cannot bound curve
+                  subdivision to a meaningful accuracy and could cause unbounded or nonsensical
+                  subdivision; rejecting all of these at the call boundary matches
+                  BezierFlattening's own tolerance validation convention.
                 tests:
                   - PathFiller_Fill_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException
 

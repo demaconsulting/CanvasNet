@@ -213,10 +213,11 @@ coalescing, at the cost of `O(clippedWidth)` per-row work regardless of how few 
 cross that row - an acceptable trade-off given `clipBounds` already restricts the swept region to
 the path's own bounds intersected with the surface, not the surface's full width.
 
-**Complexity**: edge-table construction is `O(edges)`; the sweep is `O(edges + total
-edge-row crossings)` for active-edge-list maintenance, plus `O(rows * clippedWidth)` for the dense
-per-row buffers - i.e. bounded by the clipped bounding box of the path, not the full surface, and
-never revisiting an edge for rows outside its own vertical extent.
+**Complexity**: edge-table construction is `O(edges log edges)` (it sorts the edge table by
+top-Y so the sweep can add edges via a single forward-only pointer); the sweep is `O(edges +
+total edge-row crossings)` for active-edge-list maintenance, plus `O(rows * clippedWidth)` for the
+dense per-row buffers - i.e. bounded by the clipped bounding box of the path, not the full
+surface, and never revisiting an edge for rows outside its own vertical extent.
 
 ### Error Handling
 

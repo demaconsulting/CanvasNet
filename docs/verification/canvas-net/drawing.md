@@ -9,13 +9,19 @@ This document describes the subsystem-level verification strategy for the `Drawi
 The `Drawing` subsystem is verified primarily through its single constituent unit's own tests
 (see _PathFiller Unit Verification Design_, `drawing/path-filler.md`), exercising `PathFiller`'s
 public API, and the internal `EdgeFlattener`/`ScanlineRasterizer` helpers (accessible to the test
-project via `InternalsVisibleTo`), in isolation. A single system-level integration test
-additionally exercises the `Geometry`, `Drawing`, and `Canvas` subsystems together end to end
-(see the system verification design, `../canvas-net.md`): building a triangular `Path` via
-`PathBuilder`, filling it onto a `Surface` via `PathFiller.Fill`, and asserting fully-covered
-interior pixels, untouched exterior pixels, and antialiased (partially covered) edge pixels -
-confirming the subsystem's rasterizer, the `Geometry` subsystem's path type, and the `Canvas`
-subsystem's `Surface.CompositeOverSpan` collaborate correctly.
+project via `InternalsVisibleTo`), in isolation. Two system-level integration tests additionally
+exercise the `Geometry`, `Drawing`, and `Canvas` subsystems together end to end (see the system
+verification design, `../canvas-net.md`):
+
+- Building a triangular `Path` via `PathBuilder`, filling it onto a `Surface` via
+  `PathFiller.Fill`, and asserting fully-covered interior pixels, untouched exterior pixels, and
+  antialiased (partially covered) edge pixels - confirming the subsystem's rasterizer, the
+  `Geometry` subsystem's path type, and the `Canvas` subsystem's `Surface.CompositeOverSpan`
+  collaborate correctly.
+- Filling an empty `Path`, and separately a closed `Path` whose bounds fall entirely outside a
+  `Surface`, via `PathFiller.Fill`, and asserting every pixel of the surface remains at its
+  initial, fully transparent state - confirming the same subsystem collaboration correctly
+  no-ops for the empty/out-of-bounds boundary condition rather than throwing or writing pixels.
 
 ### Test Environment
 
@@ -27,4 +33,4 @@ subsystem's `Surface.CompositeOverSpan` collaborate correctly.
 
 The `Drawing` subsystem's verification passes when every unit test scenario described in
 _PathFiller Unit Verification Design_ (`drawing/path-filler.md`) passes without error or
-unexpected exception, and the system-level integration test described above passes.
+unexpected exception, and both system-level integration tests described above pass.
