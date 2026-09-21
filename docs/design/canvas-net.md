@@ -72,12 +72,12 @@ _Path Unit Design_ (`geometry/path.md`), _BezierFlattening Unit Design_
 (`geometry/svg-arc-converter.md`) for each unit's internal collaboration.
 
 The `Drawing` subsystem's single unit, `PathFiller`, collaborates as follows: `PathFiller.Fill`
-computes the target `Geometry.Path`'s bounds and intersects them with the `Canvas.Surface`'s
-pixel extent (a no-op if the path is empty or the intersection is empty), then delegates to the
-internal `EdgeFlattener` (which converts the path's subpaths to closed polygons, flattening
-curves via `Geometry.BezierFlattening` and arcs via `Geometry.SvgArcConverter`) and the internal
-`ScanlineRasterizer` (which rasterizes those polygons into per-row antialiased coverage and
-composites each row directly via `Canvas.Surface.CompositeOverSpan`). See
+first delegates to the internal `EdgeFlattener` (which converts the target `Geometry.Path`'s
+subpaths to closed polygons, flattening curves via `Geometry.BezierFlattening` and arcs via
+`Geometry.SvgArcConverter`), then computes the flattened polygons' bounds and intersects them with
+the `Canvas.Surface`'s pixel extent (a no-op if the path is empty or the intersection is empty),
+then delegates to the internal `ScanlineRasterizer` (which rasterizes those polygons into per-row
+antialiased coverage and composites each row directly via `Canvas.Surface.CompositeOverSpan`). See
 _Drawing Subsystem Design_ (`drawing.md`) and _PathFiller Unit Design_
 (`drawing/path-filler.md`) for full detail.
 
@@ -189,7 +189,7 @@ The system exposes the following public API to external consumers:
   (`FillRule.NonZero` by default, or `FillRule.EvenOdd`) and a curve-flattening tolerance
   (`0.25f` by default). No-ops if the path is empty or its bounds do not intersect the surface.
   Throws `ArgumentNullException` for a null `surface`/`path`, and
-  `ArgumentOutOfRangeException` for a non-positive `flattenTolerance`.
+  `ArgumentOutOfRangeException` for a non-finite or non-positive `flattenTolerance`.
 
 | Interface                        | Direction        | Format                         | Constraints                   |
 | -------------------------------- | ---------------- | ------------------------------ | ----------------------------- |

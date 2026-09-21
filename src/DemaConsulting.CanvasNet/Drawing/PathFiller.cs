@@ -30,9 +30,10 @@ public static class PathFiller
     ///     Thrown when <paramref name="surface"/> or <paramref name="path"/> is <see langword="null"/>.
     /// </exception>
     /// <exception cref="ArgumentOutOfRangeException">
-    ///     Thrown when <paramref name="flattenTolerance"/> is not a finite value greater than
-    ///     zero (this includes <see cref="float.NaN"/> and either infinity, not only zero or
-    ///     negative values).
+    ///     Thrown when <paramref name="fillRule"/> is not a defined <see cref="FillRule"/> value,
+    ///     or when <paramref name="flattenTolerance"/> is not a finite value greater than zero
+    ///     (this includes <see cref="float.NaN"/> and either infinity, not only zero or negative
+    ///     values).
     /// </exception>
     /// <remarks>
     ///     <para>
@@ -70,6 +71,18 @@ public static class PathFiller
     {
         ArgumentNullException.ThrowIfNull(surface);
         ArgumentNullException.ThrowIfNull(path);
+
+        // Reject an undefined FillRule value here, at the public API boundary, rather than
+        // letting it silently fall through ScanlineRasterizer's internal winding-resolution
+        // "else" branch (which has an explicit case only for NonZero) and be treated as EvenOdd
+        // without any indication the caller passed a meaningless value - matching the existing
+        // Enum.IsDefined validation convention used by BmpCodec.Save/TiffCodec.Save for their own
+        // enum parameters.
+        if (!Enum.IsDefined<FillRule>(fillRule))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(fillRule), fillRule, "Fill rule must be a defined FillRule value.");
+        }
 
         // Reject non-finite values (NaN or +/-Infinity), not only non-positive ones: NaN in
         // particular compares false against every relational operator (including "<= 0"), so a

@@ -123,6 +123,19 @@ sections:
                 tests:
                   - PathFiller_Fill_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException
 
+              - id: CanvasNet-Drawing-PathFiller-InvalidFillRule
+                title: >-
+                  The PathFiller class shall reject an undefined fillRule argument to Fill with
+                  ArgumentOutOfRangeException.
+                justification: |
+                  A fillRule value outside the defined FillRule enumeration has no defined
+                  winding-resolution meaning; rejecting it at the call boundary prevents it from
+                  silently being resolved as an arbitrary fill rule, matching the existing
+                  defined-enum-value validation convention used elsewhere in this library (for
+                  example BmpCodec.Save/TiffCodec.Save's own enum parameters).
+                tests:
+                  - PathFiller_Fill_UndefinedFillRule_ThrowsArgumentOutOfRangeException
+
               - id: CanvasNet-Drawing-PathFiller-EdgeFlattenerConversion
                 title: >-
                   The internal EdgeFlattener helper shall convert each of a Path's subpaths into

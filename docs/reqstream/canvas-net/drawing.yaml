@@ -59,17 +59,22 @@ sections:
           - id: CanvasNet-Drawing-PathFillValidation
             title: >-
               The Drawing subsystem shall reject a null Surface or Path argument with
-              ArgumentNullException, and a non-positive flatten-tolerance argument with
+              ArgumentNullException, a non-positive or non-finite flatten-tolerance argument
+              with ArgumentOutOfRangeException, and an undefined fill-rule argument with
               ArgumentOutOfRangeException.
             justification: |
-              A null surface or path cannot supply a valid fill target or geometry, and a
-              non-positive flattening tolerance cannot bound curve subdivision to a meaningful
-              accuracy; rejecting these early prevents a confusing failure, or an infinite/absurd
-              amount of curve subdivision, deeper in the implementation.
+              A null surface or path cannot supply a valid fill target or geometry, a
+              non-positive or non-finite flattening tolerance cannot bound curve subdivision to a
+              meaningful accuracy, and an undefined fill-rule value has no defined
+              winding-resolution meaning; rejecting these early prevents a confusing failure, an
+              infinite/absurd amount of curve subdivision, or a silently mis-resolved fill rule,
+              deeper in the implementation.
             children:
               - CanvasNet-Drawing-PathFiller-NullArguments
               - CanvasNet-Drawing-PathFiller-NonPositiveTolerance
+              - CanvasNet-Drawing-PathFiller-InvalidFillRule
             tests:
               - PathFiller_Fill_NullSurface_ThrowsArgumentNullException
               - PathFiller_Fill_NullPath_ThrowsArgumentNullException
               - PathFiller_Fill_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException
+              - PathFiller_Fill_UndefinedFillRule_ThrowsArgumentOutOfRangeException

@@ -141,7 +141,18 @@ Calls `PathFiller.Fill` with a `null` surface, and separately with a `null` path
 **Test**: `PathFiller_Fill_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException`
 
 Calls `PathFiller.Fill` with `flattenTolerance` equal to `0`, and separately a negative value, and
-asserts `ArgumentOutOfRangeException` is thrown in both cases (`[Theory]`-driven).
+separately each of `float.NaN`, `float.PositiveInfinity`, and `float.NegativeInfinity`, and
+asserts `ArgumentOutOfRangeException` is thrown in every case (`[Theory]`-driven).
+
+#### CanvasNet-Drawing-PathFiller-InvalidFillRule: Fill Rejects an Undefined FillRule Value
+
+**Test**: `PathFiller_Fill_UndefinedFillRule_ThrowsArgumentOutOfRangeException`
+
+Calls `PathFiller.Fill` with `fillRule` cast from an out-of-range integer value (`(FillRule)42`)
+and asserts `ArgumentOutOfRangeException` is thrown, confirming an undefined `FillRule` value is
+rejected at the public API boundary rather than silently falling through
+`ScanlineRasterizer.ResolveCoverage`'s winding-resolution `else` branch and being treated as
+`FillRule.EvenOdd`.
 
 #### CanvasNet-Drawing-PathFiller-EdgeFlattenerConversion: EdgeFlattener Converts Each Command Type Correctly
 

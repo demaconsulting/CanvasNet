@@ -62,7 +62,11 @@ subsystem grows a dedicated transform concept.
 
 **Algorithm**:
 
-1. Validate `surface` and `path` are non-null, and `flattenTolerance` is finite and strictly
+1. Validate `surface` and `path` are non-null, `fillRule` is a defined `FillRule` value
+   (`Enum.IsDefined<FillRule>(fillRule)`, matching `BmpCodec.Save`/`TiffCodec.Save`'s own
+   enum-validation convention) - rejected here rather than being silently treated as `EvenOdd` by
+   `ScanlineRasterizer.ResolveCoverage`'s winding-resolution `else` branch, which has an explicit
+   case only for `NonZero` - and `flattenTolerance` is finite and strictly
    positive (`float.IsFinite(flattenTolerance) && flattenTolerance > 0`) - a non-finite tolerance
    (`NaN`/`+-Infinity`) is rejected here rather than being allowed to silently reach
    `EdgeFlattener`/`BezierFlattening`, where flatness comparisons involving a non-finite tolerance
@@ -87,7 +91,8 @@ subsystem grows a dedicated transform concept.
 **Throws:**
 
 - `ArgumentNullException` - when `surface` or `path` is `null`
-- `ArgumentOutOfRangeException` - when `flattenTolerance` is non-finite, or less than or equal to
+- `ArgumentOutOfRangeException` - when `fillRule` is not a defined `FillRule` value, or when
+  `flattenTolerance` is non-finite, or less than or equal to
   zero (matching `BezierFlattening`'s own tolerance-validation convention, extended to also reject
   `NaN`/`Infinity` explicitly rather than relying on comparison operators alone)
 

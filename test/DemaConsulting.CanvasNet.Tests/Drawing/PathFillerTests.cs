@@ -336,17 +336,33 @@ public class PathFillerTests
     }
 
     /// <summary>
-    ///     Proves that Fill throws ArgumentOutOfRangeException when flattenTolerance is zero or
-    ///     negative.
+    ///     Proves that Fill throws ArgumentOutOfRangeException when flattenTolerance is zero,
+    ///     negative, or a non-finite value (NaN or either infinity).
     /// </summary>
     [Theory]
     [InlineData(0f)]
     [InlineData(-0.01f)]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    [InlineData(float.NegativeInfinity)]
     public void PathFiller_Fill_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException(float tolerance)
     {
         var surface = new Surface(2, 2);
         var path = new PathBuilder().MoveTo(new Vector2(0, 0)).LineTo(new Vector2(1, 1)).Close().Build();
 
         Assert.Throws<ArgumentOutOfRangeException>(() => PathFiller.Fill(surface, path, new Rgba32(1, 2, 3, 4), flattenTolerance: tolerance));
+    }
+
+    /// <summary>
+    ///     Proves that Fill throws ArgumentOutOfRangeException when fillRule is not a defined
+    ///     FillRule value, rather than silently being treated as FillRule.EvenOdd.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_UndefinedFillRule_ThrowsArgumentOutOfRangeException()
+    {
+        var surface = new Surface(2, 2);
+        var path = new PathBuilder().MoveTo(new Vector2(0, 0)).LineTo(new Vector2(1, 1)).Close().Build();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => PathFiller.Fill(surface, path, new Rgba32(1, 2, 3, 4), fillRule: (FillRule)42));
     }
 }

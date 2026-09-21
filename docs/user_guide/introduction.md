@@ -702,8 +702,8 @@ throwing, if `path` is empty or its bounds do not intersect `surface`'s pixel ex
 **Exceptions:**
 
 - `ArgumentNullException`: Thrown when `surface` or `path` is null.
-- `ArgumentOutOfRangeException`: Thrown when `flattenTolerance` is less than or equal to zero, or
-  is not a finite value (NaN or infinity).
+- `ArgumentOutOfRangeException`: Thrown when `fillRule` is not a defined `FillRule` value, when
+  `flattenTolerance` is less than or equal to zero, or is not a finite value (NaN or infinity).
 
 # Examples
 
