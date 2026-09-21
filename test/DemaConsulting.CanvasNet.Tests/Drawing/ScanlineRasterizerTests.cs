@@ -321,9 +321,10 @@ public class ScanlineRasterizerTests
     ///     Proves the fix for the medium-severity active-edge-list bookkeeping bug: sweeping a
     ///     tall region containing many edges that genuinely expire at staggered rows throughout
     ///     the sweep (rather than all abandoned together at the very last row) completes within a
-    ///     bound calibrated against the fixed implementation, rather than the substantially higher
-    ///     time a full <c>activeEdges.RemoveAll(...)</c> re-scan of the *entire* active list on
-    ///     every single row costs on top of the unavoidable per-row rendering cost.
+    ///     bound that is calibrated, at test run time, against this machine's own measured
+    ///     throughput on an independent workload - rather than any fixed millisecond constant -
+    ///     so the test remains meaningful on hardware faster or slower than the machine it was
+    ///     authored on.
     /// </summary>
     /// <remarks>
     ///     <para>
@@ -359,53 +360,99 @@ public class ScanlineRasterizerTests
     ///         developing this test (no genuine expiry at all; genuine expiry staggered evenly
     ///         across the whole sweep as used here; a bounded sliding window of concurrently-active
     ///         edges; wildly different edge-to-row ratios from 300:1 down to 1:400) the regression
-    ///         consistently measured only around 30-45% slower than the fixed implementation in
+    ///         consistently measured only around 30-50% slower than the fixed implementation in
     ///         every configuration - genuine mid-sweep expiration exercises the correct code path
-    ///         (fixing the factual claim this test previously made) but does not, and structurally
-    ///         cannot, unlock a dramatically larger separation for *this specific* bug, because the
-    ///         bug is a constant-factor overhead rather than an asymptotic complexity regression.
+    ///         but does not, and structurally cannot, unlock a dramatically larger separation for
+    ///         *this specific* bug, because the bug is a constant-factor overhead rather than an
+    ///         asymptotic complexity regression.
     ///     </para>
     ///     <para>
-    ///         <b>Why an absolute wall-clock threshold is used instead of a same-run relative
-    ///         scaling-ratio assertion</b> (contrast with the two sibling tests below, and with
-    ///         <see cref="ScanlineRasterizer_Fill_ManyOverlappingRectangles_ScalesRoughlyLinearlyWithEdgeCount"/>).
-    ///         A scaling-ratio test asserts that doubling the input size does not more than
-    ///         roughly double (or quadruple, etc.) the elapsed time under *whatever implementation
-    ///         is currently present* - it is designed to catch a change in complexity *class*
-    ///         (e.g. O(n) becoming O(n^2)). Because this specific regression preserves the same
-    ///         complexity class as the fix (both are O(edges x rows) for this edge shape - see
-    ///         above) and only changes the constant multiplier, doubling the input size doubles
-    ///         the time under *both* the fixed implementation and the regression alike, so a
-    ///         same-run scaling-ratio comparison cannot distinguish them (this was confirmed
-    ///         empirically while developing this test: holding either edges or rows fixed and
-    ///         scaling the other, exactly as the two sibling tests below already do, reproduces
-    ///         the same ~30-45% gap at every scale rather than a growing one). Only a direct,
-    ///         single-configuration wall-clock comparison against the two implementations'
-    ///         independently measured ranges can distinguish a constant-factor regression like
-    ///         this one, so that is what this test uses, with as much headroom as the measured
-    ///         separation allows (see below) and a larger, more time-stable configuration than the
-    ///         prior version of this test used to widen the absolute margin.
+    ///         <b>Why a same-run size-scaling ratio cannot detect this bug (confirmed
+    ///         empirically).</b> A scaling-ratio test - such as the two sibling tests below, or
+    ///         <see cref="ScanlineRasterizer_Fill_ManyOverlappingRectangles_ScalesRoughlyLinearlyWithEdgeCount"/>
+    ///         - asserts that doubling the input size does not more than roughly double (or
+    ///         quadruple, etc.) the elapsed time under *whatever implementation is currently
+    ///         present*; it is designed to catch a change in complexity *class* (e.g. O(n)
+    ///         becoming O(n^2)), not a change in constant factor. Because this regression preserves
+    ///         the same complexity class as the fix (both are O(edges x rows) for this edge shape
+    ///         - see above) and only changes the constant multiplier, scaling the input size scales
+    ///         the time by the same factor under *both* the fixed implementation and the regression
+    ///         alike, so no same-run ratio between two problem sizes - regardless of which sizes
+    ///         are chosen - can distinguish them. This was directly reconfirmed while redesigning
+    ///         this test: measuring the fastest-of-many time for a half-scale run (16,000
+    ///         rectangles / 4,000 rows) and this test's full-scale run (32,000 rectangles / 8,000
+    ///         rows) in the same process and comparing their ratio gave effectively the same result
+    ///         (full/half-scaled-by-4 ratio ~0.92-0.97) whether or not the historical
+    ///         <c>RemoveAll</c> regression was present - the regression's ~30-50% overhead applies
+    ///         equally to both problem sizes and cancels out of the ratio.
     ///     </para>
     ///     <para>
-    ///         Verified by temporarily reintroducing a full per-row re-scan of the whole
-    ///         active-edge list (<c>activeEdges.RemoveAll(edge => edge.BottomY &lt;= rowTop)</c>,
-    ///         replacing the bucketed removal) into <c>ScanlineRasterizer.Fill</c> and re-running
-    ///         this exact test across all three target frameworks, including under this
-    ///         repository's own <c>build.ps1</c>, which runs all three target frameworks'
-    ///         test binaries concurrently on the same machine: the fixed implementation
-    ///         consistently measured a fastest-of-eleven time around 1,100-1,150ms, while the
-    ///         regression consistently measured a fastest-of-eleven time around 1,376-1,790ms -
-    ///         reliably and comfortably on opposite sides of the threshold below on the machine
-    ///         used for verification, even under that concurrent contention (a plain median-of-N
-    ///         was observed to falsely exceed the threshold under concurrent contention with the
-    ///         *fixed* implementation - see the "Act" comment below - which is why the minimum,
-    ///         not the median, is used). Because CI runners (across the 9 OS/target-framework
-    ///         combinations this project builds for) can differ from that machine, and from each
-    ///         other, by more than the internal run-to-run spread observed here, some residual
-    ///         flakiness risk from cross-machine baseline speed differences remains inherent to
-    ///         any fixed-threshold approach to a constant-factor regression like this one - it is
-    ///         not fully avoidable the way a scaling-ratio assertion would be, precisely because
-    ///         a scaling-ratio assertion cannot detect this particular bug at all (see above).
+    ///         <b>The self-calibrating mechanism actually used: an independent, shape-matched
+    ///         throughput reference, not a same-run size ratio.</b> Because a same-run *ratio
+    ///         between two sizes of the regression's own code path* cannot detect a uniform
+    ///         constant-factor regression (see above), detecting it at all - on hardware whose
+    ///         absolute speed is unknown ahead of time - requires comparing the measured time
+    ///         against an expectation derived from something that varies with this machine's raw
+    ///         speed but is *not itself subject to the regression*.
+    ///         <see cref="MeasureIndependentThroughputCalibrationMilliseconds"/> provides that: a
+    ///         fixed-size reference workload that reproduces the *same* triangular active-entry-
+    ///         count shape as the full sweep above (entries remaining "active" for a staggered
+    ///         number of rows, so on average half remain active at any point, and every
+    ///         still-active entry is visited once per row - mirroring the unavoidable
+    ///         <c>BuildRowEdges</c>/cell-accumulation cost every implementation pays), sized and
+    ///         timed to take roughly as long, at rest, as the full sweep itself - but implemented
+    ///         with its own independent <c>List&lt;int&gt;</c> and never calling
+    ///         <see cref="ScanlineRasterizer"/> at all. Its measured time therefore reflects only
+    ///         this machine's raw throughput on this memory-access shape, and is completely
+    ///         unaffected by whether the active-edge removal mechanism under test is regressed.
+    ///         The ratio of the full sweep's fastest time to this reference workload's fastest time
+    ///         is then compared against a fixed threshold - the threshold itself is a dimensionless
+    ///         ratio, not a millisecond value, so (to the extent the reference workload and the
+    ///         rasterizer scale proportionally with this machine's speed - see the empirical
+    ///         validation below for the residual risk where that assumption is imperfect) it is
+    ///         expected to remain meaningful across machines of different absolute speed, unlike
+    ///         the fixed-millisecond threshold this test previously used.
+    ///     </para>
+    ///     <para>
+    ///         <b>Why the reference workload is duration-matched, not just shape-matched.</b> An
+    ///         earlier attempt at this calibration used a reference workload with the same
+    ///         triangular shape but scaled to run roughly 10x faster than the full sweep (tens of
+    ///         milliseconds rather several hundred). That shorter measurement was found,
+    ///         empirically, to be *disproportionately* likely to land in a contention-free window
+    ///         even while the much longer full sweep it was compared against kept overlapping with
+    ///         at least some concurrent load - inflating the full/reference ratio for *both* the
+    ///         fixed implementation and the regression under this repository's own concurrent
+    ///         multi-target-framework test execution, to the point their ranges were observed to
+    ///         overlap in some trials. Scaling the reference workload up so its unhindered duration
+    ///         is comparable to the full sweep's (both take roughly a second at rest on the
+    ///         development machine) removed that asymmetry and restored a clean separation - see
+    ///         the empirical validation below.
+    ///     </para>
+    ///     <para>
+    ///         <b>Empirical validation.</b> On the development machine used to design this test,
+    ///         across multiple repeated trials of the calibration-then-full-sweep sequence used
+    ///         below, both at rest and under this repository's own <c>build.ps1</c> (which runs
+    ///         this project's three target frameworks' test binaries concurrently, so each trial
+    ///         under "contention" below ran all three simultaneously): the fixed implementation
+    ///         measured a full/reference ratio of roughly 0.887-0.891 at rest, widening to roughly
+    ///         0.888-0.975 under that concurrent execution. Temporarily reintroducing the
+    ///         historical full-active-list <c>activeEdges.RemoveAll(edge => edge.BottomY &lt;=
+    ///         rowTop)</c> rescan (replacing the bucketed removal) measured a ratio of roughly
+    ///         1.070-1.074 at rest, and roughly 1.055-1.458 under the same concurrent execution -
+    ///         reliably and comfortably above the fixed implementation's range in every trial, at
+    ///         rest and under contention alike, with a clear gap (0.975 to 1.055) separating the
+    ///         two implementations' worst-case observed ratios. The threshold below (1.0) is chosen
+    ///         inside that gap. Because both measurements are taken back-to-back in the same
+    ///         process on the same machine, this approach - unlike the fixed-millisecond threshold
+    ///         it replaces - does not depend on the absolute speed of whatever machine runs the
+    ///         test; the residual risk it does carry is that the reference workload's simplified
+    ///         <c>int</c>-based bookkeeping does not correlate perfectly with the rasterizer's own
+    ///         <c>Edge</c>-struct-based bookkeeping and cell accumulation on every possible CPU
+    ///         microarchitecture, and that contention patterns more extreme than three concurrent
+    ///         target-framework test runs could still widen either range - this is an accepted,
+    ///         inherent limitation of any throughput-proxy calibration, and is why the threshold is
+    ///         placed with margin on both sides of the empirically observed gap rather than exactly
+    ///         at either boundary.
     ///     </para>
     /// </remarks>
     [Fact]
@@ -444,18 +491,14 @@ public class ScanlineRasterizerTests
         // throughput rather than first-call compilation overhead.
         ScanlineRasterizer.Fill(new Surface(width, height), polygons, color, FillRule.NonZero, clipBounds);
 
-        // Act: minimum-of-eleven wall-clock measurement. Unlike a median, the minimum is immune to
-        // *any number* of samples being slowed down by transient contention (GC pauses, scheduler
-        // noise, or - as observed empirically when this project's three target frameworks' test
-        // binaries run concurrently, e.g. under this repository's own build.ps1 - other heavy
-        // tests executing at the same time on the same machine): contention can only ever make a
-        // sample slower than the implementation's true unhindered cost, never faster, so the
-        // fastest of many repeated samples is a robust, noise-resistant estimate of that true
-        // cost, whereas a median can still land on a contention-inflated value once enough of the
-        // samples happen to be affected (observed directly: under concurrent load the first few
-        // samples stayed in the fixed implementation's normal ~1,100-1,150ms range while later
-        // samples spiked to 1,300-1,600+ms, pulling a median-of-nine above threshold even though
-        // the implementation was unchanged).
+        // Act: minimum-of-eleven wall-clock measurement of the full sweep, and a separate
+        // minimum-of-eleven measurement of the independent, shape-matched reference workload (see
+        // remarks). Unlike a median, the minimum is immune to *any number* of samples being slowed
+        // down by transient contention (GC pauses, scheduler noise, or concurrent test execution):
+        // contention can only ever make a sample slower than the implementation's true unhindered
+        // cost, never faster, so the fastest of many repeated samples is a robust, noise-resistant
+        // estimate of that true cost, whereas a median can still land on a contention-inflated
+        // value once enough of the samples happen to be affected.
         var samples = new long[11];
         for (var i = 0; i < samples.Length; i++)
         {
@@ -467,16 +510,109 @@ public class ScanlineRasterizerTests
         }
 
         Array.Sort(samples);
-        var fastest = samples[0];
+        var fastestFullSweepMilliseconds = samples[0];
+        var fastestReferenceMilliseconds = MeasureIndependentThroughputCalibrationMilliseconds();
+        var ratio = fastestFullSweepMilliseconds / fastestReferenceMilliseconds;
 
-        // Assert: comfortably above the fixed implementation's observed ~1,100-1,150ms floor and
-        // comfortably below the regression's observed ~1,376-1,790ms floor (see remarks above).
+        // Assert: the full sweep's fastest time, expressed as a multiple of this machine's own
+        // measured throughput on an independent, shape-matched reference workload, stays within a
+        // threshold chosen inside the empirically observed gap between the fixed implementation's
+        // worst-case ratio (~0.975, under concurrent multi-target-framework test execution) and
+        // the historical regression's best-case ratio (~1.055, at rest) - see remarks above for
+        // the full empirical validation.
+        const double maxRatio = 1.0;
         Assert.True(
-            fastest <= 1250,
-            $"Expected the fixed active-edge-list bookkeeping's fastest observed time (~1,100-" +
-            $"1,150ms observed) rather than a full-list-re-scan regression's fastest observed " +
-            $"time (~1,376-1,790ms observed), but the fastest of {samples.Length} samples was " +
-            $"{fastest}ms across samples [{string.Join(", ", samples)}].");
+            ratio <= maxRatio,
+            $"Expected the full sweep's fastest-of-{samples.Length} time to be at most " +
+            $"{maxRatio}x this machine's own fastest-of-11 reference-workload time (observed " +
+            $"~0.887-0.975x for the fixed implementation vs. ~1.055-1.458x for the historical " +
+            $"full-active-list-rescan regression), but the full sweep took " +
+            $"{fastestFullSweepMilliseconds}ms, the reference workload took " +
+            $"{fastestReferenceMilliseconds:F2}ms, giving a ratio of {ratio:F3}x. Full-sweep " +
+            $"samples: [{string.Join(", ", samples)}].");
+    }
+
+    /// <summary>
+    ///     Measures this machine's own achieved throughput, at test run time, on a fixed-size
+    ///     reference workload that reproduces the *same* triangular active-entry-count shape as
+    ///     the full sweep this test measures (entries remaining "active" for a staggered number of
+    ///     rows, so on average half remain active at any point), scaled up (120,000 entries over
+    ///     30,000 rows, rather than the full sweep's 32,000 edges over 8,000 rows) so its
+    ///     unhindered duration is comparable to the full sweep's own - see the caller's remarks for
+    ///     why that duration match, not just the shape match, is essential for the comparison to
+    ///     remain valid under concurrent test execution. Every still-active entry is visited once
+    ///     per row (mirroring the unavoidable per-row <c>BuildRowEdges</c>/cell-accumulation cost
+    ///     every implementation pays) and expired entries are removed via the same swap-remove
+    ///     pattern <c>RemoveActiveEdge</c> uses - but using its own independent
+    ///     <c>List&lt;int&gt;</c>, entirely separate from <see cref="ScanlineRasterizer"/>. It
+    ///     never calls <see cref="ScanlineRasterizer.Fill"/> at all, so its measured time reflects
+    ///     only this machine's raw throughput on this memory-access shape and can never be
+    ///     influenced by a regression in the rasterizer's own active-edge removal mechanism.
+    /// </summary>
+    /// <returns>
+    ///     The fastest of eleven repeated measurements, in milliseconds, of the reference workload
+    ///     described above.
+    /// </returns>
+    private static double MeasureIndependentThroughputCalibrationMilliseconds()
+    {
+        const int entryCount = 120_000;
+        const int rowCount = 30_000;
+
+        double RunOnce()
+        {
+            var active = new List<int>(entryCount);
+            for (var i = 0; i < entryCount; i++)
+            {
+                active.Add(i);
+            }
+
+            var accumulatorA = 0f;
+            var accumulatorB = 0f;
+            var expirationsPerRow = entryCount / (double)rowCount;
+            var carry = 0.0;
+
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            for (var row = 0; row < rowCount; row++)
+            {
+                // Mirrors BuildRowEdges + AccumulateRowEdge: visit every currently-active entry
+                // exactly once per row, the unavoidable per-row cost paid regardless of removal
+                // mechanism.
+                for (var k = 0; k < active.Count; k++)
+                {
+                    accumulatorA += active[k] * 0.0001f;
+                    accumulatorB += active[k] * 0.0002f;
+                }
+
+                // Mirrors the staggered per-row expirations: remove entries at the same average
+                // rate the full sweep's rectangles expire, via the same swap-remove
+                // RemoveActiveEdge itself uses.
+                carry += expirationsPerRow;
+                while (carry >= 1.0 && active.Count > 0)
+                {
+                    var last = active.Count - 1;
+                    active[0] = active[last];
+                    active.RemoveAt(last);
+                    carry -= 1.0;
+                }
+            }
+
+            stopwatch.Stop();
+
+            // Read the accumulators so the JIT cannot treat the loop as dead code and elide it.
+            return stopwatch.Elapsed.TotalMilliseconds + (accumulatorA + accumulatorB) * 0.0;
+        }
+
+        // Unmeasured warmup, then minimum-of-eleven - see the caller's "Act" comment for why the
+        // minimum, not the median, is used.
+        RunOnce();
+        var samples = new double[11];
+        for (var i = 0; i < samples.Length; i++)
+        {
+            samples[i] = RunOnce();
+        }
+
+        Array.Sort(samples);
+        return samples[0];
     }
 
     /// <summary>
