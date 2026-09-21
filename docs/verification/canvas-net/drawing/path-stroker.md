@@ -77,6 +77,48 @@ region solidly filled rather than as a winding-cancellation hole; dashed lines m
 visible runs; degenerate subpaths must follow cap semantics exactly; and an empty path must remain
 a no-op.
 
+#### Concave/Collinear Closed Contours
+
+- `PathStroker_Stroke_ClosedRectangleBevelJoin_InnerCornerMatchesExactIntersectionNotBevel`
+- `PathStroker_Stroke_ClosedRectangleRoundJoin_InnerCornerMatchesExactIntersectionNotArc`
+- `PathStroker_Stroke_ClosedRectangleMiterJoin_InnerCornerMatchesExactIntersection`
+- `PathStroker_Stroke_ConcaveClosedContourBevelJoin_AppliesJoinsByLocalVertexConvexity`
+- `PathStroker_Stroke_ClosedTwoPointSubpath_FillsStrokedSegmentAreaNotEmpty`
+- `PathStroker_Stroke_ClosedThreePointCollinearSubpath_FillsStrokedSegmentAreaNotEmpty`
+- `StrokeOutliner_Outline_ConcaveClosedContourBevelJoin_ResolvesJoinPerVertexFromLocalTurn`
+- `StrokeOutliner_Outline_ThreePointCollinearClosedContour_ProducesVisibleStroke`
+- `StrokeOutliner_Outline_CollinearClosedContourWithDuplicatePoints_ProducesVisibleStroke`
+
+These tests verify that a closed contour's forced-exact-intersection inner corner is used in place
+of its styled join (Miter, Round, or Bevel) regardless of which join style is configured; that join
+resolution for a concave polygon is decided per-vertex from local convexity/turn direction rather
+than by any single global winding decision, so styling stays correct even when convexity flips
+along the contour; and that a degenerate closed contour - a 2-point subpath, a 3+ point subpath
+whose distinct points are all collinear, or a collinear subpath containing duplicate points - still
+renders a visible stroke rather than vanishing to nothing.
+
+#### Robustness Against Extreme and Degenerate Numeric Input
+
+- `PathStroker_Stroke_OverflowProneDashArrayWithNegativeOffset_CompletesWithoutHanging`
+- `DashSplitter_Split_OverflowProneDashArrayWithNegativeOffset_CompletesWithoutHanging`
+- `DashSplitter_Split_TinyNegativeOffsetAgainstHugePattern_ProducesCorrectPhase`
+- `DashSplitter_Split_TinyNegativeOffsetAgainstAsymmetricHugePattern_ProducesCorrectPhase`
+- `DashSplitter_Split_ZeroLengthLeadingDashEntryOnZeroLengthPath_StartsInFollowingOffEntry`
+- `DashSplitter_Split_EdgeSpanningExtremeFloat32Coordinates_CompletesWithFiniteSegments`
+- `StrokeOutliner_Outline_RoundJoinAtExtremeScale_ProducesCurvedNotStraightJoin`
+- `StrokeOutliner_Outline_RoundCapAtTypicalScale_MatchesExpectedSegmentCount`
+- `StrokeOutliner_Outline_RoundJoinSmallSweepAtExtremeScale_ProducesMultiSegmentCurve`
+- `StrokeOutliner_Outline_ClosedContourWithExtremeFloat32NonCollinearCoordinates_ProducesValidShellOutline`
+
+These tests prove that dash-offset phase computation, dash extraction, round join/cap
+tessellation, and closed-contour collinearity/winding classification all remain correct and
+terminate promptly even when intermediate arithmetic would naively overflow or underflow float32 -
+covering a huge dash pattern combined with a tiny negative offset (symmetric and asymmetric
+patterns), an edge or closed contour spanning near-extreme float32 coordinate magnitudes, a
+zero-length leading dash-array entry evaluated against a zero-length path, and a round join/cap
+tessellated at extreme geometric scale - rather than hanging, misclassifying the contour as
+degenerate, or producing `NaN`/`Infinity` coordinates.
+
 #### Public API Validation
 
 - `PathStroker_Stroke_NullPath_ThrowsArgumentNullException`
@@ -137,4 +179,4 @@ _PathStroker Unit Design_ (`../../../design/canvas-net/drawing/path-stroker.md`)
 analysis and code review only. There are intentionally **no** timing-based tests, elapsed-time
 assertions, or `Stopwatch`-based guards in this unit's automated verification because those are
 not stable compliance evidence on heterogeneous CI hardware.
-<!-- cspell:ignore Outliner inradius -->
+<!-- cspell:ignore Outliner inradius collinearity -->

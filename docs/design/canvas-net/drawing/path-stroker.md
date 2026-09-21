@@ -1,4 +1,4 @@
-<!-- cspell:ignore Outliner inradius -->
+<!-- cspell:ignore Outliner inradius Collinearity -->
 
 ## PathStroker
 
@@ -165,11 +165,61 @@ instances directly. Every emitted polygon becomes one closed subpath in the resu
   boundary) and leaving the whole interior filled as solid stroke.
 - **Degenerate subpaths.** A single point (or a path collapsed to one effective point after
   duplicate-vertex simplification) renders as a cap-shaped mark: round creates a full circle,
-  square creates an axis-aligned width-by-width square, and butt creates nothing.
+  square creates an axis-aligned width-by-width square, and butt creates nothing. This same
+  single-point handling extends to a closed contour that has fewer than three distinct vertices
+  after simplification (for example, a closed two-point subpath) - a contour that small cannot
+  enclose any area, so `StrokeOutliner` treats it exactly as it would treat the equivalent open
+  multi-segment stroke, with caps at both ends per `style.Cap`, rather than attempting to build a
+  zero-area shell.
+- **Degenerate closed contours: collinear vertices.** A closed contour is equally degenerate when
+  it has three or more distinct vertices that all lie on a single line - for example, a contour
+  that traces back and forth along one line before closing. Such a contour also encloses no area,
+  so building the usual outer/inner offset rings for it would produce two rings with zero signed
+  area that then get forced into opposite winding, which `FillRule.NonZero` cancels to nothing.
+  `StrokeOutliner` detects this case up front by checking whether every vertex's perpendicular
+  distance from the line through the first two distinct vertices is within a small tolerance, and
+  when so, routes the whole contour through the same open-stroke path used for the
+  fewer-than-three-vertex case above - the only well-defined non-empty rendering of a closed path
+  that encloses no area.
 
 The helper intentionally removes only redundant consecutive duplicate vertices. It does not try to
 topologically simplify self-intersections or reorder segments; the contract is to preserve the
 input path's authored shape, not to reinterpret it.
+
+### Double-Precision Internal Computations
+
+Several of `StrokeOutliner`'s and `DashSplitter`'s internal computations are deliberately performed
+in `double` precision and only narrowed back to `float` (or kept as `double` when only a sign
+comparison is needed) at the end, even though the public API is entirely `float`-based
+(`System.Numerics.Vector2`). This is a precision safeguard, not a change to the supported
+coordinate range: `float` (32-bit) arithmetic on values that are each individually well within
+`float`'s representable range can still overflow to `Infinity` or `NaN` partway through a
+computation - most commonly when a squared distance, a cross-product term, or an accumulated sum
+of several such terms exceeds `float.MaxValue` even though the true, final mathematical result
+would not. An overflowed or `NaN` intermediate value silently produces a degenerate result (a
+zeroed tangent/normal, a misclassified degenerate contour, or an unreliable winding sign) rather
+than a visible error, so the safest place to avoid it is inside the computation itself, not at its
+call sites. Concretely, this applies to:
+
+- **Per-segment tangent/normal computation** (edge delta and length), so an edge spanning
+  near-extreme coordinates still offsets correctly instead of collapsing to a zero-length
+  tangent/normal.
+- **Collinearity testing for a closed contour** (vertex differences, squared length, direction
+  normalization, and perpendicular-distance cross products), so a legitimately non-collinear large
+  contour is not misclassified as degenerate merely because an intermediate squared length
+  overflowed.
+- **Signed-area computation** (the shoelace cross-product terms and their running sum), used both
+  to pick which side of a closed contour is the outer ring and to confirm the outer and inner rings
+  end up with opposite winding, so that decision remains reliable even for contours near the edges
+  of the representable coordinate range.
+- **Dash-length accumulation and dash-offset phase location** in `DashSplitter`, so a very long
+  polyline, a very large dash pattern, or a dash offset far larger in magnitude than the dash
+  pattern all resolve to the correct visible phase instead of an overflowed or oscillating result.
+
+Every one of these call sites only ever needs a sign, a ratio, or a normalized direction from the
+result - never the literal double-precision magnitude exposed back through the public API - so
+computing in `double` internally is a pure precision safeguard with no observable effect on
+ordinary, non-extreme stroke geometry.
 
 ### Complexity
 

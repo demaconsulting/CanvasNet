@@ -510,6 +510,70 @@ public class StrokeOutlinerTests
         Assert.Contains(polygon, vertex => MathF.Abs(vertex.X - 1e20f) < 1e13f);
     }
 
+    /// <summary>
+    ///     Proves that a closed, genuinely non-collinear contour spanning near-extreme float32
+    ///     coordinates - large enough that the naive float32 <c>dx*dx + dy*dy</c> computation
+    ///     inside <see cref="Vector2.LengthSquared()"/> overflows to
+    ///     <see cref="float.PositiveInfinity"/> - is still correctly routed through
+    ///     <c>CreateClosedStrokePolygons</c> (an outer ring plus a counter-wound inner ring), NOT
+    ///     misclassified as a degenerate/collinear closed contour and collapsed to the open-stroke
+    ///     path.
+    /// </summary>
+    /// <remarks>
+    ///     The contour is a right triangle with leg length <c>2.5e19</c>. Its true (double
+    ///     precision) leg length and enclosed area remain comfortably finite, and the three
+    ///     vertices are unambiguously non-collinear. But squaring that leg length in float32 -
+    ///     <c>(2.5e19)^2 = 6.25e38</c> - overflows float32's representable range
+    ///     (max ~3.4e38) before <c>AreAllPointsCollinear</c>'s direction-normalization step can
+    ///     even take a square root, collapsing the normalized direction to <c>(0, 0)</c>. Every
+    ///     subsequent perpendicular-distance check against that zeroed direction then evaluates to
+    ///     zero, so before the fix, this perfectly ordinary large triangle was misclassified as a
+    ///     degenerate/collinear closed contour and silently rendered via the open-stroke path
+    ///     (a single band with caps at both ends) instead of a proper shell with a hole.
+    /// </remarks>
+    [Fact]
+    public void StrokeOutliner_Outline_ClosedContourWithExtremeFloat32NonCollinearCoordinates_ProducesValidShellOutline()
+    {
+        // Arrange: a right triangle whose leg lengths are individually well within float32's
+        // representable range, but whose squared length (as computed by Vector2.LengthSquared())
+        // overflows float32 before the fix.
+        var points = new List<Vector2>
+        {
+            new(0f, 0f),
+            new(2.5e19f, 0f),
+            new(0f, 2.5e19f)
+        };
+        var style = new StrokeStyle(4f);
+
+        // Act
+        var polygons = StrokeOutliner.Outline(points, isClosed: true, style, flattenTolerance: 0.25f);
+
+        // Assert: correctly classified as a genuine (non-degenerate) closed contour, producing an
+        // outer ring and a counter-wound inner ring (the stroked band with its hole) - NOT the
+        // single open-stroke band that the pre-fix float32 overflow in AreAllPointsCollinear would
+        // have misclassified this large-but-legitimate triangle into producing.
+        Assert.Equal(2, polygons.Count);
+
+        foreach (var polygon in polygons)
+        {
+            Assert.True(polygon.Count >= 3, "Expected each ring to be a valid polygon.");
+            foreach (var vertex in polygon)
+            {
+                Assert.True(float.IsFinite(vertex.X), $"Expected a finite X coordinate but found {vertex.X}.");
+                Assert.True(float.IsFinite(vertex.Y), $"Expected a finite Y coordinate but found {vertex.Y}.");
+            }
+        }
+
+        // The outer and inner rings must be non-zero-area and oppositely wound (the shell/hole
+        // invariant), using a double-precision area computation so the assertion itself cannot be
+        // defeated by the same float32 overflow being proven fixed above.
+        var outerArea = GetSignedAreaDouble(polygons[0]);
+        var innerArea = GetSignedAreaDouble(polygons[1]);
+        Assert.True(
+            outerArea != 0.0 && innerArea != 0.0 && Math.Sign(outerArea) != Math.Sign(innerArea),
+            $"Expected oppositely-wound non-zero rings, but got outerArea={outerArea}, innerArea={innerArea}.");
+    }
+
     private static float GetSignedArea(IReadOnlyList<Vector2> points)
     {
         var area = 0f;
@@ -521,6 +585,24 @@ public class StrokeOutlinerTests
         }
 
         return area / 2f;
+    }
+
+    /// <summary>
+    ///     Double-precision equivalent of <see cref="GetSignedArea"/>, used by tests exercising
+    ///     near-extreme float32 coordinates where the float32 shoelace computation itself would
+    ///     overflow before the assertion could even inspect the true sign.
+    /// </summary>
+    private static double GetSignedAreaDouble(IReadOnlyList<Vector2> points)
+    {
+        var area = 0.0;
+        for (var i = 0; i < points.Count; i++)
+        {
+            var current = points[i];
+            var next = points[(i + 1) % points.Count];
+            area += (double)current.X * next.Y - (double)current.Y * next.X;
+        }
+
+        return area / 2.0;
     }
 
     /// <summary>

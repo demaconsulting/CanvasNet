@@ -115,6 +115,20 @@ internal static class StrokeOutliner
     ///     <see cref="NearZeroDistance"/>. If every point coincides with <c>points[0]</c> (no
     ///     usable direction exists), the contour is fully collapsed and therefore trivially
     ///     collinear.
+    ///     <para>
+    ///     Every vertex difference, squared-length, normalization, and cross-product used here is
+    ///     computed in <see langword="double"/> precision rather than via <see cref="Vector2"/>
+    ///     arithmetic and <see cref="Vector2.LengthSquared()"/>/<see cref="Vector2.Length()"/>:
+    ///     for a contour spanning near-extreme float32 coordinates (e.g. vertices near
+    ///     <c>±3e38</c>), the float32 <c>dx*dx + dy*dy</c> computation in
+    ///     <c>candidate.LengthSquared()</c> overflows to <see cref="float.PositiveInfinity"/> well
+    ///     before the true squared length would, and normalizing an overflowed vector produces
+    ///     <see cref="float.NaN"/> components. Because a NaN comparison is always false, that
+    ///     would make every point spuriously pass the perpendicular-distance check below and
+    ///     misclassify a legitimately non-collinear large contour as degenerate. This is the same
+    ///     class of float32-overflow bug already fixed for edge-length computations in
+    ///     <see cref="BuildSegmentFrames"/> and <see cref="DashSplitter.BuildCumulativeLengths"/>.
+    ///     </para>
     /// </remarks>
     private static bool AreAllPointsCollinear(IReadOnlyList<Vector2> points)
     {
@@ -124,28 +138,37 @@ internal static class StrokeOutliner
         }
 
         var origin = points[0];
-        var direction = Vector2.Zero;
+        var directionX = 0.0;
+        var directionY = 0.0;
+        var haveDirection = false;
+        const double nearZeroDistanceSquared = (double)NearZeroDistance * NearZeroDistance;
         for (var i = 1; i < points.Count; i++)
         {
-            var candidate = points[i] - origin;
-            if (candidate.LengthSquared() > NearZeroDistance * NearZeroDistance)
+            var candidateX = (double)points[i].X - origin.X;
+            var candidateY = (double)points[i].Y - origin.Y;
+            if (candidateX * candidateX + candidateY * candidateY > nearZeroDistanceSquared)
             {
-                direction = candidate;
+                directionX = candidateX;
+                directionY = candidateY;
+                haveDirection = true;
                 break;
             }
         }
 
-        if (direction == Vector2.Zero)
+        if (!haveDirection)
         {
             return true;
         }
 
-        var normalizedDirection = direction / direction.Length();
+        var directionLength = Math.Sqrt(directionX * directionX + directionY * directionY);
+        var normalizedDirectionX = directionX / directionLength;
+        var normalizedDirectionY = directionY / directionLength;
         for (var i = 1; i < points.Count; i++)
         {
-            var offset = points[i] - origin;
-            var perpendicularDistance = normalizedDirection.X * offset.Y - normalizedDirection.Y * offset.X;
-            if (MathF.Abs(perpendicularDistance) > NearZeroDistance)
+            var offsetX = (double)points[i].X - origin.X;
+            var offsetY = (double)points[i].Y - origin.Y;
+            var perpendicularDistance = normalizedDirectionX * offsetY - normalizedDirectionY * offsetX;
+            if (Math.Abs(perpendicularDistance) > NearZeroDistance)
             {
                 return false;
             }
@@ -301,7 +324,7 @@ internal static class StrokeOutliner
         }
 
         var area = ComputeSignedArea(points);
-        var outerSideSign = area >= 0f ? -1f : +1f;
+        var outerSideSign = area >= 0.0 ? -1f : +1f;
 
         var outerRing = BuildClosedSide(points, outerSideSign, style, halfWidth, flattenTolerance, out _);
         if (outerRing.Count < 3)
@@ -342,9 +365,13 @@ internal static class StrokeOutliner
         // Regardless of how many vertices were locally reflex on each ring, the two rings must
         // still end up with opposite winding for FillRule.NonZero to render the band between them
         // (rather than the solid disc of one ring or the empty complement) - flip the inner ring
-        // if the constructed rings happen to share the same winding sign.
-
-        if (ComputeSignedArea(outerRing) * ComputeSignedArea(innerRing) > 0f)
+        // if the constructed rings happen to share the same winding sign. Compare signs directly
+        // (rather than multiplying the two areas together and checking > 0) so that two
+        // individually-finite-but-extreme double areas can never spuriously overflow their
+        // product to Infinity or (Infinity * 0) to NaN.
+        var outerArea = ComputeSignedArea(outerRing);
+        var innerArea = ComputeSignedArea(innerRing);
+        if (outerArea != 0.0 && innerArea != 0.0 && Math.Sign(outerArea) == Math.Sign(innerArea))
         {
             innerRing.Reverse();
         }
@@ -1014,7 +1041,7 @@ internal static class StrokeOutliner
     /// </remarks>
     private static void NormalizeOuterWinding(List<Vector2> ring)
     {
-        if (ComputeSignedArea(ring) < 0f)
+        if (ComputeSignedArea(ring) < 0.0)
         {
             ring.Reverse();
         }
@@ -1023,16 +1050,34 @@ internal static class StrokeOutliner
     /// <summary>
     ///     Computes the signed area of a polygon-like vertex sequence.
     /// </summary>
-    private static float ComputeSignedArea(IReadOnlyList<Vector2> points)
+    /// <remarks>
+    ///     Both the shoelace cross-product terms and their running sum are computed and
+    ///     accumulated in <see langword="double"/> precision, and the result is returned as
+    ///     <see langword="double"/> rather than narrowed back to <see langword="float"/>: for
+    ///     vertices near extreme float32 magnitudes (e.g. close to <c>float.MaxValue</c>), the
+    ///     float32 products <c>current.X * next.Y</c> and <c>current.Y * next.X</c> - and their
+    ///     running sum across every vertex, and even the true signed area itself for a large
+    ///     enough contour - can overflow float32's finite range well before the true magnitude
+    ///     would, even though the same computation in double precision remains finite. Every
+    ///     caller of this method only ever inspects the SIGN of the result (never its magnitude),
+    ///     so returning the full-precision double lets callers make a correct sign decision even
+    ///     when the true area is too large to represent as a finite <see langword="float"/>. An
+    ///     overflowed or NaN result here would silently pick the wrong outer-ring side sign in
+    ///     <see cref="CreateClosedStrokePolygons"/> and defeat the opposite-winding check in
+    ///     <see cref="NormalizeOuterWinding"/> (a NaN comparison is always false) - the same class
+    ///     of float32-overflow bug already fixed for edge-length computations in
+    ///     <see cref="BuildSegmentFrames"/> and <see cref="DashSplitter.BuildCumulativeLengths"/>.
+    /// </remarks>
+    private static double ComputeSignedArea(IReadOnlyList<Vector2> points)
     {
-        var area = 0f;
+        var area = 0.0;
         for (var i = 0; i < points.Count; i++)
         {
             var current = points[i];
             var next = points[(i + 1) % points.Count];
-            area += current.X * next.Y - current.Y * next.X;
+            area += (double)current.X * next.Y - (double)current.Y * next.X;
         }
 
-        return area / 2f;
+        return area / 2.0;
     }
 }
