@@ -47,15 +47,17 @@ internal static class StrokeOutliner
             return CreatePointStrokePolygons(simplified[0], style.Cap, halfWidth, flattenTolerance);
         }
 
-        if (isClosed && simplified.Count == 2)
+        if (isClosed && IsDegenerateClosedContour(simplified))
         {
-            // A closed contour needs at least three distinct vertices to enclose any area; with
-            // exactly two, the "outer" and "inner" offset rings built by CreateClosedStrokePolygons
-            // would be coincident (zero signed area) and then forced into opposite winding, which
-            // makes FillRule.NonZero cancel the whole band to nothing. Instead, treat this
-            // degenerate closed contour exactly as an equivalent open single-segment stroke would
-            // be outlined (with caps at both ends per style.Cap) - the only well-defined non-empty
-            // rendering of a closed path that immediately doubles back over the same segment.
+            // A closed contour needs at least three NON-COLLINEAR distinct vertices to enclose
+            // any area. With fewer than three distinct vertices, or with any number of distinct
+            // vertices that all lie on one line (e.g. a 3+ point closed contour that traces back
+            // and forth along a single line), the "outer" and "inner" offset rings built by
+            // CreateClosedStrokePolygons would have zero signed area and then be forced into
+            // opposite winding, which makes FillRule.NonZero cancel the whole band to nothing.
+            // Instead, treat this degenerate closed contour exactly as an equivalent open
+            // multi-segment stroke would be outlined (with caps at both ends per style.Cap) - the
+            // only well-defined non-empty rendering of a closed path that encloses no area.
             return CreateOpenStrokePolygons(simplified, style, halfWidth, flattenTolerance);
         }
 
@@ -85,6 +87,71 @@ internal static class StrokeOutliner
         }
 
         return simplified;
+    }
+
+    /// <summary>
+    ///     Determines whether a closed contour encloses no area: either it has fewer than three
+    ///     distinct vertices, or every distinct vertex lies on a single line.
+    /// </summary>
+    /// <remarks>
+    ///     This generalizes the original "exactly two distinct points" special case: a closed
+    ///     contour with three or more distinct but COLLINEAR points (e.g. tracing
+    ///     <c>(0,0)-&gt;(1,0)-&gt;(2,0)-&gt;Close</c>) is just as degenerate - it is a zero-area
+    ///     band that would otherwise fall through to <see cref="CreateClosedStrokePolygons"/> and
+    ///     produce two coincident-band rings of opposite winding that cancel completely under
+    ///     <see cref="FillRule.NonZero"/>, even though a stroked degenerate line should still
+    ///     render as a visible stroke.
+    /// </remarks>
+    private static bool IsDegenerateClosedContour(IReadOnlyList<Vector2> points) =>
+        points.Count < 3 || AreAllPointsCollinear(points);
+
+    /// <summary>
+    ///     Determines whether every point in <paramref name="points"/> lies on a single line.
+    /// </summary>
+    /// <remarks>
+    ///     Picks the first non-degenerate direction from <c>points[0]</c> to any later point (so
+    ///     duplicate/near-duplicate leading points do not defeat the check), normalizes it, and
+    ///     then confirms every remaining point's perpendicular distance from that line is within
+    ///     <see cref="NearZeroDistance"/>. If every point coincides with <c>points[0]</c> (no
+    ///     usable direction exists), the contour is fully collapsed and therefore trivially
+    ///     collinear.
+    /// </remarks>
+    private static bool AreAllPointsCollinear(IReadOnlyList<Vector2> points)
+    {
+        if (points.Count <= 2)
+        {
+            return true;
+        }
+
+        var origin = points[0];
+        var direction = Vector2.Zero;
+        for (var i = 1; i < points.Count; i++)
+        {
+            var candidate = points[i] - origin;
+            if (candidate.LengthSquared() > NearZeroDistance * NearZeroDistance)
+            {
+                direction = candidate;
+                break;
+            }
+        }
+
+        if (direction == Vector2.Zero)
+        {
+            return true;
+        }
+
+        var normalizedDirection = direction / direction.Length();
+        for (var i = 1; i < points.Count; i++)
+        {
+            var offset = points[i] - origin;
+            var perpendicularDistance = normalizedDirection.X * offset.Y - normalizedDirection.Y * offset.X;
+            if (MathF.Abs(perpendicularDistance) > NearZeroDistance)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -216,6 +283,16 @@ internal static class StrokeOutliner
         float halfWidth,
         float flattenTolerance)
     {
+        // Defense in depth: the dispatch in Outline() already routes degenerate (collinear or
+        // fewer-than-three-distinct-vertex) closed contours to CreateOpenStrokePolygons before
+        // ever reaching here, but re-checking here means this method can never itself produce the
+        // coincident-band, opposite-winding rings that FillRule.NonZero cancels to nothing, even
+        // if some future caller invokes it directly without going through that dispatch.
+        if (IsDegenerateClosedContour(points))
+        {
+            return CreateOpenStrokePolygons(points, style, halfWidth, flattenTolerance);
+        }
+
         var area = ComputeSignedArea(points);
         var outerSideSign = area >= 0f ? -1f : +1f;
 

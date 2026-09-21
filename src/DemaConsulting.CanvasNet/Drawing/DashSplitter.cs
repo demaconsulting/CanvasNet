@@ -181,7 +181,7 @@ internal static class DashSplitter
     ///     individually finite (enforced by <see cref="StrokeStyle"/>'s constructor validation),
     ///     but a legal pattern such as <c>[float.MaxValue, float.MaxValue]</c> would still overflow
     ///     a running <see langword="float"/> sum to <c>+Infinity</c>. An infinite pattern length
-    ///     then breaks phase normalization (<see cref="NormalizeModulo"/>) and can turn the
+    ///     then breaks phase normalization (<see cref="LocatePhase"/>) and can turn the
     ///     phase-traversal loops in <see cref="IsDashOnAtStart"/> and <see cref="BuildOnIntervals"/>
     ///     into an infinite loop, because subtracting any finite dash entry from
     ///     <c>float.PositiveInfinity</c> never reduces it. Double has ample headroom for the sum of
@@ -219,19 +219,52 @@ internal static class DashSplitter
     /// <summary>
     ///     Determines whether the dash phase begins in an "on" interval.
     /// </summary>
-    /// <remarks>
-    ///     A zero-length dash entry occupies no visible extent along the path, so landing exactly
-    ///     at its start - whether that is the initial phase (<paramref name="dashOffset"/>
-    ///     normalizes to exactly zero, which skips the traversal loop below entirely) or a phase
-    ///     reached after exactly consuming every preceding entry - means the phase has already
-    ///     moved past it. The trailing loop skips forward through any such zero-length entries so
-    ///     the returned index always identifies the entry actually in effect at this phase, rather
-    ///     than a zero-length entry the phase is only nominally "at."
-    /// </remarks>
     private static bool IsDashOnAtStart(IReadOnlyList<float> pattern, float dashOffset)
     {
         var patternLength = GetPatternLength(pattern);
-        var offset = NormalizeModulo(dashOffset, patternLength);
+        var (index, _) = LocatePhase(pattern, dashOffset, patternLength);
+        return index % 2 == 0;
+    }
+
+    /// <summary>
+    ///     Locates the dash entry containing the phase at <paramref name="dashOffset"/>, and how
+    ///     much of that entry remains (in the forward-traversal direction) from that phase.
+    /// </summary>
+    /// <remarks>
+    ///     A signed offset is resolved via the exact <c>%</c> remainder against
+    ///     <paramref name="patternLength"/> (never a lossy addition of the offset to the modulus -
+    ///     see the catastrophic-cancellation note on <see cref="LocatePhaseBackward"/>), then
+    ///     dispatched to a forward walk (from the start of the pattern) for a non-negative
+    ///     remainder or a backward walk (from the end of the pattern) for a negative one. Both
+    ///     walks only ever compare the residual distance against individual, finite dash entries -
+    ///     never against the (potentially astronomically large) total pattern length - so a tiny
+    ///     offset is never lost against a huge pattern magnitude in either direction.
+    /// </remarks>
+    private static (int Index, float RemainingInDash) LocatePhase(
+        IReadOnlyList<float> pattern,
+        float dashOffset,
+        double patternLength)
+    {
+        var offset = dashOffset % patternLength;
+        return offset >= 0d
+            ? LocatePhaseForward(pattern, offset)
+            : LocatePhaseBackward(pattern, -offset);
+    }
+
+    /// <summary>
+    ///     Walks forward from the start of the pattern to locate a non-negative phase offset.
+    /// </summary>
+    /// <remarks>
+    ///     A zero-length dash entry occupies no visible extent along the path, so landing exactly
+    ///     at its start - whether that is the initial phase (<paramref name="offset"/> is exactly
+    ///     zero, which skips the traversal loop below entirely) or a phase reached after exactly
+    ///     consuming every preceding entry - means the phase has already moved past it. The
+    ///     trailing loop skips forward through any such zero-length entries so the returned index
+    ///     always identifies the entry actually in effect at this phase, rather than a
+    ///     zero-length entry the phase is only nominally "at."
+    /// </remarks>
+    private static (int Index, float RemainingInDash) LocatePhaseForward(IReadOnlyList<float> pattern, double offset)
+    {
         var index = 0;
         while (offset > 0d)
         {
@@ -250,7 +283,65 @@ internal static class DashSplitter
             index = (index + 1) % pattern.Count;
         }
 
-        return index % 2 == 0;
+        // By the loop invariant above, offset is now strictly less than pattern[index] (a finite
+        // float32 entry), so the remainder is safe to narrow back to float without any risk of
+        // the overflow this two-way split exists to avoid.
+        var remaining = (float)(pattern[index] - offset);
+        return (index, remaining < 0f ? 0f : remaining);
+    }
+
+    /// <summary>
+    ///     Walks backward from the end of the pattern to locate a negative phase offset.
+    /// </summary>
+    /// <remarks>
+    ///     A negative <c>dashOffset</c> paired with an astronomically large pattern length (e.g.
+    ///     two <see cref="float.MaxValue"/> entries) cannot be resolved by normalizing into
+    ///     <c>[0, patternLength)</c> via <c>normalized += patternLength</c>: double has roughly 16
+    ///     significant decimal digits, so adding a small residual (say, <c>-1</c>) to a ~1e38
+    ///     magnitude modulus rounds straight back to the modulus itself, silently discarding the
+    ///     offset and landing the phase at the wrong (first "on") entry instead of the final unit
+    ///     of the preceding "off" entry. Walking backward from the last pattern entry avoids this
+    ///     entirely: <paramref name="distanceFromWrap"/> (the offset's magnitude) is only ever
+    ///     compared against and subtracted from individual dash entries - never added to or
+    ///     subtracted from the huge total pattern length - so a small negative offset against an
+    ///     enormous pattern remains exactly representable throughout.
+    /// </remarks>
+    private static (int Index, float RemainingInDash) LocatePhaseBackward(
+        IReadOnlyList<float> pattern,
+        double distanceFromWrap)
+    {
+        var index = pattern.Count - 1;
+        while (distanceFromWrap > 0d)
+        {
+            var length = pattern[index];
+            if (length > 0f && distanceFromWrap <= length)
+            {
+                break;
+            }
+
+            distanceFromWrap -= length;
+            index = (index - 1 + pattern.Count) % pattern.Count;
+        }
+
+        if (distanceFromWrap <= 0d)
+        {
+            // Landed exactly back on the wrap point (the start of the pattern); mirror the
+            // forward walk's zero-skip so a leading zero-length "on" entry is not mistaken for
+            // the active entry.
+            index = 0;
+            while (pattern[index] == 0f)
+            {
+                index = (index + 1) % pattern.Count;
+            }
+
+            return (index, pattern[index]);
+        }
+
+        // distanceFromWrap is now within (0, pattern[index]] - already small relative to the
+        // individual entry it was measured against, never the huge total pattern length - so it
+        // is safe to use directly as the remaining-in-dash distance.
+        var remaining = (float)distanceFromWrap;
+        return (index, remaining > pattern[index] ? pattern[index] : remaining);
     }
 
     /// <summary>
@@ -266,29 +357,7 @@ internal static class DashSplitter
         encounteredPositiveOffSpan = false;
         var intervals = new List<(float Start, float End)>();
         var patternLength = GetPatternLength(pattern);
-        var offset = NormalizeModulo(dashOffset, patternLength);
-
-        var dashIndex = 0;
-        while (offset > 0d)
-        {
-            var length = pattern[dashIndex];
-            if (length > 0f && offset < length)
-            {
-                break;
-            }
-
-            offset -= length;
-            dashIndex = (dashIndex + 1) % pattern.Count;
-        }
-
-        // By the loop invariant above, offset is now strictly less than pattern[dashIndex] (a
-        // finite float32 entry), so the remainder is safe to narrow back to float without any
-        // risk of the overflow this method exists to avoid.
-        var remainingInDash = (float)(pattern[dashIndex] - offset);
-        if (remainingInDash < 0f)
-        {
-            remainingInDash = 0f;
-        }
+        var (dashIndex, remainingInDash) = LocatePhase(pattern, dashOffset, patternLength);
 
         var position = 0f;
         while (position < totalLength)
@@ -433,27 +502,6 @@ internal static class DashSplitter
 
         var t = (distance - startLength) / edgeLength;
         return Vector2.Lerp(edgeStart, edgeEnd, t);
-    }
-
-    /// <summary>
-    ///     Normalizes <paramref name="value"/> into the half-open interval
-    ///     <c>[0, modulus)</c>.
-    /// </summary>
-    /// <remarks>
-    ///     <paramref name="modulus"/> is a <see langword="double"/> (the total dash pattern
-    ///     length, see <see cref="GetPatternLength"/>) so that a pattern summing close to
-    ///     <see cref="float.MaxValue"/> still normalizes correctly instead of collapsing to
-    ///     <c>float.PositiveInfinity</c>.
-    /// </remarks>
-    private static double NormalizeModulo(float value, double modulus)
-    {
-        var normalized = value % modulus;
-        if (normalized < 0d)
-        {
-            normalized += modulus;
-        }
-
-        return normalized;
     }
 
     /// <summary>

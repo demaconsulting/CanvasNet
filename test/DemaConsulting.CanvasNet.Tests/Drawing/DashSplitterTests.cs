@@ -135,6 +135,67 @@ public class DashSplitterTests
     }
 
     /// <summary>
+    ///     Proves that a small negative dash offset against an astronomically large dash pattern
+    ///     produces the CORRECT phase (not merely a non-hanging result): the offset must land in
+    ///     the final unit of the preceding "off" entry rather than being silently swallowed by
+    ///     catastrophic cancellation and snapping back to the start of the "on" entry.
+    /// </summary>
+    /// <remarks>
+    ///     With dash pattern <c>[float.MaxValue, float.MaxValue]</c> (an "on" entry followed by an
+    ///     "off" entry, each individually finite but summing to a pattern length only
+    ///     representable in <see langword="double"/>) and <c>dashOffset: -1f</c>, naively
+    ///     normalizing the offset via <c>modulus + (-1)</c> in <see langword="double"/> rounds
+    ///     straight back to <c>modulus</c> - the tiny <c>-1</c> is swallowed because doubles have
+    ///     roughly 16 significant decimal digits and the modulus has 39. That silently moves the
+    ///     phase to the start of the first ("on") entry instead of one unit before the end of the
+    ///     second ("off") entry. The correct phase is one unit into the path's "off" span, so only
+    ///     the remaining 9 units of the 10-unit path are "on".
+    /// </remarks>
+    [Fact]
+    public void DashSplitter_Split_TinyNegativeOffsetAgainstHugePattern_ProducesCorrectPhase()
+    {
+        // Arrange
+        var points = new List<Vector2> { new(0, 0), new(10, 0) };
+
+        // Act
+        var segments = DashSplitter.Split(
+            points,
+            isClosed: false,
+            dashArray: [float.MaxValue, float.MaxValue],
+            dashOffset: -1f);
+
+        // Assert: the first 1 unit is the tail of the "off" entry (invisible); the remaining 9
+        // units are the following "on" entry.
+        var segment = Assert.Single(segments);
+        Assert.Equal([new Vector2(1, 0), new Vector2(10, 0)], segment.Points);
+    }
+
+    /// <summary>
+    ///     Proves correct phase resolution for a second extreme-magnitude-plus-small-negative-
+    ///     offset combination, this time with an asymmetric pattern (a small "on" entry paired
+    ///     with an astronomically large "off" entry).
+    /// </summary>
+    [Fact]
+    public void DashSplitter_Split_TinyNegativeOffsetAgainstAsymmetricHugePattern_ProducesCorrectPhase()
+    {
+        // Arrange: pattern [5 (on), float.MaxValue (off)], offset -2 lands 2 units before the end
+        // of the huge "off" entry, so the path starts 2 units into "off", then 5 units "on", then
+        // back into the (still enormous) "off" entry for the remainder of the 10-unit path.
+        var points = new List<Vector2> { new(0, 0), new(10, 0) };
+
+        // Act
+        var segments = DashSplitter.Split(
+            points,
+            isClosed: false,
+            dashArray: [5f, float.MaxValue],
+            dashOffset: -2f);
+
+        // Assert
+        var segment = Assert.Single(segments);
+        Assert.Equal([new Vector2(2, 0), new Vector2(7, 0)], segment.Points);
+    }
+
+    /// <summary>
     ///     Proves that an all-zero dash array is treated as a solid stroke.
     /// </summary>
     [Fact]

@@ -354,6 +354,36 @@ public class PathStrokerTests
     }
 
     /// <summary>
+    ///     Proves that a closed subpath reduced to three or more DISTINCT but COLLINEAR points
+    ///     (a zero-area closed contour tracing back and forth along a single line) still renders
+    ///     as a stroked line segment, using the same pixel coverage as the equivalent open,
+    ///     butt-capped stroke, rather than vanishing entirely. This generalizes
+    ///     <see cref="PathStroker_Stroke_ClosedTwoPointSubpath_FillsStrokedSegmentAreaNotEmpty"/>
+    ///     to more than two collinear points.
+    /// </summary>
+    [Fact]
+    public void PathStroker_Stroke_ClosedThreePointCollinearSubpath_FillsStrokedSegmentAreaNotEmpty()
+    {
+        // Arrange: a closed subpath (M ... L ... L ... Z) with three distinct, collinear points
+        var path = new PathBuilder()
+            .MoveTo(new Vector2(2, 2))
+            .LineTo(new Vector2(4, 2))
+            .LineTo(new Vector2(6, 2))
+            .Close()
+            .Build();
+        var style = new StrokeStyle(2f, cap: LineCap.Butt);
+
+        // Act: rasterize and sample actual pixel coverage, not just outline generation
+        var surface = RenderStroke(path, style, 8, 5);
+
+        // Assert: coverage matches the equivalent open two-point butt-capped stroke
+        Assert.Equal((byte)255, surface[2, 1].A);
+        Assert.Equal((byte)255, surface[5, 2].A);
+        Assert.Equal((byte)0, surface[1, 1].A);
+        Assert.Equal((byte)0, surface[6, 1].A);
+    }
+
+    /// <summary>
     ///     Proves that a dash array whose entries individually are finite but whose summed total
     ///     pattern length would overflow a naive float32 accumulation does not hang the public
     ///     <see cref="PathStroker.Stroke(Path, StrokeStyle, float)"/> entry point, when combined

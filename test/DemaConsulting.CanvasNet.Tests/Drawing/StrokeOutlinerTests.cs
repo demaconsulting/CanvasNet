@@ -224,6 +224,66 @@ public class StrokeOutlinerTests
         Assert.DoesNotContain(new Vector2(2, 2), ringWithStyledReflexJoin);
     }
 
+    /// <summary>
+    ///     Proves that a closed contour reduced to three or more DISTINCT but COLLINEAR points
+    ///     (a zero-area closed contour that traces back and forth along a single line) still
+    ///     renders as a visible stroke, rather than vanishing entirely because its "outer" and
+    ///     "inner" offset rings would otherwise be coincident (zero signed area) and forced into
+    ///     opposite winding, which cancels completely under <see cref="FillRule.NonZero"/>. This
+    ///     generalizes the already-fixed exactly-two-point case to any number of collinear points.
+    /// </summary>
+    [Fact]
+    public void StrokeOutliner_Outline_ThreePointCollinearClosedContour_ProducesVisibleStroke()
+    {
+        // Arrange: a closed contour (M...L...L...Z) whose three distinct points all lie on the
+        // line y=2.
+        var points = new List<Vector2> { new(2, 2), new(4, 2), new(6, 2) };
+        var style = new StrokeStyle(2f, cap: LineCap.Butt);
+
+        // Act
+        var polygons = StrokeOutliner.Outline(points, isClosed: true, style, flattenTolerance: 0.25f);
+
+        // Assert: a non-empty stroke covering the full [2,6] extent of the collinear points,
+        // one half-width above and below the line - exactly what an equivalent open stroke over
+        // the same points would produce.
+        var polygon = Assert.Single(polygons);
+        var minX = polygon.Min(p => p.X);
+        var maxX = polygon.Max(p => p.X);
+        var minY = polygon.Min(p => p.Y);
+        var maxY = polygon.Max(p => p.Y);
+        Assert.Equal(2f, minX);
+        Assert.Equal(6f, maxX);
+        Assert.Equal(1f, minY);
+        Assert.Equal(3f, maxY);
+    }
+
+    /// <summary>
+    ///     Proves that a closed contour mixing duplicate/near-duplicate points with otherwise
+    ///     collinear points still renders as a visible stroke rather than vanishing.
+    /// </summary>
+    [Fact]
+    public void StrokeOutliner_Outline_CollinearClosedContourWithDuplicatePoints_ProducesVisibleStroke()
+    {
+        // Arrange: an exact duplicate of the first point, followed by collinear points, closing
+        // back to the start.
+        var points = new List<Vector2> { new(2, 2), new(2, 2), new(4, 2), new(6, 2) };
+        var style = new StrokeStyle(2f, cap: LineCap.Butt);
+
+        // Act
+        var polygons = StrokeOutliner.Outline(points, isClosed: true, style, flattenTolerance: 0.25f);
+
+        // Assert
+        var polygon = Assert.Single(polygons);
+        var minX = polygon.Min(p => p.X);
+        var maxX = polygon.Max(p => p.X);
+        var minY = polygon.Min(p => p.Y);
+        var maxY = polygon.Max(p => p.Y);
+        Assert.Equal(2f, minX);
+        Assert.Equal(6f, maxX);
+        Assert.Equal(1f, minY);
+        Assert.Equal(3f, maxY);
+    }
+
     private static float GetSignedArea(IReadOnlyList<Vector2> points)
     {
         var area = 0f;
