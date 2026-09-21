@@ -12,7 +12,7 @@ namespace DemaConsulting.CanvasNet.Drawing;
 /// <remarks>
 ///     <see cref="Stroke(Path, StrokeStyle, float)"/> performs stroke-to-fill conversion only:
 ///     it returns a new <see cref="Path"/> whose closed subpaths describe the stroked area, ready
-///     for a caller to render via <see cref="PathFiller.Fill"/> using
+///     for a caller to render via <see cref="PathFiller.Fill(Canvas.Surface, Path, Canvas.Rgba32, FillRule, float)"/> using
 ///     <see cref="FillRule.NonZero"/>. Rasterization stays entirely on the existing fill code
 ///     path, so stroking introduces no second rasterizer with independent antialiasing behavior.
 /// </remarks>

@@ -631,7 +631,7 @@ public sealed class Surface
 
     /// <summary>
     ///     Amortized-workspace counterpart of <see cref="CompositeOverSpan(int, int, ReadOnlySpan{float}, Rgba32)"/>
-    ///     for callers - such as <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer.Fill"/> -
+    ///     for callers - such as <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer.Fill(Surface, System.Collections.Generic.IReadOnlyList{System.Collections.Generic.List{System.Numerics.Vector2}}, Rgba32, DemaConsulting.CanvasNet.Drawing.FillRule, DemaConsulting.CanvasNet.Geometry.Rect)"/> -
     ///     that composite many equal-or-smaller-width spans in a tight per-row loop.
     /// </summary>
     /// <param name="y">The zero-based row to composite into. Must be within <c>[0, Height)</c>.</param>
@@ -684,6 +684,120 @@ public sealed class Surface
     }
 
     /// <summary>
+    ///     Composites one <paramref name="colors"/> value per pixel over a horizontal run of this
+    ///     surface, each scaled by that pixel's own <paramref name="coverage"/> value.
+    /// </summary>
+    /// <param name="y">The zero-based row to composite into. Must be within <c>[0, Height)</c>.</param>
+    /// <param name="x">
+    ///     The zero-based column at which the run starts. Must be within <c>[0, Width]</c> (equal
+    ///     to <see cref="Width"/> is permitted only when <paramref name="coverage"/> is empty).
+    /// </param>
+    /// <param name="coverage">
+    ///     One coverage value per pixel of the run, in left-to-right order. Same semantics as
+    ///     <see cref="CompositeOverSpan(int, int, ReadOnlySpan{float}, Rgba32)"/>.
+    /// </param>
+    /// <param name="colors">
+    ///     One foreground color per pixel of the run, in left-to-right order. Must have the same
+    ///     length as <paramref name="coverage"/>.
+    /// </param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <paramref name="y"/> is outside <c>[0, Height)</c>, or when
+    ///     <paramref name="x"/> or <c>x + coverage.Length</c> is outside <c>[0, Width]</c>.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when <paramref name="colors"/>'s length does not equal <paramref name="coverage"/>'s
+    ///     length.
+    /// </exception>
+    /// <remarks>
+    ///     This overload exists for per-pixel-color callers - such as
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer"/>'s gradient fill
+    ///     overload - which need a different color at every pixel of a run rather than one
+    ///     constant color. It shares the exact same <see cref="CompositeOverRow"/> blend pipeline
+    ///     as the constant-color <see cref="CompositeOverSpan(int, int, ReadOnlySpan{float}, Rgba32)"/>
+    ///     overload - only the foreground buffer's population differs (here, one <see cref="Rgba32"/>
+    ///     read per pixel from <paramref name="colors"/>, rather than a single constant color
+    ///     broadcast to every pixel).
+    /// </remarks>
+    public void CompositeOverSpan(int y, int x, ReadOnlySpan<float> coverage, ReadOnlySpan<Rgba32> colors)
+    {
+        ValidateCompositeOverSpanArgs(y, x, coverage.Length);
+
+        if (colors.Length != coverage.Length)
+        {
+            throw new ArgumentException(
+                "Colors must have the same length as coverage.", nameof(colors));
+        }
+
+        var count = coverage.Length;
+        if (count == 0)
+        {
+            return;
+        }
+
+        using var bg = new RowChannelBuffers(count);
+        using var fg = new RowChannelBuffers(count);
+        using var work = new CompositeWorkBuffers(count);
+
+        CompositeOverSpanCore(y, x, coverage, colors, bg, fg, work, count);
+    }
+
+    /// <summary>
+    ///     Amortized-workspace counterpart of <see cref="CompositeOverSpan(int, int, ReadOnlySpan{float}, ReadOnlySpan{Rgba32})"/>,
+    ///     for callers - such as <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer.Fill(Surface, IReadOnlyList{List{System.Numerics.Vector2}}, DemaConsulting.CanvasNet.Drawing.Gradient, DemaConsulting.CanvasNet.Drawing.FillRule, Geometry.Rect)"/> -
+    ///     that composite many equal-or-smaller-width spans in a tight per-row loop.
+    /// </summary>
+    /// <param name="y">The zero-based row to composite into. Must be within <c>[0, Height)</c>.</param>
+    /// <param name="x">
+    ///     The zero-based column at which the run starts. Must be within <c>[0, Width]</c> (equal
+    ///     to <see cref="Width"/> is permitted only when <paramref name="coverage"/> is empty).
+    /// </param>
+    /// <param name="coverage">One coverage value per pixel of the run. Same semantics as the public overload.</param>
+    /// <param name="colors">One foreground color per pixel of the run. Must have the same length as <paramref name="coverage"/>.</param>
+    /// <param name="workspace">
+    ///     A previously constructed <see cref="CompositeSpanWorkspace"/> whose <see cref="CompositeSpanWorkspace.Capacity"/>
+    ///     is at least <c>coverage.Length</c>.
+    /// </param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown for the same reasons as the public overload, or when <c>coverage.Length</c>
+    ///     exceeds <paramref name="workspace"/>'s capacity.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when <paramref name="colors"/>'s length does not equal <paramref name="coverage"/>'s
+    ///     length.
+    /// </exception>
+    /// <remarks>
+    ///     Internal for the same reason as <see cref="CompositeOverSpan(int, int, ReadOnlySpan{float}, Rgba32, CompositeSpanWorkspace)"/>:
+    ///     it exposes an implementation-detail allocation strategy, not new externally observable
+    ///     behavior - for a given set of arguments it produces byte-for-byte identical surface
+    ///     output to the public overload.
+    /// </remarks>
+    internal void CompositeOverSpan(int y, int x, ReadOnlySpan<float> coverage, ReadOnlySpan<Rgba32> colors, CompositeSpanWorkspace workspace)
+    {
+        ValidateCompositeOverSpanArgs(y, x, coverage.Length);
+        ArgumentNullException.ThrowIfNull(workspace);
+
+        if (colors.Length != coverage.Length)
+        {
+            throw new ArgumentException(
+                "Colors must have the same length as coverage.", nameof(colors));
+        }
+
+        var count = coverage.Length;
+        if (count == 0)
+        {
+            return;
+        }
+
+        if (count > workspace.Capacity)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(coverage), coverage.Length, "Coverage length must not exceed the workspace's capacity.");
+        }
+
+        CompositeOverSpanCore(y, x, coverage, colors, workspace.Bg, workspace.Fg, workspace.Work, count);
+    }
+
+    /// <summary>
     ///     Validates the <paramref name="y"/>/<paramref name="x"/>/<paramref name="coverageLength"/>
     ///     arguments shared by both <c>CompositeOverSpan</c> overloads.
     /// </summary>
@@ -715,23 +829,16 @@ public sealed class Surface
     }
 
     /// <summary>
-    ///     Shared blend body for both <c>CompositeOverSpan</c> overloads: reads the background
-    ///     row via <see cref="DeinterleaveRow"/>, populates a per-pixel-coverage-scaled-alpha
-    ///     foreground from <paramref name="color"/>, blends via the shared
-    ///     <see cref="CompositeOverRow"/> pipeline, and writes the result back into the surface
-    ///     via <see cref="ReinterleaveRow"/>. Extracted so the buffer-provenance decision
-    ///     (freshly rented vs. reused workspace) is the only difference between the two
-    ///     public/internal entry points - the blend math itself is never duplicated.
+    ///     Populates <paramref name="fg"/>'s byte channels from a single constant
+    ///     <paramref name="color"/> broadcast to every pixel, scaling its alpha by that pixel's
+    ///     own <paramref name="coverage"/> value, then shares the exact same
+    ///     <see cref="CompositeOverSpanCoreShared"/> blend body - the only foreground-population
+    ///     difference from the per-pixel-color overload below.
     /// </summary>
     private void CompositeOverSpanCore(
         int y, int x, ReadOnlySpan<float> coverage, Rgba32 color, RowChannelBuffers bg, RowChannelBuffers fg,
         CompositeWorkBuffers work, int count)
     {
-        var bgRow = GetRowSpanBytes(y).Slice(x * BytesPerPixel, count * BytesPerPixel);
-
-        DeinterleaveRow(bgRow, bg, count);
-        WidenAllToFloat(bg, count);
-
         for (var i = 0; i < count; i++)
         {
             fg.RBytes[i] = color.R;
@@ -741,6 +848,49 @@ public sealed class Surface
             fg.ABytes[i] = (byte)Math.Clamp(MathF.Round(scaledAlpha, MidpointRounding.AwayFromZero), 0f, 255f);
         }
 
+        CompositeOverSpanCoreShared(y, x, coverage, bg, fg, work, count);
+    }
+
+    /// <summary>
+    ///     Per-pixel-color counterpart of <see cref="CompositeOverSpanCore(int, int, ReadOnlySpan{float}, Rgba32, RowChannelBuffers, RowChannelBuffers, CompositeWorkBuffers, int)"/>:
+    ///     populates <paramref name="fg"/> from one <see cref="Rgba32"/> per pixel in
+    ///     <paramref name="colors"/>, rather than broadcasting a single constant color, then
+    ///     shares the exact same <see cref="CompositeOverSpanCoreShared"/> blend body.
+    /// </summary>
+    private void CompositeOverSpanCore(
+        int y, int x, ReadOnlySpan<float> coverage, ReadOnlySpan<Rgba32> colors, RowChannelBuffers bg, RowChannelBuffers fg,
+        CompositeWorkBuffers work, int count)
+    {
+        for (var i = 0; i < count; i++)
+        {
+            var color = colors[i];
+            fg.RBytes[i] = color.R;
+            fg.GBytes[i] = color.G;
+            fg.BBytes[i] = color.B;
+            var scaledAlpha = color.A * Math.Clamp(coverage[i], 0f, 1f);
+            fg.ABytes[i] = (byte)Math.Clamp(MathF.Round(scaledAlpha, MidpointRounding.AwayFromZero), 0f, 255f);
+        }
+
+        CompositeOverSpanCoreShared(y, x, coverage, bg, fg, work, count);
+    }
+
+    /// <summary>
+    ///     Shared blend body for every <c>CompositeOverSpan</c> overload, regardless of whether
+    ///     the foreground was populated from a single constant color or from one color per pixel:
+    ///     reads the background row via <see cref="DeinterleaveRow"/>, blends via the shared
+    ///     <see cref="CompositeOverRow"/> pipeline, and writes the result back into the surface
+    ///     via <see cref="ReinterleaveRow"/>. <paramref name="fg"/> must already be populated (its
+    ///     byte channels only - this method widens it to float itself) by the caller before this
+    ///     method is invoked.
+    /// </summary>
+    private void CompositeOverSpanCoreShared(
+        int y, int x, ReadOnlySpan<float> coverage, RowChannelBuffers bg, RowChannelBuffers fg,
+        CompositeWorkBuffers work, int count)
+    {
+        var bgRow = GetRowSpanBytes(y).Slice(x * BytesPerPixel, count * BytesPerPixel);
+
+        DeinterleaveRow(bgRow, bg, count);
+        WidenAllToFloat(bg, count);
         WidenAllToFloat(fg, count);
 
         CompositeOverRow(bg, fg, work, count);
@@ -1060,7 +1210,7 @@ public sealed class Surface
     ///     A reusable set of scratch buffers for the internal
     ///     <see cref="CompositeOverSpan(int, int, ReadOnlySpan{float}, Rgba32, CompositeSpanWorkspace)"/>
     ///     overload, so a caller that composites many spans of the same or smaller width in a
-    ///     tight loop - for example <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer.Fill"/>,
+    ///     tight loop - for example <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer.Fill(Surface, System.Collections.Generic.IReadOnlyList{System.Collections.Generic.List{System.Numerics.Vector2}}, Rgba32, DemaConsulting.CanvasNet.Drawing.FillRule, DemaConsulting.CanvasNet.Geometry.Rect)"/>,
     ///     once per rasterized row - can rent its <see cref="RowChannelBuffers"/>/
     ///     <see cref="CompositeWorkBuffers"/> scratch arrays exactly once for the whole loop
     ///     instead of once per row, eliminating that hot path's per-row

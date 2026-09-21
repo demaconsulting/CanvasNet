@@ -11,7 +11,7 @@ namespace DemaConsulting.CanvasNet.Drawing;
 ///     (rather than documented inline within <see cref="PathFiller"/>, the way
 ///     <see cref="Geometry.PathCommandType"/> is documented inline within
 ///     <see cref="Geometry.Path"/>) because, unlike an internal implementation tag, this is a
-///     value a caller of <see cref="PathFiller.Fill"/> chooses directly and explicitly - it is
+///     value a caller of <see cref="PathFiller.Fill(Canvas.Surface, Geometry.Path, Canvas.Rgba32, FillRule, float)"/> chooses directly and explicitly - it is
 ///     part of the public contract of the fill operation, not an implementation detail hidden
 ///     behind it.
 /// </remarks>
