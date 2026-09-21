@@ -787,3 +787,58 @@ sections:
           - PathFiller_Fill_NullPath_ThrowsArgumentNullException
           - PathFiller_Fill_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException
           - PathFiller_Fill_UndefinedFillRule_ThrowsArgumentOutOfRangeException
+
+      - id: CanvasNet-Lib-DrawingPathStroke
+        title: >-
+          The library shall convert a Path stroke into a new closed Path suitable for nonzero-rule
+          filling, reflecting the configured width, cap shape, join shape, dash pattern, and
+          curve-flattening tolerance.
+        tags: [system]
+        justification: |
+          Stroke-to-fill conversion exposes standard vector stroking behavior while keeping one
+          rendering pipeline for both fills and strokes; callers can stroke a path, inspect or
+          reuse the returned outline geometry, then render it through the existing fill API.
+        children:
+          - CanvasNet-Drawing-PathStroke
+        tests:
+          - PathStroker_Stroke_HorizontalLineButtCap_FillsExactRectangleNoExtension
+          - PathStroker_Stroke_HorizontalLineRoundCap_FillsRectanglePlusSemicircularEnds
+          - PathStroker_Stroke_HorizontalLineSquareCap_FillsRectanglePlusHalfWidthExtension
+          - PathStroker_Stroke_RightAngleCornerMiterJoin_FillsSharpMiteredCorner
+          - PathStroker_Stroke_RightAngleCornerRoundJoin_FillsRoundedCorner
+          - PathStroker_Stroke_RightAngleCornerBevelJoin_FillsFlatBeveledCorner
+          - PathStroker_Stroke_DashedLine_FillsOnlyOnSegmentsLeavingGapsUnfilled
+
+      - id: CanvasNet-Lib-DrawingPathStrokeNoOp
+        title: >-
+          The library shall return an empty Path, without throwing, when stroking an empty Path or
+          when the requested stroke contributes no visible area.
+        tags: [system]
+        justification: |
+          Callers routinely stroke optional or partially constructed geometry; an empty result
+          must be a cheap, well-defined no-op rather than a special case callers must detect.
+        children:
+          - CanvasNet-Drawing-PathStrokeNoOp
+        tests:
+          - PathStroker_Stroke_ClosedRectangle_FillsRingLeavingInteriorAndExteriorUnfilled
+          - PathStroker_Stroke_ZeroLengthSubpathRoundCap_FillsCircleOfRadiusHalfWidth
+          - PathStroker_Stroke_ZeroLengthSubpathSquareCap_FillsSquareOfSideWidth
+          - PathStroker_Stroke_ZeroLengthSubpathButtCap_ProducesNoFilledPixels
+          - PathStroker_Stroke_SinglePointSubpath_MatchesZeroLengthSubpathBehavior
+          - PathStroker_Stroke_EmptyPath_ReturnsEmptyPathNoOp
+
+      - id: CanvasNet-Lib-DrawingPathStrokeValidation
+        title: >-
+          The library shall reject a null Path or stroke-style argument to the stroke operation
+          with ArgumentNullException, and shall reject a non-positive or non-finite
+          flatten-tolerance argument with ArgumentOutOfRangeException.
+        tags: [system]
+        justification: |
+          A null path or style cannot supply valid stroke geometry, and a non-positive or
+          non-finite flattening tolerance cannot bound curve approximation meaningfully.
+        children:
+          - CanvasNet-Drawing-PathStrokeValidation
+        tests:
+          - PathStroker_Stroke_NullPath_ThrowsArgumentNullException
+          - PathStroker_Stroke_NullStrokeStyle_ThrowsArgumentNullException
+          - PathStroker_Stroke_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException

@@ -318,6 +318,32 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/Drawing/EdgeFlattenerTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Drawing/ScanlineRasterizerTests.cs"  # unit tests
 
+  # CanvasNet-Drawing-PathStroker Review (one per unit)
+  - id: CanvasNet-Drawing-PathStroker
+    title: Review that CanvasNet Drawing PathStroker Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/drawing.md"
+      - "docs/reqstream/canvas-net/drawing.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/drawing/path-stroker.yaml"  # unit requirements
+      - "docs/design/canvas-net/drawing/path-stroker.md"      # unit design
+      - "docs/verification/canvas-net/drawing/path-stroker.md"  # unit verification
+      - "src/DemaConsulting.CanvasNet/Drawing/LineCap.cs"      # supporting enum source
+      - "src/DemaConsulting.CanvasNet/Drawing/LineJoin.cs"     # supporting enum source
+      - "src/DemaConsulting.CanvasNet/Drawing/StrokeStyle.cs"  # public style source
+      - "src/DemaConsulting.CanvasNet/Drawing/StrokePathFlattener.cs"  # internal helper source
+      - "src/DemaConsulting.CanvasNet/Drawing/DashSplitter.cs"  # internal helper source
+      - "src/DemaConsulting.CanvasNet/Drawing/StrokeOutliner.cs"  # internal helper source
+      - "src/DemaConsulting.CanvasNet/Drawing/PathStroker.cs"   # unit source
+      - "src/DemaConsulting.CanvasNet/Drawing/NamespaceDoc.cs"  # Drawing namespace documentation
+      - "test/DemaConsulting.CanvasNet.Tests/Drawing/StrokeStyleTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Drawing/StrokePathFlattenerTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Drawing/DashSplitterTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Drawing/StrokeOutlinerTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Drawing/PathStrokerTests.cs"  # unit tests
+
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark
     title: Review that BuildMark Provides Required Functionality

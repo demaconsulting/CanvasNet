@@ -705,6 +705,98 @@ throwing, if `path` is empty or its bounds do not intersect `surface`'s pixel ex
 - `ArgumentOutOfRangeException`: Thrown when `fillRule` is not a defined `FillRule` value, when
   `flattenTolerance` is less than or equal to zero, or is not a finite value (NaN or infinity).
 
+### PathStroker
+
+The `PathStroker` static class converts a `Geometry.Path` centerline into a new closed `Path`
+describing the stroked area. Callers render the returned outline path through `PathFiller.Fill`,
+reusing the same antialiased rasterizer as ordinary fills. Open subpaths honor end caps; closed
+subpaths become shell rings suitable for `FillRule.NonZero`.
+
+#### LineCap
+
+```csharp
+public enum LineCap
+{
+    Butt,
+    Round,
+    Square
+}
+```
+
+Selects the visible end shape for an open stroked segment: no extension (`Butt`), semicircular
+ends (`Round`), or half-width square extension (`Square`).
+
+#### LineJoin
+
+```csharp
+public enum LineJoin
+{
+    Miter,
+    Round,
+    Bevel
+}
+```
+
+Selects the visible corner shape where consecutive stroked segments meet: a sharp miter (with
+limit-based bevel fallback), a rounded corner, or a flat bevel.
+
+#### StrokeStyle
+
+```csharp
+public sealed class StrokeStyle
+{
+    public float Width { get; }
+    public LineCap Cap { get; }
+    public LineJoin Join { get; }
+    public float MiterLimit { get; }
+    public IReadOnlyList<float>? DashArray { get; }
+    public float DashOffset { get; }
+}
+```
+
+Immutable public stroke-style snapshot supplying width, cap, join, miter limit, optional dash
+array, and optional dash offset. A null or empty dash array means a solid stroke.
+
+##### StrokeStyle Constructor
+
+```csharp
+public StrokeStyle(
+    float width,
+    LineCap cap = LineCap.Butt,
+    LineJoin join = LineJoin.Miter,
+    float miterLimit = 4f,
+    IReadOnlyList<float>? dashArray = null,
+    float dashOffset = 0f)
+```
+
+**Exceptions:**
+
+- `ArgumentOutOfRangeException`: Thrown when `width` is less than or equal to zero or non-finite,
+  when `cap` or `join` is not a defined enum value, when `miterLimit` is less than 1 or
+  non-finite, or when `dashOffset` is non-finite.
+- `ArgumentException`: Thrown when `dashArray` contains a negative or non-finite entry, or when
+  every entry is zero.
+
+#### PathStroker Methods
+
+##### PathStroker.Stroke(Path path, StrokeStyle style, float flattenTolerance)
+
+```csharp
+public static Path Stroke(
+    Path path,
+    StrokeStyle style,
+    float flattenTolerance = 0.25f)
+```
+
+Converts `path` into a new closed-outline `Path` representing the requested stroke. Returns
+`Path.Empty` when the stroke contributes no visible area.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `path` or `style` is null.
+- `ArgumentOutOfRangeException`: Thrown when `flattenTolerance` is less than or equal to zero, or
+  is not a finite value (NaN or infinity).
+
 # Examples
 
 ## Example 1: Surface Pixel Access
@@ -873,6 +965,32 @@ var triangle = new PathBuilder()
 // Antialiased solid fill using the default NonZero fill rule and 0.25f flatten tolerance
 PathFiller.Fill(canvas, triangle, new Rgba32(0, 128, 255, 255));
 Console.WriteLine(canvas[32, 40].A); // Output: 255 (well inside the triangle)
+```
+
+## Example 10: Stroking a Vector Path
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Drawing;
+using DemaConsulting.CanvasNet.Geometry;
+using System.Numerics;
+
+var canvas = new Surface(64, 64);
+var polyline = new PathBuilder()
+    .MoveTo(new Vector2(8, 48))
+    .LineTo(new Vector2(32, 16))
+    .LineTo(new Vector2(56, 48))
+    .Build();
+
+var style = new StrokeStyle(
+    width: 6f,
+    cap: LineCap.Round,
+    join: LineJoin.Round,
+    dashArray: [10f, 6f]);
+
+var strokedOutline = PathStroker.Stroke(polyline, style);
+PathFiller.Fill(canvas, strokedOutline, new Rgba32(255, 128, 0, 255));
+Console.WriteLine(canvas[32, 24].A); // Output: 255 (well inside one visible dash run)
 ```
 
 # References

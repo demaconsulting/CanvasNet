@@ -33,16 +33,19 @@ DEMA Consulting best practices. The system consists of four implemented subsyste
   or `Codecs`, and neither of those subsystems depends on `Geometry`. See
   _Geometry Subsystem Design_ (`geometry.md`).
 - **Drawing subsystem** (namespace `DemaConsulting.CanvasNet.Drawing`, folder
-  `src/DemaConsulting.CanvasNet/Drawing/`, flat — no further nesting): an antialiased
-  scanline-coverage fill rasterizer for closed `Geometry.Path` geometry with solid-color paint —
-  the `PathFiller` unit (a public static `Fill` entry point, with the supporting `FillRule` enum
-  and the internal `EdgeFlattener`/`ScanlineRasterizer` helpers documented inline). `Drawing`
-  consumes both the `Canvas` subsystem's `Surface` unit (via `Surface.CompositeOverSpan`) and the
-  `Geometry` subsystem's `Path`/`BezierFlattening`/`SvgArcConverter` units; neither `Canvas` nor
-  `Geometry` depends on `Drawing`. `Geometry` is deliberately distinct from `Drawing`: `Geometry`
-  describes shape geometry (paths, bounds, curve math) with no notion of pixels, color, or
-  rasterization, while `Drawing` turns that geometry into pixels. Strokes, gradients, and fonts
-  are reserved for later phases. See _Drawing Subsystem Design_ (`drawing.md`).
+  `src/DemaConsulting.CanvasNet/Drawing/`, flat — no further nesting): solid-color vector
+  rendering for `Geometry.Path` geometry through two public entry points — the `PathFiller` unit
+  (a public static `Fill` entry point, with the supporting `FillRule` enum and the internal
+  `EdgeFlattener`/`ScanlineRasterizer` helpers documented inline) and the `PathStroker` unit (a
+  public static `Stroke` entry point, with the supporting `LineCap`/`LineJoin`/`StrokeStyle`
+  types and the internal `StrokePathFlattener`/`DashSplitter`/`StrokeOutliner` helpers documented
+  inline). `Drawing` consumes both the `Canvas` subsystem's `Surface` unit (via
+  `Surface.CompositeOverSpan`) and the `Geometry` subsystem's `Path`/`PathBuilder`/
+  `BezierFlattening`/`SvgArcConverter` units; neither `Canvas` nor `Geometry` depends on
+  `Drawing`. `Geometry` is deliberately distinct from `Drawing`: `Geometry` describes shape
+  geometry (paths, bounds, curve math) with no notion of pixels, color, or rasterization, while
+  `Drawing` turns that geometry into pixels. Gradients and fonts are reserved for later phases.
+  See _Drawing Subsystem Design_ (`drawing.md`).
 
 The `Codecs` subsystem depends on the `Canvas` subsystem's `Surface` unit (constructing surfaces
 and reading/writing rows via `Surface.GetRowSpanBytes`); the `Canvas` subsystem has no dependency
@@ -71,15 +74,20 @@ _Path Unit Design_ (`geometry/path.md`), _BezierFlattening Unit Design_
 (`geometry/bezier-flattening.md`), and _SvgArcConverter Unit Design_
 (`geometry/svg-arc-converter.md`) for each unit's internal collaboration.
 
-The `Drawing` subsystem's single unit, `PathFiller`, collaborates as follows: `PathFiller.Fill`
-first delegates to the internal `EdgeFlattener` (which converts the target `Geometry.Path`'s
-subpaths to closed polygons, flattening curves via `Geometry.BezierFlattening` and arcs via
+The `Drawing` subsystem's two units collaborate as follows. `PathFiller.Fill` first delegates to
+the internal `EdgeFlattener` (which converts the target `Geometry.Path`'s subpaths to closed
+polygons, flattening curves via `Geometry.BezierFlattening` and arcs via
 `Geometry.SvgArcConverter`), then computes the flattened polygons' bounds and intersects them with
 the `Canvas.Surface`'s pixel extent (a no-op if the path is empty or the intersection is empty),
 then delegates to the internal `ScanlineRasterizer` (which rasterizes those polygons into per-row
-antialiased coverage and composites each row directly via `Canvas.Surface.CompositeOverSpan`). See
-_Drawing Subsystem Design_ (`drawing.md`) and _PathFiller Unit Design_
-(`drawing/path-filler.md`) for full detail.
+antialiased coverage and composites each row directly via `Canvas.Surface.CompositeOverSpan`).
+`PathStroker.Stroke` runs earlier in the pipeline: it flattens each source subpath while
+preserving `Subpath.IsClosed`, applies optional dash-array and dash-offset semantics, offsets the
+visible polyline segments into closed outline polygons with cap and join geometry, and assembles
+those polygons into a new `Geometry.Path` via `PathBuilder`; callers render the returned outline
+path through `PathFiller.Fill`. See _Drawing Subsystem Design_ (`drawing.md`), _PathFiller Unit
+Design_ (`drawing/path-filler.md`), and _PathStroker Unit Design_ (`drawing/path-stroker.md`) for
+full detail.
 
 ## External Interfaces
 
@@ -191,6 +199,16 @@ The system exposes the following public API to external consumers:
   Throws `ArgumentNullException` for a null `surface`/`path`, and
   `ArgumentOutOfRangeException` for an undefined `fillRule` value or a non-finite or
   non-positive `flattenTolerance`.
+- **LineCap** / **LineJoin**: Public enums selecting stroke end-cap and corner-join geometry.
+- **StrokeStyle(float width, LineCap cap, LineJoin join, float miterLimit, IReadOnlyList<float>? dashArray, float dashOffset)**:
+  Immutable public stroke-style snapshot. Throws `ArgumentOutOfRangeException` for invalid width,
+  enum, miter-limit, or dash-offset values, and `ArgumentException` for invalid dash-array
+  entries.
+- **PathStroker.Stroke(Path, StrokeStyle, float)**: Converts a `Path` plus `StrokeStyle` into a
+  new closed-outline `Path` suitable for filling with `FillRule.NonZero`. No-ops by returning
+  `Path.Empty` when the stroke contributes no visible area. Throws `ArgumentNullException` for a
+  null `path`/`style`, and `ArgumentOutOfRangeException` for a non-finite or non-positive
+  `flattenTolerance`.
 
 | Interface                        | Direction        | Format                         | Constraints                   |
 | -------------------------------- | ---------------- | ------------------------------ | ----------------------------- |
@@ -221,6 +239,8 @@ The system exposes the following public API to external consumers:
 | `BezierFlattening.Flatten*(...)` | Inbound/Outbound | Method call / list append      | `tolerance` greater than zero |
 | `SvgArcConverter.ToBeziers(...)` | Inbound/Outbound | Method call / list append      | None                          |
 | `PathFiller.Fill(...)`           | Inbound          | Method call                    | Non-null; fillRule ok; tol>0  |
+| `StrokeStyle(...)`               | Inbound          | Constructor call               | Width > 0; valid style data   |
+| `PathStroker.Stroke(...)`        | Inbound/Outbound | Method call / `Path` return    | Non-null; tol > 0             |
 
 ## Dependencies
 
@@ -238,10 +258,12 @@ subsystem introduces zero new runtime NuGet dependencies: it is implemented enti
 `System.Numerics.Vector2` and `System.Numerics.Matrix3x2`, which are in-box BCL types available
 natively on every target framework this library supports (net8.0, net9.0, net10.0) — no custom
 point/vector wrapper types were introduced. The `Drawing` subsystem likewise introduces zero new
-runtime NuGet dependencies: `PathFiller`, `FillRule`, `EdgeFlattener`, and `ScanlineRasterizer`
-are implemented entirely against `System.Numerics.Vector2`, in-box `List<T>`/array types, and the
-existing `Geometry` and `Canvas` subsystem APIs (`Path`, `BezierFlattening`, `SvgArcConverter`,
-`Surface.CompositeOverSpan`) — no new package reference was added to the project file. The
+runtime NuGet dependencies: `PathFiller`, `FillRule`, `EdgeFlattener`, `ScanlineRasterizer`,
+`PathStroker`, `LineCap`, `LineJoin`, `StrokeStyle`, `StrokePathFlattener`, `DashSplitter`, and
+`StrokeOutliner` are implemented entirely against `System.Numerics.Vector2`, in-box `List<T>`/
+array types, and the existing `Geometry` and `Canvas` subsystem APIs (`Path`, `PathBuilder`,
+`BezierFlattening`, `SvgArcConverter`, `Surface.CompositeOverSpan`) — no new package reference
+was added to the project file. The
 following OTS
 items are used for building and verifying this system (not consumed at runtime); see
 _OTS Integration Design_ (`docs/design/ots.md`) and each item's dedicated design document for
@@ -393,6 +415,20 @@ measures (IEC 62304 §5.3.3).
    pixels into the destination `Surface`
 4. **Output**: A new `Surface` containing the decoded pixels
 
+**Path stroke conversion path:**
+
+1. **Input**: Method parameters `path`, `style`, and optional `flattenTolerance`
+2. **Validation**: `PathStroker.Stroke` rejects a null `path` or `style` with
+   `ArgumentNullException`, and rejects a non-positive or non-finite
+   `flattenTolerance` with `ArgumentOutOfRangeException`; `StrokeStyle` itself already
+   validated width, cap, join, miter limit, dash array, and dash offset at construction time
+3. **Processing**: Each subpath is flattened while preserving open/closed state, optional dashes
+   are split into visible runs, each visible run is converted into one or more closed outline
+   polygons with cap/join geometry, and those polygons are assembled into a new `Path` via
+   `PathBuilder`
+4. **Output**: A new closed-outline `Path` suitable for rendering through `PathFiller.Fill` with
+   `FillRule.NonZero`
+
 ## Design Constraints
 
 - **Simplicity**: Minimal functionality kept easy to understand and extend
@@ -427,3 +463,4 @@ APIs, or framework-version-specific features are used.
 - **CI/CD Integration**: Automated build, test, and quality validation
 - **Requirements Traceability**: All features linked to passing tests
 - **Review Management**: Systematic file review using ReviewMark patterns
+<!-- cspell:ignore Outliner -->

@@ -23,6 +23,7 @@ includes:
   - docs/reqstream/canvas-net/geometry/svg-arc-converter.yaml
   - docs/reqstream/canvas-net/drawing.yaml
   - docs/reqstream/canvas-net/drawing/path-filler.yaml
+  - docs/reqstream/canvas-net/drawing/path-stroker.yaml
   - docs/reqstream/canvas-net/platform-requirements.yaml
   - docs/reqstream/ots/xunit.yaml
   - docs/reqstream/ots/reqstream.yaml

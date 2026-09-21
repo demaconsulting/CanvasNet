@@ -1,0 +1,127 @@
+## PathStroker Unit Verification Design
+
+This document describes the unit-level verification strategy for the `PathStroker` class and the
+supporting `StrokeStyle`, `LineCap`, `LineJoin`, `StrokePathFlattener`, `DashSplitter`, and
+`StrokeOutliner` types it covers inline.
+
+### Verification Approach
+
+The `PathStroker` unit is verified through a mix of end-to-end rendering assertions and narrower
+internal geometry tests:
+
+- **End-to-end stroke rendering** (`PathStrokerTests.cs`) converts an input path to outline
+  geometry via `PathStroker.Stroke`, fills that returned path through the production
+  `PathFiller.Fill` pipeline, and asserts byte-exact pixel alpha values on the resulting
+  `Surface`. This proves the public API's observable behavior, not merely the intermediate outline
+  coordinates.
+- **Style validation tests** (`StrokeStyleTests.cs`) verify constructor rejection of invalid
+  widths, miter limits, and dash arrays, plus round-trip preservation of valid values.
+- **Flattening, dash, and outline helper tests** (`StrokePathFlattenerTests.cs`,
+  `DashSplitterTests.cs`, and `StrokeOutlinerTests.cs`) exercise the internal contracts that are
+  difficult to prove solely from rasterized pixels, such as seam stitching for a dashed closed
+  contour or opposite winding for shell rings.
+
+No mocks are required. The helpers are accessible to the test project through the existing
+`InternalsVisibleTo` configuration already used elsewhere in the repository.
+
+### Test Environment
+
+- **Framework**: xUnit v3 running under the .NET SDK
+- **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
+- **Mocking**: None required; the unit has no injectable dependencies
+
+### Acceptance Criteria
+
+The unit passes verification when every scenario below passes without unexpected exception and
+every expected pixel alpha or geometry assertion matches exactly.
+
+### Test Scenarios
+
+#### Stroke Conversion and Cap Shapes
+
+- `PathStroker_Stroke_HorizontalLineButtCap_FillsExactRectangleNoExtension`
+- `PathStroker_Stroke_HorizontalLineRoundCap_FillsRectanglePlusSemicircularEnds`
+- `PathStroker_Stroke_HorizontalLineSquareCap_FillsRectanglePlusHalfWidthExtension`
+
+These tests stroke a simple horizontal line and then fill the returned outline geometry. They
+verify that butt caps stop exactly at the endpoints, square caps extend by half the width, and
+round caps contribute the expected partial-coverage end pixels rather than a rectangular
+extension.
+
+#### Join Shapes and Miter Limit
+
+- `PathStroker_Stroke_RightAngleCornerMiterJoin_FillsSharpMiteredCorner`
+- `PathStroker_Stroke_RightAngleCornerRoundJoin_FillsRoundedCorner`
+- `PathStroker_Stroke_RightAngleCornerBevelJoin_FillsFlatBeveledCorner`
+- `PathStroker_Stroke_SharpAngleExceedingMiterLimit_FallsBackToBevel`
+
+These tests use the same right-angle polyline with width 4 so the corner-only pixels differ
+clearly between join styles. The miter-limit scenario uses the same path with a deliberately small
+limit, proving that the rendered result matches the bevel case rather than the unrestricted miter.
+
+#### Closed Contours, Dashing, and Degenerate Subpaths
+
+- `PathStroker_Stroke_ClosedRectangle_FillsRingLeavingInteriorAndExteriorUnfilled`
+- `PathStroker_Stroke_DashedLine_FillsOnlyOnSegmentsLeavingGapsUnfilled`
+- `PathStroker_Stroke_ZeroLengthSubpathRoundCap_FillsCircleOfRadiusHalfWidth`
+- `PathStroker_Stroke_ZeroLengthSubpathSquareCap_FillsSquareOfSideWidth`
+- `PathStroker_Stroke_ZeroLengthSubpathButtCap_ProducesNoFilledPixels`
+- `PathStroker_Stroke_SinglePointSubpath_MatchesZeroLengthSubpathBehavior`
+- `PathStroker_Stroke_EmptyPath_ReturnsEmptyPathNoOp`
+
+These scenarios verify the boundary conditions most likely to produce either missing geometry or
+wrong winding: closed contours must leave their interior hole unfilled; dashed lines must paint
+only visible runs; degenerate subpaths must follow cap semantics exactly; and an empty path must
+remain a no-op.
+
+#### Public API Validation
+
+- `PathStroker_Stroke_NullPath_ThrowsArgumentNullException`
+- `PathStroker_Stroke_NullStrokeStyle_ThrowsArgumentNullException`
+- `PathStroker_Stroke_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException`
+
+These tests prove that the public entry point rejects invalid reference and tolerance arguments
+before attempting any geometry conversion.
+
+#### StrokeStyle Constructor Validation
+
+- `StrokeStyle_Constructor_NonPositiveWidth_ThrowsArgumentOutOfRangeException`
+- `StrokeStyle_Constructor_MiterLimitBelowOne_ThrowsArgumentOutOfRangeException`
+- `StrokeStyle_Constructor_DefaultMiterLimit_IsFour`
+- `StrokeStyle_Constructor_NullOrEmptyDashArray_IsTreatedAsSolid`
+- `StrokeStyle_Constructor_DashArrayWithNegativeEntry_ThrowsArgumentException`
+- `StrokeStyle_Constructor_DashArrayAllZero_ThrowsArgumentException`
+- `StrokeStyle_Constructor_ValidValues_PropertiesRoundTrip`
+
+These tests verify that style validation is front-loaded at construction time and that valid
+public styling values are preserved exactly.
+
+#### Internal Helper Semantics
+
+- `StrokePathFlattener_Flatten_OpenSubpath_PreservesIsClosedFalse`
+- `StrokePathFlattener_Flatten_ClosedSubpath_PreservesIsClosedTrueWithNoImplicitDuplicatePoint`
+- `StrokePathFlattener_Flatten_CurveCommands_DelegatesToBezierFlattening`
+- `StrokePathFlattener_Flatten_MultipleSubpaths_RemainSeparate`
+- `StrokePathFlattener_Flatten_EmptyPath_ReturnsEmptyList`
+- `DashSplitter_Split_NullOrEmptyDashArray_ReturnsWholeSegmentUnchanged`
+- `DashSplitter_Split_OddLengthDashArray_DuplicatesArrayConceptually`
+- `DashSplitter_Split_WithDashOffset_ShiftsPhaseOfFirstSegment`
+- `DashSplitter_Split_ClosedPolylineDashWrappingSeam_StitchesSegmentAcrossStartPoint`
+- `DashSplitter_Split_PatternLongerThanPolyline_ReturnsSinglePartialOnSegment`
+- `DashSplitter_Split_AllZeroDashArray_TreatedAsSolid`
+- `StrokeOutliner_Outline_ClosedSubpath_ProducesTwoCounterWoundRings`
+- `StrokeOutliner_Outline_MiterJoinWithinLimit_ProducesSharpVertex`
+- `StrokeOutliner_Outline_MiterJoinExceedingLimit_FallsBackToBevelVertex`
+
+These tests verify the intermediate geometry contracts that feed the public API: preserving
+open/closed state, applying SVG-style dash semantics, stitching seam-wrapping visible runs, and
+producing shell rings with opposite winding for `FillRule.NonZero`.
+
+### Complexity Verification Policy
+
+Complexity expectations for dash splitting and outline generation are established in
+_PathStroker Unit Design_ (`../../../design/canvas-net/drawing/path-stroker.md`) through design
+analysis and code review only. There are intentionally **no** timing-based tests, elapsed-time
+assertions, or `Stopwatch`-based guards in this unit's automated verification because those are
+not stable compliance evidence on heterogeneous CI hardware.
+<!-- cspell:ignore Outliner -->

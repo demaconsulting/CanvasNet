@@ -77,3 +77,66 @@ sections:
               - PathFiller_Fill_NullPath_ThrowsArgumentNullException
               - PathFiller_Fill_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException
               - PathFiller_Fill_UndefinedFillRule_ThrowsArgumentOutOfRangeException
+
+          - id: CanvasNet-Drawing-PathStroke
+            title: >-
+              The Drawing subsystem shall convert a Path stroke into closed outline geometry whose
+              rendered appearance reflects the configured width, cap shape, join shape, dash
+              pattern, and curve-flattening tolerance.
+            justification: |
+              Solid-color stroke rendering is the natural companion to fill rendering; callers need
+              the standard vector-stroke appearance controls without a second rasterization API.
+            children:
+              - CanvasNet-Drawing-PathStroker-Stroke
+              - CanvasNet-Drawing-PathStroker-Caps
+              - CanvasNet-Drawing-PathStroker-Joins
+              - CanvasNet-Drawing-PathStroker-MiterLimit
+              - CanvasNet-Drawing-PathStroker-Dashing
+              - CanvasNet-Drawing-PathStroker-StyleValidation
+              - CanvasNet-Drawing-PathStroker-OpenClosedPreservation
+              - CanvasNet-Drawing-PathStroker-DashPhaseSemantics
+            tests:
+              - PathStroker_Stroke_HorizontalLineButtCap_FillsExactRectangleNoExtension
+              - PathStroker_Stroke_HorizontalLineRoundCap_FillsRectanglePlusSemicircularEnds
+              - PathStroker_Stroke_HorizontalLineSquareCap_FillsRectanglePlusHalfWidthExtension
+              - PathStroker_Stroke_RightAngleCornerMiterJoin_FillsSharpMiteredCorner
+              - PathStroker_Stroke_RightAngleCornerRoundJoin_FillsRoundedCorner
+              - PathStroker_Stroke_RightAngleCornerBevelJoin_FillsFlatBeveledCorner
+              - PathStroker_Stroke_DashedLine_FillsOnlyOnSegmentsLeavingGapsUnfilled
+
+          - id: CanvasNet-Drawing-PathStrokeNoOp
+            title: >-
+              The Drawing subsystem shall return an empty path, without throwing, when stroking an
+              empty Path or a Path whose visible stroke reduces entirely to omitted dash gaps or
+              butt-capped zero-length segments.
+            justification: |
+              Callers routinely stroke conditional or partially constructed geometry; an empty
+              stroke result must be a cheap, well-defined no-op rather than a special case callers
+              must detect themselves.
+            children:
+              - CanvasNet-Drawing-PathStroker-DegenerateSubpaths
+              - CanvasNet-Drawing-PathStroker-ClosedContours
+              - CanvasNet-Drawing-PathStroker-EmptyNoOp
+              - CanvasNet-Drawing-PathStroker-ShellWinding
+            tests:
+              - PathStroker_Stroke_ClosedRectangle_FillsRingLeavingInteriorAndExteriorUnfilled
+              - PathStroker_Stroke_ZeroLengthSubpathRoundCap_FillsCircleOfRadiusHalfWidth
+              - PathStroker_Stroke_ZeroLengthSubpathSquareCap_FillsSquareOfSideWidth
+              - PathStroker_Stroke_ZeroLengthSubpathButtCap_ProducesNoFilledPixels
+              - PathStroker_Stroke_SinglePointSubpath_MatchesZeroLengthSubpathBehavior
+              - PathStroker_Stroke_EmptyPath_ReturnsEmptyPathNoOp
+
+          - id: CanvasNet-Drawing-PathStrokeValidation
+            title: >-
+              The Drawing subsystem shall reject a null Path or stroke-style argument with
+              ArgumentNullException, and shall reject a non-positive or non-finite
+              flatten-tolerance argument with ArgumentOutOfRangeException.
+            justification: |
+              A null path or style cannot supply valid stroke geometry, and a non-positive or
+              non-finite flattening tolerance cannot bound curve approximation meaningfully.
+            children:
+              - CanvasNet-Drawing-PathStroker-Validation
+            tests:
+              - PathStroker_Stroke_NullPath_ThrowsArgumentNullException
+              - PathStroker_Stroke_NullStrokeStyle_ThrowsArgumentNullException
+              - PathStroker_Stroke_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException

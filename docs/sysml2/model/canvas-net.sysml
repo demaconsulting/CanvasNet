@@ -12,7 +12,7 @@ package CanvasNet {
         comment designRef /* Design: docs/design/canvas-net.md */
         comment verificationRef /* Verification: docs/verification/canvas-net.md */
         comment reqRef /* Requirements: docs/reqstream/canvas-net.yaml */
-        comment /* The Drawing subsystem rasterizes Geometry.Path geometry onto a Canvas.Surface (PathFiller); strokes/gradients/fonts are reserved for later phases. */
+        comment /* The Drawing subsystem renders Geometry.Path geometry onto a Canvas.Surface through PathFiller (direct fill) and PathStroker (stroke-to-fill conversion); gradients/fonts are reserved for later phases. */
 
         part canvas : Canvas;
         part codecs : Codecs;
@@ -20,4 +20,3 @@ package CanvasNet {
         part drawing : Drawing;
     }
 }
-
