@@ -306,3 +306,38 @@ sections:
               - Surface_CompositeOverColor_OpaqueColor_ReplacesBackground
               - Surface_CompositeOverColor_TransparentColor_LeavesBackgroundUnchanged
               - Surface_CompositeOverColor_PartialAlpha_MatchesIndependentlyComputedResult
+
+          - id: CanvasNet-Canvas-CompositeOverSpan
+            title: >-
+              The Canvas subsystem shall composite a constant color "over" a horizontal run of
+              pixels within a single row in place, scaling the color's effective alpha at each
+              pixel by a caller-supplied per-pixel coverage value, using standard Porter-Duff
+              "over" alpha compositing.
+            justification: |
+              A per-pixel-coverage caller (for example the Drawing subsystem's antialiased fill
+              rasterizer, which already consumes this method via `PathFiller.Fill`) needs to
+              composite an arbitrary sub-range of a single row directly, without allocating a
+              full-row or full-surface buffer merely to hold mostly-untouched pixels.
+            children:
+              - CanvasNet-Canvas-Surface-CompositeOverSpan
+            tests:
+              - Surface_CompositeOverSpan_FullCoverage_MatchesCompositeOverColor
+              - Surface_CompositeOverSpan_ZeroCoverage_LeavesBackgroundUnchanged
+              - Surface_CompositeOverSpan_PartialCoverage_MatchesLinearInterpolationOracle
+              - Surface_CompositeOverSpan_MultiPixelRun_AppliesPerPixelCoverage
+
+          - id: CanvasNet-Canvas-CompositeOverSpanValidation
+            title: >-
+              The Canvas subsystem shall reject an out-of-range row or column argument to
+              composite-over-span with ArgumentOutOfRangeException.
+            justification: |
+              A row outside the buffer's height, or a column range extending outside the buffer's
+              width, cannot identify a valid run of pixels to composite; rejecting it prevents an
+              out-of-bounds read or write.
+            children:
+              - CanvasNet-Canvas-Surface-CompositeOverSpanValidation
+            tests:
+              - Surface_CompositeOverSpan_NegativeY_ThrowsArgumentOutOfRangeException
+              - Surface_CompositeOverSpan_YAtHeight_ThrowsArgumentOutOfRangeException
+              - Surface_CompositeOverSpan_NegativeX_ThrowsArgumentOutOfRangeException
+              - Surface_CompositeOverSpan_RunExceedsWidth_ThrowsArgumentOutOfRangeException

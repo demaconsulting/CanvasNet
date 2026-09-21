@@ -154,8 +154,40 @@ single-unit scenario, because it exercises the collaboration between `PathBuilde
 (including its internal use of `SvgArcConverter` to convert the `ArcTo` command), and
 `BezierFlattening` together, rather than any one of the four `Geometry` units in isolation.
 
+### Integration: Fill Empty or Out-of-Bounds Path No-Ops, Leaving the Surface Unchanged
+
+**Test**: `CanvasNet_SystemIntegration_FillEmptyOrOutOfBoundsPath_NoOpLeavesSurfaceUnchanged`
+
+Exercises end-to-end system behavior across the `Geometry`, `Drawing`, and `Canvas` subsystems
+together for the no-op edge case: constructs a `Surface`, builds an empty `Path` via
+`PathBuilder().Build()`, and separately builds a closed triangular `Path` whose vertices all fall
+entirely outside the surface's bounds. Calls `PathFiller.Fill` with each path in turn and asserts
+every pixel of the surface remains at its initial, fully transparent state after both calls,
+confirming that neither an empty path nor a path whose bounds do not intersect the surface causes
+`PathFiller.Fill` to throw or to write any pixel. This is a system-level scenario, not a
+single-unit scenario, because it exercises the same `PathBuilder`/`Path` (`Geometry`),
+`PathFiller` (`Drawing`), and `Surface` (`Canvas`) collaboration as the triangle-fill scenario
+below, but for the no-op boundary condition rather than the happy path.
+
+### Integration: Build and Fill a Triangle Path Returns Expected Pixels
+
+**Test**: `CanvasNet_SystemIntegration_BuildAndFillTrianglePath_ReturnsExpectedPixels`
+
+Exercises end-to-end system behavior across the `Geometry`, `Drawing`, and `Canvas` subsystems
+together: constructs a `PathBuilder`, issues a `MoveTo`/`LineTo`/`LineTo`/`Close` sequence
+describing a triangle, calls `Build()` to obtain an immutable `Path`, constructs a `Surface`, and
+calls `PathFiller.Fill` with a solid opaque color. Asserts a pixel well inside the triangle is
+fully opaque with the exact requested color, a pixel well outside the triangle remains fully
+transparent (the surface's untouched initial state), and a pixel straddling the triangle's
+slanted edge has a partial (neither `0` nor `255`) alpha value, confirming the antialiased
+coverage rasterizer produced a genuine fractional-coverage result rather than a hard-edged
+(aliased) one. This is a system-level scenario, not a single-unit scenario, because it exercises
+the collaboration between `PathBuilder`/`Path` (`Geometry`), `PathFiller` (`Drawing`), and
+`Surface`/`Surface.CompositeOverSpan` (`Canvas`) together, rather than any one subsystem in
+isolation.
+
 ## Acceptance Criteria
 
-A system-level test run passes when all twelve scenarios above pass without error or exception
+A system-level test run passes when all fourteen scenarios above pass without error or exception
 beyond those explicitly asserted. Any unexpected exception, wrong exception type, or wrong return
 value constitutes a failure.

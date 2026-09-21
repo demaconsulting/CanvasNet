@@ -573,6 +573,211 @@ public sealed class Surface
     }
 
     /// <summary>
+    ///     Composites a single constant <paramref name="color"/> "over" a horizontal run of
+    ///     pixels in row <paramref name="y"/> starting at column <paramref name="x"/>, scaling
+    ///     <paramref name="color"/>'s effective alpha at each pixel by the corresponding entry of
+    ///     <paramref name="coverage"/>, using standard Porter-Duff "over" alpha compositing.
+    /// </summary>
+    /// <param name="y">The zero-based row to composite into. Must be within <c>[0, Height)</c>.</param>
+    /// <param name="x">
+    ///     The zero-based column at which the run starts. Must be within <c>[0, Width]</c> (equal
+    ///     to <see cref="Width"/> is permitted only when <paramref name="coverage"/> is empty).
+    /// </param>
+    /// <param name="coverage">
+    ///     One coverage value per pixel of the run, in left-to-right order. Each value is
+    ///     implicitly clamped to <c>[0, 1]</c>: a value less than or equal to zero leaves that
+    ///     pixel unchanged, a value greater than or equal to one is equivalent to calling
+    ///     <see cref="CompositeOver(Rgba32)"/> at that one pixel, and values in between linearly
+    ///     scale <paramref name="color"/>'s alpha before compositing.
+    /// </param>
+    /// <param name="color">The constant foreground color to composite over the run.</param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <paramref name="y"/> is outside <c>[0, Height)</c>, or when
+    ///     <paramref name="x"/> or <c>x + coverage.Length</c> is outside <c>[0, Width]</c>.
+    /// </exception>
+    /// <remarks>
+    ///     This is the first partial-row compositing primitive in <see cref="Surface"/>: every
+    ///     other <c>CompositeOver</c> overload always processes a full row (or the whole
+    ///     surface). It exists so per-pixel-coverage callers - such as
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer"/>'s antialiased fill
+    ///     rasterizer - can composite an arbitrary sub-range of a row directly, without allocating
+    ///     a full-row or full-surface buffer merely to hold mostly-untouched pixels. It reuses the
+    ///     exact same private per-channel <see cref="CompositeOverRow"/> pipeline as every other
+    ///     <c>CompositeOver</c> overload - only the foreground buffer's population differs (here,
+    ///     a constant color whose per-pixel alpha is scaled by <paramref name="coverage"/>, rather
+    ///     than a constant alpha or another surface's pixels) - so the blend math itself is never
+    ///     duplicated.
+    /// </remarks>
+    public void CompositeOverSpan(int y, int x, ReadOnlySpan<float> coverage, Rgba32 color)
+    {
+        // The public entry point always rents its own scratch buffers for the single call - see
+        // CompositeOverSpan(int, int, ReadOnlySpan<float>, Rgba32, CompositeSpanWorkspace) for the
+        // amortized-workspace overload used by hot loops such as
+        // DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer.Fill.
+        ValidateCompositeOverSpanArgs(y, x, coverage.Length);
+
+        var count = coverage.Length;
+        if (count == 0)
+        {
+            return;
+        }
+
+        using var bg = new RowChannelBuffers(count);
+        using var fg = new RowChannelBuffers(count);
+        using var work = new CompositeWorkBuffers(count);
+
+        CompositeOverSpanCore(y, x, coverage, color, bg, fg, work, count);
+    }
+
+    /// <summary>
+    ///     Amortized-workspace counterpart of <see cref="CompositeOverSpan(int, int, ReadOnlySpan{float}, Rgba32)"/>
+    ///     for callers - such as <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer.Fill"/> -
+    ///     that composite many equal-or-smaller-width spans in a tight per-row loop.
+    /// </summary>
+    /// <param name="y">The zero-based row to composite into. Must be within <c>[0, Height)</c>.</param>
+    /// <param name="x">
+    ///     The zero-based column at which the run starts. Must be within <c>[0, Width]</c> (equal
+    ///     to <see cref="Width"/> is permitted only when <paramref name="coverage"/> is empty).
+    /// </param>
+    /// <param name="coverage">
+    ///     One coverage value per pixel of the run, in left-to-right order. Same semantics as
+    ///     <see cref="CompositeOverSpan(int, int, ReadOnlySpan{float}, Rgba32)"/>.
+    /// </param>
+    /// <param name="color">The constant foreground color to composite over the run.</param>
+    /// <param name="workspace">
+    ///     A previously constructed <see cref="CompositeSpanWorkspace"/> whose
+    ///     <see cref="CompositeSpanWorkspace.Capacity"/> is at least <c>coverage.Length</c>. The
+    ///     caller owns this workspace's lifetime - typically allocating it once before, and
+    ///     disposing it once after, a whole row loop - so its rented scratch buffers are reused
+    ///     across every call instead of being rented and returned per call.
+    /// </param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown for the same reasons as
+    ///     <see cref="CompositeOverSpan(int, int, ReadOnlySpan{float}, Rgba32)"/>, or when
+    ///     <c>coverage.Length</c> exceeds <paramref name="workspace"/>'s capacity.
+    /// </exception>
+    /// <remarks>
+    ///     This overload is internal because it exposes an implementation-detail allocation
+    ///     strategy (buffer reuse), not new externally observable behavior: for a given
+    ///     <paramref name="y"/>/<paramref name="x"/>/<paramref name="coverage"/>/<paramref name="color"/>,
+    ///     it produces byte-for-byte identical surface output to the public overload - see
+    ///     <c>ScanlineRasterizerFillWorkspaceTests</c> for the equivalence proof.
+    /// </remarks>
+    internal void CompositeOverSpan(int y, int x, ReadOnlySpan<float> coverage, Rgba32 color, CompositeSpanWorkspace workspace)
+    {
+        ValidateCompositeOverSpanArgs(y, x, coverage.Length);
+        ArgumentNullException.ThrowIfNull(workspace);
+
+        var count = coverage.Length;
+        if (count == 0)
+        {
+            return;
+        }
+
+        if (count > workspace.Capacity)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(coverage), coverage.Length, "Coverage length must not exceed the workspace's capacity.");
+        }
+
+        CompositeOverSpanCore(y, x, coverage, color, workspace.Bg, workspace.Fg, workspace.Work, count);
+    }
+
+    /// <summary>
+    ///     Validates the <paramref name="y"/>/<paramref name="x"/>/<paramref name="coverageLength"/>
+    ///     arguments shared by both <c>CompositeOverSpan</c> overloads.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <paramref name="y"/> is outside <c>[0, Height)</c>, or when
+    ///     <paramref name="x"/> or <c>x + coverageLength</c> is outside <c>[0, Width]</c>.
+    /// </exception>
+    private void ValidateCompositeOverSpanArgs(int y, int x, int coverageLength)
+    {
+        if (y < 0 || y >= Height)
+        {
+            throw new ArgumentOutOfRangeException(nameof(y), y, "Y must be within the surface height.");
+        }
+
+        if (x < 0 || x > Width)
+        {
+            throw new ArgumentOutOfRangeException(nameof(x), x, "X must be within the surface width.");
+        }
+
+        // Compare without computing "x + coverageLength": that sum can overflow a positive x
+        // with an enormous coverageLength, wrapping negative and bypassing this check entirely.
+        // "Width - x" cannot itself overflow because the check above already guarantees
+        // "x <= Width", so "Width - x >= 0" always holds here.
+        if (coverageLength > Width - x)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(coverageLength), coverageLength, "X plus the coverage length must not exceed the surface width.");
+        }
+    }
+
+    /// <summary>
+    ///     Shared blend body for both <c>CompositeOverSpan</c> overloads: reads the background
+    ///     row via <see cref="DeinterleaveRow"/>, populates a per-pixel-coverage-scaled-alpha
+    ///     foreground from <paramref name="color"/>, blends via the shared
+    ///     <see cref="CompositeOverRow"/> pipeline, and writes the result back into the surface
+    ///     via <see cref="ReinterleaveRow"/>. Extracted so the buffer-provenance decision
+    ///     (freshly rented vs. reused workspace) is the only difference between the two
+    ///     public/internal entry points - the blend math itself is never duplicated.
+    /// </summary>
+    private void CompositeOverSpanCore(
+        int y, int x, ReadOnlySpan<float> coverage, Rgba32 color, RowChannelBuffers bg, RowChannelBuffers fg,
+        CompositeWorkBuffers work, int count)
+    {
+        var bgRow = GetRowSpanBytes(y).Slice(x * BytesPerPixel, count * BytesPerPixel);
+
+        DeinterleaveRow(bgRow, bg, count);
+        WidenAllToFloat(bg, count);
+
+        for (var i = 0; i < count; i++)
+        {
+            fg.RBytes[i] = color.R;
+            fg.GBytes[i] = color.G;
+            fg.BBytes[i] = color.B;
+            var scaledAlpha = color.A * Math.Clamp(coverage[i], 0f, 1f);
+            fg.ABytes[i] = (byte)Math.Clamp(MathF.Round(scaledAlpha, MidpointRounding.AwayFromZero), 0f, 255f);
+        }
+
+        WidenAllToFloat(fg, count);
+
+        CompositeOverRow(bg, fg, work, count);
+
+        NarrowRoundedClamp(work.OutR, bg.RBytes, count);
+        NarrowRoundedClamp(work.OutG, bg.GBytes, count);
+        NarrowRoundedClamp(work.OutB, bg.BBytes, count);
+        NarrowRoundedClamp(work.OutA, bg.ABytes, count);
+        ZeroColorWhereAlphaByteIsZero(bg.ABytes, bg.RBytes, bg.GBytes, bg.BBytes, count);
+
+        // Restore the original background bytes for every column whose coverage was zero or
+        // negative: per the documented contract such a column must be left completely untouched,
+        // but it still flowed through the shared blend/normalization pipeline above (with its
+        // foreground alpha forced to zero) so its blended result can be discarded here. Without
+        // this, ZeroColorWhereAlphaByteIsZero would overwrite a fully-transparent background
+        // pixel that legitimately holds nonzero RGB (for example, a premultiplied-adjacent
+        // transparent fringe pixel) with (0, 0, 0, 0), corrupting data the caller never asked to
+        // change. "bgRow" still holds the untouched original surface bytes at this point, because
+        // only ReinterleaveRow (below) ever writes back into it.
+        for (var i = 0; i < count; i++)
+        {
+            if (coverage[i] > 0f)
+            {
+                continue;
+            }
+
+            var offset = i * BytesPerPixel;
+            bg.RBytes[i] = bgRow[offset];
+            bg.GBytes[i] = bgRow[offset + 1];
+            bg.BBytes[i] = bgRow[offset + 2];
+            bg.ABytes[i] = bgRow[offset + 3];
+        }
+
+        ReinterleaveRow(bgRow, bg, count);
+    }
+
+    /// <summary>
     ///     Splits an interleaved RGBA row into the four planar byte channels of
     ///     <paramref name="destination"/>. This is a layout transform, not numeric work, so it is
     ///     kept as a plain scalar loop for clarity rather than forced through a tensor API.
@@ -754,7 +959,7 @@ public sealed class Surface
     ///     reused across every row of a single bulk pixel operation, released together on
     ///     <see cref="Dispose"/>.
     /// </summary>
-    private sealed class RowChannelBuffers : IDisposable
+    internal sealed class RowChannelBuffers : IDisposable
     {
         public RowChannelBuffers(int pixelsPerRow)
         {
@@ -805,7 +1010,7 @@ public sealed class Surface
     ///     accumulate the intermediate and final results of the "over" compositing formula for a
     ///     single row, released together on <see cref="Dispose"/>.
     /// </summary>
-    private sealed class CompositeWorkBuffers : IDisposable
+    internal sealed class CompositeWorkBuffers : IDisposable
     {
         public CompositeWorkBuffers(int pixelsPerRow)
         {
@@ -848,6 +1053,74 @@ public sealed class Surface
             ArrayPool<float>.Shared.Return(FgAn, clearArray: true);
             ArrayPool<float>.Shared.Return(OneMinusFgA, clearArray: true);
             ArrayPool<float>.Shared.Return(Term, clearArray: true);
+        }
+    }
+
+    /// <summary>
+    ///     A reusable set of scratch buffers for the internal
+    ///     <see cref="CompositeOverSpan(int, int, ReadOnlySpan{float}, Rgba32, CompositeSpanWorkspace)"/>
+    ///     overload, so a caller that composites many spans of the same or smaller width in a
+    ///     tight loop - for example <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer.Fill"/>,
+    ///     once per rasterized row - can rent its <see cref="RowChannelBuffers"/>/
+    ///     <see cref="CompositeWorkBuffers"/> scratch arrays exactly once for the whole loop
+    ///     instead of once per row, eliminating that hot path's per-row
+    ///     <see cref="ArrayPool{T}"/> rent/return churn.
+    /// </summary>
+    /// <remarks>
+    ///     Internal (not public): this type exposes an implementation-detail allocation strategy,
+    ///     not new externally observable behavior. Construct one instance sized to the largest
+    ///     span width used within a loop, reuse it for every call in that loop, then dispose it
+    ///     once the loop completes.
+    /// </remarks>
+    internal sealed class CompositeSpanWorkspace : IDisposable
+    {
+        /// <summary>
+        ///     Initializes a workspace whose scratch buffers can serve any span of up to
+        ///     <paramref name="capacity"/> pixels.
+        /// </summary>
+        /// <param name="capacity">
+        ///     The largest coverage-span length this workspace will be asked to serve. Must be
+        ///     greater than zero.
+        /// </param>
+        /// <exception cref="ArgumentOutOfRangeException">
+        ///     Thrown when <paramref name="capacity"/> is less than or equal to zero.
+        /// </exception>
+        public CompositeSpanWorkspace(int capacity)
+        {
+            if (capacity <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(capacity), capacity, "Capacity must be greater than zero.");
+            }
+
+            Capacity = capacity;
+            Bg = new RowChannelBuffers(capacity);
+            Fg = new RowChannelBuffers(capacity);
+            Work = new CompositeWorkBuffers(capacity);
+        }
+
+        /// <summary>
+        ///     The largest coverage-span length this workspace's buffers can serve.
+        /// </summary>
+        public int Capacity { get; }
+
+        /// <summary>The reused background per-channel scratch buffers.</summary>
+        internal RowChannelBuffers Bg { get; }
+
+        /// <summary>The reused foreground per-channel scratch buffers.</summary>
+        internal RowChannelBuffers Fg { get; }
+
+        /// <summary>The reused blend intermediate/result scratch buffers.</summary>
+        internal CompositeWorkBuffers Work { get; }
+
+        /// <summary>
+        ///     Returns every rented scratch array to <see cref="ArrayPool{T}.Shared"/>. Must be
+        ///     called once the whole loop reusing this workspace has completed.
+        /// </summary>
+        public void Dispose()
+        {
+            Bg.Dispose();
+            Fg.Dispose();
+            Work.Dispose();
         }
     }
 }

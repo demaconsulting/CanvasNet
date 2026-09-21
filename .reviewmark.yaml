@@ -286,6 +286,38 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Geometry/SvgArcConverter.cs"      # unit source
       - "test/DemaConsulting.CanvasNet.Tests/Geometry/SvgArcConverterTests.cs"  # unit tests
 
+  # CanvasNet-Drawing Review (one per subsystem)
+  - id: CanvasNet-Drawing
+    title: Review that CanvasNet Drawing Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/drawing.yaml"                # subsystem requirements
+      - "docs/design/canvas-net/drawing.md"                    # subsystem design
+      - "docs/verification/canvas-net/drawing.md"              # subsystem verification
+
+  # CanvasNet-Drawing-PathFiller Review (one per unit)
+  - id: CanvasNet-Drawing-PathFiller
+    title: Review that CanvasNet Drawing PathFiller Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/drawing.md"
+      - "docs/reqstream/canvas-net/drawing.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/drawing/path-filler.yaml"  # unit requirements
+      - "docs/design/canvas-net/drawing/path-filler.md"      # unit design
+      - "docs/verification/canvas-net/drawing/path-filler.md"  # unit verification
+      - "src/DemaConsulting.CanvasNet/Drawing/PathFiller.cs"      # unit source
+      - "src/DemaConsulting.CanvasNet/Drawing/FillRule.cs"        # supporting enum source
+      - "src/DemaConsulting.CanvasNet/Drawing/EdgeFlattener.cs"   # internal helper source
+      - "src/DemaConsulting.CanvasNet/Drawing/ScanlineRasterizer.cs"  # internal helper source
+      - "src/DemaConsulting.CanvasNet/Drawing/NamespaceDoc.cs"    # Drawing namespace documentation
+      - "test/DemaConsulting.CanvasNet.Tests/Drawing/PathFillerTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Drawing/EdgeFlattenerTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Drawing/ScanlineRasterizerTests.cs"  # unit tests
+
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark
     title: Review that BuildMark Provides Required Functionality

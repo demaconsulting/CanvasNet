@@ -7,8 +7,7 @@ This document provides the system-level design for CanvasNet.
 ## Architecture
 
 CanvasNet is a .NET library providing a canvas-based drawing and rendering API, following
-DEMA Consulting best practices. The system consists of three implemented subsystems, plus one
-subsystem reserved for future work:
+DEMA Consulting best practices. The system consists of four implemented subsystems:
 
 - **Canvas subsystem** (namespace `DemaConsulting.CanvasNet.Canvas`, folder
   `src/DemaConsulting.CanvasNet/Canvas/`): the pixel-buffer primitives on which all other
@@ -33,13 +32,17 @@ subsystem reserved for future work:
   (SVG-style elliptical arc to cubic Bezier conversion). `Geometry` has no dependency on `Canvas`
   or `Codecs`, and neither of those subsystems depends on `Geometry`. See
   _Geometry Subsystem Design_ (`geometry.md`).
-- **Drawing subsystem** (reserved): not yet implemented. No folder, namespace, or documentation
-  exists for it yet. It is reserved for future higher-level drawing primitives (shapes, brushes,
-  pens, and rendering of a `Geometry.Path` onto a `Canvas.Surface`) that will build on top of both
-  the `Canvas` subsystem's `Surface` unit and the `Geometry` subsystem's vector primitives.
-  `Geometry` is deliberately distinct from `Drawing`: `Geometry` describes shape geometry (paths,
-  bounds, curve math) with no notion of pixels, color, or rasterization, while the reserved
-  `Drawing` subsystem will own turning that geometry into pixels.
+- **Drawing subsystem** (namespace `DemaConsulting.CanvasNet.Drawing`, folder
+  `src/DemaConsulting.CanvasNet/Drawing/`, flat — no further nesting): an antialiased
+  scanline-coverage fill rasterizer for closed `Geometry.Path` geometry with solid-color paint —
+  the `PathFiller` unit (a public static `Fill` entry point, with the supporting `FillRule` enum
+  and the internal `EdgeFlattener`/`ScanlineRasterizer` helpers documented inline). `Drawing`
+  consumes both the `Canvas` subsystem's `Surface` unit (via `Surface.CompositeOverSpan`) and the
+  `Geometry` subsystem's `Path`/`BezierFlattening`/`SvgArcConverter` units; neither `Canvas` nor
+  `Geometry` depends on `Drawing`. `Geometry` is deliberately distinct from `Drawing`: `Geometry`
+  describes shape geometry (paths, bounds, curve math) with no notion of pixels, color, or
+  rasterization, while `Drawing` turns that geometry into pixels. Strokes, gradients, and fonts
+  are reserved for later phases. See _Drawing Subsystem Design_ (`drawing.md`).
 
 The `Codecs` subsystem depends on the `Canvas` subsystem's `Surface` unit (constructing surfaces
 and reading/writing rows via `Surface.GetRowSpanBytes`); the `Canvas` subsystem has no dependency
@@ -68,6 +71,16 @@ _Path Unit Design_ (`geometry/path.md`), _BezierFlattening Unit Design_
 (`geometry/bezier-flattening.md`), and _SvgArcConverter Unit Design_
 (`geometry/svg-arc-converter.md`) for each unit's internal collaboration.
 
+The `Drawing` subsystem's single unit, `PathFiller`, collaborates as follows: `PathFiller.Fill`
+first delegates to the internal `EdgeFlattener` (which converts the target `Geometry.Path`'s
+subpaths to closed polygons, flattening curves via `Geometry.BezierFlattening` and arcs via
+`Geometry.SvgArcConverter`), then computes the flattened polygons' bounds and intersects them with
+the `Canvas.Surface`'s pixel extent (a no-op if the path is empty or the intersection is empty),
+then delegates to the internal `ScanlineRasterizer` (which rasterizes those polygons into per-row
+antialiased coverage and composites each row directly via `Canvas.Surface.CompositeOverSpan`). See
+_Drawing Subsystem Design_ (`drawing.md`) and _PathFiller Unit Design_
+(`drawing/path-filler.md`) for full detail.
+
 ## External Interfaces
 
 The system exposes the following public API to external consumers:
@@ -95,6 +108,12 @@ The system exposes the following public API to external consumers:
   `foreground`, and `ArgumentException` if `foreground`'s dimensions differ from this surface's.
 - **Surface.CompositeOver(Rgba32 color)**: Composites a single solid `color` over every pixel of
   this surface in place using the Porter-Duff "over" operator.
+- **Surface.CompositeOverSpan(int y, int x, ReadOnlySpan\<float\> coverage, Rgba32 color)**:
+  Composites `color` over a horizontal run of `coverage.Length` pixels in row `y` starting at
+  column `x`, scaling `color`'s effective alpha at each pixel by the corresponding `coverage`
+  value (clamped to `[0, 1]`), using the same Porter-Duff "over" formula. Throws
+  `ArgumentOutOfRangeException` if `y` is outside `[0, Height)` or the `[x, x + coverage.Length)`
+  column range is outside `[0, Width]`.
 - **BmpCodec.Load(Stream stream)** / **BmpCodec.Load(string path)**: Loads a `Surface` from an
   uncompressed 24-bit or 32-bit BMP stream or file. Throws `ArgumentNullException` for a null
   `stream`/`path`, `ArgumentException` for an empty `path`, and `InvalidDataException` for
@@ -165,6 +184,13 @@ The system exposes the following public API to external consumers:
 - **SvgArcConverter.ToBeziers(...)**: Appends the cubic Bezier segments equivalent to an SVG-style
   elliptical arc to a caller-supplied output list, in end-to-end order. Never throws for any
   SVG-valid input.
+- **PathFiller.Fill(Surface, Path, Rgba32, FillRule, float)**: Fills a closed `Path` with a solid
+  color onto a `Surface` using an antialiased scanline-coverage rasterizer, with a fill rule
+  (`FillRule.NonZero` by default, or `FillRule.EvenOdd`) and a curve-flattening tolerance
+  (`0.25f` by default). No-ops if the path is empty or its bounds do not intersect the surface.
+  Throws `ArgumentNullException` for a null `surface`/`path`, and
+  `ArgumentOutOfRangeException` for an undefined `fillRule` value or a non-finite or
+  non-positive `flattenTolerance`.
 
 | Interface                        | Direction        | Format                         | Constraints                   |
 | -------------------------------- | ---------------- | ------------------------------ | ----------------------------- |
@@ -177,6 +203,7 @@ The system exposes the following public API to external consumers:
 | `Surface.UnpremultiplyAlpha()`   | Inbound          | Method call                    | None                          |
 | `Surface.CompositeOver(Surface)` | Inbound          | Method call                    | Equal dimensions, non-null    |
 | `Surface.CompositeOver(Rgba32)`  | Inbound          | Method call                    | None                          |
+| `Surface.CompositeOverSpan(...)` | Inbound          | Method call                    | `y`, `x`+run within bounds    |
 | `BmpCodec.Load(...)`             | Inbound/Outbound | Method call / `Surface` return | Valid BMP stream or path      |
 | `BmpCodec.Save(...)`             | Inbound          | Method call                    | `surface` non-null            |
 | `PngCodec.Load(...)`             | Inbound/Outbound | Method call / `Surface` return | Valid PNG stream or path      |
@@ -193,6 +220,7 @@ The system exposes the following public API to external consumers:
 | `Path.GetBounds(float)`          | Outbound         | Method call / `Rect` return    | None                          |
 | `BezierFlattening.Flatten*(...)` | Inbound/Outbound | Method call / list append      | `tolerance` greater than zero |
 | `SvgArcConverter.ToBeziers(...)` | Inbound/Outbound | Method call / list append      | None                          |
+| `PathFiller.Fill(...)`           | Inbound          | Method call                    | Non-null; fillRule ok; tol>0  |
 
 ## Dependencies
 
@@ -209,7 +237,12 @@ every target framework, with no additional runtime NuGet package required). The 
 subsystem introduces zero new runtime NuGet dependencies: it is implemented entirely against
 `System.Numerics.Vector2` and `System.Numerics.Matrix3x2`, which are in-box BCL types available
 natively on every target framework this library supports (net8.0, net9.0, net10.0) — no custom
-point/vector wrapper types were introduced. The following OTS
+point/vector wrapper types were introduced. The `Drawing` subsystem likewise introduces zero new
+runtime NuGet dependencies: `PathFiller`, `FillRule`, `EdgeFlattener`, and `ScanlineRasterizer`
+are implemented entirely against `System.Numerics.Vector2`, in-box `List<T>`/array types, and the
+existing `Geometry` and `Canvas` subsystem APIs (`Path`, `BezierFlattening`, `SvgArcConverter`,
+`Surface.CompositeOverSpan`) — no new package reference was added to the project file. The
+following OTS
 items are used for building and verifying this system (not consumed at runtime); see
 _OTS Integration Design_ (`docs/design/ots.md`) and each item's dedicated design document for
 details:

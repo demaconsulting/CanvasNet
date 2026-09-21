@@ -23,4 +23,8 @@ package CanvasNet {
     view GeometryView {
         expose Geometry;
     }
+
+    view DrawingView {
+        expose Drawing;
+    }
 }

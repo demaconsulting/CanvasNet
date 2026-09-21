@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Tests.Canvas;
@@ -971,5 +972,379 @@ public class SurfaceTests
         // field is genuinely declared public (not merely reachable via InternalsVisibleTo)
         Assert.Equal(8192, maxDimension);
         Assert.True(field.IsPublic);
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOverSpan with a coverage of exactly 1 at every pixel produces the
+    ///     same result as CompositeOver(Rgba32) at those same pixels.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpan_FullCoverage_MatchesCompositeOverColor()
+    {
+        // Arrange: two identically initialized surfaces, one composited via CompositeOver(Rgba32),
+        // the other via CompositeOverSpan with a coverage of 1 across the whole row
+        var expected = new Surface(3, 1);
+        var actual = new Surface(3, 1);
+        for (var x = 0; x < 3; x++)
+        {
+            expected[x, 0] = new Rgba32(10, 20, 30, 255);
+            actual[x, 0] = new Rgba32(10, 20, 30, 255);
+        }
+
+        var color = new Rgba32(200, 150, 100, 180);
+
+        // Act
+        expected.CompositeOver(color);
+        actual.CompositeOverSpan(0, 0, [1f, 1f, 1f], color);
+
+        // Assert
+        for (var x = 0; x < 3; x++)
+        {
+            Assert.Equal(expected[x, 0], actual[x, 0]);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOverSpan with a coverage of exactly 0 leaves the background pixel
+    ///     entirely unchanged.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpan_ZeroCoverage_LeavesBackgroundUnchanged()
+    {
+        // Arrange
+        var surface = new Surface(1, 1);
+        surface[0, 0] = new Rgba32(80, 160, 240, 120);
+
+        // Act: garbage-looking overlay color must not affect the result at zero coverage
+        surface.CompositeOverSpan(0, 0, [0f], new Rgba32(30, 60, 90, 255));
+
+        // Assert
+        Assert.Equal(new Rgba32(80, 160, 240, 120), surface[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOverSpan with a coverage of exactly 0 leaves a background pixel
+    ///     that is fully transparent but still holds nonzero RGB (for example, a
+    ///     premultiplied-adjacent transparent fringe pixel) completely untouched, rather than
+    ///     routing it through the shared blend/normalization pipeline - which would otherwise
+    ///     force the foreground alpha to zero, resolve the blended alpha to zero, and then have
+    ///     the degenerate "alpha == 0 implies every color channel is 0" normalization overwrite
+    ///     the pixel's legitimate nonzero RGB with (0, 0, 0, 0).
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpan_ZeroCoverageOnTransparentPixelWithNonzeroColor_LeavesPixelUnchanged()
+    {
+        // Arrange: a fully-transparent background pixel that legitimately carries nonzero RGB
+        var surface = new Surface(1, 1);
+        surface[0, 0] = new Rgba32(80, 160, 240, 0);
+
+        // Act
+        surface.CompositeOverSpan(0, 0, [0f], new Rgba32(30, 60, 90, 255));
+
+        // Assert: the pixel is byte-for-byte unchanged, not zeroed out
+        Assert.Equal(new Rgba32(80, 160, 240, 0), surface[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOverSpan treats a negative coverage value identically to zero
+    ///     coverage - per its documented contract ("a value less than or equal to zero leaves
+    ///     that pixel unchanged") - leaving a fully-transparent, nonzero-RGB background pixel
+    ///     completely untouched.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpan_NegativeCoverageOnTransparentPixelWithNonzeroColor_LeavesPixelUnchanged()
+    {
+        // Arrange: a fully-transparent background pixel that legitimately carries nonzero RGB
+        var surface = new Surface(1, 1);
+        surface[0, 0] = new Rgba32(80, 160, 240, 0);
+
+        // Act
+        surface.CompositeOverSpan(0, 0, [-0.5f], new Rgba32(30, 60, 90, 255));
+
+        // Assert: the pixel is byte-for-byte unchanged, not zeroed out
+        Assert.Equal(new Rgba32(80, 160, 240, 0), surface[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOverSpan's zero-coverage skip applies independently per column: a
+    ///     multi-pixel run mixing a zero-coverage column (over a fully-transparent, nonzero-RGB
+    ///     pixel) with a full-coverage column applies the correct, distinct outcome to each.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpan_MixedZeroAndFullCoverageRun_OnlyTouchesFullCoverageColumn()
+    {
+        // Arrange
+        var surface = new Surface(2, 1);
+        surface[0, 0] = new Rgba32(80, 160, 240, 0);
+        surface[1, 0] = new Rgba32(80, 160, 240, 0);
+        var color = new Rgba32(30, 60, 90, 255);
+
+        // Act: column 0 gets zero coverage, column 1 gets full coverage
+        surface.CompositeOverSpan(0, 0, [0f, 1f], color);
+
+        // Assert: column 0 untouched, column 1 fully replaced by the overlay color
+        Assert.Equal(new Rgba32(80, 160, 240, 0), surface[0, 0]);
+        Assert.Equal(color, surface[1, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOverSpan with a fractional coverage matches an independently
+    ///     computed linear-interpolation oracle: scaling the color's alpha by the coverage value
+    ///     before applying the ordinary Porter-Duff "over" formula.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpan_PartialCoverage_MatchesLinearInterpolationOracle()
+    {
+        // Arrange: opaque background, a color with alpha 200, and a coverage of 0.5
+        var surface = new Surface(1, 1);
+        surface[0, 0] = new Rgba32(0, 255, 0, 255);
+        var color = new Rgba32(255, 0, 0, 200);
+        const float coverage = 0.5f;
+
+        // Act
+        surface.CompositeOverSpan(0, 0, [coverage], color);
+
+        // Assert: the oracle scales alpha by coverage first (round-half-away-from-zero, clamped
+        // to [0, 255]), then applies the same "over" formula CompositeOver(Rgba32) itself uses
+        var scaledAlpha = (byte)Math.Clamp(MathF.Round(color.A * coverage, MidpointRounding.AwayFromZero), 0f, 255f);
+        var oracle = new Surface(1, 1);
+        oracle[0, 0] = new Rgba32(0, 255, 0, 255);
+        oracle.CompositeOver(new Rgba32(color.R, color.G, color.B, scaledAlpha));
+
+        Assert.Equal(oracle[0, 0], surface[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOverSpan applies its coverage array across a multi-pixel run
+    ///     starting at a nonzero column, with each pixel independently scaled by its own coverage
+    ///     value.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpan_MultiPixelRun_AppliesPerPixelCoverage()
+    {
+        // Arrange: a 4-pixel-wide row, run starts at column 1 and covers 3 pixels with distinct
+        // coverage values
+        var surface = new Surface(4, 1);
+        for (var x = 0; x < 4; x++)
+        {
+            surface[x, 0] = new Rgba32(0, 0, 0, 255);
+        }
+
+        var color = new Rgba32(255, 255, 255, 255);
+
+        // Act
+        surface.CompositeOverSpan(0, 1, [0f, 0.5f, 1f], color);
+
+        // Assert: column 0 (outside the run) is untouched, column 1 is unchanged because its
+        // coverage is zero, column 2 is half-blended, and column 3 is fully replaced
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[0, 0]);
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[1, 0]);
+        Assert.Equal(new Rgba32(128, 128, 128, 255), surface[2, 0]);
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[3, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOverSpan throws ArgumentOutOfRangeException when y is negative.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpan_NegativeY_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+
+        // Act & Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => surface.CompositeOverSpan(-1, 0, [1f], new Rgba32(1, 2, 3, 4)));
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOverSpan throws ArgumentOutOfRangeException when y is at or
+    ///     beyond Height.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpan_YAtHeight_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+
+        // Act & Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => surface.CompositeOverSpan(2, 0, [1f], new Rgba32(1, 2, 3, 4)));
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOverSpan throws ArgumentOutOfRangeException when x is negative.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpan_NegativeX_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+
+        // Act & Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => surface.CompositeOverSpan(0, -1, [1f], new Rgba32(1, 2, 3, 4)));
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOverSpan throws ArgumentOutOfRangeException when x plus the
+    ///     coverage length exceeds Width.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpan_RunExceedsWidth_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+
+        // Act & Assert: x=1 plus a 2-element coverage run reaches column 3, beyond Width=2
+        Assert.Throws<ArgumentOutOfRangeException>(() => surface.CompositeOverSpan(0, 1, [1f, 1f], new Rgba32(1, 2, 3, 4)));
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOverSpan's bounds check rejects a pathologically huge coverage
+    ///     length even when <c>x</c> is small and positive - a regression test for a prior
+    ///     integer-overflow bug where the check was written as
+    ///     <c>if (x + coverage.Length > Width)</c>. With x=10 and a coverage length just under
+    ///     int.MaxValue, that addition itself overflows Int32 and wraps to a negative number,
+    ///     which is never greater than a small positive Width - so the old form would have let
+    ///     this call fall through the guard entirely and proceed to rent multi-gigabyte scratch
+    ///     buffers (a resource-exhaustion / OutOfMemoryException risk from attacker-controlled
+    ///     input). The fixed comparison, <c>coverage.Length > Width - x</c>, cannot overflow
+    ///     (Width - x is always non-negative once x has already been validated as at most Width)
+    ///     and correctly throws instead. The coverage span itself is never actually backed by
+    ///     that many real elements - it is constructed via <see cref="MemoryMarshal"/> over a
+    ///     tiny array purely to exercise the length check without allocating billions of bytes;
+    ///     this is safe because the guard clause must throw before any element of the span is
+    ///     ever read.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpan_HugeCoverageLengthWithSmallPositiveX_ThrowsArgumentOutOfRangeExceptionWithoutOverflow()
+    {
+        // Arrange: a small surface, a small positive x, and a coverage span whose reported
+        // Length is deliberately chosen so that "x + coverage.Length" overflows Int32 and wraps
+        // negative, while "Width - x" cannot overflow
+        var surface = new Surface(100, 1);
+        var backing = new float[1];
+        var hugeCoverage = MemoryMarshal.CreateReadOnlySpan(ref MemoryMarshal.GetArrayDataReference(backing), int.MaxValue - 5);
+
+        // Act & Assert: the fixed, overflow-safe bounds check must still throw. A plain
+        // try/catch is used instead of Assert.Throws(() => ...) because ReadOnlySpan<float> is a
+        // ref struct and cannot be captured by a lambda expression.
+        var threw = false;
+        try
+        {
+            surface.CompositeOverSpan(0, 10, hugeCoverage, new Rgba32(1, 2, 3, 4));
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            threw = true;
+        }
+
+        Assert.True(threw, "Expected CompositeOverSpan to throw ArgumentOutOfRangeException.");
+    }
+
+    /// <summary>
+    ///     Proves that CompositeOverSpan accepts an empty coverage span at x == Width as a
+    ///     trivial no-op, rather than throwing merely because x equals the boundary.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpan_EmptyCoverageAtWidthBoundary_NoOp()
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+        surface[0, 0] = new Rgba32(1, 2, 3, 4);
+        surface[1, 0] = new Rgba32(5, 6, 7, 8);
+
+        // Act
+        surface.CompositeOverSpan(0, 2, [], new Rgba32(9, 9, 9, 9));
+
+        // Assert: nothing changed
+        Assert.Equal(new Rgba32(1, 2, 3, 4), surface[0, 0]);
+        Assert.Equal(new Rgba32(5, 6, 7, 8), surface[1, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that the internal, workspace-reusing <c>CompositeOverSpan</c> overload (used by
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer.Fill"/> to amortize its
+    ///     scratch-buffer rent/return across every row of a fill instead of paying it per row)
+    ///     produces byte-for-byte identical surface output to the public, per-call-renting
+    ///     overload, across several rows sharing one <see cref="Surface.CompositeSpanWorkspace"/> -
+    ///     this is a correctness-preserving allocation-reduction refactor, so behavioral
+    ///     equivalence (not speed) is what must be proven.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpanWithWorkspace_MultipleRowsReusingOneWorkspace_MatchesPublicOverload()
+    {
+        // Arrange: two identically initialized surfaces, several rows of varying partial and
+        // full coverage patterns, some columns fully transparent-with-nonzero-RGB to also
+        // exercise the zero-coverage-restore path across a reused workspace
+        const int width = 5;
+        const int height = 4;
+        var expected = new Surface(width, height);
+        var actual = new Surface(width, height);
+        var rowCoverages = new[]
+        {
+            new[] { 0f, 0.25f, 0.5f, 0.75f, 1f },
+            new[] { 1f, 1f, 0f, 0f, 1f },
+            new[] { 0.1f, 0.9f, 0.3f, 0.7f, 0.5f },
+            new[] { -1f, 2f, 0.5f, 0.5f, 0f }
+        };
+        var color = new Rgba32(64, 128, 192, 220);
+
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var pixel = new Rgba32((byte)(x * 10), (byte)(y * 10 + 1), (byte)(x + y), (byte)(x == 1 ? 0 : 200));
+                expected[x, y] = pixel;
+                actual[x, y] = pixel;
+            }
+        }
+
+        // Act: "expected" uses the public per-call overload every row; "actual" reuses a single
+        // CompositeSpanWorkspace across every row via the internal overload
+        using var workspace = new Surface.CompositeSpanWorkspace(width);
+        for (var y = 0; y < height; y++)
+        {
+            expected.CompositeOverSpan(y, 0, rowCoverages[y], color);
+            actual.CompositeOverSpan(y, 0, rowCoverages[y], color, workspace);
+        }
+
+        // Assert: every pixel matches exactly between the two code paths
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                Assert.Equal(expected[x, y], actual[x, y]);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves that the internal workspace overload throws ArgumentOutOfRangeException when
+    ///     the coverage span is longer than the workspace's capacity, rather than silently
+    ///     reading or writing past the workspace's rented scratch buffers.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpanWithWorkspace_CoverageLongerThanCapacity_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange: a workspace sized for 2 pixels, but a 3-element coverage span
+        var surface = new Surface(10, 1);
+        using var workspace = new Surface.CompositeSpanWorkspace(2);
+
+        // Act & Assert
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => surface.CompositeOverSpan(0, 0, [1f, 1f, 1f], new Rgba32(1, 2, 3, 4), workspace));
+    }
+
+    /// <summary>
+    ///     Proves that <see cref="Surface.CompositeSpanWorkspace"/>'s constructor rejects a
+    ///     non-positive capacity, since a workspace that can serve zero or negative pixels can
+    ///     never be usefully reused across a row loop.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void CompositeSpanWorkspace_Constructor_NonPositiveCapacity_ThrowsArgumentOutOfRangeException(int capacity)
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Surface.CompositeSpanWorkspace(capacity));
     }
 }

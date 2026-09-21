@@ -29,12 +29,17 @@ software items, specifically:
   32-bit RGBA pixel buffer with span-based row access) and the `Rgba32` unit
 - **Codecs (Subsystem)** — Image format codecs: `BmpCodec`, `PngCodec`, `TiffCodec`, and
   `JpegCodec`, each converting to and from a `Surface` pixel buffer
-- **Geometry (Subsystem)** — Vector-geometry primitives, distinct from the reserved `Drawing`
-  subsystem (which will cover shapes, brushes, pens, and transforms built on top of these
-  primitives): the `Rect` unit (axis-aligned bounding rectangle), the `Path` unit (immutable
-  vector path and its `PathBuilder`, covering the supporting `Subpath`, `PathCommand`, and
-  `PathCommandType` types inline), the `BezierFlattening` unit (adaptive Bezier curve
-  flattening), and the `SvgArcConverter` unit (SVG-style elliptical arc to Bezier conversion)
+- **Geometry (Subsystem)** — Vector-geometry primitives, distinct from the `Drawing`
+  subsystem (which covers rasterization built on top of these primitives): the `Rect` unit
+  (axis-aligned bounding rectangle), the `Path` unit (immutable vector path and its
+  `PathBuilder`, covering the supporting `Subpath`, `PathCommand`, and `PathCommandType` types
+  inline), the `BezierFlattening` unit (adaptive Bezier curve flattening), and the
+  `SvgArcConverter` unit (SVG-style elliptical arc to Bezier conversion)
+- **Drawing (Subsystem)** — An antialiased scanline-coverage fill rasterizer for closed
+  `Geometry.Path` geometry with solid-color paint: the `PathFiller` unit (a public static `Fill`
+  entry point, covering the supporting `FillRule` enum and the internal
+  `EdgeFlattener`/`ScanlineRasterizer` helpers inline). Strokes, gradients, and fonts are
+  reserved for later phases.
 
 The following OTS items are also covered:
 
@@ -69,16 +74,16 @@ diagram or the prose below.
 
 ![Software Structure](SoftwareStructureView.svg)
 
-CanvasNet is organized into three subsystems under the system level: the `Canvas` subsystem
+CanvasNet is organized into four subsystems under the system level: the `Canvas` subsystem
 (the `Surface` and `Rgba32` units, namespace `DemaConsulting.CanvasNet.Canvas`), the `Codecs` subsystem
 (the `BmpCodec`, `PngCodec`, `TiffCodec`, and `JpegCodec` units, namespace `DemaConsulting.CanvasNet.Codecs`,
-flat — no further nesting), and the `Geometry` subsystem (the `Rect`, `Path`, `BezierFlattening`, and
-`SvgArcConverter` units, namespace `DemaConsulting.CanvasNet.Geometry`, flat — no further nesting).
-A fourth subsystem, `Drawing`, is reserved for future work (shapes, brushes, pens, and higher-level
-transforms built on top of `Geometry`'s primitives) and has no folder, namespace, or documentation
-yet. As additional functionality is added, further subsystems and nested subsystems would organize
-related units and provide architectural boundaries with well-defined interfaces and
-responsibilities.
+flat — no further nesting), the `Geometry` subsystem (the `Rect`, `Path`, `BezierFlattening`, and
+`SvgArcConverter` units, namespace `DemaConsulting.CanvasNet.Geometry`, flat — no further nesting),
+and the `Drawing` subsystem (the `PathFiller` unit, covering the supporting `FillRule` enum and
+the internal `EdgeFlattener`/`ScanlineRasterizer` helpers inline, namespace
+`DemaConsulting.CanvasNet.Drawing`, flat — no further nesting). As additional functionality is
+added, further subsystems and nested subsystems would organize related units and provide
+architectural boundaries with well-defined interfaces and responsibilities.
 
 ## Folder Layout
 
@@ -97,7 +102,7 @@ src/DemaConsulting.CanvasNet/
 │   ├── TiffCodec.cs              — 8-bit RGB/RGBA/Grayscale, strip-based TIFF loader/saver
 │   ├── JpegCodec.cs              — Baseline/progressive JPEG loader and baseline JPEG saver
 │   └── NamespaceDoc.cs           — Namespace-level XML documentation
-└── Geometry/
+├── Geometry/
     ├── Rect.cs                   — Axis-aligned bounding rectangle (position plus size)
     ├── PathCommandType.cs        — Enumeration of path drawing command kinds
     ├── PathCommand.cs            — Tagged-union path drawing command value
@@ -107,12 +112,18 @@ src/DemaConsulting.CanvasNet/
     ├── BezierFlattening.cs       — Adaptive quadratic/cubic Bezier curve flattening
     ├── SvgArcConverter.cs        — SVG-style elliptical arc to cubic Bezier conversion
     └── NamespaceDoc.cs           — Namespace-level XML documentation
+└── Drawing/
+    ├── FillRule.cs                — Nonzero/even-odd fill-rule enumeration
+    ├── EdgeFlattener.cs           — Converts a Path's subpaths into closed polygons
+    ├── ScanlineRasterizer.cs      — Analytic coverage-accumulation scanline rasterizer
+    ├── PathFiller.cs              — Public entry point: fills a Path onto a Surface
+    └── NamespaceDoc.cs            — Namespace-level XML documentation
 ```
 
-This three-subsystem folder structure reflects the small number of subsystems in the system
-today. As the system grows with additional subsystems and units (including the reserved
-`Drawing` subsystem), the folder structure will expand further to mirror the software
-architecture.
+This four-subsystem folder structure reflects the small number of subsystems in the system
+today. As the system grows with additional subsystems and units, the folder structure will
+expand further to mirror the software architecture. `Canvas/Surface.cs` also gained a new
+`CompositeOverSpan` method this phase, consumed internally by `Drawing/PathFiller.cs`.
 
 ## Document Conventions
 

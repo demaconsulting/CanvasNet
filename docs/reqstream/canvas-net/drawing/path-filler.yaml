@@ -1,0 +1,248 @@
+---
+# Software Unit Requirements for PathFiller
+#
+# These requirements describe the design-level behavior of the PathFiller unit, within the
+# Drawing subsystem. PathFiller is a public static class exposing a single Fill entry point;
+# it is supported by three inline types documented here as part of the same unit: FillRule (a
+# public enum selecting nonzero or even-odd winding resolution), EdgeFlattener (an internal
+# helper that converts a Path's subpaths into closed polygons), and ScanlineRasterizer (an
+# internal helper implementing the analytic signed-area/coverage-accumulation scanline
+# algorithm that produces the final antialiased pixel coverage).
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Drawing Requirements
+        sections:
+          - title: PathFiller Requirements
+            requirements:
+              - id: CanvasNet-Drawing-PathFiller-Fill
+                title: >-
+                  The PathFiller class shall fill a closed path onto a surface with a solid
+                  color, rendering the path's interior (as resolved by its curves, subpaths,
+                  and the selected fill rule) with per-pixel coverage antialiasing, at the
+                  specified curve-flattening tolerance.
+                justification: |
+                  A single, explicit entry point that performs a complete path fill in one call
+                  lets callers render arbitrary path geometry - including curves and multiple
+                  subpaths - without needing to flatten geometry or resolve pixel coverage
+                  themselves.
+                tests:
+                  - PathFiller_Fill_FullyCoveredInteriorPixel_ColorAndAlphaMatchOverOracle
+
+              - id: CanvasNet-Drawing-PathFiller-FillRule
+                title: >-
+                  The PathFiller class shall support both NonZero and EvenOdd fill rules
+                  (defined by the FillRule enum), such that a self-intersecting path (for
+                  example a bowtie formed by two overlapping same-wound rectangles) can render
+                  differently opaque regions under each rule.
+                justification: |
+                  NonZero and even-odd are the two standard SVG/CSS fill-rule semantics; a
+                  caller filling self-intersecting or nested geometry needs to select the rule
+                  that matches its intended visual result.
+                tests:
+                  - PathFiller_Fill_OverlappingSameWoundRectangles_NonZeroVsEvenOddDiverge
+
+              - id: CanvasNet-Drawing-PathFiller-Holes
+                title: >-
+                  The PathFiller class shall correctly render a hole where an inner subpath is
+                  wound in the opposite direction to an outer subpath (for example, a letter
+                  "O" shape formed from two counter-wound rectangles or circles).
+                justification: |
+                  Nested, counter-wound subpaths are the standard way vector graphics represent
+                  shapes with holes (for example glyph outlines); the rasterizer must resolve
+                  the resulting winding counts correctly rather than filling the inner region
+                  solid.
+                tests:
+                  - PathFiller_Fill_NestedCounterWoundSubpaths_RendersHole
+
+              - id: CanvasNet-Drawing-PathFiller-Antialiasing
+                title: >-
+                  The PathFiller class shall produce fractional pixel coverage (partial alpha),
+                  analytically computed from sub-pixel edge geometry rather than by
+                  supersampling, along slanted and curved path edges, and full coverage for
+                  fully interior pixels.
+                justification: |
+                  Hard-edged (aliased) fills produce visibly jagged diagonal and curved edges;
+                  analytic coverage accumulation gives correct antialiasing without the
+                  performance cost or approximation error of supersampling.
+                tests:
+                  - PathFiller_Fill_AxisAlignedRectangleFractionalEdges_InteriorOpaqueEdgesAntialiased
+                  - PathFiller_Fill_DiagonalTriangle_MatchesHandComputedCoverageGradient
+                  - PathFiller_Fill_QuadraticCurveShape_TotalCoverageMatchesAnalyticBezierBulgeArea
+
+              - id: CanvasNet-Drawing-PathFiller-ImplicitClose
+                title: >-
+                  The PathFiller class shall treat every subpath as implicitly closed for fill
+                  purposes, filling an explicitly open subpath (one without a Close command)
+                  identically to the same subpath explicitly closed.
+                justification: |
+                  A fill operation has no meaningful notion of an "open" boundary; implicitly
+                  closing every subpath (by connecting its last point back to its start) matches
+                  the universal fill semantics of SVG, CSS, and every major 2D graphics API,
+                  without requiring callers to remember to call Close before filling.
+                tests:
+                  - PathFiller_Fill_ExplicitlyOpenSubpath_FillsIdenticallyToClosed
+
+              - id: CanvasNet-Drawing-PathFiller-EmptyOrOutOfBoundsNoOp
+                title: >-
+                  The PathFiller class shall no-op, leaving the surface unchanged and without
+                  throwing, when the path is empty or its bounds do not intersect the surface's
+                  [0, Width) x [0, Height) pixel extent.
+                justification: |
+                  Callers building up scenes incrementally will routinely fill empty paths or
+                  geometry that falls entirely outside the visible surface; this must be a
+                  cheap, well-defined no-op rather than a special case callers must detect and
+                  avoid themselves.
+                tests:
+                  - PathFiller_Fill_EmptyPath_NoOpLeavesSurfaceUnchanged
+                  - PathFiller_Fill_PathFullyOutsideSurfaceBounds_NoOpLeavesSurfaceUnchanged
+
+              - id: CanvasNet-Drawing-PathFiller-NullArguments
+                title: >-
+                  The PathFiller class shall reject a null surface or path argument to Fill
+                  with ArgumentNullException.
+                justification: |
+                  A null surface or path cannot supply a valid fill target or geometry;
+                  rejecting it early prevents a confusing NullReferenceException deeper in the
+                  implementation.
+                tests:
+                  - PathFiller_Fill_NullSurface_ThrowsArgumentNullException
+                  - PathFiller_Fill_NullPath_ThrowsArgumentNullException
+
+              - id: CanvasNet-Drawing-PathFiller-NonPositiveTolerance
+                title: >-
+                  The PathFiller class shall reject a non-positive or non-finite (NaN or either
+                  infinity) flattenTolerance argument to Fill with ArgumentOutOfRangeException.
+                justification: |
+                  A non-positive, NaN, or infinite flattening tolerance cannot bound curve
+                  subdivision to a meaningful accuracy and could cause unbounded or nonsensical
+                  subdivision; rejecting all of these at the call boundary matches
+                  BezierFlattening's own tolerance validation convention.
+                tests:
+                  - PathFiller_Fill_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Drawing-PathFiller-InvalidFillRule
+                title: >-
+                  The PathFiller class shall reject an undefined fillRule argument to Fill with
+                  ArgumentOutOfRangeException.
+                justification: |
+                  A fillRule value outside the defined FillRule enumeration has no defined
+                  winding-resolution meaning; rejecting it at the call boundary prevents it from
+                  silently being resolved as an arbitrary fill rule, matching the existing
+                  defined-enum-value validation convention used elsewhere in this library (for
+                  example BmpCodec.Save/TiffCodec.Save's own enum parameters).
+                tests:
+                  - PathFiller_Fill_UndefinedFillRule_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Drawing-PathFiller-EdgeFlattenerConversion
+                title: >-
+                  The internal EdgeFlattener helper shall convert each of a Path's subpaths into
+                  a closed polygon, converting LineTo commands directly, flattening
+                  QuadraticBezierTo and CubicBezierTo commands via BezierFlattening, and
+                  converting ArcTo commands via SvgArcConverter.ToBeziers followed by
+                  BezierFlattening.FlattenCubic per resulting Bezier segment, with multiple
+                  subpaths remaining separate polygons in the result.
+                justification: |
+                  The scanline rasterizer operates on straight-line polygons; every curved or
+                  arc command in a Path must be converted to a polyline via the existing,
+                  already-tested Geometry flattening primitives, without a separate, duplicate
+                  flattening implementation.
+                tests:
+                  - EdgeFlattener_Flatten_LineTo_ConvertsToExpectedPoint
+                  - EdgeFlattener_Flatten_QuadraticBezierTo_DelegatesToBezierFlattening
+                  - EdgeFlattener_Flatten_CubicBezierTo_DelegatesToBezierFlattening
+                  - EdgeFlattener_Flatten_ArcTo_DelegatesToSvgArcConverterAndBezierFlattening
+                  - EdgeFlattener_Flatten_MultipleSubpaths_RemainSeparatePolygons
+                  - EdgeFlattener_Flatten_EmptyPath_ReturnsEmptyList
+
+              - id: CanvasNet-Drawing-PathFiller-EdgeFlattenerImplicitClose
+                title: >-
+                  The internal EdgeFlattener helper shall append an implicit closing point back
+                  to a subpath's start point when the subpath's last point does not already
+                  coincide with its start, and shall not append a duplicate closing point when
+                  it already does.
+                justification: |
+                  Every subpath is always treated as implicitly closed for fill purposes
+                  regardless of its IsClosed flag; the flattener must add the closing segment
+                  exactly once, whether or not the subpath was explicitly closed, so the
+                  resulting polygon is always a valid closed loop for the rasterizer.
+                tests:
+                  - EdgeFlattener_Flatten_OpenSubpath_AppendsImplicitClosingPoint
+                  - EdgeFlattener_Flatten_AlreadyClosedSubpath_DoesNotDuplicateClosingPoint
+
+              - id: CanvasNet-Drawing-PathFiller-ScanlineCoverageMath
+                title: >-
+                  The internal ScanlineRasterizer helper shall compute per-pixel antialiased
+                  fill coverage that exactly matches an independently hand-computed geometric
+                  coverage reference for a sub-pixel-offset test polygon.
+                justification: |
+                  Correct sub-pixel coverage is fundamental to antialiased fill fidelity;
+                  verifying computed coverage against an independently hand-computed reference
+                  value is the only way to catch a subtle rasterization error that an
+                  end-to-end visual check could miss.
+                tests:
+                  - ScanlineRasterizer_Fill_SubPixelOffsetSquare_MatchesHandComputedCoverage
+
+              - id: CanvasNet-Drawing-PathFiller-ScanlineFillRuleResolution
+                title: >-
+                  The internal ScanlineRasterizer helper shall resolve a raw signed winding
+                  count to an alpha coverage of min(1, abs(winding)) under NonZero, and to a
+                  triangle-wave fold of the winding count modulo 2 under EvenOdd, clamped to
+                  [0, 1].
+                justification: |
+                  Both fill rules are defined purely in terms of the accumulated signed winding
+                  count at a pixel; verifying the resolution formulas directly against a raw
+                  winding count of 2 (achievable by overlapping same-wound geometry) confirms
+                  NonZero clamps to fully opaque while EvenOdd folds back to fully transparent.
+                tests:
+                  - ScanlineRasterizer_Fill_RawWindingOfTwo_NonZeroClampsEvenOddFoldsToZero
+
+              - id: CanvasNet-Drawing-PathFiller-ScanlineCrossingEdges
+                title: >-
+                  The internal ScanlineRasterizer helper shall accumulate every active edge's
+                  row-restricted contribution into shared per-column cover/area cell arrays
+                  independently, with no sorting or pairing of edges by x-position, so a
+                  self-intersecting polygon whose edges cross each other strictly inside a row
+                  produces the analytically correct partial coverage rather than gross
+                  over-filling.
+                justification: |
+                  A prior sub-interval/sort-by-x algorithm assumed edges spanning a sub-interval
+                  never changed their relative x-order within it - an assumption ordinary
+                  self-intersecting polygons (for example a bowtie or star) violate, since
+                  EdgeFlattener does not detect or split such crossings. Cell-based accumulation
+                  (the technique used by AGG/FreeType/stb_truetype) sidesteps the assumption
+                  entirely: each edge only ever contributes to the columns it geometrically
+                  passes through, independently of every other edge's position, so the sweep's
+                  running total reconstructs the correct winding number regardless of crossing
+                  order.
+                tests:
+                  - ScanlineRasterizer_Fill_BowtieSelfIntersectingPolygon_ProducesCorrectPartialCoverageNotFullFill
+
+              - id: CanvasNet-Drawing-PathFiller-ScanlineActiveEdgeList
+                title: >-
+                  The internal ScanlineRasterizer helper shall add each polygon edge to its
+                  active edge list only for the rows spanning its vertical extent, and remove
+                  it once that extent is exhausted, such that an edge starting or ending
+                  mid-sweep stops contributing at exactly the correct row.
+                justification: |
+                  The sweep is designed for O(edges + total edge-row crossings) cost rather than
+                  O(edges x rows); this requires each edge to be added to, and removed from, the
+                  active edge list at exactly its own vertical extent, not for the whole surface
+                  height, and this bookkeeping must be verified directly rather than assumed
+                  correct from the aggregate fill result alone.
+                tests:
+                  - ScanlineRasterizer_Fill_EdgeStartingAndEndingMidSweep_StopsContributingAtCorrectRows
+
+              - id: CanvasNet-Drawing-PathFiller-ScanlineDegenerateInputNoOp
+                title: >-
+                  The internal ScanlineRasterizer helper shall no-op, without throwing, when
+                  given no polygons or only degenerate (fewer than 2 usable edges) polygons.
+                justification: |
+                  Degenerate geometry (an empty polygon list, or a polygon collapsed to fewer
+                  than two effective edges) contributes no visible area; the rasterizer must
+                  treat this as a cheap no-op rather than failing or contributing spurious
+                  coverage.
+                tests:
+                  - ScanlineRasterizer_Fill_NoPolygons_NoOp
+                  - ScanlineRasterizer_Fill_DegeneratePolygon_ContributesZeroCoverage

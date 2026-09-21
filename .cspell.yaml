@@ -17,6 +17,7 @@ words:
   - Aabb
   - AABB
   - Adler
+  - AGG
   - apimark
   - ApiMark
   - basn
@@ -26,6 +27,7 @@ words:
   - BITMAPFILEHEADER
   - BITMAPINFOHEADER
   - BITMAPV
+  - bowtie
   - buildmark
   - Casteljau
   - CMYK
@@ -43,6 +45,7 @@ words:
   - DEMA
   - Dema
   - elementwise
+  - evenodd
   - FDCT
   - FCHECK
   - FileAssert
@@ -62,8 +65,10 @@ words:
   - luma
   - magick
   - mcus
+  - microarchitecture
   - misdecoded
   - nameof
+  - nonzero
   - quantizer
   - subsampled
   - unstuffed
@@ -84,11 +89,13 @@ words:
   - premultiplying
   - Qube
   - rasterizer
+  - rasterizes
   - reqstream
   - reviewmark
   - Rgba
   - Reinterleave
   - reinterleaving
+  - rescan
   - Sarif
   - SARIF
   - sarifmark
@@ -97,6 +104,8 @@ words:
   - sonarmark
   - Subsampling
   - subsampling
+  - superlinear
+  - supersampling
   - seekable
   - Seekable
   - Subpaths
