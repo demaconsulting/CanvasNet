@@ -808,6 +808,10 @@ sections:
           - PathStroker_Stroke_RightAngleCornerRoundJoin_FillsRoundedCorner
           - PathStroker_Stroke_RightAngleCornerBevelJoin_FillsFlatBeveledCorner
           - PathStroker_Stroke_DashedLine_FillsOnlyOnSegmentsLeavingGapsUnfilled
+          - PathStroker_Stroke_ClosedRectangle_FillsRingLeavingInteriorAndExteriorUnfilled
+          - PathStroker_Stroke_ZeroLengthSubpathRoundCap_FillsCircleOfRadiusHalfWidth
+          - PathStroker_Stroke_ZeroLengthSubpathSquareCap_FillsSquareOfSideWidth
+          - PathStroker_Stroke_SinglePointSubpath_MatchesZeroLengthSubpathBehavior
 
       - id: CanvasNet-Lib-DrawingPathStrokeNoOp
         title: >-
@@ -820,11 +824,7 @@ sections:
         children:
           - CanvasNet-Drawing-PathStrokeNoOp
         tests:
-          - PathStroker_Stroke_ClosedRectangle_FillsRingLeavingInteriorAndExteriorUnfilled
-          - PathStroker_Stroke_ZeroLengthSubpathRoundCap_FillsCircleOfRadiusHalfWidth
-          - PathStroker_Stroke_ZeroLengthSubpathSquareCap_FillsSquareOfSideWidth
           - PathStroker_Stroke_ZeroLengthSubpathButtCap_ProducesNoFilledPixels
-          - PathStroker_Stroke_SinglePointSubpath_MatchesZeroLengthSubpathBehavior
           - PathStroker_Stroke_EmptyPath_ReturnsEmptyPathNoOp
 
       - id: CanvasNet-Lib-DrawingPathStrokeValidation

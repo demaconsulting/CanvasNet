@@ -176,6 +176,54 @@ public class StrokeOutlinerTests
             "straight chord.");
     }
 
+    /// <summary>
+    ///     Proves that a CONCAVE (reflex-vertex) closed contour resolves, independently at each
+    ///     vertex, which of the two offset rings gets the styled <see cref="LineJoin"/> and which
+    ///     gets the exact offset-edge intersection - from the LOCAL turn direction at that vertex,
+    ///     not from a single ring-wide outer/inner assignment.
+    /// </summary>
+    /// <remarks>
+    ///     The L-shaped hexagon (0,0)-(6,0)-(6,3)-(3,3)-(3,6)-(0,6) has five ordinary convex
+    ///     vertices and exactly one reflex (concave) vertex at (3,3). At every convex vertex, ring
+    ///     A carries the styled Bevel join and ring B carries the exact intersection point; at the
+    ///     one reflex vertex, this flips - ring A must instead carry the exact intersection point
+    ///     (4,4), and ring B must instead carry the styled Bevel join's two offset points, (1,5)
+    ///     and (2,5). A global (pre-fix) outer/inner assignment gets exactly this vertex backwards:
+    ///     it would emit the Bevel chord (3,4)/(4,3) on ring A and the exact intersection (2,2) on
+    ///     ring B instead.
+    /// </remarks>
+    [Fact]
+    public void StrokeOutliner_Outline_ConcaveClosedContourBevelJoin_ResolvesJoinPerVertexFromLocalTurn()
+    {
+        // Arrange
+        var points = new List<Vector2>
+        {
+            new(0, 0),
+            new(6, 0),
+            new(6, 3),
+            new(3, 3),
+            new(3, 6),
+            new(0, 6)
+        };
+        var style = new StrokeStyle(2f, join: LineJoin.Bevel);
+
+        // Act
+        var polygons = StrokeOutliner.Outline(points, isClosed: true, style, flattenTolerance: 0.25f);
+
+        // Assert
+        Assert.Equal(2, polygons.Count);
+        var ringWithExactReflexIntersection = polygons[0];
+        var ringWithStyledReflexJoin = polygons[1];
+
+        Assert.Contains(new Vector2(4, 4), ringWithExactReflexIntersection);
+        Assert.DoesNotContain(new Vector2(3, 4), ringWithExactReflexIntersection);
+        Assert.DoesNotContain(new Vector2(4, 3), ringWithExactReflexIntersection);
+
+        Assert.Contains(new Vector2(1, 5), ringWithStyledReflexJoin);
+        Assert.Contains(new Vector2(2, 5), ringWithStyledReflexJoin);
+        Assert.DoesNotContain(new Vector2(2, 2), ringWithStyledReflexJoin);
+    }
+
     private static float GetSignedArea(IReadOnlyList<Vector2> points)
     {
         var area = 0f;

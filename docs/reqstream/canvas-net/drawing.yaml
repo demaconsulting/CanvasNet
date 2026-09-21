@@ -95,6 +95,9 @@ sections:
               - CanvasNet-Drawing-PathStroker-StyleValidation
               - CanvasNet-Drawing-PathStroker-OpenClosedPreservation
               - CanvasNet-Drawing-PathStroker-DashPhaseSemantics
+              - CanvasNet-Drawing-PathStroker-DegenerateSubpaths
+              - CanvasNet-Drawing-PathStroker-ClosedContours
+              - CanvasNet-Drawing-PathStroker-ShellWinding
             tests:
               - PathStroker_Stroke_HorizontalLineButtCap_FillsExactRectangleNoExtension
               - PathStroker_Stroke_HorizontalLineRoundCap_FillsRectanglePlusSemicircularEnds
@@ -103,6 +106,10 @@ sections:
               - PathStroker_Stroke_RightAngleCornerRoundJoin_FillsRoundedCorner
               - PathStroker_Stroke_RightAngleCornerBevelJoin_FillsFlatBeveledCorner
               - PathStroker_Stroke_DashedLine_FillsOnlyOnSegmentsLeavingGapsUnfilled
+              - PathStroker_Stroke_ClosedRectangle_FillsRingLeavingInteriorAndExteriorUnfilled
+              - PathStroker_Stroke_ZeroLengthSubpathRoundCap_FillsCircleOfRadiusHalfWidth
+              - PathStroker_Stroke_ZeroLengthSubpathSquareCap_FillsSquareOfSideWidth
+              - PathStroker_Stroke_SinglePointSubpath_MatchesZeroLengthSubpathBehavior
 
           - id: CanvasNet-Drawing-PathStrokeNoOp
             title: >-
@@ -114,16 +121,9 @@ sections:
               stroke result must be a cheap, well-defined no-op rather than a special case callers
               must detect themselves.
             children:
-              - CanvasNet-Drawing-PathStroker-DegenerateSubpaths
-              - CanvasNet-Drawing-PathStroker-ClosedContours
               - CanvasNet-Drawing-PathStroker-EmptyNoOp
-              - CanvasNet-Drawing-PathStroker-ShellWinding
             tests:
-              - PathStroker_Stroke_ClosedRectangle_FillsRingLeavingInteriorAndExteriorUnfilled
-              - PathStroker_Stroke_ZeroLengthSubpathRoundCap_FillsCircleOfRadiusHalfWidth
-              - PathStroker_Stroke_ZeroLengthSubpathSquareCap_FillsSquareOfSideWidth
               - PathStroker_Stroke_ZeroLengthSubpathButtCap_ProducesNoFilledPixels
-              - PathStroker_Stroke_SinglePointSubpath_MatchesZeroLengthSubpathBehavior
               - PathStroker_Stroke_EmptyPath_ReturnsEmptyPathNoOp
 
           - id: CanvasNet-Drawing-PathStrokeValidation

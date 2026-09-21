@@ -219,6 +219,15 @@ internal static class DashSplitter
     /// <summary>
     ///     Determines whether the dash phase begins in an "on" interval.
     /// </summary>
+    /// <remarks>
+    ///     A zero-length dash entry occupies no visible extent along the path, so landing exactly
+    ///     at its start - whether that is the initial phase (<paramref name="dashOffset"/>
+    ///     normalizes to exactly zero, which skips the traversal loop below entirely) or a phase
+    ///     reached after exactly consuming every preceding entry - means the phase has already
+    ///     moved past it. The trailing loop skips forward through any such zero-length entries so
+    ///     the returned index always identifies the entry actually in effect at this phase, rather
+    ///     than a zero-length entry the phase is only nominally "at."
+    /// </remarks>
     private static bool IsDashOnAtStart(IReadOnlyList<float> pattern, float dashOffset)
     {
         var patternLength = GetPatternLength(pattern);
@@ -233,6 +242,11 @@ internal static class DashSplitter
             }
 
             offset -= length;
+            index = (index + 1) % pattern.Count;
+        }
+
+        while (offset == 0d && pattern[index] == 0f)
+        {
             index = (index + 1) % pattern.Count;
         }
 

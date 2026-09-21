@@ -82,8 +82,13 @@ as a brand-new `Path`:
    - **Closed contours** produce two closed rings (outer and inner) wound in opposite directions
      so `FillRule.NonZero` fills only the shell between them.
    - **Miter joins** intersect the two offset lines and then compare the distance from the source
-     vertex to that intersection against `MiterLimit * Width`. When the ratio exceeds the limit,
-     the join falls back to a bevel.
+     vertex to that intersection against `MiterLimit * (Width / 2)`. This single offset line sits
+     half the stroke width from the source vertex, so this distance is exactly half of the SVG
+     "miter length" (the full tip-to-tip span across both offset lines), and `Width / 2` is
+     exactly half the stroke width - the ratio of the two halves equals the full
+     `miterLength / strokeWidth` SVG ratio (for example, `~1.414` for a right-angle join, matching
+     the standard `1 / sin(theta / 2)` formula). When the ratio exceeds the limit, the join falls
+     back to a bevel.
    - **Round joins and round caps** are tessellated as circular arcs whose sagitta is bounded by
      `flattenTolerance`, reusing the same tolerance concept already established for curve
      flattening elsewhere in the library.
@@ -101,8 +106,20 @@ instances directly. Every emitted polygon becomes one closed subpath in the resu
   is the clipped "inside" of the turn and is connected directly between its two offset endpoints,
   because the visible outline there is the boundary of the union of two segment rectangles rather
   than the infinite-line intersection of their offsets.
-- **Closed-side join handling.** For a closed contour, both the outer and inner rings are genuine
-  offset curves, so each vertex is handled with the requested join style on that ring.
+- **Closed-side join handling.** For a closed contour, the two offset rings are not symmetric, and
+  which ring is locally the "outside of the turn" at a given vertex is not a fixed, ring-wide
+  property: for a convex closed contour every vertex agrees, but a concave (reflex) vertex flips
+  which ring is locally convex there. `StrokeOutliner` therefore resolves each vertex on each ring
+  independently, from the same local turn-direction sign used for open-path joins: the side that
+  is locally convex at that vertex receives the caller-selected join style (`Miter`, `Round`, or
+  `Bevel`), while the side that is locally concave at that vertex is forced to the geometrically
+  exact intersection of the two offset edges (falling back to the un-joined offset points only
+  when the edges are parallel and have no intersection), never a stylized corner - stylizing the
+  concave side would carve away or add stroke area. Because the two rings use opposite offset
+  signs, exactly one of them is locally convex at any given vertex, so the two treatments are
+  always assigned to the correct ring even as convexity flips along a concave contour. The two
+  rings are then wound in opposite directions so `FillRule.NonZero` fills only the shell between
+  them, regardless of how many vertices on each ring ended up locally reflex.
 - **Degenerate subpaths.** A single point (or a path collapsed to one effective point after
   duplicate-vertex simplification) renders as a cap-shaped mark: round creates a full circle,
   square creates an axis-aligned width-by-width square, and butt creates nothing.

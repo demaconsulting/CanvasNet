@@ -193,16 +193,22 @@ internal static class StrokeOutliner
     ///     Produces the outer and inner shell rings for a closed contour.
     /// </summary>
     /// <remarks>
-    ///     The outer and inner offset rings are NOT symmetric for a closed contour: the outer
-    ///     ring is the outside boundary of the stroke band, where every vertex is a convex corner
-    ///     that the caller's requested <see cref="LineJoin"/> (Miter/Round/Bevel) legitimately
-    ///     stylizes. The inner ring is the boundary of the hole left by the union of the two
-    ///     offset strips - at that same vertex, the inner side is the geometrically exact
-    ///     intersection of the two offset edges, not a stylized corner. Applying Bevel or Round to
-    ///     the inner side would chamfer/round away real stroke area (or, if the geometry required
-    ///     it, add extraneous area) at every inner corner, producing a hole boundary with the
-    ///     wrong shape. <see cref="BuildClosedSide"/> is therefore called once per ring with an
-    ///     explicit outer/inner flag so only the outer ring honors <see cref="StrokeStyle.Join"/>.
+    ///     A closed contour's two offset rings are NOT symmetric, but which ring is "outer" vs
+    ///     "inner" at a given vertex is a LOCAL property, not a fixed global one: for a convex
+    ///     closed contour every vertex has the same ring as the convex (outer) side, but for a
+    ///     concave (reflex) contour the locally convex side can flip between the two rings from
+    ///     vertex to vertex. Treating one ring as globally "outer" (as the open-path code already
+    ///     avoids doing, see <see cref="AppendOpenJoin"/>) would apply the caller's requested
+    ///     <see cref="LineJoin"/> (Miter/Round/Bevel) to a locally concave vertex - chamfering or
+    ///     rounding away real stroke area, or adding extraneous area - and would force the exact
+    ///     offset-edge intersection onto a locally convex vertex, losing the requested join style
+    ///     there. <see cref="BuildClosedSide"/> therefore decides, independently at every vertex
+    ///     and from the same local turn-direction sign used by the open-path join logic, whether
+    ///     that vertex on that ring is the locally convex side (style the join) or the locally
+    ///     concave side (force the exact intersection). Because the two rings use opposite side
+    ///     signs, exactly one of them is locally convex at any given vertex, so the styled join and
+    ///     the exact intersection are always applied to the correct ring at that vertex, even when
+    ///     convexity flips along the contour.
     /// </remarks>
     private static List<List<Vector2>> CreateClosedStrokePolygons(
         IReadOnlyList<Vector2> points,
@@ -213,12 +219,17 @@ internal static class StrokeOutliner
         var area = ComputeSignedArea(points);
         var outerSideSign = area >= 0f ? -1f : +1f;
 
-        var outerRing = BuildClosedSide(points, outerSideSign, style, halfWidth, flattenTolerance, isOuterSide: true);
-        var innerRing = BuildClosedSide(points, -outerSideSign, style, halfWidth, flattenTolerance, isOuterSide: false);
+        var outerRing = BuildClosedSide(points, outerSideSign, style, halfWidth, flattenTolerance);
+        var innerRing = BuildClosedSide(points, -outerSideSign, style, halfWidth, flattenTolerance);
         if (outerRing.Count < 3 || innerRing.Count < 3)
         {
             return [];
         }
+
+        // Regardless of how many vertices were locally reflex on each ring, the two rings must
+        // still end up with opposite winding for FillRule.NonZero to render the band between them
+        // (rather than the solid disc of one ring or the empty complement) - flip the inner ring
+        // if the constructed rings happen to share the same winding sign.
 
         if (ComputeSignedArea(outerRing) * ComputeSignedArea(innerRing) > 0f)
         {
@@ -351,19 +362,23 @@ internal static class StrokeOutliner
     /// <param name="style">The stroke geometry to apply.</param>
     /// <param name="halfWidth">Half the stroke width.</param>
     /// <param name="flattenTolerance">The tolerance used when tessellating round arcs.</param>
-    /// <param name="isOuterSide">
-    ///     Whether this ring is the outer (outside boundary) side of the stroke band. When
-    ///     <see langword="false"/> (the inner/hole side), every vertex is forced to the exact
-    ///     offset-edge intersection regardless of <see cref="StrokeStyle.Join"/> - see the remarks
-    ///     on <see cref="CreateClosedStrokePolygons"/> for why the two sides cannot share styling.
-    /// </param>
+    /// <remarks>
+    ///     Unlike the open-path join logic in <see cref="AppendOpenJoin"/> - which can freely emit
+    ///     the two un-joined offset points on the locally concave side because that side remains
+    ///     part of the same single ring - a closed contour's two sides are built as two separate,
+    ///     independent rings that are later combined as a NonZero-fill outer shell and hole. Each
+    ///     vertex is therefore resolved with the same local turn-direction test used by
+    ///     <see cref="AppendOpenJoin"/> (is this side convex or concave AT THIS VERTEX, not
+    ///     globally for the ring) to decide whether to honor <see cref="StrokeStyle.Join"/> (the
+    ///     locally convex side) or force the exact offset-edge intersection (the locally concave
+    ///     side, where a stylized corner would carve away or add stroke area).
+    /// </remarks>
     private static List<Vector2> BuildClosedSide(
         IReadOnlyList<Vector2> points,
         float sideSign,
         StrokeStyle style,
         float halfWidth,
-        float flattenTolerance,
-        bool isOuterSide)
+        float flattenTolerance)
     {
         var frames = BuildSegmentFrames(points, isClosed: true);
         var ring = new List<Vector2>(points.Count * 2);
@@ -379,6 +394,7 @@ internal static class StrokeOutliner
                 continue;
             }
 
+            var isConvexOnThisSide = turn * sideSign < 0f;
             AppendStyledJoin(
                 ring,
                 points[i],
@@ -390,7 +406,7 @@ internal static class StrokeOutliner
                 style,
                 halfWidth,
                 flattenTolerance,
-                forceExactIntersection: !isOuterSide);
+                forceExactIntersection: !isConvexOnThisSide);
         }
 
         RemoveTrailingDuplicateOfFirst(ring);
@@ -487,6 +503,17 @@ internal static class StrokeOutliner
     /// <summary>
     ///     Computes the miter-join vertex and validates it against the configured limit.
     /// </summary>
+    /// <remarks>
+    ///     <paramref name="vertex"/>-to-intersection distance is measured on a single offset line
+    ///     that already sits half of <paramref name="strokeWidth"/> away from the source vertex,
+    ///     so it is exactly half of the SVG "miter length" (the full tip-to-tip span across both
+    ///     offset lines). Dividing by <c>strokeWidth / 2</c> therefore reproduces the standard SVG
+    ///     <c>miterLength / strokeWidth</c> ratio (for example, <c>~1.414</c> for a right-angle
+    ///     join) without needing to materialize the opposite offset line's mirrored intersection
+    ///     point. Dividing by the full <paramref name="strokeWidth"/> instead would halve the
+    ///     computed ratio and silently make every <see cref="StrokeStyle.MiterLimit"/> value twice
+    ///     as permissive as the documented SVG-style contract.
+    /// </remarks>
     private static bool TryCreateMiter(
         Vector2 vertex,
         Vector2 previousPoint,

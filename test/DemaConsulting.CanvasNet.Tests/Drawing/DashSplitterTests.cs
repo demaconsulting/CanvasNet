@@ -149,4 +149,35 @@ public class DashSplitterTests
         // Assert
         Assert.Equal(points, Assert.Single(segments).Points);
     }
+
+    /// <summary>
+    ///     Proves that a dash pattern beginning with a zero-length "on" entry, evaluated on a
+    ///     zero-length path, correctly starts in the following "off" entry rather than staying in
+    ///     the zero-length "on" entry.
+    /// </summary>
+    /// <remarks>
+    ///     With dash pattern <c>[0f, 2f]</c> (a zero-length "on" entry followed by a 2-length
+    ///     "off" entry) and the default zero dash offset, the phase-traversal loop in
+    ///     <c>IsDashOnAtStart</c> normalizes to an offset of exactly zero, which - prior to the
+    ///     fix - skipped the traversal loop entirely and left the phase index at 0 (the "on"
+    ///     entry), even though a zero-length "on" entry has no visible extent and phase zero has
+    ///     therefore already moved into the following "off" entry. A zero-length path (here, a
+    ///     single point, which collapses to the <c>edgeCount &lt;= 0</c> special case in
+    ///     <c>Split</c>) makes this phase-only decision the entire result: the path is either
+    ///     emitted whole (if the phase starts "on") or produces no segments at all (if "off").
+    ///     The correct "off" phase must therefore produce zero segments.
+    /// </remarks>
+    [Fact]
+    public void DashSplitter_Split_ZeroLengthLeadingDashEntryOnZeroLengthPath_StartsInFollowingOffEntry()
+    {
+        // Arrange: a single-point (zero-length) open subpath
+        var points = new List<Vector2> { new(2, 2) };
+
+        // Act
+        var segments = DashSplitter.Split(points, isClosed: false, dashArray: [0f, 2f], dashOffset: 0f);
+
+        // Assert: the phase starts in the 2-length "off" entry following the zero-length "on"
+        // entry, so no segments are emitted
+        Assert.Empty(segments);
+    }
 }

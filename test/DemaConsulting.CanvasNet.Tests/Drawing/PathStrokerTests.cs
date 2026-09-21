@@ -4,6 +4,8 @@ using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Geometry;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
+// cspell:ignore Outliner unstroked
+
 namespace DemaConsulting.CanvasNet.Tests.Drawing;
 
 /// <summary>
@@ -168,41 +170,34 @@ public class PathStrokerTests
     ///     using a Bevel join where the two constructions diverge sharply.
     /// </summary>
     /// <remarks>
-    ///     The rectangle (4,4)-(12,4)-(12,12)-(4,12) stroked with width 4 (half-width 2) produces
-    ///     an exact 4x4 hole at (6,6)-(10,6)-(10,10)-(6,10), and an outer boundary at
-    ///     (2,2)-(14,2)-(14,14)-(2,14). At the (4,4) corner, the two offset edges are the lines
-    ///     x=6 (from the left edge) and y=6 (from the top edge); their exact intersection is
-    ///     (6,6). Pixel [5,5] - the unit square [5,6) x [5,6) - lies entirely at x&lt;6 or y&lt;6
-    ///     (only the single corner point (6,6) touches x=y=6), so under the exact intersection it
-    ///     is entirely outside the hole and must be fully covered (alpha 255). A Bevel join
-    ///     instead connects the previous/next offset points (6,4) and (4,6) directly with a chord
-    ///     (the line x+y=10): every corner of pixel [5,5] except (5,5) itself has x+y &gt; 10, so
-    ///     a buggy implementation that bevels the inner corner would incorrectly treat nearly all
-    ///     of pixel [5,5] as hole (alpha 0) instead of stroke. Pixel [7,7] sits at the center of
-    ///     the real hole (unaffected by the fix) and pixel [0,0] sits outside the outer boundary,
-    ///     confirming the fix does not remove the hole entirely or expand the stroke outward.
+    ///     The rectangle (4,4)-(12,4)-(12,12)-(4,12) stroked with width 4 (half-width 2) must
+    ///     produce an exact 4x4 hole ring at (6,6)-(10,6)-(10,10)-(6,10). This asserts directly on
+    ///     the polygon ring vertices produced by the internal <see cref="StrokeOutliner.Outline"/>
+    ///     API rather than sampling rasterized pixels: for this convex rectangle, a buggy
+    ///     implementation that instead bevels the inner corner produces the self-intersecting
+    ///     eight-vertex ring (6,12)(4,10)(12,10)(10,12)(10,4)(12,6)(4,6)(6,4), which happens to
+    ///     rasterize to the exact same pixel coverage as the correct four-vertex ring under
+    ///     FillRule.NonZero (the extra self-overlapping "wings" cancel out) - so pixel sampling at
+    ///     any coordinate cannot actually distinguish correct from buggy geometry here, while
+    ///     asserting the exact ring vertex set does.
     /// </remarks>
     [Fact]
     public void PathStroker_Stroke_ClosedRectangleBevelJoin_InnerCornerMatchesExactIntersectionNotBevel()
     {
         // Arrange
-        var path = new PathBuilder()
-            .MoveTo(new Vector2(4, 4))
-            .LineTo(new Vector2(12, 4))
-            .LineTo(new Vector2(12, 12))
-            .LineTo(new Vector2(4, 12))
-            .Close()
-            .Build();
+        var points = new List<Vector2> { new(4, 4), new(12, 4), new(12, 12), new(4, 12) };
         var style = new StrokeStyle(4f, join: LineJoin.Bevel);
 
         // Act
-        var surface = RenderStroke(path, style, 16, 16);
+        var polygons = StrokeOutliner.Outline(points, isClosed: true, style, flattenTolerance: 0.25f);
 
-        // Assert: fully covered at the exact-intersection inner corner, and the hole interior and
-        // exterior remain unfilled
-        Assert.Equal((byte)255, surface[5, 5].A);
-        Assert.Equal((byte)0, surface[7, 7].A);
-        Assert.Equal((byte)0, surface[0, 0].A);
+        // Assert: the ring touching the exact intersection point (6,6) is precisely the 4-vertex
+        // square hole, not an 8-vertex self-intersecting beveled ring
+        var innerRing = FindRingContaining(polygons, new Vector2(6, 6));
+        Assert.Equal(4, innerRing.Count);
+        Assert.Contains(new Vector2(10, 6), innerRing);
+        Assert.Contains(new Vector2(10, 10), innerRing);
+        Assert.Contains(new Vector2(6, 10), innerRing);
     }
 
     /// <summary>
@@ -211,65 +206,121 @@ public class PathStrokerTests
     ///     constructions diverge sharply.
     /// </summary>
     /// <remarks>
-    ///     Same rectangle and exact-intersection reasoning as
-    ///     <see cref="PathStroker_Stroke_ClosedRectangleBevelJoin_InnerCornerMatchesExactIntersectionNotBevel"/>.
-    ///     A Round join instead sweeps a quarter-circle arc of radius 2 (the half-width) centered
-    ///     on the (4,4) vertex between the offset points (6,4) and (4,6): every corner of pixel
-    ///     [5,5] except (5,5) itself is farther than radius 2 from (4,4) and within the swept
-    ///     0-90 degree sector, so a buggy implementation that rounds the inner corner would
-    ///     incorrectly treat most of pixel [5,5] as hole (reduced alpha) instead of the fully
-    ///     covered stroke the exact intersection requires.
+    ///     Same rectangle and ring-vertex reasoning as
+    ///     <see cref="PathStroker_Stroke_ClosedRectangleBevelJoin_InnerCornerMatchesExactIntersectionNotBevel"/>:
+    ///     a buggy implementation that rounds the inner corner instead of forcing the exact
+    ///     intersection would tessellate an arc at every inner corner, growing the inner ring well
+    ///     past 4 vertices even though (as with Bevel) the rasterized pixel coverage of that buggy
+    ///     ring happens to coincide with the correct ring's coverage for this convex rectangle.
     /// </remarks>
     [Fact]
     public void PathStroker_Stroke_ClosedRectangleRoundJoin_InnerCornerMatchesExactIntersectionNotArc()
     {
         // Arrange
-        var path = new PathBuilder()
-            .MoveTo(new Vector2(4, 4))
-            .LineTo(new Vector2(12, 4))
-            .LineTo(new Vector2(12, 12))
-            .LineTo(new Vector2(4, 12))
-            .Close()
-            .Build();
+        var points = new List<Vector2> { new(4, 4), new(12, 4), new(12, 12), new(4, 12) };
         var style = new StrokeStyle(4f, join: LineJoin.Round);
 
         // Act
-        var surface = RenderStroke(path, style, 16, 16);
+        var polygons = StrokeOutliner.Outline(points, isClosed: true, style, flattenTolerance: 0.25f);
 
-        // Assert: fully covered at the exact-intersection inner corner, and the hole interior and
-        // exterior remain unfilled
-        Assert.Equal((byte)255, surface[5, 5].A);
-        Assert.Equal((byte)0, surface[7, 7].A);
-        Assert.Equal((byte)0, surface[0, 0].A);
+        // Assert: the ring touching the exact intersection point (6,6) is precisely the 4-vertex
+        // square hole, not a tessellated rounded-corner ring
+        var innerRing = FindRingContaining(polygons, new Vector2(6, 6));
+        Assert.Equal(4, innerRing.Count);
+        Assert.Contains(new Vector2(10, 6), innerRing);
+        Assert.Contains(new Vector2(10, 10), innerRing);
+        Assert.Contains(new Vector2(6, 10), innerRing);
     }
 
     /// <summary>
     ///     Proves that a Miter join on a closed contour continues to produce the same exact
-    ///     inner-corner coverage as Bevel/Round now do, confirming the outer/inner distinction
-    ///     introduced for Bevel and Round does not regress the Miter path (which already computed
-    ///     an edge intersection on both sides).
+    ///     inner-corner ring as Bevel/Round now do, confirming the local-turn-based outer/inner
+    ///     distinction does not regress the Miter path (which already computed an edge
+    ///     intersection on both sides).
     /// </summary>
     [Fact]
     public void PathStroker_Stroke_ClosedRectangleMiterJoin_InnerCornerMatchesExactIntersection()
     {
         // Arrange
-        var path = new PathBuilder()
-            .MoveTo(new Vector2(4, 4))
-            .LineTo(new Vector2(12, 4))
-            .LineTo(new Vector2(12, 12))
-            .LineTo(new Vector2(4, 12))
-            .Close()
-            .Build();
+        var points = new List<Vector2> { new(4, 4), new(12, 4), new(12, 12), new(4, 12) };
         var style = new StrokeStyle(4f, join: LineJoin.Miter);
 
         // Act
-        var surface = RenderStroke(path, style, 16, 16);
+        var polygons = StrokeOutliner.Outline(points, isClosed: true, style, flattenTolerance: 0.25f);
 
-        // Assert: fully covered at the exact-intersection inner corner, and the hole interior and
-        // exterior remain unfilled
-        Assert.Equal((byte)255, surface[5, 5].A);
-        Assert.Equal((byte)0, surface[7, 7].A);
-        Assert.Equal((byte)0, surface[0, 0].A);
+        // Assert: the ring touching the exact intersection point (6,6) is precisely the 4-vertex
+        // square hole
+        var innerRing = FindRingContaining(polygons, new Vector2(6, 6));
+        Assert.Equal(4, innerRing.Count);
+        Assert.Contains(new Vector2(10, 6), innerRing);
+        Assert.Contains(new Vector2(10, 10), innerRing);
+        Assert.Contains(new Vector2(6, 10), innerRing);
+    }
+
+    /// <summary>
+    ///     Proves that a CONCAVE (reflex-vertex) closed contour resolves the styled join versus
+    ///     the exact offset-edge intersection independently at each vertex, from the LOCAL turn
+    ///     direction there, rather than from a single ring-wide outer/inner assignment.
+    /// </summary>
+    /// <remarks>
+    ///     The L-shaped hexagon (0,0)-(6,0)-(6,3)-(3,3)-(3,6)-(0,6) has five ordinary convex
+    ///     vertices and exactly one reflex (concave) vertex at (3,3), so which of the two offset
+    ///     rings is locally convex there flips relative to every other vertex. Stroked with width
+    ///     2 (half-width 1) and a Bevel join, pixel [2,2] sits just inside the reflex vertex's
+    ///     inner corner: under the corrected local-turn logic, the ring that is locally convex at
+    ///     (3,3) is styled with a Bevel chord between (1,5) and (2,5) [a different ring than the
+    ///     one styled at every other, convex, vertex], leaving [2,2] half-covered (alpha 128) by
+    ///     that diagonal chord. A global (pre-fix) outer/inner assignment gets this backwards -
+    ///     it bevels the wrong ring at (3,3) and forces the other ring to the exact intersection
+    ///     point (2,2) - leaving pixel [2,2] fully covered (alpha 255) instead. Pixel [5,1] near
+    ///     the ordinary convex corner (6,0)-(6,3) is unaffected by the bug either way, confirming
+    ///     the fix does not disturb correct convex-vertex joins, and pixel [8,8] confirms the
+    ///     stroke does not spuriously extend into the contour's unstroked exterior.
+    /// </remarks>
+    [Fact]
+    public void PathStroker_Stroke_ConcaveClosedContourBevelJoin_AppliesJoinsByLocalVertexConvexity()
+    {
+        // Arrange
+        var path = new PathBuilder()
+            .MoveTo(new Vector2(0, 0))
+            .LineTo(new Vector2(6, 0))
+            .LineTo(new Vector2(6, 3))
+            .LineTo(new Vector2(3, 3))
+            .LineTo(new Vector2(3, 6))
+            .LineTo(new Vector2(0, 6))
+            .Close()
+            .Build();
+        var style = new StrokeStyle(2f, join: LineJoin.Bevel);
+
+        // Act
+        var surface = RenderStroke(path, style, 10, 10);
+
+        // Assert
+        Assert.Equal((byte)128, surface[2, 2].A);
+        Assert.Equal((byte)255, surface[5, 1].A);
+        Assert.Equal((byte)0, surface[8, 8].A);
+    }
+
+    /// <summary>
+    ///     Finds the single polygon ring produced by <see cref="StrokeOutliner.Outline"/> that
+    ///     contains the given vertex, failing the test if zero or more than one ring qualifies.
+    /// </summary>
+    private static List<Vector2> FindRingContaining(List<List<Vector2>> polygons, Vector2 vertex)
+    {
+        List<Vector2>? found = null;
+        foreach (var polygon in polygons)
+        {
+            if (!polygon.Contains(vertex))
+            {
+                continue;
+            }
+
+            Assert.Null(found);
+            found = polygon;
+        }
+
+        Assert.NotNull(found);
+        return found;
     }
 
     /// <summary>

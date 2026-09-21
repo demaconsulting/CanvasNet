@@ -990,7 +990,7 @@ var style = new StrokeStyle(
 
 var strokedOutline = PathStroker.Stroke(polyline, style);
 PathFiller.Fill(canvas, strokedOutline, new Rgba32(255, 128, 0, 255));
-Console.WriteLine(canvas[32, 24].A); // Output: 255 (well inside one visible dash run)
+Console.WriteLine(canvas[20, 32].A); // Output: 255 (on the centerline, inside one visible dash run)
 ```
 
 # References
