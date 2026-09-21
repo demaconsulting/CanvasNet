@@ -296,4 +296,54 @@ public class DashSplitterTests
             segments[3_000_000].Points);
         Assert.True(segments[^1].Points[0].X >= length - 10f);
     }
+
+    /// <summary>
+    ///     Proves that an edge spanning near-extreme float32 coordinates (from near
+    ///     <see cref="float.MinValue"/> to near <see cref="float.MaxValue"/>) - a legal, finite
+    ///     pair of <see cref="Vector2"/> endpoints - completes and produces finite dash intervals,
+    ///     rather than hanging.
+    /// </summary>
+    /// <remarks>
+    ///     Prior to the fix, per-edge length in <c>BuildCumulativeLengths</c> was computed via
+    ///     <see cref="Vector2.Distance"/>, which internally computes <c>dx*dx + dy*dy</c> in
+    ///     float32 before taking the square root. For this edge, that intermediate squaring
+    ///     overflows float32's representable range and produces <see cref="float.PositiveInfinity"/>,
+    ///     even though the true distance - while enormous - is finite in double precision. That
+    ///     infinite edge length made <c>totalLength</c> infinite, and the traversal loop in
+    ///     <c>BuildOnIntervals</c> (<c>while (position &lt; totalLength)</c>) could never
+    ///     terminate, since <c>position</c> can never reach infinity. This test makes no timing
+    ///     assertion (matching the other hang-regression tests above): it relies on the call
+    ///     actually returning at all to prove the loop terminates, and additionally asserts the
+    ///     produced segment endpoints are finite.
+    /// </remarks>
+    [Fact]
+    public void DashSplitter_Split_EdgeSpanningExtremeFloat32Coordinates_CompletesWithFiniteSegments()
+    {
+        // Arrange: a single edge from near float.MinValue to near float.MaxValue. Vector2.Distance
+        // computes dx*dx + dy*dy in float32, which overflows to +Infinity for this edge even
+        // though the true (double-precision) distance (~3.4e38) is finite. A dash pattern scaled
+        // to match that magnitude (rather than a fine [1, 1] pattern) keeps the number of
+        // traversal-loop iterations small, so the test exercises only the length computation
+        // itself rather than depending on the loop's (separately tested) large-iteration-count
+        // behavior.
+        var points = new List<Vector2>
+        {
+            new(float.MinValue / 2, 0),
+            new(float.MaxValue / 2, 0)
+        };
+
+        // Act
+        var segments = DashSplitter.Split(points, isClosed: false, dashArray: [1e38f, 1e38f], dashOffset: 0f);
+
+        // Assert: the call returned (did not hang), and every emitted point is finite.
+        Assert.NotEmpty(segments);
+        foreach (var segment in segments)
+        {
+            foreach (var point in segment.Points)
+            {
+                Assert.True(float.IsFinite(point.X));
+                Assert.True(float.IsFinite(point.Y));
+            }
+        }
+    }
 }

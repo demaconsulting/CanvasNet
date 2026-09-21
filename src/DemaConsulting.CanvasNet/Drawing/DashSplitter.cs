@@ -203,17 +203,30 @@ internal static class DashSplitter
     ///     for a closed polyline.
     /// </summary>
     /// <remarks>
-    ///     Accumulated in <see langword="double"/> rather than <see langword="float"/>: each
-    ///     individual edge length is only float32-precise (it comes from
-    ///     <see cref="Vector2.Distance"/> over float32 coordinates), but summing many edges of a
-    ///     long path in float32 accumulates rounding error, and - critically - once the running
-    ///     total's magnitude grows large enough that its float32 ULP (unit in the last place)
-    ///     exceeds a typical edge or dash-span length, adding a further small value can round back
-    ///     to the same total, silently discarding forward progress. A double-precision running
-    ///     total keeps its ULP many orders of magnitude smaller at any length this library is
-    ///     expected to support, so every dash-span comparison and step against it downstream (see
-    ///     <see cref="BuildOnIntervals"/>) remains numerically meaningful instead of eventually
-    ///     stalling.
+    ///     Accumulated in <see langword="double"/> rather than <see langword="float"/>: summing
+    ///     many edges of a long path in float32 accumulates rounding error, and - critically -
+    ///     once the running total's magnitude grows large enough that its float32 ULP (unit in
+    ///     the last place) exceeds a typical edge or dash-span length, adding a further small
+    ///     value can round back to the same total, silently discarding forward progress. A
+    ///     double-precision running total keeps its ULP many orders of magnitude smaller at any
+    ///     length this library is expected to support, so every dash-span comparison and step
+    ///     against it downstream (see <see cref="BuildOnIntervals"/>) remains numerically
+    ///     meaningful instead of eventually stalling.
+    ///     <para>
+    ///     Each edge length is computed via <c>Math.Sqrt</c> over <see langword="double"/>
+    ///     coordinate deltas rather than <see cref="Vector2.Distance"/>: <see cref="Vector2"/>
+    ///     coordinates are float32, and for an edge spanning near-extreme float32 coordinates
+    ///     (e.g. one endpoint near <see cref="float.MinValue"/> and the other near
+    ///     <see cref="float.MaxValue"/>), <see cref="Vector2.Distance"/>'s internal
+    ///     <c>dx*dx + dy*dy</c> computation is carried out in float32 and overflows to
+    ///     <see cref="float.PositiveInfinity"/> well before the true distance would, even though
+    ///     the same computation in double precision remains finite (float32's maximum magnitude
+    ///     squared and doubled is still comfortably within double's representable range). Widening
+    ///     the deltas to double before squaring avoids that spurious intermediate overflow, so a
+    ///     legitimately huge but finite edge never poisons <c>totalLength</c> in
+    ///     <see cref="BuildOnIntervals"/> with <see cref="double.PositiveInfinity"/> and stalling
+    ///     its <c>while (position &lt; totalLength)</c> loop forever.
+    ///     </para>
     /// </remarks>
     private static double[] BuildCumulativeLengths(IReadOnlyList<Vector2> points, bool isClosed)
     {
@@ -223,7 +236,9 @@ internal static class DashSplitter
         {
             var start = points[i];
             var end = points[(i + 1) % points.Count];
-            cumulative[i + 1] = cumulative[i] + Vector2.Distance(start, end);
+            var dx = (double)end.X - start.X;
+            var dy = (double)end.Y - start.Y;
+            cumulative[i + 1] = cumulative[i] + Math.Sqrt(dx * dx + dy * dy);
         }
 
         return cumulative;
