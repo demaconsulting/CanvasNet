@@ -45,7 +45,15 @@ internal static class DashSplitter
 
         var pattern = NormalizeDashArray(dashArray!);
         var totalPatternLength = GetPatternLength(pattern);
-        if (totalPatternLength <= 0f)
+        if (totalPatternLength <= 0d)
+        {
+            return [(new List<Vector2>(points), isClosed)];
+        }
+
+        // A pattern length that is not finite (astronomically large dash entries summing beyond
+        // double range) cannot be phase-normalized or traversed at all; fall back to a solid
+        // stroke rather than risk any downstream arithmetic on a non-finite value.
+        if (!double.IsFinite(totalPatternLength))
         {
             return [(new List<Vector2>(points), isClosed)];
         }
@@ -75,9 +83,25 @@ internal static class DashSplitter
         }
 
         var segments = new List<(List<Vector2> Points, bool IsClosed)>(onIntervals.Count);
+
+        // Both cursors only ever move forward across this loop: onIntervals is produced by a
+        // single monotonic walk from 0 to totalLength in BuildOnIntervals, so successive
+        // Start/End values never decrease. Threading a shared vertex cursor and point-lookup
+        // cursor through every interval (instead of each call scanning again from the beginning)
+        // keeps the whole extraction pass O(edgeCount + onIntervals.Count) rather than
+        // O(edgeCount * onIntervals.Count).
+        var vertexCursor = 0;
+        var pointCursor = 0;
         foreach (var interval in onIntervals)
         {
-            var segment = ExtractIntervalPolyline(points, isClosed, cumulativeLengths, interval.Start, interval.End);
+            var segment = ExtractIntervalPolyline(
+                points,
+                isClosed,
+                cumulativeLengths,
+                interval.Start,
+                interval.End,
+                ref vertexCursor,
+                ref pointCursor);
             if (segment.Count != 0)
             {
                 segments.Add((segment, false));
@@ -152,9 +176,20 @@ internal static class DashSplitter
     /// <summary>
     ///     Computes the total pattern length.
     /// </summary>
-    private static float GetPatternLength(IReadOnlyList<float> pattern)
+    /// <remarks>
+    ///     Summed in <see langword="double"/> rather than <see langword="float"/>: every entry is
+    ///     individually finite (enforced by <see cref="StrokeStyle"/>'s constructor validation),
+    ///     but a legal pattern such as <c>[float.MaxValue, float.MaxValue]</c> would still overflow
+    ///     a running <see langword="float"/> sum to <c>+Infinity</c>. An infinite pattern length
+    ///     then breaks phase normalization (<see cref="NormalizeModulo"/>) and can turn the
+    ///     phase-traversal loops in <see cref="IsDashOnAtStart"/> and <see cref="BuildOnIntervals"/>
+    ///     into an infinite loop, because subtracting any finite dash entry from
+    ///     <c>float.PositiveInfinity</c> never reduces it. Double has ample headroom for the sum of
+    ///     any number of finite float32 values, so this keeps the total representable.
+    /// </remarks>
+    private static double GetPatternLength(IReadOnlyList<float> pattern)
     {
-        var total = 0f;
+        var total = 0d;
         foreach (var value in pattern)
         {
             total += value;
@@ -189,7 +224,7 @@ internal static class DashSplitter
         var patternLength = GetPatternLength(pattern);
         var offset = NormalizeModulo(dashOffset, patternLength);
         var index = 0;
-        while (offset > 0f)
+        while (offset > 0d)
         {
             var length = pattern[index];
             if (length > 0f && offset < length)
@@ -220,7 +255,7 @@ internal static class DashSplitter
         var offset = NormalizeModulo(dashOffset, patternLength);
 
         var dashIndex = 0;
-        while (offset > 0f)
+        while (offset > 0d)
         {
             var length = pattern[dashIndex];
             if (length > 0f && offset < length)
@@ -232,7 +267,10 @@ internal static class DashSplitter
             dashIndex = (dashIndex + 1) % pattern.Count;
         }
 
-        var remainingInDash = pattern[dashIndex] - offset;
+        // By the loop invariant above, offset is now strictly less than pattern[dashIndex] (a
+        // finite float32 entry), so the remainder is safe to narrow back to float without any
+        // risk of the overflow this method exists to avoid.
+        var remainingInDash = (float)(pattern[dashIndex] - offset);
         if (remainingInDash < 0f)
         {
             remainingInDash = 0f;
@@ -293,37 +331,64 @@ internal static class DashSplitter
     ///     Extracts the sub-polyline between <paramref name="startDistance"/> and
     ///     <paramref name="endDistance"/>.
     /// </summary>
+    /// <remarks>
+    ///     <paramref name="vertexCursor"/> and <paramref name="pointCursor"/> are threaded in from
+    ///     the caller and advance monotonically across every interval extracted from the same
+    ///     polyline (see the call site in <see cref="Split"/>): because successive intervals never
+    ///     move backward along the path, each cursor only ever walks forward past a given vertex
+    ///     or edge once across the whole extraction pass, making the combined cost linear in the
+    ///     number of polyline edges plus the number of intervals rather than their product.
+    /// </remarks>
     private static List<Vector2> ExtractIntervalPolyline(
         IReadOnlyList<Vector2> points,
         bool isClosed,
         IReadOnlyList<float> cumulativeLengths,
         float startDistance,
-        float endDistance)
+        float endDistance,
+        ref int vertexCursor,
+        ref int pointCursor)
     {
         var segment = new List<Vector2>();
-        AddPointIfDistinct(segment, GetPointAtDistance(points, isClosed, cumulativeLengths, startDistance));
+        AddPointIfDistinct(segment, GetPointAtDistance(points, isClosed, cumulativeLengths, startDistance, ref pointCursor));
 
         var edgeCount = cumulativeLengths.Count - 1;
-        for (var i = 1; i < edgeCount; i++)
+
+        // Advance past any vertex boundaries at or before startDistance (including the implicit
+        // index 0 boundary, whose cumulative length is always zero).
+        while (vertexCursor < edgeCount && cumulativeLengths[vertexCursor] <= startDistance)
         {
-            if (cumulativeLengths[i] > startDistance && cumulativeLengths[i] < endDistance)
-            {
-                AddPointIfDistinct(segment, points[i % points.Count]);
-            }
+            vertexCursor++;
         }
 
-        AddPointIfDistinct(segment, GetPointAtDistance(points, isClosed, cumulativeLengths, endDistance));
+        // Emit every vertex strictly between startDistance and endDistance, advancing the cursor
+        // forward as each is consumed.
+        while (vertexCursor < edgeCount && cumulativeLengths[vertexCursor] < endDistance)
+        {
+            AddPointIfDistinct(segment, points[vertexCursor % points.Count]);
+            vertexCursor++;
+        }
+
+        AddPointIfDistinct(segment, GetPointAtDistance(points, isClosed, cumulativeLengths, endDistance, ref pointCursor));
         return segment;
     }
 
     /// <summary>
     ///     Evaluates the polyline point at the specified arc-length distance.
     /// </summary>
+    /// <remarks>
+    ///     <paramref name="edgeCursor"/> is threaded in from the caller and only ever advances
+    ///     forward: since every call made across one <see cref="Split"/> pass supplies a
+    ///     non-decreasing <paramref name="distance"/> (see <see cref="ExtractIntervalPolyline"/>),
+    ///     resuming the edge-bracket search from wherever the previous call left off - rather than
+    ///     restarting from edge zero - keeps the search across all calls linear in the number of
+    ///     polyline edges instead of quadratic in edges times calls.
+    /// </remarks>
     private static Vector2 GetPointAtDistance(
         IReadOnlyList<Vector2> points,
         bool isClosed,
         IReadOnlyList<float> cumulativeLengths,
-        float distance)
+        float distance,
+        ref int edgeCursor)
     {
         if (distance <= 0f)
         {
@@ -337,38 +402,39 @@ internal static class DashSplitter
         }
 
         var edgeCount = cumulativeLengths.Count - 1;
-        for (var i = 0; i < edgeCount; i++)
+        while (edgeCursor < edgeCount - 1 && distance > cumulativeLengths[edgeCursor + 1])
         {
-            var startLength = cumulativeLengths[i];
-            var endLength = cumulativeLengths[i + 1];
-            if (distance > endLength)
-            {
-                continue;
-            }
-
-            var edgeStart = points[i];
-            var edgeEnd = points[(i + 1) % points.Count];
-            var edgeLength = endLength - startLength;
-            if (edgeLength <= 0f)
-            {
-                return edgeStart;
-            }
-
-            var t = (distance - startLength) / edgeLength;
-            return Vector2.Lerp(edgeStart, edgeEnd, t);
+            edgeCursor++;
         }
 
-        return isClosed ? points[0] : points[^1];
+        var startLength = cumulativeLengths[edgeCursor];
+        var endLength = cumulativeLengths[edgeCursor + 1];
+        var edgeStart = points[edgeCursor];
+        var edgeEnd = points[(edgeCursor + 1) % points.Count];
+        var edgeLength = endLength - startLength;
+        if (edgeLength <= 0f)
+        {
+            return edgeStart;
+        }
+
+        var t = (distance - startLength) / edgeLength;
+        return Vector2.Lerp(edgeStart, edgeEnd, t);
     }
 
     /// <summary>
     ///     Normalizes <paramref name="value"/> into the half-open interval
     ///     <c>[0, modulus)</c>.
     /// </summary>
-    private static float NormalizeModulo(float value, float modulus)
+    /// <remarks>
+    ///     <paramref name="modulus"/> is a <see langword="double"/> (the total dash pattern
+    ///     length, see <see cref="GetPatternLength"/>) so that a pattern summing close to
+    ///     <see cref="float.MaxValue"/> still normalizes correctly instead of collapsing to
+    ///     <c>float.PositiveInfinity</c>.
+    /// </remarks>
+    private static double NormalizeModulo(float value, double modulus)
     {
         var normalized = value % modulus;
-        if (normalized < 0f)
+        if (normalized < 0d)
         {
             normalized += modulus;
         }

@@ -132,6 +132,50 @@ public class StrokeOutlinerTests
         Assert.Equal(7, polygon.Count);
     }
 
+    /// <summary>
+    ///     Proves that a round join with a small (~45 degree) sweep angle at an extreme stroke
+    ///     half-width (large enough that <c>flattenTolerance / radius</c> underflows float32
+    ///     precision) still produces a genuinely multi-segment curved outline. Prior to the fix,
+    ///     the underflow fallback's angle-based minimum segment count
+    ///     (<c>ceil(sweepMagnitude / (PI/2))</c>) was exactly 1 for any sweep of at most 90
+    ///     degrees, which collapsed the arc right back into a single straight chord - the same
+    ///     regression the fallback was supposed to eliminate, just for smaller sweep angles than
+    ///     the previously covered near-180-degree case.
+    /// </summary>
+    [Fact]
+    public void StrokeOutliner_Outline_RoundJoinSmallSweepAtExtremeScale_ProducesMultiSegmentCurve()
+    {
+        // Arrange: a ~45 degree turn (well under the FallbackSegmentAngle of 90 degrees, so
+        // fallbackCount alone would be exactly 1 without the Math.Max(2, ...) floor), paired with
+        // a stroke half-width many orders of magnitude larger than the ~1.19e-7 relative float32
+        // precision floor so flattenTolerance / radius underflows to zero for any reasonable
+        // flattenTolerance.
+        var points = new List<Vector2>
+        {
+            new(0, 0),
+            new(10, 0),
+            new(10 + 10 * MathF.Cos(-MathF.PI / 4f), 10 * MathF.Sin(-MathF.PI / 4f))
+        };
+        const float extremeWidth = 2e13f;
+        var roundStyle = new StrokeStyle(extremeWidth, join: LineJoin.Round);
+        var bevelStyle = new StrokeStyle(extremeWidth, join: LineJoin.Bevel);
+
+        // Act
+        var roundPolygon = Assert.Single(StrokeOutliner.Outline(points, isClosed: false, roundStyle, flattenTolerance: 0.25f));
+        var bevelPolygon = Assert.Single(StrokeOutliner.Outline(points, isClosed: false, bevelStyle, flattenTolerance: 0.25f));
+
+        // Assert: a genuinely curved (multi-segment) round join contributes at least one extra
+        // vertex beyond the two straight-chord endpoints a bevel join produces at the same
+        // geometry and scale. A collapsed single-chord round join would instead produce exactly
+        // the same vertex count as the bevel join.
+        Assert.True(
+            roundPolygon.Count > bevelPolygon.Count,
+            $"Expected the round join ({roundPolygon.Count} vertices) to contribute more vertices " +
+            $"than the equivalent bevel join ({bevelPolygon.Count} vertices): an equal count " +
+            "indicates the small-sweep-angle underflow fallback has collapsed back to a single " +
+            "straight chord.");
+    }
+
     private static float GetSignedArea(IReadOnlyList<Vector2> points)
     {
         var area = 0f;

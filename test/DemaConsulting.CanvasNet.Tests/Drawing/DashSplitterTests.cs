@@ -106,6 +106,35 @@ public class DashSplitterTests
     }
 
     /// <summary>
+    ///     Proves that a dash array whose entries are each individually finite but whose summed
+    ///     total pattern length overflows a naive float32 accumulation (e.g. two
+    ///     <see cref="float.MaxValue"/> entries) completes without hanging, even when combined
+    ///     with a negative dash offset that forces phase normalization to traverse the pattern.
+    ///     Prior to the fix, the overflowed (<see cref="float.PositiveInfinity"/>) pattern length
+    ///     made the phase-traversal loop subtract finite dash entries from infinity forever - an
+    ///     effectively infinite loop. This test intentionally makes no timing assertion: it simply
+    ///     relies on xUnit's normal test execution completing at all to prove the loop terminates.
+    /// </summary>
+    [Fact]
+    public void DashSplitter_Split_OverflowProneDashArrayWithNegativeOffset_CompletesWithoutHanging()
+    {
+        // Arrange: a dash pattern whose two entries individually are finite but whose float32 sum
+        // overflows to +Infinity, paired with a negative dash offset (both independently legal
+        // per StrokeStyle's validation) so phase normalization must traverse the pattern.
+        var points = new List<Vector2> { new(0, 0), new(10, 0) };
+
+        // Act
+        var segments = DashSplitter.Split(
+            points,
+            isClosed: false,
+            dashArray: [float.MaxValue, float.MaxValue],
+            dashOffset: -1f);
+
+        // Assert: the call returned (did not hang) with a well-formed result
+        Assert.NotNull(segments);
+    }
+
+    /// <summary>
     ///     Proves that an all-zero dash array is treated as a solid stroke.
     /// </summary>
     [Fact]

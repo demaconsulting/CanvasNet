@@ -47,6 +47,18 @@ internal static class StrokeOutliner
             return CreatePointStrokePolygons(simplified[0], style.Cap, halfWidth, flattenTolerance);
         }
 
+        if (isClosed && simplified.Count == 2)
+        {
+            // A closed contour needs at least three distinct vertices to enclose any area; with
+            // exactly two, the "outer" and "inner" offset rings built by CreateClosedStrokePolygons
+            // would be coincident (zero signed area) and then forced into opposite winding, which
+            // makes FillRule.NonZero cancel the whole band to nothing. Instead, treat this
+            // degenerate closed contour exactly as an equivalent open single-segment stroke would
+            // be outlined (with caps at both ends per style.Cap) - the only well-defined non-empty
+            // rendering of a closed path that immediately doubles back over the same segment.
+            return CreateOpenStrokePolygons(simplified, style, halfWidth, flattenTolerance);
+        }
+
         return isClosed
             ? CreateClosedStrokePolygons(simplified, style, halfWidth, flattenTolerance)
             : CreateOpenStrokePolygons(simplified, style, halfWidth, flattenTolerance);
@@ -589,8 +601,13 @@ internal static class StrokeOutliner
         {
             // flattenTolerance / radius underflowed to (effectively) zero: the tolerance-based
             // computation cannot distinguish this arc from a full circle, so fall back to the
-            // angle-based heuristic instead of returning 1 (a single straight chord).
-            return fallbackCount;
+            // angle-based heuristic instead of returning 1 (a single straight chord). fallbackCount
+            // itself is exactly 1 for any sweep of at most FallbackSegmentAngle (PI/2, i.e. 90
+            // degrees), which would silently collapse right back into the same single straight
+            // chord this fallback exists to eliminate; clamp to a minimum of 2 segments so every
+            // positive sweep - however small - still produces a genuinely curved (multi-segment)
+            // outline.
+            return Math.Max(2, fallbackCount);
         }
 
         return Math.Max(fallbackCount, (int)MathF.Ceiling(sweepMagnitude / maxAngle));

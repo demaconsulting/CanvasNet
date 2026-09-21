@@ -163,6 +163,61 @@ public class PathStrokerTests
     }
 
     /// <summary>
+    ///     Proves that a closed subpath reduced to exactly two distinct points (a zero-area,
+    ///     degenerate closed contour that immediately doubles back over the same segment) still
+    ///     renders as a stroked line segment, rather than vanishing entirely because its coincident
+    ///     "outer" and "inner" offset rings would otherwise be forced into opposite winding and
+    ///     cancel under FillRule.NonZero. The expected pixel coverage matches the equivalent
+    ///     open, butt-capped, two-point stroke exactly (see
+    ///     <see cref="PathStroker_Stroke_HorizontalLineButtCap_FillsExactRectangleNoExtension"/>).
+    /// </summary>
+    [Fact]
+    public void PathStroker_Stroke_ClosedTwoPointSubpath_FillsStrokedSegmentAreaNotEmpty()
+    {
+        // Arrange: a closed subpath (M ... L ... Z) with only two distinct points
+        var path = new PathBuilder()
+            .MoveTo(new Vector2(2, 2))
+            .LineTo(new Vector2(6, 2))
+            .Close()
+            .Build();
+        var style = new StrokeStyle(2f, cap: LineCap.Butt);
+
+        // Act: rasterize and sample actual pixel coverage, not just outline generation
+        var surface = RenderStroke(path, style, 8, 5);
+
+        // Assert: coverage matches the equivalent open two-point butt-capped stroke
+        Assert.Equal((byte)255, surface[2, 1].A);
+        Assert.Equal((byte)255, surface[5, 2].A);
+        Assert.Equal((byte)0, surface[1, 1].A);
+        Assert.Equal((byte)0, surface[6, 1].A);
+    }
+
+    /// <summary>
+    ///     Proves that a dash array whose entries individually are finite but whose summed total
+    ///     pattern length would overflow a naive float32 accumulation does not hang the public
+    ///     <see cref="PathStroker.Stroke(Path, StrokeStyle, float)"/> entry point, when combined
+    ///     with a negative dash offset. This test intentionally makes no timing assertion: it
+    ///     relies only on xUnit's normal test execution completing to prove there is no infinite
+    ///     loop reachable through the public stroking API.
+    /// </summary>
+    [Fact]
+    public void PathStroker_Stroke_OverflowProneDashArrayWithNegativeOffset_CompletesWithoutHanging()
+    {
+        // Arrange
+        var path = new PathBuilder()
+            .MoveTo(new Vector2(0, 0))
+            .LineTo(new Vector2(10, 0))
+            .Build();
+        var style = new StrokeStyle(2f, dashArray: [float.MaxValue, float.MaxValue], dashOffset: -1f);
+
+        // Act
+        var stroked = PathStroker.Stroke(path, style);
+
+        // Assert: the call returned (did not hang) with a well-formed result
+        Assert.NotNull(stroked);
+    }
+
+    /// <summary>
     ///     Proves that a sharp corner exceeding the miter limit falls back to bevel geometry.
     /// </summary>
     [Fact]
