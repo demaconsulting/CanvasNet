@@ -163,6 +163,116 @@ public class PathStrokerTests
     }
 
     /// <summary>
+    ///     Proves that a closed contour's inner (hole) corner is always the geometrically exact
+    ///     offset-edge intersection, never the outer <see cref="LineJoin"/> style stylization,
+    ///     using a Bevel join where the two constructions diverge sharply.
+    /// </summary>
+    /// <remarks>
+    ///     The rectangle (4,4)-(12,4)-(12,12)-(4,12) stroked with width 4 (half-width 2) produces
+    ///     an exact 4x4 hole at (6,6)-(10,6)-(10,10)-(6,10), and an outer boundary at
+    ///     (2,2)-(14,2)-(14,14)-(2,14). At the (4,4) corner, the two offset edges are the lines
+    ///     x=6 (from the left edge) and y=6 (from the top edge); their exact intersection is
+    ///     (6,6). Pixel [5,5] - the unit square [5,6) x [5,6) - lies entirely at x&lt;6 or y&lt;6
+    ///     (only the single corner point (6,6) touches x=y=6), so under the exact intersection it
+    ///     is entirely outside the hole and must be fully covered (alpha 255). A Bevel join
+    ///     instead connects the previous/next offset points (6,4) and (4,6) directly with a chord
+    ///     (the line x+y=10): every corner of pixel [5,5] except (5,5) itself has x+y &gt; 10, so
+    ///     a buggy implementation that bevels the inner corner would incorrectly treat nearly all
+    ///     of pixel [5,5] as hole (alpha 0) instead of stroke. Pixel [7,7] sits at the center of
+    ///     the real hole (unaffected by the fix) and pixel [0,0] sits outside the outer boundary,
+    ///     confirming the fix does not remove the hole entirely or expand the stroke outward.
+    /// </remarks>
+    [Fact]
+    public void PathStroker_Stroke_ClosedRectangleBevelJoin_InnerCornerMatchesExactIntersectionNotBevel()
+    {
+        // Arrange
+        var path = new PathBuilder()
+            .MoveTo(new Vector2(4, 4))
+            .LineTo(new Vector2(12, 4))
+            .LineTo(new Vector2(12, 12))
+            .LineTo(new Vector2(4, 12))
+            .Close()
+            .Build();
+        var style = new StrokeStyle(4f, join: LineJoin.Bevel);
+
+        // Act
+        var surface = RenderStroke(path, style, 16, 16);
+
+        // Assert: fully covered at the exact-intersection inner corner, and the hole interior and
+        // exterior remain unfilled
+        Assert.Equal((byte)255, surface[5, 5].A);
+        Assert.Equal((byte)0, surface[7, 7].A);
+        Assert.Equal((byte)0, surface[0, 0].A);
+    }
+
+    /// <summary>
+    ///     Proves that a closed contour's inner (hole) corner is always the geometrically exact
+    ///     offset-edge intersection, never a rounded arc, using a Round join where the two
+    ///     constructions diverge sharply.
+    /// </summary>
+    /// <remarks>
+    ///     Same rectangle and exact-intersection reasoning as
+    ///     <see cref="PathStroker_Stroke_ClosedRectangleBevelJoin_InnerCornerMatchesExactIntersectionNotBevel"/>.
+    ///     A Round join instead sweeps a quarter-circle arc of radius 2 (the half-width) centered
+    ///     on the (4,4) vertex between the offset points (6,4) and (4,6): every corner of pixel
+    ///     [5,5] except (5,5) itself is farther than radius 2 from (4,4) and within the swept
+    ///     0-90 degree sector, so a buggy implementation that rounds the inner corner would
+    ///     incorrectly treat most of pixel [5,5] as hole (reduced alpha) instead of the fully
+    ///     covered stroke the exact intersection requires.
+    /// </remarks>
+    [Fact]
+    public void PathStroker_Stroke_ClosedRectangleRoundJoin_InnerCornerMatchesExactIntersectionNotArc()
+    {
+        // Arrange
+        var path = new PathBuilder()
+            .MoveTo(new Vector2(4, 4))
+            .LineTo(new Vector2(12, 4))
+            .LineTo(new Vector2(12, 12))
+            .LineTo(new Vector2(4, 12))
+            .Close()
+            .Build();
+        var style = new StrokeStyle(4f, join: LineJoin.Round);
+
+        // Act
+        var surface = RenderStroke(path, style, 16, 16);
+
+        // Assert: fully covered at the exact-intersection inner corner, and the hole interior and
+        // exterior remain unfilled
+        Assert.Equal((byte)255, surface[5, 5].A);
+        Assert.Equal((byte)0, surface[7, 7].A);
+        Assert.Equal((byte)0, surface[0, 0].A);
+    }
+
+    /// <summary>
+    ///     Proves that a Miter join on a closed contour continues to produce the same exact
+    ///     inner-corner coverage as Bevel/Round now do, confirming the outer/inner distinction
+    ///     introduced for Bevel and Round does not regress the Miter path (which already computed
+    ///     an edge intersection on both sides).
+    /// </summary>
+    [Fact]
+    public void PathStroker_Stroke_ClosedRectangleMiterJoin_InnerCornerMatchesExactIntersection()
+    {
+        // Arrange
+        var path = new PathBuilder()
+            .MoveTo(new Vector2(4, 4))
+            .LineTo(new Vector2(12, 4))
+            .LineTo(new Vector2(12, 12))
+            .LineTo(new Vector2(4, 12))
+            .Close()
+            .Build();
+        var style = new StrokeStyle(4f, join: LineJoin.Miter);
+
+        // Act
+        var surface = RenderStroke(path, style, 16, 16);
+
+        // Assert: fully covered at the exact-intersection inner corner, and the hole interior and
+        // exterior remain unfilled
+        Assert.Equal((byte)255, surface[5, 5].A);
+        Assert.Equal((byte)0, surface[7, 7].A);
+        Assert.Equal((byte)0, surface[0, 0].A);
+    }
+
+    /// <summary>
     ///     Proves that a closed subpath reduced to exactly two distinct points (a zero-area,
     ///     degenerate closed contour that immediately doubles back over the same segment) still
     ///     renders as a stroked line segment, rather than vanishing entirely because its coincident

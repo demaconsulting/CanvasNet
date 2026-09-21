@@ -192,6 +192,18 @@ internal static class StrokeOutliner
     /// <summary>
     ///     Produces the outer and inner shell rings for a closed contour.
     /// </summary>
+    /// <remarks>
+    ///     The outer and inner offset rings are NOT symmetric for a closed contour: the outer
+    ///     ring is the outside boundary of the stroke band, where every vertex is a convex corner
+    ///     that the caller's requested <see cref="LineJoin"/> (Miter/Round/Bevel) legitimately
+    ///     stylizes. The inner ring is the boundary of the hole left by the union of the two
+    ///     offset strips - at that same vertex, the inner side is the geometrically exact
+    ///     intersection of the two offset edges, not a stylized corner. Applying Bevel or Round to
+    ///     the inner side would chamfer/round away real stroke area (or, if the geometry required
+    ///     it, add extraneous area) at every inner corner, producing a hole boundary with the
+    ///     wrong shape. <see cref="BuildClosedSide"/> is therefore called once per ring with an
+    ///     explicit outer/inner flag so only the outer ring honors <see cref="StrokeStyle.Join"/>.
+    /// </remarks>
     private static List<List<Vector2>> CreateClosedStrokePolygons(
         IReadOnlyList<Vector2> points,
         StrokeStyle style,
@@ -201,8 +213,8 @@ internal static class StrokeOutliner
         var area = ComputeSignedArea(points);
         var outerSideSign = area >= 0f ? -1f : +1f;
 
-        var outerRing = BuildClosedSide(points, outerSideSign, style, halfWidth, flattenTolerance);
-        var innerRing = BuildClosedSide(points, -outerSideSign, style, halfWidth, flattenTolerance);
+        var outerRing = BuildClosedSide(points, outerSideSign, style, halfWidth, flattenTolerance, isOuterSide: true);
+        var innerRing = BuildClosedSide(points, -outerSideSign, style, halfWidth, flattenTolerance, isOuterSide: false);
         if (outerRing.Count < 3 || innerRing.Count < 3)
         {
             return [];
@@ -334,12 +346,24 @@ internal static class StrokeOutliner
     /// <summary>
     ///     Builds one closed offset ring for a closed contour.
     /// </summary>
+    /// <param name="points">The flattened, simplified closed-contour vertices.</param>
+    /// <param name="sideSign">The offset direction (+1/-1) for this ring relative to the normals.</param>
+    /// <param name="style">The stroke geometry to apply.</param>
+    /// <param name="halfWidth">Half the stroke width.</param>
+    /// <param name="flattenTolerance">The tolerance used when tessellating round arcs.</param>
+    /// <param name="isOuterSide">
+    ///     Whether this ring is the outer (outside boundary) side of the stroke band. When
+    ///     <see langword="false"/> (the inner/hole side), every vertex is forced to the exact
+    ///     offset-edge intersection regardless of <see cref="StrokeStyle.Join"/> - see the remarks
+    ///     on <see cref="CreateClosedStrokePolygons"/> for why the two sides cannot share styling.
+    /// </param>
     private static List<Vector2> BuildClosedSide(
         IReadOnlyList<Vector2> points,
         float sideSign,
         StrokeStyle style,
         float halfWidth,
-        float flattenTolerance)
+        float flattenTolerance,
+        bool isOuterSide)
     {
         var frames = BuildSegmentFrames(points, isClosed: true);
         var ring = new List<Vector2>(points.Count * 2);
@@ -365,7 +389,8 @@ internal static class StrokeOutliner
                 sideSign,
                 style,
                 halfWidth,
-                flattenTolerance);
+                flattenTolerance,
+                forceExactIntersection: !isOuterSide);
         }
 
         RemoveTrailingDuplicateOfFirst(ring);
@@ -375,6 +400,24 @@ internal static class StrokeOutliner
     /// <summary>
     ///     Appends the requested styled join between two offset segments.
     /// </summary>
+    /// <param name="target"></param>
+    /// <param name="vertex"></param>
+    /// <param name="previousTangent"></param>
+    /// <param name="nextTangent"></param>
+    /// <param name="previousNormal"></param>
+    /// <param name="nextNormal"></param>
+    /// <param name="sideSign"></param>
+    /// <param name="style"></param>
+    /// <param name="halfWidth"></param>
+    /// <param name="flattenTolerance"></param>
+    /// <param name="forceExactIntersection">
+    ///     When <see langword="true"/>, ignores <see cref="StrokeStyle.Join"/> and always emits
+    ///     the geometrically exact intersection of the two offset edges (falling back to the
+    ///     un-joined offset points only when the edges are parallel and have no intersection).
+    ///     This is required for the inner/hole ring of a closed contour, where the correct corner
+    ///     is always the exact intersection point, never a stylized miter/round/bevel corner - see
+    ///     the remarks on <see cref="CreateClosedStrokePolygons"/>.
+    /// </param>
     private static void AppendStyledJoin(
         List<Vector2> target,
         Vector2 vertex,
@@ -385,10 +428,26 @@ internal static class StrokeOutliner
         float sideSign,
         StrokeStyle style,
         float halfWidth,
-        float flattenTolerance)
+        float flattenTolerance,
+        bool forceExactIntersection = false)
     {
         var previousPoint = vertex + sideSign * previousNormal * halfWidth;
         var nextPoint = vertex + sideSign * nextNormal * halfWidth;
+
+        if (forceExactIntersection)
+        {
+            if (TryIntersectLines(previousPoint, previousTangent, nextPoint, nextTangent, out var intersection))
+            {
+                AddPointIfDistinct(target, intersection);
+            }
+            else
+            {
+                AddPointIfDistinct(target, previousPoint);
+                AddPointIfDistinct(target, nextPoint);
+            }
+
+            return;
+        }
 
         switch (style.Join)
         {
