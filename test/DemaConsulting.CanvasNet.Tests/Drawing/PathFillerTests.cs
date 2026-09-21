@@ -365,4 +365,178 @@ public class PathFillerTests
 
         Assert.Throws<ArgumentOutOfRangeException>(() => PathFiller.Fill(surface, path, new Rgba32(1, 2, 3, 4), fillRule: (FillRule)42));
     }
+
+    /// <summary>
+    ///     Proves that the gradient overload of Fill paints each fully covered pixel with the
+    ///     gradient's color at that pixel's own position - a horizontal rectangle filled with a
+    ///     horizontal linear gradient produces the first stop's color at its left edge and the
+    ///     last stop's color at its right edge.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_Gradient_HorizontalRectangleWithHorizontalLinearGradient_VariesLeftToRight()
+    {
+        // Arrange: a 10x1 surface, a rectangle covering it entirely, and a red-to-blue linear
+        // gradient spanning the same extent
+        var surface = new Surface(10, 1);
+        var path = new PathBuilder()
+            .MoveTo(new Vector2(0, 0)).LineTo(new Vector2(10, 0)).LineTo(new Vector2(10, 1)).LineTo(new Vector2(0, 1))
+            .Close()
+            .Build();
+        GradientStop[] stops =
+        [
+            new GradientStop(0f, new Rgba32(255, 0, 0, 255)),
+            new GradientStop(1f, new Rgba32(0, 0, 255, 255)),
+        ];
+        var gradient = new LinearGradient(new Vector2(0, 0), new Vector2(10, 0), stops);
+
+        // Act
+        PathFiller.Fill(surface, path, gradient);
+
+        // Assert: left edge is red-dominant, right edge is blue-dominant
+        Assert.True(surface[0, 0].R > surface[0, 0].B);
+        Assert.True(surface[9, 0].B > surface[9, 0].R);
+    }
+
+    /// <summary>
+    ///     Proves that the gradient overload throws ArgumentNullException when the surface
+    ///     argument is null.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_Gradient_NullSurface_ThrowsArgumentNullException()
+    {
+        var gradient = new LinearGradient(Vector2.Zero, Vector2.One, [new GradientStop(0f, new Rgba32(1, 2, 3, 4))]);
+
+        Assert.Throws<ArgumentNullException>(() => PathFiller.Fill(null!, Path.Empty, gradient));
+    }
+
+    /// <summary>
+    ///     Proves that the gradient overload throws ArgumentNullException when the path argument
+    ///     is null.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_Gradient_NullPath_ThrowsArgumentNullException()
+    {
+        var gradient = new LinearGradient(Vector2.Zero, Vector2.One, [new GradientStop(0f, new Rgba32(1, 2, 3, 4))]);
+
+        Assert.Throws<ArgumentNullException>(() => PathFiller.Fill(new Surface(1, 1), null!, gradient));
+    }
+
+    /// <summary>
+    ///     Proves that the gradient overload throws ArgumentNullException when the paint (gradient)
+    ///     argument is null.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_Gradient_NullPaint_ThrowsArgumentNullException()
+    {
+        var surface = new Surface(1, 1);
+
+        Assert.Throws<ArgumentNullException>(() => PathFiller.Fill(surface, Path.Empty, (Gradient)null!));
+    }
+
+    /// <summary>
+    ///     Proves that the gradient overload is a no-op on an empty path, matching the solid-color
+    ///     overload's documented behavior.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_Gradient_EmptyPath_NoOpLeavesSurfaceUnchanged()
+    {
+        var surface = new Surface(2, 2);
+        surface[0, 0] = new Rgba32(1, 2, 3, 4);
+        var gradient = new LinearGradient(Vector2.Zero, Vector2.One, [new GradientStop(0f, new Rgba32(9, 9, 9, 9))]);
+
+        PathFiller.Fill(surface, Path.Empty, gradient);
+
+        Assert.Equal(new Rgba32(1, 2, 3, 4), surface[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that the gradient overload throws ArgumentOutOfRangeException when
+    ///     flattenTolerance is non-positive or non-finite, matching the solid-color overload's
+    ///     validation.
+    /// </summary>
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(-0.01f)]
+    [InlineData(float.NaN)]
+    public void PathFiller_Fill_Gradient_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException(float tolerance)
+    {
+        var surface = new Surface(2, 2);
+        var path = new PathBuilder().MoveTo(new Vector2(0, 0)).LineTo(new Vector2(1, 1)).Close().Build();
+        var gradient = new LinearGradient(Vector2.Zero, Vector2.One, [new GradientStop(0f, new Rgba32(1, 2, 3, 4))]);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => PathFiller.Fill(surface, path, gradient, flattenTolerance: tolerance));
+    }
+
+    /// <summary>
+    ///     Proves that the gradient overload throws ArgumentOutOfRangeException when fillRule is
+    ///     not a defined FillRule value.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_Gradient_UndefinedFillRule_ThrowsArgumentOutOfRangeException()
+    {
+        var surface = new Surface(2, 2);
+        var path = new PathBuilder().MoveTo(new Vector2(0, 0)).LineTo(new Vector2(1, 1)).Close().Build();
+        var gradient = new LinearGradient(Vector2.Zero, Vector2.One, [new GradientStop(0f, new Rgba32(1, 2, 3, 4))]);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => PathFiller.Fill(surface, path, gradient, fillRule: (FillRule)42));
+    }
+
+    /// <summary>
+    ///     Proves that filling with a single-stop gradient produces the same result as filling
+    ///     with that stop's color via the solid-color overload - a single-stop gradient is a
+    ///     solid color.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_Gradient_SingleStop_MatchesSolidColorFill()
+    {
+        var color = new Rgba32(30, 60, 90, 200);
+        var path = new PathBuilder()
+            .MoveTo(new Vector2(0, 0)).LineTo(new Vector2(4, 0)).LineTo(new Vector2(4, 4)).LineTo(new Vector2(0, 4))
+            .Close()
+            .Build();
+
+        var expected = new Surface(4, 4);
+        PathFiller.Fill(expected, path, color);
+
+        var actual = new Surface(4, 4);
+        var gradient = new LinearGradient(Vector2.Zero, new Vector2(4, 0), [new GradientStop(0f, color)]);
+        PathFiller.Fill(actual, path, gradient);
+
+        for (var y = 0; y < 4; y++)
+        {
+            for (var x = 0; x < 4; x++)
+            {
+                Assert.Equal(expected[x, y], actual[x, y]);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves that the gradient overload honors the fill rule for overlapping subpaths just
+    ///     like the solid-color overload does: NonZero fills the fully overlapping region while
+    ///     EvenOdd leaves it unfilled.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_Gradient_OverlappingSameWoundRectangles_NonZeroVsEvenOddDiverge()
+    {
+        var surface1 = new Surface(4, 4);
+        var surface2 = new Surface(4, 4);
+        var gradient = new LinearGradient(Vector2.Zero, new Vector2(4, 0), [new GradientStop(0f, new Rgba32(1, 2, 3, 255))]);
+
+        var path = new PathBuilder()
+            .MoveTo(new Vector2(0, 0)).LineTo(new Vector2(3, 0)).LineTo(new Vector2(3, 3)).LineTo(new Vector2(0, 3)).Close()
+            .MoveTo(new Vector2(1, 1)).LineTo(new Vector2(4, 1)).LineTo(new Vector2(4, 4)).LineTo(new Vector2(1, 4)).Close()
+            .Build();
+
+        PathFiller.Fill(surface1, path, gradient, FillRule.NonZero);
+        PathFiller.Fill(surface2, path, gradient, FillRule.EvenOdd);
+
+        // The overlapping region (1,1)-(3,3) is filled under NonZero but left unfilled under
+        // EvenOdd (two same-direction windings cancel to zero).
+        Assert.NotEqual((byte)0, surface1[2, 2].A);
+        Assert.Equal((byte)0, surface2[2, 2].A);
+    }
 }
+

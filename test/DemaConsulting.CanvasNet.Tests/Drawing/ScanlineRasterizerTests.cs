@@ -420,4 +420,99 @@ public class ScanlineRasterizerTests
         Assert.Equal(new Rgba32(0, 0, 0, 0), surface[0, 0]);
         Assert.Equal(new Rgba32(0, 0, 0, 0), surface[1, 1]);
     }
+
+    /// <summary>
+    ///     Proves that the gradient overload of Fill produces exactly the same per-pixel coverage
+    ///     as the solid-color overload - filling with a single-stop gradient must byte-for-byte
+    ///     match filling with that same stop's color, at every pixel of a shape with a sub-pixel
+    ///     coverage gradient (proving coverage computation is genuinely shared, not just
+    ///     coincidentally equal at fully-covered pixels).
+    /// </summary>
+    [Fact]
+    public void ScanlineRasterizer_Fill_Gradient_SingleStop_MatchesSolidColorOverloadPerPixelCoverage()
+    {
+        // Arrange: the same sub-pixel-offset square used by the analytic hand-computed coverage
+        // test above, which produces a fractional (non-fully-opaque) alpha at every pixel
+        var polygon = new List<Vector2>
+        {
+            new(0.5f, 0.5f),
+            new(1.5f, 0.5f),
+            new(1.5f, 1.5f),
+            new(0.5f, 1.5f),
+            new(0.5f, 0.5f)
+        };
+        var color = new Rgba32(200, 100, 50, 220);
+        var clipBounds = new Rect(0, 0, 2, 2);
+
+        var expected = new Surface(2, 2);
+        ScanlineRasterizer.Fill(expected, [polygon], color, FillRule.NonZero, clipBounds);
+
+        var actual = new Surface(2, 2);
+        var gradient = new LinearGradient(Vector2.Zero, Vector2.One, [new GradientStop(0f, color)]);
+        ScanlineRasterizer.Fill(actual, [polygon], gradient, FillRule.NonZero, clipBounds);
+
+        // Assert
+        for (var y = 0; y < 2; y++)
+        {
+            for (var x = 0; x < 2; x++)
+            {
+                Assert.Equal(expected[x, y], actual[x, y]);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves that the gradient overload evaluates a genuinely varying gradient (not a
+    ///     single-stop constant) at each pixel's own position - a fully covered 1x4 row filled
+    ///     with a horizontal linear gradient produces distinct colors across its width, following
+    ///     the ramp from the first stop to the last.
+    /// </summary>
+    [Fact]
+    public void ScanlineRasterizer_Fill_Gradient_FullCoverageRow_VariesAcrossWidthPerGradient()
+    {
+        // Arrange: a fully covered 1-pixel-tall, 4-pixel-wide square
+        var polygon = new List<Vector2>
+        {
+            new(0, 0),
+            new(4, 0),
+            new(4, 1),
+            new(0, 1),
+            new(0, 0)
+        };
+        var surface = new Surface(4, 1);
+        var clipBounds = new Rect(0, 0, 4, 1);
+        GradientStop[] stops =
+        [
+            new GradientStop(0f, new Rgba32(255, 0, 0, 255)),
+            new GradientStop(1f, new Rgba32(0, 0, 255, 255)),
+        ];
+        var gradient = new LinearGradient(new Vector2(0, 0), new Vector2(4, 0), stops);
+
+        // Act
+        ScanlineRasterizer.Fill(surface, [polygon], gradient, FillRule.NonZero, clipBounds);
+
+        // Assert: leftmost pixel is red-dominant, rightmost is blue-dominant, and every pixel is
+        // fully opaque (full coverage)
+        Assert.Equal((byte)255, surface[0, 0].A);
+        Assert.Equal((byte)255, surface[3, 0].A);
+        Assert.True(surface[0, 0].R > surface[0, 0].B);
+        Assert.True(surface[3, 0].B > surface[3, 0].R);
+    }
+
+    /// <summary>
+    ///     Proves that the gradient overload is a no-op when given no polygons, matching the
+    ///     solid-color overload's documented behavior.
+    /// </summary>
+    [Fact]
+    public void ScanlineRasterizer_Fill_Gradient_NoPolygons_NoOp()
+    {
+        var surface = new Surface(2, 2);
+        surface[0, 0] = new Rgba32(1, 2, 3, 4);
+        var gradient = new LinearGradient(Vector2.Zero, Vector2.One, [new GradientStop(0f, new Rgba32(9, 9, 9, 9))]);
+
+        ScanlineRasterizer.Fill(surface, [], gradient, FillRule.NonZero, new Rect(0, 0, 2, 2));
+
+        Assert.Equal(new Rgba32(1, 2, 3, 4), surface[0, 0]);
+    }
 }
+
