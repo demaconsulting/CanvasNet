@@ -1,0 +1,110 @@
+---
+# Software Subsystem Requirements for Geometry
+#
+# These requirements decompose the CanvasNet system's vector-geometry responsibilities into
+# the Geometry subsystem's own responsibility: an axis-aligned bounding rectangle (the Rect
+# unit), an immutable vector path and its fluent builder (the Path unit, which also covers the
+# supporting Subpath, PathCommand, and PathCommandType data types), adaptive Bezier curve
+# flattening (the BezierFlattening unit), and SVG-style elliptical arc to Bezier conversion
+# (the SvgArcConverter unit). Each requirement here links down to the unit requirement that
+# implements it.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Geometry Requirements
+        requirements:
+          - id: CanvasNet-Geometry-Rect
+            title: >-
+              The Geometry subsystem shall provide an axis-aligned bounding rectangle type
+              (position plus size), supporting Union, Intersect, Transform, containment testing,
+              and value equality, with an Empty sentinel that is a Union identity.
+            justification: |
+              Axis-aligned bounds are needed throughout vector geometry (for example, computing a
+              Path's bounding box) and must compose correctly across zero or more contributing
+              regions without special-casing "nothing yet".
+            children:
+              - CanvasNet-Geometry-Rect-Construction
+              - CanvasNet-Geometry-Rect-Empty
+              - CanvasNet-Geometry-Rect-IsEmpty
+              - CanvasNet-Geometry-Rect-Contains
+              - CanvasNet-Geometry-Rect-Union
+              - CanvasNet-Geometry-Rect-Intersect
+              - CanvasNet-Geometry-Rect-Transform
+              - CanvasNet-Geometry-Rect-Equality
+            tests:
+              - Rect_Constructor_ValidValues_SetsPropertiesAndComputedEdges
+              - Rect_Union_WithEmpty_ReturnsOtherRectangleUnchanged
+
+          - id: CanvasNet-Geometry-Path
+            title: >-
+              The Geometry subsystem shall provide an immutable vector path type, built via a
+              mutable, fluent, allocation-conscious builder supporting move, line, quadratic and
+              cubic Bezier, SVG-style elliptical arc, and close-subpath commands, and shall
+              compute an axis-aligned bounding rectangle for a path in either a conservative
+              (control-point convex hull) or tighter (flattening-based) mode.
+            justification: |
+              A vector path (potentially several independent subpaths of mixed line, curve, and
+              arc segments) is the foundational shape-description primitive future
+              drawing/rendering functionality in this library will consume; callers need to build
+              one incrementally and reuse a single builder instance across many paths without
+              per-path allocation overhead.
+            children:
+              - CanvasNet-Geometry-Path-BuildEveryCommandType
+              - CanvasNet-Geometry-Path-ArcToStoresRawParameters
+              - CanvasNet-Geometry-Path-MultipleSubpaths
+              - CanvasNet-Geometry-Path-Close
+              - CanvasNet-Geometry-Path-MoveToAfterClose
+              - CanvasNet-Geometry-Path-GuardBeforeMoveTo
+              - CanvasNet-Geometry-Path-GuardAfterCloseWithoutMoveTo
+              - CanvasNet-Geometry-Path-BuildSnapshotIndependence
+              - CanvasNet-Geometry-Path-BuildEmpty
+              - CanvasNet-Geometry-Path-Clear
+              - CanvasNet-Geometry-Path-Immutability
+              - CanvasNet-Geometry-Path-EmptySingleton
+              - CanvasNet-Geometry-Path-GetBoundsConservative
+              - CanvasNet-Geometry-Path-GetBoundsFlattened
+              - CanvasNet-Geometry-Path-GetBoundsMultipleSubpaths
+            tests:
+              - PathBuilder_Build_EveryCommandType_RecordsCommandsInOrder
+              - Path_GetBounds_ConservativeMode_CubicWithControlPointsOutsideChord_ReturnsControlPointConvexHull
+
+          - id: CanvasNet-Geometry-BezierFlattening
+            title: >-
+              The Geometry subsystem shall provide adaptive flattening of quadratic and cubic
+              Bezier curves into polylines within a caller-specified tolerance, writing into a
+              caller-supplied output collection.
+            justification: |
+              Rendering and precise bounds computation both require converting smooth curves into
+              straight-line segments within a controllable accuracy budget, without imposing an
+              allocation per flattening call in hot rendering loops.
+            children:
+              - CanvasNet-Geometry-BezierFlattening-FlattenCubic
+              - CanvasNet-Geometry-BezierFlattening-FlattenQuadratic
+              - CanvasNet-Geometry-BezierFlattening-ToleranceConvergence
+              - CanvasNet-Geometry-BezierFlattening-RecursionDepthSafetyValve
+              - CanvasNet-Geometry-BezierFlattening-MonotonicSegmentCount
+              - CanvasNet-Geometry-BezierFlattening-DegenerateControlPoints
+              - CanvasNet-Geometry-BezierFlattening-NonPositiveTolerance
+            tests:
+              - BezierFlattening_FlattenCubic_SimpleCurve_NeverWritesStartAndAlwaysWritesEndLast
+              - BezierFlattening_FlattenQuadratic_SimpleCurve_NeverWritesStartAndAlwaysWritesEndLast
+
+          - id: CanvasNet-Geometry-SvgArcConverter
+            title: >-
+              The Geometry subsystem shall convert SVG-style endpoint-parameterized elliptical
+              arcs into cubic Bezier curves, following the SVG 1.1 Appendix F algorithm, including
+              its documented degenerate cases, without throwing for any SVG-valid input.
+            justification: |
+              PathBuilder.ArcTo stores raw SVG arc parameters without pre-converting them; a
+              dedicated, spec-faithful conversion unit is required so that any consumer needing
+              Bezier segments from an arc (for example, Path.GetBounds or a future rasterizer)
+              can obtain them lazily and consistently.
+            children:
+              - CanvasNet-Geometry-SvgArcConverter-ToBeziers
+              - CanvasNet-Geometry-SvgArcConverter-StartEqualsEnd
+              - CanvasNet-Geometry-SvgArcConverter-ZeroRadius
+              - CanvasNet-Geometry-SvgArcConverter-NeverThrows
+            tests:
+              - SvgArcConverter_ToBeziers_Semicircle_ProducesContinuousChainOnExpectedCircle
+              - SvgArcConverter_ToBeziers_StartEqualsEnd_EmitsNoSegments

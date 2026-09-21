@@ -29,6 +29,12 @@ software items, specifically:
   32-bit RGBA pixel buffer with span-based row access) and the `Rgba32` unit
 - **Codecs (Subsystem)** — Image format codecs: `BmpCodec`, `PngCodec`, `TiffCodec`, and
   `JpegCodec`, each converting to and from a `Surface` pixel buffer
+- **Geometry (Subsystem)** — Vector-geometry primitives, distinct from the reserved `Drawing`
+  subsystem (which will cover shapes, brushes, pens, and transforms built on top of these
+  primitives): the `Rect` unit (axis-aligned bounding rectangle), the `Path` unit (immutable
+  vector path and its `PathBuilder`, covering the supporting `Subpath`, `PathCommand`, and
+  `PathCommandType` types inline), the `BezierFlattening` unit (adaptive Bezier curve
+  flattening), and the `SvgArcConverter` unit (SVG-style elliptical arc to Bezier conversion)
 
 The following OTS items are also covered:
 
@@ -63,13 +69,16 @@ diagram or the prose below.
 
 ![Software Structure](SoftwareStructureView.svg)
 
-CanvasNet is organized into two subsystems under the system level: the `Canvas` subsystem
-(the `Surface` and `Rgba32` units, namespace `DemaConsulting.CanvasNet.Canvas`) and the `Codecs` subsystem
+CanvasNet is organized into three subsystems under the system level: the `Canvas` subsystem
+(the `Surface` and `Rgba32` units, namespace `DemaConsulting.CanvasNet.Canvas`), the `Codecs` subsystem
 (the `BmpCodec`, `PngCodec`, `TiffCodec`, and `JpegCodec` units, namespace `DemaConsulting.CanvasNet.Codecs`,
-flat — no further nesting). A third subsystem, `Drawing`, is reserved for future work (shapes,
-brushes, pens, transforms) and has no folder, namespace, or documentation yet. As additional
-functionality is added, further subsystems and nested subsystems would organize related units and
-provide architectural boundaries with well-defined interfaces and responsibilities.
+flat — no further nesting), and the `Geometry` subsystem (the `Rect`, `Path`, `BezierFlattening`, and
+`SvgArcConverter` units, namespace `DemaConsulting.CanvasNet.Geometry`, flat — no further nesting).
+A fourth subsystem, `Drawing`, is reserved for future work (shapes, brushes, pens, and higher-level
+transforms built on top of `Geometry`'s primitives) and has no folder, namespace, or documentation
+yet. As additional functionality is added, further subsystems and nested subsystems would organize
+related units and provide architectural boundaries with well-defined interfaces and
+responsibilities.
 
 ## Folder Layout
 
@@ -82,17 +91,28 @@ src/DemaConsulting.CanvasNet/
 │   ├── Surface.cs               — Mutable, in-memory 32-bit RGBA pixel buffer
 │   ├── Rgba32.cs                — Single 32-bit RGBA pixel value type
 │   └── NamespaceDoc.cs          — Namespace-level XML documentation
-└── Codecs/
-    ├── BmpCodec.cs               — Uncompressed 24-bit/32-bit Windows BMP loader/saver
-    ├── PngCodec.cs               — 8-bit Truecolor/Truecolor-with-alpha PNG loader/saver
-    ├── TiffCodec.cs              — 8-bit RGB/RGBA/Grayscale, strip-based TIFF loader/saver
-    ├── JpegCodec.cs              — Baseline/progressive JPEG loader and baseline JPEG saver
+├── Codecs/
+│   ├── BmpCodec.cs               — Uncompressed 24-bit/32-bit Windows BMP loader/saver
+│   ├── PngCodec.cs               — 8-bit Truecolor/Truecolor-with-alpha PNG loader/saver
+│   ├── TiffCodec.cs              — 8-bit RGB/RGBA/Grayscale, strip-based TIFF loader/saver
+│   ├── JpegCodec.cs              — Baseline/progressive JPEG loader and baseline JPEG saver
+│   └── NamespaceDoc.cs           — Namespace-level XML documentation
+└── Geometry/
+    ├── Rect.cs                   — Axis-aligned bounding rectangle (position plus size)
+    ├── PathCommandType.cs        — Enumeration of path drawing command kinds
+    ├── PathCommand.cs            — Tagged-union path drawing command value
+    ├── Subpath.cs                — One independent contour of a path
+    ├── Path.cs                   — Immutable vector path (ordered collection of subpaths)
+    ├── PathBuilder.cs            — Mutable, fluent builder that produces a Path
+    ├── BezierFlattening.cs       — Adaptive quadratic/cubic Bezier curve flattening
+    ├── SvgArcConverter.cs        — SVG-style elliptical arc to cubic Bezier conversion
     └── NamespaceDoc.cs           — Namespace-level XML documentation
 ```
 
-This two-subsystem folder structure reflects the small number of subsystems in the system today.
-As the system grows with additional subsystems and units (including the reserved `Drawing`
-subsystem), the folder structure will expand further to mirror the software architecture.
+This three-subsystem folder structure reflects the small number of subsystems in the system
+today. As the system grows with additional subsystems and units (including the reserved
+`Drawing` subsystem), the folder structure will expand further to mirror the software
+architecture.
 
 ## Document Conventions
 

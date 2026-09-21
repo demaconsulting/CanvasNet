@@ -667,3 +667,66 @@ sections:
           - JpegCodec_GetInfo_MissingSoiMarker_ThrowsInvalidDataException
           - JpegCodec_GetInfo_TruncatedBeforeSofFound_ThrowsInvalidDataException
           - JpegCodec_GetInfo_SosBeforeSof_ThrowsInvalidDataException
+
+  - title: Geometry API
+    requirements:
+      - id: CanvasNet-Lib-GeometryRect
+        title: >-
+          The library shall provide an axis-aligned bounding rectangle type (position plus size),
+          supporting union, intersection, matrix transformation, containment testing, and value
+          equality, with an empty sentinel that acts as a union identity.
+        tags: [system]
+        justification: |
+          Axis-aligned bounds are a foundational primitive for vector geometry (for example,
+          computing a path's bounding box) that must compose correctly across zero or more
+          contributing regions without special-casing "nothing yet".
+        children:
+          - CanvasNet-Geometry-Rect
+        tests:
+          - CanvasNet_SystemIntegration_BuildFlattenAndBoundPath_ReturnsExpectedBounds
+
+      - id: CanvasNet-Lib-GeometryPath
+        title: >-
+          The library shall provide an immutable vector path type, built via a mutable, fluent
+          builder supporting move, line, quadratic and cubic Bezier, SVG-style elliptical arc, and
+          close-subpath commands, and shall compute an axis-aligned bounding rectangle for a path
+          in either a conservative or a tighter, flattening-based mode.
+        tags: [system]
+        justification: |
+          A vector path is the foundational shape-description primitive future drawing/rendering
+          functionality in this library will consume; callers need to build one incrementally,
+          using a single reusable builder instance, and to reason about its extent.
+        children:
+          - CanvasNet-Geometry-Path
+        tests:
+          - CanvasNet_SystemIntegration_BuildFlattenAndBoundPath_ReturnsExpectedBounds
+
+      - id: CanvasNet-Lib-GeometryBezierFlattening
+        title: >-
+          The library shall provide adaptive flattening of quadratic and cubic Bezier curves into
+          polylines within a caller-specified tolerance, writing into a caller-supplied output
+          collection.
+        tags: [system]
+        justification: |
+          Rendering and precise bounds computation both require converting smooth curves into
+          straight-line segments within a controllable accuracy budget, without an allocation per
+          flattening call in hot rendering loops.
+        children:
+          - CanvasNet-Geometry-BezierFlattening
+        tests:
+          - CanvasNet_SystemIntegration_BuildFlattenAndBoundPath_ReturnsExpectedBounds
+
+      - id: CanvasNet-Lib-GeometrySvgArcConverter
+        title: >-
+          The library shall convert SVG-style endpoint-parameterized elliptical arcs into cubic
+          Bezier curves, following the SVG 1.1 Appendix F algorithm, including its documented
+          degenerate cases, without throwing for any SVG-valid input.
+        tags: [system]
+        justification: |
+          PathBuilder.ArcTo stores raw SVG arc parameters without pre-converting them; callers (or the
+          library's own bounds computation) that need Bezier segments from an arc require a
+          spec-faithful conversion available on demand.
+        children:
+          - CanvasNet-Geometry-SvgArcConverter
+        tests:
+          - CanvasNet_SystemIntegration_BuildFlattenAndBoundPath_ReturnsExpectedBounds

@@ -7,7 +7,7 @@ This document provides the system-level design for CanvasNet.
 ## Architecture
 
 CanvasNet is a .NET library providing a canvas-based drawing and rendering API, following
-DEMA Consulting best practices. The system consists of two implemented subsystems, plus one
+DEMA Consulting best practices. The system consists of three implemented subsystems, plus one
 subsystem reserved for future work:
 
 - **Canvas subsystem** (namespace `DemaConsulting.CanvasNet.Canvas`, folder
@@ -23,9 +23,23 @@ subsystem reserved for future work:
   Grayscale, strip-based TIFF 6.0 with None/PackBits/LZW/Deflate compression, either byte order),
   and `JpegCodec` (a common real-world subset of JPEG: baseline/progressive decode with
   4:4:4/4:2:2/4:2:0 support, baseline 4:2:0 encode). See _Codecs Subsystem Design_ (`codecs.md`).
+- **Geometry subsystem** (namespace `DemaConsulting.CanvasNet.Geometry`, folder
+  `src/DemaConsulting.CanvasNet/Geometry/`, flat — no further nesting): vector-geometry
+  primitives, built directly on `System.Numerics.Vector2`/`Matrix3x2` — the `Rect` unit (an
+  axis-aligned bounding rectangle with a union-identity `Empty` sentinel), the `Path` unit (an
+  immutable vector path and its fluent `PathBuilder`, together with the supporting `Subpath`,
+  `PathCommand`, and `PathCommandType` types documented inline), the `BezierFlattening` unit
+  (adaptive quadratic/cubic Bezier curve flattening), and the `SvgArcConverter` unit
+  (SVG-style elliptical arc to cubic Bezier conversion). `Geometry` has no dependency on `Canvas`
+  or `Codecs`, and neither of those subsystems depends on `Geometry`. See
+  _Geometry Subsystem Design_ (`geometry.md`).
 - **Drawing subsystem** (reserved): not yet implemented. No folder, namespace, or documentation
-  exists for it yet. It is reserved for future drawing primitives (shapes, brushes, pens,
-  transforms) that will build on top of the `Canvas` subsystem's `Surface` unit.
+  exists for it yet. It is reserved for future higher-level drawing primitives (shapes, brushes,
+  pens, and rendering of a `Geometry.Path` onto a `Canvas.Surface`) that will build on top of both
+  the `Canvas` subsystem's `Surface` unit and the `Geometry` subsystem's vector primitives.
+  `Geometry` is deliberately distinct from `Drawing`: `Geometry` describes shape geometry (paths,
+  bounds, curve math) with no notion of pixels, color, or rasterization, while the reserved
+  `Drawing` subsystem will own turning that geometry into pixels.
 
 The `Codecs` subsystem depends on the `Canvas` subsystem's `Surface` unit (constructing surfaces
 and reading/writing rows via `Surface.GetRowSpanBytes`); the `Canvas` subsystem has no dependency
@@ -41,6 +55,18 @@ _Surface Unit Design_ (`canvas/surface.md`), _BmpCodec Unit Design_
 (`codecs/bmp-codec.md`), _PngCodec Unit Design_ (`codecs/png-codec.md`),
 _TiffCodec Unit Design_ (`codecs/tiff-codec.md`), and _JpegCodec Unit Design_
 (`codecs/jpeg-codec.md`) for each unit's internal collaboration.
+
+The `Geometry` subsystem's four units collaborate as follows: `PathBuilder` records raw drawing
+commands (including raw, unconverted SVG arc parameters) and produces immutable `Path` snapshots;
+`Path.GetBounds` is the primary internal consumer of both `BezierFlattening` (to flatten curves
+when a tighter, tolerance-based bound is requested) and `SvgArcConverter` (to convert any `ArcTo`
+command to cubic Bezier segments before applying either bounds mode, since arcs carry no control
+points of their own). `Rect` has no dependency on the other three units, but is the return type of
+`Path.GetBounds` and is used throughout as the common bounding-box representation. See
+_Geometry Subsystem Design_ (`geometry.md`), _Rect Unit Design_ (`geometry/rect.md`),
+_Path Unit Design_ (`geometry/path.md`), _BezierFlattening Unit Design_
+(`geometry/bezier-flattening.md`), and _SvgArcConverter Unit Design_
+(`geometry/svg-arc-converter.md`) for each unit's internal collaboration.
 
 ## External Interfaces
 
@@ -108,26 +134,65 @@ The system exposes the following public API to external consumers:
   range 1-100. Throws `ArgumentNullException` for a null `surface`/`stream`/`path`,
   `ArgumentException` for an empty `path`, and `ArgumentOutOfRangeException` for an out-of-range
   `quality`.
+- **Rect(float x, float y, float width, float height)**: Constructor; an axis-aligned rectangle in
+  position-plus-size form. `Rect.Empty` is a static, publicly readable union-identity sentinel.
+- **Rect.Union(Rect)** / **Rect.Union(Rect, Rect)**: Returns the smallest rectangle enclosing both
+  rectangles (instance and static forms).
+- **Rect.Intersect(Rect)** / **Rect.Intersect(Rect, Rect)**: Returns the overlapping region, or
+  `Rect.Empty` if the rectangles are disjoint (instance and static forms).
+- **Rect.Transform(Matrix3x2)**: Returns the smallest axis-aligned rectangle enclosing this
+  rectangle after applying the given transform to all four corners.
+- **Rect.Contains(Vector2)**: Returns whether a point lies within the rectangle (half-open on both
+  axes).
+- **PathBuilder()**: Constructor; a reusable, mutable, fluent path builder.
+- **PathBuilder.MoveTo/LineTo/QuadraticBezierTo/CubicBezierTo/ArcTo(...)**: Fluent, `this`-returning
+  methods appending a drawing command to the current subpath (or starting a new one, for
+  `MoveTo`). `LineTo`/`QuadraticBezierTo`/`CubicBezierTo`/`ArcTo`/`Close` throw
+  `InvalidOperationException` if called before the first `MoveTo`, or after `Close` without an
+  intervening `MoveTo`.
+- **PathBuilder.Close()**: Fluent method marking the current subpath as closed.
+- **PathBuilder.Build()**: Returns an immutable `Path` snapshot of every command issued so far;
+  the builder remains usable afterward.
+- **PathBuilder.Clear()**: Resets the builder to its initial empty state for reuse.
+- **Path.Subpaths**: Read-only property exposing the path's ordered, independent subpaths.
+- **Path.GetBounds(float flattenTolerance = 0)**: Returns a conservative (default) or, given a
+  positive `flattenTolerance`, a tighter flattening-based axis-aligned bounding `Rect`.
+- **Path.Empty**: Static singleton with zero subpaths.
+- **BezierFlattening.FlattenCubic(...)** / **BezierFlattening.FlattenQuadratic(...)**: Appends the
+  adaptively flattened polyline points (start point never written, end point always written
+  last) for a cubic or quadratic Bezier curve to a caller-supplied `IList<Vector2>`. Throws
+  `ArgumentOutOfRangeException` if `tolerance` is less than or equal to zero.
+- **SvgArcConverter.ToBeziers(...)**: Appends the cubic Bezier segments equivalent to an SVG-style
+  elliptical arc to a caller-supplied output list, in end-to-end order. Never throws for any
+  SVG-valid input.
 
-| Interface                        | Direction        | Format                         | Constraints                  |
-| -------------------------------- | ---------------- | ------------------------------ | ---------------------------- |
-| `Surface(int, int)`              | Inbound          | Constructor call               | `width`, `height` in 1-8192  |
-| `Surface[int, int]`              | Inbound/Outbound | Indexer get/set                | `x`, `y` within bounds       |
-| `Surface.GetRowSpanBytes(int)`   | Outbound         | `Span<byte>` return            | `y` within bounds            |
-| `Surface.GetRowSpan(int)`        | Outbound         | `Span<Rgba32>` return          | `y` within bounds            |
-| `Surface.Crop(int,int,int,int)`  | Inbound/Outbound | Method call / `Surface` return | Region within source bounds  |
-| `Surface.PremultiplyAlpha()`     | Inbound          | Method call                    | None                         |
-| `Surface.UnpremultiplyAlpha()`   | Inbound          | Method call                    | None                         |
-| `Surface.CompositeOver(Surface)` | Inbound          | Method call                    | Equal dimensions, non-null   |
-| `Surface.CompositeOver(Rgba32)`  | Inbound          | Method call                    | None                         |
-| `BmpCodec.Load(...)`             | Inbound/Outbound | Method call / `Surface` return | Valid BMP stream or path     |
-| `BmpCodec.Save(...)`             | Inbound          | Method call                    | `surface` non-null           |
-| `PngCodec.Load(...)`             | Inbound/Outbound | Method call / `Surface` return | Valid PNG stream or path     |
-| `PngCodec.Save(...)`             | Inbound          | Method call                    | `surface` non-null           |
-| `TiffCodec.Load(...)`            | Inbound/Outbound | Method call / `Surface` return | Valid TIFF stream or path    |
-| `TiffCodec.Save(...)`            | Inbound          | Method call                    | `surface` non-null           |
-| `JpegCodec.Load(...)`            | Inbound/Outbound | Method call / `Surface` return | Valid JPEG stream or path    |
-| `JpegCodec.Save(...)`            | Inbound          | Method call                    | `surface` non-null           |
+| Interface                        | Direction        | Format                         | Constraints                   |
+| -------------------------------- | ---------------- | ------------------------------ | ----------------------------- |
+| `Surface(int, int)`              | Inbound          | Constructor call               | `width`, `height` in 1-8192   |
+| `Surface[int, int]`              | Inbound/Outbound | Indexer get/set                | `x`, `y` within bounds        |
+| `Surface.GetRowSpanBytes(int)`   | Outbound         | `Span<byte>` return            | `y` within bounds             |
+| `Surface.GetRowSpan(int)`        | Outbound         | `Span<Rgba32>` return          | `y` within bounds             |
+| `Surface.Crop(int,int,int,int)`  | Inbound/Outbound | Method call / `Surface` return | Region within source bounds   |
+| `Surface.PremultiplyAlpha()`     | Inbound          | Method call                    | None                          |
+| `Surface.UnpremultiplyAlpha()`   | Inbound          | Method call                    | None                          |
+| `Surface.CompositeOver(Surface)` | Inbound          | Method call                    | Equal dimensions, non-null    |
+| `Surface.CompositeOver(Rgba32)`  | Inbound          | Method call                    | None                          |
+| `BmpCodec.Load(...)`             | Inbound/Outbound | Method call / `Surface` return | Valid BMP stream or path      |
+| `BmpCodec.Save(...)`             | Inbound          | Method call                    | `surface` non-null            |
+| `PngCodec.Load(...)`             | Inbound/Outbound | Method call / `Surface` return | Valid PNG stream or path      |
+| `PngCodec.Save(...)`             | Inbound          | Method call                    | `surface` non-null            |
+| `TiffCodec.Load(...)`            | Inbound/Outbound | Method call / `Surface` return | Valid TIFF stream or path     |
+| `TiffCodec.Save(...)`            | Inbound          | Method call                    | `surface` non-null            |
+| `JpegCodec.Load(...)`            | Inbound/Outbound | Method call / `Surface` return | Valid JPEG stream or path     |
+| `JpegCodec.Save(...)`            | Inbound          | Method call                    | `surface` non-null            |
+| `Rect.Union(...)`                | Inbound/Outbound | Method call / `Rect` return    | None                          |
+| `Rect.Intersect(...)`            | Inbound/Outbound | Method call / `Rect` return    | None                          |
+| `Rect.Transform(Matrix3x2)`      | Inbound/Outbound | Method call / `Rect` return    | None                          |
+| `PathBuilder.*To(...)`           | Inbound/Outbound | Method call / `this` return    | Called after `MoveTo`         |
+| `PathBuilder.Build()`            | Outbound         | Method call / `Path` return    | None                          |
+| `Path.GetBounds(float)`          | Outbound         | Method call / `Rect` return    | None                          |
+| `BezierFlattening.Flatten*(...)` | Inbound/Outbound | Method call / list append      | `tolerance` greater than zero |
+| `SvgArcConverter.ToBeziers(...)` | Inbound/Outbound | Method call / list append      | None                          |
 
 ## Dependencies
 
@@ -140,7 +205,11 @@ Library (`Surface`'s remaining use of `Span<T>` and `MemoryMarshal` are BCL APIs
 natively on every target framework; `BmpCodec` uses only `System.IO` types; `PngCodec` and
 `TiffCodec` additionally use `System.IO.Compression.DeflateStream`; `JpegCodec` additionally uses
 `System.Numerics.Vector<T>` for optional SIMD acceleration; all of these are BCL APIs available on
-every target framework, with no additional runtime NuGet package required). The following OTS
+every target framework, with no additional runtime NuGet package required). The `Geometry`
+subsystem introduces zero new runtime NuGet dependencies: it is implemented entirely against
+`System.Numerics.Vector2` and `System.Numerics.Matrix3x2`, which are in-box BCL types available
+natively on every target framework this library supports (net8.0, net9.0, net10.0) — no custom
+point/vector wrapper types were introduced. The following OTS
 items are used for building and verifying this system (not consumed at runtime); see
 _OTS Integration Design_ (`docs/design/ots.md`) and each item's dedicated design document for
 details:

@@ -14,16 +14,20 @@ language: en
 
 # Project-specific technical terms and tool names
 words:
+  - Aabb
+  - AABB
   - Adler
   - apimark
   - ApiMark
   - basn
+  - Beziers
   - BGRA
   - BITMAPCOREHEADER
   - BITMAPFILEHEADER
   - BITMAPINFOHEADER
   - BITMAPV
   - buildmark
+  - Casteljau
   - CMYK
   - coeffs
   - dequantize
@@ -79,6 +83,7 @@ words:
   - premultiplies
   - premultiplying
   - Qube
+  - rasterizer
   - reqstream
   - reviewmark
   - Rgba
@@ -94,11 +99,14 @@ words:
   - subsampling
   - seekable
   - Seekable
+  - Subpaths
+  - subpaths
   - sysml
   - tEXt
   - triaging
   - Truecolor
   - Unpremultiply
+  - unioning
   - unpremultiplication
   - unpremultiplied
   - unpremultiplies

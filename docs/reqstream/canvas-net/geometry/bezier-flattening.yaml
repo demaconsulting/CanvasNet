@@ -1,0 +1,122 @@
+---
+# Software Unit Requirements for BezierFlattening
+#
+# These requirements describe the design-level behavior of the BezierFlattening unit, within
+# the Geometry subsystem.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Geometry Requirements
+        sections:
+          - title: BezierFlattening Requirements
+            requirements:
+              - id: CanvasNet-Geometry-BezierFlattening-FlattenCubic
+                title: >-
+                  The BezierFlattening class shall flatten a cubic Bezier curve into a sequence of
+                  points appended to a caller-supplied output list, via recursive adaptive
+                  subdivision (de Casteljau midpoint split), never writing the curve's start point
+                  and always writing its end point last.
+                justification: |
+                  A caller-supplied output list (rather than a freshly allocated return list)
+                  keeps repeated flattening calls allocation-conscious for hot rendering loops;
+                  never writing the start point and always writing the end point last lets
+                  repeated calls chain their outputs into one continuous polyline without the
+                  caller needing to de-duplicate a repeated shared point at each segment boundary.
+                tests:
+                  - BezierFlattening_FlattenCubic_SimpleCurve_NeverWritesStartAndAlwaysWritesEndLast
+
+              - id: CanvasNet-Geometry-BezierFlattening-FlattenQuadratic
+                title: >-
+                  The BezierFlattening class shall flatten a quadratic Bezier curve into a
+                  sequence of points appended to a caller-supplied output list, using the same
+                  never-write-start / always-write-end-last convention as FlattenCubic.
+                justification: |
+                  Quadratic Bezier curves require the same flattening capability and the same
+                  chaining convention as cubic curves, for callers building a continuous polyline
+                  from a path containing a mix of quadratic and cubic segments.
+                tests:
+                  - BezierFlattening_FlattenQuadratic_SimpleCurve_NeverWritesStartAndAlwaysWritesEndLast
+
+              - id: CanvasNet-Geometry-BezierFlattening-ToleranceConvergence
+                title: >-
+                  The BezierFlattening class shall produce a flattened polyline whose points lie
+                  within the requested tolerance of the true curve, for both FlattenCubic and
+                  FlattenQuadratic, using a flatness test based on the distance of the interior
+                  control point(s) from the finite chord *segment* between the curve's endpoints
+                  (not the infinite line through it), except when pathological input exhausts the
+                  recursion-depth safety bound described in
+                  CanvasNet-Geometry-BezierFlattening-RecursionDepthSafetyValve.
+                justification: |
+                  The tolerance parameter is the entire contract callers rely on to trade accuracy
+                  against point count; the flattened output must actually honor it, verified here
+                  by densely sampling the true curve and checking every flattened point falls
+                  within a small multiple of the requested tolerance. Measuring against the
+                  infinite line through the chord, rather than the finite chord segment, would
+                  wrongly accept a control point whose projection falls beyond a chord endpoint as
+                  "flat" even though the curve it belongs to travels well outside the chord
+                  segment.
+                tests:
+                  - BezierFlattening_FlattenCubic_VariousTolerances_SampledCurvePointsWithinTolerance
+                  - BezierFlattening_FlattenQuadratic_VariousTolerances_SampledCurvePointsWithinTolerance
+                  - BezierFlattening_FlattenCubic_ControlPointProjectsBeyondChordEnd_StaysWithinTolerance
+
+              - id: CanvasNet-Geometry-BezierFlattening-MonotonicSegmentCount
+                title: >-
+                  The BezierFlattening class shall produce a flattened point count for
+                  FlattenCubic that is monotonically non-increasing as the requested tolerance
+                  increases, for a fixed input curve.
+                justification: |
+                  A looser tolerance must never require more subdivision than a tighter one for
+                  the same curve; callers relying on tolerance as a performance/accuracy dial need
+                  this monotonic relationship to hold.
+                tests:
+                  - BezierFlattening_FlattenCubic_IncreasingTolerance_SegmentCountIsMonotonicallyNonIncreasing
+
+              - id: CanvasNet-Geometry-BezierFlattening-DegenerateControlPoints
+                title: >-
+                  The BezierFlattening class shall terminate for a cubic curve whose control
+                  points are coincident with an endpoint, or collinear with the chord between its
+                  endpoints, without throwing and without infinite recursion.
+                justification: |
+                  Degenerate input curves (control points collapsed onto the chord or an endpoint)
+                  are legal input a caller may pass unintentionally (for example, a straight-line
+                  segment expressed as a Bezier curve) and must be handled gracefully rather than
+                  triggering pathological recursion.
+                tests:
+                  - BezierFlattening_FlattenCubic_CoincidentControlPoints_TerminatesWithSinglePoint
+                  - BezierFlattening_FlattenCubic_CollinearControlPoints_TerminatesWithCollinearPoints
+
+              - id: CanvasNet-Geometry-BezierFlattening-RecursionDepthSafetyValve
+                title: >-
+                  The BezierFlattening class shall terminate with a bounded output point count for
+                  any input curve, including a pathological curve that never satisfies the
+                  flatness test at any practical subdivision depth, rather than recursing
+                  indefinitely; such input is accepted at the recursion depth limit regardless of
+                  whether it passes the flatness test, so the tolerance guarantee does not apply
+                  to it.
+                justification: |
+                  A resource/termination safety bound is required so that no input, however
+                  pathological (near-coincident control points at floating-point precision limits,
+                  or a tolerance far tighter than float precision can resolve), can cause unbounded
+                  recursion or unbounded output size; this mirrors the well-established
+                  curve_recursion_limit convention used by Anti-Grain Geometry (AGG), the reference
+                  implementation most 2D vector graphics libraries derive their curve-flattening approach
+                  from. This is a resource guarantee distinct from, and does not extend, the
+                  tolerance guarantee in CanvasNet-Geometry-BezierFlattening-ToleranceConvergence.
+                tests:
+                  - BezierFlattening_FlattenCubic_PathologicalNonConvergingCurve_TerminatesWithBoundedOutput
+
+              - id: CanvasNet-Geometry-BezierFlattening-NonPositiveTolerance
+                title: >-
+                  The BezierFlattening class shall throw ArgumentOutOfRangeException from both
+                  FlattenCubic and FlattenQuadratic when tolerance is less than or equal to zero,
+                  and shall not throw for any other input, including coincident or degenerate
+                  control points.
+                justification: |
+                  A non-positive tolerance can never be satisfied by any finite subdivision (a
+                  tolerance of zero would require infinite recursion to satisfy exactly), so it
+                  must be rejected immediately rather than causing a runaway or silently incorrect
+                  result.
+                tests:
+                  - BezierFlattening_Flatten_NonPositiveTolerance_ThrowsArgumentOutOfRangeException

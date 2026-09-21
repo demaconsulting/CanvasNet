@@ -19,4 +19,8 @@ package CanvasNet {
     view CodecsView {
         expose Codecs;
     }
+
+    view GeometryView {
+        expose Geometry;
+    }
 }

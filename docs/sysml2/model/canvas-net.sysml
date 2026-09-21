@@ -12,10 +12,11 @@ package CanvasNet {
         comment designRef /* Design: docs/design/canvas-net.md */
         comment verificationRef /* Verification: docs/verification/canvas-net.md */
         comment reqRef /* Requirements: docs/reqstream/canvas-net.yaml */
-        comment /* A future Drawing subsystem (primitives/brushes/pens/transforms) is reserved but not yet implemented. */
+        comment /* A future Drawing subsystem (shapes/brushes/pens, built on Canvas and Geometry) is reserved but not yet implemented. */
 
         part canvas : Canvas;
         part codecs : Codecs;
+        part geometry : Geometry;
     }
 }
 

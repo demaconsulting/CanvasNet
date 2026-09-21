@@ -1,0 +1,74 @@
+---
+# Software Unit Requirements for SvgArcConverter
+#
+# These requirements describe the design-level behavior of the SvgArcConverter unit, within
+# the Geometry subsystem.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Geometry Requirements
+        sections:
+          - title: SvgArcConverter Requirements
+            requirements:
+              - id: CanvasNet-Geometry-SvgArcConverter-ToBeziers
+                title: >-
+                  The SvgArcConverter class shall convert an SVG-style endpoint-parameterized
+                  elliptical arc into one or more cubic Bezier curves, appended to a
+                  caller-supplied output list in end-to-end order, following the SVG 1.1 Appendix
+                  F endpoint-to-center parameterization algorithm, for every valid combination of
+                  the large-arc-flag and sweep-flag.
+                justification: |
+                  SVG-style arcs are a compact, widely used way to describe elliptical arc
+                  segments, but most rendering and flattening pipelines operate on Bezier curves;
+                  callers need a spec-faithful conversion, and a caller-supplied output list keeps
+                  the conversion allocation-conscious for hot rendering loops.
+                tests:
+                  - SvgArcConverter_ToBeziers_Semicircle_ProducesContinuousChainOnExpectedCircle
+                  - SvgArcConverter_ToBeziers_AllFourFlagCombinations_ProducesContinuousChainOnExpectedCircle
+                  - SvgArcConverter_ToBeziers_RotatedEllipticalArc_ConnectsAndMatchesIndependentEllipse
+                  - SvgArcConverter_ToBeziers_RadiiSmallerThanChord_ScalesUpAndReachesEndpoint
+
+              - id: CanvasNet-Geometry-SvgArcConverter-StartEqualsEnd
+                title: >-
+                  The SvgArcConverter class shall emit no Bezier segments when the arc's start
+                  point equals its end point.
+                justification: |
+                  The SVG specification itself defines a zero-length arc as rendering nothing;
+                  emitting a degenerate zero-length or NaN-producing segment instead would be
+                  incorrect and could destabilize downstream flattening or bounds computation.
+                tests:
+                  - SvgArcConverter_ToBeziers_StartEqualsEnd_EmitsNoSegments
+
+              - id: CanvasNet-Geometry-SvgArcConverter-ZeroRadius
+                title: >-
+                  The SvgArcConverter class shall emit exactly one synthetic
+                  straight-line-equivalent cubic Bezier, with control points at one-third and
+                  two-thirds along the start-end chord, when either radius component is zero.
+                justification: |
+                  The SVG specification defines an arc with a zero radius on either axis as
+                  "treated as a straight line"; a synthetic cubic whose controls lie exactly on
+                  the chord reproduces a straight line precisely while keeping the unit's output
+                  contract uniform (always cubic Bezier segments) for every caller, rather than
+                  requiring a special degenerate-case branch in every consumer.
+                tests:
+                  - SvgArcConverter_ToBeziers_ZeroXRadius_EmitsSingleStraightLineEquivalentCubic
+                  - SvgArcConverter_ToBeziers_ZeroYRadius_EmitsSingleStraightLineEquivalentCubic
+
+              - id: CanvasNet-Geometry-SvgArcConverter-NeverThrows
+                title: >-
+                  The SvgArcConverter class shall never throw for any SVG-valid input, including
+                  out-of-range radii (corrected per the specification's scale-factor formula) and
+                  both degenerate cases.
+                justification: |
+                  Every input this unit's contract describes as valid (including the two
+                  documented degenerate cases and radii requiring the specification's correction)
+                  must be handled by producing a geometrically sensible result rather than
+                  throwing, so that callers never need defensive exception handling around a
+                  spec-valid arc.
+                tests:
+                  - SvgArcConverter_ToBeziers_StartEqualsEnd_EmitsNoSegments
+                  - SvgArcConverter_ToBeziers_ZeroXRadius_EmitsSingleStraightLineEquivalentCubic
+                  - SvgArcConverter_ToBeziers_ZeroYRadius_EmitsSingleStraightLineEquivalentCubic
+                  - SvgArcConverter_ToBeziers_AllFourFlagCombinations_ProducesContinuousChainOnExpectedCircle
+                  - SvgArcConverter_ToBeziers_RadiiSmallerThanChord_ScalesUpAndReachesEndpoint

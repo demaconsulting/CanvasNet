@@ -1,0 +1,122 @@
+---
+# Software Unit Requirements for Rect
+#
+# These requirements describe the design-level behavior of the Rect unit, within the
+# Geometry subsystem.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Geometry Requirements
+        sections:
+          - title: Rect Requirements
+            requirements:
+              - id: CanvasNet-Geometry-Rect-Construction
+                title: >-
+                  The Rect struct shall construct an axis-aligned rectangle from an X, Y,
+                  Width, and Height, and compute Left, Top, Right, Bottom, Location, Size,
+                  TopLeft, and BottomRight from those four fields.
+                justification: |
+                  A position-plus-size rectangle is the simplest representation for callers to
+                  construct directly, while the computed edge/corner properties save every caller
+                  from re-deriving the same arithmetic.
+                tests:
+                  - Rect_Constructor_ValidValues_SetsPropertiesAndComputedEdges
+
+              - id: CanvasNet-Geometry-Rect-Empty
+                title: >-
+                  The Rect struct shall expose a static Empty sentinel, represented as
+                  X = Y = float.PositiveInfinity and Width = Height = float.NegativeInfinity, such
+                  that Union(Empty, r) equals r for every rectangle r.
+                justification: |
+                  Path.GetBounds folds Union over zero or more subpaths; an Empty value that is a
+                  true identity element for Union removes the need to special-case "no subpaths
+                  yet" and always yields the mathematically correct answer, including for a path
+                  with no subpaths at all. An all-zero "empty" rectangle would instead silently
+                  corrupt every union with a real rectangle by contributing the origin point.
+                tests:
+                  - Rect_Union_WithEmpty_ReturnsOtherRectangleUnchanged
+
+              - id: CanvasNet-Geometry-Rect-IsEmpty
+                title: >-
+                  The Rect struct shall report IsEmpty as true when Width is negative, and false
+                  otherwise.
+                justification: |
+                  Callers need a cheap, documented way to distinguish the Empty sentinel (and any
+                  other negative-size rectangle) from a real rectangle, without comparing every
+                  field against Empty's specific sentinel values.
+                tests:
+                  - Rect_IsEmpty_EmptySentinelVersusRealRectangle_ReturnsExpectedValue
+
+              - id: CanvasNet-Geometry-Rect-Contains
+                title: >-
+                  The Rect struct shall determine whether a point lies within the rectangle using
+                  a half-open interval on both axes (left/top edges included, right/bottom edges
+                  excluded).
+                justification: |
+                  Hit-testing and bounds-checking callers need a single, unambiguous containment
+                  rule; the half-open convention avoids double-counting points that lie exactly on
+                  a shared edge between two adjacent rectangles.
+                tests:
+                  - Rect_Contains_BoundaryPoints_ReturnsExpectedValue
+
+              - id: CanvasNet-Geometry-Rect-Union
+                title: >-
+                  The Rect struct shall compute the smallest rectangle enclosing both rectangles
+                  passed to Union, as both an instance method and a static method.
+                justification: |
+                  Combining bounds from multiple sources (for example, multiple subpaths of a
+                  Path) is a fundamental geometric operation that must be available without
+                  requiring callers to hand-roll the min/max arithmetic.
+                tests:
+                  - Rect_Union_TwoOverlappingRectangles_ReturnsSmallestEnclosingRectangle
+
+              - id: CanvasNet-Geometry-Rect-Intersect
+                title: >-
+                  The Rect struct shall compute the overlapping region of two rectangles passed to
+                  Intersect, as both an instance method and a static method, returning Empty when
+                  the rectangles are disjoint, including when they merely touch along an edge with
+                  no actual overlapping area.
+                justification: |
+                  Determining whether, and where, two rectangles overlap is required for clipping
+                  and hit-testing; returning the canonical Empty sentinel for disjoint input,
+                  including the boundary case of edge-only contact, keeps the result composable
+                  with Union and IsEmpty rather than returning a zero-width/zero-height rectangle
+                  that is not itself recognized as Empty.
+                tests:
+                  - Rect_Intersect_TwoOverlappingRectangles_ReturnsOverlapRegion
+                  - Rect_Intersect_DisjointRectangles_ReturnsEmpty
+                  - Rect_Intersect_RectanglesTouchingAlongVerticalEdge_ReturnsEmpty
+                  - Rect_Intersect_RectanglesTouchingAlongHorizontalEdge_ReturnsEmpty
+
+              - id: CanvasNet-Geometry-Rect-Transform
+                title: >-
+                  The Rect struct shall compute the smallest axis-aligned rectangle enclosing this
+                  rectangle after applying a Matrix3x2 transform, by transforming all four corners
+                  individually and re-enclosing them.
+                justification: |
+                  Transforming only two opposite corners is mathematically incorrect whenever the
+                  matrix contains rotation or shear, since the image of an axis-aligned rectangle
+                  under such a transform is a parallelogram rather than another axis-aligned
+                  rectangle; all four corners must be considered to recover the true bounding box.
+                  Empty's corners include +/-Infinity, and transforming them directly can produce
+                  NaN (for example 0 * Infinity), so Empty is special-cased to return Empty
+                  immediately rather than being transformed corner-by-corner.
+                tests:
+                  - Rect_Transform_Translation_OffsetsPosition
+                  - Rect_Transform_Rotation90DegreesAboutOrigin_ReturnsHandComputedAabb
+                  - Rect_Transform_Empty_ReturnsEmpty
+                  - Rect_Transform_Empty_UnderRotation_ReturnsEmpty
+
+              - id: CanvasNet-Geometry-Rect-Equality
+                title: >-
+                  The Rect struct shall support value equality (Equals, GetHashCode, ==, !=) based
+                  on the exact stored X, Y, Width, and Height field values, and a ToString
+                  representation that includes those field values.
+                justification: |
+                  Callers, and the unit tests that verify this type, need a reliable way to
+                  compare two Rect values (for example, an actual computed bounds against a
+                  hand-computed expected bounds) and to render a rectangle for diagnostic output.
+                tests:
+                  - Rect_Equals_SameAndDifferentValues_ReturnsExpectedResult
+                  - Rect_ToString_ReturnsStringContainingFieldValues
