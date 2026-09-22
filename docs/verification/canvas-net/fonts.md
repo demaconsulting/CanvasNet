@@ -20,7 +20,14 @@ the integrated collaboration between `Fonts`, `Geometry`, `Drawing`, and `Canvas
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required; the subsystem uses only in-house byte-array fixtures and in-process
   calls to other CanvasNet public APIs
-- **Fixtures**: Synthetic fonts are constructed in memory; no third-party font files are used
+- **Fixtures**: Synthetic fonts are constructed in memory for all `TrueTypeFont` unit tests. One
+  additional integration test,
+  `TrueTypeFontRealFontIntegrationTests.TrueTypeFont_RealOpenSansFont_RendersGlyphOutlineAsVisibleInk`,
+  loads the real, licensed (SIL OFL 1.1) "Open Sans" production font fixture
+  (`test/DemaConsulting.CanvasNet.Tests/FontFixtures/OpenSans-Regular.ttf`, attributed per the
+  accompanying `OpenSans.LICENSE`) specifically to prove end-to-end composition between `Fonts`
+  and the `Drawing` pipeline on real-world glyph data; every other `Fonts` test remains
+  synthetic-fixture-based
 
 ### Acceptance Criteria
 

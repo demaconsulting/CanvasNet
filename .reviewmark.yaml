@@ -415,6 +415,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/HmtxHheaReaderTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/KernTableTests.cs"      # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/TrueTypeFontTests.cs"   # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Fonts/TrueTypeFontRealFontIntegrationTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/TestSupport/SyntheticFontBuilder.cs"  # shared test helper
 
   # OTS-BuildMark Review (one per OTS item)
