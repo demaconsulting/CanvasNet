@@ -702,6 +702,39 @@ public class CmapTableTests
     }
 
     /// <summary>
+    ///     Proves that CmapTable Format12 NumGroupsExceedsCap IsRejected.
+    /// </summary>
+    [Fact]
+    public void CmapTable_Format12_NumGroupsExceedsCap_IsRejected()
+    {
+        // Arrange: build a format-12 cmap subtable declaring a numGroups just one above the
+        // implementation's MaxFormat12Groups cap (65536), with real, non-overlapping group data
+        // for every declared group so the subtable is fully bounds-valid (groupsEnd is within the
+        // declared/enclosing table length) - i.e. adversarial only in *count*, not truncation.
+        // This still requires well under 1 MB of backing data (65537 groups * 12 bytes), not the
+        // multi-GB buffer a real attack would need, since the point is only to prove the cap
+        // rejects an otherwise-valid subtable before it reaches the array allocations.
+        const int overCapGroupCount = 65536 + 1; // MaxFormat12Groups + 1
+        var groups = new (uint Start, uint End, uint StartGlyphId)[overCapGroupCount];
+        for (var i = 0; i < overCapGroupCount; i++)
+        {
+            var start = (uint)(i * 2);
+            groups[i] = (start, start, (uint)(i + 1)); // non-zero startGlyphId so an accepted
+                                                       // (unrejected) subtable would resolve
+                                                       // codepoint 0 to a non-zero glyph index
+        }
+
+        var table = SyntheticFontBuilder.CmapFormat12(3, 10, groups);
+
+        // Act: parse the cmap table with the over-cap (but otherwise well-formed) numGroups
+        var cmap = CmapTable.Parse(table, 0, table.Length);
+
+        // Assert: the subtable is rejected outright (no supported subtable found, falling back to
+        // glyph 0) rather than being accepted and resolving codepoint 0 to glyph 1
+        Assert.Equal(0, cmap.GetGlyphIndex(0));
+    }
+
+    /// <summary>
     ///     Proves that CmapTable UnrecognizedSubtableFormat GetGlyphIndexReturnsZero.
     /// </summary>
     [Fact]

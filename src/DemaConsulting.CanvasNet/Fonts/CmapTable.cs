@@ -21,6 +21,23 @@ namespace DemaConsulting.CanvasNet.Fonts;
 internal sealed class CmapTable
 {
     /// <summary>
+    ///     The maximum <c>numGroups</c> permitted in a format 12 subtable before it is rejected as
+    ///     malformed. A bounds-valid (per the enclosing table/declared-length checks) but
+    ///     adversarial <c>numGroups</c> is otherwise used directly to allocate parallel arrays,
+    ///     letting an untrusted font declare a near-<see cref="uint.MaxValue"/> group count and
+    ///     exhaust process memory even though the subtable is nominally "valid". Real fonts -
+    ///     even CJK-heavy ones covering the entire Unicode codepoint space (~1.1 million
+    ///     codepoints) - need at most a few thousand groups, since each group compresses a
+    ///     contiguous character-code range down to one entry; 65536 groups is already vastly more
+    ///     than any legitimate font would need, while remaining small enough that allocating a few
+    ///     parallel arrays of that size (a few hundred KB at most) is trivial. This mirrors
+    ///     <see cref="GlyfLocaReader"/>'s <c>MaxDepth</c>/<c>MaxTotalComponents</c> caps, which
+    ///     bound composite glyph resolution against adversarial input independent of whether it is
+    ///     otherwise structurally valid.
+    /// </summary>
+    private const int MaxFormat12Groups = 65536;
+
+    /// <summary>
     ///     A <see cref="CmapTable"/> with no usable subtable: <see cref="GetGlyphIndex"/> always
     ///     returns <c>0</c>. Used when the font has no <c>cmap</c> table at all.
     /// </summary>
@@ -327,12 +344,26 @@ internal sealed class CmapTable
         }
 
         var numGroups = SfntContainer.ReadUInt32(data, offset + 12);
+        if (numGroups > MaxFormat12Groups)
+        {
+            // Reject before doing any further bounds checking or allocation: an adversarial
+            // numGroups can otherwise pass the groupsEnd/tableEnd check below (by pairing it with
+            // a suitably large, but still internally-consistent, declared table/file size) and
+            // reach the array allocations, exhausting process memory. See MaxFormat12Groups.
+            return null;
+        }
+
         var groupsEnd = checked((long)offset + 16 + (long)numGroups * 12);
         if (groupsEnd > tableEnd)
         {
             return null;
         }
 
+        // Kept as three parallel arrays rather than one array of a combined struct: with
+        // numGroups now bounded by MaxFormat12Groups, the total data footprint is at most a few
+        // hundred KB either way - the difference is only per-array object overhead (tens of
+        // bytes), not a meaningful DoS surface - so combining them would add code churn/risk here
+        // for no real memory-safety benefit.
         var starts = new uint[numGroups];
         var ends = new uint[numGroups];
         var startGlyphIds = new uint[numGroups];
