@@ -278,6 +278,12 @@ public sealed class TrueTypeFont
                 "The 'maxp' table version is not 1.0 (0x00010000); CFF-oriented maxp (version 0.5) fonts are not supported.");
         }
 
+        const int maxpVersion10Size = 32;
+        if (maxp.Length < maxpVersion10Size)
+        {
+            throw new InvalidDataException("The 'maxp' table (version 1.0) is too short; expected 32 bytes.");
+        }
+
         var numGlyphs = SfntContainer.ReadUInt16(data, maxp.Offset + 4);
 
         var metrics = HmtxHheaReader.Parse(data, hhea.Offset, hhea.Length, hmtx.Offset, hmtx.Length, numGlyphs);

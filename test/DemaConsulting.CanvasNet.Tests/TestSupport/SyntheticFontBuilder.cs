@@ -159,14 +159,29 @@ internal sealed class SyntheticFontBuilder
     }
 
     /// <summary>
-    ///     Builds a 6-byte <c>maxp</c> table (version 1.0 fixed-size prefix only - sufficient for
-    ///     every field <see cref="DemaConsulting.CanvasNet.Fonts.TrueTypeFont"/> reads).
+    ///     Builds a full 32-byte <c>maxp</c> table (the required length for version <c>1.0</c>
+    ///     per the OpenType/TrueType spec). Every field beyond <c>version</c>/<c>numGlyphs</c> -
+    ///     the only two fields <see cref="DemaConsulting.CanvasNet.Fonts.TrueTypeFont"/> reads -
+    ///     is filled with a plausible placeholder value; this library never interprets them.
     /// </summary>
     public static byte[] Maxp(int numGlyphs, uint version = 0x00010000)
     {
         var buf = new List<byte>();
-        WriteUInt32(buf, version);
-        WriteUInt16(buf, numGlyphs);
+        WriteUInt32(buf, version); // version
+        WriteUInt16(buf, numGlyphs); // numGlyphs
+        WriteUInt16(buf, 0); // maxPoints
+        WriteUInt16(buf, 0); // maxContours
+        WriteUInt16(buf, 0); // maxCompositePoints
+        WriteUInt16(buf, 0); // maxCompositeContours
+        WriteUInt16(buf, 1); // maxZones
+        WriteUInt16(buf, 0); // maxTwilightPoints
+        WriteUInt16(buf, 0); // maxStorage
+        WriteUInt16(buf, 0); // maxFunctionDefs
+        WriteUInt16(buf, 0); // maxInstructionDefs
+        WriteUInt16(buf, 0); // maxStackElements
+        WriteUInt16(buf, 0); // maxSizeOfInstructions
+        WriteUInt16(buf, 0); // maxComponentElements
+        WriteUInt16(buf, 0); // maxComponentDepth
         return [.. buf];
     }
 

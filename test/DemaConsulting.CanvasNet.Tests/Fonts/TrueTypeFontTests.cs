@@ -189,6 +189,33 @@ public class TrueTypeFontTests
     }
 
     /// <summary>
+    ///     Proves that TrueTypeFont Load TruncatedMaxpVersion10 ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_TruncatedMaxpVersion10_ThrowsInvalidDataException()
+    {
+        // Arrange: build a font whose maxp table declares version 1.0 but supplies only the
+        // 6-byte version+numGlyphs prefix, well short of the 32 bytes a version 1.0 maxp table
+        // is required to contain
+        var truncatedMaxp = new List<byte>();
+        SyntheticFontBuilder.WriteUInt32(truncatedMaxp, 0x00010000); // version 1.0
+        SyntheticFontBuilder.WriteUInt16(truncatedMaxp, 1); // numGlyphs
+
+        var glyph = SyntheticFontBuilder.SimpleGlyph([[(0, 0, true), (10, 0, true), (10, 10, true)]]);
+        var data = new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("maxp", [.. truncatedMaxp])
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 50, 1))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([500]))
+            .AddTable("loca", SyntheticFontBuilder.Loca([glyph.Length], longFormat: false))
+            .AddTable("glyf", glyph)
+            .Build();
+
+        // Act/Assert: loading the font with the truncated version 1.0 maxp table throws
+        Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(new MemoryStream(data)));
+    }
+
+    /// <summary>
     ///     Proves that TrueTypeFont Load ZeroUnitsPerEm ThrowsInvalidDataException.
     /// </summary>
     [Fact]
