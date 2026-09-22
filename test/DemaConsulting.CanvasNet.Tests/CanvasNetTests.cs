@@ -2,7 +2,9 @@ using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Drawing;
+using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Geometry;
+using DemaConsulting.CanvasNet.Tests.TestSupport;
 
 namespace DemaConsulting.CanvasNet.Tests;
 
@@ -394,5 +396,131 @@ public class CanvasNetTests
         // coverage - neither fully transparent nor fully opaque
         var edgePixel = surface[4, 4];
         Assert.True(edgePixel.A > 0 && edgePixel.A < 255, $"Expected a fractional alpha, got {edgePixel.A}");
+    }
+
+    /// <summary>
+    ///     Builds a minimal, complete, well-formed synthetic TrueType font with a single simple
+    ///     glyph (a diamond, mixing on-curve and off-curve quadratic points) mapped from codepoint
+    ///     'A', for the Fonts -> Geometry -> Drawing -> Canvas system-integration tests below.
+    /// </summary>
+    private static byte[] BuildSyntheticFontWithDiamondGlyph()
+    {
+        var glyph = SyntheticFontBuilder.SimpleGlyph(
+        [
+            [(400, 0, true), (800, 400, false), (400, 800, true), (0, 400, false)]
+        ]);
+
+        return new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(2))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 0, 2))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([0, 1000]))
+            .AddTable("loca", SyntheticFontBuilder.Loca([0, glyph.Length], longFormat: false))
+            .AddTable("glyf", glyph)
+            .AddTable("cmap", SyntheticFontBuilder.CmapFormat4(3, 1, [('A', 1)]))
+            .Build();
+    }
+
+    /// <summary>
+    ///     Proves that the system can load a synthetic TrueType font through
+    ///     <see cref="TrueTypeFont"/>'s public API, map a codepoint to a glyph index, extract that
+    ///     glyph's outline as a <see cref="DemaConsulting.CanvasNet.Geometry.Path"/> (raw font-design-unit space), and fill it onto a
+    ///     <see cref="Surface"/> via <see cref="PathFiller"/> - exercising the
+    ///     Fonts -> Geometry -> Drawing -> Canvas integration end to end, and confirming
+    ///     non-trivial rendered pixel coverage (an interior pixel is fully opaque, and at least
+    ///     one edge pixel is antialiased to a fractional coverage).
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_LoadFontAndFillGlyphOutline_ReturnsExpectedPixels()
+    {
+        // Arrange: load a synthetic font, look up 'A', and extract its glyph outline in raw font
+        // design units (0..1000, matching this font's UnitsPerEm)
+        var fontData = BuildSyntheticFontWithDiamondGlyph();
+        var font = TrueTypeFont.Load(new MemoryStream(fontData));
+        var glyphIndex = font.GetGlyphIndex('A');
+        var outline = font.GetGlyphOutline(glyphIndex);
+
+        // Act: scale the raw font-unit outline down to fit a small surface, then fill it through
+        // the public PathFiller API
+        var surface = new Surface(10, 10);
+        const float scale = 10f / 1000f;
+        var scaledBuilder = new PathBuilder();
+        var subpath = Assert.Single(outline.Subpaths);
+        scaledBuilder.MoveTo(subpath.Start * scale);
+        foreach (var command in subpath.Commands)
+        {
+            switch (command.Type)
+            {
+                case PathCommandType.QuadraticBezierTo:
+                    scaledBuilder.QuadraticBezierTo(command.Control1 * scale, command.EndPoint * scale);
+                    break;
+                case PathCommandType.LineTo:
+                    scaledBuilder.LineTo(command.EndPoint * scale);
+                    break;
+                case PathCommandType.Close:
+                    scaledBuilder.Close();
+                    break;
+            }
+        }
+
+        var scaledPath = scaledBuilder.Build();
+        var color = new Rgba32(0, 128, 255, 255);
+        PathFiller.Fill(surface, scaledPath, color);
+
+        // Assert: the glyph index resolved correctly, the outline decoded to a single non-trivial
+        // subpath, the diamond's center is fully covered, and at least one pixel near its edge is
+        // antialiased to a fractional (neither fully transparent nor fully opaque) coverage
+        Assert.Equal(1, glyphIndex);
+        Assert.Equal(3, subpath.Commands.Count); // 2 QuadraticBezierTo (implied on-curve joins) + Close
+        Assert.Equal(color, surface[4, 4]);
+
+        var coveredPixelCount = 0;
+        var fractionalCoveragePixelCount = 0;
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                var alpha = surface[x, y].A;
+                if (alpha > 0)
+                {
+                    coveredPixelCount++;
+                }
+
+                if (alpha > 0 && alpha < 255)
+                {
+                    fractionalCoveragePixelCount++;
+                }
+            }
+        }
+
+        Assert.True(coveredPixelCount > 1, "Expected non-trivial rendered pixel coverage.");
+        Assert.True(fractionalCoveragePixelCount > 0, "Expected at least one antialiased edge pixel.");
+    }
+
+    /// <summary>
+    ///     Proves that the system reports zero advance-width/kerning-driven pen movement
+    ///     differences between two glyphs of a synthetic font loaded through
+    ///     <see cref="TrueTypeFont"/>'s public API consistently with its declared metrics,
+    ///     confirming the Fonts namespace's metrics API integrates correctly end to end (a
+    ///     second, independent system-integration test alongside the glyph-fill test above, per
+    ///     this namespace's companion-artifact plan).
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_LoadFontAndQueryMetrics_ReturnsExpectedValues()
+    {
+        // Arrange/Act: load a synthetic font and query its top-level metrics and the glyph's
+        // advance width through the public API
+        var fontData = BuildSyntheticFontWithDiamondGlyph();
+        var font = TrueTypeFont.Load(new MemoryStream(fontData));
+        var glyphIndex = font.GetGlyphIndex('A');
+        var advanceWidth = font.GetAdvanceWidth(glyphIndex);
+
+        // Assert: the system's integrated metrics match the synthetic font's declared values
+        Assert.Equal(1000, font.UnitsPerEm);
+        Assert.Equal(800, font.Ascender);
+        Assert.Equal(-200, font.Descender);
+        Assert.Equal(2, font.GlyphCount);
+        Assert.Equal(1000, advanceWidth);
+        Assert.Equal(0, font.GetKerning(0, glyphIndex));
     }
 }
