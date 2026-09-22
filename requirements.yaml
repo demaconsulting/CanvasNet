@@ -25,6 +25,8 @@ includes:
   - docs/reqstream/canvas-net/drawing/path-filler.yaml
   - docs/reqstream/canvas-net/drawing/path-stroker.yaml
   - docs/reqstream/canvas-net/drawing/gradient-paint.yaml
+  - docs/reqstream/canvas-net/fonts.yaml
+  - docs/reqstream/canvas-net/fonts/true-type-font.yaml
   - docs/reqstream/canvas-net/platform-requirements.yaml
   - docs/reqstream/ots/xunit.yaml
   - docs/reqstream/ots/reqstream.yaml

@@ -27,4 +27,8 @@ package CanvasNet {
     view DrawingView {
         expose Drawing;
     }
+
+    view FontsView {
+        expose Fonts;
+    }
 }

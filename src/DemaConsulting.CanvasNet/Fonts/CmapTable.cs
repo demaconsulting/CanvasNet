@@ -1,0 +1,507 @@
+// cspell:ignore SFNT Sfnt sfnt glyf Glyf cmap Cmap loca Loca hmtx Hmtx hhea Hhea
+// cspell:ignore maxp Maxp notdef codepoint codepoints subtable subtables subsetted
+// cspell:ignore subsetting PPEM OTTO
+// cspell:ignore misalign unwidened
+namespace DemaConsulting.CanvasNet.Fonts;
+
+/// <summary>
+///     Parses a font's <c>cmap</c> table and resolves Unicode codepoints to glyph indices, using
+///     only format 4 (Unicode BMP) and format 12 (Unicode full repertoire) subtables.
+/// </summary>
+/// <remarks>
+///     <para>
+///     Subtable selection is priority-ordered, first match wins: <c>(3,10)</c> format 12,
+///     <c>(0,4)</c>/<c>(0,6)</c> format 12, <c>(3,1)</c> format 4, <c>(0,3)</c> format 4, then any
+///     remaining <c>(0,x)</c> format 4. Format 0/2/6, symbol encoding <c>(3,0)</c>, and any
+///     non-Unicode platform/encoding pair are never selected. If no supported subtable is present,
+///     or the <c>cmap</c> table itself is missing, malformed, or truncated, <see cref="GetGlyphIndex"/>
+///     always returns <c>0</c> (<c>.notdef</c>) - this class never throws.
+///     </para>
+/// </remarks>
+internal sealed class CmapTable
+{
+    /// <summary>
+    ///     The maximum <c>numGroups</c> permitted in a format 12 subtable before it is rejected as
+    ///     malformed. A bounds-valid (per the enclosing table/declared-length checks) but
+    ///     adversarial <c>numGroups</c> is otherwise used directly to allocate parallel arrays,
+    ///     letting an untrusted font declare a near-<see cref="uint.MaxValue"/> group count and
+    ///     exhaust process memory even though the subtable is nominally "valid". Real fonts -
+    ///     even CJK-heavy ones covering the entire Unicode codepoint space (~1.1 million
+    ///     codepoints) - need at most a few thousand groups, since each group compresses a
+    ///     contiguous character-code range down to one entry; 65536 groups is already vastly more
+    ///     than any legitimate font would need, while remaining small enough that allocating a few
+    ///     parallel arrays of that size (a few hundred KB at most) is trivial. This mirrors
+    ///     <see cref="GlyfLocaReader"/>'s <c>MaxDepth</c>/<c>MaxTotalComponents</c> caps, which
+    ///     bound composite glyph resolution against adversarial input independent of whether it is
+    ///     otherwise structurally valid.
+    /// </summary>
+    private const int MaxFormat12Groups = 65536;
+
+    /// <summary>
+    ///     A <see cref="CmapTable"/> with no usable subtable: <see cref="GetGlyphIndex"/> always
+    ///     returns <c>0</c>. Used when the font has no <c>cmap</c> table at all.
+    /// </summary>
+    public static readonly CmapTable Empty = new(null);
+
+    /// <summary>
+    ///     The selected subtable's lookup delegate, or <see langword="null"/> if no supported
+    ///     subtable was found.
+    /// </summary>
+    private readonly Func<int, int>? _lookup;
+
+    private CmapTable(Func<int, int>? lookup)
+    {
+        _lookup = lookup;
+    }
+
+    /// <summary>
+    ///     Parses a <c>cmap</c> table and selects the highest-priority supported subtable.
+    /// </summary>
+    /// <param name="data">The complete font file contents.</param>
+    /// <param name="tableOffset">The offset of the <c>cmap</c> table within <paramref name="data"/>.</param>
+    /// <param name="tableLength">The length of the <c>cmap</c> table.</param>
+    /// <returns>
+    ///     A <see cref="CmapTable"/> wrapping the selected subtable, or <see cref="Empty"/> if the
+    ///     table is too short to contain a header, or no candidate subtable can be parsed
+    ///     successfully.
+    /// </returns>
+    public static CmapTable Parse(byte[] data, int tableOffset, int tableLength)
+    {
+        if (tableLength < 4)
+        {
+            return Empty;
+        }
+
+        var numTables = SfntContainer.ReadUInt16(data, tableOffset + 2);
+        var candidates = new List<(int Priority, int SubtableOffset, int Format)>();
+
+        var recordsEnd = checked((long)8 + (long)numTables * 8);
+        if (recordsEnd > tableLength)
+        {
+            return Empty;
+        }
+
+        for (var i = 0; i < numTables; i++)
+        {
+            var recordOffset = tableOffset + 4 + i * 8;
+            var platformId = SfntContainer.ReadUInt16(data, recordOffset);
+            var encodingId = SfntContainer.ReadUInt16(data, recordOffset + 2);
+            var subtableOffset = SfntContainer.ReadInt32(data, recordOffset + 4);
+
+            if (subtableOffset < 0 || (long)subtableOffset + 2 > tableLength)
+            {
+                continue;
+            }
+
+            var absoluteSubtableOffset = tableOffset + subtableOffset;
+            var format = SfntContainer.ReadUInt16(data, absoluteSubtableOffset);
+
+            var priority = ClassifyPriority(platformId, encodingId, format);
+            if (priority >= 0)
+            {
+                candidates.Add((priority, absoluteSubtableOffset, format));
+            }
+        }
+
+        candidates.Sort((a, b) => a.Priority.CompareTo(b.Priority));
+
+        var enclosingTableEnd = tableOffset + tableLength;
+        foreach (var candidate in candidates)
+        {
+            var subtableEnd = ComputeSubtableEnd(data, candidate.SubtableOffset, candidate.Format, enclosingTableEnd);
+            if (subtableEnd == null)
+            {
+                continue;
+            }
+
+            var lookup = candidate.Format == 12
+                ? TryParseFormat12(data, candidate.SubtableOffset, subtableEnd.Value)
+                : TryParseFormat4(data, candidate.SubtableOffset, subtableEnd.Value);
+
+            if (lookup != null)
+            {
+                return new CmapTable(lookup);
+            }
+        }
+
+        return Empty;
+    }
+
+    /// <summary>
+    ///     Computes the effective end offset for a candidate subtable, bounded by both the
+    ///     enclosing <c>cmap</c> table's end and the subtable's own declared <c>length</c> field
+    ///     (offset +2, uint16, for format 4; offset +4, uint32, for format 12), so that a subtable
+    ///     cannot read past its own declared length into a following subtable's bytes.
+    /// </summary>
+    /// <returns>
+    ///     The effective end offset, or <see langword="null"/> if the declared length field is not
+    ///     itself readable within the enclosing table, or the declared length does not fit within
+    ///     the enclosing table's bounds.
+    /// </returns>
+    private static int? ComputeSubtableEnd(byte[] data, int subtableOffset, int format, int enclosingTableEnd)
+    {
+        long declaredLength;
+        if (format == 12)
+        {
+            if ((long)subtableOffset + 8 > enclosingTableEnd)
+            {
+                return null;
+            }
+
+            declaredLength = SfntContainer.ReadUInt32(data, subtableOffset + 4);
+        }
+        else
+        {
+            if ((long)subtableOffset + 4 > enclosingTableEnd)
+            {
+                return null;
+            }
+
+            declaredLength = SfntContainer.ReadUInt16(data, subtableOffset + 2);
+        }
+
+        var subtableEnd = checked((long)subtableOffset + declaredLength);
+        return subtableEnd > enclosingTableEnd ? null : (int)subtableEnd;
+    }
+
+    /// <summary>
+    ///     Looks up the glyph index mapped to a Unicode codepoint.
+    /// </summary>
+    /// <param name="codepoint">The Unicode codepoint to look up.</param>
+    /// <returns>
+    ///     The mapped glyph index, or <c>0</c> (<c>.notdef</c>) if the codepoint is unmapped, or
+    ///     no supported subtable is available.
+    /// </returns>
+    public int GetGlyphIndex(int codepoint) => _lookup?.Invoke(codepoint) ?? 0;
+
+    /// <summary>
+    ///     Classifies a subtable's selection priority (lower is preferred), or <c>-1</c> if the
+    ///     platform/encoding/format combination is not recognized as a supported subtable.
+    /// </summary>
+    private static int ClassifyPriority(int platformId, int encodingId, int format)
+    {
+        if (platformId == 3 && encodingId == 10 && format == 12)
+        {
+            return 0;
+        }
+
+        if (platformId == 0 && (encodingId == 4 || encodingId == 6) && format == 12)
+        {
+            return 1;
+        }
+
+        if (platformId == 3 && encodingId == 1 && format == 4)
+        {
+            return 2;
+        }
+
+        if (platformId == 0 && encodingId == 3 && format == 4)
+        {
+            return 3;
+        }
+
+        if (platformId == 0 && format == 4)
+        {
+            return 4;
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    ///     Attempts to parse a format 4 (segment mapping to delta values) subtable, returning a
+    ///     bound lookup delegate, or <see langword="null"/> if the subtable is malformed/truncated.
+    /// </summary>
+    private static Func<int, int>? TryParseFormat4(byte[] data, int offset, int tableEnd)
+    {
+        if ((long)offset + 14 > tableEnd)
+        {
+            return null;
+        }
+
+        var segCountX2 = SfntContainer.ReadUInt16(data, offset + 6);
+        if (segCountX2 % 2 != 0)
+        {
+            // segCountX2 must be an even byte count (segCount * 2); an odd value is malformed and
+            // would otherwise silently misalign the parallel endCode/startCode/idDelta/idRangeOffset
+            // arrays via truncating integer division.
+            return null;
+        }
+
+        var segCount = segCountX2 / 2;
+        if (segCount == 0)
+        {
+            return null;
+        }
+
+        // Compute the offset chain in `long` arithmetic rather than `int` - `offset` combined
+        // with a maximal `segCountX2` (up to 65534) can otherwise overflow 32-bit `int` addition
+        // and wrap into an unrelated or negative value, which would make the bounds check below
+        // incorrectly pass and allow the array-population loop to read outside the declared
+        // subtable (or throw `IndexOutOfRangeException`), violating the never-throw contract.
+        var offsetChain = ComputeFormat4OffsetChain(offset, segCountX2, tableEnd);
+        if (offsetChain == null)
+        {
+            return null;
+        }
+
+        var (endCodeOffset, startCodeOffset, idDeltaOffset, idRangeOffsetOffset, glyphIdArrayOffset) = offsetChain.Value;
+
+        var endCodes = new int[segCount];
+        var startCodes = new int[segCount];
+        var idDeltas = new short[segCount];
+        var idRangeOffsets = new ushort[segCount];
+        for (var i = 0; i < segCount; i++)
+        {
+            endCodes[i] = SfntContainer.ReadUInt16(data, endCodeOffset + i * 2);
+            startCodes[i] = SfntContainer.ReadUInt16(data, startCodeOffset + i * 2);
+            idDeltas[i] = SfntContainer.ReadInt16(data, idDeltaOffset + i * 2);
+            idRangeOffsets[i] = SfntContainer.ReadUInt16(data, idRangeOffsetOffset + i * 2);
+        }
+
+        // Validate the required format-4 segment ordering: each segment's startCode must not
+        // exceed its endCode, segments must be strictly increasing by endCode and explicitly
+        // non-overlapping (each segment's startCode must be greater than the previous segment's
+        // endCode), and the final segment must be the mandatory 0xFFFF/0xFFFF terminator. A
+        // malformed subtable violating any of this is rejected so the linear-scan lookup below
+        // cannot return a nonzero glyph index derived from garbage data.
+        for (var i = 0; i < segCount; i++)
+        {
+            if (startCodes[i] > endCodes[i])
+            {
+                return null;
+            }
+
+            if (i > 0 && (endCodes[i - 1] >= endCodes[i] || startCodes[i] <= endCodes[i - 1]))
+            {
+                return null;
+            }
+        }
+
+        if (endCodes[segCount - 1] != 0xFFFF || startCodes[segCount - 1] != 0xFFFF)
+        {
+            return null;
+        }
+
+        return codepoint =>
+        {
+            if (codepoint is < 0 or > 0xFFFF)
+            {
+                return 0;
+            }
+
+            for (var i = 0; i < segCount; i++)
+            {
+                if (codepoint > endCodes[i])
+                {
+                    continue;
+                }
+
+                if (codepoint < startCodes[i])
+                {
+                    return 0;
+                }
+
+                if (idRangeOffsets[i] == 0)
+                {
+                    return (codepoint + idDeltas[i]) & 0xFFFF;
+                }
+
+                var glyphIndexAddress = ComputeFormat4GlyphIndexAddress(
+                    idRangeOffsetOffset, i, idRangeOffsets[i], codepoint, startCodes[i], glyphIdArrayOffset, tableEnd);
+                if (glyphIndexAddress == null)
+                {
+                    return 0;
+                }
+
+                var glyphId = SfntContainer.ReadUInt16(data, (int)glyphIndexAddress.Value);
+                return glyphId == 0 ? 0 : (glyphId + idDeltas[i]) & 0xFFFF;
+            }
+
+            return 0;
+        };
+    }
+
+    /// <summary>
+    ///     Computes the format-4 offset chain (endCode/startCode/idDelta/idRangeOffset/glyphIdArray
+    ///     positions), validating that every position in the chain fits within
+    ///     <paramref name="tableEnd"/>.
+    /// </summary>
+    /// <remarks>
+    ///     Isolated as its own pure-arithmetic helper so the chain computation can be exercised
+    ///     directly against adversarial <paramref name="offset"/>/<paramref name="segCountX2"/>
+    ///     combinations without needing a backing byte array anywhere near the sizes those
+    ///     positions describe - the same technique <see cref="KernTable"/> uses for its
+    ///     subtable-position arithmetic. The addition is computed in <see langword="long"/>
+    ///     arithmetic specifically because <paramref name="offset"/> combined with a maximal
+    ///     <paramref name="segCountX2"/> (up to 65534) can overflow 32-bit <see langword="int"/>
+    ///     addition and wrap into a value that would incorrectly pass an unwidened bounds guard.
+    /// </remarks>
+    /// <param name="offset">The subtable's start position within the font data.</param>
+    /// <param name="segCountX2">The subtable's declared <c>segCountX2</c> field.</param>
+    /// <param name="tableEnd">The subtable's effective end position.</param>
+    /// <returns>
+    ///     The computed <c>(EndCodeOffset, StartCodeOffset, IdDeltaOffset, IdRangeOffsetOffset,
+    ///     GlyphIdArrayOffset)</c> tuple, or <see langword="null"/> if the final
+    ///     <c>GlyphIdArrayOffset</c> exceeds <paramref name="tableEnd"/>.
+    /// </returns>
+    private static (int EndCodeOffset, int StartCodeOffset, int IdDeltaOffset, int IdRangeOffsetOffset, int GlyphIdArrayOffset)?
+        ComputeFormat4OffsetChain(int offset, int segCountX2, int tableEnd)
+    {
+        var endCodeOffsetLong = (long)offset + 14;
+        var startCodeOffsetLong = endCodeOffsetLong + segCountX2 + 2; // +2 skips reservedPad
+        var idDeltaOffsetLong = startCodeOffsetLong + segCountX2;
+        var idRangeOffsetOffsetLong = idDeltaOffsetLong + segCountX2;
+        var glyphIdArrayOffsetLong = idRangeOffsetOffsetLong + segCountX2;
+
+        if (glyphIdArrayOffsetLong > tableEnd)
+        {
+            return null;
+        }
+
+        // Every offset in the chain is now confirmed to be within [offset, tableEnd], and
+        // `tableEnd` is an `int`, so each value fits safely back into an `int`.
+        return ((int)endCodeOffsetLong, (int)startCodeOffsetLong, (int)idDeltaOffsetLong, (int)idRangeOffsetOffsetLong, (int)glyphIdArrayOffsetLong);
+    }
+
+    /// <summary>
+    ///     Computes a format-4 segment's indirect glyph-index address
+    ///     (<c>idRangeOffsetOffset + segmentIndex * 2 + idRangeOffset + 2 * (codepoint - startCode)</c>),
+    ///     validating that it falls within <c>[glyphIdArrayOffset, tableEnd)</c>.
+    /// </summary>
+    /// <remarks>
+    ///     Isolated as its own pure-arithmetic helper (mirroring <see cref="ComputeFormat4OffsetChain"/>)
+    ///     so it can be exercised directly against adversarial position/offset combinations
+    ///     without needing a backing byte array anywhere near the sizes those positions describe.
+    ///     The computation is performed in <see langword="long"/> arithmetic because
+    ///     <paramref name="idRangeOffsetOffset"/> combined with a maximal
+    ///     <paramref name="idRangeOffset"/> (0xFFFF) and codepoint delta can overflow 32-bit
+    ///     <see langword="int"/> addition and wrap to a negative value, which would incorrectly
+    ///     pass an unwidened bounds guard and then be used directly as a negative array index.
+    /// </remarks>
+    /// <param name="idRangeOffsetOffset">The position of the subtable's <c>idRangeOffset</c> array.</param>
+    /// <param name="segmentIndex">The index of the segment being resolved.</param>
+    /// <param name="idRangeOffset">The segment's declared <c>idRangeOffset</c> value.</param>
+    /// <param name="codepoint">The codepoint being looked up.</param>
+    /// <param name="startCode">The segment's <c>startCode</c> value.</param>
+    /// <param name="glyphIdArrayOffset">The position of the subtable's <c>glyphIdArray</c>.</param>
+    /// <param name="tableEnd">The subtable's effective end position.</param>
+    /// <returns>
+    ///     The computed glyph-index address, or <see langword="null"/> if it falls outside
+    ///     <c>[glyphIdArrayOffset, tableEnd)</c> (accounting for the 2-byte glyph ID read).
+    /// </returns>
+    private static long? ComputeFormat4GlyphIndexAddress(
+        int idRangeOffsetOffset, int segmentIndex, int idRangeOffset, int codepoint, int startCode, int glyphIdArrayOffset, int tableEnd)
+    {
+        var glyphIndexAddress = (long)idRangeOffsetOffset + segmentIndex * 2 + idRangeOffset + 2L * (codepoint - startCode);
+        return glyphIndexAddress < glyphIdArrayOffset || glyphIndexAddress + 2 > tableEnd ? null : glyphIndexAddress;
+    }
+
+    /// <summary>
+    ///     Attempts to parse a format 12 (segmented coverage) subtable, returning a bound lookup
+    ///     delegate, or <see langword="null"/> if the subtable is malformed/truncated.
+    /// </summary>
+    private static Func<int, int>? TryParseFormat12(byte[] data, int offset, int tableEnd)
+    {
+        if ((long)offset + 16 > tableEnd)
+        {
+            return null;
+        }
+
+        var numGroups = SfntContainer.ReadUInt32(data, offset + 12);
+        if (numGroups > MaxFormat12Groups)
+        {
+            // Reject before doing any further bounds checking or allocation: an adversarial
+            // numGroups can otherwise pass the groupsEnd/tableEnd check below (by pairing it with
+            // a suitably large, but still internally-consistent, declared table/file size) and
+            // reach the array allocations, exhausting process memory. See MaxFormat12Groups.
+            return null;
+        }
+
+        var groupsEnd = checked((long)offset + 16 + (long)numGroups * 12);
+        if (groupsEnd > tableEnd)
+        {
+            return null;
+        }
+
+        // Kept as three parallel arrays rather than one array of a combined struct: with
+        // numGroups now bounded by MaxFormat12Groups, the total data footprint is at most a few
+        // hundred KB either way - the difference is only per-array object overhead (tens of
+        // bytes), not a meaningful DoS surface - so combining them would add code churn/risk here
+        // for no real memory-safety benefit.
+        var starts = new uint[numGroups];
+        var ends = new uint[numGroups];
+        var startGlyphIds = new uint[numGroups];
+        for (var i = 0; i < numGroups; i++)
+        {
+            var groupOffset = offset + 16 + i * 12;
+            starts[i] = SfntContainer.ReadUInt32(data, groupOffset);
+            ends[i] = SfntContainer.ReadUInt32(data, groupOffset + 4);
+            startGlyphIds[i] = SfntContainer.ReadUInt32(data, groupOffset + 8);
+        }
+
+        // Validate the required format-12 group ordering: each group's startCharCode must not
+        // exceed its endCharCode, and groups must be strictly increasing (and therefore
+        // non-overlapping) by charCode range, as required by the spec and assumed by the binary
+        // search lookup below.
+        for (var i = 0; i < starts.Length; i++)
+        {
+            if (starts[i] > ends[i])
+            {
+                return null;
+            }
+
+            if (i > 0 && ends[i - 1] >= starts[i])
+            {
+                return null;
+            }
+
+            // Unicode has no codepoints above U+10FFFF (the maximum value encodable by UTF-16
+            // surrogate pairs and the hard ceiling set by the Unicode standard). A group whose
+            // endCharCode exceeds this is malformed - real fonts never declare coverage beyond
+            // it - so reject it here rather than accepting an out-of-repertoire range.
+            if (ends[i] > 0x10FFFF)
+            {
+                return null;
+            }
+        }
+
+        return codepoint =>
+        {
+            if (codepoint < 0)
+            {
+                return 0;
+            }
+
+            var code = (uint)codepoint;
+            var lo = 0;
+            var hi = starts.Length - 1;
+            while (lo <= hi)
+            {
+                var mid = lo + (hi - lo) / 2;
+                if (code < starts[mid])
+                {
+                    hi = mid - 1;
+                }
+                else if (code > ends[mid])
+                {
+                    lo = mid + 1;
+                }
+                else
+                {
+                    // Compute the sum in `long` arithmetic rather than `uint` - `startGlyphIds[mid]`
+                    // combined with a large `code - starts[mid]` offset can otherwise wrap modulo
+                    // 2^32, silently producing a small, plausible-looking (but bogus) glyph index
+                    // instead of failing. Real fonts never have anywhere near `int.MaxValue`
+                    // glyphs, so any result that would not fit in a non-negative `int` (i.e. would
+                    // have wrapped, or would itself become negative when cast) is rejected
+                    // outright rather than truncated.
+                    var glyphId = (long)startGlyphIds[mid] + (code - starts[mid]);
+                    return glyphId > int.MaxValue ? 0 : (int)glyphId;
+                }
+            }
+
+            return 0;
+        };
+    }
+}

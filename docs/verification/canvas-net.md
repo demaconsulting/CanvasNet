@@ -1,5 +1,8 @@
 # System Verification Design
 
+<!-- cspell:ignore codepoint -->
+
+<!-- cspell:ignore codepoint -->
 This document describes the system-level verification strategy for CanvasNet.
 
 ## Verification Approach
@@ -186,8 +189,30 @@ the collaboration between `PathBuilder`/`Path` (`Geometry`), `PathFiller` (`Draw
 `Surface`/`Surface.CompositeOverSpan` (`Canvas`) together, rather than any one subsystem in
 isolation.
 
+### Integration: Load a Font and Fill a Glyph Outline Returns Expected Pixels
+
+**Test**: `CanvasNet_SystemIntegration_LoadFontAndFillGlyphOutline_ReturnsExpectedPixels`
+
+Exercises end-to-end system behavior across the `Fonts`, `Geometry`, `Drawing`, and `Canvas`
+subsystems together: loads a synthetic TrueType font, maps codepoint `'A'` to a glyph index,
+extracts the glyph outline as `Geometry.Path`, scales and flips the outline into canvas
+coordinates, and fills it through `PathFiller` onto a `Surface`. Asserts the mapped glyph index
+is correct, the outline is non-trivial, the glyph interior renders fully opaque, and at least one
+edge pixel has fractional alpha, confirming the system integrates font parsing with vector
+rasterization successfully.
+
+### Integration: Load a Font and Query Metrics Returns Expected Values
+
+**Test**: `CanvasNet_SystemIntegration_LoadFontAndQueryMetrics_ReturnsExpectedValues`
+
+Exercises end-to-end system behavior for the `Fonts` subsystem's metric APIs: loads the same
+synthetic TrueType font through `TrueTypeFont.Load`, then asserts `UnitsPerEm`, `Ascender`,
+`Descender`, `GlyphCount`, `GetAdvanceWidth`, and `GetKerning` match the font's declared table
+values. This scenario proves the system exposes font-level scalar metrics independently of glyph
+rendering.
+
 ## Acceptance Criteria
 
-A system-level test run passes when all fourteen scenarios above pass without error or exception
+A system-level test run passes when all sixteen scenarios above pass without error or exception
 beyond those explicitly asserted. Any unexpected exception, wrong exception type, or wrong return
 value constitutes a failure.

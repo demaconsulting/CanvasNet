@@ -1,0 +1,393 @@
+---
+# Software Unit Requirements for TrueTypeFont
+#
+# These requirements describe the design-level behavior of the TrueTypeFont unit.
+# cspell:ignore glyf sfnt cmap loca hmtx hhea maxp notdef
+# cspell:ignore codepoint codepoints subtable subtables subsetted renderable
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Fonts Requirements
+        sections:
+          - title: TrueTypeFont Requirements
+            requirements:
+              - id: CanvasNet-Fonts-TrueTypeFont-LoadStream
+                title: >-
+                  The TrueTypeFont class shall load a TrueType font from a stream and expose its
+                  UnitsPerEm, Ascender, Descender, LineGap, and GlyphCount metrics.
+                justification: |
+                  Callers need to load a font and inspect its top-level metrics before laying out or
+                  rendering any text.
+                tests:
+                  - TrueTypeFont_Load_WellFormedFont_ExposesMetrics
+
+              - id: CanvasNet-Fonts-TrueTypeFont-LoadPath
+                title: The TrueTypeFont class shall load a TrueType font given a file path.
+                justification: |
+                  Callers commonly have font files stored on disk and need a convenient way to load
+                  them without manually opening a stream.
+                tests:
+                  - TrueTypeFont_Load_Path_ReadsFromFile
+
+              - id: CanvasNet-Fonts-TrueTypeFont-LoadNullStream
+                title: The TrueTypeFont class shall reject a null stream argument to Load with ArgumentNullException.
+                justification: |
+                  A null stream has no data to read; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - TrueTypeFont_Load_NullStream_ThrowsArgumentNullException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-LoadNullPath
+                title: The TrueTypeFont class shall reject a null path argument to Load with ArgumentNullException.
+                justification: |
+                  A null path cannot identify a source file; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - TrueTypeFont_Load_NullPath_ThrowsArgumentNullException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-LoadEmptyPath
+                title: The TrueTypeFont class shall reject an empty path argument to Load with ArgumentException.
+                justification: |
+                  An empty path cannot identify a source file; rejecting it immediately prevents an
+                  obscure file-system error.
+                tests:
+                  - TrueTypeFont_Load_EmptyPath_ThrowsArgumentException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-RejectUnrecognizedVersion
+                title: >-
+                  The TrueTypeFont class shall reject a font whose declared format version is not
+                  recognized as TrueType with InvalidDataException.
+                justification: |
+                  Data whose declared version is not a supported TrueType variant is not a font this
+                  class can interpret; failing clearly here prevents misreading arbitrary data as a
+                  table directory.
+                tests:
+                  - SfntContainer_Parse_UnrecognizedVersion_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-RejectCffOutlines
+                title: >-
+                  The TrueTypeFont class shall reject a font that declares CFF/OpenType outlines with
+                  InvalidDataException.
+                justification: |
+                  CFF-based outlines use an entirely different, unsupported outline representation;
+                  failing clearly here prevents silently producing empty or incorrect glyph outlines.
+                tests:
+                  - TrueTypeFont_Load_OttoFont_ThrowsInvalidDataException
+                  - SfntContainer_Parse_OttoVersion_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-RejectMissingRequiredTable
+                title: >-
+                  The TrueTypeFont class shall reject a font missing any required table (head, maxp,
+                  hhea, hmtx, loca, or glyf) with InvalidDataException.
+                justification: |
+                  Every required table supplies metrics or glyph data this class must read; a font
+                  missing one cannot be queried correctly, so failing at load time avoids returning an
+                  object in a partially usable state.
+                tests:
+                  - TrueTypeFont_Load_MissingRequiredTable_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-RejectUnsupportedGlyphOutlineVersion
+                title: >-
+                  The TrueTypeFont class shall reject a font whose glyph-count table uses an
+                  unsupported version with InvalidDataException.
+                justification: |
+                  A glyph-count table using an unsupported version does not describe TrueType-style
+                  outline data in the layout this class expects; failing clearly here prevents reading
+                  fields at the wrong byte offsets.
+                tests:
+                  - TrueTypeFont_Load_MaxpVersion05_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-RejectInvalidUnitsPerEm
+                title: >-
+                  The TrueTypeFont class shall reject a font declaring zero units per em with
+                  InvalidDataException.
+                justification: |
+                  A zero units-per-em value cannot be used to scale glyph outlines to any point size;
+                  failing clearly here prevents a caller from later dividing by zero.
+                tests:
+                  - TrueTypeFont_Load_ZeroUnitsPerEm_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-RejectInvalidGlyphLocationFormat
+                title: >-
+                  The TrueTypeFont class shall reject a font declaring an unsupported glyph-location
+                  table format with InvalidDataException.
+                justification: |
+                  Only the two documented glyph-location table formats have a defined byte layout;
+                  failing clearly here prevents misinterpreting glyph offsets under an unrecognized
+                  layout.
+                tests:
+                  - TrueTypeFont_Load_InvalidIndexToLocFormat_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-RejectOutOfBoundsTable
+                title: >-
+                  The TrueTypeFont class shall reject a font whose table directory declares a table
+                  offset or length outside the bounds of the font data, including combinations that
+                  would overflow ordinary arithmetic, with InvalidDataException.
+                justification: |
+                  A table directory entry pointing outside the font data (or whose offset and length
+                  would overflow) could otherwise cause an out-of-bounds read; failing clearly here
+                  protects against malformed or malicious font files.
+                tests:
+                  - SfntContainer_Parse_TableDirectoryEntryOverflowsUint_ThrowsInvalidDataException
+                  - SfntContainer_Parse_TableDirectoryEntryOutOfBounds_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-RejectTruncatedStream
+                title: >-
+                  The TrueTypeFont class shall reject a font whose stream ends before its declared
+                  table directory or table data has been fully read with InvalidDataException.
+                justification: |
+                  A truncated font stream cannot supply complete table data; failing clearly here
+                  prevents returning a font object with partially read or missing data.
+                tests:
+                  - TrueTypeFont_Load_TruncatedStream_ThrowsInvalidDataException
+                  - SfntContainer_Parse_TruncatedOffsetTable_ThrowsInvalidDataException
+                  - SfntContainer_Parse_TruncatedTableDirectory_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GlyphIndexBasicMultilingualPlane
+                title: >-
+                  The TrueTypeFont class shall map a Basic Multilingual Plane Unicode codepoint to its
+                  glyph index via GetGlyphIndex when the font's character map supports it.
+                justification: |
+                  Callers most commonly need to render text made up of Basic Multilingual Plane
+                  codepoints (for example Latin text), so this is the primary character-to-glyph
+                  lookup path.
+                tests:
+                  - CmapTable_Format4_BmpLookup_ReturnsMappedGlyphIndex
+                  - TrueTypeFont_Load_EndToEnd_GlyphIndexOutlineAdvanceAndKerning
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GlyphIndexSupplementaryPlane
+                title: >-
+                  The TrueTypeFont class shall map a Unicode codepoint outside the Basic Multilingual
+                  Plane to its glyph index via GetGlyphIndex when the font's character map supports it.
+                justification: |
+                  Callers rendering emoji or other supplementary-plane characters need those
+                  codepoints resolved to glyph indices, not just codepoints within the Basic
+                  Multilingual Plane.
+                tests:
+                  - CmapTable_Format12_SupplementaryPlaneLookup_ReturnsMappedGlyphIndex
+                  - CmapTable_Format12_GroupRange_ReturnsOffsetGlyphIndex
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GlyphIndexUnmappedFallback
+                title: >-
+                  The TrueTypeFont class shall return glyph index 0 from GetGlyphIndex for a codepoint
+                  the font's character map does not map, without throwing.
+                justification: |
+                  An unmapped codepoint is a normal occurrence (for example a character the font does
+                  not support); returning the conventional "missing glyph" index lets a caller render a
+                  fallback rather than crash.
+                tests:
+                  - CmapTable_Format4_UnmappedCodepoint_ReturnsZero
+                  - TrueTypeFont_GetGlyphIndex_UnmappedCodepoint_NeverThrows
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GlyphIndexNoCharacterMap
+                title: >-
+                  The TrueTypeFont class shall return glyph index 0 from GetGlyphIndex for every
+                  codepoint when the font has no usable character map, without throwing.
+                justification: |
+                  Some legitimately embedded or subsetted fonts omit a character map entirely, or use
+                  only unsupported mapping schemes; degrading gracefully rather than rejecting the font
+                  outright lets a caller still use the font by glyph index directly.
+                tests:
+                  - CmapTable_NoSupportedSubtable_GetGlyphIndexReturnsZero
+                  - CmapTable_Empty_GetGlyphIndexReturnsZero
+                  - TrueTypeFont_Load_NoCmapOrKern_FallsBackGracefully
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GlyphOutlineSimple
+                title: >-
+                  The TrueTypeFont class shall decode a simple glyph's outline via GetGlyphOutline as
+                  a Path made up of line segments and quadratic Bezier curves, in raw font design
+                  units.
+                justification: |
+                  Callers need a renderable outline for the most common glyph shape (a directly
+                  described contour), expressed using the curve types the Geometry namespace already
+                  supports natively.
+                tests:
+                  - GlyfLocaReader_SimpleGlyph_AllOnCurve_ProducesLineSegments
+                  - GlyfLocaReader_SimpleGlyph_ConsecutiveOffCurvePoints_ProducesImpliedMidpointQuadratics
+                  - GlyfLocaReader_SimpleGlyph_MixedOnAndOffCurve_ProducesQuadraticToRealOnCurvePoint
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GlyphOutlineEmpty
+                title: >-
+                  The TrueTypeFont class shall return an empty Path from GetGlyphOutline for a glyph
+                  with no contour data, such as the space character.
+                justification: |
+                  A glyph with no visible marks (for example space) is a normal, valid glyph; a caller
+                  filling its outline should simply render nothing rather than receive an error.
+                tests:
+                  - GlyfLocaReader_EmptyGlyph_ZeroContours_ProducesEmptyPath
+                  - GlyfLocaReader_ZeroLengthGlyph_ProducesEmptyPath
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GlyphOutlineComposite
+                title: >-
+                  The TrueTypeFont class shall decode a composite glyph's outline via GetGlyphOutline
+                  by resolving and transforming (translating, scaling, and/or rotating/skewing via a
+                  2x2 matrix) each of its referenced component glyphs.
+                justification: |
+                  Many accented and compound characters are defined by referencing and positioning
+                  simpler glyphs rather than repeating their outlines; supporting this is required to
+                  render such characters correctly.
+                tests:
+                  - GlyfLocaReader_CompositeGlyph_SingleComponent_ProducesTranslatedOutline
+                  - GlyfLocaReader_CompositeGlyph_ScaledComponent_ScalesOutline
+                  - GlyfLocaReader_CompositeGlyph_TwoByTwoTransform_TransformsOutline
+                  - GlyfLocaReader_CompositeGlyph_MultipleComponents_ProducesMultipleSubpaths
+                  - GlyfLocaReader_CompositeGlyph_ScaledComponentOffset_TransformsTranslation
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GlyphOutlineNestedComposite
+                title: >-
+                  The TrueTypeFont class shall decode a composite glyph via GetGlyphOutline whose own
+                  components are themselves composite glyphs, resolving the full nesting correctly.
+                justification: |
+                  Some fonts build compound characters from components that are themselves composite,
+                  not just simple, glyphs; correctly resolving this nesting is required for those
+                  characters to render.
+                tests:
+                  - GlyfLocaReader_CompositeGlyph_NestedComposite_ResolvesRecursively
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GlyphOutlineRejectsCircularComposite
+                title: >-
+                  The TrueTypeFont class shall reject a composite glyph that references itself,
+                  directly or indirectly, with InvalidDataException rather than hanging or crashing.
+                justification: |
+                  A malformed or malicious font could define a composite glyph that references itself;
+                  detecting and rejecting this deterministically prevents an unbounded recursion from
+                  hanging or crashing the calling process.
+                tests:
+                  - GlyfLocaReader_CompositeGlyph_SelfReferentialCycle_ThrowsInvalidDataExceptionViaDepthCap
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GlyphOutlineRejectsExcessiveComposite
+                title: >-
+                  The TrueTypeFont class shall reject a composite glyph that would resolve to an
+                  excessive total number of components with InvalidDataException rather than hanging
+                  or crashing.
+                justification: |
+                  A malformed or malicious font could define composite glyphs that reference each
+                  other in a way that multiplies out to an enormous number of components without ever
+                  forming a literal cycle; bounding the total resolved component count prevents this
+                  from hanging or crashing the calling process.
+                tests:
+                  - GlyfLocaReader_CompositeGlyph_ExponentialBlowUp_ThrowsInvalidDataExceptionViaComponentCap
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GlyphOutlineRejectsExcessivePoints
+                title: >-
+                  The TrueTypeFont class shall reject a composite glyph that would resolve to an
+                  excessive total number of outline points/commands with InvalidDataException
+                  rather than hanging or crashing.
+                justification: |
+                  A malformed or malicious font could define a composite glyph that references a
+                  single large simple glyph many times, without the reference count alone exceeding
+                  the total-component bound; bounding the total resolved point/command count
+                  prevents this amplified geometry from hanging or crashing the calling process.
+                tests:
+                  - GlyfLocaReader_CompositeGlyph_LargeSimpleGlyphReferencedTwice_ThrowsInvalidDataExceptionViaPointBudget
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GlyphOutlineRejectsPointMatchedComponent
+                title: >-
+                  The TrueTypeFont class shall reject a composite glyph component that positions
+                  itself by matching points rather than by an explicit offset, with
+                  InvalidDataException.
+                justification: |
+                  Point-matched component positioning is not supported by this class; rejecting it
+                  clearly prevents silently mis-positioning the component instead of producing an
+                  incorrect but seemingly valid outline.
+                tests:
+                  - GlyfLocaReader_CompositeGlyph_PointMatchedComponent_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GlyphOutlineRejectsMalformedGlyphData
+                title: >-
+                  The TrueTypeFont class shall reject malformed or truncated glyph outline data,
+                  including an out-of-range referenced component glyph index and an invalid declared
+                  contour count, with InvalidDataException.
+                justification: |
+                  Malformed glyph data cannot be decoded into a correct outline; failing clearly here
+                  prevents producing a garbled or partially decoded outline that a caller could
+                  mistake for valid glyph geometry.
+                tests:
+                  - GlyfLocaReader_CompositeGlyph_OutOfRangeComponentGlyphIndex_ThrowsInvalidDataException
+                  - GlyfLocaReader_TruncatedGlyphHeader_ThrowsInvalidDataException
+                  - GlyfLocaReader_InvalidContourCount_ThrowsInvalidDataException
+                  - GlyfLocaReader_Parse_LocaEntryExceedsGlyfBounds_ThrowsInvalidDataException
+                  - GlyfLocaReader_Parse_NonMonotonicLocaEntries_ThrowsInvalidDataException
+                  - GlyfLocaReader_Parse_TruncatedLoca_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GlyphIndexValidation
+                title: >-
+                  The TrueTypeFont class shall reject an out-of-range glyph index argument to
+                  GetGlyphOutline with ArgumentOutOfRangeException.
+                justification: |
+                  An out-of-range glyph index does not identify any glyph in the font; rejecting it
+                  immediately prevents an out-of-bounds read deeper in the call stack.
+                tests:
+                  - TrueTypeFont_GetGlyphOutline_NegativeGlyphIndex_ThrowsArgumentOutOfRangeException
+                  - TrueTypeFont_GetGlyphOutline_GlyphIndexTooLarge_ThrowsArgumentOutOfRangeException
+                  - GlyfLocaReader_GetGlyphOutline_NegativeGlyphIndex_ThrowsArgumentOutOfRangeException
+                  - GlyfLocaReader_GetGlyphOutline_GlyphIndexTooLarge_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-AdvanceWidth
+                title: >-
+                  The TrueTypeFont class shall report a glyph's horizontal advance width via
+                  GetAdvanceWidth, reusing the font's last explicit advance-width entry for any glyph
+                  index beyond the font's declared count of explicit entries.
+                justification: |
+                  Callers need each glyph's advance width to lay out successive glyphs along a line;
+                  many fonts declare explicit advance widths only up to a certain glyph index and
+                  expect the last one reused for the remainder, per the format's own convention.
+                tests:
+                  - HmtxHheaReader_Parse_ExposesMetrics
+                  - HmtxHheaReader_GetAdvanceWidth_TailGlyph_ReusesLastEntry
+                  - TrueTypeFont_Load_EndToEnd_GlyphIndexOutlineAdvanceAndKerning
+
+              - id: CanvasNet-Fonts-TrueTypeFont-AdvanceWidthValidation
+                title: >-
+                  The TrueTypeFont class shall reject an out-of-range glyph index argument to
+                  GetAdvanceWidth with ArgumentOutOfRangeException.
+                justification: |
+                  An out-of-range glyph index does not identify any glyph in the font; rejecting it
+                  immediately prevents an out-of-bounds read deeper in the call stack.
+                tests:
+                  - TrueTypeFont_GetAdvanceWidth_GlyphIndexTooLarge_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-KerningLookup
+                title: >-
+                  The TrueTypeFont class shall report the pairwise kerning adjustment between two
+                  glyphs via GetKerning when the font's kerning table defines one for that pair.
+                justification: |
+                  Callers positioning successive glyphs need any pair-specific spacing adjustment the
+                  font designer defined, beyond each glyph's own advance width, to reproduce the
+                  font's intended letter spacing.
+                tests:
+                  - KernTable_Format0_KnownPair_ReturnsValue
+                  - TrueTypeFont_Load_EndToEnd_GlyphIndexOutlineAdvanceAndKerning
+
+              - id: CanvasNet-Fonts-TrueTypeFont-KerningMissOrAbsentFallback
+                title: >-
+                  The TrueTypeFont class shall return 0 from GetKerning, without throwing, for a glyph
+                  pair the font's kerning table does not define, for any glyph index (including
+                  out-of-range indices), and when the font has no kerning table at all.
+                justification: |
+                  Most glyph pairs have no special kerning adjustment, and many fonts have no kerning
+                  table at all; returning a well-defined "no adjustment" value lets a caller always
+                  call GetKerning unconditionally without special-casing its absence, and never risk a
+                  crash from an out-of-range index used purely for a kerning lookup.
+                tests:
+                  - KernTable_Format0_UnknownPair_ReturnsZero
+                  - KernTable_Empty_GetKerningReturnsZero
+                  - TrueTypeFont_GetKerning_OutOfRangeGlyphIndex_NeverThrows
+
+              - id: CanvasNet-Fonts-TrueTypeFont-KerningMalformedTableTolerant
+                title: >-
+                  The TrueTypeFont class shall return 0 from GetKerning, without throwing, when the
+                  font's kerning table is malformed, uses only unsupported subtable formats, or is
+                  otherwise unusable.
+                justification: |
+                  A malformed or unsupported kerning table does not prevent the rest of the font from
+                  being used correctly; failing the entire load over an optional, best-effort table
+                  would be excessively strict.
+                tests:
+                  - KernTable_NoPairs_ReturnsZero
+                  - KernTable_ZeroLengthTable_IsTolerant_ReturnsZero
+                  - KernTable_TruncatedTable_IsTolerant_ReturnsZero
+                  - KernTable_MalformedPairCount_IsTolerant_ReturnsZero
+                  - KernTable_UnsupportedFormat2Subtable_IsTolerant_ReturnsZero
+                  - KernTable_CrossStreamCoverage_IsSkipped_ReturnsZero

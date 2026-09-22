@@ -23,7 +23,9 @@ curve math) with no notion of pixels, color, or rasterization; `Drawing` is wher
 is turned into pixels. `Drawing` depends on both `Canvas`
 (`Surface`, `Surface.CompositeOverSpan`) and `Geometry` (`Path`, `PathBuilder`,
 `BezierFlattening`, `SvgArcConverter`); neither `Canvas` nor `Geometry` has any dependency on
-`Drawing`. Fonts/text rendering remain reserved for a later phase.
+`Drawing`. Callers may combine `Drawing` with the `Fonts` subsystem's `TrueTypeFont` output when
+they want text rendering, but `Drawing` itself remains a general-purpose path rasterizer with no
+font-specific logic.
 
 ### Units
 

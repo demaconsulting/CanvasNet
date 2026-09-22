@@ -1,5 +1,7 @@
 # Introduction
 
+<!-- cspell:ignore glyf sfnt codepoint -->
+
 ## Purpose
 
 This document is the user guide for CanvasNet, a .NET library providing a
@@ -674,6 +676,49 @@ Saves a `Surface` to a file as a JPEG image, overwriting any existing file at `p
 - `ArgumentException`: Thrown when `path` is an empty string.
 - `ArgumentOutOfRangeException`: Thrown when `quality` is less than 1 or greater than 100.
 
+### TrueTypeFont
+
+The `TrueTypeFont` class loads glyph-based TrueType (`glyf`-based) SFNT fonts and exposes raw
+font-design-unit outlines, metrics, advance widths, and basic pairwise kerning.
+
+```csharp
+public sealed class TrueTypeFont
+{
+    public static TrueTypeFont Load(Stream stream);
+    public static TrueTypeFont Load(string path);
+
+    public int UnitsPerEm { get; }
+    public int Ascender { get; }
+    public int Descender { get; }
+    public int LineGap { get; }
+    public int GlyphCount { get; }
+
+    public int GetGlyphIndex(int codepoint);
+    public Path GetGlyphOutline(int glyphIndex);
+    public int GetAdvanceWidth(int glyphIndex);
+    public int GetKerning(int leftGlyphIndex, int rightGlyphIndex);
+}
+```
+
+`GetGlyphOutline` returns `Geometry.Path` in raw font-design-unit coordinates with Y increasing
+upward, per the TrueType convention. Callers typically scale that path by the desired point size
+and flip Y before rendering it through `PathFiller` or `PathStroker`.
+
+```csharp
+var font = TrueTypeFont.Load("font.ttf");
+var glyphIndex = font.GetGlyphIndex('A');
+var outline = font.GetGlyphOutline(glyphIndex);
+var advanceWidth = font.GetAdvanceWidth(glyphIndex);
+```
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `Load` receives a null stream or path.
+- `ArgumentException`: Thrown when `Load(string)` receives an empty path.
+- `InvalidDataException`: Thrown when the font data is malformed, truncated, or unsupported.
+- `ArgumentOutOfRangeException`: Thrown when `GetGlyphOutline` or `GetAdvanceWidth` receives an
+  out-of-range glyph index.
+
 ### PathFiller
 
 The `PathFiller` static class fills a closed `Geometry.Path` with a solid color onto a `Surface`,
@@ -1197,6 +1242,57 @@ var gradient = new RadialGradient(
 
 PathFiller.Fill(canvas, square, gradient);
 Console.WriteLine(canvas[32, 32].A); // Output: 255 (at the gradient's center)
+```
+
+## Example 12: Loading a TrueType Font and Filling a Glyph Outline
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Drawing;
+using DemaConsulting.CanvasNet.Fonts;
+using DemaConsulting.CanvasNet.Geometry;
+using System.Numerics;
+
+static Path TransformGlyph(Path glyph, float scale, float baselineY)
+{
+    var builder = new PathBuilder();
+
+    Vector2 ToCanvas(Vector2 point) => new(point.X * scale, baselineY - point.Y * scale);
+
+    foreach (var subpath in glyph.Subpaths)
+    {
+        builder.MoveTo(ToCanvas(subpath.Start));
+        foreach (var command in subpath.Commands)
+        {
+            switch (command.Type)
+            {
+                case PathCommandType.LineTo:
+                    builder.LineTo(ToCanvas(command.EndPoint));
+                    break;
+                case PathCommandType.QuadraticBezierTo:
+                    builder.QuadraticBezierTo(
+                        ToCanvas(command.Control1),
+                        ToCanvas(command.EndPoint));
+                    break;
+                case PathCommandType.Close:
+                    builder.Close();
+                    break;
+            }
+        }
+    }
+
+    return builder.Build();
+}
+
+var font = TrueTypeFont.Load("font.ttf");
+var glyphIndex = font.GetGlyphIndex('A');
+var glyphOutline = font.GetGlyphOutline(glyphIndex);
+var scale = 48f / font.UnitsPerEm;
+var canvasOutline = TransformGlyph(glyphOutline, scale, baselineY: 56f);
+
+var surface = new Surface(64, 64);
+PathFiller.Fill(surface, canvasOutline, new Rgba32(20, 120, 255, 255));
+Console.WriteLine(font.GetAdvanceWidth(glyphIndex));
 ```
 
 # References

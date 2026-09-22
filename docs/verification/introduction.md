@@ -1,5 +1,7 @@
 # Introduction
 
+<!-- cspell:ignore glyf sfnt -->
+
 This document provides the verification design for CanvasNet, a .NET library
 providing a canvas-based drawing and rendering API.
 
@@ -28,6 +30,12 @@ constituent software items, specifically:
   32-bit RGBA pixel buffer with span-based row access) and the `Rgba32` unit
 - **Codecs (Subsystem)** — Image format codecs: `BmpCodec`, `PngCodec`, `TiffCodec`, and
   `JpegCodec`, each converting to and from a `Surface` pixel buffer
+- **Geometry (Subsystem)** — Vector-geometry primitives: `Rect`, `Path`, `BezierFlattening`, and
+  `SvgArcConverter`
+- **Drawing (Subsystem)** — Vector rasterization and stroke conversion: `PathFiller`,
+  `PathStroker`, and `GradientPaint`
+- **Fonts (Subsystem)** — TrueType (`glyf`-based) SFNT font loading and glyph-outline extraction:
+  `TrueTypeFont`
 
 The following OTS items are also covered:
 

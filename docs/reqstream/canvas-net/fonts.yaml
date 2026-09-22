@@ -1,0 +1,102 @@
+---
+# Software Subsystem Requirements for Fonts
+#
+# These requirements decompose the CanvasNet system's TrueType font support into the Fonts
+# subsystem's own responsibility: loading a TrueType (glyf-based) SFNT font, mapping Unicode
+# codepoints to glyph indices, extracting glyph outlines as DemaConsulting.CanvasNet.Geometry.Path
+# geometry, and reporting metrics/advance widths/kerning (the TrueTypeFont unit). Each requirement
+# here links down to the unit requirements that implement it.
+# cspell:ignore glyf sfnt codepoint codepoints formedness renderable
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Fonts Requirements
+        requirements:
+          - id: CanvasNet-Fonts-Load
+            title: >-
+              The Fonts subsystem shall load a TrueType font from a stream or a file path,
+              exposing its metrics, and validating its input arguments and structural well-
+              formedness with a predictable exception contract.
+            justification: |
+              Callers need a reliable, self-contained way to load a TrueType font file before
+              extracting any glyph geometry or metrics from it, with clear failure behavior for
+              invalid arguments or malformed/unsupported font data.
+            children:
+              - CanvasNet-Fonts-TrueTypeFont-LoadStream
+              - CanvasNet-Fonts-TrueTypeFont-LoadPath
+              - CanvasNet-Fonts-TrueTypeFont-LoadNullStream
+              - CanvasNet-Fonts-TrueTypeFont-LoadNullPath
+              - CanvasNet-Fonts-TrueTypeFont-LoadEmptyPath
+              - CanvasNet-Fonts-TrueTypeFont-RejectUnrecognizedVersion
+              - CanvasNet-Fonts-TrueTypeFont-RejectCffOutlines
+              - CanvasNet-Fonts-TrueTypeFont-RejectMissingRequiredTable
+              - CanvasNet-Fonts-TrueTypeFont-RejectUnsupportedGlyphOutlineVersion
+              - CanvasNet-Fonts-TrueTypeFont-RejectInvalidUnitsPerEm
+              - CanvasNet-Fonts-TrueTypeFont-RejectInvalidGlyphLocationFormat
+              - CanvasNet-Fonts-TrueTypeFont-RejectOutOfBoundsTable
+              - CanvasNet-Fonts-TrueTypeFont-RejectTruncatedStream
+            tests:
+              - CanvasNet_SystemIntegration_LoadFontAndQueryMetrics_ReturnsExpectedValues
+
+          - id: CanvasNet-Fonts-GlyphMapping
+            title: >-
+              The Fonts subsystem shall map a Unicode codepoint (including codepoints outside the
+              Basic Multilingual Plane) to a glyph index, falling back to the conventional
+              "missing glyph" index without throwing when the codepoint is unmapped or the font
+              has no usable character map.
+            justification: |
+              Callers rendering text need every codepoint resolved to a glyph index before any
+              outline can be extracted, including the common cases of unsupported characters or a
+              font with no (or only a partially supported) character map.
+            children:
+              - CanvasNet-Fonts-TrueTypeFont-GlyphIndexBasicMultilingualPlane
+              - CanvasNet-Fonts-TrueTypeFont-GlyphIndexSupplementaryPlane
+              - CanvasNet-Fonts-TrueTypeFont-GlyphIndexUnmappedFallback
+              - CanvasNet-Fonts-TrueTypeFont-GlyphIndexNoCharacterMap
+            tests:
+              - CanvasNet_SystemIntegration_LoadFontAndFillGlyphOutline_ReturnsExpectedPixels
+
+          - id: CanvasNet-Fonts-GlyphOutlineExtraction
+            title: >-
+              The Fonts subsystem shall extract a glyph's outline as vector path geometry,
+              including simple glyphs, empty glyphs, and composite glyphs built from
+              transformed (and possibly nested) component glyphs, rejecting composite-glyph
+              cycles, excessive composite blow-up, point-matched components, and malformed
+              glyph data.
+            justification: |
+              Callers need renderable outline geometry for every glyph shape a TrueType font may
+              define, while a malformed or malicious font's glyph data must never be able to hang
+              or crash the calling process.
+            children:
+              - CanvasNet-Fonts-TrueTypeFont-GlyphOutlineSimple
+              - CanvasNet-Fonts-TrueTypeFont-GlyphOutlineEmpty
+              - CanvasNet-Fonts-TrueTypeFont-GlyphOutlineComposite
+              - CanvasNet-Fonts-TrueTypeFont-GlyphOutlineNestedComposite
+              - CanvasNet-Fonts-TrueTypeFont-GlyphOutlineRejectsCircularComposite
+              - CanvasNet-Fonts-TrueTypeFont-GlyphOutlineRejectsExcessiveComposite
+              - CanvasNet-Fonts-TrueTypeFont-GlyphOutlineRejectsExcessivePoints
+              - CanvasNet-Fonts-TrueTypeFont-GlyphOutlineRejectsPointMatchedComponent
+              - CanvasNet-Fonts-TrueTypeFont-GlyphOutlineRejectsMalformedGlyphData
+              - CanvasNet-Fonts-TrueTypeFont-GlyphIndexValidation
+            tests:
+              - CanvasNet_SystemIntegration_LoadFontAndFillGlyphOutline_ReturnsExpectedPixels
+
+          - id: CanvasNet-Fonts-Metrics
+            title: >-
+              The Fonts subsystem shall report each glyph's horizontal advance width and the
+              pairwise kerning adjustment between two glyphs, validating the glyph index argument
+              to the advance-width query and always returning a well-defined "no adjustment"
+              value for kerning, including when the font has no kerning table at all.
+            justification: |
+              Callers laying out successive glyphs along a line need each glyph's advance width
+              and any font-defined pairwise kerning adjustment, with kerning always safely
+              queryable regardless of whether the font actually defines any.
+            children:
+              - CanvasNet-Fonts-TrueTypeFont-AdvanceWidth
+              - CanvasNet-Fonts-TrueTypeFont-AdvanceWidthValidation
+              - CanvasNet-Fonts-TrueTypeFont-KerningLookup
+              - CanvasNet-Fonts-TrueTypeFont-KerningMissOrAbsentFallback
+              - CanvasNet-Fonts-TrueTypeFont-KerningMalformedTableTolerant
+            tests:
+              - CanvasNet_SystemIntegration_LoadFontAndQueryMetrics_ReturnsExpectedValues

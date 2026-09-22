@@ -378,6 +378,46 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/Drawing/ScanlineRasterizerTests.cs"  # gradient rasterization tests
       - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceTests.cs"  # per-pixel-color CompositeOverSpan tests
 
+  # CanvasNet-Fonts Review (one per subsystem)
+  - id: CanvasNet-Fonts
+    title: Review that CanvasNet Fonts Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/fonts.yaml"                # subsystem requirements
+      - "docs/design/canvas-net/fonts.md"                    # subsystem design
+      - "docs/verification/canvas-net/fonts.md"              # subsystem verification
+      - "test/DemaConsulting.CanvasNet.Tests/TestSupport/SyntheticFontBuilder.cs"  # shared test helper
+
+  # CanvasNet-Fonts-TrueTypeFont Review (one per unit)
+  - id: CanvasNet-Fonts-TrueTypeFont
+    title: Review that CanvasNet Fonts TrueTypeFont Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/fonts.md"
+      - "docs/reqstream/canvas-net/fonts.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/fonts/true-type-font.yaml"  # unit requirements
+      - "docs/design/canvas-net/fonts/true-type-font.md"      # unit design
+      - "docs/verification/canvas-net/fonts/true-type-font.md"  # unit verification
+      - "src/DemaConsulting.CanvasNet/Fonts/TrueTypeFont.cs"      # unit source
+      - "src/DemaConsulting.CanvasNet/Fonts/SfntContainer.cs"     # internal helper source
+      - "src/DemaConsulting.CanvasNet/Fonts/CmapTable.cs"         # internal helper source
+      - "src/DemaConsulting.CanvasNet/Fonts/GlyfLocaReader.cs"    # internal helper source
+      - "src/DemaConsulting.CanvasNet/Fonts/HmtxHheaReader.cs"    # internal helper source
+      - "src/DemaConsulting.CanvasNet/Fonts/KernTable.cs"         # internal helper source
+      - "src/DemaConsulting.CanvasNet/Fonts/NamespaceDoc.cs"      # Fonts namespace documentation
+      - "test/DemaConsulting.CanvasNet.Tests/Fonts/SfntContainerTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Fonts/CmapTableTests.cs"      # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Fonts/GlyfLocaReaderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Fonts/HmtxHheaReaderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Fonts/KernTableTests.cs"      # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Fonts/TrueTypeFontTests.cs"   # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Fonts/TrueTypeFontRealFontIntegrationTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/TestSupport/SyntheticFontBuilder.cs"  # shared test helper
+
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark
     title: Review that BuildMark Provides Required Functionality
