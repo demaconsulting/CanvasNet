@@ -250,7 +250,12 @@ internal sealed class GlyfLocaReader
             {
                 EnsureAvailable(pos, 1, limit);
                 var repeatCount = _data[pos++];
-                for (var r = 0; r < repeatCount && i2 < numPoints; r++)
+                if (repeatCount > numPoints - i2)
+                {
+                    throw new InvalidDataException("Glyph flag repeat count exceeds the declared point count.");
+                }
+
+                for (var r = 0; r < repeatCount; r++)
                 {
                     flags[i2++] = flag;
                 }

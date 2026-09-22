@@ -158,9 +158,14 @@ public sealed class TrueTypeFont
     /// <returns>
     ///     The mapped glyph index, or <c>0</c> (<c>.notdef</c>) if the codepoint is unmapped, or
     ///     the font has no <c>cmap</c> table, or no supported <c>cmap</c> subtable is present.
-    ///     Never throws.
+    ///     Always in <c>[0, GlyphCount)</c> - a malformed <c>cmap</c> subtable mapping a codepoint
+    ///     to a glyph index outside that range is clamped to <c>0</c>. Never throws.
     /// </returns>
-    public int GetGlyphIndex(int codepoint) => _cmap.GetGlyphIndex(codepoint);
+    public int GetGlyphIndex(int codepoint)
+    {
+        var glyphIndex = _cmap.GetGlyphIndex(codepoint);
+        return glyphIndex < 0 || glyphIndex >= GlyphCount ? 0 : glyphIndex;
+    }
 
     /// <summary>
     ///     Decodes a single glyph's outline.

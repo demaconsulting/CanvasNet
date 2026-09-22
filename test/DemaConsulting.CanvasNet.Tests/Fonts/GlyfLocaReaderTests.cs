@@ -103,6 +103,56 @@ public class GlyfLocaReaderTests
     }
 
     /// <summary>
+    ///     Proves that GlyfLocaReader SimpleGlyph FlagRepeatCountExceedsRemainingPoints
+    ///     ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void GlyfLocaReader_SimpleGlyph_FlagRepeatCountExceedsRemainingPoints_ThrowsInvalidDataException()
+    {
+        // Arrange: hand-build a simple glyph with a single 4-point contour whose first flag byte
+        // declares a repeat count (10) far exceeding the number of remaining point slots (3) -
+        // malformed input that must be rejected rather than silently clipped. Sufficient valid
+        // x/y coordinate bytes for all 4 points are appended so that, on the old/pre-fix code
+        // (which silently clips the repeat loop to `numPoints`), decoding would fully and
+        // successfully complete with no truncation - ensuring any throw can only originate from
+        // the repeat-count validation itself, not from running out of coordinate data.
+        var buf = new List<byte>();
+        SyntheticFontBuilder.WriteInt16(buf, 1); // numberOfContours
+        SyntheticFontBuilder.WriteInt16(buf, 0); // xMin
+        SyntheticFontBuilder.WriteInt16(buf, 0); // yMin
+        SyntheticFontBuilder.WriteInt16(buf, 0); // xMax
+        SyntheticFontBuilder.WriteInt16(buf, 0); // yMax
+        SyntheticFontBuilder.WriteUInt16(buf, 3); // endPts[0] -> numPoints = 4
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // instructionLength
+        buf.Add(0x08); // flag: REPEAT_FLAG set (neither X/Y-short nor X/Y-same bits set)
+        buf.Add(10); // repeatCount: far exceeds the 3 remaining point slots
+
+        // Trailing coordinate data: 4 points, each needing a 2-byte x delta followed (after all
+        // x deltas) by a 2-byte y delta, per the flag byte above - enough for the old/pre-fix
+        // code to decode the whole glyph without hitting a truncation-caused throw.
+        for (var p = 0; p < 4; p++)
+        {
+            SyntheticFontBuilder.WriteInt16(buf, 10); // x delta
+        }
+
+        for (var p = 0; p < 4; p++)
+        {
+            SyntheticFontBuilder.WriteInt16(buf, 10); // y delta
+        }
+
+        var glyph = buf.ToArray();
+
+        // Act: build the reader over the malformed glyph
+        var reader = BuildReader([glyph]);
+
+        // Assert: decoding the malformed glyph throws specifically because of the repeat-count
+        // validation - not merely any InvalidDataException, which could also arise from
+        // truncated coordinate data
+        var exception = Assert.Throws<InvalidDataException>(() => reader.GetGlyphOutline(0));
+        Assert.Contains("repeat count", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     ///     Proves that GlyfLocaReader EmptyGlyph ZeroContours ProducesEmptyPath.
     /// </summary>
     [Fact]

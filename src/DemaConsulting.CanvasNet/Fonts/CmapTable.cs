@@ -70,7 +70,7 @@ internal sealed class CmapTable
             var encodingId = SfntContainer.ReadUInt16(data, recordOffset + 2);
             var subtableOffset = SfntContainer.ReadInt32(data, recordOffset + 4);
 
-            if (subtableOffset < 0 || subtableOffset + 2 > tableLength)
+            if (subtableOffset < 0 || (long)subtableOffset + 2 > tableLength)
             {
                 continue;
             }
@@ -152,7 +152,7 @@ internal sealed class CmapTable
     /// </summary>
     private static Func<int, int>? TryParseFormat4(byte[] data, int offset, int tableEnd)
     {
-        if (offset + 14 > tableEnd)
+        if ((long)offset + 14 > tableEnd)
         {
             return null;
         }
@@ -231,7 +231,7 @@ internal sealed class CmapTable
     /// </summary>
     private static Func<int, int>? TryParseFormat12(byte[] data, int offset, int tableEnd)
     {
-        if (offset + 16 > tableEnd)
+        if ((long)offset + 16 > tableEnd)
         {
             return null;
         }

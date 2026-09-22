@@ -160,6 +160,38 @@ public class CmapTableTests
     }
 
     /// <summary>
+    ///     Proves that CmapTable SubtableOffsetNearIntMaxValue GetGlyphIndexReturnsZero.
+    /// </summary>
+    [Fact]
+    public void CmapTable_SubtableOffsetNearIntMaxValue_GetGlyphIndexReturnsZero()
+    {
+        // Arrange: build a cmap header whose single subtable offset is near int.MaxValue, so that
+        // a naive `subtableOffset + 2 > tableLength` bounds check would wrap around to a negative
+        // value and incorrectly pass. The buffer is padded past the single 8-byte encoding record
+        // (to at least `recordsEnd` = 8 + numTables * 8 = 16 bytes) so that `Parse` actually
+        // reaches the per-record subtableOffset bounds check inside the loop, rather than
+        // returning `Empty` early from the `recordsEnd > tableLength` guard before that check is
+        // ever exercised.
+        var buf = new List<byte>
+        {
+            0, 0, // version
+            0, 1, // numTables
+            0, 3, // platformId
+            0, 1, // encodingId
+        };
+        SyntheticFontBuilder.WriteUInt32(buf, 0x7FFFFFFF); // subtable offset near int.MaxValue
+        buf.AddRange(new byte[4]); // padding so tableLength (16) reaches recordsEnd (16)
+
+        // Act: parse the cmap table with the overflow-prone subtable offset
+        var data = buf.ToArray();
+        var cmap = CmapTable.Parse(data, 0, data.Length);
+
+        // Assert: the malformed offset is rejected (not wrapped-around-accepted) and lookups
+        // resolve to glyph index zero, without throwing
+        Assert.Equal(0, cmap.GetGlyphIndex(65));
+    }
+
+    /// <summary>
     ///     Proves that CmapTable UnrecognizedSubtableFormat GetGlyphIndexReturnsZero.
     /// </summary>
     [Fact]

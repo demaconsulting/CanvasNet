@@ -327,6 +327,41 @@ public class TrueTypeFontTests
     }
 
     /// <summary>
+    ///     Proves that TrueTypeFont GetGlyphIndex MalformedCmapOutOfRangeGlyphId ClampsToZero.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetGlyphIndex_MalformedCmapOutOfRangeGlyphId_ClampsToZero()
+    {
+        // Arrange: build a well-formed font (two glyphs, GlyphCount == 2) whose cmap maps
+        // codepoint 'A' to glyph index 999 - a malformed mapping outside [0, GlyphCount)
+        var glyph = SyntheticFontBuilder.SimpleGlyph(
+        [
+            [(0, 0, true), (10, 0, true), (10, 10, true), (0, 10, true)]
+        ]);
+
+        var cmap = SyntheticFontBuilder.CmapFormat4(3, 1, [(65, 999)]);
+
+        var data = new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(2))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 50, 2))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([0, 500]))
+            .AddTable("loca", SyntheticFontBuilder.Loca([0, glyph.Length], longFormat: false))
+            .AddTable("glyf", glyph)
+            .AddTable("cmap", cmap)
+            .Build();
+
+        // Act: load the font and resolve the malformed-mapped codepoint
+        var font = TrueTypeFont.Load(new MemoryStream(data));
+        var glyphIndex = font.GetGlyphIndex(65);
+
+        // Assert: the out-of-range mapped glyph index is clamped to zero rather than propagated,
+        // so it never breaks GetGlyphOutline's [0, GlyphCount) contract
+        Assert.Equal(0, glyphIndex);
+        font.GetGlyphOutline(glyphIndex); // must not throw
+    }
+
+    /// <summary>
     ///     Proves that TrueTypeFont Load TruncatedStream ThrowsInvalidDataException.
     /// </summary>
     [Fact]
