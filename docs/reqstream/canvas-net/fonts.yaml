@@ -75,6 +75,7 @@ sections:
               - CanvasNet-Fonts-TrueTypeFont-GlyphOutlineNestedComposite
               - CanvasNet-Fonts-TrueTypeFont-GlyphOutlineRejectsCircularComposite
               - CanvasNet-Fonts-TrueTypeFont-GlyphOutlineRejectsExcessiveComposite
+              - CanvasNet-Fonts-TrueTypeFont-GlyphOutlineRejectsExcessivePoints
               - CanvasNet-Fonts-TrueTypeFont-GlyphOutlineRejectsPointMatchedComponent
               - CanvasNet-Fonts-TrueTypeFont-GlyphOutlineRejectsMalformedGlyphData
               - CanvasNet-Fonts-TrueTypeFont-GlyphIndexValidation
