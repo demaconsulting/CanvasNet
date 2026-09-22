@@ -85,4 +85,12 @@
     </None>
   </ItemGroup>
 
+  <!-- Real-world "Open Sans" TrueType font fixture, used by Fonts real-font integration tests
+       (see FontFixtures\README.md for provenance and SIL OFL 1.1 licensing) -->
+  <ItemGroup>
+    <None Include="FontFixtures\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
