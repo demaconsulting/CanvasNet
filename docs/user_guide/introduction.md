@@ -905,11 +905,14 @@ public LinearGradient(
     Vector2 end,
     IReadOnlyList<GradientStop> stops,
     GradientSpread spread = GradientSpread.Pad,
-    Matrix3x2 transform = default)
+    Matrix3x2? transform = null)
 ```
 
 `start` equal to `end` (a zero-length gradient vector) is accepted - this degenerate case
-flat-fills with the last stop's color when painting a fill.
+flat-fills with the last stop's color when painting a fill. Omitting `transform` (or passing
+`null`) is equivalent to supplying `Matrix3x2.Identity`; an explicitly-supplied `Matrix3x2` value -
+including the all-zero `default(Matrix3x2)` matrix, a legitimate (if singular) transform - is
+preserved exactly as given.
 
 **Exceptions:**
 
@@ -948,13 +951,16 @@ public RadialGradient(
     float endRadius,
     IReadOnlyList<GradientStop> stops,
     GradientSpread spread = GradientSpread.Pad,
-    Matrix3x2 transform = default)
+    Matrix3x2? transform = null)
 ```
 
 A point outside every circle the two-circle family sweeps through (when the two circles do not
 overlap or contain one another) is left unpainted (fully transparent) rather than resolved to any
-stop's color. Both radii zero with coincident centers flat-fills with the last stop's color, the
-same degenerate policy as `LinearGradient`'s zero-length vector.
+stop's color. A start and end circle sharing the same center and the same radius (whether that
+shared radius is zero or a nonzero value) flat-fills with the last stop's color, the same
+degenerate policy as `LinearGradient`'s zero-length vector. As with `LinearGradient`, omitting
+`transform` (or passing `null`) is equivalent to supplying `Matrix3x2.Identity`, while an
+explicitly-supplied value - including the all-zero matrix - is preserved exactly as given.
 
 **Exceptions:**
 
