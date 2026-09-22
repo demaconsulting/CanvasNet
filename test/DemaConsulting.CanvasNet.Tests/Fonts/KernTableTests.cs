@@ -1,6 +1,7 @@
 // cspell:ignore SFNT Sfnt sfnt glyf Glyf cmap Cmap loca Loca hmtx Hmtx hhea Hhea
 // cspell:ignore maxp Maxp notdef codepoint codepoints subtable subtables subsetted
 // cspell:ignore subsetting PPEM OTTO
+// cspell:ignore unwidened
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 
@@ -147,6 +148,50 @@ public class KernTableTests
 
         // Assert: the unsupported format is ignored and lookups resolve to zero
         Assert.Equal(0, kern.GetKerning(3, 4));
+    }
+
+    /// <summary>
+    ///     Proves that KernTable SubtableLengthOverflowsPosition IsTolerant ReturnsZero.
+    /// </summary>
+    [Fact]
+    public void KernTable_SubtableLengthOverflowsPosition_IsTolerant_ReturnsZero()
+    {
+        // Arrange: choose a huge table offset such that, computed with unwidened 32-bit `int`
+        // arithmetic, `pos + subtableLength` (pos = tableOffset + 4, subtableLength = 0xFFFF, the
+        // maximum ushort) wraps past int.MaxValue to a large negative value. That wrapped value
+        // would incorrectly pass the `subtableEnd > tableEnd` bounds guard, and - because the
+        // first subtable's coverage below is deliberately unsupported (format 2), so the loop
+        // advances `pos` to that corrupted, wrapped value - drive a subsequent read to a deeply
+        // out-of-bounds (negative) array index on the second declared subtable.
+        const int subtableLength = 0xFFFF;
+        const long overflowSum = (long)int.MaxValue + 1; // wraps to int.MinValue in 32-bit arithmetic
+        var tableOffset = (int)(overflowSum - 4 - subtableLength);
+        const int tableLength = 20;
+
+        var data = new byte[tableOffset + tableLength];
+        WriteUInt16BigEndian(data, tableOffset, 0); // kern table version
+        WriteUInt16BigEndian(data, tableOffset + 2, 2); // numSubtables: a second subtable is declared
+        WriteUInt16BigEndian(data, tableOffset + 4, 0); // subtable version (unused)
+        WriteUInt16BigEndian(data, tableOffset + 6, subtableLength); // subtable length: overflow-prone
+        WriteUInt16BigEndian(data, tableOffset + 8, 0x0201); // coverage: format 2 (unsupported), horizontal
+
+        // Act: parse the kern table with the crafted overflow-prone subtable length
+        var kern = KernTable.Parse(data, tableOffset, tableLength);
+
+        // Assert: the overflowing subtable length is rejected (rather than wrapping into a
+        // corrupted position that would read out of bounds) and lookups resolve to zero
+        Assert.Equal(0, kern.GetKerning(3, 4));
+    }
+
+    /// <summary>
+    ///     Writes a big-endian, unsigned 16-bit integer directly into a raw byte array at the
+    ///     given offset (bypasses <see cref="SyntheticFontBuilder"/>'s <c>List&lt;byte&gt;</c>-based
+    ///     helpers, which are impractical for the near-2GB sparse array this test requires).
+    /// </summary>
+    private static void WriteUInt16BigEndian(byte[] data, int offset, int value)
+    {
+        data[offset] = (byte)((value >> 8) & 0xFF);
+        data[offset + 1] = (byte)(value & 0xFF);
     }
 
     /// <summary>

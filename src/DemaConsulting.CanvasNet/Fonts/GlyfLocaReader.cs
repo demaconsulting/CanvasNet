@@ -1,6 +1,7 @@
 // cspell:ignore SFNT Sfnt sfnt glyf Glyf cmap Cmap loca Loca hmtx Hmtx hhea Hhea
 // cspell:ignore maxp Maxp notdef codepoint codepoints subtable subtables subsetted
 // cspell:ignore subsetting PPEM OTTO
+// cspell:ignore HarfBuzz
 using System.Numerics;
 using DemaConsulting.CanvasNet.Geometry;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
@@ -51,6 +52,8 @@ internal sealed class GlyfLocaReader
     private const int MoreComponents = 0x0020;
     private const int WeHaveAnXAndYScale = 0x0040;
     private const int WeHaveATwoByTwo = 0x0080;
+    private const int ScaledComponentOffset = 0x0800;
+    private const int UnscaledComponentOffset = 0x1000;
 
     private readonly byte[] _data;
     private readonly int _glyfOffset;
@@ -458,6 +461,20 @@ internal sealed class GlyfLocaReader
             }
 
             var componentPath = DecodeGlyph(componentGlyphIndex, depth, ref totalComponents);
+
+            // Per the OpenType/TrueType 'glyf' spec, SCALED_COMPONENT_OFFSET requests that the
+            // component's translation be transformed through its own scale/2x2 matrix before
+            // being applied, while UNSCALED_COMPONENT_OFFSET forces the untransformed offset; if
+            // both flags are set, UNSCALED_COMPONENT_OFFSET takes precedence (matching FreeType's
+            // and HarfBuzz's behavior). The default, when neither flag is set, is unscaled.
+            if ((flags & UnscaledComponentOffset) == 0 && (flags & ScaledComponentOffset) != 0)
+            {
+                var scaledDx = a * dx + c * dy;
+                var scaledDy = b * dx + d * dy;
+                dx = scaledDx;
+                dy = scaledDy;
+            }
+
             AppendTransformed(builder, componentPath, a, b, c, d, dx, dy);
             hasContent = true;
 

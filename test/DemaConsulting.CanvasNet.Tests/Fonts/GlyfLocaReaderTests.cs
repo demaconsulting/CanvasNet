@@ -310,6 +310,39 @@ public class GlyfLocaReaderTests
     }
 
     /// <summary>
+    ///     Proves that GlyfLocaReader CompositeGlyph ScaledComponentOffset TransformsTranslation.
+    /// </summary>
+    [Fact]
+    public void GlyfLocaReader_CompositeGlyph_ScaledComponentOffset_TransformsTranslation()
+    {
+        // Arrange: build a square glyph and a composite applying a 90-degree counter-clockwise
+        // rotation matrix (a=0, b=1, c=-1, d=0) together with SCALED_COMPONENT_OFFSET and a
+        // dx/dy translation of (10, 0). Per the OpenType/TrueType spec, SCALED_COMPONENT_OFFSET
+        // requires the translation itself to be transformed through the component's own matrix
+        // before being applied: (dx', dy') = (a*dx + c*dy, b*dx + d*dy) = (0*10 + -1*0, 1*10 + 0*0)
+        // = (0, 10) - not the untransformed (10, 0) that unscaled-offset semantics would apply.
+        var square = SyntheticFontBuilder.SimpleGlyph(
+        [
+            [(0, 0, true), (10, 0, true), (10, 10, true), (0, 10, true)]
+        ]);
+        var composite = SyntheticFontBuilder.CompositeGlyph(
+        [
+            new SyntheticFontBuilder.CompositeComponent(
+                0, 10, 0, HasTwoByTwo: true, A: 0f, B: 1f, C: -1f, D: 0f, ScaledComponentOffset: true)
+        ]);
+
+        // Act: build the reader and get the composite glyph outline
+        var reader = BuildReader([square, composite]);
+        var path = reader.GetGlyphOutline(1);
+
+        // Assert: the outline's start point is the component's own matrix applied to the
+        // translation - (0, 10) - rather than the unscaled (10, 0) offset
+        var subpath = Assert.Single(path.Subpaths);
+        Assert.Equal(0f, subpath.Start.X, 2);
+        Assert.Equal(10f, subpath.Start.Y, 2);
+    }
+
+    /// <summary>
     ///     Proves that GlyfLocaReader CompositeGlyph NestedComposite ResolvesRecursively.
     /// </summary>
     [Fact]

@@ -125,7 +125,11 @@ points synthesize the implied on-curve midpoint required by the TrueType contour
 <!-- markdownlint-enable MD013 -->
 
 Supported component transforms are translation, uniform scale, independent X/Y scale, and full
-2x2 matrix transforms using F2Dot14 fixed-point values.
+2x2 matrix transforms using F2Dot14 fixed-point values. When a component's `flags` set
+`SCALED_COMPONENT_OFFSET` (and not `UNSCALED_COMPONENT_OFFSET`), the component's dx/dy
+translation is itself transformed through that component's scale/2x2 matrix before being applied,
+rather than applied unscaled; `UNSCALED_COMPONENT_OFFSET` takes precedence if both flags are set,
+and the default (neither flag set) is unscaled.
 
 ##### `cmap` Subtables Used
 

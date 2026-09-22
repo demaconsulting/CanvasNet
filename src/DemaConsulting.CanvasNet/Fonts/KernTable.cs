@@ -66,18 +66,20 @@ internal sealed class KernTable
 
         for (var i = 0; i < numSubtables; i++)
         {
-            if (pos + 6 > tableEnd)
+            if ((long)pos + 6 > tableEnd)
             {
                 return Empty;
             }
 
             var subtableLength = SfntContainer.ReadUInt16(data, pos + 2);
             var coverage = SfntContainer.ReadUInt16(data, pos + 4);
-            var subtableEnd = pos + subtableLength;
-            if (subtableLength < 6 || subtableEnd > tableEnd)
+            var subtableEndLong = (long)pos + subtableLength;
+            if (subtableLength < 6 || subtableEndLong > tableEnd)
             {
                 return Empty;
             }
+
+            var subtableEnd = (int)subtableEndLong;
 
             var format = (coverage >> 8) & 0xFF;
             var horizontal = (coverage & 0x1) != 0;

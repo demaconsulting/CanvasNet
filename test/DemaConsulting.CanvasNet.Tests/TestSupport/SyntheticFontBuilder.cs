@@ -321,7 +321,9 @@ internal sealed class SyntheticFontBuilder
         float D = 1f,
         bool HasScale = false,
         bool HasXyScale = false,
-        bool HasTwoByTwo = false);
+        bool HasTwoByTwo = false,
+        bool ScaledComponentOffset = false,
+        bool UnscaledComponentOffset = false);
 
     /// <summary>
     ///     Builds a composite glyph (<c>numberOfContours == -1</c>) from an ordered list of
@@ -367,6 +369,16 @@ internal sealed class SyntheticFontBuilder
                 flags |= 0x0080;
             }
 
+            if (component.ScaledComponentOffset)
+            {
+                flags |= 0x0800; // SCALED_COMPONENT_OFFSET
+            }
+
+            if (component.UnscaledComponentOffset)
+            {
+                flags |= 0x1000; // UNSCALED_COMPONENT_OFFSET
+            }
+
             WriteUInt16(buf, flags);
             WriteUInt16(buf, component.GlyphIndex);
             WriteInt16(buf, component.Dx);
@@ -407,7 +419,7 @@ internal sealed class SyntheticFontBuilder
         // mandatory trailing 0xFFFF terminator segment.
         var segCount = ordered.Count + 1;
         WriteUInt16(subtable, 4); // format
-        WriteUInt16(subtable, 0); // length placeholder (not validated by the decoder)
+        WriteUInt16(subtable, 16 + segCount * 8); // length: declared subtable length, matching the encoding below
         WriteUInt16(subtable, 0); // language
         WriteUInt16(subtable, segCount * 2);
         WriteUInt16(subtable, 0); // searchRange
@@ -455,7 +467,7 @@ internal sealed class SyntheticFontBuilder
         var subtable = new List<byte>();
         WriteUInt16(subtable, 12); // format
         WriteUInt16(subtable, 0); // reserved
-        WriteUInt32(subtable, 0); // length placeholder
+        WriteUInt32(subtable, (uint)(16 + groups.Count * 12)); // length: declared subtable length, matching the encoding below
         WriteUInt32(subtable, 0); // language
         WriteUInt32(subtable, (uint)groups.Count);
 

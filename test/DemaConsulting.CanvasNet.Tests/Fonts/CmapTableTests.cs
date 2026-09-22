@@ -1,6 +1,7 @@
 // cspell:ignore SFNT Sfnt sfnt glyf Glyf cmap Cmap loca Loca hmtx Hmtx hhea Hhea
 // cspell:ignore maxp Maxp notdef codepoint codepoints subtable subtables subsetted
 // cspell:ignore subsetting PPEM OTTO
+// cspell:ignore misaligns
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 
@@ -188,6 +189,111 @@ public class CmapTableTests
 
         // Assert: the malformed offset is rejected (not wrapped-around-accepted) and lookups
         // resolve to glyph index zero, without throwing
+        Assert.Equal(0, cmap.GetGlyphIndex(65));
+    }
+
+    /// <summary>
+    ///     Proves that CmapTable Format4 DeclaredLengthShorterThanEnclosingTable IsRejected.
+    /// </summary>
+    [Fact]
+    public void CmapTable_Format4_DeclaredLengthShorterThanEnclosingTable_IsRejected()
+    {
+        // Arrange: build a cmap with a single (3,1) format-4 subtable whose own declared `length`
+        // field (20) is deliberately shorter than the bytes actually needed to complete parsing
+        // (32 bytes: header + endCodes/startCodes/idDelta/idRangeOffset arrays for segCount=2).
+        // The extra bytes beyond the declared length are physically present in the buffer (as
+        // they would be for a genuine following subtable packed immediately afterward) and are
+        // populated with a distinguishing, deliberately "foreign" mapping - codepoint 65 maps to
+        // 999 - so that a decoder which is only bounded by the *enclosing* cmap table (and
+        // ignores this subtable's own shorter declared length) can be proven to have read past
+        // the subtable's own bounds.
+        var buf = new List<byte>
+        {
+            0, 0, // cmap version
+            0, 1, // numTables
+            0, 3, // platformId
+            0, 1, // encodingId
+        };
+        SyntheticFontBuilder.WriteUInt32(buf, 12); // subtable offset: immediately after this 12-byte header
+
+        SyntheticFontBuilder.WriteUInt16(buf, 4); // format
+        SyntheticFontBuilder.WriteUInt16(buf, 20); // declared length: covers only the header + endCodes + reservedPad
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // language
+        SyntheticFontBuilder.WriteUInt16(buf, 4); // segCountX2 (segCount = 2: one real segment + terminator)
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // searchRange
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // entrySelector
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // rangeShift
+        SyntheticFontBuilder.WriteUInt16(buf, 65); // endCodes[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 0xFFFF); // endCodes[1] (terminator)
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // reservedPad - declared subtable length (20) ends here
+
+        // Bytes beyond the declared length (20): a "foreign" startCodes/idDelta/idRangeOffset
+        // region that a correct decoder must not treat as belonging to this subtable.
+        SyntheticFontBuilder.WriteUInt16(buf, 65); // "foreign" startCodes[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 0xFFFF); // "foreign" startCodes[1]
+        SyntheticFontBuilder.WriteUInt16(buf, 934); // "foreign" idDeltas[0]: (65 + 934) & 0xFFFF == 999
+        SyntheticFontBuilder.WriteUInt16(buf, 1); // "foreign" idDeltas[1]
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // "foreign" idRangeOffsets[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // "foreign" idRangeOffsets[1]
+
+        // Act: parse the cmap table
+        var data = buf.ToArray();
+        var cmap = CmapTable.Parse(data, 0, data.Length);
+
+        // Assert: the subtable's own declared length is enforced - it cannot borrow the
+        // "foreign" bytes beyond it - so parsing is rejected and the lookup resolves to zero
+        // rather than the "foreign" bogus glyph index (999) those bytes would otherwise produce
+        Assert.Equal(0, cmap.GetGlyphIndex(65));
+    }
+
+    /// <summary>
+    ///     Proves that CmapTable Format4 OddSegCountX2 IsRejected.
+    /// </summary>
+    [Fact]
+    public void CmapTable_Format4_OddSegCountX2_IsRejected()
+    {
+        // Arrange: build a cmap with a single (3,1) format-4 subtable declaring an odd
+        // segCountX2 (5), which the format-4 spec requires to always be even (segCount * 2). A
+        // decoder that only truncates `segCount = segCountX2 / 2` (yielding 2) while still using
+        // the untruncated odd segCountX2 to compute the startCode/idDelta/idRangeOffset array
+        // base offsets misaligns those parallel arrays by one byte, and can still produce a
+        // "successful" (but bogus) lookup rather than failing safely.
+        var buf = new List<byte>
+        {
+            0, 0, // cmap version
+            0, 1, // numTables
+            0, 3, // platformId
+            0, 1, // encodingId
+        };
+        SyntheticFontBuilder.WriteUInt32(buf, 12); // subtable offset
+
+        SyntheticFontBuilder.WriteUInt16(buf, 4); // format
+        SyntheticFontBuilder.WriteUInt16(buf, 36); // declared length (covers the full crafted subtable below)
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // language
+        SyntheticFontBuilder.WriteUInt16(buf, 5); // segCountX2: odd - malformed
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // searchRange
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // entrySelector
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // rangeShift
+        SyntheticFontBuilder.WriteUInt16(buf, 65); // endCodes[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // endCodes[1] (unused by this test's lookup path)
+        buf.AddRange(new byte[3]); // unread gap before the (misaligned) startCodeOffset
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // startCodes[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // startCodes[1] (unused)
+        buf.Add(0); // unread gap before the (misaligned) idDeltaOffset
+        SyntheticFontBuilder.WriteUInt16(buf, 500); // idDeltas[0]: (65 + 500) & 0xFFFF == 565
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // idDeltas[1] (unused)
+        buf.Add(0); // unread gap before the (misaligned) idRangeOffsetOffset
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // idRangeOffsets[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // idRangeOffsets[1] (unused)
+        buf.Add(0); // pad out to the declared 36-byte subtable length
+
+        // Act: parse the cmap table with the malformed odd segCountX2
+        var data = buf.ToArray();
+        var cmap = CmapTable.Parse(data, 0, data.Length);
+
+        // Assert: the odd segCountX2 is rejected outright rather than tolerated via truncating
+        // division, so the lookup resolves to zero rather than the misaligned bogus glyph index
+        // (565) that reading through the shifted arrays would otherwise produce
         Assert.Equal(0, cmap.GetGlyphIndex(65));
     }
 

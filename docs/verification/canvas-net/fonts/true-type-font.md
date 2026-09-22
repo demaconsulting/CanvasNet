@@ -171,10 +171,12 @@ Asserts both a zero-contour simple glyph and a zero-length `loca` entry decode a
 **Tests**: `GlyfLocaReader_CompositeGlyph_SingleComponent_ProducesTranslatedOutline`,
 `GlyfLocaReader_CompositeGlyph_ScaledComponent_ScalesOutline`,
 `GlyfLocaReader_CompositeGlyph_TwoByTwoTransform_TransformsOutline`,
-`GlyfLocaReader_CompositeGlyph_MultipleComponents_ProducesMultipleSubpaths`
+`GlyfLocaReader_CompositeGlyph_MultipleComponents_ProducesMultipleSubpaths`,
+`GlyfLocaReader_CompositeGlyph_ScaledComponentOffset_TransformsTranslation`
 
-Verifies translation, uniform scaling, full 2x2 transforms, and multiple components within a
-single composite glyph.
+Verifies translation, uniform scaling, full 2x2 transforms, multiple components within a single
+composite glyph, and that `SCALED_COMPONENT_OFFSET` transforms a component's dx/dy translation
+through its own scale/2x2 matrix rather than applying it unscaled.
 
 ##### CanvasNet-Fonts-TrueTypeFont-GlyphOutlineNestedComposite: Nested Composites Resolve Recursively
 

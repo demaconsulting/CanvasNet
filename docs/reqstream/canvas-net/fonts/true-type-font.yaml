@@ -232,6 +232,7 @@ sections:
                   - GlyfLocaReader_CompositeGlyph_ScaledComponent_ScalesOutline
                   - GlyfLocaReader_CompositeGlyph_TwoByTwoTransform_TransformsOutline
                   - GlyfLocaReader_CompositeGlyph_MultipleComponents_ProducesMultipleSubpaths
+                  - GlyfLocaReader_CompositeGlyph_ScaledComponentOffset_TransformsTranslation
 
               - id: CanvasNet-Fonts-TrueTypeFont-GlyphOutlineNestedComposite
                 title: >-

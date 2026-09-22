@@ -1,6 +1,7 @@
 // cspell:ignore SFNT Sfnt sfnt glyf Glyf cmap Cmap loca Loca hmtx Hmtx hhea Hhea
 // cspell:ignore maxp Maxp notdef codepoint codepoints subtable subtables subsetted
 // cspell:ignore subsetting PPEM OTTO
+// cspell:ignore misalign
 namespace DemaConsulting.CanvasNet.Fonts;
 
 /// <summary>
@@ -87,11 +88,18 @@ internal sealed class CmapTable
 
         candidates.Sort((a, b) => a.Priority.CompareTo(b.Priority));
 
+        var enclosingTableEnd = tableOffset + tableLength;
         foreach (var candidate in candidates)
         {
+            var subtableEnd = ComputeSubtableEnd(data, candidate.SubtableOffset, candidate.Format, enclosingTableEnd);
+            if (subtableEnd == null)
+            {
+                continue;
+            }
+
             var lookup = candidate.Format == 12
-                ? TryParseFormat12(data, candidate.SubtableOffset, tableOffset + tableLength)
-                : TryParseFormat4(data, candidate.SubtableOffset, tableOffset + tableLength);
+                ? TryParseFormat12(data, candidate.SubtableOffset, subtableEnd.Value)
+                : TryParseFormat4(data, candidate.SubtableOffset, subtableEnd.Value);
 
             if (lookup != null)
             {
@@ -100,6 +108,43 @@ internal sealed class CmapTable
         }
 
         return Empty;
+    }
+
+    /// <summary>
+    ///     Computes the effective end offset for a candidate subtable, bounded by both the
+    ///     enclosing <c>cmap</c> table's end and the subtable's own declared <c>length</c> field
+    ///     (offset +2, uint16, for format 4; offset +4, uint32, for format 12), so that a subtable
+    ///     cannot read past its own declared length into a following subtable's bytes.
+    /// </summary>
+    /// <returns>
+    ///     The effective end offset, or <see langword="null"/> if the declared length field is not
+    ///     itself readable within the enclosing table, or the declared length does not fit within
+    ///     the enclosing table's bounds.
+    /// </returns>
+    private static int? ComputeSubtableEnd(byte[] data, int subtableOffset, int format, int enclosingTableEnd)
+    {
+        long declaredLength;
+        if (format == 12)
+        {
+            if ((long)subtableOffset + 8 > enclosingTableEnd)
+            {
+                return null;
+            }
+
+            declaredLength = SfntContainer.ReadUInt32(data, subtableOffset + 4);
+        }
+        else
+        {
+            if ((long)subtableOffset + 4 > enclosingTableEnd)
+            {
+                return null;
+            }
+
+            declaredLength = SfntContainer.ReadUInt16(data, subtableOffset + 2);
+        }
+
+        var subtableEnd = checked((long)subtableOffset + declaredLength);
+        return subtableEnd > enclosingTableEnd ? null : (int)subtableEnd;
     }
 
     /// <summary>
@@ -158,6 +203,14 @@ internal sealed class CmapTable
         }
 
         var segCountX2 = SfntContainer.ReadUInt16(data, offset + 6);
+        if (segCountX2 % 2 != 0)
+        {
+            // segCountX2 must be an even byte count (segCount * 2); an odd value is malformed and
+            // would otherwise silently misalign the parallel endCode/startCode/idDelta/idRangeOffset
+            // arrays via truncating integer division.
+            return null;
+        }
+
         var segCount = segCountX2 / 2;
         if (segCount == 0)
         {
