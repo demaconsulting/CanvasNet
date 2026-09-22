@@ -322,6 +322,24 @@ Separately, calls `CompositeOverSpan` with a negative `x`, and separately with a
 whose `x + coverage.Length` exceeds `Width`, and asserts `ArgumentOutOfRangeException` is thrown
 in both cases.
 
+#### CanvasNet-Canvas-Surface-CompositeOverSpanPerPixelColor: Per-Pixel-Color CompositeOverSpan Matches the Constant-Color Overload
+
+**Tests**:
+`Surface_CompositeOverSpan_PerPixelColors_MatchesConstantColorOverload_WhenAllColorsEqual`,
+`Surface_CompositeOverSpan_PerPixelColors_FullCoverage_AppliesEachPixelsOwnColor`,
+`Surface_CompositeOverSpan_PerPixelColors_ZeroCoverage_LeavesBackgroundUnchanged`,
+`Surface_CompositeOverSpan_PerPixelColors_LengthMismatch_ThrowsArgumentException`,
+`Surface_CompositeOverSpanWithWorkspace_PerPixelColors_MatchesPublicOverload`
+
+Composites a per-pixel `ReadOnlySpan<Rgba32>` over an identical background using both the
+per-pixel-color overload and the constant-color overload (with every entry of the per-pixel span
+set to the same color) and asserts the two produce byte-for-byte identical surfaces - proving the
+refactor sharing `CompositeOverSpanCore`'s blend math between both overloads left the pre-existing
+constant-color overload's behavior unchanged. Separately verifies each pixel's own color is
+applied at full coverage, that zero coverage leaves the background unchanged, that a
+`colors`/`coverage` length mismatch throws `ArgumentException`, and that the internal
+workspace-reusing per-pixel-color overload matches the public overload's output exactly.
+
 #### Rgba32 Sanity Checks (no requirement link)
 
 **Tests**: `Rgba32_FieldAssignment_StoresChannelValues`, `Rgba32_Equals_SameChannelValues_ReturnsTrue`

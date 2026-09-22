@@ -312,3 +312,25 @@ sections:
                   - Surface_CompositeOverSpan_YAtHeight_ThrowsArgumentOutOfRangeException
                   - Surface_CompositeOverSpan_NegativeX_ThrowsArgumentOutOfRangeException
                   - Surface_CompositeOverSpan_RunExceedsWidth_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Canvas-Surface-CompositeOverSpanPerPixelColor
+                title: >-
+                  The Surface class shall composite an independent color, supplied per pixel, "over"
+                  a horizontal run of pixels within a single row of itself in place, scaling each
+                  pixel's own color's effective alpha by that same pixel's caller-supplied coverage
+                  value in [0, 1], producing results identical to the constant-color overload
+                  whenever every supplied color happens to be equal, and shall reject a per-pixel
+                  color collection whose length does not match the coverage collection's length
+                  with ArgumentException.
+                justification: |
+                  A caller painting a gradient (or any other per-pixel varying color source) across
+                  a row needs to supply a distinct color for every pixel in the run, not only a
+                  single shared color; this must produce byte-for-byte identical output to the
+                  existing constant-color overload for the degenerate case where every pixel happens
+                  to share the same color, proving both overloads share their underlying blend math.
+                tests:
+                  - Surface_CompositeOverSpan_PerPixelColors_MatchesConstantColorOverload_WhenAllColorsEqual
+                  - Surface_CompositeOverSpan_PerPixelColors_FullCoverage_AppliesEachPixelsOwnColor
+                  - Surface_CompositeOverSpan_PerPixelColors_ZeroCoverage_LeavesBackgroundUnchanged
+                  - Surface_CompositeOverSpan_PerPixelColors_LengthMismatch_ThrowsArgumentException
+                  - Surface_CompositeOverSpanWithWorkspace_PerPixelColors_MatchesPublicOverload

@@ -270,10 +270,10 @@ internal static class GradientEvaluator
                 return t - Math.Floor(t);
 
             case GradientSpread.Reflect:
-            {
-                var u = t - (2.0 * Math.Floor(t / 2.0));
-                return u <= 1.0 ? u : 2.0 - u;
-            }
+                {
+                    var u = t - (2.0 * Math.Floor(t / 2.0));
+                    return u <= 1.0 ? u : 2.0 - u;
+                }
 
             case GradientSpread.Pad:
             default:

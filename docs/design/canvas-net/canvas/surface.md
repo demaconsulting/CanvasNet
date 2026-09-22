@@ -260,6 +260,31 @@ blend pipeline itself.
 - `ArgumentOutOfRangeException` — when `y` is outside `[0, Height)`
 - `ArgumentOutOfRangeException` — when `x` is negative, or `x + coverage.Length` exceeds `Width`
 
+#### CompositeOverSpan(int y, int x, ReadOnlySpan\<float\> coverage, ReadOnlySpan\<Rgba32\> colors)
+
+Composites an independent foreground color, supplied per pixel via `colors`, "over" a horizontal
+run of `coverage.Length` pixels within row `y`, starting at column `x`, using the same Porter-Duff
+"over" formula, rounding rule, and coverage-scaling semantics as the constant-color
+`CompositeOverSpan(int, int, ReadOnlySpan<float>, Rgba32)` overload above - the only difference is
+that pixel `i`'s foreground color comes from `colors[i]` rather than a single shared `color`
+value. Producing byte-for-byte identical output to the constant-color overload whenever every
+entry of `colors` happens to be equal is a direct consequence of both overloads sharing the same
+private `CompositeOverSpanCore`/`CompositeOverSpanCoreShared` blend body (see the shared-blend
+refactor note below) - only the foreground buffer's _population_ differs between the two
+overloads, never the blend math itself.
+
+**Architectural motivation**: this overload exists for per-pixel-varying-color callers - most
+notably the `Drawing` subsystem's gradient-aware `ScanlineRasterizer.Fill` overload (see
+`../drawing/gradient-paint.md`) - which need a different color at every pixel of a rasterized
+row (one gradient-evaluated color per pixel), not a single shared color, while still reusing
+every bit of the existing antialiased-coverage compositing pipeline.
+
+**Throws:**
+
+- `ArgumentOutOfRangeException` — when `y` is outside `[0, Height)`
+- `ArgumentOutOfRangeException` — when `x` is negative, or `x + coverage.Length` exceeds `Width`
+- `ArgumentException` — when `colors.Length` does not equal `coverage.Length`
+
 **Implementation note (all three bulk pixel operations)**: each row is deinterleaved from RGBA
 byte order into planar `R`/`G`/`B`/`A` arrays via a simple scalar loop (this transform is layout
 work, not numeric work, so clarity is prioritized over vectorizing it), then the numerically
@@ -309,8 +334,12 @@ their own `width <= Surface.MaxDimension && height <= Surface.MaxDimension` comp
 now-public `Surface.MaxDimension`. `Surface` is also invoked internally by the `Drawing`
 subsystem's `PathFiller` unit, which calls `CompositeOverSpan` to composite each rasterized row's
 antialiased coverage directly — see _PathFiller Unit Design_ (`../drawing/path-filler.md`) for
-details of that dependency. `Surface` itself has no dependency on any codec, on `Drawing`, or on
-any other unit.
+details of that dependency, and by the `Drawing` subsystem's `GradientPaint` unit's
+`ScanlineRasterizer.Fill` gradient overload, which calls the per-pixel-color
+`CompositeOverSpan(int, int, ReadOnlySpan<float>, ReadOnlySpan<Rgba32>)` overload to composite one
+gradient-evaluated color per pixel — see _GradientPaint Unit Design_
+(`../drawing/gradient-paint.md`) for details of that dependency. `Surface` itself has no
+dependency on any codec, on `Drawing`, or on any other unit.
 
 ### Internal workspace-reuse overload (allocation-reduction refactor)
 
@@ -330,3 +359,15 @@ between them is where their `RowChannelBuffers`/`CompositeWorkBuffers` come from
 math itself is never duplicated. This overload is `internal`, not `public`: it exposes an
 allocation-strategy implementation detail, not new externally observable behavior - for identical
 inputs it produces byte-for-byte identical output to the public overload.
+
+The same pattern is repeated for the per-pixel-color overload: an `internal`
+`CompositeOverSpan(int, int, ReadOnlySpan<float>, ReadOnlySpan<Rgba32>, CompositeSpanWorkspace)`
+overload lets the `GradientPaint` unit's gradient-aware `ScanlineRasterizer.Fill` reuse one
+workspace across every rasterized row of a fill, exactly as the constant-color path does. Both the
+constant-color and per-pixel-color code paths - public and workspace-reusing alike - route through
+one shared `CompositeOverSpanCore`/`CompositeOverSpanCoreShared` private blend body; only the
+foreground-color population step (a single broadcast value versus one read per pixel) differs
+between the constant-color and per-pixel-color forms, and only the scratch-buffer source (rented
+versus supplied workspace) differs between the public and internal forms. A dedicated unit test
+(`Surface_CompositeOverSpan_PerPixelColors_MatchesConstantColorOverload_WhenAllColorsEqual`)
+proves the pre-existing constant-color overload's output is unchanged by this refactor.

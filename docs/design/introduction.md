@@ -36,12 +36,15 @@ software items, specifically:
   inline), the `BezierFlattening` unit (adaptive Bezier curve flattening), and the
   `SvgArcConverter` unit (SVG-style elliptical arc to Bezier conversion)
 - **Drawing (Subsystem)** — An antialiased scanline-coverage fill rasterizer for closed
-  `Geometry.Path` geometry with solid-color paint: the `PathFiller` unit (a public static `Fill`
+  `Geometry.Path` geometry with solid-color or gradient paint: the `PathFiller` unit (a public
+  static `Fill`
   entry point, covering the supporting `FillRule` enum and the internal
-  `EdgeFlattener`/`ScanlineRasterizer` helpers inline), and the `PathStroker` unit (a public
+  `EdgeFlattener`/`ScanlineRasterizer` helpers inline), the `PathStroker` unit (a public
   static `Stroke` entry point, covering the supporting `LineCap`/`LineJoin`/`StrokeStyle` types
-  and the internal `StrokePathFlattener`/`DashSplitter`/`StrokeOutliner` helpers inline).
-  Gradients and fonts are reserved for later phases.
+  and the internal `StrokePathFlattener`/`DashSplitter`/`StrokeOutliner` helpers inline), and the
+  `GradientPaint` unit (the public `Gradient`/`LinearGradient`/`RadialGradient`/`GradientStop`/
+  `GradientSpread` types and the internal `GradientEvaluator` helper).
+  Fonts are reserved for a later phase.
 
 The following OTS items are also covered:
 

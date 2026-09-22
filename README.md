@@ -35,6 +35,8 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of closed vector paths onto a `Surface`
 - 🖊️ **Stroke-to-Fill** - Convert stroked vector paths (caps, joins, dashes, miter limits) into
   fillable outline geometry and render them through the same antialiased fill pipeline
+- 🌅 **Gradient Paint** - Fill a path with a linear or two-circle radial gradient color ramp,
+  with pad/reflect/repeat spread and premultiplied-alpha color interpolation
 - ⚡ **Span-Based** - Fast, allocation-conscious row and pixel access
 - 🔄 **Multi-Target** - Supports .NET 8, 9, and 10
 - 📦 **NuGet Ready** - Easy integration via NuGet package
@@ -128,6 +130,35 @@ var style = new StrokeStyle(
 
 var strokedOutline = PathStroker.Stroke(polyline, style);
 PathFiller.Fill(canvas, strokedOutline, new Rgba32(255, 128, 0, 255));
+```
+
+Filling a vector path with a linear gradient:
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Drawing;
+using DemaConsulting.CanvasNet.Geometry;
+using System.Numerics;
+
+var canvas = new Surface(64, 64);
+var rectangle = new PathBuilder()
+    .MoveTo(new Vector2(4, 4))
+    .LineTo(new Vector2(60, 4))
+    .LineTo(new Vector2(60, 60))
+    .LineTo(new Vector2(4, 60))
+    .Close()
+    .Build();
+
+var gradient = new LinearGradient(
+    start: new Vector2(4, 0),
+    end: new Vector2(60, 0),
+    stops:
+    [
+        new GradientStop(0f, new Rgba32(255, 0, 0, 255)),
+        new GradientStop(1f, new Rgba32(0, 0, 255, 255))
+    ]);
+
+PathFiller.Fill(canvas, rectangle, gradient, FillRule.NonZero, 1f); // red-to-blue ramp
 ```
 
 ## Building
