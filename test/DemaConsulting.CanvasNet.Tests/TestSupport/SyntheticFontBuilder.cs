@@ -310,6 +310,47 @@ internal sealed class SyntheticFontBuilder
     }
 
     /// <summary>
+    ///     Builds a single-contour simple glyph with <paramref name="numPoints"/> on-curve points
+    ///     compactly encoded via TrueType's flag repeat-count and "same as previous" coordinate
+    ///     omission, so every point after the first shares flag byte <c>0x31</c>
+    ///     (<c>ON_CURVE_POINT | X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR | Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR</c>)
+    ///     and requires no coordinate bytes at all - used to prove that a huge point count is
+    ///     representable in only a few hundred bytes, matching the exact amplification the
+    ///     total-point budget defends against.
+    /// </summary>
+    public static byte[] LargeSimpleGlyph(int numPoints)
+    {
+        var buf = new List<byte>();
+        WriteInt16(buf, 1); // numberOfContours
+        WriteInt16(buf, 0);
+        WriteInt16(buf, 0);
+        WriteInt16(buf, 0);
+        WriteInt16(buf, 0);
+        WriteUInt16(buf, numPoints - 1); // endPtsOfContours[0]
+        WriteUInt16(buf, 0); // instructionLength
+
+        // Every point after the first is described purely by a flag byte, never coordinate
+        // bytes: TrueType lets a flag mark a point's X and Y as unchanged from the previous
+        // point, and lets one flag byte represent a run of identical flags via a repeat count.
+        // This block emits the minimum number of flag/repeat-count byte pairs needed to describe
+        // all requested points; a repeat count may legitimately be zero, meaning a run of one.
+        const byte flag = 0x01 | 0x10 | 0x20 | 0x08; // ON_CURVE | X_SAME | Y_SAME | REPEAT_FLAG
+        var remaining = numPoints;
+        while (remaining > 0)
+        {
+            var repeatCount = Math.Min(remaining - 1, 255);
+            buf.Add(flag);
+            buf.Add((byte)repeatCount);
+            remaining -= 1 + repeatCount;
+        }
+
+        // Deliberately no X/Y coordinate section follows: every point's flag marks its
+        // coordinates as identical to the preceding point, so none are ever encoded.
+        PadToEvenLength(buf);
+        return [.. buf];
+    }
+
+    /// <summary>
     ///     Appends a single zero pad byte if <paramref name="buf"/>'s length is odd - real
     ///     <c>glyf</c> table entries are always padded to an even length, and the short
     ///     (<c>Offset16</c>) <c>loca</c> format can only represent even byte offsets.

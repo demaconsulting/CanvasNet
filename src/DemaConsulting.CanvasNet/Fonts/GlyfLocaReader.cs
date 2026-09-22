@@ -30,6 +30,18 @@ namespace DemaConsulting.CanvasNet.Fonts;
 ///     composite components (<c>ARGS_ARE_XY_VALUES</c> clear) are rejected with
 ///     <see cref="InvalidDataException"/> rather than silently mis-positioned.
 ///     </para>
+///     <para>
+///     The component-count cap alone does not bound the amount of geometry each visit produces:
+///     a single simple glyph can cheaply encode tens of thousands of points (TrueType's flag
+///     repeat-count and "same as previous" coordinate omission mean a ~65535-point contour can be
+///     represented in only a few hundred bytes), and a malicious composite glyph could reference
+///     it thousands of times before the component-count cap trips, copying hundreds of millions of
+///     path commands via <c>AppendTransformed</c> and exhausting memory/CPU. A third counter, a
+///     total resolved point/command budget of <see cref="MaxTotalPoints"/> across the whole
+///     <see cref="GetGlyphOutline"/> call, is charged as soon as the point/command count for a
+///     step is known - before the corresponding points/commands are allocated or copied - so it
+///     is effective against that amplification even though the component-count cap is not.
+///     </para>
 /// </remarks>
 internal sealed class GlyfLocaReader
 {
@@ -45,6 +57,18 @@ internal sealed class GlyfLocaReader
     ///     <see cref="GetGlyphOutline"/> call, bounding non-cyclic exponential composite blow-up.
     /// </summary>
     private const int MaxTotalComponents = 5000;
+
+    /// <summary>
+    ///     The maximum total number of resolved outline points/commands permitted across a single
+    ///     <see cref="GetGlyphOutline"/> call, bounding the amount of geometry produced (rather
+    ///     than merely the number of glyph/component visits <see cref="MaxTotalComponents"/>
+    ///     bounds). Without this cap, a single large simple glyph (cheaply encodable with tens of
+    ///     thousands of points via flag repeat-counts and coordinate omission) referenced many
+    ///     times by composite glyphs could still produce hundreds of millions of path commands
+    ///     before the component-count cap trips. 200,000 is far beyond any real font's glyph
+    ///     complexity, but small enough to keep worst-case memory/CPU bounded.
+    /// </summary>
+    private const int MaxTotalPoints = 200_000;
 
     private const int ArgsAreWords = 0x0001;
     private const int ArgsAreXyValues = 0x0002;
@@ -140,9 +164,9 @@ internal sealed class GlyfLocaReader
     /// </exception>
     /// <exception cref="InvalidDataException">
     ///     Thrown when the glyph's contour data is malformed or truncated, when a composite
-    ///     glyph's nesting depth or total resolved component count exceeds its bound, or when a
-    ///     composite glyph contains a point-matched component or references an out-of-range
-    ///     component glyph index.
+    ///     glyph's nesting depth, total resolved component count, or total resolved point/command
+    ///     count exceeds its bound, or when a composite glyph contains a point-matched component
+    ///     or references an out-of-range component glyph index.
     /// </exception>
     public Path GetGlyphOutline(int glyphIndex)
     {
@@ -152,14 +176,15 @@ internal sealed class GlyfLocaReader
         }
 
         var totalComponents = 0;
-        return DecodeGlyph(glyphIndex, 0, ref totalComponents);
+        var totalPoints = 0;
+        return DecodeGlyph(glyphIndex, 0, ref totalComponents, ref totalPoints);
     }
 
     /// <summary>
-    ///     Decodes a single glyph (simple or composite), enforcing the depth and total-component
-    ///     bounds.
+    ///     Decodes a single glyph (simple or composite), enforcing the depth, total-component, and
+    ///     total-point/command bounds.
     /// </summary>
-    private Path DecodeGlyph(int glyphIndex, int depth, ref int totalComponents)
+    private Path DecodeGlyph(int glyphIndex, int depth, ref int totalComponents, ref int totalPoints)
     {
         if (glyphIndex < 0 || glyphIndex >= GlyphCount)
         {
@@ -194,21 +219,22 @@ internal sealed class GlyfLocaReader
         var numberOfContours = SfntContainer.ReadInt16(_data, glyphOffset);
         if (numberOfContours >= 0)
         {
-            return DecodeSimpleGlyph(glyphOffset, glyphLength, numberOfContours);
+            return DecodeSimpleGlyph(glyphOffset, glyphLength, numberOfContours, ref totalPoints);
         }
 
         if (numberOfContours == -1)
         {
-            return DecodeCompositeGlyph(glyphOffset, glyphLength, depth + 1, ref totalComponents);
+            return DecodeCompositeGlyph(glyphOffset, glyphLength, depth + 1, ref totalComponents, ref totalPoints);
         }
 
         throw new InvalidDataException("Glyph declares an invalid contour count.");
     }
 
     /// <summary>
-    ///     Decodes a simple glyph's contour data into a <see cref="Path"/>.
+    ///     Decodes a simple glyph's contour data into a <see cref="Path"/>, charging its point
+    ///     count against <paramref name="totalPoints"/> before allocating any per-point arrays.
     /// </summary>
-    private Path DecodeSimpleGlyph(int glyphOffset, int glyphLength, int numberOfContours)
+    private Path DecodeSimpleGlyph(int glyphOffset, int glyphLength, int numberOfContours, ref int totalPoints)
     {
         var limit = glyphOffset + glyphLength;
         var pos = glyphOffset + 10;
@@ -235,6 +261,15 @@ internal sealed class GlyfLocaReader
         }
 
         var numPoints = endPts[^1] + 1;
+
+        // Charge the budget before allocating the flags/xs/ys arrays below - a crafted glyph
+        // can declare a huge point count in only a few header bytes, and the cap must trip
+        // before that count drives any allocation, not after the geometry has already been built.
+        totalPoints += numPoints;
+        if (totalPoints > MaxTotalPoints)
+        {
+            throw new InvalidDataException("Glyph outline resolves to too many total points.");
+        }
 
         EnsureAvailable(pos, 2, limit);
         var instructionLength = SfntContainer.ReadUInt16(_data, pos);
@@ -400,7 +435,7 @@ internal sealed class GlyfLocaReader
     ///     Decodes a composite glyph, recursively resolving each component's glyph outline and
     ///     applying its offset/scale/2x2 transform.
     /// </summary>
-    private Path DecodeCompositeGlyph(int glyphOffset, int glyphLength, int depth, ref int totalComponents)
+    private Path DecodeCompositeGlyph(int glyphOffset, int glyphLength, int depth, ref int totalComponents, ref int totalPoints)
     {
         var limit = glyphOffset + glyphLength;
         var pos = glyphOffset + 10;
@@ -460,7 +495,7 @@ internal sealed class GlyfLocaReader
                 pos += 8;
             }
 
-            var componentPath = DecodeGlyph(componentGlyphIndex, depth, ref totalComponents);
+            var componentPath = DecodeGlyph(componentGlyphIndex, depth, ref totalComponents, ref totalPoints);
 
             // Per the OpenType/TrueType 'glyf' spec, SCALED_COMPONENT_OFFSET requests that the
             // component's translation be transformed through its own scale/2x2 matrix before
@@ -475,7 +510,7 @@ internal sealed class GlyfLocaReader
                 dy = scaledDy;
             }
 
-            AppendTransformed(builder, componentPath, a, b, c, d, dx, dy);
+            AppendTransformed(builder, componentPath, a, b, c, d, dx, dy, ref totalPoints);
             hasContent = true;
 
             more = (flags & MoreComponents) != 0;
@@ -488,11 +523,30 @@ internal sealed class GlyfLocaReader
     /// <summary>
     ///     Re-issues every subpath of <paramref name="source"/> into <paramref name="builder"/>,
     ///     applying the given 2x2 matrix (<paramref name="a"/>/<paramref name="b"/>/<paramref name="c"/>/<paramref name="d"/>)
-    ///     and translation (<paramref name="dx"/>/<paramref name="dy"/>) to every point.
+    ///     and translation (<paramref name="dx"/>/<paramref name="dy"/>) to every point, charging
+    ///     the number of points/commands about to be copied against <paramref name="totalPoints"/>
+    ///     before performing any copy - resolving a component's outline is cheap (it is already
+    ///     built), but re-emitting it into the composite's builder is the step that actually
+    ///     multiplies a large component's geometry by every reference to it, so the budget must be
+    ///     checked here rather than only when the component was first decoded.
     /// </summary>
-    private static void AppendTransformed(PathBuilder builder, Path source, float a, float b, float c, float d, float dx, float dy)
+    private static void AppendTransformed(PathBuilder builder, Path source, float a, float b, float c, float d, float dx, float dy, ref int totalPoints)
     {
         Vector2 Transform(Vector2 p) => new(a * p.X + c * p.Y + dx, b * p.X + d * p.Y + dy);
+
+        // Count the points/commands (one MoveTo plus every command) this copy is about to
+        // produce, and charge the budget before copying a single one of them.
+        var pointsToCopy = 0;
+        foreach (var subpath in source.Subpaths)
+        {
+            pointsToCopy += 1 + subpath.Commands.Count;
+        }
+
+        totalPoints += pointsToCopy;
+        if (totalPoints > MaxTotalPoints)
+        {
+            throw new InvalidDataException("Glyph outline resolves to too many total points.");
+        }
 
         foreach (var subpath in source.Subpaths)
         {

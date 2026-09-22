@@ -494,6 +494,37 @@ public class GlyfLocaReaderTests
     }
 
     /// <summary>
+    ///     Proves that GlyfLocaReader CompositeGlyph LargeSimpleGlyphReferencedTwice ThrowsInvalidDataExceptionViaPointBudget.
+    /// </summary>
+    [Fact]
+    public void GlyfLocaReader_CompositeGlyph_LargeSimpleGlyphReferencedTwice_ThrowsInvalidDataExceptionViaPointBudget()
+    {
+        // Arrange: a single simple glyph with 50,000 points, compactly encoded (flag repeat-count
+        // and "same as previous" coordinate omission mean no coordinate bytes are needed at all,
+        // so the whole glyph is only a couple of hundred bytes) - this is the exact amplification
+        // the total-point budget defends against: a tiny file can still describe a huge outline.
+        // Referencing it just twice from one composite already exceeds the 200,000-point budget
+        // (each reference charges ~50,000 points when the component is decoded, plus a further
+        // ~50,000 points/commands when its geometry is copied into the composite), while the
+        // total resolved *component* count (3: the composite plus its two component visits) stays
+        // far below the separate 5,000 total-component cap - proving the point/command budget (not
+        // the component-count cap) is what prevents the amplification here.
+        var leaf = SyntheticFontBuilder.LargeSimpleGlyph(50_000);
+        var composite = SyntheticFontBuilder.CompositeGlyph(
+        [
+            new SyntheticFontBuilder.CompositeComponent(0, 0, 0),
+            new SyntheticFontBuilder.CompositeComponent(0, 50, 50)
+        ]);
+
+        // Act
+        var reader = BuildReader([leaf, composite]);
+
+        // Assert: the total-point budget trips and the message identifies the point-budget failure
+        var ex = Assert.Throws<InvalidDataException>(() => reader.GetGlyphOutline(1));
+        Assert.Contains("points", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     ///     Proves that GlyfLocaReader Parse LocaEntryExceedsGlyfBounds ThrowsInvalidDataException.
     /// </summary>
     [Fact]
