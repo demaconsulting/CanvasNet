@@ -14,14 +14,16 @@ them has any independent behavior beyond supporting `PathFiller.Fill`.
 `PathFiller` turns vector path geometry into rendered pixels: it flattens every subpath's lines,
 curves, and arcs into a closed polygon, then rasterizes those polygons with analytically computed
 antialiased pixel coverage, compositing the result directly onto a `Surface` using its existing
-Porter-Duff "over" blend pipeline. It supports both `FillRule.NonZero` and `FillRule.EvenOdd`
-winding resolution (matching SVG/CSS `fill-rule` semantics), correctly renders holes via nested,
-counter-wound subpaths, and treats every subpath as implicitly closed regardless of whether the
-path explicitly called `Close`. Alongside the original solid-color `Fill` overload, `PathFiller`
-also exposes a gradient-paint `Fill(Surface, Path, Gradient, FillRule, float)` overload that
-shares every bit of this unit's flattening, clip-bounds, and validation logic - see _GradientPaint
-Unit Design_ (`gradient-paint.md`) for the gradient-specific evaluation algorithm it delegates to.
-Fonts remain out of scope for this unit and reserved for a later phase.
+Porter-Duff "over" blend pipeline. It supports both `FillRule.NonZero` and
+`FillRule.EvenOdd` winding resolution (matching SVG/CSS `fill-rule` semantics), correctly
+renders holes via nested, counter-wound subpaths, and treats
+every subpath as implicitly closed regardless of whether the path explicitly called `Close`.
+Alongside the original solid-color `Fill` overload, `PathFiller` also exposes a gradient-paint
+`Fill(Surface, Path, Gradient, FillRule, float)` overload that shares every bit of this unit's
+flattening, clip-bounds, and validation logic - see _GradientPaint Unit Design_
+(`gradient-paint.md`) for the gradient-specific evaluation algorithm it delegates to. Font parsing
+remains outside this unit: callers supply ordinary `Geometry.Path` instances whether they came
+from handwritten geometry or from `Fonts.TrueTypeFont`.
 
 ### Coordinate Convention
 

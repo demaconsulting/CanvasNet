@@ -1,5 +1,7 @@
 # Introduction
 
+<!-- cspell:ignore glyf sfnt cmap loca hmtx hhea codepoint -->
+
 This document provides the detailed design for CanvasNet, a .NET library
 providing a canvas-based drawing and rendering API.
 
@@ -37,14 +39,15 @@ software items, specifically:
   `SvgArcConverter` unit (SVG-style elliptical arc to Bezier conversion)
 - **Drawing (Subsystem)** — An antialiased scanline-coverage fill rasterizer for closed
   `Geometry.Path` geometry with solid-color or gradient paint: the `PathFiller` unit (a public
-  static `Fill`
-  entry point, covering the supporting `FillRule` enum and the internal
-  `EdgeFlattener`/`ScanlineRasterizer` helpers inline), the `PathStroker` unit (a public
-  static `Stroke` entry point, covering the supporting `LineCap`/`LineJoin`/`StrokeStyle` types
-  and the internal `StrokePathFlattener`/`DashSplitter`/`StrokeOutliner` helpers inline), and the
+  static `Fill` entry point, covering the supporting `FillRule` enum and the internal
+  `EdgeFlattener`/`ScanlineRasterizer` helpers inline), the `PathStroker` unit (a public static
+  `Stroke` entry point, covering the supporting `LineCap`/`LineJoin`/`StrokeStyle` types and the
+  internal `StrokePathFlattener`/`DashSplitter`/`StrokeOutliner` helpers inline), and the
   `GradientPaint` unit (the public `Gradient`/`LinearGradient`/`RadialGradient`/`GradientStop`/
-  `GradientSpread` types and the internal `GradientEvaluator` helper).
-  Fonts are reserved for a later phase.
+  `GradientSpread` types and the internal `GradientEvaluator` helper)
+- **Fonts (Subsystem)** — TrueType (`glyf`-based) SFNT font support: the `TrueTypeFont` unit and
+  its internal `SfntContainer`/`CmapTable`/`GlyfLocaReader`/`HmtxHheaReader`/`KernTable` helpers,
+  producing `Geometry.Path` glyph outlines plus metrics and kerning
 
 The following OTS items are also covered:
 
@@ -79,20 +82,24 @@ diagram or the prose below.
 
 ![Software Structure](SoftwareStructureView.svg)
 
-CanvasNet is organized into four subsystems under the system level: the `Canvas` subsystem
-(the `Surface` and `Rgba32` units, namespace `DemaConsulting.CanvasNet.Canvas`), the `Codecs` subsystem
-(the `BmpCodec`, `PngCodec`, `TiffCodec`, and `JpegCodec` units, namespace `DemaConsulting.CanvasNet.Codecs`,
-flat — no further nesting), the `Geometry` subsystem (the `Rect`, `Path`, `BezierFlattening`, and
-`SvgArcConverter` units, namespace `DemaConsulting.CanvasNet.Geometry`, flat — no further nesting),
-and the `Drawing` subsystem (the `PathFiller` unit, covering the supporting `FillRule` enum and
-the internal `EdgeFlattener`/`ScanlineRasterizer` helpers inline, the `PathStroker` unit,
-covering the supporting `LineCap`/`LineJoin`/`StrokeStyle` types and the internal
+CanvasNet is organized into five subsystems under the system level: the `Canvas` subsystem
+(the `Surface` and `Rgba32` units, namespace `DemaConsulting.CanvasNet.Canvas`), the `Codecs`
+subsystem (the `BmpCodec`, `PngCodec`, `TiffCodec`, and `JpegCodec` units, namespace
+`DemaConsulting.CanvasNet.Codecs`, flat — no further nesting), the `Geometry` subsystem (the
+`Rect`, `Path`, `BezierFlattening`, and `SvgArcConverter` units, namespace
+`DemaConsulting.CanvasNet.Geometry`, flat — no further nesting), the `Drawing` subsystem (the
+`PathFiller` unit, covering the supporting `FillRule` enum and the internal
+`EdgeFlattener`/`ScanlineRasterizer` helpers inline, the `PathStroker` unit, covering the
+supporting `LineCap`/`LineJoin`/`StrokeStyle` types and the internal
 `StrokePathFlattener`/`DashSplitter`/`StrokeOutliner` helpers inline, and the `GradientPaint`
 unit, covering the public `Gradient`/`LinearGradient`/`RadialGradient`/`GradientStop`/
 `GradientSpread` types and the internal `GradientEvaluator` helper inline, namespace
-`DemaConsulting.CanvasNet.Drawing`, flat — no further nesting). As additional functionality is
-added, further subsystems and nested subsystems would organize related units and provide
-architectural boundaries with well-defined interfaces and responsibilities.
+`DemaConsulting.CanvasNet.Drawing`, flat — no further nesting), and the `Fonts` subsystem (the
+`TrueTypeFont` unit, covering the internal `SfntContainer`/`CmapTable`/`GlyfLocaReader`/
+`HmtxHheaReader`/`KernTable` helpers inline, namespace `DemaConsulting.CanvasNet.Fonts`, flat —
+no further nesting). As additional functionality is added, further subsystems and nested
+subsystems would organize related units and provide architectural boundaries with well-defined
+interfaces and responsibilities.
 
 ## Folder Layout
 
@@ -111,38 +118,46 @@ src/DemaConsulting.CanvasNet/
 │   ├── TiffCodec.cs              — 8-bit RGB/RGBA/Grayscale, strip-based TIFF loader/saver
 │   ├── JpegCodec.cs              — Baseline/progressive JPEG loader and baseline JPEG saver
 │   └── NamespaceDoc.cs           — Namespace-level XML documentation
-├── Geometry/
-    ├── Rect.cs                   — Axis-aligned bounding rectangle (position plus size)
-    ├── PathCommandType.cs        — Enumeration of path drawing command kinds
-    ├── PathCommand.cs            — Tagged-union path drawing command value
-    ├── Subpath.cs                — One independent contour of a path
-    ├── Path.cs                   — Immutable vector path (ordered collection of subpaths)
-    ├── PathBuilder.cs            — Mutable, fluent builder that produces a Path
-    ├── BezierFlattening.cs       — Adaptive quadratic/cubic Bezier curve flattening
-    ├── SvgArcConverter.cs        — SVG-style elliptical arc to cubic Bezier conversion
-    └── NamespaceDoc.cs           — Namespace-level XML documentation
-└── Drawing/
-    ├── FillRule.cs                — Nonzero/even-odd fill-rule enumeration
-    ├── EdgeFlattener.cs           — Converts a Path's subpaths into closed polygons
-    ├── ScanlineRasterizer.cs      — Analytic coverage-accumulation scanline rasterizer
-    ├── PathFiller.cs              — Public entry point: fills a Path onto a Surface
-    ├── LineCap.cs                 — Stroke end-cap enumeration
-    ├── LineJoin.cs                — Stroke corner-join enumeration
-    ├── StrokeStyle.cs             — Immutable stroke-style configuration snapshot
-    ├── StrokePathFlattener.cs     — Flattens subpaths while preserving open/closed state
-    ├── DashSplitter.cs            — Applies dash-array and dash-offset semantics
-    ├── StrokeOutliner.cs          — Converts stroked polylines into outline polygons
-    ├── PathStroker.cs             — Public entry point: strokes a Path into outline geometry
-    ├── GradientSpread.cs          — Gradient repeat-beyond-extent mode enumeration
-    ├── GradientStop.cs            — Single offset/color stop within a gradient
-    ├── Gradient.cs                — Abstract base for gradient paint definitions
-    ├── LinearGradient.cs          — Gradient paint that varies along a straight axis
-    ├── RadialGradient.cs          — Gradient paint that varies radially from a center point
-    ├── GradientEvaluator.cs       — Resolves a gradient definition to a color at a point
+├── Drawing/
+│   ├── FillRule.cs                — Nonzero/even-odd fill-rule enumeration
+│   ├── EdgeFlattener.cs           — Converts a Path's subpaths into closed polygons
+│   ├── ScanlineRasterizer.cs      — Analytic coverage-accumulation scanline rasterizer
+│   ├── PathFiller.cs              — Public entry point: fills a Path onto a Surface
+│   ├── LineCap.cs                 — Stroke end-cap enumeration
+│   ├── LineJoin.cs                — Stroke corner-join enumeration
+│   ├── StrokeStyle.cs             — Immutable stroke-style configuration snapshot
+│   ├── StrokePathFlattener.cs     — Flattens subpaths while preserving open/closed state
+│   ├── DashSplitter.cs            — Applies dash-array and dash-offset semantics
+│   ├── StrokeOutliner.cs          — Converts stroked polylines into outline polygons
+│   ├── PathStroker.cs             — Public entry point: strokes a Path into outline geometry
+│   ├── GradientSpread.cs          — Gradient repeat-beyond-extent mode enumeration
+│   ├── GradientStop.cs            — Single offset/color stop within a gradient
+│   ├── Gradient.cs                — Abstract base for gradient paint definitions
+│   ├── LinearGradient.cs          — Gradient paint that varies along a straight axis
+│   ├── RadialGradient.cs          — Gradient paint that varies radially from a center point
+│   ├── GradientEvaluator.cs       — Resolves a gradient definition to a color at a point
+│   └── NamespaceDoc.cs            — Namespace-level XML documentation
+├── Fonts/
+│   ├── TrueTypeFont.cs            — Public TrueType font loader/query entry point
+│   ├── SfntContainer.cs           — SFNT offset-table and directory parser
+│   ├── CmapTable.cs               — Unicode codepoint-to-glyph-index lookup
+│   ├── GlyfLocaReader.cs          — Glyph location parsing and outline decoding
+│   ├── HmtxHheaReader.cs          — Horizontal metrics parsing and advance-width lookup
+│   ├── KernTable.cs               — Format-0 horizontal kerning lookup
+│   └── NamespaceDoc.cs            — Namespace-level XML documentation
+└── Geometry/
+    ├── Rect.cs                    — Axis-aligned bounding rectangle (position plus size)
+    ├── PathCommandType.cs         — Enumeration of path drawing command kinds
+    ├── PathCommand.cs             — Tagged-union path drawing command value
+    ├── Subpath.cs                 — One independent contour of a path
+    ├── Path.cs                    — Immutable vector path (ordered collection of subpaths)
+    ├── PathBuilder.cs             — Mutable, fluent builder that produces a Path
+    ├── BezierFlattening.cs        — Adaptive quadratic/cubic Bezier curve flattening
+    ├── SvgArcConverter.cs         — SVG-style elliptical arc to cubic Bezier conversion
     └── NamespaceDoc.cs            — Namespace-level XML documentation
 ```
 
-This four-subsystem folder structure reflects the small number of subsystems in the system
+This five-subsystem folder structure reflects the small number of subsystems in the system
 today. As the system grows with additional subsystems and units, the folder structure will
 expand further to mirror the software architecture. `Canvas/Surface.cs` also gained a
 `CompositeOverSpan` method used internally by `Drawing/PathFiller.cs`, and the `Drawing`

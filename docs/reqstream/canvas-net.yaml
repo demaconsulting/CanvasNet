@@ -3,6 +3,8 @@
 #
 # These requirements describe the externally visible behavior of the library
 # from the perspective of its consumers, without specifying implementation details.
+# cspell:ignore glyf sfnt cmap loca hmtx hhea maxp notdef
+# cspell:ignore codepoint codepoints subtable subtables subsetted renderable formedness
 
 sections:
   - title: Canvas API
@@ -879,3 +881,69 @@ sections:
           - PathFiller_Fill_Gradient_NullPaint_ThrowsArgumentNullException
           - PathFiller_Fill_Gradient_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException
           - PathFiller_Fill_Gradient_UndefinedFillRule_ThrowsArgumentOutOfRangeException
+
+  - title: Fonts API
+    requirements:
+      - id: CanvasNet-Lib-FontsLoad
+        title: >-
+          The library shall load a TrueType font from a stream or a file path, exposing its
+          metrics, and validating its input arguments and structural well-formedness with a
+          predictable exception contract.
+        tags: [system]
+        justification: |
+          Callers need a reliable, self-contained way to load a TrueType font file before
+          extracting any glyph geometry or metrics from it, with clear failure behavior for
+          invalid arguments or malformed/unsupported font data.
+        children:
+          - CanvasNet-Fonts-Load
+        tests:
+          - CanvasNet_SystemIntegration_LoadFontAndQueryMetrics_ReturnsExpectedValues
+
+      - id: CanvasNet-Lib-FontsGlyphMapping
+        title: >-
+          The library shall map a Unicode codepoint, including codepoints outside the Basic
+          Multilingual Plane, to a glyph index, falling back to the conventional "missing glyph"
+          index without throwing when the codepoint is unmapped or the font has no usable
+          character map.
+        tags: [system]
+        justification: |
+          Callers rendering text need every codepoint resolved to a glyph index before any
+          outline can be extracted, including the common cases of unsupported characters or a
+          font with no (or only a partially supported) character map.
+        children:
+          - CanvasNet-Fonts-GlyphMapping
+        tests:
+          - CanvasNet_SystemIntegration_LoadFontAndFillGlyphOutline_ReturnsExpectedPixels
+
+      - id: CanvasNet-Lib-FontsGlyphOutlineExtraction
+        title: >-
+          The library shall extract a glyph's outline as vector path geometry, including simple
+          glyphs, empty glyphs, and composite glyphs built from transformed (and possibly nested)
+          component glyphs, never hanging or crashing on a malformed or malicious composite-glyph
+          cycle, excessive composite blow-up, point-matched component, or otherwise malformed
+          glyph data.
+        tags: [system]
+        justification: |
+          Callers need renderable outline geometry for every glyph shape a TrueType font may
+          define, while a malformed or malicious font's glyph data must never be able to hang or
+          crash the calling process.
+        children:
+          - CanvasNet-Fonts-GlyphOutlineExtraction
+        tests:
+          - CanvasNet_SystemIntegration_LoadFontAndFillGlyphOutline_ReturnsExpectedPixels
+
+      - id: CanvasNet-Lib-FontsMetrics
+        title: >-
+          The library shall report each glyph's horizontal advance width and the pairwise
+          kerning adjustment between two glyphs, validating the glyph index argument to the
+          advance-width query and always returning a well-defined "no adjustment" value for
+          kerning, including when the font has no kerning table at all.
+        tags: [system]
+        justification: |
+          Callers laying out successive glyphs along a line need each glyph's advance width and
+          any font-defined pairwise kerning adjustment, with kerning always safely queryable
+          regardless of whether the font actually defines any.
+        children:
+          - CanvasNet-Fonts-Metrics
+        tests:
+          - CanvasNet_SystemIntegration_LoadFontAndQueryMetrics_ReturnsExpectedValues

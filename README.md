@@ -1,5 +1,6 @@
 # CanvasNet
 
+<!-- cspell:ignore SFNT codepoints -->
 <!-- IMPORTANT: All links in this file must be absolute URLs.
      This file is distributed in packages and relative links will not resolve. -->
 
@@ -37,6 +38,8 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
   fillable outline geometry and render them through the same antialiased fill pipeline
 - 🌅 **Gradient Paint** - Fill a path with a linear or two-circle radial gradient color ramp,
   with pad/reflect/repeat spread and premultiplied-alpha color interpolation
+- 🔤 **TrueType Fonts** - Load glyph-based TrueType SFNT fonts, map Unicode codepoints to glyph
+  indices, extract glyph outlines as `Geometry.Path`, and query advance widths and basic kerning
 - ⚡ **Span-Based** - Fast, allocation-conscious row and pixel access
 - 🔄 **Multi-Target** - Supports .NET 8, 9, and 10
 - 📦 **NuGet Ready** - Easy integration via NuGet package
@@ -159,6 +162,56 @@ var gradient = new LinearGradient(
     ]);
 
 PathFiller.Fill(canvas, rectangle, gradient, FillRule.NonZero, 1f); // red-to-blue ramp
+```
+
+Loading a TrueType font and filling a glyph outline:
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Drawing;
+using DemaConsulting.CanvasNet.Fonts;
+using DemaConsulting.CanvasNet.Geometry;
+using System.Numerics;
+
+static Path TransformGlyph(Path glyph, float scale, float baselineY)
+{
+    var builder = new PathBuilder();
+
+    Vector2 ToCanvas(Vector2 point) => new(point.X * scale, baselineY - point.Y * scale);
+
+    foreach (var subpath in glyph.Subpaths)
+    {
+        builder.MoveTo(ToCanvas(subpath.Start));
+        foreach (var command in subpath.Commands)
+        {
+            switch (command.Type)
+            {
+                case PathCommandType.LineTo:
+                    builder.LineTo(ToCanvas(command.EndPoint));
+                    break;
+                case PathCommandType.QuadraticBezierTo:
+                    builder.QuadraticBezierTo(
+                        ToCanvas(command.Control1),
+                        ToCanvas(command.EndPoint));
+                    break;
+                case PathCommandType.Close:
+                    builder.Close();
+                    break;
+            }
+        }
+    }
+
+    return builder.Build();
+}
+
+var font = TrueTypeFont.Load("font.ttf");
+var glyphIndex = font.GetGlyphIndex('A');
+var glyphOutline = font.GetGlyphOutline(glyphIndex); // raw font-design-unit coordinates (Y up)
+var scale = 48f / font.UnitsPerEm;
+var canvasOutline = TransformGlyph(glyphOutline, scale, baselineY: 56f);
+
+var surface = new Surface(64, 64);
+PathFiller.Fill(surface, canvasOutline, new Rgba32(20, 120, 255, 255));
 ```
 
 ## Building

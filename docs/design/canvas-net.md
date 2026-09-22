@@ -4,10 +4,13 @@ This document provides the system-level design for CanvasNet.
 
 ![CanvasNet Structure](CanvasNetView.svg)
 
+<!-- cspell:ignore glyf sfnt cmap loca hmtx hhea maxp notdef -->
+<!-- cspell:ignore codepoint codepoints subtable subtables -->
+
 ## Architecture
 
 CanvasNet is a .NET library providing a canvas-based drawing and rendering API, following
-DEMA Consulting best practices. The system consists of four implemented subsystems:
+DEMA Consulting best practices. The system consists of five implemented subsystems:
 
 - **Canvas subsystem** (namespace `DemaConsulting.CanvasNet.Canvas`, folder
   `src/DemaConsulting.CanvasNet/Canvas/`): the pixel-buffer primitives on which all other
@@ -47,8 +50,15 @@ DEMA Consulting best practices. The system consists of four implemented subsyste
   `BezierFlattening`/`SvgArcConverter` units; neither `Canvas` nor `Geometry` depends on
   `Drawing`. `Geometry` is deliberately distinct from `Drawing`: `Geometry` describes shape
   geometry (paths, bounds, curve math) with no notion of pixels, color, or rasterization, while
-  `Drawing` turns that geometry into pixels. Fonts are reserved for a later phase.
-  See _Drawing Subsystem Design_ (`drawing.md`).
+  `Drawing` turns that geometry into pixels. See _Drawing Subsystem Design_ (`drawing.md`).
+- **Fonts subsystem** (namespace `DemaConsulting.CanvasNet.Fonts`, folder
+  `src/DemaConsulting.CanvasNet/Fonts/`, flat — no further nesting): TrueType (`glyf`-based)
+  SFNT font loading through the `TrueTypeFont` unit, which fronts the internal `SfntContainer`/
+  `CmapTable`/`GlyfLocaReader`/`HmtxHheaReader`/`KernTable` helpers documented inline. `Fonts`
+  depends only on the `Geometry` subsystem (`Path`, `PathBuilder`, and path-command semantics)
+  because it produces vector outlines and scalar metrics, not pixels. It does not depend on
+  `Canvas`, `Drawing`, or `Codecs`; callers combine its output with `Drawing` and `Canvas` when
+  they want rendered text. See _Fonts Subsystem Design_ (`fonts.md`).
 
 The `Codecs` subsystem depends on the `Canvas` subsystem's `Surface` unit (constructing surfaces
 and reading/writing rows via `Surface.GetRowSpanBytes`); the `Canvas` subsystem has no dependency
@@ -91,6 +101,16 @@ those polygons into a new `Geometry.Path` via `PathBuilder`; callers render the 
 path through `PathFiller.Fill`. See _Drawing Subsystem Design_ (`drawing.md`), _PathFiller Unit
 Design_ (`drawing/path-filler.md`), and _PathStroker Unit Design_ (`drawing/path-stroker.md`) for
 full detail.
+
+The `Fonts` subsystem's single public unit collaborates with its internal helpers as follows.
+`TrueTypeFont.Load` delegates to `SfntContainer` for SFNT offset-table and table-directory
+parsing, validates the required `head`/`maxp`/`hhea`/`hmtx`/`loca`/`glyf` tables, then delegates
+to `HmtxHheaReader` for top-level metrics and advance widths, `GlyfLocaReader` for eager `loca`
+parsing plus lazy glyph decoding, `CmapTable` for Unicode codepoint lookup, and `KernTable` for
+basic pairwise kerning. `GetGlyphOutline` returns `Geometry.Path` in raw font-design-unit space,
+so callers who want pixels scale and flip that path before rendering it through `Drawing`. See
+_Fonts Subsystem Design_ (`fonts.md`) and _TrueTypeFont Unit Design_
+(`fonts/true-type-font.md`) for full detail.
 
 ## External Interfaces
 
@@ -212,38 +232,64 @@ The system exposes the following public API to external consumers:
   `Path.Empty` when the stroke contributes no visible area. Throws `ArgumentNullException` for a
   null `path`/`style`, and `ArgumentOutOfRangeException` for a non-finite or non-positive
   `flattenTolerance`.
+- **TrueTypeFont.Load(Stream)** / **TrueTypeFont.Load(string path)**: Loads a glyph-based
+  TrueType SFNT font from a stream or file path, exposing its top-level metrics and the query
+  methods below. Throws `ArgumentNullException` for a null `stream`/`path`, `ArgumentException`
+  for an empty `path`, and `InvalidDataException` for malformed, truncated, or unsupported font
+  data.
+- **TrueTypeFont.UnitsPerEm** / **Ascender** / **Descender** / **LineGap** / **GlyphCount**:
+  Read-only metrics properties exposing the loaded font's top-level scalar data.
+- **TrueTypeFont.GetGlyphIndex(int codepoint)**: Returns the glyph index mapped from the Unicode
+  `codepoint`, or `0` (`.notdef`) if the codepoint is unmapped or the font has no usable `cmap`.
+  Never throws.
+- **TrueTypeFont.GetGlyphOutline(int glyphIndex)**: Returns the glyph's outline as a
+  `Geometry.Path` in raw font design units. Throws `ArgumentOutOfRangeException` for an invalid
+  glyph index and `InvalidDataException` for malformed or unsupported glyph data.
+- **TrueTypeFont.GetAdvanceWidth(int glyphIndex)**: Returns the glyph's horizontal advance width,
+  reusing the final explicit `hmtx` entry for the monospaced tail. Throws
+  `ArgumentOutOfRangeException` for an invalid glyph index.
+- **TrueTypeFont.GetKerning(int leftGlyphIndex, int rightGlyphIndex)**: Returns the pairwise
+  kerning adjustment for the glyph pair, or `0` when no pair or no usable `kern` table exists.
+  Never throws.
 
-| Interface                        | Direction        | Format                         | Constraints                   |
-| -------------------------------- | ---------------- | ------------------------------ | ----------------------------- |
-| `Surface(int, int)`              | Inbound          | Constructor call               | `width`, `height` in 1-8192   |
-| `Surface[int, int]`              | Inbound/Outbound | Indexer get/set                | `x`, `y` within bounds        |
-| `Surface.GetRowSpanBytes(int)`   | Outbound         | `Span<byte>` return            | `y` within bounds             |
-| `Surface.GetRowSpan(int)`        | Outbound         | `Span<Rgba32>` return          | `y` within bounds             |
-| `Surface.Crop(int,int,int,int)`  | Inbound/Outbound | Method call / `Surface` return | Region within source bounds   |
-| `Surface.PremultiplyAlpha()`     | Inbound          | Method call                    | None                          |
-| `Surface.UnpremultiplyAlpha()`   | Inbound          | Method call                    | None                          |
-| `Surface.CompositeOver(Surface)` | Inbound          | Method call                    | Equal dimensions, non-null    |
-| `Surface.CompositeOver(Rgba32)`  | Inbound          | Method call                    | None                          |
-| `Surface.CompositeOverSpan(...)` | Inbound          | Method call                    | `y`, `x`+run within bounds    |
-| `BmpCodec.Load(...)`             | Inbound/Outbound | Method call / `Surface` return | Valid BMP stream or path      |
-| `BmpCodec.Save(...)`             | Inbound          | Method call                    | `surface` non-null            |
-| `PngCodec.Load(...)`             | Inbound/Outbound | Method call / `Surface` return | Valid PNG stream or path      |
-| `PngCodec.Save(...)`             | Inbound          | Method call                    | `surface` non-null            |
-| `TiffCodec.Load(...)`            | Inbound/Outbound | Method call / `Surface` return | Valid TIFF stream or path     |
-| `TiffCodec.Save(...)`            | Inbound          | Method call                    | `surface` non-null            |
-| `JpegCodec.Load(...)`            | Inbound/Outbound | Method call / `Surface` return | Valid JPEG stream or path     |
-| `JpegCodec.Save(...)`            | Inbound          | Method call                    | `surface` non-null            |
-| `Rect.Union(...)`                | Inbound/Outbound | Method call / `Rect` return    | None                          |
-| `Rect.Intersect(...)`            | Inbound/Outbound | Method call / `Rect` return    | None                          |
-| `Rect.Transform(Matrix3x2)`      | Inbound/Outbound | Method call / `Rect` return    | None                          |
-| `PathBuilder.*To(...)`           | Inbound/Outbound | Method call / `this` return    | Called after `MoveTo`         |
-| `PathBuilder.Build()`            | Outbound         | Method call / `Path` return    | None                          |
-| `Path.GetBounds(float)`          | Outbound         | Method call / `Rect` return    | None                          |
-| `BezierFlattening.Flatten*(...)` | Inbound/Outbound | Method call / list append      | `tolerance` greater than zero |
-| `SvgArcConverter.ToBeziers(...)` | Inbound/Outbound | Method call / list append      | None                          |
-| `PathFiller.Fill(...)`           | Inbound          | Method call                    | Non-null; fillRule ok; tol>0  |
-| `StrokeStyle(...)`               | Inbound          | Constructor call               | Width > 0; valid style data   |
-| `PathStroker.Stroke(...)`        | Inbound/Outbound | Method call / `Path` return    | Non-null; tol > 0             |
+<!-- markdownlint-disable MD013 -->
+| Interface                           | Direction        | Format                         | Constraints                   |
+| ----------------------------------- | ---------------- | ------------------------------ | ----------------------------- |
+| `Surface(int, int)`                 | Inbound          | Constructor call               | `width`, `height` in 1-8192   |
+| `Surface[int, int]`                 | Inbound/Outbound | Indexer get/set                | `x`, `y` within bounds        |
+| `Surface.GetRowSpanBytes(int)`      | Outbound         | `Span<byte>` return            | `y` within bounds             |
+| `Surface.GetRowSpan(int)`           | Outbound         | `Span<Rgba32>` return          | `y` within bounds             |
+| `Surface.Crop(int,int,int,int)`     | Inbound/Outbound | Method call / `Surface` return | Region within source bounds   |
+| `Surface.PremultiplyAlpha()`        | Inbound          | Method call                    | None                          |
+| `Surface.UnpremultiplyAlpha()`      | Inbound          | Method call                    | None                          |
+| `Surface.CompositeOver(Surface)`    | Inbound          | Method call                    | Equal dimensions, non-null    |
+| `Surface.CompositeOver(Rgba32)`     | Inbound          | Method call                    | None                          |
+| `Surface.CompositeOverSpan(...)`    | Inbound          | Method call                    | `y`, `x`+run within bounds    |
+| `BmpCodec.Load(...)`                | Inbound/Outbound | Method call / `Surface` return | Valid BMP stream or path      |
+| `BmpCodec.Save(...)`                | Inbound          | Method call                    | `surface` non-null            |
+| `PngCodec.Load(...)`                | Inbound/Outbound | Method call / `Surface` return | Valid PNG stream or path      |
+| `PngCodec.Save(...)`                | Inbound          | Method call                    | `surface` non-null            |
+| `TiffCodec.Load(...)`               | Inbound/Outbound | Method call / `Surface` return | Valid TIFF stream or path     |
+| `TiffCodec.Save(...)`               | Inbound          | Method call                    | `surface` non-null            |
+| `JpegCodec.Load(...)`               | Inbound/Outbound | Method call / `Surface` return | Valid JPEG stream or path     |
+| `JpegCodec.Save(...)`               | Inbound          | Method call                    | `surface` non-null            |
+| `Rect.Union(...)`                   | Inbound/Outbound | Method call / `Rect` return    | None                          |
+| `Rect.Intersect(...)`               | Inbound/Outbound | Method call / `Rect` return    | None                          |
+| `Rect.Transform(Matrix3x2)`         | Inbound/Outbound | Method call / `Rect` return    | None                          |
+| `PathBuilder.*To(...)`              | Inbound/Outbound | Method call / `this` return    | Called after `MoveTo`         |
+| `PathBuilder.Build()`               | Outbound         | Method call / `Path` return    | None                          |
+| `Path.GetBounds(float)`             | Outbound         | Method call / `Rect` return    | None                          |
+| `BezierFlattening.Flatten*(...)`    | Inbound/Outbound | Method call / list append      | `tolerance` greater than zero |
+| `SvgArcConverter.ToBeziers(...)`    | Inbound/Outbound | Method call / list append      | None                          |
+| `PathFiller.Fill(...)`              | Inbound          | Method call                    | Non-null; fillRule ok; tol>0  |
+| `StrokeStyle(...)`                  | Inbound          | Constructor call               | Width > 0; valid style data   |
+| `PathStroker.Stroke(...)`           | Inbound/Outbound | Method call / `Path` return    | Non-null; tol > 0             |
+| `TrueTypeFont.Load(...)`            | Inbound/Outbound | Method / `TrueTypeFont`        | Valid TrueType stream or path |
+| `TrueTypeFont.GetGlyphIndex(int)`   | Outbound         | Method / `int`                 | Any Unicode codepoint         |
+| `TrueTypeFont.GetGlyphOutline(int)` | Outbound         | Method / `Path`                | `glyphIndex` within range     |
+| `TrueTypeFont.GetAdvanceWidth(int)` | Outbound         | Method / `int`                 | `glyphIndex` within range     |
+| `TrueTypeFont.GetKerning(int,int)`  | Outbound         | Method / `int`                 | Any glyph indices             |
+<!-- markdownlint-enable MD013 -->
 
 ## Dependencies
 
@@ -266,9 +312,12 @@ runtime NuGet dependencies: `PathFiller`, `FillRule`, `EdgeFlattener`, `Scanline
 `StrokeOutliner` are implemented entirely against `System.Numerics.Vector2`, in-box `List<T>`/
 array types, and the existing `Geometry` and `Canvas` subsystem APIs (`Path`, `PathBuilder`,
 `BezierFlattening`, `SvgArcConverter`, `Surface.CompositeOverSpan`) — no new package reference
-was added to the project file. The
-following OTS
-items are used for building and verifying this system (not consumed at runtime); see
+was added to the project file. The `Fonts` subsystem likewise introduces zero new runtime NuGet
+dependencies: `TrueTypeFont`, `SfntContainer`, `CmapTable`, `GlyfLocaReader`, `HmtxHheaReader`,
+and `KernTable` are implemented entirely against `System.IO`, in-box array/list types, and the
+existing `Geometry` subsystem's `Path`/`PathBuilder` abstractions, with no dependency on
+`Canvas`, `Drawing`, or `Codecs`. The following OTS items are used for building and verifying
+this system (not consumed at runtime); see
 _OTS Integration Design_ (`docs/design/ots.md`) and each item's dedicated design document for
 details:
 
@@ -418,6 +467,18 @@ measures (IEC 62304 §5.3.3).
    pixels into the destination `Surface`
 4. **Output**: A new `Surface` containing the decoded pixels
 
+**TrueType font load and glyph-query path:**
+
+1. **Input**: A font stream or file path, followed by caller-supplied codepoints or glyph indices
+2. **Validation**: `TrueTypeFont.Load` rejects null/empty arguments and malformed, truncated, or
+   unsupported SFNT data with the documented exception contract
+3. **Processing**: `SfntContainer` validates the table directory, `HmtxHheaReader` parses
+   metrics, `GlyfLocaReader` parses `loca`, `CmapTable` parses a supported Unicode mapping if
+   present, and `KernTable` parses a supported horizontal format-0 subtable if present; later
+   queries decode only the glyph requested
+4. **Output**: A `TrueTypeFont` object exposing metrics, codepoint-to-glyph lookup, glyph
+   outlines, advance widths, and kerning adjustments
+
 **Path stroke conversion path:**
 
 1. **Input**: Method parameters `path`, `style`, and optional `flattenTolerance`
@@ -444,11 +505,11 @@ measures (IEC 62304 §5.3.3).
 The library targets the following frameworks, enabling compatibility across modern, currently
 supported .NET runtimes:
 
-| Target Framework | Runtime / Environment                             |
-| ---------------- | ------------------------------------------------- |
-| `net8.0`         | .NET 8 LTS                                        |
-| `net9.0`         | .NET 9                                            |
-| `net10.0`        | .NET 10                                           |
+| Target Framework | Runtime / Environment |
+| ---------------- | --------------------- |
+| `net8.0`         | .NET 8 LTS            |
+| `net9.0`         | .NET 9                |
+| `net10.0`        | .NET 10               |
 
 The library is supported on the following operating systems:
 
