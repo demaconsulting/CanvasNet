@@ -17,8 +17,11 @@ antialiased pixel coverage, compositing the result directly onto a `Surface` usi
 Porter-Duff "over" blend pipeline. It supports both `FillRule.NonZero` and `FillRule.EvenOdd`
 winding resolution (matching SVG/CSS `fill-rule` semantics), correctly renders holes via nested,
 counter-wound subpaths, and treats every subpath as implicitly closed regardless of whether the
-path explicitly called `Close`. Strokes, gradients, and fonts are out of scope for this unit and
-reserved for later phases.
+path explicitly called `Close`. Alongside the original solid-color `Fill` overload, `PathFiller`
+also exposes a gradient-paint `Fill(Surface, Path, Gradient, FillRule, float)` overload that
+shares every bit of this unit's flattening, clip-bounds, and validation logic - see _GradientPaint
+Unit Design_ (`gradient-paint.md`) for the gradient-specific evaluation algorithm it delegates to.
+Fonts remain out of scope for this unit and reserved for a later phase.
 
 ### Coordinate Convention
 
@@ -95,6 +98,17 @@ subsystem grows a dedicated transform concept.
   `flattenTolerance` is non-finite, or less than or equal to
   zero (matching `BezierFlattening`'s own tolerance-validation convention, extended to also reject
   `NaN`/`Infinity` explicitly rather than relying on comparison operators alone)
+
+#### PathFiller.Fill(Surface surface, Path path, Gradient paint, FillRule fillRule, float flattenTolerance)
+
+Fills `path` onto `surface` with a linear or radial `Gradient` (see _GradientPaint Unit Design_,
+`gradient-paint.md`) instead of a solid color, evaluated once per pixel and scaled by that pixel's
+antialiased fill coverage exactly like the solid-color overload. It shares every bit of
+flattening, clip-bounds computation, and `fillRule`/`flattenTolerance` validation with the
+solid-color overload via the private `TryFlattenForFill`/`ValidateFillArgs` helpers - the only
+difference is that `ScanlineRasterizer.Fill`'s gradient-aware overload is invoked instead of its
+solid-color overload, and it additionally rejects a `null` `paint` argument with
+`ArgumentNullException`.
 
 #### EdgeFlattener.Flatten(Path path, float tolerance) (internal)
 
@@ -260,7 +274,9 @@ method, before any bounds computation or rasterization begins (see above). `Edge
 `PathCommand`, `Rect`, `BezierFlattening`, and `SvgArcConverter` (via `EdgeFlattener`), and the
 `Canvas` subsystem's `Surface`, `Rgba32`, and `Surface.CompositeOverSpan` (via
 `ScanlineRasterizer`; see _Surface Unit Design_, `../canvas/surface.md`, for that method's own
-documentation). No new runtime NuGet package is introduced.
+documentation). The gradient-paint overload additionally depends on the `Gradient` public type and
+the internal `GradientEvaluator` helper (see _GradientPaint Unit Design_, `gradient-paint.md`). No
+new runtime NuGet package is introduced.
 
 ### Callers
 

@@ -71,14 +71,92 @@ public static class PathFiller
     {
         ArgumentNullException.ThrowIfNull(surface);
         ArgumentNullException.ThrowIfNull(path);
+        ValidateFillArgs(fillRule, flattenTolerance);
 
+        if (!TryFlattenForFill(surface, path, flattenTolerance, out var polygons, out var clipBounds))
+        {
+            return;
+        }
+
+        ScanlineRasterizer.Fill(surface, polygons, color, fillRule, clipBounds);
+    }
+
+    /// <summary>
+    ///     Fills <paramref name="path"/> onto <paramref name="surface"/> with <paramref name="paint"/>,
+    ///     a linear or radial gradient evaluated once per pixel and scaled by that pixel's
+    ///     antialiased fill coverage.
+    /// </summary>
+    /// <param name="surface">The surface to fill into. Must not be <see langword="null"/>.</param>
+    /// <param name="path">The path to fill. Must not be <see langword="null"/>.</param>
+    /// <param name="paint">The gradient to paint. Must not be <see langword="null"/>.</param>
+    /// <param name="fillRule">
+    ///     The rule used to resolve overlapping or self-intersecting geometry. Defaults to
+    ///     <see cref="FillRule.NonZero"/>.
+    /// </param>
+    /// <param name="flattenTolerance">
+    ///     The maximum allowed perpendicular deviation between each curve in <paramref name="path"/>
+    ///     and the polyline used to approximate it for filling. Must be greater than zero.
+    ///     Defaults to <c>0.25f</c>.
+    /// </param>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="surface"/>, <paramref name="path"/>, or <paramref name="paint"/>
+    ///     is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <paramref name="fillRule"/> is not a defined <see cref="FillRule"/> value,
+    ///     or when <paramref name="flattenTolerance"/> is not a finite value greater than zero.
+    /// </exception>
+    /// <remarks>
+    ///     <para>
+    ///     Shares every bit of flattening, clip-bounds computation, and argument validation with
+    ///     the solid-color <see cref="Fill(Surface, Path, Rgba32, FillRule, float)"/> overload via
+    ///     the private <see cref="TryFlattenForFill"/> helper - the only difference between the
+    ///     two overloads is which <c>ScanlineRasterizer.Fill</c> entry point (and therefore
+    ///     which final per-row compositing behavior) is invoked.
+    ///     </para>
+    ///     <para>
+    ///     See <see cref="Fill(Surface, Path, Rgba32, FillRule, float)"/>'s remarks for the shared
+    ///     "every subpath is treated as implicitly closed", "no-op on an empty/out-of-bounds path",
+    ///     and "no transform parameter" documentation, all of which apply identically here.
+    ///     </para>
+    /// </remarks>
+    public static void Fill(
+        Surface surface,
+        Path path,
+        Gradient paint,
+        FillRule fillRule = FillRule.NonZero,
+        float flattenTolerance = 0.25f)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(paint);
+        ValidateFillArgs(fillRule, flattenTolerance);
+
+        if (!TryFlattenForFill(surface, path, flattenTolerance, out var polygons, out var clipBounds))
+        {
+            return;
+        }
+
+        ScanlineRasterizer.Fill(surface, polygons, paint, fillRule, clipBounds);
+    }
+
+    /// <summary>
+    ///     Validates the <paramref name="fillRule"/>/<paramref name="flattenTolerance"/> arguments
+    ///     shared by every <c>Fill</c> overload.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <paramref name="fillRule"/> is not a defined <see cref="FillRule"/> value,
+    ///     or when <paramref name="flattenTolerance"/> is not a finite value greater than zero.
+    /// </exception>
+    private static void ValidateFillArgs(FillRule fillRule, float flattenTolerance)
+    {
         // Reject an undefined FillRule value here, at the public API boundary, rather than
         // letting it silently fall through ScanlineRasterizer's internal winding-resolution
         // "else" branch (which has an explicit case only for NonZero) and be treated as EvenOdd
         // without any indication the caller passed a meaningless value - matching the existing
         // Enum.IsDefined validation convention used by BmpCodec.Save/TiffCodec.Save for their own
         // enum parameters.
-        if (!Enum.IsDefined<FillRule>(fillRule))
+        if (!Enum.IsDefined(fillRule))
         {
             throw new ArgumentOutOfRangeException(
                 nameof(fillRule), fillRule, "Fill rule must be a defined FillRule value.");
@@ -95,21 +173,35 @@ public static class PathFiller
             throw new ArgumentOutOfRangeException(
                 nameof(flattenTolerance), flattenTolerance, "Tolerance must be a finite value greater than zero.");
         }
+    }
 
-        // Flatten once, then derive the clip bounds from the flattened polygons' own vertices
-        // (rather than calling Path.GetBounds(flattenTolerance), which would independently
-        // re-flatten every curve a second time) - see this method's remarks.
-        var polygons = EdgeFlattener.Flatten(path, flattenTolerance);
+    /// <summary>
+    ///     Flattens <paramref name="path"/> and computes its clip bounds, shared by every
+    ///     <c>Fill</c> overload - see <see cref="Fill(Surface, Path, Rgba32, FillRule, float)"/>'s
+    ///     remarks for why flattening happens exactly once here rather than being repeated by
+    ///     <see cref="Path.GetBounds"/>.
+    /// </summary>
+    /// <returns>
+    ///     <see langword="false"/> (with both <see langword="out"/> parameters left at their
+    ///     default values) when the fill would be a no-op - <paramref name="clipBounds"/> is
+    ///     empty, either because <paramref name="path"/> itself has an empty bounding box or
+    ///     because it does not overlap <paramref name="surface"/>'s pixel extent at all;
+    ///     <see langword="true"/> otherwise.
+    /// </returns>
+    private static bool TryFlattenForFill(
+        Surface surface,
+        Path path,
+        float flattenTolerance,
+        out IReadOnlyList<List<Vector2>> polygons,
+        out Rect clipBounds)
+    {
+        polygons = EdgeFlattener.Flatten(path, flattenTolerance);
         var pathBounds = GetPolygonBounds(polygons);
         var surfaceBounds = new Rect(0, 0, surface.Width, surface.Height);
-        var clipBounds = Rect.Intersect(pathBounds, surfaceBounds);
-        if (clipBounds.IsEmpty)
-        {
-            return;
-        }
-
-        ScanlineRasterizer.Fill(surface, polygons, color, fillRule, clipBounds);
+        clipBounds = Rect.Intersect(pathBounds, surfaceBounds);
+        return !clipBounds.IsEmpty;
     }
+
 
     /// <summary>
     ///     Computes the axis-aligned bounding box enclosing every vertex of every already-flattened

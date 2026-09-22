@@ -2,20 +2,23 @@
 
 This document describes the subsystem-level verification strategy for the `Drawing` subsystem
 (the `PathFiller` unit, covering the supporting `FillRule` enum and the internal
-`EdgeFlattener`/`ScanlineRasterizer` helpers, and the `PathStroker` unit, covering the
+`EdgeFlattener`/`ScanlineRasterizer` helpers; the `PathStroker` unit, covering the
 supporting `LineCap`/`LineJoin`/`StrokeStyle` types and the internal
-`StrokePathFlattener`/`DashSplitter`/`StrokeOutliner` helpers).
+`StrokePathFlattener`/`DashSplitter`/`StrokeOutliner` helpers; and the `GradientPaint` unit,
+covering the public `Gradient`/`LinearGradient`/`RadialGradient`/`GradientStop`/`GradientSpread`
+types and the internal `GradientEvaluator` helper).
 
 ### Verification Approach
 
 The `Drawing` subsystem is verified primarily through its constituent units' own tests:
-_PathFiller Unit Verification Design_ (`drawing/path-filler.md`) and
-_PathStroker Unit Verification Design_ (`drawing/path-stroker.md`). Those tests exercise both
-public APIs directly, and the internal helper types (`EdgeFlattener`/`ScanlineRasterizer` and
-`StrokePathFlattener`/`DashSplitter`/`StrokeOutliner`, respectively) in isolation where that
-provides clearer evidence than end-to-end pixel checks alone. Two system-level integration tests
-additionally exercise the `Geometry`, `Drawing`, and `Canvas` subsystems together end to end (see
-the system verification design, `../canvas-net.md`):
+_PathFiller Unit Verification Design_ (`drawing/path-filler.md`),
+_PathStroker Unit Verification Design_ (`drawing/path-stroker.md`), and
+_GradientPaint Unit Verification Design_ (`drawing/gradient-paint.md`). Those tests exercise both
+public APIs directly, and the internal helper types (`EdgeFlattener`/`ScanlineRasterizer`,
+`StrokePathFlattener`/`DashSplitter`/`StrokeOutliner`, and `GradientEvaluator`, respectively) in
+isolation where that provides clearer evidence than end-to-end pixel checks alone. Two
+system-level integration tests additionally exercise the `Geometry`, `Drawing`, and `Canvas`
+subsystems together end to end (see the system verification design, `../canvas-net.md`):
 
 - Building a triangular `Path` via `PathBuilder`, filling it onto a `Surface` via
   `PathFiller.Fill`, and asserting fully-covered interior pixels, untouched exterior pixels, and
@@ -36,7 +39,8 @@ the system verification design, `../canvas-net.md`):
 ### Acceptance Criteria
 
 The `Drawing` subsystem's verification passes when every unit test scenario described in
-_PathFiller Unit Verification Design_ (`drawing/path-filler.md`) and
-_PathStroker Unit Verification Design_ (`drawing/path-stroker.md`) passes without error or
+_PathFiller Unit Verification Design_ (`drawing/path-filler.md`),
+_PathStroker Unit Verification Design_ (`drawing/path-stroker.md`), and
+_GradientPaint Unit Verification Design_ (`drawing/gradient-paint.md`) passes without error or
 unexpected exception, and both system-level integration tests described above pass.
 <!-- cspell:ignore Outliner -->

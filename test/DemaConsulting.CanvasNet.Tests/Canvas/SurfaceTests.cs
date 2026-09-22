@@ -1262,7 +1262,7 @@ public class SurfaceTests
 
     /// <summary>
     ///     Proves that the internal, workspace-reusing <c>CompositeOverSpan</c> overload (used by
-    ///     <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer.Fill"/> to amortize its
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer.Fill(DemaConsulting.CanvasNet.Canvas.Surface, System.Collections.Generic.IReadOnlyList{System.Collections.Generic.List{System.Numerics.Vector2}}, Rgba32, DemaConsulting.CanvasNet.Drawing.FillRule, DemaConsulting.CanvasNet.Geometry.Rect)"/> to amortize its
     ///     scratch-buffer rent/return across every row of a fill instead of paying it per row)
     ///     produces byte-for-byte identical surface output to the public, per-call-renting
     ///     overload, across several rows sharing one <see cref="Surface.CompositeSpanWorkspace"/> -
@@ -1346,5 +1346,123 @@ public class SurfaceTests
     {
         // Act & Assert
         Assert.Throws<ArgumentOutOfRangeException>(() => new Surface.CompositeSpanWorkspace(capacity));
+    }
+
+    /// <summary>
+    ///     Proves that the per-pixel-color <c>CompositeOverSpan</c> overload applies each pixel's
+    ///     own color, matching the constant-color overload's result at each pixel when every
+    ///     entry of the colors span happens to be equal.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpan_PerPixelColors_MatchesConstantColorOverload_WhenAllColorsEqual()
+    {
+        // Arrange
+        var expected = new Surface(3, 1);
+        var actual = new Surface(3, 1);
+        for (var x = 0; x < 3; x++)
+        {
+            expected[x, 0] = new Rgba32(10, 20, 30, 255);
+            actual[x, 0] = new Rgba32(10, 20, 30, 255);
+        }
+
+        var color = new Rgba32(200, 150, 100, 180);
+
+        // Act
+        expected.CompositeOverSpan(0, 0, [1f, 0.5f, 0f], color);
+        actual.CompositeOverSpan(0, 0, [1f, 0.5f, 0f], (ReadOnlySpan<Rgba32>)[color, color, color]);
+
+        // Assert
+        for (var x = 0; x < 3; x++)
+        {
+            Assert.Equal(expected[x, 0], actual[x, 0]);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that the per-pixel-color overload applies each pixel's own distinct color,
+    ///     scaled by that pixel's own coverage - full coverage fully applies each column's own
+    ///     color.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpan_PerPixelColors_FullCoverage_AppliesEachPixelsOwnColor()
+    {
+        // Arrange
+        var surface = new Surface(2, 1);
+        surface[0, 0] = new Rgba32(0, 0, 0, 255);
+        surface[1, 0] = new Rgba32(0, 0, 0, 255);
+        Rgba32[] colors = [new Rgba32(255, 0, 0, 255), new Rgba32(0, 255, 0, 255)];
+
+        // Act
+        surface.CompositeOverSpan(0, 0, [1f, 1f], colors);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[0, 0]);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[1, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that the per-pixel-color overload leaves a pixel with zero coverage completely
+    ///     unchanged, regardless of its own color entry.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpan_PerPixelColors_ZeroCoverage_LeavesBackgroundUnchanged()
+    {
+        // Arrange
+        var surface = new Surface(1, 1);
+        surface[0, 0] = new Rgba32(80, 160, 240, 120);
+
+        // Act
+        surface.CompositeOverSpan(0, 0, [0f], (ReadOnlySpan<Rgba32>)[new Rgba32(30, 60, 90, 255)]);
+
+        // Assert
+        Assert.Equal(new Rgba32(80, 160, 240, 120), surface[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that the per-pixel-color overload throws ArgumentException when the colors span
+    ///     and coverage span have different lengths.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpan_PerPixelColors_LengthMismatch_ThrowsArgumentException()
+    {
+        // Arrange
+        var surface = new Surface(3, 1);
+
+        // Act & Assert
+        Assert.Throws<ArgumentException>(
+            () => surface.CompositeOverSpan(0, 0, [1f, 1f], (ReadOnlySpan<Rgba32>)[new Rgba32(1, 2, 3, 4)]));
+    }
+
+    /// <summary>
+    ///     Proves that the internal, workspace-reusing per-pixel-color overload produces
+    ///     byte-for-byte identical surface output to the public per-pixel-color overload.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpanWithWorkspace_PerPixelColors_MatchesPublicOverload()
+    {
+        // Arrange
+        var expected = new Surface(3, 1);
+        var actual = new Surface(3, 1);
+        for (var x = 0; x < 3; x++)
+        {
+            expected[x, 0] = new Rgba32(40, 50, 60, 255);
+            actual[x, 0] = new Rgba32(40, 50, 60, 255);
+        }
+
+        Rgba32[] colors = [new Rgba32(255, 0, 0, 200), new Rgba32(0, 255, 0, 128), new Rgba32(0, 0, 255, 64)];
+        float[] coverage = [1f, 0.5f, 0.25f];
+
+        // Act
+        expected.CompositeOverSpan(0, 0, coverage, colors);
+        using (var workspace = new Surface.CompositeSpanWorkspace(3))
+        {
+            actual.CompositeOverSpan(0, 0, coverage, colors, workspace);
+        }
+
+        // Assert
+        for (var x = 0; x < 3; x++)
+        {
+            Assert.Equal(expected[x, 0], actual[x, 0]);
+        }
     }
 }

@@ -246,6 +246,43 @@ Calls `ScanlineRasterizer.Fill` with an empty polygon list, and separately with 
 reduced to two points (fewer than the edges needed to enclose any area), and asserts the surface
 remains completely unmodified in both cases, without throwing.
 
+#### CanvasNet-Drawing-PathFiller-GradientFill: Gradient Fill Shares Flattening/Clipping/Fill-Rule Behavior
+
+**Tests**: `PathFiller_Fill_Gradient_HorizontalRectangleWithHorizontalLinearGradient_VariesLeftToRight`,
+`PathFiller_Fill_Gradient_SingleStop_MatchesSolidColorFill`,
+`PathFiller_Fill_Gradient_OverlappingSameWoundRectangles_NonZeroVsEvenOddDiverge`,
+`PathFiller_Fill_Gradient_EmptyPath_NoOpLeavesSurfaceUnchanged`,
+`ScanlineRasterizer_Fill_Gradient_SingleStop_MatchesSolidColorOverloadPerPixelCoverage`,
+`ScanlineRasterizer_Fill_Gradient_FullCoverageRow_VariesAcrossWidthPerGradient`,
+`ScanlineRasterizer_Fill_Gradient_NoPolygons_NoOp`
+
+Fills a rectangle spanning the full width of a surface with a horizontal linear gradient and
+asserts the left edge is red-dominant while the right edge is blue-dominant, proving the gradient
+overload evaluates a genuinely varying color per pixel rather than a single constant. Separately,
+fills the same shape with a single-stop gradient and asserts the result is byte-for-byte identical
+to filling with that stop's color via the solid-color overload (a single-stop gradient is a solid
+color), including at the internal `ScanlineRasterizer` level using a sub-pixel-coverage shape,
+proving per-pixel coverage computation is genuinely shared - not merely coincidentally equal at
+fully-opaque pixels - between the solid-color and gradient overloads. Separately, repeats the
+`FillRule` divergence and empty-path no-op scenarios already covered for the solid-color overload
+(see _CanvasNet-Drawing-PathFiller-FillRule_ and
+_CanvasNet-Drawing-PathFiller-EmptyOrOutOfBoundsNoOp_ above) against the gradient overload,
+confirming that shared behavior is genuinely shared rather than coincidentally similar.
+
+#### CanvasNet-Drawing-PathFiller-GradientFillValidation: Gradient Fill Validates Its Arguments
+
+**Tests**: `PathFiller_Fill_Gradient_NullSurface_ThrowsArgumentNullException`,
+`PathFiller_Fill_Gradient_NullPath_ThrowsArgumentNullException`,
+`PathFiller_Fill_Gradient_NullPaint_ThrowsArgumentNullException`,
+`PathFiller_Fill_Gradient_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException`,
+`PathFiller_Fill_Gradient_UndefinedFillRule_ThrowsArgumentOutOfRangeException`
+
+Calls the gradient `Fill` overload with a `null` surface, a `null` path, and a `null` gradient
+paint in turn, asserting `ArgumentNullException` in each case. Separately, calls it with a
+non-positive/non-finite `flattenTolerance` and with an undefined `fillRule` value, asserting
+`ArgumentOutOfRangeException` in each case - matching the solid-color overload's own validation
+behavior exactly.
+
 ### Floating-Point Tolerance
 
 Every hand-computed coverage value used in most of these tests (`0.25`, `0.5`, `0.75`, and `1.0`

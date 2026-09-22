@@ -146,3 +146,54 @@ sections:
               - PathStroker_Stroke_NullPath_ThrowsArgumentNullException
               - PathStroker_Stroke_NullStrokeStyle_ThrowsArgumentNullException
               - PathStroker_Stroke_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException
+
+          - id: CanvasNet-Drawing-GradientPaint
+            title: >-
+              The Drawing subsystem shall fill a closed Path with a linear or radial gradient
+              color ramp onto a Surface, varying color smoothly (or in sharp steps) across the
+              filled area according to the gradient's stops, spread method, and transform, while
+              honoring the same fill rule, antialiasing, curve-flattening, and no-op behavior
+              already established for solid-color fills.
+            justification: |
+              A gradient color ramp - varying between two or more colors along a line or between
+              two circles, with configurable out-of-range spread behavior - is standard 2D vector
+              graphics paint functionality alongside solid-color fill and stroke; callers need it
+              available directly on a Surface, consistent in every other respect with the
+              existing solid-color fill.
+            children:
+              - CanvasNet-Drawing-GradientPaint-Stops
+              - CanvasNet-Drawing-GradientPaint-Definition
+              - CanvasNet-Drawing-GradientPaint-Linear
+              - CanvasNet-Drawing-GradientPaint-Radial
+              - CanvasNet-Drawing-GradientPaint-RadialNoValidRoot
+              - CanvasNet-Drawing-GradientPaint-SingleStopSolid
+              - CanvasNet-Drawing-GradientPaint-Spread
+              - CanvasNet-Drawing-GradientPaint-HardStop
+              - CanvasNet-Drawing-GradientPaint-PremultipliedBlend
+              - CanvasNet-Drawing-GradientPaint-DegenerateFlatFill
+              - CanvasNet-Drawing-GradientPaint-ExtremeCoordinates
+              - CanvasNet-Drawing-GradientPaint-Paint
+              - CanvasNet-Drawing-PathFiller-GradientFill
+            tests:
+              - PathFiller_Fill_Gradient_HorizontalRectangleWithHorizontalLinearGradient_VariesLeftToRight
+              - EvaluatePoint_Radial_TwoCircle_DistinctCentersAndRadii_ResolvesAlongSweptFamily
+
+          - id: CanvasNet-Drawing-GradientPaintValidation
+            title: >-
+              The Drawing subsystem shall reject a null Surface, Path, or gradient paint argument
+              with ArgumentNullException, a non-positive or non-finite flatten-tolerance argument
+              with ArgumentOutOfRangeException, and an undefined fill-rule argument with
+              ArgumentOutOfRangeException, when filling a Path with a gradient paint.
+            justification: |
+              Gradient fill validation must fail exactly as consistently and predictably as
+              solid-color fill validation, so callers do not need to learn a second set of
+              invalid-input rules for the gradient overload.
+            children:
+              - CanvasNet-Drawing-GradientPaint-PaintValidation
+              - CanvasNet-Drawing-PathFiller-GradientFillValidation
+            tests:
+              - PathFiller_Fill_Gradient_NullSurface_ThrowsArgumentNullException
+              - PathFiller_Fill_Gradient_NullPath_ThrowsArgumentNullException
+              - PathFiller_Fill_Gradient_NullPaint_ThrowsArgumentNullException
+              - PathFiller_Fill_Gradient_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException
+              - PathFiller_Fill_Gradient_UndefinedFillRule_ThrowsArgumentOutOfRangeException

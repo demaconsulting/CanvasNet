@@ -344,6 +344,40 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/Drawing/StrokeOutlinerTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Drawing/PathStrokerTests.cs"  # unit tests
 
+  # CanvasNet-Drawing-GradientPaint Review (one per unit)
+  - id: CanvasNet-Drawing-GradientPaint
+    title: Review that CanvasNet Drawing GradientPaint Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/drawing.md"
+      - "docs/reqstream/canvas-net/drawing.yaml"
+      - "docs/design/canvas-net/drawing/path-filler.md"
+      - "docs/reqstream/canvas-net/drawing/path-filler.yaml"
+      - "docs/design/canvas-net/canvas/surface.md"
+      - "docs/reqstream/canvas-net/canvas/surface.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/drawing/gradient-paint.yaml"  # unit requirements
+      - "docs/design/canvas-net/drawing/gradient-paint.md"      # unit design
+      - "docs/verification/canvas-net/drawing/gradient-paint.md"  # unit verification
+      - "src/DemaConsulting.CanvasNet/Drawing/GradientSpread.cs"  # supporting enum source
+      - "src/DemaConsulting.CanvasNet/Drawing/GradientStop.cs"   # public stop source
+      - "src/DemaConsulting.CanvasNet/Drawing/Gradient.cs"       # public base type source
+      - "src/DemaConsulting.CanvasNet/Drawing/LinearGradient.cs"  # public subtype source
+      - "src/DemaConsulting.CanvasNet/Drawing/RadialGradient.cs"  # public subtype source
+      - "src/DemaConsulting.CanvasNet/Drawing/GradientEvaluator.cs"  # internal helper source
+      - "src/DemaConsulting.CanvasNet/Drawing/PathFiller.cs"      # gradient Fill overload
+      - "src/DemaConsulting.CanvasNet/Drawing/ScanlineRasterizer.cs"  # gradient-aware rasterization
+      - "src/DemaConsulting.CanvasNet/Canvas/Surface.cs"          # per-pixel-color CompositeOverSpan
+      - "src/DemaConsulting.CanvasNet/Drawing/NamespaceDoc.cs"    # Drawing namespace documentation
+      - "test/DemaConsulting.CanvasNet.Tests/Drawing/GradientStopTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Drawing/LinearGradientTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Drawing/RadialGradientTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Drawing/GradientEvaluatorTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Drawing/PathFillerTests.cs"  # gradient Fill overload tests
+      - "test/DemaConsulting.CanvasNet.Tests/Drawing/ScanlineRasterizerTests.cs"  # gradient rasterization tests
+      - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceTests.cs"  # per-pixel-color CompositeOverSpan tests
+
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark
     title: Review that BuildMark Provides Required Functionality

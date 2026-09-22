@@ -246,3 +246,41 @@ sections:
                 tests:
                   - ScanlineRasterizer_Fill_NoPolygons_NoOp
                   - ScanlineRasterizer_Fill_DegeneratePolygon_ContributesZeroCoverage
+
+              - id: CanvasNet-Drawing-PathFiller-GradientFill
+                title: >-
+                  The PathFiller class shall fill a closed path onto a surface with a linear or
+                  radial gradient paint in place of a solid color, honoring the same fill rule,
+                  curve-flattening tolerance, implicit-subpath-closing, and empty/out-of-bounds
+                  no-op behavior as the solid-color Fill overload.
+                justification: |
+                  Gradient-painted fills are a standard vector-graphics capability; sharing the
+                  solid-color overload's flattening, clipping, and fill-rule behavior keeps the
+                  two paint styles visually and behaviorally consistent, and avoids a second,
+                  divergent geometry pipeline. The gradient evaluation behavior itself is
+                  specified by the GradientPaint unit's own requirements
+                  (see gradient-paint.yaml).
+                tests:
+                  - PathFiller_Fill_Gradient_HorizontalRectangleWithHorizontalLinearGradient_VariesLeftToRight
+                  - PathFiller_Fill_Gradient_SingleStop_MatchesSolidColorFill
+                  - PathFiller_Fill_Gradient_OverlappingSameWoundRectangles_NonZeroVsEvenOddDiverge
+                  - PathFiller_Fill_Gradient_EmptyPath_NoOpLeavesSurfaceUnchanged
+
+              - id: CanvasNet-Drawing-PathFiller-GradientFillValidation
+                title: >-
+                  The PathFiller class shall reject a null surface, path, or gradient paint
+                  argument to the gradient Fill overload with ArgumentNullException, and shall
+                  reject a non-positive/non-finite flattenTolerance argument or an undefined
+                  fillRule argument with ArgumentOutOfRangeException, matching the solid-color
+                  Fill overload's own validation.
+                justification: |
+                  The gradient Fill overload accepts one additional required reference argument
+                  (the gradient paint itself) beyond the solid-color overload; a null paint
+                  cannot supply valid color data and must be rejected as early and consistently
+                  as every other required reference argument.
+                tests:
+                  - PathFiller_Fill_Gradient_NullSurface_ThrowsArgumentNullException
+                  - PathFiller_Fill_Gradient_NullPath_ThrowsArgumentNullException
+                  - PathFiller_Fill_Gradient_NullPaint_ThrowsArgumentNullException
+                  - PathFiller_Fill_Gradient_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException
+                  - PathFiller_Fill_Gradient_UndefinedFillRule_ThrowsArgumentOutOfRangeException

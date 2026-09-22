@@ -341,3 +341,22 @@ sections:
               - Surface_CompositeOverSpan_YAtHeight_ThrowsArgumentOutOfRangeException
               - Surface_CompositeOverSpan_NegativeX_ThrowsArgumentOutOfRangeException
               - Surface_CompositeOverSpan_RunExceedsWidth_ThrowsArgumentOutOfRangeException
+
+          - id: CanvasNet-Canvas-CompositeOverSpanPerPixelColor
+            title: >-
+              The Canvas subsystem shall composite an independent color, supplied per pixel, "over"
+              a horizontal run of pixels within a single row in place, scaling each pixel's own
+              color's effective alpha by that same pixel's caller-supplied coverage value in
+              [0, 1], producing results identical to the constant-color composite whenever every
+              supplied color happens to be equal.
+            justification: |
+              A caller painting a per-pixel varying color source (for example a gradient) across a
+              row needs to supply a distinct color for every pixel in the run, not only a single
+              shared color, while remaining fully consistent with the existing constant-color
+              composite-over-span capability.
+            children:
+              - CanvasNet-Canvas-Surface-CompositeOverSpanPerPixelColor
+            tests:
+              - Surface_CompositeOverSpan_PerPixelColors_MatchesConstantColorOverload_WhenAllColorsEqual
+              - Surface_CompositeOverSpan_PerPixelColors_FullCoverage_AppliesEachPixelsOwnColor
+              - Surface_CompositeOverSpan_PerPixelColors_LengthMismatch_ThrowsArgumentException

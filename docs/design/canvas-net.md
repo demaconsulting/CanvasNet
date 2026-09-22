@@ -33,18 +33,21 @@ DEMA Consulting best practices. The system consists of four implemented subsyste
   or `Codecs`, and neither of those subsystems depends on `Geometry`. See
   _Geometry Subsystem Design_ (`geometry.md`).
 - **Drawing subsystem** (namespace `DemaConsulting.CanvasNet.Drawing`, folder
-  `src/DemaConsulting.CanvasNet/Drawing/`, flat — no further nesting): solid-color vector
-  rendering for `Geometry.Path` geometry through two public entry points — the `PathFiller` unit
-  (a public static `Fill` entry point, with the supporting `FillRule` enum and the internal
-  `EdgeFlattener`/`ScanlineRasterizer` helpers documented inline) and the `PathStroker` unit (a
+  `src/DemaConsulting.CanvasNet/Drawing/`, flat — no further nesting): vector rendering for
+  `Geometry.Path` geometry through three public entry points — the `PathFiller` unit
+  (a public static `Fill` entry point supporting both solid-color and gradient paint, with the
+  supporting `FillRule` enum and the internal
+  `EdgeFlattener`/`ScanlineRasterizer` helpers documented inline), the `PathStroker` unit (a
   public static `Stroke` entry point, with the supporting `LineCap`/`LineJoin`/`StrokeStyle`
   types and the internal `StrokePathFlattener`/`DashSplitter`/`StrokeOutliner` helpers documented
-  inline). `Drawing` consumes both the `Canvas` subsystem's `Surface` unit (via
+  inline), and the `GradientPaint` unit (the public `Gradient`/`LinearGradient`/`RadialGradient`/
+  `GradientStop`/`GradientSpread` types and the internal `GradientEvaluator` helper that
+  `PathFiller`'s gradient overload evaluates). `Drawing` consumes both the `Canvas` subsystem's `Surface` unit (via
   `Surface.CompositeOverSpan`) and the `Geometry` subsystem's `Path`/`PathBuilder`/
   `BezierFlattening`/`SvgArcConverter` units; neither `Canvas` nor `Geometry` depends on
   `Drawing`. `Geometry` is deliberately distinct from `Drawing`: `Geometry` describes shape
   geometry (paths, bounds, curve math) with no notion of pixels, color, or rasterization, while
-  `Drawing` turns that geometry into pixels. Gradients and fonts are reserved for later phases.
+  `Drawing` turns that geometry into pixels. Fonts are reserved for a later phase.
   See _Drawing Subsystem Design_ (`drawing.md`).
 
 The `Codecs` subsystem depends on the `Canvas` subsystem's `Surface` unit (constructing surfaces

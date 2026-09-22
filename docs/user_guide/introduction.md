@@ -705,6 +705,29 @@ throwing, if `path` is empty or its bounds do not intersect `surface`'s pixel ex
 - `ArgumentOutOfRangeException`: Thrown when `fillRule` is not a defined `FillRule` value, when
   `flattenTolerance` is less than or equal to zero, or is not a finite value (NaN or infinity).
 
+##### PathFiller.Fill(Surface surface, Path path, Gradient paint, FillRule fillRule, float flattenTolerance)
+
+```csharp
+public static void Fill(
+    Surface surface,
+    Path path,
+    Gradient paint,
+    FillRule fillRule = FillRule.NonZero,
+    float flattenTolerance = 0.25f)
+```
+
+Fills `path` with `paint` (a `LinearGradient` or `RadialGradient`) onto `surface`, evaluating the
+gradient once per pixel and scaling the result by that pixel's antialiased coverage. Shares
+curve-flattening, clip-bounds, argument validation, `FillRule`, and empty/out-of-bounds no-op
+behavior with the solid-color overload above - see `GradientPaint` below for gradient-specific
+behavior.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `surface`, `path`, or `paint` is null.
+- `ArgumentOutOfRangeException`: Thrown when `fillRule` is not a defined `FillRule` value, when
+  `flattenTolerance` is less than or equal to zero, or is not a finite value (NaN or infinity).
+
 ### PathStroker
 
 The `PathStroker` static class converts a `Geometry.Path` centerline into a new closed `Path`
@@ -796,6 +819,156 @@ Converts `path` into a new closed-outline `Path` representing the requested stro
 - `ArgumentNullException`: Thrown when `path` or `style` is null.
 - `ArgumentOutOfRangeException`: Thrown when `flattenTolerance` is less than or equal to zero, or
   is not a finite value (NaN or infinity).
+
+### GradientPaint
+
+`GradientPaint` is the set of public `Gradient`/`LinearGradient`/`RadialGradient`/`GradientStop`/
+`GradientSpread` types, in the `Drawing` namespace, that let a caller paint a filled path with a
+smoothly (or sharply) varying color ramp via `PathFiller.Fill(Surface, Path, Gradient, FillRule,
+float)` (see `PathFiller` above), instead of a single solid color.
+
+#### GradientSpread
+
+```csharp
+public enum GradientSpread
+{
+    Pad,
+    Reflect,
+    Repeat
+}
+```
+
+Selects how the ramp behaves beyond its own `[0, 1]` extent: clamping to the nearest endpoint
+color (`Pad`), reflecting the ramp back and forth in a triangle wave (`Reflect`), or repeating the
+ramp periodically (`Repeat`).
+
+#### GradientStop
+
+```csharp
+public readonly struct GradientStop
+{
+    public float Offset { get; }
+    public Rgba32 Color { get; }
+}
+```
+
+Associates a `Color` with a position (`Offset`, in `[0, 1]`) along a gradient's ramp.
+
+##### GradientStop Constructor
+
+```csharp
+public GradientStop(float offset, Rgba32 color)
+```
+
+**Exceptions:**
+
+- `ArgumentOutOfRangeException`: Thrown when `offset` is outside `[0, 1]`, or is not a finite
+  value (NaN or infinity).
+
+#### Gradient
+
+```csharp
+public abstract class Gradient
+{
+    public IReadOnlyList<GradientStop> Stops { get; }
+    public GradientSpread Spread { get; }
+    public Matrix3x2 Transform { get; }
+}
+```
+
+The abstract base type shared by `LinearGradient` and `RadialGradient` (the only two types
+permitted to derive from it). `Stops` is a defensive, stable-sorted-ascending-by-offset copy of
+the stops supplied to the subtype constructor - stability preserves caller-supplied relative
+order among stops that share the same offset, which is what makes a "hard stop" (a sharp color
+step) well-defined. `Transform` maps the gradient's own defining coordinates into the same
+coordinate space as the filled `Path`; it does not have to be invertible - see `RadialGradient`
+and `LinearGradient` below for how a non-invertible transform is resolved when painting a fill.
+
+#### LinearGradient
+
+```csharp
+public sealed class LinearGradient : Gradient
+{
+    public Vector2 Start { get; }
+    public Vector2 End { get; }
+}
+```
+
+A gradient whose color varies linearly along the vector from `Start` to `End`, reaching the first
+stop's color at `Start` and the last stop's color at `End`.
+
+##### LinearGradient Constructor
+
+```csharp
+public LinearGradient(
+    Vector2 start,
+    Vector2 end,
+    IReadOnlyList<GradientStop> stops,
+    GradientSpread spread = GradientSpread.Pad,
+    Matrix3x2? transform = null)
+```
+
+`start` equal to `end` (a zero-length gradient vector) is accepted - this degenerate case
+flat-fills with the last stop's color when painting a fill. Omitting `transform` (or passing
+`null`) is equivalent to supplying `Matrix3x2.Identity`; an explicitly-supplied `Matrix3x2` value -
+including the all-zero `default(Matrix3x2)` matrix, a legitimate (if singular) transform - is
+preserved exactly as given.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `stops` is null.
+- `ArgumentException`: Thrown when `stops` is empty.
+- `ArgumentOutOfRangeException`: Thrown when `start` or `end` has a non-finite component, when
+  `spread` is not a defined `GradientSpread` value, or when any component of `transform` is not
+  finite.
+
+#### RadialGradient
+
+```csharp
+public sealed class RadialGradient : Gradient
+{
+    public Vector2 StartCenter { get; }
+    public float StartRadius { get; }
+    public Vector2 EndCenter { get; }
+    public float EndRadius { get; }
+}
+```
+
+A gradient whose color varies radially between two independently positioned and sized circles -
+the general "two-circle" model used by SVG/CSS radial gradients - reaching the first stop's color
+on the start circle (`StartCenter`/`StartRadius`) and the last stop's color on the end circle
+(`EndCenter`/`EndRadius`). This general model subsumes both the simpler single-circle case
+(`StartRadius` zero, `StartCenter` equal to `EndCenter`) and the "focal point" case (`StartRadius`
+zero, `StartCenter` different from `EndCenter`), without needing a second public gradient type.
+
+##### RadialGradient Constructor
+
+```csharp
+public RadialGradient(
+    Vector2 startCenter,
+    float startRadius,
+    Vector2 endCenter,
+    float endRadius,
+    IReadOnlyList<GradientStop> stops,
+    GradientSpread spread = GradientSpread.Pad,
+    Matrix3x2? transform = null)
+```
+
+A point outside every circle the two-circle family sweeps through (when the two circles do not
+overlap or contain one another) is left unpainted (fully transparent) rather than resolved to any
+stop's color. A start and end circle sharing the same center and the same radius (whether that
+shared radius is zero or a nonzero value) flat-fills with the last stop's color, the same
+degenerate policy as `LinearGradient`'s zero-length vector. As with `LinearGradient`, omitting
+`transform` (or passing `null`) is equivalent to supplying `Matrix3x2.Identity`, while an
+explicitly-supplied value - including the all-zero matrix - is preserved exactly as given.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `stops` is null.
+- `ArgumentException`: Thrown when `stops` is empty.
+- `ArgumentOutOfRangeException`: Thrown when `startCenter`/`endCenter` has a non-finite component;
+  when `startRadius`/`endRadius` is not finite or is negative; when `spread` is not a defined
+  `GradientSpread` value; or when any component of `transform` is not finite.
 
 # Examples
 
@@ -991,6 +1164,39 @@ var style = new StrokeStyle(
 var strokedOutline = PathStroker.Stroke(polyline, style);
 PathFiller.Fill(canvas, strokedOutline, new Rgba32(255, 128, 0, 255));
 Console.WriteLine(canvas[20, 32].A); // Output: 255 (on the centerline, inside one visible dash run)
+```
+
+## Example 11: Filling a Vector Path with a Radial Gradient
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Drawing;
+using DemaConsulting.CanvasNet.Geometry;
+using System.Numerics;
+
+var canvas = new Surface(64, 64);
+var square = new PathBuilder()
+    .MoveTo(new Vector2(4, 4))
+    .LineTo(new Vector2(60, 4))
+    .LineTo(new Vector2(60, 60))
+    .LineTo(new Vector2(4, 60))
+    .Close()
+    .Build();
+
+var gradient = new RadialGradient(
+    startCenter: new Vector2(32, 32),
+    startRadius: 0f,
+    endCenter: new Vector2(32, 32),
+    endRadius: 28f,
+    stops:
+    [
+        new GradientStop(0f, new Rgba32(255, 255, 0, 255)),
+        new GradientStop(1f, new Rgba32(255, 0, 0, 0))
+    ],
+    spread: GradientSpread.Pad);
+
+PathFiller.Fill(canvas, square, gradient);
+Console.WriteLine(canvas[32, 32].A); // Output: 255 (at the gradient's center)
 ```
 
 # References

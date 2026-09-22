@@ -111,6 +111,7 @@ sections:
           - CanvasNet-Canvas-CompositeOverSurface
           - CanvasNet-Canvas-CompositeOverColor
           - CanvasNet-Canvas-CompositeOverSpan
+          - CanvasNet-Canvas-CompositeOverSpanPerPixelColor
         tests:
           - CanvasNet_SystemIntegration_CompositeColorOverSurface_ReturnsExpectedPixel
           - CanvasNet_SystemIntegration_CompositeSurfaceOverSurface_ReturnsExpectedPixel
@@ -842,3 +843,39 @@ sections:
           - PathStroker_Stroke_NullPath_ThrowsArgumentNullException
           - PathStroker_Stroke_NullStrokeStyle_ThrowsArgumentNullException
           - PathStroker_Stroke_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException
+
+      - id: CanvasNet-Lib-DrawingGradientPaint
+        title: >-
+          The library shall fill a closed Path with a linear or radial gradient color ramp, varying
+          color smoothly or in sharp steps across the filled area according to caller-supplied
+          color stops, spread method, and transform.
+        tags: [system]
+        justification: |
+          A gradient color ramp is standard 2D vector graphics paint functionality alongside
+          solid-color fill and stroke; callers need it available directly without hand-rolling
+          per-pixel color interpolation themselves.
+        children:
+          - CanvasNet-Drawing-GradientPaint
+        tests:
+          - PathFiller_Fill_Gradient_HorizontalRectangleWithHorizontalLinearGradient_VariesLeftToRight
+          - EvaluatePoint_Radial_TwoCircle_DistinctCentersAndRadii_ResolvesAlongSweptFamily
+
+      - id: CanvasNet-Lib-DrawingGradientPaintValidation
+        title: >-
+          The library shall reject a null surface, path, or gradient paint argument to the gradient
+          fill operation with ArgumentNullException, and shall reject a non-positive or non-finite
+          flatten-tolerance argument or an undefined fill-rule argument with
+          ArgumentOutOfRangeException.
+        tags: [system]
+        justification: |
+          Gradient fill validation must fail exactly as consistently and predictably as
+          solid-color fill validation, so callers do not need to learn a second set of
+          invalid-input rules for the gradient overload.
+        children:
+          - CanvasNet-Drawing-GradientPaintValidation
+        tests:
+          - PathFiller_Fill_Gradient_NullSurface_ThrowsArgumentNullException
+          - PathFiller_Fill_Gradient_NullPath_ThrowsArgumentNullException
+          - PathFiller_Fill_Gradient_NullPaint_ThrowsArgumentNullException
+          - PathFiller_Fill_Gradient_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException
+          - PathFiller_Fill_Gradient_UndefinedFillRule_ThrowsArgumentOutOfRangeException

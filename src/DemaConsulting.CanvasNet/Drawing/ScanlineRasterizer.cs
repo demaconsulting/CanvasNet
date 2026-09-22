@@ -1,3 +1,4 @@
+// cspell:ignore precomputation
 using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Geometry;
@@ -37,10 +38,10 @@ namespace DemaConsulting.CanvasNet.Drawing;
 ///     through it) - this is exactly the technique used by AGG's <c>scanline_u8</c>, FreeType's
 ///     "smooth" rasterizer, and <c>stb_truetype</c>. Every active edge restricted to the row
 ///     (<see cref="RowEdge"/>) is accumulated independently into these two shared arrays via
-///     <see cref="AccumulateRowEdge"/> - <b>no sorting and no reasoning about edges' relative
+///     <see cref="CoverageSweep.AccumulateRowEdge"/> - <b>no sorting and no reasoning about edges' relative
 ///     x-order whatsoever</b>. Accumulating a single near-vertical edge
-///     (<see cref="AccumulateSingleColumn"/>) is <c>O(1)</c>, but accumulating a slanted edge
-///     (<see cref="AccumulateSlantedSpan"/>) walks every pixel column the edge's row-restricted
+///     (<see cref="CoverageSweep.AccumulateSingleColumn"/>) is <c>O(1)</c>, but accumulating a slanted edge
+///     (<see cref="CoverageSweep.AccumulateSlantedSpan"/>) walks every pixel column the edge's row-restricted
 ///     segment crosses, so it costs <c>O(1 + columns crossed)</c> - up to <c>O(width)</c> for a
 ///     single edge that is nearly horizontal within the row and spans the whole visible width.
 ///     This entire accumulation phase therefore costs <c>O(edges + total columns crossed by every
@@ -59,7 +60,7 @@ namespace DemaConsulting.CanvasNet.Drawing;
 ///     only then is the resolved raw signed value - <c>accumulatedCover + area[x]</c> (the
 ///     updated running total, including this column, plus this column's own partial-edge
 ///     geometry) - converted to a <c>[0, 1]</c> coverage fraction by
-///     <see cref="ResolveCoverage"/> per <see cref="FillRule"/>.
+///     <see cref="CoverageSweep.ResolveCoverage"/> per <see cref="FillRule"/>.
 ///     </para>
 ///     <para>
 ///     <b>Why this fixes crossing/self-intersecting edges by construction.</b> A prior revision
@@ -85,7 +86,7 @@ namespace DemaConsulting.CanvasNet.Drawing;
 ///     winding decision first, two edges that occupy the exact same sub-pixel position within one
 ///     cell (for example, an identical polygon submitted twice) have their raw signed
 ///     cover/area contributions sum linearly, which can exceed the single-shape value before
-///     <see cref="ResolveCoverage"/> folds it back into <c>[0, 1]</c> - this is the same
+///     <see cref="CoverageSweep.ResolveCoverage"/> folds it back into <c>[0, 1]</c> - this is the same
 ///     documented, accepted behavior of AGG/FreeType/<c>stb_truetype</c> for coincident contours,
 ///     and is a materially rarer case in practice than ordinary self-intersecting geometry, which
 ///     is why this trade-off is accepted in exchange for fixing the crossing-edge bug.
@@ -132,377 +133,533 @@ internal static class ScanlineRasterizer
     /// <param name="clipBounds">
     ///     The region to rasterize, in the same path-space coordinates as <paramref name="polygons"/>.
     ///     Must already be clipped to the surface's own pixel extent by the caller
-    ///     (<see cref="PathFiller.Fill"/>); this method rounds it outward to whole pixel rows and
+    ///     (<see cref="PathFiller.Fill(Canvas.Surface, Geometry.Path, Canvas.Rgba32, FillRule, float)"/>); this method rounds it outward to whole pixel rows and
     ///     columns.
     /// </param>
     internal static void Fill(Surface surface, IReadOnlyList<List<Vector2>> polygons, Rgba32 color, FillRule fillRule, Rect clipBounds)
     {
-        // Round the (already surface-clipped) float clip bounds outward to whole pixel rows and
-        // columns - the rasterizer always operates on whole-pixel scanlines and columns.
-        var clipMinX = (int)MathF.Floor(clipBounds.Left);
-        var clipMaxX = (int)MathF.Ceiling(clipBounds.Right);
-        var clipMinY = (int)MathF.Floor(clipBounds.Top);
-        var clipMaxY = (int)MathF.Ceiling(clipBounds.Bottom);
-        var width = clipMaxX - clipMinX;
-        if (width <= 0 || clipMaxY <= clipMinY)
+        var sweep = new CoverageSweep(polygons, fillRule, clipBounds);
+        if (sweep.IsEmpty)
         {
             return;
         }
-
-        var edges = BuildSortedEdgeTable(polygons);
-        if (edges.Count == 0)
-        {
-            return;
-        }
-
-        // Dense per-row accumulators. "cover"/"area" are the shared cell accumulators every active
-        // edge's row-restricted slice contributes into independently (see the type-level
-        // remarks) - "cover" is sized width + 1 for the same "harmless overflow slot" reason
-        // AccumulateSingleColumn/AccumulateSlantedSpan's own bank-index clamping needs.
-        // "rowCoverage" holds the final, already fill-rule-resolved coverage per column, produced
-        // by the single left-to-right sweep over "cover"/"area".
-        var cover = new float[width + 1];
-        var area = new float[width];
-        var rowCoverage = new float[width];
-
-        var activeEdges = new List<Edge>();
-        var activeEdgeIds = new List<int>();
-        var activeEdgePositions = new Dictionary<int, int>();
-        var expiringEdgeIds = new List<int>?[clipMaxY - clipMinY];
-        var rowEdges = new List<RowEdge>();
-        var nextEdgeIndex = 0;
 
         // Every row in this loop composites the same fixed-width "rowCoverage" span
         // (clipMinX..clipMaxX), so a single workspace sized to that width can serve every row's
         // CompositeOverSpan call - amortizing the per-row ArrayPool rent/return of
         // Surface.CompositeOverSpan's scratch buffers across the whole fill instead of paying it
         // once per rasterized row.
-        using var compositeWorkspace = new Surface.CompositeSpanWorkspace(width);
+        using var compositeWorkspace = new Surface.CompositeSpanWorkspace(sweep.Width);
 
-        for (var y = clipMinY; y < clipMaxY; y++)
+        while (sweep.MoveNext(out var y, out var rowCoverage))
         {
-            var rowTop = (float)y;
-            var rowBottom = rowTop + 1f;
-
-            // Remove every edge bucketed to expire at this row (see the bucketing below): this
-            // touches exactly the edges that actually expire on this row, never the whole active
-            // list, so - unlike a full "activeEdges.RemoveAll(edge => edge.BottomY <= rowTop)"
-            // scan of every still-active edge on every row - this bookkeeping never re-examines an
-            // edge that still has rows left to contribute to.
-            var expiringHere = expiringEdgeIds[y - clipMinY];
-            if (expiringHere != null)
-            {
-                foreach (var expiredId in expiringHere)
-                {
-                    RemoveActiveEdge(expiredId, activeEdges, activeEdgeIds, activeEdgePositions);
-                }
-            }
-
-            while (nextEdgeIndex < edges.Count && edges[nextEdgeIndex].TopY < rowBottom)
-            {
-                // Each edge is identified by its own fixed position in the sorted edge table
-                // ("edges"), which never changes and is never reused, so it is a stable id to
-                // bucket by even though its position within the unordered "activeEdges" list
-                // itself can move (see RemoveActiveEdge's swap-remove).
-                var edgeId = nextEdgeIndex;
-                var edge = edges[edgeId];
-                activeEdgePositions[edgeId] = activeEdges.Count;
-                activeEdges.Add(edge);
-                activeEdgeIds.Add(edgeId);
-
-                // Bucket this edge's removal at the earliest row it can actually be observed as
-                // expired. Removal always happens at the *start* of a row, before this row's own
-                // additions, so an edge just added this row cannot be examined for expiry until at
-                // least the next row - hence the "y + 1" floor alongside the edge's own BottomY.
-                var expireRow = Math.Max((int)MathF.Ceiling(edge.BottomY), y + 1);
-                if (expireRow < clipMaxY)
-                {
-                    var bucket = expiringEdgeIds[expireRow - clipMinY] ??= [];
-                    bucket.Add(edgeId);
-                }
-
-                nextEdgeIndex++;
-            }
-
-            if (activeEdges.Count == 0)
-            {
-                continue;
-            }
-
-            BuildRowEdges(activeEdges, rowTop, rowBottom, rowEdges);
-            if (rowEdges.Count == 0)
-            {
-                continue;
-            }
-
-            // Accumulate every active edge's row-restricted slice into the shared cell arrays -
-            // a single O(edges) pass, with no sorting and no pairing of edges into "inside gaps".
-            Array.Clear(cover);
-            Array.Clear(area);
-            foreach (var edge in rowEdges)
-            {
-                AccumulateRowEdge(edge, clipMinX, clipMaxX, cover, area);
-            }
-
-            // Single left-to-right sweep: "accumulatedCover" is the running winding total. At
-            // each column, "accumulatedCover" is first advanced by this column's own "cover[x]",
-            // then the updated running total plus this column's own partial-edge geometry
-            // ("area[x]") is resolved to a [0, 1] coverage fraction per fill rule.
-            var accumulatedCover = 0f;
-            for (var i = 0; i < width; i++)
-            {
-                accumulatedCover += cover[i];
-                var total = accumulatedCover + area[i];
-                rowCoverage[i] = ResolveCoverage(total, fillRule);
-            }
-
-            surface.CompositeOverSpan(y, clipMinX, rowCoverage, color, compositeWorkspace);
+            surface.CompositeOverSpan(y, sweep.ClipMinX, rowCoverage, color, compositeWorkspace);
         }
     }
 
     /// <summary>
-    ///     Removes the active-list entry identified by <paramref name="edgeId"/> (its fixed index
-    ///     in the sorted edge table) from <paramref name="activeEdges"/>/<paramref
-    ///     name="activeEdgeIds"/> in <c>O(1)</c>, via swap-remove with the last entry rather than
-    ///     a linear shift of every subsequent element.
+    ///     Rasterizes <paramref name="polygons"/> onto <paramref name="surface"/>, evaluating
+    ///     <paramref name="paint"/> once per pixel via <see cref="GradientEvaluator.EvaluateRow"/>
+    ///     and compositing the resulting per-pixel colors scaled by each pixel's analytically
+    ///     computed fill coverage, restricted to <paramref name="clipBounds"/>.
     /// </summary>
+    /// <param name="surface">The surface to composite into. Must not be null.</param>
+    /// <param name="polygons">
+    ///     The closed polygons to fill (typically produced by <see cref="EdgeFlattener.Flatten"/>).
+    /// </param>
+    /// <param name="paint">The gradient paint to evaluate per pixel. Must not be null.</param>
+    /// <param name="fillRule">The rule used to resolve overlapping/self-intersecting geometry.</param>
+    /// <param name="clipBounds">
+    ///     The region to rasterize, in the same path-space coordinates as <paramref name="polygons"/>.
+    /// </param>
     /// <remarks>
-    ///     Swap-remove is safe here specifically because active-edge order never matters to any
-    ///     downstream consumer (<see cref="BuildRowEdges"/> and the cell accumulation it feeds are
-    ///     associative/commutative regardless of edge order - see the type-level remarks) - unlike
-    ///     a naive "scan every active edge every row" removal, this keeps the whole sweep's
-    ///     bookkeeping bounded to <c>O(edges)</c> total (one add, one lookup, and one removal per
-    ///     edge), never <c>O(edges x rows)</c>, no matter how many rows an edge remains active for.
+    ///     Shares its whole row-coverage computation (edge table build, active-edge tracking, and
+    ///     per-row <c>cover</c>/<c>area</c> accumulation) with the constant-color
+    ///     <see cref="Fill(Surface, IReadOnlyList{List{Vector2}}, Rgba32, FillRule, Rect)"/>
+    ///     overload via the shared <see cref="CoverageSweep"/> helper - the only difference between
+    ///     the two overloads is the final per-row compositing call, which here first evaluates a
+    ///     per-pixel color row via <see cref="GradientEvaluator.EvaluateRow"/>, against a
+    ///     <see cref="Gradient"/> plan built exactly once for the whole fill operation (via
+    ///     <see cref="GradientEvaluator.CreatePlan"/>), not rebuilt on every row.
     /// </remarks>
-    private static void RemoveActiveEdge(
-        int edgeId, List<Edge> activeEdges, List<int> activeEdgeIds, Dictionary<int, int> activeEdgePositions)
+    internal static void Fill(Surface surface, IReadOnlyList<List<Vector2>> polygons, Gradient paint, FillRule fillRule, Rect clipBounds)
     {
-        if (!activeEdgePositions.Remove(edgeId, out var position))
+        ArgumentNullException.ThrowIfNull(paint);
+
+        var sweep = new CoverageSweep(polygons, fillRule, clipBounds);
+        if (sweep.IsEmpty)
         {
             return;
         }
 
-        var lastIndex = activeEdges.Count - 1;
-        if (position != lastIndex)
-        {
-            var movedEdgeId = activeEdgeIds[lastIndex];
-            activeEdges[position] = activeEdges[lastIndex];
-            activeEdgeIds[position] = movedEdgeId;
-            activeEdgePositions[movedEdgeId] = position;
-        }
+        using var compositeWorkspace = new Surface.CompositeSpanWorkspace(sweep.Width);
+        var rowColors = new Rgba32[sweep.Width];
 
-        activeEdges.RemoveAt(lastIndex);
-        activeEdgeIds.RemoveAt(lastIndex);
+        // Built once per fill operation, not once per row - the transform inverse and radial
+        // quadratic coefficients it holds are invariant across every row of this fill (see
+        // GradientEvaluator's "Per-fill precomputation" remarks).
+        var plan = GradientEvaluator.CreatePlan(paint);
+
+        while (sweep.MoveNext(out var y, out var rowCoverage))
+        {
+            GradientEvaluator.EvaluateRow(in plan, y, sweep.ClipMinX, sweep.Width, rowColors);
+            surface.CompositeOverSpan(y, sweep.ClipMinX, rowCoverage, rowColors, compositeWorkspace);
+        }
     }
 
     /// <summary>
-    ///     Converts a column's raw signed accumulated cell value (<c>accumulatedCover +
-    ///     area[x]</c>, see <see cref="Fill"/>) into a <c>[0, 1]</c> coverage fraction per
-    ///     <paramref name="fillRule"/>.
+    ///     Encapsulates the row-coverage computation shared by every <c>Fill</c> overload:
+    ///     the edge table build, active-edge tracking, and per-row <c>cover</c>/<c>area</c>
+    ///     accumulation/resolution described in this class's type-level remarks. A caller
+    ///     constructs one instance per fill operation, checks <see cref="IsEmpty"/>, then repeatedly
+    ///     calls <see cref="MoveNext"/> until it returns <see langword="false"/>, compositing each
+    ///     yielded row's coverage span however that particular <c>Fill</c> overload needs to
+    ///     (constant color vs. per-pixel gradient color) - the coverage math itself is computed
+    ///     exactly once, in exactly one place, regardless of how many <c>Fill</c> overloads exist.
     /// </summary>
-    /// <remarks>
-    ///     <c>NonZero</c> is <c>min(1, abs(total))</c>: any nonzero magnitude is fully "inside",
-    ///     clamped to a whole pixel's worth of coverage. <c>EvenOdd</c> folds <paramref name="total"/>
-    ///     into a <c>[0, 2)</c> triangle wave and reflects it (<c>folded > 1 ? 2 - folded :
-    ///     folded</c>), matching the classic even-odd "every crossing toggles inside/outside"
-    ///     semantics applied to a continuous, analytically accumulated value rather than an
-    ///     integer winding count.
-    /// </remarks>
-    private static float ResolveCoverage(float total, FillRule fillRule)
+    private sealed class CoverageSweep
     {
-        var magnitude = MathF.Abs(total);
-        if (fillRule == FillRule.NonZero)
+        private readonly List<Edge> _edges;
+        private readonly FillRule _fillRule;
+        private readonly int _clipMinX;
+        private readonly int _clipMaxX;
+        private readonly int _clipMinY;
+        private readonly int _clipMaxY;
+        private readonly float[] _cover;
+        private readonly float[] _area;
+        private readonly float[] _rowCoverage;
+        private readonly List<Edge> _activeEdges = [];
+        private readonly List<int> _activeEdgeIds = [];
+        private readonly Dictionary<int, int> _activeEdgePositions = [];
+        private readonly List<int>?[] _expiringEdgeIds;
+        private readonly List<RowEdge> _rowEdges = [];
+        private int _nextEdgeIndex;
+        private int _currentY;
+
+        public CoverageSweep(IReadOnlyList<List<Vector2>> polygons, FillRule fillRule, Rect clipBounds)
         {
-            return Math.Clamp(magnitude, 0f, 1f);
-        }
+            _fillRule = fillRule;
 
-        var folded = magnitude % 2f;
-        return folded > 1f ? 2f - folded : folded;
-    }
+            // Round the (already surface-clipped) float clip bounds outward to whole pixel rows
+            // and columns - the rasterizer always operates on whole-pixel scanlines and columns.
+            _clipMinX = (int)MathF.Floor(clipBounds.Left);
+            _clipMaxX = (int)MathF.Ceiling(clipBounds.Right);
+            _clipMinY = (int)MathF.Floor(clipBounds.Top);
+            _clipMaxY = (int)MathF.Ceiling(clipBounds.Bottom);
+            Width = _clipMaxX - _clipMinX;
+            _currentY = _clipMinY;
 
-    /// <summary>
-    ///     Accumulates one row-restricted edge slice's contribution into the row's shared
-    ///     <paramref name="cover"/>/<paramref name="area"/> cell arrays (see <see cref="Fill"/>),
-    ///     reusing the same single-edge geometry as <see cref="AccumulateSingleColumn"/>/
-    ///     <see cref="AccumulateSlantedSpan"/> - the only change from a single-edge design is that
-    ///     every <see cref="RowEdge"/> for the row is accumulated into the same shared arrays
-    ///     rather than each edge (or interval boundary) getting its own scratch buffer.
-    /// </summary>
-    private static void AccumulateRowEdge(RowEdge edge, int clipMinX, int clipMaxX, float[] cover, float[] area)
-    {
-        if (MathF.Abs(edge.XAtY1 - edge.XAtY0) <= NearZeroDisplacement)
-        {
-            AccumulateSingleColumn(edge.XAtY0, edge.Y1 - edge.Y0, edge.Direction, clipMinX, clipMaxX, cover, area);
-            return;
-        }
-
-        AccumulateSlantedSpan(edge.XAtY0, edge.Y0, edge.XAtY1, edge.Y1, edge.Direction, clipMinX, clipMaxX, cover, area);
-    }
-
-    /// <summary>
-    ///     Accumulates the contribution of a boundary-line segment that lies within a single
-    ///     pixel column (a vertical, or near-vertical, segment at constant x).
-    /// </summary>
-    private static void AccumulateSingleColumn(
-        float x, float deltaY, int direction, int clipMinX, int clipMaxX, float[] cover, float[] area)
-    {
-        var column = (int)MathF.Floor(x);
-        if (column < clipMinX)
-        {
-            // Entirely left of the visible range: bank the full contribution at the first
-            // visible column so every visible pixel's prefix sum includes it.
-            cover[0] += direction * deltaY;
-            return;
-        }
-
-        if (column >= clipMaxX)
-        {
-            // Entirely right of the visible range: a ray cast further right than any visible
-            // pixel never reaches this boundary, so it contributes nothing to any visible column.
-            return;
-        }
-
-        var fraction = x - column;
-        area[column - clipMinX] += direction * deltaY * (1f - fraction);
-        var bankIndex = Math.Clamp(column + 1 - clipMinX, 0, clipMaxX - clipMinX);
-        cover[bankIndex] += direction * deltaY;
-    }
-
-    /// <summary>
-    ///     Accumulates the contribution of a boundary-line segment that spans a horizontal range
-    ///     of x (a slanted line), splitting it at the visible clip boundaries first, then walking
-    ///     each pixel column the visible portion crosses.
-    /// </summary>
-    private static void AccumulateSlantedSpan(
-        float xa, float sy0, float xb, float sy1, int direction, int clipMinX, int clipMaxX, float[] cover, float[] area)
-    {
-        var xLeft = Math.Min(xa, xb);
-        var xRight = Math.Max(xa, xb);
-
-        // Left overflow: the portion of the segment with x < clipMinX contributes its full
-        // (unsplit) vertical extent banked at the first visible column, exactly as a fully
-        // left-of-range boundary would - see AccumulateSingleColumn's analogous case.
-        if (xLeft < clipMinX)
-        {
-            var xClip = Math.Min(xRight, clipMinX);
-            var yAtLeft = InterpolateY(xa, sy0, xb, sy1, xLeft);
-            var yAtClip = InterpolateY(xa, sy0, xb, sy1, xClip);
-            var overflowDeltaY = MathF.Abs(yAtClip - yAtLeft);
-            if (overflowDeltaY > 0)
+            if (Width <= 0 || _clipMaxY <= _clipMinY)
             {
-                cover[0] += direction * overflowDeltaY;
+                _edges = [];
+                _expiringEdgeIds = [];
+                IsEmpty = true;
+                _cover = [];
+                _area = [];
+                _rowCoverage = [];
+                return;
             }
 
-            xLeft = xClip;
-        }
-
-        // Right overflow: the portion of the segment with x >= clipMaxX contributes nothing to
-        // any visible column (a ray cast further right never reaches it) - simply drop it.
-        if (xRight > clipMaxX)
-        {
-            xRight = clipMaxX;
-        }
-
-        if (xLeft >= xRight)
-        {
-            return;
-        }
-
-        // Walk each pixel column the remaining, now fully visible-range-clipped span crosses.
-        // This loop is bounded by the visible column count (clipMaxX - clipMinX), never by the
-        // boundary's own potentially unbounded extent, because xLeft/xRight were already clipped
-        // above.
-        var column = (int)MathF.Floor(xLeft);
-        var currentX = xLeft;
-        while (currentX < xRight)
-        {
-            var columnRightEdge = Math.Min(column + 1, xRight);
-            var yAtCurrentX = InterpolateY(xa, sy0, xb, sy1, currentX);
-            var yAtColumnRightEdge = InterpolateY(xa, sy0, xb, sy1, columnRightEdge);
-            var deltaY = MathF.Abs(yAtColumnRightEdge - yAtCurrentX);
-            var averageFraction = (currentX - column + (columnRightEdge - column)) / 2f;
-
-            area[column - clipMinX] += direction * deltaY * (1f - averageFraction);
-            var bankIndex = Math.Clamp(column + 1 - clipMinX, 0, clipMaxX - clipMinX);
-            cover[bankIndex] += direction * deltaY;
-
-            currentX = columnRightEdge;
-            column++;
-        }
-    }
-
-    /// <summary>
-    ///     Linearly interpolates the y-coordinate at a given x along the line through
-    ///     <c>(xa, ya)</c> and <c>(xb, yb)</c>, where <c>xa != xb</c>.
-    /// </summary>
-    private static float InterpolateY(float xa, float ya, float xb, float yb, float x) =>
-        ya + (x - xa) / (xb - xa) * (yb - ya);
-
-    /// <summary>
-    ///     Builds the per-row edge list: every <paramref name="activeEdges"/> entry, restricted to
-    ///     the portion of its vertical extent overlapping <c>[rowTop, rowBottom)</c>, with its
-    ///     x-coordinate at both that restricted range's start and end y precomputed. Edges whose
-    ///     vertical extent does not actually overlap this row at all (possible at the boundary
-    ///     rows of an edge's extent, due to floating-point comparisons in the active-list sweep)
-    ///     are omitted.
-    /// </summary>
-    private static void BuildRowEdges(List<Edge> activeEdges, float rowTop, float rowBottom, List<RowEdge> rowEdges)
-    {
-        rowEdges.Clear();
-
-        foreach (var edge in activeEdges)
-        {
-            var sy0 = Math.Max(edge.TopY, rowTop);
-            var sy1 = Math.Min(edge.BottomY, rowBottom);
-            if (sy0 >= sy1)
+            _edges = BuildSortedEdgeTable(polygons);
+            if (_edges.Count == 0)
             {
-                continue;
+                _expiringEdgeIds = [];
+                IsEmpty = true;
+                _cover = [];
+                _area = [];
+                _rowCoverage = [];
+                return;
             }
 
-            var xAtSy0 = edge.TopX + edge.Slope * (sy0 - edge.TopY);
-            var xAtSy1 = edge.TopX + edge.Slope * (sy1 - edge.TopY);
-            rowEdges.Add(new RowEdge(sy0, sy1, xAtSy0, xAtSy1, edge.Direction));
+            // Dense per-row accumulators. "cover"/"area" are the shared cell accumulators every
+            // active edge's row-restricted slice contributes into independently (see the
+            // type-level remarks) - "cover" is sized Width + 1 for the same "harmless overflow
+            // slot" reason AccumulateSingleColumn/AccumulateSlantedSpan's own bank-index clamping
+            // needs. "rowCoverage" holds the final, already fill-rule-resolved coverage per
+            // column, produced by the single left-to-right sweep over "cover"/"area".
+            _cover = new float[Width + 1];
+            _area = new float[Width];
+            _rowCoverage = new float[Width];
+            _expiringEdgeIds = new List<int>?[_clipMaxY - _clipMinY];
         }
-    }
 
-    /// <summary>
-    ///     Builds the edge table: every non-horizontal edge of every polygon, normalized so
-    ///     <see cref="Edge.TopY"/> is less than <see cref="Edge.BottomY"/>, sorted ascending by
-    ///     <see cref="Edge.TopY"/> so the active-list sweep in <see cref="Fill"/> can add edges
-    ///     with a single forward-advancing pointer.
-    /// </summary>
-    private static List<Edge> BuildSortedEdgeTable(IReadOnlyList<List<Vector2>> polygons)
-    {
-        var edges = new List<Edge>();
+        /// <summary>
+        ///     The clipped row width, in pixel columns; also the length of every
+        ///     <c>rowCoverage</c> span yielded by <see cref="MoveNext"/>.
+        /// </summary>
+        public int Width { get; }
 
-        foreach (var polygon in polygons)
+        /// <summary>
+        ///     The clipped leftmost pixel column; the <c>x</c> argument every caller should pass
+        ///     to <see cref="Surface.CompositeOverSpan(int, int, ReadOnlySpan{float}, Rgba32, Surface.CompositeSpanWorkspace)"/>
+        ///     alongside a yielded row.
+        /// </summary>
+        public int ClipMinX => _clipMinX;
+
+        /// <summary>
+        ///     <see langword="true"/> when this fill operation has no visible rows or edges at
+        ///     all (an empty clip region, or geometry with no non-horizontal edges), meaning
+        ///     <see cref="MoveNext"/> would never yield a row - callers should skip the whole
+        ///     compositing loop (and any workspace allocation) entirely in this case.
+        /// </summary>
+        public bool IsEmpty { get; }
+
+        /// <summary>
+        ///     Advances to the next visible row, if any, computing its fully resolved
+        ///     <c>[0, 1]</c> coverage span.
+        /// </summary>
+        /// <param name="y">The zero-based row just computed.</param>
+        /// <param name="rowCoverage">
+        ///     The row's coverage span, one value per column starting at <see cref="ClipMinX"/>.
+        ///     This span is reused (overwritten) by every call - a caller must fully consume it
+        ///     (for example, by compositing it) before calling <see cref="MoveNext"/> again.
+        /// </param>
+        /// <returns>
+        ///     <see langword="true"/> if a row was produced; <see langword="false"/> once every
+        ///     row in the clip range has been swept.
+        /// </returns>
+        public bool MoveNext(out int y, out ReadOnlySpan<float> rowCoverage)
         {
-            for (var i = 0; i < polygon.Count - 1; i++)
+            while (_currentY < _clipMaxY)
             {
-                var a = polygon[i];
-                var b = polygon[i + 1];
+                y = _currentY;
+                _currentY++;
 
-                // A horizontal (or near-horizontal, within floating-point rounding) edge has
-                // effectively zero vertical extent and therefore contributes zero coverage under
-                // this algorithm - it is never added to the edge table. Using a near-zero
-                // threshold rather than exact equality also avoids ever computing a slope with a
-                // near-zero denominator below for an edge that is horizontal only up to rounding.
-                if (MathF.Abs(a.Y - b.Y) <= NearZeroDisplacement)
+                var rowTop = (float)y;
+                var rowBottom = rowTop + 1f;
+
+                // Remove every edge bucketed to expire at this row (see the bucketing below):
+                // this touches exactly the edges that actually expire on this row, never the
+                // whole active list, so - unlike a full
+                // "activeEdges.RemoveAll(edge => edge.BottomY <= rowTop)" scan of every still-
+                // active edge on every row - this bookkeeping never re-examines an edge that still
+                // has rows left to contribute to.
+                var expiringHere = _expiringEdgeIds[y - _clipMinY];
+                if (expiringHere != null)
+                {
+                    foreach (var expiredId in expiringHere)
+                    {
+                        RemoveActiveEdge(expiredId, _activeEdges, _activeEdgeIds, _activeEdgePositions);
+                    }
+                }
+
+                while (_nextEdgeIndex < _edges.Count && _edges[_nextEdgeIndex].TopY < rowBottom)
+                {
+                    // Each edge is identified by its own fixed position in the sorted edge table
+                    // ("_edges"), which never changes and is never reused, so it is a stable id to
+                    // bucket by even though its position within the unordered "_activeEdges" list
+                    // itself can move (see RemoveActiveEdge's swap-remove).
+                    var edgeId = _nextEdgeIndex;
+                    var edge = _edges[edgeId];
+                    _activeEdgePositions[edgeId] = _activeEdges.Count;
+                    _activeEdges.Add(edge);
+                    _activeEdgeIds.Add(edgeId);
+
+                    // Bucket this edge's removal at the earliest row it can actually be observed
+                    // as expired. Removal always happens at the *start* of a row, before this
+                    // row's own additions, so an edge just added this row cannot be examined for
+                    // expiry until at least the next row - hence the "y + 1" floor alongside the
+                    // edge's own BottomY.
+                    var expireRow = Math.Max((int)MathF.Ceiling(edge.BottomY), y + 1);
+                    if (expireRow < _clipMaxY)
+                    {
+                        var bucket = _expiringEdgeIds[expireRow - _clipMinY] ??= [];
+                        bucket.Add(edgeId);
+                    }
+
+                    _nextEdgeIndex++;
+                }
+
+                if (_activeEdges.Count == 0)
                 {
                     continue;
                 }
 
-                var direction = a.Y < b.Y ? 1 : -1;
-                var top = a.Y < b.Y ? a : b;
-                var bottom = a.Y < b.Y ? b : a;
-                var slope = (bottom.X - top.X) / (bottom.Y - top.Y);
+                BuildRowEdges(_activeEdges, rowTop, rowBottom, _rowEdges);
+                if (_rowEdges.Count == 0)
+                {
+                    continue;
+                }
 
-                edges.Add(new Edge(top.Y, bottom.Y, top.X, slope, direction));
+                // Accumulate every active edge's row-restricted slice into the shared cell
+                // arrays - a single O(edges) pass, with no sorting and no pairing of edges into
+                // "inside gaps".
+                Array.Clear(_cover);
+                Array.Clear(_area);
+                foreach (var edge in _rowEdges)
+                {
+                    AccumulateRowEdge(edge, _clipMinX, _clipMaxX, _cover, _area);
+                }
+
+                // Single left-to-right sweep: "accumulatedCover" is the running winding total. At
+                // each column, "accumulatedCover" is first advanced by this column's own
+                // "cover[x]", then the updated running total plus this column's own partial-edge
+                // geometry ("area[x]") is resolved to a [0, 1] coverage fraction per fill rule.
+                var accumulatedCover = 0f;
+                for (var i = 0; i < Width; i++)
+                {
+                    accumulatedCover += _cover[i];
+                    var total = accumulatedCover + _area[i];
+                    _rowCoverage[i] = ResolveCoverage(total, _fillRule);
+                }
+
+                rowCoverage = _rowCoverage;
+                return true;
+            }
+
+            y = 0;
+            rowCoverage = default;
+            return false;
+        }
+
+        /// <summary>
+        ///     Removes the active-list entry identified by <paramref name="edgeId"/> (its fixed
+        ///     index in the sorted edge table) from <paramref name="activeEdges"/>/<paramref
+        ///     name="activeEdgeIds"/> in <c>O(1)</c>, via swap-remove with the last entry rather
+        ///     than a linear shift of every subsequent element.
+        /// </summary>
+        /// <remarks>
+        ///     Swap-remove is safe here specifically because active-edge order never matters to
+        ///     any downstream consumer (<see cref="BuildRowEdges"/> and the cell accumulation it
+        ///     feeds are associative/commutative regardless of edge order - see the type-level
+        ///     remarks) - unlike a naive "scan every active edge every row" removal, this keeps
+        ///     the whole sweep's bookkeeping bounded to <c>O(edges)</c> total (one add, one
+        ///     lookup, and one removal per edge), never <c>O(edges x rows)</c>, no matter how many
+        ///     rows an edge remains active for.
+        /// </remarks>
+        private static void RemoveActiveEdge(
+            int edgeId, List<Edge> activeEdges, List<int> activeEdgeIds, Dictionary<int, int> activeEdgePositions)
+        {
+            if (!activeEdgePositions.Remove(edgeId, out var position))
+            {
+                return;
+            }
+
+            var lastIndex = activeEdges.Count - 1;
+            if (position != lastIndex)
+            {
+                var movedEdgeId = activeEdgeIds[lastIndex];
+                activeEdges[position] = activeEdges[lastIndex];
+                activeEdgeIds[position] = movedEdgeId;
+                activeEdgePositions[movedEdgeId] = position;
+            }
+
+            activeEdges.RemoveAt(lastIndex);
+            activeEdgeIds.RemoveAt(lastIndex);
+        }
+
+        /// <summary>
+        ///     Converts a column's raw signed accumulated cell value (<c>accumulatedCover +
+        ///     area[x]</c>, see <see cref="MoveNext"/>) into a <c>[0, 1]</c> coverage fraction per
+        ///     <paramref name="fillRule"/>.
+        /// </summary>
+        /// <remarks>
+        ///     <c>NonZero</c> is <c>min(1, abs(total))</c>: any nonzero magnitude is fully
+        ///     "inside", clamped to a whole pixel's worth of coverage. <c>EvenOdd</c> folds
+        ///     <paramref name="total"/> into a <c>[0, 2)</c> triangle wave and reflects it
+        ///     (<c>folded > 1 ? 2 - folded : folded</c>), matching the classic even-odd "every
+        ///     crossing toggles inside/outside" semantics applied to a continuous, analytically
+        ///     accumulated value rather than an integer winding count.
+        /// </remarks>
+        private static float ResolveCoverage(float total, FillRule fillRule)
+        {
+            var magnitude = MathF.Abs(total);
+            if (fillRule == FillRule.NonZero)
+            {
+                return Math.Clamp(magnitude, 0f, 1f);
+            }
+
+            var folded = magnitude % 2f;
+            return folded > 1f ? 2f - folded : folded;
+        }
+
+        /// <summary>
+        ///     Accumulates one row-restricted edge slice's contribution into the row's shared
+        ///     <paramref name="cover"/>/<paramref name="area"/> cell arrays (see
+        ///     <see cref="MoveNext"/>), reusing the same single-edge geometry as
+        ///     <see cref="AccumulateSingleColumn"/>/<see cref="AccumulateSlantedSpan"/> - the only
+        ///     change from a single-edge design is that every <see cref="RowEdge"/> for the row is
+        ///     accumulated into the same shared arrays rather than each edge (or interval
+        ///     boundary) getting its own scratch buffer.
+        /// </summary>
+        private static void AccumulateRowEdge(RowEdge edge, int clipMinX, int clipMaxX, float[] cover, float[] area)
+        {
+            if (MathF.Abs(edge.XAtY1 - edge.XAtY0) <= NearZeroDisplacement)
+            {
+                AccumulateSingleColumn(edge.XAtY0, edge.Y1 - edge.Y0, edge.Direction, clipMinX, clipMaxX, cover, area);
+                return;
+            }
+
+            AccumulateSlantedSpan(edge.XAtY0, edge.Y0, edge.XAtY1, edge.Y1, edge.Direction, clipMinX, clipMaxX, cover, area);
+        }
+
+        /// <summary>
+        ///     Builds the per-row edge list: every <paramref name="activeEdges"/> entry,
+        ///     restricted to the portion of its vertical extent overlapping
+        ///     <c>[rowTop, rowBottom)</c>, with its x-coordinate at both that restricted range's
+        ///     start and end y precomputed. Edges whose vertical extent does not actually overlap
+        ///     this row at all (possible at the boundary rows of an edge's extent, due to
+        ///     floating-point comparisons in the active-list sweep) are omitted.
+        /// </summary>
+        private static void BuildRowEdges(List<Edge> activeEdges, float rowTop, float rowBottom, List<RowEdge> rowEdges)
+        {
+            rowEdges.Clear();
+
+            foreach (var edge in activeEdges)
+            {
+                var sy0 = Math.Max(edge.TopY, rowTop);
+                var sy1 = Math.Min(edge.BottomY, rowBottom);
+                if (sy0 >= sy1)
+                {
+                    continue;
+                }
+
+                var xAtSy0 = edge.TopX + edge.Slope * (sy0 - edge.TopY);
+                var xAtSy1 = edge.TopX + edge.Slope * (sy1 - edge.TopY);
+                rowEdges.Add(new RowEdge(sy0, sy1, xAtSy0, xAtSy1, edge.Direction));
             }
         }
 
-        edges.Sort((left, right) => left.TopY.CompareTo(right.TopY));
-        return edges;
+        /// <summary>
+        ///     Builds the edge table: every non-horizontal edge of every polygon, normalized so
+        ///     <see cref="Edge.TopY"/> is less than <see cref="Edge.BottomY"/>, sorted ascending
+        ///     by <see cref="Edge.TopY"/> so the active-list sweep in <see cref="MoveNext"/> can
+        ///     add edges with a single forward-advancing pointer.
+        /// </summary>
+        private static List<Edge> BuildSortedEdgeTable(IReadOnlyList<List<Vector2>> polygons)
+        {
+            var edges = new List<Edge>();
+
+            foreach (var polygon in polygons)
+            {
+                for (var i = 0; i < polygon.Count - 1; i++)
+                {
+                    var a = polygon[i];
+                    var b = polygon[i + 1];
+
+                    // A horizontal (or near-horizontal, within floating-point rounding) edge has
+                    // effectively zero vertical extent and therefore contributes zero coverage
+                    // under this algorithm - it is never added to the edge table. Using a
+                    // near-zero threshold rather than exact equality also avoids ever computing a
+                    // slope with a near-zero denominator below for an edge that is horizontal
+                    // only up to rounding.
+                    if (MathF.Abs(a.Y - b.Y) <= NearZeroDisplacement)
+                    {
+                        continue;
+                    }
+
+                    var direction = a.Y < b.Y ? 1 : -1;
+                    var top = a.Y < b.Y ? a : b;
+                    var bottom = a.Y < b.Y ? b : a;
+                    var slope = (bottom.X - top.X) / (bottom.Y - top.Y);
+
+                    edges.Add(new Edge(top.Y, bottom.Y, top.X, slope, direction));
+                }
+            }
+
+            edges.Sort((left, right) => left.TopY.CompareTo(right.TopY));
+            return edges;
+        }
+
+        /// <summary>
+        ///     Accumulates the contribution of a boundary-line segment that lies within a single
+        ///     pixel column (a vertical, or near-vertical, segment at constant x).
+        /// </summary>
+        private static void AccumulateSingleColumn(
+            float x, float deltaY, int direction, int clipMinX, int clipMaxX, float[] cover, float[] area)
+        {
+            var column = (int)MathF.Floor(x);
+            if (column < clipMinX)
+            {
+                // Entirely left of the visible range: bank the full contribution at the first
+                // visible column so every visible pixel's prefix sum includes it.
+                cover[0] += direction * deltaY;
+                return;
+            }
+
+            if (column >= clipMaxX)
+            {
+                // Entirely right of the visible range: a ray cast further right than any visible
+                // pixel never reaches this boundary, so it contributes nothing to any visible
+                // column.
+                return;
+            }
+
+            var fraction = x - column;
+            area[column - clipMinX] += direction * deltaY * (1f - fraction);
+            var bankIndex = Math.Clamp(column + 1 - clipMinX, 0, clipMaxX - clipMinX);
+            cover[bankIndex] += direction * deltaY;
+        }
+
+        /// <summary>
+        ///     Accumulates the contribution of a boundary-line segment that spans a horizontal
+        ///     range of x (a slanted line), splitting it at the visible clip boundaries first,
+        ///     then walking each pixel column the visible portion crosses.
+        /// </summary>
+        private static void AccumulateSlantedSpan(
+            float xa, float sy0, float xb, float sy1, int direction, int clipMinX, int clipMaxX, float[] cover, float[] area)
+        {
+            var xLeft = Math.Min(xa, xb);
+            var xRight = Math.Max(xa, xb);
+
+            // Left overflow: the portion of the segment with x < clipMinX contributes its full
+            // (unsplit) vertical extent banked at the first visible column, exactly as a fully
+            // left-of-range boundary would - see AccumulateSingleColumn's analogous case.
+            if (xLeft < clipMinX)
+            {
+                var xClip = Math.Min(xRight, clipMinX);
+                var yAtLeft = InterpolateY(xa, sy0, xb, sy1, xLeft);
+                var yAtClip = InterpolateY(xa, sy0, xb, sy1, xClip);
+                var overflowDeltaY = MathF.Abs(yAtClip - yAtLeft);
+                if (overflowDeltaY > 0)
+                {
+                    cover[0] += direction * overflowDeltaY;
+                }
+
+                xLeft = xClip;
+            }
+
+            // Right overflow: the portion of the segment with x >= clipMaxX contributes nothing
+            // to any visible column (a ray cast further right never reaches it) - simply drop it.
+            if (xRight > clipMaxX)
+            {
+                xRight = clipMaxX;
+            }
+
+            if (xLeft >= xRight)
+            {
+                return;
+            }
+
+            // Walk each pixel column the remaining, now fully visible-range-clipped span
+            // crosses. This loop is bounded by the visible column count
+            // (clipMaxX - clipMinX), never by the boundary's own potentially unbounded extent,
+            // because xLeft/xRight were already clipped above.
+            var column = (int)MathF.Floor(xLeft);
+            var currentX = xLeft;
+            while (currentX < xRight)
+            {
+                var columnRightEdge = Math.Min(column + 1, xRight);
+                var yAtCurrentX = InterpolateY(xa, sy0, xb, sy1, currentX);
+                var yAtColumnRightEdge = InterpolateY(xa, sy0, xb, sy1, columnRightEdge);
+                var deltaY = MathF.Abs(yAtColumnRightEdge - yAtCurrentX);
+                var averageFraction = (currentX - column + (columnRightEdge - column)) / 2f;
+
+                area[column - clipMinX] += direction * deltaY * (1f - averageFraction);
+                var bankIndex = Math.Clamp(column + 1 - clipMinX, 0, clipMaxX - clipMinX);
+                cover[bankIndex] += direction * deltaY;
+
+                currentX = columnRightEdge;
+                column++;
+            }
+        }
+
+        /// <summary>
+        ///     Linearly interpolates the y-coordinate at a given x along the line through
+        ///     <c>(xa, ya)</c> and <c>(xb, yb)</c>, where <c>xa != xb</c>.
+        /// </summary>
+        private static float InterpolateY(float xa, float ya, float xb, float yb, float x) =>
+            ya + (x - xa) / (xb - xa) * (yb - ya);
     }
 
     /// <summary>
@@ -548,7 +705,7 @@ internal static class ScanlineRasterizer
     /// <summary>
     ///     One <see cref="Edge"/> restricted to the portion of a single row's vertical extent it
     ///     overlaps, with its x-coordinate at both endpoints of that restricted range
-    ///     precomputed, so <see cref="AccumulateRowEdge"/> never needs to re-derive
+    ///     precomputed, so <see cref="CoverageSweep.AccumulateRowEdge"/> never needs to re-derive
     ///     <see cref="Edge.Slope"/>-based interpolation itself.
     /// </summary>
     private readonly struct RowEdge(float y0, float y1, float xAtY0, float xAtY1, int direction)

@@ -1,0 +1,268 @@
+---
+# cspell:ignore Rgba
+# Software Unit Requirements for GradientPaint
+#
+# These requirements describe the design-level behavior of the GradientPaint unit within the
+# Drawing subsystem. GradientPaint is not a single class, but the set of public
+# Gradient/LinearGradient/RadialGradient/GradientStop/GradientSpread types plus the internal
+# GradientEvaluator helper documented here as one unit, together with the gradient-aware
+# PathFiller.Fill/ScanlineRasterizer.Fill/Surface.CompositeOverSpan overloads that let a caller
+# paint a filled path with a linear or radial color ramp instead of a single solid color.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Drawing Requirements
+        sections:
+          - title: GradientPaint Requirements
+            requirements:
+              - id: CanvasNet-Drawing-GradientPaint-Stops
+                title: >-
+                  A gradient stop shall associate a color with a position along the gradient's
+                  ramp expressed as a fraction between zero and one inclusive, and shall reject a
+                  position outside that range or a non-finite position value.
+                justification: |
+                  A gradient's color ramp is defined entirely by an ordered set of positioned
+                  colors; a position outside the ramp's own [0, 1] extent, or a non-finite
+                  position, has no meaningful place on that ramp and must be rejected rather than
+                  silently accepted and later produce an undefined visual result.
+                tests:
+                  - GradientStop_Constructor_OffsetOutsideZeroToOne_ThrowsArgumentOutOfRangeException
+                  - GradientStop_Constructor_NonFiniteOffset_ThrowsArgumentOutOfRangeException
+                  - GradientStop_Constructor_BoundaryOffsetsZeroAndOne_Succeeds
+
+              - id: CanvasNet-Drawing-GradientPaint-Definition
+                title: >-
+                  A gradient shall be defined by one or more color stops, a spread method
+                  describing how the ramp behaves beyond its own extent, and a transform mapping
+                  the gradient's own coordinates into the caller's path coordinate space; the
+                  gradient shall reject a missing or empty stop collection, an undefined spread
+                  method, and a transform with a non-finite component, while resolving its stops
+                  in ascending position order regardless of the order the caller supplied them in.
+                  Omitting the transform argument shall be equivalent to supplying the identity
+                  transform, while an explicitly-supplied transform value - including the all-zero
+                  transform - shall be accepted and preserved exactly as given, distinct from
+                  omission.
+                justification: |
+                  A gradient cannot paint anything meaningful without at least one color stop, an
+                  undefined spread method has no defined visual meaning, and a non-finite
+                  transform component cannot place the gradient anywhere sensible in path space;
+                  resolving stops in position order (rather than caller-supplied order) is what
+                  makes the ramp visually correct regardless of how a caller happened to list its
+                  stops. Distinguishing an omitted transform from an explicitly-supplied all-zero
+                  transform matters because the all-zero transform is itself a valid, if singular,
+                  transform a caller might deliberately supply (for example to exercise the
+                  singular-transform degenerate behavior); silently substituting the identity
+                  transform for it would make that transform value impossible for a caller to
+                  actually use.
+                tests:
+                  - LinearGradient_Constructor_NullStops_ThrowsArgumentNullException
+                  - LinearGradient_Constructor_EmptyStops_ThrowsArgumentException
+                  - LinearGradient_Constructor_UndefinedSpread_ThrowsArgumentOutOfRangeException
+                  - LinearGradient_Constructor_TransformWithNaNComponent_ThrowsArgumentOutOfRangeException
+                  - LinearGradient_Constructor_TransformWithInfinityComponent_ThrowsArgumentOutOfRangeException
+                  - LinearGradient_Constructor_DefaultTransform_IsIdentity
+                  - LinearGradient_Constructor_ExplicitAllZeroTransform_IsPreservedNotReplacedWithIdentity
+                  - LinearGradient_Constructor_ValidValues_PropertiesRoundTrip
+                  - LinearGradient_Constructor_UnsortedStops_AreSortedAscendingByOffset
+                  - LinearGradient_Constructor_DuplicateOffsetStops_PreservesInputOrderAmongTies
+                  - RadialGradient_Constructor_EmptyStops_ThrowsArgumentException
+                  - RadialGradient_Constructor_DefaultTransform_IsIdentity
+                  - RadialGradient_Constructor_ExplicitAllZeroTransform_IsPreservedNotReplacedWithIdentity
+                  - EvaluatePoint_Linear_UnsortedInputStops_ResolvesInSortedOrder
+                  - EvaluatePoint_ExplicitAllZeroTransform_FlatFillsWithLastStopColor
+                  - Constructor_NonFiniteTransform_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Drawing-GradientPaint-Linear
+                title: >-
+                  A linear gradient shall vary its color along a straight line between a start
+                  point and an end point, reaching its first stop's color at the start point and
+                  its last stop's color at the end point, and shall reject a non-finite start or
+                  end point.
+                justification: |
+                  A linear ramp between two caller-specified points is the standard definition of
+                  a linear gradient used by SVG, CSS, and every major 2D graphics API; a
+                  non-finite endpoint cannot define a meaningful direction.
+                tests:
+                  - LinearGradient_Constructor_NonFiniteStart_ThrowsArgumentOutOfRangeException
+                  - LinearGradient_Constructor_NonFiniteEnd_ThrowsArgumentOutOfRangeException
+                  - EvaluatePoint_Linear_EndpointsMatchFirstAndLastStopColors
+                  - PathFiller_Fill_Gradient_HorizontalRectangleWithHorizontalLinearGradient_VariesLeftToRight
+                  - ScanlineRasterizer_Fill_Gradient_FullCoverageRow_VariesAcrossWidthPerGradient
+
+              - id: CanvasNet-Drawing-GradientPaint-Radial
+                title: >-
+                  A radial gradient shall vary its color between two circles (each independently
+                  positioned and sized), reaching its first stop's color on the start circle and
+                  its last stop's color on the end circle, supporting a start circle and end
+                  circle with distinct centers and distinct radii (not only a shared center or a
+                  shared radius), and shall reject a non-finite center component or a non-finite
+                  or negative radius on either circle. This first-stop/last-stop boundary behavior
+                  shall hold even when the start and end circles intersect one another (so that a
+                  point can otherwise appear to satisfy the gradient's underlying equation in more
+                  than one way): a point on the start circle shall still resolve to the first
+                  stop's color, and a point on the end circle shall still resolve to the last
+                  stop's color, rather than an interpolated color.
+                justification: |
+                  The two-independently-positioned-circle model is the general form of a radial
+                  gradient used by SVG/CSS radial gradients and the equivalent radial brushes in
+                  other established 2D graphics APIs, and subsumes the simpler shared-center or
+                  single-circle special cases without needing a second gradient type; a non-finite
+                  center or an invalid (non-finite or negative) radius cannot define a real
+                  circle. Preserving the start/end boundary colors even when the two circles
+                  intersect is required so that the documented boundary contract - and the
+                  Repeat/Reflect spread behavior that depends on it at the ramp's own [0, 1]
+                  boundaries - holds for every valid combination of start/end circle geometry, not
+                  only the non-intersecting cases.
+                tests:
+                  - RadialGradient_Constructor_ValidValues_PropertiesRoundTrip
+                  - RadialGradient_Constructor_SingleCircleEquivalentConfiguration_Succeeds
+                  - RadialGradient_Constructor_NegativeStartRadius_ThrowsArgumentOutOfRangeException
+                  - RadialGradient_Constructor_NegativeEndRadius_ThrowsArgumentOutOfRangeException
+                  - RadialGradient_Constructor_NonFiniteStartRadius_ThrowsArgumentOutOfRangeException
+                  - RadialGradient_Constructor_NonFiniteStartCenter_ThrowsArgumentOutOfRangeException
+                  - RadialGradient_Constructor_NonFiniteEndCenter_ThrowsArgumentOutOfRangeException
+                  - EvaluatePoint_Radial_SingleCircleEquivalent_CenterAndEdgeMatchEndpointColors
+                  - EvaluatePoint_Radial_TwoCircle_DistinctCentersAndRadii_ResolvesAlongSweptFamily
+                  - EvaluatePoint_Radial_TwoCircle_PointOnStartCircleWithSpuriousSecondRoot_ResolvesToFirstStopColor
+                  - EvaluatePoint_Radial_TwoCircle_PointOnEndCircleWithSpuriousSecondRoot_ResolvesToLastStopColor
+
+              - id: CanvasNet-Drawing-GradientPaint-RadialNoValidRoot
+                title: >-
+                  A radial gradient shall leave a point unpainted (rather than resolved to any
+                  stop's color) when that point does not lie on any circle in the gradient's swept
+                  family of circles between its start and end circles.
+                justification: |
+                  Two sufficiently separated, non-overlapping circles do not sweep through every
+                  point in the plane; painting such a point with an arbitrary endpoint color would
+                  visibly extend the gradient into a region it was never defined to cover, so
+                  leaving it unpainted (a true no-op at that point) is the behavior established by
+                  other radial-gradient implementations for this configuration.
+                tests:
+                  - EvaluatePoint_Radial_TwoCircle_NoValidRootRegion_IsFullyTransparent
+
+              - id: CanvasNet-Drawing-GradientPaint-SingleStopSolid
+                title: >-
+                  A gradient with exactly one color stop shall paint as a plain solid color,
+                  identical to filling the same shape with that stop's color directly.
+                justification: |
+                  A single-stop gradient has no ramp to vary across; callers must be able to treat
+                  it as an ordinary solid-color fill without observing any different behavior.
+                tests:
+                  - EvaluatePoint_SingleStop_ResolvesToThatColorEverywhere
+                  - PathFiller_Fill_Gradient_SingleStop_MatchesSolidColorFill
+                  - ScanlineRasterizer_Fill_Gradient_SingleStop_MatchesSolidColorOverloadPerPixelCoverage
+
+              - id: CanvasNet-Drawing-GradientPaint-Spread
+                title: >-
+                  A gradient shall support three spread methods governing how its ramp behaves
+                  beyond its own [0, 1] extent - clamping to the nearest endpoint color, repeating
+                  the ramp periodically, and reflecting the ramp back and forth - selectable
+                  independently of the gradient's stops, geometry, or transform.
+                justification: |
+                  Spread behavior is standard, independently-selectable gradient styling in SVG,
+                  CSS, and every major 2D graphics API, letting callers choose whether geometry
+                  beyond the gradient's own defining extent clamps, tiles, or mirrors.
+                tests:
+                  - EvaluatePoint_Linear_PadSpread_ClampsBeyondEndpoints
+                  - EvaluatePoint_Linear_RepeatSpread_WrapsNegativeAndPositiveOutOfRange
+                  - EvaluatePoint_Linear_ReflectSpread_FoldsIntoTriangleWave
+
+              - id: CanvasNet-Drawing-GradientPaint-HardStop
+                title: >-
+                  A gradient shall render a sharp, instantaneous color change (a "hard stop")
+                  rather than a division error or an undefined result when two or more color
+                  stops share the same position.
+                justification: |
+                  Callers commonly use coincident stop positions to create a deliberate sharp
+                  color boundary (for example a two-color flag pattern); this is a standard,
+                  intentional gradient authoring technique that must resolve to a well-defined
+                  visual step, not an error.
+                tests:
+                  - EvaluatePoint_Linear_DuplicateStopOffsets_ProducesHardStepWithoutError
+
+              - id: CanvasNet-Drawing-GradientPaint-PremultipliedBlend
+                title: >-
+                  A gradient shall interpolate color between two stops in a way that avoids a
+                  visible washed-out fringe when one stop is fully or partially transparent and an
+                  adjacent stop is a different, more opaque color, and shall resolve an
+                  interpolated result of zero alpha to fully transparent black rather than an
+                  undefined or divide-by-zero color.
+                justification: |
+                  Interpolating color channels independently of alpha ("straight-alpha"
+                  interpolation) visibly desaturates or discolors the midpoint of a
+                  transparent-to-opaque transition; interpolating in premultiplied space instead
+                  is the established fix used by every major compositing and 2D graphics system,
+                  and every alpha-zero pixel must still resolve to a well-defined pixel value
+                  rather than propagating a numeric error.
+                tests:
+                  - EvaluatePoint_Linear_TransparentAndOpaqueStops_InterpolatesInPremultipliedAlphaSpace
+                  - EvaluatePoint_Linear_BothStopsFullyTransparent_ResolvesToAllZeroPixel
+
+              - id: CanvasNet-Drawing-GradientPaint-DegenerateFlatFill
+                title: >-
+                  A gradient shall flat-fill with its last color stop, rather than throwing or
+                  producing an undefined result, when its geometry provides no meaningful
+                  direction to vary along - specifically a linear gradient whose start and end
+                  points coincide, a radial gradient whose start and end circles share the same
+                  center and the same radius (whether that shared radius is zero or a nonzero
+                  value), or a gradient whose transform cannot be inverted.
+                justification: |
+                  Callers may legitimately construct or programmatically generate gradient
+                  geometry that happens to collapse to a single point, a single non-varying circle
+                  (of any radius), or an unusable transform (for example, an animated gradient
+                  passing through such a state); resolving this case to the gradient's final
+                  color, rather than throwing or leaving pixels undefined, keeps rendering robust
+                  for every valid combination of constructor arguments.
+                tests:
+                  - LinearGradient_Constructor_StartEqualsEnd_Succeeds
+                  - EvaluatePoint_Linear_ZeroLengthVector_FlatFillsWithLastStopColor
+                  - RadialGradient_Constructor_BothRadiiZeroCoincidentCenters_Succeeds
+                  - EvaluatePoint_Radial_BothRadiiZeroCoincidentCenters_FlatFillsWithLastStopColor
+                  - EvaluatePoint_Radial_EqualNonZeroRadiiCoincidentCenters_FlatFillsWithLastStopColor
+                  - EvaluatePoint_SingularTransform_FlatFillsWithLastStopColor
+
+              - id: CanvasNet-Drawing-GradientPaint-ExtremeCoordinates
+                title: >-
+                  A gradient shall resolve to the correct color at extreme, near-representable-
+                  range floating-point coordinates, rather than an overflowed or NaN result.
+                justification: |
+                  Callers may supply gradient or path geometry derived from upstream transforms or
+                  user data whose coordinates approach the representable range's edges; a gradient
+                  must remain correct for any such legitimately large but finite input, not merely
+                  for typical small-scale coordinates.
+                tests:
+                  - EvaluatePoint_Linear_ExtremeMagnitudeCoordinates_ResolvesCorrectly
+
+              - id: CanvasNet-Drawing-GradientPaint-Paint
+                title: >-
+                  Filling a path with a gradient paint shall evaluate the gradient once per pixel
+                  and scale the result by that pixel's antialiased fill coverage, honoring the
+                  same fill rule, curve-flattening, implicit-subpath-closing, and empty/
+                  out-of-bounds no-op behavior already established for solid-color fills.
+                justification: |
+                  Gradient-painted fills must be visually and behaviorally consistent with
+                  solid-color fills in every respect except color source, so callers can switch
+                  between the two paint styles without any other change in rendering behavior.
+                tests:
+                  - PathFiller_Fill_Gradient_OverlappingSameWoundRectangles_NonZeroVsEvenOddDiverge
+                  - PathFiller_Fill_Gradient_EmptyPath_NoOpLeavesSurfaceUnchanged
+                  - ScanlineRasterizer_Fill_Gradient_NoPolygons_NoOp
+
+              - id: CanvasNet-Drawing-GradientPaint-PaintValidation
+                title: >-
+                  Filling a path with a gradient paint shall reject a null surface, path, or
+                  gradient paint argument with ArgumentNullException, and shall reject a
+                  non-positive/non-finite curve-flattening tolerance or an undefined fill rule
+                  argument with ArgumentOutOfRangeException.
+                justification: |
+                  A null reference argument cannot supply a valid fill target, geometry, or paint,
+                  and an invalid tolerance or fill rule cannot be resolved to a meaningful
+                  rendering result; all such invalid input must fail fast and consistently with
+                  the equivalent solid-color fill validation.
+                tests:
+                  - PathFiller_Fill_Gradient_NullSurface_ThrowsArgumentNullException
+                  - PathFiller_Fill_Gradient_NullPath_ThrowsArgumentNullException
+                  - PathFiller_Fill_Gradient_NullPaint_ThrowsArgumentNullException
+                  - PathFiller_Fill_Gradient_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException
+                  - PathFiller_Fill_Gradient_UndefinedFillRule_ThrowsArgumentOutOfRangeException
