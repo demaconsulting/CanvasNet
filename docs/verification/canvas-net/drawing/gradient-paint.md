@@ -19,10 +19,11 @@ path with a gradient through the production `PathFiller` pipeline and inspect th
   spread values, non-finite transforms, non-finite points, and negative/non-finite radii, plus
   round-trip preservation of valid values and defensive stable-sorting of out-of-order stops.
 - **Direct evaluator tests** (`GradientEvaluatorTests.cs`) call the internal
-  `GradientEvaluator.EvaluatePoint`/`EvaluateRow` methods directly (accessible to the test project
-  via the existing `InternalsVisibleTo` configuration) to verify the linear/radial parameter math,
-  every spread mode, hard-stop resolution, premultiplied-alpha interpolation, every degenerate
-  case, and double-precision extreme-coordinate robustness, independently of the rasterizer.
+  `GradientEvaluator.EvaluatePoint`/`CreatePlan`/`EvaluateRow` methods directly (accessible to the
+  test project via the existing `InternalsVisibleTo` configuration) to verify the linear/radial
+  parameter math, every spread mode, hard-stop resolution, premultiplied-alpha interpolation,
+  every degenerate case, and double-precision extreme-coordinate robustness, independently of the
+  rasterizer.
 - **End-to-end rendering tests** (`PathFillerTests.cs`, `ScanlineRasterizerTests.cs`) fill actual
   path geometry with a gradient through `PathFiller.Fill`/`ScanlineRasterizer.Fill` and assert on
   rendered `Surface` pixels, proving the gradient overloads share coverage computation and
@@ -99,10 +100,13 @@ including the all-zero matrix - is preserved exactly as given.
 - `EvaluatePoint_Radial_TwoCircle_DistinctCentersAndRadii_ResolvesAlongSweptFamily`
 - `EvaluatePoint_Radial_TwoCircle_PointOnStartCircleWithSpuriousSecondRoot_ResolvesToFirstStopColor`
 - `EvaluatePoint_Radial_TwoCircle_PointOnEndCircleWithSpuriousSecondRoot_ResolvesToLastStopColor`
+- `EvaluatePoint_Radial_TangentFamilyFullyDegenerate_GrowingRadius_ResolvesToFirstStopColor`
+- `EvaluatePoint_Radial_TangentFamilyFullyDegenerate_ShrinkingRadius_ResolvesToLastStopColor`
 - `EvaluateRow_MultiPixelRun_MatchesPerPixelEvaluatePoint`
 - `EvaluateRow_Radial_MultiPixelRun_MatchesPerPixelEvaluatePoint`
+- `EvaluateRow_Radial_SharedPlanAcrossMultipleRows_MatchesPerRowFreshPlan`
 - `EvaluateRow_SingularTransform_MatchesPerPixelEvaluatePoint`
-- `EvaluateRow_NullGradient_ThrowsArgumentNullException`
+- `CreatePlan_NullGradient_ThrowsArgumentNullException`
 
 These tests verify the core per-point/per-row evaluation math directly: a single-stop gradient
 resolves to that one color everywhere; a linear gradient reproduces its first/last stop's color
@@ -111,13 +115,23 @@ configuration and a genuinely distinct-center/distinct-radius two-circle configu
 the first stop's color on the start circle and the last stop's color on the end circle; and
 `EvaluateRow` matches independent per-pixel `EvaluatePoint` calls across a multi-pixel run, for
 both a linear gradient, a radial gradient wide enough to cross both circles (proving the
-once-per-row precomputation of the matrix inverse and two-circle coefficients does not change
+once-per-fill precomputation of the matrix inverse and two-circle coefficients does not change
 per-pixel output), and a singular-transform gradient (proving the whole-row degenerate-transform
-fast path matches the per-pixel path exactly). The two "spurious second root" tests reproduce the
+fast path matches the per-pixel path exactly). The shared-plan test proves that a single
+`GradientPlan` built once via `CreatePlan` and reused across many `EvaluateRow` calls for
+different rows - exactly how `ScanlineRasterizer`'s gradient fill overload uses it for a whole
+multi-row fill operation - produces results identical to building a fresh plan per row, an
+equivalence proof (not a timing measurement) that building the plan once per fill instead of once
+per row is a pure performance change. The two "spurious second root" tests reproduce the
 exact intersecting-circle scenario reported against the previous "always pick the larger root"
 logic (start circle `(0,0)` radius `5`, end circle `(20,0)` radius `6`, point `(0,5)`, and its
 radius-shrinking mirror image) and assert the point resolves to the correct boundary stop color
-rather than a spurious interpolated color.
+rather than a spurious interpolated color. The two "tangent-family fully-degenerate" tests
+reproduce the exact reported scenario where the two-circle quadratic's coefficients all vanish
+(start circle `(0,0)` radius `5`, end circle `(5,0)` radius `10`, point `(-5,0)`, which lies
+exactly on every interpolated circle in the swept family) and assert it resolves to a real,
+boundary-conforming endpoint color per the same `dr`-sign convention established by the
+spurious-second-root tests, rather than being left transparent.
 
 #### GradientEvaluator: Spread Modes
 
@@ -194,6 +208,7 @@ mathematical result remain well within `float`'s range.
 - `PathFiller_Fill_Gradient_EmptyPath_NoOpLeavesSurfaceUnchanged`
 - `ScanlineRasterizer_Fill_Gradient_SingleStop_MatchesSolidColorOverloadPerPixelCoverage`
 - `ScanlineRasterizer_Fill_Gradient_FullCoverageRow_VariesAcrossWidthPerGradient`
+- `ScanlineRasterizer_Fill_Gradient_TallMultiRowFill_MatchesPerPixelEvaluatePoint`
 - `ScanlineRasterizer_Fill_Gradient_NoPolygons_NoOp`
 
 These tests prove the gradient `Fill` overloads on `PathFiller` and `ScanlineRasterizer` produce
@@ -201,7 +216,12 @@ genuinely varying per-pixel color for a multi-stop gradient, produce byte-for-by
 output to the solid-color overload for a single-stop gradient (including at the coverage-math
 level using a sub-pixel-offset shape, proving coverage computation is genuinely shared rather than
 duplicated), and honor the same `FillRule` divergence and empty-input no-op behavior already
-established for solid-color fills.
+established for solid-color fills. The tall multi-row fill test is a regression/equivalence proof
+(not a timing measurement) for the fix that builds `ScanlineRasterizer.Fill`'s `GradientPlan` once
+per fill operation instead of once per row: it fills a 50-row-tall rectangle with a
+`RadialGradient` and asserts every pixel exactly matches independent per-pixel
+`GradientEvaluator.EvaluatePoint` calls, proving the once-per-fill plan reuse produces identical
+output to what per-pixel/per-row evaluation would.
 
 #### PathFiller: Gradient Fill Argument Validation
 
@@ -238,11 +258,20 @@ documented for `ScanlineRasterizer`/`Surface.CompositeOverSpan` (see _PathFiller
 `path-filler.md`, and _Surface Unit Design_, `../canvas/surface.md`); `GradientEvaluator` itself
 performs a fixed, small amount of arithmetic per point/pixel with no loops over unbounded input.
 `GradientEvaluator` precomputes every per-fill-invariant quantity (the inverted transform, and the
-linear/radial gradient's own geometric coefficients) once per `EvaluatePoint`/`EvaluateRow` call
-rather than once per pixel; this is verified functionally, by asserting `EvaluateRow` produces
-pixel-for-pixel identical output to independent `EvaluatePoint` calls both for a plain gradient and
-for one requiring the whole-row degenerate-transform fast path (see
+linear/radial gradient's own geometric coefficients) once per fill operation, via `CreatePlan`
+(called once per `EvaluatePoint` call, and once per entire multi-row fill by
+`ScanlineRasterizer`'s gradient fill overload, which reuses the resulting `GradientPlan` across
+every row via `EvaluateRow` instead of rebuilding it per row) rather than once per pixel or once
+per row; this is verified functionally, by asserting `EvaluateRow` produces pixel-for-pixel
+identical output to independent `EvaluatePoint` calls both for a plain gradient and for one
+requiring the whole-row degenerate-transform fast path (see
 `EvaluateRow_Radial_MultiPixelRun_MatchesPerPixelEvaluatePoint` and
-`EvaluateRow_SingularTransform_MatchesPerPixelEvaluatePoint` above), not by any timing measurement.
-There are intentionally **no** timing-based tests, elapsed-time assertions, or `Stopwatch`-based
-guards in this unit's automated verification, consistent with every other unit in this library.
+`EvaluateRow_SingularTransform_MatchesPerPixelEvaluatePoint` above), that a single shared plan
+reused across many rows produces output identical to a fresh plan built per row (see
+`EvaluateRow_Radial_SharedPlanAcrossMultipleRows_MatchesPerRowFreshPlan` above), and that an
+actual tall multi-row `ScanlineRasterizer` fill using the once-per-fill plan matches independent
+per-pixel `EvaluatePoint` calls (see
+`ScanlineRasterizer_Fill_Gradient_TallMultiRowFill_MatchesPerPixelEvaluatePoint` above) - not by
+any timing measurement. There are intentionally **no** timing-based tests, elapsed-time
+assertions, or `Stopwatch`-based guards in this unit's automated verification, consistent with
+every other unit in this library.

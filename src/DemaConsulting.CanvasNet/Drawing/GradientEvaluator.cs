@@ -14,8 +14,10 @@ namespace DemaConsulting.CanvasNet.Drawing;
 ///     <b>Evaluation pipeline (per point).</b>
 ///     <list type="number">
 ///     <item>
-///     <see cref="Gradient.Transform"/> is inverted <b>once per <see cref="EvaluateRow"/> call</b>
-///     (or once per <see cref="EvaluatePoint"/> call), never once per pixel - see "Per-fill
+///     <see cref="Gradient.Transform"/> is inverted <b>once per fill operation</b> (via
+///     <see cref="CreatePlan"/>, called once per <see cref="EvaluatePoint"/> call, and once per
+///     entire multi-row fill by <see cref="ScanlineRasterizer"/>'s gradient fill overload rather
+///     than once per <see cref="EvaluateRow"/> call), never once per pixel - see "Per-fill
 ///     precomputation" below. If it is singular (non-invertible) or produces a non-finite
 ///     inverse, the whole gradient is treated as the "Degenerate Transform" case: it flat-fills
 ///     with the last stop's color (post-sort), matching the documented degenerate-case policy
@@ -85,11 +87,15 @@ namespace DemaConsulting.CanvasNet.Drawing;
 ///     <para>
 ///     <b>Per-fill precomputation.</b> Every quantity that depends only on the
 ///     <see cref="Gradient"/> itself - never on the point or pixel being evaluated - is computed
-///     exactly once per <see cref="EvaluateRow"/> (or <see cref="EvaluatePoint(Gradient,Vector2)"/>)
-///     call and threaded through to the per-pixel work via <see cref="GradientPlan"/>, rather than
-///     being recomputed for every pixel in a fill. This covers <see cref="Gradient.Transform"/>'s
-///     matrix inverse, the <see cref="LinearGradient"/> direction vector and its squared length,
-///     and the <see cref="RadialGradient"/> two-circle quadratic's per-fill-invariant coefficients
+///     exactly once per fill operation, via <see cref="CreatePlan"/> (called once per
+///     <see cref="EvaluatePoint(Gradient,Vector2)"/> call, and once per entire multi-row fill by
+///     <see cref="ScanlineRasterizer"/>'s gradient fill overload, which then reuses the resulting
+///     <see cref="GradientPlan"/> across every row via <see cref="EvaluateRow"/> instead of
+///     rebuilding it per row), and threaded through to the per-pixel work via
+///     <see cref="GradientPlan"/>, rather than being recomputed for every pixel - or every row -
+///     in a fill. This covers <see cref="Gradient.Transform"/>'s matrix inverse, the
+///     <see cref="LinearGradient"/> direction vector and its squared length, and the
+///     <see cref="RadialGradient"/> two-circle quadratic's per-fill-invariant coefficients
 ///     (everything except the point-dependent terms). Only the handful of quantities that
 ///     genuinely depend on the point being evaluated - the transformed point itself, and the
 ///     quadratic's point-dependent coefficients - are recomputed per pixel.
@@ -100,9 +106,13 @@ internal static class GradientEvaluator
     /// <summary>
     ///     Holds every quantity <see cref="EvaluatePoint(Gradient,Vector2)"/>/<see cref="EvaluateRow"/>
     ///     can compute once per <see cref="Gradient"/> and reuse for every point evaluated against
-    ///     it, instead of recomputing per pixel - see this class's remarks.
+    ///     it, instead of recomputing per pixel - see this class's remarks. Exposed internally
+    ///     (rather than kept private) so that a caller filling many rows against the same
+    ///     <see cref="Gradient"/> - see <see cref="ScanlineRasterizer"/>'s gradient fill overload -
+    ///     can build it exactly once per fill operation via <see cref="CreatePlan"/>, instead of
+    ///     once per row.
     /// </summary>
-    private readonly record struct GradientPlan
+    internal readonly record struct GradientPlan
     {
         /// <summary>The gradient this plan was built for.</summary>
         public required Gradient Gradient { get; init; }
@@ -156,29 +166,29 @@ internal static class GradientEvaluator
     private const double NearZeroCoefficient = 1e-9;
 
     /// <summary>
-    ///     Evaluates <paramref name="gradient"/> once per pixel center of a horizontal run of
-    ///     <paramref name="count"/> pixels starting at column <paramref name="x"/> on row
+    ///     Evaluates <paramref name="plan"/>'s gradient once per pixel center of a horizontal run
+    ///     of <paramref name="count"/> pixels starting at column <paramref name="x"/> on row
     ///     <paramref name="y"/>, writing each pixel's color into <paramref name="destination"/>.
     /// </summary>
-    /// <param name="gradient">The gradient to evaluate. Must not be <see langword="null"/>.</param>
-    /// <param name="y">The zero-based row, in the same coordinate space <paramref name="gradient"/>'s <see cref="Gradient.Transform"/> maps into.</param>
+    /// <param name="plan">
+    ///     The gradient's precomputed per-fill-invariant plan, built once per fill operation via
+    ///     <see cref="CreatePlan"/> and reused across every row - see this class's "Per-fill
+    ///     precomputation" remarks.
+    /// </param>
+    /// <param name="y">The zero-based row, in the same coordinate space <paramref name="plan"/>'s gradient's <see cref="Gradient.Transform"/> maps into.</param>
     /// <param name="x">The zero-based column at which the run starts.</param>
     /// <param name="count">The number of pixels to evaluate.</param>
     /// <param name="destination">
     ///     The destination span to receive each pixel's color, one entry per pixel. Must have a
     ///     length of at least <paramref name="count"/>.
     /// </param>
-    internal static void EvaluateRow(Gradient gradient, int y, int x, int count, Span<Rgba32> destination)
+    internal static void EvaluateRow(in GradientPlan plan, int y, int x, int count, Span<Rgba32> destination)
     {
-        ArgumentNullException.ThrowIfNull(gradient);
-
-        var plan = BuildPlan(gradient);
-
         if (!plan.HasInverseTransform)
         {
             // Degenerate Transform case applies to the whole fill, not just this row - resolve
             // it once for the entire run instead of per pixel.
-            var flatFill = LastStopColor(gradient.Stops);
+            var flatFill = LastStopColor(plan.Gradient.Stops);
             for (var i = 0; i < count; i++)
             {
                 destination[i] = flatFill;
@@ -211,6 +221,20 @@ internal static class GradientEvaluator
 
         var plan = BuildPlan(gradient);
         return EvaluateWithPlan(in plan, point);
+    }
+
+    /// <summary>
+    ///     Computes every per-<paramref name="gradient"/> (never per-point) quantity once, per
+    ///     this class's "Per-fill precomputation" remarks, for reuse across an entire fill
+    ///     operation (every row of a <see cref="ScanlineRasterizer"/> gradient fill) via
+    ///     <see cref="EvaluateRow"/>.
+    /// </summary>
+    /// <param name="gradient">The gradient to build a plan for. Must not be <see langword="null"/>.</param>
+    internal static GradientPlan CreatePlan(Gradient gradient)
+    {
+        ArgumentNullException.ThrowIfNull(gradient);
+
+        return BuildPlan(gradient);
     }
 
     /// <summary>
@@ -376,6 +400,19 @@ internal static class GradientEvaluator
         {
             if (Math.Abs(b) <= NearZeroCoefficient)
             {
+                if (Math.Abs(c) <= NearZeroCoefficient)
+                {
+                    // The quadratic vanishes identically (a ≈ 0, b ≈ 0, c ≈ 0): every t is
+                    // technically a valid root, meaning gradientPoint lies on the swept
+                    // family's boundary circle at every t in the tangent-degenerate
+                    // configuration. Apply this method's boundary-conforming selection
+                    // convention (see remarks) using the same dr-sign policy as the
+                    // both-roots-valid case: growing (dr > 0) resolves to the start-side
+                    // endpoint (t = 0), shrinking (dr <= 0) resolves to the end-side
+                    // endpoint (t = 1).
+                    return dr > 0.0 ? 0.0 : 1.0;
+                }
+
                 return null;
             }
 

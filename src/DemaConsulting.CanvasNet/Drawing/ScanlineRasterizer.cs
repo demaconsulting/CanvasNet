@@ -1,3 +1,4 @@
+// cspell:ignore precomputation
 using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Geometry;
@@ -177,7 +178,9 @@ internal static class ScanlineRasterizer
     ///     <see cref="Fill(Surface, IReadOnlyList{List{Vector2}}, Rgba32, FillRule, Rect)"/>
     ///     overload via the shared <see cref="CoverageSweep"/> helper - the only difference between
     ///     the two overloads is the final per-row compositing call, which here first evaluates a
-    ///     per-pixel color row via <see cref="GradientEvaluator.EvaluateRow"/>.
+    ///     per-pixel color row via <see cref="GradientEvaluator.EvaluateRow"/>, against a
+    ///     <see cref="Gradient"/> plan built exactly once for the whole fill operation (via
+    ///     <see cref="GradientEvaluator.CreatePlan"/>), not rebuilt on every row.
     /// </remarks>
     internal static void Fill(Surface surface, IReadOnlyList<List<Vector2>> polygons, Gradient paint, FillRule fillRule, Rect clipBounds)
     {
@@ -192,9 +195,14 @@ internal static class ScanlineRasterizer
         using var compositeWorkspace = new Surface.CompositeSpanWorkspace(sweep.Width);
         var rowColors = new Rgba32[sweep.Width];
 
+        // Built once per fill operation, not once per row - the transform inverse and radial
+        // quadratic coefficients it holds are invariant across every row of this fill (see
+        // GradientEvaluator's "Per-fill precomputation" remarks).
+        var plan = GradientEvaluator.CreatePlan(paint);
+
         while (sweep.MoveNext(out var y, out var rowCoverage))
         {
-            GradientEvaluator.EvaluateRow(paint, y, sweep.ClipMinX, sweep.Width, rowColors);
+            GradientEvaluator.EvaluateRow(in plan, y, sweep.ClipMinX, sweep.Width, rowColors);
             surface.CompositeOverSpan(y, sweep.ClipMinX, rowCoverage, rowColors, compositeWorkspace);
         }
     }

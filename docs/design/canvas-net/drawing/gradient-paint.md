@@ -102,20 +102,22 @@ preserved exactly as given and validated/stored unchanged. A plain `Matrix3x2 tr
 parameter cannot distinguish "the caller omitted the argument" from "the caller explicitly passed
 the all-zero matrix"; the nullable parameter removes that ambiguity without any special-casing.
 
-#### GradientEvaluator.EvaluatePoint(gradient, point) / EvaluateRow(gradient, y, x, count, destination) (internal)
+#### GradientEvaluator.CreatePlan / EvaluatePoint / EvaluateRow (internal)
 
-Resolves `gradient`'s color at a single point, or once per pixel center across a horizontal run of
-pixels (used by `ScanlineRasterizer`'s gradient-aware sweep). Every quantity that depends only on
-the gradient itself and not on the point being evaluated - the inverted `Transform`, the linear
-gradient's direction vector and its squared length, and the radial gradient's two-circle quadratic
-coefficients (`d`, `dr`, `a`, and the fully-degenerate check) - is computed exactly **once per
-call to `EvaluatePoint`, or once per call to `EvaluateRow`** (shared across every pixel in that
-row), never recomputed per pixel. This matters because `EvaluateRow` is called once per scanline
-and internally evaluates once per covered pixel: recomputing a matrix inverse (or the radial
-coefficients) on every single pixel would repeat the same fill-invariant work an entire row's
-width of times over. When the per-fill precomputation determines the transform is singular, the
-whole row is flat-filled directly without even entering the per-pixel loop. The evaluation
-pipeline, per point:
+`CreatePlan` computes every quantity that depends only on `gradient` itself and not on the point
+being evaluated - the inverted `Transform`, the linear gradient's direction vector and its squared
+length, and the radial gradient's two-circle quadratic coefficients (`d`, `dr`, `a`, and the
+fully-degenerate check) - exactly **once**, returning the reusable `GradientPlan`. `EvaluatePoint`
+calls `CreatePlan` once per point evaluated (there is nothing to share across a single-point
+evaluation). `ScanlineRasterizer`'s gradient-aware sweep instead calls `CreatePlan` exactly
+**once per fill operation**, before its row-iteration loop begins, and passes the same plan into
+every `EvaluateRow` call for every row of that fill - not once per row. This matters because a
+fill's row-iteration loop can call `EvaluateRow` many times over (once per scanline), and each
+`EvaluateRow` call internally evaluates once per covered pixel: rebuilding the plan (a matrix
+inverse or the radial coefficients) on every row - let alone every pixel - would repeat the same
+fill-invariant work a whole fill's row count (and pixel width) of times over. When the plan
+determines the transform is singular, the whole row is flat-filled directly without even entering
+the per-pixel loop. The evaluation pipeline, per point:
 
 1. **Map the point into gradient-defining coordinates** via the (already-inverted, precomputed)
    inverse transform. If the transform was found to be singular (non-invertible) or to produce a
@@ -160,6 +162,18 @@ pipeline, per point:
    retained unchanged. This matches Skia's actual (not simplified-prose) two-point-conical
    algorithm, which resolves the sign ambiguity deterministically from the same `dr`-sign
    reasoning, and preserves the boundary contract described above.
+
+   **Tangent-family fully-degenerate case (`a ≈ 0`, `b ≈ 0`, `c ≈ 0`).** When `a` is near-zero the
+   quadratic degrades to the linear equation `b*t + c = 0`; if `b` is also near-zero, that linear
+   equation itself degenerates. Ordinarily (`c` not near-zero) this means no root exists at all -
+   correctly left unpainted. But when `c` is _also_ near-zero, the equation is `0 = 0`: every `t`
+   is technically a valid root, because the evaluated point lies exactly on the swept family's
+   boundary circle at every `t` in this tangent-degenerate configuration (for example, a point
+   diametrically opposite the tangency point of two internally-tangent start/end circles). Rather
+   than leaving such a point unpainted (there being no single numerically-selected root to prefer),
+   this unit extends the same `dr`-sign boundary-conforming convention used for the
+   both-roots-valid case above: it resolves to the start-side endpoint (`t = 0`) when `dr > 0`
+   (growing) and the end-side endpoint (`t = 1`) when `dr <= 0` (shrinking or unchanging).
 3. **Fold the raw `t` into `[0, 1]` per `Spread`**: `Pad` clamps; `Repeat` floor-mods (`t -
    floor(t)`, never a naive `%`, which is negative for a negative dividend in C#); `Reflect` folds
    into a period-2 triangle wave.

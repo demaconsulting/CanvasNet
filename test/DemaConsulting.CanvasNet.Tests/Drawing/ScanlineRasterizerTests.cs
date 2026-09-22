@@ -500,6 +500,53 @@ public class ScanlineRasterizerTests
     }
 
     /// <summary>
+    ///     Proves that a tall, multi-row gradient fill produces byte-for-byte identical pixel
+    ///     output to evaluating the same <see cref="RadialGradient"/> directly at each pixel's own
+    ///     center via <see cref="GradientEvaluator.EvaluatePoint"/> - an equivalence test (not a
+    ///     timing test) for the fix that builds the gradient's <c>GradientPlan</c> once per fill
+    ///     operation instead of once per row: with many rows, a per-row rebuild and a
+    ///     once-per-fill build must still produce the exact same pixel colors.
+    /// </summary>
+    [Fact]
+    public void ScanlineRasterizer_Fill_Gradient_TallMultiRowFill_MatchesPerPixelEvaluatePoint()
+    {
+        // Arrange: a fully covered 6-pixel-wide, 50-pixel-tall rectangle - tall enough that a
+        // per-row plan rebuild would happen many times over.
+        const int width = 6;
+        const int height = 50;
+        var polygon = new List<Vector2>
+        {
+            new(0, 0),
+            new(width, 0),
+            new(width, height),
+            new(0, height),
+            new(0, 0)
+        };
+        var surface = new Surface(width, height);
+        var clipBounds = new Rect(0, 0, width, height);
+        GradientStop[] stops =
+        [
+            new GradientStop(0f, new Rgba32(255, 0, 0, 255)),
+            new GradientStop(1f, new Rgba32(0, 0, 255, 255)),
+        ];
+        var gradient = new RadialGradient(new Vector2(1, 1), 1f, new Vector2(4, 45), 6f, stops);
+
+        // Act
+        ScanlineRasterizer.Fill(surface, [polygon], gradient, FillRule.NonZero, clipBounds);
+
+        // Assert: every pixel (fully covered, so the composite is a direct copy) matches
+        // per-pixel EvaluatePoint at that pixel's center.
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var expected = GradientEvaluator.EvaluatePoint(gradient, new Vector2(x + 0.5f, y + 0.5f));
+                Assert.Equal(expected, surface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>
     ///     Proves that the gradient overload is a no-op when given no polygons, matching the
     ///     solid-color overload's documented behavior.
     /// </summary>

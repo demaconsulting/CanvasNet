@@ -395,6 +395,46 @@ public class GradientEvaluatorTests
     }
 
     /// <summary>
+    ///     Proves that the tangent-family fully-degenerate case - where the two-circle
+    ///     quadratic's coefficients all vanish (<c>a ≈ 0</c>, <c>b ≈ 0</c>, <c>c ≈ 0</c>), so
+    ///     that the evaluated point lies on the swept family's boundary circle at
+    ///     every <c>t</c> - resolves to the start-side endpoint color for a growing radius
+    ///     (<c>dr &gt; 0</c>), per the boundary-conforming selection policy, rather than being
+    ///     left fully transparent. Reproduces the exact scenario reported in review: start
+    ///     circle (0,0)/r=5, end circle (5,0)/r=10, point (-5,0) - which sits exactly on every
+    ///     interpolated circle in the swept family (verified: at t=0, circle (0,0)/r=5 passes
+    ///     through (-5,0); at t=1, circle (5,0)/r=10 also passes through (-5,0); at t=0.5,
+    ///     circle (2.5,0)/r=7.5 also passes through (-5,0)).
+    /// </summary>
+    [Fact]
+    public void EvaluatePoint_Radial_TangentFamilyFullyDegenerate_GrowingRadius_ResolvesToFirstStopColor()
+    {
+        var gradient = new RadialGradient(new Vector2(0, 0), 5f, new Vector2(5, 0), 10f, TwoStops());
+
+        var result = GradientEvaluator.EvaluatePoint(gradient, new Vector2(-5, 0));
+
+        Assert.Equal(Red, result);
+        Assert.NotEqual(0, result.A);
+    }
+
+    /// <summary>
+    ///     Mirror-image scenario of
+    ///     <see cref="EvaluatePoint_Radial_TangentFamilyFullyDegenerate_GrowingRadius_ResolvesToFirstStopColor"/>:
+    ///     the same tangent-family fully-degenerate configuration, but with a shrinking radius
+    ///     from start to end, resolves to the end-side endpoint color instead.
+    /// </summary>
+    [Fact]
+    public void EvaluatePoint_Radial_TangentFamilyFullyDegenerate_ShrinkingRadius_ResolvesToLastStopColor()
+    {
+        var gradient = new RadialGradient(new Vector2(5, 0), 10f, new Vector2(0, 0), 5f, TwoStops());
+
+        var result = GradientEvaluator.EvaluatePoint(gradient, new Vector2(-5, 0));
+
+        Assert.Equal(Blue, result);
+        Assert.NotEqual(0, result.A);
+    }
+
+    /// <summary>
     ///     Proves that a genuinely two-circle radial gradient (distinct centers and distinct
     ///     radii) resolves the first stop's color at the start circle's center and the last
     ///     stop's color at the end circle's edge - proving the two-circle model is fully
@@ -521,7 +561,8 @@ public class GradientEvaluatorTests
         var gradient = new LinearGradient(new Vector2(0, 0), new Vector2(4, 0), TwoStops());
         Span<Rgba32> destination = stackalloc Rgba32[4];
 
-        GradientEvaluator.EvaluateRow(gradient, 0, 0, 4, destination);
+        var plan = GradientEvaluator.CreatePlan(gradient);
+        GradientEvaluator.EvaluateRow(in plan, 0, 0, 4, destination);
 
         for (var i = 0; i < 4; i++)
         {
@@ -532,7 +573,8 @@ public class GradientEvaluatorTests
 
     /// <summary>
     ///     Proves that EvaluateRow's per-fill precomputation (the matrix inverse and two-circle
-    ///     quadratic coefficients computed once for the whole row, not once per pixel - see this
+    ///     quadratic coefficients computed once for the whole fill operation via
+    ///     <see cref="GradientEvaluator.CreatePlan"/>, not once per pixel or per row - see this
     ///     class's remarks) still produces results identical to per-pixel EvaluatePoint for a
     ///     <see cref="RadialGradient"/>, across a run wide enough to cross the start circle, the
     ///     midpoint, and the end circle. This is a regression/equivalence test for the
@@ -545,12 +587,45 @@ public class GradientEvaluatorTests
         var gradient = new RadialGradient(new Vector2(0, 0), 2f, new Vector2(30, 0), 8f, TwoStops());
         Span<Rgba32> destination = stackalloc Rgba32[40];
 
-        GradientEvaluator.EvaluateRow(gradient, 0, -5, 40, destination);
+        var plan = GradientEvaluator.CreatePlan(gradient);
+        GradientEvaluator.EvaluateRow(in plan, 0, -5, 40, destination);
 
         for (var i = 0; i < 40; i++)
         {
             var expected = GradientEvaluator.EvaluatePoint(gradient, new Vector2(-5 + i + 0.5f, 0.5f));
             Assert.Equal(expected, destination[i]);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that a single <see cref="GradientEvaluator.GradientPlan"/> built once via
+    ///     <see cref="GradientEvaluator.CreatePlan"/> and reused across multiple EvaluateRow calls
+    ///     for different rows - exactly how <see cref="ScanlineRasterizer"/>'s gradient fill
+    ///     overload uses it for a whole multi-row fill operation - produces results identical to
+    ///     building (and discarding) a fresh plan for every row. This proves reusing one
+    ///     per-fill-invariant plan across many rows is a pure performance change with no
+    ///     observable difference in pixel output.
+    /// </summary>
+    [Fact]
+    public void EvaluateRow_Radial_SharedPlanAcrossMultipleRows_MatchesPerRowFreshPlan()
+    {
+        var gradient = new RadialGradient(new Vector2(0, 0), 2f, new Vector2(30, 0), 8f, TwoStops());
+        var sharedPlan = GradientEvaluator.CreatePlan(gradient);
+
+        var sharedPlanRow = new Rgba32[40];
+        var freshPlanRow = new Rgba32[40];
+
+        for (var y = -10; y <= 10; y++)
+        {
+            GradientEvaluator.EvaluateRow(in sharedPlan, y, -5, 40, sharedPlanRow);
+
+            var freshPlan = GradientEvaluator.CreatePlan(gradient);
+            GradientEvaluator.EvaluateRow(in freshPlan, y, -5, 40, freshPlanRow);
+
+            for (var i = 0; i < 40; i++)
+            {
+                Assert.Equal(freshPlanRow[i], sharedPlanRow[i]);
+            }
         }
     }
 
@@ -566,7 +641,8 @@ public class GradientEvaluatorTests
         var gradient = new LinearGradient(new Vector2(0, 0), new Vector2(10, 0), TwoStops(), transform: singular);
         Span<Rgba32> destination = stackalloc Rgba32[4];
 
-        GradientEvaluator.EvaluateRow(gradient, 0, 0, 4, destination);
+        var plan = GradientEvaluator.CreatePlan(gradient);
+        GradientEvaluator.EvaluateRow(in plan, 0, 0, 4, destination);
 
         for (var i = 0; i < 4; i++)
         {
@@ -575,25 +651,11 @@ public class GradientEvaluatorTests
     }
 
     /// <summary>
-    ///     Proves that EvaluateRow throws ArgumentNullException when the gradient is null.
+    ///     Proves that CreatePlan throws ArgumentNullException when the gradient is null.
     /// </summary>
     [Fact]
-    public void EvaluateRow_NullGradient_ThrowsArgumentNullException()
+    public void CreatePlan_NullGradient_ThrowsArgumentNullException()
     {
-        Span<Rgba32> destination = stackalloc Rgba32[1];
-
-        // A plain try/catch is used instead of Assert.Throws(() => ...) because Span<Rgba32> is a
-        // ref struct and cannot be captured by a lambda expression.
-        var threw = false;
-        try
-        {
-            GradientEvaluator.EvaluateRow(null!, 0, 0, 1, destination);
-        }
-        catch (ArgumentNullException)
-        {
-            threw = true;
-        }
-
-        Assert.True(threw, "Expected EvaluateRow to throw ArgumentNullException.");
+        Assert.Throws<ArgumentNullException>(() => GradientEvaluator.CreatePlan(null!));
     }
 }
