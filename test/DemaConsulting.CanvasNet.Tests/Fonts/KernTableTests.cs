@@ -154,45 +154,41 @@ public class KernTableTests
     /// <summary>
     ///     Proves that KernTable SubtableLengthOverflowsPosition IsTolerant ReturnsZero.
     /// </summary>
+    /// <remarks>
+    ///     This test formerly allocated a ~2 GB backing byte array (`tableOffset + tableLength`
+    ///     with `tableOffset` chosen near `int.MaxValue`) purely to reach the subtable-walking
+    ///     loop's position arithmetic in <see cref="KernTable.Parse"/> with an adversarial
+    ///     position, risking exhausting memory or exceeding the runtime's max object size before
+    ///     the code under test even ran - mirroring the same problem already solved for
+    ///     <c>TryParseFormat0</c> by <see cref="KernTable_Format0_BodyOffsetArithmeticOverflow_IsRejected"/>.
+    ///     The overflow-prone position arithmetic itself was inline in <c>Parse</c>'s
+    ///     subtable-walking loop rather than in an isolated helper, so it has been extracted
+    ///     (behavior-preserving) into the private static <c>ComputeSubtableEnd(int, int, int)</c>
+    ///     helper, which takes only plain `int` positions/lengths - no backing array at all is
+    ///     needed to exercise it directly via reflection.
+    /// </remarks>
     [Fact]
     public void KernTable_SubtableLengthOverflowsPosition_IsTolerant_ReturnsZero()
     {
-        // Arrange: choose a huge table offset such that, computed with unwidened 32-bit `int`
-        // arithmetic, `pos + subtableLength` (pos = tableOffset + 4, subtableLength = 0xFFFF, the
-        // maximum ushort) wraps past int.MaxValue to a large negative value. That wrapped value
-        // would incorrectly pass the `subtableEnd > tableEnd` bounds guard, and - because the
-        // first subtable's coverage below is deliberately unsupported (format 2), so the loop
-        // advances `pos` to that corrupted, wrapped value - drive a subsequent read to a deeply
-        // out-of-bounds (negative) array index on the second declared subtable.
+        // Arrange: choose a huge `pos` such that, computed with unwidened 32-bit `int`
+        // arithmetic, `pos + subtableLength` (subtableLength = 0xFFFF, the maximum ushort) wraps
+        // past int.MaxValue to a large negative value. That wrapped value would incorrectly pass
+        // an unwidened `subtableEnd > tableEnd` bounds guard, letting the subtable-walking loop
+        // advance to a corrupted, deeply out-of-bounds position for a subsequent subtable.
         const int subtableLength = 0xFFFF;
         const long overflowSum = (long)int.MaxValue + 1; // wraps to int.MinValue in 32-bit arithmetic
-        var tableOffset = (int)(overflowSum - 4 - subtableLength);
-        const int tableLength = 20;
+        var pos = (int)(overflowSum - subtableLength);
+        const int tableEnd = 20; // any small, unrelated "enclosing table" bound
 
-        var data = new byte[tableOffset + tableLength];
-        WriteUInt16BigEndian(data, tableOffset, 0); // kern table version
-        WriteUInt16BigEndian(data, tableOffset + 2, 2); // numSubtables: a second subtable is declared
-        WriteUInt16BigEndian(data, tableOffset + 4, 0); // subtable version (unused)
-        WriteUInt16BigEndian(data, tableOffset + 6, subtableLength); // subtable length: overflow-prone
-        WriteUInt16BigEndian(data, tableOffset + 8, 0x0201); // coverage: format 2 (unsupported), horizontal
+        var method = typeof(KernTable).GetMethod("ComputeSubtableEnd", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
 
-        // Act: parse the kern table with the crafted overflow-prone subtable length
-        var kern = KernTable.Parse(data, tableOffset, tableLength);
+        // Act: invoke the position-arithmetic helper directly with the overflow-prone pos/length
+        var result = method.Invoke(null, [pos, subtableLength, tableEnd]);
 
         // Assert: the overflowing subtable length is rejected (rather than wrapping into a
-        // corrupted position that would read out of bounds) and lookups resolve to zero
-        Assert.Equal(0, kern.GetKerning(3, 4));
-    }
-
-    /// <summary>
-    ///     Writes a big-endian, unsigned 16-bit integer directly into a raw byte array at the
-    ///     given offset (bypasses <see cref="SyntheticFontBuilder"/>'s <c>List&lt;byte&gt;</c>-based
-    ///     helpers, which are impractical for the near-2GB sparse array this test requires).
-    /// </summary>
-    private static void WriteUInt16BigEndian(byte[] data, int offset, int value)
-    {
-        data[offset] = (byte)((value >> 8) & 0xFF);
-        data[offset + 1] = (byte)(value & 0xFF);
+        // corrupted position that would be misread as in-bounds) so the helper returns null
+        Assert.Null(result);
     }
 
     /// <summary>

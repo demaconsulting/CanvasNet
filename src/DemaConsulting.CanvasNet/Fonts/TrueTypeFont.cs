@@ -181,9 +181,10 @@ public sealed class TrueTypeFont
     /// </exception>
     /// <exception cref="InvalidDataException">
     ///     Thrown when the glyph's contour data is malformed or truncated, when a composite
-    ///     glyph's nesting depth (10) or total resolved component count (5000) exceeds its bound,
-    ///     when a composite glyph contains a point-matched component, or when a composite glyph
-    ///     references an out-of-range component glyph index.
+    ///     glyph's nesting depth (10), total resolved component count (5000), or total resolved
+    ///     point/command count (200,000) exceeds its bound, when a composite glyph contains a
+    ///     point-matched component, or when a composite glyph references an out-of-range
+    ///     component glyph index.
     /// </exception>
     public Path GetGlyphOutline(int glyphIndex)
     {
@@ -215,10 +216,25 @@ public sealed class TrueTypeFont
     /// <param name="rightGlyphIndex">The right glyph index of the pair.</param>
     /// <returns>
     ///     The kerning adjustment, in font design units, or <c>0</c> if no matching pair is
-    ///     present, the font has no <c>kern</c> table, or no qualifying <c>kern</c> subtable is
-    ///     present. Never throws, even for an out-of-range glyph index.
+    ///     present, the font has no <c>kern</c> table, no qualifying <c>kern</c> subtable is
+    ///     present, or either glyph index is outside <c>[0, GlyphCount)</c> for this font. Never
+    ///     throws, even for an out-of-range glyph index.
     /// </returns>
-    public int GetKerning(int leftGlyphIndex, int rightGlyphIndex) => _kern.GetKerning(leftGlyphIndex, rightGlyphIndex);
+    public int GetKerning(int leftGlyphIndex, int rightGlyphIndex)
+    {
+        // KernTable.GetKerning only rejects indices outside [0, ushort.MaxValue] - it has no
+        // notion of this particular font's GlyphCount, since it is parsed and validated
+        // independently of maxp.numGlyphs. Without this check, a glyph index that is a valid
+        // ushort but at/beyond this font's GlyphCount could still match a stale/bogus pair
+        // recorded in the kern table, returning a nonzero adjustment for a glyph that does not
+        // exist in this font.
+        if (leftGlyphIndex < 0 || leftGlyphIndex >= GlyphCount || rightGlyphIndex < 0 || rightGlyphIndex >= GlyphCount)
+        {
+            return 0;
+        }
+
+        return _kern.GetKerning(leftGlyphIndex, rightGlyphIndex);
+    }
 
     /// <summary>
     ///     Validates a glyph index argument shared by <see cref="GetGlyphOutline"/> and

@@ -2,6 +2,7 @@
 // cspell:ignore maxp Maxp notdef codepoint codepoints subtable subtables subsetted
 // cspell:ignore subsetting PPEM OTTO
 // cspell:ignore misaligns unwidened unrejected
+using System.Reflection;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 
@@ -600,87 +601,50 @@ public class CmapTableTests
     /// <summary>
     ///     Proves that CmapTable Format4 GlyphIndexAddressArithmeticOverflow ReturnsZero.
     /// </summary>
+    /// <remarks>
+    ///     This test formerly allocated a backing byte array roughly 2 GB in size (sized to
+    ///     `tableOffset + declaredLength` with the subtable positioned near
+    ///     <see cref="Array.MaxLength"/>) purely to reach the format-4 indirect glyph-index
+    ///     address computation with adversarial positions, risking exhausting memory or exceeding
+    ///     the runtime's max object size before the code under test even ran - the same problem
+    ///     already solved for <c>KernTable</c>'s subtable-position arithmetic by
+    ///     <c>KernTable_Format0_BodyOffsetArithmeticOverflow_IsRejected</c>. The overflow-prone
+    ///     arithmetic itself lived only inside <c>TryParseFormat4</c>'s returned lookup closure,
+    ///     so it has been extracted (behavior-preserving) into the private static
+    ///     <c>ComputeFormat4GlyphIndexAddress(int, int, int, int, int, int, int)</c> helper, which
+    ///     takes only plain <see langword="int"/> positions/values - no backing array at all is
+    ///     needed to exercise it directly via reflection.
+    /// </remarks>
     [Fact]
     public void CmapTable_Format4_GlyphIndexAddressArithmeticOverflow_ReturnsZero()
     {
-        // Arrange: choose a subtable position (near the top of what a real byte array can
-        // address, per Array.MaxLength) large enough that computing
-        // `idRangeOffsetOffset + i * 2 + idRangeOffsets[i] + 2 * (codepoint - startCodes[i])`
-        // with unwidened 32-bit `int` arithmetic wraps past `int.MaxValue` to a negative value,
-        // which would incorrectly pass the `glyphIndexAddress + 2 > tableEnd` bounds guard and
-        // then be used directly as a negative array index. The margin is provided by
-        // `idRangeOffsets[0]` (its 0xFFFF maximum), mirroring the technique used by
-        // <c>KernTable_SubtableLengthOverflowsPosition_IsTolerant_ReturnsZero</c>. Note that only
-        // the *positions* need to be this large; the declared cmap `tableLength` (and hence the
-        // portion of the array that is actually populated/read on the corrected, non-overflowing
-        // path) stays tiny, so the backing array itself only needs to be a little over
-        // `idRangeOffsetOffset` bytes - not anywhere near `int.MaxValue` bytes twice over.
-        const int segCount = 2;
-        const int segCountX2 = segCount * 2;
-        const int cmapHeaderSize = 12;
+        // Arrange: choose an `idRangeOffsetOffset`/`idRangeOffset` pair whose sum, computed with
+        // unwidened 32-bit `int` arithmetic, wraps past `int.MaxValue` to a large negative value
+        // close to `int.MinValue`. Pairing that wrap with a `glyphIdArrayOffset` of `int.MinValue`
+        // and a `tableEnd` of `int.MaxValue` means the wrapped negative address is numerically
+        // *greater than* `glyphIdArrayOffset` and its `+2` is numerically *less than* `tableEnd` -
+        // so an unwidened implementation would incorrectly treat both bounds guards as satisfied
+        // and return the wrapped negative address for direct use as an array index, rather than
+        // rejecting it as the correctly-widened `long` computation does (the true sum exceeds
+        // `int.MaxValue` and therefore also exceeds `tableEnd`).
+        const int idRangeOffsetOffset = int.MaxValue - 10;
+        const int segmentIndex = 0;
+        const int idRangeOffset = 20;
+        const int codepoint = 0;
+        const int startCode = 0;
+        const int glyphIdArrayOffset = int.MinValue;
+        const int tableEnd = int.MaxValue;
 
-        // Field layout (relative to subtableOffset): format/length/language/segCountX2/
-        // searchRange/entrySelector/rangeShift = 14 bytes, then endCodes(segCountX2) +
-        // reservedPad(2) + startCodes(segCountX2) + idDeltas(segCountX2) = idRangeOffsetOffset.
-        var idRangeOffsetOffset = Array.MaxLength - 30;
-        var subtableOffset = idRangeOffsetOffset - (14 + segCountX2 + 2 + segCountX2 + segCountX2);
-        var tableOffset = subtableOffset - cmapHeaderSize;
-        Assert.True(tableOffset >= 0, "test setup: tableOffset must be non-negative");
+        var method = typeof(CmapTable).GetMethod("ComputeFormat4GlyphIndexAddress", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
 
-        var declaredLength = subtableOffset - tableOffset + 14 + segCountX2 + 2 + segCountX2 + segCountX2 + segCountX2;
-        var data = new byte[tableOffset + declaredLength];
-
-        void WriteU16(int offset, int value)
-        {
-            data[offset] = (byte)((value >> 8) & 0xFF);
-            data[offset + 1] = (byte)(value & 0xFF);
-        }
-
-        void WriteU32(int offset, long value)
-        {
-            data[offset] = (byte)((value >> 24) & 0xFF);
-            data[offset + 1] = (byte)((value >> 16) & 0xFF);
-            data[offset + 2] = (byte)((value >> 8) & 0xFF);
-            data[offset + 3] = (byte)(value & 0xFF);
-        }
-
-        WriteU16(tableOffset, 0); // cmap version
-        WriteU16(tableOffset + 2, 1); // numTables
-        WriteU16(tableOffset + 4, 3); // platformId
-        WriteU16(tableOffset + 6, 1); // encodingId
-        WriteU32(tableOffset + 8, subtableOffset - tableOffset); // subtable offset, relative to cmap table start
-
-        WriteU16(subtableOffset, 4); // format
-        WriteU16(subtableOffset + 2, declaredLength - (subtableOffset - tableOffset)); // declared length
-        WriteU16(subtableOffset + 4, 0); // language
-        WriteU16(subtableOffset + 6, segCountX2);
-        WriteU16(subtableOffset + 8, 0); // searchRange
-        WriteU16(subtableOffset + 10, 0); // entrySelector
-        WriteU16(subtableOffset + 12, 0); // rangeShift
-
-        var endCodeOffset = subtableOffset + 14;
-        WriteU16(endCodeOffset, 0); // endCodes[0]: codepoint 0 maps via this segment
-        WriteU16(endCodeOffset + 2, 0xFFFF); // endCodes[1] (terminator)
-
-        var startCodeOffset = endCodeOffset + segCountX2 + 2;
-        WriteU16(startCodeOffset, 0); // startCodes[0]
-        WriteU16(startCodeOffset + 2, 0xFFFF); // startCodes[1]
-
-        var idDeltaOffset = startCodeOffset + segCountX2;
-        WriteU16(idDeltaOffset, 0); // idDeltas[0]
-        WriteU16(idDeltaOffset + 2, 1); // idDeltas[1]
-
-        Assert.Equal(idRangeOffsetOffset, idDeltaOffset + segCountX2);
-        WriteU16(idRangeOffsetOffset, 0xFFFF); // idRangeOffsets[0]: maximal, to maximize the overflow margin
-        WriteU16(idRangeOffsetOffset + 2, 0); // idRangeOffsets[1]
-
-        // Act: parse the cmap table and look up codepoint 0, which resolves to segment 0's
-        // indirect (idRangeOffset != 0) lookup path
-        var cmap = CmapTable.Parse(data, tableOffset, declaredLength);
+        // Act: invoke the glyph-index-address helper directly with the overflow-prone inputs
+        var result = method.Invoke(
+            null, [idRangeOffsetOffset, segmentIndex, idRangeOffset, codepoint, startCode, glyphIdArrayOffset, tableEnd]);
 
         // Assert: the overflow-prone address computation is rejected (rather than wrapping to a
-        // negative value that would be misread as in-bounds) and the lookup resolves to zero
-        Assert.Equal(0, cmap.GetGlyphIndex(0));
+        // negative value that would be misread as in-bounds) so the helper returns null
+        Assert.Null(result);
     }
 
     /// <summary>
@@ -735,6 +699,26 @@ public class CmapTableTests
     }
 
     /// <summary>
+    ///     Proves that CmapTable Format12 GroupEndCodeExceedsMaxUnicodeCodepoint IsRejected.
+    /// </summary>
+    [Fact]
+    public void CmapTable_Format12_GroupEndCodeExceedsMaxUnicodeCodepoint_IsRejected()
+    {
+        // Arrange: build a format-12 cmap subtable with a single group whose endCharCode
+        // (0x110000) is one past U+10FFFF, the highest codepoint the Unicode standard defines
+        // (and the highest a UTF-16 surrogate pair can encode). No legitimate font declares
+        // coverage beyond this, so the group is malformed.
+        var table = SyntheticFontBuilder.CmapFormat12(3, 10, [(0x110000u, 0x110000u, 5u)]);
+
+        // Act: parse the cmap table with the out-of-range group
+        var cmap = CmapTable.Parse(table, 0, table.Length);
+
+        // Assert: the out-of-range group is rejected and the lookup resolves to the documented
+        // malformed-data fallback of glyph index zero, rather than the configured glyph index 5
+        Assert.Equal(0, cmap.GetGlyphIndex(0x110000));
+    }
+
+    /// <summary>
     ///     Proves that CmapTable UnrecognizedSubtableFormat GetGlyphIndexReturnsZero.
     /// </summary>
     [Fact]
@@ -763,70 +747,46 @@ public class CmapTableTests
     /// <summary>
     ///     Proves that CmapTable Format4 OffsetChainArithmeticOverflow ReturnsZero.
     /// </summary>
+    /// <remarks>
+    ///     This test formerly allocated a backing byte array roughly 2 GB in size
+    ///     (`new byte[tableLength]` with `tableLength = offset + declaredSubtableLength` and
+    ///     `offset` chosen near `int.MaxValue`), risking exhausting memory or exceeding the
+    ///     runtime's max object size before the code under test even ran - the same problem
+    ///     already solved for <c>KernTable</c>'s subtable-position arithmetic by
+    ///     <c>KernTable_Format0_BodyOffsetArithmeticOverflow_IsRejected</c>. The overflow-prone
+    ///     offset-chain arithmetic itself lived inline in <c>TryParseFormat4</c> rather than in an
+    ///     isolated helper, so it has been extracted (behavior-preserving) into the private
+    ///     static <c>ComputeFormat4OffsetChain(int, int, int)</c> helper, which takes only plain
+    ///     <see langword="int"/> positions/values - no backing array at all is needed to exercise
+    ///     it directly via reflection.
+    /// </remarks>
     [Fact]
     public void CmapTable_Format4_OffsetChainArithmeticOverflow_ReturnsZero()
     {
-        // Arrange: place a format-4 subtable at a position (`offset`) so large, combined with the
-        // maximal even `segCountX2` (65534), that computing
+        // Arrange: choose a subtable position (`offset`) so large, combined with the maximal even
+        // `segCountX2` (65534), that computing
         // `glyphIdArrayOffset = offset + 16 + 4 * segCountX2` with unwidened 32-bit `int`
-        // arithmetic overflows past `int.MaxValue` and wraps to a negative value. A decoder that
-        // only widens *some* of this offset chain (or none of it) would then incorrectly pass the
+        // arithmetic overflows past `int.MaxValue` and wraps to a negative value. A helper that
+        // only widens *some* of this offset chain (or none of it) would then incorrectly pass a
         // `glyphIdArrayOffset > tableEnd` bounds guard (a negative value is never greater than a
-        // huge positive `tableEnd`), and go on to read the segment arrays via offsets that run
-        // straight past the small, tightly-sized backing array - throwing
-        // `IndexOutOfRangeException` - rather than rejecting the subtable outright. The declared
-        // subtable `length` (16) and enclosing `tableLength` are both kept just large enough to
-        // cover the 14-byte subtable header (so the early `offset + 14 > tableEnd` guard passes
-        // and `segCountX2` is actually read), while the backing array itself is sized to match -
-        // not anywhere near the full `offset + glyphIdArrayOffset` span - so only `offset` itself,
-        // not the array, needs to approach `int.MaxValue`.
+        // huge positive `tableEnd`), producing corrupted array-index positions rather than
+        // rejecting the subtable outright.
         const int segCountX2 = 65534; // maximum valid (even) segCountX2
         const int chainConstant = 16 + 4 * segCountX2; // offset -> glyphIdArrayOffset delta
 
-        // Chosen so `offset + chainConstant` exceeds `int.MaxValue` by a comfortable margin,
-        // while `offset` itself remains a valid, addressable position for a byte[] (well under
-        // Array.MaxLength).
+        // Chosen so `offset + chainConstant` exceeds `int.MaxValue` by a comfortable margin.
         var offset = int.MaxValue - chainConstant + 1000;
-        var declaredSubtableLength = 16; // covers only the 14-byte subtable header
-        var tableLength = offset + declaredSubtableLength;
+        const int tableEnd = 1000; // any small, unrelated subtable bound
 
-        var data = new byte[tableLength];
+        var method = typeof(CmapTable).GetMethod("ComputeFormat4OffsetChain", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
 
-        void WriteU16(int position, int value)
-        {
-            data[position] = (byte)((value >> 8) & 0xFF);
-            data[position + 1] = (byte)(value & 0xFF);
-        }
-
-        void WriteU32(int position, long value)
-        {
-            data[position] = (byte)((value >> 24) & 0xFF);
-            data[position + 1] = (byte)((value >> 16) & 0xFF);
-            data[position + 2] = (byte)((value >> 8) & 0xFF);
-            data[position + 3] = (byte)(value & 0xFF);
-        }
-
-        WriteU16(0, 0); // cmap version
-        WriteU16(2, 1); // numTables
-        WriteU16(4, 3); // platformId
-        WriteU16(6, 1); // encodingId
-        WriteU32(8, offset); // subtable offset, relative to cmap table start (tableOffset == 0)
-
-        WriteU16(offset, 4); // format
-        WriteU16(offset + 2, declaredSubtableLength); // declared length: header only
-        WriteU16(offset + 4, 0); // language
-        WriteU16(offset + 6, segCountX2);
-        WriteU16(offset + 8, 0); // searchRange
-        WriteU16(offset + 10, 0); // entrySelector
-        WriteU16(offset + 12, 0); // rangeShift
-
-        // Act: parse the cmap table and look up any codepoint
-        var cmap = CmapTable.Parse(data, 0, tableLength);
+        // Act: invoke the offset-chain helper directly with the overflow-prone offset/segCountX2
+        var result = method.Invoke(null, [offset, segCountX2, tableEnd]);
 
         // Assert: the overflow-prone offset chain is rejected (rather than wrapping to a value
-        // that incorrectly passes the bounds guard) and the lookup resolves to zero, without
-        // throwing
-        Assert.Equal(0, cmap.GetGlyphIndex(0));
+        // that would incorrectly pass the bounds guard) so the helper returns null
+        Assert.Null(result);
     }
 
     /// <summary>

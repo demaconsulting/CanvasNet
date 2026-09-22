@@ -206,6 +206,14 @@ instead of hanging.
 Constructs an acyclic but explosively branching composite graph and asserts the total-component
 cap rejects it.
 
+##### CanvasNet-Fonts-TrueTypeFont-GlyphOutlineRejectsExcessivePoints: Excessive Total Point/Command Count Is Rejected
+
+**Tests**: `GlyfLocaReader_CompositeGlyph_LargeSimpleGlyphReferencedTwice_ThrowsInvalidDataExceptionViaPointBudget`
+
+Builds a composite glyph that references the same large simple glyph enough times to exceed the
+total point/command budget while staying well under the total-component cap, and asserts the
+point/command budget rejects it.
+
 ##### CanvasNet-Fonts-TrueTypeFont-GlyphOutlineRejectsPointMatchedComponent: Point-Matched Components Are Rejected
 
 **Tests**: `GlyfLocaReader_CompositeGlyph_PointMatchedComponent_ThrowsInvalidDataException`

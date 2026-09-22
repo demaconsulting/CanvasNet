@@ -300,11 +300,17 @@ on machine endianness or hidden span helpers.
 
 ##### Composite Glyph Bounds
 
-`GlyfLocaReader` enforces two deterministic limits during composite decoding: maximum nesting
-depth 10 and maximum total resolved component visits 5000. The depth limit catches true cycles
-and pathological nesting, but depth alone would not stop a non-cyclic composite tree from
-exploding exponentially. The total-component limit is therefore the stronger bound: it caps total
-work even when every reference chain is acyclic.
+`GlyfLocaReader` enforces three deterministic limits during composite decoding: maximum nesting
+depth 10, maximum total resolved component visits 5000, and a total resolved point/command budget
+of 200,000 charged across a single `GetGlyphOutline` call. The depth limit catches true cycles and
+pathological nesting, but depth alone would not stop a non-cyclic composite tree from exploding
+exponentially. The total-component limit bounds that exponential blow-up, but it counts only
+component *visits*, not the amount of geometry each visit produces - a single large simple glyph
+can cheaply encode tens of thousands of points, and a composite glyph referencing it many times
+(well under the component-visit cap) could still copy hundreds of millions of path commands. The
+total-point/command budget is the bound that actually caps this amplification: it is charged as
+soon as the point/command count for a step is known, before the corresponding points/commands are
+allocated or copied, so it remains effective even when the component-count cap alone is not.
 
 ##### Quadratic Contour Conversion
 

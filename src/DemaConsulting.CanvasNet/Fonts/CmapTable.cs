@@ -1,7 +1,7 @@
 // cspell:ignore SFNT Sfnt sfnt glyf Glyf cmap Cmap loca Loca hmtx Hmtx hhea Hhea
 // cspell:ignore maxp Maxp notdef codepoint codepoints subtable subtables subsetted
 // cspell:ignore subsetting PPEM OTTO
-// cspell:ignore misalign
+// cspell:ignore misalign unwidened
 namespace DemaConsulting.CanvasNet.Fonts;
 
 /// <summary>
@@ -239,24 +239,13 @@ internal sealed class CmapTable
         // and wrap into an unrelated or negative value, which would make the bounds check below
         // incorrectly pass and allow the array-population loop to read outside the declared
         // subtable (or throw `IndexOutOfRangeException`), violating the never-throw contract.
-        var endCodeOffsetLong = (long)offset + 14;
-        var startCodeOffsetLong = endCodeOffsetLong + segCountX2 + 2; // +2 skips reservedPad
-        var idDeltaOffsetLong = startCodeOffsetLong + segCountX2;
-        var idRangeOffsetOffsetLong = idDeltaOffsetLong + segCountX2;
-        var glyphIdArrayOffsetLong = idRangeOffsetOffsetLong + segCountX2;
-
-        if (glyphIdArrayOffsetLong > tableEnd)
+        var offsetChain = ComputeFormat4OffsetChain(offset, segCountX2, tableEnd);
+        if (offsetChain == null)
         {
             return null;
         }
 
-        // Every offset in the chain is now confirmed to be within [offset, tableEnd], and
-        // `tableEnd` is an `int`, so each value fits safely back into an `int`.
-        var endCodeOffset = (int)endCodeOffsetLong;
-        var startCodeOffset = (int)startCodeOffsetLong;
-        var idDeltaOffset = (int)idDeltaOffsetLong;
-        var idRangeOffsetOffset = (int)idRangeOffsetOffsetLong;
-        var glyphIdArrayOffset = (int)glyphIdArrayOffsetLong;
+        var (endCodeOffset, startCodeOffset, idDeltaOffset, idRangeOffsetOffset, glyphIdArrayOffset) = offsetChain.Value;
 
         var endCodes = new int[segCount];
         var startCodes = new int[segCount];
@@ -318,18 +307,94 @@ internal sealed class CmapTable
                     return (codepoint + idDeltas[i]) & 0xFFFF;
                 }
 
-                var glyphIndexAddress = (long)idRangeOffsetOffset + i * 2 + idRangeOffsets[i] + 2L * (codepoint - startCodes[i]);
-                if (glyphIndexAddress < glyphIdArrayOffset || glyphIndexAddress + 2 > tableEnd)
+                var glyphIndexAddress = ComputeFormat4GlyphIndexAddress(
+                    idRangeOffsetOffset, i, idRangeOffsets[i], codepoint, startCodes[i], glyphIdArrayOffset, tableEnd);
+                if (glyphIndexAddress == null)
                 {
                     return 0;
                 }
 
-                var glyphId = SfntContainer.ReadUInt16(data, (int)glyphIndexAddress);
+                var glyphId = SfntContainer.ReadUInt16(data, (int)glyphIndexAddress.Value);
                 return glyphId == 0 ? 0 : (glyphId + idDeltas[i]) & 0xFFFF;
             }
 
             return 0;
         };
+    }
+
+    /// <summary>
+    ///     Computes the format-4 offset chain (endCode/startCode/idDelta/idRangeOffset/glyphIdArray
+    ///     positions), validating that every position in the chain fits within
+    ///     <paramref name="tableEnd"/>.
+    /// </summary>
+    /// <remarks>
+    ///     Isolated as its own pure-arithmetic helper so the chain computation can be exercised
+    ///     directly against adversarial <paramref name="offset"/>/<paramref name="segCountX2"/>
+    ///     combinations without needing a backing byte array anywhere near the sizes those
+    ///     positions describe - the same technique <see cref="KernTable"/> uses for its
+    ///     subtable-position arithmetic. The addition is computed in <see langword="long"/>
+    ///     arithmetic specifically because <paramref name="offset"/> combined with a maximal
+    ///     <paramref name="segCountX2"/> (up to 65534) can overflow 32-bit <see langword="int"/>
+    ///     addition and wrap into a value that would incorrectly pass an unwidened bounds guard.
+    /// </remarks>
+    /// <param name="offset">The subtable's start position within the font data.</param>
+    /// <param name="segCountX2">The subtable's declared <c>segCountX2</c> field.</param>
+    /// <param name="tableEnd">The subtable's effective end position.</param>
+    /// <returns>
+    ///     The computed <c>(EndCodeOffset, StartCodeOffset, IdDeltaOffset, IdRangeOffsetOffset,
+    ///     GlyphIdArrayOffset)</c> tuple, or <see langword="null"/> if the final
+    ///     <c>GlyphIdArrayOffset</c> exceeds <paramref name="tableEnd"/>.
+    /// </returns>
+    private static (int EndCodeOffset, int StartCodeOffset, int IdDeltaOffset, int IdRangeOffsetOffset, int GlyphIdArrayOffset)?
+        ComputeFormat4OffsetChain(int offset, int segCountX2, int tableEnd)
+    {
+        var endCodeOffsetLong = (long)offset + 14;
+        var startCodeOffsetLong = endCodeOffsetLong + segCountX2 + 2; // +2 skips reservedPad
+        var idDeltaOffsetLong = startCodeOffsetLong + segCountX2;
+        var idRangeOffsetOffsetLong = idDeltaOffsetLong + segCountX2;
+        var glyphIdArrayOffsetLong = idRangeOffsetOffsetLong + segCountX2;
+
+        if (glyphIdArrayOffsetLong > tableEnd)
+        {
+            return null;
+        }
+
+        // Every offset in the chain is now confirmed to be within [offset, tableEnd], and
+        // `tableEnd` is an `int`, so each value fits safely back into an `int`.
+        return ((int)endCodeOffsetLong, (int)startCodeOffsetLong, (int)idDeltaOffsetLong, (int)idRangeOffsetOffsetLong, (int)glyphIdArrayOffsetLong);
+    }
+
+    /// <summary>
+    ///     Computes a format-4 segment's indirect glyph-index address
+    ///     (<c>idRangeOffsetOffset + segmentIndex * 2 + idRangeOffset + 2 * (codepoint - startCode)</c>),
+    ///     validating that it falls within <c>[glyphIdArrayOffset, tableEnd)</c>.
+    /// </summary>
+    /// <remarks>
+    ///     Isolated as its own pure-arithmetic helper (mirroring <see cref="ComputeFormat4OffsetChain"/>)
+    ///     so it can be exercised directly against adversarial position/offset combinations
+    ///     without needing a backing byte array anywhere near the sizes those positions describe.
+    ///     The computation is performed in <see langword="long"/> arithmetic because
+    ///     <paramref name="idRangeOffsetOffset"/> combined with a maximal
+    ///     <paramref name="idRangeOffset"/> (0xFFFF) and codepoint delta can overflow 32-bit
+    ///     <see langword="int"/> addition and wrap to a negative value, which would incorrectly
+    ///     pass an unwidened bounds guard and then be used directly as a negative array index.
+    /// </remarks>
+    /// <param name="idRangeOffsetOffset">The position of the subtable's <c>idRangeOffset</c> array.</param>
+    /// <param name="segmentIndex">The index of the segment being resolved.</param>
+    /// <param name="idRangeOffset">The segment's declared <c>idRangeOffset</c> value.</param>
+    /// <param name="codepoint">The codepoint being looked up.</param>
+    /// <param name="startCode">The segment's <c>startCode</c> value.</param>
+    /// <param name="glyphIdArrayOffset">The position of the subtable's <c>glyphIdArray</c>.</param>
+    /// <param name="tableEnd">The subtable's effective end position.</param>
+    /// <returns>
+    ///     The computed glyph-index address, or <see langword="null"/> if it falls outside
+    ///     <c>[glyphIdArrayOffset, tableEnd)</c> (accounting for the 2-byte glyph ID read).
+    /// </returns>
+    private static long? ComputeFormat4GlyphIndexAddress(
+        int idRangeOffsetOffset, int segmentIndex, int idRangeOffset, int codepoint, int startCode, int glyphIdArrayOffset, int tableEnd)
+    {
+        var glyphIndexAddress = (long)idRangeOffsetOffset + segmentIndex * 2 + idRangeOffset + 2L * (codepoint - startCode);
+        return glyphIndexAddress < glyphIdArrayOffset || glyphIndexAddress + 2 > tableEnd ? null : glyphIndexAddress;
     }
 
     /// <summary>
@@ -387,6 +452,15 @@ internal sealed class CmapTable
             }
 
             if (i > 0 && ends[i - 1] >= starts[i])
+            {
+                return null;
+            }
+
+            // Unicode has no codepoints above U+10FFFF (the maximum value encodable by UTF-16
+            // surrogate pairs and the hard ceiling set by the Unicode standard). A group whose
+            // endCharCode exceeds this is malformed - real fonts never declare coverage beyond
+            // it - so reject it here rather than accepting an out-of-repertoire range.
+            if (ends[i] > 0x10FFFF)
             {
                 return null;
             }

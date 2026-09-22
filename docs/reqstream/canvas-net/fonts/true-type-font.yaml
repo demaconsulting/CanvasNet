@@ -269,6 +269,19 @@ sections:
                 tests:
                   - GlyfLocaReader_CompositeGlyph_ExponentialBlowUp_ThrowsInvalidDataExceptionViaComponentCap
 
+              - id: CanvasNet-Fonts-TrueTypeFont-GlyphOutlineRejectsExcessivePoints
+                title: >-
+                  The TrueTypeFont class shall reject a composite glyph that would resolve to an
+                  excessive total number of outline points/commands with InvalidDataException
+                  rather than hanging or crashing.
+                justification: |
+                  A malformed or malicious font could define a composite glyph that references a
+                  single large simple glyph many times, without the reference count alone exceeding
+                  the total-component bound; bounding the total resolved point/command count
+                  prevents this amplified geometry from hanging or crashing the calling process.
+                tests:
+                  - GlyfLocaReader_CompositeGlyph_LargeSimpleGlyphReferencedTwice_ThrowsInvalidDataExceptionViaPointBudget
+
               - id: CanvasNet-Fonts-TrueTypeFont-GlyphOutlineRejectsPointMatchedComponent
                 title: >-
                   The TrueTypeFont class shall reject a composite glyph component that positions

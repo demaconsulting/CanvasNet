@@ -338,6 +338,43 @@ public class TrueTypeFontTests
     }
 
     /// <summary>
+    ///     Proves that TrueTypeFont GetKerning GlyphIndexValidUshortButBeyondGlyphCount ReturnsZero.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetKerning_GlyphIndexValidUshortButBeyondGlyphCount_ReturnsZero()
+    {
+        // Arrange: build a font with a small GlyphCount (2) whose kern table nonetheless carries
+        // a pair (100, 101) - both values are valid ushort glyph indices (so KernTable itself,
+        // which only bounds against ushort.MaxValue, would happily resolve them), but neither
+        // glyph exists in this particular font.
+        var glyph = SyntheticFontBuilder.SimpleGlyph(
+        [
+            [(0, 0, true), (10, 0, true), (10, 10, true), (0, 10, true)]
+        ]);
+        var kern = SyntheticFontBuilder.KernFormat0([(100, 101, 42)]);
+
+        var data = new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(2))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 50, 2))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([0, 500]))
+            .AddTable("loca", SyntheticFontBuilder.Loca([0, glyph.Length], longFormat: false))
+            .AddTable("glyf", glyph)
+            .AddTable("kern", kern)
+            .Build();
+
+        var font = TrueTypeFont.Load(new MemoryStream(data));
+
+        // Act: query kerning for the pair recorded in the kern table
+        var result = font.GetKerning(100, 101);
+
+        // Assert: even though the pair is present in the kern table and both indices are valid
+        // ushort values, neither glyph exists in this font (GlyphCount is 2), so the result is
+        // zero rather than the recorded kerning value of 42
+        Assert.Equal(0, result);
+    }
+
+    /// <summary>
     ///     Proves that TrueTypeFont GetGlyphIndex UnmappedCodepoint NeverThrows.
     /// </summary>
     [Fact]

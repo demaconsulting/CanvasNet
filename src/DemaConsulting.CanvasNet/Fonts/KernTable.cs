@@ -1,6 +1,6 @@
 // cspell:ignore SFNT Sfnt sfnt glyf Glyf cmap Cmap loca Loca hmtx Hmtx hhea Hhea
 // cspell:ignore maxp Maxp notdef codepoint codepoints subtable subtables subsetted
-// cspell:ignore subsetting PPEM OTTO
+// cspell:ignore subsetting PPEM OTTO unwidened
 namespace DemaConsulting.CanvasNet.Fonts;
 
 /// <summary>
@@ -73,13 +73,11 @@ internal sealed class KernTable
 
             var subtableLength = SfntContainer.ReadUInt16(data, pos + 2);
             var coverage = SfntContainer.ReadUInt16(data, pos + 4);
-            var subtableEndLong = (long)pos + subtableLength;
-            if (subtableLength < 6 || subtableEndLong > tableEnd)
+            var subtableEnd = ComputeSubtableEnd(pos, subtableLength, tableEnd);
+            if (subtableEnd == null)
             {
                 return Empty;
             }
-
-            var subtableEnd = (int)subtableEndLong;
 
             var format = (coverage >> 8) & 0xFF;
             var horizontal = (coverage & 0x1) != 0;
@@ -88,7 +86,7 @@ internal sealed class KernTable
 
             if (format == 0 && horizontal && !minimum && !crossStream)
             {
-                var pairs = TryParseFormat0(data, pos + 6, subtableEnd);
+                var pairs = TryParseFormat0(data, pos + 6, subtableEnd.Value);
                 if (pairs != null)
                 {
                     return new KernTable(pairs);
@@ -97,10 +95,47 @@ internal sealed class KernTable
                 return Empty;
             }
 
-            pos = subtableEnd;
+            pos = subtableEnd.Value;
         }
 
         return Empty;
+    }
+
+    /// <summary>
+    ///     Computes a subtable's effective end position (<paramref name="pos"/> +
+    ///     <paramref name="subtableLength"/>), validating that the declared length is at least
+    ///     large enough to hold the shared 6-byte subtable header and that the resulting end
+    ///     position fits within the enclosing <c>kern</c> table.
+    /// </summary>
+    /// <remarks>
+    ///     Isolated as its own pure-arithmetic helper (mirroring <see cref="CmapTable"/>'s
+    ///     <c>ComputeSubtableEnd</c>) so the subtable-walking loop's position arithmetic can be
+    ///     exercised directly against adversarial <paramref name="pos"/>/<paramref name="tableEnd"/>
+    ///     combinations without needing a backing byte array anywhere near the sizes those
+    ///     positions describe. The addition is computed in <see langword="long"/> arithmetic
+    ///     specifically because <paramref name="pos"/> combined with a maximal
+    ///     <paramref name="subtableLength"/> (<c>0xFFFF</c>, the largest ushort) can overflow
+    ///     32-bit <see langword="int"/> addition and wrap to a value that would incorrectly pass
+    ///     an unwidened bounds guard, letting the walking loop advance <c>pos</c> to a corrupted,
+    ///     out-of-bounds position for the next subtable.
+    /// </remarks>
+    /// <param name="pos">The subtable's start position within <c>data</c>.</param>
+    /// <param name="subtableLength">The subtable's declared <c>length</c> field.</param>
+    /// <param name="tableEnd">The enclosing <c>kern</c> table's end position within <c>data</c>.</param>
+    /// <returns>
+    ///     The subtable's end position, or <see langword="null"/> if <paramref name="subtableLength"/>
+    ///     is too small to hold the shared header, or the computed end position exceeds
+    ///     <paramref name="tableEnd"/>.
+    /// </returns>
+    private static int? ComputeSubtableEnd(int pos, int subtableLength, int tableEnd)
+    {
+        if (subtableLength < 6)
+        {
+            return null;
+        }
+
+        var subtableEndLong = (long)pos + subtableLength;
+        return subtableEndLong > tableEnd ? null : (int)subtableEndLong;
     }
 
     /// <summary>
