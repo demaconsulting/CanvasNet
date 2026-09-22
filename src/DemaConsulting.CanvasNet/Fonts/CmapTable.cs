@@ -217,16 +217,29 @@ internal sealed class CmapTable
             return null;
         }
 
-        var endCodeOffset = offset + 14;
-        var startCodeOffset = endCodeOffset + segCountX2 + 2; // +2 skips reservedPad
-        var idDeltaOffset = startCodeOffset + segCountX2;
-        var idRangeOffsetOffset = idDeltaOffset + segCountX2;
-        var glyphIdArrayOffset = idRangeOffsetOffset + segCountX2;
+        // Compute the offset chain in `long` arithmetic rather than `int` - `offset` combined
+        // with a maximal `segCountX2` (up to 65534) can otherwise overflow 32-bit `int` addition
+        // and wrap into an unrelated or negative value, which would make the bounds check below
+        // incorrectly pass and allow the array-population loop to read outside the declared
+        // subtable (or throw `IndexOutOfRangeException`), violating the never-throw contract.
+        var endCodeOffsetLong = (long)offset + 14;
+        var startCodeOffsetLong = endCodeOffsetLong + segCountX2 + 2; // +2 skips reservedPad
+        var idDeltaOffsetLong = startCodeOffsetLong + segCountX2;
+        var idRangeOffsetOffsetLong = idDeltaOffsetLong + segCountX2;
+        var glyphIdArrayOffsetLong = idRangeOffsetOffsetLong + segCountX2;
 
-        if (glyphIdArrayOffset > tableEnd)
+        if (glyphIdArrayOffsetLong > tableEnd)
         {
             return null;
         }
+
+        // Every offset in the chain is now confirmed to be within [offset, tableEnd], and
+        // `tableEnd` is an `int`, so each value fits safely back into an `int`.
+        var endCodeOffset = (int)endCodeOffsetLong;
+        var startCodeOffset = (int)startCodeOffsetLong;
+        var idDeltaOffset = (int)idDeltaOffsetLong;
+        var idRangeOffsetOffset = (int)idRangeOffsetOffsetLong;
+        var glyphIdArrayOffset = (int)glyphIdArrayOffsetLong;
 
         var endCodes = new int[segCount];
         var startCodes = new int[segCount];
@@ -371,7 +384,15 @@ internal sealed class CmapTable
                 }
                 else
                 {
-                    return (int)(startGlyphIds[mid] + (code - starts[mid]));
+                    // Compute the sum in `long` arithmetic rather than `uint` - `startGlyphIds[mid]`
+                    // combined with a large `code - starts[mid]` offset can otherwise wrap modulo
+                    // 2^32, silently producing a small, plausible-looking (but bogus) glyph index
+                    // instead of failing. Real fonts never have anywhere near `int.MaxValue`
+                    // glyphs, so any result that would not fit in a non-negative `int` (i.e. would
+                    // have wrapped, or would itself become negative when cast) is rejected
+                    // outright rather than truncated.
+                    var glyphId = (long)startGlyphIds[mid] + (code - starts[mid]);
+                    return glyphId > int.MaxValue ? 0 : (int)glyphId;
                 }
             }
 

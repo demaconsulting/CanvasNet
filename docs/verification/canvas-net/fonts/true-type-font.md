@@ -10,11 +10,12 @@ supporting internal helpers `SfntContainer`, `CmapTable`, `GlyfLocaReader`, `Hmt
 
 The `TrueTypeFont` unit is verified through focused unit tests that exercise each helper directly
 via `InternalsVisibleTo`, plus end-to-end `TrueTypeFont` tests that load a complete synthetic
-font and drive the public API. Every fixture font used by these tests is assembled in memory by
-the shared `SyntheticFontBuilder` helper under `test/DemaConsulting.CanvasNet.Tests/TestSupport/`;
-no third-party font files are used, so the tests avoid fixture licensing concerns while still
-covering both well-formed and deliberately malformed SFNT structures. One additional integration
-test, `TrueTypeFontRealFontIntegrationTests.TrueTypeFont_RealOpenSansFont_RendersGlyphOutlineAsVisibleInk`,
+font and drive the public API. Every fixture font used by this synthetic-fixture coverage is
+assembled in memory by the shared `SyntheticFontBuilder` helper under
+`test/DemaConsulting.CanvasNet.Tests/TestSupport/`; no third-party font files are used for this
+portion of the suite, so it avoids fixture licensing concerns while still covering both
+well-formed and deliberately malformed SFNT structures. One additional integration test,
+`TrueTypeFontRealFontIntegrationTests.TrueTypeFont_RealOpenSansFont_RendersGlyphOutlineAsVisibleInk`,
 loads the real, licensed (SIL OFL 1.1) "Open Sans" production font fixture
 (`test/DemaConsulting.CanvasNet.Tests/FontFixtures/OpenSans-Regular.ttf`, attributed per the
 accompanying `OpenSans.LICENSE`) to prove the unit genuinely composes with the `Drawing` pipeline

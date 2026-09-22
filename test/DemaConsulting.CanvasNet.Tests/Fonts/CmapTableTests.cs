@@ -726,4 +726,95 @@ public class CmapTableTests
         // Assert: the unrecognized format is ignored and lookups resolve to glyph index zero
         Assert.Equal(0, cmap.GetGlyphIndex(65));
     }
+
+    /// <summary>
+    ///     Proves that CmapTable Format4 OffsetChainArithmeticOverflow ReturnsZero.
+    /// </summary>
+    [Fact]
+    public void CmapTable_Format4_OffsetChainArithmeticOverflow_ReturnsZero()
+    {
+        // Arrange: place a format-4 subtable at a position (`offset`) so large, combined with the
+        // maximal even `segCountX2` (65534), that computing
+        // `glyphIdArrayOffset = offset + 16 + 4 * segCountX2` with unwidened 32-bit `int`
+        // arithmetic overflows past `int.MaxValue` and wraps to a negative value. A decoder that
+        // only widens *some* of this offset chain (or none of it) would then incorrectly pass the
+        // `glyphIdArrayOffset > tableEnd` bounds guard (a negative value is never greater than a
+        // huge positive `tableEnd`), and go on to read the segment arrays via offsets that run
+        // straight past the small, tightly-sized backing array - throwing
+        // `IndexOutOfRangeException` - rather than rejecting the subtable outright. The declared
+        // subtable `length` (16) and enclosing `tableLength` are both kept just large enough to
+        // cover the 14-byte subtable header (so the early `offset + 14 > tableEnd` guard passes
+        // and `segCountX2` is actually read), while the backing array itself is sized to match -
+        // not anywhere near the full `offset + glyphIdArrayOffset` span - so only `offset` itself,
+        // not the array, needs to approach `int.MaxValue`.
+        const int segCountX2 = 65534; // maximum valid (even) segCountX2
+        const int chainConstant = 16 + 4 * segCountX2; // offset -> glyphIdArrayOffset delta
+
+        // Chosen so `offset + chainConstant` exceeds `int.MaxValue` by a comfortable margin,
+        // while `offset` itself remains a valid, addressable position for a byte[] (well under
+        // Array.MaxLength).
+        var offset = int.MaxValue - chainConstant + 1000;
+        var declaredSubtableLength = 16; // covers only the 14-byte subtable header
+        var tableLength = offset + declaredSubtableLength;
+
+        var data = new byte[tableLength];
+
+        void WriteU16(int position, int value)
+        {
+            data[position] = (byte)((value >> 8) & 0xFF);
+            data[position + 1] = (byte)(value & 0xFF);
+        }
+
+        void WriteU32(int position, long value)
+        {
+            data[position] = (byte)((value >> 24) & 0xFF);
+            data[position + 1] = (byte)((value >> 16) & 0xFF);
+            data[position + 2] = (byte)((value >> 8) & 0xFF);
+            data[position + 3] = (byte)(value & 0xFF);
+        }
+
+        WriteU16(0, 0); // cmap version
+        WriteU16(2, 1); // numTables
+        WriteU16(4, 3); // platformId
+        WriteU16(6, 1); // encodingId
+        WriteU32(8, offset); // subtable offset, relative to cmap table start (tableOffset == 0)
+
+        WriteU16(offset, 4); // format
+        WriteU16(offset + 2, declaredSubtableLength); // declared length: header only
+        WriteU16(offset + 4, 0); // language
+        WriteU16(offset + 6, segCountX2);
+        WriteU16(offset + 8, 0); // searchRange
+        WriteU16(offset + 10, 0); // entrySelector
+        WriteU16(offset + 12, 0); // rangeShift
+
+        // Act: parse the cmap table and look up any codepoint
+        var cmap = CmapTable.Parse(data, 0, tableLength);
+
+        // Assert: the overflow-prone offset chain is rejected (rather than wrapping to a value
+        // that incorrectly passes the bounds guard) and the lookup resolves to zero, without
+        // throwing
+        Assert.Equal(0, cmap.GetGlyphIndex(0));
+    }
+
+    /// <summary>
+    ///     Proves that CmapTable Format12 StartGlyphIdPlusOffsetOverflowsUInt32 ReturnsZero.
+    /// </summary>
+    [Fact]
+    public void CmapTable_Format12_StartGlyphIdPlusOffsetOverflowsUInt32_ReturnsZero()
+    {
+        // Arrange: build a format-12 cmap subtable with a single group whose startGlyphId is
+        // uint.MaxValue. Looking up a codepoint two above the group's startCharCode computes
+        // `startGlyphIds[mid] + (code - starts[mid])` = uint.MaxValue + 2, which wraps modulo
+        // 2^32 to the small, plausible-looking (but bogus) glyph index 1 unless the sum is
+        // computed in wider (non-wrapping) arithmetic.
+        var table = SyntheticFontBuilder.CmapFormat12(3, 10, [(0u, 5u, uint.MaxValue)]);
+
+        // Act: parse the cmap table and look up a codepoint whose offset from the group's start
+        // would overflow uint32 arithmetic
+        var cmap = CmapTable.Parse(table, 0, table.Length);
+
+        // Assert: the would-be-wrapped result is rejected rather than silently truncated to a
+        // plausible-looking small glyph index
+        Assert.Equal(0, cmap.GetGlyphIndex(2));
+    }
 }
