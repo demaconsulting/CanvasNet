@@ -98,6 +98,7 @@ including the all-zero matrix - is preserved exactly as given.
 - `EvaluatePoint_Linear_EndpointsMatchFirstAndLastStopColors`
 - `EvaluatePoint_Radial_SingleCircleEquivalent_CenterAndEdgeMatchEndpointColors`
 - `EvaluatePoint_Radial_TwoCircle_DistinctCentersAndRadii_ResolvesAlongSweptFamily`
+- `EvaluatePoint_Radial_EqualRadiiDistinctCenters_VariesAlongCylindricalSweptFamily`
 - `EvaluatePoint_Radial_TwoCircle_PointOnStartCircleWithSpuriousSecondRoot_ResolvesToFirstStopColor`
 - `EvaluatePoint_Radial_TwoCircle_PointOnEndCircleWithSpuriousSecondRoot_ResolvesToLastStopColor`
 - `EvaluatePoint_Radial_TangentFamilyFullyDegenerate_GrowingRadius_ResolvesToFirstStopColor`
@@ -112,7 +113,11 @@ These tests verify the core per-point/per-row evaluation math directly: a single
 resolves to that one color everywhere; a linear gradient reproduces its first/last stop's color
 exactly at its `Start`/`End` points; a radial gradient (both the single-circle-equivalent
 configuration and a genuinely distinct-center/distinct-radius two-circle configuration) resolves
-the first stop's color on the start circle and the last stop's color on the end circle; and
+the first stop's color on the start circle and the last stop's color on the end circle; that a
+radial gradient whose two circles share an equal, nonzero radius but have distinct centers (a
+purely-translating, non-scaling swept family) still produces genuinely varying interpolated color
+across the family rather than being mistaken for one of the other degenerate equal-radius cases;
+and
 `EvaluateRow` matches independent per-pixel `EvaluatePoint` calls across a multi-pixel run, for
 both a linear gradient, a radial gradient wide enough to cross both circles (proving the
 once-per-fill precomputation of the matrix inverse and two-circle coefficients does not change
@@ -193,16 +198,22 @@ these two superficially similar "nothing to paint" outcomes are correctly distin
 #### GradientEvaluator: Extreme-Coordinate Robustness
 
 - `EvaluatePoint_Linear_ExtremeMagnitudeCoordinates_ResolvesCorrectly`
+- `EvaluatePoint_Linear_ExtremeScaleInvertibleTransformWithExtremeCoordinates_ProducesFiniteNonNaNColor`
+- `EvaluatePoint_Radial_ExtremeMagnitudeCoordinates_ResolvesCorrectly`
 
-This test constructs a linear gradient whose `Start`/`End` points are near the edges of `float`'s
-representable magnitude and asserts the correct endpoint/spread-folded colors are still resolved,
-proving the evaluator's internal `double`-precision projection math avoids the overflow a naive
-`float` computation could suffer even though every individual coordinate and the true
-mathematical result remain well within `float`'s range.
+These tests construct a linear or radial gradient whose points, or whose transform's scale
+component, are near the edges of `float`'s representable magnitude and assert the correct
+endpoint/spread-folded colors are still resolved, proving the evaluator's internal
+`double`-precision projection math avoids the overflow a naive `float` computation could suffer
+even though every individual coordinate and the true mathematical result remain well within
+`float`'s range. The invertible-transform variant additionally asserts the resolved color's
+channels are all finite and non-`NaN` when both an extreme transform scale and extreme input
+coordinates combine.
 
 #### PathFiller/ScanlineRasterizer: Gradient Fill Shares Behavior with Solid-Color Fill
 
 - `PathFiller_Fill_Gradient_HorizontalRectangleWithHorizontalLinearGradient_VariesLeftToRight`
+- `PathFiller_Fill_Gradient_SquareWithRadialGradient_CenterAndCornerMatchExpectedRamp`
 - `PathFiller_Fill_Gradient_SingleStop_MatchesSolidColorFill`
 - `PathFiller_Fill_Gradient_OverlappingSameWoundRectangles_NonZeroVsEvenOddDiverge`
 - `PathFiller_Fill_Gradient_EmptyPath_NoOpLeavesSurfaceUnchanged`
@@ -216,7 +227,12 @@ genuinely varying per-pixel color for a multi-stop gradient, produce byte-for-by
 output to the solid-color overload for a single-stop gradient (including at the coverage-math
 level using a sub-pixel-offset shape, proving coverage computation is genuinely shared rather than
 duplicated), and honor the same `FillRule` divergence and empty-input no-op behavior already
-established for solid-color fills. The tall multi-row fill test is a regression/equivalence proof
+established for solid-color fills. The radial-gradient square-fill test fills a square path with a
+`RadialGradient` through `PathFiller.Fill` and asserts both the center pixel and a corner pixel
+match the color independently computed via `GradientEvaluator.EvaluatePoint` at those same
+coordinates, proving the radial ramp is rendered correctly end-to-end through the production
+`PathFiller` pipeline rather than only at the evaluator level. The tall multi-row fill test is a
+regression/equivalence proof
 (not a timing measurement) for the fix that builds `ScanlineRasterizer.Fill`'s `GradientPlan` once
 per fill operation instead of once per row: it fills a 50-row-tall rectangle with a
 `RadialGradient` and asserts every pixel exactly matches independent per-pixel
