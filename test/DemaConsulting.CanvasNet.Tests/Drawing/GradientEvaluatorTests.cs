@@ -1,3 +1,4 @@
+// cspell:ignore precomputation
 using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Drawing;
@@ -258,6 +259,21 @@ public class GradientEvaluatorTests
     }
 
     /// <summary>
+    ///     Proves that an explicitly-supplied all-zero transform (<see langword="default"/>(<see cref="Matrix3x2"/>))
+    ///     - now preserved by the constructor rather than silently replaced with the identity
+    ///     matrix - is itself singular (the all-zero matrix has no inverse) and correctly falls
+    ///     back to the "Degenerate Transform" flat-fill behavior at evaluation time.
+    /// </summary>
+    [Fact]
+    public void EvaluatePoint_ExplicitAllZeroTransform_FlatFillsWithLastStopColor()
+    {
+        var gradient = new LinearGradient(
+            new Vector2(0, 0), new Vector2(10, 0), TwoStops(), transform: default(Matrix3x2));
+
+        Assert.Equal(Blue, GradientEvaluator.EvaluatePoint(gradient, new Vector2(3, 3)));
+    }
+
+    /// <summary>
     ///     Proves that extreme float32-magnitude gradient coordinates still resolve to the
     ///     correct endpoint colors without overflow-induced NaN/incorrect results, since the
     ///     evaluator performs its projection math in double precision.
@@ -303,6 +319,30 @@ public class GradientEvaluatorTests
     }
 
     /// <summary>
+    ///     Proves that coincident centers with equal but <b>nonzero</b> radii - a swept family of
+    ///     a single unchanging circle, just like the all-zero-radii case, but never previously
+    ///     recognized as degenerate - also flat-fills with the last stop's color, rather than
+    ///     leaving points on/off that one circle unpainted or transparent via a spurious
+    ///     <see langword="null"/> root.
+    /// </summary>
+    [Fact]
+    public void EvaluatePoint_Radial_EqualNonZeroRadiiCoincidentCenters_FlatFillsWithLastStopColor()
+    {
+        var center = new Vector2(2, 2);
+        var gradient = new RadialGradient(center, 5f, center, 5f, TwoStops());
+
+        // On the (only) circle itself.
+        Assert.Equal(Blue, GradientEvaluator.EvaluatePoint(gradient, new Vector2(7, 2)));
+
+        // Off the circle entirely (previously would have resolved as "no valid root" and been
+        // left transparent, instead of flat-filling per the degenerate-case policy).
+        Assert.Equal(Blue, GradientEvaluator.EvaluatePoint(gradient, new Vector2(500, -500)));
+
+        // At the shared center itself.
+        Assert.Equal(Blue, GradientEvaluator.EvaluatePoint(gradient, center));
+    }
+
+    /// <summary>
     ///     Proves that a two-circle radial gradient with genuinely distinct, non-nested start and
     ///     end circles leaves a point outside both circles' swept family (the "no valid root"
     ///     region) fully transparent, rather than clamping it to an endpoint color.
@@ -317,6 +357,41 @@ public class GradientEvaluatorTests
         var result = GradientEvaluator.EvaluatePoint(gradient, new Vector2(0, 100));
 
         Assert.Equal(0, result.A);
+    }
+
+    /// <summary>
+    ///     Proves that a point exactly on the start circle's boundary resolves to the first
+    ///     stop's color even when the two-circle quadratic has a second, spurious, also-valid
+    ///     root a hair's breadth away (a self-intersecting sliver of the swept family nearest the
+    ///     start circle) - reproducing the exact scenario reported in review: start circle
+    ///     (0,0)/r=5, end circle (20,0)/r=6, point (0,5). Naively preferring the numerically
+    ///     larger of the two valid roots resolves to an interpolated color close to, but not
+    ///     exactly, the first stop's color; the correct root is the boundary-conforming one.
+    /// </summary>
+    [Fact]
+    public void EvaluatePoint_Radial_TwoCircle_PointOnStartCircleWithSpuriousSecondRoot_ResolvesToFirstStopColor()
+    {
+        var gradient = new RadialGradient(new Vector2(0, 0), 5f, new Vector2(20, 0), 6f, TwoStops());
+
+        var result = GradientEvaluator.EvaluatePoint(gradient, new Vector2(0, 5));
+
+        Assert.Equal(Red, result);
+    }
+
+    /// <summary>
+    ///     Proves the mirror-image scenario of
+    ///     <see cref="EvaluatePoint_Radial_TwoCircle_PointOnStartCircleWithSpuriousSecondRoot_ResolvesToFirstStopColor"/>:
+    ///     a point exactly on the <b>end</b> circle's boundary, with a shrinking radius from start
+    ///     to end, resolves to the last stop's color rather than a spurious near-boundary root.
+    /// </summary>
+    [Fact]
+    public void EvaluatePoint_Radial_TwoCircle_PointOnEndCircleWithSpuriousSecondRoot_ResolvesToLastStopColor()
+    {
+        var gradient = new RadialGradient(new Vector2(20, 0), 6f, new Vector2(0, 0), 5f, TwoStops());
+
+        var result = GradientEvaluator.EvaluatePoint(gradient, new Vector2(0, 5));
+
+        Assert.Equal(Blue, result);
     }
 
     /// <summary>
@@ -452,6 +527,50 @@ public class GradientEvaluatorTests
         {
             var expected = GradientEvaluator.EvaluatePoint(gradient, new Vector2(i + 0.5f, 0.5f));
             Assert.Equal(expected, destination[i]);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that EvaluateRow's per-fill precomputation (the matrix inverse and two-circle
+    ///     quadratic coefficients computed once for the whole row, not once per pixel - see this
+    ///     class's remarks) still produces results identical to per-pixel EvaluatePoint for a
+    ///     <see cref="RadialGradient"/>, across a run wide enough to cross the start circle, the
+    ///     midpoint, and the end circle. This is a regression/equivalence test for the
+    ///     per-fill-precomputation refactor: it proves the refactor is a pure performance change
+    ///     with no observable difference in pixel output.
+    /// </summary>
+    [Fact]
+    public void EvaluateRow_Radial_MultiPixelRun_MatchesPerPixelEvaluatePoint()
+    {
+        var gradient = new RadialGradient(new Vector2(0, 0), 2f, new Vector2(30, 0), 8f, TwoStops());
+        Span<Rgba32> destination = stackalloc Rgba32[40];
+
+        GradientEvaluator.EvaluateRow(gradient, 0, -5, 40, destination);
+
+        for (var i = 0; i < 40; i++)
+        {
+            var expected = GradientEvaluator.EvaluatePoint(gradient, new Vector2(-5 + i + 0.5f, 0.5f));
+            Assert.Equal(expected, destination[i]);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that EvaluateRow's whole-row "Degenerate Transform" fast path (skipping the
+    ///     per-pixel loop entirely and flat-filling the whole row directly, since a singular
+    ///     transform never varies across a row) still matches per-pixel EvaluatePoint results.
+    /// </summary>
+    [Fact]
+    public void EvaluateRow_SingularTransform_MatchesPerPixelEvaluatePoint()
+    {
+        var singular = new Matrix3x2(1, 1, 1, 1, 0, 0);
+        var gradient = new LinearGradient(new Vector2(0, 0), new Vector2(10, 0), TwoStops(), transform: singular);
+        Span<Rgba32> destination = stackalloc Rgba32[4];
+
+        GradientEvaluator.EvaluateRow(gradient, 0, 0, 4, destination);
+
+        for (var i = 0; i < 4; i++)
+        {
+            Assert.Equal(Blue, destination[i]);
         }
     }
 

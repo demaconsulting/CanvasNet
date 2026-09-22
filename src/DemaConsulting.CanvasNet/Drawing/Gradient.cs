@@ -12,10 +12,16 @@ namespace DemaConsulting.CanvasNet.Drawing;
 /// </summary>
 /// <remarks>
 ///     <para>
-///     <see cref="Gradient"/> is deliberately not sealed, but has no public constructor of its
-///     own - only <see cref="LinearGradient"/> and <see cref="RadialGradient"/> may derive from
-///     it. This keeps the type closed to caller-authored derivation while remaining open for
-///     these two library-authored subtypes.
+///     <see cref="Gradient"/> is deliberately not sealed, but has no public (or protected)
+///     constructor of its own - its constructor is <see langword="private protected"/>, so only
+///     <see cref="LinearGradient"/> and <see cref="RadialGradient"/>, both declared in this same
+///     assembly, may derive from it. This is a deliberately <b>closed</b> type hierarchy: every
+///     consumer of <see cref="GradientEvaluator"/> (the only place that interprets a
+///     <see cref="Gradient"/> instance's runtime type) pattern-matches exhaustively on exactly
+///     these two subtypes and throws for anything else, so a caller-authored third subtype could
+///     never be evaluated correctly - <see langword="private protected"/> (rather than
+///     <see langword="protected"/>) makes that contract explicit at compile time instead of only
+///     failing at evaluation time.
 ///     </para>
 ///     <para>
 ///     <b>Stop normalization.</b> The constructor takes a defensive copy of the supplied
@@ -56,7 +62,7 @@ public abstract class Gradient
     ///     Thrown when <paramref name="spread"/> is not a defined <see cref="GradientSpread"/>
     ///     value, or when any component of <paramref name="transform"/> is not finite.
     /// </exception>
-    protected Gradient(IReadOnlyList<GradientStop> stops, GradientSpread spread, Matrix3x2 transform)
+    private protected Gradient(IReadOnlyList<GradientStop> stops, GradientSpread spread, Matrix3x2 transform)
     {
         ArgumentNullException.ThrowIfNull(stops);
 

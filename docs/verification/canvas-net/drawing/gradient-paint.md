@@ -1,4 +1,4 @@
-<!-- cspell:ignore Rgba lerp -->
+<!-- cspell:ignore Rgba lerp precomputation precomputes -->
 
 ## GradientPaint Unit Verification Design
 
@@ -53,12 +53,14 @@ every expected pixel color, alpha, or thrown exception type matches exactly.
 - `GradientStop_Constructor_OffsetOutsideZeroToOne_ThrowsArgumentOutOfRangeException`
 - `GradientStop_Constructor_NonFiniteOffset_ThrowsArgumentOutOfRangeException`
 - `GradientStop_Constructor_BoundaryOffsetsZeroAndOne_Succeeds`
+- `Gradient_Constructor_IsPrivateProtected`
 - `LinearGradient_Constructor_NullStops_ThrowsArgumentNullException`
 - `LinearGradient_Constructor_EmptyStops_ThrowsArgumentException`
 - `LinearGradient_Constructor_UndefinedSpread_ThrowsArgumentOutOfRangeException`
 - `LinearGradient_Constructor_TransformWithNaNComponent_ThrowsArgumentOutOfRangeException`
 - `LinearGradient_Constructor_TransformWithInfinityComponent_ThrowsArgumentOutOfRangeException`
 - `LinearGradient_Constructor_DefaultTransform_IsIdentity`
+- `LinearGradient_Constructor_ExplicitAllZeroTransform_IsPreservedNotReplacedWithIdentity`
 - `LinearGradient_Constructor_ValidValues_PropertiesRoundTrip`
 - `LinearGradient_Constructor_UnsortedStops_AreSortedAscendingByOffset`
 - `LinearGradient_Constructor_DuplicateOffsetStops_PreservesInputOrderAmongTies`
@@ -75,13 +77,18 @@ every expected pixel color, alpha, or thrown exception type matches exactly.
 - `RadialGradient_Constructor_EmptyStops_ThrowsArgumentException`
 - `RadialGradient_Constructor_BothRadiiZeroCoincidentCenters_Succeeds`
 - `RadialGradient_Constructor_DefaultTransform_IsIdentity`
+- `RadialGradient_Constructor_ExplicitAllZeroTransform_IsPreservedNotReplacedWithIdentity`
 
 These tests verify that every public gradient type's constructor validates its own arguments
 (non-finite/negative/undefined values are rejected), that valid values round-trip exactly, that
 stops are defensively stable-sorted ascending by offset (preserving caller-supplied relative order
-among ties), and that geometric configurations later resolved as evaluation-time degenerate cases
+among ties), that geometric configurations later resolved as evaluation-time degenerate cases
 (a zero-length linear vector, a single-circle-equivalent radial configuration, both radii zero
-with coincident centers) are still accepted at construction rather than rejected.
+with coincident centers) are still accepted at construction rather than rejected, that
+`Gradient`'s shared constructor is `private protected` (a closed hierarchy - only `LinearGradient`
+and `RadialGradient`, both declared in this assembly, may derive from it), and that an omitted
+transform argument resolves to the identity transform while an explicitly-supplied transform -
+including the all-zero matrix - is preserved exactly as given.
 
 #### GradientEvaluator: Linear and Radial Parameter Math
 
@@ -90,7 +97,11 @@ with coincident centers) are still accepted at construction rather than rejected
 - `EvaluatePoint_Linear_EndpointsMatchFirstAndLastStopColors`
 - `EvaluatePoint_Radial_SingleCircleEquivalent_CenterAndEdgeMatchEndpointColors`
 - `EvaluatePoint_Radial_TwoCircle_DistinctCentersAndRadii_ResolvesAlongSweptFamily`
+- `EvaluatePoint_Radial_TwoCircle_PointOnStartCircleWithSpuriousSecondRoot_ResolvesToFirstStopColor`
+- `EvaluatePoint_Radial_TwoCircle_PointOnEndCircleWithSpuriousSecondRoot_ResolvesToLastStopColor`
 - `EvaluateRow_MultiPixelRun_MatchesPerPixelEvaluatePoint`
+- `EvaluateRow_Radial_MultiPixelRun_MatchesPerPixelEvaluatePoint`
+- `EvaluateRow_SingularTransform_MatchesPerPixelEvaluatePoint`
 - `EvaluateRow_NullGradient_ThrowsArgumentNullException`
 
 These tests verify the core per-point/per-row evaluation math directly: a single-stop gradient
@@ -98,7 +109,15 @@ resolves to that one color everywhere; a linear gradient reproduces its first/la
 exactly at its `Start`/`End` points; a radial gradient (both the single-circle-equivalent
 configuration and a genuinely distinct-center/distinct-radius two-circle configuration) resolves
 the first stop's color on the start circle and the last stop's color on the end circle; and
-`EvaluateRow` matches independent per-pixel `EvaluatePoint` calls across a multi-pixel run.
+`EvaluateRow` matches independent per-pixel `EvaluatePoint` calls across a multi-pixel run, for
+both a linear gradient, a radial gradient wide enough to cross both circles (proving the
+once-per-row precomputation of the matrix inverse and two-circle coefficients does not change
+per-pixel output), and a singular-transform gradient (proving the whole-row degenerate-transform
+fast path matches the per-pixel path exactly). The two "spurious second root" tests reproduce the
+exact intersecting-circle scenario reported against the previous "always pick the larger root"
+logic (start circle `(0,0)` radius `5`, end circle `(20,0)` radius `6`, point `(0,5)`, and its
+radius-shrinking mirror image) and assert the point resolves to the correct boundary stop color
+rather than a spurious interpolated color.
 
 #### GradientEvaluator: Spread Modes
 
@@ -141,18 +160,21 @@ fully transparent stops with different RGB values and asserts the result is exac
 
 - `Constructor_NonFiniteTransform_ThrowsArgumentOutOfRangeException`
 - `EvaluatePoint_SingularTransform_FlatFillsWithLastStopColor`
+- `EvaluatePoint_ExplicitAllZeroTransform_FlatFillsWithLastStopColor`
 - `EvaluatePoint_Linear_ZeroLengthVector_FlatFillsWithLastStopColor`
 - `EvaluatePoint_Radial_BothRadiiZeroCoincidentCenters_FlatFillsWithLastStopColor`
+- `EvaluatePoint_Radial_EqualNonZeroRadiiCoincidentCenters_FlatFillsWithLastStopColor`
 - `EvaluatePoint_Radial_TwoCircle_NoValidRootRegion_IsFullyTransparent`
 
 These tests verify the unifying degenerate-case policy directly: a non-finite transform component
 is rejected at construction (not tolerated at evaluation time); a singular (non-invertible but
-finite) transform, a zero-length linear vector, and a radial gradient whose two circles never
-change with `t` at all (both radii zero, coincident centers) all flat-fill with the last stop's
-color; and, distinctly, a two-circle radial gradient's genuine "no valid root" region (a point
-outside every circle the gradient's family ever sweeps through) resolves to fully transparent
-(alpha zero) rather than being flat-filled - proving these two superficially similar "nothing to
-paint" outcomes are correctly distinguished.
+finite) transform - including the explicitly-supplied all-zero matrix, now distinguishable from an
+omitted transform argument - a zero-length linear vector, and a radial gradient whose two circles
+never change with `t` at all (coincident centers with equal radii, whether that shared radius is
+zero or nonzero) all flat-fill with the last stop's color; and, distinctly, a two-circle radial
+gradient's genuine "no valid root" region (a point outside every circle the gradient's family ever
+sweeps through) resolves to fully transparent (alpha zero) rather than being flat-filled - proving
+these two superficially similar "nothing to paint" outcomes are correctly distinguished.
 
 #### GradientEvaluator: Extreme-Coordinate Robustness
 
@@ -215,5 +237,12 @@ No algorithmic complexity properties are newly established by this unit beyond t
 documented for `ScanlineRasterizer`/`Surface.CompositeOverSpan` (see _PathFiller Unit Design_,
 `path-filler.md`, and _Surface Unit Design_, `../canvas/surface.md`); `GradientEvaluator` itself
 performs a fixed, small amount of arithmetic per point/pixel with no loops over unbounded input.
+`GradientEvaluator` precomputes every per-fill-invariant quantity (the inverted transform, and the
+linear/radial gradient's own geometric coefficients) once per `EvaluatePoint`/`EvaluateRow` call
+rather than once per pixel; this is verified functionally, by asserting `EvaluateRow` produces
+pixel-for-pixel identical output to independent `EvaluatePoint` calls both for a plain gradient and
+for one requiring the whole-row degenerate-transform fast path (see
+`EvaluateRow_Radial_MultiPixelRun_MatchesPerPixelEvaluatePoint` and
+`EvaluateRow_SingularTransform_MatchesPerPixelEvaluatePoint` above), not by any timing measurement.
 There are intentionally **no** timing-based tests, elapsed-time assertions, or `Stopwatch`-based
 guards in this unit's automated verification, consistent with every other unit in this library.

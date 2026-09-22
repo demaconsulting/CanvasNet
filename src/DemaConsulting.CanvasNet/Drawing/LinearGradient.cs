@@ -27,11 +27,14 @@ public sealed class LinearGradient : Gradient
     /// <param name="stops">The gradient's color stops. See <see cref="Gradient"/>'s remarks.</param>
     /// <param name="spread">The spread method. Defaults to <see cref="GradientSpread.Pad"/>.</param>
     /// <param name="transform">
-    ///     The transform mapping gradient-defining coordinates into path space. Because
-    ///     <see cref="Matrix3x2.Identity"/> is not a compile-time constant, the default value here
-    ///     is <see langword="default"/>(<see cref="Matrix3x2"/>) (the all-zero matrix, never a
-    ///     legitimate caller transform); the constructor substitutes <see cref="Matrix3x2.Identity"/>
-    ///     whenever the caller passes (or omits) that value, before running validation.
+    ///     The transform mapping gradient-defining coordinates into path space. A
+    ///     <see langword="null"/> value (the default, meaning "omitted") is resolved to
+    ///     <see cref="Matrix3x2.Identity"/>. A caller-supplied <see cref="Matrix3x2"/> value -
+    ///     including the all-zero <see langword="default"/>(<see cref="Matrix3x2"/>), which is a
+    ///     legitimate (if singular) transform - is preserved exactly as given and is never
+    ///     silently replaced; a singular transform is resolved at evaluation time by the existing
+    ///     "Degenerate Transform" fallback (see <see cref="Gradient"/>'s remarks), not by
+    ///     substitution here.
     /// </param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stops"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="stops"/> is empty.</exception>
@@ -45,8 +48,8 @@ public sealed class LinearGradient : Gradient
         Vector2 end,
         IReadOnlyList<GradientStop> stops,
         GradientSpread spread = GradientSpread.Pad,
-        Matrix3x2 transform = default)
-        : base(stops, spread, transform == default ? Matrix3x2.Identity : transform)
+        Matrix3x2? transform = null)
+        : base(stops, spread, transform ?? Matrix3x2.Identity)
     {
         if (!float.IsFinite(start.X) || !float.IsFinite(start.Y))
         {

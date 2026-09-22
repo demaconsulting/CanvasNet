@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Reflection;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Drawing;
 
@@ -12,6 +13,24 @@ namespace DemaConsulting.CanvasNet.Tests.Drawing;
 public class LinearGradientTests
 {
     private static GradientStop[] OneStop() => [new GradientStop(0f, new Rgba32(1, 2, 3, 4))];
+
+    /// <summary>
+    ///     Proves that <see cref="Gradient"/>'s constructor is <see langword="private protected"/>
+    ///     (family-and-assembly), not merely <see langword="protected"/> - a closed type
+    ///     hierarchy where only in-assembly subtypes (<see cref="LinearGradient"/> and
+    ///     <see cref="RadialGradient"/>) can derive from it, matching the exhaustive
+    ///     <see cref="LinearGradient"/>/<see cref="RadialGradient"/> pattern match performed by
+    ///     <c>GradientEvaluator.EvaluatePoint</c>.
+    /// </summary>
+    [Fact]
+    public void Gradient_Constructor_IsPrivateProtected()
+    {
+        var constructor = typeof(Gradient).GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance)
+            .Single();
+
+        // "Family and assembly" is the CLR accessibility term for C#'s "private protected".
+        Assert.True(constructor.IsFamilyAndAssembly);
+    }
 
     /// <summary>
     ///     Proves that the constructor rejects a null stops list.
@@ -77,6 +96,21 @@ public class LinearGradientTests
         var gradient = new LinearGradient(Vector2.Zero, Vector2.One, OneStop());
 
         Assert.Equal(Matrix3x2.Identity, gradient.Transform);
+    }
+
+    /// <summary>
+    ///     Proves that an explicitly-supplied all-zero transform (<see langword="default"/>(<see cref="Matrix3x2"/>))
+    ///     is preserved exactly as given, rather than being silently replaced with the identity
+    ///     matrix - distinguishing "the caller omitted the argument" from "the caller explicitly
+    ///     passed the all-zero matrix", which a <c>transform == default</c> sentinel check cannot.
+    /// </summary>
+    [Fact]
+    public void LinearGradient_Constructor_ExplicitAllZeroTransform_IsPreservedNotReplacedWithIdentity()
+    {
+        var gradient = new LinearGradient(Vector2.Zero, Vector2.One, OneStop(), transform: default(Matrix3x2));
+
+        Assert.Equal(default, gradient.Transform);
+        Assert.NotEqual(Matrix3x2.Identity, gradient.Transform);
     }
 
     /// <summary>

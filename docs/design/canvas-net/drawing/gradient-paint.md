@@ -1,4 +1,4 @@
-<!-- cspell:ignore Rgba lerp -->
+<!-- cspell:ignore Rgba lerp precomputation -->
 
 ## GradientPaint
 
@@ -36,11 +36,15 @@ gradient's own coordinates into the caller's path coordinate space. Rendering a 
 | `GradientEvaluator` | Internal static helper: resolves a `Gradient`'s color per point/row. |
 
 `Gradient` is deliberately not sealed but has no public constructor of its own - only
-`LinearGradient` and `RadialGradient` may derive from it, via a `protected` constructor that
-performs every validation and normalization step shared by both subtypes. This keeps the type
-closed to caller-authored derivation (a third gradient kind would need library-level support
-throughout the evaluation pipeline anyway) while still allowing exactly the two subtypes this unit
-defines.
+`LinearGradient` and `RadialGradient` may derive from it, via a `private protected` constructor
+that performs every validation and normalization step shared by both subtypes. `private protected`
+(rather than `protected`) makes the hierarchy closed in the strict sense: only types declared in
+this same assembly may derive from `Gradient` at all, not merely any externally-authored type that
+happens to call the constructor via a `protected`-visible in-assembly proxy. This matches
+`GradientEvaluator`'s exhaustive pattern match over `LinearGradient`/`RadialGradient` only (a third
+gradient kind would need library-level support throughout the evaluation pipeline anyway, so
+external derivation was never actually supported - `private protected` makes that explicit instead
+of merely implied).
 
 `Gradient`'s constructor takes a defensive copy of the supplied stops, **stable-sorted** ascending
 by `GradientStop.Offset` (via `IReadOnlyList<GradientStop>.OrderBy`, which is a documented-stable
@@ -52,7 +56,7 @@ below).
 
 ### Key Methods
 
-#### Gradient(stops, spread, transform) (protected)
+#### Gradient(stops, spread, transform) (private protected)
 
 Validates and stores the state shared by every gradient subtype:
 
@@ -84,43 +88,82 @@ model subsumes both the simpler single-circle case (`StartRadius` zero, `StartCe
 finite components; both radii must be finite and non-negative. Every combination of equal/
 different centers and equal/zero/different radii is accepted at construction - each is a defined,
 evaluation-time case (see `GradientEvaluator` below), including the fully degenerate
-"both radii zero and both centers equal" configuration.
+"both centers equal and both radii equal" configuration (which subsumes the "both radii zero"
+sub-case, since a single point-radius circle sharing both centers is likewise a swept family that
+never actually varies with `t`).
 
-Both `LinearGradient` and `RadialGradient` accept a `Matrix3x2 transform = default` default-
-parameter value rather than `Matrix3x2.Identity` directly, because `Matrix3x2.Identity` is not a
-compile-time constant usable as a C# default parameter value; the constructor substitutes
-`Matrix3x2.Identity` whenever the caller passes (or omits) the all-zero `default(Matrix3x2)`
-value, before running validation.
+Both `LinearGradient` and `RadialGradient` accept a `Matrix3x2? transform = null` optional
+parameter rather than defaulting to `Matrix3x2.Identity` directly, because `Matrix3x2.Identity` is
+not a compile-time constant usable as a C# default parameter value. The constructor substitutes
+`Matrix3x2.Identity` only when the caller omits the argument (or explicitly passes `null`);
+an explicitly-supplied `Matrix3x2` value - including the all-zero `default(Matrix3x2)` value,
+which is a legitimate (if singular) transform a caller might deliberately want to test/use - is
+preserved exactly as given and validated/stored unchanged. A plain `Matrix3x2 transform = default`
+parameter cannot distinguish "the caller omitted the argument" from "the caller explicitly passed
+the all-zero matrix"; the nullable parameter removes that ambiguity without any special-casing.
 
 #### GradientEvaluator.EvaluatePoint(gradient, point) / EvaluateRow(gradient, y, x, count, destination) (internal)
 
 Resolves `gradient`'s color at a single point, or once per pixel center across a horizontal run of
-pixels (used by `ScanlineRasterizer`'s gradient-aware sweep). The evaluation pipeline, per point:
+pixels (used by `ScanlineRasterizer`'s gradient-aware sweep). Every quantity that depends only on
+the gradient itself and not on the point being evaluated - the inverted `Transform`, the linear
+gradient's direction vector and its squared length, and the radial gradient's two-circle quadratic
+coefficients (`d`, `dr`, `a`, and the fully-degenerate check) - is computed exactly **once per
+call to `EvaluatePoint`, or once per call to `EvaluateRow`** (shared across every pixel in that
+row), never recomputed per pixel. This matters because `EvaluateRow` is called once per scanline
+and internally evaluates once per covered pixel: recomputing a matrix inverse (or the radial
+coefficients) on every single pixel would repeat the same fill-invariant work an entire row's
+width of times over. When the per-fill precomputation determines the transform is singular, the
+whole row is flat-filled directly without even entering the per-pixel loop. The evaluation
+pipeline, per point:
 
-1. **Invert `gradient.Transform`.** If it is singular (non-invertible) or produces a non-finite
-   inverse, the whole gradient flat-fills with the last (post-sort) stop's color - the "Degenerate
-   Transform" case (see the unifying degenerate-case policy below).
-2. **Map the point into gradient-defining coordinates** via the inverted transform.
-3. **Compute a raw (unbounded) gradient parameter `t`**:
-   - For `LinearGradient`: project the gradient-space point onto the `End - Start` vector,
-     `t = dot(point - Start, End - Start) / |End - Start|^2`. A vector with squared length below
-     a small threshold is the "Zero-Length Linear Vector" degenerate case (flat-fill with the last
-     stop's color).
-   - For `RadialGradient`: solve the standard two-circle ("conical") gradient quadratic for the
-     largest `t` (subject to the interpolated radius `radius(t) = lerp(StartRadius, EndRadius, t)`
-     being non-negative) at which the interpolated circle `(center(t), radius(t))` - with
+1. **Map the point into gradient-defining coordinates** via the (already-inverted, precomputed)
+   inverse transform. If the transform was found to be singular (non-invertible) or to produce a
+   non-finite inverse during precomputation, the whole gradient flat-fills with the last
+   (post-sort) stop's color instead - the "Degenerate Transform" case (see the unifying
+   degenerate-case policy below).
+2. **Compute a raw (unbounded) gradient parameter `t`**:
+   - For `LinearGradient`: project the gradient-space point onto the (precomputed) `End - Start`
+     vector, `t = dot(point - Start, End - Start) / |End - Start|^2`. A vector with squared length
+     below a small threshold is the "Zero-Length Linear Vector" degenerate case (flat-fill with
+     the last stop's color).
+   - For `RadialGradient`: solve the standard two-circle ("conical") gradient quadratic for `t`
+     (subject to the interpolated radius `radius(t) = lerp(StartRadius, EndRadius, t)` being
+     non-negative) at which the interpolated circle `(center(t), radius(t))` - with
      `center(t) = lerp(StartCenter, EndCenter, t)` - passes through the point:
      `a = d.d - dr^2`, `b = -2(pd.d + StartRadius * dr)`, `c = pd.pd - StartRadius^2`, where
-     `d = EndCenter - StartCenter`, `dr = EndRadius - StartRadius`, `pd = point - StartCenter`.
-     If both radii are zero and both centers are equal, the family of circles never varies with
-     `t` at all - a further degenerate case, flat-filling with the last stop's color. If no real
-     root satisfies `radius(t) >= 0`, the point lies outside every circle the gradient's family
-     ever sweeps through - it is left **unpainted** (returned with alpha zero), not flat-filled;
-     this is distinct from every other degenerate case above (see the policy statement below).
-4. **Fold the raw `t` into `[0, 1]` per `Spread`**: `Pad` clamps; `Repeat` floor-mods (`t -
+     `d = EndCenter - StartCenter`, `dr = EndRadius - StartRadius`, `pd = point - StartCenter`
+     (`d`, `dr`, and `a` are all precomputed per-fill, not per-point). If `StartCenter` equals
+     `EndCenter` and `StartRadius` equals `EndRadius`, the family of circles never varies with `t`
+     at all - regardless of whether that shared radius is zero or nonzero - a further degenerate
+     case, flat-filling with the last stop's color. If no real root satisfies `radius(t) >= 0`,
+     the point lies outside every circle the gradient's family ever sweeps through - it is left
+     **unpainted** (returned with alpha zero), not flat-filled; this is distinct from every other
+     degenerate case above (see the policy statement below).
+
+   **Root selection when both quadratic roots are valid.** When the start and end circles
+   intersect (neither is nested entirely inside the other, i.e. `a > 0`) a point can lie on the
+   swept boundary of both circles' family in two different ways, giving two real roots that both
+   satisfy `radius(t) >= 0`. Naively always choosing the larger of the two roots (the simplified
+   rule commonly quoted for two-circle/conical radial gradients) can pick the "wrong" root at the
+   start/end circle boundaries themselves, contradicting this unit's own documented contract that
+   a point on or before the start circle resolves to the first stop's color and a point on or
+   after the end circle resolves to the last stop's color (and, by extension, breaking `Repeat`/
+   `Reflect` spread semantics at those boundaries, since spread folds the raw `t` before resolving
+   a color). The correct, boundary-preserving choice depends on whether the swept radius is
+   growing or shrinking from start to end: when both roots are valid, this unit selects the
+   **smaller** root if `dr > 0` (radius growing, so the start circle is the "inner" boundary of
+   the swept family and the smaller `t` is the one that actually lies on it) and the **larger**
+   root if `dr < 0` (radius shrinking, mirroring the same reasoning with start/end reversed); when
+   `dr == 0` the two roots are only ever a single repeated root in practice (a `dr == 0` two-circle
+   gradient with `a > 0` is otherwise degenerate per the check above), so the larger-root choice is
+   retained unchanged. This matches Skia's actual (not simplified-prose) two-point-conical
+   algorithm, which resolves the sign ambiguity deterministically from the same `dr`-sign
+   reasoning, and preserves the boundary contract described above.
+3. **Fold the raw `t` into `[0, 1]` per `Spread`**: `Pad` clamps; `Repeat` floor-mods (`t -
    floor(t)`, never a naive `%`, which is negative for a negative dividend in C#); `Reflect` folds
    into a period-2 triangle wave.
-5. **Resolve a color from the sorted stop list** at the folded `t`: a single-stop gradient always
+4. **Resolve a color from the sorted stop list** at the folded `t`: a single-stop gradient always
    returns that stop's color (a single-stop gradient is a solid color); `t` at or before the first
    stop resolves to the first stop's color, at or after the last stop to the last stop's color;
    otherwise the bracketing consecutive stop pair is found and interpolated **in premultiplied
@@ -157,7 +200,8 @@ producing a degenerate result rather than a visible error.
 
 ### Error Handling
 
-`Gradient`'s protected constructor (invoked by both `LinearGradient` and `RadialGradient`) throws:
+`Gradient`'s `private protected` constructor (invoked by both `LinearGradient` and
+`RadialGradient`) throws:
 
 - `ArgumentNullException` - when `stops` is `null`.
 - `ArgumentException` - when `stops` is empty.

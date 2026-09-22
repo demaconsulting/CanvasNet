@@ -1,3 +1,4 @@
+// cspell:ignore precomputation
 using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 
@@ -13,25 +14,35 @@ namespace DemaConsulting.CanvasNet.Drawing;
 ///     <b>Evaluation pipeline (per point).</b>
 ///     <list type="number">
 ///     <item>
-///     <see cref="Gradient.Transform"/> is inverted. If it is singular (non-invertible) or
-///     produces a non-finite inverse, the whole gradient is treated as the "Degenerate Transform"
-///     case: it flat-fills with the last stop's color (post-sort), matching the documented
-///     degenerate-case policy below.
+///     <see cref="Gradient.Transform"/> is inverted <b>once per <see cref="EvaluateRow"/> call</b>
+///     (or once per <see cref="EvaluatePoint"/> call), never once per pixel - see "Per-fill
+///     precomputation" below. If it is singular (non-invertible) or produces a non-finite
+///     inverse, the whole gradient is treated as the "Degenerate Transform" case: it flat-fills
+///     with the last stop's color (post-sort), matching the documented degenerate-case policy
+///     below.
 ///     </item>
 ///     <item>The point is mapped into gradient-defining coordinates via the inverted transform.</item>
 ///     <item>
 ///     A raw (unbounded) gradient parameter <c>t</c> is computed: for <see cref="LinearGradient"/>,
 ///     by projecting the gradient-space point onto the <c>End - Start</c> vector; for
 ///     <see cref="RadialGradient"/>, by solving the standard two-circle ("conical") gradient
-///     quadratic for the largest <c>t</c> at which the interpolated circle
+///     quadratic for the appropriate <c>t</c> at which the interpolated circle
 ///     <c>(center(t), radius(t))</c> - with <c>center(t) = lerp(StartCenter, EndCenter, t)</c>,
 ///     <c>radius(t) = lerp(StartRadius, EndRadius, t)</c> - passes through the point, subject to
-///     <c>radius(t) &gt;= 0</c>. Both computations are performed in <see cref="double"/> precision
-///     (never <see cref="float"/>) so that extreme-magnitude coordinates cannot overflow a
-///     squared-distance or quadratic-coefficient intermediate term even when every input
-///     coordinate and the true mathematical result are both well within <see cref="float"/>'s
-///     range - the same numerical safeguard <c>StrokeOutliner</c> already applies to its own
-///     geometry.
+///     <c>radius(t) &gt;= 0</c>. When only one candidate root satisfies that condition, it is used
+///     unconditionally; when the swept family's two circles are not nested in one another (the
+///     quadratic's leading coefficient is positive) both roots can independently satisfy
+///     <c>radius(t) &gt;= 0</c> for a point in a narrow self-intersecting sliver of the family
+///     nearest whichever endpoint circle the point sits closest to - there, the root closer to
+///     that nearer endpoint (not simply the numerically larger root) is selected, so a point
+///     exactly on the start (or end) circle still resolves to that circle's own stop color
+///     instead of a barely-off-boundary interpolated color from the spurious second root; see
+///     <see cref="SolveRadialParameter"/>. Both computations are performed in
+///     <see cref="double"/> precision (never <see cref="float"/>) so that extreme-magnitude
+///     coordinates cannot overflow a squared-distance or quadratic-coefficient intermediate term
+///     even when every input coordinate and the true mathematical result are both well within
+///     <see cref="float"/>'s range - the same numerical safeguard <c>StrokeOutliner</c> already
+///     applies to its own geometry.
 ///     </item>
 ///     <item>
 ///     <see cref="Gradient.Spread"/> folds the raw <c>t</c> into <c>[0, 1]</c>: <see cref="GradientSpread.Pad"/>
@@ -71,9 +82,65 @@ namespace DemaConsulting.CanvasNet.Drawing;
 ///     with alpha zero, a true compositing no-op at that pixel) - matching the CSS/Skia convention
 ///     that such pixels are left unpainted rather than clamped to an edge color.
 ///     </para>
+///     <para>
+///     <b>Per-fill precomputation.</b> Every quantity that depends only on the
+///     <see cref="Gradient"/> itself - never on the point or pixel being evaluated - is computed
+///     exactly once per <see cref="EvaluateRow"/> (or <see cref="EvaluatePoint(Gradient,Vector2)"/>)
+///     call and threaded through to the per-pixel work via <see cref="GradientPlan"/>, rather than
+///     being recomputed for every pixel in a fill. This covers <see cref="Gradient.Transform"/>'s
+///     matrix inverse, the <see cref="LinearGradient"/> direction vector and its squared length,
+///     and the <see cref="RadialGradient"/> two-circle quadratic's per-fill-invariant coefficients
+///     (everything except the point-dependent terms). Only the handful of quantities that
+///     genuinely depend on the point being evaluated - the transformed point itself, and the
+///     quadratic's point-dependent coefficients - are recomputed per pixel.
+///     </para>
 /// </remarks>
 internal static class GradientEvaluator
 {
+    /// <summary>
+    ///     Holds every quantity <see cref="EvaluatePoint(Gradient,Vector2)"/>/<see cref="EvaluateRow"/>
+    ///     can compute once per <see cref="Gradient"/> and reuse for every point evaluated against
+    ///     it, instead of recomputing per pixel - see this class's remarks.
+    /// </summary>
+    private readonly record struct GradientPlan
+    {
+        /// <summary>The gradient this plan was built for.</summary>
+        public required Gradient Gradient { get; init; }
+
+        /// <summary>
+        ///     Whether <see cref="Gradient.Transform"/> is invertible with a finite inverse; when
+        ///     <see langword="false"/>, every point flat-fills with the last stop's color (the
+        ///     "Degenerate Transform" case) and no other field of this plan is meaningful.
+        /// </summary>
+        public required bool HasInverseTransform { get; init; }
+
+        /// <summary>The inverse of <see cref="Gradient.Transform"/>, when <see cref="HasInverseTransform"/>.</summary>
+        public Matrix3x2 InverseTransform { get; init; }
+
+        /// <summary>For a <see cref="LinearGradient"/>: the (<see cref="LinearGradient.End"/> - <see cref="LinearGradient.Start"/>) vector's X component.</summary>
+        public double LinearDirX { get; init; }
+
+        /// <summary>For a <see cref="LinearGradient"/>: the (<see cref="LinearGradient.End"/> - <see cref="LinearGradient.Start"/>) vector's Y component.</summary>
+        public double LinearDirY { get; init; }
+
+        /// <summary>For a <see cref="LinearGradient"/>: the squared length of the direction vector above.</summary>
+        public double LinearLengthSquared { get; init; }
+
+        /// <summary>For a <see cref="RadialGradient"/>: whether both radii and both centers are equal (the fully degenerate case).</summary>
+        public bool RadialIsFullyDegenerate { get; init; }
+
+        /// <summary>For a <see cref="RadialGradient"/>: <see cref="RadialGradient.EndCenter"/>.X - <see cref="RadialGradient.StartCenter"/>.X.</summary>
+        public double RadialDx { get; init; }
+
+        /// <summary>For a <see cref="RadialGradient"/>: <see cref="RadialGradient.EndCenter"/>.Y - <see cref="RadialGradient.StartCenter"/>.Y.</summary>
+        public double RadialDy { get; init; }
+
+        /// <summary>For a <see cref="RadialGradient"/>: <see cref="RadialGradient.EndRadius"/> - <see cref="RadialGradient.StartRadius"/>.</summary>
+        public double RadialDr { get; init; }
+
+        /// <summary>For a <see cref="RadialGradient"/>: the two-circle quadratic's leading coefficient, <c>RadialDx^2 + RadialDy^2 - RadialDr^2</c>.</summary>
+        public double RadialA { get; init; }
+    }
     /// <summary>
     ///     The squared-length threshold, in gradient-defining coordinates, below which a
     ///     <see cref="LinearGradient"/>'s <c>End - Start</c> vector is treated as exactly
@@ -105,10 +172,25 @@ internal static class GradientEvaluator
     {
         ArgumentNullException.ThrowIfNull(gradient);
 
+        var plan = BuildPlan(gradient);
+
+        if (!plan.HasInverseTransform)
+        {
+            // Degenerate Transform case applies to the whole fill, not just this row - resolve
+            // it once for the entire run instead of per pixel.
+            var flatFill = LastStopColor(gradient.Stops);
+            for (var i = 0; i < count; i++)
+            {
+                destination[i] = flatFill;
+            }
+
+            return;
+        }
+
         for (var i = 0; i < count; i++)
         {
             var point = new Vector2(x + i + 0.5f, y + 0.5f);
-            destination[i] = EvaluatePoint(gradient, point);
+            destination[i] = EvaluateWithPlan(in plan, point);
         }
     }
 
@@ -127,31 +209,90 @@ internal static class GradientEvaluator
     {
         ArgumentNullException.ThrowIfNull(gradient);
 
-        if (!Matrix3x2.Invert(gradient.Transform, out var inverse) || !IsFinite(inverse))
+        var plan = BuildPlan(gradient);
+        return EvaluateWithPlan(in plan, point);
+    }
+
+    /// <summary>
+    ///     Computes every per-<paramref name="gradient"/> (never per-point) quantity once, per
+    ///     this class's "Per-fill precomputation" remarks.
+    /// </summary>
+    private static GradientPlan BuildPlan(Gradient gradient)
+    {
+        var hasInverse = Matrix3x2.Invert(gradient.Transform, out var inverse) && IsFinite(inverse);
+
+        var plan = new GradientPlan
         {
-            return LastStopColor(gradient.Stops);
+            Gradient = gradient,
+            HasInverseTransform = hasInverse,
+            InverseTransform = inverse,
+        };
+
+        switch (gradient)
+        {
+            case LinearGradient linear:
+                {
+                    double dirX = linear.End.X - linear.Start.X;
+                    double dirY = linear.End.Y - linear.Start.Y;
+                    plan = plan with
+                    {
+                        LinearDirX = dirX,
+                        LinearDirY = dirY,
+                        LinearLengthSquared = (dirX * dirX) + (dirY * dirY),
+                    };
+                    break;
+                }
+
+            case RadialGradient radial:
+                {
+                    double dx = radial.EndCenter.X - radial.StartCenter.X;
+                    double dy = radial.EndCenter.Y - radial.StartCenter.Y;
+                    double dr = radial.EndRadius - radial.StartRadius;
+                    plan = plan with
+                    {
+                        // dr == 0.0 <=> StartRadius == EndRadius (computed as a difference so the
+                        // comparison is against the literal zero, not variable-to-variable).
+                        RadialIsFullyDegenerate = radial.StartCenter == radial.EndCenter && dr == 0.0,
+                        RadialDx = dx,
+                        RadialDy = dy,
+                        RadialDr = dr,
+                        RadialA = (dx * dx) + (dy * dy) - (dr * dr),
+                    };
+                    break;
+                }
         }
 
-        var gradientPoint = Vector2.Transform(point, inverse);
+        return plan;
+    }
 
-        return gradient switch
+    /// <summary>
+    ///     Evaluates <paramref name="plan"/>'s gradient at <paramref name="point"/>, using only
+    ///     the per-fill-invariant quantities already precomputed into <paramref name="plan"/>.
+    /// </summary>
+    private static Rgba32 EvaluateWithPlan(in GradientPlan plan, Vector2 point)
+    {
+        if (!plan.HasInverseTransform)
         {
-            LinearGradient linear => EvaluateLinear(linear, gradientPoint),
-            RadialGradient radial => EvaluateRadial(radial, gradientPoint),
-            _ => throw new NotSupportedException($"Unsupported gradient type '{gradient.GetType()}'."),
+            return LastStopColor(plan.Gradient.Stops);
+        }
+
+        var gradientPoint = Vector2.Transform(point, plan.InverseTransform);
+
+        return plan.Gradient switch
+        {
+            LinearGradient linear => EvaluateLinear(linear, in plan, gradientPoint),
+            RadialGradient radial => EvaluateRadial(radial, in plan, gradientPoint),
+            _ => throw new NotSupportedException($"Unsupported gradient type '{plan.Gradient.GetType()}'."),
         };
     }
 
     /// <summary>
-    ///     Evaluates a <see cref="LinearGradient"/> at an already gradient-space point.
+    ///     Evaluates a <see cref="LinearGradient"/> at an already gradient-space point, using
+    ///     <paramref name="plan"/>'s precomputed direction vector and squared length.
     /// </summary>
-    private static Rgba32 EvaluateLinear(LinearGradient linear, Vector2 gradientPoint)
+    private static Rgba32 EvaluateLinear(LinearGradient linear, in GradientPlan plan, Vector2 gradientPoint)
     {
-        double dirX = linear.End.X - linear.Start.X;
-        double dirY = linear.End.Y - linear.Start.Y;
-        var lengthSquared = dirX * dirX + dirY * dirY;
-
-        if (lengthSquared <= ZeroLengthSquaredThreshold)
+        if (plan.LinearLengthSquared <= ZeroLengthSquaredThreshold)
         {
             // Zero-Length Linear Vector degenerate case - see this class's remarks.
             return LastStopColor(linear.Stops);
@@ -159,25 +300,26 @@ internal static class GradientEvaluator
 
         double px = gradientPoint.X - linear.Start.X;
         double py = gradientPoint.Y - linear.Start.Y;
-        var t = (px * dirX + py * dirY) / lengthSquared;
+        var t = ((px * plan.LinearDirX) + (py * plan.LinearDirY)) / plan.LinearLengthSquared;
 
         var folded = ApplySpread(t, linear.Spread);
         return ResolveColor(linear.Stops, folded);
     }
 
     /// <summary>
-    ///     Evaluates a <see cref="RadialGradient"/> at an already gradient-space point.
+    ///     Evaluates a <see cref="RadialGradient"/> at an already gradient-space point, using
+    ///     <paramref name="plan"/>'s precomputed two-circle quadratic coefficients.
     /// </summary>
-    private static Rgba32 EvaluateRadial(RadialGradient radial, Vector2 gradientPoint)
+    private static Rgba32 EvaluateRadial(RadialGradient radial, in GradientPlan plan, Vector2 gradientPoint)
     {
-        if (radial.StartRadius == 0f && radial.EndRadius == 0f && radial.StartCenter == radial.EndCenter)
+        if (plan.RadialIsFullyDegenerate)
         {
-            // Both radii zero and both centers equal: the family of circles never changes with
+            // Both radii equal and both centers equal: the family of circles never changes with
             // t at all - see this class's remarks.
             return LastStopColor(radial.Stops);
         }
 
-        var t = SolveRadialParameter(radial, gradientPoint);
+        var t = SolveRadialParameter(radial, in plan, gradientPoint);
         if (t is null)
         {
             // No valid root: outside every circle in the gradient's swept family - left
@@ -190,22 +332,43 @@ internal static class GradientEvaluator
     }
 
     /// <summary>
-    ///     Solves the standard two-circle ("conical") gradient quadratic for the largest valid
+    ///     Solves the standard two-circle ("conical") gradient quadratic for the correct valid
     ///     <c>t</c> (subject to <c>radius(t) &gt;= 0</c>) at which the interpolated circle
     ///     <c>(center(t), radius(t))</c> passes through <paramref name="gradientPoint"/>, entirely
-    ///     in <see cref="double"/> precision.
+    ///     in <see cref="double"/> precision, using <paramref name="plan"/>'s precomputed
+    ///     per-fill-invariant coefficients.
     /// </summary>
-    /// <returns>The largest valid <c>t</c>, or <see langword="null"/> if no valid root exists.</returns>
-    private static double? SolveRadialParameter(RadialGradient radial, Vector2 gradientPoint)
+    /// <remarks>
+    ///     When both roots of the quadratic are independently valid (both give
+    ///     <c>radius(t) &gt;= 0</c>) - which can only happen when the leading coefficient
+    ///     <c>a</c> is positive, i.e. the start and end circles are not nested one inside the
+    ///     other - the point lies in a narrow sliver where the swept family's circle boundary
+    ///     self-intersects near one of the two endpoint circles (see the design document's
+    ///     two-circle root-selection policy). Unconditionally preferring the numerically larger
+    ///     root there (as a naive reading of "prefer the bigger valid root" suggests) can select
+    ///     an interpolated-color root instead of the correct boundary-conforming one - for
+    ///     example, a point exactly on the start circle is already a valid root at <c>t = 0</c>,
+    ///     and should resolve to the first stop's color, not to a second, barely-larger root a
+    ///     hair's breadth away. The correct root is instead selected relative to
+    ///     <see cref="GradientPlan.RadialDr"/>'s sign: when the radius is growing from start to
+    ///     end (<c>dr &gt; 0</c>), the sliver sits just after the start circle, so the smaller
+    ///     root is the boundary-conforming one; when shrinking (<c>dr &lt; 0</c>), the sliver sits
+    ///     just before the end circle, so the larger root is boundary-conforming. When the radius
+    ///     never changes (<c>dr == 0</c>, the "cylindrical" equal-radii case), there is no such
+    ///     endpoint asymmetry, so the larger root is kept for consistency with the general
+    ///     (single-valid-root) case.
+    /// </remarks>
+    /// <returns>The selected valid <c>t</c>, or <see langword="null"/> if no valid root exists.</returns>
+    private static double? SolveRadialParameter(RadialGradient radial, in GradientPlan plan, Vector2 gradientPoint)
     {
-        double dx = radial.EndCenter.X - radial.StartCenter.X;
-        double dy = radial.EndCenter.Y - radial.StartCenter.Y;
-        double dr = radial.EndRadius - radial.StartRadius;
+        var dx = plan.RadialDx;
+        var dy = plan.RadialDy;
+        var dr = plan.RadialDr;
+        var a = plan.RadialA;
 
         double pdx = gradientPoint.X - radial.StartCenter.X;
         double pdy = gradientPoint.Y - radial.StartCenter.Y;
 
-        var a = (dx * dx) + (dy * dy) - (dr * dr);
         var b = -2.0 * ((pdx * dx) + (pdy * dy) + (radial.StartRadius * dr));
         var c = (pdx * pdx) + (pdy * pdy) - ((double)radial.StartRadius * radial.StartRadius);
 
@@ -230,15 +393,27 @@ internal static class GradientEvaluator
         var t0 = (-b + sqrtDiscriminant) / (2.0 * a);
         var t1 = (-b - sqrtDiscriminant) / (2.0 * a);
 
-        var high = Math.Max(t0, t1);
-        var low = Math.Min(t0, t1);
+        // a > 0 guarantees t0 >= t1 (t0 uses "+sqrtDiscriminant", t1 uses "-sqrtDiscriminant",
+        // and sqrtDiscriminant >= 0).
+        var high = t0;
+        var low = t1;
 
-        if (IsValidRoot(radial, high))
+        var validHigh = IsValidRoot(radial, high);
+        var validLow = IsValidRoot(radial, low);
+
+        if (validHigh && validLow)
+        {
+            // Both roots are valid: the ambiguous "self-intersecting sliver" case - see this
+            // method's remarks for the boundary-conforming selection rule.
+            return dr > 0.0 ? low : high;
+        }
+
+        if (validHigh)
         {
             return high;
         }
 
-        return IsValidRoot(radial, low) ? low : null;
+        return validLow ? low : null;
     }
 
     /// <summary>

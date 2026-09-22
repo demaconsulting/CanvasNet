@@ -134,4 +134,18 @@ public class RadialGradientTests
 
         Assert.Equal(Matrix3x2.Identity, gradient.Transform);
     }
+
+    /// <summary>
+    ///     Proves that an explicitly-supplied all-zero transform (<see langword="default"/>(<see cref="Matrix3x2"/>))
+    ///     is preserved exactly as given, rather than being silently replaced with the identity
+    ///     matrix - see <see cref="LinearGradientTests.LinearGradient_Constructor_ExplicitAllZeroTransform_IsPreservedNotReplacedWithIdentity"/>.
+    /// </summary>
+    [Fact]
+    public void RadialGradient_Constructor_ExplicitAllZeroTransform_IsPreservedNotReplacedWithIdentity()
+    {
+        var gradient = new RadialGradient(Vector2.Zero, 0f, Vector2.One, 1f, OneStop(), transform: default(Matrix3x2));
+
+        Assert.Equal(default, gradient.Transform);
+        Assert.NotEqual(Matrix3x2.Identity, gradient.Transform);
+    }
 }

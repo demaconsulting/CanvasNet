@@ -39,13 +39,22 @@ sections:
                   gradient shall reject a missing or empty stop collection, an undefined spread
                   method, and a transform with a non-finite component, while resolving its stops
                   in ascending position order regardless of the order the caller supplied them in.
+                  Omitting the transform argument shall be equivalent to supplying the identity
+                  transform, while an explicitly-supplied transform value - including the all-zero
+                  transform - shall be accepted and preserved exactly as given, distinct from
+                  omission.
                 justification: |
                   A gradient cannot paint anything meaningful without at least one color stop, an
                   undefined spread method has no defined visual meaning, and a non-finite
                   transform component cannot place the gradient anywhere sensible in path space;
                   resolving stops in position order (rather than caller-supplied order) is what
                   makes the ramp visually correct regardless of how a caller happened to list its
-                  stops.
+                  stops. Distinguishing an omitted transform from an explicitly-supplied all-zero
+                  transform matters because the all-zero transform is itself a valid, if singular,
+                  transform a caller might deliberately supply (for example to exercise the
+                  singular-transform degenerate behavior); silently substituting the identity
+                  transform for it would make that transform value impossible for a caller to
+                  actually use.
                 tests:
                   - LinearGradient_Constructor_NullStops_ThrowsArgumentNullException
                   - LinearGradient_Constructor_EmptyStops_ThrowsArgumentException
@@ -53,12 +62,15 @@ sections:
                   - LinearGradient_Constructor_TransformWithNaNComponent_ThrowsArgumentOutOfRangeException
                   - LinearGradient_Constructor_TransformWithInfinityComponent_ThrowsArgumentOutOfRangeException
                   - LinearGradient_Constructor_DefaultTransform_IsIdentity
+                  - LinearGradient_Constructor_ExplicitAllZeroTransform_IsPreservedNotReplacedWithIdentity
                   - LinearGradient_Constructor_ValidValues_PropertiesRoundTrip
                   - LinearGradient_Constructor_UnsortedStops_AreSortedAscendingByOffset
                   - LinearGradient_Constructor_DuplicateOffsetStops_PreservesInputOrderAmongTies
                   - RadialGradient_Constructor_EmptyStops_ThrowsArgumentException
                   - RadialGradient_Constructor_DefaultTransform_IsIdentity
+                  - RadialGradient_Constructor_ExplicitAllZeroTransform_IsPreservedNotReplacedWithIdentity
                   - EvaluatePoint_Linear_UnsortedInputStops_ResolvesInSortedOrder
+                  - EvaluatePoint_ExplicitAllZeroTransform_FlatFillsWithLastStopColor
                   - Constructor_NonFiniteTransform_ThrowsArgumentOutOfRangeException
 
               - id: CanvasNet-Drawing-GradientPaint-Linear
@@ -85,14 +97,23 @@ sections:
                   its last stop's color on the end circle, supporting a start circle and end
                   circle with distinct centers and distinct radii (not only a shared center or a
                   shared radius), and shall reject a non-finite center component or a non-finite
-                  or negative radius on either circle.
+                  or negative radius on either circle. This first-stop/last-stop boundary behavior
+                  shall hold even when the start and end circles intersect one another (so that a
+                  point can otherwise appear to satisfy the gradient's underlying equation in more
+                  than one way): a point on the start circle shall still resolve to the first
+                  stop's color, and a point on the end circle shall still resolve to the last
+                  stop's color, rather than an interpolated color.
                 justification: |
                   The two-independently-positioned-circle model is the general form of a radial
                   gradient used by SVG/CSS radial gradients and the equivalent radial brushes in
                   other established 2D graphics APIs, and subsumes the simpler shared-center or
                   single-circle special cases without needing a second gradient type; a non-finite
                   center or an invalid (non-finite or negative) radius cannot define a real
-                  circle.
+                  circle. Preserving the start/end boundary colors even when the two circles
+                  intersect is required so that the documented boundary contract - and the
+                  Repeat/Reflect spread behavior that depends on it at the ramp's own [0, 1]
+                  boundaries - holds for every valid combination of start/end circle geometry, not
+                  only the non-intersecting cases.
                 tests:
                   - RadialGradient_Constructor_ValidValues_PropertiesRoundTrip
                   - RadialGradient_Constructor_SingleCircleEquivalentConfiguration_Succeeds
@@ -103,6 +124,8 @@ sections:
                   - RadialGradient_Constructor_NonFiniteEndCenter_ThrowsArgumentOutOfRangeException
                   - EvaluatePoint_Radial_SingleCircleEquivalent_CenterAndEdgeMatchEndpointColors
                   - EvaluatePoint_Radial_TwoCircle_DistinctCentersAndRadii_ResolvesAlongSweptFamily
+                  - EvaluatePoint_Radial_TwoCircle_PointOnStartCircleWithSpuriousSecondRoot_ResolvesToFirstStopColor
+                  - EvaluatePoint_Radial_TwoCircle_PointOnEndCircleWithSpuriousSecondRoot_ResolvesToLastStopColor
 
               - id: CanvasNet-Drawing-GradientPaint-RadialNoValidRoot
                 title: >-
@@ -181,20 +204,22 @@ sections:
                   A gradient shall flat-fill with its last color stop, rather than throwing or
                   producing an undefined result, when its geometry provides no meaningful
                   direction to vary along - specifically a linear gradient whose start and end
-                  points coincide, a radial gradient whose start and end circles are both
-                  identical single points, or a gradient whose transform cannot be inverted.
+                  points coincide, a radial gradient whose start and end circles share the same
+                  center and the same radius (whether that shared radius is zero or a nonzero
+                  value), or a gradient whose transform cannot be inverted.
                 justification: |
                   Callers may legitimately construct or programmatically generate gradient
-                  geometry that happens to collapse to a single point or an unusable transform (for
-                  example, an animated gradient passing through a zero-length state); resolving
-                  this case to the gradient's final color, rather than throwing or leaving pixels
-                  undefined, keeps rendering robust for every valid combination of constructor
-                  arguments.
+                  geometry that happens to collapse to a single point, a single non-varying circle
+                  (of any radius), or an unusable transform (for example, an animated gradient
+                  passing through such a state); resolving this case to the gradient's final
+                  color, rather than throwing or leaving pixels undefined, keeps rendering robust
+                  for every valid combination of constructor arguments.
                 tests:
                   - LinearGradient_Constructor_StartEqualsEnd_Succeeds
                   - EvaluatePoint_Linear_ZeroLengthVector_FlatFillsWithLastStopColor
                   - RadialGradient_Constructor_BothRadiiZeroCoincidentCenters_Succeeds
                   - EvaluatePoint_Radial_BothRadiiZeroCoincidentCenters_FlatFillsWithLastStopColor
+                  - EvaluatePoint_Radial_EqualNonZeroRadiiCoincidentCenters_FlatFillsWithLastStopColor
                   - EvaluatePoint_SingularTransform_FlatFillsWithLastStopColor
 
               - id: CanvasNet-Drawing-GradientPaint-ExtremeCoordinates
