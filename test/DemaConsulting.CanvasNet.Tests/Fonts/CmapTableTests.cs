@@ -342,19 +342,24 @@ public class CmapTableTests
         SyntheticFontBuilder.WriteUInt16(buf, 0); // idRangeOffsets[0]
         SyntheticFontBuilder.WriteUInt16(buf, 0); // idRangeOffsets[1]
 
-        // Subtable 1 (offset 52): valid - maps codepoint 200 to glyph 7
+        // Subtable 1 (offset 52): valid - one real segment mapping codepoint 200 to glyph 7,
+        // followed by the mandatory 0xFFFF/0xFFFF terminator segment
         SyntheticFontBuilder.WriteUInt16(buf, 4); // format
-        SyntheticFontBuilder.WriteUInt16(buf, 24); // declared length (segCount = 1)
+        SyntheticFontBuilder.WriteUInt16(buf, 32); // declared length (segCount = 2)
         SyntheticFontBuilder.WriteUInt16(buf, 0); // language
-        SyntheticFontBuilder.WriteUInt16(buf, 2); // segCountX2 (segCount = 1)
+        SyntheticFontBuilder.WriteUInt16(buf, 4); // segCountX2 (segCount = 2)
         SyntheticFontBuilder.WriteUInt16(buf, 0); // searchRange
         SyntheticFontBuilder.WriteUInt16(buf, 0); // entrySelector
         SyntheticFontBuilder.WriteUInt16(buf, 0); // rangeShift
-        SyntheticFontBuilder.WriteUInt16(buf, 0xFFFF); // endCodes[0] (terminator: the whole BMP, one segment)
+        SyntheticFontBuilder.WriteUInt16(buf, 200); // endCodes[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 0xFFFF); // endCodes[1] (terminator)
         SyntheticFontBuilder.WriteUInt16(buf, 0); // reservedPad
         SyntheticFontBuilder.WriteUInt16(buf, 200); // startCodes[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 0xFFFF); // startCodes[1] (terminator)
         SyntheticFontBuilder.WriteUInt16(buf, 7 - 200); // idDeltas[0]: (200 + (7-200)) & 0xFFFF == 7
+        SyntheticFontBuilder.WriteUInt16(buf, 1); // idDeltas[1]
         SyntheticFontBuilder.WriteUInt16(buf, 0); // idRangeOffsets[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // idRangeOffsets[1]
 
         // Act: parse the cmap table
         var data = buf.ToArray();
@@ -448,6 +453,95 @@ public class CmapTableTests
 
         // Assert: the missing terminator is rejected and lookups resolve to glyph index zero
         Assert.Equal(0, cmap.GetGlyphIndex(10));
+    }
+
+    /// <summary>
+    ///     Proves that CmapTable Format4 TerminatorStartCodeNotFFFF IsRejected.
+    /// </summary>
+    [Fact]
+    public void CmapTable_Format4_TerminatorStartCodeNotFFFF_IsRejected()
+    {
+        // Arrange: build a (3,1) format-4 subtable with a single segment whose endCode is the
+        // mandatory 0xFFFF terminator value, but whose startCode is 0 rather than the also-mandatory
+        // 0xFFFF - a spec-violating "catch-all" segment (matching every codepoint 0..0xFFFF) rather
+        // than the required 0xFFFF/0xFFFF sentinel.
+        var buf = new List<byte>
+        {
+            0, 0, // cmap version
+            0, 1, // numTables
+            0, 3, // platformId
+            0, 1, // encodingId
+        };
+        SyntheticFontBuilder.WriteUInt32(buf, 12); // subtable offset
+
+        SyntheticFontBuilder.WriteUInt16(buf, 4); // format
+        SyntheticFontBuilder.WriteUInt16(buf, 24); // declared length (segCount = 1)
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // language
+        SyntheticFontBuilder.WriteUInt16(buf, 2); // segCountX2 (segCount = 1)
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // searchRange
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // entrySelector
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // rangeShift
+        SyntheticFontBuilder.WriteUInt16(buf, 0xFFFF); // endCodes[0]: the mandatory terminator value
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // reservedPad
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // startCodes[0]: not the mandatory 0xFFFF terminator value
+        SyntheticFontBuilder.WriteUInt16(buf, 5); // idDeltas[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // idRangeOffsets[0]
+
+        // Act: parse the cmap table whose terminator segment has a non-0xFFFF startCode
+        var data = buf.ToArray();
+        var cmap = CmapTable.Parse(data, 0, data.Length);
+
+        // Assert: the spec-violating catch-all segment is rejected and lookups resolve to glyph
+        // index zero
+        Assert.Equal(0, cmap.GetGlyphIndex(10));
+    }
+
+    /// <summary>
+    ///     Proves that CmapTable Format4 OverlappingSegmentsWithIncreasingEndCode IsRejected.
+    /// </summary>
+    [Fact]
+    public void CmapTable_Format4_OverlappingSegmentsWithIncreasingEndCode_IsRejected()
+    {
+        // Arrange: build a (3,1) format-4 subtable with two segments whose endCodes are strictly
+        // increasing (10, then 20 - passing a naive strictly-increasing-endCode check) but whose
+        // codepoint ranges nonetheless overlap: segment 0 covers 0..10 and segment 1 covers 5..20,
+        // so codepoint 5..10 is covered by both. Followed by the mandatory 0xFFFF terminator.
+        var buf = new List<byte>
+        {
+            0, 0, // cmap version
+            0, 1, // numTables
+            0, 3, // platformId
+            0, 1, // encodingId
+        };
+        SyntheticFontBuilder.WriteUInt32(buf, 12); // subtable offset
+
+        SyntheticFontBuilder.WriteUInt16(buf, 4); // format
+        SyntheticFontBuilder.WriteUInt16(buf, 40); // declared length (segCount = 3)
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // language
+        SyntheticFontBuilder.WriteUInt16(buf, 6); // segCountX2 (segCount = 3)
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // searchRange
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // entrySelector
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // rangeShift
+        SyntheticFontBuilder.WriteUInt16(buf, 10); // endCodes[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 20); // endCodes[1]: greater than endCodes[0], but overlapping
+        SyntheticFontBuilder.WriteUInt16(buf, 0xFFFF); // endCodes[2] (terminator)
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // reservedPad
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // startCodes[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 5); // startCodes[1]: <= endCodes[0] - overlapping range
+        SyntheticFontBuilder.WriteUInt16(buf, 0xFFFF); // startCodes[2]
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // idDeltas[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // idDeltas[1]
+        SyntheticFontBuilder.WriteUInt16(buf, 1); // idDeltas[2]
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // idRangeOffsets[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // idRangeOffsets[1]
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // idRangeOffsets[2]
+
+        // Act: parse the cmap table with overlapping segments
+        var data = buf.ToArray();
+        var cmap = CmapTable.Parse(data, 0, data.Length);
+
+        // Assert: the overlapping segments are rejected and lookups resolve to glyph index zero
+        Assert.Equal(0, cmap.GetGlyphIndex(7));
     }
 
     /// <summary>

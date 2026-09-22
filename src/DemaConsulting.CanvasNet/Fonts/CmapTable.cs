@@ -241,10 +241,11 @@ internal sealed class CmapTable
         }
 
         // Validate the required format-4 segment ordering: each segment's startCode must not
-        // exceed its endCode, segments must be strictly increasing (and therefore non-overlapping)
-        // by endCode, and the final segment must be the mandatory 0xFFFF terminator. A malformed
-        // subtable violating any of this is rejected so the linear-scan lookup below cannot return
-        // a nonzero glyph index derived from garbage data.
+        // exceed its endCode, segments must be strictly increasing by endCode and explicitly
+        // non-overlapping (each segment's startCode must be greater than the previous segment's
+        // endCode), and the final segment must be the mandatory 0xFFFF/0xFFFF terminator. A
+        // malformed subtable violating any of this is rejected so the linear-scan lookup below
+        // cannot return a nonzero glyph index derived from garbage data.
         for (var i = 0; i < segCount; i++)
         {
             if (startCodes[i] > endCodes[i])
@@ -252,13 +253,13 @@ internal sealed class CmapTable
                 return null;
             }
 
-            if (i > 0 && endCodes[i - 1] >= endCodes[i])
+            if (i > 0 && (endCodes[i - 1] >= endCodes[i] || startCodes[i] <= endCodes[i - 1]))
             {
                 return null;
             }
         }
 
-        if (endCodes[segCount - 1] != 0xFFFF)
+        if (endCodes[segCount - 1] != 0xFFFF || startCodes[segCount - 1] != 0xFFFF)
         {
             return null;
         }
