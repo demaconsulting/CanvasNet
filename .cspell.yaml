@@ -41,6 +41,8 @@ words:
   - defilters
   - Deinterleave
   - deinterleaved
+  - desaturated
+  - desaturates
   - downsamples
   - DEMA
   - Dema
@@ -61,6 +63,7 @@ words:
   - IHDR
   - interoperating
   - JFIF
+  - lerp
   - libjpeg
   - luma
   - magick
@@ -69,6 +72,7 @@ words:
   - misdecoded
   - nameof
   - nonzero
+  - Outliner
   - quantizer
   - subsampled
   - unstuffed
@@ -101,6 +105,7 @@ words:
   - sarifmark
   - scanline
   - scanlines
+  - Skia
   - sonarmark
   - Subsampling
   - subsampling

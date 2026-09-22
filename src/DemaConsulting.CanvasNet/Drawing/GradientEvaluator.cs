@@ -292,28 +292,34 @@ internal static class GradientEvaluator
             return stops[0].Color;
         }
 
-        var first = stops[0];
-        if (t <= first.Offset)
-        {
-            return first.Color;
-        }
-
         var last = stops[^1];
         if (t >= last.Offset)
         {
             return last.Color;
         }
 
-        for (var i = 0; i < stops.Count - 1; i++)
+        var first = stops[0];
+        if (t < first.Offset)
+        {
+            return first.Color;
+        }
+
+        // Scan backward (highest index first) so that, at an exact tie between two or more stops
+        // sharing the same Offset - including a tie at the gradient's very first offset - the
+        // later-supplied stop (the higher array index; Gradient stable-sorts by Offset, so a higher
+        // index among equal-offset stops always means "supplied later") is matched first and wins.
+        // Scanning forward instead matches the *earlier* tied stop first, which is the bug this
+        // fixes: it previously returned via a spurious fraction == 1.0 interpolation against the
+        // preceding pair before ever reaching the intended tied-pair hard-stop branch.
+        for (var i = stops.Count - 2; i >= 0; i--)
         {
             var a = stops[i];
-            var b = stops[i + 1];
-
-            if (t < a.Offset || t > b.Offset)
+            if (t < a.Offset)
             {
                 continue;
             }
 
+            var b = stops[i + 1];
             if (b.Offset - a.Offset <= float.Epsilon)
             {
                 // Hard stop: two (or more) stops sharing the same offset - resolve to the later
@@ -325,10 +331,10 @@ internal static class GradientEvaluator
             return LerpPremultiplied(a.Color, b.Color, fraction);
         }
 
-        // Unreachable given the bracketing checks above (every t between first.Offset and
-        // last.Offset is covered by some consecutive pair), but guards against ever falling
-        // through without a defined result.
-        return last.Color;
+        // Unreachable given the bracketing checks above (every t in [first.Offset, last.Offset) is
+        // covered by some consecutive pair), but guards against ever falling through without a
+        // defined result.
+        return first.Color;
     }
 
     /// <summary>

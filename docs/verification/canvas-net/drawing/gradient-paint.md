@@ -115,11 +115,15 @@ raw parameter of `1.5` resolves identically to `0.5`.
 
 - `EvaluatePoint_Linear_UnsortedInputStops_ResolvesInSortedOrder`
 - `EvaluatePoint_Linear_DuplicateStopOffsets_ProducesHardStepWithoutError`
+- `EvaluatePoint_Linear_InteriorDuplicateStopOffsets_ExactTieResolvesToLaterSuppliedStop`
+- `EvaluatePoint_Linear_DuplicateStopOffsetsAtGradientStart_ExactTieResolvesToLaterSuppliedStop`
 
 These tests verify that out-of-order input stops still resolve correctly (proving the
 constructor's defensive sort is what makes evaluation correct), and that two or more stops sharing
 the same offset produce a sharp, well-defined color step rather than a division error or
-inconsistent result.
+inconsistent result. The last two tests verify the exact tie-break direction: evaluating precisely
+at a shared offset always resolves to the later-supplied stop's color, both for an interior
+duplicate pair and for a duplicate pair at the gradient's very first offset.
 
 #### GradientEvaluator: Premultiplied-Alpha Interpolation
 

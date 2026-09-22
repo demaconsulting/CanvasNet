@@ -11,6 +11,8 @@ public class GradientEvaluatorTests
 {
     private static readonly Rgba32 Red = new(255, 0, 0, 255);
     private static readonly Rgba32 Blue = new(0, 0, 255, 255);
+    private static readonly Rgba32 Green = new(0, 255, 0, 255);
+    private static readonly Rgba32 Yellow = new(255, 255, 0, 255);
 
     private static GradientStop[] TwoStops() =>
     [
@@ -157,6 +159,75 @@ public class GradientEvaluatorTests
     }
 
     /// <summary>
+    ///     Proves that, at an exact interior tie between two stops sharing the same offset, the
+    ///     later-supplied stop's color wins outright - not the earlier-supplied one - matching the
+    ///     documented "later stop wins" hard-stop policy.
+    /// </summary>
+    [Fact]
+    public void EvaluatePoint_Linear_InteriorDuplicateStopOffsets_ExactTieResolvesToLaterSuppliedStop()
+    {
+        GradientStop[] stops =
+        [
+            new GradientStop(0f, Red),
+            new GradientStop(0.5f, Green), // earlier-supplied stop at the tied offset
+            new GradientStop(0.5f, Yellow), // later-supplied stop at the tied offset - must win
+            new GradientStop(1f, Blue),
+        ];
+        var gradient = new LinearGradient(new Vector2(0, 0), new Vector2(10, 0), stops);
+
+        var atTie = GradientEvaluator.EvaluatePoint(gradient, new Vector2(5f, 0));
+
+        Assert.Equal(Yellow, atTie);
+    }
+
+    /// <summary>
+    ///     Proves that, at an exact tie between two stops sharing the gradient's very first offset,
+    ///     the later-supplied stop's color wins outright - not the "first stop in the sorted array"
+    ///     shortcut's earlier-supplied stop - matching the documented "later stop wins" hard-stop
+    ///     policy even at the boundary.
+    /// </summary>
+    [Fact]
+    public void EvaluatePoint_Linear_DuplicateStopOffsetsAtGradientStart_ExactTieResolvesToLaterSuppliedStop()
+    {
+        GradientStop[] stops =
+        [
+            new GradientStop(0f, Green), // earlier-supplied stop at the gradient's first offset
+            new GradientStop(0f, Yellow), // later-supplied stop at the gradient's first offset - must win
+            new GradientStop(1f, Blue),
+        ];
+        var gradient = new LinearGradient(new Vector2(0, 0), new Vector2(10, 0), stops);
+
+        var atTie = GradientEvaluator.EvaluatePoint(gradient, new Vector2(0f, 0));
+
+        Assert.Equal(Yellow, atTie);
+    }
+
+    /// <summary>
+    ///     Proves that an extreme-but-invertible (large uniform scale) Transform, combined with an
+    ///     extreme-magnitude evaluation point, still resolves to a finite, non-NaN, correct color -
+    ///     distinct from the already-covered singular-transform degenerate case (ordinary
+    ///     coordinates) and the already-covered extreme-coordinate case (identity transform): here
+    ///     both the transform's own magnitude and the point's magnitude are extreme simultaneously.
+    /// </summary>
+    [Fact]
+    public void EvaluatePoint_Linear_ExtremeScaleInvertibleTransformWithExtremeCoordinates_ProducesFiniteNonNaNColor()
+    {
+        const float scale = 1.0e15f;
+        var transform = Matrix3x2.CreateScale(scale);
+        var gradient = new LinearGradient(new Vector2(0, 0), new Vector2(10, 0), TwoStops(), transform: transform);
+
+        // World-space point (0,0) inverse-transforms back to gradient-space (0,0) -> first stop.
+        Assert.Equal(Red, GradientEvaluator.EvaluatePoint(gradient, new Vector2(0, 0)));
+
+        // World-space point (10 * scale, 0) inverse-transforms back to gradient-space (10,0) -> last stop.
+        Assert.Equal(Blue, GradientEvaluator.EvaluatePoint(gradient, new Vector2(10f * scale, 0)));
+
+        // A further, independently extreme-magnitude world-space point still resolves without
+        // exception/NaN, Pad-clamped to the last stop's color.
+        Assert.Equal(Blue, GradientEvaluator.EvaluatePoint(gradient, new Vector2(1.0e30f, 0)));
+    }
+
+    /// <summary>
     ///     Proves that a non-finite (NaN) transform component is rejected at construction, not
     ///     silently tolerated at evaluation time.
     /// </summary>
@@ -264,6 +335,57 @@ public class GradientEvaluatorTests
 
         // At t = 1, the swept circle is (center (20,0), radius 6) - a point on its edge.
         Assert.Equal(Blue, GradientEvaluator.EvaluatePoint(gradient, new Vector2(26, 0)));
+    }
+
+    /// <summary>
+    ///     Proves that a radial gradient with equal, nonzero start/end radii but distinct
+    ///     start/end centers (a "cylindrical" gradient) varies normally along its swept family of
+    ///     equal-radius circles, rather than flat-filling - flat-filling is reserved for the
+    ///     stricter "both radii zero and both centers equal" degenerate case only.
+    /// </summary>
+    [Fact]
+    public void EvaluatePoint_Radial_EqualRadiiDistinctCenters_VariesAlongCylindricalSweptFamily()
+    {
+        // StartCenter (0,0), EndCenter (20,0), both radii 5: the swept family is a "cylinder" of
+        // radius-5 circles centered along the x axis from 0 to 20.
+        var gradient = new RadialGradient(new Vector2(0, 0), 5f, new Vector2(20, 0), 5f, TwoStops());
+
+        // (0, 5) lies exactly on the start circle (t = 0): distance((0,5), center(0)) = 5.
+        Assert.Equal(Red, GradientEvaluator.EvaluatePoint(gradient, new Vector2(0, 5)));
+
+        // (20, 5) lies exactly on the end circle (t = 1): distance((20,5), center(20,0)) = 5.
+        Assert.Equal(Blue, GradientEvaluator.EvaluatePoint(gradient, new Vector2(20, 5)));
+
+        // (10, 5) lies exactly on the midpoint circle (t = 0.5): distance((10,5), (10,0)) = 5.
+        // Its color must differ from both endpoints, proving the gradient varies continuously
+        // rather than flat-filling with a single (e.g. last-stop) color everywhere.
+        var midpoint = GradientEvaluator.EvaluatePoint(gradient, new Vector2(10, 5));
+        Assert.NotEqual(Red, midpoint);
+        Assert.NotEqual(Blue, midpoint);
+    }
+
+    /// <summary>
+    ///     Proves that extreme float32-magnitude radial-gradient coordinates still resolve to the
+    ///     correct endpoint colors without overflow-induced NaN/incorrect results. This targets the
+    ///     two-circle quadratic's dx*dx / dy*dy / dr*dr coefficient terms specifically - a distinct
+    ///     overflow risk from the linear case's dot-product projection, which is already covered by
+    ///     EvaluatePoint_Linear_ExtremeMagnitudeCoordinates_ResolvesCorrectly.
+    /// </summary>
+    [Fact]
+    public void EvaluatePoint_Radial_ExtremeMagnitudeCoordinates_ResolvesCorrectly()
+    {
+        const float large = 1.0e18f;
+        var gradient = new RadialGradient(
+            new Vector2(-large, 0), 0f,
+            new Vector2(large, 0), large,
+            TwoStops());
+
+        // t = 0: the swept circle degenerates to the point (-large, 0) (radius 0).
+        Assert.Equal(Red, GradientEvaluator.EvaluatePoint(gradient, new Vector2(-large, 0)));
+
+        // t = 1: the swept circle is (center (large, 0), radius large) - (2 * large, 0) lies
+        // exactly on its edge.
+        Assert.Equal(Blue, GradientEvaluator.EvaluatePoint(gradient, new Vector2(2 * large, 0)));
     }
 
     /// <summary>

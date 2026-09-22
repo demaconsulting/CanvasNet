@@ -398,6 +398,38 @@ public class PathFillerTests
     }
 
     /// <summary>
+    ///     Proves that the gradient overload of Fill paints each fully covered pixel with a
+    ///     RadialGradient's color at that pixel's own position, exercising the full
+    ///     PathFiller/ScanlineRasterizer pipeline with a RadialGradient - previously only exercised
+    ///     with LinearGradient.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_Gradient_SquareWithRadialGradient_CenterAndCornerMatchExpectedRamp()
+    {
+        // Arrange: a 10x10 surface, a square covering it entirely, and a red-to-blue radial
+        // gradient centered on the surface with a radius that reaches the edges but not the corners.
+        var surface = new Surface(10, 10);
+        var path = new PathBuilder()
+            .MoveTo(new Vector2(0, 0)).LineTo(new Vector2(10, 0)).LineTo(new Vector2(10, 10)).LineTo(new Vector2(0, 10))
+            .Close()
+            .Build();
+        GradientStop[] stops =
+        [
+            new GradientStop(0f, new Rgba32(255, 0, 0, 255)),
+            new GradientStop(1f, new Rgba32(0, 0, 255, 255)),
+        ];
+        var gradient = new RadialGradient(new Vector2(5, 5), 0f, new Vector2(5, 5), 5f, stops);
+
+        // Act
+        PathFiller.Fill(surface, path, gradient);
+
+        // Assert: the center pixel is red-dominant (near the start circle); a corner pixel (beyond
+        // the end circle's radius, Pad-clamped to the last stop) is blue-dominant.
+        Assert.True(surface[5, 5].R > surface[5, 5].B);
+        Assert.True(surface[0, 0].B > surface[0, 0].R);
+    }
+
+    /// <summary>
     ///     Proves that the gradient overload throws ArgumentNullException when the surface
     ///     argument is null.
     /// </summary>

@@ -322,7 +322,7 @@ Separately, calls `CompositeOverSpan` with a negative `x`, and separately with a
 whose `x + coverage.Length` exceeds `Width`, and asserts `ArgumentOutOfRangeException` is thrown
 in both cases.
 
-#### CanvasNet-Canvas-Surface-CompositeOverSpanPerPixelColor: Per-Pixel-Color CompositeOverSpan Matches the Constant-Color Overload
+#### CanvasNet-Canvas-Surface-CompositeOverSpanPerPixelColor: Per-Pixel Colors Match the Constant-Color Overload
 
 **Tests**:
 `Surface_CompositeOverSpan_PerPixelColors_MatchesConstantColorOverload_WhenAllColorsEqual`,
