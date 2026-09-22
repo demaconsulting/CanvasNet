@@ -154,7 +154,7 @@ internal sealed class KernTable
     /// </summary>
     private static (ushort, ushort, short)[]? TryParseFormat0(byte[] data, int bodyOffset, int subtableEnd)
     {
-        if (bodyOffset + 8 > subtableEnd)
+        if ((long)bodyOffset + 8 > subtableEnd)
         {
             return null;
         }

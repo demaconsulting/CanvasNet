@@ -240,6 +240,29 @@ internal sealed class CmapTable
             idRangeOffsets[i] = SfntContainer.ReadUInt16(data, idRangeOffsetOffset + i * 2);
         }
 
+        // Validate the required format-4 segment ordering: each segment's startCode must not
+        // exceed its endCode, segments must be strictly increasing (and therefore non-overlapping)
+        // by endCode, and the final segment must be the mandatory 0xFFFF terminator. A malformed
+        // subtable violating any of this is rejected so the linear-scan lookup below cannot return
+        // a nonzero glyph index derived from garbage data.
+        for (var i = 0; i < segCount; i++)
+        {
+            if (startCodes[i] > endCodes[i])
+            {
+                return null;
+            }
+
+            if (i > 0 && endCodes[i - 1] >= endCodes[i])
+            {
+                return null;
+            }
+        }
+
+        if (endCodes[segCount - 1] != 0xFFFF)
+        {
+            return null;
+        }
+
         return codepoint =>
         {
             if (codepoint is < 0 or > 0xFFFF)
@@ -264,13 +287,13 @@ internal sealed class CmapTable
                     return (codepoint + idDeltas[i]) & 0xFFFF;
                 }
 
-                var glyphIndexAddress = idRangeOffsetOffset + i * 2 + idRangeOffsets[i] + 2 * (codepoint - startCodes[i]);
-                if (glyphIndexAddress + 2 > tableEnd)
+                var glyphIndexAddress = (long)idRangeOffsetOffset + i * 2 + idRangeOffsets[i] + 2L * (codepoint - startCodes[i]);
+                if (glyphIndexAddress < glyphIdArrayOffset || glyphIndexAddress + 2 > tableEnd)
                 {
                     return 0;
                 }
 
-                var glyphId = SfntContainer.ReadUInt16(data, glyphIndexAddress);
+                var glyphId = SfntContainer.ReadUInt16(data, (int)glyphIndexAddress);
                 return glyphId == 0 ? 0 : (glyphId + idDeltas[i]) & 0xFFFF;
             }
 
@@ -305,6 +328,23 @@ internal sealed class CmapTable
             starts[i] = SfntContainer.ReadUInt32(data, groupOffset);
             ends[i] = SfntContainer.ReadUInt32(data, groupOffset + 4);
             startGlyphIds[i] = SfntContainer.ReadUInt32(data, groupOffset + 8);
+        }
+
+        // Validate the required format-12 group ordering: each group's startCharCode must not
+        // exceed its endCharCode, and groups must be strictly increasing (and therefore
+        // non-overlapping) by charCode range, as required by the spec and assumed by the binary
+        // search lookup below.
+        for (var i = 0; i < starts.Length; i++)
+        {
+            if (starts[i] > ends[i])
+            {
+                return null;
+            }
+
+            if (i > 0 && ends[i - 1] >= starts[i])
+            {
+                return null;
+            }
         }
 
         return codepoint =>

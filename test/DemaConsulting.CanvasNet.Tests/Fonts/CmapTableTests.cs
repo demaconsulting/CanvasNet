@@ -1,7 +1,7 @@
 // cspell:ignore SFNT Sfnt sfnt glyf Glyf cmap Cmap loca Loca hmtx Hmtx hhea Hhea
 // cspell:ignore maxp Maxp notdef codepoint codepoints subtable subtables subsetted
 // cspell:ignore subsetting PPEM OTTO
-// cspell:ignore misaligns
+// cspell:ignore misaligns unwidened
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 
@@ -295,6 +295,316 @@ public class CmapTableTests
         // division, so the lookup resolves to zero rather than the misaligned bogus glyph index
         // (565) that reading through the shifted arrays would otherwise produce
         Assert.Equal(0, cmap.GetGlyphIndex(65));
+    }
+
+    /// <summary>
+    ///     Proves that CmapTable Format4 SegmentStartCodeExceedsEndCode IsRejected.
+    /// </summary>
+    [Fact]
+    public void CmapTable_Format4_SegmentStartCodeExceedsEndCode_IsRejected()
+    {
+        // Arrange: build a cmap with two encoding records: a higher-priority (3,1) format-4
+        // subtable whose only real segment has startCode (50) greater than endCode (10) - which
+        // the format-4 spec forbids - and a lower-priority, otherwise-unreachable (0,3) format-4
+        // subtable that validly maps codepoint 200 to glyph 7. Because subtable selection is
+        // priority-ordered and stops at the first successfully-parsed candidate, a decoder that
+        // fails to reject the malformed higher-priority subtable will select it (even though it
+        // never actually maps codepoint 200), silently starving the valid fallback subtable of a
+        // chance to be tried - rather than rejecting the malformed one and falling through to the
+        // valid mapping, as required by the documented malformed-input contract.
+        var buf = new List<byte>
+        {
+            0, 0, // cmap version
+            0, 2, // numTables
+            0, 3, // platformId (record 0: higher priority)
+            0, 1, // encodingId
+        };
+        SyntheticFontBuilder.WriteUInt32(buf, 20); // record 0 subtable offset
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // platformId (record 1: lower priority)
+        SyntheticFontBuilder.WriteUInt16(buf, 3); // encodingId
+        SyntheticFontBuilder.WriteUInt32(buf, 52); // record 1 subtable offset (20 + 32, after subtable 0)
+
+        // Subtable 0 (offset 20): malformed - segment 0 has startCode (50) > endCode (10)
+        SyntheticFontBuilder.WriteUInt16(buf, 4); // format
+        SyntheticFontBuilder.WriteUInt16(buf, 32); // declared length (segCount = 2)
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // language
+        SyntheticFontBuilder.WriteUInt16(buf, 4); // segCountX2 (segCount = 2)
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // searchRange
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // entrySelector
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // rangeShift
+        SyntheticFontBuilder.WriteUInt16(buf, 10); // endCodes[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 0xFFFF); // endCodes[1] (terminator)
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // reservedPad
+        SyntheticFontBuilder.WriteUInt16(buf, 50); // startCodes[0]: exceeds endCodes[0] (10) - malformed
+        SyntheticFontBuilder.WriteUInt16(buf, 0xFFFF); // startCodes[1]
+        SyntheticFontBuilder.WriteUInt16(buf, 1); // idDeltas[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 1); // idDeltas[1]
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // idRangeOffsets[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // idRangeOffsets[1]
+
+        // Subtable 1 (offset 52): valid - maps codepoint 200 to glyph 7
+        SyntheticFontBuilder.WriteUInt16(buf, 4); // format
+        SyntheticFontBuilder.WriteUInt16(buf, 24); // declared length (segCount = 1)
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // language
+        SyntheticFontBuilder.WriteUInt16(buf, 2); // segCountX2 (segCount = 1)
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // searchRange
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // entrySelector
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // rangeShift
+        SyntheticFontBuilder.WriteUInt16(buf, 0xFFFF); // endCodes[0] (terminator: the whole BMP, one segment)
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // reservedPad
+        SyntheticFontBuilder.WriteUInt16(buf, 200); // startCodes[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 7 - 200); // idDeltas[0]: (200 + (7-200)) & 0xFFFF == 7
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // idRangeOffsets[0]
+
+        // Act: parse the cmap table
+        var data = buf.ToArray();
+        var cmap = CmapTable.Parse(data, 0, data.Length);
+
+        // Assert: the malformed, higher-priority subtable is rejected, so the valid,
+        // lower-priority fallback subtable is used and correctly maps codepoint 200 to glyph 7
+        Assert.Equal(7, cmap.GetGlyphIndex(200));
+    }
+
+    /// <summary>
+    ///     Proves that CmapTable Format4 SegmentsNotStrictlyIncreasing IsRejected.
+    /// </summary>
+    [Fact]
+    public void CmapTable_Format4_SegmentsNotStrictlyIncreasing_IsRejected()
+    {
+        // Arrange: build a (3,1) format-4 subtable with three segments whose endCodes are not
+        // strictly increasing (100, then 50 - out of order), followed by the mandatory 0xFFFF
+        // terminator segment.
+        var buf = new List<byte>
+        {
+            0, 0, // cmap version
+            0, 1, // numTables
+            0, 3, // platformId
+            0, 1, // encodingId
+        };
+        SyntheticFontBuilder.WriteUInt32(buf, 12); // subtable offset
+
+        SyntheticFontBuilder.WriteUInt16(buf, 4); // format
+        SyntheticFontBuilder.WriteUInt16(buf, 40); // declared length (segCount = 3)
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // language
+        SyntheticFontBuilder.WriteUInt16(buf, 6); // segCountX2 (segCount = 3)
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // searchRange
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // entrySelector
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // rangeShift
+        SyntheticFontBuilder.WriteUInt16(buf, 100); // endCodes[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 50); // endCodes[1]: not greater than endCodes[0] - malformed
+        SyntheticFontBuilder.WriteUInt16(buf, 0xFFFF); // endCodes[2] (terminator)
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // reservedPad
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // startCodes[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // startCodes[1]
+        SyntheticFontBuilder.WriteUInt16(buf, 0xFFFF); // startCodes[2]
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // idDeltas[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // idDeltas[1]
+        SyntheticFontBuilder.WriteUInt16(buf, 1); // idDeltas[2]
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // idRangeOffsets[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // idRangeOffsets[1]
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // idRangeOffsets[2]
+
+        // Act: parse the cmap table with the out-of-order segments
+        var data = buf.ToArray();
+        var cmap = CmapTable.Parse(data, 0, data.Length);
+
+        // Assert: the out-of-order segments are rejected and lookups resolve to glyph index zero
+        Assert.Equal(0, cmap.GetGlyphIndex(60));
+    }
+
+    /// <summary>
+    ///     Proves that CmapTable Format4 MissingTerminatorSegment IsRejected.
+    /// </summary>
+    [Fact]
+    public void CmapTable_Format4_MissingTerminatorSegment_IsRejected()
+    {
+        // Arrange: build a (3,1) format-4 subtable with a single, otherwise well-formed segment
+        // whose endCode (100) is not the mandatory 0xFFFF terminator value.
+        var buf = new List<byte>
+        {
+            0, 0, // cmap version
+            0, 1, // numTables
+            0, 3, // platformId
+            0, 1, // encodingId
+        };
+        SyntheticFontBuilder.WriteUInt32(buf, 12); // subtable offset
+
+        SyntheticFontBuilder.WriteUInt16(buf, 4); // format
+        SyntheticFontBuilder.WriteUInt16(buf, 24); // declared length (segCount = 1)
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // language
+        SyntheticFontBuilder.WriteUInt16(buf, 2); // segCountX2 (segCount = 1)
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // searchRange
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // entrySelector
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // rangeShift
+        SyntheticFontBuilder.WriteUInt16(buf, 100); // endCodes[0]: not the mandatory 0xFFFF terminator
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // reservedPad
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // startCodes[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 5); // idDeltas[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // idRangeOffsets[0]
+
+        // Act: parse the cmap table missing its mandatory terminator segment
+        var data = buf.ToArray();
+        var cmap = CmapTable.Parse(data, 0, data.Length);
+
+        // Assert: the missing terminator is rejected and lookups resolve to glyph index zero
+        Assert.Equal(0, cmap.GetGlyphIndex(10));
+    }
+
+    /// <summary>
+    ///     Proves that CmapTable Format4 IdRangeOffsetPointsBackward ReturnsZero.
+    /// </summary>
+    [Fact]
+    public void CmapTable_Format4_IdRangeOffsetPointsBackward_ReturnsZero()
+    {
+        // Arrange: build a (3,1) format-4 subtable, segCount = 2 (one real segment + terminator),
+        // whose real segment's idRangeOffset is deliberately crafted to point backward - into the
+        // subtable's own idRangeOffset array bytes rather than forward into glyphIdArray. A
+        // correct decoder must reject this rather than reading and returning whatever
+        // (unrelated/attacker-controlled) 16-bit value happens to live at that backward address.
+        var buf = new List<byte>
+        {
+            0, 0, // cmap version
+            0, 1, // numTables
+            0, 3, // platformId
+            0, 1, // encodingId
+        };
+        SyntheticFontBuilder.WriteUInt32(buf, 12); // subtable offset
+
+        SyntheticFontBuilder.WriteUInt16(buf, 4); // format
+        SyntheticFontBuilder.WriteUInt16(buf, 32); // declared length (segCount = 2)
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // language
+        SyntheticFontBuilder.WriteUInt16(buf, 4); // segCountX2 (segCount = 2)
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // searchRange
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // entrySelector
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // rangeShift
+        SyntheticFontBuilder.WriteUInt16(buf, 10); // endCodes[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 0xFFFF); // endCodes[1] (terminator)
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // reservedPad
+        SyntheticFontBuilder.WriteUInt16(buf, 10); // startCodes[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 0xFFFF); // startCodes[1]
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // idDeltas[0]
+        SyntheticFontBuilder.WriteUInt16(buf, 1); // idDeltas[1]
+
+        // idRangeOffsetOffset is at buf position 14 + 2*4 + 2 + 4 + 4 = 32 (relative to subtable
+        // start at absolute offset 12), i.e. absolute offset 44. idRangeOffsets[0] here is set to
+        // 2, which - per the spec formula - computes to
+        // idRangeOffsetOffset + 0*2 + 2 + 2*(10-10) = 46, pointing at idRangeOffsets[1] itself
+        // (still inside the idRangeOffset array, before glyphIdArrayOffset), not forward into a
+        // (nonexistent) glyphIdArray.
+        SyntheticFontBuilder.WriteUInt16(buf, 2); // idRangeOffsets[0]: points backward, not forward
+        SyntheticFontBuilder.WriteUInt16(buf, 0xBEEF); // idRangeOffsets[1] slot: "bogus" value at the backward address
+
+        // Act: parse the cmap table with the backward-pointing idRangeOffset
+        var data = buf.ToArray();
+        var cmap = CmapTable.Parse(data, 0, data.Length);
+
+        // Assert: the backward-pointing idRangeOffset is rejected and the lookup resolves to
+        // glyph index zero rather than the bogus 0xBEEF-derived value
+        Assert.Equal(0, cmap.GetGlyphIndex(10));
+    }
+
+    /// <summary>
+    ///     Proves that CmapTable Format4 GlyphIndexAddressArithmeticOverflow ReturnsZero.
+    /// </summary>
+    [Fact]
+    public void CmapTable_Format4_GlyphIndexAddressArithmeticOverflow_ReturnsZero()
+    {
+        // Arrange: choose a subtable position (near the top of what a real byte array can
+        // address, per Array.MaxLength) large enough that computing
+        // `idRangeOffsetOffset + i * 2 + idRangeOffsets[i] + 2 * (codepoint - startCodes[i])`
+        // with unwidened 32-bit `int` arithmetic wraps past `int.MaxValue` to a negative value,
+        // which would incorrectly pass the `glyphIndexAddress + 2 > tableEnd` bounds guard and
+        // then be used directly as a negative array index. The margin is provided by
+        // `idRangeOffsets[0]` (its 0xFFFF maximum), mirroring the technique used by
+        // <c>KernTable_SubtableLengthOverflowsPosition_IsTolerant_ReturnsZero</c>. Note that only
+        // the *positions* need to be this large; the declared cmap `tableLength` (and hence the
+        // portion of the array that is actually populated/read on the corrected, non-overflowing
+        // path) stays tiny, so the backing array itself only needs to be a little over
+        // `idRangeOffsetOffset` bytes - not anywhere near `int.MaxValue` bytes twice over.
+        const int segCount = 2;
+        const int segCountX2 = segCount * 2;
+        const int cmapHeaderSize = 12;
+
+        // Field layout (relative to subtableOffset): format/length/language/segCountX2/
+        // searchRange/entrySelector/rangeShift = 14 bytes, then endCodes(segCountX2) +
+        // reservedPad(2) + startCodes(segCountX2) + idDeltas(segCountX2) = idRangeOffsetOffset.
+        var idRangeOffsetOffset = Array.MaxLength - 30;
+        var subtableOffset = idRangeOffsetOffset - (14 + segCountX2 + 2 + segCountX2 + segCountX2);
+        var tableOffset = subtableOffset - cmapHeaderSize;
+        Assert.True(tableOffset >= 0, "test setup: tableOffset must be non-negative");
+
+        var declaredLength = subtableOffset - tableOffset + 14 + segCountX2 + 2 + segCountX2 + segCountX2 + segCountX2;
+        var data = new byte[tableOffset + declaredLength];
+
+        void WriteU16(int offset, int value)
+        {
+            data[offset] = (byte)((value >> 8) & 0xFF);
+            data[offset + 1] = (byte)(value & 0xFF);
+        }
+
+        void WriteU32(int offset, long value)
+        {
+            data[offset] = (byte)((value >> 24) & 0xFF);
+            data[offset + 1] = (byte)((value >> 16) & 0xFF);
+            data[offset + 2] = (byte)((value >> 8) & 0xFF);
+            data[offset + 3] = (byte)(value & 0xFF);
+        }
+
+        WriteU16(tableOffset, 0); // cmap version
+        WriteU16(tableOffset + 2, 1); // numTables
+        WriteU16(tableOffset + 4, 3); // platformId
+        WriteU16(tableOffset + 6, 1); // encodingId
+        WriteU32(tableOffset + 8, subtableOffset - tableOffset); // subtable offset, relative to cmap table start
+
+        WriteU16(subtableOffset, 4); // format
+        WriteU16(subtableOffset + 2, declaredLength - (subtableOffset - tableOffset)); // declared length
+        WriteU16(subtableOffset + 4, 0); // language
+        WriteU16(subtableOffset + 6, segCountX2);
+        WriteU16(subtableOffset + 8, 0); // searchRange
+        WriteU16(subtableOffset + 10, 0); // entrySelector
+        WriteU16(subtableOffset + 12, 0); // rangeShift
+
+        var endCodeOffset = subtableOffset + 14;
+        WriteU16(endCodeOffset, 0); // endCodes[0]: codepoint 0 maps via this segment
+        WriteU16(endCodeOffset + 2, 0xFFFF); // endCodes[1] (terminator)
+
+        var startCodeOffset = endCodeOffset + segCountX2 + 2;
+        WriteU16(startCodeOffset, 0); // startCodes[0]
+        WriteU16(startCodeOffset + 2, 0xFFFF); // startCodes[1]
+
+        var idDeltaOffset = startCodeOffset + segCountX2;
+        WriteU16(idDeltaOffset, 0); // idDeltas[0]
+        WriteU16(idDeltaOffset + 2, 1); // idDeltas[1]
+
+        Assert.Equal(idRangeOffsetOffset, idDeltaOffset + segCountX2);
+        WriteU16(idRangeOffsetOffset, 0xFFFF); // idRangeOffsets[0]: maximal, to maximize the overflow margin
+        WriteU16(idRangeOffsetOffset + 2, 0); // idRangeOffsets[1]
+
+        // Act: parse the cmap table and look up codepoint 0, which resolves to segment 0's
+        // indirect (idRangeOffset != 0) lookup path
+        var cmap = CmapTable.Parse(data, tableOffset, declaredLength);
+
+        // Assert: the overflow-prone address computation is rejected (rather than wrapping to a
+        // negative value that would be misread as in-bounds) and the lookup resolves to zero
+        Assert.Equal(0, cmap.GetGlyphIndex(0));
+    }
+
+    /// <summary>
+    ///     Proves that CmapTable Format12 GroupsOverlap IsRejected.
+    /// </summary>
+    [Fact]
+    public void CmapTable_Format12_GroupsOverlap_IsRejected()
+    {
+        // Arrange: build a format-12 cmap subtable with two groups whose charCode ranges overlap
+        // (group 0 covers 0x00-0x10, group 1 covers 0x08-0x20), which the spec forbids (groups
+        // must be sorted, non-overlapping, by startCharCode).
+        var table = SyntheticFontBuilder.CmapFormat12(3, 10, [(0x00u, 0x10u, 1u), (0x08u, 0x20u, 100u)]);
+
+        // Act: parse the cmap table with the overlapping groups
+        var cmap = CmapTable.Parse(table, 0, table.Length);
+
+        // Assert: the overlapping groups are rejected and lookups resolve to glyph index zero
+        Assert.Equal(0, cmap.GetGlyphIndex(0x09));
     }
 
     /// <summary>
