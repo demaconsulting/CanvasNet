@@ -1,7 +1,7 @@
 // cspell:ignore SFNT Sfnt sfnt glyf Glyf cmap Cmap loca Loca hmtx Hmtx hhea Hhea
 // cspell:ignore maxp Maxp notdef codepoint codepoints subtable subtables subsetted
 // cspell:ignore subsetting PPEM OTTO
-// cspell:ignore misaligns unwidened
+// cspell:ignore misaligns unwidened unrejected
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 
