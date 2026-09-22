@@ -85,9 +85,11 @@ CanvasNet is organized into four subsystems under the system level: the `Canvas`
 flat — no further nesting), the `Geometry` subsystem (the `Rect`, `Path`, `BezierFlattening`, and
 `SvgArcConverter` units, namespace `DemaConsulting.CanvasNet.Geometry`, flat — no further nesting),
 and the `Drawing` subsystem (the `PathFiller` unit, covering the supporting `FillRule` enum and
-the internal `EdgeFlattener`/`ScanlineRasterizer` helpers inline, and the `PathStroker` unit,
+the internal `EdgeFlattener`/`ScanlineRasterizer` helpers inline, the `PathStroker` unit,
 covering the supporting `LineCap`/`LineJoin`/`StrokeStyle` types and the internal
-`StrokePathFlattener`/`DashSplitter`/`StrokeOutliner` helpers inline, namespace
+`StrokePathFlattener`/`DashSplitter`/`StrokeOutliner` helpers inline, and the `GradientPaint`
+unit, covering the public `Gradient`/`LinearGradient`/`RadialGradient`/`GradientStop`/
+`GradientSpread` types and the internal `GradientEvaluator` helper inline, namespace
 `DemaConsulting.CanvasNet.Drawing`, flat — no further nesting). As additional functionality is
 added, further subsystems and nested subsystems would organize related units and provide
 architectural boundaries with well-defined interfaces and responsibilities.
@@ -131,6 +133,12 @@ src/DemaConsulting.CanvasNet/
     ├── DashSplitter.cs            — Applies dash-array and dash-offset semantics
     ├── StrokeOutliner.cs          — Converts stroked polylines into outline polygons
     ├── PathStroker.cs             — Public entry point: strokes a Path into outline geometry
+    ├── GradientSpread.cs          — Gradient repeat-beyond-extent mode enumeration
+    ├── GradientStop.cs            — Single offset/color stop within a gradient
+    ├── Gradient.cs                — Abstract base for gradient paint definitions
+    ├── LinearGradient.cs          — Gradient paint that varies along a straight axis
+    ├── RadialGradient.cs          — Gradient paint that varies radially from a center point
+    ├── GradientEvaluator.cs       — Resolves a gradient definition to a color at a point
     └── NamespaceDoc.cs            — Namespace-level XML documentation
 ```
 
@@ -138,7 +146,8 @@ This four-subsystem folder structure reflects the small number of subsystems in 
 today. As the system grows with additional subsystems and units, the folder structure will
 expand further to mirror the software architecture. `Canvas/Surface.cs` also gained a
 `CompositeOverSpan` method used internally by `Drawing/PathFiller.cs`, and the `Drawing`
-subsystem now includes the additional stroking files listed above.
+subsystem now includes the additional stroking files listed above, along with the gradient
+paint files added for linear/radial gradient support in `PathFiller`.
 
 ## Document Conventions
 
