@@ -39,14 +39,17 @@ public class GlyfLocaReaderTests
     [Fact]
     public void GlyfLocaReader_SimpleGlyph_AllOnCurve_ProducesLineSegments()
     {
+        // Arrange: build a simple glyph with a single all-on-curve square contour
         var glyph = SyntheticFontBuilder.SimpleGlyph(
         [
             [(0, 0, true), (100, 0, true), (100, 100, true), (0, 100, true)]
         ]);
 
+        // Act: build the reader and get the glyph outline
         var reader = BuildReader([glyph]);
         var path = reader.GetGlyphOutline(0);
 
+        // Assert: a single subpath of straight line segments is produced
         Assert.Single(path.Subpaths);
         var subpath = path.Subpaths[0];
         Assert.Equal(new System.Numerics.Vector2(0, 0), subpath.Start);
@@ -59,16 +62,19 @@ public class GlyfLocaReaderTests
     [Fact]
     public void GlyfLocaReader_SimpleGlyph_ConsecutiveOffCurvePoints_ProducesImpliedMidpointQuadratics()
     {
-        // A four-point "diamond" contour, entirely off-curve, forces the implied-on-curve
-        // midpoint convention for every segment (including the synthetic contour start).
+        // Arrange: a four-point "diamond" contour, entirely off-curve, forces the
+        // implied-on-curve midpoint convention for every segment (including the synthetic
+        // contour start)
         var glyph = SyntheticFontBuilder.SimpleGlyph(
         [
             [(50, 0, false), (100, 50, false), (50, 100, false), (0, 50, false)]
         ]);
 
+        // Act: build the reader and get the glyph outline
         var reader = BuildReader([glyph]);
         var path = reader.GetGlyphOutline(0);
 
+        // Assert: a single subpath entirely made of quadratic bezier segments is produced
         var subpath = Assert.Single(path.Subpaths);
         Assert.Contains(subpath.Commands, c => c.Type == PathCommandType.QuadraticBezierTo);
         Assert.All(subpath.Commands, c => Assert.True(c.Type is PathCommandType.QuadraticBezierTo or PathCommandType.Close));
@@ -80,14 +86,17 @@ public class GlyfLocaReaderTests
     [Fact]
     public void GlyfLocaReader_SimpleGlyph_MixedOnAndOffCurve_ProducesQuadraticToRealOnCurvePoint()
     {
+        // Arrange: build a simple glyph alternating on-curve and off-curve points
         var glyph = SyntheticFontBuilder.SimpleGlyph(
         [
             [(0, 0, true), (50, 50, false), (100, 0, true), (50, -50, false)]
         ]);
 
+        // Act: build the reader and get the glyph outline
         var reader = BuildReader([glyph]);
         var path = reader.GetGlyphOutline(0);
 
+        // Assert: the subpath starts at the real on-curve point and contains quadratic segments
         var subpath = Assert.Single(path.Subpaths);
         Assert.Equal(new System.Numerics.Vector2(0, 0), subpath.Start);
         Assert.Contains(subpath.Commands, c => c.Type == PathCommandType.QuadraticBezierTo);
@@ -99,11 +108,14 @@ public class GlyfLocaReaderTests
     [Fact]
     public void GlyfLocaReader_EmptyGlyph_ZeroContours_ProducesEmptyPath()
     {
+        // Arrange: build a simple glyph with zero contours
         var glyph = SyntheticFontBuilder.SimpleGlyph();
 
+        // Act: build the reader and get the glyph outline
         var reader = BuildReader([glyph]);
         var path = reader.GetGlyphOutline(0);
 
+        // Assert: the resulting path has no subpaths
         Assert.Empty(path.Subpaths);
     }
 
@@ -113,11 +125,14 @@ public class GlyfLocaReaderTests
     [Fact]
     public void GlyfLocaReader_ZeroLengthGlyph_ProducesEmptyPath()
     {
-        // A loca entry pair with equal offsets (e.g. the classic 'space' glyph with no outline).
+        // Arrange: a loca entry pair with equal offsets (e.g. the classic 'space' glyph with no
+        // outline) alongside a normal glyph
         var reader = BuildReader([[], SyntheticFontBuilder.SimpleGlyph([[(0, 0, true), (10, 0, true), (10, 10, true)]])]);
 
+        // Act: get the outline of the zero-length glyph
         var path = reader.GetGlyphOutline(0);
 
+        // Assert: the resulting path has no subpaths
         Assert.Empty(path.Subpaths);
     }
 
@@ -127,11 +142,14 @@ public class GlyfLocaReaderTests
     [Fact]
     public void GlyfLocaReader_LongLocaFormat_DecodesSameAsShortFormat()
     {
+        // Arrange: build a simple glyph and a reader using the long loca format
         var glyph = SyntheticFontBuilder.SimpleGlyph([[(0, 0, true), (10, 0, true), (10, 10, true)]]);
 
+        // Act: build the reader with long-format loca and get the glyph outline
         var reader = BuildReader([glyph], longFormat: true);
         var path = reader.GetGlyphOutline(0);
 
+        // Assert: the outline decodes correctly, same as with the short format
         Assert.Single(path.Subpaths);
     }
 
@@ -141,8 +159,10 @@ public class GlyfLocaReaderTests
     [Fact]
     public void GlyfLocaReader_GetGlyphOutline_NegativeGlyphIndex_ThrowsArgumentOutOfRangeException()
     {
+        // Arrange: build a reader over a single glyph
         var reader = BuildReader([SyntheticFontBuilder.SimpleGlyph()]);
 
+        // Act/Assert: requesting a negative glyph index throws
         Assert.Throws<ArgumentOutOfRangeException>(() => reader.GetGlyphOutline(-1));
     }
 
@@ -152,8 +172,10 @@ public class GlyfLocaReaderTests
     [Fact]
     public void GlyfLocaReader_GetGlyphOutline_GlyphIndexTooLarge_ThrowsArgumentOutOfRangeException()
     {
+        // Arrange: build a reader over a single glyph
         var reader = BuildReader([SyntheticFontBuilder.SimpleGlyph()]);
 
+        // Act/Assert: requesting a glyph index at/beyond the glyph count throws
         Assert.Throws<ArgumentOutOfRangeException>(() => reader.GetGlyphOutline(1));
     }
 
@@ -163,6 +185,7 @@ public class GlyfLocaReaderTests
     [Fact]
     public void GlyfLocaReader_CompositeGlyph_SingleComponent_ProducesTranslatedOutline()
     {
+        // Arrange: build a square glyph and a composite referencing it with a translation
         var square = SyntheticFontBuilder.SimpleGlyph(
         [
             [(0, 0, true), (10, 0, true), (10, 10, true), (0, 10, true)]
@@ -172,9 +195,11 @@ public class GlyfLocaReaderTests
             new SyntheticFontBuilder.CompositeComponent(0, 100, 200)
         ]);
 
+        // Act: build the reader and get the composite glyph outline
         var reader = BuildReader([square, composite]);
         var path = reader.GetGlyphOutline(1);
 
+        // Assert: the outline is translated by the component's dx/dy offset
         var subpath = Assert.Single(path.Subpaths);
         Assert.Equal(new System.Numerics.Vector2(100, 200), subpath.Start);
     }
@@ -185,6 +210,7 @@ public class GlyfLocaReaderTests
     [Fact]
     public void GlyfLocaReader_CompositeGlyph_ScaledComponent_ScalesOutline()
     {
+        // Arrange: build a square glyph and a composite referencing it with a uniform scale
         var square = SyntheticFontBuilder.SimpleGlyph(
         [
             [(0, 0, true), (10, 0, true), (10, 10, true), (0, 10, true)]
@@ -194,9 +220,11 @@ public class GlyfLocaReaderTests
             new SyntheticFontBuilder.CompositeComponent(0, 0, 0, HasScale: true, A: 1.5f, D: 1.5f)
         ]);
 
+        // Act: build the reader and get the composite glyph outline
         var reader = BuildReader([square, composite]);
         var path = reader.GetGlyphOutline(1);
 
+        // Assert: the outline coordinates are scaled by the component's scale factor
         var subpath = Assert.Single(path.Subpaths);
         var lineTo = subpath.Commands[0];
         Assert.Equal(PathCommandType.LineTo, lineTo.Type);
@@ -209,23 +237,24 @@ public class GlyfLocaReaderTests
     [Fact]
     public void GlyfLocaReader_CompositeGlyph_TwoByTwoTransform_TransformsOutline()
     {
+        // Arrange: build a square glyph and a composite applying a 90-degree counter-clockwise
+        // rotation matrix: a=0, b=1, c=-1, d=0 maps (x, y) -> (-y, x)
         var square = SyntheticFontBuilder.SimpleGlyph(
         [
             [(0, 0, true), (10, 0, true), (10, 10, true), (0, 10, true)]
         ]);
-
-        // 90-degree counter-clockwise rotation matrix: a=0, b=1, c=-1, d=0 maps (x, y) -> (-y, x).
         var composite = SyntheticFontBuilder.CompositeGlyph(
         [
             new SyntheticFontBuilder.CompositeComponent(0, 0, 0, HasTwoByTwo: true, A: 0f, B: 1f, C: -1f, D: 0f)
         ]);
 
+        // Act: build the reader and get the composite glyph outline
         var reader = BuildReader([square, composite]);
         var path = reader.GetGlyphOutline(1);
 
+        // Assert: the first LineTo draws to the untransformed point (10, 0), which the rotation maps to (0, 10)
         var subpath = Assert.Single(path.Subpaths);
         var lineTo = subpath.Commands[0];
-        // The first LineTo draws to the untransformed point (10, 0), which the rotation maps to (0, 10).
         Assert.Equal(0f, lineTo.EndPoint.X, 2);
         Assert.Equal(10f, lineTo.EndPoint.Y, 2);
     }
@@ -236,6 +265,8 @@ public class GlyfLocaReaderTests
     [Fact]
     public void GlyfLocaReader_CompositeGlyph_NestedComposite_ResolvesRecursively()
     {
+        // Arrange: build a square glyph, an inner composite referencing it, and an outer
+        // composite referencing the inner composite
         var square = SyntheticFontBuilder.SimpleGlyph(
         [
             [(0, 0, true), (10, 0, true), (10, 10, true), (0, 10, true)]
@@ -249,9 +280,11 @@ public class GlyfLocaReaderTests
             new SyntheticFontBuilder.CompositeComponent(1, 100, 100)
         ]);
 
+        // Act: build the reader and get the outer composite glyph outline
         var reader = BuildReader([square, inner, outer]);
         var path = reader.GetGlyphOutline(2);
 
+        // Assert: both levels of translation are combined into the final outline
         var subpath = Assert.Single(path.Subpaths);
         Assert.Equal(new System.Numerics.Vector2(105, 105), subpath.Start);
     }
@@ -262,6 +295,7 @@ public class GlyfLocaReaderTests
     [Fact]
     public void GlyfLocaReader_CompositeGlyph_MultipleComponents_ProducesMultipleSubpaths()
     {
+        // Arrange: build a square glyph and a composite referencing it twice at different offsets
         var square = SyntheticFontBuilder.SimpleGlyph(
         [
             [(0, 0, true), (10, 0, true), (10, 10, true), (0, 10, true)]
@@ -272,9 +306,11 @@ public class GlyfLocaReaderTests
             new SyntheticFontBuilder.CompositeComponent(0, 50, 50)
         ]);
 
+        // Act: build the reader and get the composite glyph outline
         var reader = BuildReader([square, composite]);
         var path = reader.GetGlyphOutline(1);
 
+        // Assert: each component contributes its own subpath
         Assert.Equal(2, path.Subpaths.Count);
     }
 
@@ -284,6 +320,8 @@ public class GlyfLocaReaderTests
     [Fact]
     public void GlyfLocaReader_CompositeGlyph_PointMatchedComponent_ThrowsInvalidDataException()
     {
+        // Arrange: build a square glyph and a composite component using point-matching
+        // (unsupported) instead of x/y offsets
         var square = SyntheticFontBuilder.SimpleGlyph(
         [
             [(0, 0, true), (10, 0, true), (10, 10, true), (0, 10, true)]
@@ -293,8 +331,10 @@ public class GlyfLocaReaderTests
             new SyntheticFontBuilder.CompositeComponent(0, 0, 0, ArgsAreXyValues: false)
         ]);
 
+        // Act
         var reader = BuildReader([square, composite]);
 
+        // Assert: resolving the point-matched component throws
         Assert.Throws<InvalidDataException>(() => reader.GetGlyphOutline(1));
     }
 
@@ -304,13 +344,16 @@ public class GlyfLocaReaderTests
     [Fact]
     public void GlyfLocaReader_CompositeGlyph_OutOfRangeComponentGlyphIndex_ThrowsInvalidDataException()
     {
+        // Arrange: build a composite whose sole component references a nonexistent glyph index
         var composite = SyntheticFontBuilder.CompositeGlyph(
         [
             new SyntheticFontBuilder.CompositeComponent(99, 0, 0)
         ]);
 
+        // Act
         var reader = BuildReader([composite]);
 
+        // Assert: resolving the out-of-range component glyph index throws
         Assert.Throws<InvalidDataException>(() => reader.GetGlyphOutline(0));
     }
 
@@ -320,15 +363,17 @@ public class GlyfLocaReaderTests
     [Fact]
     public void GlyfLocaReader_CompositeGlyph_SelfReferentialCycle_ThrowsInvalidDataExceptionViaDepthCap()
     {
-        // Glyph 0 is a composite whose only component is itself: recursion depth increases
-        // without bound until the deterministic depth cap trips - this must never hang.
+        // Arrange: glyph 0 is a composite whose only component is itself: recursion depth
+        // increases without bound until the deterministic depth cap trips - this must never hang
         var selfReferential = SyntheticFontBuilder.CompositeGlyph(
         [
             new SyntheticFontBuilder.CompositeComponent(0, 1, 1)
         ]);
 
+        // Act
         var reader = BuildReader([selfReferential]);
 
+        // Assert: the depth cap trips and the message identifies the depth-cap failure
         var ex = Assert.Throws<InvalidDataException>(() => reader.GetGlyphOutline(0));
         Assert.Contains("depth", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -339,11 +384,11 @@ public class GlyfLocaReaderTests
     [Fact]
     public void GlyfLocaReader_CompositeGlyph_ExponentialBlowUp_ThrowsInvalidDataExceptionViaComponentCap()
     {
-        // A 4-level chain, each with 10 components referencing the next level (branching factor
-        // 10, depth 4 <= MaxDepth): total resolved components is on the order of 10 + 100 + 1000
-        // + 10000, far exceeding the 5000 total-component cap, while nesting depth never
-        // approaches the separate depth cap - proving the component-count cap (not the depth
-        // cap) is what prevents the hang here.
+        // Arrange: a 4-level chain, each with 10 components referencing the next level
+        // (branching factor 10, depth 4 <= MaxDepth): total resolved components is on the order
+        // of 10 + 100 + 1000 + 10000, far exceeding the 5000 total-component cap, while nesting
+        // depth never approaches the separate depth cap - proving the component-count cap (not
+        // the depth cap) is what prevents the hang here
         var leaf = SyntheticFontBuilder.SimpleGlyph([[(0, 0, true), (1, 0, true), (1, 1, true)]]);
 
         byte[] MakeLevel(int referencedGlyphIndex) =>
@@ -357,8 +402,10 @@ public class GlyfLocaReaderTests
         var level1 = MakeLevel(2); // glyph 3: 10 refs to glyph 2
         var level0 = MakeLevel(3); // glyph 4: 10 refs to glyph 3 (the top-level glyph under test)
 
+        // Act
         var reader = BuildReader([leaf, level3, level2, level1, level0]);
 
+        // Assert: the component-count cap trips and the message identifies the count-cap failure
         var ex = Assert.Throws<InvalidDataException>(() => reader.GetGlyphOutline(4));
         Assert.Contains("too many", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -369,10 +416,12 @@ public class GlyfLocaReaderTests
     [Fact]
     public void GlyfLocaReader_Parse_LocaEntryExceedsGlyfBounds_ThrowsInvalidDataException()
     {
+        // Arrange: build a loca table whose single glyph length exceeds the supplied glyf region
         var loca = SyntheticFontBuilder.Loca([100], longFormat: false);
         var data = new byte[loca.Length + 10];
         loca.CopyTo(data, 0);
 
+        // Act/Assert: parsing with the out-of-bounds loca entry throws
         Assert.Throws<InvalidDataException>(() => GlyfLocaReader.Parse(data, 0, loca.Length, loca.Length, 10, 1, false));
     }
 
@@ -382,6 +431,7 @@ public class GlyfLocaReaderTests
     [Fact]
     public void GlyfLocaReader_Parse_NonMonotonicLocaEntries_ThrowsInvalidDataException()
     {
+        // Arrange: build a loca table whose entries decrease instead of monotonically increasing
         var buf = new List<byte>();
         SyntheticFontBuilder.WriteUInt16(buf, 0); // glyph 0: offset 0
         SyntheticFontBuilder.WriteUInt16(buf, 5); // glyph 1 end / glyph 2 start: offset 10
@@ -390,6 +440,7 @@ public class GlyfLocaReaderTests
         var data = new byte[loca.Length + 10];
         loca.CopyTo(data, 0);
 
+        // Act/Assert: parsing the non-monotonic loca table throws
         Assert.Throws<InvalidDataException>(() => GlyfLocaReader.Parse(data, 0, loca.Length, loca.Length, 10, 2, false));
     }
 
@@ -399,8 +450,10 @@ public class GlyfLocaReaderTests
     [Fact]
     public void GlyfLocaReader_Parse_TruncatedLoca_ThrowsInvalidDataException()
     {
+        // Arrange: build a loca buffer shorter than the (numGlyphs + 1) * 2 = 4 bytes required
         var loca = new byte[2]; // needs (numGlyphs + 1) * 2 = 4 bytes for numGlyphs=1
 
+        // Act/Assert: parsing the truncated loca table throws
         Assert.Throws<InvalidDataException>(() => GlyfLocaReader.Parse(loca, 0, loca.Length, 2, 0, 1, false));
     }
 
@@ -410,8 +463,10 @@ public class GlyfLocaReaderTests
     [Fact]
     public void GlyfLocaReader_TruncatedGlyphHeader_ThrowsInvalidDataException()
     {
+        // Arrange: build a reader over a glyph shorter than the 10-byte glyph header
         var reader = BuildReader([new byte[5]]); // shorter than the 10-byte glyph header
 
+        // Act/Assert: reading the truncated glyph header throws
         Assert.Throws<InvalidDataException>(() => reader.GetGlyphOutline(0));
     }
 
@@ -421,6 +476,7 @@ public class GlyfLocaReaderTests
     [Fact]
     public void GlyfLocaReader_InvalidContourCount_ThrowsInvalidDataException()
     {
+        // Arrange: build a glyph header with an invalid contour count (only -1 or >=0 are valid)
         var buf = new List<byte>();
         SyntheticFontBuilder.WriteInt16(buf, -2); // invalid: only -1 (composite) or >=0 are valid
         for (var i = 0; i < 4; i++)
@@ -431,6 +487,7 @@ public class GlyfLocaReaderTests
         var glyph = buf.ToArray();
         var reader = BuildReader([glyph]);
 
+        // Act/Assert: reading the glyph with the invalid contour count throws
         Assert.Throws<InvalidDataException>(() => reader.GetGlyphOutline(0));
     }
 }

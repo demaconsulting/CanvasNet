@@ -30,11 +30,14 @@ public class HmtxHheaReaderTests
     [Fact]
     public void HmtxHheaReader_Parse_ExposesMetrics()
     {
+        // Arrange: build hhea/hmtx tables for two glyphs with distinct advance widths
         var hhea = SyntheticFontBuilder.Hhea(2048, -512, 100, 2);
         var hmtx = SyntheticFontBuilder.Hmtx([600, 700]);
 
+        // Act: parse the combined hhea/hmtx tables
         var reader = Parse(hhea, hmtx, 2);
 
+        // Assert: the ascender/descender/line gap and each glyph's advance width are exposed
         Assert.Equal(2048, reader.Ascender);
         Assert.Equal(-512, reader.Descender);
         Assert.Equal(100, reader.LineGap);
@@ -48,11 +51,14 @@ public class HmtxHheaReaderTests
     [Fact]
     public void HmtxHheaReader_GetAdvanceWidth_TailGlyph_ReusesLastEntry()
     {
+        // Arrange: build hmtx with two width entries followed by trailing left-side-bearing-only entries
         var hhea = SyntheticFontBuilder.Hhea(2048, -512, 100, 2);
         var hmtx = SyntheticFontBuilder.Hmtx([600, 700], tailLsbCount: 3);
 
+        // Act: parse the combined hhea/hmtx tables
         var reader = Parse(hhea, hmtx, 5);
 
+        // Assert: glyphs beyond the last width entry reuse that last entry's advance width
         Assert.Equal(700, reader.GetAdvanceWidth(2));
         Assert.Equal(700, reader.GetAdvanceWidth(4));
     }
@@ -63,8 +69,10 @@ public class HmtxHheaReaderTests
     [Fact]
     public void HmtxHheaReader_Parse_TruncatedHhea_ThrowsInvalidDataException()
     {
+        // Arrange: build an hhea buffer too short to contain a valid header
         var hhea = new byte[10];
 
+        // Act/Assert: parsing the truncated hhea table throws
         Assert.Throws<InvalidDataException>(() => HmtxHheaReader.Parse(hhea, 0, hhea.Length, 0, 100, 2));
     }
 
@@ -74,8 +82,10 @@ public class HmtxHheaReaderTests
     [Fact]
     public void HmtxHheaReader_Parse_NumOfLongHorMetricsZero_ThrowsInvalidDataException()
     {
+        // Arrange: build an hhea table declaring zero long horizontal metrics entries
         var hhea = SyntheticFontBuilder.Hhea(2048, -512, 100, 0);
 
+        // Act/Assert: parsing with zero numOfLongHorMetrics throws
         Assert.Throws<InvalidDataException>(() => HmtxHheaReader.Parse(hhea, 0, hhea.Length, 0, 100, 2));
     }
 
@@ -85,8 +95,10 @@ public class HmtxHheaReaderTests
     [Fact]
     public void HmtxHheaReader_Parse_NumOfLongHorMetricsExceedsNumGlyphs_ThrowsInvalidDataException()
     {
+        // Arrange: build an hhea table declaring more long horizontal metrics than glyphs exist
         var hhea = SyntheticFontBuilder.Hhea(2048, -512, 100, 10);
 
+        // Act/Assert: parsing with numOfLongHorMetrics exceeding numGlyphs throws
         Assert.Throws<InvalidDataException>(() => HmtxHheaReader.Parse(hhea, 0, hhea.Length, 0, 100, 2));
     }
 
@@ -96,9 +108,11 @@ public class HmtxHheaReaderTests
     [Fact]
     public void HmtxHheaReader_Parse_TruncatedHmtx_ThrowsInvalidDataException()
     {
+        // Arrange: build an hmtx table with fewer entries than the hhea table declares
         var hhea = SyntheticFontBuilder.Hhea(2048, -512, 100, 2);
         var hmtx = SyntheticFontBuilder.Hmtx([600]); // only 1 entry, but hhea declares 2
 
+        // Act/Assert: parsing the truncated hmtx table throws
         Assert.Throws<InvalidDataException>(() => Parse(hhea, hmtx, 2));
     }
 }
