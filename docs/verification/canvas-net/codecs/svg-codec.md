@@ -295,6 +295,21 @@ Asserts `Load` throws `InvalidDataException` for non-well-formed XML (an unclose
 Asserts `Load` throws `InvalidDataException` for a `path` `d` attribute containing an
 unrecognized command letter and, separately, a command missing its required numeric arguments.
 
+#### CanvasNet-Codecs-SvgCodec-PercentageGeometryRejected: Percentage Rejected on Geometry Attributes
+
+**Tests**: `SvgCodec_Load_RectXPercentage_ThrowsInvalidDataException`,
+`SvgCodec_Load_RectWidthPercentage_ThrowsInvalidDataException`
+
+Asserts `Load` throws `InvalidDataException` for a `rect`'s `x` attribute expressed as a
+percentage and, separately, for its `width` attribute expressed as a percentage, proving a
+shape/text geometry attribute's percentage value is explicitly rejected rather than silently
+resolved against an undefined basis. Separately confirms (no dedicated regression test needed,
+since both already exist and are unaffected) that
+`SvgCodec_Load_NegativeScientificAndPercentageValues_RendersWithoutThrowing` (which only exercises
+`opacity="50%"`) and `SvgCodec_Load_GradientStopOffsetPercentage_RendersGradientCorrectly` (which
+exercises gradient `stop` `offset` percentages) continue to pass unmodified, proving
+opacity-family attributes and gradient coordinates remain correctly unaffected by this rejection.
+
 #### CanvasNet-Codecs-SvgCodec-UnsupportedConstructsIgnored: Out-of-Scope Constructs Tolerated
 
 **Tests**: `SvgCodec_Load_UnsupportedConstructs_StillRendersRestOfDocument`,

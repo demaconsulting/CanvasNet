@@ -732,6 +732,7 @@ sections:
             children:
               - CanvasNet-Codecs-SvgCodec-MalformedXmlRejected
               - CanvasNet-Codecs-SvgCodec-MalformedPathDataRejected
+              - CanvasNet-Codecs-SvgCodec-PercentageGeometryRejected
             tests:
               - SvgCodec_Load_MalformedXml_ThrowsInvalidDataException
               - SvgCodec_Load_MalformedViewBoxWrongNumberCount_ThrowsInvalidDataException

@@ -54,6 +54,15 @@ tolerant-parsing policy distinct from the codec's malformed-input rejection poli
 _Error Handling_ below) — a document using an out-of-scope construct is not itself invalid SVG,
 only partially outside this codec's supported feature set.
 
+A percentage value on a shape/text geometry attribute (`x`, `y`, `width`, `height`, `rx`, `ry`,
+`cx`, `cy`, `r`, `x1`/`y1`/`x2`/`y2`, `font-size`, `stroke-width`, `stroke-miterlimit`,
+`stroke-dashoffset`, `use`'s `x`/`y`, and `text`'s `x`/`y`) is also out of scope, but is handled
+differently from the constructs above: `SvgCodec` has no defined viewport-relative basis to
+resolve such a percentage against, so rather than being tolerated/silently skipped, it is
+explicitly **rejected** with `InvalidDataException` (see _Error Handling_ below) — opacity-family
+attributes and gradient coordinates/`stop` `offset` are unaffected, since both have a well-defined
+`[0, 1]`-fraction basis this codec already resolves correctly.
+
 ### Data Model
 
 `SvgCodec` has no public data types of its own beyond the shared `Codecs.ImageInfo` record struct
@@ -258,13 +267,20 @@ differently:
   throws the same exception type from its bounded, root-start-tag-only `System.Xml.XmlReader`
   read), or a value the codec must be able to parse to render anything at all is invalid (a
   `viewBox`/`transform` attribute with the wrong number of components or a non-numeric or
-  non-finite (`NaN`/`Infinity`) component, or `path` `d` data with an unrecognized command letter
-  or missing required arguments, or a combined total of path-data commands/points-list
-  coordinates/text characters exceeding the fixed geometry-parsing work budget described above).
-  Every one of these is caught (or detected) and re-thrown/thrown
-  as `System.IO.InvalidDataException` with a descriptive message naming what was invalid, exactly
-  the same contract every other codec in this system uses for malformed source data. This
-  throwing behavior is deliberately narrow: a non-finite gradient stop `offset`/coordinate, an
+  non-finite (`NaN`/`Infinity`) component, a percentage value on a shape/text geometry attribute
+  (`x`, `y`, `width`, `height`, `rx`, `ry`, `cx`, `cy`, `r`, `x1`/`y1`/`x2`/`y2`, `font-size`,
+  `stroke-width`, `stroke-miterlimit`, `stroke-dashoffset`, `use`'s `x`/`y`, and `text`'s `x`/`y`),
+  `path` `d` data with an unrecognized command letter or missing required arguments, or a
+  combined total of path-data commands/points-list coordinates/text characters exceeding the
+  fixed geometry-parsing work budget described above). Every one of these is caught (or detected)
+  and re-thrown/thrown as `System.IO.InvalidDataException` with a descriptive message naming what
+  was invalid, exactly the same contract every other codec in this system uses for malformed
+  source data. A shape/text geometry attribute's percentage is rejected rather than resolved,
+  because `SvgCodec` has no defined viewport-relative basis to resolve it against - unlike
+  opacity-family attributes and gradient coordinates/`stop` `offset`, which correctly treat a
+  percentage as a `[0, 1]` fraction of their own well-defined basis and are unaffected by this
+  rejection. This throwing behavior is deliberately narrow: a non-finite gradient stop
+  `offset`/coordinate, an
   `rgb()`/`rgba()` channel or alpha, or the root `<svg>` element's `width`/`height` fallback tier
   is instead tolerated — treated as absent/unrecognized and resolved via each attribute's own
   documented fallback — because rendering can still proceed meaningfully without that one value,

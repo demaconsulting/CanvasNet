@@ -1498,6 +1498,39 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that a percentage value on a shape geometry attribute (<c>x</c>) is rejected
+    ///     with <see cref="InvalidDataException"/>, because this codec has no defined
+    ///     viewport-relative basis to resolve it against - unlike the opacity percentage exercised
+    ///     by <see cref="SvgCodec_Load_NegativeScientificAndPercentageValues_RendersWithoutThrowing"/>
+    ///     above, which continues to work correctly and is unaffected by this rejection.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_RectXPercentage_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='50%' y='0' width='10' height='10'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves that a percentage value on a shape geometry attribute (<c>width</c>) is
+    ///     rejected with <see cref="InvalidDataException"/>, for the same reason as the <c>x</c>
+    ///     attribute test above - exercising a different attribute through the same
+    ///     <c>GetFloatAttribute</c>/<c>ParseGeometryCoordinate</c> code path.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_RectWidthPercentage_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='0' y='0' width='50%' height='10'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
     ///     Proves that a gradient <c>stop</c>'s <c>offset</c> attribute value of literal
     ///     <c>NaN</c> - a syntactically valid <see cref="float"/> literal that is never a
     ///     meaningful stop position - is treated the same as an absent/unparseable offset

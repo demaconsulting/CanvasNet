@@ -2,6 +2,7 @@
 # Software Unit Requirements for SvgCodec
 #
 # cspell:ignore moveto lineto closepath dasharray letterboxing renderable xlink SMIL uncatchable
+# cspell:ignore miterlimit dashoffset
 #
 # These requirements describe the design-level behavior of the SvgCodec unit.
 
@@ -305,6 +306,25 @@ sections:
                 tests:
                   - SvgCodec_Load_MalformedPathDataUnknownCommand_ThrowsInvalidDataException
                   - SvgCodec_Load_MalformedPathDataMissingArguments_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-SvgCodec-PercentageGeometryRejected
+                title: >-
+                  The SvgCodec class shall reject a percentage value on a shape/text geometry
+                  attribute (x, y, width, height, rx, ry, cx, cy, r, x1/y1/x2/y2, font-size,
+                  stroke-width, stroke-miterlimit, stroke-dashoffset, use's x/y, and text's x/y),
+                  with InvalidDataException, rather than silently resolving it against an
+                  undefined basis.
+                justification: |
+                  SvgCodec has no defined viewport-relative basis to resolve a percentage against
+                  for these attributes (unlike opacity-family attributes and gradient
+                  coordinates/stop offset, which correctly treat a percentage as a [0, 1] fraction
+                  of their own well-defined basis); silently resolving one anyway (for example
+                  treating "50%" as the bare number 0.5) would render visibly wrong geometry
+                  without any indication of error, so a clear, explicit rejection is preferable to
+                  a silently incorrect result.
+                tests:
+                  - SvgCodec_Load_RectXPercentage_ThrowsInvalidDataException
+                  - SvgCodec_Load_RectWidthPercentage_ThrowsInvalidDataException
 
               - id: CanvasNet-Codecs-SvgCodec-UnsupportedConstructsIgnored
                 title: >-

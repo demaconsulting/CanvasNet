@@ -95,7 +95,14 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     which parses the whole document) or the bounded, root-start-tag-only <see cref="XmlReader"/>
 ///     read used by <see cref="GetInfo(Stream)"/> throwing <see cref="XmlException"/>, a
 ///     non-<c>svg</c> root element, missing required path/shape data, invalid numeric syntax
-///     (including a non-finite <c>NaN</c>/<c>Infinity</c> value), a non-positive <c>viewBox</c>
+///     (including a non-finite <c>NaN</c>/<c>Infinity</c> value), a percentage value on a
+///     shape/text geometry attribute (<c>x</c>, <c>y</c>, <c>width</c>, <c>height</c>, <c>rx</c>,
+///     <c>ry</c>, <c>cx</c>, <c>cy</c>, <c>r</c>, <c>x1</c>/<c>y1</c>/<c>x2</c>/<c>y2</c>,
+///     <c>font-size</c>, <c>stroke-width</c>, <c>stroke-miterlimit</c>, <c>stroke-dashoffset</c>,
+///     <c>use</c>'s <c>x</c>/<c>y</c>, and <c>text</c>'s <c>x</c>/<c>y</c> - this codec has no
+///     defined viewport-relative basis to resolve one against, unlike opacity-family attributes
+///     and gradient coordinates/<c>stop</c> <c>offset</c>, which correctly treat a percentage as a
+///     <c>[0, 1]</c> fraction and are unaffected), a non-positive <c>viewBox</c>
 ///     size, a malformed <c>transform</c> attribute, a gradient <c>href</c> cycle, or a combined
 ///     total of path-data commands/points-list coordinates/text characters exceeding a fixed
 ///     geometry-parsing work budget (independent of the total-rendered-element budget, bounding a
@@ -3044,13 +3051,13 @@ public static class SvgCodec
     /// <returns>The parsed value.</returns>
     /// <exception cref="FormatException">Thrown when the attribute is present but not a valid number/percentage.</exception>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when the attribute is present but parses to a non-finite value - see
-    ///     <see cref="ParseCoordinate"/>.
+    ///     Thrown when the attribute is present but parses to a non-finite value, or carries a
+    ///     percentage suffix - see <see cref="ParseGeometryCoordinate"/>.
     /// </exception>
     private static float GetFloatAttribute(XElement element, string name, float defaultValue = 0f)
     {
         var raw = (string?)element.Attribute(name);
-        return raw == null ? defaultValue : ParseCoordinate(raw, 1f);
+        return raw == null ? defaultValue : ParseGeometryCoordinate(raw, name);
     }
 
     /// <summary>Reads an optional numeric attribute, distinguishing "absent" from any parsed value.</summary>
@@ -3059,13 +3066,44 @@ public static class SvgCodec
     /// <returns>The parsed value, or <see langword="null"/> if the attribute is absent.</returns>
     /// <exception cref="FormatException">Thrown when the attribute is present but not a valid number/percentage.</exception>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when the attribute is present but parses to a non-finite value - see
-    ///     <see cref="ParseCoordinate"/>.
+    ///     Thrown when the attribute is present but parses to a non-finite value, or carries a
+    ///     percentage suffix - see <see cref="ParseGeometryCoordinate"/>.
     /// </exception>
     private static float? GetOptionalFloat(XElement element, string name)
     {
         var raw = (string?)element.Attribute(name);
-        return raw == null ? null : ParseCoordinate(raw, 1f);
+        return raw == null ? null : ParseGeometryCoordinate(raw, name);
+    }
+
+    /// <summary>
+    ///     Parses a shape/text geometry attribute's numeric value, rejecting a percentage suffix
+    ///     because this codec has no defined viewport-relative basis to resolve it against -
+    ///     unlike opacity-family attributes (<see cref="ParseOpacityValue"/>), which are correctly
+    ///     basis-1 percentages of a <c>[0, 1]</c> range, and gradient coordinates/<c>stop</c>
+    ///     <c>offset</c> (<see cref="ParsePercentOrNumber"/>), which are correctly resolved as
+    ///     basis-1 fractions of the gradient's own coordinate space - both of which remain
+    ///     unaffected by, and must continue to work exactly as before, this rejection.
+    /// </summary>
+    /// <param name="raw">The raw attribute text.</param>
+    /// <param name="attributeName">The attribute's name, used only for the exception message.</param>
+    /// <returns>The parsed value.</returns>
+    /// <exception cref="FormatException">Propagates from <see cref="ParseCoordinate"/>.</exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="raw"/> ends with a percentage suffix - this codec has no
+    ///     defined viewport-relative basis for a shape/text geometry attribute - or parses to a
+    ///     non-finite value, see <see cref="ParseCoordinate"/>.
+    /// </exception>
+    private static float ParseGeometryCoordinate(string raw, string attributeName)
+    {
+        var trimmed = raw.Trim();
+        if (trimmed.EndsWith('%'))
+        {
+            throw new InvalidDataException(
+                $"The '{attributeName}' attribute's percentage value '{raw}' is not supported: " +
+                "SvgCodec has no defined viewport-relative basis for shape/text geometry attributes.");
+        }
+
+        return ParseCoordinate(trimmed, percentageBasis: 1f);
     }
 
     /// <summary>
