@@ -526,13 +526,14 @@ public static class SvgCodec
 
     /// <summary>
     ///     Leniently parses a CSS-style length attribute (<c>width</c>/<c>height</c>), stripping a
-    ///     recognized unit suffix and treating a percentage or otherwise-unparseable value as
-    ///     "absent" rather than an error - see this class's GetInfo fallback policy remarks.
+    ///     recognized unit suffix and treating a percentage or otherwise-unparseable value
+    ///     (including a non-finite result such as <c>NaN</c>/<c>Infinity</c>) as "absent" rather
+    ///     than an error - see this class's GetInfo fallback policy remarks.
     /// </summary>
     /// <param name="raw">The attribute's raw value, or <see langword="null"/> if absent.</param>
     /// <returns>
     ///     The parsed value, or <see langword="null"/> if <paramref name="raw"/> is absent, blank,
-    ///     a percentage, or not a recognizable number.
+    ///     a percentage, not a recognizable number, or a non-finite number (<c>NaN</c>/<c>Infinity</c>).
     /// </returns>
     private static float? ParseLength(string? raw)
     {
@@ -550,9 +551,17 @@ public static class SvgCodec
         }
 
         trimmed = StripUnitSuffix(trimmed);
-        return float.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
-            ? value
-            : null;
+        if (!float.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ||
+            !float.IsFinite(value))
+        {
+            // A non-finite result (NaN/Infinity) is syntactically a valid float but never a
+            // meaningful length - treat it the same as an unparseable value: "absent", falling
+            // through to the next GetInfo fallback tier, matching this method's existing
+            // tolerant-parsing contract rather than introducing a new throw site
+            return null;
+        }
+
+        return value;
     }
 
     /// <summary>
@@ -2235,7 +2244,10 @@ public static class SvgCodec
     /// </summary>
     /// <param name="token">The raw, trimmed text.</param>
     /// <param name="basis">The value a <c>100%</c> percentage resolves to.</param>
-    /// <returns>The resolved value, or <see langword="null"/> if not a recognizable number/percentage.</returns>
+    /// <returns>
+    ///     The resolved value, or <see langword="null"/> if not a recognizable number/percentage,
+    ///     or if it resolves to a non-finite value (<c>NaN</c>/<c>Infinity</c>).
+    /// </returns>
     private static float? ParsePercentOrNumber(string token, float basis)
     {
         var trimmed = token.Trim();
@@ -2244,14 +2256,26 @@ public static class SvgCodec
             return null;
         }
 
+        float value;
         if (trimmed.EndsWith('%'))
         {
-            return float.TryParse(trimmed[..^1], NumberStyles.Float, CultureInfo.InvariantCulture, out var pct)
-                ? pct / 100f * basis
-                : null;
+            if (!float.TryParse(trimmed[..^1], NumberStyles.Float, CultureInfo.InvariantCulture, out var pct))
+            {
+                return null;
+            }
+
+            value = pct / 100f * basis;
+        }
+        else if (!float.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out value))
+        {
+            return null;
         }
 
-        return float.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : null;
+        // Reject a non-finite result (NaN/Infinity) the same way as an unparseable token: it is
+        // syntactically a valid float but never a meaningful coordinate/channel/offset value -
+        // see ParseCoordinate's identical rule for the throwing (non-nullable) counterpart of
+        // this method
+        return float.IsFinite(value) ? value : null;
     }
 
     // ================================================================================================

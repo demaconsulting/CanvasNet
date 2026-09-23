@@ -248,7 +248,13 @@ differently:
   non-finite (`NaN`/`Infinity`) component, or `path` `d` data with an unrecognized command letter
   or missing required arguments). Every one of these is caught (or detected) and re-thrown/thrown
   as `System.IO.InvalidDataException` with a descriptive message naming what was invalid, exactly
-  the same contract every other codec in this system uses for malformed source data.
+  the same contract every other codec in this system uses for malformed source data. This
+  throwing behavior is deliberately narrow: a non-finite gradient stop `offset`/coordinate, an
+  `rgb()`/`rgba()` channel or alpha, or the root `<svg>` element's `width`/`height` fallback tier
+  is instead tolerated — treated as absent/unrecognized and resolved via each attribute's own
+  documented fallback — because rendering can still proceed meaningfully without that one value,
+  unlike a malformed `viewBox`/`transform`/`path` `d`, without which nothing can be rendered at
+  all.
 - **Well-formed but out-of-scope constructs** — see _Out-of-scope subset_ above. These are
   silently skipped, not errors.
 

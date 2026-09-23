@@ -1,6 +1,6 @@
 ## SvgCodec Unit Verification Design
 
-<!-- cspell:ignore unstroked Letterboxing uncatchable Glyf Loca -->
+<!-- cspell:ignore unstroked Letterboxing uncatchable Glyf Loca unparseable -->
 
 This document describes the unit-level verification strategy for the `SvgCodec` class.
 
@@ -336,22 +336,43 @@ Asserts `GetInfo`'s bounded, root-start-tag-only `XmlReader` parse still resolve
 attributes - the same markup the `MalformedXmlRejected` scenario above proves `Load`'s
 full-document parse still correctly rejects.
 
-#### Non-Finite Numeric Attribute/Token Rejection
+#### Non-Finite Numeric Attribute/Token Rejection or Tolerant Fallback
 
 **Tests**: `SvgCodec_Load_WidthAttributeNaN_ThrowsInvalidDataException`,
 `SvgCodec_Load_StrokeWidthInfinity_ThrowsInvalidDataException`,
 `SvgCodec_Load_PathDataNumberOverflowToInfinity_ThrowsInvalidDataException`,
 `SvgCodec_Load_PointsListNumberOverflowToInfinity_ThrowsInvalidDataException`,
-`SvgCodec_Load_NegativeScientificAndPercentageValues_RendersWithoutThrowing`
+`SvgCodec_Load_NegativeScientificAndPercentageValues_RendersWithoutThrowing`,
+`SvgCodec_Load_GradientStopOffsetNaN_DoesNotThrowAndRenders`,
+`SvgCodec_Load_GradientX1Infinity_FallsBackToDefaultAndRenders`,
+`SvgCodec_Load_RgbaAlphaInfinity_TreatsColorAsUnrecognizedNoPaint`,
+`SvgCodec_GetInfo_WidthHeightInfinity_FallsBackToDefaultSize`,
+`SvgCodec_GetInfo_WidthHeightScientificNotation_ResolvesToBareValue`,
+`SvgCodec_Load_GradientStopOffsetPercentage_RendersGradientCorrectly`
 
-Asserts `Load` rejects a non-finite (`NaN`/`Infinity`) numeric attribute value wherever this
-codec parses a raw SVG numeric attribute/token - a shape attribute parsed by `ParseCoordinate`
-(the literal text `"NaN"`/`"Infinity"` reaches `float.Parse` unfiltered there), and a `path` `d`
-coordinate/`points` list entry parsed by `TryReadNumber` (which requires a legitimately-scanned,
-exponent-overflowing token such as `"1e400"`, since its character-class scan never matches
-literal `"NaN"`/`"Infinity"` text in the first place) - while confirming legitimate finite
-values sharing similar syntax (a negative number, scientific notation, a percentage) still parse
-and render correctly.
+A non-finite (`NaN`/`Infinity`) numeric value reaching this codec's parsing is handled by one of
+two distinct, deliberate failure modes depending on which private parsing method the attribute or
+token flows through - not a single uniform "rejected everywhere" rule:
+
+- **Throwing (`ParseCoordinate`/`TryReadNumber`)**: a shape attribute parsed by `ParseCoordinate`
+  (the literal text `"NaN"`/`"Infinity"` reaches `float.Parse` unfiltered there), and a `path` `d`
+  coordinate/`points` list entry parsed by `TryReadNumber` (which requires a legitimately-scanned,
+  exponent-overflowing token such as `"1e400"`, since its character-class scan never matches
+  literal `"NaN"`/`"Infinity"` text in the first place), both throw `InvalidDataException` when
+  the parsed value is non-finite.
+- **Tolerant null/fallback (`ParsePercentOrNumber`/`ParseLength`)**: a gradient `stop`'s `offset`,
+  a gradient's `x1`/`y1`/`x2`/`y2`/`cx`/`cy`/`r`/`fx`/`fy`/`fr` coordinate, an `rgb()`/`rgba()`
+  channel or alpha, and the root `<svg>` element's `width`/`height` fallback tier are each parsed
+  by `ParsePercentOrNumber` or `ParseLength` - methods whose pre-existing, already-documented
+  contract treats an unparseable value as "absent"/"unrecognized" rather than an error. A
+  non-finite result is now rejected the same tolerant way (falling back to each attribute's
+  documented default, or causing the enclosing color/gradient to be treated as unrecognized),
+  rather than introducing a new throw site inconsistent with that pre-existing contract.
+
+All eleven tests above, together, confirm both failure modes reject the exact malformed input
+each is responsible for, while confirming legitimate finite values sharing similar syntax (a
+negative number, scientific notation, a percentage) still parse and render correctly in both
+code paths.
 
 ### Acceptance Criteria
 

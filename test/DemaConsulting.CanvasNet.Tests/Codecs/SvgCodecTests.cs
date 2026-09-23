@@ -1,5 +1,6 @@
 // cspell:ignore Sfnt sfnt glyf cmap notdef codepoint
 // cspell:ignore Dasharray hhea Hhea hmtx Hmtx hrefs letterboxed Loca Maxp unstroked
+// cspell:ignore unparseable overpainted
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
@@ -1430,6 +1431,180 @@ public class SvgCodecTests
         // Assert: the rect (x=-10, width=100 => spans to x=90) covers (50,25) at ~50% opacity
         // (0.5 * 255 = 127.5 ~ 127/128), not 0 (rejected) and not 255 (opacity ignored)
         Assert.InRange((int)surface[50, 25].A, 115, 140);
+    }
+
+    /// <summary>
+    ///     Proves that a gradient <c>stop</c>'s <c>offset</c> attribute value of literal
+    ///     <c>NaN</c> - a syntactically valid <see cref="float"/> literal that is never a
+    ///     meaningful stop position - is treated the same as an absent/unparseable offset
+    ///     (falling back to <c>0</c>) rather than reaching <c>GradientStop</c>'s constructor,
+    ///     which would otherwise throw an uncaught <see cref="ArgumentOutOfRangeException"/> that
+    ///     propagates past <c>Load</c>'s <see cref="FormatException"/>-only catch boundary.
+    ///     Exercises <c>ParseStops</c> → <c>ParsePercentOrNumber</c>, which (like
+    ///     <c>ParseCoordinate</c>) calls <see cref="float.TryParse(string, System.Globalization.NumberStyles, System.IFormatProvider?, out float)"/>
+    ///     on the attribute's whole trimmed text with no prior character-class filtering, so the
+    ///     literal <c>"NaN"</c> text reaches it unfiltered.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GradientStopOffsetNaN_DoesNotThrowAndRenders()
+    {
+        // Arrange: the second stop's offset is a literal "NaN"
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <linearGradient id='g' x1='0' y1='0' x2='1' y2='0'>
+                  <stop offset='0' stop-color='black'/>
+                  <stop offset='NaN' stop-color='white'/>
+                </linearGradient>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: rendering completed without the raw ArgumentOutOfRangeException a non-finite
+        // offset reaching GradientStop's constructor would otherwise throw
+        Assert.Equal(100, surface.Width);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>linearGradient</c>'s <c>x1</c> attribute value of literal
+    ///     <c>Infinity</c> falls back to its documented default (<c>0</c>) rather than producing
+    ///     a non-finite gradient-space coordinate. Exercises
+    ///     <c>GetGradientCoordinateOrDefault</c> → <c>ParsePercentOrNumber</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GradientX1Infinity_FallsBackToDefaultAndRenders()
+    {
+        // Arrange: x1 is a literal "Infinity" - should fall back to its default of 0, producing
+        // the same left-to-right brightness ramp as if x1 had been omitted entirely
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <linearGradient id='g' x1='Infinity' y1='0' x2='1' y2='0'>
+                  <stop offset='0' stop-color='black'/>
+                  <stop offset='1' stop-color='white'/>
+                </linearGradient>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: brightness still increases left to right, proving x1 fell back to 0 rather
+        // than Infinity (which would break or degenerate the ramp)
+        Assert.True(surface[10, 50].R < surface[90, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves that an <c>rgba()</c> color's alpha channel value of literal <c>Infinity</c>
+    ///     causes the whole color to be treated as unrecognized ("no paint"), the same tolerant
+    ///     "unrecognized color" contract <c>ParseColor</c> already documents for an unknown
+    ///     keyword, rather than silently saturating to fully opaque. Exercises
+    ///     <c>ParseRgbFunctionColor</c> → <c>ParseColorChannel</c>/inline call →
+    ///     <c>ParsePercentOrNumber</c>.
+    /// </summary>
+    /// <remarks>
+    ///     <c>Infinity</c>, not <c>NaN</c>, is used here: pre-fix, <c>Math.Clamp(NaN, 0, 255)</c>
+    ///     returns <c>NaN</c> unchanged (IEEE comparisons against <c>NaN</c> are always false, so
+    ///     neither clamp bound is taken), which then casts to the byte alpha <c>0</c> (fully
+    ///     transparent) - incidentally matching this test's "background shows through" assertion
+    ///     even without the fix, and so failing to discriminate the gap. <c>Infinity</c> instead
+    ///     clamps to <c>255</c> (fully opaque black) pre-fix, which visibly hides the white
+    ///     background - a genuine, fix-dependent failure this test can actually detect.
+    /// </remarks>
+    [Fact]
+    public void SvgCodec_Load_RgbaAlphaInfinity_TreatsColorAsUnrecognizedNoPaint()
+    {
+        // Arrange: a white background rect, overpainted by a second rect whose rgba() alpha is
+        // a literal "Infinity" - if treated as unrecognized, the white background remains visible
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <rect x='0' y='0' width='10' height='10' fill='white'/>
+              <rect x='0' y='0' width='10' height='10' fill='rgba(0,0,0,Infinity)'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the background white shows through - the Infinity-alpha rgba() color was
+        // rejected as unrecognized, not drawn as (saturated-opaque) black
+        var pixel = surface[50, 50];
+        Assert.Equal(255, pixel.R);
+        Assert.Equal(255, pixel.G);
+        Assert.Equal(255, pixel.B);
+    }
+
+    /// <summary>
+    ///     Proves that a root <c>&lt;svg&gt;</c> element's <c>width</c>/<c>height</c> attribute
+    ///     values of literal <c>Infinity</c> fall back to the CSS/UA default
+    ///     <c>300x150</c> intrinsic size, rather than the undefined/saturated integer size that
+    ///     <c>(int)MathF.Round(float.PositiveInfinity)</c> would otherwise produce. Exercises
+    ///     <c>ResolveViewBoxOrSize</c> → <c>ParseLength</c>, consumed by both <c>GetInfo</c> and
+    ///     <c>Load</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfo_WidthHeightInfinity_FallsBackToDefaultSize()
+    {
+        // Arrange: no viewBox, width/height are both literal "Infinity"
+        const string svg = "<svg width='Infinity' height='Infinity'></svg>";
+
+        // Act
+        var info = SvgCodec.GetInfo(ToStream(svg));
+
+        // Assert: falls back to the CSS/UA default replaced-element intrinsic size
+        Assert.Equal(300, info.Width);
+        Assert.Equal(150, info.Height);
+    }
+
+    /// <summary>
+    ///     Proves that the non-finite rejection added to <c>ParseLength</c> does not reject a
+    ///     legitimate finite root <c>width</c>/<c>height</c> expressed in scientific notation.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfo_WidthHeightScientificNotation_ResolvesToBareValue()
+    {
+        // Arrange: width/height use scientific notation, no viewBox present
+        const string svg = "<svg width='1e2' height='1e2'></svg>";
+
+        // Act
+        var info = SvgCodec.GetInfo(ToStream(svg));
+
+        // Assert
+        Assert.Equal(100, info.Width);
+        Assert.Equal(100, info.Height);
+    }
+
+    /// <summary>
+    ///     Proves that the non-finite rejection added to <c>ParsePercentOrNumber</c> does not
+    ///     reject a legitimate finite gradient stop <c>offset</c> expressed as a percentage.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GradientStopOffsetPercentage_RendersGradientCorrectly()
+    {
+        // Arrange: stop offsets are percentages (0% / 100%) rather than bare 0/1 numbers
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <linearGradient id='g' x1='0' y1='0' x2='1' y2='0'>
+                  <stop offset='0%' stop-color='black'/>
+                  <stop offset='100%' stop-color='white'/>
+                </linearGradient>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: brightness increases left to right, as with the equivalent bare-number test
+        Assert.True(surface[10, 50].R < surface[90, 50].R);
     }
 
     /// <summary>
