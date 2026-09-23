@@ -740,15 +740,18 @@ Decodes and rasterizes an SVG file at the specified path, as `Load(Stream, int, 
 public static ImageInfo GetInfo(Stream stream)
 ```
 
-Parses the SVG document and returns an `ImageInfo` describing its intrinsic size, without
-rasterizing pixel data. Uses `viewBox` when present; otherwise falls back to `width`/`height`
-attributes; otherwise falls back to the CSS/UA default replaced-element intrinsic size of
-300x150. `Channels` is always 4 and `HasAlpha` is always true.
+Parses only the SVG document's root `svg` start-tag and its own attributes (never reading into
+the document body) and returns an `ImageInfo` describing its intrinsic size, without rasterizing
+pixel data. Uses `viewBox` when present; otherwise falls back to `width`/`height` attributes;
+otherwise falls back to the CSS/UA default replaced-element intrinsic size of 300x150. `Channels`
+is always 4 and `HasAlpha` is always true.
 
 **Exceptions:**
 
 - `ArgumentNullException`: Thrown when `stream` is null.
-- `InvalidDataException`: Thrown when the stream does not contain valid, parseable SVG/XML.
+- `InvalidDataException`: Thrown when the stream is not well-formed XML up to and including the
+  root start-tag, its root element is not named `svg`, or its `viewBox`/`width`/`height`
+  attributes are present but malformed.
 
 ##### SvgCodec.GetInfo(string path)
 
