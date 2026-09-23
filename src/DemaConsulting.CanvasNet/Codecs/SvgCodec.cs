@@ -881,8 +881,12 @@ public static class SvgCodec
 
     /// <summary>
     ///     Parses a transform function-list value (shared by the <c>transform</c> and
-    ///     <c>gradientTransform</c> attributes), folding the functions left-to-right in the order
-    ///     they appear.
+    ///     <c>gradientTransform</c> attributes). Per the SVG specification, a function list is
+    ///     equivalent to the matrix product of its individual functions in the order listed, and
+    ///     - because that product is applied to a point as a column-vector left-multiply - the
+    ///     <em>last</em>-listed function is the one actually applied to a point first, with the
+    ///     <em>first</em>-listed function applied last (for example <c>"translate(10,20) rotate(30)"</c>
+    ///     rotates a point first, then translates the rotated result).
     /// </summary>
     /// <param name="raw">The raw attribute value, or <see langword="null"/> if absent.</param>
     /// <returns>
@@ -904,11 +908,16 @@ public static class SvgCodec
         var position = 0;
         while (TryReadTransformFunction(raw, ref position, out var function))
         {
-            result *= function;
+            // Prepending (rather than appending) each newly-read function reproduces the SVG
+            // spec's "rightmost function applied first" composition rule under this class's
+            // row-vector Matrix3x2 convention (Vector2.Transform(p, A * B) applies A first, then
+            // B) - see this method's remarks.
+            result = function * result;
         }
 
         return result;
     }
+
 
     /// <summary>
     ///     Attempts to read one <c>name(arguments)</c> transform function starting at
