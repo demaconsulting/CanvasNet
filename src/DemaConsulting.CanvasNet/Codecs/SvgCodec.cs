@@ -404,8 +404,16 @@ public static class SvgCodec
         try
         {
             var (_, size) = ResolveViewBoxOrSize(root);
-            var width = Math.Max(1, (int)MathF.Round(size.X));
-            var height = Math.Max(1, (int)MathF.Round(size.Y));
+
+            // Clamp each resolved dimension to a valid Int32 range in double precision *before*
+            // casting to int: int.MaxValue (2147483647) is not exactly representable as a float
+            // (it rounds up to 2147483648f), so clamping in float first would leave an
+            // out-of-range value that is undefined behavior to cast to int. int.MaxValue *is*
+            // exactly representable as a double, so clamp-then-cast here is well-defined for
+            // every possible resolved size, including a viewBox/width/height large enough to
+            // otherwise overflow Int32 on cast.
+            var width = (int)Math.Clamp((double)MathF.Round(size.X), 1d, int.MaxValue);
+            var height = (int)Math.Clamp((double)MathF.Round(size.Y), 1d, int.MaxValue);
             return new ImageInfo(width, height, 4, true);
         }
         catch (FormatException ex)

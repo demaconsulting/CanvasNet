@@ -1641,6 +1641,47 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Regression test for the <c>GetInfo</c> width/height-cast-overflow finding: a resolved
+    ///     dimension large enough to overflow <see cref="int"/> on a naive cast (previously
+    ///     <c>(int)MathF.Round(size.X)</c>, undefined for a value beyond <see cref="int.MaxValue"/>
+    ///     since <c>int.MaxValue</c> is not exactly representable as a <see cref="float"/>) must
+    ///     instead clamp to <see cref="int.MaxValue"/>, sourced here from a <c>viewBox</c> whose
+    ///     width vastly exceeds <see cref="int.MaxValue"/>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfo_ViewBoxWidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 1e20 1e20'></svg>";
+
+        // Act
+        var info = SvgCodec.GetInfo(ToStream(svg));
+
+        // Assert
+        Assert.Equal(int.MaxValue, info.Width);
+        Assert.Equal(int.MaxValue, info.Height);
+    }
+
+    /// <summary>
+    ///     Regression test for the same <c>GetInfo</c> width/height-cast-overflow finding as
+    ///     <see cref="SvgCodec_GetInfo_ViewBoxWidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing"/>,
+    ///     sourced instead from the <c>width</c>/<c>height</c> fallback tier (no <c>viewBox</c>).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfo_WidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing()
+    {
+        // Arrange
+        const string svg = "<svg width='1e20' height='1e20'></svg>";
+
+        // Act
+        var info = SvgCodec.GetInfo(ToStream(svg));
+
+        // Assert
+        Assert.Equal(int.MaxValue, info.Width);
+        Assert.Equal(int.MaxValue, info.Height);
+    }
+
+    /// <summary>
     ///     Proves that <see cref="SvgCodec.GetInfo(Stream)"/> is bounded to the root <c>svg</c>
     ///     start-tag's own attributes: a document malformed only beyond the root element's
     ///     attributes (an unclosed child tag - the same markup

@@ -166,7 +166,12 @@ both are present and resolve to positive numbers; (3) the CSS/UA default replace
 intrinsic size of 300x150, if neither of the above is present. This mirrors how a web browser
 sizes a sizeless, viewBox-less `<img src="...svg">` element, and ensures `GetInfo` always returns
 a usable, positive size rather than failing on a document that omits explicit sizing information
-entirely.
+entirely. The resolved floating-point size is clamped to the valid `[1, int.MaxValue]` pixel-
+dimension range **before** it is cast to `int` — using a `double` intermediate for the clamp,
+since `int.MaxValue` is not exactly representable as a `float` (it rounds up to `2147483648f`,
+undefined behavior to cast to `int`) but **is** exactly representable as a `double`. This bounds a
+`viewBox`/`width`/`height` value large enough to otherwise overflow `Int32` on cast to a
+well-defined, valid `ImageInfo` dimension instead.
 
 ### Presentation-Attribute Inheritance Model
 

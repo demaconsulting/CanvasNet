@@ -279,21 +279,30 @@ asserting the content band itself is filled.
 #### CanvasNet-Codecs-SvgCodec-GetInfo: GetInfo Reports Resolved Intrinsic Size
 
 **Tests**: `SvgCodec_GetInfo_ViewBoxPresent_ReturnsViewBoxDimensions`,
-`SvgCodec_GetInfo_FromFilePath_ReturnsExpectedInfo`
+`SvgCodec_GetInfo_FromFilePath_ReturnsExpectedInfo`,
+`SvgCodec_GetInfo_ViewBoxWidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing`
 
 Asserts `GetInfo` reports a document's `viewBox` dimensions (even when conflicting `width`/
 `height` attributes are also present, proving `viewBox` takes precedence), always reports
 `Channels = 4` and `HasAlpha = true`, and that the `GetInfo(string)` file-path overload returns
 the same information as the stream overload.
+`SvgCodec_GetInfo_ViewBoxWidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing` is a
+regression test for the width/height-cast-overflow finding: a `viewBox` width large enough to
+overflow `Int32` on a naive cast is clamped to `int.MaxValue` rather than reaching undefined
+`float`-to-`int` cast behavior (since `int.MaxValue` is not exactly representable as a `float`).
 
 #### CanvasNet-Codecs-SvgCodec-GetInfoFallback: GetInfo Three-Tier Fallback Policy
 
 **Tests**: `SvgCodec_GetInfo_NoViewBoxWidthHeightPresent_ReturnsWidthHeight`,
-`SvgCodec_GetInfo_NoViewBoxNoWidthHeight_ReturnsCssDefault300x150`
+`SvgCodec_GetInfo_NoViewBoxNoWidthHeight_ReturnsCssDefault300x150`,
+`SvgCodec_GetInfo_WidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing`
 
 Asserts `GetInfo` falls back to a document's `width`/`height` attributes when no `viewBox` is
 present, and to the CSS/UA default replaced-element intrinsic size (300x150) when neither a
 `viewBox` nor `width`/`height` are present.
+`SvgCodec_GetInfo_WidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing` proves the same
+clamp-before-cast regression coverage as the `viewBox` variant above, sourced from the `width`
+fallback tier instead (`width="1e20"`, no `viewBox`).
 
 #### CanvasNet-Codecs-SvgCodec-MalformedXmlRejected: Malformed XML/ViewBox/Transform Rejected
 
