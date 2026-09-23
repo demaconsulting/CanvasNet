@@ -221,7 +221,7 @@ fit into — not values decoded from the (untrusted) SVG document itself. `SvgCo
 **not** pre-validate or wrap them: they are passed straight through to `new Surface(width,
 height)`, and that constructor's own `ArgumentOutOfRangeException` is allowed to propagate
 unwrapped. This is a deliberate asymmetry with, for example, `BmpCodec`'s handling of a BMP's
-*declared* width/height (which **is** untrusted file data, and so **is** validated against
+_declared_ width/height (which **is** untrusted file data, and so **is** validated against
 `Surface.MaxDimension` and re-thrown as `InvalidDataException`): the two cases look superficially
 similar (both end up as `Surface` dimensions) but have different trust boundaries, and this
 codec's exception contract reflects that difference rather than collapsing it.

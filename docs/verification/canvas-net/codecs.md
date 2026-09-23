@@ -29,4 +29,3 @@ The `Codecs` subsystem's verification passes when every unit test scenario descr
 codec unit verification documents under `codecs/`, and every `CanvasNet_SystemIntegration_*`
 round-trip/load test referenced by the `Codecs` subsystem requirements, pass without error or
 unexpected exception.
-

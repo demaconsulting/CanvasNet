@@ -98,4 +98,3 @@ of CanvasNet's target frameworks with no new runtime NuGet dependency.
 Each unit of the `Codecs` subsystem is a public API entry point, invoked directly by consumers of
 the CanvasNet package. No unit within the `Codecs` subsystem is called by any other subsystem, and
 no unit within the `Codecs` subsystem calls into any other unit of the `Codecs` subsystem.
-
