@@ -93,4 +93,11 @@
     </None>
   </ItemGroup>
 
+  <!-- Hand-authored SVG test fixtures (see SvgFixtures\README.md for provenance) -->
+  <ItemGroup>
+    <None Include="SvgFixtures\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

@@ -156,6 +156,28 @@ public class CanvasNetTests
     }
 
     /// <summary>
+    ///     Proves that the system can rasterize an SVG document into a Surface through the public
+    ///     API, producing the expected integrated pixel result for a shape filled with a solid
+    ///     color. Unlike the BMP/PNG/TIFF/JPEG system-integration tests above, there is no "Save"
+    ///     half to this round-trip: SvgCodec is decode/rasterize-only (see <c>SvgCodecTests</c>/
+    ///     <c>SvgFixtureTests</c> for the full unit test coverage).
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_SvgLoad_ReturnsExpectedPixel()
+    {
+        // Arrange: a minimal SVG document with a viewBox matching the requested raster exactly,
+        // containing one rectangle filled with a distinct, fully opaque color
+        const string svg = "<svg viewBox='0 0 10 10'><rect x='0' y='0' width='10' height='10' fill='rgb(11,22,33)'/></svg>";
+        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(svg));
+
+        // Act: rasterize the document onto a new Surface through the public API
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the system produces the expected integrated rasterized pixel value
+        Assert.Equal(new Rgba32(11, 22, 33, 255), surface[5, 5]);
+    }
+
+    /// <summary>
     ///     Proves that the system can composite a semi-transparent constant color over a Surface
     ///     through the public API, producing the expected Porter-Duff "over" result.
     /// </summary>
