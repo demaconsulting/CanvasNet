@@ -92,13 +92,16 @@ family name (see _Text Rendering and Font Lookup_ below).
 
 **Throws:**
 
-- `ArgumentNullException` — `stream` or `fonts` is null (`fonts` is nullable overall, but a
-  non-null reference containing a null entry is rejected the same way any other null-dictionary
-  misuse would be)
+- `ArgumentNullException` — `stream` is null
 - `InvalidDataException` — the stream is not well-formed XML, or the document's `viewBox`,
   `transform`, gradient, or path `d` data is malformed (see _Error Handling_ below)
 - `ArgumentOutOfRangeException` — `width` or `height` is not positive (propagated, unwrapped,
   from `Surface`'s own constructor — see _Error Handling_ below)
+
+`fonts` is optional (defaulting to `null`); a `null` dictionary, or a dictionary containing a
+`null`-valued entry that happens to match a requested `font-family`, both cause the affected
+`text` element(s) to be silently skipped rather than throwing — see _Gradient, Use, and Text
+Support and Limits_ below.
 
 #### Load(string path, int width, int height, IReadOnlyDictionary\<string, TrueTypeFont\>? fonts = null)
 
