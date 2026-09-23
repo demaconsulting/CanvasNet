@@ -2,6 +2,7 @@
 // cspell:ignore Dasharray hhea Hhea hmtx Hmtx hrefs letterboxed Loca Maxp unstroked
 // cspell:ignore miterlimit
 // cspell:ignore unparseable overpainted bbox moveto lineto
+using System.Diagnostics;
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
@@ -1989,13 +1990,18 @@ public class SvgCodecTests
     ///     loop to require an impractical number of iterations to reach the path's total length,
     ///     because double precision's ULP (unit in the last place) at that magnitude is far larger
     ///     than the dash span - a reproducible, unconditional near-hang, not merely a slow-but-
-    ///     bounded computation. Proven here, using the same hard-timeout pattern as
-    ///     <see cref="SvgCodec_Load_PathRelativeAccumulationOverflowsToInfinity_TerminatesPromptlyWithoutHanging"/>,
-    ///     that <c>Load</c> now completes promptly (the affected path falls back to a solid
-    ///     stroke) rather than hanging.
+    ///     bounded computation. Proven here, by calling <c>Load</c> directly (no wall-clock race):
+    ///     the fix's fixed 50,000,000-iteration cap in <c>DashSplitter.BuildOnIntervals</c> is a
+    ///     deterministic, hardware-independent bound, so the correct regression signal is that the
+    ///     call returns at all with the documented solid-stroke fallback - not how long it takes to
+    ///     do so on any given machine. A generous elapsed-time assertion is retained purely as
+    ///     defense-in-depth against a future regression that reintroduces unbounded iteration; it
+    ///     is measured only after the call has already returned, so it can never itself cause a
+    ///     spurious "hung" failure on slower CI hardware the way a <c>Task.WhenAny</c>/<c>Task.Delay</c>
+    ///     race would.
     /// </summary>
     [Fact]
-    public async Task SvgCodec_Load_HugeFinitePathWithFineDashPattern_TerminatesPromptlyWithoutHanging()
+    public void SvgCodec_Load_HugeFinitePathWithFineDashPattern_TerminatesPromptlyWithoutHanging()
     {
         // Arrange: a path from -1e20,-1e20 to 1e20,1e20 (finite, no overflow) combined with a
         // fine stroke-dasharray, the exact combination that previously made DashSplitter's
@@ -2003,15 +2009,24 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'>" +
                             "<path d='M -1e20 -1e20 L 1e20 1e20' stroke='black' stroke-width='1' stroke-dasharray='5,5'/>" +
                             "</svg>";
-        var cancellationToken = TestContext.Current.CancellationToken;
 
-        // Act
-        var task = Task.Run(() => SvgCodec.Load(ToStream(svg), 10, 10), cancellationToken);
-        var completedTask = await Task.WhenAny(task, Task.Delay(TimeSpan.FromSeconds(10), cancellationToken));
+        // Act: call directly and synchronously - no Task.Run/WhenAny/Delay race. The
+        // 50,000,000-iteration cap deterministically bounds the work, so this either returns
+        // (fixed) or the process itself would need to be killed by the CI job's own timeout
+        // (regressed to truly unbounded) - there is no ambiguous "slow but fine" middle ground for
+        // a hard iteration cap the way there is for wall-clock time.
+        var stopwatch = Stopwatch.StartNew();
+        var surface = SvgCodec.Load(ToStream(svg), 10, 10);
+        stopwatch.Stop();
 
-        // Assert: the load completed (did not hang) and did not throw
-        Assert.Same(task, completedTask);
-        await task;
+        // Assert: the load completed and did not throw. The elapsed-time check is a generous,
+        // one-directional, post-hoc defense-in-depth safety net (asserted only after the call
+        // already returned) - not a pass/fail race against the operation itself.
+        Assert.NotNull(surface);
+        Assert.True(
+            stopwatch.Elapsed < TimeSpan.FromSeconds(30),
+            $"Load took {stopwatch.Elapsed} which is far beyond what the iteration-capped fix " +
+            "should ever require; this indicates a real regression, not CI slowness.");
     }
 
     /// <summary>

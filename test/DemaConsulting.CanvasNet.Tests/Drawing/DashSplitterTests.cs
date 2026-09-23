@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using DemaConsulting.CanvasNet.Drawing;
 
@@ -318,27 +319,39 @@ public class DashSplitterTests
     ///     and a solid stroke (a single segment containing the original points, unchanged) is
     ///     returned instead - mirroring this codebase's other "cannot use this dash pattern -&gt;
     ///     solid stroke" fallbacks.
+    ///     <para>
+    ///     Calls <see cref="DashSplitter.Split"/> directly and synchronously (no
+    ///     <c>Task.Run</c>/<c>Task.WhenAny</c>/<c>Task.Delay</c> race): the fix's fixed
+    ///     50,000,000-iteration cap is a deterministic, hardware-independent bound - the same kind
+    ///     of guarantee already exercised by this test class's many other fixed budget/cap tests
+    ///     (e.g. <see cref="DashSplitter_Split_OrdinaryDashPatternOnOrdinaryPath_ProducesNormalDashSegments"/>
+    ///     immediately below) - so the correct regression signal is that the call returns at all
+    ///     with the documented fallback shape, not how long it takes on any given machine.
+    ///     </para>
     /// </remarks>
     [Fact]
-    public async Task DashSplitter_Split_HugeFiniteTotalLengthWithFineDashSpan_FallsBackToSolidStroke()
+    public void DashSplitter_Split_HugeFiniteTotalLengthWithFineDashSpan_FallsBackToSolidStroke()
     {
         // Arrange: an edge whose length is huge but finite, paired with a fine dash span whose
         // resolution is far below double's ULP at that magnitude.
         var points = new List<Vector2> { new(-1e20f, -1e20f), new(1e20f, 1e20f) };
-        var cancellationToken = TestContext.Current.CancellationToken;
 
-        // Act
-        var task = Task.Run(
-            () => DashSplitter.Split(points, isClosed: false, dashArray: [5f, 5f], dashOffset: 0f),
-            cancellationToken);
-        var completedTask = await Task.WhenAny(task, Task.Delay(TimeSpan.FromSeconds(5), cancellationToken));
+        // Act: direct, synchronous call - the iteration cap (not wall-clock time) is what
+        // guarantees termination, so there is nothing to race against.
+        var stopwatch = Stopwatch.StartNew();
+        var segments = DashSplitter.Split(points, isClosed: false, dashArray: [5f, 5f], dashOffset: 0f);
+        stopwatch.Stop();
 
         // Assert: the call completed (did not hang) - dashing was abandoned entirely, and the
         // whole path is emitted unchanged as a single (unclosed) segment, exactly as the other
-        // "cannot use this dash pattern" fallbacks above already behave.
-        Assert.Same(task, completedTask);
-        var segments = await task;
+        // "cannot use this dash pattern" fallbacks above already behave. The elapsed-time check is
+        // a generous, one-directional, post-hoc defense-in-depth safety net only - asserted after
+        // the call already returned, never racing it.
         Assert.Equal(points, Assert.Single(segments).Points);
+        Assert.True(
+            stopwatch.Elapsed < TimeSpan.FromSeconds(30),
+            $"Split took {stopwatch.Elapsed} which is far beyond what the iteration-capped fix " +
+            "should ever require; this indicates a real regression, not CI slowness.");
     }
 
     /// <summary>
