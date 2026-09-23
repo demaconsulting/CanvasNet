@@ -379,10 +379,13 @@ unrecognized command letter and, separately, a command missing its required nume
 A further, independent case is relative-coordinate accumulation (or an `S`/`T` smooth-curve
 reflection) overflowing an individually-finite pair of literals to a non-finite value:
 `SvgCodec_Load_PathRelativeAccumulationOverflowsToInfinity_TerminatesPromptlyWithoutHanging`
-proves, using the `JpegCodecTests`-precedent `Task.Run`/`Task.WhenAny(task, Task.Delay(...))`
-hang-bounded pattern, that a `path` combining a huge finite relative-accumulation overflow with a
-finite `stroke-dasharray` (which would otherwise stall `Drawing.DashSplitter`'s dash-interval walk
-forever on a non-finite path length) completes promptly instead of hanging.
+proves, by calling `Load` directly and synchronously and asserting it returns a non-null `Surface`
+
+- with elapsed time measured via a `Stopwatch` only after the call has already returned and
+checked against a generous bound purely as a defense-in-depth regression guard, not as a race -
+that a `path` combining a huge finite relative-accumulation overflow with a finite
+`stroke-dasharray` (which would otherwise stall `Drawing.DashSplitter`'s dash-interval walk forever
+on a non-finite path length) completes promptly instead of hanging.
 `SvgCodec_Load_PathSmoothCubicReflectionOverflowsToInfinity_SkipsPathWithoutThrowing` proves the
 independent `S`/`T` smooth-curve reflection overflow path (found via this round's mandatory
 audit) is likewise tolerated - the affected `path` element renders as empty (no fill/stroke ink)
@@ -390,10 +393,12 @@ rather than throwing or hanging.
 
 A distinct, non-overflow case is a path spanning coordinates that are huge but individually
 entirely finite (no `Infinity`/`NaN` anywhere), combined with a fine `stroke-dasharray`:
-`SvgCodec_Load_HugeFinitePathWithFineDashPattern_TerminatesPromptlyWithoutHanging` proves, using
-the same `Task.Run`/`Task.WhenAny(task, Task.Delay(...))` hang-bounded pattern, that a `path` from
-`(-1e20, -1e20)` to `(1e20, 1e20)` with `stroke-dasharray="5,5"` - where double precision's ULP at
-that magnitude is far larger than the dash span, previously forcing
+`SvgCodec_Load_HugeFinitePathWithFineDashPattern_TerminatesPromptlyWithoutHanging` proves, by
+calling `Load` directly and synchronously and asserting it returns a non-null `Surface` - with
+elapsed time measured via a `Stopwatch` only after the call has already returned and checked
+against a generous bound purely as a defense-in-depth regression guard, not as a race - that a
+`path` from `(-1e20, -1e20)` to `(1e20, 1e20)` with `stroke-dasharray="5,5"` - where double
+precision's ULP at that magnitude is far larger than the dash span, previously forcing
 `Drawing.DashSplitter`'s dash-interval traversal loop toward an impractical iteration count even
 though every value involved stays finite - now completes promptly (the affected `path` falls back
 to a solid stroke) instead of hanging.
