@@ -252,11 +252,11 @@ declaring a width one greater than `Surface.MaxDimension`, asserting `GetInfo` r
 oversized width without throwing, and then asserting `Load` on the exact same bytes still throws
 `InvalidDataException`. Proves the previously-suspected zero-length-segment infinite loop is (and
 remains) a false positive: builds a stream containing a marker segment that declares a length of
-zero, calls `GetInfo` directly and synchronously, and asserts it throws `InvalidDataException` -
-with elapsed time measured via a `Stopwatch` only after the call has already returned and checked
-against a generous bound purely as a defense-in-depth regression guard, not as a race - locking in
-that `GetInfo` already terminates promptly rather than looping forever re-reading the same
-zero-length segment.
+zero, calls `GetInfo` directly and synchronously, and asserts it throws `InvalidDataException`.
+No timing measurement is used (consistent with this project's no-timing-based-tests policy);
+termination is guaranteed structurally because the read position strictly advances on every
+iteration, locking in that `GetInfo` already terminates promptly rather than looping forever
+re-reading the same zero-length segment.
 
 #### CanvasNet-Codecs-JpegCodec-GetInfoValidation: GetInfo Rejects Invalid Arguments and Malformed Headers
 

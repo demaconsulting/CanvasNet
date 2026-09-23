@@ -379,13 +379,12 @@ unrecognized command letter and, separately, a command missing its required nume
 A further, independent case is relative-coordinate accumulation (or an `S`/`T` smooth-curve
 reflection) overflowing an individually-finite pair of literals to a non-finite value:
 `SvgCodec_Load_PathRelativeAccumulationOverflowsToInfinity_TerminatesPromptlyWithoutHanging`
-proves, by calling `Load` directly and synchronously and asserting it returns a non-null `Surface`
-
-- with elapsed time measured via a `Stopwatch` only after the call has already returned and
-checked against a generous bound purely as a defense-in-depth regression guard, not as a race -
-that a `path` combining a huge finite relative-accumulation overflow with a finite
-`stroke-dasharray` (which would otherwise stall `Drawing.DashSplitter`'s dash-interval walk forever
-on a non-finite path length) completes promptly instead of hanging.
+proves, by calling `Load` directly and synchronously and asserting it returns a non-null
+`Surface` - a deterministic, no-timing-assertion check (consistent with this project's
+no-timing-based-tests policy), since the non-finite guard structurally bounds the work - that a
+`path` combining a huge finite relative-accumulation overflow with a finite `stroke-dasharray`
+(which would otherwise stall `Drawing.DashSplitter`'s dash-interval walk forever on a non-finite
+path length) completes promptly instead of hanging.
 `SvgCodec_Load_PathSmoothCubicReflectionOverflowsToInfinity_SkipsPathWithoutThrowing` proves the
 independent `S`/`T` smooth-curve reflection overflow path (found via this round's mandatory
 audit) is likewise tolerated - the affected `path` element renders as empty (no fill/stroke ink)
