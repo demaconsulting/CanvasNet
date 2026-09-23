@@ -203,6 +203,7 @@ sections:
                   - SvgCodec_Load_PathDataExceedingGeometryWorkBudget_ThrowsInvalidDataException
                   - SvgCodec_Load_PointListExceedingGeometryWorkBudget_ThrowsInvalidDataException
                   - SvgCodec_Load_TextExceedingGeometryWorkBudget_ThrowsInvalidDataException
+                  - SvgCodec_Load_PointsListLargeExceedingBudget_ThrowsWithoutLargeAllocation
 
               - id: CanvasNet-Codecs-SvgCodec-TextRendering
                 title: >-

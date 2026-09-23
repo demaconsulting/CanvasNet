@@ -203,7 +203,8 @@ test itself fast regardless of how the underlying bug would otherwise behave.
 
 **Tests**: `SvgCodec_Load_PathDataExceedingGeometryWorkBudget_ThrowsInvalidDataException`,
 `SvgCodec_Load_PointListExceedingGeometryWorkBudget_ThrowsInvalidDataException`,
-`SvgCodec_Load_TextExceedingGeometryWorkBudget_ThrowsInvalidDataException`
+`SvgCodec_Load_TextExceedingGeometryWorkBudget_ThrowsInvalidDataException`,
+`SvgCodec_Load_PointsListLargeExceedingBudget_ThrowsWithoutLargeAllocation`
 
 Asserts a single `path` element whose `d` attribute contains just over the codec's fixed
 combined geometry-parsing work budget worth of implicit-repeat `L` commands, a single `polyline`
@@ -218,6 +219,13 @@ programmatically (via `string.Concat`/`Enumerable.Repeat`/`new string(...)`) rat
 as a literal giant string, and the budget is charged incrementally as each command/coordinate/
 character is parsed, so every test throws quickly rather than only after its entire (otherwise
 unbounded) content has already been scanned.
+`SvgCodec_Load_PointsListLargeExceedingBudget_ThrowsWithoutLargeAllocation` further proves, by
+measuring actual bytes allocated via `GC.GetAllocatedBytesForCurrentThread()` (never wall-clock
+time, matching the `PngCodecTests`/`TiffCodecTests` allocation-bound precedent), that a `points`
+attribute far larger than the budget is rejected without `ParsePointList` ever fully
+materializing the whole resolved coordinate list into memory first - closing a regression where
+the budget was previously charged only once, in one batch, after the entire attribute had already
+been parsed into two full-sized lists.
 
 #### CanvasNet-Codecs-SvgCodec-TextRendering: Text Glyph Rendering and Kerning
 

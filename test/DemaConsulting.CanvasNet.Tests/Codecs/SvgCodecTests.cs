@@ -1329,6 +1329,49 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Regression test for the points-list budget-charging finding: <c>ParsePointList</c> used
+    ///     to fully parse the entire <c>points</c> attribute into a <c>List&lt;float&gt;</c> (via
+    ///     <c>ParseNumberList</c>) and then a <c>List&lt;Vector2&gt;</c> of the whole resolved pair
+    ///     count, before ever charging the geometry-parsing work budget - so a hostile, far larger
+    ///     than the budget <c>points</c> string was still fully materialized into two full-sized
+    ///     lists before being rejected, on top of the single already-unavoidable
+    ///     <c>XDocument.Load</c> attribute-value allocation every implementation pays regardless.
+    ///     Proves, by measuring actual bytes allocated (never wall-clock time) during
+    ///     <see cref="SvgCodec.Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont}?)"/>,
+    ///     that the fixed, incrementally-charging <c>ParsePointList</c> throws as soon as the
+    ///     budget is exceeded without ever retaining more than the budget's worth of parsed points
+    ///     - allocating markedly less than the old, fully-materializing implementation for the
+    ///     same input (empirically observed as roughly a third the allocation at this test's pair
+    ///     count, verified locally against the pre-fix implementation).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PointsListLargeExceedingBudget_ThrowsWithoutLargeAllocation()
+    {
+        // Arrange: a points string sized far beyond the codec's fixed 200,000-pair budget
+        // (generated programmatically, never a literal fixture) - large enough that fully
+        // materializing it into List<float>/List<Vector2> before charging allocates tens of
+        // megabytes more than incremental charging, which stops shortly after the budget is
+        // exceeded regardless of how much larger the raw points string is
+        const int hugePairCount = 1_000_000;
+        var points = string.Concat(Enumerable.Repeat("1,1 ", hugePairCount));
+        var svg = $"<svg viewBox='0 0 10 10'><polyline points='{points}'/></svg>";
+        var stream = ToStream(svg);
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 10, 10));
+        var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert
+        Assert.Contains("geometry-parsing work", ex.Message, StringComparison.OrdinalIgnoreCase);
+
+        const long maxExpectedAllocatedBytes = 64 * 1024 * 1024;
+        Assert.True(
+            allocatedDuring < maxExpectedAllocatedBytes,
+            $"Expected no large allocation, but {allocatedDuring:N0} bytes were allocated.");
+    }
+
+    /// <summary>
     ///     Proves that a single <c>&lt;text&gt;</c> element whose content is just over the
     ///     codec's fixed combined geometry-parsing work budget worth of characters is rejected
     ///     with <see cref="InvalidDataException"/>, exercising the same shared budget from a third

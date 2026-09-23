@@ -1569,7 +1569,10 @@ public static class SvgCodec
     /// <summary>Builds a <c>polyline</c> or <c>polygon</c> element's path from its <c>points</c> attribute.</summary>
     /// <param name="element">The <c>polyline</c> or <c>polygon</c> element.</param>
     /// <param name="closed"><see langword="true"/> for <c>polygon</c>; <see langword="false"/> for <c>polyline</c>.</param>
-    /// <param name="workBudget">The shared geometry-parsing work budget, charged with the resolved point count.</param>
+    /// <param name="workBudget">
+    ///     The shared geometry-parsing work budget, charged incrementally as each coordinate pair
+    ///     is parsed (see <see cref="ParsePointList"/>).
+    /// </param>
     /// <returns>The local-space path, empty if fewer than two points are present.</returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when the resolved point count pushes the combined geometry-parsing work total
@@ -1601,16 +1604,22 @@ public static class SvgCodec
     /// <summary>Parses a <c>points</c> attribute's flat number list into coordinate pairs.</summary>
     /// <param name="raw">The attribute's raw value, or <see langword="null"/> if absent.</param>
     /// <param name="workBudget">
-    ///     The shared geometry-parsing work budget, charged once with the resolved coordinate-pair
-    ///     count - the full count is already known from the completed number-list parse, so this
-    ///     charges in one batch rather than one pair at a time, mirroring
-    ///     <see cref="Fonts.GlyfLocaReader"/>'s "charge a known count before it is used further"
-    ///     pattern.
+    ///     The shared geometry-parsing work budget, charged with <c>1</c> unit immediately after
+    ///     each coordinate pair is parsed - before the next pair is read - using the same
+    ///     <see cref="SkipSeparators"/>/<see cref="TryReadNumber"/> primitives
+    ///     <see cref="ParseNumberList"/> itself uses, rather than delegating to
+    ///     <see cref="ParseNumberList"/> and charging the whole resolved count in one batch at the
+    ///     end. This mirrors <see cref="PathDataParser"/>'s own per-command incremental charging,
+    ///     so a single pathologically large <c>points</c> string throws partway through parsing -
+    ///     without ever materializing the full coordinate list - rather than only after its entire
+    ///     (otherwise unbounded) content has already been scanned and allocated.
     /// </param>
     /// <returns>The parsed points, in document order. A trailing unpaired number is dropped.</returns>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when the resolved point count pushes the combined geometry-parsing work total
-    ///     past <see cref="GeometryWorkBudget"/>'s fixed budget.
+    ///     Thrown when a token is not a valid number (matching <see cref="ParseNumberList"/>'s own
+    ///     "malformed token" message convention), or when the resolved point count pushes the
+    ///     combined geometry-parsing work total past <see cref="GeometryWorkBudget"/>'s fixed
+    ///     budget.
     /// </exception>
     private static List<Vector2> ParsePointList(string? raw, GeometryWorkBudget workBudget)
     {
@@ -1620,15 +1629,43 @@ public static class SvgCodec
             return points;
         }
 
-        var numbers = ParseNumberList(raw);
-        for (var i = 0; i + 1 < numbers.Count; i += 2)
+        var position = 0;
+        while (true)
         {
-            points.Add(new Vector2(numbers[i], numbers[i + 1]));
-        }
+            // Read the pair's first coordinate - reaching end-of-input here (rather than a
+            // malformed token) means every preceding pair has already been fully parsed and
+            // charged, so this is the normal, successful end of the list
+            SkipSeparators(raw, ref position);
+            if (position >= raw.Length)
+            {
+                break;
+            }
 
-        // Charge the whole resolved pair count in one batch now that it is fully known, before
-        // the points are used any further
-        workBudget.Charge(points.Count);
+            if (!TryReadNumber(raw, ref position, out var x))
+            {
+                throw new InvalidDataException($"Malformed number list: unexpected character at position {position}.");
+            }
+
+            // A lone trailing number with nothing left to pair it with is silently dropped, not
+            // an error - this is the only case end-of-input is reached between a pair's two
+            // coordinates rather than before the pair starts
+            SkipSeparators(raw, ref position);
+            if (position >= raw.Length)
+            {
+                break;
+            }
+
+            if (!TryReadNumber(raw, ref position, out var y))
+            {
+                throw new InvalidDataException($"Malformed number list: unexpected character at position {position}.");
+            }
+
+            // Charge this pair immediately, before continuing to scan the next one, so a hostile
+            // huge points string is rejected as soon as the budget is exceeded rather than after
+            // the whole string has already been scanned
+            points.Add(new Vector2(x, y));
+            workBudget.Charge(1);
+        }
 
         return points;
     }
@@ -3311,8 +3348,10 @@ public static class SvgCodec
     }
 
     /// <summary>
-    ///     Parses a whitespace/comma-separated list of numbers (used by <c>viewBox</c>, <c>points</c>,
-    ///     transform-function arguments, and <c>stroke-dasharray</c>).
+    ///     Parses a whitespace/comma-separated list of numbers (used by <c>viewBox</c>,
+    ///     transform-function arguments, and <c>stroke-dasharray</c> - <c>points</c> is parsed
+    ///     directly by <see cref="ParsePointList"/> instead, so its coordinate pairs can be
+    ///     charged against the geometry-parsing work budget incrementally as each is read).
     /// </summary>
     /// <param name="raw">The raw, non-<see langword="null"/> list text (may be blank).</param>
     /// <returns>The parsed numbers, in order; empty if <paramref name="raw"/> is blank.</returns>
