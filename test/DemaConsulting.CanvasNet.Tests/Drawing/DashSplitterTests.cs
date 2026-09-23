@@ -300,6 +300,76 @@ public class DashSplitterTests
     }
 
     /// <summary>
+    ///     Proves that a huge-but-finite total path length combined with a fine dash span (the
+    ///     combination that previously made <c>BuildOnIntervals</c>'s traversal loop require an
+    ///     impractical number of iterations to finish) falls back to a solid stroke instead of
+    ///     consuming disproportionate CPU time.
+    /// </summary>
+    /// <remarks>
+    ///     With endpoints at <c>(-1e20, -1e20)</c> and <c>(1e20, 1e20)</c>, the path length is
+    ///     roughly <c>2.83e20</c> - finite in double precision, but at that magnitude double's ULP
+    ///     (unit in the last place) is far larger than the 5-unit dash span in <c>[5, 5]</c>.
+    ///     Every step through <c>BuildOnIntervals</c>'s <c>while</c> loop therefore falls into the
+    ///     loop's <see cref="Math.BitIncrement(double)"/>-based defensive advance-guard, which
+    ///     would otherwise require on the order of <c>totalLength / ulp(totalLength)</c> (roughly
+    ///     1.7e16) iterations to reach <c>totalLength</c> - a reproducible, unconditional near-hang
+    ///     even though every value involved stays finite throughout. This test proves the fix:
+    ///     once the iteration budget is exceeded, dashing is abandoned entirely for the whole path
+    ///     and a solid stroke (a single segment containing the original points, unchanged) is
+    ///     returned instead - mirroring this codebase's other "cannot use this dash pattern -&gt;
+    ///     solid stroke" fallbacks.
+    /// </remarks>
+    [Fact]
+    public async Task DashSplitter_Split_HugeFiniteTotalLengthWithFineDashSpan_FallsBackToSolidStroke()
+    {
+        // Arrange: an edge whose length is huge but finite, paired with a fine dash span whose
+        // resolution is far below double's ULP at that magnitude.
+        var points = new List<Vector2> { new(-1e20f, -1e20f), new(1e20f, 1e20f) };
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        // Act
+        var task = Task.Run(
+            () => DashSplitter.Split(points, isClosed: false, dashArray: [5f, 5f], dashOffset: 0f),
+            cancellationToken);
+        var completedTask = await Task.WhenAny(task, Task.Delay(TimeSpan.FromSeconds(5), cancellationToken));
+
+        // Assert: the call completed (did not hang) - dashing was abandoned entirely, and the
+        // whole path is emitted unchanged as a single (unclosed) segment, exactly as the other
+        // "cannot use this dash pattern" fallbacks above already behave.
+        Assert.Same(task, completedTask);
+        var segments = await task;
+        Assert.Equal(points, Assert.Single(segments).Points);
+    }
+
+    /// <summary>
+    ///     Proves that an ordinary dash pattern on an ordinary-length path is entirely unaffected
+    ///     by the new iteration-budget cap: it neither triggers the solid-stroke fallback nor
+    ///     changes the emitted dash segments compared to pre-fix behavior.
+    /// </summary>
+    [Fact]
+    public void DashSplitter_Split_OrdinaryDashPatternOnOrdinaryPath_ProducesNormalDashSegments()
+    {
+        // Arrange: a simple 17-unit horizontal path with a [3, 2] dash pattern (well within any
+        // reasonable iteration count, and far from any extreme-magnitude coordinate), long enough
+        // to include a final partial "on" dash.
+        var points = new List<Vector2> { new(0, 0), new(17, 0) };
+
+        // Act
+        var segments = DashSplitter.Split(points, isClosed: false, dashArray: [3f, 2f], dashOffset: 0f);
+
+        // Assert: the expected three full "on" dashes plus one final partial dash, none of which
+        // is the whole-path solid-stroke fallback shape.
+        Assert.Equal(
+            [
+                new List<Vector2> { new(0, 0), new(3, 0) },
+                new List<Vector2> { new(5, 0), new(8, 0) },
+                new List<Vector2> { new(10, 0), new(13, 0) },
+                new List<Vector2> { new(15, 0), new(17, 0) }
+            ],
+            segments.Select(s => s.Points).ToList());
+    }
+
+    /// <summary>
     ///     Proves that an edge spanning near-extreme float32 coordinates (from near
     ///     <see cref="float.MinValue"/> to near <see cref="float.MaxValue"/>) - a legal, finite
     ///     pair of <see cref="Vector2"/> endpoints - completes and produces finite dash intervals,

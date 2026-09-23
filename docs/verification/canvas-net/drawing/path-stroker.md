@@ -105,6 +105,8 @@ renders a visible stroke rather than vanishing to nothing.
 - `DashSplitter_Split_TinyNegativeOffsetAgainstAsymmetricHugePattern_ProducesCorrectPhase`
 - `DashSplitter_Split_ZeroLengthLeadingDashEntryOnZeroLengthPath_StartsInFollowingOffEntry`
 - `DashSplitter_Split_EdgeSpanningExtremeFloat32Coordinates_CompletesWithFiniteSegments`
+- `DashSplitter_Split_HugeFiniteTotalLengthWithFineDashSpan_FallsBackToSolidStroke`
+- `PathStroker_Stroke_HugeFiniteCoordinatesWithFineDashPattern_CompletesWithoutHanging`
 - `StrokeOutliner_Outline_RoundJoinAtExtremeScale_ProducesCurvedNotStraightJoin`
 - `StrokeOutliner_Outline_RoundCapAtTypicalScale_MatchesExpectedSegmentCount`
 - `StrokeOutliner_Outline_RoundJoinSmallSweepAtExtremeScale_ProducesMultiSegmentCurve`
@@ -115,9 +117,12 @@ tessellation, and closed-contour collinearity/winding classification all remain 
 terminate promptly even when intermediate arithmetic would naively overflow or underflow float32 -
 covering a huge dash pattern combined with a tiny negative offset (symmetric and asymmetric
 patterns), an edge or closed contour spanning near-extreme float32 coordinate magnitudes, a
-zero-length leading dash-array entry evaluated against a zero-length path, and a round join/cap
-tessellated at extreme geometric scale - rather than hanging, misclassifying the contour as
-degenerate, or producing `NaN`/`Infinity` coordinates.
+zero-length leading dash-array entry evaluated against a zero-length path, a huge-but-finite total
+path length combined with a fine dash span (where double precision's ULP at that magnitude
+otherwise forces the dash-interval traversal loop toward an impractical iteration count, now capped
+and falling back to a solid stroke instead of consuming disproportionate CPU time), and a round
+join/cap tessellated at extreme geometric scale - rather than hanging, misclassifying the contour
+as degenerate, or producing `NaN`/`Infinity` coordinates.
 
 #### Public API Validation
 

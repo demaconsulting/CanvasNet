@@ -455,6 +455,32 @@ public class PathStrokerTests
     }
 
     /// <summary>
+    ///     Proves that a huge-but-finite total path length combined with a fine dash span does
+    ///     not hang the public <see cref="PathStroker.Stroke(Path, StrokeStyle, float)"/> entry
+    ///     point, pairing with <see cref="DashSplitterTests.DashSplitter_Split_HugeFiniteTotalLengthWithFineDashSpan_FallsBackToSolidStroke"/>.
+    /// </summary>
+    [Fact]
+    public async Task PathStroker_Stroke_HugeFiniteCoordinatesWithFineDashPattern_CompletesWithoutHanging()
+    {
+        // Arrange
+        var path = new PathBuilder()
+            .MoveTo(new Vector2(-1e20f, -1e20f))
+            .LineTo(new Vector2(1e20f, 1e20f))
+            .Build();
+        var style = new StrokeStyle(2f, dashArray: [5f, 5f]);
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        // Act
+        var task = Task.Run(() => PathStroker.Stroke(path, style), cancellationToken);
+        var completedTask = await Task.WhenAny(task, Task.Delay(TimeSpan.FromSeconds(5), cancellationToken));
+
+        // Assert: the call completed (did not hang) with a well-formed result
+        Assert.Same(task, completedTask);
+        var stroked = await task;
+        Assert.NotNull(stroked);
+    }
+
+    /// <summary>
     ///     Proves that a sharp corner exceeding the miter limit falls back to bevel geometry.
     /// </summary>
     [Fact]

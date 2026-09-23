@@ -388,6 +388,16 @@ independent `S`/`T` smooth-curve reflection overflow path (found via this round'
 audit) is likewise tolerated - the affected `path` element renders as empty (no fill/stroke ink)
 rather than throwing or hanging.
 
+A distinct, non-overflow case is a path spanning coordinates that are huge but individually
+entirely finite (no `Infinity`/`NaN` anywhere), combined with a fine `stroke-dasharray`:
+`SvgCodec_Load_HugeFinitePathWithFineDashPattern_TerminatesPromptlyWithoutHanging` proves, using
+the same `Task.Run`/`Task.WhenAny(task, Task.Delay(...))` hang-bounded pattern, that a `path` from
+`(-1e20, -1e20)` to `(1e20, 1e20)` with `stroke-dasharray="5,5"` - where double precision's ULP at
+that magnitude is far larger than the dash span, previously forcing
+`Drawing.DashSplitter`'s dash-interval traversal loop toward an impractical iteration count even
+though every value involved stays finite - now completes promptly (the affected `path` falls back
+to a solid stroke) instead of hanging.
+
 #### CanvasNet-Codecs-SvgCodec-PercentageGeometryRejected: Percentage Rejected on Geometry Attributes
 
 **Tests**: `SvgCodec_Load_RectXPercentage_ThrowsInvalidDataException`,

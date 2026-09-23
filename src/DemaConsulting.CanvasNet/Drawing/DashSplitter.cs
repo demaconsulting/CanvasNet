@@ -16,6 +16,29 @@ namespace DemaConsulting.CanvasNet.Drawing;
 internal static class DashSplitter
 {
     /// <summary>
+    ///     The maximum number of iterations <see cref="BuildOnIntervals"/>'s traversal loop will
+    ///     run before giving up on this dash pattern, guarding against a finite-but-astronomically
+    ///     large <c>totalLength</c> (e.g. a path spanning coordinates on the order of
+    ///     <c>1e20</c>) whose double-precision ULP (unit in the last place) is far larger than a
+    ///     fine dash span (e.g. <c>[5, 5]</c>). In that situation the loop's
+    ///     <see cref="Math.BitIncrement(double)"/>-based defensive advance-guard - which exists so
+    ///     the loop can never fail to terminate - is still forced to run on the order of
+    ///     <c>totalLength / ulp(totalLength)</c> times, which is finite but can require an
+    ///     impractically large number of iterations (e.g. ~1.7e16 for the coordinates above): a
+    ///     reproducible, unconditional near-hang, not merely a slow-but-bounded computation, even
+    ///     though every value in play (<c>position</c>, <c>span</c>, <c>totalLength</c>) stays
+    ///     finite throughout. 50,000,000 is comfortably above the ~17,000,000 iterations the
+    ///     existing <c>DashSplitter_Split_FineDashPatternOnVeryLongPath_CompletesWithCorrectSegments</c>
+    ///     regression test already legitimately requires (a fine dash pattern on a long, but
+    ///     ordinary-magnitude, path), while empirically bounding this loop's own worst-case wall
+    ///     time to roughly 100-200ms (Release, JIT-warmed) - far below any threshold a caller
+    ///     could perceive as hanging. When this cap is reached, <see cref="Split"/> abandons
+    ///     dashing entirely for the whole path and falls back to a solid stroke, mirroring this
+    ///     method's other "cannot resolve this dash pattern" fallbacks.
+    /// </summary>
+    private const int MaxOnIntervalIterations = 50_000_000;
+
+    /// <summary>
     ///     Splits <paramref name="points"/> into the visible "on" dash segments described by
     ///     <paramref name="dashArray"/> and <paramref name="dashOffset"/>.
     /// </summary>
@@ -71,7 +94,25 @@ internal static class DashSplitter
             return IsDashOnAtStart(pattern, dashOffset) ? [(new List<Vector2>(points), isClosed)] : [];
         }
 
-        var onIntervals = BuildOnIntervals(pattern, dashOffset, totalLength, isClosed, out var encounteredPositiveOffSpan);
+        var onIntervals = BuildOnIntervals(
+            pattern,
+            dashOffset,
+            totalLength,
+            isClosed,
+            out var encounteredPositiveOffSpan,
+            out var iterationBudgetExceeded);
+
+        // A finite-but-astronomically-large totalLength combined with a fine dash span can force
+        // BuildOnIntervals' defensive advance-guard to run an impractical number of iterations
+        // (see MaxOnIntervalIterations' remarks). Rather than let that scenario consume CPU time
+        // disproportionate to the caller's request, abandon dashing entirely for the whole path
+        // and fall back to a solid stroke - the same fallback shape used above for a non-finite or
+        // non-positive total pattern length.
+        if (iterationBudgetExceeded)
+        {
+            return [(new List<Vector2>(points), isClosed)];
+        }
+
         if (onIntervals.Count == 0)
         {
             return [];
@@ -386,24 +427,36 @@ internal static class DashSplitter
     ///     supports. As a second, magnitude-independent line of defense (in case some future caller
     ///     supplies a path long enough to exhaust even double precision), the loop explicitly
     ///     detects a step that fails to advance <c>position</c> and forces it to the next
-    ///     representable value rather than silently spinning.
+    ///     representable value rather than silently spinning. That advance-guard alone only
+    ///     guarantees eventual termination, not a practical iteration count: see
+    ///     <see cref="MaxOnIntervalIterations"/> for the additional, magnitude-independent cap
+    ///     that bounds worst-case iteration count (and therefore worst-case wall time) directly.
     /// </remarks>
     private static List<(double Start, double End)> BuildOnIntervals(
         IReadOnlyList<float> pattern,
         float dashOffset,
         double totalLength,
         bool isClosed,
-        out bool encounteredPositiveOffSpan)
+        out bool encounteredPositiveOffSpan,
+        out bool iterationBudgetExceeded)
     {
         encounteredPositiveOffSpan = false;
+        iterationBudgetExceeded = false;
         var intervals = new List<(double Start, double End)>();
         var patternLength = GetPatternLength(pattern);
         var (dashIndex, remainingInDashFloat) = LocatePhase(pattern, dashOffset, patternLength);
         double remainingInDash = remainingInDashFloat;
 
         var position = 0d;
+        var iterations = 0;
         while (position < totalLength)
         {
+            if (++iterations > MaxOnIntervalIterations)
+            {
+                iterationBudgetExceeded = true;
+                break;
+            }
+
             if (remainingInDash <= 0d)
             {
                 AdvanceDash(pattern, ref dashIndex, ref remainingInDash);

@@ -1982,6 +1982,39 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Regression test for the huge-finite-total-length-vs-fine-dash-span CPU-exhaustion
+    ///     finding: a path spanning coordinates on the order of <c>1e20</c> (finite, no overflow
+    ///     involved at all) combined with a fine <c>stroke-dasharray</c> forced
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.DashSplitter"/>'s dash-interval traversal
+    ///     loop to require an impractical number of iterations to reach the path's total length,
+    ///     because double precision's ULP (unit in the last place) at that magnitude is far larger
+    ///     than the dash span - a reproducible, unconditional near-hang, not merely a slow-but-
+    ///     bounded computation. Proven here, using the same hard-timeout pattern as
+    ///     <see cref="SvgCodec_Load_PathRelativeAccumulationOverflowsToInfinity_TerminatesPromptlyWithoutHanging"/>,
+    ///     that <c>Load</c> now completes promptly (the affected path falls back to a solid
+    ///     stroke) rather than hanging.
+    /// </summary>
+    [Fact]
+    public async Task SvgCodec_Load_HugeFinitePathWithFineDashPattern_TerminatesPromptlyWithoutHanging()
+    {
+        // Arrange: a path from -1e20,-1e20 to 1e20,1e20 (finite, no overflow) combined with a
+        // fine stroke-dasharray, the exact combination that previously made DashSplitter's
+        // traversal loop require an astronomically large iteration count to complete
+        const string svg = "<svg viewBox='0 0 100 100'>" +
+                            "<path d='M -1e20 -1e20 L 1e20 1e20' stroke='black' stroke-width='1' stroke-dasharray='5,5'/>" +
+                            "</svg>";
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        // Act
+        var task = Task.Run(() => SvgCodec.Load(ToStream(svg), 10, 10), cancellationToken);
+        var completedTask = await Task.WhenAny(task, Task.Delay(TimeSpan.FromSeconds(10), cancellationToken));
+
+        // Assert: the load completed (did not hang) and did not throw
+        Assert.Same(task, completedTask);
+        await task;
+    }
+
+    /// <summary>
     ///     Regression test for the audit-discovered <c>S</c>/<c>T</c> smooth-curve reflection
     ///     overflow finding: <c>Reflect</c>'s <c>2*center - point</c> arithmetic can overflow to a
     ///     non-finite value from an individually-finite cubic-Bezier control point and current
