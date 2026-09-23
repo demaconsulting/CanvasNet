@@ -158,6 +158,15 @@ does not fill. This is the **only** fitting behavior `SvgCodec` implements; the
 `preserveAspectRatio` attribute itself is never parsed or read, so a document that requests a
 different alignment or a non-uniform ("slice"/"none") fit is still fit as "meet, centered."
 
+An intrinsic size that is positive and finite (passing the checks above) can still be small
+enough — a subnormal float, for example — that dividing the requested raster dimensions by it
+overflows the computed scale to a non-finite value. `Load` validates the resulting fit transform
+with the same finiteness check used for composed element transforms immediately after computing
+it, and rejects it with `InvalidDataException` rather than silently proceeding: an unvalidated
+non-finite fit transform would otherwise cause every element in the document to fail that same
+per-element finiteness check and render a blank, fully-transparent surface with no exception at
+all — a worse "quiet" failure than the sibling non-positive-size case already throws for.
+
 ### GetInfo Fallback Policy
 
 `GetInfo` (and `Load`, internally, for the same purpose) resolves a document's size in three

@@ -344,6 +344,7 @@ sections:
                   - SvgCodec_Load_MalformedTransformUnrecognizedFunction_ThrowsInvalidDataException
                   - SvgCodec_Load_DocumentExceedingCharacterBudget_ThrowsInvalidDataException
                   - SvgCodec_Load_DocumentWithinCharacterBudget_LoadsSuccessfully
+                  - SvgCodec_Load_ViewBoxWidthExtremelySmallCausesNonFiniteFitScale_ThrowsInvalidDataException
 
               - id: CanvasNet-Codecs-SvgCodec-MalformedPathDataRejected
                 title: >-

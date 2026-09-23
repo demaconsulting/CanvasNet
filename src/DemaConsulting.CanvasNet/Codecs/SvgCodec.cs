@@ -323,6 +323,21 @@ public static class SvgCodec
         {
             var (origin, size) = ResolveViewBoxOrSize(root);
             var fitTransform = ComputeFitTransform(origin, size, surface.Width, surface.Height);
+
+            // A tiny-but-positive, finite resolved viewBox/width/height (for example a subnormal
+            // float) passes ResolveViewBoxOrSize's own "must be positive" check but can still
+            // overflow ComputeFitTransform's own division to a non-finite scale. Left unvalidated,
+            // the resulting non-finite fitTransform would silently fail IsFiniteTransform's
+            // per-element check for every single element in the document, rendering a blank,
+            // fully-transparent surface with no exception at all - a worse "quiet" failure than
+            // the sibling non-positive-viewBox case already throws for. Treat a degenerate fit
+            // scale as the same class of malformed-sizing-data error instead.
+            if (!IsFiniteTransform(fitTransform))
+            {
+                throw new InvalidDataException(
+                    "The SVG document's resolved viewBox/width/height produces a non-finite fit transform.");
+            }
+
             var idIndex = BuildIdIndex(root);
             var context = new RenderContext(surface, idIndex, fonts);
             RenderDocument(root, fitTransform, context);
@@ -735,7 +750,12 @@ public static class SvgCodec
     /// <param name="rasterHeight">The requested raster height, in pixels.</param>
     /// <returns>
     ///     A transform mapping viewBox user-space coordinates directly into raster pixel-space
-    ///     coordinates.
+    ///     coordinates. Can be non-finite when <paramref name="size"/> is extremely small but
+    ///     still positive (for example a subnormal float) - dividing the requested raster
+    ///     dimensions by such a value overflows the resulting scale to <c>Infinity</c>. This
+    ///     method does not itself validate its result; <c>Load</c> is responsible for checking
+    ///     the returned transform with <see cref="IsFiniteTransform"/> immediately after calling
+    ///     this method, before using it to render anything.
     /// </returns>
     private static Matrix3x2 ComputeFitTransform(Vector2 origin, Vector2 size, int rasterWidth, int rasterHeight)
     {

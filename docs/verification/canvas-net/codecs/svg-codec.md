@@ -355,7 +355,8 @@ fallback tier instead (`width="1e20"`, no `viewBox`).
 `SvgCodec_Load_ViewBoxNonPositiveWidth_ThrowsInvalidDataException`,
 `SvgCodec_Load_MalformedTransformUnrecognizedFunction_ThrowsInvalidDataException`,
 `SvgCodec_Load_DocumentExceedingCharacterBudget_ThrowsInvalidDataException`,
-`SvgCodec_Load_DocumentWithinCharacterBudget_LoadsSuccessfully`
+`SvgCodec_Load_DocumentWithinCharacterBudget_LoadsSuccessfully`,
+`SvgCodec_Load_ViewBoxWidthExtremelySmallCausesNonFiniteFitScale_ThrowsInvalidDataException`
 
 Asserts `Load` throws `InvalidDataException` for non-well-formed XML (an unclosed tag), a
 `viewBox` with the wrong number of components, a `viewBox` with a non-positive width, and a
@@ -367,6 +368,13 @@ already-existing `XmlException` catch) rather than being fully materialized into
 in-memory DOM, and `SvgCodec_Load_DocumentWithinCharacterBudget_LoadsSuccessfully` proves a
 document sized just under that same bound still loads successfully, so the new bound does not
 false-positive-reject an ordinary document.
+`SvgCodec_Load_ViewBoxWidthExtremelySmallCausesNonFiniteFitScale_ThrowsInvalidDataException` is a
+regression test for the degenerate-fit-transform finding: a `viewBox` width/height that is
+positive and finite (passing `ParseViewBox`'s existing checks) but small enough (a subnormal
+float) that `ComputeFitTransform`'s own division overflows the resulting scale to a non-finite
+value is now rejected with `InvalidDataException` immediately after the fit transform is
+computed, rather than silently proceeding to render a blank, fully-transparent surface with no
+error at all.
 
 #### CanvasNet-Codecs-SvgCodec-MalformedPathDataRejected: Malformed Path "d" Data Rejected
 

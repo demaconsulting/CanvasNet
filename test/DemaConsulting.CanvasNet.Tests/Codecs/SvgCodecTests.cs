@@ -1923,6 +1923,29 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Regression test for the degenerate-fit-transform finding: a <c>viewBox</c> width that
+    ///     is extremely small but still finite and positive (a subnormal float) passes
+    ///     <c>ParseViewBox</c>'s existing "must be positive" check, but dividing the requested
+    ///     raster width by such a value overflows <c>ComputeFitTransform</c>'s own scale to
+    ///     <see cref="float.PositiveInfinity"/>. Left unguarded, the resulting non-finite fit
+    ///     transform would previously cause every element to silently fail
+    ///     <c>IsFiniteTransform</c>'s per-element check and render a blank, transparent surface
+    ///     with no exception - proves this now throws <see cref="InvalidDataException"/> instead,
+    ///     the same class of malformed-sizing-data error the sibling non-positive-width case
+    ///     already throws for.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ViewBoxWidthExtremelySmallCausesNonFiniteFitScale_ThrowsInvalidDataException()
+    {
+        // Arrange: a subnormal-magnitude viewBox width/height, positive and finite, but small
+        // enough that raster-width / width overflows float to Infinity
+        const string svg = "<svg viewBox='0 0 1e-40 1e-40'><rect x='0' y='0' width='1e-40' height='1e-40' fill='red'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
     ///     Proves that malformed <c>path</c> "d" data (an unrecognized command letter) is rejected
     ///     as an <see cref="InvalidDataException"/>.
     /// </summary>
