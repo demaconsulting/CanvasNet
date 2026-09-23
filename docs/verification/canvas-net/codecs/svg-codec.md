@@ -300,11 +300,20 @@ present, and to the CSS/UA default replaced-element intrinsic size (300x150) whe
 **Tests**: `SvgCodec_Load_MalformedXml_ThrowsInvalidDataException`,
 `SvgCodec_Load_MalformedViewBoxWrongNumberCount_ThrowsInvalidDataException`,
 `SvgCodec_Load_ViewBoxNonPositiveWidth_ThrowsInvalidDataException`,
-`SvgCodec_Load_MalformedTransformUnrecognizedFunction_ThrowsInvalidDataException`
+`SvgCodec_Load_MalformedTransformUnrecognizedFunction_ThrowsInvalidDataException`,
+`SvgCodec_Load_DocumentExceedingCharacterBudget_ThrowsInvalidDataException`,
+`SvgCodec_Load_DocumentWithinCharacterBudget_LoadsSuccessfully`
 
 Asserts `Load` throws `InvalidDataException` for non-well-formed XML (an unclosed tag), a
 `viewBox` with the wrong number of components, a `viewBox` with a non-positive width, and a
 `transform` attribute naming an unrecognized function.
+`SvgCodec_Load_DocumentExceedingCharacterBudget_ThrowsInvalidDataException` further asserts a
+generated, well-formed document whose total character count exceeds the codec's fixed
+`MaxCharactersInDocument` bound is rejected with `InvalidDataException` (surfaced through the
+already-existing `XmlException` catch) rather than being fully materialized into an unbounded
+in-memory DOM, and `SvgCodec_Load_DocumentWithinCharacterBudget_LoadsSuccessfully` proves a
+document sized just under that same bound still loads successfully, so the new bound does not
+false-positive-reject an ordinary document.
 
 #### CanvasNet-Codecs-SvgCodec-MalformedPathDataRejected: Malformed Path "d" Data Rejected
 

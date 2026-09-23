@@ -266,7 +266,10 @@ document referencing a family the caller did not supply is not malformed input.
 differently:
 
 - **Malformed or unparseable input** — the stream is not well-formed XML (`Load` throws
-  `System.Xml.XmlException` from its full `XDocument.Load` parse of the whole document; `GetInfo`
+  `System.Xml.XmlException` from its full `XDocument.Load` parse of the whole document, bounded to
+  a fixed maximum total character count via `XmlReaderSettings.MaxCharactersInDocument` so an
+  unbounded-size stream cannot be fully materialized into an in-memory DOM before any other guard
+  gets a chance to run — see the accepted-limitation note below; `GetInfo`
   throws the same exception type from its bounded, root-start-tag-only `System.Xml.XmlReader`
   read), or a value the codec must be able to parse to render anything at all is invalid (a
   `viewBox`/`transform` attribute with the wrong number of components or a non-numeric or
@@ -307,6 +310,18 @@ differently:
   `ArgumentOutOfRangeException`.
 - **Well-formed but out-of-scope constructs** — see _Out-of-scope subset_ above. These are
   silently skipped, not errors.
+
+**Accepted limitation: document-size bound is a raw character count, not a streaming parse.**
+The `MaxCharactersInDocument` bound `Load` applies to its `XDocument.Load` call stops an
+unbounded-size stream from being fully materialized into an in-memory DOM before any other guard
+(`MaxTotalRenderedElements`, the total-document-element budget, or the geometry-parsing work
+budget) ever gets a chance to run — those guards only execute during the rendering walk that
+follows a successful parse. It does **not**, however, make parsing itself incremental: a
+well-formed document sized just under this character cap can still fully materialize into memory
+before any of those other guards reject a single pathological element's content. Closing this
+remaining gap completely would require replacing `XDocument`/`XElement` with a fully streaming
+parser — an architectural change out of scope for this bound, which specifically targets the
+previously-completely-unbounded "raw document size" dimension.
 
 **Caller-supplied output dimensions are not file data.** `Load`'s `width`/`height` parameters are
 ordinary API parameters supplied directly by the caller — the raster size they want the document

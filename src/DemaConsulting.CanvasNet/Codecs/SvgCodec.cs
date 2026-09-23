@@ -178,6 +178,33 @@ public static class SvgCodec
     private const int MaxTotalRenderedElements = 100_000;
 
     /// <summary>
+    ///     The maximum total number of characters <see cref="LoadRootElement"/>'s
+    ///     <see cref="XDocument.Load(XmlReader, LoadOptions)"/> call will read before giving up,
+    ///     bounding how large a single in-memory <see cref="XDocument"/> this codec will ever
+    ///     materialize for a single <c>Load</c> call. Without this bound, an attacker-supplied
+    ///     stream of unbounded size would be fully parsed into an unbounded DOM tree before any of
+    ///     this class's other guards (<see cref="MaxTotalRenderedElements"/>,
+    ///     <see cref="GeometryWorkBudget"/>) ever get a chance to run, since those guards only
+    ///     execute during the rendering walk that follows a successful parse. 5,000,000 characters
+    ///     is roughly 100 times the size of the largest real-world fixture in this repository's
+    ///     test suite (<c>InkscapeFilters.svg</c>, 50,381 bytes) - far beyond any real document,
+    ///     but small enough to keep worst-case parse-time CPU/memory bounded to a small, practical
+    ///     amount, matching this class's other budgets' "generous but bounded" order-of-magnitude
+    ///     spirit.
+    /// </summary>
+    /// <remarks>
+    ///     This is an accepted, bounded limitation, not a full incremental/streaming parse: a
+    ///     well-formed document sized just under this character cap can still fully materialize
+    ///     into an in-memory DOM before <see cref="MaxTotalRenderedElements"/> or
+    ///     <see cref="GeometryWorkBudget"/> ever get a chance to reject a single pathological
+    ///     element's content. A full streaming-parser rewrite of <c>Load</c> (replacing
+    ///     <see cref="XDocument"/>/<see cref="XElement"/> entirely) would close this remaining gap
+    ///     but is out of scope for this bound, which targets the specific, previously-completely-
+    ///     unbounded "raw document size" dimension.
+    /// </remarks>
+    private const int MaxDocumentCharacters = 5_000_000;
+
+    /// <summary>
     ///     Tracks the cumulative "geometry parsing work" - path <c>d</c> data commands,
     ///     points-list coordinate pairs, and text characters - charged across a single
     ///     <c>Load</c> call, throwing once a fixed combined budget is exceeded. This bounds the
@@ -429,7 +456,12 @@ public static class SvgCodec
         XDocument document;
         try
         {
-            document = XDocument.Load(stream, LoadOptions.None);
+            // Bound the reader's total character count via MaxCharactersInDocument before
+            // XDocument.Load ever begins materializing the DOM tree - see MaxDocumentCharacters'
+            // own remarks for why this is a raw-size bound, not a full streaming parse
+            var settings = new XmlReaderSettings { MaxCharactersInDocument = MaxDocumentCharacters };
+            using var reader = XmlReader.Create(stream, settings);
+            document = XDocument.Load(reader, LoadOptions.None);
         }
         catch (XmlException ex)
         {

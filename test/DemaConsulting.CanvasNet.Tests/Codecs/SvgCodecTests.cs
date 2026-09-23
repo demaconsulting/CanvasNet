@@ -1752,6 +1752,47 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Regression test for the unbounded <c>XDocument.Load</c> DOM-materialization finding:
+    ///     a document whose total character count exceeds the codec's fixed
+    ///     <c>MaxCharactersInDocument</c> bound must be rejected with
+    ///     <see cref="InvalidDataException"/> (surfaced through the existing
+    ///     <see cref="System.Xml.XmlException"/> catch) rather than being fully parsed into an
+    ///     unbounded in-memory DOM. The oversized padding is generated programmatically (a large
+    ///     XML comment), never committed as a literal giant fixture.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_DocumentExceedingCharacterBudget_ThrowsInvalidDataException()
+    {
+        // Arrange: a harmless XML comment padded well past the codec's fixed 5,000,000-character
+        // document budget
+        var padding = new string('x', 5_100_000);
+        var svg = $"<svg viewBox='0 0 100 100'><!--{padding}--></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves that a document sized just under the codec's fixed
+    ///     <c>MaxCharactersInDocument</c> bound still loads successfully, so the new bound does
+    ///     not false-positive-reject an ordinary (if unusually large) well-formed document.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_DocumentWithinCharacterBudget_LoadsSuccessfully()
+    {
+        // Arrange: a harmless XML comment padded well under the codec's fixed
+        // 5,000,000-character document budget
+        var padding = new string('x', 1_000_000);
+        var svg = $"<svg viewBox='0 0 100 100'><!--{padding}--><rect x='0' y='0' width='100' height='100' fill='red'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 10, 10);
+
+        // Assert: the rect still rendered
+        Assert.Equal(255, surface[5, 5].A);
+    }
+
+    /// <summary>
     ///     Proves that a shape's numeric attribute value of literal <c>NaN</c> - a syntactically
     ///     valid <see cref="float"/> literal that is never a meaningful coordinate - is rejected
     ///     as an <see cref="InvalidDataException"/> rather than silently propagating into
