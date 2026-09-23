@@ -6,8 +6,9 @@
 
 The `Codecs` subsystem is the second software subsystem in CanvasNet. It groups five flat,
 hand-rolled image-format codecs — `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, and
-`SvgCodec` — each of which converts to and from a `DemaConsulting.CanvasNet.Canvas.Surface` pixel
-buffer.
+`SvgCodec`. The four raster codecs (`BmpCodec`, `PngCodec`, `TiffCodec`, and `JpegCodec`) each
+convert to and from a `DemaConsulting.CanvasNet.Canvas.Surface` pixel buffer; `SvgCodec` only
+decodes/rasterizes SVG vector artwork into a `Surface` — it has no encode/save direction.
 
 ### Purpose
 
