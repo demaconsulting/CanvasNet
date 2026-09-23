@@ -293,7 +293,13 @@ differently:
   rather than throwing, it falls back to the inherited value, matching this codec's existing
   tolerant handling of a malformed `stroke-dasharray`, since there is no natural "skip the whole
   stroke" operation tied to an invalid miter limit alone the way there is for a non-positive
-  `stroke-width`.
+  `stroke-width`. A negative `radialGradient` `r`/`fr` value (below the documented contract of
+  the `Drawing.RadialGradient` it eventually feeds — "finite and greater than or equal to zero")
+  is likewise a tolerant case: rather than throwing, it falls back to the same default already
+  used for an absent attribute, matching this codec's existing tolerant handling of every other
+  gradient coordinate (`cx`/`cy`/`fx`/`fy`/`x1`/`y1`/`x2`/`y2`), since a radius is otherwise
+  parsed identically to every other gradient coordinate and only its sign is additionally
+  constrained.
 - **Well-formed but out-of-scope constructs** — see _Out-of-scope subset_ above. These are
   silently skipped, not errors.
 

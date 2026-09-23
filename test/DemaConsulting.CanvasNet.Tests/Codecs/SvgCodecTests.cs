@@ -766,6 +766,94 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that a <c>radialGradient</c> with a negative <c>r</c> - below
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.RadialGradient"/>'s documented contract of
+    ///     "finite and greater than or equal to zero" - falls back to the default radius
+    ///     (<c>0.5</c>, in objectBoundingBox units) rather than reaching
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.RadialGradient"/>'s constructor and throwing an
+    ///     uncaught <see cref="ArgumentOutOfRangeException"/>, matching this codec's existing
+    ///     tolerant handling of every other gradient coordinate. The fill still renders (non-zero
+    ///     alpha), proving the fallback rather than the whole gradient being silently dropped.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_RadialGradientRNegative_FallsBackToDefaultRadiusWithoutThrowing()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <radialGradient id='g' r='-5'>
+                  <stop offset='0' stop-color='red'/>
+                  <stop offset='1' stop-color='blue'/>
+                </radialGradient>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the rect still renders (no exception, and the fill was not dropped)
+        Assert.Equal(255, surface[5, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>radialGradient</c> with a negative <c>fr</c> (the SVG 2 focal-radius
+    ///     attribute) likewise falls back to its default (<c>0</c>) without throwing, rather than
+    ///     only the end-circle radius (<c>r</c>) above being covered.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_RadialGradientFrNegative_FallsBackToDefaultFocalRadiusWithoutThrowing()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <radialGradient id='g' r='0.5' fr='-1'>
+                  <stop offset='0' stop-color='red'/>
+                  <stop offset='1' stop-color='blue'/>
+                </radialGradient>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the rect still renders (no exception, and the fill was not dropped)
+        Assert.Equal(255, surface[5, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that a valid (non-negative) <c>r</c>/<c>fr</c> continues to be accepted and applied
+    ///     (rather than every value being tolerated/ignored after the validation added above).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_RadialGradientRFrValid_RendersNormally()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <radialGradient id='g' cx='0.5' cy='0.5' r='0.5' fr='0.1'>
+                  <stop offset='0' stop-color='white'/>
+                  <stop offset='1' stop-color='black'/>
+                </radialGradient>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the center is brighter than a point near the shape's edge (gradient still applied)
+        Assert.True(surface[50, 50].R > surface[95, 50].R);
+    }
+
+    /// <summary>
     ///     Proves that <c>spreadMethod="repeat"</c> tiles the gradient's base range rather than
     ///     clamping ("pad", the default) beyond it.
     /// </summary>

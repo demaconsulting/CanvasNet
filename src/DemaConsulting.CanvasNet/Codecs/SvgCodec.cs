@@ -115,7 +115,11 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     <c>stroke-miterlimit</c> value (non-finite, or less than <c>1</c> - see
 ///     <see cref="Drawing.StrokeStyle"/>'s documented contract) is a further, separate tolerant
 ///     case: rather than throwing, it falls back to the inherited value, matching this class's
-///     existing tolerant handling of a malformed <c>stroke-dasharray</c>.
+///     existing tolerant handling of a malformed <c>stroke-dasharray</c>. A negative
+///     <c>radialGradient</c> <c>r</c>/<c>fr</c> (below <see cref="Drawing.RadialGradient"/>'s
+///     documented contract of "finite and greater than or equal to zero") is likewise tolerant:
+///     it falls back to the same default used for an absent attribute, matching this class's
+///     existing tolerant handling of every other gradient coordinate.
 ///     </para>
 ///     <para>
 ///     <b>Caller-supplied raster dimensions.</b> The <c>width</c>/<c>height</c>
@@ -2844,6 +2848,33 @@ public static class SvgCodec
         return raw == null ? fallback : ParsePercentOrNumber(raw, 1f) ?? fallback;
     }
 
+    /// <summary>
+    ///     Reads one gradient <b>radius</b> attribute (<c>r</c> or <c>fr</c>), tolerantly falling
+    ///     back to <paramref name="fallback"/> for an absent, unparseable, non-finite, <b>or
+    ///     negative</b> value.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="GetGradientCoordinateOrDefault"/> already tolerates an absent/unparseable/
+    ///     non-finite value, but a radius is the only gradient-geometry attribute with an
+    ///     additional sign constraint - <see cref="Drawing.RadialGradient"/>'s constructor throws
+    ///     <see cref="ArgumentOutOfRangeException"/> for a negative <c>startRadius</c>/<c>endRadius</c>.
+    ///     A negative <c>r</c>/<c>fr</c> is syntactically valid (finite) but out of that documented
+    ///     contract, so - matching this codec's existing tolerant handling of every other gradient
+    ///     coordinate (see <see cref="GetGradientCoordinateOrDefault"/>) rather than aborting the
+    ///     whole document over one presentation attribute - it falls back to
+    ///     <paramref name="fallback"/> here instead of reaching the constructor and throwing an
+    ///     undocumented <see cref="ArgumentOutOfRangeException"/>.
+    /// </remarks>
+    /// <param name="element">The gradient element to inspect.</param>
+    /// <param name="name">The attribute name to read (<c>r</c> or <c>fr</c>).</param>
+    /// <param name="fallback">The value to use if the attribute is absent, unparseable, or negative.</param>
+    /// <returns>The resolved, non-negative radius value.</returns>
+    private static float GetGradientRadiusOrDefault(XElement element, string name, float fallback)
+    {
+        var value = GetGradientCoordinateOrDefault(element, name, fallback);
+        return value >= 0f ? value : fallback;
+    }
+
     /// <summary>Builds a <c>linearGradient</c> element's <see cref="LinearGradient"/>.</summary>
     /// <param name="element">The <c>linearGradient</c> element.</param>
     /// <param name="stops">The resolved, alpha-adjusted color stops.</param>
@@ -2885,10 +2916,10 @@ public static class SvgCodec
     {
         var cx = GetGradientCoordinateOrDefault(element, "cx", 0.5f);
         var cy = GetGradientCoordinateOrDefault(element, "cy", 0.5f);
-        var r = GetGradientCoordinateOrDefault(element, "r", 0.5f);
+        var r = GetGradientRadiusOrDefault(element, "r", 0.5f);
         var fx = GetGradientCoordinateOrDefault(element, "fx", cx);
         var fy = GetGradientCoordinateOrDefault(element, "fy", cy);
-        var fr = GetGradientCoordinateOrDefault(element, "fr", 0f);
+        var fr = GetGradientRadiusOrDefault(element, "fr", 0f);
 
         return new RadialGradient(new Vector2(fx, fy), fr, new Vector2(cx, cy), r, stops, spread, transform);
     }

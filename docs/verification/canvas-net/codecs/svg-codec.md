@@ -122,7 +122,10 @@ fill's alpha to a value distinguishably between fully transparent and fully opaq
 `SvgCodec_Load_GradientSpreadMethodRepeat_TilesPastBaseRange`,
 `SvgCodec_Load_StrokeGradient_PaintsVaryingColorAlongStroke`,
 `SvgCodec_Load_GradientFixture_RendersVaryingGradientColors`,
-`SvgCodec_Load_SvgGradientFixture_RendersVaryingGradientAndPinkBackground`
+`SvgCodec_Load_SvgGradientFixture_RendersVaryingGradientAndPinkBackground`,
+`SvgCodec_Load_RadialGradientRNegative_FallsBackToDefaultRadiusWithoutThrowing`,
+`SvgCodec_Load_RadialGradientFrNegative_FallsBackToDefaultFocalRadiusWithoutThrowing`,
+`SvgCodec_Load_RadialGradientRFrValid_RendersNormally`
 
 Asserts a `userSpaceOnUse` linear gradient varies along the document's user-space axis; a radial
 gradient is brighter at its center than near its edge; `spreadMethod="repeat"` tiles a gradient's
@@ -133,7 +136,15 @@ gradient reference paints the stroke itself with varying color, not just a fill.
 `SvgCodec_Load_SvgGradientFixture_RendersVaryingGradientAndPinkBackground` corroborates this with
 a real, unmodified, third-party Wikimedia Commons fixture (`SvgFixtures/SvgGradient.svg`) whose
 `userSpaceOnUse` gradient bar and `stop-color` percentage offsets are unlike this unit's other
-hand-authored gradient tests.
+hand-authored gradient tests. `SvgCodec_Load_RadialGradientRNegative_FallsBackToDefaultRadiusWithoutThrowing`
+and `SvgCodec_Load_RadialGradientFrNegative_FallsBackToDefaultFocalRadiusWithoutThrowing` are
+regression tests proving a `radialGradient`'s `r`/`fr` attribute - below
+`Drawing.RadialGradient`'s documented contract of "finite and greater than or equal to zero" when
+negative - falls back to the same default used for an absent attribute rather than reaching that
+constructor and throwing an uncaught `ArgumentOutOfRangeException`, matching this codec's existing
+tolerant handling of every other gradient coordinate;
+`SvgCodec_Load_RadialGradientRFrValid_RendersNormally` confirms a valid, non-negative `r`/`fr`
+still renders the gradient normally after this validation was added.
 
 #### CanvasNet-Codecs-SvgCodec-GradientHrefInheritance: Gradient Href Template Inheritance and Cycle Rejection
 
@@ -408,6 +419,18 @@ All eleven tests above, together, confirm both failure modes reject the exact ma
 each is responsible for, while confirming legitimate finite values sharing similar syntax (a
 negative number, scientific notation, a percentage) still parse and render correctly in both
 code paths.
+
+A closely related but distinct case is a gradient radius (`r`/`fr`) that parses to a finite but
+**negative** value: `GetGradientCoordinateOrDefault`'s existing tolerant fallback above already
+guarantees finiteness, but a radius is the only gradient-geometry attribute with an additional
+sign constraint (`Drawing.RadialGradient`'s constructor requires `startRadius`/`endRadius` to be
+"finite and greater than or equal to zero"). `SvgCodec_Load_RadialGradientRNegative_FallsBackToDefaultRadiusWithoutThrowing`
+and `SvgCodec_Load_RadialGradientFrNegative_FallsBackToDefaultFocalRadiusWithoutThrowing` prove a
+negative `r`/`fr` falls back to the same default used for an absent attribute rather than
+reaching that constructor and throwing an uncaught `ArgumentOutOfRangeException`, matching the
+tolerant-fallback convention documented above for every other gradient coordinate;
+`SvgCodec_Load_RadialGradientRFrValid_RendersNormally` confirms a valid, non-negative `r`/`fr`
+still renders correctly.
 
 ### Acceptance Criteria
 
