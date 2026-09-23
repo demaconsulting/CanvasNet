@@ -1,7 +1,7 @@
 ---
 # Software Unit Requirements for SvgCodec
 #
-# cspell:ignore moveto lineto closepath dasharray letterboxing renderable xlink SMIL
+# cspell:ignore moveto lineto closepath dasharray letterboxing renderable xlink SMIL uncatchable
 #
 # These requirements describe the design-level behavior of the SvgCodec unit.
 
@@ -151,6 +151,21 @@ sections:
                   - SvgCodec_Load_UseElementReferencingGroup_RendersAllGroupChildren
                   - SvgCodec_Load_UseElementMutualRecursionCycle_ThrowsInvalidDataException
                   - SvgCodec_Load_UseReferenceFixture_RendersAtOffsetPositionOnly
+
+              - id: CanvasNet-Codecs-SvgCodec-ElementNestingDepthLimit
+                title: >-
+                  The SvgCodec class shall reject an SVG document whose element tree - including
+                  plain g/symbol group nesting, not only use reference chains - nests deeper than
+                  a fixed maximum depth, with InvalidDataException, rather than recursing until
+                  the call stack overflows.
+                justification: |
+                  A document containing many levels of nested groups, whether malformed or
+                  maliciously crafted, would otherwise drive the rendering recursion to an
+                  uncatchable StackOverflowException that terminates the process outright;
+                  callers need a bounded, predictable InvalidDataException instead so this
+                  codec's documented error-handling policy still applies.
+                tests:
+                  - SvgCodec_Load_DeeplyNestedGroups_ThrowsInvalidDataException
 
               - id: CanvasNet-Codecs-SvgCodec-TextRendering
                 title: >-

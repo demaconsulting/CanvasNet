@@ -887,6 +887,28 @@ public class SvgCodecTests
         Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
     }
 
+    /// <summary>
+    ///     Proves that an element tree nesting many levels of plain <c>&lt;g&gt;</c> groups (no
+    ///     <c>&lt;use&gt;</c> involved) is rejected once it exceeds the implementation's bounded
+    ///     element-tree recursion depth guard, rather than recursing without limit and risking a
+    ///     stack overflow.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_DeeplyNestedGroups_ThrowsInvalidDataException()
+    {
+        // Arrange: several hundred levels of single-child nesting, comfortably exceeding the
+        // codec's maximum element-tree depth while remaining trivially fast to parse and reject
+        const int nestingLevels = 500;
+        var svg = "<svg viewBox='0 0 10 10'>"
+            + string.Concat(Enumerable.Repeat("<g>", nestingLevels))
+            + "<rect width='1' height='1'/>"
+            + string.Concat(Enumerable.Repeat("</g>", nestingLevels))
+            + "</svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+    }
+
     // ================================================================================================
     // <text> rendering, text-anchor, and font fallback
     // ================================================================================================

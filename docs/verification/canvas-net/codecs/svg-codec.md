@@ -1,6 +1,6 @@
 ## SvgCodec Unit Verification Design
 
-<!-- cspell:ignore unstroked Letterboxing -->
+<!-- cspell:ignore unstroked Letterboxing uncatchable -->
 
 This document describes the unit-level verification strategy for the `SvgCodec` class.
 
@@ -154,6 +154,17 @@ element also still renders in place; a `use` referencing a nonexistent id render
 does not throw; a `use` referencing a `g` group renders every one of the group's children; and a
 mutually-recursive `use`/`use` reference chain that would otherwise recurse indefinitely is
 rejected with `InvalidDataException` once the bounded recursion guard is exceeded.
+
+#### CanvasNet-Codecs-SvgCodec-ElementNestingDepthLimit: Element/Group Nesting Depth Limit
+
+**Tests**: `SvgCodec_Load_DeeplyNestedGroups_ThrowsInvalidDataException`
+
+Asserts a document consisting of many levels of plain nested `g` elements (no `use` involved)
+that exceeds the codec's fixed maximum element-tree recursion depth is rejected with
+`InvalidDataException`, rather than being allowed to recurse without bound and risk an
+uncatchable `StackOverflowException`. This proves the recursion-depth guard applies to ordinary
+group nesting, not only to `use` reference chains covered by
+`CanvasNet-Codecs-SvgCodec-UseElement` above.
 
 #### CanvasNet-Codecs-SvgCodec-TextRendering: Text Glyph Rendering and Kerning
 
