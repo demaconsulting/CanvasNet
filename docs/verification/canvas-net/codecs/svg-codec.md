@@ -323,6 +323,18 @@ false-positive-reject an ordinary document.
 Asserts `Load` throws `InvalidDataException` for a `path` `d` attribute containing an
 unrecognized command letter and, separately, a command missing its required numeric arguments.
 
+A further, independent case is relative-coordinate accumulation (or an `S`/`T` smooth-curve
+reflection) overflowing an individually-finite pair of literals to a non-finite value:
+`SvgCodec_Load_PathRelativeAccumulationOverflowsToInfinity_TerminatesPromptlyWithoutHanging`
+proves, using the `JpegCodecTests`-precedent `Task.Run`/`Task.WhenAny(task, Task.Delay(...))`
+hang-bounded pattern, that a `path` combining a huge finite relative-accumulation overflow with a
+finite `stroke-dasharray` (which would otherwise stall `Drawing.DashSplitter`'s dash-interval walk
+forever on a non-finite path length) completes promptly instead of hanging.
+`SvgCodec_Load_PathSmoothCubicReflectionOverflowsToInfinity_SkipsPathWithoutThrowing` proves the
+independent `S`/`T` smooth-curve reflection overflow path (found via this round's mandatory
+audit) is likewise tolerated - the affected `path` element renders as empty (no fill/stroke ink)
+rather than throwing or hanging.
+
 #### CanvasNet-Codecs-SvgCodec-PercentageGeometryRejected: Percentage Rejected on Geometry Attributes
 
 **Tests**: `SvgCodec_Load_RectXPercentage_ThrowsInvalidDataException`,

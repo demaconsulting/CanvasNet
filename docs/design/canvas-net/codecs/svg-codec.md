@@ -307,7 +307,13 @@ differently:
   not) is likewise a tolerant case: the affected element, and independently an affected gradient's
   own `gradientTransform`/bounding-box composition, is skipped/treated as "no paint" rather than
   reaching a `Drawing`-namespace constructor's own finiteness check and throwing an uncaught
-  `ArgumentOutOfRangeException`.
+  `ArgumentOutOfRangeException`. A `path` `d` attribute whose relative-coordinate accumulation
+  (each command's individually-finite parsed literals summed against the current point), or whose
+  `S`/`T` smooth-curve reflection, overflows to a non-finite value is likewise a tolerant case:
+  the whole `path` element is skipped (rendered as an empty path, the same no-op `RenderShape`
+  already applies to any other empty path) rather than reaching `Drawing.DashSplitter`'s
+  dash-interval walk with a non-finite path length, which would otherwise stall its finite-step
+  `while` loop indefinitely whenever the affected shape also has a `stroke-dasharray`.
 - **Well-formed but out-of-scope constructs** — see _Out-of-scope subset_ above. These are
   silently skipped, not errors.
 

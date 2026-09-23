@@ -1738,6 +1738,63 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Regression test for the path-data relative-accumulation overflow finding: a relative
+    ///     command (<c>l</c>) accumulating an offset against a huge-but-finite current point can
+    ///     overflow to <see cref="float.PositiveInfinity"/> even though every individual literal
+    ///     token is finite. Left unguarded, the resulting non-finite path length would stall
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.DashSplitter"/>'s finite-step dash-interval
+    ///     walk forever once combined with a finite <c>stroke-dasharray</c> - proven here, using
+    ///     the <c>JpegCodecTests</c>-precedent hang-bounded pattern, that <c>Load</c> now
+    ///     completes promptly (the affected <c>path</c> is skipped, rendered empty) rather than
+    ///     hanging.
+    /// </summary>
+    [Fact]
+    public async Task SvgCodec_Load_PathRelativeAccumulationOverflowsToInfinity_TerminatesPromptlyWithoutHanging()
+    {
+        // Arrange: an absolute moveto to a huge-but-finite x, then a relative lineto whose offset
+        // is the same huge-but-finite magnitude - their sum overflows float to Infinity - combined
+        // with a finite stroke-dasharray so the (pre-fix) hang would occur in DashSplitter
+        const string svg = "<svg viewBox='0 0 100 100'>" +
+                            "<path d='M3e38,0 l3e38,0' stroke='black' stroke-width='1' stroke-dasharray='5,5'/>" +
+                            "</svg>";
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        // Act
+        var task = Task.Run(() => SvgCodec.Load(ToStream(svg), 10, 10), cancellationToken);
+        var completedTask = await Task.WhenAny(task, Task.Delay(TimeSpan.FromSeconds(10), cancellationToken));
+
+        // Assert: the load completed (did not hang) and did not throw
+        Assert.Same(task, completedTask);
+        await task;
+    }
+
+    /// <summary>
+    ///     Regression test for the audit-discovered <c>S</c>/<c>T</c> smooth-curve reflection
+    ///     overflow finding: <c>Reflect</c>'s <c>2*center - point</c> arithmetic can overflow to a
+    ///     non-finite value from an individually-finite cubic-Bezier control point and current
+    ///     point, an independent overflow path into the same
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.DashSplitter"/> hang risk as relative-
+    ///     coordinate accumulation. Proves the affected <c>path</c> element is tolerantly skipped
+    ///     (rendered as an empty path, no fill/stroke ink) rather than throwing.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PathSmoothCubicReflectionOverflowsToInfinity_SkipsPathWithoutThrowing()
+    {
+        // Arrange: a C command whose second control point (3e38,0) and end point (-3e38,0) are
+        // each individually finite, followed by an S command whose implicit reflected control
+        // point (2*(-3e38,0) - (3e38,0) = (-9e38,0)) overflows float to -Infinity
+        const string svg = "<svg viewBox='0 0 100 100'>" +
+                            "<path d='M0,0 C0,0 3e38,0 -3e38,0 S1,1 0,0' fill='red'/>" +
+                            "</svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 10, 10);
+
+        // Assert: no exception, and nothing was painted (the path was skipped, not rendered)
+        Assert.Equal(0, surface[5, 5].A);
+    }
+
+    /// <summary>
     ///     Proves that a malformed <c>transform</c> attribute (an unrecognized function name) is
     ///     rejected as an <see cref="InvalidDataException"/>.
     /// </summary>

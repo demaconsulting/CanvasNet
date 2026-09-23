@@ -124,7 +124,12 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     individual literal finite, but their cross-element product not) is likewise tolerant: the
 ///     affected element (and, independently, an affected gradient's own
 ///     <c>gradientTransform</c>/bounding-box composition) is skipped/treated as "no paint" rather
-///     than reaching a <see cref="Drawing"/>-namespace constructor's own finiteness check.
+///     than reaching a <see cref="Drawing"/>-namespace constructor's own finiteness check. A
+///     <c>path</c> <c>d</c> attribute whose relative-coordinate accumulation, or whose <c>S</c>/
+///     <c>T</c> smooth-curve reflection, overflows an individually-finite pair of literals to a
+///     non-finite value is likewise tolerant: the whole <c>path</c> element is skipped (rendered
+///     as an empty path) rather than reaching <see cref="Drawing.DashSplitter"/>'s dash-interval
+///     walk, which would otherwise stall indefinitely on a non-finite path length.
 ///     </para>
 ///     <para>
 ///     <b>Caller-supplied raster dimensions.</b> The <c>width</c>/<c>height</c>
@@ -1817,7 +1822,18 @@ public static class SvgCodec
         }
 
         /// <summary>Parses the whole <c>d</c> attribute and builds its path.</summary>
-        /// <returns>The resulting local-space path.</returns>
+        /// <returns>
+        ///     The resulting local-space path; an empty path (see <see cref="PathBuilder.Build"/>)
+        ///     if relative-coordinate accumulation or a smooth-curve reflection (see
+        ///     <see cref="RequireFinite(Vector2)"/>/<see cref="RequireFinite(float)"/>) overflows
+        ///     an individually-finite pair of literals to a non-finite result partway through
+        ///     parsing - a tolerant "skip this element" outcome, matching this class's existing
+        ///     tolerant handling of a composed non-finite transform elsewhere in this codec,
+        ///     because a non-finite point cannot be rendered meaningfully and, left unchecked,
+        ///     would stall <see cref="Drawing.DashSplitter"/>'s dash-interval walk (its existing
+        ///     "huge-but-finite" double-widening fix does not cover a genuinely
+        ///     <c>Infinity</c>-valued coordinate).
+        /// </returns>
         /// <exception cref="InvalidDataException">
         ///     Thrown when the text is not valid path data, or parsing its commands pushes the
         ///     combined geometry-parsing work total past <see cref="GeometryWorkBudget"/>'s fixed
@@ -1825,31 +1841,44 @@ public static class SvgCodec
         /// </exception>
         public Path Parse()
         {
-            while (true)
+            try
             {
-                SkipSeparators(_text, ref _position);
-                if (_position >= _text.Length)
+                while (true)
                 {
-                    break;
+                    SkipSeparators(_text, ref _position);
+                    if (_position >= _text.Length)
+                    {
+                        break;
+                    }
+
+                    var command = _text[_position];
+                    if (!IsCommandLetter(command))
+                    {
+                        throw new InvalidDataException($"Malformed path data: expected a command letter at position {_position}.");
+                    }
+
+                    if (!_started && char.ToUpperInvariant(command) != 'M')
+                    {
+                        throw new InvalidDataException("Malformed path data: the first command must be a moveto (M/m).");
+                    }
+
+                    _position++;
+                    ExecuteCommand(command);
+                    _started = true;
                 }
 
-                var command = _text[_position];
-                if (!IsCommandLetter(command))
-                {
-                    throw new InvalidDataException($"Malformed path data: expected a command letter at position {_position}.");
-                }
-
-                if (!_started && char.ToUpperInvariant(command) != 'M')
-                {
-                    throw new InvalidDataException("Malformed path data: the first command must be a moveto (M/m).");
-                }
-
-                _position++;
-                ExecuteCommand(command);
-                _started = true;
+                return _builder.Build();
             }
-
-            return _builder.Build();
+            catch (OverflowException)
+            {
+                // Tolerant skip: RequireFinite raises this private-to-this-parser sentinel (the
+                // BCL's own OverflowException, reused rather than a bespoke exception type, so no
+                // catch clause elsewhere in this codec's Load/GetInfo boundary can mistake it for
+                // an actual arithmetic-overflow bug) when a non-finite accumulated/reflected point
+                // is produced - see this method's own remarks above for why an empty path is
+                // returned rather than the exception propagating further
+                return new PathBuilder().Build();
+            }
         }
 
         /// <summary>Determines whether <paramref name="ch"/> is one of the recognized path command letters.</summary>
@@ -1941,7 +1970,7 @@ public static class SvgCodec
             do
             {
                 var x = ReadNumber();
-                _current = new Vector2(isRelative ? _current.X + x : x, _current.Y);
+                _current = new Vector2(isRelative ? RequireFinite(_current.X + x) : x, _current.Y);
                 _builder.LineTo(_current);
                 ClearReflectionState();
                 _workBudget.Charge(1);
@@ -1956,7 +1985,7 @@ public static class SvgCodec
             do
             {
                 var y = ReadNumber();
-                _current = new Vector2(_current.X, isRelative ? _current.Y + y : y);
+                _current = new Vector2(_current.X, isRelative ? RequireFinite(_current.Y + y) : y);
                 _builder.LineTo(_current);
                 ClearReflectionState();
                 _workBudget.Charge(1);
@@ -2093,18 +2122,73 @@ public static class SvgCodec
         /// <param name="point">The point to reflect.</param>
         /// <param name="center">The center of reflection.</param>
         /// <returns>The reflected point.</returns>
-        private static Vector2 Reflect(Vector2 point, Vector2 center) => (2 * center) - point;
+        /// <exception cref="OverflowException">
+        ///     Thrown when the reflection arithmetic overflows an individually-finite
+        ///     <paramref name="point"/>/<paramref name="center"/> pair to a non-finite result - an
+        ///     independent overflow path into the same <see cref="Drawing.DashSplitter"/> hang
+        ///     risk as relative-coordinate accumulation, reached via the <c>S</c>/<c>s</c> and
+        ///     <c>T</c>/<c>t</c> smooth-curve commands. Caught (private to this parser) by
+        ///     <see cref="Parse"/>.
+        /// </exception>
+        private static Vector2 Reflect(Vector2 point, Vector2 center) => RequireFinite((2 * center) - point);
 
         /// <summary>Reads one <c>x,y</c> coordinate pair, resolving it against <paramref name="reference"/> if relative.</summary>
         /// <param name="isRelative">Whether the pair is relative to <paramref name="reference"/>.</param>
         /// <param name="reference">The reference point for a relative pair (ignored if absolute).</param>
         /// <returns>The resolved, absolute point.</returns>
         /// <exception cref="InvalidDataException">Thrown when a valid number cannot be read.</exception>
+        /// <exception cref="OverflowException">
+        ///     Thrown when a relative pair's offset accumulation overflows an
+        ///     individually-finite <paramref name="reference"/>/offset pair to a non-finite
+        ///     result. Caught (private to this parser) by <see cref="Parse"/>.
+        /// </exception>
         private Vector2 ReadPoint(bool isRelative, Vector2 reference)
         {
             var x = ReadNumber();
             var y = ReadNumber();
-            return isRelative ? reference + new Vector2(x, y) : new Vector2(x, y);
+            return isRelative ? RequireFinite(reference + new Vector2(x, y)) : new Vector2(x, y);
+        }
+
+        /// <summary>
+        ///     Validates that <paramref name="value"/>'s components are both finite, throwing
+        ///     <see cref="OverflowException"/> otherwise - called at every point produced by
+        ///     arithmetic (relative-offset accumulation or smooth-curve reflection), never at a
+        ///     point built directly from two already-finite parsed literals (which cannot itself
+        ///     overflow, and so needs no check). <see cref="OverflowException"/> (a BCL type,
+        ///     rather than a bespoke exception) is caught only within this parser's own
+        ///     <see cref="Parse"/> method - it never escapes to this class's top-level
+        ///     <c>Load</c>/<c>GetInfo</c> boundary, and so cannot be confused there with an actual
+        ///     arithmetic-overflow bug elsewhere in this codec.
+        /// </summary>
+        /// <param name="value">The point to validate.</param>
+        /// <returns><paramref name="value"/> unchanged, when both components are finite.</returns>
+        /// <exception cref="OverflowException">Thrown when either component of <paramref name="value"/> is not finite.</exception>
+        private static Vector2 RequireFinite(Vector2 value)
+        {
+            if (!float.IsFinite(value.X) || !float.IsFinite(value.Y))
+            {
+                throw new OverflowException("Path-data relative-coordinate accumulation overflowed to a non-finite value.");
+            }
+
+            return value;
+        }
+
+        /// <summary>
+        ///     The scalar overload of <see cref="RequireFinite(Vector2)"/>, used by
+        ///     <see cref="ExecuteHorizontal"/>/<see cref="ExecuteVertical"/>'s relative branch,
+        ///     where only a single axis is accumulated.
+        /// </summary>
+        /// <param name="value">The value to validate.</param>
+        /// <returns><paramref name="value"/> unchanged, when finite.</returns>
+        /// <exception cref="OverflowException">Thrown when <paramref name="value"/> is not finite.</exception>
+        private static float RequireFinite(float value)
+        {
+            if (!float.IsFinite(value))
+            {
+                throw new OverflowException("Path-data relative-coordinate accumulation overflowed to a non-finite value.");
+            }
+
+            return value;
         }
 
         /// <summary>Reads one number, advancing past it.</summary>
