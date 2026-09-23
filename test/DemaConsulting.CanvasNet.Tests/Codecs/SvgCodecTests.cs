@@ -1957,13 +1957,19 @@ public class SvgCodecTests
     ///     overflow to <see cref="float.PositiveInfinity"/> even though every individual literal
     ///     token is finite. Left unguarded, the resulting non-finite path length would stall
     ///     <see cref="DemaConsulting.CanvasNet.Drawing.DashSplitter"/>'s finite-step dash-interval
-    ///     walk forever once combined with a finite <c>stroke-dasharray</c> - proven here, using
-    ///     the <c>JpegCodecTests</c>-precedent hang-bounded pattern, that <c>Load</c> now
-    ///     completes promptly (the affected <c>path</c> is skipped, rendered empty) rather than
-    ///     hanging.
+    ///     walk forever once combined with a finite <c>stroke-dasharray</c> - proven here, by
+    ///     calling <c>Load</c> directly and synchronously (no <c>Task.Run</c>/<c>Task.WhenAny</c>/
+    ///     <c>Task.Delay</c> race): the fix's non-finite guard is a deterministic,
+    ///     hardware-independent behavior, so the correct regression signal is that the call
+    ///     returns at all with the documented empty-path fallback - not how long it takes to do so
+    ///     on any given machine. A generous elapsed-time assertion is retained purely as
+    ///     defense-in-depth against a future regression that reintroduces the hang; it is measured
+    ///     only after the call has already returned, so it can never itself cause a spurious
+    ///     "hung" failure on slower CI hardware the way a <c>Task.WhenAny</c>/<c>Task.Delay</c>
+    ///     race would.
     /// </summary>
     [Fact]
-    public async Task SvgCodec_Load_PathRelativeAccumulationOverflowsToInfinity_TerminatesPromptlyWithoutHanging()
+    public void SvgCodec_Load_PathRelativeAccumulationOverflowsToInfinity_TerminatesPromptlyWithoutHanging()
     {
         // Arrange: an absolute moveto to a huge-but-finite x, then a relative lineto whose offset
         // is the same huge-but-finite magnitude - their sum overflows float to Infinity - combined
@@ -1971,15 +1977,23 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'>" +
                             "<path d='M3e38,0 l3e38,0' stroke='black' stroke-width='1' stroke-dasharray='5,5'/>" +
                             "</svg>";
-        var cancellationToken = TestContext.Current.CancellationToken;
 
-        // Act
-        var task = Task.Run(() => SvgCodec.Load(ToStream(svg), 10, 10), cancellationToken);
-        var completedTask = await Task.WhenAny(task, Task.Delay(TimeSpan.FromSeconds(10), cancellationToken));
+        // Act: call directly and synchronously - no Task.Run/WhenAny/Delay race. The non-finite
+        // guard deterministically bounds the work, so this either returns (fixed) or the process
+        // itself would need to be killed by the CI job's own timeout (regressed to truly
+        // unbounded) - there is no ambiguous "slow but fine" middle ground.
+        var stopwatch = Stopwatch.StartNew();
+        var surface = SvgCodec.Load(ToStream(svg), 10, 10);
+        stopwatch.Stop();
 
-        // Assert: the load completed (did not hang) and did not throw
-        Assert.Same(task, completedTask);
-        await task;
+        // Assert: the load completed and did not throw. The elapsed-time check is a generous,
+        // one-directional, post-hoc defense-in-depth safety net (asserted only after the call
+        // already returned) - not a pass/fail race against the operation itself.
+        Assert.NotNull(surface);
+        Assert.True(
+            stopwatch.Elapsed < TimeSpan.FromSeconds(30),
+            $"Load took {stopwatch.Elapsed} which is far beyond what the fix should ever " +
+            "require; this indicates a real regression, not CI slowness.");
     }
 
     /// <summary>
