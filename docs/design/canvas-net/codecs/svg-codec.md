@@ -285,7 +285,12 @@ differently:
   is instead tolerated — treated as absent/unrecognized and resolved via each attribute's own
   documented fallback — because rendering can still proceed meaningfully without that one value,
   unlike a malformed `viewBox`/`transform`/`path` `d`, without which nothing can be rendered at
-  all.
+  all. An invalid `stroke-miterlimit` value (non-finite, or less than `1` - the documented
+  contract of the `Drawing.StrokeStyle` it eventually feeds) is a further, separate tolerant case:
+  rather than throwing, it falls back to the inherited value, matching this codec's existing
+  tolerant handling of a malformed `stroke-dasharray`, since there is no natural "skip the whole
+  stroke" operation tied to an invalid miter limit alone the way there is for a non-positive
+  `stroke-width`.
 - **Well-formed but out-of-scope constructs** — see _Out-of-scope subset_ above. These are
   silently skipped, not errors.
 

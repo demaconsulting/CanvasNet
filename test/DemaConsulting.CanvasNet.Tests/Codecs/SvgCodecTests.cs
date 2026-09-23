@@ -1,5 +1,6 @@
 // cspell:ignore Sfnt sfnt glyf cmap notdef codepoint
 // cspell:ignore Dasharray hhea Hhea hmtx Hmtx hrefs letterboxed Loca Maxp unstroked
+// cspell:ignore miterlimit
 // cspell:ignore unparseable overpainted
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
@@ -581,6 +582,64 @@ public class SvgCodecTests
 
         // Assert: the very start of the line (within the first "on" dash segment) is stroked
         Assert.Equal(255, surface[2, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>stroke-miterlimit</c> value of <c>0</c> - below
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.StrokeStyle"/>'s documented contract of
+    ///     "finite and at least 1" -
+    ///     falls back to the inherited/default value rather than reaching
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.StrokeStyle"/>'s constructor and throwing an uncaught
+    ///     <see cref="ArgumentOutOfRangeException"/>, matching this codec's existing tolerant
+    ///     handling of a malformed <c>stroke-dasharray</c>. The stroke still renders (non-zero
+    ///     alpha), proving the fallback rather than the whole stroke being silently dropped.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_StrokeMiterLimitZero_FallsBackToInheritedDefaultWithoutThrowing()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='20' y='20' width='60' height='60' fill='none' stroke='black' stroke-width='6' stroke-miterlimit='0'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the outline still renders (no exception, and the stroke was not dropped)
+        Assert.Equal(255, surface[20, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves that a negative <c>stroke-miterlimit</c> value likewise falls back to the
+    ///     inherited/default value without throwing, rather than only the boundary case of
+    ///     <c>0</c> above being tolerated.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_StrokeMiterLimitNegative_FallsBackToInheritedDefaultWithoutThrowing()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='20' y='20' width='60' height='60' fill='none' stroke='black' stroke-width='6' stroke-miterlimit='-5'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the outline still renders (no exception, and the stroke was not dropped)
+        Assert.Equal(255, surface[20, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves that a valid <c>stroke-miterlimit</c> value continues to be accepted and applied
+    ///     (rather than every value being tolerated/ignored after the validation added above).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_StrokeMiterLimitValid_RendersNormally()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='20' y='20' width='60' height='60' fill='none' stroke='black' stroke-width='6' stroke-miterlimit='4'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the outline renders normally
+        Assert.Equal(255, surface[20, 50].A);
     }
 
     /// <summary>

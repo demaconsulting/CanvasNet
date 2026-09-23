@@ -111,7 +111,11 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     paint reference or an unrecognized color keyword is instead treated as tolerant "no paint"
 ///     (nothing is drawn for that fill/stroke), and a <c>text</c> element with no caller-supplied
 ///     font dictionary, or no entry matching its <c>font-family</c>, is silently skipped rather
-///     than throwing - both documented simplifications of an otherwise strict parser.
+///     than throwing - both documented simplifications of an otherwise strict parser. An invalid
+///     <c>stroke-miterlimit</c> value (non-finite, or less than <c>1</c> - see
+///     <see cref="Drawing.StrokeStyle"/>'s documented contract) is a further, separate tolerant
+///     case: rather than throwing, it falls back to the inherited value, matching this class's
+///     existing tolerant handling of a malformed <c>stroke-dasharray</c>.
 ///     </para>
 ///     <para>
 ///     <b>Caller-supplied raster dimensions.</b> The <c>width</c>/<c>height</c>
@@ -983,7 +987,7 @@ public static class SvgCodec
             StrokeWidth = GetOptionalFloat(element, "stroke-width") ?? parent.StrokeWidth,
             StrokeLineCap = ParseLineCap((string?)element.Attribute("stroke-linecap")) ?? parent.StrokeLineCap,
             StrokeLineJoin = ParseLineJoin((string?)element.Attribute("stroke-linejoin")) ?? parent.StrokeLineJoin,
-            StrokeMiterLimit = GetOptionalFloat(element, "stroke-miterlimit") ?? parent.StrokeMiterLimit,
+            StrokeMiterLimit = ParseValidMiterLimit(element) ?? parent.StrokeMiterLimit,
             StrokeDashArray = strokeDashArray,
             StrokeDashOffset = GetOptionalFloat(element, "stroke-dashoffset") ?? parent.StrokeDashOffset,
             FontFamily = (string?)element.Attribute("font-family") ?? parent.FontFamily,
@@ -1077,6 +1081,24 @@ public static class SvgCodec
         return numbers.Count == 0 || numbers.Exists(v => v < 0f) || numbers.TrueForAll(v => v == 0f)
             ? null
             : numbers;
+    }
+
+    /// <summary>
+    ///     Parses and validates the <c>stroke-miterlimit</c> attribute against
+    ///     <see cref="Drawing.StrokeStyle"/>'s documented contract (finite and at least <c>1</c>),
+    ///     so an invalid value falls back to the inherited value here rather than escaping later
+    ///     as an undocumented <see cref="ArgumentOutOfRangeException"/> from
+    ///     <see cref="Drawing.StrokeStyle"/>'s constructor - mirroring this class's existing
+    ///     tolerant handling of a malformed <c>stroke-dasharray</c> (see
+    ///     <see cref="ParseDashArray"/>), rather than aborting the whole document over one
+    ///     presentation-attribute value.
+    /// </summary>
+    /// <param name="element">The element to inspect.</param>
+    /// <returns>The valid parsed value, or <see langword="null"/> if absent or out of contract.</returns>
+    private static float? ParseValidMiterLimit(XElement element)
+    {
+        var value = GetOptionalFloat(element, "stroke-miterlimit");
+        return value is { } v && float.IsFinite(v) && v >= 1f ? value : null;
     }
 
     // ================================================================================================
