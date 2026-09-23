@@ -1,6 +1,6 @@
 ## SvgCodec Unit Verification Design
 
-<!-- cspell:ignore unstroked Letterboxing uncatchable -->
+<!-- cspell:ignore unstroked Letterboxing uncatchable Glyf Loca -->
 
 This document describes the unit-level verification strategy for the `SvgCodec` class.
 
@@ -172,6 +172,21 @@ that exceeds the codec's fixed maximum element-tree recursion depth is rejected 
 uncatchable `StackOverflowException`. This proves the recursion-depth guard applies to ordinary
 group nesting, not only to `use` reference chains covered by
 `CanvasNet-Codecs-SvgCodec-UseElement` above.
+
+#### CanvasNet-Codecs-SvgCodec-TotalElementBudget: Total Rendered Element Budget
+
+**Tests**: `SvgCodec_Load_UseFanOutExceedingTotalElementBudget_ThrowsInvalidDataException`
+
+Asserts a document built from nested groups each containing several sibling `use` elements that
+all reference the same further-nested group - so every individual reference chain stays well
+within both the `use`-nesting and element-tree depth limits, but the total number of elements
+resolved across the whole fan-out grows exponentially with nesting depth - is rejected with
+`InvalidDataException` once the codec's fixed total-rendered-element budget is exceeded. This
+proves the codec bounds total rendering work, not merely the depth of any single reference chain,
+guarding against the same class of non-cyclic exponential amplification the Fonts subsystem's
+`GlyfLocaReader` unit guards against with its total-resolved-component budget. The test's
+fan-out/depth parameters are chosen so the budget check fires almost immediately, keeping the
+test itself fast regardless of how the underlying bug would otherwise behave.
 
 #### CanvasNet-Codecs-SvgCodec-TextRendering: Text Glyph Rendering and Kerning
 

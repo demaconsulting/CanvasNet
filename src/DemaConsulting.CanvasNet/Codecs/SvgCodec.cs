@@ -135,6 +135,21 @@ public static class SvgCodec
     /// </summary>
     private const int MaxElementDepth = 100;
 
+    /// <summary>
+    ///     The maximum total number of elements this codec will render across a single
+    ///     <c>Load</c> call, bounding non-cyclic exponential <c>use</c> fan-out. Neither
+    ///     <see cref="MaxUseDepth"/> nor <see cref="MaxElementDepth"/> bounds total work: a group
+    ///     legitimately (non-cyclically) referenced by several sibling <c>use</c> elements, itself
+    ///     containing further such fan-out, re-renders its entire subtree once per reference, so
+    ///     the total number of elements rendered grows exponentially with nesting depth even while
+    ///     every individual reference chain stays well within both depth caps. 100,000 is far
+    ///     beyond the element count of any real-world SVG this codec has been exercised against
+    ///     (the most complex fixture in this repository's test suite has roughly 700 elements),
+    ///     but small enough to keep worst-case rendering CPU/memory bounded to a small, practical
+    ///     amount regardless of how a malicious/pathological document is structured.
+    /// </summary>
+    private const int MaxTotalRenderedElements = 100_000;
+
     // ================================================================================================
     // Public API
     // ================================================================================================
@@ -660,9 +675,10 @@ public static class SvgCodec
     private static void RenderDocument(XElement root, Matrix3x2 fitTransform, RenderContext context)
     {
         var rootState = ApplyPresentationAttributes(RenderState.Initial, root);
+        var totalElements = 0;
         foreach (var child in root.Elements())
         {
-            RenderElement(child, rootState, fitTransform, context, useDepth: 0, elementDepth: 0);
+            RenderElement(child, rootState, fitTransform, context, useDepth: 0, elementDepth: 0, ref totalElements);
         }
     }
 
@@ -685,10 +701,19 @@ public static class SvgCodec
     ///     regardless of whether the recursion arises from plain <c>g</c>/<c>symbol</c> nesting or
     ///     from a <c>use</c> reference.
     /// </param>
+    /// <param name="totalElements">
+    ///     The running count of elements rendered/visited so far across the whole document walk,
+    ///     charged before this element is processed further so this method can enforce
+    ///     <see cref="MaxTotalRenderedElements"/> - a bound that catches non-cyclic exponential
+    ///     <c>use</c> fan-out neither <see cref="MaxUseDepth"/> nor <see cref="MaxElementDepth"/>
+    ///     can, since a legitimately (non-cyclically) shared subtree stays within both depth caps
+    ///     no matter how many times sibling <c>use</c> elements reference it.
+    /// </param>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="element"/> or a descendant contains malformed presentation
-    ///     data, a <c>use</c> reference cycle/excessive nesting is detected, or the element tree
-    ///     nests deeper than <see cref="MaxElementDepth"/>.
+    ///     data, a <c>use</c> reference cycle/excessive nesting is detected, the element tree
+    ///     nests deeper than <see cref="MaxElementDepth"/>, or the document resolves to more than
+    ///     <see cref="MaxTotalRenderedElements"/> total rendered elements.
     /// </exception>
     private static void RenderElement(
         XElement element,
@@ -696,13 +721,23 @@ public static class SvgCodec
         Matrix3x2 parentTransform,
         RenderContext context,
         int useDepth,
-        int elementDepth)
+        int elementDepth,
+        ref int totalElements)
     {
         // Fail fast before recursing any further - an unbounded element tree walk would otherwise
         // eventually drive the call stack into an uncatchable StackOverflowException
         if (elementDepth >= MaxElementDepth)
         {
             throw new InvalidDataException("SVG element nesting exceeds the supported depth.");
+        }
+
+        // Charge the total-visit budget before doing any further work on this element - this is
+        // the only bound that catches non-cyclic exponential "use" fan-out, where every
+        // individual reference chain stays well within the depth caps above
+        totalElements++;
+        if (totalElements > MaxTotalRenderedElements)
+        {
+            throw new InvalidDataException("SVG document resolves to too many total rendered elements.");
         }
 
         var name = element.Name.LocalName;
@@ -725,7 +760,7 @@ public static class SvgCodec
                 // renders when referenced via <use>)
                 foreach (var child in element.Elements())
                 {
-                    RenderElement(child, state, transform, context, useDepth, elementDepth + 1);
+                    RenderElement(child, state, transform, context, useDepth, elementDepth + 1, ref totalElements);
                 }
 
                 break;
@@ -759,7 +794,7 @@ public static class SvgCodec
                 break;
 
             case "use":
-                RenderUse(element, state, transform, context, useDepth, elementDepth);
+                RenderUse(element, state, transform, context, useDepth, elementDepth, ref totalElements);
                 break;
 
             case "text":
@@ -2592,6 +2627,10 @@ public static class SvgCodec
     ///     propagated to the re-rendered target so it also contributes toward
     ///     <see cref="MaxElementDepth"/>.
     /// </param>
+    /// <param name="totalElements">
+    ///     The running total-rendered-elements count, propagated to the re-rendered target so it
+    ///     also contributes toward <see cref="MaxTotalRenderedElements"/>.
+    /// </param>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="useDepth"/> has already reached <see cref="MaxUseDepth"/>,
     ///     guarding against a reference cycle that would otherwise recurse indefinitely.
@@ -2601,7 +2640,7 @@ public static class SvgCodec
     ///     no-op (nothing is rendered), consistent with this class's general dangling-reference
     ///     handling elsewhere.
     /// </remarks>
-    private static void RenderUse(XElement element, RenderState state, Matrix3x2 transform, RenderContext context, int useDepth, int elementDepth)
+    private static void RenderUse(XElement element, RenderState state, Matrix3x2 transform, RenderContext context, int useDepth, int elementDepth, ref int totalElements)
     {
         if (useDepth >= MaxUseDepth)
         {
@@ -2616,7 +2655,7 @@ public static class SvgCodec
 
         var offset = new Vector2(GetFloatAttribute(element, "x"), GetFloatAttribute(element, "y"));
         var useTransform = Matrix3x2.CreateTranslation(offset) * transform;
-        RenderElement(target, state, useTransform, context, useDepth + 1, elementDepth + 1);
+        RenderElement(target, state, useTransform, context, useDepth + 1, elementDepth + 1, ref totalElements);
     }
 
     // ================================================================================================

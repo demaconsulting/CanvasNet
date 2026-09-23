@@ -888,6 +888,46 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that <c>&lt;use&gt;</c> fan-out - where a group is legitimately (non-cyclically)
+    ///     referenced by several sibling <c>&lt;use&gt;</c> elements that themselves fan out
+    ///     further - is rejected once the total number of rendered elements exceeds the
+    ///     implementation's fixed total-element budget, even though every individual reference
+    ///     chain stays well within both the <c>use</c>-nesting and element-tree depth limits. This
+    ///     is a distinct bound from <see cref="SvgCodec_Load_UseElementMutualRecursionCycle_ThrowsInvalidDataException"/>
+    ///     (which guards against a reference cycle) and
+    ///     <see cref="SvgCodec_Load_DeeplyNestedGroups_ThrowsInvalidDataException"/> (which guards
+    ///     against a single deep reference chain) - here every chain is short, but the total
+    ///     number of elements visited grows exponentially with nesting depth.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_UseFanOutExceedingTotalElementBudget_ThrowsInvalidDataException()
+    {
+        // Arrange: 10 levels of groups, each containing 4 <use> references to the previous
+        // level's group - a fan-out of 4 per level means the total element count would need to
+        // reach roughly 4^10 (over one million) to fully expand, but the fix's fail-fast budget
+        // check means only a small fraction of that tree is actually visited before it throws,
+        // keeping this test near-instant despite the pathological document shape
+        var builder = new StringBuilder();
+        builder.Append("<svg viewBox='0 0 10 10'><defs>");
+        builder.Append("<g id='g0'><rect width='1' height='1'/></g>");
+        for (var level = 1; level <= 10; level++)
+        {
+            builder.Append($"<g id='g{level}'>");
+            for (var branch = 0; branch < 4; branch++)
+            {
+                builder.Append($"<use href='#g{level - 1}'/>");
+            }
+
+            builder.Append("</g>");
+        }
+
+        builder.Append("</defs><use href='#g10'/></svg>");
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(builder.ToString()), 10, 10));
+    }
+
+    /// <summary>
     ///     Proves that an element tree nesting many levels of plain <c>&lt;g&gt;</c> groups (no
     ///     <c>&lt;use&gt;</c> involved) is rejected once it exceeds the implementation's bounded
     ///     element-tree recursion depth guard, rather than recursing without limit and risking a

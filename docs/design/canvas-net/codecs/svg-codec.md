@@ -187,20 +187,36 @@ the referenced element (translated by the `use` element's own `x`/`y`), resolved
 document-order-independent id index described above. A `use` referencing a nonexistent id is
 tolerated as a silent no-op. Because `use` can reference another `use` (directly or through
 intervening groups), rendering guards against unbounded mutual recursion with a fixed maximum
-recursion depth, raising `InvalidDataException` if it is exceeded rather than recursing (or
-looping) indefinitely.
+recursion depth, raising `InvalidDataException` if it is exceeded rather than recursing
+indefinitely - see **Element/Group Nesting and Total-Element Bounds** below for why this depth
+cap, on its own, does not bound every form of unbounded rendering work.
 
-**Element/group nesting depth.** The `use`-cycle guard above only bounds recursion that passes
-back through a `use` element - it does nothing to bound a document made entirely of many levels
-of plain nested `g`/`symbol` groups (no `use` involved), which would otherwise recurse the
-element-tree walk without limit and eventually overflow the call stack with an uncatchable
-`StackOverflowException`, terminating the process outright and bypassing this codec's documented
-`InvalidDataException`-wrapping error-handling policy entirely. Rendering therefore also tracks
-a second, independent recursion-depth counter incremented on every element-tree descent -
-whether through ordinary group nesting or through a `use` reference - and raises
-`InvalidDataException` once it is exceeded, before descending any further. This mirrors the same
-fixed-depth-cap pattern the Fonts subsystem's `GlyfLocaReader` unit uses to bound composite glyph
-nesting, applied here to bound the SVG element tree instead.
+#### Element/Group Nesting and Total-Element Bounds
+
+The `use`-cycle guard above only bounds recursion that passes back through a `use` element - it
+does nothing to bound a document made entirely of many levels of plain nested `g`/`symbol` groups
+(no `use` involved), which would otherwise recurse the element-tree walk without limit and
+eventually overflow the call stack with an uncatchable `StackOverflowException`, terminating the
+process outright and bypassing this codec's documented `InvalidDataException`-wrapping
+error-handling policy entirely. Rendering therefore also tracks a second, independent
+recursion-depth counter incremented on every element-tree descent - whether through ordinary group
+nesting or through a `use` reference - and raises `InvalidDataException` once it is exceeded,
+before descending any further. This mirrors the same fixed-depth-cap pattern the Fonts subsystem's
+`GlyfLocaReader` unit uses to bound composite glyph nesting, applied here to bound the SVG element
+tree instead.
+
+Neither depth cap bounds _total_ rendering work, only how deep any single reference chain may go.
+A group legitimately (non-cyclically) referenced by several sibling `use` elements, itself
+containing further such fan-out, re-renders its entire subtree once per reference - so the total
+number of elements rendered grows exponentially with nesting depth even while every individual
+reference chain stays well within both depth caps. This is the same class of amplification the
+Fonts subsystem's `GlyfLocaReader` unit guards against with its total-resolved-component budget: a
+depth cap alone does not stop a non-cyclic tree from exploding exponentially when the same
+sub-tree is legitimately shared. Rendering therefore also tracks a third, independent counter - the
+total number of elements rendered/visited across the whole document walk - charged before each
+element is processed further, and raises `InvalidDataException` once it exceeds a fixed budget far
+beyond any real-world document's element count but small enough to keep worst-case rendering
+CPU/memory bounded to a small, practical amount.
 
 **Text.** A `text` element's `font-family` is matched, case-insensitively, against a
 caller-supplied `fonts` dictionary keyed by family name, walking a comma-separated fallback list

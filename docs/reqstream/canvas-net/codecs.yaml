@@ -625,6 +625,7 @@ sections:
               - CanvasNet-Codecs-SvgCodec-GradientHrefInheritance
               - CanvasNet-Codecs-SvgCodec-UseElement
               - CanvasNet-Codecs-SvgCodec-ElementNestingDepthLimit
+              - CanvasNet-Codecs-SvgCodec-TotalElementBudget
               - CanvasNet-Codecs-SvgCodec-ValidationOutputDimensions
             tests:
               - CanvasNet_SystemIntegration_SvgLoad_ReturnsExpectedPixel

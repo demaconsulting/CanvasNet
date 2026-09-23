@@ -168,6 +168,23 @@ sections:
                 tests:
                   - SvgCodec_Load_DeeplyNestedGroups_ThrowsInvalidDataException
 
+              - id: CanvasNet-Codecs-SvgCodec-TotalElementBudget
+                title: >-
+                  The SvgCodec class shall reject an SVG document whose element tree resolves to
+                  more than a fixed maximum total number of rendered elements - counting every
+                  element actually visited, including repeated non-cyclic use fan-out - with
+                  InvalidDataException, rather than continuing to render.
+                justification: |
+                  A use element legitimately (non-cyclically) referenced by sibling use elements
+                  that themselves fan out further causes the total number of rendered elements to
+                  grow exponentially with nesting depth, even while every individual reference
+                  chain stays within the element/use nesting depth limits; without a total-element
+                  budget such a document would consume extreme CPU time (effectively hanging)
+                  despite passing both depth checks, so callers need a bounded, predictable
+                  InvalidDataException instead.
+                tests:
+                  - SvgCodec_Load_UseFanOutExceedingTotalElementBudget_ThrowsInvalidDataException
+
               - id: CanvasNet-Codecs-SvgCodec-TextRendering
                 title: >-
                   The SvgCodec class shall render a text element's characters as glyph outlines
