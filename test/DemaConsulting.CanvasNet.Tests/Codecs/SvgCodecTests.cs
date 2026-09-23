@@ -1876,6 +1876,30 @@ public class SvgCodecTests
         Assert.Equal(100, info.Height);
     }
 
+    /// <summary>
+    ///     Regression test for the unbounded <c>GetInfo</c> header-only parse finding:
+    ///     <c>LoadRootElementAttributesOnly</c> never reads past the root start-tag's attributes,
+    ///     but (pre-fix) used a plain <see cref="System.Xml.XmlReader"/> with no
+    ///     <c>MaxCharactersInDocument</c> setting, so a single oversized attribute value on the
+    ///     root <c>svg</c> element could still force it to materialize an unbounded amount of
+    ///     data, even though the reader never advances into the document body. Proves an attribute
+    ///     value padded well past the codec's fixed <c>MaxCharactersInDocument</c> bound is now
+    ///     rejected with <see cref="InvalidDataException"/>, matching the same bound
+    ///     <c>Load</c>'s own <c>LoadRootElement</c> already enforces. The oversized padding is
+    ///     generated programmatically, never committed as a literal giant fixture.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfo_OversizedRootAttributeValueExceedingCharacterBudget_ThrowsInvalidDataException()
+    {
+        // Arrange: a single root-element attribute value padded well past the codec's fixed
+        // 5,000,000-character document budget
+        var padding = new string('x', 5_100_000);
+        var svg = $"<svg viewBox='0 0 100 100' data-padding='{padding}'></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.GetInfo(ToStream(svg)));
+    }
+
     // ================================================================================================
     // Malformed-input rejection and tolerant unsupported-construct handling
     // ================================================================================================

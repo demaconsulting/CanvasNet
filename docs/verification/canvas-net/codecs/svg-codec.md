@@ -375,6 +375,13 @@ float) that `ComputeFitTransform`'s own division overflows the resulting scale t
 value is now rejected with `InvalidDataException` immediately after the fit transform is
 computed, rather than silently proceeding to render a blank, fully-transparent surface with no
 error at all.
+`SvgCodec_GetInfo_OversizedRootAttributeValueExceedingCharacterBudget_ThrowsInvalidDataException`
+is a regression test for the unbounded `GetInfo` header-only parse finding: a single root-element
+attribute value padded well past the codec's fixed `MaxCharactersInDocument` bound is now rejected
+with `InvalidDataException`, since the reader used by `LoadRootElementAttributesOnly` is now
+bounded by the same character cap `LoadRootElement` already enforces — even though it never reads
+past the root start-tag, it still advances character-by-character through the tag's own attribute
+values.
 
 #### CanvasNet-Codecs-SvgCodec-MalformedPathDataRejected: Malformed Path "d" Data Rejected
 

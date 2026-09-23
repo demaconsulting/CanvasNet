@@ -345,6 +345,7 @@ sections:
                   - SvgCodec_Load_DocumentExceedingCharacterBudget_ThrowsInvalidDataException
                   - SvgCodec_Load_DocumentWithinCharacterBudget_LoadsSuccessfully
                   - SvgCodec_Load_ViewBoxWidthExtremelySmallCausesNonFiniteFitScale_ThrowsInvalidDataException
+                  - SvgCodec_GetInfo_OversizedRootAttributeValueExceedingCharacterBudget_ThrowsInvalidDataException
 
               - id: CanvasNet-Codecs-SvgCodec-MalformedPathDataRejected
                 title: >-

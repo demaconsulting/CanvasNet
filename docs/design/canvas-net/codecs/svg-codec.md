@@ -118,7 +118,11 @@ Opens `path` as a read-only `FileStream` and delegates to `Load(Stream, int, int
 
 Reads only the root `svg` start-tag's own attributes, using a forward-only `System.Xml.XmlReader`
 that advances no further than the root element's attributes and never walks into the document
-body. Resolves the intrinsic size per the three-tier fallback policy described in _GetInfo
+body. This reader is still bounded by the same fixed `MaxCharactersInDocument` character cap
+`Load`'s own parse enforces: even though the reader never advances into the document body, it
+still advances character-by-character through the root start-tag's own attribute values, so an
+oversized single attribute value alone could otherwise force an unbounded amount of data to be
+materialized. Resolves the intrinsic size per the three-tier fallback policy described in _GetInfo
 Fallback Policy_ below. This is intentionally narrower than `Load`'s full `XDocument.Load` parse
 of the whole document: a document that is malformed only beyond the root `svg` element's own
 attributes is accepted by `GetInfo` (which never reads that far) even though `Load` would reject
@@ -130,8 +134,9 @@ paint.
 
 - `ArgumentNullException` — `stream` is null
 - `InvalidDataException` — the stream is not well-formed XML up to and including the root
-  start-tag, its root element is not named `svg`, or its `viewBox` attribute is present but
-  malformed
+  start-tag, its root element is not named `svg`, its `viewBox` attribute is present but
+  malformed, or the root start-tag alone (including an oversized attribute value) exceeds the
+  fixed character budget
 
 #### GetInfo(string path)
 

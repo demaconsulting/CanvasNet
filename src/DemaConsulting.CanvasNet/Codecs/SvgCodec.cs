@@ -510,8 +510,11 @@ public static class SvgCodec
     ///     attributes using a forward-only <see cref="XmlReader"/>, never reading past the root
     ///     element's attributes into the document body. Used by <c>GetInfo</c> only, so that
     ///     resolving intrinsic size costs time and memory proportional to the root start-tag alone
-    ///     - never the full document - regardless of how large or deeply nested the document body
-    ///     is.
+    ///     - never the full document body, regardless of how large or deeply nested it is. The
+    ///     reader is still bounded by the same <see cref="MaxDocumentCharacters"/> character cap
+    ///     <c>LoadRootElement</c> applies, since even a parse that never reads past the root
+    ///     start-tag can still be forced to materialize an unbounded amount of data via a single
+    ///     oversized root-tag attribute value.
     /// </summary>
     /// <param name="stream">The stream to parse.</param>
     /// <returns>
@@ -521,17 +524,24 @@ public static class SvgCodec
     /// </returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="stream"/> is not well-formed XML up to and including the
-    ///     root start-tag, or its root element is not named <c>svg</c>.
+    ///     root start-tag, its root element is not named <c>svg</c>, or the root start-tag alone
+    ///     (including an oversized attribute value) exceeds <see cref="MaxDocumentCharacters"/>.
     /// </exception>
     private static XElement LoadRootElementAttributesOnly(Stream stream)
     {
         try
         {
-            // A plain XmlReader (no explicit settings) is forward-only and never buffers more
-            // than the current node, so advancing only as far as the root start-tag's attributes
-            // - and never calling Read() again - guarantees the rest of the document is never
-            // parsed or walked, regardless of its size or well-formedness
-            using var reader = XmlReader.Create(stream);
+            // A plain XmlReader, bounded only by MaxCharactersInDocument, is forward-only and
+            // never buffers more than the current node, so advancing only as far as the root
+            // start-tag's attributes - and never calling Read() again - guarantees the rest of
+            // the document body is never parsed or walked, regardless of its size or
+            // well-formedness. The character cap is still required despite that: the reader
+            // still advances character-by-character through a single root-tag attribute value
+            // even though it never reads any further afterward, so an oversized attribute value
+            // alone (never mind the document body) could otherwise force this method to
+            // materialize an unbounded amount of data.
+            var settings = new XmlReaderSettings { MaxCharactersInDocument = MaxDocumentCharacters };
+            using var reader = XmlReader.Create(stream, settings);
             if (reader.MoveToContent() != XmlNodeType.Element || reader.LocalName != "svg")
             {
                 throw new InvalidDataException("The document's root element is not an <svg> element.");
