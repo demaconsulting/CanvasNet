@@ -761,6 +761,36 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that a <c>stroke-dasharray</c> whose individually-finite raw entries overflow to
+    ///     non-finite once scaled by an extreme-but-finite composed transform's own scale factor
+    ///     (the same scale <c>stroke-width</c> is already scaled by) tolerantly falls back to "no
+    ///     dashing" (a solid stroke), rather than reaching
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.StrokeStyle"/>'s constructor and throwing an
+    ///     uncaught exception - mirroring <c>ParseDashArray</c>'s own existing tolerant
+    ///     "malformed dash array -&gt; no dashing" convention.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ScaledDashArrayOverflowsToInfinity_FallsBackToSolidStrokeWithoutThrowing()
+    {
+        // Arrange: a dasharray entry (3e38) is just under float.MaxValue (~3.4028235e38), and a
+        // scale(2) transform overflows the scaled entry (3e38 * 2 = 6e38) to Infinity
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <g transform='scale(2)'>
+                <rect x='5' y='5' width='40' height='40' fill='none' stroke='black' stroke-width='2' stroke-dasharray='3e38,1'/>
+              </g>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the stroke still renders (as a solid line, dashing tolerantly dropped) rather
+        // than the whole document failing to load or the stroke reaching a throwing constructor
+        Assert.Equal(255, surface[10, 10].A);
+    }
+
+    /// <summary>
     ///     Proves that <c>opacity</c> multiplies into a solid fill color's alpha rather than
     ///     leaving it fully opaque.
     /// </summary>

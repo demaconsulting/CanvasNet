@@ -496,6 +496,17 @@ shape bounding box combined with the gradient's own `gradientTransform` overflow
 `BuildGradient`, with the shape's own `RenderElement`-composed transform staying finite throughout,
 so this case is not covered by the gradient-transform test above.
 
+A further, independent overflow site is `RenderStroke`'s own scaling of an already-finite,
+already-parsed `stroke-dasharray`/`stroke-dashoffset` by the composed transform's scale factor
+(the same scale `stroke-width` is already scaled by): the raw parsed dash values can be
+individually finite yet overflow once scaled by an extreme-but-finite transform.
+`SvgCodec_Load_ScaledDashArrayOverflowsToInfinity_FallsBackToSolidStrokeWithoutThrowing` proves a
+`stroke-dasharray` combined with a `transform="scale(...)"` large enough to overflow the scaled
+dash entry to non-finite falls back to "no dashing" (a solid stroke) rather than reaching
+`Drawing.StrokeStyle`'s constructor and throwing an uncaught exception - the stroke itself still
+renders, just without its dash pattern, matching `ParseDashArray`'s own existing tolerant
+"malformed dash array -> no dashing" convention.
+
 ### Acceptance Criteria
 
 A unit test run passes when every test method listed above, across both `SvgCodecTests.cs` and

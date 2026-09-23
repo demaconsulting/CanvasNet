@@ -318,7 +318,14 @@ differently:
   the whole `path` element is skipped (rendered as an empty path, the same no-op `RenderShape`
   already applies to any other empty path) rather than reaching `Drawing.DashSplitter`'s
   dash-interval walk with a non-finite path length, which would otherwise stall its finite-step
-  `while` loop indefinitely whenever the affected shape also has a `stroke-dasharray`.
+  `while` loop indefinitely whenever the affected shape also has a `stroke-dasharray`. A
+  `stroke-dasharray`/`stroke-dashoffset` that is individually finite as parsed, but overflows to a
+  non-finite value once scaled by a composed transform's own scale factor (the same scale
+  `stroke-width` is already scaled by), is likewise a tolerant case: rather than reaching
+  `Drawing.StrokeStyle`'s constructor and throwing, the scaled dash array/offset fall back to "no
+  dashing" (a solid stroke) — a more conservative choice than skipping the whole stroke, since the
+  stroke geometry itself remains perfectly valid and only its dash pattern overflowed — mirroring
+  `ParseDashArray`'s own existing tolerant "malformed dash array -> no dashing" convention.
 - **Well-formed but out-of-scope constructs** — see _Out-of-scope subset_ above. These are
   silently skipped, not errors.
 

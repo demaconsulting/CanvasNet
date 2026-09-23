@@ -2390,13 +2390,29 @@ public static class SvgCodec
             return;
         }
 
+        // The scaled dasharray/dashoffset - not just their raw, already-finite parsed values -
+        // must be validated: 'scale' (like strokeWidth's own scale above) can itself be extreme
+        // from a composed transform, overflowing an individually-finite dash entry/offset to a
+        // non-finite value that would otherwise reach StrokeStyle's constructor and throw an
+        // uncaught ArgumentOutOfRangeException/ArgumentException. Tolerantly fall back to "no
+        // dashing" (a solid stroke) rather than skipping the whole stroke - the stroke geometry
+        // itself is still perfectly valid, only its dash pattern overflowed - mirroring
+        // ParseDashArray's own existing tolerant "malformed dash array -> no dashing" convention.
+        var scaledDashArray = ScaleDashArray(state.StrokeDashArray, scale);
+        var scaledDashOffset = state.StrokeDashOffset * scale;
+        if (!float.IsFinite(scaledDashOffset) || (scaledDashArray?.Any(v => !float.IsFinite(v)) ?? false))
+        {
+            scaledDashArray = null;
+            scaledDashOffset = 0f;
+        }
+
         var style = new StrokeStyle(
             strokeWidth,
             state.StrokeLineCap,
             state.StrokeLineJoin,
             state.StrokeMiterLimit,
-            ScaleDashArray(state.StrokeDashArray, scale),
-            state.StrokeDashOffset * scale);
+            scaledDashArray,
+            scaledDashOffset);
 
         var outline = PathStroker.Stroke(pixelPath, style);
         FillWithPaint(context.Surface, outline, paint, FillRule.NonZero);
