@@ -1,0 +1,305 @@
+---
+# Software Unit Requirements for SvgCodec
+#
+# These requirements describe the design-level behavior of the SvgCodec unit.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Codecs Requirements
+        sections:
+          - title: SvgCodec Requirements
+            requirements:
+              - id: CanvasNet-Codecs-SvgCodec-LoadBasicShapes
+                title: >-
+                  The SvgCodec class shall rasterize rect (including rounded corners), circle,
+                  ellipse, line, polyline, and polygon elements, from either a stream or a file
+                  path.
+                justification: |
+                  Callers need the common SVG basic shapes rendered as filled and/or stroked
+                  pixel regions to display a wide range of real-world SVG documents.
+                tests:
+                  - SvgCodec_Load_Rect_RendersFilledRectangle
+                  - SvgCodec_Load_RectWithRoundedCorners_CutsCornerButFillsCenter
+                  - SvgCodec_Load_Circle_RendersFilledCircle
+                  - SvgCodec_Load_Ellipse_RendersElongatedFill
+                  - SvgCodec_Load_Line_RendersStrokedLine
+                  - SvgCodec_Load_Polyline_DoesNotCloseBetweenLastAndFirstPoint
+                  - SvgCodec_Load_Polygon_RendersClosedFilledShape
+                  - SvgCodec_Load_ShapesFixture_RendersExpectedShapeColors
+                  - SvgCodec_Load_FromFilePath_ReturnsExpectedPixels
+
+              - id: CanvasNet-Codecs-SvgCodec-LoadPathCommands
+                title: >-
+                  The SvgCodec class shall rasterize a path element's full "d" mini-language,
+                  including absolute and relative moveto, lineto, horizontal/vertical lineto,
+                  cubic and quadratic Bezier (including their smooth variants), elliptical arc,
+                  and closepath commands.
+                justification: |
+                  The path element's "d" mini-language is the most expressive and widely used
+                  SVG shape primitive; supporting its full command set is required to render
+                  arbitrary vector artwork rather than only the simple basic shapes.
+                tests:
+                  - SvgCodec_Load_PathWithAbsoluteMoveLineClose_RendersFilledTriangle
+                  - SvgCodec_Load_PathWithRelativeMoveLineClose_RendersSameShapeAsAbsolute
+                  - SvgCodec_Load_PathWithHorizontalAndVerticalLines_RendersRectangle
+                  - SvgCodec_Load_PathWithCubicBezier_RendersFilledCurvedShape
+                  - SvgCodec_Load_PathWithSmoothCubicBezier_RendersFilledShape
+                  - SvgCodec_Load_PathWithQuadraticBezier_RendersFilledShape
+                  - SvgCodec_Load_PathWithSmoothQuadraticBezier_RendersFilledShape
+                  - SvgCodec_Load_PathWithArc_RendersFilledHalfDisc
+
+              - id: CanvasNet-Codecs-SvgCodec-GroupTransformInheritance
+                title: >-
+                  The SvgCodec class shall apply a g element's presentation attributes and
+                  transform to all of its descendant elements, with child elements able to
+                  override an inherited attribute and nested opacity multiplying together.
+                justification: |
+                  Real-world SVG documents group related shapes under a common style and
+                  position; without cascading inheritance every leaf shape would need its
+                  presentation attributes repeated explicitly.
+                tests:
+                  - SvgCodec_Load_GroupFillInheritance_AppliesToChildWithoutOwnFill
+                  - SvgCodec_Load_ChildOwnFill_OverridesGroupFill
+                  - SvgCodec_Load_NestedGroupOpacity_MultipliesIntoFillAlpha
+                  - SvgCodec_Load_GroupsAndTransformsFixture_RendersAtTransformedPositions
+
+              - id: CanvasNet-Codecs-SvgCodec-TransformFunctions
+                title: >-
+                  The SvgCodec class shall apply the translate, scale, rotate, skewX, skewY, and
+                  matrix transform functions, and a space/comma-separated list of them composed
+                  so that the rightmost-listed function is applied to a point first.
+                justification: |
+                  The transform attribute is how SVG documents position, size, and orient shapes
+                  and groups; an incorrect composition order would silently misplace every
+                  shape using more than one transform function.
+                tests:
+                  - SvgCodec_Load_TranslateTransform_MovesShapeByOffset
+                  - SvgCodec_Load_ScaleTransform_EnlargesShapeAboutOrigin
+                  - SvgCodec_Load_RotateTransform_RotatesShapeAboutOrigin
+                  - SvgCodec_Load_MatrixTransform_AppliesRawComponents
+                  - SvgCodec_Load_SkewXTransform_ShearsShapeAlongX
+                  - SvgCodec_Load_CombinedTransformFunctions_AppliesRightmostFunctionFirst
+
+              - id: CanvasNet-Codecs-SvgCodec-PresentationAttributes
+                title: >-
+                  The SvgCodec class shall apply fill, fill-opacity, fill-rule, stroke,
+                  stroke-opacity, stroke-width, stroke-dasharray, and opacity presentation
+                  attributes, including fill="none" leaving a shape unfilled and opacity
+                  multiplying into a solid color's alpha.
+                justification: |
+                  Callers need the visual appearance encoded by an SVG document's presentation
+                  attributes (color, transparency, outline behavior) reproduced faithfully,
+                  not just its geometry.
+                tests:
+                  - SvgCodec_Load_FillRuleEvenOdd_PunchesHoleInOverlappingSubpaths
+                  - SvgCodec_Load_FillRuleNonzeroDefault_FillsUnionOfOverlappingSubpaths
+                  - SvgCodec_Load_FillNoneWithStroke_RendersOnlyOutline
+                  - SvgCodec_Load_StrokeDasharray_RendersGapsAlongLine
+                  - SvgCodec_Load_Opacity_MultipliesIntoFillAlpha
+
+              - id: CanvasNet-Codecs-SvgCodec-Gradients
+                title: >-
+                  The SvgCodec class shall paint a fill or stroke referencing a linearGradient or
+                  radialGradient element, honoring its stop colors/offsets/opacities,
+                  gradientUnits (objectBoundingBox or userSpaceOnUse), gradientTransform, and
+                  spreadMethod (pad, reflect, or repeat).
+                justification: |
+                  Gradients are a common way SVG documents encode smoothly varying colors;
+                  callers need them rasterized as varying pixel colors rather than a flat
+                  approximation.
+                tests:
+                  - SvgCodec_Load_LinearGradientUserSpaceOnUse_VariesAlongUserSpaceAxis
+                  - SvgCodec_Load_RadialGradient_VariesFromCenterToEdge
+                  - SvgCodec_Load_GradientSpreadMethodRepeat_TilesPastBaseRange
+                  - SvgCodec_Load_StrokeGradient_PaintsVaryingColorAlongStroke
+                  - SvgCodec_Load_GradientFixture_RendersVaryingGradientColors
+
+              - id: CanvasNet-Codecs-SvgCodec-GradientHrefInheritance
+                title: >-
+                  The SvgCodec class shall resolve a gradient element with no stop children of
+                  its own by inheriting stops from the gradient it references via href/xlink:href,
+                  following a chain of such references, and shall reject a cyclical reference
+                  chain with InvalidDataException rather than looping indefinitely.
+                justification: |
+                  Real-world SVG documents commonly define one gradient's color stops once and
+                  reuse them from other gradients with different geometry; callers need this
+                  template inheritance resolved correctly, and a malformed cyclical reference
+                  must fail predictably rather than hang.
+                tests:
+                  - SvgCodec_Load_GradientHrefInheritance_InheritsStopsFromTemplate
+                  - SvgCodec_Load_GradientHrefChainOfTwoHops_ResolvesToEventualStops
+                  - SvgCodec_Load_GradientHrefCycle_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-SvgCodec-UseElement
+                title: >-
+                  The SvgCodec class shall render a use element as a copy of the element it
+                  references via href/xlink:href, offset by its own x/y, resolved by id
+                  regardless of document order, tolerating a dangling reference as a silent
+                  no-op, and rejecting an unbounded mutually-recursive reference chain with
+                  InvalidDataException.
+                justification: |
+                  The use element lets SVG documents reuse a single definition (a shape or a
+                  whole group) at multiple positions without duplicating its markup; callers
+                  need this resolved to the same pixels a literal copy would have produced,
+                  without an unbounded recursive reference chain hanging the loader.
+                tests:
+                  - SvgCodec_Load_UseElement_RendersCopyAtOffsetIndependentOfDocumentOrder
+                  - SvgCodec_Load_UseElementDanglingReference_IsSilentNoOp
+                  - SvgCodec_Load_UseElementReferencingGroup_RendersAllGroupChildren
+                  - SvgCodec_Load_UseElementMutualRecursionCycle_ThrowsInvalidDataException
+                  - SvgCodec_Load_UseReferenceFixture_RendersAtOffsetPositionOnly
+
+              - id: CanvasNet-Codecs-SvgCodec-TextRendering
+                title: >-
+                  The SvgCodec class shall render a text element's characters as glyph outlines
+                  from a caller-supplied font matching its font-family, positioned using the
+                  font's advance widths and kerning pairs and scaled by font-size.
+                justification: |
+                  Callers need text content in an SVG document rendered as recognizable glyph
+                  shapes at the correct position, using real font metrics rather than an
+                  approximation.
+                tests:
+                  - SvgCodec_Load_TextWithMatchingFont_RendersGlyphAtExpectedPosition
+                  - SvgCodec_Load_TextWithKerningPair_AppliesKerningBetweenGlyphs
+                  - SvgCodec_Load_TextFixtureWithRealFont_RendersVisibleGlyphInk
+
+              - id: CanvasNet-Codecs-SvgCodec-TextFontFallbackSkipsSilently
+                title: >-
+                  The SvgCodec class shall silently skip rendering a text element, without
+                  throwing, when no fonts dictionary is supplied or no supplied font matches its
+                  font-family (including walking a comma-separated font-family fallback list).
+                justification: |
+                  Font matching depends entirely on what the caller supplies; a document
+                  referencing an unavailable font family is not malformed input and must not
+                  prevent the rest of the document from rendering.
+                tests:
+                  - SvgCodec_Load_TextWithoutFontsDictionary_SkipsSilentlyWithoutThrowing
+                  - SvgCodec_Load_TextFontFamilyNoMatch_SkipsSilentlyWithoutThrowing
+                  - SvgCodec_Load_TextFontFamilyCommaSeparatedList_MatchesFirstAvailableFont
+
+              - id: CanvasNet-Codecs-SvgCodec-TextAnchor
+                title: >-
+                  The SvgCodec class shall position a text element's glyph run relative to its
+                  x/y according to text-anchor (start, middle, or end).
+                justification: |
+                  Callers need text alignment (left, centered, or right of a reference point)
+                  to match the document's authored intent rather than always starting at x/y.
+                tests:
+                  - SvgCodec_Load_TextAnchorMiddle_CentersTextHorizontally
+                  - SvgCodec_Load_TextAnchorEnd_RightAlignsText
+
+              - id: CanvasNet-Codecs-SvgCodec-ViewBoxFitting
+                title: >-
+                  The SvgCodec class shall fit the document's intrinsic viewBox into the
+                  requested raster size using a "meet, centered" (CSS object-fit: contain
+                  equivalent) transform, letterboxing with transparent bars along whichever axis
+                  the intrinsic aspect ratio does not fill.
+                justification: |
+                  Callers request a specific raster size that may not share the document's
+                  intrinsic aspect ratio; centered letterboxing avoids distorting or clipping
+                  the document's content.
+                tests:
+                  - SvgCodec_Load_WideViewBoxIntoSquareRaster_LetterboxesTopAndBottom
+                  - SvgCodec_Load_TallViewBoxIntoSquareRaster_LetterboxesLeftAndRight
+
+              - id: CanvasNet-Codecs-SvgCodec-GetInfo
+                title: >-
+                  The SvgCodec class shall report an SVG document's resolved intrinsic width,
+                  height, channel count (4), and alpha presence (true) via GetInfo, given a
+                  stream or a file path, using its viewBox when present.
+                justification: |
+                  Callers need to inspect an SVG document's intrinsic size before choosing a
+                  raster target size to load it into.
+                tests:
+                  - SvgCodec_GetInfo_ViewBoxPresent_ReturnsViewBoxDimensions
+                  - SvgCodec_GetInfo_FromFilePath_ReturnsExpectedInfo
+
+              - id: CanvasNet-Codecs-SvgCodec-GetInfoFallback
+                title: >-
+                  The SvgCodec class shall fall back to the document's width/height attributes
+                  when no viewBox is present, and to the CSS/UA default replaced-element
+                  intrinsic size of 300x150 when neither a viewBox nor width/height are present.
+                justification: |
+                  Many real-world SVG documents omit a viewBox, or omit sizing information
+                  entirely; GetInfo must still report a usable size rather than failing.
+                tests:
+                  - SvgCodec_GetInfo_NoViewBoxWidthHeightPresent_ReturnsWidthHeight
+                  - SvgCodec_GetInfo_NoViewBoxNoWidthHeight_ReturnsCssDefault300x150
+
+              - id: CanvasNet-Codecs-SvgCodec-MalformedXmlRejected
+                title: >-
+                  The SvgCodec class shall reject a stream that is not well-formed XML, or whose
+                  viewBox or transform attributes are malformed, with InvalidDataException.
+                justification: |
+                  Malformed XML or a malformed sizing/transform attribute cannot be rasterized
+                  correctly; failing clearly here prevents attempting to interpret invalid data
+                  as valid geometry.
+                tests:
+                  - SvgCodec_Load_MalformedXml_ThrowsInvalidDataException
+                  - SvgCodec_Load_MalformedViewBoxWrongNumberCount_ThrowsInvalidDataException
+                  - SvgCodec_Load_ViewBoxNonPositiveWidth_ThrowsInvalidDataException
+                  - SvgCodec_Load_MalformedTransformUnrecognizedFunction_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-SvgCodec-MalformedPathDataRejected
+                title: >-
+                  The SvgCodec class shall reject a path element whose "d" data contains an
+                  unrecognized command letter or is missing required numeric arguments, with
+                  InvalidDataException.
+                justification: |
+                  Malformed path data cannot be rasterized correctly; failing clearly here
+                  prevents attempting to interpret invalid data as valid geometry.
+                tests:
+                  - SvgCodec_Load_MalformedPathDataUnknownCommand_ThrowsInvalidDataException
+                  - SvgCodec_Load_MalformedPathDataMissingArguments_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-SvgCodec-UnsupportedConstructsIgnored
+                title: >-
+                  The SvgCodec class shall silently skip well-formed but out-of-scope elements
+                  (including style, filter, mask, clipPath, pattern, marker, a nested svg,
+                  animate/SMIL, image, and foreignObject), continuing to render the rest of the
+                  document.
+                justification: |
+                  Real-world SVG documents commonly include constructs outside this codec's
+                  supported subset; rejecting the entire document because of one such element
+                  would be needlessly strict when the rest of the document is renderable.
+                tests:
+                  - SvgCodec_Load_UnsupportedConstructs_StillRendersRestOfDocument
+                  - SvgCodec_Load_ToleratesUnsupportedConstructFixture_StillRendersRemainingContent
+
+              - id: CanvasNet-Codecs-SvgCodec-ValidationNull
+                title: >-
+                  The SvgCodec class shall reject null stream/path arguments to Load and GetInfo
+                  with ArgumentNullException.
+                justification: |
+                  A null stream or path cannot identify a source document; rejecting it
+                  immediately prevents a NullReferenceException deeper in the call stack.
+                tests:
+                  - SvgCodec_Load_NullStream_ThrowsArgumentNullException
+                  - SvgCodec_Load_NullPath_ThrowsArgumentNullException
+                  - SvgCodec_GetInfo_NullStream_ThrowsArgumentNullException
+                  - SvgCodec_GetInfo_NullPath_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-SvgCodec-ValidationEmptyPath
+                title: >-
+                  The SvgCodec class shall reject a null, empty, or whitespace-only path argument
+                  to Load and GetInfo with ArgumentException.
+                justification: |
+                  An empty or whitespace-only path cannot identify a source document; rejecting
+                  it immediately prevents an obscure file-system error.
+                tests:
+                  - SvgCodec_Load_EmptyPath_ThrowsArgumentException
+                  - SvgCodec_Load_WhitespacePath_ThrowsArgumentException
+                  - SvgCodec_GetInfo_EmptyPath_ThrowsArgumentException
+
+              - id: CanvasNet-Codecs-SvgCodec-ValidationOutputDimensions
+                title: >-
+                  The SvgCodec class shall propagate Surface's own ArgumentOutOfRangeException,
+                  unwrapped, when Load is given a non-positive requested output width or height.
+                justification: |
+                  The requested raster width/height are ordinary API parameters supplied
+                  directly by the caller, not untrusted file data; they are validated by
+                  Surface's own constructor, so wrapping that exception would only obscure its
+                  origin.
+                tests:
+                  - SvgCodec_Load_NonPositiveWidth_PropagatesSurfaceArgumentOutOfRangeException
