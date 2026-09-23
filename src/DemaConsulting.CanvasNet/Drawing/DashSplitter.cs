@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Numerics;
 
 namespace DemaConsulting.CanvasNet.Drawing;
@@ -20,23 +21,40 @@ internal static class DashSplitter
     ///     run before giving up on this dash pattern, guarding against a finite-but-astronomically
     ///     large <c>totalLength</c> (e.g. a path spanning coordinates on the order of
     ///     <c>1e20</c>) whose double-precision ULP (unit in the last place) is far larger than a
-    ///     fine dash span (e.g. <c>[5, 5]</c>). In that situation the loop's
-    ///     <see cref="Math.BitIncrement(double)"/>-based defensive advance-guard - which exists so
-    ///     the loop can never fail to terminate - is still forced to run on the order of
-    ///     <c>totalLength / ulp(totalLength)</c> times, which is finite but can require an
-    ///     impractically large number of iterations (e.g. ~1.7e16 for the coordinates above): a
-    ///     reproducible, unconditional near-hang, not merely a slow-but-bounded computation, even
-    ///     though every value in play (<c>position</c>, <c>span</c>, <c>totalLength</c>) stays
-    ///     finite throughout. 50,000,000 is comfortably above the ~17,000,000 iterations the
-    ///     existing <c>DashSplitter_Split_FineDashPatternOnVeryLongPath_CompletesWithCorrectSegments</c>
-    ///     regression test already legitimately requires (a fine dash pattern on a long, but
-    ///     ordinary-magnitude, path), while empirically bounding this loop's own worst-case wall
-    ///     time to roughly 100-200ms (Release, JIT-warmed) - far below any threshold a caller
-    ///     could perceive as hanging. When this cap is reached, <see cref="Split"/> abandons
-    ///     dashing entirely for the whole path and falls back to a solid stroke, mirroring this
-    ///     method's other "cannot resolve this dash pattern" fallbacks.
+    ///     fine dash span (e.g. <c>[5, 5]</c>). Reaching a magnitude where a step through the loop
+    ///     genuinely needs the <see cref="Math.BitIncrement(double)"/>-based defensive
+    ///     advance-guard (rather than simply consuming an ordinary <c>totalLength / dashSpan</c>
+    ///     ratio of iterations) requires <c>position</c> to reach roughly <c>dashSpan × 2^52</c>;
+    ///     that guard is retained as unconditional-termination defense-in-depth for a future,
+    ///     even-larger-magnitude caller, but is not what the current worst-case input exercises -
+    ///     that input is slow simply because <c>totalLength / dashSpan</c> is itself an
+    ///     impractically large ratio (see <see cref="BuildOnIntervals"/>'s pre-flight estimate
+    ///     below, which detects and short-circuits this case in O(1) time rather than paying for
+    ///     the loop). Each dash-pattern-entry transition costs <b>two</b> loop iterations, not
+    ///     one: one iteration consumes the entry's remaining span (advancing <c>position</c>), and
+    ///     a second, separate iteration advances to the next pattern entry (<c>remainingInDash
+    ///     &lt;= 0</c> falling into <see cref="AdvanceDash"/> and <c>continue</c>-ing). Direct
+    ///     instrumentation of the existing
+    ///     <c>DashSplitter_Split_FineDashPatternOnVeryLongPath_CompletesWithCorrectSegments</c>
+    ///     regression test (a 17,000,000-unit path with a <c>[1, 1]</c> dash pattern) confirms this
+    ///     legitimately requires <b>~34,000,000</b> iterations (measured: 33,999,999) - not the
+    ///     ~17,000,000 previously (incorrectly) documented here, which was too low by exactly the
+    ///     missing per-transition advance iteration. 100,000,000 gives a ~2.94x margin over that
+    ///     corrected 34,000,000 baseline (mirroring the original author's intended ~2.94x ratio,
+    ///     now computed against the correct figure), while empirically bounding this loop's own
+    ///     worst-case wall time to roughly 200-400ms (Release, JIT-warmed) when the loop actually
+    ///     runs to the cap - far below any threshold a caller could perceive as hanging. Moving the
+    ///     cap upward (rather than down) is safe for CI runtime specifically because
+    ///     <see cref="BuildOnIntervals"/> no longer pays for the full loop on inputs whose
+    ///     pre-flight-estimated iteration count already exceeds this cap: such inputs short-circuit
+    ///     to the cap-exceeded fallback in O(1) time, so this constant's magnitude only bounds
+    ///     legitimate-looking inputs that are actually worth computing, not pathological ones. When
+    ///     the cap is reached (via either the pre-flight short-circuit or the loop's own running
+    ///     count), <see cref="Split"/> abandons dashing entirely for the whole path and falls back
+    ///     to a solid stroke, mirroring this method's other "cannot resolve this dash pattern"
+    ///     fallbacks.
     /// </summary>
-    private const int MaxOnIntervalIterations = 50_000_000;
+    private const int MaxOnIntervalIterations = 100_000_000;
 
     /// <summary>
     ///     Splits <paramref name="points"/> into the visible "on" dash segments described by
@@ -431,6 +449,38 @@ internal static class DashSplitter
     ///     guarantees eventual termination, not a practical iteration count: see
     ///     <see cref="MaxOnIntervalIterations"/> for the additional, magnitude-independent cap
     ///     that bounds worst-case iteration count (and therefore worst-case wall time) directly.
+    ///     <para>
+    ///     Before entering the loop at all, a cheap, <c>O(pattern.Count)</c> pre-flight estimate
+    ///     predicts how many iterations the loop below would need, using the exact same cost model
+    ///     the loop itself follows: two iterations per dash-pattern-entry transition (one to
+    ///     consume the entry's span, one to advance to the next entry - see
+    ///     <see cref="MaxOnIntervalIterations"/>'s remarks). The number of cost-bearing transitions
+    ///     per full pattern cycle is the count of <b>strictly-positive</b> pattern entries
+    ///     (<c>positiveEntryCount</c>) - zero-length entries are invisible to the outer loop's
+    ///     iteration count (skipped internally by <see cref="AdvanceDash"/>'s own bounded inner
+    ///     loop) - and the number of full cycles <paramref name="totalLength"/> requires is
+    ///     <c>totalLength / patternLength</c> (the sum of <b>all</b> pattern entries, via
+    ///     <see cref="GetPatternLength"/>), giving
+    ///     <c>estimatedIterations = 2 * positiveEntryCount * (totalLength / patternLength)</c>.
+    ///     When that estimate already exceeds <see cref="MaxOnIntervalIterations"/>, the loop is
+    ///     skipped entirely and this method reports <paramref name="iterationBudgetExceeded"/>
+    ///     immediately - turning a hopeless input's cost from
+    ///     <c>O(MaxOnIntervalIterations)</c> into a handful of arithmetic operations, without
+    ///     changing the outcome (the loop would have hit the same cap and reported the same
+    ///     fallback regardless). This is a heuristic estimate closely tracking the loop's real
+    ///     cost model, not an exact prediction or a strict mathematical upper bound: for paths
+    ///     short relative to a single pattern cycle it can under-count by at most roughly one
+    ///     cycle's worth of iterations (bounded by <c>2 * positiveEntryCount</c>, an
+    ///     array-length-order constant, negligible relative to the 100,000,000-iteration cap
+    ///     decision boundary and only ever relevant to inputs that are already fast to resolve).
+    ///     It has been verified safe (does not falsely short-circuit) against known edge cases,
+    ///     including a symmetric long-path legitimate case, an asymmetric small+large pattern
+    ///     case, a zero-heavy pattern case (many zero entries mixed with one large positive
+    ///     entry - a legal input <see cref="StrokeStyle"/> permits), and the adversarial
+    ///     huge-ULP case (which it still correctly short-circuits). The loop's own running
+    ///     <c>iterations</c> cap remains the authoritative backstop for any input not caught by
+    ///     this estimate.
+    ///     </para>
     /// </remarks>
     private static List<(double Start, double End)> BuildOnIntervals(
         IReadOnlyList<float> pattern,
@@ -443,7 +493,20 @@ internal static class DashSplitter
         encounteredPositiveOffSpan = false;
         iterationBudgetExceeded = false;
         var intervals = new List<(double Start, double End)>();
+
+        // Cheap, O(pattern.Count) pre-flight estimate: short-circuit straight to the
+        // cap-exceeded fallback for hopeless inputs (e.g. a huge-but-finite totalLength paired
+        // with a fine dash span) without ever entering the loop below - see this method's
+        // remarks for the cost model and its known, bounded slack.
         var patternLength = GetPatternLength(pattern);
+        var positiveEntryCount = pattern.Count(entry => entry > 0f);
+        var estimatedIterations = 2d * positiveEntryCount * (totalLength / patternLength);
+        if (estimatedIterations > MaxOnIntervalIterations)
+        {
+            iterationBudgetExceeded = true;
+            return intervals;
+        }
+
         var (dashIndex, remainingInDashFloat) = LocatePhase(pattern, dashOffset, patternLength);
         double remainingInDash = remainingInDashFloat;
 

@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Drawing;
@@ -460,8 +459,10 @@ public class PathStrokerTests
     ///     not hang the public <see cref="PathStroker.Stroke(Path, StrokeStyle, float)"/> entry
     ///     point, pairing with <see cref="DashSplitterTests.DashSplitter_Split_HugeFiniteTotalLengthWithFineDashSpan_FallsBackToSolidStroke"/>.
     ///     Calls <c>Stroke</c> directly and synchronously (no <c>Task.Run</c>/<c>Task.WhenAny</c>/
-    ///     <c>Task.Delay</c> race): the fix's fixed 50,000,000-iteration cap in
-    ///     <c>DashSplitter.BuildOnIntervals</c> deterministically bounds the work regardless of
+    ///     <c>Task.Delay</c> race): <c>DashSplitter.BuildOnIntervals</c>'s cheap pre-flight
+    ///     iteration estimate detects that this input's cost would exceed its iteration budget
+    ///     and short-circuits straight to the solid-stroke fallback without ever running the
+    ///     traversal loop, deterministically bounding the work (effectively O(1)) regardless of
     ///     host machine speed, so the correct regression signal is that the call returns at all
     ///     with a well-formed result, matching the direct-call convention already used by
     ///     <see cref="PathStroker_Stroke_OverflowProneDashArrayWithNegativeOffset_CompletesWithoutHanging"/>
@@ -477,20 +478,12 @@ public class PathStrokerTests
             .Build();
         var style = new StrokeStyle(2f, dashArray: [5f, 5f]);
 
-        // Act: direct, synchronous call - the iteration cap (not wall-clock time) is what
-        // guarantees termination, so there is nothing to race against.
-        var stopwatch = Stopwatch.StartNew();
+        // Act: direct, synchronous call - the pre-flight iteration-budget estimate (not
+        // wall-clock time) is what guarantees termination, so there is nothing to race against.
         var stroked = PathStroker.Stroke(path, style);
-        stopwatch.Stop();
 
-        // Assert: the call returned (did not hang) with a well-formed result. The elapsed-time
-        // check is a generous, one-directional, post-hoc defense-in-depth safety net only -
-        // asserted after the call already returned, never racing it.
+        // Assert: the call returned (did not hang) with a well-formed result.
         Assert.NotNull(stroked);
-        Assert.True(
-            stopwatch.Elapsed < TimeSpan.FromSeconds(30),
-            $"Stroke took {stopwatch.Elapsed} which is far beyond what the iteration-capped fix " +
-            "should ever require; this indicates a real regression, not CI slowness.");
     }
 
     /// <summary>

@@ -118,9 +118,10 @@ terminate promptly even when intermediate arithmetic would naively overflow or u
 covering a huge dash pattern combined with a tiny negative offset (symmetric and asymmetric
 patterns), an edge or closed contour spanning near-extreme float32 coordinate magnitudes, a
 zero-length leading dash-array entry evaluated against a zero-length path, a huge-but-finite total
-path length combined with a fine dash span (where double precision's ULP at that magnitude
-otherwise forces the dash-interval traversal loop toward an impractical iteration count, now capped
-and falling back to a solid stroke instead of consuming disproportionate CPU time), and a round
+path length combined with a fine dash span (where `totalLength / dashSpan` would otherwise force
+the dash-interval traversal loop toward an impractical iteration count; a cheap pre-flight estimate
+now detects this before the loop runs and short-circuits directly to a solid-stroke fallback,
+resolving the case in O(1) time instead of consuming disproportionate CPU time), and a round
 join/cap tessellated at extreme geometric scale - rather than hanging, misclassifying the contour
 as degenerate, or producing `NaN`/`Infinity` coordinates.
 

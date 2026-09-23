@@ -394,14 +394,14 @@ rather than throwing or hanging.
 A distinct, non-overflow case is a path spanning coordinates that are huge but individually
 entirely finite (no `Infinity`/`NaN` anywhere), combined with a fine `stroke-dasharray`:
 `SvgCodec_Load_HugeFinitePathWithFineDashPattern_TerminatesPromptlyWithoutHanging` proves, by
-calling `Load` directly and synchronously and asserting it returns a non-null `Surface` - with
-elapsed time measured via a `Stopwatch` only after the call has already returned and checked
-against a generous bound purely as a defense-in-depth regression guard, not as a race - that a
-`path` from `(-1e20, -1e20)` to `(1e20, 1e20)` with `stroke-dasharray="5,5"` - where double
-precision's ULP at that magnitude is far larger than the dash span, previously forcing
-`Drawing.DashSplitter`'s dash-interval traversal loop toward an impractical iteration count even
-though every value involved stays finite - now completes promptly (the affected `path` falls back
-to a solid stroke) instead of hanging.
+calling `Load` directly and synchronously and asserting it returns a non-null `Surface` - a
+deterministic, no-timing-assertion check, since `Drawing.DashSplitter.BuildOnIntervals`'s cheap
+pre-flight iteration estimate detects this input's cost up front and short-circuits directly to the
+solid-stroke fallback without ever running its traversal loop - that a `path` from
+`(-1e20, -1e20)` to `(1e20, 1e20)` with `stroke-dasharray="5,5"` - where `totalLength / dashSpan` is
+an astronomically large ratio even though every value involved stays finite - now completes
+promptly (the affected `path` falls back to a solid stroke) instead of running that traversal loop
+at all.
 
 #### CanvasNet-Codecs-SvgCodec-PercentageGeometryRejected: Percentage Rejected on Geometry Attributes
 

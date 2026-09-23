@@ -1999,20 +1999,16 @@ public class SvgCodecTests
     /// <summary>
     ///     Regression test for the huge-finite-total-length-vs-fine-dash-span CPU-exhaustion
     ///     finding: a path spanning coordinates on the order of <c>1e20</c> (finite, no overflow
-    ///     involved at all) combined with a fine <c>stroke-dasharray</c> forced
+    ///     involved at all) combined with a fine <c>stroke-dasharray</c> would otherwise force
     ///     <see cref="DemaConsulting.CanvasNet.Drawing.DashSplitter"/>'s dash-interval traversal
     ///     loop to require an impractical number of iterations to reach the path's total length,
     ///     because double precision's ULP (unit in the last place) at that magnitude is far larger
-    ///     than the dash span - a reproducible, unconditional near-hang, not merely a slow-but-
-    ///     bounded computation. Proven here, by calling <c>Load</c> directly (no wall-clock race):
-    ///     the fix's fixed 50,000,000-iteration cap in <c>DashSplitter.BuildOnIntervals</c> is a
-    ///     deterministic, hardware-independent bound, so the correct regression signal is that the
-    ///     call returns at all with the documented solid-stroke fallback - not how long it takes to
-    ///     do so on any given machine. A generous elapsed-time assertion is retained purely as
-    ///     defense-in-depth against a future regression that reintroduces unbounded iteration; it
-    ///     is measured only after the call has already returned, so it can never itself cause a
-    ///     spurious "hung" failure on slower CI hardware the way a <c>Task.WhenAny</c>/<c>Task.Delay</c>
-    ///     race would.
+    ///     than the dash span. Proven here, by calling <c>Load</c> directly (no wall-clock race):
+    ///     <c>DashSplitter.BuildOnIntervals</c>'s cheap pre-flight iteration estimate detects that
+    ///     this input's cost would exceed its iteration budget and short-circuits straight to the
+    ///     solid-stroke fallback without ever running the traversal loop, so the correct regression
+    ///     signal is that the call returns at all with the documented solid-stroke fallback - not
+    ///     how long it takes to do so on any given machine.
     /// </summary>
     [Fact]
     public void SvgCodec_Load_HugeFinitePathWithFineDashPattern_TerminatesPromptlyWithoutHanging()
@@ -2024,23 +2020,15 @@ public class SvgCodecTests
                             "<path d='M -1e20 -1e20 L 1e20 1e20' stroke='black' stroke-width='1' stroke-dasharray='5,5'/>" +
                             "</svg>";
 
-        // Act: call directly and synchronously - no Task.Run/WhenAny/Delay race. The
-        // 50,000,000-iteration cap deterministically bounds the work, so this either returns
-        // (fixed) or the process itself would need to be killed by the CI job's own timeout
-        // (regressed to truly unbounded) - there is no ambiguous "slow but fine" middle ground for
-        // a hard iteration cap the way there is for wall-clock time.
-        var stopwatch = Stopwatch.StartNew();
+        // Act: call directly and synchronously - no Task.Run/WhenAny/Delay race. The pre-flight
+        // iteration-budget estimate deterministically bounds the work (effectively O(1)), so this
+        // either returns (fixed) or the process itself would need to be killed by the CI job's own
+        // timeout (regressed to truly unbounded) - there is no ambiguous "slow but fine" middle
+        // ground for a hard iteration cap the way there is for wall-clock time.
         var surface = SvgCodec.Load(ToStream(svg), 10, 10);
-        stopwatch.Stop();
 
-        // Assert: the load completed and did not throw. The elapsed-time check is a generous,
-        // one-directional, post-hoc defense-in-depth safety net (asserted only after the call
-        // already returned) - not a pass/fail race against the operation itself.
+        // Assert: the load completed and did not throw.
         Assert.NotNull(surface);
-        Assert.True(
-            stopwatch.Elapsed < TimeSpan.FromSeconds(30),
-            $"Load took {stopwatch.Elapsed} which is far beyond what the iteration-capped fix " +
-            "should ever require; this indicates a real regression, not CI slowness.");
     }
 
     /// <summary>

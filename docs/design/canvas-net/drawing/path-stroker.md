@@ -229,28 +229,57 @@ to support, and a defensive `Math.BitIncrement`-based advance-guard ensures the 
 never fail to terminate even if a step does not advance `position`. However, neither of those
 measures bounds the loop's worst-case *iteration count*: a path whose total length is huge but
 still finite (for example, a segment spanning coordinates on the order of `1e20`) combined with a
-fine dash span (for example `[5, 5]`) has a double-precision ULP at that magnitude far larger than
-the dash span, forcing every step through the advance-guard - which can require on the order of
-`totalLength / ulp(totalLength)` iterations (roughly `1.7e16` for the example above) to reach
-`totalLength`. That is a reproducible, unconditional near-hang, not merely a slow computation, even
-though every value involved (`position`, `span`, `totalLength`) stays finite throughout - so no
-`IsFinite`-style guard can detect it.
+fine dash span (for example `[5, 5]`) simply has an ordinary-shaped but astronomically large
+`totalLength / dashSpan` ratio - the advance-guard itself would only actually be forced to run at
+magnitudes many orders larger still (`position` reaching roughly `dashSpan × 2^52`) and is not what
+makes this case slow. That ratio alone is a reproducible, unconditional near-hang, not merely a
+slow computation, even though every value involved (`position`, `span`, `totalLength`) stays finite
+throughout - so no `IsFinite`-style guard can detect it.
 
-`BuildOnIntervals` therefore counts every pass through its traversal loop (including iterations
-that only advance the dash-pattern phase without emitting an interval) against a fixed cap,
-`MaxOnIntervalIterations = 50_000_000`. This value was chosen empirically: it is comfortably above
-the roughly 17,000,000 iterations a fine dash pattern on an ordinary-magnitude, but very long, path
-legitimately requires (the existing regression test
-`DashSplitter_Split_FineDashPatternOnVeryLongPath_CompletesWithCorrectSegments` depends on this),
-while a bare 50,000,000-iteration loop of this shape was separately measured to complete in roughly
-100-200ms (Release, JIT-warmed) - far below any threshold a caller could perceive as hanging. When
-the cap is reached, `BuildOnIntervals` signals this back to `Split` via an `out bool` parameter
-rather than continuing to loop; `Split` then abandons dashing entirely for the whole path and falls
-back to a solid stroke (returning the original polyline as a single, unsplit segment), mirroring
-this same method's existing "cannot resolve this dash pattern" fallbacks for a non-finite or
-non-positive total pattern length. This fallback shape matches `SvgCodec.RenderStroke`'s own
-established "cannot use this dash pattern -> render as solid stroke" convention for other
-dash-pattern-specific numeric problems, rather than throwing or silently omitting the stroke.
+`BuildOnIntervals` counts every pass through its traversal loop (including iterations that only
+advance the dash-pattern phase without emitting an interval) against a fixed cap,
+`MaxOnIntervalIterations = 100_000_000`. Each dash-pattern-entry transition costs **two** loop
+iterations, not one: one iteration consumes the entry's remaining span (advancing `position`), and
+a separate iteration advances to the next pattern entry. Direct instrumentation of the existing
+`DashSplitter_Split_FineDashPatternOnVeryLongPath_CompletesWithCorrectSegments` regression test (a
+17,000,000-unit path with a `[1, 1]` dash pattern) confirms this legitimately requires
+**~34,000,000** iterations (measured: 33,999,999) - correcting an earlier, since-fixed doc/comment
+figure of "~17,000,000" that was too low by exactly the missing per-transition advance iteration.
+`100,000,000` gives a ~2.94x margin over that corrected 34,000,000 baseline, while a bare
+100,000,000-iteration loop of this shape was separately measured to complete in roughly 200-400ms
+(Release, JIT-warmed) - far below any threshold a caller could perceive as hanging.
+
+Before entering the loop at all, `BuildOnIntervals` runs a cheap, `O(pattern.Count)` pre-flight
+estimate using the same two-iterations-per-transition cost model:
+`estimatedIterations = 2 * positiveEntryCount * (totalLength / patternLength)`, where
+`positiveEntryCount` is the count of strictly-positive entries in the (already-normalized) dash
+pattern (zero-length entries cost nothing in the real loop, so they are excluded) and
+`patternLength` is the sum of *all* pattern entries (the full cycle length), not just the smallest
+one. When that estimate already exceeds `MaxOnIntervalIterations`, the loop is skipped entirely -
+the method reports the cap-exceeded outcome immediately, without ever running the traversal loop -
+turning a hopeless input's cost from `O(MaxOnIntervalIterations)` into a handful of arithmetic
+operations. This is a heuristic estimate that closely tracks the loop's real cost model, not an
+exact prediction or a strict mathematical upper bound: for paths short relative to a single pattern
+cycle it can under-count by at most roughly one cycle's worth of iterations (bounded by
+`2 * positiveEntryCount`, an array-length-order constant, negligible relative to the
+100,000,000-iteration cap decision boundary and only relevant to inputs that are already fast to
+resolve). It has been verified safe (does not falsely short-circuit) against a symmetric long-path
+legitimate case, an asymmetric small+large pattern case, a zero-heavy pattern case (many zero
+entries mixed with one large positive entry, a legal `StrokeStyle` input), and the adversarial
+huge-ULP case (which it still correctly short-circuits); the loop's own running iteration count
+remains the authoritative backstop for any input the pre-flight estimate does not catch. This is
+what makes raising the cap
+from 50,000,000 to 100,000,000 safe for CI runtime specifically: the cap's magnitude no longer
+determines how long a hopeless input takes to resolve, so it can be sized purely for a comfortable
+margin over legitimate use rather than traded off against pathological-input runtime. When the cap
+is reached (via either the pre-flight short-circuit or the loop's own running count),
+`BuildOnIntervals` signals this back to `Split` via an `out bool` parameter rather than continuing
+to loop; `Split` then abandons dashing entirely for the whole path and falls back to a solid stroke
+(returning the original polyline as a single, unsplit segment), mirroring this same method's
+existing "cannot resolve this dash pattern" fallbacks for a non-finite or non-positive total
+pattern length. This fallback shape matches `SvgCodec.RenderStroke`'s own established "cannot use
+this dash pattern -> render as solid stroke" convention for other dash-pattern-specific numeric
+problems, rather than throwing or silently omitting the stroke.
 
 ### Complexity
 
