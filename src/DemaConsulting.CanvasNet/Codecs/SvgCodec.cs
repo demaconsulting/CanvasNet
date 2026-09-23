@@ -2143,13 +2143,21 @@ public static class SvgCodec
     ///     A no-op stroke (<c>stroke="none"</c>, a dangling gradient reference, or a non-positive
     ///     effective stroke width) never constructs a <see cref="Drawing.StrokeStyle"/> at all,
     ///     avoiding its constructor's own <see cref="ArgumentOutOfRangeException"/> for a
-    ///     zero width.
+    ///     zero width. The same tolerant skip also covers a non-finite effective stroke width: the
+    ///     locally-finite <c>stroke-width</c> is scaled by <see cref="EstimateUniformScale"/>,
+    ///     whose composed nested <c>transform="scale(...)"</c> determinant can overflow to a
+    ///     non-finite value (<c>Infinity</c>, or <c>NaN</c> if the overflow arithmetic itself
+    ///     produces an indeterminate result) even though every individual transform literal was
+    ///     finite - such an overflowed width would otherwise pass the <c>&lt;= 0f</c> check (since
+    ///     neither <c>Infinity</c> nor <c>NaN</c> compares <c>&lt;= 0f</c>) and reach
+    ///     <see cref="Drawing.StrokeStyle"/>'s constructor, which throws an uncaught
+    ///     <see cref="ArgumentOutOfRangeException"/> for it.
     /// </remarks>
     private static void RenderStroke(Path localPath, Path pixelPath, RenderState state, Matrix3x2 transform, RenderContext context)
     {
         var scale = EstimateUniformScale(transform);
         var strokeWidth = state.StrokeWidth * scale;
-        if (strokeWidth <= 0f)
+        if (!float.IsFinite(strokeWidth) || strokeWidth <= 0f)
         {
             return;
         }

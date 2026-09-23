@@ -689,6 +689,41 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that a stroke whose effective width overflows to <c>Infinity</c> - because two
+    ///     nested <c>transform="scale(1e20)"</c> groups each carry an individually-finite literal,
+    ///     but their composed determinant inside <see cref="SvgCodec"/>'s
+    ///     <c>EstimateUniformScale</c> overflows a <see langword="float"/> - is silently skipped
+    ///     rather than reaching <see cref="DemaConsulting.CanvasNet.Drawing.StrokeStyle"/>'s
+    ///     constructor and throwing an uncaught <see cref="ArgumentOutOfRangeException"/>. An
+    ///     infinite width passes the pre-existing <c>strokeWidth &lt;= 0f</c> guard unmodified
+    ///     (since <c>Infinity &gt; 0</c>), so this proves the additional finiteness check.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_NestedTransformScaleOverflowsStrokeWidthToInfinity_SkipsStrokeWithoutThrowing()
+    {
+        // Arrange: nested scale(1e20) groups - individually finite, but 1e20 * 1e20 = 1e40
+        // overflows float's ~3.4e38 range once composed, producing a non-finite effective
+        // stroke width (observed as NaN, since the determinant computation involves an
+        // Infinity-valued intermediate subtraction, not a bare Infinity result)
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <g transform='scale(1e20)'>
+                <g transform='scale(1e20)'>
+                  <rect x='1' y='1' width='2' height='2' fill='none' stroke='black' stroke-width='1'/>
+                </g>
+              </g>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: rendering completed without the raw ArgumentOutOfRangeException a non-finite
+        // effective stroke width reaching StrokeStyle's constructor would otherwise throw
+        Assert.Equal(100, surface.Width);
+    }
+
+    /// <summary>
     ///     Proves that <c>opacity</c> multiplies into a solid fill color's alpha rather than
     ///     leaving it fully opaque.
     /// </summary>
