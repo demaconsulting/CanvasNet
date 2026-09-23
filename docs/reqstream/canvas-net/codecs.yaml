@@ -1,6 +1,8 @@
 ---
 # Software Subsystem Requirements for Codecs
 #
+# cspell:ignore rasterizing letterboxing renderable
+#
 # These requirements decompose the CanvasNet system's image format support into the Codecs
 # subsystem's own responsibility: providing loaders and savers for BMP, PNG, TIFF, and JPEG,
 # each converting to and from a DemaConsulting.CanvasNet.Canvas.Surface pixel buffer. Each requirement here

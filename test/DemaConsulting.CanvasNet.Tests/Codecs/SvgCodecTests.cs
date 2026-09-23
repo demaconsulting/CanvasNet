@@ -1,4 +1,5 @@
 // cspell:ignore Sfnt sfnt glyf cmap notdef codepoint
+// cspell:ignore Dasharray hhea Hhea hmtx Hmtx hrefs letterboxed Loca Maxp unstroked
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;

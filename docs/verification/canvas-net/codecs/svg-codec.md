@@ -1,5 +1,7 @@
 ## SvgCodec Unit Verification Design
 
+<!-- cspell:ignore unstroked Letterboxing -->
+
 This document describes the unit-level verification strategy for the `SvgCodec` class.
 
 ### Verification Approach

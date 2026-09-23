@@ -1,6 +1,7 @@
 # Introduction
 
 <!-- cspell:ignore glyf sfnt codepoint -->
+<!-- cspell:ignore rasterizing unparseable SMIL -->
 
 ## Purpose
 

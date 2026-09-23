@@ -2,6 +2,8 @@
 
 ![Codecs Structure](CodecsView.svg)
 
+<!-- cspell:ignore rasterizing rrggbb sizeless SMIL unparseable Linq -->
+
 The `SvgCodec` class is the fifth software unit in the `Codecs` subsystem, and the first codec
 unit whose dependencies extend beyond `Canvas.Surface`. It provides hand-rolled, decode/
 rasterize-only support for a common real-world subset of SVG (Scalable Vector Graphics)

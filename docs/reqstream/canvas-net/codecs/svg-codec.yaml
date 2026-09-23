@@ -1,6 +1,8 @@
 ---
 # Software Unit Requirements for SvgCodec
 #
+# cspell:ignore moveto lineto closepath dasharray letterboxing renderable xlink SMIL
+#
 # These requirements describe the design-level behavior of the SvgCodec unit.
 
 sections:

@@ -5,6 +5,7 @@
 # from the perspective of its consumers, without specifying implementation details.
 # cspell:ignore glyf sfnt cmap loca hmtx hhea maxp notdef
 # cspell:ignore codepoint codepoints subtable subtables subsetted renderable formedness
+# cspell:ignore rasterizing letterboxing
 
 sections:
   - title: Canvas API

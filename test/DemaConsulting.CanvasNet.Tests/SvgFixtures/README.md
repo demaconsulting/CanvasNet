@@ -9,8 +9,8 @@ CanvasNet and is licensed under the same MIT license as the rest of this reposit
 | File | Exercises |
 | ------ | ----------- |
 | `shapes.svg` | `rect`, `circle`, `ellipse`, `polygon` basic shapes with solid fills |
-| `groups-and-transforms.svg` | `g` grouping with fill inheritance, and combined `translate`/`rotate` transform functions |
+| `groups-and-transforms.svg` | `g` grouping with fill inheritance, combined `translate`/`rotate` transforms |
 | `gradient.svg` | `linearGradient` with `stop` children, referenced via `fill="url(#id)"` |
 | `use-reference.svg` | `defs` (non-rendering template storage) and `use` (reference + `x`/`y` offset) |
 | `text.svg` | `text` rendering, paired in tests with the real `FontFixtures/OpenSans-Regular.ttf` font |
-| `tolerant-unsupported.svg` | A well-formed but out-of-scope `filter` element alongside an ordinary `rect`, proving the rest of the document still renders |
+| `tolerant-unsupported.svg` | A well-formed but out-of-scope `filter`, alongside a `rect` that still renders |

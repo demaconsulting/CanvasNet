@@ -1,6 +1,21 @@
 // cspell:ignore linecap linejoin dasharray dashoffset miterlimit anchor xlink href
 // cspell:ignore evenodd nonzero viewbox gradientunits gradienttransform spreadmethod
 // cspell:ignore userspaceonuse objectboundingbox skewx skewy tspan
+// cspell:ignore rasterizing unparseable rrggbb sizeless bbox moveto multiplicatively pillarbox SMIL
+// cspell:ignore aliceblue antiquewhite blanchedalmond blueviolet burlywood cadetblue cornflowerblue
+// cspell:ignore cornsilk darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta
+// cspell:ignore darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen darkslateblue
+// cspell:ignore darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray
+// cspell:ignore dimgrey dodgerblue floralwhite forestgreen gainsboro ghostwhite greenyellow hotpink
+// cspell:ignore indianred lavenderblush lawngreen lemonchiffon lightcoral lightcyan
+// cspell:ignore lightgoldenrodyellow lightgray lightgreen lightpink lightsalmon lightseagreen
+// cspell:ignore lightskyblue lightslategray lightslategrey lightsteelblue lightyellow limegreen
+// cspell:ignore mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen mediumslateblue
+// cspell:ignore mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream mistyrose
+// cspell:ignore navajowhite oldlace olivedrab orangered palegoldenrod palegreen paleturquoise
+// cspell:ignore palevioletred papayawhip peachpuff powderblue rebeccapurple rosybrown royalblue
+// cspell:ignore saddlebrown sandybrown seagreen skyblue slateblue slategray slategrey springgreen
+// cspell:ignore steelblue whitesmoke yellowgreen
 using System.Globalization;
 using System.Numerics;
 using System.Xml;

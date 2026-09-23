@@ -1,5 +1,7 @@
 namespace DemaConsulting.CanvasNet.Codecs;
 
+// cspell:ignore rasterizing rasterize
+
 /// <summary>
 ///     The <see cref="DemaConsulting.CanvasNet.Codecs"/> namespace provides codecs for loading and saving pixel
 ///     data in common image file formats: uncompressed Windows BMP (<see cref="BmpCodec"/>), a

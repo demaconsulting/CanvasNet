@@ -2,6 +2,8 @@
 
 ![Codecs Structure](CodecsView.svg)
 
+<!-- cspell:ignore rasterizing unparseable Linq -->
+
 The `Codecs` subsystem is the second software subsystem in CanvasNet. It groups five flat,
 hand-rolled image-format codecs — `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, and
 `SvgCodec` — each of which converts to and from a `DemaConsulting.CanvasNet.Canvas.Surface` pixel
