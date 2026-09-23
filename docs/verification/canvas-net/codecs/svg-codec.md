@@ -442,9 +442,19 @@ still renders correctly.
 
 A further, independent case is a composed transform overflowing to a non-finite value across
 nested `transform="scale(...)"` groups, each individually finite but whose cross-element product
-is not: `SvgCodec_Load_NestedTransformScaleOverflowsCompositeTransformToNonFinite_SkipsElementWithoutThrowing`
-exercises `RenderElement`'s own composed-transform guard directly with a plain solid fill (no
-gradient), confirming the document still loads without throwing.
+is not. `RenderElement` guards its own composed transform against this before rendering the
+element at all, but that guard is deliberate defense-in-depth, not a closed crash repro: every
+currently-known way a non-finite composed transform could otherwise reach a throwing
+`Drawing`-namespace constructor is already independently guarded closer to that constructor -
+a non-finite effective stroke width is caught by `RenderStroke`'s own check
+(`SvgCodec_Load_NestedTransformScaleOverflowsStrokeWidthToInfinity_SkipsStrokeWithoutThrowing`
+proves this), and a non-finite gradient transform is caught by `BuildGradient`'s own check (see
+below) - and the rasterizer/stroker otherwise tolerate non-finite path coordinates without
+throwing, including for a plain solid fill with no stroke or gradient at all. An earlier version
+of this test suite included a solid-fill-only repro claiming to exercise `RenderElement`'s guard
+independently of `BuildGradient`'s; that test was removed because it passed identically whether or
+not `RenderElement`'s guard existed (a solid-fill shape never reaches any throwing constructor
+regardless), so it could not actually detect regressions in that specific guard.
 `SvgCodec_Load_NestedTransformScaleOverflowsGradientTransformToNonFinite_SkipsElementWithoutThrowing`
 is the concrete crash-closing regression test: the same nested-`<g>` overflow around a
 `fill="url(#id)"` shape referencing a `linearGradient` used to reach `Drawing.Gradient`'s
@@ -454,7 +464,7 @@ the affected element's rendering tolerantly skipped.
 proves `BuildGradient`'s own, independent composed-transform guard: an extreme-but-individually-finite
 shape bounding box combined with the gradient's own `gradientTransform` overflows only inside
 `BuildGradient`, with the shape's own `RenderElement`-composed transform staying finite throughout,
-so this case is not covered by either of the two tests above.
+so this case is not covered by the gradient-transform test above.
 
 ### Acceptance Criteria
 

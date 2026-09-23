@@ -877,15 +877,24 @@ public static class SvgCodec
     ///     A composed <paramref name="parentTransform"/> and <paramref name="element"/>'s own
     ///     <c>transform</c> attribute are each individually finite, but their product can still
     ///     overflow to a non-finite value across deeply nested <c>transform="scale(...)"</c>
-    ///     groups even though every individual literal was finite. Rather than letting such a
-    ///     value reach a downstream <see cref="Drawing"/>-namespace constructor's own finiteness
-    ///     check (an uncaught <see cref="ArgumentOutOfRangeException"/>), this method tolerantly
-    ///     skips rendering <paramref name="element"/> and its entire subtree, mirroring
+    ///     groups even though every individual literal was finite. This method tolerantly skips
+    ///     rendering <paramref name="element"/> and its entire subtree in that case, mirroring
     ///     <see cref="RenderStroke"/>'s established non-finite effective stroke-width skip. This
     ///     single check also covers every recursive path (plain <c>g</c>/<c>symbol</c> nesting and
     ///     a <c>use</c> reference), since <see cref="RenderUse"/> always re-enters this method,
     ///     which recomputes and re-checks its own composed transform regardless of how it was
     ///     reached.
+    ///     This check is deliberate defense-in-depth rather than a closed crash repro: every
+    ///     currently-known way a non-finite composed transform could otherwise reach a throwing
+    ///     <see cref="Drawing"/>-namespace constructor is already independently guarded closer to
+    ///     that constructor - a non-finite effective stroke width is caught by
+    ///     <see cref="RenderStroke"/>'s own check, and a non-finite gradient transform is caught by
+    ///     <see cref="BuildGradient"/>'s own check - and the rasterizer/stroker otherwise tolerate
+    ///     non-finite path coordinates without throwing. As of this writing there is no known
+    ///     input for which removing this check alone (leaving the other two guards intact) causes
+    ///     an uncaught exception; it exists to fail safe against a future
+    ///     <see cref="Drawing"/>-namespace addition that constructs something from the composed
+    ///     transform without its own finiteness guard.
     /// </remarks>
     private static void RenderElement(
         XElement element,
@@ -923,8 +932,9 @@ public static class SvgCodec
         var transform = ParseTransformAttribute(element) * parentTransform;
 
         // A non-finite composed transform (see this method's remarks) cannot meaningfully
-        // position this element or any descendant - skip the whole subtree rather than letting
-        // it reach a downstream Drawing-namespace constructor's own finiteness check
+        // position this element or any descendant - skip the whole subtree as defense-in-depth,
+        // even though every currently-known throwing downstream path is already independently
+        // guarded closer to its own constructor (see this method's remarks)
         if (!IsFiniteTransform(transform))
         {
             return;

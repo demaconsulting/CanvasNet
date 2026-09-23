@@ -724,37 +724,6 @@ public class SvgCodecTests
     }
 
     /// <summary>
-    ///     Proves that an element whose own composed <c>transform</c> overflows to a non-finite
-    ///     value - two nested <c>transform="scale(1e20)"</c> groups, each individually finite, but
-    ///     whose cross-element product overflows <see langword="float"/>'s range - is silently
-    ///     skipped by <see cref="SvgCodec"/>'s <c>RenderElement</c> guard rather than propagating a
-    ///     non-finite transform into rendering. A solid fill (no gradient involved) exercises this
-    ///     guard directly, independent of <c>BuildGradient</c>'s own separate guard.
-    /// </summary>
-    [Fact]
-    public void SvgCodec_Load_NestedTransformScaleOverflowsCompositeTransformToNonFinite_SkipsElementWithoutThrowing()
-    {
-        // Arrange: nested scale(1e20) groups around a plain solid-fill rect - individually finite,
-        // but 1e20 * 1e20 = 1e40 overflows float's ~3.4e38 range once composed
-        const string svg = """
-            <svg viewBox='0 0 100 100'>
-              <g transform='scale(1e20)'>
-                <g transform='scale(1e20)'>
-                  <rect x='1' y='1' width='2' height='2' fill='black'/>
-                </g>
-              </g>
-            </svg>
-            """;
-
-        // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
-
-        // Assert: loads without throwing, and the (skipped) rect leaves nothing rendered
-        Assert.Equal(100, surface.Width);
-        Assert.Equal(0, surface[50, 50].A);
-    }
-
-    /// <summary>
     ///     Proves the finding's required concrete repro: an element whose own composed
     ///     <c>transform</c> overflows to non-finite, filled via <c>fill="url(#g)"</c> referencing a
     ///     <c>linearGradient</c>, no longer lets a non-finite transform reach
