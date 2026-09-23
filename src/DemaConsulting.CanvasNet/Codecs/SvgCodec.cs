@@ -1093,12 +1093,53 @@ public static class SvgCodec
     ///     <see cref="ParseDashArray"/>), rather than aborting the whole document over one
     ///     presentation-attribute value.
     /// </summary>
+    /// <remarks>
+    ///     This deliberately does not delegate to <see cref="GetOptionalFloat"/>/
+    ///     <see cref="ParseGeometryCoordinate"/>: <see cref="ParseCoordinate"/> already throws
+    ///     <see cref="InvalidDataException"/> for a non-finite parsed value (added for
+    ///     coordinates/lengths generally), which would preempt this method's own finiteness
+    ///     check below and make it dead code - a non-finite <c>stroke-miterlimit</c> would then
+    ///     abort the whole document instead of falling back to the inherited value, contradicting
+    ///     this method's documented contract above. Reading and parsing the raw attribute directly
+    ///     keeps the non-finite-falls-back path reachable for this attribute specifically, without
+    ///     changing that shared, correct-for-every-other-attribute behavior. The percentage-suffix
+    ///     rejection below is intentionally duplicated (not delegated) for the same reason - see
+    ///     <see cref="ParseGeometryCoordinate"/> for the identical check applied to other
+    ///     shape/text geometry attributes.
+    /// </remarks>
     /// <param name="element">The element to inspect.</param>
     /// <returns>The valid parsed value, or <see langword="null"/> if absent or out of contract.</returns>
+    /// <exception cref="FormatException">
+    ///     Thrown when the attribute is present but not a valid number - propagates uncaught to
+    ///     this class's top-level <c>Load</c>/<c>GetInfo</c> boundary, which rewraps it as
+    ///     <see cref="InvalidDataException"/>.
+    /// </exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the attribute carries a percentage suffix - this codec has no defined
+    ///     viewport-relative basis for it, matching <see cref="ParseGeometryCoordinate"/>'s
+    ///     rejection of a percentage on every other shape/text geometry attribute. Not thrown for
+    ///     a non-finite parsed value (<c>NaN</c>, <c>Infinity</c>, <c>-Infinity</c>) - unlike
+    ///     <see cref="ParseCoordinate"/>, such a value falls back to <see langword="null"/> here
+    ///     instead, per this method's documented contract above.
+    /// </exception>
     private static float? ParseValidMiterLimit(XElement element)
     {
-        var value = GetOptionalFloat(element, "stroke-miterlimit");
-        return value is { } v && float.IsFinite(v) && v >= 1f ? value : null;
+        var raw = (string?)element.Attribute("stroke-miterlimit");
+        if (raw == null)
+        {
+            return null;
+        }
+
+        var trimmed = raw.Trim();
+        if (trimmed.EndsWith('%'))
+        {
+            throw new InvalidDataException(
+                $"The 'stroke-miterlimit' attribute's percentage value '{raw}' is not supported: " +
+                "SvgCodec has no defined viewport-relative basis for shape/text geometry attributes.");
+        }
+
+        var value = float.Parse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture);
+        return float.IsFinite(value) && value >= 1f ? value : null;
     }
 
     // ================================================================================================

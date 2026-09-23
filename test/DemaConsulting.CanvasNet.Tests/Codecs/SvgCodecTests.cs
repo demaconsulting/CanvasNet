@@ -626,6 +626,52 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that a <c>stroke-miterlimit</c> value of <c>NaN</c> - non-finite, and therefore
+    ///     below <see cref="DemaConsulting.CanvasNet.Drawing.StrokeStyle"/>'s documented contract of
+    ///     "finite and at least 1" -
+    ///     falls back to the inherited/default value rather than reaching
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.StrokeStyle"/>'s constructor and throwing an uncaught
+    ///     <see cref="ArgumentOutOfRangeException"/>, matching this codec's existing tolerant
+    ///     handling of a malformed <c>stroke-dasharray</c>. The stroke still renders (non-zero
+    ///     alpha), proving the fallback rather than the whole stroke being silently dropped.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_StrokeMiterLimitNaN_FallsBackToInheritedDefaultWithoutThrowing()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='20' y='20' width='60' height='60' fill='none' stroke='black' stroke-width='6' stroke-miterlimit='NaN'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the outline still renders (no exception, and the stroke was not dropped)
+        Assert.Equal(255, surface[20, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>stroke-miterlimit</c> value of <c>Infinity</c> - non-finite, and
+    ///     therefore below <see cref="DemaConsulting.CanvasNet.Drawing.StrokeStyle"/>'s documented
+    ///     contract of "finite and at least 1" -
+    ///     falls back to the inherited/default value rather than reaching
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.StrokeStyle"/>'s constructor and throwing an uncaught
+    ///     <see cref="ArgumentOutOfRangeException"/>, matching this codec's existing tolerant
+    ///     handling of a malformed <c>stroke-dasharray</c>. The stroke still renders (non-zero
+    ///     alpha), proving the fallback rather than the whole stroke being silently dropped.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_StrokeMiterLimitInfinity_FallsBackToInheritedDefaultWithoutThrowing()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='20' y='20' width='60' height='60' fill='none' stroke='black' stroke-width='6' stroke-miterlimit='Infinity'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the outline still renders (no exception, and the stroke was not dropped)
+        Assert.Equal(255, surface[20, 50].A);
+    }
+
+    /// <summary>
     ///     Proves that a valid <c>stroke-miterlimit</c> value continues to be accepted and applied
     ///     (rather than every value being tolerated/ignored after the validation added above).
     /// </summary>
