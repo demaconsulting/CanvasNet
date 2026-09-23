@@ -336,6 +336,23 @@ Asserts `GetInfo`'s bounded, root-start-tag-only `XmlReader` parse still resolve
 attributes - the same markup the `MalformedXmlRejected` scenario above proves `Load`'s
 full-document parse still correctly rejects.
 
+**Non-finite numeric attribute/token rejection**
+
+**Tests**: `SvgCodec_Load_WidthAttributeNaN_ThrowsInvalidDataException`,
+`SvgCodec_Load_StrokeWidthInfinity_ThrowsInvalidDataException`,
+`SvgCodec_Load_PathDataNumberOverflowToInfinity_ThrowsInvalidDataException`,
+`SvgCodec_Load_PointsListNumberOverflowToInfinity_ThrowsInvalidDataException`,
+`SvgCodec_Load_NegativeScientificAndPercentageValues_RendersWithoutThrowing`
+
+Asserts `Load` rejects a non-finite (`NaN`/`Infinity`) numeric attribute value wherever this
+codec parses a raw SVG numeric attribute/token - a shape attribute parsed by `ParseCoordinate`
+(the literal text `"NaN"`/`"Infinity"` reaches `float.Parse` unfiltered there), and a `path` `d`
+coordinate/`points` list entry parsed by `TryReadNumber` (which requires a legitimately-scanned,
+exponent-overflowing token such as `"1e400"`, since its character-class scan never matches
+literal `"NaN"`/`"Infinity"` text in the first place) - while confirming legitimate finite
+values sharing similar syntax (a negative number, scientific notation, a percentage) still parse
+and render correctly.
+
 ### Acceptance Criteria
 
 A unit test run passes when every test method listed above, across both `SvgCodecTests.cs` and

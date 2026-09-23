@@ -957,6 +957,10 @@ public static class SvgCodec
     /// <param name="name">The attribute name to read.</param>
     /// <returns>The clamped opacity value, or <see langword="null"/> if the attribute is absent.</returns>
     /// <exception cref="FormatException">Thrown when the attribute is present but not a valid number.</exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the attribute is present but parses to a non-finite value - see
+    ///     <see cref="ParseCoordinate"/>.
+    /// </exception>
     private static float? ParseOptionalOpacity(XElement element, string name)
     {
         var raw = (string?)element.Attribute(name);
@@ -967,6 +971,10 @@ public static class SvgCodec
     /// <param name="raw">The raw opacity string.</param>
     /// <returns>The clamped opacity value.</returns>
     /// <exception cref="FormatException">Thrown when <paramref name="raw"/> is not a valid number.</exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="raw"/> parses to a non-finite value - see
+    ///     <see cref="ParseCoordinate"/>.
+    /// </exception>
     private static float ParseOpacityValue(string raw) => Math.Clamp(ParseCoordinate(raw, 1f), 0f, 1f);
 
     /// <summary>
@@ -2878,6 +2886,10 @@ public static class SvgCodec
     /// <param name="defaultValue">The value to use if the attribute is absent. Defaults to <c>0</c>.</param>
     /// <returns>The parsed value.</returns>
     /// <exception cref="FormatException">Thrown when the attribute is present but not a valid number/percentage.</exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the attribute is present but parses to a non-finite value - see
+    ///     <see cref="ParseCoordinate"/>.
+    /// </exception>
     private static float GetFloatAttribute(XElement element, string name, float defaultValue = 0f)
     {
         var raw = (string?)element.Attribute(name);
@@ -2889,6 +2901,10 @@ public static class SvgCodec
     /// <param name="name">The attribute name to read.</param>
     /// <returns>The parsed value, or <see langword="null"/> if the attribute is absent.</returns>
     /// <exception cref="FormatException">Thrown when the attribute is present but not a valid number/percentage.</exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the attribute is present but parses to a non-finite value - see
+    ///     <see cref="ParseCoordinate"/>.
+    /// </exception>
     private static float? GetOptionalFloat(XElement element, string name)
     {
         var raw = (string?)element.Attribute(name);
@@ -2907,15 +2923,27 @@ public static class SvgCodec
     ///     number - propagates uncaught to this class's top-level <c>Load</c>/<c>GetInfo</c>
     ///     boundary, which rewraps it as <see cref="InvalidDataException"/>.
     /// </exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="raw"/> parses to a non-finite value (<c>NaN</c>,
+    ///     <c>Infinity</c>, or <c>-Infinity</c>) - such a value is syntactically a valid float but
+    ///     is never a meaningful coordinate/length/opacity, and would otherwise silently propagate
+    ///     into rendering or reported image size.
+    /// </exception>
     private static float ParseCoordinate(string raw, float percentageBasis)
     {
         var trimmed = raw.Trim();
-        if (trimmed.EndsWith('%'))
+        var value = trimmed.EndsWith('%')
+            ? float.Parse(trimmed[..^1], NumberStyles.Float, CultureInfo.InvariantCulture) / 100f * percentageBasis
+            : float.Parse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture);
+
+        // Reject NaN/Infinity here rather than letting them silently propagate: they are valid
+        // float literals but never a meaningful coordinate/length/opacity value
+        if (!float.IsFinite(value))
         {
-            return float.Parse(trimmed[..^1], NumberStyles.Float, CultureInfo.InvariantCulture) / 100f * percentageBasis;
+            throw new InvalidDataException($"The numeric value '{raw}' is not a finite number.");
         }
 
-        return float.Parse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture);
+        return value;
     }
 
     /// <summary>
@@ -2961,7 +2989,13 @@ public static class SvgCodec
     ///     number on success and left unchanged on failure.
     /// </param>
     /// <param name="value">The parsed number, if this method returns <see langword="true"/>.</param>
-    /// <returns><see langword="true"/> if a valid number was read.</returns>
+    /// <returns>
+    ///     <see langword="true"/> if a valid, finite number was read. Returns
+    ///     <see langword="false"/> - without advancing <paramref name="position"/> - for a
+    ///     syntactically valid number that overflows to a non-finite <c>float</c> value (for
+    ///     example, an exponent large enough to overflow to <c>Infinity</c>), matching this
+    ///     method's existing "malformed token" failure contract.
+    /// </returns>
     /// <remarks>
     ///     Stops at a second decimal point rather than treating it as an error, so that a
     ///     concatenated shorthand run such as <c>"0.5.5"</c> (two numbers, <c>0.5</c> and <c>.5</c>,
@@ -3003,8 +3037,18 @@ public static class SvgCodec
 
         scan = TryConsumeExponent(text, scan);
 
+        // Parse into a local candidate before committing position/value: a syntactically valid
+        // token (e.g. an exponent large enough to overflow, such as "1e400") can still parse to a
+        // non-finite float, which must be rejected as a failed read without advancing position
+        var candidate = float.Parse(text[start..scan], NumberStyles.Float, CultureInfo.InvariantCulture);
+        if (!float.IsFinite(candidate))
+        {
+            value = 0f;
+            return false;
+        }
+
         position = scan;
-        value = float.Parse(text[start..position], NumberStyles.Float, CultureInfo.InvariantCulture);
+        value = candidate;
         return true;
     }
 

@@ -1341,6 +1341,98 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that a shape's numeric attribute value of literal <c>NaN</c> - a syntactically
+    ///     valid <see cref="float"/> literal that is never a meaningful coordinate - is rejected
+    ///     as an <see cref="InvalidDataException"/> rather than silently propagating into
+    ///     rendering. Exercises <c>ParseCoordinate</c>, which parses an attribute's entire trimmed
+    ///     text with no prior character-class filtering, so the literal <c>"NaN"</c> text reaches
+    ///     <see cref="float.Parse(string, System.IFormatProvider?)"/> unfiltered.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_WidthAttributeNaN_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 20 20'><rect x='0' y='0' width='NaN' height='10'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves that a <c>stroke-width</c> attribute value of literal <c>Infinity</c> is
+    ///     rejected as an <see cref="InvalidDataException"/>. Exercises <c>GetOptionalFloat</c> →
+    ///     <c>ParseCoordinate</c>, the same unfiltered-text parse path as the <c>NaN</c> test
+    ///     above.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_StrokeWidthInfinity_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 20 20'><rect x='0' y='0' width='10' height='10' stroke='#000' stroke-width='Infinity'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves that a <c>path</c> "d" data coordinate which overflows <see cref="float"/> to
+    ///     <see cref="float.PositiveInfinity"/> (rather than failing to parse at all) is rejected
+    ///     as an <see cref="InvalidDataException"/>. Exercises <c>TryReadNumber</c>'s finiteness
+    ///     check: unlike <c>ParseCoordinate</c>, <c>TryReadNumber</c>'s character-class scan never
+    ///     matches a leading letter, so literal text such as <c>"Infinity"</c>/<c>"NaN"</c> is
+    ///     rejected earlier, unrelated to the new check - only a legitimately-scanned, all-digit/
+    ///     exponent token that numerically overflows (confirmed empirically: <c>float.Parse</c>
+    ///     returns <see cref="float.PositiveInfinity"/> for <c>"1e400"</c> rather than throwing)
+    ///     actually exercises this method's new finiteness check.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PathDataNumberOverflowToInfinity_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 20 20'><path d='M0,0 L1e400,0'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves that a <c>points</c> list containing an exponent-overflow number (see the path
+    ///     "d" data test above for why an overflowing token, not literal <c>"Infinity"</c>/
+    ///     <c>"NaN"</c> text, is required to exercise this path) is rejected as an
+    ///     <see cref="InvalidDataException"/>. Exercises <c>ParseNumberList</c> →
+    ///     <c>TryReadNumber</c>'s finiteness check.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PointsListNumberOverflowToInfinity_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 20 20'><polyline points='0,0 1e400,0'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves that the non-finite rejection added to <c>ParseCoordinate</c>/<c>TryReadNumber</c>
+    ///     does not reject legitimate finite values that share surface syntax with the rejected
+    ///     forms: a negative number, scientific notation, and a percentage. All three numeric
+    ///     styles must continue to parse and render exactly as before the fix.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_NegativeScientificAndPercentageValues_RendersWithoutThrowing()
+    {
+        // Arrange: x is negative, width/height use scientific notation, opacity is a percentage
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='-1e1' y='0' width='1e2' height='5e1' fill='black' opacity='50%'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the rect (x=-10, width=100 => spans to x=90) covers (50,25) at ~50% opacity
+        // (0.5 * 255 = 127.5 ~ 127/128), not 0 (rejected) and not 255 (opacity ignored)
+        Assert.InRange((int)surface[50, 25].A, 115, 140);
+    }
+
+    /// <summary>
     ///     Proves that well-formed-but-out-of-scope constructs (<c>&lt;style&gt;</c>,
     ///     <c>&lt;filter&gt;</c>, <c>&lt;mask&gt;</c>, <c>&lt;clipPath&gt;</c>,
     ///     <c>&lt;pattern&gt;</c>, <c>&lt;marker&gt;</c>, a nested <c>&lt;svg&gt;</c>) are silently
