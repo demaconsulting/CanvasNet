@@ -357,7 +357,16 @@ differently:
   the whole `path` element is skipped (rendered as an empty path, the same no-op `RenderShape`
   already applies to any other empty path) rather than reaching `Drawing.DashSplitter`'s
   dash-interval walk with a non-finite path length, which would otherwise stall its finite-step
-  `while` loop indefinitely whenever the affected shape also has a `stroke-dasharray`. A
+  `while` loop indefinitely whenever the affected shape also has a   `stroke-dasharray`. An extreme-but-individually-finite arc radius (an `A`/`a` path-data command,
+  or a `rect`'s rounded-corner/`circle`/`ellipse` quarter-arc construction) whose squared magnitude
+  overflows `Geometry.SvgArcConverter`'s internal ellipse-center arithmetic to a non-finite control
+  point or endpoint is likewise a tolerant case: each emitted Bezier segment's points are validated
+  finite immediately before being appended to the path builder, and the whole affected `path`/
+  `rect`/`circle`/`ellipse` element is skipped (rendered as an empty path) rather than propagating a
+  raw non-finite value into the rasterizer — the `path`-data case reuses `PathDataParser`'s existing
+  `RequireFinite`/`OverflowException` tolerant-skip mechanism, and the `rect`/`circle`/`ellipse`
+  shape-builder case adds the same convention (a narrowly-scoped `catch (OverflowException)`
+  returning an empty path) at its own, previously entirely unguarded, call site. A
   `stroke-dasharray`/`stroke-dashoffset` that is individually finite as parsed, but overflows to a
   non-finite value once scaled by a composed transform's own scale factor (the same scale
   `stroke-width` is already scaled by), is likewise a tolerant case: rather than reaching

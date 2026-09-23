@@ -1500,7 +1500,19 @@ public static class SvgCodec
 
     /// <summary>Builds a <c>rect</c> element's outline, including optional rounded corners.</summary>
     /// <param name="element">The <c>rect</c> element.</param>
-    /// <returns>The local-space path, empty if the rectangle has no positive area.</returns>
+    /// <returns>
+    ///     The local-space path, empty if the rectangle has no positive area, or if its corner-arc
+    ///     construction overflows to a non-finite value (see this method's remarks).
+    /// </returns>
+    /// <remarks>
+    ///     A rounded corner's arc-to-Bezier conversion (via <see cref="AppendArcTo"/>) can overflow
+    ///     to a non-finite control point or endpoint for an extreme-but-individually-finite
+    ///     combination of the rectangle's position/size and corner radii, even though every raw
+    ///     literal parsed from the element's attributes is itself finite. Tolerantly skips (returns
+    ///     an empty path) in that case, mirroring <see cref="PathDataParser.Parse"/>'s identical
+    ///     "catch <see cref="OverflowException"/>, return an empty path" convention for the same
+    ///     class of arithmetic-overflow risk in path <c>d</c> data.
+    /// </remarks>
     private static Path BuildRectPath(XElement element)
     {
         var x = GetFloatAttribute(element, "x");
@@ -1525,7 +1537,15 @@ public static class SvgCodec
         }
         else
         {
-            AppendRoundedRectOutline(builder, x, y, width, height, rx, ry);
+            try
+            {
+                AppendRoundedRectOutline(builder, x, y, width, height, rx, ry);
+            }
+            catch (OverflowException)
+            {
+                // Tolerant skip: see this method's remarks
+                return new PathBuilder().Build();
+            }
         }
 
         return builder.Build();
@@ -1622,7 +1642,11 @@ public static class SvgCodec
     ///     <see langword="true"/> to read the single <c>r</c> radius attribute (<c>circle</c>);
     ///     <see langword="false"/> to read separate <c>rx</c>/<c>ry</c> attributes (<c>ellipse</c>).
     /// </param>
-    /// <returns>The local-space path, empty if either radius is not positive.</returns>
+    /// <returns>
+    ///     The local-space path, empty if either radius is not positive, or if its quarter-arc
+    ///     construction overflows to a non-finite value - see <see cref="BuildRectPath"/>'s
+    ///     remarks for the identical tolerant-skip convention applied here.
+    /// </returns>
     private static Path BuildEllipsePath(XElement element, bool isCircle)
     {
         var cx = GetFloatAttribute(element, "cx");
@@ -1642,12 +1666,20 @@ public static class SvgCodec
         var left = new Vector2(cx - radius.X, cy);
         var top = new Vector2(cx, cy - radius.Y);
 
-        builder.MoveTo(right);
-        AppendArcTo(builder, right, radius, bottom);
-        AppendArcTo(builder, bottom, radius, left);
-        AppendArcTo(builder, left, radius, top);
-        AppendArcTo(builder, top, radius, right);
-        builder.Close();
+        try
+        {
+            builder.MoveTo(right);
+            AppendArcTo(builder, right, radius, bottom);
+            AppendArcTo(builder, bottom, radius, left);
+            AppendArcTo(builder, left, radius, top);
+            AppendArcTo(builder, top, radius, right);
+            builder.Close();
+        }
+        catch (OverflowException)
+        {
+            // Tolerant skip: see BuildRectPath's remarks
+            return new PathBuilder().Build();
+        }
 
         return builder.Build();
     }
@@ -1786,8 +1818,36 @@ public static class SvgCodec
         SvgArcConverter.ToBeziers(start, radius, 0f, false, true, end, segments);
         foreach (var segment in segments)
         {
-            builder.CubicBezierTo(segment.Control1, segment.Control2, segment.End);
+            builder.CubicBezierTo(
+                RequireFiniteArcPoint(segment.Control1),
+                RequireFiniteArcPoint(segment.Control2),
+                RequireFiniteArcPoint(segment.End));
         }
+    }
+
+    /// <summary>
+    ///     Validates that <paramref name="value"/>'s components are both finite, throwing
+    ///     <see cref="OverflowException"/> otherwise - used by <see cref="AppendArcTo"/> to guard
+    ///     <see cref="Geometry.SvgArcConverter"/>'s output against an extreme-but-individually-
+    ///     finite radius/start/end combination whose internal rotation/trig arithmetic overflows
+    ///     to a non-finite control point or endpoint. Mirrors
+    ///     <see cref="PathDataParser.RequireFinite(Vector2)"/>'s identical tolerant-skip
+    ///     convention - the same BCL <see cref="OverflowException"/> sentinel type, reused here
+    ///     rather than a bespoke exception, so <see cref="BuildRectPath"/>/
+    ///     <see cref="BuildEllipsePath"/>'s own narrowly-scoped catch clauses can identify it
+    ///     without risking confusion with an actual arithmetic-overflow bug elsewhere.
+    /// </summary>
+    /// <param name="value">The point to validate.</param>
+    /// <returns><paramref name="value"/> unchanged, when both components are finite.</returns>
+    /// <exception cref="OverflowException">Thrown when either component of <paramref name="value"/> is not finite.</exception>
+    private static Vector2 RequireFiniteArcPoint(Vector2 value)
+    {
+        if (!float.IsFinite(value.X) || !float.IsFinite(value.Y))
+        {
+            throw new OverflowException("Arc-to-Bezier conversion overflowed to a non-finite value.");
+        }
+
+        return value;
     }
 
     // ================================================================================================
@@ -2151,13 +2211,22 @@ public static class SvgCodec
         /// <param name="largeArc">The SVG arc "large-arc-flag".</param>
         /// <param name="sweep">The SVG arc "sweep-flag".</param>
         /// <param name="end">The arc's end point.</param>
+        /// <exception cref="OverflowException">
+        ///     Thrown when an extreme-but-individually-finite radius/rotation/start/end
+        ///     combination causes <see cref="Geometry.SvgArcConverter"/>'s internal rotation/trig
+        ///     arithmetic to overflow one of its emitted control points or endpoints to a
+        ///     non-finite value. Caught (private to this parser) by <see cref="Parse"/>.
+        /// </exception>
         private void AppendArc(Vector2 radius, float rotationDegrees, bool largeArc, bool sweep, Vector2 end)
         {
             var segments = new List<(Vector2 Control1, Vector2 Control2, Vector2 End)>();
             SvgArcConverter.ToBeziers(_current, radius, rotationDegrees, largeArc, sweep, end, segments);
             foreach (var segment in segments)
             {
-                _builder.CubicBezierTo(segment.Control1, segment.Control2, segment.End);
+                _builder.CubicBezierTo(
+                    RequireFinite(segment.Control1),
+                    RequireFinite(segment.Control2),
+                    RequireFinite(segment.End));
             }
 
             _current = end;

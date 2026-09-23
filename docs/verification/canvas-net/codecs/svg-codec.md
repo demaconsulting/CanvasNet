@@ -580,6 +580,97 @@ dash entry to non-finite falls back to "no dashing" (a solid stroke) rather than
 renders, just without its dash pattern, matching `ParseDashArray`'s own existing tolerant
 "malformed dash array -> no dashing" convention.
 
+#### Arc-Conversion Overflow Tolerant Skip
+
+**Tests**: `SvgCodec_Load_PathArcCommandRadiusOverflowsToNonFinite_SkipsPathWithoutThrowing`,
+`SvgCodec_Load_RectRoundedCornerArcConversionOverflowsToNonFinite_SkipsShapeWithoutThrowing`
+
+Regression tests for the unguarded `SvgArcConverter` output finding: an extreme-but-individually-
+finite arc radius drives `Geometry.SvgArcConverter.ToBeziers`'s internal ellipse-center arithmetic
+(which squares the radii) to overflow one of its emitted control points or endpoints to a
+non-finite value, even though every raw literal token is itself finite.
+`SvgCodec_Load_PathArcCommandRadiusOverflowsToNonFinite_SkipsPathWithoutThrowing` exercises this
+via an explicit `A` path-data command, proving `PathDataParser.AppendArc`'s new
+`RequireFinite`-validated segment output causes the affected `path` element to be tolerantly
+skipped (rendered as an empty path), reusing the same `RequireFinite`/`OverflowException`
+mechanism already established for the `S`/`T` smooth-curve reflection overflow case above.
+`SvgCodec_Load_RectRoundedCornerArcConversionOverflowsToNonFinite_SkipsShapeWithoutThrowing`
+exercises the same underlying overflow via `rect`'s rounded-corner construction (`AppendArcTo`,
+also used by `circle`/`ellipse`) instead of an explicit path-data command - a call site that,
+prior to this fix, had no exception-based tolerant-skip wrapper at all - proving `BuildRectPath`'s
+new narrowly-scoped `catch (OverflowException)` likewise causes the affected `rect` element to be
+tolerantly skipped rather than propagating a raw non-finite value into the rasterizer.
+
+#### Budget/Counter Check-Before-Add Ordering
+
+**Tests**: `SvgCodec_Load_TextExceedingGeometryWorkBudget_ThrowsInvalidDataException`,
+`SvgCodec_Load_UseFanOutExceedingTotalElementBudget_ThrowsInvalidDataException`,
+`SvgCodec_Load_UnrenderedDefsElementCountExceedingDocumentElementBudget_ThrowsInvalidDataException`
+
+Regression tests (already-existing, boundary-condition tests, not new ones) for the add-then-check
+budget/counter ordering finding: `GeometryWorkBudget.Charge`, `BuildIdIndex`'s `totalElements`
+counter, and `RenderElement`'s `totalElements` counter all previously added the new amount to the
+running total *before* checking it against the fixed budget, an ordering that is not correct
+defense-in-depth against a single call charging an amount large enough to make the addition itself
+wrap `int` (a check that would then incorrectly pass). Every counter site was changed to
+check-before-add (rejecting when the new amount would exceed the remaining budget, before ever
+adding it), with no observable behavior change at the real, already-tested boundary — the tests
+above (which already existed prior to this fix) continue to pass unchanged, confirming the
+reordering is behavior-preserving for every realistically reachable input.
+
+**Reachability note**: given today's fixed constants (`MaxDocumentCharacters = 5,000,000`,
+`MaxTotalGeometryWork = 200,000`, `MaxTotalRenderedElements = 100,000`), no call site can charge
+an `amount` anywhere near large enough to make `_total += amount`/`totalElements++` wrap `int`
+(~2.147 billion) in one step - the very next charge past each budget already throws well before
+`_total`/`totalElements` could climb anywhere near that range. This fix is therefore verified as
+defense-in-depth against a future change to these constants, not as a closed repro of a presently
+reachable overflow; no synthetic overflow-triggering test is included, since one is not
+achievable through a realistic `Load()` call today, and fabricating one (for example, by calling
+`Charge` directly with a contrived huge value) would not exercise any code path a real caller can
+reach.
+
+#### Coordinate Magnitude Bound
+
+**Tests**: `SvgCodec_Load_PathDataCoordinateExceedingMaxMagnitude_ThrowsInvalidDataException`,
+`SvgCodec_Load_PointsListCoordinateExceedingMaxMagnitude_ThrowsInvalidDataException`,
+`SvgCodec_Load_CoordinateWithinMaxMagnitude_RendersSuccessfully`
+
+Regression tests for the "budget counts parsed units, not real downstream cost" mismatch finding:
+a document with only a handful of `path`/`points` commands using extreme-but-individually-finite
+coordinate magnitudes (for example `3e38`) could previously drive `Geometry.BezierFlattening`'s
+per-curve flattening cost far out of proportion to the command-count budget
+(`GeometryWorkBudget`) that is supposed to bound total work, and could also feed
+`Geometry.SvgArcConverter`'s arc-conversion arithmetic with near-`float.MaxValue` inputs.
+`TryReadNumber` (the shared numeric-parsing choke point behind path `d` data, `points` lists,
+`viewBox`, and transform-function arguments) and `ParseCoordinate` (the shared choke point behind
+every single-value geometry/length/opacity attribute) now both additionally reject a
+syntactically valid, finite value whose magnitude exceeds a new, generously-bounded
+`MaxCoordinateMagnitude` constant, with the same `InvalidDataException`/"malformed token"
+convention already used for a non-finite value at each site.
+`SvgCodec_Load_PathDataCoordinateExceedingMaxMagnitude_ThrowsInvalidDataException` and
+`SvgCodec_Load_PointsListCoordinateExceedingMaxMagnitude_ThrowsInvalidDataException` prove a
+coordinate just over the new bound is rejected from each of `TryReadNumber`'s two call sites, and
+`SvgCodec_Load_CoordinateWithinMaxMagnitude_RendersSuccessfully` proves an ordinary, real-world-
+sized coordinate well under the bound is unaffected and still renders correctly.
+
+#### Gradient Stop Caching
+
+**Test**: `SvgCodec_Load_GradientReferencedByManyShapes_CachesStopsAndRendersIdenticallyToUncached`
+
+Regression test for the repeated-work-without-caching amplification finding: `BuildGradient` (via
+`ResolveGradientStops`) previously re-parsed a gradient element's `stop` children from scratch on
+every single shape (or `use`-fan-out-multiplied shape reference) that referenced the same
+`linearGradient`/`radialGradient`, even though a gradient's own stops are immutable for the
+lifetime of one `Load` call (confirmed by direct inspection: nothing in this codec mutates the
+parsed `XDocument` mid-render, and no scripting/animation support exists to redefine a gradient's
+stops mid-document). `ResolveGradientStops`'s pre-alpha result is now cached per gradient element
+(keyed by the gradient `XElement`'s own reference identity) in a new `RenderContext.GradientStopCache`
+field, populated once and reused across every subsequent reference to the same gradient, mirroring
+the existing `IdIndex` field's identical "populated once, read many times" lifetime.
+`SvgCodec_Load_GradientReferencedByManyShapes_CachesStopsAndRendersIdenticallyToUncached` proves a
+gradient referenced by many shapes still renders every shape identically to the pre-fix (uncached)
+behavior, confirming the cache introduces no observable rendering change.
+
 ### Acceptance Criteria
 
 A unit test run passes when every test method listed above, across both `SvgCodecTests.cs` and

@@ -2097,6 +2097,61 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Regression test for the unguarded <c>SvgArcConverter</c> output finding, exercised via
+    ///     the <c>A</c>/<c>a</c> path-data command: an extreme-but-individually-finite arc radius
+    ///     drives <c>Geometry.SvgArcConverter.ToBeziers</c>'s internal rotation/trig arithmetic
+    ///     (which squares the radii) to overflow one of its emitted control points to a non-finite
+    ///     value, even though every raw literal token (the radius itself) is finite. Proves the
+    ///     affected <c>path</c> element is tolerantly skipped (rendered as an empty path, no
+    ///     fill/stroke ink), mirroring
+    ///     <see cref="SvgCodec_Load_PathSmoothCubicReflectionOverflowsToInfinity_SkipsPathWithoutThrowing"/>'s
+    ///     identical tolerant-skip convention for the same class of arc-conversion overflow risk.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PathArcCommandRadiusOverflowsToNonFinite_SkipsPathWithoutThrowing()
+    {
+        // Arrange: an "A" command whose radius (1e18,1e18) is individually finite, but whose
+        // squared magnitude inside SvgArcConverter's ellipse-center calculation overflows float
+        // to a non-finite control point
+        const string svg = "<svg viewBox='0 0 100 100'>" +
+                            "<path d='M1e18,0 A1e18,1e18 0 0 1 0,1e18' fill='red'/>" +
+                            "</svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 10, 10);
+
+        // Assert: no exception, and nothing was painted (the path was skipped, not rendered)
+        Assert.Equal(0, surface[5, 5].A);
+    }
+
+    /// <summary>
+    ///     Regression test for the same unguarded <c>SvgArcConverter</c> output finding, exercised
+    ///     via <c>rect</c>'s rounded-corner construction (<c>AppendArcTo</c>) instead of an
+    ///     explicit path-data <c>A</c> command: an extreme-but-individually-finite corner radius
+    ///     drives the same overflow inside <c>Geometry.SvgArcConverter.ToBeziers</c>. Unlike the
+    ///     path-data case above, <c>BuildRectPath</c>/<c>AppendRoundedRectOutline</c> had no
+    ///     existing exception-based tolerant-skip wrapper at all prior to this fix. Proves the
+    ///     affected <c>rect</c> element is now tolerantly skipped (rendered as an empty path)
+    ///     rather than propagating a raw, uncaught non-finite value into the rasterizer.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_RectRoundedCornerArcConversionOverflowsToNonFinite_SkipsShapeWithoutThrowing()
+    {
+        // Arrange: a rect whose width/height/rx/ry are all individually finite but large enough
+        // (1e18) that AppendArcTo's underlying SvgArcConverter.ToBeziers call overflows one of
+        // its emitted control points to a non-finite value
+        const string svg = "<svg viewBox='0 0 100 100'>" +
+                            "<rect x='0' y='0' width='2e18' height='2e18' rx='1e18' ry='1e18' fill='red'/>" +
+                            "</svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 10, 10);
+
+        // Assert: no exception, and nothing was painted (the shape was skipped, not rendered)
+        Assert.Equal(0, surface[5, 5].A);
+    }
+
+    /// <summary>
     ///     Proves that a malformed <c>transform</c> attribute (an unrecognized function name) is
     ///     rejected as an <see cref="InvalidDataException"/>.
     /// </summary>
