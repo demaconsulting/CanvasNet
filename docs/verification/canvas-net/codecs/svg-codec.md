@@ -1,0 +1,286 @@
+## SvgCodec Unit Verification Design
+
+This document describes the unit-level verification strategy for the `SvgCodec` class.
+
+### Verification Approach
+
+The `SvgCodec` unit is verified through unit tests that exercise `Load` and `GetInfo` in
+isolation, using hand-authored SVG string/stream fixtures (`SvgCodecTests.cs`) for controlled,
+targeted coverage of every in-scope construct, malformed-input rejection path, and tolerant
+unsupported-construct case, plus a real-file fixture corpus (`SvgFixtureTests.cs`, backed by
+`SvgFixtures/*.svg`) for broader, whole-document coverage including a real-font
+(`FontFixtures/OpenSans-Regular.ttf`) text-rendering integration test. `Path.GetTempFileName()`
+is used for the file-path overload tests. Because `SvgCodec`'s dependencies (`Canvas.Surface`,
+`Geometry`, `Drawing`, and `Fonts`) are all sibling in-house units, not external services, no
+mocking or stubbing is required. Tests supply an SVG string/stream (and, for text tests, a
+synthetic or real `TrueTypeFont`) and assert on rasterized pixel colors/alpha at specific,
+hand-computed positions, on `ImageInfo` field values, and on thrown exception types — never on
+"no exception thrown" alone, so every test can actually fail if the implementation is wrong.
+
+Unit tests reside in `SvgCodecTests.cs` and `SvgFixtureTests.cs` within the
+`DemaConsulting.CanvasNet.Tests` project.
+
+### Test Environment
+
+- **Framework**: xUnit v3 running under the .NET SDK
+- **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
+- **Mocking**: None required; `SvgCodec`'s dependencies are all in-house units
+  (`Canvas.Surface`, `Geometry`, `Drawing`, `Fonts`)
+- **Isolation**: Each test method builds its own SVG string/stream (and, where needed, its own
+  synthetic `TrueTypeFont` via `SyntheticFontBuilder`); file-path tests use a uniquely generated
+  temporary file deleted in a `finally` block; no shared state between tests
+
+### Unit-Level Test Scenarios
+
+#### CanvasNet-Codecs-SvgCodec-LoadBasicShapes: Basic Shapes Rasterize Correctly
+
+**Tests**: `SvgCodec_Load_Rect_RendersFilledRectangle`,
+`SvgCodec_Load_RectWithRoundedCorners_CutsCornerButFillsCenter`,
+`SvgCodec_Load_Circle_RendersFilledCircle`, `SvgCodec_Load_Ellipse_RendersElongatedFill`,
+`SvgCodec_Load_Line_RendersStrokedLine`,
+`SvgCodec_Load_Polyline_DoesNotCloseBetweenLastAndFirstPoint`,
+`SvgCodec_Load_Polygon_RendersClosedFilledShape`,
+`SvgCodec_Load_ShapesFixture_RendersExpectedShapeColors`,
+`SvgCodec_Load_FromFilePath_ReturnsExpectedPixels`
+
+Renders each basic shape and asserts real pixel colors/alpha at hand-computed positions inside
+and outside the shape (for example, a rounded rect's cut corner remains unfilled while its
+center is filled; a polyline's implicit-closing edge is absent while a polygon's is present).
+`SvgCodec_Load_ShapesFixture_RendersExpectedShapeColors` exercises the same shapes from a real
+file under `SvgFixtures/`; `SvgCodec_Load_FromFilePath_ReturnsExpectedPixels` exercises the
+`Load(string, int, int, ...)` file-path overload.
+
+#### CanvasNet-Codecs-SvgCodec-LoadPathCommands: Path "d" Mini-Language Commands Rasterize Correctly
+
+**Tests**: `SvgCodec_Load_PathWithAbsoluteMoveLineClose_RendersFilledTriangle`,
+`SvgCodec_Load_PathWithRelativeMoveLineClose_RendersSameShapeAsAbsolute`,
+`SvgCodec_Load_PathWithHorizontalAndVerticalLines_RendersRectangle`,
+`SvgCodec_Load_PathWithCubicBezier_RendersFilledCurvedShape`,
+`SvgCodec_Load_PathWithSmoothCubicBezier_RendersFilledShape`,
+`SvgCodec_Load_PathWithQuadraticBezier_RendersFilledShape`,
+`SvgCodec_Load_PathWithSmoothQuadraticBezier_RendersFilledShape`,
+`SvgCodec_Load_PathWithArc_RendersFilledHalfDisc`
+
+Exercises `M`/`m`, `L`/`l`, `H`/`h`, `V`/`v`, `C`/`c`, `S`/`s`, `Q`/`q`, `T`/`t`, `A`/`a`, and
+`Z`/`z`, in both absolute and relative forms, asserting the resulting filled region matches the
+hand-derived geometry (including that the relative-command variant renders the identical shape
+as its absolute-command equivalent, and that an elliptical arc command renders a recognizable
+half-disc via `Geometry.SvgArcConverter`).
+
+#### CanvasNet-Codecs-SvgCodec-GroupTransformInheritance: Group Attribute/Transform Inheritance
+
+**Tests**: `SvgCodec_Load_GroupFillInheritance_AppliesToChildWithoutOwnFill`,
+`SvgCodec_Load_ChildOwnFill_OverridesGroupFill`,
+`SvgCodec_Load_NestedGroupOpacity_MultipliesIntoFillAlpha`,
+`SvgCodec_Load_GroupsAndTransformsFixture_RendersAtTransformedPositions`
+
+Asserts a child element with no own `fill` inherits its group's; a child with its own `fill`
+overrides the group's; nested groups' `opacity` values multiply together into the resulting
+alpha (checked with an `InRange` tolerance rather than an exact value, since alpha compositing
+is a floating-point computation); and a real fixture file combining nested groups and transforms
+renders shapes at their correctly composed positions.
+
+#### CanvasNet-Codecs-SvgCodec-TransformFunctions: Transform Function Parsing and Composition Order
+
+**Tests**: `SvgCodec_Load_TranslateTransform_MovesShapeByOffset`,
+`SvgCodec_Load_ScaleTransform_EnlargesShapeAboutOrigin`,
+`SvgCodec_Load_RotateTransform_RotatesShapeAboutOrigin`,
+`SvgCodec_Load_MatrixTransform_AppliesRawComponents`,
+`SvgCodec_Load_SkewXTransform_ShearsShapeAlongX`,
+`SvgCodec_Load_CombinedTransformFunctions_AppliesRightmostFunctionFirst`
+
+Each single-function test hand-derives the expected transformed pixel position (including the
+SVG rotation formula `x' = x*cos(θ) - y*sin(θ), y' = x*sin(θ) + y*cos(θ)` and the skewX shear
+`x' = x + y*tan(a)`) and asserts a shape rendered there. The combined-function test is a
+regression test for a genuine composition-order bug found and fixed during this unit's
+implementation: it asserts a `"translate(...) rotate(...)"` transform list applies `rotate`
+first and `translate` second (the rightmost-listed function applies to a point first, per the
+SVG specification), and would fail under the opposite (naive left-to-right) composition order.
+
+#### CanvasNet-Codecs-SvgCodec-PresentationAttributes: Fill/Stroke Presentation Attributes
+
+**Tests**: `SvgCodec_Load_FillRuleEvenOdd_PunchesHoleInOverlappingSubpaths`,
+`SvgCodec_Load_FillRuleNonzeroDefault_FillsUnionOfOverlappingSubpaths`,
+`SvgCodec_Load_FillNoneWithStroke_RendersOnlyOutline`,
+`SvgCodec_Load_StrokeDasharray_RendersGapsAlongLine`,
+`SvgCodec_Load_Opacity_MultipliesIntoFillAlpha`
+
+Asserts `fill-rule="evenodd"` punches a hole where two overlapping same-direction subpaths'
+windings cancel, while the default `nonzero` rule fills their union; `fill="none"` paired with a
+`stroke` renders only the outline; `stroke-dasharray` produces at least one genuinely unstroked
+gap along a line (not merely "some pixels are stroked"); and `opacity` multiplies into a solid
+fill's alpha to a value distinguishably between fully transparent and fully opaque.
+
+#### CanvasNet-Codecs-SvgCodec-Gradients: Gradient Fill/Stroke Resolution
+
+**Tests**: `SvgCodec_Load_LinearGradientUserSpaceOnUse_VariesAlongUserSpaceAxis`,
+`SvgCodec_Load_RadialGradient_VariesFromCenterToEdge`,
+`SvgCodec_Load_GradientSpreadMethodRepeat_TilesPastBaseRange`,
+`SvgCodec_Load_StrokeGradient_PaintsVaryingColorAlongStroke`,
+`SvgCodec_Load_GradientFixture_RendersVaryingGradientColors`
+
+Asserts a `userSpaceOnUse` linear gradient varies along the document's user-space axis; a radial
+gradient is brighter at its center than near its edge; `spreadMethod="repeat"` tiles a gradient's
+base range (asserting two positions at the same fractional offset in successive tiles render
+nearly the same color, and that the tiled color is distinguishably different from what a
+"pad"/clamped default spread would produce at the same position); and a `stroke="url(#id)"`
+gradient reference paints the stroke itself with varying color, not just a fill.
+
+#### CanvasNet-Codecs-SvgCodec-GradientHrefInheritance: Gradient Href Template Inheritance and Cycle Rejection
+
+**Tests**: `SvgCodec_Load_GradientHrefInheritance_InheritsStopsFromTemplate`,
+`SvgCodec_Load_GradientHrefChainOfTwoHops_ResolvesToEventualStops`,
+`SvgCodec_Load_GradientHrefCycle_ThrowsInvalidDataException`
+
+Asserts a gradient with no `stop` children of its own inherits its stops from the gradient it
+references via `href`, that a two-hop `href` chain (through an intermediate stop-less link)
+still resolves to the eventual stop-bearing template, and that a cyclical `href` chain (`a`
+referencing `b` referencing back to `a`) is rejected with `InvalidDataException` rather than
+looping indefinitely.
+
+#### CanvasNet-Codecs-SvgCodec-UseElement: Use Element Resolution, Recursion Guard, and Dangling References
+
+**Tests**: `SvgCodec_Load_UseElement_RendersCopyAtOffsetIndependentOfDocumentOrder`,
+`SvgCodec_Load_UseElementDanglingReference_IsSilentNoOp`,
+`SvgCodec_Load_UseElementReferencingGroup_RendersAllGroupChildren`,
+`SvgCodec_Load_UseElementMutualRecursionCycle_ThrowsInvalidDataException`,
+`SvgCodec_Load_UseReferenceFixture_RendersAtOffsetPositionOnly`
+
+Asserts a `use` element referencing an element defined *after* it in document order still
+resolves correctly (proving the id index is document-order independent) while the original
+element also still renders in place; a `use` referencing a nonexistent id renders nothing and
+does not throw; a `use` referencing a `g` group renders every one of the group's children; and a
+mutually-recursive `use`/`use` reference chain that would otherwise recurse indefinitely is
+rejected with `InvalidDataException` once the bounded recursion guard is exceeded.
+
+#### CanvasNet-Codecs-SvgCodec-TextRendering: Text Glyph Rendering and Kerning
+
+**Tests**: `SvgCodec_Load_TextWithMatchingFont_RendersGlyphAtExpectedPosition`,
+`SvgCodec_Load_TextWithKerningPair_AppliesKerningBetweenGlyphs`,
+`SvgCodec_Load_TextFixtureWithRealFont_RendersVisibleGlyphInk`
+
+Uses a synthetic test font (`BuildTestFont`, built via `SyntheticFontBuilder`) with a known,
+predictable 50x50-unit square glyph shape, 100-unit advance width, and a single -10-unit kerning
+pair, so glyph pixel positions can be hand-computed exactly. Asserts a single glyph renders at
+its expected pixel square and nowhere else, and that a two-character run's second glyph is
+shifted by the expected kerning amount (asserting a pixel position that is filled only under the
+correctly-kerned layout, and would remain unfilled if kerning were ignored). Separately,
+`SvgCodec_Load_TextFixtureWithRealFont_RendersVisibleGlyphInk` loads the real
+`FontFixtures/OpenSans-Regular.ttf` font and asserts real, non-vacuous ink was painted in the
+expected text region while far corners of the canvas remain transparent, mirroring
+`TrueTypeFontRealFontIntegrationTests`'s real-font integration pattern.
+
+#### CanvasNet-Codecs-SvgCodec-TextFontFallbackSkipsSilently: Missing/Unmatched Font Silently Skips Text
+
+**Tests**: `SvgCodec_Load_TextWithoutFontsDictionary_SkipsSilentlyWithoutThrowing`,
+`SvgCodec_Load_TextFontFamilyNoMatch_SkipsSilentlyWithoutThrowing`,
+`SvgCodec_Load_TextFontFamilyCommaSeparatedList_MatchesFirstAvailableFont`
+
+Asserts `Load` with no `fonts` dictionary at all renders no ink for a `text` element and does not
+throw; a `fonts` dictionary supplied but containing no entry matching the requested
+`font-family` likewise renders no ink and does not throw; and a comma-separated `font-family`
+fallback list (`"Nonexistent, TestFont"`) matches the first family actually present in the
+dictionary, proving the fallback list is walked rather than only the first entry being
+considered.
+
+#### CanvasNet-Codecs-SvgCodec-TextAnchor: Text-Anchor Alignment
+
+**Tests**: `SvgCodec_Load_TextAnchorMiddle_CentersTextHorizontally`,
+`SvgCodec_Load_TextAnchorEnd_RightAlignsText`
+
+Asserts `text-anchor="middle"` centers the glyph run on the given `x` (checked against both the
+correctly-centered position and the position a start-anchored run would have used instead), and
+`text-anchor="end"` right-aligns the run so it ends at the given `x` (checked the same way).
+
+#### CanvasNet-Codecs-SvgCodec-ViewBoxFitting: ViewBox "Meet, Centered" Fitting and Letterboxing
+
+**Tests**: `SvgCodec_Load_WideViewBoxIntoSquareRaster_LetterboxesTopAndBottom`,
+`SvgCodec_Load_TallViewBoxIntoSquareRaster_LetterboxesLeftAndRight`
+
+Asserts a wide (landscape) viewBox fit into a square raster is centered with transparent
+letterbox bars above and below its content, and a tall (portrait) viewBox fit into a square
+raster is centered with transparent letterbox bars to the left and right, in each case also
+asserting the content band itself is filled.
+
+#### CanvasNet-Codecs-SvgCodec-GetInfo: GetInfo Reports Resolved Intrinsic Size
+
+**Tests**: `SvgCodec_GetInfo_ViewBoxPresent_ReturnsViewBoxDimensions`,
+`SvgCodec_GetInfo_FromFilePath_ReturnsExpectedInfo`
+
+Asserts `GetInfo` reports a document's `viewBox` dimensions (even when conflicting `width`/
+`height` attributes are also present, proving `viewBox` takes precedence), always reports
+`Channels = 4` and `HasAlpha = true`, and that the `GetInfo(string)` file-path overload returns
+the same information as the stream overload.
+
+#### CanvasNet-Codecs-SvgCodec-GetInfoFallback: GetInfo Three-Tier Fallback Policy
+
+**Tests**: `SvgCodec_GetInfo_NoViewBoxWidthHeightPresent_ReturnsWidthHeight`,
+`SvgCodec_GetInfo_NoViewBoxNoWidthHeight_ReturnsCssDefault300x150`
+
+Asserts `GetInfo` falls back to a document's `width`/`height` attributes when no `viewBox` is
+present, and to the CSS/UA default replaced-element intrinsic size (300x150) when neither a
+`viewBox` nor `width`/`height` are present.
+
+#### CanvasNet-Codecs-SvgCodec-MalformedXmlRejected: Malformed XML/ViewBox/Transform Rejected
+
+**Tests**: `SvgCodec_Load_MalformedXml_ThrowsInvalidDataException`,
+`SvgCodec_Load_MalformedViewBoxWrongNumberCount_ThrowsInvalidDataException`,
+`SvgCodec_Load_ViewBoxNonPositiveWidth_ThrowsInvalidDataException`,
+`SvgCodec_Load_MalformedTransformUnrecognizedFunction_ThrowsInvalidDataException`
+
+Asserts `Load` throws `InvalidDataException` for non-well-formed XML (an unclosed tag), a
+`viewBox` with the wrong number of components, a `viewBox` with a non-positive width, and a
+`transform` attribute naming an unrecognized function.
+
+#### CanvasNet-Codecs-SvgCodec-MalformedPathDataRejected: Malformed Path "d" Data Rejected
+
+**Tests**: `SvgCodec_Load_MalformedPathDataUnknownCommand_ThrowsInvalidDataException`,
+`SvgCodec_Load_MalformedPathDataMissingArguments_ThrowsInvalidDataException`
+
+Asserts `Load` throws `InvalidDataException` for a `path` `d` attribute containing an
+unrecognized command letter and, separately, a command missing its required numeric arguments.
+
+#### CanvasNet-Codecs-SvgCodec-UnsupportedConstructsIgnored: Out-of-Scope Constructs Tolerated
+
+**Tests**: `SvgCodec_Load_UnsupportedConstructs_StillRendersRestOfDocument`,
+`SvgCodec_Load_ToleratesUnsupportedConstructFixture_StillRendersRemainingContent`
+
+Builds a document containing `style`, `filter`, `mask`, `clipPath`, `pattern`, `marker`, and a
+nested `svg` alongside an ordinary `rect`, and asserts the ordinary `rect` still renders — proving
+none of the out-of-scope elements abort the whole document. A real fixture file exercises the
+same property end-to-end.
+
+#### CanvasNet-Codecs-SvgCodec-ValidationNull: Null Stream/Path Rejected
+
+**Tests**: `SvgCodec_Load_NullStream_ThrowsArgumentNullException`,
+`SvgCodec_Load_NullPath_ThrowsArgumentNullException`,
+`SvgCodec_GetInfo_NullStream_ThrowsArgumentNullException`,
+`SvgCodec_GetInfo_NullPath_ThrowsArgumentNullException`
+
+Calls each of `Load(Stream, ...)`, `Load(string, ...)`, `GetInfo(Stream)`, and `GetInfo(string)`
+with a null stream/path argument and asserts `ArgumentNullException` is thrown in every case.
+
+#### CanvasNet-Codecs-SvgCodec-ValidationEmptyPath: Empty/Whitespace Path Rejected
+
+**Tests**: `SvgCodec_Load_EmptyPath_ThrowsArgumentException`,
+`SvgCodec_Load_WhitespacePath_ThrowsArgumentException`,
+`SvgCodec_GetInfo_EmptyPath_ThrowsArgumentException`
+
+Calls `Load(string, ...)` with an empty path and, separately, a whitespace-only path, and
+`GetInfo(string)` with an empty path, asserting `ArgumentException` is thrown in every case.
+
+#### CanvasNet-Codecs-SvgCodec-ValidationOutputDimensions: Output Dimension Validation Delegates to Surface
+
+**Test**: `SvgCodec_Load_NonPositiveWidth_PropagatesSurfaceArgumentOutOfRangeException`
+
+Calls `Load` with a well-formed SVG document but a non-positive requested output width, and
+asserts `Surface`'s own `ArgumentOutOfRangeException` propagates unwrapped (not the
+`InvalidDataException` this codec uses for malformed *file* data), confirming the deliberate
+design decision that caller-supplied raster dimensions are ordinary API parameters rather than
+untrusted input.
+
+### Acceptance Criteria
+
+A unit test run passes when every test method listed above, across both `SvgCodecTests.cs` and
+`SvgFixtureTests.cs`, passes without error or unexpected exception; any unexpected exception type
+or wrong pixel/return value constitutes a failure.

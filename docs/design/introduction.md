@@ -30,7 +30,8 @@ software items, specifically:
 - **Canvas (Subsystem)** — Pixel-buffer primitives: the `Surface` unit (mutable, in-memory
   32-bit RGBA pixel buffer with span-based row access) and the `Rgba32` unit
 - **Codecs (Subsystem)** — Image format codecs: `BmpCodec`, `PngCodec`, `TiffCodec`, and
-  `JpegCodec`, each converting to and from a `Surface` pixel buffer
+  `JpegCodec`, each converting to and from a `Surface` pixel buffer, plus `SvgCodec`, a
+  decode/rasterize-only unit that rasterizes a subset of SVG vector documents into a `Surface`
 - **Geometry (Subsystem)** — Vector-geometry primitives, distinct from the `Drawing`
   subsystem (which covers rasterization built on top of these primitives): the `Rect` unit
   (axis-aligned bounding rectangle), the `Path` unit (immutable vector path and its
@@ -84,7 +85,7 @@ diagram or the prose below.
 
 CanvasNet is organized into five subsystems under the system level: the `Canvas` subsystem
 (the `Surface` and `Rgba32` units, namespace `DemaConsulting.CanvasNet.Canvas`), the `Codecs`
-subsystem (the `BmpCodec`, `PngCodec`, `TiffCodec`, and `JpegCodec` units, namespace
+subsystem (the `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, and `SvgCodec` units, namespace
 `DemaConsulting.CanvasNet.Codecs`, flat — no further nesting), the `Geometry` subsystem (the
 `Rect`, `Path`, `BezierFlattening`, and `SvgArcConverter` units, namespace
 `DemaConsulting.CanvasNet.Geometry`, flat — no further nesting), the `Drawing` subsystem (the
@@ -117,6 +118,7 @@ src/DemaConsulting.CanvasNet/
 │   ├── PngCodec.cs               — 8-bit Truecolor/Truecolor-with-alpha PNG loader/saver
 │   ├── TiffCodec.cs              — 8-bit RGB/RGBA/Grayscale, strip-based TIFF loader/saver
 │   ├── JpegCodec.cs              — Baseline/progressive JPEG loader and baseline JPEG saver
+│   ├── SvgCodec.cs               — Decode/rasterize-only loader for a subset of SVG documents
 │   └── NamespaceDoc.cs           — Namespace-level XML documentation
 ├── Drawing/
 │   ├── FillRule.cs                — Nonzero/even-odd fill-rule enumeration
@@ -162,7 +164,11 @@ today. As the system grows with additional subsystems and units, the folder stru
 expand further to mirror the software architecture. `Canvas/Surface.cs` also gained a
 `CompositeOverSpan` method used internally by `Drawing/PathFiller.cs`, and the `Drawing`
 subsystem now includes the additional stroking files listed above, along with the gradient
-paint files added for linear/radial gradient support in `PathFiller`.
+paint files added for linear/radial gradient support in `PathFiller`. `Codecs/SvgCodec.cs` is
+the first unit in the `Codecs` subsystem whose dependencies are not limited to `Canvas`: it also
+depends on the `Geometry`, `Drawing`, and `Fonts` subsystems to build and rasterize the vector
+paths and text it decodes from SVG documents — see _Codecs Subsystem Design_
+(`docs/design/canvas-net/codecs.md`).
 
 ## Document Conventions
 
