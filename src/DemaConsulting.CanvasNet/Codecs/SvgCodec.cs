@@ -257,12 +257,23 @@ public static class SvgCodec
         /// </exception>
         public void Charge(int amount)
         {
-            _total += amount;
-            if (_total > MaxTotalGeometryWork)
+            // Check before adding (rather than adding then checking) so that a single amount
+            // large enough to make the addition itself overflow int cannot bypass the budget -
+            // MaxTotalGeometryWork - _total is always non-negative and small here, since the
+            // invariant _total <= MaxTotalGeometryWork holds after every successful call, so the
+            // subtraction itself cannot overflow. This is defense-in-depth: given today's fixed
+            // constants (amount is at most MaxDocumentCharacters, far below int.MaxValue / 2),
+            // _total could never legitimately climb anywhere near int.MaxValue via repeated small
+            // additions before the very next charge past MaxTotalGeometryWork already throws -
+            // but the check-before-add ordering is strictly more correct regardless, and remains
+            // safe if either constant is ever raised without re-auditing this method.
+            if (amount > MaxTotalGeometryWork - _total)
             {
                 throw new InvalidDataException(
                     "SVG document resolves to too much total path/point-list/text geometry-parsing work.");
             }
+
+            _total += amount;
         }
     }
 
@@ -594,11 +605,17 @@ public static class SvgCodec
         var totalElements = 0;
         foreach (var element in root.DescendantsAndSelf())
         {
-            totalElements++;
-            if (totalElements > MaxTotalRenderedElements)
+            // Check before incrementing (rather than incrementing then checking) - see
+            // GeometryWorkBudget.Charge's identical rationale. Each visit increments by exactly
+            // 1, so this specific site can never itself overflow int in practice, but the
+            // check-before-add ordering is the strictly more correct pattern regardless, applied
+            // here for systemic consistency across every accumulation site in this class.
+            if (totalElements >= MaxTotalRenderedElements)
             {
                 throw new InvalidDataException($"The document contains more than {MaxTotalRenderedElements} elements.");
             }
+
+            totalElements++;
 
             var id = (string?)element.Attribute("id");
             if (id != null)
@@ -1005,12 +1022,15 @@ public static class SvgCodec
 
         // Charge the total-visit budget before doing any further work on this element - this is
         // the only bound that catches non-cyclic exponential "use" fan-out, where every
-        // individual reference chain stays well within the depth caps above
-        totalElements++;
-        if (totalElements > MaxTotalRenderedElements)
+        // individual reference chain stays well within the depth caps above. Checked before
+        // incrementing (rather than incrementing then checking) for the same check-before-add
+        // reasoning as GeometryWorkBudget.Charge and BuildIdIndex's identical counter above.
+        if (totalElements >= MaxTotalRenderedElements)
         {
             throw new InvalidDataException("SVG document resolves to too many total rendered elements.");
         }
+
+        totalElements++;
 
         var name = element.Name.LocalName;
         if (NonRenderingElements.Contains(name) || SkippedElements.Contains(name))

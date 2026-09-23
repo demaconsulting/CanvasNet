@@ -252,7 +252,16 @@ sub-tree is legitimately shared. Rendering therefore also tracks a third, indepe
 total number of elements rendered/visited across the whole document walk - charged before each
 element is processed further, and raises `InvalidDataException` once it exceeds a fixed budget far
 beyond any real-world document's element count but small enough to keep worst-case rendering
-CPU/memory bounded to a small, practical amount.
+CPU/memory bounded to a small, practical amount. Every fixed counter/budget in this class
+(`GeometryWorkBudget.Charge`, the total-rendered-element counter above, and `BuildIdIndex`'s own
+whole-document-walk counter described below) checks the new amount against the remaining budget
+*before* adding it to the running total, rather than adding first and checking afterward - a
+single call charging an amount large enough to make the addition itself overflow `int` cannot
+therefore bypass the budget by wrapping past a small, still-under-budget-looking value. This is
+defense-in-depth: given today's fixed constants, no call site can charge an amount anywhere close
+to large enough to threaten an `int` overflow before the very next charge past the real budget
+already throws, but the check-before-add ordering remains correct regardless of whether these
+constants are ever raised in the future.
 
 Even the total-rendered-element budget above does not bound the size of a single element's own
 content: it counts how many elements are visited, so one `path`/`polyline`/`polygon`/`text`
