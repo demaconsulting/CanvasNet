@@ -327,7 +327,7 @@ The tests below are defensive/regression tests added for a bug fix, not new obse
 per `requirements-principles.md`, tests may exist without a linked requirement, so these entries
 deliberately do not use the `CanvasNet-Codecs-SvgCodec-{Id}:` heading pattern above.
 
-**Bounded `GetInfo` header-only parsing**
+#### Bounded GetInfo Header-Only Parsing
 
 **Test**: `SvgCodec_GetInfo_MalformedXmlAfterRootElement_DoesNotThrowAndReturnsViewBoxDimensions`
 
@@ -336,7 +336,7 @@ Asserts `GetInfo`'s bounded, root-start-tag-only `XmlReader` parse still resolve
 attributes - the same markup the `MalformedXmlRejected` scenario above proves `Load`'s
 full-document parse still correctly rejects.
 
-**Non-finite numeric attribute/token rejection**
+#### Non-Finite Numeric Attribute/Token Rejection
 
 **Tests**: `SvgCodec_Load_WidthAttributeNaN_ThrowsInvalidDataException`,
 `SvgCodec_Load_StrokeWidthInfinity_ThrowsInvalidDataException`,
