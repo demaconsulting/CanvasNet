@@ -1391,6 +1391,148 @@ public class SvgCodecTests
     }
 
     // ================================================================================================
+    // Number-list attribute length budget (viewBox / transform arguments / stroke-dasharray)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that a <c>stroke-dasharray</c> attribute containing more than
+    ///     <c>ParseNumberList</c>'s fixed maximum number of numbers is rejected with
+    ///     <see cref="InvalidDataException"/>, and that the cap is charged incrementally (per
+    ///     number, as each is parsed) rather than only after the whole list has already been
+    ///     materialized into an unbounded <see cref="List{T}"/> - proven by measuring actual bytes
+    ///     allocated, matching the <see cref="SvgCodec_Load_PointsListLargeExceedingBudget_ThrowsWithoutLargeAllocation"/>
+    ///     allocation-bound precedent above.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_StrokeDasharrayExceedingNumberListLengthCap_ThrowsWithoutLargeAllocation()
+    {
+        // Arrange: a dasharray far larger than the codec's fixed 10,000-number cap (generated
+        // programmatically, never a literal fixture)
+        const int hugeNumberCount = 1_000_000;
+        var dasharray = string.Join(',', Enumerable.Repeat("1", hugeNumberCount));
+        var svg = $"<svg viewBox='0 0 10 10'><rect width='5' height='5' fill='none' stroke='black' stroke-dasharray='{dasharray}'/></svg>";
+        var stream = ToStream(svg);
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 10, 10));
+        var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert
+        Assert.Contains("number list", ex.Message, StringComparison.OrdinalIgnoreCase);
+
+        const long maxExpectedAllocatedBytes = 16 * 1024 * 1024;
+        Assert.True(
+            allocatedDuring < maxExpectedAllocatedBytes,
+            $"Expected no large allocation, but {allocatedDuring:N0} bytes were allocated.");
+    }
+
+    /// <summary>
+    ///     Proves the same number-list length cap is reached identically via a transform
+    ///     function's own argument list (here, <c>matrix(...)</c>, reached from a plain
+    ///     <c>transform</c> attribute) - a second call site sharing <c>ParseNumberList</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TransformArgumentListExceedingLengthCap_ThrowsInvalidDataException()
+    {
+        // Arrange: a matrix(...) argument list far larger than the codec's fixed 10,000-number cap
+        var args = string.Join(',', Enumerable.Repeat("1", 10_001));
+        var svg = $"<svg viewBox='0 0 10 10'><rect width='5' height='5' transform='matrix({args})'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves the same number-list length cap is reached identically via the root
+    ///     <c>&lt;svg&gt;</c> element's own <c>viewBox</c> attribute - a third call site sharing
+    ///     <c>ParseNumberList</c>, even though a well-formed <c>viewBox</c> only ever needs exactly
+    ///     four numbers.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ViewBoxNumberListExceedingLengthCap_ThrowsInvalidDataException()
+    {
+        // Arrange: a viewBox with far more than the codec's fixed 10,000-number cap worth of
+        // numbers, even though only the first four would ever be meaningful
+        var numbers = string.Join(' ', Enumerable.Repeat("0", 10_001));
+        var svg = $"<svg viewBox='{numbers}'><rect width='5' height='5'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+    }
+
+    // ================================================================================================
+    // Total whole-document element budget (BuildIdIndex / ParseStops)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that <see cref="SvgCodec"/> bounds its whole-document <c>id</c>-index walk
+    ///     (<c>BuildIdIndex</c>), which runs before rendering and independently of the
+    ///     total-rendered-element budget: a <c>&lt;defs&gt;</c> subtree containing more elements
+    ///     than the budget - none of which are ever referenced or rendered - is still rejected
+    ///     with <see cref="InvalidDataException"/>, closing the gap where the rendering-time
+    ///     budget alone would never see them.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_UnrenderedDefsElementCountExceedingDocumentElementBudget_ThrowsInvalidDataException()
+    {
+        // Arrange: a <defs> subtree containing more plain, never-referenced <rect> elements than
+        // the codec's fixed 100,000-element document-wide budget - none of these are rendered or
+        // referenced by anything, so only BuildIdIndex's whole-document walk ever visits them
+        var builder = new StringBuilder();
+        builder.Append("<svg viewBox='0 0 10 10'><defs>");
+        for (var i = 0; i < 100_001; i++)
+        {
+            builder.Append("<rect width='1' height='1'/>");
+        }
+
+        builder.Append("</defs></svg>");
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(builder.ToString()), 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves the same whole-document element budget closes the related <c>ParseStops</c> gap:
+    ///     a <c>linearGradient</c>/<c>radialGradient</c> - a non-rendering element that
+    ///     <c>RenderElement</c> charges only once for itself and never recurses into - can
+    ///     otherwise carry an unbounded number of <c>&lt;stop&gt;</c> children, each allocating a
+    ///     <c>GradientStop</c>. Proves, by measuring actual bytes allocated (matching the
+    ///     allocation-bound precedent above), that an oversized <c>&lt;stop&gt;</c> list is
+    ///     rejected by <c>BuildIdIndex</c>'s whole-document walk before <c>ParseStops</c> ever
+    ///     runs, rather than after fully materializing the whole stop list.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GradientStopCountExceedingDocumentElementBudget_ThrowsWithoutLargeAllocation()
+    {
+        // Arrange: a linearGradient with more <stop> children than the codec's fixed
+        // 100,000-element document-wide budget
+        var builder = new StringBuilder();
+        builder.Append("<svg viewBox='0 0 10 10'><defs><linearGradient id='g'>");
+        for (var i = 0; i < 100_001; i++)
+        {
+            builder.Append("<stop offset='0' stop-color='black'/>");
+        }
+
+        builder.Append("</linearGradient></defs>");
+        builder.Append("<rect width='5' height='5' fill='url(#g)'/></svg>");
+        var stream = ToStream(builder.ToString());
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 10, 10));
+        var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert
+        Assert.Contains("elements", ex.Message, StringComparison.OrdinalIgnoreCase);
+
+        const long maxExpectedAllocatedBytes = 64 * 1024 * 1024;
+        Assert.True(
+            allocatedDuring < maxExpectedAllocatedBytes,
+            $"Expected no large allocation, but {allocatedDuring:N0} bytes were allocated.");
+    }
+
+    // ================================================================================================
     // <text> rendering, text-anchor, and font fallback
     // ================================================================================================
 

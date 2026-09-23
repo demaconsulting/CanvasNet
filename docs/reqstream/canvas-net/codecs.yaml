@@ -627,6 +627,8 @@ sections:
               - CanvasNet-Codecs-SvgCodec-ElementNestingDepthLimit
               - CanvasNet-Codecs-SvgCodec-TotalElementBudget
               - CanvasNet-Codecs-SvgCodec-TotalGeometryWorkBudget
+              - CanvasNet-Codecs-SvgCodec-NumberListLengthBudget
+              - CanvasNet-Codecs-SvgCodec-TotalDocumentElementBudget
               - CanvasNet-Codecs-SvgCodec-ValidationOutputDimensions
             tests:
               - CanvasNet_SystemIntegration_SvgLoad_ReturnsExpectedPixel

@@ -555,11 +555,26 @@ public static class SvgCodec
     ///     The id index. When two elements share the same <c>id</c> (invalid, but tolerated), the
     ///     first one encountered in document order wins.
     /// </returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown once this walk visits more than <see cref="MaxTotalRenderedElements"/> elements.
+    ///     This walk runs before rendering and covers every element in the document - including
+    ///     elements <see cref="RenderElement"/> would never itself visit, such as unreferenced
+    ///     <c>defs</c> content and a gradient's own <c>stop</c> children - so charging it against
+    ///     the same budget also transitively bounds <see cref="ParseStops"/>'s later, otherwise-
+    ///     unbounded enumeration of a single gradient's <c>stop</c> children.
+    /// </exception>
     private static Dictionary<string, XElement> BuildIdIndex(XElement root)
     {
         var index = new Dictionary<string, XElement>(StringComparer.Ordinal);
+        var totalElements = 0;
         foreach (var element in root.DescendantsAndSelf())
         {
+            totalElements++;
+            if (totalElements > MaxTotalRenderedElements)
+            {
+                throw new InvalidDataException($"The document contains more than {MaxTotalRenderedElements} elements.");
+            }
+
             var id = (string?)element.Attribute("id");
             if (id != null)
             {
@@ -3498,6 +3513,19 @@ public static class SvgCodec
     }
 
     /// <summary>
+    ///     The maximum number of numbers a single <see cref="ParseNumberList"/> call accepts,
+    ///     charged incrementally (per number, not after full materialization) so that a single
+    ///     pathological attribute value cannot force an unbounded <see cref="List{T}"/> allocation
+    ///     before the excess is detected. Deliberately an order of magnitude below
+    ///     <see cref="MaxTotalRenderedElements"/>/<see cref="GeometryWorkBudget.MaxTotalGeometryWork"/>:
+    ///     this budget applies to a single attribute value, not a whole document, and a legitimate
+    ///     <c>viewBox</c> (exactly 4), <c>matrix(...)</c> (exactly 6), or real-world
+    ///     <c>stroke-dasharray</c> (essentially always under a few dozen entries) needs nowhere
+    ///     near this many.
+    /// </summary>
+    private const int MaxNumberListLength = 10_000;
+
+    /// <summary>
     ///     Parses a whitespace/comma-separated list of numbers (used by <c>viewBox</c>,
     ///     transform-function arguments, and <c>stroke-dasharray</c> - <c>points</c> is parsed
     ///     directly by <see cref="ParsePointList"/> instead, so its coordinate pairs can be
@@ -3506,7 +3534,8 @@ public static class SvgCodec
     /// <param name="raw">The raw, non-<see langword="null"/> list text (may be blank).</param>
     /// <returns>The parsed numbers, in order; empty if <paramref name="raw"/> is blank.</returns>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when non-whitespace/comma content remains that does not form a valid number.
+    ///     Thrown when non-whitespace/comma content remains that does not form a valid number, or
+    ///     when more than <see cref="MaxNumberListLength"/> numbers are present.
     /// </exception>
     private static List<float> ParseNumberList(string raw)
     {
@@ -3526,6 +3555,14 @@ public static class SvgCodec
             }
 
             numbers.Add(value);
+
+            // Charged incrementally (immediately after each Add, not after the loop completes)
+            // so a pathologically long list is rejected before it can force an unbounded
+            // allocation, rather than only after fully materializing it.
+            if (numbers.Count > MaxNumberListLength)
+            {
+                throw new InvalidDataException($"Number list exceeds the maximum of {MaxNumberListLength} numbers.");
+            }
         }
 
         return numbers;

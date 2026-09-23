@@ -253,6 +253,31 @@ its entire unbounded content has already been scanned. This budget mirrors the F
 magnitude precedent for bounding a single pathological structure's parsing cost, applied here as
 an independent combined counter across all three sources rather than one bound per source.
 
+None of the above budgets bound a single _attribute value's_ own length independent of any
+element/geometry counting: `ParseNumberList` - the shared parser behind `viewBox`, every
+transform function's arguments, and `stroke-dasharray` - previously appended every parsed number
+to an unbounded list with no upper bound, and this attribute family is not charged against the
+geometry-work budget above. `ParseNumberList` therefore also enforces a fifth, independent,
+per-call budget (`10,000` numbers - deliberately an order of magnitude below the total-element/
+geometry-work budgets, since this bounds a single attribute value rather than a whole document),
+charged the moment each number is added rather than after the list is fully built, and rejects the
+excess with `InvalidDataException` - a hard rejection, not a tolerant fallback, matching this
+codec's existing convention for every other size/arity/syntax budget violation.
+
+Finally, every budget above only bounds work `RenderElement` itself performs while walking the
+element tree during rendering. `Load` separately calls `BuildIdIndex` **before** rendering begins,
+to resolve `href`/`url(#id)` references - and that call walks every element in the whole parsed
+document (`root.DescendantsAndSelf()`), independent of and unbounded by any of the rendering-time
+budgets above. The same gap also left `ParseStops`'s enumeration of a `linearGradient`/
+`radialGradient`'s `<stop>` children unbounded, since gradients are non-rendering elements that
+`RenderElement` charges only once for the gradient itself and never recurses into (never counts)
+its children at all - a document with an extreme number of never-rendered `<defs>` elements, or an
+extreme number of `<stop>` children under one gradient, could bypass every rendering-time budget
+entirely. `BuildIdIndex`'s whole-document walk therefore reuses the existing
+`MaxTotalRenderedElements` budget, charged per element visited during that walk, closing both gaps
+with a single guard - since it runs before rendering and covers every element in the document, it
+transitively bounds `ParseStops`'s later, otherwise-unbounded `<stop>` enumeration too.
+
 **Text.** A `text` element's `font-family` is matched, case-insensitively, against a
 caller-supplied `fonts` dictionary keyed by family name, walking a comma-separated fallback list
 of families exactly as CSS `font-family` does. Each mapped character's glyph outline, advance

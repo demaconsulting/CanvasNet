@@ -205,6 +205,51 @@ sections:
                   - SvgCodec_Load_TextExceedingGeometryWorkBudget_ThrowsInvalidDataException
                   - SvgCodec_Load_PointsListLargeExceedingBudget_ThrowsWithoutLargeAllocation
 
+              - id: CanvasNet-Codecs-SvgCodec-NumberListLengthBudget
+                title: >-
+                  The SvgCodec class shall reject a single whitespace/comma-separated numeric
+                  attribute value (viewBox, a transform function's arguments, or
+                  stroke-dasharray) containing more than a fixed maximum number of numbers, with
+                  InvalidDataException, charged incrementally as each number is parsed rather than
+                  only after the full list has been materialized.
+                justification: |
+                  ParseNumberList - the shared parser behind viewBox, every transform function's
+                  argument list, and stroke-dasharray - previously appended every parsed number to
+                  an unbounded List<float> with no upper bound on its length. A single
+                  pathologically long attribute value (for example, an extremely long
+                  stroke-dasharray) could force an unbounded allocation, independent of both the
+                  total-rendered-element budget (this is a single attribute, not multiple
+                  elements) and the total-geometry-work budget (this attribute family is not
+                  charged against it). The cap is charged the moment each number is added, not
+                  after the list is fully built, so the unbounded allocation itself never occurs.
+                tests:
+                  - SvgCodec_Load_StrokeDasharrayExceedingNumberListLengthCap_ThrowsWithoutLargeAllocation
+                  - SvgCodec_Load_TransformArgumentListExceedingLengthCap_ThrowsInvalidDataException
+                  - SvgCodec_Load_ViewBoxNumberListExceedingLengthCap_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-SvgCodec-TotalDocumentElementBudget
+                title: >-
+                  The SvgCodec class shall reject an SVG document whose total number of elements,
+                  counted across the whole parsed document (including elements that are never
+                  rendered, such as gradient-stop children and other non-rendering definitions),
+                  exceeds a fixed budget, with InvalidDataException, rather than continuing to
+                  build an unbounded id index or enumerate an unbounded number of gradient stops.
+                justification: |
+                  The total-rendered-element budget (CanvasNet-Codecs-SvgCodec-TotalElementBudget)
+                  only charges elements RenderElement actually visits during rendering. Load's own
+                  BuildIdIndex call walks every element in the whole parsed document
+                  (root.DescendantsAndSelf()) up front, before rendering begins and independent of
+                  it, to build the id index used to resolve href/url(#id) references - completely
+                  unbounded. The same gap also leaves ParseStops's enumeration of a
+                  linearGradient/radialGradient's <stop> children unbounded, since gradients are
+                  non-rendering elements that RenderElement charges only once for the gradient
+                  itself and never recurses into. Reusing the existing
+                  MaxTotalRenderedElements-style budget for this whole-document walk closes both
+                  gaps with a single guard.
+                tests:
+                  - SvgCodec_Load_UnrenderedDefsElementCountExceedingDocumentElementBudget_ThrowsInvalidDataException
+                  - SvgCodec_Load_GradientStopCountExceedingDocumentElementBudget_ThrowsWithoutLargeAllocation
+
               - id: CanvasNet-Codecs-SvgCodec-TextRendering
                 title: >-
                   The SvgCodec class shall render a text element's characters as glyph outlines

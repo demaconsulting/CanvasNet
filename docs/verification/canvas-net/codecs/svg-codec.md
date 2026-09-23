@@ -227,6 +227,50 @@ materializing the whole resolved coordinate list into memory first - closing a r
 the budget was previously charged only once, in one batch, after the entire attribute had already
 been parsed into two full-sized lists.
 
+#### CanvasNet-Codecs-SvgCodec-NumberListLengthBudget: Number-List Attribute Length Budget
+
+**Tests**: `SvgCodec_Load_StrokeDasharrayExceedingNumberListLengthCap_ThrowsWithoutLargeAllocation`,
+`SvgCodec_Load_TransformArgumentListExceedingLengthCap_ThrowsInvalidDataException`,
+`SvgCodec_Load_ViewBoxNumberListExceedingLengthCap_ThrowsInvalidDataException`
+
+Asserts `ParseNumberList` - the shared parser behind `viewBox`, every transform function's
+argument list (`transform`/`gradientTransform`), and `stroke-dasharray` - rejects a single
+attribute value containing more than its fixed maximum number of numbers with
+`InvalidDataException`, independent of both `TotalElementBudget` (a single attribute, not
+multiple elements) and `TotalGeometryWorkBudget` (this attribute family is not charged against
+it, so an oversized `stroke-dasharray`/`transform`/`viewBox` would otherwise bypass every existing
+budget entirely).
+`SvgCodec_Load_StrokeDasharrayExceedingNumberListLengthCap_ThrowsWithoutLargeAllocation` proves,
+via `GC.GetAllocatedBytesForCurrentThread()` (matching the `TotalGeometryWorkBudget` allocation-
+bound precedent above), that an oversized `stroke-dasharray` is rejected before the cap's
+incremental per-number charge lets the backing list grow far beyond the cap, not only after the
+whole (otherwise unbounded) list has already been materialized.
+`SvgCodec_Load_TransformArgumentListExceedingLengthCap_ThrowsInvalidDataException` and
+`SvgCodec_Load_ViewBoxNumberListExceedingLengthCap_ThrowsInvalidDataException` prove the same cap
+is reached identically via the two other call sites that share `ParseNumberList`.
+
+#### CanvasNet-Codecs-SvgCodec-TotalDocumentElementBudget: Total Whole-Document Element Budget
+
+**Tests**: `SvgCodec_Load_UnrenderedDefsElementCountExceedingDocumentElementBudget_ThrowsInvalidDataException`,
+`SvgCodec_Load_GradientStopCountExceedingDocumentElementBudget_ThrowsWithoutLargeAllocation`
+
+Asserts that `Load`'s `BuildIdIndex` call - which walks every element in the whole parsed
+document (`root.DescendantsAndSelf()`) to build the id index used to resolve `href`/`url(#id)`
+references, independent of and before `RenderElement`'s own `TotalElementBudget` ever runs -
+is itself bounded, reusing the same `MaxTotalRenderedElements`-style budget.
+`SvgCodec_Load_UnrenderedDefsElementCountExceedingDocumentElementBudget_ThrowsInvalidDataException`
+proves a `<defs>` subtree containing more than the budget's worth of never-rendered elements
+(elements `RenderElement` would never visit at all, since nothing references or renders them) is
+still rejected with `InvalidDataException`, closing the gap where `TotalElementBudget` alone would
+never see them.
+`SvgCodec_Load_GradientStopCountExceedingDocumentElementBudget_ThrowsWithoutLargeAllocation`
+proves the same guard closes the related `ParseStops` gap: a `linearGradient`/`radialGradient` -
+a non-rendering element `RenderElement` charges only once for itself and never recurses into - can
+otherwise carry an unbounded number of `<stop>` children, each allocating a `GradientStop`; this
+test measures actual bytes allocated (matching the `TotalGeometryWorkBudget`/
+`NumberListLengthBudget` allocation-bound precedent above) to prove the oversized `<stop>` list is
+rejected before `ParseStops` fully materializes it.
+
 #### CanvasNet-Codecs-SvgCodec-TextRendering: Text Glyph Rendering and Kerning
 
 **Tests**: `SvgCodec_Load_TextWithMatchingFont_RendersGlyphAtExpectedPosition`,
