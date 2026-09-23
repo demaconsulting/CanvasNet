@@ -11,7 +11,9 @@ isolation, using hand-authored SVG string/stream fixtures (`SvgCodecTests.cs`) f
 targeted coverage of every in-scope construct, malformed-input rejection path, and tolerant
 unsupported-construct case, plus a real-file fixture corpus (`SvgFixtureTests.cs`, backed by
 `SvgFixtures/*.svg`) for broader, whole-document coverage including a real-font
-(`FontFixtures/OpenSans-Regular.ttf`) text-rendering integration test. `Path.GetTempFileName()`
+(`FontFixtures/OpenSans-Regular.ttf`) text-rendering integration test and two real-world,
+third-party, Wikimedia-Commons-sourced fixtures (`SvgFixtures/SvgGradient.svg` and
+`SvgFixtures/InkscapeFilters.svg`; see `SvgFixtures/WikimediaCommons.LICENSE` for provenance). `Path.GetTempFileName()`
 is used for the file-path overload tests. Because `SvgCodec`'s dependencies (`Canvas.Surface`,
 `Geometry`, `Drawing`, and `Fonts`) are all sibling in-house units, not external services, no
 mocking or stubbing is required. Tests supply an SVG string/stream (and, for text tests, a
@@ -119,7 +121,8 @@ fill's alpha to a value distinguishably between fully transparent and fully opaq
 `SvgCodec_Load_RadialGradient_VariesFromCenterToEdge`,
 `SvgCodec_Load_GradientSpreadMethodRepeat_TilesPastBaseRange`,
 `SvgCodec_Load_StrokeGradient_PaintsVaryingColorAlongStroke`,
-`SvgCodec_Load_GradientFixture_RendersVaryingGradientColors`
+`SvgCodec_Load_GradientFixture_RendersVaryingGradientColors`,
+`SvgCodec_Load_SvgGradientFixture_RendersVaryingGradientAndPinkBackground`
 
 Asserts a `userSpaceOnUse` linear gradient varies along the document's user-space axis; a radial
 gradient is brighter at its center than near its edge; `spreadMethod="repeat"` tiles a gradient's
@@ -127,6 +130,10 @@ base range (asserting two positions at the same fractional offset in successive 
 nearly the same color, and that the tiled color is distinguishably different from what a
 "pad"/clamped default spread would produce at the same position); and a `stroke="url(#id)"`
 gradient reference paints the stroke itself with varying color, not just a fill.
+`SvgCodec_Load_SvgGradientFixture_RendersVaryingGradientAndPinkBackground` corroborates this with
+a real, unmodified, third-party Wikimedia Commons fixture (`SvgFixtures/SvgGradient.svg`) whose
+`userSpaceOnUse` gradient bar and `stop-color` percentage offsets are unlike this unit's other
+hand-authored gradient tests.
 
 #### CanvasNet-Codecs-SvgCodec-GradientHrefInheritance: Gradient Href Template Inheritance and Cycle Rejection
 
@@ -256,12 +263,19 @@ unrecognized command letter and, separately, a command missing its required nume
 #### CanvasNet-Codecs-SvgCodec-UnsupportedConstructsIgnored: Out-of-Scope Constructs Tolerated
 
 **Tests**: `SvgCodec_Load_UnsupportedConstructs_StillRendersRestOfDocument`,
-`SvgCodec_Load_ToleratesUnsupportedConstructFixture_StillRendersRemainingContent`
+`SvgCodec_Load_ToleratesUnsupportedConstructFixture_StillRendersRemainingContent`,
+`SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent`
 
 Builds a document containing `style`, `filter`, `mask`, `clipPath`, `pattern`, `marker`, and a
 nested `svg` alongside an ordinary `rect`, and asserts the ordinary `rect` still renders — proving
 none of the out-of-scope elements abort the whole document. A real fixture file exercises the
 same property end-to-end.
+`SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent` corroborates this
+with a large, real, unmodified, third-party Wikimedia Commons fixture
+(`SvgFixtures/InkscapeFilters.svg`) containing dozens of `filter="url(#...)"` references to
+`feGaussianBlur`/`feComposite`/`feSpecularLighting`-based filter effects, proving the
+tolerant-ignore policy holds at real-world scale and complexity, not only for a small synthetic
+document.
 
 #### CanvasNet-Codecs-SvgCodec-ValidationNull: Null Stream/Path Rejected
 

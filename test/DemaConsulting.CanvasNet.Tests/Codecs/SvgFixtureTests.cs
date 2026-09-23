@@ -6,11 +6,13 @@ namespace DemaConsulting.CanvasNet.Tests.Codecs;
 
 /// <summary>
 ///     Unit tests that exercise <see cref="SvgCodec"/> against the real-file SVG fixture corpus
-///     in <c>SvgFixtures</c> (see <c>SvgFixtures\README.md</c> for provenance - every fixture is
+///     in <c>SvgFixtures</c> (see <c>SvgFixtures\README.md</c> for provenance - most fixtures are
 ///     hand-authored for this repository), mirroring the pattern used by
 ///     <c>TiffFixtureTests</c>/<c>JpegFixtureTests</c>. Includes one real-font integration test
 ///     that reuses <c>FontFixtures\OpenSans-Regular.ttf</c>, mirroring
-///     <c>TrueTypeFontRealFontIntegrationTests</c>.
+///     <c>TrueTypeFontRealFontIntegrationTests</c>, and two real-world, third-party,
+///     Wikimedia-Commons-sourced fixtures (<c>SvgGradient.svg</c>/<c>InkscapeFilters.svg</c>; see
+///     <c>SvgFixtures\WikimediaCommons.LICENSE</c> for provenance/licensing).
 /// </summary>
 public class SvgFixtureTests
 {
@@ -170,5 +172,76 @@ public class SvgFixtureTests
         Assert.Equal(0, surface[199, 0].A);
         Assert.Equal(0, surface[0, 79].A);
         Assert.Equal(0, surface[199, 79].A);
+    }
+
+    /// <summary>
+    ///     Proves that the real, unmodified, Wikimedia-Commons-sourced <c>SvgGradient.svg</c>
+    ///     (see <c>SvgFixtures\WikimediaCommons.LICENSE</c> for provenance) renders its
+    ///     <c>userSpaceOnUse</c> <c>linearGradient</c> bar as genuinely varying pixel colors
+    ///     (bright near its white stop, dark near its black stop), rather than degrading to a
+    ///     single flat color, and that its <c>fill="pink"</c> background rectangle is visible at
+    ///     a point clearly outside every gradient bar and <c>use</c> shape. A regressed
+    ///     <c>userSpaceOnUse</c> gradient-unit handling (for example, mistakenly treating the
+    ///     gradient's <c>x1</c>/<c>x2</c> user-space coordinates as fractional
+    ///     <c>objectBoundingBox</c> offsets) would clamp most of the bar to a single extreme
+    ///     stop color, and a background-color-name or basic-rect regression would leave the
+    ///     background pixel transparent or black instead of pink.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_SvgGradientFixture_RendersVaryingGradientAndPinkBackground()
+    {
+        // Arrange & Act: rasterize at the fixture's native 300x200 viewBox size
+        var surface = SvgCodec.Load(Path.Combine(AssetsPath, "SvgGradient.svg"), 300, 200);
+
+        // Assert: the pink background rect is visible at a point clearly outside the "bar" use
+        // shape (y in [80,100]) and every gradient rect (rows at y in [30,70] and [110,190])
+        Assert.Equal(new Rgba32(255, 192, 203, 255), surface[5, 5]);
+
+        // Assert: the leftmost gradient bar (translate(50,50), the fixture's userSpaceOnUse
+        // gradient) is bright near its x1=-40 (offset 0, white) end and much darker near its
+        // offset=0.9 (black) stop further along the bar - a genuine, non-flat gradient
+        var brightEnd = surface[15, 50];
+        var darkEnd = surface[78, 50];
+        Assert.True(brightEnd.R > 200, $"Expected bright end red channel > 200, got {brightEnd.R}.");
+        Assert.True(darkEnd.R < 60, $"Expected dark end red channel < 60, got {darkEnd.R}.");
+        Assert.True(
+            brightEnd.R - darkEnd.R > 140,
+            $"Expected a large red-channel drop from bright end ({brightEnd.R}) to dark end ({darkEnd.R}).");
+        Assert.Equal(255, brightEnd.A);
+        Assert.Equal(255, darkEnd.A);
+    }
+
+    /// <summary>
+    ///     Proves that the real, unmodified, Wikimedia-Commons-sourced
+    ///     <c>InkscapeFilters.svg</c> (see <c>SvgFixtures\WikimediaCommons.LICENSE</c> for
+    ///     provenance) - a large, complex document built entirely from <c>defs</c>/<c>use</c>
+    ///     templating, composed <c>transform</c> functions, and dozens of <c>filter="url(#...)"</c>
+    ///     references, all of which reference out-of-scope <c>feGaussianBlur</c>/
+    ///     <c>feComposite</c>/<c>feSpecularLighting</c> effects - loads without throwing despite
+    ///     the numerous unsupported filter references (proving the tolerant-ignore policy holds
+    ///     for a real, unmodified, complex third-party document, not only a small synthetic one),
+    ///     that a flower shape rendered behind one such <c>filter</c> reference still paints its
+    ///     genuine fill color (proving real content rendered, not just "didn't crash"), and that
+    ///     a point in the gap between flowers remains transparent (proving the render is not a
+    ///     degenerate whole-canvas fill that would make the previous assertion vacuous).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent()
+    {
+        // Arrange & Act: rasterize at the fixture's native 600x1000 width/height - this must not
+        // throw despite every flower (other than the very first) referencing an unsupported
+        // <filter> element
+        var surface = SvgCodec.Load(Path.Combine(AssetsPath, "InkscapeFilters.svg"), 600, 1000);
+
+        // Assert: a petal of the second flower - translate(150,50), filter="url(#filter48)" -
+        // still renders its own "#ff8010" (255,128,16) fill, proving the unsupported <filter>
+        // reference was tolerantly ignored rather than suppressing the shape it decorates
+        Assert.Equal(new Rgba32(255, 128, 16, 255), surface[135, 30]);
+
+        // Assert: the gap between flowers (the grid spacing is 100 units, and each flower's
+        // petals only reach roughly 36 units from its own center) remains fully transparent -
+        // proving the render did not degenerate into filling the whole canvas with one color
+        Assert.Equal(0, surface[100, 50].A);
+        Assert.Equal(0, surface[50, 100].A);
     }
 }

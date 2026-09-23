@@ -116,6 +116,7 @@ sections:
                   - SvgCodec_Load_GradientSpreadMethodRepeat_TilesPastBaseRange
                   - SvgCodec_Load_StrokeGradient_PaintsVaryingColorAlongStroke
                   - SvgCodec_Load_GradientFixture_RendersVaryingGradientColors
+                  - SvgCodec_Load_SvgGradientFixture_RendersVaryingGradientAndPinkBackground
 
               - id: CanvasNet-Codecs-SvgCodec-GradientHrefInheritance
                 title: >-
@@ -283,6 +284,7 @@ sections:
                 tests:
                   - SvgCodec_Load_UnsupportedConstructs_StillRendersRestOfDocument
                   - SvgCodec_Load_ToleratesUnsupportedConstructFixture_StillRendersRemainingContent
+                  - SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent
 
               - id: CanvasNet-Codecs-SvgCodec-ValidationNull
                 title: >-
