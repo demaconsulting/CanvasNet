@@ -432,6 +432,22 @@ tolerant-fallback convention documented above for every other gradient coordinat
 `SvgCodec_Load_RadialGradientRFrValid_RendersNormally` confirms a valid, non-negative `r`/`fr`
 still renders correctly.
 
+A further, independent case is a composed transform overflowing to a non-finite value across
+nested `transform="scale(...)"` groups, each individually finite but whose cross-element product
+is not: `SvgCodec_Load_NestedTransformScaleOverflowsCompositeTransformToNonFinite_SkipsElementWithoutThrowing`
+exercises `RenderElement`'s own composed-transform guard directly with a plain solid fill (no
+gradient), confirming the document still loads without throwing.
+`SvgCodec_Load_NestedTransformScaleOverflowsGradientTransformToNonFinite_SkipsElementWithoutThrowing`
+is the concrete crash-closing regression test: the same nested-`<g>` overflow around a
+`fill="url(#id)"` shape referencing a `linearGradient` used to reach `Drawing.Gradient`'s
+constructor and throw an uncaught `ArgumentOutOfRangeException`, and now loads successfully with
+the affected element's rendering tolerantly skipped.
+`SvgCodec_Load_GradientTransformComposedWithHugeBoundingBoxOverflowsToNonFinite_TreatsAsNoPaintWithoutThrowing`
+proves `BuildGradient`'s own, independent composed-transform guard: an extreme-but-individually-finite
+shape bounding box combined with the gradient's own `gradientTransform` overflows only inside
+`BuildGradient`, with the shape's own `RenderElement`-composed transform staying finite throughout,
+so this case is not covered by either of the two tests above.
+
 ### Acceptance Criteria
 
 A unit test run passes when every test method listed above, across both `SvgCodecTests.cs` and

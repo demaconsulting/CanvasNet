@@ -1,7 +1,7 @@
 // cspell:ignore Sfnt sfnt glyf cmap notdef codepoint
 // cspell:ignore Dasharray hhea Hhea hmtx Hmtx hrefs letterboxed Loca Maxp unstroked
 // cspell:ignore miterlimit
-// cspell:ignore unparseable overpainted
+// cspell:ignore unparseable overpainted bbox
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
@@ -724,6 +724,74 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that an element whose own composed <c>transform</c> overflows to a non-finite
+    ///     value - two nested <c>transform="scale(1e20)"</c> groups, each individually finite, but
+    ///     whose cross-element product overflows <see langword="float"/>'s range - is silently
+    ///     skipped by <see cref="SvgCodec"/>'s <c>RenderElement</c> guard rather than propagating a
+    ///     non-finite transform into rendering. A solid fill (no gradient involved) exercises this
+    ///     guard directly, independent of <c>BuildGradient</c>'s own separate guard.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_NestedTransformScaleOverflowsCompositeTransformToNonFinite_SkipsElementWithoutThrowing()
+    {
+        // Arrange: nested scale(1e20) groups around a plain solid-fill rect - individually finite,
+        // but 1e20 * 1e20 = 1e40 overflows float's ~3.4e38 range once composed
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <g transform='scale(1e20)'>
+                <g transform='scale(1e20)'>
+                  <rect x='1' y='1' width='2' height='2' fill='black'/>
+                </g>
+              </g>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: loads without throwing, and the (skipped) rect leaves nothing rendered
+        Assert.Equal(100, surface.Width);
+        Assert.Equal(0, surface[50, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves the finding's required concrete repro: an element whose own composed
+    ///     <c>transform</c> overflows to non-finite, filled via <c>fill="url(#g)"</c> referencing a
+    ///     <c>linearGradient</c>, no longer lets a non-finite transform reach
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.Gradient"/>'s constructor and throw an
+    ///     uncaught <see cref="ArgumentOutOfRangeException"/> - the document loads successfully
+    ///     with the affected element's rendering tolerantly skipped.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_NestedTransformScaleOverflowsGradientTransformToNonFinite_SkipsElementWithoutThrowing()
+    {
+        // Arrange: nested scale(1e20) groups around a gradient-filled rect - before the fix, this
+        // threw a raw ArgumentOutOfRangeException from Gradient's constructor
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <linearGradient id='g'>
+                  <stop offset='0' stop-color='black'/>
+                  <stop offset='1' stop-color='white'/>
+                </linearGradient>
+              </defs>
+              <g transform='scale(1e20)'>
+                <g transform='scale(1e20)'>
+                  <rect x='1' y='1' width='2' height='2' fill='url(#g)'/>
+                </g>
+              </g>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: loads without throwing, and the (skipped) rect leaves nothing rendered
+        Assert.Equal(100, surface.Width);
+        Assert.Equal(0, surface[50, 50].A);
+    }
+
+    /// <summary>
     ///     Proves that <c>opacity</c> multiplies into a solid fill color's alpha rather than
     ///     leaving it fully opaque.
     /// </summary>
@@ -886,6 +954,44 @@ public class SvgCodecTests
 
         // Assert: the center is brighter than a point near the shape's edge (gradient still applied)
         Assert.True(surface[50, 50].R > surface[95, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves <c>BuildGradient</c>'s own independent finiteness guard: a shape with no
+    ///     <c>transform</c> attribute of its own (so <c>RenderElement</c>'s composed transform stays
+    ///     finite) but an extreme-but-individually-finite <c>width</c>/<c>height</c> (<c>1e30</c>)
+    ///     combined with the gradient's own <c>gradientTransform="scale(1e10)"</c> overflows only
+    ///     <c>BuildGradient</c>'s own <c>gradientTransform * bboxMap * elementTransform</c> product
+    ///     to a non-finite value - a genuinely distinct repro from
+    ///     <see cref="SvgCodec_Load_NestedTransformScaleOverflowsGradientTransformToNonFinite_SkipsElementWithoutThrowing"/>'s
+    ///     nested-<c>&lt;g&gt;</c> case, since <c>RenderElement</c>'s guard never fires here. Before
+    ///     the fix, this also threw a raw <see cref="ArgumentOutOfRangeException"/> from
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.Gradient"/>'s constructor.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GradientTransformComposedWithHugeBoundingBoxOverflowsToNonFinite_TreatsAsNoPaintWithoutThrowing()
+    {
+        // Arrange: rect has no own "transform" (RenderElement's composed transform stays finite),
+        // but its huge object-bounding-box scale (1e30) composed with the gradient's own
+        // gradientTransform (1e10) overflows only inside BuildGradient (1e30 * 1e10 = 1e40)
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <linearGradient id='g' gradientTransform='scale(1e10)'>
+                  <stop offset='0' stop-color='black'/>
+                  <stop offset='1' stop-color='white'/>
+                </linearGradient>
+              </defs>
+              <rect x='0' y='0' width='1e30' height='1e30' fill='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: loads without throwing, and the gradient fill is tolerated as "no paint"
+        Assert.Equal(100, surface.Width);
+        Assert.Equal(0, surface[50, 50].A);
     }
 
     /// <summary>

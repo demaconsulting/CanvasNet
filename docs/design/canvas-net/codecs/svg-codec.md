@@ -299,7 +299,12 @@ differently:
   used for an absent attribute, matching this codec's existing tolerant handling of every other
   gradient coordinate (`cx`/`cy`/`fx`/`fy`/`x1`/`y1`/`x2`/`y2`), since a radius is otherwise
   parsed identically to every other gradient coordinate and only its sign is additionally
-  constrained.
+  constrained. A composed transform that overflows to a non-finite value across nested
+  `transform="scale(...)"` groups (each individual literal finite, but their cross-element product
+  not) is likewise a tolerant case: the affected element, and independently an affected gradient's
+  own `gradientTransform`/bounding-box composition, is skipped/treated as "no paint" rather than
+  reaching a `Drawing`-namespace constructor's own finiteness check and throwing an uncaught
+  `ArgumentOutOfRangeException`.
 - **Well-formed but out-of-scope constructs** — see _Out-of-scope subset_ above. These are
   silently skipped, not errors.
 

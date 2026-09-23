@@ -119,7 +119,12 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     <c>radialGradient</c> <c>r</c>/<c>fr</c> (below <see cref="Drawing.RadialGradient"/>'s
 ///     documented contract of "finite and greater than or equal to zero") is likewise tolerant:
 ///     it falls back to the same default used for an absent attribute, matching this class's
-///     existing tolerant handling of every other gradient coordinate.
+///     existing tolerant handling of every other gradient coordinate. A composed transform that
+///     overflows to a non-finite value across nested <c>transform="scale(...)"</c> groups (each
+///     individual literal finite, but their cross-element product not) is likewise tolerant: the
+///     affected element (and, independently, an affected gradient's own
+///     <c>gradientTransform</c>/bounding-box composition) is skipped/treated as "no paint" rather
+///     than reaching a <see cref="Drawing"/>-namespace constructor's own finiteness check.
 ///     </para>
 ///     <para>
 ///     <b>Caller-supplied raster dimensions.</b> The <c>width</c>/<c>height</c>
@@ -868,6 +873,20 @@ public static class SvgCodec
     ///     of path-data commands, points-list coordinates, and text characters parsed exceeds
     ///     <see cref="GeometryWorkBudget"/>'s fixed budget.
     /// </exception>
+    /// <remarks>
+    ///     A composed <paramref name="parentTransform"/> and <paramref name="element"/>'s own
+    ///     <c>transform</c> attribute are each individually finite, but their product can still
+    ///     overflow to a non-finite value across deeply nested <c>transform="scale(...)"</c>
+    ///     groups even though every individual literal was finite. Rather than letting such a
+    ///     value reach a downstream <see cref="Drawing"/>-namespace constructor's own finiteness
+    ///     check (an uncaught <see cref="ArgumentOutOfRangeException"/>), this method tolerantly
+    ///     skips rendering <paramref name="element"/> and its entire subtree, mirroring
+    ///     <see cref="RenderStroke"/>'s established non-finite effective stroke-width skip. This
+    ///     single check also covers every recursive path (plain <c>g</c>/<c>symbol</c> nesting and
+    ///     a <c>use</c> reference), since <see cref="RenderUse"/> always re-enters this method,
+    ///     which recomputes and re-checks its own composed transform regardless of how it was
+    ///     reached.
+    /// </remarks>
     private static void RenderElement(
         XElement element,
         RenderState parentState,
@@ -902,6 +921,14 @@ public static class SvgCodec
 
         var state = ApplyPresentationAttributes(parentState, element);
         var transform = ParseTransformAttribute(element) * parentTransform;
+
+        // A non-finite composed transform (see this method's remarks) cannot meaningfully
+        // position this element or any descendant - skip the whole subtree rather than letting
+        // it reach a downstream Drawing-namespace constructor's own finiteness check
+        if (!IsFiniteTransform(transform))
+        {
+            return;
+        }
 
         switch (name)
         {
@@ -1216,6 +1243,30 @@ public static class SvgCodec
         return result;
     }
 
+    /// <summary>
+    ///     Checks whether every component of <paramref name="transform"/> is a finite value.
+    /// </summary>
+    /// <param name="transform">The composed transform to check.</param>
+    /// <returns>
+    ///     <see langword="true"/> if all six components (<see cref="Matrix3x2.M11"/>,
+    ///     <see cref="Matrix3x2.M12"/>, <see cref="Matrix3x2.M21"/>, <see cref="Matrix3x2.M22"/>,
+    ///     <see cref="Matrix3x2.M31"/>, <see cref="Matrix3x2.M32"/>) are finite;
+    ///     <see langword="false"/> if any is <c>NaN</c> or an infinity.
+    /// </returns>
+    /// <remarks>
+    ///     Every individual transform-function literal parsed by <see cref="ParseTransformList"/>
+    ///     is already validated finite on its own (via <see cref="TryReadNumber"/>), but composing
+    ///     several individually-finite transforms across nested elements (each cross-element
+    ///     product, not any single function's own arguments) can still overflow to a non-finite
+    ///     result - this helper lets each composition call site re-validate its own product before
+    ///     letting it reach a <see cref="Drawing"/>-namespace constructor's own finiteness check,
+    ///     which throws an uncaught <see cref="ArgumentOutOfRangeException"/> rather than this
+    ///     codec's documented <see cref="InvalidDataException"/> contract.
+    /// </remarks>
+    private static bool IsFiniteTransform(Matrix3x2 transform) =>
+        float.IsFinite(transform.M11) && float.IsFinite(transform.M12) &&
+        float.IsFinite(transform.M21) && float.IsFinite(transform.M22) &&
+        float.IsFinite(transform.M31) && float.IsFinite(transform.M32);
 
     /// <summary>
     ///     Attempts to read one <c>name(arguments)</c> transform function starting at
@@ -2662,8 +2713,10 @@ public static class SvgCodec
     /// <param name="context">The fixed per-document render context.</param>
     /// <returns>
     ///     The resolved <see cref="Gradient"/>, or <see langword="null"/> if it resolves to zero
-    ///     stops (tolerated as "no paint") or <paramref name="element"/> is not itself a
-    ///     <c>linearGradient</c>/<c>radialGradient</c>.
+    ///     stops (tolerated as "no paint"), <paramref name="element"/> is not itself a
+    ///     <c>linearGradient</c>/<c>radialGradient</c>, or its composed
+    ///     <c>gradientTransform</c>/bounding-box/<paramref name="elementTransform"/> product
+    ///     overflows to a non-finite value (also tolerated as "no paint").
     /// </returns>
     /// <remarks>
     ///     <paramref name="element"/>'s own <c>gradientUnits</c>/<c>gradientTransform</c>/
@@ -2671,7 +2724,11 @@ public static class SvgCodec
     ///     <paramref name="element"/> itself, never inherited through an <c>href</c> chain -
     ///     only color stops are template-inherited (see <see cref="ResolveGradientStops"/>). This
     ///     is a deliberate, bounded simplification of the full SVG href-inheritance model,
-    ///     documented as an out-of-scope limitation.
+    ///     documented as an out-of-scope limitation. This composition is independent of, and not
+    ///     subsumed by, <see cref="RenderElement"/>'s own composed-transform finiteness check: an
+    ///     extreme-but-individually-finite shape bounding box combined with a
+    ///     <c>gradientTransform</c> can overflow this method's own product even when
+    ///     <paramref name="elementTransform"/> alone is finite.
     /// </remarks>
     private static object? BuildGradient(
         XElement element,
@@ -2690,6 +2747,16 @@ public static class SvgCodec
             (string?)element.Attribute("gradientUnits"), "userSpaceOnUse", StringComparison.OrdinalIgnoreCase);
         var bboxMap = isUserSpace ? Matrix3x2.Identity : ComputeObjectBoundingBoxMap(localPath);
         var transform = ParseGradientTransform(element) * bboxMap * elementTransform;
+
+        // A non-finite composed transform cannot meaningfully position this gradient's stops -
+        // tolerate it as "no paint", matching ResolvePaint's existing dangling-reference/
+        // unrecognized-color convention, rather than letting it reach Gradient's constructor and
+        // throw an uncaught ArgumentOutOfRangeException
+        if (!IsFiniteTransform(transform))
+        {
+            return null;
+        }
+
         var spread = ParseSpreadMethod((string?)element.Attribute("spreadMethod"));
 
         return element.Name.LocalName switch
