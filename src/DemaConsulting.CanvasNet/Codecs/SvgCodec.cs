@@ -1,7 +1,7 @@
 // cspell:ignore linecap linejoin dasharray dashoffset miterlimit anchor xlink href
 // cspell:ignore evenodd nonzero viewbox gradientunits gradienttransform spreadmethod
 // cspell:ignore userspaceonuse objectboundingbox skewx skewy tspan
-// cspell:ignore rasterizing unparseable rrggbb sizeless bbox moveto multiplicatively pillarbox SMIL uncatchable
+// cspell:ignore rasterizing unparseable rrggbb sizeless bbox moveto multiplicatively pillarbox SMIL uncatchable formedness
 // cspell:ignore aliceblue antiquewhite blanchedalmond blueviolet burlywood cadetblue cornflowerblue
 // cspell:ignore cornsilk darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta
 // cspell:ignore darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen darkslateblue
@@ -90,10 +90,13 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     </para>
 ///     <para>
 ///     <b>Error-handling policy.</b> Malformed or unparseable input - <see cref="XDocument.Load(Stream)"/>
-///     throwing <see cref="XmlException"/>, a non-<c>svg</c> root element, missing required
-///     path/shape data, invalid numeric syntax, a non-positive <c>viewBox</c> size, a malformed
-///     <c>transform</c> attribute, or a gradient <c>href</c> cycle - is caught and re-thrown as
-///     <see cref="InvalidDataException"/> with a descriptive message. A dangling <c>url(#id)</c>
+///     (used by <see cref="Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont}?)"/>,
+///     which parses the whole document) or the bounded, root-start-tag-only <see cref="XmlReader"/>
+///     read used by <see cref="GetInfo(Stream)"/> throwing <see cref="XmlException"/>, a
+///     non-<c>svg</c> root element, missing required path/shape data, invalid numeric syntax
+///     (including a non-finite <c>NaN</c>/<c>Infinity</c> value), a non-positive <c>viewBox</c>
+///     size, a malformed <c>transform</c> attribute, or a gradient <c>href</c> cycle - is caught
+///     and re-thrown as <see cref="InvalidDataException"/> with a descriptive message. A dangling <c>url(#id)</c>
 ///     paint reference or an unrecognized color keyword is instead treated as tolerant "no paint"
 ///     (nothing is drawn for that fill/stroke), and a <c>text</c> element with no caller-supplied
 ///     font dictionary, or no entry matching its <c>font-family</c>, is silently skipped rather
@@ -283,7 +286,7 @@ public static class SvgCodec
     {
         ArgumentNullException.ThrowIfNull(stream);
 
-        var root = LoadRootElement(stream);
+        var root = LoadRootElementAttributesOnly(stream);
 
         try
         {
@@ -330,7 +333,9 @@ public static class SvgCodec
 
     /// <summary>
     ///     Parses <paramref name="stream"/> as XML and returns its validated <c>svg</c> root
-    ///     element, shared by both <c>Load</c> and <c>GetInfo</c>.
+    ///     element, including its full descendant tree. Used by <c>Load</c> only, which needs the
+    ///     complete document to render shape content - see <see cref="LoadRootElementAttributesOnly"/>
+    ///     for the bounded, header-only parse <c>GetInfo</c> uses instead.
     /// </summary>
     /// <param name="stream">The stream to parse.</param>
     /// <returns>The document's root <c>svg</c> element.</returns>
@@ -357,6 +362,60 @@ public static class SvgCodec
         }
 
         return root;
+    }
+
+    /// <summary>
+    ///     Parses only <paramref name="stream"/>'s root <c>svg</c> start-tag and its own
+    ///     attributes using a forward-only <see cref="XmlReader"/>, never reading past the root
+    ///     element's attributes into the document body. Used by <c>GetInfo</c> only, so that
+    ///     resolving intrinsic size costs time and memory proportional to the root start-tag alone
+    ///     - never the full document - regardless of how large or deeply nested the document body
+    ///     is.
+    /// </summary>
+    /// <param name="stream">The stream to parse.</param>
+    /// <returns>
+    ///     A new, detached, childless <see cref="XElement"/> named <c>svg</c> carrying only the
+    ///     root element's own attributes. Namespace-declaration attributes (<c>xmlns</c> and
+    ///     <c>xmlns:*</c>) are omitted, since none of this class's attribute lookups need them.
+    /// </returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="stream"/> is not well-formed XML up to and including the
+    ///     root start-tag, or its root element is not named <c>svg</c>.
+    /// </exception>
+    private static XElement LoadRootElementAttributesOnly(Stream stream)
+    {
+        try
+        {
+            // A plain XmlReader (no explicit settings) is forward-only and never buffers more
+            // than the current node, so advancing only as far as the root start-tag's attributes
+            // - and never calling Read() again - guarantees the rest of the document is never
+            // parsed or walked, regardless of its size or well-formedness
+            using var reader = XmlReader.Create(stream);
+            if (reader.MoveToContent() != XmlNodeType.Element || reader.LocalName != "svg")
+            {
+                throw new InvalidDataException("The document's root element is not an <svg> element.");
+            }
+
+            var root = new XElement("svg");
+            if (reader.MoveToFirstAttribute())
+            {
+                do
+                {
+                    if (reader.LocalName == "xmlns" || reader.Prefix == "xmlns")
+                    {
+                        continue;
+                    }
+
+                    root.SetAttributeValue(reader.LocalName, reader.Value);
+                } while (reader.MoveToNextAttribute());
+            }
+
+            return root;
+        }
+        catch (XmlException ex)
+        {
+            throw new InvalidDataException("The stream does not contain well-formed XML.", ex);
+        }
     }
 
     /// <summary>

@@ -104,17 +104,22 @@ Opens `path` as a read-only `FileStream` and delegates to `Load(Stream, int, int
 
 #### GetInfo(Stream stream)
 
-Reads only the root `svg` element (via `XDocument.Load`) and resolves its intrinsic size per the
-three-tier fallback policy described in _GetInfo Fallback Policy_ below, without walking or
-rasterizing the rest of the document. Always reports `Channels = 4` and `HasAlpha = true`,
-because every SVG document this codec rasterizes produces an RGBA `Surface` regardless of what
-the source markup does or does not paint.
+Reads only the root `svg` start-tag's own attributes, using a forward-only `System.Xml.XmlReader`
+that advances no further than the root element's attributes and never walks into the document
+body. Resolves the intrinsic size per the three-tier fallback policy described in _GetInfo
+Fallback Policy_ below. This is intentionally narrower than `Load`'s full `XDocument.Load` parse
+of the whole document: a document that is malformed only beyond the root `svg` element's own
+attributes is accepted by `GetInfo` (which never reads that far) even though `Load` would reject
+it. Always reports `Channels = 4` and `HasAlpha = true`, because every SVG document this codec
+rasterizes produces an RGBA `Surface` regardless of what the source markup does or does not
+paint.
 
 **Throws:**
 
 - `ArgumentNullException` — `stream` is null
-- `InvalidDataException` — the stream is not well-formed XML, or its `viewBox` attribute is
-  present but malformed
+- `InvalidDataException` — the stream is not well-formed XML up to and including the root
+  start-tag, its root element is not named `svg`, or its `viewBox` attribute is present but
+  malformed
 
 #### GetInfo(string path)
 
@@ -235,10 +240,12 @@ document referencing a family the caller did not supply is not malformed input.
 `SvgCodec` draws a firm line between two categories of problem, and handles each one
 differently:
 
-- **Malformed or unparseable input** — the stream is not well-formed XML (`XDocument.Load`
-  throws `System.Xml.XmlException`), or a value the codec must be able to parse to render
-  anything at all is invalid (a `viewBox`/`transform` attribute with the wrong number of
-  components or a non-numeric component, or `path` `d` data with an unrecognized command letter
+- **Malformed or unparseable input** — the stream is not well-formed XML (`Load` throws
+  `System.Xml.XmlException` from its full `XDocument.Load` parse of the whole document; `GetInfo`
+  throws the same exception type from its bounded, root-start-tag-only `System.Xml.XmlReader`
+  read), or a value the codec must be able to parse to render anything at all is invalid (a
+  `viewBox`/`transform` attribute with the wrong number of components or a non-numeric or
+  non-finite (`NaN`/`Infinity`) component, or `path` `d` data with an unrecognized command letter
   or missing required arguments). Every one of these is caught (or detected) and re-thrown/thrown
   as `System.IO.InvalidDataException` with a descriptive message naming what was invalid, exactly
   the same contract every other codec in this system uses for malformed source data.

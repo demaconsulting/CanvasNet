@@ -1229,6 +1229,29 @@ public class SvgCodecTests
         }
     }
 
+    /// <summary>
+    ///     Proves that <see cref="SvgCodec.GetInfo(Stream)"/> is bounded to the root <c>svg</c>
+    ///     start-tag's own attributes: a document malformed only beyond the root element's
+    ///     attributes (an unclosed child tag - the same markup
+    ///     <see cref="SvgCodec_Load_MalformedXml_ThrowsInvalidDataException"/> proves the sibling
+    ///     <c>Load</c> call still correctly rejects) does not stop <c>GetInfo</c> from resolving
+    ///     and returning the <c>viewBox</c> dimensions, because it never reads that far into the
+    ///     document.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfo_MalformedXmlAfterRootElement_DoesNotThrowAndReturnsViewBoxDimensions()
+    {
+        // Arrange: an unclosed child tag - malformed beyond the root element's own attributes
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='0' y='0' width='10' height='10'";
+
+        // Act
+        var info = SvgCodec.GetInfo(ToStream(svg));
+
+        // Assert
+        Assert.Equal(100, info.Width);
+        Assert.Equal(100, info.Height);
+    }
+
     // ================================================================================================
     // Malformed-input rejection and tolerant unsupported-construct handling
     // ================================================================================================

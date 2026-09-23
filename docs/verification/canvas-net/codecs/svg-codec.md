@@ -321,6 +321,21 @@ asserts `Surface`'s own `ArgumentOutOfRangeException` propagates unwrapped (not 
 design decision that caller-supplied raster dimensions are ordinary API parameters rather than
 untrusted input.
 
+### Additional Regression Test Scenarios (Unlinked)
+
+The tests below are defensive/regression tests added for a bug fix, not new observable features;
+per `requirements-principles.md`, tests may exist without a linked requirement, so these entries
+deliberately do not use the `CanvasNet-Codecs-SvgCodec-{Id}:` heading pattern above.
+
+**Bounded `GetInfo` header-only parsing**
+
+**Test**: `SvgCodec_GetInfo_MalformedXmlAfterRootElement_DoesNotThrowAndReturnsViewBoxDimensions`
+
+Asserts `GetInfo`'s bounded, root-start-tag-only `XmlReader` parse still resolves and returns
+`viewBox` dimensions for a document that is malformed only beyond the root element's own
+attributes - the same markup the `MalformedXmlRejected` scenario above proves `Load`'s
+full-document parse still correctly rejects.
+
 ### Acceptance Criteria
 
 A unit test run passes when every test method listed above, across both `SvgCodecTests.cs` and
