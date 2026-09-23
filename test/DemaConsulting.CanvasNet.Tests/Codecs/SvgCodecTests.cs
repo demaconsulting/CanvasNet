@@ -951,6 +951,70 @@ public class SvgCodecTests
     }
 
     // ================================================================================================
+    // Total geometry-parsing work budget (path data / point lists / text characters)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that a single <c>&lt;path&gt;</c> element whose <c>d</c> attribute contains just
+    ///     over the codec's fixed combined geometry-parsing work budget worth of implicit-repeat
+    ///     <c>L</c> commands is rejected with <see cref="InvalidDataException"/>, even though it
+    ///     counts as only a single element toward
+    ///     <see cref="SvgCodec_Load_UseFanOutExceedingTotalElementBudget_ThrowsInvalidDataException"/>'s
+    ///     separate total-rendered-element budget. The budget is charged incrementally (once per
+    ///     parsed command), so this test throws quickly rather than only after the whole
+    ///     (otherwise unbounded) <c>d</c> string has already been scanned.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PathDataExceedingGeometryWorkBudget_ThrowsInvalidDataException()
+    {
+        // Arrange: one initial "M" command plus 200,001 implicitly-repeated "L" commands - one
+        // more than the codec's fixed 200,000 combined geometry-parsing work budget
+        var d = "M0,0 " + string.Concat(Enumerable.Repeat("L1,1 ", 200_001));
+        var svg = $"<svg viewBox='0 0 10 10'><path d='{d}'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves that a single <c>&lt;polyline&gt;</c> element whose <c>points</c> attribute
+    ///     resolves to just over the codec's fixed combined geometry-parsing work budget worth of
+    ///     coordinate pairs is rejected with <see cref="InvalidDataException"/>, exercising the
+    ///     same shared budget as the path-data test above from a different source.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PointListExceedingGeometryWorkBudget_ThrowsInvalidDataException()
+    {
+        // Arrange: 200,001 coordinate pairs - one more than the codec's fixed 200,000 combined
+        // geometry-parsing work budget
+        var points = string.Concat(Enumerable.Repeat("1,1 ", 200_001));
+        var svg = $"<svg viewBox='0 0 10 10'><polyline points='{points}'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves that a single <c>&lt;text&gt;</c> element whose content is just over the
+    ///     codec's fixed combined geometry-parsing work budget worth of characters is rejected
+    ///     with <see cref="InvalidDataException"/>, exercising the same shared budget from a third
+    ///     source. The budget is charged with the whole character count before the per-rune
+    ///     glyph-outline/kerning loop begins, so this test remains fast despite the long string.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextExceedingGeometryWorkBudget_ThrowsInvalidDataException()
+    {
+        // Arrange: 200,001 characters - one more than the codec's fixed 200,000 combined
+        // geometry-parsing work budget
+        var text = new string('A', 200_001);
+        var svg = $"<svg viewBox='0 0 10 10'><text x='0' y='5' font-family='TestFont' font-size='10'>{text}</text></svg>";
+        var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10, fonts));
+    }
+
+    // ================================================================================================
     // <text> rendering, text-anchor, and font fallback
     // ================================================================================================
 

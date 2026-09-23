@@ -188,6 +188,26 @@ guarding against the same class of non-cyclic exponential amplification the Font
 fan-out/depth parameters are chosen so the budget check fires almost immediately, keeping the
 test itself fast regardless of how the underlying bug would otherwise behave.
 
+#### CanvasNet-Codecs-SvgCodec-TotalGeometryWorkBudget: Total Geometry-Parsing Work Budget
+
+**Tests**: `SvgCodec_Load_PathDataExceedingGeometryWorkBudget_ThrowsInvalidDataException`,
+`SvgCodec_Load_PointListExceedingGeometryWorkBudget_ThrowsInvalidDataException`,
+`SvgCodec_Load_TextExceedingGeometryWorkBudget_ThrowsInvalidDataException`
+
+Asserts a single `path` element whose `d` attribute contains just over the codec's fixed
+combined geometry-parsing work budget worth of implicit-repeat `L` commands, a single `polyline`
+whose `points` attribute contains just over that many coordinate pairs, and a single `text`
+element whose content is just over that many characters, are each rejected with
+`InvalidDataException`. This proves the codec bounds a single element's own parsing cost - a
+dimension `CanvasNet-Codecs-SvgCodec-TotalElementBudget` above does not cover, since that budget
+counts elements visited, not the size of any one element's content - guarding against the same
+class of single-pathological-structure amplification the Fonts subsystem's `GlyfLocaReader` unit
+guards against with its own total-resolved-point budget. Each fixture is generated
+programmatically (via `string.Concat`/`Enumerable.Repeat`/`new string(...)`) rather than committed
+as a literal giant string, and the budget is charged incrementally as each command/coordinate/
+character is parsed, so every test throws quickly rather than only after its entire (otherwise
+unbounded) content has already been scanned.
+
 #### CanvasNet-Codecs-SvgCodec-TextRendering: Text Glyph Rendering and Kerning
 
 **Tests**: `SvgCodec_Load_TextWithMatchingFont_RendersGlyphAtExpectedPosition`,

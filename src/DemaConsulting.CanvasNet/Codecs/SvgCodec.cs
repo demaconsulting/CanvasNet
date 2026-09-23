@@ -1,4 +1,5 @@
 // cspell:ignore linecap linejoin dasharray dashoffset miterlimit anchor xlink href
+// cspell:ignore Glyf Loca
 // cspell:ignore evenodd nonzero viewbox gradientunits gradienttransform spreadmethod
 // cspell:ignore userspaceonuse objectboundingbox skewx skewy tspan
 // cspell:ignore rasterizing unparseable rrggbb sizeless bbox moveto multiplicatively pillarbox SMIL uncatchable formedness
@@ -95,7 +96,10 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     read used by <see cref="GetInfo(Stream)"/> throwing <see cref="XmlException"/>, a
 ///     non-<c>svg</c> root element, missing required path/shape data, invalid numeric syntax
 ///     (including a non-finite <c>NaN</c>/<c>Infinity</c> value), a non-positive <c>viewBox</c>
-///     size, a malformed <c>transform</c> attribute, or a gradient <c>href</c> cycle - is caught
+///     size, a malformed <c>transform</c> attribute, a gradient <c>href</c> cycle, or a combined
+///     total of path-data commands/points-list coordinates/text characters exceeding a fixed
+///     geometry-parsing work budget (independent of the total-rendered-element budget, bounding a
+///     single pathological element's own content) - is caught
 ///     and re-thrown as <see cref="InvalidDataException"/> with a descriptive message. A dangling <c>url(#id)</c>
 ///     paint reference or an unrecognized color keyword is instead treated as tolerant "no paint"
 ///     (nothing is drawn for that fill/stroke), and a <c>text</c> element with no caller-supplied
@@ -152,6 +156,63 @@ public static class SvgCodec
     ///     amount regardless of how a malicious/pathological document is structured.
     /// </summary>
     private const int MaxTotalRenderedElements = 100_000;
+
+    /// <summary>
+    ///     Tracks the cumulative "geometry parsing work" - path <c>d</c> data commands,
+    ///     points-list coordinate pairs, and text characters - charged across a single
+    ///     <c>Load</c> call, throwing once a fixed combined budget is exceeded. This bounds the
+    ///     content of a single element, a dimension <see cref="MaxTotalRenderedElements"/> does
+    ///     not cover: that budget only counts how many elements are visited, so one
+    ///     <c>path</c>/<c>polyline</c>/<c>polygon</c>/<c>text</c> element with an extremely large
+    ///     <c>d</c>/<c>points</c>/text value would otherwise count as only a single element while
+    ///     allocating or processing an unbounded amount of geometry or text.
+    /// </summary>
+    /// <remarks>
+    ///     A mutable reference type, rather than a <c>ref int</c> counter (the convention used
+    ///     for <c>totalElements</c> below and for <see cref="Fonts.GlyfLocaReader"/>'s
+    ///     total-point/component counters), because <see cref="PathDataParser"/> is a long-lived
+    ///     stateful instance that cannot store a <c>ref</c> parameter as a field; sharing one
+    ///     instance by ordinary object reference achieves the same "one counter, many call sites"
+    ///     effect without that constraint.
+    /// </remarks>
+    private sealed class GeometryWorkBudget
+    {
+        /// <summary>
+        ///     The maximum combined total of path-data commands, points-list coordinate pairs,
+        ///     and text characters this codec will parse across a single <c>Load</c> call. Mirrors
+        ///     <see cref="Fonts.GlyfLocaReader"/>'s own <c>MaxTotalPoints</c> budget (also
+        ///     <c>200_000</c>) - the same order of magnitude precedent for bounding a single
+        ///     pathological element's parsing cost - and is far beyond the combined
+        ///     command/coordinate/character count of any real-world document this codec has been
+        ///     exercised against, while keeping worst-case CPU/memory bounded to a small,
+        ///     practical amount.
+        /// </summary>
+        private const int MaxTotalGeometryWork = 200_000;
+
+        /// <summary>The running total of geometry-parsing work charged so far.</summary>
+        private int _total;
+
+        /// <summary>
+        ///     Charges <paramref name="amount"/> units of work against the running total,
+        ///     throwing once the combined budget is exceeded - called incrementally, before or as
+        ///     each unit of work is actually spent, so a single pathological element throws
+        ///     partway through parsing rather than only after its entire (unbounded) content has
+        ///     already been scanned.
+        /// </summary>
+        /// <param name="amount">The number of commands/coordinates/characters just accounted for.</param>
+        /// <exception cref="InvalidDataException">
+        ///     Thrown once the cumulative total exceeds <see cref="MaxTotalGeometryWork"/>.
+        /// </exception>
+        public void Charge(int amount)
+        {
+            _total += amount;
+            if (_total > MaxTotalGeometryWork)
+            {
+                throw new InvalidDataException(
+                    "SVG document resolves to too much total path/point-list/text geometry-parsing work.");
+            }
+        }
+    }
 
     // ================================================================================================
     // Public API
@@ -744,9 +805,10 @@ public static class SvgCodec
     {
         var rootState = ApplyPresentationAttributes(RenderState.Initial, root);
         var totalElements = 0;
+        var workBudget = new GeometryWorkBudget();
         foreach (var child in root.Elements())
         {
-            RenderElement(child, rootState, fitTransform, context, useDepth: 0, elementDepth: 0, ref totalElements);
+            RenderElement(child, rootState, fitTransform, context, useDepth: 0, elementDepth: 0, ref totalElements, workBudget);
         }
     }
 
@@ -777,11 +839,19 @@ public static class SvgCodec
     ///     can, since a legitimately (non-cyclically) shared subtree stays within both depth caps
     ///     no matter how many times sibling <c>use</c> elements reference it.
     /// </param>
+    /// <param name="workBudget">
+    ///     The shared geometry-parsing work budget (see <see cref="GeometryWorkBudget"/>), threaded
+    ///     down to <c>path</c>/<c>polyline</c>/<c>polygon</c>/<c>text</c> handling so a single
+    ///     pathologically large element's own content is also bounded, independent of
+    ///     <paramref name="totalElements"/>.
+    /// </param>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="element"/> or a descendant contains malformed presentation
     ///     data, a <c>use</c> reference cycle/excessive nesting is detected, the element tree
-    ///     nests deeper than <see cref="MaxElementDepth"/>, or the document resolves to more than
-    ///     <see cref="MaxTotalRenderedElements"/> total rendered elements.
+    ///     nests deeper than <see cref="MaxElementDepth"/>, the document resolves to more than
+    ///     <see cref="MaxTotalRenderedElements"/> total rendered elements, or the combined total
+    ///     of path-data commands, points-list coordinates, and text characters parsed exceeds
+    ///     <see cref="GeometryWorkBudget"/>'s fixed budget.
     /// </exception>
     private static void RenderElement(
         XElement element,
@@ -790,7 +860,8 @@ public static class SvgCodec
         RenderContext context,
         int useDepth,
         int elementDepth,
-        ref int totalElements)
+        ref int totalElements,
+        GeometryWorkBudget workBudget)
     {
         // Fail fast before recursing any further - an unbounded element tree walk would otherwise
         // eventually drive the call stack into an uncatchable StackOverflowException
@@ -828,7 +899,7 @@ public static class SvgCodec
                 // renders when referenced via <use>)
                 foreach (var child in element.Elements())
                 {
-                    RenderElement(child, state, transform, context, useDepth, elementDepth + 1, ref totalElements);
+                    RenderElement(child, state, transform, context, useDepth, elementDepth + 1, ref totalElements, workBudget);
                 }
 
                 break;
@@ -850,23 +921,23 @@ public static class SvgCodec
                 break;
 
             case "polyline":
-                RenderShape(BuildPolyPath(element, closed: false), state, transform, context);
+                RenderShape(BuildPolyPath(element, closed: false, workBudget), state, transform, context);
                 break;
 
             case "polygon":
-                RenderShape(BuildPolyPath(element, closed: true), state, transform, context);
+                RenderShape(BuildPolyPath(element, closed: true, workBudget), state, transform, context);
                 break;
 
             case "path":
-                RenderShape(BuildPathDataPath(element), state, transform, context);
+                RenderShape(BuildPathDataPath(element, workBudget), state, transform, context);
                 break;
 
             case "use":
-                RenderUse(element, state, transform, context, useDepth, elementDepth, ref totalElements);
+                RenderUse(element, state, transform, context, useDepth, elementDepth, ref totalElements, workBudget);
                 break;
 
             case "text":
-                RenderText(element, state, transform, context);
+                RenderText(element, state, transform, context, workBudget);
                 break;
 
             default:
@@ -1373,10 +1444,15 @@ public static class SvgCodec
     /// <summary>Builds a <c>polyline</c> or <c>polygon</c> element's path from its <c>points</c> attribute.</summary>
     /// <param name="element">The <c>polyline</c> or <c>polygon</c> element.</param>
     /// <param name="closed"><see langword="true"/> for <c>polygon</c>; <see langword="false"/> for <c>polyline</c>.</param>
+    /// <param name="workBudget">The shared geometry-parsing work budget, charged with the resolved point count.</param>
     /// <returns>The local-space path, empty if fewer than two points are present.</returns>
-    private static Path BuildPolyPath(XElement element, bool closed)
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the resolved point count pushes the combined geometry-parsing work total
+    ///     past <see cref="GeometryWorkBudget"/>'s fixed budget.
+    /// </exception>
+    private static Path BuildPolyPath(XElement element, bool closed, GeometryWorkBudget workBudget)
     {
-        var points = ParsePointList((string?)element.Attribute("points"));
+        var points = ParsePointList((string?)element.Attribute("points"), workBudget);
         var builder = new PathBuilder();
         if (points.Count < 2)
         {
@@ -1399,8 +1475,19 @@ public static class SvgCodec
 
     /// <summary>Parses a <c>points</c> attribute's flat number list into coordinate pairs.</summary>
     /// <param name="raw">The attribute's raw value, or <see langword="null"/> if absent.</param>
+    /// <param name="workBudget">
+    ///     The shared geometry-parsing work budget, charged once with the resolved coordinate-pair
+    ///     count - the full count is already known from the completed number-list parse, so this
+    ///     charges in one batch rather than one pair at a time, mirroring
+    ///     <see cref="Fonts.GlyfLocaReader"/>'s "charge a known count before it is used further"
+    ///     pattern.
+    /// </param>
     /// <returns>The parsed points, in document order. A trailing unpaired number is dropped.</returns>
-    private static List<Vector2> ParsePointList(string? raw)
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the resolved point count pushes the combined geometry-parsing work total
+    ///     past <see cref="GeometryWorkBudget"/>'s fixed budget.
+    /// </exception>
+    private static List<Vector2> ParsePointList(string? raw, GeometryWorkBudget workBudget)
     {
         var points = new List<Vector2>();
         if (string.IsNullOrWhiteSpace(raw))
@@ -1413,6 +1500,10 @@ public static class SvgCodec
         {
             points.Add(new Vector2(numbers[i], numbers[i + 1]));
         }
+
+        // Charge the whole resolved pair count in one batch now that it is fully known, before
+        // the points are used any further
+        workBudget.Charge(points.Count);
 
         return points;
     }
@@ -1443,12 +1534,17 @@ public static class SvgCodec
 
     /// <summary>Builds a <c>path</c> element's outline from its <c>d</c> attribute.</summary>
     /// <param name="element">The <c>path</c> element.</param>
+    /// <param name="workBudget">The shared geometry-parsing work budget, charged once per parsed command.</param>
     /// <returns>The local-space path, empty if <c>d</c> is absent or blank.</returns>
-    /// <exception cref="InvalidDataException">Thrown when <c>d</c> is present but not valid path data.</exception>
-    private static Path BuildPathDataPath(XElement element)
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <c>d</c> is present but not valid path data, or parsing its commands pushes
+    ///     the combined geometry-parsing work total past <see cref="GeometryWorkBudget"/>'s fixed
+    ///     budget.
+    /// </exception>
+    private static Path BuildPathDataPath(XElement element, GeometryWorkBudget workBudget)
     {
         var d = (string?)element.Attribute("d");
-        return string.IsNullOrWhiteSpace(d) ? new PathBuilder().Build() : new PathDataParser(d).Parse();
+        return string.IsNullOrWhiteSpace(d) ? new PathBuilder().Build() : new PathDataParser(d, workBudget).Parse();
     }
 
     /// <summary>
@@ -1470,6 +1566,16 @@ public static class SvgCodec
 
         /// <summary>The builder accumulating the parsed path's commands.</summary>
         private readonly PathBuilder _builder = new();
+
+        /// <summary>
+        ///     The shared geometry-parsing work budget, charged once per emitted path command so a
+        ///     single pathological <c>d</c> string throws partway through parsing rather than
+        ///     after its entire (unbounded) content has already been scanned. Stored as an
+        ///     ordinary field (rather than a <c>ref int</c>, the convention used elsewhere in this
+        ///     class) because a <c>ref</c> parameter cannot be assigned into an instance field of
+        ///     an ordinary class - see <see cref="GeometryWorkBudget"/>'s own remarks.
+        /// </summary>
+        private readonly GeometryWorkBudget _workBudget;
 
         /// <summary>The current scan position within <see cref="_text"/>.</summary>
         private int _position;
@@ -1499,14 +1605,20 @@ public static class SvgCodec
 
         /// <summary>Initializes a new parser over <paramref name="text"/>.</summary>
         /// <param name="text">The <c>d</c> attribute's full raw text.</param>
-        public PathDataParser(string text)
+        /// <param name="workBudget">The shared geometry-parsing work budget to charge as commands are parsed.</param>
+        public PathDataParser(string text, GeometryWorkBudget workBudget)
         {
             _text = text;
+            _workBudget = workBudget;
         }
 
         /// <summary>Parses the whole <c>d</c> attribute and builds its path.</summary>
         /// <returns>The resulting local-space path.</returns>
-        /// <exception cref="InvalidDataException">Thrown when the text is not valid path data.</exception>
+        /// <exception cref="InvalidDataException">
+        ///     Thrown when the text is not valid path data, or parsing its commands pushes the
+        ///     combined geometry-parsing work total past <see cref="GeometryWorkBudget"/>'s fixed
+        ///     budget.
+        /// </exception>
         public Path Parse()
         {
             while (true)
@@ -1592,12 +1704,14 @@ public static class SvgCodec
             _subpathStart = _current;
             _builder.MoveTo(_current);
             ClearReflectionState();
+            _workBudget.Charge(1);
 
             while (TryPeekNumber())
             {
                 _current = ReadPoint(isRelative, _current);
                 _builder.LineTo(_current);
                 ClearReflectionState();
+                _workBudget.Charge(1);
             }
         }
 
@@ -1611,6 +1725,7 @@ public static class SvgCodec
                 _current = ReadPoint(isRelative, _current);
                 _builder.LineTo(_current);
                 ClearReflectionState();
+                _workBudget.Charge(1);
             } while (TryPeekNumber());
         }
 
@@ -1625,6 +1740,7 @@ public static class SvgCodec
                 _current = new Vector2(isRelative ? _current.X + x : x, _current.Y);
                 _builder.LineTo(_current);
                 ClearReflectionState();
+                _workBudget.Charge(1);
             } while (TryPeekNumber());
         }
 
@@ -1639,6 +1755,7 @@ public static class SvgCodec
                 _current = new Vector2(_current.X, isRelative ? _current.Y + y : y);
                 _builder.LineTo(_current);
                 ClearReflectionState();
+                _workBudget.Charge(1);
             } while (TryPeekNumber());
         }
 
@@ -1656,6 +1773,7 @@ public static class SvgCodec
                 _current = end;
                 _lastCubicControl = control2;
                 _lastQuadControl = null;
+                _workBudget.Charge(1);
             } while (TryPeekNumber());
         }
 
@@ -1673,6 +1791,7 @@ public static class SvgCodec
                 _current = end;
                 _lastCubicControl = control2;
                 _lastQuadControl = null;
+                _workBudget.Charge(1);
             } while (TryPeekNumber());
         }
 
@@ -1689,6 +1808,7 @@ public static class SvgCodec
                 _current = end;
                 _lastQuadControl = control;
                 _lastCubicControl = null;
+                _workBudget.Charge(1);
             } while (TryPeekNumber());
         }
 
@@ -1705,6 +1825,7 @@ public static class SvgCodec
                 _current = end;
                 _lastQuadControl = control;
                 _lastCubicControl = null;
+                _workBudget.Charge(1);
             } while (TryPeekNumber());
         }
 
@@ -1721,6 +1842,7 @@ public static class SvgCodec
                 var sweep = ReadFlag();
                 var end = ReadPoint(isRelative, _current);
                 AppendArc(radius, rotationDegrees, largeArc, sweep, end);
+                _workBudget.Charge(1);
             } while (TryPeekNumber());
         }
 
@@ -1730,6 +1852,7 @@ public static class SvgCodec
             _builder.Close();
             _current = _subpathStart;
             ClearReflectionState();
+            _workBudget.Charge(1);
         }
 
         /// <summary>
@@ -2722,6 +2845,7 @@ public static class SvgCodec
     ///     The running total-rendered-elements count, propagated to the re-rendered target so it
     ///     also contributes toward <see cref="MaxTotalRenderedElements"/>.
     /// </param>
+    /// <param name="workBudget">The shared geometry-parsing work budget, propagated to the re-rendered target.</param>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="useDepth"/> has already reached <see cref="MaxUseDepth"/>,
     ///     guarding against a reference cycle that would otherwise recurse indefinitely.
@@ -2731,7 +2855,7 @@ public static class SvgCodec
     ///     no-op (nothing is rendered), consistent with this class's general dangling-reference
     ///     handling elsewhere.
     /// </remarks>
-    private static void RenderUse(XElement element, RenderState state, Matrix3x2 transform, RenderContext context, int useDepth, int elementDepth, ref int totalElements)
+    private static void RenderUse(XElement element, RenderState state, Matrix3x2 transform, RenderContext context, int useDepth, int elementDepth, ref int totalElements, GeometryWorkBudget workBudget)
     {
         if (useDepth >= MaxUseDepth)
         {
@@ -2746,7 +2870,7 @@ public static class SvgCodec
 
         var offset = new Vector2(GetFloatAttribute(element, "x"), GetFloatAttribute(element, "y"));
         var useTransform = Matrix3x2.CreateTranslation(offset) * transform;
-        RenderElement(target, state, useTransform, context, useDepth + 1, elementDepth + 1, ref totalElements);
+        RenderElement(target, state, useTransform, context, useDepth + 1, elementDepth + 1, ref totalElements, workBudget);
     }
 
     // ================================================================================================
@@ -2761,6 +2885,11 @@ public static class SvgCodec
     /// <param name="state">The cascaded render state, supplying <c>font-family</c>/<c>font-size</c>/<c>text-anchor</c>.</param>
     /// <param name="transform">The accumulated transform from local space into pixel space.</param>
     /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="workBudget">
+    ///     The shared geometry-parsing work budget (see <see cref="GeometryWorkBudget"/>), charged
+    ///     with the text's character count before glyph layout begins so a pathologically long
+    ///     run's per-rune outline/kerning work never starts once the budget is exceeded.
+    /// </param>
     /// <remarks>
     ///     Silently renders nothing - never throws - when <see cref="RenderContext.Fonts"/> is
     ///     <see langword="null"/>, no entry matches <paramref name="state"/>'s <c>font-family</c>,
@@ -2769,7 +2898,7 @@ public static class SvgCodec
     ///     descendant text node's content is concatenated and laid out as one flat run, a
     ///     documented simplification.
     /// </remarks>
-    private static void RenderText(XElement element, RenderState state, Matrix3x2 transform, RenderContext context)
+    private static void RenderText(XElement element, RenderState state, Matrix3x2 transform, RenderContext context, GeometryWorkBudget workBudget)
     {
         if (context.Fonts == null)
         {
@@ -2787,6 +2916,10 @@ public static class SvgCodec
         {
             return;
         }
+
+        // Charge the text's character count before the expensive per-rune glyph-outline/kerning
+        // loop begins, so a pathologically long run throws before that work is spent
+        workBudget.Charge(text.Length);
 
         var origin = new Vector2(GetFloatAttribute(element, "x"), GetFloatAttribute(element, "y"));
         var glyphRunPath = BuildGlyphRunPath(text, font, state, origin);

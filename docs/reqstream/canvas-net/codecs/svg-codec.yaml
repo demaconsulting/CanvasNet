@@ -185,6 +185,24 @@ sections:
                 tests:
                   - SvgCodec_Load_UseFanOutExceedingTotalElementBudget_ThrowsInvalidDataException
 
+              - id: CanvasNet-Codecs-SvgCodec-TotalGeometryWorkBudget
+                title: >-
+                  The SvgCodec class shall reject an SVG document whose combined total of
+                  path "d" data commands, points-list coordinate pairs, and text characters parsed
+                  across the whole document exceeds a fixed budget, with InvalidDataException,
+                  rather than continuing to spend unbounded CPU/memory on a single pathological
+                  element.
+                justification: |
+                  The total-rendered-element budget bounds how many elements are visited, but
+                  places no bound on the size of a single element's own content: one
+                  path/polyline/polygon/text element with an extremely large "d"/"points"/text
+                  value would otherwise count as only one element while allocating or processing
+                  an unbounded amount of geometry or text, defeating the element budget's intent.
+                tests:
+                  - SvgCodec_Load_PathDataExceedingGeometryWorkBudget_ThrowsInvalidDataException
+                  - SvgCodec_Load_PointListExceedingGeometryWorkBudget_ThrowsInvalidDataException
+                  - SvgCodec_Load_TextExceedingGeometryWorkBudget_ThrowsInvalidDataException
+
               - id: CanvasNet-Codecs-SvgCodec-TextRendering
                 title: >-
                   The SvgCodec class shall render a text element's characters as glyph outlines

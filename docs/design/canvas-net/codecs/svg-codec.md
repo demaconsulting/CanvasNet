@@ -223,6 +223,19 @@ element is processed further, and raises `InvalidDataException` once it exceeds 
 beyond any real-world document's element count but small enough to keep worst-case rendering
 CPU/memory bounded to a small, practical amount.
 
+Even the total-rendered-element budget above does not bound the size of a single element's own
+content: it counts how many elements are visited, so one `path`/`polyline`/`polygon`/`text`
+element with an extremely large `d`/`points`/text value would otherwise count as only a single
+element while parsing or allocating an unbounded amount of geometry or text. Rendering therefore
+also tracks a fourth, independent budget - the combined total of path `d` data commands,
+points-list coordinate pairs, and text characters parsed across the whole document walk - charged
+incrementally as each command/coordinate-pair/character is actually parsed (rather than only once
+per element), so a single pathological element throws partway through parsing rather than after
+its entire unbounded content has already been scanned. This budget mirrors the Fonts subsystem's
+`GlyfLocaReader` unit's own total-resolved-point budget (also `200,000`), the same order-of
+magnitude precedent for bounding a single pathological structure's parsing cost, applied here as
+an independent combined counter across all three sources rather than one bound per source.
+
 **Text.** A `text` element's `font-family` is matched, case-insensitively, against a
 caller-supplied `fonts` dictionary keyed by family name, walking a comma-separated fallback list
 of families exactly as CSS `font-family` does. Each mapped character's glyph outline, advance
@@ -246,7 +259,9 @@ differently:
   read), or a value the codec must be able to parse to render anything at all is invalid (a
   `viewBox`/`transform` attribute with the wrong number of components or a non-numeric or
   non-finite (`NaN`/`Infinity`) component, or `path` `d` data with an unrecognized command letter
-  or missing required arguments). Every one of these is caught (or detected) and re-thrown/thrown
+  or missing required arguments, or a combined total of path-data commands/points-list
+  coordinates/text characters exceeding the fixed geometry-parsing work budget described above).
+  Every one of these is caught (or detected) and re-thrown/thrown
   as `System.IO.InvalidDataException` with a descriptive message naming what was invalid, exactly
   the same contract every other codec in this system uses for malformed source data. This
   throwing behavior is deliberately narrow: a non-finite gradient stop `offset`/coordinate, an
