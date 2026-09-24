@@ -692,6 +692,96 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves the finding's exact repro scenario: an in-bound-but-large <c>stroke-width</c>
+    ///     (<c>900000</c>, at or under <c>MaxCoordinateMagnitude</c>) combined with an
+    ///     in-bound-but-extreme <c>stroke-miterlimit</c> (<c>1e12</c>, finite and <c>&gt;= 1</c>,
+    ///     so it passes <see cref="DemaConsulting.CanvasNet.Codecs.SvgCodec"/>'s own
+    ///     <c>ParseValidMiterLimit</c> check) and a vertex whose interior angle is only
+    ///     ~<c>0.005</c> degrees away from a full reversal (an acute "spike" vertex) synthesizes a
+    ///     miter-join point roughly <c>1e10</c> units from the origin - many orders of magnitude
+    ///     beyond <c>MaxCoordinateMagnitude</c> - even though every individual literal (every path
+    ///     coordinate, the stroke width, and the miterlimit) independently passes its own
+    ///     parse-time check. Before the post-stroke re-check, this synthesized point reached the
+    ///     rasterizer's fill step, relying only on its clip-bounds intersection with the canvas to
+    ///     avoid a hang/crash - not itself a bug fix. After the fix, the entire stroke is
+    ///     tolerantly skipped instead.
+    /// </summary>
+    /// <remarks>
+    ///     The three path points below - <c>(10,50)</c>, <c>(50,50)</c>, and
+    ///     <c>(10.0000002,50.0034907)</c> - form a needle-thin spike: the first segment runs due
+    ///     east, and the second segment runs back nearly due west (almost retracing the first),
+    ///     deviating from an exact 180-degree reversal by only ~0.005 degrees. Since a miter
+    ///     length is <c>halfWidth / sin(interiorAngle / 2)</c>, this near-zero interior angle
+    ///     drives the miter ratio (and therefore the synthesized point's distance from the vertex)
+    ///     to roughly <c>22,900</c> times <c>halfWidth</c> (<c>450,000</c>), i.e. ~<c>1.03e10</c> -
+    ///     comfortably past <c>MaxCoordinateMagnitude</c> (<c>1,000,000</c>), while the miter ratio
+    ///     itself (~<c>22,900</c>) stays comfortably under the extreme <c>1e12</c> miterlimit, so
+    ///     <c>TryCreateMiter</c>'s own ratio-vs-miterlimit check does not reject it - the gap this
+    ///     fix closes is purely about the synthesized point's absolute magnitude, not its ratio.
+    ///     <para>
+    ///     Because <c>stroke-width="900000"</c> alone already dwarfs the 100x100 canvas (its
+    ///     half-width alone is 4,500 times the canvas size), an un-skipped stroke - spike or not -
+    ///     would engulf the entire canvas in solid stroke color. The assertion below therefore
+    ///     checks that the canvas has <b>no</b> stroke color anywhere, which is only possible if
+    ///     the whole stroke - including its ordinarily-covering non-spike portions - was skipped
+    ///     as a unit, exactly as <see cref="DemaConsulting.CanvasNet.Codecs.SvgCodec"/>'s other
+    ///     tolerant-skip guards already do for a shape/stroke as a whole.
+    ///     </para>
+    /// </remarks>
+    [Fact]
+    public void SvgCodec_Load_ExtremeMiterLimitWithSpikeVertexSynthesizesOversizedMiterPoint_SkipsStrokeWithoutThrowing()
+    {
+        // Arrange: a needle-thin spike vertex (interior angle ~0.005 degrees) with an in-bound
+        // stroke-width (900000, at MaxCoordinateMagnitude's near-boundary) and an in-bound
+        // miterlimit (1e12) - each individually compliant, but composing to a miter point ~1e10
+        // units from the origin
+        const string svg = "<svg viewBox='0 0 100 100'>" +
+                            "<path d='M 10,50 L 50,50 L 10.0000002,50.0034907' fill='none' " +
+                            "stroke='black' stroke-width='900000' stroke-miterlimit='1e12'/>" +
+                            "</svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: rendering completed without incident (no hang/crash), and the whole stroke -
+        // which, un-skipped, would have engulfed the entire 100x100 canvas given its 900,000-unit
+        // width alone - was tolerantly skipped in its entirety instead
+        Assert.Equal(100, surface.Width);
+        Assert.Equal(0, surface[50, 50].A);
+        Assert.Equal(0, surface[10, 50].A);
+        Assert.Equal(0, surface[99, 99].A);
+    }
+
+    /// <summary>
+    ///     Proves that an ordinary, legitimate miter join - a small, typical <c>stroke-width</c>,
+    ///     the SVG-default <c>stroke-miterlimit</c> of <c>4</c>, and a normal (not a degenerate
+    ///     near-straight/near-reversed spike) vertex angle - continues to render exactly as before,
+    ///     completely unaffected by the new post-stroke coordinate-magnitude re-check added
+    ///     alongside <see cref="SvgCodec_Load_ExtremeMiterLimitWithSpikeVertexSynthesizesOversizedMiterPoint_SkipsStrokeWithoutThrowing"/>
+    ///     above.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_NormalMiterJoinWithDefaultMiterLimit_RendersNormally()
+    {
+        // Arrange: a simple 90-degree corner (a well-conditioned, everyday miter join) with a
+        // small stroke-width and the SVG spec's own default stroke-miterlimit of 4
+        const string svg = "<svg viewBox='0 0 100 100'>" +
+                            "<path d='M 20,20 L 60,20 L 60,60' fill='none' " +
+                            "stroke='black' stroke-width='6' stroke-miterlimit='4'/>" +
+                            "</svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the corner's sharp miter tip renders as expected, near (60,20)
+        Assert.Equal(255, surface[60, 20].A);
+
+        // ... as does a point along each straight segment away from the corner
+        Assert.Equal(255, surface[40, 20].A);
+        Assert.Equal(255, surface[60, 40].A);
+    }
+
+    /// <summary>
     ///     Proves that a stroke whose effective width overflows to <c>Infinity</c> - because seven
     ///     nested <c>transform="scale(1000000)"</c> groups each carry an individually-finite
     ///     literal (each at or under the codec's fixed <c>MaxCoordinateMagnitude</c> bound), but

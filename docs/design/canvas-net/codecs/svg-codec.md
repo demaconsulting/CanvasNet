@@ -352,6 +352,27 @@ pixel-space geometry and stroke-width) bounds keeps this fix minimal; splitting 
 distinct constants remains possible later, without any structural change, if evidence emerges that
 the two bounds should diverge.
 
+A third, independent gap exists even when `pixelPath`'s coordinates and the effective
+`strokeWidth` are both individually in-bound: `stroke-miterlimit` is validated (see
+`ParseValidMiterLimit`) only against `Drawing.StrokeStyle`'s documented lower-bound contract
+("finite and at least `1`"), never against any upper bound. `Drawing.StrokeOutliner`'s miter-join
+synthesis (`TryCreateMiter`) only rejects a candidate miter point whose ratio to half the stroke
+width exceeds `StrokeStyle.MiterLimit` - a check about the point's ratio to the stroke width, not
+about the point's own absolute magnitude. An in-bound-but-large `strokeWidth` (composing with an
+in-bound-but-extreme `stroke-miterlimit`, and a near-straight/near-reversed "spike" vertex whose
+interior angle is only a fraction of a degree from a full reversal) can therefore still synthesize
+a miter point many orders of magnitude beyond `MaxCoordinateMagnitude`, even though every
+individual literal involved - each `pixelPath` coordinate, `strokeWidth`, and the miterlimit -
+independently passed its own check. This does not currently cause a hang, crash, or exception (the
+rasterizer's clip-bounds intersection with the canvas absorbs the resulting oversized fill
+harmlessly), but it is the same class of documented-gap issue the two checks above already close,
+so `RenderStroke` re-checks the actual outline `PathStroker.Stroke` synthesizes - not a guessed
+upper bound on `stroke-miterlimit` itself - against `MaxCoordinateMagnitude` immediately after
+stroking, reusing the same `IsWithinCoordinateMagnitudeBudget` helper `RenderShape` already uses
+(since `PathStroker.Stroke` only ever emits `LineTo` commands into its returned outline, that
+helper directly applies without modification). On failure, the whole stroke is tolerantly skipped,
+the same way an oversized post-transform stroke width already is above.
+
 Finally, every budget above only bounds work `RenderElement` itself performs while walking the
 element tree during rendering. `Load` separately calls `BuildIdIndex` **before** rendering begins,
 to resolve `href`/`url(#id)` references - and that call walks every element in the whole parsed

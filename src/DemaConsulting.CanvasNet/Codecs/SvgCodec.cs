@@ -2638,6 +2638,19 @@ public static class SvgCodec
     ///     to bound the post-transform effective width closes this gap the same tolerant-skip way
     ///     the other conditions in this guard already do.
     ///     </para>
+    ///     <para>
+    ///     A third, independent gap exists even when both <paramref name="pixelPath"/>'s
+    ///     coordinates and the effective <c>strokeWidth</c> are individually in-bound:
+    ///     <c>stroke-miterlimit</c> (see <see cref="ParseValidMiterLimit"/>) is only bounded below
+    ///     (finite, <c>&gt;= 1</c>), never above, so an in-bound-but-large <c>strokeWidth</c>
+    ///     combined with an in-bound-but-extreme <c>miterlimit</c> and a near-straight ("spike")
+    ///     vertex can drive <see cref="Drawing.StrokeOutliner"/>'s miter-join synthesis
+    ///     (<c>TryCreateMiter</c>) to a point many orders of magnitude beyond
+    ///     <see cref="MaxCoordinateMagnitude"/> - <c>TryCreateMiter</c> only rejects a miter point
+    ///     whose ratio to half the stroke width exceeds the miterlimit, a check that says nothing
+    ///     about the point's own absolute magnitude. This is re-checked, and tolerantly skipped the
+    ///     same way, immediately after <see cref="Drawing.PathStroker.Stroke"/> runs below.
+    ///     </para>
     /// </remarks>
     private static void RenderStroke(Path localPath, Path pixelPath, RenderState state, Matrix3x2 transform, RenderContext context)
     {
@@ -2679,6 +2692,29 @@ public static class SvgCodec
             scaledDashOffset);
 
         var outline = PathStroker.Stroke(pixelPath, style);
+
+        // Post-stroke coordinate-magnitude re-check: pixelPath and strokeWidth each already
+        // passed their own magnitude checks above (IsWithinCoordinateMagnitudeBudget on
+        // pixelPath in RenderShape, and the strokeWidth <= MaxCoordinateMagnitude check above),
+        // but Drawing.StrokeOutliner's miter-join synthesis (TryCreateMiter) only rejects a
+        // miter point whose ratio to half the stroke width exceeds StrokeStyle.MiterLimit - a
+        // ratio check that says nothing about the miter point's own absolute magnitude.
+        // stroke-miterlimit is parsed (see ParseValidMiterLimit) with no upper bound beyond
+        // "finite and >= 1", so an in-bound-but-large stroke-width composed with an in-bound-but-
+        // extreme miterlimit and a near-straight (acute-spike) vertex can still synthesize a
+        // miter point many orders of magnitude beyond MaxCoordinateMagnitude, even though every
+        // individual literal involved - each pixelPath coordinate, strokeWidth, and miterlimit -
+        // passed its own check. Reusing IsWithinCoordinateMagnitudeBudget here, on the actual
+        // synthesized outline, closes this gap directly at its source instead of guessing a
+        // conservative-but-arbitrary miterlimit ceiling: it composes with every path command type
+        // IsWithinCoordinateMagnitudeBudget already understands, since PathStroker.Stroke only
+        // ever emits LineTo commands into its returned outline. On failure, tolerantly skip
+        // rendering this stroke entirely, mirroring RenderShape's own tolerant-skip convention.
+        if (!IsWithinCoordinateMagnitudeBudget(outline))
+        {
+            return;
+        }
+
         FillWithPaint(context.Surface, outline, paint, FillRule.NonZero);
     }
 
@@ -3753,20 +3789,31 @@ public static class SvgCodec
     ///     magnitude spirit as <see cref="MaxDocumentCharacters"/>/<see cref="MaxNumberListLength"/>,
     ///     while keeping every downstream consumer's worst-case cost small in practice.
     ///     <para>
-    ///     This bound is now a <b>dual-purpose</b> constant, enforced at two independent points:
+    ///     This bound is now a <b>three-purpose</b> constant, enforced at three independent points:
     ///     (1) pre-transform, at parse time, on every source-literal coordinate/length value (this
-    ///     constant's original purpose, described above), and (2) post-transform, on every shape's
+    ///     constant's original purpose, described above); (2) post-transform, on every shape's
     ///     final pixel-space geometry (<see cref="IsWithinCoordinateMagnitudeBudget"/>, called from
     ///     <see cref="RenderShape"/>) and on the post-transform-scaled effective stroke width
-    ///     (<see cref="RenderStroke"/>). The second enforcement point exists because a transform
-    ///     argument only needs to stay <i>at or under</i> this same bound to pass its own
-    ///     parse-time check (see <see cref="TryReadNumber"/>'s strict <c>&gt;</c> boundary), so an
-    ///     in-bound local coordinate or stroke width composed with an in-bound-but-large transform
-    ///     (e.g. <c>scale(1000000)</c>) can still produce a final value far beyond what the
+    ///     (<see cref="RenderStroke"/>); and (3) post-stroke, on the fillable outline geometry
+    ///     <see cref="Drawing.PathStroker.Stroke"/> synthesizes from an already in-bound
+    ///     <c>pixelPath</c>/<c>strokeWidth</c> pair (<see cref="IsWithinCoordinateMagnitudeBudget"/>
+    ///     again, called from <see cref="RenderStroke"/> a second time, after stroking). The
+    ///     second enforcement point exists because a transform argument only needs to stay <i>at
+    ///     or under</i> this same bound to pass its own parse-time check (see
+    ///     <see cref="TryReadNumber"/>'s strict <c>&gt;</c> boundary), so an in-bound local
+    ///     coordinate or stroke width composed with an in-bound-but-large transform (e.g.
+    ///     <c>scale(1000000)</c>) can still produce a final value far beyond what the
     ///     flattening/stroking pipeline was ever meant to see, even though every individual literal
-    ///     involved was itself compliant. Reusing one constant for both points keeps today's fix
-    ///     minimal; splitting it into two distinct constants remains possible later, without any
-    ///     structural change, if evidence emerges that the pre- and post-transform bounds should
+    ///     involved was itself compliant. The third enforcement point exists for a distinct
+    ///     reason: <c>stroke-miterlimit</c> (see <see cref="ParseValidMiterLimit"/>) is only
+    ///     bounded below (finite, <c>&gt;= 1</c>), never above, so an in-bound-but-large
+    ///     <c>strokeWidth</c> combined with an in-bound-but-extreme <c>miterlimit</c> and a
+    ///     near-straight ("spike") vertex can drive <see cref="Drawing.StrokeOutliner"/>'s miter-
+    ///     join synthesis to a point many orders of magnitude beyond this bound, even though
+    ///     every individual literal - each pixel-space coordinate, the stroke width, and the
+    ///     miterlimit - independently passed its own check. Reusing one constant for all three
+    ///     points keeps today's fix minimal; splitting it into distinct constants remains possible
+    ///     later, without any structural change, if evidence emerges that the bounds should
     ///     diverge.
     ///     </para>
     /// </summary>

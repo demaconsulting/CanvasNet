@@ -752,6 +752,52 @@ shape/stroke, not the whole document) rather than the parse-time check's hard
 independently-in-bound inputs composing to a multiplied extreme rather than from a single
 malformed literal.
 
+#### Post-Stroke Miter-Join Magnitude Bound
+
+**Tests**: `SvgCodec_Load_ExtremeMiterLimitWithSpikeVertexSynthesizesOversizedMiterPoint_SkipsStrokeWithoutThrowing`,
+`SvgCodec_Load_NormalMiterJoinWithDefaultMiterLimit_RendersNormally`
+
+A regression test for a local-code-review finding that a third, independent gap survives the
+"Post-Transform Coordinate/Stroke-Width Magnitude Bound" fix above: even when `pixelPath`'s
+coordinates and the effective `strokeWidth` are both individually in-bound, `stroke-miterlimit`
+(see `ParseValidMiterLimit`) is validated only against `Drawing.StrokeStyle`'s documented
+lower-bound contract ("finite and at least `1`"), never against any upper bound.
+`Drawing.StrokeOutliner`'s miter-join synthesis (`TryCreateMiter`) only rejects a candidate miter
+point whose ratio to half the stroke width exceeds `StrokeStyle.MiterLimit` - a check about the
+point's ratio to the stroke width, not about the point's own absolute magnitude. An
+in-bound-but-large `strokeWidth`, composed with an in-bound-but-extreme `stroke-miterlimit` and a
+near-straight/near-reversed "spike" vertex (an interior angle only a fraction of a degree from a
+full reversal), can therefore still synthesize a miter point many orders of magnitude beyond
+`MaxCoordinateMagnitude`, even though every individual literal involved - each `pixelPath`
+coordinate, `strokeWidth`, and the miterlimit - independently passed its own check. Unlike the two
+findings above, this one does not currently cause a hang, crash, or exception on its own (the
+rasterizer's clip-bounds intersection with the canvas absorbs the resulting oversized fill
+harmlessly), so it is a defense-in-depth/contract-completeness fix rather than an urgent one.
+
+`SvgCodec_Load_ExtremeMiterLimitWithSpikeVertexSynthesizesOversizedMiterPoint_SkipsStrokeWithoutThrowing`
+proves the fix: a three-point path (`(10,50)`, `(50,50)`, `(10.0000002,50.0034907)`) forms a
+needle-thin spike whose interior angle is only ~`0.005` degrees from a full reversal, combined
+with an in-bound `stroke-width` of `900000` and an in-bound `stroke-miterlimit` of `1e12`. The
+resulting miter ratio (~`22,900`) stays comfortably under the extreme miterlimit, so
+`TryCreateMiter`'s own ratio check does not reject it, but the synthesized point's distance from
+the vertex (~`1.03e10`) is many orders of magnitude past `MaxCoordinateMagnitude`. Because the
+900,000-unit stroke width alone already dwarfs the 100x100 canvas, an un-skipped stroke would
+engulf the entire canvas in solid color; the test proves the whole stroke - not just the spike
+vertex - was tolerantly skipped by sampling several canvas locations (including the canvas center
+and far corner) and finding none of them filled. `RenderStroke` now re-checks the actual outline
+`PathStroker.Stroke` synthesizes - not a guessed upper bound on `stroke-miterlimit` itself -
+against `MaxCoordinateMagnitude` immediately after stroking, reusing the same
+`IsWithinCoordinateMagnitudeBudget` helper `RenderShape` already uses for its own post-transform
+check above (since `PathStroker.Stroke` only ever emits `LineTo` commands into its returned
+outline, that helper directly applies without modification), and tolerantly skips the whole
+stroke on failure, the same way an oversized post-transform stroke width already is above.
+
+`SvgCodec_Load_NormalMiterJoinWithDefaultMiterLimit_RendersNormally` proves the new check has no
+effect on an ordinary, legitimate miter join: a simple 90-degree corner with a small `stroke-width`
+of `6` and the SVG spec's own default `stroke-miterlimit` of `4` (a miter ratio of `~1.41`, and a
+synthesized miter point well within `MaxCoordinateMagnitude`) continues to render exactly as
+before, both at the corner's miter tip and along each straight segment.
+
 #### Gradient Stop Caching
 
 **Tests**:
