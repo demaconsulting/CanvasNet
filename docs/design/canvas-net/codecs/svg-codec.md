@@ -314,6 +314,44 @@ provably unreachable through any input `Load`/`GetInfo` can be given - see the v
 document's "Coordinate Magnitude Bound" scenario for the full list and the reachability
 calculations proving this.
 
+`MaxCoordinateMagnitude`'s enforcement above is entirely **pre-transform**: it bounds a source
+literal at parse time, before any `transform` attribute has been applied. `RenderShape` calls
+`TransformPath` to bake every shape/glyph-run outline's local-space points into final pixel-space
+coordinates through `Vector2.Transform` - but a `transform="scale(...)"` function's own argument
+only needs to stay _at or under_ `MaxCoordinateMagnitude` to pass its own parse-time check (the
+comparison is strict `>`, so a literal of exactly `1,000,000` is not rejected), so an in-bound
+local coordinate composed with an in-bound-but-large transform can still produce a final
+pixel-space magnitude the flattening/stroking pipeline was never meant to see - a second,
+independent gap from the parse-time one above, since neither individual literal involved is
+itself out of bounds. `RenderShape` therefore additionally checks the transformed path's every
+point (each subpath's start, and every command's `EndPoint`/`Control1`/`Control2` where
+applicable) against the same `MaxCoordinateMagnitude` bound immediately after `TransformPath`,
+before entering the fill/stroke pipeline. This single check point uniformly covers every shape
+this class renders - plain shapes, text/glyph runs, and arc-converted rounded-rect/ellipse
+geometry alike - because arc conversion happens before, and its output is just more path commands
+consumed by the same `TransformPath` call. On failure, the whole shape is tolerantly skipped
+(fill and stroke both omitted), mirroring `BuildRectPath`/`BuildEllipsePath`'s existing
+tolerant-skip convention for an overflowing arc conversion, rather than the parse-time check's hard
+`InvalidDataException` rejection: unlike a malformed literal (a document-authoring mistake), a huge
+final magnitude can arise from perfectly valid, independently-in-bound inputs composing to a
+multiplied extreme, so aborting only the affected shape - not the whole document - is the more
+tolerant, consistent choice.
+
+A closely related, but independent, gap exists for stroke width: `RenderStroke` scales the
+already-validated, locally-finite `stroke-width` by the same transform's estimated uniform scale,
+guarding only `!float.IsFinite(strokeWidth) || strokeWidth <= 0f` - a check that catches an
+overflow-to-`Infinity` composed scale, but says nothing about a _finite-but-extreme_ effective
+width. A compliant, in-bound `stroke-width` (up to `MaxCoordinateMagnitude`) composed with a
+large-but-finite transform scale can still yield an effective width many orders of magnitude
+beyond what `PathStroker`'s offset-curve generation was ever meant to see, without ever tripping
+the finiteness guard. `RenderStroke`'s guard is therefore extended to also reject when the
+post-transform-scaled stroke width exceeds `MaxCoordinateMagnitude`, using the same tolerant-skip
+convention (the stroke alone is omitted; the shape's fill, if any, still renders normally).
+Reusing one constant for both the pre-transform (source-literal) and post-transform (final
+pixel-space geometry and stroke-width) bounds keeps this fix minimal; splitting it into two
+distinct constants remains possible later, without any structural change, if evidence emerges that
+the two bounds should diverge.
+
 Finally, every budget above only bounds work `RenderElement` itself performs while walking the
 element tree during rendering. `Load` separately calls `BuildIdIndex` **before** rendering begins,
 to resolve `href`/`url(#id)` references - and that call walks every element in the whole parsed

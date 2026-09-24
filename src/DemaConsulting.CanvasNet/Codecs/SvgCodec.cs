@@ -2486,9 +2486,104 @@ public static class SvgCodec
         }
 
         var pixelPath = TransformPath(localPath, transform);
+
+        // Post-transform coordinate-magnitude re-check: a source-literal coordinate is already
+        // bounded by MaxCoordinateMagnitude at parse time (see ParseCoordinate/TryReadNumber), but
+        // that check runs before any transform is applied. A transform argument itself only needs
+        // to stay at or under MaxCoordinateMagnitude to pass its own parse-time check (see
+        // TryReadNumber's remarks on the strict '>' boundary), so an in-bound local coordinate
+        // composed with an in-bound-but-large transform (e.g. scale(1000000)) can still produce a
+        // final pixel-space magnitude the flattening/stroking pipeline was never meant to see.
+        // This single check point, immediately after TransformPath, uniformly covers every shape
+        // built by this class - plain shapes, text/glyph runs, and arc-converted rounded-rect/
+        // ellipse geometry alike - because all of them are baked into pixel space through this
+        // same TransformPath call. On failure, tolerantly skip rendering this shape entirely,
+        // mirroring BuildRectPath/BuildEllipsePath's existing tolerant-skip convention for an
+        // overflowing arc conversion, rather than the parse-time check's hard reject: unlike a
+        // malformed literal (a document-authoring mistake), a huge final magnitude can arise from
+        // perfectly valid, independently-in-bound inputs composing multiplicatively, so aborting
+        // only this shape - not the whole document - is the more tolerant, consistent choice.
+        if (!IsWithinCoordinateMagnitudeBudget(pixelPath))
+        {
+            return;
+        }
+
         RenderFill(localPath, pixelPath, state, transform, context);
         RenderStroke(localPath, pixelPath, state, transform, context);
     }
+
+    /// <summary>
+    ///     Determines whether every point of <paramref name="path"/> - each subpath's start point,
+    ///     and every command's <c>EndPoint</c>/<c>Control1</c>/<c>Control2</c> where applicable -
+    ///     is finite and within <see cref="MaxCoordinateMagnitude"/>.
+    /// </summary>
+    /// <param name="path">The already pixel-space-transformed path to check.</param>
+    /// <returns>
+    ///     <see langword="true"/> if every point in <paramref name="path"/> is finite and within
+    ///     <see cref="MaxCoordinateMagnitude"/>; otherwise <see langword="false"/>.
+    /// </returns>
+    /// <remarks>
+    ///     <paramref name="path"/> is expected to have already passed through
+    ///     <see cref="TransformPath"/>, so every <see cref="PathCommandType.ArcTo"/> command has
+    ///     already been converted to cubic Bezier segments by
+    ///     <see cref="AppendTransformedCommands"/> - this method therefore never needs to handle
+    ///     <see cref="PathCommandType.ArcTo"/> itself.
+    /// </remarks>
+    private static bool IsWithinCoordinateMagnitudeBudget(Path path)
+    {
+        foreach (var subpath in path.Subpaths)
+        {
+            if (!IsFiniteAndWithinCoordinateMagnitude(subpath.Start))
+            {
+                return false;
+            }
+
+            foreach (var command in subpath.Commands)
+            {
+                switch (command.Type)
+                {
+                    case PathCommandType.LineTo:
+                        if (!IsFiniteAndWithinCoordinateMagnitude(command.EndPoint))
+                        {
+                            return false;
+                        }
+
+                        break;
+
+                    case PathCommandType.QuadraticBezierTo:
+                        if (!IsFiniteAndWithinCoordinateMagnitude(command.Control1)
+                            || !IsFiniteAndWithinCoordinateMagnitude(command.EndPoint))
+                        {
+                            return false;
+                        }
+
+                        break;
+
+                    case PathCommandType.CubicBezierTo:
+                        if (!IsFiniteAndWithinCoordinateMagnitude(command.Control1)
+                            || !IsFiniteAndWithinCoordinateMagnitude(command.Control2)
+                            || !IsFiniteAndWithinCoordinateMagnitude(command.EndPoint))
+                        {
+                            return false;
+                        }
+
+                        break;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    ///     Determines whether a single point is finite and within <see cref="MaxCoordinateMagnitude"/>
+    ///     in both components.
+    /// </summary>
+    /// <param name="point">The point to check.</param>
+    private static bool IsFiniteAndWithinCoordinateMagnitude(Vector2 point) =>
+        float.IsFinite(point.X) && float.IsFinite(point.Y)
+        && MathF.Abs(point.X) <= MaxCoordinateMagnitude && MathF.Abs(point.Y) <= MaxCoordinateMagnitude;
+
 
     /// <summary>Fills <paramref name="pixelPath"/> per <paramref name="state"/>'s <c>fill</c> paint.</summary>
     /// <param name="localPath">The shape's local-space outline, used as a gradient's object-bounding-box basis.</param>
@@ -2525,12 +2620,25 @@ public static class SvgCodec
     ///     neither <c>Infinity</c> nor <c>NaN</c> compares <c>&lt;= 0f</c>) and reach
     ///     <see cref="Drawing.StrokeStyle"/>'s constructor, which throws an uncaught
     ///     <see cref="ArgumentOutOfRangeException"/> for it.
+    ///     <para>
+    ///     A finite-but-extreme effective stroke width is a distinct, independent gap from the
+    ///     overflow-to-infinity case above: <c>stroke-width</c> is validated finite/positive at
+    ///     parse time (pre-transform, see <see cref="ParseGeometryCoordinate"/>/<see cref="ParseCoordinate"/>),
+    ///     but is then scaled by <paramref name="transform"/>'s estimated scale with no bound of
+    ///     its own - a compliant, in-bound <c>stroke-width</c> (up to <see cref="MaxCoordinateMagnitude"/>)
+    ///     composed with a large-but-finite transform scale can still produce a finite effective
+    ///     width many orders of magnitude beyond what <see cref="Drawing.PathStroker"/>'s
+    ///     offset-curve generation was ever meant to see, without ever tripping the
+    ///     <c>!float.IsFinite(strokeWidth)</c> check. Reusing <see cref="MaxCoordinateMagnitude"/>
+    ///     to bound the post-transform effective width closes this gap the same tolerant-skip way
+    ///     the other conditions in this guard already do.
+    ///     </para>
     /// </remarks>
     private static void RenderStroke(Path localPath, Path pixelPath, RenderState state, Matrix3x2 transform, RenderContext context)
     {
         var scale = EstimateUniformScale(transform);
         var strokeWidth = state.StrokeWidth * scale;
-        if (!float.IsFinite(strokeWidth) || strokeWidth <= 0f)
+        if (!float.IsFinite(strokeWidth) || strokeWidth <= 0f || strokeWidth > MaxCoordinateMagnitude)
         {
             return;
         }
@@ -3639,6 +3747,23 @@ public static class SvgCodec
     ///     fixture in this repository's test suite uses, the same "generous but bounded" order-of-
     ///     magnitude spirit as <see cref="MaxDocumentCharacters"/>/<see cref="MaxNumberListLength"/>,
     ///     while keeping every downstream consumer's worst-case cost small in practice.
+    ///     <para>
+    ///     This bound is now a <b>dual-purpose</b> constant, enforced at two independent points:
+    ///     (1) pre-transform, at parse time, on every source-literal coordinate/length value (this
+    ///     constant's original purpose, described above), and (2) post-transform, on every shape's
+    ///     final pixel-space geometry (<see cref="IsWithinCoordinateMagnitudeBudget"/>, called from
+    ///     <see cref="RenderShape"/>) and on the post-transform-scaled effective stroke width
+    ///     (<see cref="RenderStroke"/>). The second enforcement point exists because a transform
+    ///     argument only needs to stay <i>at or under</i> this same bound to pass its own
+    ///     parse-time check (see <see cref="TryReadNumber"/>'s strict <c>&gt;</c> boundary), so an
+    ///     in-bound local coordinate or stroke width composed with an in-bound-but-large transform
+    ///     (e.g. <c>scale(1000000)</c>) can still produce a final value far beyond what the
+    ///     flattening/stroking pipeline was ever meant to see, even though every individual literal
+    ///     involved was itself compliant. Reusing one constant for both points keeps today's fix
+    ///     minimal; splitting it into two distinct constants remains possible later, without any
+    ///     structural change, if evidence emerges that the pre- and post-transform bounds should
+    ///     diverge.
+    ///     </para>
     /// </summary>
     private const float MaxCoordinateMagnitude = 1_000_000f;
 

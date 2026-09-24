@@ -705,6 +705,53 @@ above:
   `SvgCodec_Load_RectRoundedCornerArcConversionOverflowsToNonFinite_SkipsShapeWithoutThrowing` -
   see "Arc-Conversion Overflow Tolerant Skip" above.
 
+#### Post-Transform Coordinate/Stroke-Width Magnitude Bound
+
+**Tests**: `SvgCodec_Load_TransformScaleAmplifiesCoordinatePastMagnitudeBound_SkipsShapeWithoutThrowing`,
+`SvgCodec_Load_StrokeWidthScaledPastMagnitudeBound_SkipsStrokeWithoutThrowing`
+
+Regression tests for a cloud-PR-review finding that the "Coordinate Magnitude Bound" section above
+enforces `MaxCoordinateMagnitude` only at parse time, on a source-literal value - strictly
+*before* any `transform` attribute has been applied. A `transform="scale(...)"` function's own
+argument only needs to stay at or under `MaxCoordinateMagnitude` to pass its own parse-time check
+(the comparison is strict `>`, so a literal of exactly `1,000,000` is not rejected), so an in-bound
+local coordinate composed with an in-bound-but-large transform (for example `scale(1000000)`) can
+still produce a final pixel-space magnitude the flattening/stroking pipeline was never meant to
+see, even though neither individual literal involved is itself out of bounds.
+`SvgCodec_Load_TransformScaleAmplifiesCoordinatePastMagnitudeBound_SkipsShapeWithoutThrowing`
+proves the fix: a small, entirely in-bound closed-square path (built from `LineTo` commands and a
+degenerate `CubicBezierTo` command, exercising the new check's `Control1`/`Control2` handling as
+well as its `EndPoint` handling) combined with a `scale(1000000)` transform produces a final
+magnitude of `10,000,000`, far past the bound; `RenderShape` now re-checks every point of the
+transformed path immediately after `TransformPath` and, on failure, tolerantly skips the whole
+shape - proven by the sampled pixel (which the scaled square's huge bounding box would otherwise
+cover if the shape were not skipped) staying unfilled, with `Load` not throwing.
+
+A second, independent gap exists for stroke width: `RenderStroke` scales the already-validated,
+locally-finite `stroke-width` by the same transform's estimated uniform scale, and its pre-existing
+guard (`!float.IsFinite(strokeWidth) || strokeWidth <= 0f`) only catches an overflow-to-`Infinity`
+composed scale (see `SvgCodec_Load_NestedTransformScaleOverflowsStrokeWidthToInfinity_SkipsStrokeWithoutThrowing`
+in "Non-Finite Numeric Attribute/Token Rejection or Tolerant Fallback" above) - it says nothing
+about a finite-but-extreme effective width.
+`SvgCodec_Load_StrokeWidthScaledPastMagnitudeBound_SkipsStrokeWithoutThrowing` proves this second
+fix: a tiny, near-origin rect (so its own transformed vertex coordinates, up to `90`, stay
+comfortably under `MaxCoordinateMagnitude`, meaning the shape's coordinate-magnitude check above
+passes and the fill still renders) combined with a small, compliant `stroke-width` of `2` and a
+`scale(900000)` transform yields an effective width of `1,800,000` - finite, and therefore
+invisible to the pre-existing guard, but still far past the bound. `RenderStroke`'s guard is
+extended to also reject when the post-transform-scaled stroke width exceeds
+`MaxCoordinateMagnitude`; the test proves the fill still renders (its own geometry stays in
+bounds) while the stroke is skipped, by sampling the canvas's far corner - a location an
+oversized, `1,800,000`-unit-wide stroke outline (if not skipped) would engulf, but which stays
+unfilled once the stroke is tolerantly skipped instead.
+
+Both fixes reuse the tolerant-skip convention already established by
+`BuildRectPath`/`BuildEllipsePath`'s arc-conversion-overflow handling (skip the affected
+shape/stroke, not the whole document) rather than the parse-time check's hard
+`InvalidDataException` rejection, since a huge final magnitude here arises from perfectly valid,
+independently-in-bound inputs composing to a multiplied extreme rather than from a single
+malformed literal.
+
 #### Gradient Stop Caching
 
 **Tests**:

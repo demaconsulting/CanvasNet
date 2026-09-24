@@ -739,6 +739,54 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that a stroke whose effective width is <b>finite but extreme</b> - a compliant,
+    ///     in-bound <c>stroke-width</c> composed with a large-but-finite transform scale, such
+    ///     that the scaled result exceeds <see cref="SvgCodec"/>'s fixed
+    ///     <c>MaxCoordinateMagnitude</c> bound without overflowing to <c>Infinity</c> - is
+    ///     tolerantly skipped rather than being fed into
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.PathStroker"/>'s offset-curve generation at
+    ///     a magnitude it was never meant to see.
+    /// </summary>
+    /// <remarks>
+    ///     This is a genuinely different case from
+    ///     <see cref="SvgCodec_Load_NestedTransformScaleOverflowsStrokeWidthToInfinity_SkipsStrokeWithoutThrowing"/>
+    ///     immediately above: that test's effective width overflows <see langword="float"/> range
+    ///     entirely (<c>Infinity</c>), which the pre-existing <c>!float.IsFinite(strokeWidth)</c>
+    ///     guard alone already catches. Here, a single <c>scale(900000)</c> transform applied to a
+    ///     tiny, near-origin rect (so its own transformed vertex coordinates stay comfortably
+    ///     under <c>MaxCoordinateMagnitude</c>, meaning the shape's coordinate-magnitude check
+    ///     passes and the fill still renders) combined with a small, compliant <c>stroke-width</c>
+    ///     of <c>2</c> yields an effective width of <c>2 * 900,000 = 1,800,000</c> - finite, and
+    ///     therefore invisible to the pre-existing guard, but still far past the
+    ///     1,000,000-magnitude bound, exactly the gap this fix closes.
+    /// </remarks>
+    [Fact]
+    public void SvgCodec_Load_StrokeWidthScaledPastMagnitudeBound_SkipsStrokeWithoutThrowing()
+    {
+        // Arrange: a tiny rect near the origin (so its transformed coordinates, up to 90, stay
+        // comfortably under the 1,000,000-magnitude bound and its fill still renders normally),
+        // with a small, in-bound stroke-width (2) and a scale(900000) transform whose effective
+        // stroke width (2 * 900,000 = 1,800,000) exceeds the same bound.
+        const string svg = "<svg viewBox='0 0 100 100'>" +
+                            "<rect x='0' y='0' width='0.0001' height='0.0001' fill='black' " +
+                            "stroke='blue' stroke-width='2' transform='scale(900000)'/>" +
+                            "</svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the fill still renders normally (its own transformed geometry stays within
+        // bound) ...
+        Assert.Equal(255, surface[45, 45].A);
+
+        // ... but the stroke was skipped rather than reaching PathStroker with a 1,800,000-unit
+        // effective width: an un-skipped stroke that huge would engulf the whole 100x100 canvas
+        // (its half-width alone dwarfs the canvas), so the far corner staying unfilled is direct
+        // evidence the oversized stroke outline was never generated.
+        Assert.Equal(0, surface[99, 99].A);
+    }
+
+    /// <summary>
     ///     Proves the finding's required concrete repro: an element whose own composed
     ///     <c>transform</c> overflows to non-finite, filled via <c>fill="url(#g)"</c> referencing a
     ///     <c>linearGradient</c>, no longer lets a non-finite transform reach
@@ -2316,6 +2364,53 @@ public class SvgCodecTests
 
         // Act & Assert
         Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves that a shape built entirely from in-bound source literals, but whose composed
+    ///     <c>transform</c> amplifies every one of its points past
+    ///     <see cref="SvgCodec"/>'s fixed <c>MaxCoordinateMagnitude</c> bound once transformed, is
+    ///     tolerantly skipped rather than being fed into the fill/stroke pipeline at a magnitude it
+    ///     was never meant to see.
+    /// </summary>
+    /// <remarks>
+    ///     Unlike <see cref="SvgCodec_Load_PathArcCommandRadiusOverflowsToNonFinite_SkipsPathWithoutThrowing"/>
+    ///     and <see cref="SvgCodec_Load_RectRoundedCornerArcConversionOverflowsToNonFinite_SkipsShapeWithoutThrowing"/>
+    ///     immediately above (both now intercepted at parse time because their source literals
+    ///     themselves already exceed the bound), this path's every literal (<c>0</c> and <c>10</c>)
+    ///     is comfortably within <c>MaxCoordinateMagnitude</c>, and the <c>scale(1000000)</c>
+    ///     transform's own literal argument is exactly at the bound (not <i>greater than</i> it,
+    ///     so it is not rejected by <c>TryReadNumber</c>'s strict <c>&gt;</c> check either) -
+    ///     nothing at the parse-time, pre-transform level rejects this document. Only composing the
+    ///     two - baking the transform into the path's points via <c>TransformPath</c> - produces a
+    ///     final magnitude (<c>10 * 1,000,000 = 10,000,000</c>) the new post-transform check
+    ///     catches. The path's single degenerate cubic-curve command (<c>CubicBezierTo</c>, whose
+    ///     control points coincide with its endpoint) combines with two straight-line commands
+    ///     (<c>LineTo</c>) to form a closed square, proving the new check's <c>Control1</c>/
+    ///     <c>Control2</c> handling as well as its <c>EndPoint</c> handling. Without the fix, this square's transformed bounding box -
+    ///     (0,0) to (10,000,000, 10,000,000) - fully contains the visible 100x100 canvas near the
+    ///     origin, so the sampled pixel below would be filled; the fix instead skips the whole
+    ///     shape, leaving it unfilled.
+    /// </remarks>
+    [Fact]
+    public void SvgCodec_Load_TransformScaleAmplifiesCoordinatePastMagnitudeBound_SkipsShapeWithoutThrowing()
+    {
+        // Arrange: a small, entirely in-bound closed-square path (built from LineTo and a
+        // degenerate CubicBezierTo command) whose scale(1000000) transform - itself an in-bound
+        // literal, since 1,000,000 does not exceed the strict '>' magnitude check - amplifies
+        // every point to 10,000,000 once composed, far past MaxCoordinateMagnitude (1,000,000).
+        const string svg = "<svg viewBox='0 0 100 100'>" +
+                            "<path d='M0,0 L0,10 C10,10 10,10 10,10 L10,0 Z' fill='black' " +
+                            "transform='scale(1000000)'/>" +
+                            "</svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: Load did not throw, and the shape was tolerantly skipped entirely - the sampled
+        // pixel, which the scaled square's huge bounding box would otherwise cover if the shape
+        // were not skipped, stays unfilled.
+        Assert.Equal(0, surface[50, 50].A);
     }
 
     /// <summary>
