@@ -3597,6 +3597,23 @@ public static class SvgCodec
     }
 
     /// <summary>
+    ///     The maximum absolute magnitude a single coordinate/length value parsed by
+    ///     <see cref="ParseCoordinate"/> or <see cref="TryReadNumber"/> may have. Both methods
+    ///     already reject a non-finite (<c>NaN</c>/<c>Infinity</c>) parsed value, but an
+    ///     extreme-but-individually-finite value (for example <c>3e38</c>) can still drive
+    ///     downstream arithmetic - <see cref="Geometry.BezierFlattening"/>'s per-curve recursive
+    ///     subdivision, and <see cref="Geometry.SvgArcConverter"/>'s ellipse-center calculation -
+    ///     far out of proportion to the command-count-based <see cref="GeometryWorkBudget"/> that
+    ///     is supposed to bound total parsing/rendering work, since that budget counts parsed
+    ///     commands, not the real cost a single extreme coordinate can still cause downstream.
+    ///     <c>1,000,000</c> is roughly 100 times the largest real-world coordinate magnitude any
+    ///     fixture in this repository's test suite uses, the same "generous but bounded" order-of-
+    ///     magnitude spirit as <see cref="MaxDocumentCharacters"/>/<see cref="MaxNumberListLength"/>,
+    ///     while keeping every downstream consumer's worst-case cost small in practice.
+    /// </summary>
+    private const float MaxCoordinateMagnitude = 1_000_000f;
+
+    /// <summary>
     ///     Strictly parses a single coordinate/length/opacity-style numeric attribute value,
     ///     resolving a trailing <c>%</c> against <paramref name="percentageBasis"/>.
     /// </summary>
@@ -3612,7 +3629,8 @@ public static class SvgCodec
     ///     Thrown when <paramref name="raw"/> parses to a non-finite value (<c>NaN</c>,
     ///     <c>Infinity</c>, or <c>-Infinity</c>) - such a value is syntactically a valid float but
     ///     is never a meaningful coordinate/length/opacity, and would otherwise silently propagate
-    ///     into rendering or reported image size.
+    ///     into rendering or reported image size - or a finite value whose absolute magnitude
+    ///     exceeds <see cref="MaxCoordinateMagnitude"/>.
     /// </exception>
     private static float ParseCoordinate(string raw, float percentageBasis)
     {
@@ -3626,6 +3644,13 @@ public static class SvgCodec
         if (!float.IsFinite(value))
         {
             throw new InvalidDataException($"The numeric value '{raw}' is not a finite number.");
+        }
+
+        // Reject an extreme-but-finite magnitude too - see MaxCoordinateMagnitude's own remarks
+        // for why a value this large is rejected even though it is not itself non-finite
+        if (MathF.Abs(value) > MaxCoordinateMagnitude)
+        {
+            throw new InvalidDataException($"The numeric value '{raw}' exceeds the maximum supported magnitude.");
         }
 
         return value;
@@ -3699,11 +3724,12 @@ public static class SvgCodec
     /// </param>
     /// <param name="value">The parsed number, if this method returns <see langword="true"/>.</param>
     /// <returns>
-    ///     <see langword="true"/> if a valid, finite number was read. Returns
-    ///     <see langword="false"/> - without advancing <paramref name="position"/> - for a
-    ///     syntactically valid number that overflows to a non-finite <c>float</c> value (for
-    ///     example, an exponent large enough to overflow to <c>Infinity</c>), matching this
-    ///     method's existing "malformed token" failure contract.
+    ///     <see langword="true"/> if a valid, finite number within <see cref="MaxCoordinateMagnitude"/>
+    ///     was read. Returns <see langword="false"/> - without advancing <paramref name="position"/> -
+    ///     for a syntactically valid number that overflows to a non-finite <c>float</c> value (for
+    ///     example, an exponent large enough to overflow to <c>Infinity</c>), or whose finite
+    ///     magnitude exceeds <see cref="MaxCoordinateMagnitude"/>, matching this method's existing
+    ///     "malformed token" failure contract.
     /// </returns>
     /// <remarks>
     ///     Stops at a second decimal point rather than treating it as an error, so that a
@@ -3751,6 +3777,17 @@ public static class SvgCodec
         // non-finite float, which must be rejected as a failed read without advancing position
         var candidate = float.Parse(text[start..scan], NumberStyles.Float, CultureInfo.InvariantCulture);
         if (!float.IsFinite(candidate))
+        {
+            value = 0f;
+            return false;
+        }
+
+        // Reject an extreme-but-finite magnitude too (e.g. "3e38") - see
+        // MaxCoordinateMagnitude's own remarks - with the same failed-read contract as the
+        // non-finite case above, rather than advancing position and returning a value that would
+        // otherwise reach Bezier flattening or arc conversion with a wildly out-of-proportion
+        // magnitude relative to any real-world document.
+        if (MathF.Abs(candidate) > MaxCoordinateMagnitude)
         {
             value = 0f;
             return false;

@@ -314,7 +314,6 @@ sections:
                 tests:
                   - SvgCodec_GetInfo_ViewBoxPresent_ReturnsViewBoxDimensions
                   - SvgCodec_GetInfo_FromFilePath_ReturnsExpectedInfo
-                  - SvgCodec_GetInfo_ViewBoxWidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing
 
               - id: CanvasNet-Codecs-SvgCodec-GetInfoFallback
                 title: >-

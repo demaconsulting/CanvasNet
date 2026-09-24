@@ -287,6 +287,27 @@ charged the moment each number is added rather than after the list is fully buil
 excess with `InvalidDataException` - a hard rejection, not a tolerant fallback, matching this
 codec's existing convention for every other size/arity/syntax budget violation.
 
+None of the budgets above bound the _magnitude_ of an individual coordinate, only how many of them
+appear. A document with only a handful of `path`/`points`/shape-geometry commands using an
+extreme-but-individually-finite coordinate magnitude (for example `3e38`) counts as a negligible
+amount of parsed work toward every count-based budget above, yet can still drive
+`Geometry.BezierFlattening`'s per-curve recursive subdivision, and `Geometry.SvgArcConverter`'s
+ellipse-center arithmetic, far out of proportion to that count - a "budget counts parsed units,
+not real downstream cost" mismatch. `ParseCoordinate` (the shared parser behind every single-value
+geometry/length/opacity attribute) and `TryReadNumber` (the shared parser behind path `d` data,
+`points` lists, `viewBox`, and transform-function arguments) therefore both additionally enforce a
+sixth, independent bound - a fixed `MaxCoordinateMagnitude` constant (`1,000,000`, roughly 100
+times the largest real-world coordinate magnitude any fixture in this repository's test suite
+uses) - rejecting a syntactically valid, finite value whose absolute magnitude exceeds it, with
+the same `InvalidDataException`/"malformed token" convention already used for a non-finite value
+at each site. This closes the flattening-cost mismatch (every coordinate feeding a curve is now
+bounded to a magnitude whose square cannot overflow `SvgArcConverter`'s own arithmetic) and, as a
+side effect, also makes several earlier rounds' overflow-specific regression tests (which relied
+on an individual literal beyond this new bound to reach their own deeper tolerant-skip mechanism)
+provably unreachable through any input `Load`/`GetInfo` can be given - see the verification
+document's "Coordinate Magnitude Bound" scenario for the full list and the reachability
+calculations proving this.
+
 Finally, every budget above only bounds work `RenderElement` itself performs while walking the
 element tree during rendering. `Load` separately calls `BuildIdIndex` **before** rendering begins,
 to resolve `href`/`url(#id)` references - and that call walks every element in the whole parsed

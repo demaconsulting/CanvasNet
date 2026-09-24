@@ -689,27 +689,39 @@ public class SvgCodecTests
     }
 
     /// <summary>
-    ///     Proves that a stroke whose effective width overflows to <c>Infinity</c> - because two
-    ///     nested <c>transform="scale(1e20)"</c> groups each carry an individually-finite literal,
-    ///     but their composed determinant inside <see cref="SvgCodec"/>'s
-    ///     <c>EstimateUniformScale</c> overflows a <see langword="float"/> - is silently skipped
-    ///     rather than reaching <see cref="DemaConsulting.CanvasNet.Drawing.StrokeStyle"/>'s
-    ///     constructor and throwing an uncaught <see cref="ArgumentOutOfRangeException"/>. An
-    ///     infinite width passes the pre-existing <c>strokeWidth &lt;= 0f</c> guard unmodified
-    ///     (since <c>Infinity &gt; 0</c>), so this proves the additional finiteness check.
+    ///     Proves that a stroke whose effective width overflows to <c>Infinity</c> - because seven
+    ///     nested <c>transform="scale(1000000)"</c> groups each carry an individually-finite
+    ///     literal (each at or under the codec's fixed <c>MaxCoordinateMagnitude</c> bound), but
+    ///     their composed determinant inside <see cref="SvgCodec"/>'s <c>EstimateUniformScale</c>
+    ///     overflows a <see langword="float"/> once composed seven levels deep (<c>1,000,000^7</c>) -
+    ///     is silently skipped rather than reaching
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.StrokeStyle"/>'s constructor and throwing an
+    ///     uncaught <see cref="ArgumentOutOfRangeException"/>. An infinite width passes the
+    ///     pre-existing <c>strokeWidth &lt;= 0f</c> guard unmodified (since <c>Infinity &gt; 0</c>),
+    ///     so this proves the additional finiteness check.
     /// </summary>
     [Fact]
     public void SvgCodec_Load_NestedTransformScaleOverflowsStrokeWidthToInfinity_SkipsStrokeWithoutThrowing()
     {
-        // Arrange: nested scale(1e20) groups - individually finite, but 1e20 * 1e20 = 1e40
-        // overflows float's ~3.4e38 range once composed, producing a non-finite effective
-        // stroke width (observed as NaN, since the determinant computation involves an
-        // Infinity-valued intermediate subtraction, not a bare Infinity result)
+        // Arrange: seven nested scale(1000000) groups - each individual literal is at the codec's
+        // fixed MaxCoordinateMagnitude bound (so none is rejected on its own), but composing seven
+        // of them (1,000,000^7 = 1e42) overflows float's ~3.4e38 range, producing a non-finite
+        // effective stroke width
         const string svg = """
             <svg viewBox='0 0 100 100'>
-              <g transform='scale(1e20)'>
-                <g transform='scale(1e20)'>
-                  <rect x='1' y='1' width='2' height='2' fill='none' stroke='black' stroke-width='1'/>
+              <g transform='scale(1000000)'>
+                <g transform='scale(1000000)'>
+                  <g transform='scale(1000000)'>
+                    <g transform='scale(1000000)'>
+                      <g transform='scale(1000000)'>
+                        <g transform='scale(1000000)'>
+                          <g transform='scale(1000000)'>
+                            <rect x='1' y='1' width='2' height='2' fill='none' stroke='black' stroke-width='1'/>
+                          </g>
+                        </g>
+                      </g>
+                    </g>
+                  </g>
                 </g>
               </g>
             </svg>
@@ -734,8 +746,9 @@ public class SvgCodecTests
     [Fact]
     public void SvgCodec_Load_NestedTransformScaleOverflowsGradientTransformToNonFinite_SkipsElementWithoutThrowing()
     {
-        // Arrange: nested scale(1e20) groups around a gradient-filled rect - before the fix, this
-        // threw a raw ArgumentOutOfRangeException from Gradient's constructor
+        // Arrange: seven nested scale(1000000) groups (each literal at the codec's fixed
+        // MaxCoordinateMagnitude bound) around a gradient-filled rect - before the fix, this threw
+        // a raw ArgumentOutOfRangeException from Gradient's constructor
         const string svg = """
             <svg viewBox='0 0 100 100'>
               <defs>
@@ -744,9 +757,19 @@ public class SvgCodecTests
                   <stop offset='1' stop-color='white'/>
                 </linearGradient>
               </defs>
-              <g transform='scale(1e20)'>
-                <g transform='scale(1e20)'>
-                  <rect x='1' y='1' width='2' height='2' fill='url(#g)'/>
+              <g transform='scale(1000000)'>
+                <g transform='scale(1000000)'>
+                  <g transform='scale(1000000)'>
+                    <g transform='scale(1000000)'>
+                      <g transform='scale(1000000)'>
+                        <g transform='scale(1000000)'>
+                          <g transform='scale(1000000)'>
+                            <rect x='1' y='1' width='2' height='2' fill='url(#g)'/>
+                          </g>
+                        </g>
+                      </g>
+                    </g>
+                  </g>
                 </g>
               </g>
             </svg>
@@ -761,33 +784,49 @@ public class SvgCodecTests
     }
 
     /// <summary>
-    ///     Proves that a <c>stroke-dasharray</c> whose individually-finite raw entries overflow to
-    ///     non-finite once scaled by an extreme-but-finite composed transform's own scale factor
-    ///     (the same scale <c>stroke-width</c> is already scaled by) tolerantly falls back to "no
-    ///     dashing" (a solid stroke), rather than reaching
+    ///     Proves that a <c>stroke-dasharray</c> entry that is itself modest (well within the
+    ///     codec's fixed <c>MaxCoordinateMagnitude</c> bound) can still overflow to non-finite once
+    ///     scaled by an extreme-but-finite composed transform's own scale factor (the same scale
+    ///     <c>stroke-width</c> is already scaled by) - tolerantly falling back to "no dashing" (a
+    ///     solid stroke) rather than reaching
     ///     <see cref="DemaConsulting.CanvasNet.Drawing.StrokeStyle"/>'s constructor and throwing an
     ///     uncaught exception - mirroring <c>ParseDashArray</c>'s own existing tolerant
     ///     "malformed dash array -&gt; no dashing" convention.
     /// </summary>
+    /// <remarks>
+    ///     <b>Superseded by the coordinate-magnitude bound (Finding 6).</b> This scenario required
+    ///     an individually-finite <c>stroke-dasharray</c> entry large enough that, once scaled by a
+    ///     composed transform's own extreme-but-finite scale factor, the product overflowed float.
+    ///     That scale factor is <c>EstimateUniformScale</c>'s <c>sqrt(|M11*M22 - M12*M21|)</c>,
+    ///     whose own internal squaring means the scale factor itself cannot exceed roughly
+    ///     <c>sqrt(float.MaxValue) ≈ 1.84e19</c> without <c>EstimateUniformScale</c>'s own
+    ///     determinant computation overflowing first (which would make <c>strokeWidth</c> itself
+    ///     non-finite, skipping the whole stroke via the earlier check above - a different,
+    ///     already-covered case). With every dasharray entry now capped at
+    ///     <c>MaxCoordinateMagnitude</c> (1,000,000), the largest a scaled entry can ever reach is
+    ///     approximately <c>1,000,000 * 1.84e19 ≈ 1.84e25</c> - far short of float's ~3.4e38 range.
+    ///     This specific dasharray-scaling-only overflow is therefore no longer reachable through
+    ///     any input <c>Load</c> can be given; the tolerant fallback in <c>RenderStroke</c> remains
+    ///     in place as defense-in-depth (matching this class's other now-unreachable-but-retained
+    ///     guards - see <c>GeometryWorkBudget.Charge</c>'s own reachability note). This test
+    ///     is retained under its original name, repurposed to instead prove the new, earlier
+    ///     rejection point: a dasharray entry whose own raw magnitude exceeds
+    ///     <c>MaxCoordinateMagnitude</c> is now rejected by <c>TryReadNumber</c> before it can ever
+    ///     reach <c>RenderStroke</c>'s scaling at all.
+    /// </remarks>
     [Fact]
     public void SvgCodec_Load_ScaledDashArrayOverflowsToInfinity_FallsBackToSolidStrokeWithoutThrowing()
     {
-        // Arrange: a dasharray entry (3e38) is just under float.MaxValue (~3.4028235e38), and a
-        // scale(2) transform overflows the scaled entry (3e38 * 2 = 6e38) to Infinity
+        // Arrange: a dasharray entry one unit over the codec's fixed MaxCoordinateMagnitude bound
         const string svg = """
             <svg viewBox='0 0 100 100'>
-              <g transform='scale(2)'>
-                <rect x='5' y='5' width='40' height='40' fill='none' stroke='black' stroke-width='2' stroke-dasharray='3e38,1'/>
-              </g>
+              <rect x='5' y='5' width='40' height='40' fill='none' stroke='black' stroke-width='2' stroke-dasharray='1000001,1'/>
             </svg>
             """;
 
-        // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
-
-        // Assert: the stroke still renders (as a solid line, dashing tolerantly dropped) rather
-        // than the whole document failing to load or the stroke reaching a throwing constructor
-        Assert.Equal(255, surface[10, 10].A);
+        // Act & Assert: rejected at parse time, well before RenderStroke's own scaling would ever
+        // run
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
     }
 
     /// <summary>
@@ -956,32 +995,50 @@ public class SvgCodecTests
     }
 
     /// <summary>
-    ///     Proves <c>BuildGradient</c>'s own independent finiteness guard: a shape with no
-    ///     <c>transform</c> attribute of its own (so <c>RenderElement</c>'s composed transform stays
-    ///     finite) but an extreme-but-individually-finite <c>width</c>/<c>height</c> (<c>1e30</c>)
-    ///     combined with the gradient's own <c>gradientTransform="scale(1e10)"</c> overflows only
-    ///     <c>BuildGradient</c>'s own <c>gradientTransform * bboxMap * elementTransform</c> product
-    ///     to a non-finite value - a genuinely distinct repro from
+    ///     Proves <c>BuildGradient</c>'s own independent finiteness guard: a shape whose own
+    ///     ancestor <c>transform</c> chain composes to a value that is extreme but still finite (so
+    ///     <c>RenderElement</c>'s own composed-transform guard never fires) combined with an
+    ///     extreme-but-individually-finite <c>width</c>/<c>height</c> (each at the codec's fixed
+    ///     <c>MaxCoordinateMagnitude</c> bound) and the gradient's own
+    ///     <c>gradientTransform="scale(1000000)"</c> overflows only <c>BuildGradient</c>'s own
+    ///     <c>gradientTransform * bboxMap * elementTransform</c> product to a non-finite value - a
+    ///     genuinely distinct repro from
     ///     <see cref="SvgCodec_Load_NestedTransformScaleOverflowsGradientTransformToNonFinite_SkipsElementWithoutThrowing"/>'s
-    ///     nested-<c>&lt;g&gt;</c> case, since <c>RenderElement</c>'s guard never fires here. Before
-    ///     the fix, this also threw a raw <see cref="ArgumentOutOfRangeException"/> from
+    ///     case (where the ancestor composition itself overflows), since here
+    ///     <c>RenderElement</c>'s own guard never fires - the ancestor-composed transform alone
+    ///     (1,000,000^5 = 1e30) stays finite. Before the fix, this also threw a raw
+    ///     <see cref="ArgumentOutOfRangeException"/> from
     ///     <see cref="DemaConsulting.CanvasNet.Drawing.Gradient"/>'s constructor.
     /// </summary>
     [Fact]
     public void SvgCodec_Load_GradientTransformComposedWithHugeBoundingBoxOverflowsToNonFinite_TreatsAsNoPaintWithoutThrowing()
     {
-        // Arrange: rect has no own "transform" (RenderElement's composed transform stays finite),
-        // but its huge object-bounding-box scale (1e30) composed with the gradient's own
-        // gradientTransform (1e10) overflows only inside BuildGradient (1e30 * 1e10 = 1e40)
+        // Arrange: five nested scale(1000000) ancestor groups compose to an extreme-but-finite
+        // elementTransform (1,000,000^5 = 1e30, well under float's ~3.4e38 range, so
+        // RenderElement's own composed-transform guard stays satisfied), the rect's own
+        // width/height (1000000 each, at the codec's fixed MaxCoordinateMagnitude bound) give it a
+        // huge object-bounding-box scale, and the gradient's own gradientTransform (1000000, also
+        // at the bound) - only once all three are multiplied together inside BuildGradient
+        // (1e30 * 1e6 * 1e6 = 1e42) does the product overflow to a non-finite value
         const string svg = """
             <svg viewBox='0 0 100 100'>
               <defs>
-                <linearGradient id='g' gradientTransform='scale(1e10)'>
+                <linearGradient id='g' gradientTransform='scale(1000000)'>
                   <stop offset='0' stop-color='black'/>
                   <stop offset='1' stop-color='white'/>
                 </linearGradient>
               </defs>
-              <rect x='0' y='0' width='1e30' height='1e30' fill='url(#g)'/>
+              <g transform='scale(1000000)'>
+                <g transform='scale(1000000)'>
+                  <g transform='scale(1000000)'>
+                    <g transform='scale(1000000)'>
+                      <g transform='scale(1000000)'>
+                        <rect x='0' y='0' width='1000000' height='1000000' fill='url(#g)'/>
+                      </g>
+                    </g>
+                  </g>
+                </g>
+              </g>
             </svg>
             """;
 
@@ -1817,21 +1874,31 @@ public class SvgCodecTests
     ///     dimension large enough to overflow <see cref="int"/> on a naive cast (previously
     ///     <c>(int)MathF.Round(size.X)</c>, undefined for a value beyond <see cref="int.MaxValue"/>
     ///     since <c>int.MaxValue</c> is not exactly representable as a <see cref="float"/>) must
-    ///     instead clamp to <see cref="int.MaxValue"/>, sourced here from a <c>viewBox</c> whose
-    ///     width vastly exceeds <see cref="int.MaxValue"/>.
+    ///     instead clamp to <see cref="int.MaxValue"/>.
     /// </summary>
+    /// <remarks>
+    ///     <b>Superseded, for the <c>viewBox</c>-sourced case, by the coordinate-magnitude bound
+    ///     (Finding 6).</b> A <c>viewBox</c> width/height large enough to overflow
+    ///     <see cref="int.MaxValue"/> (~2.147 billion) necessarily also exceeds the codec's fixed
+    ///     <c>MaxCoordinateMagnitude</c> bound (1,000,000), so it is now rejected by
+    ///     <c>TryReadNumber</c> before the clamp-before-cast logic this test originally proved is
+    ///     ever reached - the clamp-before-cast logic itself remains fully covered by the sibling
+    ///     <c>width</c>/<c>height</c>-fallback-tier variant below
+    ///     (<see cref="SvgCodec_GetInfo_WidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing"/>),
+    ///     which is sourced from <c>ParseLength</c> (a separate, tolerant parser not gated by
+    ///     <c>MaxCoordinateMagnitude</c> - see this class's remarks on that method) and is
+    ///     therefore unaffected. This test is retained under its original name, repurposed to
+    ///     prove the new, earlier rejection point for the <c>viewBox</c>-sourced case specifically.
+    /// </remarks>
     [Fact]
     public void SvgCodec_GetInfo_ViewBoxWidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing()
     {
-        // Arrange
+        // Arrange: a viewBox width large enough to overflow Int32.MaxValue also exceeds the
+        // codec's fixed MaxCoordinateMagnitude bound, so it is now rejected at parse time
         const string svg = "<svg viewBox='0 0 1e20 1e20'></svg>";
 
-        // Act
-        var info = SvgCodec.GetInfo(ToStream(svg));
-
-        // Assert
-        Assert.Equal(int.MaxValue, info.Width);
-        Assert.Equal(int.MaxValue, info.Height);
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.GetInfo(ToStream(svg)));
     }
 
     /// <summary>
@@ -2003,36 +2070,29 @@ public class SvgCodecTests
     ///     overflow to <see cref="float.PositiveInfinity"/> even though every individual literal
     ///     token is finite. Left unguarded, the resulting non-finite path length would stall
     ///     <see cref="DemaConsulting.CanvasNet.Drawing.DashSplitter"/>'s finite-step dash-interval
-    ///     walk forever once combined with a finite <c>stroke-dasharray</c> - proven here, by
-    ///     calling <c>Load</c> directly and synchronously (no <c>Task.Run</c>/<c>Task.WhenAny</c>/
-    ///     <c>Task.Delay</c> race): the fix's non-finite guard is a deterministic,
-    ///     hardware-independent behavior, so the correct regression signal is that the call
-    ///     returns at all with the documented empty-path fallback - not how long it takes to do so
-    ///     on any given machine. No wall-clock timing assertion is used: this project never uses
-    ///     timing-based test criteria, since CI hardware speed is outside our control and
-    ///     unreliable as a signal. Algorithmic termination is a structural guarantee (the
-    ///     non-finite guard deterministically bounds the work), verified by code review, not by
-    ///     measuring elapsed time here.
+    ///     walk forever once combined with a finite <c>stroke-dasharray</c>.
     /// </summary>
+    /// <remarks>
+    ///     <b>Superseded by the coordinate-magnitude bound (Finding 6).</b> This scenario required
+    ///     a single raw coordinate literal (<c>3e38</c>) large enough that, summed with itself,
+    ///     the accumulation overflowed float. Every coordinate/length token is now individually
+    ///     capped at <c>MaxCoordinateMagnitude</c> (1,000,000) - far below any magnitude needed to
+    ///     overflow via a single relative-accumulation step - so <c>3e38</c> is now rejected by
+    ///     <c>TryReadNumber</c> before path-data parsing even begins, rather than reaching
+    ///     <c>PathDataParser</c>'s <c>RequireFinite</c> tolerant-skip guard at all. This test is
+    ///     retained under its original name, repurposed to prove the new, earlier rejection point.
+    /// </remarks>
     [Fact]
     public void SvgCodec_Load_PathRelativeAccumulationOverflowsToInfinity_TerminatesPromptlyWithoutHanging()
     {
-        // Arrange: an absolute moveto to a huge-but-finite x, then a relative lineto whose offset
-        // is the same huge-but-finite magnitude - their sum overflows float to Infinity - combined
-        // with a finite stroke-dasharray so the (pre-fix) hang would occur in DashSplitter
+        // Arrange: a coordinate literal (3e38) exceeding the codec's fixed MaxCoordinateMagnitude
+        // bound - rejected at parse time, well before any relative-accumulation arithmetic runs
         const string svg = "<svg viewBox='0 0 100 100'>" +
                             "<path d='M3e38,0 l3e38,0' stroke='black' stroke-width='1' stroke-dasharray='5,5'/>" +
                             "</svg>";
 
-        // Act: call directly and synchronously - no Task.Run/WhenAny/Delay race, and no
-        // Stopwatch/timing assertion. The non-finite guard deterministically bounds the work, so
-        // this either returns (fixed) or the process itself would need to be killed by the CI
-        // job's own timeout (regressed to truly unbounded) - there is no ambiguous "slow but fine"
-        // middle ground that timing would add value in distinguishing.
-        var surface = SvgCodec.Load(ToStream(svg), 10, 10);
-
-        // Assert: the load completed and did not throw.
-        Assert.NotNull(surface);
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
     }
 
     /// <summary>
@@ -2040,34 +2100,28 @@ public class SvgCodecTests
     ///     finding: a path spanning coordinates on the order of <c>1e20</c> (finite, no overflow
     ///     involved at all) combined with a fine <c>stroke-dasharray</c> would otherwise force
     ///     <see cref="DemaConsulting.CanvasNet.Drawing.DashSplitter"/>'s dash-interval traversal
-    ///     loop to require an impractical number of iterations to reach the path's total length,
-    ///     because double precision's ULP (unit in the last place) at that magnitude is far larger
-    ///     than the dash span. Proven here, by calling <c>Load</c> directly (no wall-clock race):
-    ///     <c>DashSplitter.BuildOnIntervals</c>'s cheap pre-flight iteration estimate detects that
-    ///     this input's cost would exceed its iteration budget and short-circuits straight to the
-    ///     solid-stroke fallback without ever running the traversal loop, so the correct regression
-    ///     signal is that the call returns at all with the documented solid-stroke fallback - not
-    ///     how long it takes to do so on any given machine.
+    ///     loop to require an impractical number of iterations to reach the path's total length.
     /// </summary>
+    /// <remarks>
+    ///     <b>Superseded by the coordinate-magnitude bound (Finding 6).</b> This scenario required
+    ///     a single raw coordinate literal (<c>1e20</c>) far beyond any real-world document's
+    ///     coordinate range. Every coordinate/length token is now individually capped at
+    ///     <c>MaxCoordinateMagnitude</c> (1,000,000), so <c>1e20</c> is now rejected by
+    ///     <c>TryReadNumber</c> before path-data parsing even begins, rather than ever reaching
+    ///     <c>DashSplitter</c>'s pre-flight iteration-budget short-circuit. This test is retained
+    ///     under its original name, repurposed to prove the new, earlier rejection point.
+    /// </remarks>
     [Fact]
     public void SvgCodec_Load_HugeFinitePathWithFineDashPattern_TerminatesPromptlyWithoutHanging()
     {
-        // Arrange: a path from -1e20,-1e20 to 1e20,1e20 (finite, no overflow) combined with a
-        // fine stroke-dasharray, the exact combination that previously made DashSplitter's
-        // traversal loop require an astronomically large iteration count to complete
+        // Arrange: coordinate literals (1e20) exceeding the codec's fixed MaxCoordinateMagnitude
+        // bound - rejected at parse time, well before DashSplitter is ever reached
         const string svg = "<svg viewBox='0 0 100 100'>" +
                             "<path d='M -1e20 -1e20 L 1e20 1e20' stroke='black' stroke-width='1' stroke-dasharray='5,5'/>" +
                             "</svg>";
 
-        // Act: call directly and synchronously - no Task.Run/WhenAny/Delay race. The pre-flight
-        // iteration-budget estimate deterministically bounds the work (effectively O(1)), so this
-        // either returns (fixed) or the process itself would need to be killed by the CI job's own
-        // timeout (regressed to truly unbounded) - there is no ambiguous "slow but fine" middle
-        // ground for a hard iteration cap the way there is for wall-clock time.
-        var surface = SvgCodec.Load(ToStream(svg), 10, 10);
-
-        // Assert: the load completed and did not throw.
-        Assert.NotNull(surface);
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
     }
 
     /// <summary>
@@ -2076,24 +2130,30 @@ public class SvgCodecTests
     ///     non-finite value from an individually-finite cubic-Bezier control point and current
     ///     point, an independent overflow path into the same
     ///     <see cref="DemaConsulting.CanvasNet.Drawing.DashSplitter"/> hang risk as relative-
-    ///     coordinate accumulation. Proves the affected <c>path</c> element is tolerantly skipped
-    ///     (rendered as an empty path, no fill/stroke ink) rather than throwing.
+    ///     coordinate accumulation.
     /// </summary>
+    /// <remarks>
+    ///     <b>Superseded by the coordinate-magnitude bound (Finding 6).</b> This scenario required
+    ///     a control point literal (<c>3e38</c>) large enough that doubling it during reflection
+    ///     overflowed float. Every coordinate/length token is now individually capped at
+    ///     <c>MaxCoordinateMagnitude</c> (1,000,000) - far below any magnitude a single doubling
+    ///     could overflow from - so <c>3e38</c> is now rejected by <c>TryReadNumber</c> before
+    ///     path-data parsing even begins, rather than reaching <c>Reflect</c>'s <c>RequireFinite</c>
+    ///     tolerant-skip guard at all. This test is retained under its original name, repurposed to
+    ///     prove the new, earlier rejection point.
+    /// </remarks>
     [Fact]
     public void SvgCodec_Load_PathSmoothCubicReflectionOverflowsToInfinity_SkipsPathWithoutThrowing()
     {
-        // Arrange: a C command whose second control point (3e38,0) and end point (-3e38,0) are
-        // each individually finite, followed by an S command whose implicit reflected control
-        // point (2*(-3e38,0) - (3e38,0) = (-9e38,0)) overflows float to -Infinity
+        // Arrange: a control-point literal (3e38) exceeding the codec's fixed
+        // MaxCoordinateMagnitude bound - rejected at parse time, well before any reflection
+        // arithmetic runs
         const string svg = "<svg viewBox='0 0 100 100'>" +
                             "<path d='M0,0 C0,0 3e38,0 -3e38,0 S1,1 0,0' fill='red'/>" +
                             "</svg>";
 
-        // Act
-        var surface = SvgCodec.Load(ToStream(svg), 10, 10);
-
-        // Assert: no exception, and nothing was painted (the path was skipped, not rendered)
-        Assert.Equal(0, surface[5, 5].A);
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
     }
 
     /// <summary>
@@ -2101,54 +2161,62 @@ public class SvgCodecTests
     ///     the <c>A</c>/<c>a</c> path-data command: an extreme-but-individually-finite arc radius
     ///     drives <c>Geometry.SvgArcConverter.ToBeziers</c>'s internal rotation/trig arithmetic
     ///     (which squares the radii) to overflow one of its emitted control points to a non-finite
-    ///     value, even though every raw literal token (the radius itself) is finite. Proves the
-    ///     affected <c>path</c> element is tolerantly skipped (rendered as an empty path, no
-    ///     fill/stroke ink), mirroring
-    ///     <see cref="SvgCodec_Load_PathSmoothCubicReflectionOverflowsToInfinity_SkipsPathWithoutThrowing"/>'s
-    ///     identical tolerant-skip convention for the same class of arc-conversion overflow risk.
+    ///     value, even though every raw literal token (the radius itself) is finite.
     /// </summary>
+    /// <remarks>
+    ///     <b>Superseded by the coordinate-magnitude bound (Finding 6).</b> This scenario required
+    ///     an arc radius literal (<c>1e18</c>) large enough that squaring it inside
+    ///     <c>SvgArcConverter</c>'s ellipse-center calculation overflowed float. Every
+    ///     coordinate/length token is now individually capped at <c>MaxCoordinateMagnitude</c>
+    ///     (1,000,000) - whose square (1e12) is far too small for any combination of
+    ///     within-the-bound radii/start/end points to overflow <c>SvgArcConverter</c>'s own
+    ///     arithmetic - so <c>1e18</c> is now rejected by <c>TryReadNumber</c> before path-data
+    ///     parsing even begins, rather than reaching <c>AppendArc</c>'s <c>RequireFinite</c>
+    ///     tolerant-skip guard at all. That guard (added for Finding 4) remains in place as
+    ///     defense-in-depth, matching this class's other now-unreachable-but-retained guards - see
+    ///     <c>GeometryWorkBudget.Charge</c>'s own reachability note. This test is retained
+    ///     under its original name, repurposed to prove the new, earlier rejection point.
+    /// </remarks>
     [Fact]
     public void SvgCodec_Load_PathArcCommandRadiusOverflowsToNonFinite_SkipsPathWithoutThrowing()
     {
-        // Arrange: an "A" command whose radius (1e18,1e18) is individually finite, but whose
-        // squared magnitude inside SvgArcConverter's ellipse-center calculation overflows float
-        // to a non-finite control point
+        // Arrange: an arc radius literal (1e18) exceeding the codec's fixed
+        // MaxCoordinateMagnitude bound - rejected at parse time, well before SvgArcConverter is
+        // ever reached
         const string svg = "<svg viewBox='0 0 100 100'>" +
                             "<path d='M1e18,0 A1e18,1e18 0 0 1 0,1e18' fill='red'/>" +
                             "</svg>";
 
-        // Act
-        var surface = SvgCodec.Load(ToStream(svg), 10, 10);
-
-        // Assert: no exception, and nothing was painted (the path was skipped, not rendered)
-        Assert.Equal(0, surface[5, 5].A);
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
     }
 
     /// <summary>
     ///     Regression test for the same unguarded <c>SvgArcConverter</c> output finding, exercised
     ///     via <c>rect</c>'s rounded-corner construction (<c>AppendArcTo</c>) instead of an
-    ///     explicit path-data <c>A</c> command: an extreme-but-individually-finite corner radius
-    ///     drives the same overflow inside <c>Geometry.SvgArcConverter.ToBeziers</c>. Unlike the
-    ///     path-data case above, <c>BuildRectPath</c>/<c>AppendRoundedRectOutline</c> had no
-    ///     existing exception-based tolerant-skip wrapper at all prior to this fix. Proves the
-    ///     affected <c>rect</c> element is now tolerantly skipped (rendered as an empty path)
-    ///     rather than propagating a raw, uncaught non-finite value into the rasterizer.
+    ///     explicit path-data <c>A</c> command.
     /// </summary>
+    /// <remarks>
+    ///     <b>Superseded by the coordinate-magnitude bound (Finding 6).</b> See
+    ///     <see cref="SvgCodec_Load_PathArcCommandRadiusOverflowsToNonFinite_SkipsPathWithoutThrowing"/>'s
+    ///     identical reachability note - the same <c>MaxCoordinateMagnitude</c> bound applies to
+    ///     <c>rect</c>'s <c>width</c>/<c>height</c>/<c>rx</c>/<c>ry</c> attributes via
+    ///     <c>ParseCoordinate</c>. The <c>AppendArcTo</c> guard (added for Finding 4) remains in
+    ///     place as defense-in-depth. This test is retained under its original name, repurposed to
+    ///     prove the new, earlier rejection point.
+    /// </remarks>
     [Fact]
     public void SvgCodec_Load_RectRoundedCornerArcConversionOverflowsToNonFinite_SkipsShapeWithoutThrowing()
     {
-        // Arrange: a rect whose width/height/rx/ry are all individually finite but large enough
-        // (1e18) that AppendArcTo's underlying SvgArcConverter.ToBeziers call overflows one of
-        // its emitted control points to a non-finite value
+        // Arrange: a rect width/height/rx/ry literal (1e18/2e18) exceeding the codec's fixed
+        // MaxCoordinateMagnitude bound - rejected at parse time, well before AppendArcTo is ever
+        // reached
         const string svg = "<svg viewBox='0 0 100 100'>" +
                             "<rect x='0' y='0' width='2e18' height='2e18' rx='1e18' ry='1e18' fill='red'/>" +
                             "</svg>";
 
-        // Act
-        var surface = SvgCodec.Load(ToStream(svg), 10, 10);
-
-        // Assert: no exception, and nothing was painted (the shape was skipped, not rendered)
-        Assert.Equal(0, surface[5, 5].A);
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
     }
 
     /// <summary>
@@ -2276,6 +2344,64 @@ public class SvgCodecTests
 
         // Act & Assert
         Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Regression test for the coordinate-magnitude-bound finding (Finding 6): a <c>path</c>
+    ///     "d" data coordinate that is finite (unlike the exponent-overflow test above) but whose
+    ///     magnitude exceeds the codec's fixed <c>MaxCoordinateMagnitude</c> bound is rejected as
+    ///     an <see cref="InvalidDataException"/>, exercising <c>TryReadNumber</c>'s new magnitude
+    ///     check.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PathDataCoordinateExceedingMaxMagnitude_ThrowsInvalidDataException()
+    {
+        // Arrange: one unit over the codec's fixed 1,000,000 coordinate-magnitude bound
+        const string svg = "<svg viewBox='0 0 20 20'><path d='M0,0 L1000001,0'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Regression test for the same coordinate-magnitude-bound finding (Finding 6), exercising
+    ///     <c>ParseNumberList</c> → <c>TryReadNumber</c>'s new magnitude check via a <c>points</c>
+    ///     list entry instead of path <c>d</c> data.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PointsListCoordinateExceedingMaxMagnitude_ThrowsInvalidDataException()
+    {
+        // Arrange: one unit over the codec's fixed 1,000,000 coordinate-magnitude bound
+        const string svg = "<svg viewBox='0 0 20 20'><polyline points='0,0 1000001,0'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves the coordinate-magnitude bound (Finding 6) does not false-positive-reject an
+    ///     ordinary, real-world-sized coordinate well under the bound - exercised via a shape
+    ///     attribute (<c>ParseCoordinate</c>), a path <c>d</c> coordinate, and a <c>points</c> list
+    ///     entry (both <c>TryReadNumber</c>), each at exactly the bound's boundary value, which
+    ///     must still be accepted (the bound rejects only magnitudes strictly greater than it).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CoordinateWithinMaxMagnitude_RendersSuccessfully()
+    {
+        // Arrange: a rect whose width/height sit exactly at the codec's fixed 1,000,000
+        // coordinate-magnitude bound, combined with a path and a points list each using a
+        // coordinate at the same boundary value
+        const string svg = "<svg viewBox='0 0 20 20'>" +
+                            "<rect x='0' y='0' width='1000000' height='1000000' fill='red'/>" +
+                            "<path d='M0,0 L1000000,0'/>" +
+                            "<polyline points='0,0 1000000,0'/>" +
+                            "</svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 10, 10);
+
+        // Assert: no exception, and the rect (which covers the whole viewBox) rendered
+        Assert.Equal(255, surface[5, 5].A);
     }
 
     /// <summary>

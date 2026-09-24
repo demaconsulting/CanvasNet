@@ -323,17 +323,12 @@ asserting the content band itself is filled.
 #### CanvasNet-Codecs-SvgCodec-GetInfo: GetInfo Reports Resolved Intrinsic Size
 
 **Tests**: `SvgCodec_GetInfo_ViewBoxPresent_ReturnsViewBoxDimensions`,
-`SvgCodec_GetInfo_FromFilePath_ReturnsExpectedInfo`,
-`SvgCodec_GetInfo_ViewBoxWidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing`
+`SvgCodec_GetInfo_FromFilePath_ReturnsExpectedInfo`
 
 Asserts `GetInfo` reports a document's `viewBox` dimensions (even when conflicting `width`/
 `height` attributes are also present, proving `viewBox` takes precedence), always reports
 `Channels = 4` and `HasAlpha = true`, and that the `GetInfo(string)` file-path overload returns
 the same information as the stream overload.
-`SvgCodec_GetInfo_ViewBoxWidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing` is a
-regression test for the width/height-cast-overflow finding: a `viewBox` width large enough to
-overflow `Int32` on a naive cast is clamped to `int.MaxValue` rather than reaching undefined
-`float`-to-`int` cast behavior (since `int.MaxValue` is not exactly representable as a `float`).
 
 #### CanvasNet-Codecs-SvgCodec-GetInfoFallback: GetInfo Three-Tier Fallback Policy
 
@@ -344,9 +339,16 @@ overflow `Int32` on a naive cast is clamped to `int.MaxValue` rather than reachi
 Asserts `GetInfo` falls back to a document's `width`/`height` attributes when no `viewBox` is
 present, and to the CSS/UA default replaced-element intrinsic size (300x150) when neither a
 `viewBox` nor `width`/`height` are present.
-`SvgCodec_GetInfo_WidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing` proves the same
-clamp-before-cast regression coverage as the `viewBox` variant above, sourced from the `width`
-fallback tier instead (`width="1e20"`, no `viewBox`).
+`SvgCodec_GetInfo_WidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing` is a regression
+test for the width/height-cast-overflow finding: a `width`/`height` resolved dimension large
+enough to overflow `Int32` on a naive cast is clamped to `int.MaxValue` rather than reaching
+undefined `float`-to-`int` cast behavior (since `int.MaxValue` is not exactly representable as a
+`float`). This is sourced from the `width`/`height` fallback tier (`ParseLength`, a tolerant
+parser not gated by the coordinate-magnitude bound described below) rather than `viewBox`: a
+`viewBox` width/height large enough to overflow `Int32` necessarily also exceeds the new
+`MaxCoordinateMagnitude` bound, so it is now rejected earlier instead (see
+`SvgCodec_GetInfo_ViewBoxWidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing`'s updated
+description under the "Coordinate Magnitude Bound" unlinked scenario below).
 
 #### CanvasNet-Codecs-SvgCodec-MalformedXmlRejected: Malformed XML/ViewBox/Transform Rejected
 
@@ -393,29 +395,27 @@ unrecognized command letter and, separately, a command missing its required nume
 
 A further, independent case is relative-coordinate accumulation (or an `S`/`T` smooth-curve
 reflection) overflowing an individually-finite pair of literals to a non-finite value:
-`SvgCodec_Load_PathRelativeAccumulationOverflowsToInfinity_TerminatesPromptlyWithoutHanging`
-proves, by calling `Load` directly and synchronously and asserting it returns a non-null
-`Surface` - a deterministic, no-timing-assertion check (consistent with this project's
-no-timing-based-tests policy), since the non-finite guard structurally bounds the work - that a
-`path` combining a huge finite relative-accumulation overflow with a finite `stroke-dasharray`
-(which would otherwise stall `Drawing.DashSplitter`'s dash-interval walk forever on a non-finite
-path length) completes promptly instead of hanging.
-`SvgCodec_Load_PathSmoothCubicReflectionOverflowsToInfinity_SkipsPathWithoutThrowing` proves the
-independent `S`/`T` smooth-curve reflection overflow path (found via this round's mandatory
-audit) is likewise tolerated - the affected `path` element renders as empty (no fill/stroke ink)
-rather than throwing or hanging.
+`SvgCodec_Load_PathRelativeAccumulationOverflowsToInfinity_TerminatesPromptlyWithoutHanging` and
+`SvgCodec_Load_PathSmoothCubicReflectionOverflowsToInfinity_SkipsPathWithoutThrowing` originally
+proved (respectively) that this was tolerated - by relative-coordinate `RequireFinite`/
+`OverflowException` skipping, and by the `S`/`T` reflection's identical mechanism - rather than
+hanging or throwing uncaught. **Superseded by the coordinate-magnitude bound (see "Coordinate
+Magnitude Bound" under Additional Regression Test Scenarios below)**: both tests' original inputs
+(`3e38`) now exceed the codec's fixed `MaxCoordinateMagnitude` bound and are rejected by
+`TryReadNumber` before path-data parsing even begins - both tests are retained under their
+original names, repurposed to prove this new, earlier rejection point (`InvalidDataException`)
+instead. The underlying `RequireFinite`/`OverflowException` tolerant-skip mechanisms remain in the
+source as defense-in-depth, now unreachable through any input `Load` can be given.
 
 A distinct, non-overflow case is a path spanning coordinates that are huge but individually
 entirely finite (no `Infinity`/`NaN` anywhere), combined with a fine `stroke-dasharray`:
-`SvgCodec_Load_HugeFinitePathWithFineDashPattern_TerminatesPromptlyWithoutHanging` proves, by
-calling `Load` directly and synchronously and asserting it returns a non-null `Surface` - a
-deterministic, no-timing-assertion check, since `Drawing.DashSplitter.BuildOnIntervals`'s cheap
-pre-flight iteration estimate detects this input's cost up front and short-circuits directly to the
-solid-stroke fallback without ever running its traversal loop - that a `path` from
-`(-1e20, -1e20)` to `(1e20, 1e20)` with `stroke-dasharray="5,5"` - where `totalLength / dashSpan` is
-an astronomically large ratio even though every value involved stays finite - now completes
-promptly (the affected `path` falls back to a solid stroke) instead of running that traversal loop
-at all.
+`SvgCodec_Load_HugeFinitePathWithFineDashPattern_TerminatesPromptlyWithoutHanging` originally
+proved that `Drawing.DashSplitter.BuildOnIntervals`'s cheap pre-flight iteration estimate detects
+this input's cost up front and short-circuits directly to the solid-stroke fallback rather than
+running its traversal loop at all. **Superseded by the coordinate-magnitude bound**: this test's
+original input (`1e20`) likewise now exceeds `MaxCoordinateMagnitude` and is rejected before
+`DashSplitter` is ever reached - retained under its original name, repurposed identically to the
+two tests above.
 
 #### CanvasNet-Codecs-SvgCodec-PercentageGeometryRejected: Percentage Rejected on Geometry Attributes
 
@@ -588,18 +588,25 @@ renders, just without its dash pattern, matching `ParseDashArray`'s own existing
 Regression tests for the unguarded `SvgArcConverter` output finding: an extreme-but-individually-
 finite arc radius drives `Geometry.SvgArcConverter.ToBeziers`'s internal ellipse-center arithmetic
 (which squares the radii) to overflow one of its emitted control points or endpoints to a
-non-finite value, even though every raw literal token is itself finite.
-`SvgCodec_Load_PathArcCommandRadiusOverflowsToNonFinite_SkipsPathWithoutThrowing` exercises this
-via an explicit `A` path-data command, proving `PathDataParser.AppendArc`'s new
-`RequireFinite`-validated segment output causes the affected `path` element to be tolerantly
-skipped (rendered as an empty path), reusing the same `RequireFinite`/`OverflowException`
-mechanism already established for the `S`/`T` smooth-curve reflection overflow case above.
-`SvgCodec_Load_RectRoundedCornerArcConversionOverflowsToNonFinite_SkipsShapeWithoutThrowing`
-exercises the same underlying overflow via `rect`'s rounded-corner construction (`AppendArcTo`,
-also used by `circle`/`ellipse`) instead of an explicit path-data command - a call site that,
-prior to this fix, had no exception-based tolerant-skip wrapper at all - proving `BuildRectPath`'s
-new narrowly-scoped `catch (OverflowException)` likewise causes the affected `rect` element to be
-tolerantly skipped rather than propagating a raw non-finite value into the rasterizer.
+non-finite value, even though every raw literal token is itself finite. Both tests were originally
+written to exercise this directly - one via an explicit `A` path-data command, proving
+`PathDataParser.AppendArc`'s new `RequireFinite`-validated segment output causes the affected
+`path` element to be tolerantly skipped; the other via `rect`'s rounded-corner construction
+(`AppendArcTo`, also used by `circle`/`ellipse`), proving `BuildRectPath`'s new narrowly-scoped
+`catch (OverflowException)` causes the affected `rect` element to be tolerantly skipped instead of
+propagating a raw non-finite value into the rasterizer.
+
+**Superseded by the coordinate-magnitude bound (see "Coordinate Magnitude Bound" below)**: both
+tests' original radius/width/height literals (`1e18`/`2e18`) now exceed the codec's fixed
+`MaxCoordinateMagnitude` bound (1,000,000) and are rejected by `TryReadNumber`/`ParseCoordinate`
+before path-data/shape-attribute parsing even begins - squaring any radius within the new bound
+(at most `1e12`) can no longer overflow `SvgArcConverter`'s own arithmetic (whose intermediate
+products stay near `1e24`, far short of float's ~3.4e38 range). Both tests are retained under
+their original names, repurposed to prove this new, earlier rejection point (`InvalidDataException`)
+instead. The `RequireFinite`/`catch (OverflowException)` tolerant-skip mechanisms added by
+Finding 4 remain in the source as defense-in-depth, now unreachable through any input `Load` can
+be given, matching this class's other now-unreachable-but-retained guards (see the
+"Budget/Counter Check-Before-Add Ordering" reachability note below).
 
 #### Budget/Counter Check-Before-Add Ordering
 
@@ -633,7 +640,14 @@ reach.
 
 **Tests**: `SvgCodec_Load_PathDataCoordinateExceedingMaxMagnitude_ThrowsInvalidDataException`,
 `SvgCodec_Load_PointsListCoordinateExceedingMaxMagnitude_ThrowsInvalidDataException`,
-`SvgCodec_Load_CoordinateWithinMaxMagnitude_RendersSuccessfully`
+`SvgCodec_Load_CoordinateWithinMaxMagnitude_RendersSuccessfully`,
+`SvgCodec_Load_ScaledDashArrayOverflowsToInfinity_FallsBackToSolidStrokeWithoutThrowing`,
+`SvgCodec_GetInfo_ViewBoxWidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing`,
+`SvgCodec_Load_PathRelativeAccumulationOverflowsToInfinity_TerminatesPromptlyWithoutHanging`,
+`SvgCodec_Load_HugeFinitePathWithFineDashPattern_TerminatesPromptlyWithoutHanging`,
+`SvgCodec_Load_PathSmoothCubicReflectionOverflowsToInfinity_SkipsPathWithoutThrowing`,
+`SvgCodec_Load_PathArcCommandRadiusOverflowsToNonFinite_SkipsPathWithoutThrowing`,
+`SvgCodec_Load_RectRoundedCornerArcConversionOverflowsToNonFinite_SkipsShapeWithoutThrowing`
 
 Regression tests for the "budget counts parsed units, not real downstream cost" mismatch finding:
 a document with only a handful of `path`/`points` commands using extreme-but-individually-finite
@@ -652,6 +666,44 @@ convention already used for a non-finite value at each site.
 coordinate just over the new bound is rejected from each of `TryReadNumber`'s two call sites, and
 `SvgCodec_Load_CoordinateWithinMaxMagnitude_RendersSuccessfully` proves an ordinary, real-world-
 sized coordinate well under the bound is unaffected and still renders correctly.
+
+**Ripple effect on prior rounds' overflow-tolerant-skip tests**: this new, low-magnitude parse-time
+bound necessarily intercepts several inputs that six earlier regression tests (from this round and
+prior rounds) relied on to reach their own, deeper tolerant-skip/hang-avoidance mechanisms - since
+each of those tests' inputs used a coordinate/radius/dasharray-entry/viewBox-dimension literal
+(`1e18`-`3e38`) now rejected by `MaxCoordinateMagnitude` before parsing ever reaches the mechanism
+under test. In every one of these six cases, the underlying downstream mechanism (`RequireFinite`/
+`OverflowException` tolerant-skip in `PathDataParser`, `RenderStroke`'s scaled-dasharray fallback,
+`DashSplitter`'s pre-flight iteration-budget short-circuit, and `GetInfo`'s clamp-before-cast
+logic) is now **provably unreachable** through any input `Load`/`GetInfo` can be given (verified by
+direct calculation - see each test's own updated remarks for the specific bound), since any input
+extreme enough to trigger the downstream mechanism is, by construction, also extreme enough to
+already exceed `MaxCoordinateMagnitude`. Each of the six tests below is retained under its
+original name (preserving its git history/traceability) and repurposed to instead prove this new,
+earlier, and simpler rejection point; the downstream mechanisms themselves remain in the source as
+defense-in-depth, following the same "retain as defense-in-depth even where unreachable given
+today's constants" precedent already established for the check-before-add budget/counter fix
+above:
+
+- `SvgCodec_Load_ScaledDashArrayOverflowsToInfinity_FallsBackToSolidStrokeWithoutThrowing` - a
+  dasharray entry over the bound is now rejected before `RenderStroke`'s own scaling runs (proven
+  by direct calculation that the scaled-entry overflow this test originally repro'd cannot occur
+  for any entry/transform-scale combination that stays within the bound, since
+  `EstimateUniformScale`'s own determinant computation would itself overflow first for any scale
+  large enough to still overflow a bound-compliant entry).
+- `SvgCodec_GetInfo_ViewBoxWidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing` - a
+  `viewBox` width/height large enough to overflow `Int32` also necessarily exceeds the bound - the
+  `width`/`height`-fallback-tier sibling test remains the sole regression coverage for the
+  clamp-before-cast logic itself (see "GetInfo Three-Tier Fallback Policy" above).
+- `SvgCodec_Load_PathRelativeAccumulationOverflowsToInfinity_TerminatesPromptlyWithoutHanging`,
+  `SvgCodec_Load_HugeFinitePathWithFineDashPattern_TerminatesPromptlyWithoutHanging`, and
+  `SvgCodec_Load_PathSmoothCubicReflectionOverflowsToInfinity_SkipsPathWithoutThrowing` - each
+  relied on a single coordinate/control-point literal at or beyond `1e18`, now rejected before the
+  path-data command it appears in is even parsed (see "Malformed Path 'd' Data Rejected" above for
+  each test's updated description).
+- `SvgCodec_Load_PathArcCommandRadiusOverflowsToNonFinite_SkipsPathWithoutThrowing` and
+  `SvgCodec_Load_RectRoundedCornerArcConversionOverflowsToNonFinite_SkipsShapeWithoutThrowing` -
+  see "Arc-Conversion Overflow Tolerant Skip" above.
 
 #### Gradient Stop Caching
 
