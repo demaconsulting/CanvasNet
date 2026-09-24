@@ -2,9 +2,12 @@
 // cspell:ignore Dasharray hhea Hhea hmtx Hmtx hrefs letterboxed Loca Maxp unstroked
 // cspell:ignore miterlimit
 // cspell:ignore unparseable overpainted bbox moveto lineto rects
+using System.Reflection;
 using System.Text;
+using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 
@@ -1226,6 +1229,61 @@ public class SvgCodecTests
                 surface[10, row].R < surface[90, row].R,
                 $"Row {row} did not show the expected left-to-right brightness ramp.");
         }
+    }
+
+    /// <summary>
+    ///     Closes the coverage gap left by
+    ///     <see cref="SvgCodec_Load_GradientReferencedByManyShapes_CachesStopsAndRendersIdenticallyToUncached"/>:
+    ///     that test only asserts rendered-pixel output, which is identical whether
+    ///     <c>ResolveGradientStops</c> actually caches its result or always re-parses the gradient's
+    ///     <c>stop</c> children from scratch - a fully reverted caching fix would still pass it. This
+    ///     test instead invokes the private <c>SvgCodec.ResolveGradientStops</c> helper directly (via
+    ///     reflection, matching the existing <c>BindingFlags.NonPublic</c> idiom used by e.g.
+    ///     <c>CmapTableTests</c>) twice with the same gradient element and the same private
+    ///     <c>RenderContext</c> instance, and asserts the second call returns the exact same
+    ///     <see cref="List{T}"/> instance as the first - proving the second call was served from
+    ///     <c>RenderContext.GradientStopCache</c> rather than re-parsed - and that the cache holds
+    ///     exactly one entry afterward.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_ResolveGradientStops_SameGradientElementResolvedTwice_ReturnsCachedListInstance()
+    {
+        // Arrange: reflect the private RenderContext nested type and construct one instance
+        var contextType = typeof(SvgCodec).GetNestedType("RenderContext", BindingFlags.NonPublic);
+        Assert.NotNull(contextType);
+
+        var constructor = contextType
+            .GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+            .Single(c => c.GetParameters().Length == 3);
+        var context = constructor.Invoke(
+        [
+            new Surface(1, 1),
+            new Dictionary<string, XElement>(),
+            null
+        ]);
+
+        // Arrange: reflect the private static ResolveGradientStops(XElement, RenderContext) method
+        var method = typeof(SvgCodec).GetMethod("ResolveGradientStops", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        // Arrange: one standalone gradient element, resolved against the same context twice
+        var gradientElement = XElement.Parse(
+            "<linearGradient><stop offset='0' stop-color='black'/><stop offset='1' stop-color='white'/></linearGradient>");
+
+        // Act
+        var first = (List<GradientStop>?)method.Invoke(null, [gradientElement, context]);
+        var second = (List<GradientStop>?)method.Invoke(null, [gradientElement, context]);
+
+        // Assert: the second resolution returned the identical cached instance, not a fresh re-parse
+        Assert.Same(first, second);
+
+        // Assert: the cache holds exactly one entry - the second call was served from it, not from
+        // some unrelated memoization path
+        var cacheProperty = contextType.GetProperty("GradientStopCache", BindingFlags.Public | BindingFlags.Instance);
+        Assert.NotNull(cacheProperty);
+        var cache = (Dictionary<XElement, List<GradientStop>>?)cacheProperty.GetValue(context);
+        Assert.NotNull(cache);
+        Assert.Single(cache);
     }
 
     // ================================================================================================

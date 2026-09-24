@@ -1,6 +1,6 @@
 ## SvgCodec Unit Verification Design
 
-<!-- cspell:ignore unstroked Letterboxing uncatchable Glyf Loca unparseable -->
+<!-- cspell:ignore unstroked Letterboxing uncatchable Glyf Loca unparseable Cmap -->
 
 This document describes the unit-level verification strategy for the `SvgCodec` class.
 
@@ -707,7 +707,10 @@ above:
 
 #### Gradient Stop Caching
 
-**Test**: `SvgCodec_Load_GradientReferencedByManyShapes_CachesStopsAndRendersIdenticallyToUncached`
+**Tests**:
+
+- `SvgCodec_Load_GradientReferencedByManyShapes_CachesStopsAndRendersIdenticallyToUncached`
+- `SvgCodec_ResolveGradientStops_SameGradientElementResolvedTwice_ReturnsCachedListInstance`
 
 Regression test for the repeated-work-without-caching amplification finding: `BuildGradient` (via
 `ResolveGradientStops`) previously re-parsed a gradient element's `stop` children from scratch on
@@ -722,6 +725,14 @@ the existing `IdIndex` field's identical "populated once, read many times" lifet
 `SvgCodec_Load_GradientReferencedByManyShapes_CachesStopsAndRendersIdenticallyToUncached` proves a
 gradient referenced by many shapes still renders every shape identically to the pre-fix (uncached)
 behavior, confirming the cache introduces no observable rendering change.
+
+That pixel-rendering test alone cannot distinguish cached-and-correct output from
+always-re-parsed-and-still-correct output, since both produce identical pixels - it would still
+pass even if the caching fix were fully reverted. `SvgCodec_ResolveGradientStops_SameGradientElementResolvedTwice_ReturnsCachedListInstance`
+closes that gap by invoking `ResolveGradientStops` directly (via reflection, the same idiom
+already used by e.g. `CmapTable_Format4_GlyphIndexAddressArithmeticOverflow_ReturnsZero`) and
+asserting the second call for the same gradient element returns the identical cached
+`List<GradientStop>` instance rather than a freshly re-parsed one.
 
 ### Acceptance Criteria
 
