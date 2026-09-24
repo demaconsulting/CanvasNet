@@ -76,7 +76,7 @@ public class Rgba32Tests
     [Fact]
     public void Rgba32_Parse_9Hex_ThrowsFormatException()
     {
-        Assert.Throws<FormatException>(() => Rgba32.Parse("#ABCDEFABC"));
+        Assert.Throws<FormatException>(() => Rgba32.Parse("#123456789"));
     }
 
     /// <summary>Rgba32_Parse_NonHexCharacter_ThrowsFormatException.</summary>

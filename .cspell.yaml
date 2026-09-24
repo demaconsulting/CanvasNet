@@ -148,6 +148,25 @@ words:
   - zlib
   - Schaik
   - Willem
+  - AARRGGBB
+  - ARGB
+  - Argb
+  - cmap
+  - Cmap
+  - codepoint
+  - Dzik
+  - glyf
+  - hhea
+  - Hhea
+  - hmtx
+  - Hmtx
+  - loca
+  - Loca
+  - maxp
+  - Maxp
+  - notdef
+  - Stanislaw
+  - tryparse
 
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:

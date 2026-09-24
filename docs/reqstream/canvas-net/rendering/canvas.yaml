@@ -17,7 +17,9 @@ sections:
                   - Canvas_Save_ThenRestore_RestoresPreviousTransform
 
               - id: CanvasNet-Rendering-Canvas-Restore
-                title: The Canvas class shall pop the transform stack and replace the current transform with the popped value.
+                title: >-
+                  The Canvas class shall pop the transform stack and replace the current
+                  transform with the popped value.
                 justification: |
                   Restore reverts to a previously saved transform, enabling scoped transforms
                   without manual bookkeeping.
@@ -26,7 +28,9 @@ sections:
                   - Canvas_Save_NestedSaveRestore_UnwindsInLifoOrder
 
               - id: CanvasNet-Rendering-Canvas-RestoreEmpty
-                title: The Canvas class shall throw InvalidOperationException when Restore is called with an empty stack.
+                title: >-
+                  The Canvas class shall throw InvalidOperationException when Restore is
+                  called with an empty stack.
                 justification: |
                   A stack underflow indicates a caller programming error; failing loudly prevents
                   silently drawing under a stale transform.
@@ -52,8 +56,9 @@ sections:
                   - Canvas_Translate_ThenRotateDegrees_AppliesRotationInTranslatedFrame
 
               - id: CanvasNet-Rendering-Canvas-FillPath
-                title: The Canvas class shall fill a path with the given color, baking the current transform into the path
-                  first.
+                title: >-
+                  The Canvas class shall fill a path with the given color, baking the
+                  current transform into the path first.
                 justification: |
                   Filling with the baked transform is what makes the transform stack observable
                   in output; a solid-color fill is the primary fill mode.
@@ -62,8 +67,9 @@ sections:
                   - Canvas_FillPath_WithTranslate_ShiftsOutputByExpectedPixels
 
               - id: CanvasNet-Rendering-Canvas-StrokePath
-                title: The Canvas class shall stroke a path with the given stroke style and color, baking the current transform
-                  into the path first.
+                title: >-
+                  The Canvas class shall stroke a path with the given stroke style and
+                  color, baking the current transform into the path first.
                 justification: |
                   Stroking with the baked transform mirrors filling, so callers get consistent
                   behavior across both operations.
@@ -71,8 +77,9 @@ sections:
                   - Canvas_StrokePath_NoTransform_ProducesByteIdenticalOutputToPathStrokerPlusPathFiller
 
               - id: CanvasNet-Rendering-Canvas-Identity
-                title: The Canvas class shall produce byte-identical output to direct PathFiller/PathStroker calls when the
-                  current transform is the identity.
+                title: >-
+                  The Canvas class shall produce byte-identical output to direct
+                  PathFiller/PathStroker calls when the current transform is the identity.
                 justification: |
                   Preserving the exact pre-existing bit pattern lets callers adopt the wrapper
                   without regressing golden images or rendered fixtures.

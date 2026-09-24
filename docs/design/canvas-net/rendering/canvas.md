@@ -12,7 +12,7 @@ The `Canvas` class is the sole stateful unit in the `Rendering` subsystem. It wr
   to `_current` (`_current = newOp * _current`) matching HTML5 canvas / Skia semantics.
 - Expose `CurrentTransform` as a read-only property.
 - Expose `FillPath(Path, Rgba32)` and `StrokePath(Path, StrokeStyle, Rgba32)` that first bake
-  `CurrentTransform` into the path (fast-pathed when it is the identity), then dispatch to
+  `CurrentTransform` into the path (short-circuited when it is the identity), then dispatch to
   `Drawing.PathFiller.Fill` / `Drawing.PathStroker.Stroke` on the wrapped `Surface`.
 
 #### Byte-identical no-transform guarantee
