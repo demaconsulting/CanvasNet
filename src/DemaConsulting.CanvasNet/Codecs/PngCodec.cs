@@ -51,11 +51,14 @@ public enum PngColorType
 ///         Truecolor (2), palette/indexed (3), grayscale-with-alpha (4), and Truecolor-with-alpha
 ///         (6) - at every bit depth the specification permits for that color type (1, 2, 4, 8, or
 ///         16 for grayscale and palette at depths up to 8 only; 8 or 16 for the other three), with
-///         the standard (non-interlaced) scanline order. Only two things remain hard refusals for
-///         <c>Load</c> that are not themselves well-formedness defects: Adam7 interlacing
-///         (interlace method 1), which this codec does not implement, and a bit-depth/color-type
-///         combination that is itself invalid per the PNG specification (for example palette at
-///         16-bit depth). Both are rejected with a descriptive
+///         the standard (non-interlaced) scanline order. Only one thing remains a hard refusal for
+///         <c>Load</c> that is not itself a well-formedness defect: Adam7 interlacing (interlace
+///         method 1), which this codec does not implement - a well-formed, spec-conforming file
+///         that <c>Load</c> simply cannot decode. A bit-depth/color-type combination that is
+///         itself invalid per the PNG specification (for example palette at 16-bit depth) is, by
+///         contrast, a genuine well-formedness defect: <see cref="ParseIhdr"/> rejects it
+///         unconditionally for both <c>Load</c> and <c>GetInfo</c>, exactly like any other
+///         malformed <c>IHDR</c> field. Both cases are rejected with a descriptive
 ///         <see cref="System.IO.InvalidDataException"/> rather than silently producing incorrect
 ///         pixels. <c>Save</c>'s output scope is unchanged - only the two 8-bit Truecolor variants
 ///         named by <see cref="PngColorType"/>.
