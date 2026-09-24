@@ -261,7 +261,7 @@ beyond any real-world document's element count but small enough to keep worst-ca
 CPU/memory bounded to a small, practical amount. Every fixed counter/budget in this class
 (`GeometryWorkBudget.Charge`, the total-rendered-element counter above, and `BuildIdIndex`'s own
 whole-document-walk counter described below) checks the new amount against the remaining budget
-*before* adding it to the running total, rather than adding first and checking afterward - a
+_before_ adding it to the running total, rather than adding first and checking afterward - a
 single call charging an amount large enough to make the addition itself overflow `int` cannot
 therefore bypass the budget by wrapping past a small, still-under-budget-looking value. This is
 defense-in-depth: given today's fixed constants, no call site can charge an amount anywhere close
