@@ -255,6 +255,47 @@ Builds a valid signature followed directly by a well-formed `IEND` chunk (correc
 no `IHDR` chunk present anywhere in the stream, and asserts `Load` throws
 `InvalidDataException` with a message naming `IHDR` as the missing chunk.
 
+#### CanvasNet-Codecs-PngCodec-LoadUnrecognizedCriticalChunk: Load Rejects Unrecognized Critical Chunks
+
+**Tests**: `PngCodec_Load_UnrecognizedCriticalChunk_ThrowsInvalidDataException`,
+`PngCodec_Load_UnrecognizedAncillaryChunk_StillLoadsSuccessfully`
+
+Builds a valid `IHDR` followed by a hypothetical unrecognized chunk type `ABCD` (uppercase first
+type byte, marking it critical per the PNG specification), and asserts `Load` throws
+`InvalidDataException` naming `ABCD`. Separately builds a valid, otherwise-complete single-pixel
+PNG with a hypothetical unrecognized ancillary chunk type `abcd` (lowercase first type byte)
+inserted between `IHDR` and `IDAT`, and asserts `Load` still decodes the expected pixel
+successfully, proving the new critical-chunk rejection does not affect the existing
+ancillary-chunk-skip behavior.
+
+#### CanvasNet-Codecs-PngCodec-LoadPlteForbiddenForGrayscale: Load Rejects PLTE on Grayscale Color Types
+
+**Tests**: `PngCodec_Load_PlteOnGrayscale_ThrowsInvalidDataException`,
+`PngCodec_Load_PlteOnGrayscaleAlpha_ThrowsInvalidDataException`
+
+Builds a Grayscale (color type 0) `IHDR` followed by a `PLTE` chunk, and separately a
+Grayscale-with-alpha (color type 4) `IHDR` followed by a `PLTE` chunk, and asserts `Load` throws
+`InvalidDataException` in both cases, since grayscale samples are never resolved through a
+palette.
+
+#### CanvasNet-Codecs-PngCodec-LoadTrnsOrderRequiresPlteForPalette: Load Rejects tRNS Before PLTE
+
+**Test**: `PngCodec_Load_TrnsBeforePlteForIndexedColor_ThrowsInvalidDataException`
+
+Builds a Palette (color type 3) `IHDR` followed by a `tRNS` chunk and then a `PLTE` chunk (the
+reverse of the order the PNG specification requires), and asserts `Load` throws
+`InvalidDataException` with a message naming `PLTE` as the cause.
+
+#### CanvasNet-Codecs-PngCodec-LoadTrnsForbiddenForAlphaColorTypes: Load Rejects tRNS on Alpha Color Types
+
+**Tests**: `PngCodec_Load_TrnsOnGrayscaleAlpha_ThrowsInvalidDataException`,
+`PngCodec_Load_TrnsOnTruecolorAlpha_ThrowsInvalidDataException`
+
+Builds a Grayscale-with-alpha (color type 4) `IHDR` followed by a `tRNS` chunk, and separately a
+Truecolor-with-alpha (color type 6) `IHDR` followed by a `tRNS` chunk, and asserts `Load` throws
+`InvalidDataException` in both cases, since both color types already carry a full per-pixel alpha
+channel that leaves nothing for a single-key-color transparency chunk to add.
+
 #### CanvasNet-Codecs-PngCodec-PngSuiteSupported: PngSuite Files Within Scope Load Successfully
 
 **Test**: `PngCodec_Load_PngSuiteSupportedFile_ReturnsCanvas` (`[Theory]` over 126 PngSuite files)
@@ -324,7 +365,8 @@ once for an `IHDR` chunk whose declared length is not the mandatory 13 — asser
 Calls `GetInfo` on hand-built Grayscale and Grayscale-with-alpha PNGs and asserts the correct
 `Channels`/`HasAlpha` mapping (1/false and 2/true respectively). Calls `GetInfo` on a hand-built
 Palette PNG and asserts it reports `Channels=1, HasAlpha=false` — the raw file encoding (one
-byte-per-pixel index) — deliberately not the four-channel RGBA result `Load` would produce after
+palette-index sample per pixel, packed at sub-byte bit depths) — deliberately not the four-channel
+RGBA result `Load` would produce after
 resolving indices through `PLTE`/`tRNS`. Calls `GetInfo` on hand-built sub-byte-depth (1, 2, 4)
 and 16-bit Grayscale PNGs and asserts the correct declared width/height are reported. Calls both
 `GetInfo` and `Load` on a hand-built PNG declaring an invalid bit depth, and separately an invalid
@@ -348,7 +390,7 @@ scenarios.
 
 A unit test run passes when all test methods above pass without error or unexpected exception; any
 unexpected exception type or wrong return/byte value constitutes a failure. Across
-`PngCodecTests.cs` and `PngSuiteTests.cs`, this totals 63 test methods (59 in `PngCodecTests.cs`
+`PngCodecTests.cs` and `PngSuiteTests.cs`, this totals 78 test methods (74 in `PngCodecTests.cs`
 and 4 in `PngSuiteTests.cs`), which expand to a much larger number of executed xUnit test cases
 when every `[Theory]` data row is included, covering the full 175-file PngSuite conformance
 corpus.

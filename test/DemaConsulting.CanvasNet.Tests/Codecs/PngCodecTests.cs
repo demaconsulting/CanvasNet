@@ -543,6 +543,171 @@ public class PngCodecTests
     }
 
     /// <summary>
+    ///     Proves that Load rejects an unrecognized <em>critical</em> chunk (uppercase first type
+    ///     byte, not one of IHDR/PLTE/tRNS/IDAT/IEND) with InvalidDataException, since it may
+    ///     change how pixel data must be interpreted and this codec has no logic for it.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_UnrecognizedCriticalChunk_ThrowsInvalidDataException()
+    {
+        // Arrange: a valid IHDR followed by a hypothetical unrecognized critical chunk "ABCD"
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 2 /* Truecolor */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var unknownCritical = BuildChunk("ABCD", [1, 2, 3]);
+        stream.Write(unknownCritical, 0, unknownCritical.Length);
+        stream.Position = 0;
+
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        Assert.Contains("ABCD", exception.Message);
+    }
+
+    /// <summary>
+    ///     Proves that Load still decodes successfully when a stream contains an unrecognized
+    ///     <em>ancillary</em> chunk (lowercase first type byte, for example a hypothetical "abcd"
+    ///     chunk), since an unrecognized ancillary chunk carries no information required to
+    ///     decode pixels correctly and remains safe to skip.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_UnrecognizedAncillaryChunk_StillLoadsSuccessfully()
+    {
+        // Arrange: a valid IHDR followed by a hypothetical unrecognized ancillary chunk "abcd",
+        // then the usual IDAT/IEND chunks for a single opaque Truecolor pixel
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, (byte)PngColorType.Rgb, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var unknownAncillary = BuildChunk("abcd", [9, 9, 9]);
+        stream.Write(unknownAncillary, 0, unknownAncillary.Length);
+
+        var raw = new byte[] { 0, 10, 20, 30 }; // filter type 0 (None) + one RGB pixel
+        var zlib = ZlibCompress(raw);
+        var idat = BuildChunk("IDAT", zlib);
+        stream.Write(idat, 0, idat.Length);
+        var iend = BuildChunk("IEND", []);
+        stream.Write(iend, 0, iend.Length);
+        stream.Position = 0;
+
+        // Act
+        var loaded = PngCodec.Load(stream);
+
+        // Assert: the unrecognized ancillary chunk did not affect decoding
+        Assert.Equal(new Rgba32(10, 20, 30, 255), loaded[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that Load rejects a PLTE chunk on a grayscale (color type 0) image with
+    ///     InvalidDataException, since grayscale samples are never resolved through a palette.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_PlteOnGrayscale_ThrowsInvalidDataException()
+    {
+        // Arrange: a grayscale IHDR followed by a PLTE chunk
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 0 /* Grayscale */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var plte = BuildChunk("PLTE", [1, 2, 3]);
+        stream.Write(plte, 0, plte.Length);
+        stream.Position = 0;
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+    }
+
+    /// <summary>
+    ///     Proves that Load rejects a PLTE chunk on a grayscale-with-alpha (color type 4) image
+    ///     with InvalidDataException, since grayscale samples are never resolved through a
+    ///     palette.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_PlteOnGrayscaleAlpha_ThrowsInvalidDataException()
+    {
+        // Arrange: a grayscale-with-alpha IHDR followed by a PLTE chunk
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 4 /* Grayscale+alpha */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var plte = BuildChunk("PLTE", [1, 2, 3]);
+        stream.Write(plte, 0, plte.Length);
+        stream.Position = 0;
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+    }
+
+    /// <summary>
+    ///     Proves that Load rejects a tRNS chunk appearing before the PLTE chunk on an
+    ///     indexed-color (color type 3) image with InvalidDataException, since the PNG
+    ///     specification requires tRNS to follow PLTE for indexed-color images (its
+    ///     per-palette-entry alpha values are meaningless before the palette they index into has
+    ///     been read).
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_TrnsBeforePlteForIndexedColor_ThrowsInvalidDataException()
+    {
+        // Arrange: a palette IHDR, then tRNS before PLTE (the specification requires the opposite
+        // order)
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 3 /* Palette */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var trns = BuildChunk("tRNS", [255]);
+        stream.Write(trns, 0, trns.Length);
+        var plte = BuildChunk("PLTE", [1, 2, 3]);
+        stream.Write(plte, 0, plte.Length);
+        stream.Position = 0;
+
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        Assert.Contains("PLTE", exception.Message);
+    }
+
+    /// <summary>
+    ///     Proves that Load rejects a tRNS chunk on a grayscale-with-alpha (color type 4) image
+    ///     with InvalidDataException, since that color type already carries a full per-pixel
+    ///     alpha channel, leaving nothing for a single-key-color transparency chunk to add.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_TrnsOnGrayscaleAlpha_ThrowsInvalidDataException()
+    {
+        // Arrange: a grayscale-with-alpha IHDR followed by a tRNS chunk
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 4 /* Grayscale+alpha */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var trns = BuildChunk("tRNS", [0, 100]);
+        stream.Write(trns, 0, trns.Length);
+        stream.Position = 0;
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+    }
+
+    /// <summary>
+    ///     Proves that Load rejects a tRNS chunk on a Truecolor-with-alpha (color type 6) image
+    ///     with InvalidDataException, since that color type already carries a full per-pixel
+    ///     alpha channel, leaving nothing for a single-key-color transparency chunk to add.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_TrnsOnTruecolorAlpha_ThrowsInvalidDataException()
+    {
+        // Arrange: a Truecolor-with-alpha IHDR followed by a tRNS chunk
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 6 /* Truecolor+alpha */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var trns = BuildChunk("tRNS", [0, 10, 0, 20, 0, 30]);
+        stream.Write(trns, 0, trns.Length);
+        stream.Position = 0;
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+    }
+
+    /// <summary>
     ///     Proves that Load honors a grayscale (color type 0) image's tRNS chunk, marking exactly
     ///     the pixels whose gray sample matches the tRNS value as fully transparent.
     /// </summary>

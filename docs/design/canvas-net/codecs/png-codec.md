@@ -134,6 +134,13 @@ and written by explicit byte composition (bit shifting), never `BitConverter` or
 | `PLTE` | color type is Palette (3)           | one RGB triple (3 bytes) per palette entry      |
 | `tRNS` | optional, color types 0, 2, and 3   | see below                                       |
 
+A `PLTE` chunk is permitted only for color types 2 (Truecolor), 3 (Palette, where it is
+mandatory), and 6 (Truecolor-with-alpha, as an optional suggested-palette hint this codec accepts
+but ignores for pixel decoding). A `PLTE` chunk on either grayscale color type (0 or 4) is forbidden
+by the PNG specification — grayscale samples are sample magnitudes, never palette indices, so
+there is nothing for a palette to resolve — and `Load` rejects such a file with
+`InvalidDataException` rather than silently storing an unusable chunk.
+
 `tRNS`'s payload shape depends on the color type it appears with:
 
 | Color type       | `tRNS` payload shape                                             |
@@ -142,12 +149,28 @@ and written by explicit byte composition (bit shifting), never `BitConverter` or
 | 2 (Truecolor)    | three 2-byte big-endian samples (the transparent RGB key)        |
 | 3 (Palette)      | up to one alpha byte per palette entry, in index order           |
 
-A `tRNS` chunk on any other color type (4 or 6) is not defined by the PNG specification — since
-those color types already carry an explicit per-pixel alpha sample, `Load` ignores a `tRNS` chunk
-encountered on such a file rather than rejecting it (some encoders emit tRNS defensively even when
-it can have no effect). A `PLTE` chunk missing on a Palette-color-type file is a hard rejection
-(`InvalidDataException` naming "PLTE"), since there is no way to resolve a palette index to a
-color without it.
+A `tRNS` chunk on either alpha-carrying color type (4 or 6) is not defined by the PNG
+specification — since those color types already carry an explicit per-pixel alpha sample, there is
+nothing for a single-key-color transparency chunk to add — and `Load` rejects such a file with
+`InvalidDataException` (this codec no longer tolerates it, unlike some permissive decoders that
+ignore a defensively-emitted tRNS chunk in this position). A `tRNS` chunk on a Palette
+(color-type-3) file must also appear _after_ the `PLTE` chunk, not merely after `IHDR` and before
+the first `IDAT` (the ordering `Load` already enforced for every color type): a tRNS chunk's
+per-palette-entry alpha values are meaningless before the palette they index into has been read,
+so `Load` rejects a Palette file whose `tRNS` chunk precedes its `PLTE` chunk with
+`InvalidDataException` naming `PLTE` as the cause. A `PLTE` chunk missing on a Palette-color-type
+file is a hard rejection (`InvalidDataException` naming "PLTE"), since there is no way to resolve
+a palette index to a color without it.
+
+**Design decision — unrecognized critical chunks are rejected, not skipped**: the PNG
+specification uses a chunk type's first byte's case to mark it critical (uppercase) or ancillary
+(lowercase). `Load` recognizes exactly five chunk types (`IHDR`, `PLTE`, `tRNS`, `IDAT`, `IEND`);
+any other chunk whose first type byte is uppercase is an unrecognized _critical_ chunk — one that
+may change how pixel data must be interpreted — and `Load` rejects it with `InvalidDataException`
+naming the chunk type, rather than risk silently producing incorrect pixels from a chunk it does
+not understand. An unrecognized _ancillary_ chunk (lowercase first type byte, for example `tEXt`,
+`pHYs`, or `gAMA`) remains safe to skip, exactly as before: its CRC-32 is still validated, but its
+data is not accumulated anywhere.
 
 ### Key Methods
 
@@ -162,8 +185,10 @@ below; width and height are positive and do not exceed `Surface.MaxDimension` (8
 before any width/height arithmetic, including the row-byte-width computation performed both while
 decoding scanlines and by `Load` itself, now generalized to `ceil(width * samplesPerPixel *
 bitDepth / 8)` rather than the earlier `width * channels`); `PLTE` and `tRNS` chunks are parsed
-when present (see above); `IDAT` chunk data is concatenated across as many chunks as are present;
-any other chunk type (for example `tEXt`, `pHYs`, `gAMA`) is CRC-validated but otherwise skipped.
+when present (see above), including the color-type and chunk-ordering rejections described above;
+`IDAT` chunk data is concatenated across as many chunks as are present; any other recognized
+ancillary chunk type (for example `tEXt`, `pHYs`, `gAMA`) is CRC-validated but otherwise skipped,
+while an unrecognized critical chunk type is rejected (see above).
 Once `IEND` is reached, the concatenated `IDAT` payload is unwrapped as a zlib stream (2-byte
 header validated, `DeflateStream` inflates the DEFLATE data, the 4-byte Adler-32 trailer is
 validated against the decompressed bytes), then each scanline is defiltered (reconstructing all
@@ -193,7 +218,10 @@ though `Load` refuses them; see _GetInfo(Stream stream)_ below.
   color type other than 0, 2, 3, 4, or 6; a bit-depth/color-type combination the PNG
   specification does not define (for example color type 3 with bit depth 16); an unsupported
   compression method, filter method, or interlace method value; Adam7 interlacing (well-formed,
-  but not a combination `Load` can decode); a color-type-3 (Palette) file missing its `PLTE`
+  but not a combination `Load` can decode); an unrecognized critical chunk (uppercase first type
+  byte); a `PLTE` chunk on a grayscale or grayscale-with-alpha file; a `tRNS` chunk on a
+  grayscale-with-alpha or Truecolor-with-alpha file, or one that precedes the `PLTE` chunk on a
+  Palette file; a color-type-3 (Palette) file missing its `PLTE`
   chunk, or containing a pixel whose palette index is out of range; a malformed `tRNS` chunk
   length for its color type; non-positive width or height, or width/height exceeding
   `Surface.MaxDimension`; any chunk's CRC-32 mismatch; a malformed or unsupported zlib header; an
@@ -290,7 +318,8 @@ decodability — is the boundary `GetInfo` enforces.
 **Design decision — `Channels`/`HasAlpha` reflect the raw file encoding, not `Load`'s decoded
 output**: `GetInfo` maps `IHDR`'s color type directly to `(Channels, HasAlpha)` without any
 knowledge of `PLTE`/`tRNS` (which it never reads): Grayscale (0) → `(1, false)`; Truecolor (2) →
-`(3, false)`; **Palette (3) → `(1, false)`** — one byte-per-pixel index in the file, deliberately
+`(3, false)`; **Palette (3) → `(1, false)`** — one palette-index sample per pixel in the file
+(packed at sub-byte bit depths, not always one byte per pixel), deliberately
 _not_ the four-channel RGBA result `Load` would produce after resolving each index through
 `PLTE`/`tRNS`; Grayscale+alpha (4) → `(2, true)`; Truecolor+alpha (6) → `(4, true)`. This
 asymmetry between `GetInfo`'s and `Load`'s notion of "channels" for Palette files is intentional:

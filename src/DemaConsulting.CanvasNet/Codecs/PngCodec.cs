@@ -51,12 +51,31 @@ public enum PngColorType
 ///         (6) - at every bit depth the specification permits for that color type (1, 2, 4, 8, or
 ///         16 for grayscale and palette at depths up to 8 only; 8 or 16 for the other three), with
 ///         the standard (non-interlaced) scanline order. Only two things remain hard refusals for
-///         <c>Load</c>: Adam7 interlacing (interlace method 1), which this codec does not
-///         implement, and a bit-depth/color-type combination that is itself invalid per the PNG
-///         specification (for example palette at 16-bit depth). Both are rejected with a
-///         descriptive <see cref="System.IO.InvalidDataException"/> rather than silently producing
-///         incorrect pixels. <c>Save</c>'s output scope is unchanged - only the two 8-bit
-///         Truecolor variants named by <see cref="PngColorType"/>.
+///         <c>Load</c> that are not themselves well-formedness defects: Adam7 interlacing
+///         (interlace method 1), which this codec does not implement, and a bit-depth/color-type
+///         combination that is itself invalid per the PNG specification (for example palette at
+///         16-bit depth). Both are rejected with a descriptive
+///         <see cref="System.IO.InvalidDataException"/> rather than silently producing incorrect
+///         pixels. <c>Save</c>'s output scope is unchanged - only the two 8-bit Truecolor variants
+///         named by <see cref="PngColorType"/>.
+///     </para>
+///     <para>
+///         Design decision - refusing chunks the PNG specification itself forbids, not merely
+///         chunks this codec does not implement: beyond well-formedness and decode-capability
+///         refusals, <c>Load</c> also rejects several chunk combinations the PNG specification
+///         declares invalid regardless of decode capability, because silently tolerating them
+///         would mean accepting non-conforming files that a correct encoder never produces: an
+///         unrecognized <em>critical</em> chunk (uppercase first type byte) that is not one of
+///         <c>IHDR</c>/<c>PLTE</c>/<c>tRNS</c>/<c>IDAT</c>/<c>IEND</c>, since it may change how
+///         pixel data must be interpreted and this codec has no logic for it; a <c>PLTE</c> chunk
+///         on a grayscale or grayscale-with-alpha file, since grayscale samples are never resolved
+///         through a palette; a <c>tRNS</c> chunk on a grayscale-with-alpha or Truecolor-with-alpha
+///         file, since those color types already carry a full per-pixel alpha channel that leaves
+///         nothing for a single-key-color transparency chunk to add; and a <c>tRNS</c> chunk that
+///         precedes the <c>PLTE</c> chunk on a palette file, since its per-palette-entry alpha
+///         values are meaningless before the palette they index into has been read. An
+///         unrecognized <em>ancillary</em> chunk (lowercase first type byte, for example
+///         <c>tEXt</c>, <c>pHYs</c>, or <c>gAMA</c>) remains safe to skip, exactly as before.
 ///     </para>
 ///     <para>
 ///         Design decision - palette (color type 3) tRNS/PLTE-to-RGBA mapping: a palette-indexed
@@ -213,7 +232,11 @@ public static class PngCodec
     ///     signature is missing, the <c>IHDR</c> chunk is missing, malformed, describes
     ///     non-positive or oversized (exceeding <see cref="Surface.MaxDimension"/>) dimensions,
     ///     or describes an unsupported bit depth, color type, compression method, filter method,
-    ///     or interlace method; any chunk's CRC-32 does not match; the decompressed scanline data
+    ///     or interlace method; an unrecognized critical chunk (uppercase first type byte) is
+    ///     encountered; a <c>PLTE</c> chunk appears on a grayscale or grayscale-with-alpha file;
+    ///     a <c>tRNS</c> chunk appears on a grayscale-with-alpha or Truecolor-with-alpha file, or
+    ///     precedes the <c>PLTE</c> chunk on a palette file; any chunk's CRC-32 does not match;
+    ///     the decompressed scanline data
     ///     has an unexpected length; an unsupported scanline filter type is encountered; or the
     ///     stream ends before all header, chunk, or pixel data has been read.
     /// </exception>
@@ -321,7 +344,8 @@ public static class PngCodec
     ///     channel count and alpha flag that decoding this file's color type would produce:
     ///     grayscale (0) reports 1 channel, no alpha; Truecolor (2) reports 3 channels, no alpha;
     ///     palette/indexed (3) reports 1 channel, no alpha - this is the raw file encoding (one
-    ///     palette-index byte per pixel), <em>not</em> the 4-channel RGBA result <c>Load</c>
+    ///     palette-index sample per pixel, packed at sub-byte bit depths), <em>not</em> the
+    ///     4-channel RGBA result <c>Load</c>
     ///     produces after resolving each index through the <c>PLTE</c>/<c>tRNS</c> chunks, since
     ///     <c>GetInfo</c> deliberately never reads those chunks; grayscale-with-alpha (4) reports
     ///     2 channels, has alpha; Truecolor-with-alpha (6) reports 4 channels, has alpha.
@@ -483,8 +507,19 @@ public static class PngCodec
     ///     <paramref name="state"/>'s header fields, <c>PLTE</c>/<c>tRNS</c> data is stored for
     ///     later use by the decode step, <c>IDAT</c> data is appended to
     ///     <paramref name="idatStream"/>, <c>IEND</c> marks the chunk stream complete, and any
-    ///     other chunk type is validated but otherwise skipped.
+    ///     other recognized-ancillary chunk type is validated but otherwise skipped. An
+    ///     unrecognized <em>critical</em> chunk (uppercase first type byte, per the PNG
+    ///     specification's chunk-naming convention) is rejected outright - see the "any other
+    ///     chunk type" handling at the end of this method.
     /// </summary>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown, among the other per-chunk-type conditions documented inline below, when the
+    ///     chunk type is not one of <c>IHDR</c>/<c>PLTE</c>/<c>tRNS</c>/<c>IDAT</c>/<c>IEND</c>
+    ///     and its first byte is an uppercase ASCII letter, marking it critical: an unrecognized
+    ///     critical chunk may change how pixel data must be interpreted, so a conforming decoder
+    ///     that does not understand it must refuse to decode rather than risk producing incorrect
+    ///     pixels.
+    /// </exception>
     private static void ProcessChunk(Stream stream, MemoryStream idatStream, ChunkReadState state)
     {
         var (typeBytes, data) = ReadChunkFrame(stream);
@@ -529,6 +564,15 @@ public static class PngCodec
                     $"PNG PLTE chunk declares {data.Length / 3} palette entries; at most 256 are permitted.");
             }
 
+            // The PNG specification forbids a PLTE chunk for the two grayscale color types (0 and
+            // 4): grayscale samples are never resolved through a palette, so a PLTE chunk on such
+            // a file cannot represent anything a conforming decoder is permitted to use
+            if (state.ColorType is ColorTypeGrayscale or ColorTypeGrayscaleAlpha)
+            {
+                throw new InvalidDataException(
+                    $"PLTE chunk is not permitted for grayscale PNG color type {state.ColorType}.");
+            }
+
             if (state.ColorType == ColorTypePalette)
             {
                 var maxEntries = 1 << state.BitDepth;
@@ -562,6 +606,26 @@ public static class PngCodec
                 throw new InvalidDataException("tRNS chunk encountered after the first IDAT chunk.");
             }
 
+            // The PNG specification forbids a tRNS chunk for the two color types that already
+            // carry a full per-pixel alpha channel (grayscale-with-alpha and Truecolor-with-alpha):
+            // there is nothing for a single-key-color transparency chunk to add for those formats,
+            // so its presence indicates a malformed, non-conforming file rather than a feature to
+            // silently ignore
+            if (state.ColorType is ColorTypeGrayscaleAlpha or ColorTypeTruecolorAlpha)
+            {
+                throw new InvalidDataException(
+                    $"tRNS chunk is not permitted for PNG color type {state.ColorType}, which already " +
+                    "carries a full per-pixel alpha channel.");
+            }
+
+            // For indexed-color (palette) images, tRNS's per-palette-entry alpha values are
+            // meaningless without the PLTE chunk they index into, so the specification requires
+            // tRNS to appear after PLTE, not merely after IHDR and before the first IDAT
+            if (state.ColorType == ColorTypePalette && !state.PlteSeen)
+            {
+                throw new InvalidDataException("tRNS chunk for indexed-color PNG must follow PLTE.");
+            }
+
             state.TrnsData = data;
             state.TrnsSeen = true;
         }
@@ -584,9 +648,20 @@ public static class PngCodec
 
             state.IendSeen = true;
         }
+        else if (typeBytes[0] is >= (byte)'A' and <= (byte)'Z')
+        {
+            // The PNG specification uses a chunk type's first byte's case to mark it critical
+            // (uppercase) or ancillary (lowercase). This chunk type is not one of the five
+            // chunks this codec explicitly recognizes above, yet its first byte is uppercase, so
+            // it is an unrecognized critical chunk: it may change how pixel data must be
+            // interpreted, so a conforming decoder that does not understand it must refuse to
+            // decode rather than risk silently producing incorrect pixels.
+            var typeName = System.Text.Encoding.ASCII.GetString(typeBytes);
+            throw new InvalidDataException($"Unrecognized critical PNG chunk '{typeName}'.");
+        }
 
-        // Any other chunk type (for example "tEXt", "pHYs", "gAMA") is an ancillary chunk
-        // this codec does not need; its CRC-32 has already been validated above, and its
+        // Any other chunk type (for example "tEXt", "pHYs", "gAMA") is an unrecognized ancillary
+        // chunk this codec does not need; its CRC-32 has already been validated above, and its
         // data is simply not accumulated anywhere, effectively skipping it
     }
 
@@ -966,9 +1041,11 @@ public static class PngCodec
     /// <summary>
     ///     Validates a raw <c>tRNS</c> chunk payload against the file's color type and (for
     ///     palette) its <c>PLTE</c> chunk, returning the chunk unchanged when applicable or null
-    ///     when absent or not applicable (grayscale-with-alpha and Truecolor-with-alpha are not
-    ///     spec-defined for <c>tRNS</c>, so a <c>tRNS</c> chunk present alongside those color
-    ///     types is ignored rather than rejected).
+    ///     when absent. A <c>tRNS</c> chunk can never reach this method for the
+    ///     grayscale-with-alpha or Truecolor-with-alpha color types - <c>ProcessChunk</c> rejects
+    ///     such a chunk outright as soon as it is encountered, since neither color type is
+    ///     spec-defined for <c>tRNS</c> - so the <c>default</c> case below exists only as a
+    ///     defensive fallback for any other, already-rejected-earlier color type.
     /// </summary>
     /// <exception cref="System.IO.InvalidDataException">
     ///     Thrown when a grayscale or Truecolor <c>tRNS</c> chunk does not have its mandatory
@@ -1013,8 +1090,10 @@ public static class PngCodec
                 return trnsData;
 
             default:
-                // tRNS is not defined by the PNG specification for grayscale-with-alpha (4) or
-                // Truecolor-with-alpha (6); ignore it rather than rejecting the file
+                // Unreachable in practice: ProcessChunk rejects a tRNS chunk outright for
+                // grayscale-with-alpha (4) and Truecolor-with-alpha (6) before it is ever stored,
+                // and every other color type is handled by a case above; this defensive fallback
+                // simply discards a tRNS chunk for any color type not otherwise matched.
                 return null;
         }
     }

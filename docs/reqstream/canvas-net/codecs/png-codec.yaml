@@ -336,6 +336,61 @@ sections:
                 tests:
                   - PngCodec_Load_IendBeforeIhdr_ThrowsInvalidDataExceptionMentioningIhdr
 
+              - id: CanvasNet-Codecs-PngCodec-LoadUnrecognizedCriticalChunk
+                title: >-
+                  The PngCodec class shall reject a PNG stream containing an unrecognized critical
+                  chunk (a chunk type not IHDR/PLTE/tRNS/IDAT/IEND whose first type byte is an
+                  uppercase ASCII letter) with InvalidDataException, while continuing to skip an
+                  unrecognized ancillary chunk (lowercase first type byte) exactly as before.
+                justification: |
+                  Per the PNG specification, a chunk type's first byte's case marks it critical
+                  (uppercase) or ancillary (lowercase); an unrecognized critical chunk may change how
+                  pixel data must be interpreted, so a conforming decoder that does not understand it
+                  must refuse to decode rather than risk silently producing incorrect pixels. An
+                  unrecognized ancillary chunk carries no information required to decode pixels
+                  correctly and remains safe to skip.
+                tests:
+                  - PngCodec_Load_UnrecognizedCriticalChunk_ThrowsInvalidDataException
+                  - PngCodec_Load_UnrecognizedAncillaryChunk_StillLoadsSuccessfully
+
+              - id: CanvasNet-Codecs-PngCodec-LoadPlteForbiddenForGrayscale
+                title: >-
+                  The PngCodec class shall reject a PLTE chunk on a grayscale (color type 0) or
+                  grayscale-with-alpha (color type 4) PNG with InvalidDataException.
+                justification: |
+                  The PNG specification forbids a PLTE chunk for either grayscale color type, since
+                  grayscale samples are sample magnitudes, never palette indices, and are therefore
+                  never resolved through a palette; tolerating a PLTE chunk on such a file would mean
+                  accepting a non-conforming file a correct encoder never produces.
+                tests:
+                  - PngCodec_Load_PlteOnGrayscale_ThrowsInvalidDataException
+                  - PngCodec_Load_PlteOnGrayscaleAlpha_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-LoadTrnsOrderRequiresPlteForPalette
+                title: >-
+                  The PngCodec class shall reject a tRNS chunk that precedes the PLTE chunk on an
+                  indexed-color (color type 3) PNG with InvalidDataException naming PLTE as the cause.
+                justification: |
+                  A palette tRNS chunk's per-palette-entry alpha values are meaningless until the
+                  palette they index into has been read; the PNG specification requires tRNS to follow
+                  PLTE for indexed-color images, a stricter ordering than the existing
+                  after-IHDR-and-before-IDAT check this codec already enforced.
+                tests:
+                  - PngCodec_Load_TrnsBeforePlteForIndexedColor_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-LoadTrnsForbiddenForAlphaColorTypes
+                title: >-
+                  The PngCodec class shall reject a tRNS chunk on a grayscale-with-alpha (color type
+                  4) or Truecolor-with-alpha (color type 6) PNG with InvalidDataException.
+                justification: |
+                  Both color types already carry a full per-pixel alpha channel, leaving nothing for a
+                  single-key-color transparency chunk to add; the PNG specification forbids tRNS for
+                  these color types, so tolerating it would mean accepting a non-conforming file a
+                  correct encoder never produces.
+                tests:
+                  - PngCodec_Load_TrnsOnGrayscaleAlpha_ThrowsInvalidDataException
+                  - PngCodec_Load_TrnsOnTruecolorAlpha_ThrowsInvalidDataException
+
               - id: CanvasNet-Codecs-PngCodec-GetInfo
                 title: >-
                   The PngCodec class shall report a PNG's width, height, channel count, and alpha

@@ -48,8 +48,9 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///                 <see cref="PngCodec.GetInfo(Stream)"/>'s remarks): grayscale (0) reports 1
 ///                 channel, no alpha; Truecolor (2) reports 3 channels, no alpha; palette/indexed
 ///                 (3) reports 1 channel, no alpha - this is the <em>raw file encoding</em> (one
-///                 palette-index byte per pixel), deliberately <em>not</em> the 4-channel RGBA
-///                 result a full <c>Load</c> would produce after resolving each index through the
+///                 palette-index sample per pixel, packed at sub-byte bit depths), deliberately
+///                 <em>not</em> the 4-channel RGBA result a full <c>Load</c> would produce after
+///                 resolving each index through the
 ///                 file's <c>PLTE</c>/<c>tRNS</c> chunks, since <c>GetInfo</c> never reads those
 ///                 chunks; grayscale-with-alpha (4) reports 2 channels, has alpha; Truecolor-with-
 ///                 alpha (6) reports 4 channels, has alpha.
