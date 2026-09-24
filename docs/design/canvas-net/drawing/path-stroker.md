@@ -281,6 +281,46 @@ pattern length. This fallback shape matches `SvgCodec.RenderStroke`'s own establ
 this dash pattern -> render as solid stroke" convention for other dash-pattern-specific numeric
 problems, rather than throwing or silently omitting the stroke.
 
+#### Bounding Retained On-Interval Count
+
+`MaxOnIntervalIterations` (above) bounds the traversal loop's worst-case *iteration count*, but a
+cloud-PR-review finding identified that iteration count is a distinct quantity from the loop's
+*retained output*: `BuildOnIntervals` only appends an interval to its returned list for the
+strictly-positive, even-indexed ("on") pattern entries - odd ("off") entries and zero-length
+entries cost iterations but retain nothing. A pattern shaped so most transitions are "on"
+transitions (for example `[1, 1]`, where every other entry is on) can stay at or under
+`MaxOnIntervalIterations`'s estimate while still materializing tens of millions of retained
+tuples. `Split` does not stop at the tuple list either: it turns each retained interval into its
+own extracted polyline segment, which `PathStroker.Stroke` then feeds through `StrokeOutliner`
+per segment, accumulating every resulting outline polygon into one combined path - so the real
+retained cost is proportional to on-interval count times per-segment outline cost, not merely
+`sizeof(interval) * count`.
+
+A concrete worst case makes the gap exact: a two-point path with `totalLength = 50,000,000` and
+dash pattern `[1, 1]` yields `estimatedIterations = 2 * 2 * (50,000,000 / 2) = 100,000,000` - not
+*greater than* the 100,000,000-iteration cap, so `MaxOnIntervalIterations` alone does not trigger
+
+- yet the same pattern retains `estimatedOnIntervalCount = 1 * (50,000,000 / 2) = 25,000,000`
+on-intervals, each destined to become its own segment and outline polygon.
+
+`BuildOnIntervals` now runs a second, independent `O(pattern.Count)` pre-flight estimate:
+`estimatedOnIntervalCount = onEntryCount * (totalLength / patternLength)`, where `onEntryCount` is
+the count of strictly-positive, even-indexed pattern entries (mirroring the same
+`totalLength / patternLength` cycle count used by the iteration estimate, but counting only the
+entries that actually retain output). When this estimate exceeds a new, separate
+`MaxOnIntervalCount = 10,000,000` budget, the loop is skipped entirely, exactly like the
+iteration-count short-circuit above. `MaxOnIntervalCount`'s value must stay above `8,500,000` (the
+on-interval count legitimately required by the existing
+`DashSplitter_Split_FineDashPatternOnVeryLongPath_CompletesWithCorrectSegments` regression test,
+which must keep passing) and below `25,000,000` (the pathological `[1, 1]`-on-~50,000,000-unit-path
+scenario above), giving `10,000,000` a comfortable margin on both sides. As a backstop for either
+pre-flight estimate under-counting, the loop itself also increments a running count of retained
+intervals immediately after appending each one and stops as soon as it would exceed
+`MaxOnIntervalCount`, mirroring `MaxOnIntervalIterations`'s own in-loop running-count backstop.
+Either budget being exceeded (via pre-flight estimate or in-loop backstop, for either the
+iteration-count or the on-interval-count budget) is reported back to `Split` through the same
+`out bool` parameter and triggers the same solid-stroke fallback described above.
+
 ### Complexity
 
 The total conversion cost is the sum of three bounded passes over the path data. Flattening is

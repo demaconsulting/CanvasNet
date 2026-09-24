@@ -349,6 +349,58 @@ public class DashSplitterTests
     }
 
     /// <summary>
+    ///     Regression test for a cloud-PR-review-confirmed gap: a dash pattern whose iteration
+    ///     count stays at (not above) <c>MaxOnIntervalIterations</c> can still retain far more
+    ///     "on" intervals than <c>MaxOnIntervalCount</c> permits, and must fall back to a solid
+    ///     stroke instead of materializing millions of retained intervals/segments.
+    /// </summary>
+    /// <remarks>
+    ///     What is <i>counted</i> by <c>MaxOnIntervalIterations</c> (loop iterations - two per
+    ///     dash-pattern-entry transition) is a different quantity than what is <i>retained</i> in
+    ///     memory (only the strictly-positive, even-indexed "on" entries append an interval). For
+    ///     a two-point, 50,000,000-unit path with a <c>[1, 1]</c> pattern:
+    ///     <c>estimatedIterations = 2 * 2 * (50,000,000 / 2) = 100,000,000</c>, which is <i>not
+    ///     greater than</i> the 100,000,000-iteration cap - so <c>MaxOnIntervalIterations</c> alone
+    ///     does not trigger the fallback - yet the same input retains
+    ///     <c>estimatedOnIntervalCount = 1 * (50,000,000 / 2) = 25,000,000</c> on-intervals, far
+    ///     above the 10,000,000 <c>MaxOnIntervalCount</c> cap. This test proves the new,
+    ///     independent <c>MaxOnIntervalCount</c> pre-flight check catches exactly this case and
+    ///     falls back to a solid stroke (a single unchanged segment), the same fallback shape used
+    ///     by <see cref="DashSplitter_Split_HugeFiniteTotalLengthWithFineDashSpan_FallsBackToSolidStroke"/>
+    ///     above. Uses a single giant edge (rather than per-unit vertices, matching that test's
+    ///     "single giant edge, no per-point materialization" technique) so the test itself stays
+    ///     fast and allocation-free regardless of the pathological on-interval count it is proving
+    ///     is rejected before ever being materialized.
+    ///     <para>
+    ///     Calls <see cref="DashSplitter.Split"/> directly and synchronously (no
+    ///     <c>Task.Run</c>/<c>Task.WhenAny</c>/<c>Task.Delay</c> race): the pre-flight
+    ///     short-circuit makes this a deterministic, hardware-independent, effectively O(1)
+    ///     computation, so the correct regression signal is that the call returns at all with the
+    ///     documented fallback shape, not how long it takes on any given machine. No timing-based
+    ///     assertion is made here, consistent with this project's policy against elapsed-time-based
+    ///     test assertions.
+    ///     </para>
+    /// </remarks>
+    [Fact]
+    public void DashSplitter_Split_ManyRetainedOnIntervalsWithinIterationBudget_FallsBackToSolidStroke()
+    {
+        // Arrange: a single 50,000,000-unit edge (no per-point materialization) with a fine
+        // [1, 1] dash pattern - within MaxOnIntervalIterations' budget, but far above
+        // MaxOnIntervalCount's retained-on-interval budget.
+        var points = new List<Vector2> { new(0f, 0f), new(50_000_000f, 0f) };
+
+        // Act: direct, synchronous call - the pre-flight on-interval-count budget estimate (not
+        // wall-clock time) is what guarantees termination without materializing 25,000,000
+        // intervals, so there is nothing to race against.
+        var segments = DashSplitter.Split(points, isClosed: false, dashArray: [1f, 1f], dashOffset: 0f);
+
+        // Assert: the call completed (did not hang/OOM) - dashing was abandoned entirely, and the
+        // whole path is emitted unchanged as a single (unclosed) segment, exactly as the other
+        // "cannot use this dash pattern" fallbacks above already behave.
+        Assert.Equal(points, Assert.Single(segments).Points);
+    }
+
+    /// <summary>
     ///     Regression test for a quality-review-confirmed pre-flight-formula bug: an
     ///     <b>asymmetric</b> dash pattern (one small entry mixed with a much larger one) combined
     ///     with a long-but-ordinary path must still produce genuine dashed output, not the
