@@ -28,7 +28,9 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 - 🌈 **Compositing** - Vectorized alpha premultiply/unpremultiply and Porter-Duff "over"
   compositing (surface-over-surface and surface-over-constant-color)
 - 📀 **BMP Codec** - Load and save 24-bit and 32-bit uncompressed Windows BMP files
-- 🎨 **PNG Codec** - Load and save 8-bit Truecolor (RGB) and Truecolor-with-alpha (RGBA) PNG files
+- 🎨 **PNG Codec** - Load any non-interlaced, spec-valid PNG color type/bit depth combination
+  (Grayscale, Palette, Truecolor, and their alpha variants, at bit depths 1-16, with `tRNS`
+  transparency); save 8-bit Truecolor (RGB) and Truecolor-with-alpha (RGBA) PNG files
 - 🖨️ **TIFF Codec** - Load and save 8-bit RGB/RGBA/Grayscale TIFF files with PackBits/LZW/Deflate
 - 🗜️ **JPEG Codec** - Load baseline/progressive JPEG and save baseline 4:2:0 JPEG with quality control
 - 📐 **SVG Codec** - Decode/rasterize a common real-world subset of SVG documents (shapes, paths,

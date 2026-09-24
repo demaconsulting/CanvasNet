@@ -29,9 +29,14 @@ public enum PngColorType
 }
 
 /// <summary>
-///     Provides hand-rolled, dependency-free loading and saving of a restricted subset of PNG
-///     files (8-bit-per-channel Truecolor or Truecolor-with-alpha, no interlacing) to and from
-///     <see cref="Surface"/> pixel buffers.
+///     Provides hand-rolled, dependency-free loading and saving of PNG files to and from
+///     <see cref="Surface"/> pixel buffers. <see cref="Save(Surface, System.IO.Stream, PngColorType)"/>
+///     writes only the two 8-bit-per-channel Truecolor variants named by <see cref="PngColorType"/>,
+///     but <see cref="Load(System.IO.Stream)"/> decodes every non-interlaced, spec-valid PNG
+///     color-type/bit-depth combination (grayscale, Truecolor, palette/indexed, grayscale-with-
+///     alpha, and Truecolor-with-alpha, at bit depths 1, 2, 4, 8, and 16 as permitted for each
+///     color type), and <see cref="GetInfo(System.IO.Stream)"/> reports declared dimensions for
+///     every well-formed PNG, including Adam7-interlaced files that <c>Load</c> cannot decode.
 /// </summary>
 /// <remarks>
 ///     <c>PngCodec</c> is the fourth software unit in CanvasNet, and depends on <see cref="Surface"/>
@@ -41,12 +46,53 @@ public enum PngColorType
 ///     class - there is nothing to construct or configure, so an instance type would add no
 ///     value over static methods.
 ///     <para>
-///         Only 8-bit-per-channel color type 2 (Truecolor/RGB) and color type 6 (Truecolor with
-///         alpha/RGBA) are supported, with the standard (non-interlaced) scanline order. Grayscale
-///         (0), palette/indexed (3), grayscale-with-alpha (4) color types, any bit depth other than
-///         8, and Adam7 interlacing (interlace method 1) are all explicitly rejected with a
+///         <c>Load</c> decodes every color type defined by the PNG specification - grayscale (0),
+///         Truecolor (2), palette/indexed (3), grayscale-with-alpha (4), and Truecolor-with-alpha
+///         (6) - at every bit depth the specification permits for that color type (1, 2, 4, 8, or
+///         16 for grayscale and palette at depths up to 8 only; 8 or 16 for the other three), with
+///         the standard (non-interlaced) scanline order. Only two things remain hard refusals for
+///         <c>Load</c>: Adam7 interlacing (interlace method 1), which this codec does not
+///         implement, and a bit-depth/color-type combination that is itself invalid per the PNG
+///         specification (for example palette at 16-bit depth). Both are rejected with a
 ///         descriptive <see cref="System.IO.InvalidDataException"/> rather than silently producing
-///         incorrect pixels.
+///         incorrect pixels. <c>Save</c>'s output scope is unchanged - only the two 8-bit
+///         Truecolor variants named by <see cref="PngColorType"/>.
+///     </para>
+///     <para>
+///         Design decision - palette (color type 3) tRNS/PLTE-to-RGBA mapping: a palette-indexed
+///         pixel's raw file byte is a palette index, not a sample magnitude, so it is never scaled
+///         the way grayscale samples are; it is used directly to look up the pixel's RGB triple in
+///         the <c>PLTE</c> chunk (mandatory for this color type) and, if present, its alpha byte in
+///         the <c>tRNS</c> chunk (missing entries default to fully opaque). This is a decode-time
+///         (post-<c>Load</c>) concern; see <see cref="GetInfo(System.IO.Stream)"/>'s remarks for
+///         the distinct, and deliberately different, design decision about what <c>GetInfo</c>
+///         reports for palette images without decoding them.
+///     </para>
+///     <para>
+///         Design decision - sub-byte grayscale sample scaling: at bit depths 1, 2, and 4, a
+///         grayscale sample is scaled to the full 0-255 output range via
+///         <c>sample * 255 / ((1 &lt;&lt; bitDepth) - 1)</c> (integer division) rather than bit
+///         replication (for example repeating a 1-bit sample as <c>0x00</c> or <c>0xFF</c>, or a
+///         2-bit sample's top bits into its bottom bits). The two techniques are numerically
+///         identical for every value at these bit depths (both map the sample's legal range evenly
+///         onto 0-255), so the multiply/divide form was chosen simply because it requires no
+///         per-bit-depth special-casing beyond the divisor.
+///     </para>
+///     <para>
+///         Design decision - two independent boolean flags gate distinct concerns while parsing
+///         <c>IHDR</c>: <c>enforceMaxDimension</c> (unchanged from before this decode-widening)
+///         controls only whether a width/height above <see cref="Surface.MaxDimension"/> is
+///         rejected, and the newer <c>validateDecodability</c> controls only whether Adam7
+///         interlacing is rejected. Every other <c>IHDR</c> validation (bit depth in range, color
+///         type in range, the bit-depth/color-type combination being legal per the specification,
+///         compression/filter method, interlace method in range) is a well-formedness check that
+///         is always enforced by both <c>GetInfo</c> and <c>Load</c>, since a file that fails one
+///         of those checks is not a well-formed PNG at all, regardless of whether the caller only
+///         wants its declared size. This is why <c>GetInfo</c> succeeds for every well-formed,
+///         non-interlaced-or-not PNG of any legal color-type/bit-depth combination, yet still
+///         rejects the same malformed inputs <c>Load</c> rejects (bad signature, wrong IHDR
+///         length, non-positive dimensions, IHDR CRC-32 mismatch, out-of-range bit depth/color
+///         type, or an illegal bit-depth/color-type pairing).
 ///     </para>
 ///     <para>
 ///         PNG's <c>IDAT</c> payload is a zlib stream (RFC 1950): a 2-byte header, DEFLATE-
@@ -88,9 +134,26 @@ public static class PngCodec
     private static readonly uint[] CrcTable = BuildCrcTable();
 
     /// <summary>
-    ///     The only bit depth this codec supports (8 bits per channel).
+    ///     The only bit depth <see cref="Save(Surface, System.IO.Stream, PngColorType)"/> writes
+    ///     (8 bits per channel). <see cref="Load(System.IO.Stream)"/> decodes bit depths 1, 2, 4,
+    ///     8, and 16, as permitted per color type by the PNG specification.
     /// </summary>
-    private const byte BitDepth = 8;
+    private const byte SaveBitDepth = 8;
+
+    /// <summary>PNG color type byte for grayscale (one sample per pixel, no alpha).</summary>
+    private const int ColorTypeGrayscale = 0;
+
+    /// <summary>PNG color type byte for Truecolor (three samples per pixel, no alpha).</summary>
+    private const int ColorTypeTruecolor = 2;
+
+    /// <summary>PNG color type byte for palette/indexed (one palette-index sample per pixel).</summary>
+    private const int ColorTypePalette = 3;
+
+    /// <summary>PNG color type byte for grayscale with alpha (two samples per pixel).</summary>
+    private const int ColorTypeGrayscaleAlpha = 4;
+
+    /// <summary>PNG color type byte for Truecolor with alpha (four samples per pixel).</summary>
+    private const int ColorTypeTruecolorAlpha = 6;
 
     /// <summary>
     ///     The only PNG compression method (zlib/DEFLATE) this codec supports.
@@ -108,6 +171,12 @@ public static class PngCodec
     private const byte InterlaceNone = 0;
 
     /// <summary>
+    ///     The PNG interlace method byte for Adam7 interlacing, which this codec's <c>Load</c>
+    ///     does not implement (though <c>GetInfo</c> still reports dimensions for such a file).
+    /// </summary>
+    private const byte InterlaceAdam7 = 1;
+
+    /// <summary>
     ///     The modulus used by the Adler-32 checksum algorithm (the largest prime smaller than
     ///     2^16, as fixed by the zlib/Adler-32 specification).
     /// </summary>
@@ -121,22 +190,26 @@ public static class PngCodec
     private const int MaxIdatChunkSize = 8192;
 
     /// <summary>
-    ///     Loads a <see cref="Surface"/> from an open, readable stream containing a supported PNG
-    ///     image (8-bit-per-channel Truecolor or Truecolor with alpha, non-interlaced).
+    ///     Loads a <see cref="Surface"/> from an open, readable stream containing a well-formed,
+    ///     non-interlaced PNG image of any color type and bit depth combination the PNG
+    ///     specification permits.
     /// </summary>
     /// <param name="stream">
     ///     The stream to read the PNG image from. Reading begins at the stream's current position
     ///     and consumes exactly the PNG signature, all chunks through <c>IEND</c>.
     /// </param>
     /// <returns>
-    ///     A new <see cref="Surface"/> containing the decoded pixels. Pixels decoded from a
-    ///     Truecolor (color type 2) image always have alpha 255 (fully opaque); pixels decoded
-    ///     from a Truecolor-with-alpha (color type 6) image retain the alpha value stored in the
-    ///     file.
+    ///     A new <see cref="Surface"/> containing the decoded pixels, always as RGBA regardless of
+    ///     the source PNG's color type. Pixels decoded from a color type without an alpha channel
+    ///     (grayscale, Truecolor, or palette) have alpha 255 (fully opaque) unless a <c>tRNS</c>
+    ///     chunk marks specific pixels as fully transparent (alpha 0); pixels decoded from a color
+    ///     type with an alpha channel (grayscale-with-alpha or Truecolor-with-alpha) retain the
+    ///     alpha value stored in the file. Samples narrower than 8 bits are scaled to the full
+    ///     0-255 range; 16-bit samples are downshifted to 8 bits by discarding the low byte.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
     /// <exception cref="System.IO.InvalidDataException">
-    ///     Thrown when the stream does not contain a valid, supported PNG image: the 8-byte PNG
+    ///     Thrown when the stream does not contain a valid PNG image: the 8-byte PNG
     ///     signature is missing, the <c>IHDR</c> chunk is missing, malformed, describes
     ///     non-positive or oversized (exceeding <see cref="Surface.MaxDimension"/>) dimensions,
     ///     or describes an unsupported bit depth, color type, compression method, filter method,
@@ -164,10 +237,20 @@ public static class PngCodec
         // as chunk data
         ValidateSignature(stream);
 
-        var header = ReadChunks(stream, out var idatData);
+        var header = ReadChunks(stream, out var idatData, out var plteData, out var trnsData);
 
-        var channels = header.ColorType == (int)PngColorType.Rgba ? 4 : 3;
-        var rowBytes = header.Width * channels;
+        if (header.ColorType == ColorTypePalette && plteData == null)
+        {
+            throw new InvalidDataException("PNG palette color type (3) requires a PLTE chunk.");
+        }
+
+        var trns = ValidateAndNormalizeTrns(header.ColorType, plteData, trnsData);
+
+        var samplesPerPixel = SamplesPerPixel(header.ColorType);
+        var bitsPerPixel = samplesPerPixel * header.BitDepth;
+        var rowBytes = (header.Width * bitsPerPixel + 7) / 8;
+        var bpp = Math.Max(1, (bitsPerPixel + 7) / 8);
+
         var rawData = ZlibDecompress(idatData);
         var expectedRawLength = (long)(rowBytes + 1) * header.Height;
         if (rawData.LongLength != expectedRawLength)
@@ -176,7 +259,17 @@ public static class PngCodec
                 "PNG scanline data has an unexpected length (corrupt or truncated image data).");
         }
 
-        return DecodeScanlines(rawData, header.Width, header.Height, channels);
+        return DecodeScanlines(
+            rawData,
+            header.Width,
+            header.Height,
+            header.ColorType,
+            header.BitDepth,
+            rowBytes,
+            bpp,
+            samplesPerPixel,
+            plteData,
+            trns);
     }
 
     /// <summary>
@@ -213,7 +306,9 @@ public static class PngCodec
     /// <summary>
     ///     Reads a PNG file's signature and <c>IHDR</c> chunk and reports its declared dimensions
     ///     and pixel format, without reading any further chunks (in particular, without reading
-    ///     any <c>IDAT</c> pixel data).
+    ///     any <c>PLTE</c>, <c>tRNS</c>, or <c>IDAT</c> data), and without regard to whether
+    ///     <see cref="Load(Stream)"/> can actually decode the file's color type, bit depth, or
+    ///     interlace method.
     /// </summary>
     /// <param name="stream">
     ///     The stream to read the PNG signature and <c>IHDR</c> chunk from. Reading begins at the
@@ -222,30 +317,46 @@ public static class PngCodec
     ///     the stream is left positioned immediately after the <c>IHDR</c> chunk.
     /// </param>
     /// <returns>
-    ///     An <see cref="ImageInfo"/> describing the file's declared width, height, channel
-    ///     count (3 for Truecolor, 4 for Truecolor with alpha), and whether it has an alpha
-    ///     channel (Truecolor-with-alpha color type only).
+    ///     An <see cref="ImageInfo"/> describing the file's declared width and height, plus the
+    ///     channel count and alpha flag that decoding this file's color type would produce:
+    ///     grayscale (0) reports 1 channel, no alpha; Truecolor (2) reports 3 channels, no alpha;
+    ///     palette/indexed (3) reports 1 channel, no alpha - this is the raw file encoding (one
+    ///     palette-index byte per pixel), <em>not</em> the 4-channel RGBA result <c>Load</c>
+    ///     produces after resolving each index through the <c>PLTE</c>/<c>tRNS</c> chunks, since
+    ///     <c>GetInfo</c> deliberately never reads those chunks; grayscale-with-alpha (4) reports
+    ///     2 channels, has alpha; Truecolor-with-alpha (6) reports 4 channels, has alpha.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
     /// <exception cref="System.IO.InvalidDataException">
     ///     Thrown when the signature does not match, the first chunk is not <c>IHDR</c>, the
     ///     <c>IHDR</c> chunk's declared length is not exactly 13 (validated before any
     ///     length-dependent allocation, so a crafted huge declared length cannot force a large
-    ///     allocation), or the same malformed/unsupported-<c>IHDR</c> conditions as
-    ///     <see cref="Load(Stream)"/> apply, except that a width or height above
-    ///     <see cref="Surface.MaxDimension"/> is <em>not</em> rejected - the raw header-declared
-    ///     values are always returned; see <see cref="ImageInfo"/> for why. Any corruption in a
-    ///     subsequent chunk (including <c>IDAT</c> or <c>IEND</c>) is never encountered by
-    ///     <c>GetInfo</c>.
+    ///     allocation), the <c>IHDR</c> chunk's CRC-32 does not match, it describes non-positive
+    ///     dimensions, or it describes a bit depth, color type, or bit-depth/color-type
+    ///     combination that is not defined by the PNG specification at all. Unlike
+    ///     <see cref="Load(Stream)"/>, a width or height above <see cref="Surface.MaxDimension"/>
+    ///     is <em>not</em> rejected (see <see cref="ImageInfo"/> for why), and Adam7 interlacing
+    ///     is <em>not</em> rejected (this is the one feature <c>Load</c> refuses that is still a
+    ///     well-formed PNG). Any corruption in a subsequent chunk (including <c>PLTE</c>,
+    ///     <c>tRNS</c>, <c>IDAT</c>, or <c>IEND</c>) is never encountered by <c>GetInfo</c>.
     /// </exception>
     public static ImageInfo GetInfo(Stream stream)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
-        var header = ReadIhdrOnly(stream, enforceMaxDimension: false);
-        var hasAlpha = header.ColorType == (int)PngColorType.Rgba;
-        return new ImageInfo(header.Width, header.Height, hasAlpha ? 4 : 3, hasAlpha);
+        var header = ReadIhdrOnly(stream, enforceMaxDimension: false, validateDecodability: false);
+        var (channels, hasAlpha) = header.ColorType switch
+        {
+            ColorTypeGrayscale => (1, false),
+            ColorTypeTruecolor => (3, false),
+            ColorTypePalette => (1, false),
+            ColorTypeGrayscaleAlpha => (2, true),
+            ColorTypeTruecolorAlpha => (4, true),
+            _ => throw new InvalidDataException($"Unsupported PNG color type {header.ColorType}.")
+        };
+        return new ImageInfo(header.Width, header.Height, channels, hasAlpha);
     }
+
 
     /// <summary>
     ///     Reads a PNG file's header at the specified path and reports its declared dimensions
@@ -296,16 +407,17 @@ public static class PngCodec
     }
 
     /// <summary>
-    ///     The width, height, and color type parsed from a PNG's <c>IHDR</c> chunk, produced by
-    ///     <see cref="ReadChunks"/> once the chunk stream has been fully consumed through
-    ///     <c>IEND</c>.
+    ///     The width, height, color type, and bit depth parsed from a PNG's <c>IHDR</c> chunk,
+    ///     produced by <see cref="ReadChunks"/> once the chunk stream has been fully consumed
+    ///     through <c>IEND</c> (or by <see cref="ReadIhdrOnly"/>, which never reads past IHDR).
     /// </summary>
-    private readonly record struct PngHeader(int Width, int Height, int ColorType);
+    private readonly record struct PngHeader(int Width, int Height, int ColorType, int BitDepth);
 
     /// <summary>
     ///     Tracks whether the mandatory <c>IHDR</c> chunk has been seen and accumulates the
-    ///     header's field values as chunks are read, threaded through <see cref="ProcessChunk"/>
-    ///     while <see cref="ReadChunks"/> walks the chunk stream.
+    ///     header's field values, plus the optional <c>PLTE</c> and <c>tRNS</c> chunk payloads,
+    ///     as chunks are read, threaded through <see cref="ProcessChunk"/> while
+    ///     <see cref="ReadChunks"/> walks the chunk stream.
     /// </summary>
     private sealed class ChunkReadState
     {
@@ -323,14 +435,23 @@ public static class PngCodec
 
         /// <summary>The PNG color type, populated by the IHDR chunk.</summary>
         public int ColorType { get; set; }
+
+        /// <summary>The PNG bit depth, populated by the IHDR chunk.</summary>
+        public int BitDepth { get; set; }
+
+        /// <summary>The raw PLTE chunk data (RGB triples), or null if no PLTE chunk was present.</summary>
+        public byte[]? PlteData { get; set; }
+
+        /// <summary>The raw tRNS chunk data, or null if no tRNS chunk was present.</summary>
+        public byte[]? TrnsData { get; set; }
     }
 
     /// <summary>
     ///     Reads and validates every chunk from <paramref name="stream"/> until (and including)
     ///     <c>IEND</c>, accumulating <c>IDAT</c> payload bytes into <paramref name="idatData"/>
-    ///     and returning the parsed <c>IHDR</c> fields.
+    ///     and returning the parsed <c>IHDR</c> fields plus any <c>PLTE</c>/<c>tRNS</c> payloads.
     /// </summary>
-    private static PngHeader ReadChunks(Stream stream, out byte[] idatData)
+    private static PngHeader ReadChunks(Stream stream, out byte[] idatData, out byte[]? plteData, out byte[]? trnsData)
     {
         var state = new ChunkReadState();
         using var idatStream = new MemoryStream();
@@ -343,12 +464,15 @@ public static class PngCodec
         }
 
         idatData = idatStream.ToArray();
-        return new PngHeader(state.Width, state.Height, state.ColorType);
+        plteData = state.PlteData;
+        trnsData = state.TrnsData;
+        return new PngHeader(state.Width, state.Height, state.ColorType, state.BitDepth);
     }
 
     /// <summary>
     ///     Reads, CRC-validates, and dispatches a single chunk: <c>IHDR</c> populates
-    ///     <paramref name="state"/>'s header fields, <c>IDAT</c> data is appended to
+    ///     <paramref name="state"/>'s header fields, <c>PLTE</c>/<c>tRNS</c> data is stored for
+    ///     later use by the decode step, <c>IDAT</c> data is appended to
     ///     <paramref name="idatStream"/>, <c>IEND</c> marks the chunk stream complete, and any
     ///     other chunk type is validated but otherwise skipped.
     /// </summary>
@@ -363,8 +487,33 @@ public static class PngCodec
                 throw new InvalidDataException("Duplicate IHDR chunk.");
             }
 
-            (state.Width, state.Height, state.ColorType) = ParseIhdr(data, enforceMaxDimension: true);
+            (state.Width, state.Height, state.ColorType, state.BitDepth) =
+                ParseIhdr(data, enforceMaxDimension: true, validateDecodability: true);
             state.IhdrSeen = true;
+        }
+        else if (ChunkTypeIs(typeBytes, "PLTE"))
+        {
+            if (!state.IhdrSeen)
+            {
+                throw new InvalidDataException("PLTE chunk encountered before IHDR.");
+            }
+
+            if (data.Length % 3 != 0 || data.Length == 0)
+            {
+                throw new InvalidDataException(
+                    $"Invalid PNG PLTE chunk length {data.Length}; expected a positive multiple of 3.");
+            }
+
+            state.PlteData = data;
+        }
+        else if (ChunkTypeIs(typeBytes, "tRNS"))
+        {
+            if (!state.IhdrSeen)
+            {
+                throw new InvalidDataException("tRNS chunk encountered before IHDR.");
+            }
+
+            state.TrnsData = data;
         }
         else if (ChunkTypeIs(typeBytes, "IDAT"))
         {
@@ -434,21 +583,25 @@ public static class PngCodec
     /// </summary>
     /// <param name="stream">The stream to read the signature and IHDR chunk from.</param>
     /// <param name="enforceMaxDimension">
-    ///     Forwarded to <see cref="ParseIhdr(byte[], bool)"/>; see its documentation.
+    ///     Forwarded to <see cref="ParseIhdr"/>; see its documentation.
+    /// </param>
+    /// <param name="validateDecodability">
+    ///     Forwarded to <see cref="ParseIhdr"/>; see its documentation.
     /// </param>
     /// <returns>The parsed <c>IHDR</c> fields.</returns>
     /// <exception cref="System.IO.InvalidDataException">
     ///     Thrown when the signature does not match, the first chunk is not <c>IHDR</c>, or the
-    ///     <c>IHDR</c> chunk itself is malformed (see <see cref="ParseIhdr(byte[], bool)"/>).
+    ///     <c>IHDR</c> chunk itself is malformed (see <see cref="ParseIhdr"/>).
     /// </exception>
-    private static PngHeader ReadIhdrOnly(Stream stream, bool enforceMaxDimension)
+    private static PngHeader ReadIhdrOnly(Stream stream, bool enforceMaxDimension, bool validateDecodability)
     {
         ValidateSignature(stream);
 
         var (_, data) = ReadIhdrChunkFrame(stream);
-        var (width, height, colorType) = ParseIhdr(data, enforceMaxDimension);
-        return new PngHeader(width, height, colorType);
+        var (width, height, colorType, bitDepth) = ParseIhdr(data, enforceMaxDimension, validateDecodability);
+        return new PngHeader(width, height, colorType, bitDepth);
     }
+
 
     /// <summary>
     ///     Reads and CRC-validates the first chunk frame from <paramref name="stream"/>,
@@ -502,16 +655,37 @@ public static class PngCodec
     }
 
     /// <summary>
-    ///     Defilters and unpacks every scanline of decompressed PNG raw data into a new
+    ///     Defilters and decodes every scanline of decompressed PNG raw data into a new
     ///     <see cref="Surface"/>, reconstructing each row from the previous row per the PNG
-    ///     filtering specification.
+    ///     filtering specification, then mapping each row's samples to RGBA per
+    ///     <paramref name="colorType"/>.
     /// </summary>
-    private static Surface DecodeScanlines(byte[] rawData, int width, int height, int channels)
+    /// <param name="rawData">The decompressed, filtered scanline bytes (one filter-type byte plus <paramref name="rowBytes"/> per row).</param>
+    /// <param name="width">The image width, in pixels.</param>
+    /// <param name="height">The image height, in pixels.</param>
+    /// <param name="colorType">The PNG color type.</param>
+    /// <param name="bitDepth">The PNG bit depth (1, 2, 4, 8, or 16).</param>
+    /// <param name="rowBytes">The number of packed pixel bytes per row (excluding the filter-type byte).</param>
+    /// <param name="bpp">The number of whole bytes per pixel, used by the defilter algorithms (at least 1).</param>
+    /// <param name="samplesPerPixel">The number of samples per pixel for <paramref name="colorType"/>.</param>
+    /// <param name="palette">The raw PLTE chunk data (RGB triples), or null if absent.</param>
+    /// <param name="trns">The validated tRNS chunk data for this color type, or null if absent/not applicable.</param>
+    private static Surface DecodeScanlines(
+        byte[] rawData,
+        int width,
+        int height,
+        int colorType,
+        int bitDepth,
+        int rowBytes,
+        int bpp,
+        int samplesPerPixel,
+        byte[]? palette,
+        byte[]? trns)
     {
-        var rowBytes = width * channels;
         var surface = new Surface(width, height);
         var previousRow = new byte[rowBytes];
         var currentRow = new byte[rowBytes];
+        var samples = new int[width * samplesPerPixel];
         var offset = 0;
         for (var y = 0; y < height; y++)
         {
@@ -520,8 +694,9 @@ public static class PngCodec
             var filtered = rawData.AsSpan(offset, rowBytes);
             offset += rowBytes;
 
-            DefilterRow(filterType, filtered, previousRow, currentRow, channels);
-            UnpackRow(currentRow, surface.GetRowSpanBytes(y), width, channels);
+            DefilterRow(filterType, filtered, previousRow, currentRow, bpp);
+            ExtractSamples(currentRow, width, bitDepth, samplesPerPixel, samples);
+            MapSamplesToRgba(samples, width, colorType, bitDepth, palette, trns, surface.GetRowSpanBytes(y));
 
             // Swap buffers rather than copying: the just-defiltered row becomes the "previous
             // row" reference for the next iteration, and the old previous-row buffer is reused
@@ -531,6 +706,272 @@ public static class PngCodec
 
         return surface;
     }
+
+    /// <summary>
+    ///     Unpacks one defiltered PNG scanline's raw bytes into one integer sample per source
+    ///     channel, handling every bit depth the PNG specification defines.
+    /// </summary>
+    /// <param name="row">The defiltered scanline bytes.</param>
+    /// <param name="width">The number of pixels in the row.</param>
+    /// <param name="bitDepth">The PNG bit depth (1, 2, 4, 8, or 16).</param>
+    /// <param name="samplesPerPixel">The number of samples per pixel.</param>
+    /// <param name="samples">
+    ///     Receives <paramref name="width"/> * <paramref name="samplesPerPixel"/> samples. For a
+    ///     16-bit depth, each sample is the raw big-endian 16-bit value (0-65535), <em>not</em>
+    ///     yet downshifted - see <see cref="MapSamplesToRgba"/> for why the downshift is deferred.
+    /// </param>
+    private static void ExtractSamples(
+        ReadOnlySpan<byte> row,
+        int width,
+        int bitDepth,
+        int samplesPerPixel,
+        Span<int> samples)
+    {
+        var totalSamples = width * samplesPerPixel;
+        switch (bitDepth)
+        {
+            case 8:
+                for (var i = 0; i < totalSamples; i++)
+                {
+                    samples[i] = row[i];
+                }
+
+                break;
+
+            case 16:
+                for (var i = 0; i < totalSamples; i++)
+                {
+                    samples[i] = (row[i * 2] << 8) | row[i * 2 + 1];
+                }
+
+                break;
+
+            default: // 1, 2, or 4 - only reachable for grayscale/palette (samplesPerPixel == 1)
+                var mask = (1 << bitDepth) - 1;
+                for (var x = 0; x < width; x++)
+                {
+                    var bitPos = x * bitDepth;
+                    var byteIndex = bitPos / 8;
+                    var shift = 8 - bitDepth - (bitPos % 8);
+                    samples[x] = (row[byteIndex] >> shift) & mask;
+                }
+
+                break;
+        }
+    }
+
+    /// <summary>
+    ///     Maps one row's unpacked integer samples to RGBA bytes per <paramref name="colorType"/>,
+    ///     applying <c>tRNS</c> key-color transparency and the 16-bit-to-8-bit downshift where
+    ///     applicable.
+    /// </summary>
+    /// <param name="samples">This row's samples, as produced by <see cref="ExtractSamples"/>.</param>
+    /// <param name="width">The number of pixels in the row.</param>
+    /// <param name="colorType">The PNG color type.</param>
+    /// <param name="bitDepth">The PNG bit depth.</param>
+    /// <param name="palette">The raw PLTE chunk data (RGB triples), required for palette (color type 3).</param>
+    /// <param name="trns">The validated tRNS chunk data for this color type, or null if absent/not applicable.</param>
+    /// <param name="destination">The surface row to fill, as RGBA bytes (4 bytes per pixel).</param>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown when a palette index sample is outside the range of <paramref name="palette"/>.
+    /// </exception>
+    private static void MapSamplesToRgba(
+        ReadOnlySpan<int> samples,
+        int width,
+        int colorType,
+        int bitDepth,
+        byte[]? palette,
+        byte[]? trns,
+        Span<byte> destination)
+    {
+        var maxSample = (1 << bitDepth) - 1;
+
+        switch (colorType)
+        {
+            case ColorTypeGrayscale:
+                {
+                    var trnsGray = trns != null ? ReadUInt16Be(trns, 0) : -1;
+                    for (var x = 0; x < width; x++)
+                    {
+                        var raw = samples[x];
+                        var isTransparent = raw == trnsGray;
+                        var gray = bitDepth == 16 ? (byte)(raw >> 8) : (byte)(raw * 255 / maxSample);
+                        var d = x * 4;
+                        destination[d] = gray;
+                        destination[d + 1] = gray;
+                        destination[d + 2] = gray;
+                        destination[d + 3] = (byte)(isTransparent ? 0 : 255);
+                    }
+
+                    break;
+                }
+
+            case ColorTypeTruecolor:
+                {
+                    var hasTrns = trns != null;
+                    var trnsR = hasTrns ? ReadUInt16Be(trns!, 0) : -1;
+                    var trnsG = hasTrns ? ReadUInt16Be(trns!, 2) : -1;
+                    var trnsB = hasTrns ? ReadUInt16Be(trns!, 4) : -1;
+                    for (var x = 0; x < width; x++)
+                    {
+                        var s = x * 3;
+                        var r = samples[s];
+                        var g = samples[s + 1];
+                        var b = samples[s + 2];
+                        var isTransparent = r == trnsR && g == trnsG && b == trnsB;
+                        var d = x * 4;
+                        destination[d] = bitDepth == 16 ? (byte)(r >> 8) : (byte)r;
+                        destination[d + 1] = bitDepth == 16 ? (byte)(g >> 8) : (byte)g;
+                        destination[d + 2] = bitDepth == 16 ? (byte)(b >> 8) : (byte)b;
+                        destination[d + 3] = (byte)(isTransparent ? 0 : 255);
+                    }
+
+                    break;
+                }
+
+            case ColorTypePalette:
+                {
+                    var entries = palette!.Length / 3;
+                    for (var x = 0; x < width; x++)
+                    {
+                        var index = samples[x];
+                        if (index >= entries)
+                        {
+                            throw new InvalidDataException(
+                                $"PNG palette index {index} is out of range for a {entries}-entry PLTE chunk.");
+                        }
+
+                        var p = index * 3;
+                        var d = x * 4;
+                        destination[d] = palette[p];
+                        destination[d + 1] = palette[p + 1];
+                        destination[d + 2] = palette[p + 2];
+                        destination[d + 3] = trns != null && index < trns.Length ? trns[index] : (byte)255;
+                    }
+
+                    break;
+                }
+
+            case ColorTypeGrayscaleAlpha:
+                {
+                    for (var x = 0; x < width; x++)
+                    {
+                        var s = x * 2;
+                        var gray = samples[s];
+                        var alpha = samples[s + 1];
+                        var d = x * 4;
+                        var grayByte = bitDepth == 16 ? (byte)(gray >> 8) : (byte)gray;
+                        destination[d] = grayByte;
+                        destination[d + 1] = grayByte;
+                        destination[d + 2] = grayByte;
+                        destination[d + 3] = bitDepth == 16 ? (byte)(alpha >> 8) : (byte)alpha;
+                    }
+
+                    break;
+                }
+
+            case ColorTypeTruecolorAlpha:
+                {
+                    for (var x = 0; x < width; x++)
+                    {
+                        var s = x * 4;
+                        var d = x * 4;
+                        destination[d] = bitDepth == 16 ? (byte)(samples[s] >> 8) : (byte)samples[s];
+                        destination[d + 1] = bitDepth == 16 ? (byte)(samples[s + 1] >> 8) : (byte)samples[s + 1];
+                        destination[d + 2] = bitDepth == 16 ? (byte)(samples[s + 2] >> 8) : (byte)samples[s + 2];
+                        destination[d + 3] = bitDepth == 16 ? (byte)(samples[s + 3] >> 8) : (byte)samples[s + 3];
+                    }
+
+                    break;
+                }
+        }
+    }
+
+    /// <summary>
+    ///     Returns the number of samples per pixel for a given PNG color type.
+    /// </summary>
+    private static int SamplesPerPixel(int colorType) => colorType switch
+    {
+        ColorTypeGrayscale => 1,
+        ColorTypeTruecolor => 3,
+        ColorTypePalette => 1,
+        ColorTypeGrayscaleAlpha => 2,
+        ColorTypeTruecolorAlpha => 4,
+        _ => throw new InvalidDataException($"Unsupported PNG color type {colorType}.")
+    };
+
+    /// <summary>
+    ///     Determines whether a bit depth is legal for a given PNG color type, per the PNG
+    ///     specification's color-type/bit-depth combination table.
+    /// </summary>
+    private static bool IsValidBitDepthForColorType(int colorType, int bitDepth) => colorType switch
+    {
+        ColorTypeGrayscale => bitDepth is 1 or 2 or 4 or 8 or 16,
+        ColorTypeTruecolor or ColorTypeGrayscaleAlpha or ColorTypeTruecolorAlpha => bitDepth is 8 or 16,
+        ColorTypePalette => bitDepth is 1 or 2 or 4 or 8,
+        _ => false
+    };
+
+    /// <summary>
+    ///     Validates a raw <c>tRNS</c> chunk payload against the file's color type and (for
+    ///     palette) its <c>PLTE</c> chunk, returning the chunk unchanged when applicable or null
+    ///     when absent or not applicable (grayscale-with-alpha and Truecolor-with-alpha are not
+    ///     spec-defined for <c>tRNS</c>, so a <c>tRNS</c> chunk present alongside those color
+    ///     types is ignored rather than rejected).
+    /// </summary>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown when a grayscale or Truecolor <c>tRNS</c> chunk does not have its mandatory
+    ///     fixed length, or a palette <c>tRNS</c> chunk has more entries than the PLTE chunk
+    ///     defines.
+    /// </exception>
+    private static byte[]? ValidateAndNormalizeTrns(int colorType, byte[]? plteData, byte[]? trnsData)
+    {
+        if (trnsData == null)
+        {
+            return null;
+        }
+
+        switch (colorType)
+        {
+            case ColorTypeGrayscale:
+                if (trnsData.Length != 2)
+                {
+                    throw new InvalidDataException(
+                        $"Invalid PNG tRNS chunk length {trnsData.Length} for grayscale; expected 2 bytes.");
+                }
+
+                return trnsData;
+
+            case ColorTypeTruecolor:
+                if (trnsData.Length != 6)
+                {
+                    throw new InvalidDataException(
+                        $"Invalid PNG tRNS chunk length {trnsData.Length} for Truecolor; expected 6 bytes.");
+                }
+
+                return trnsData;
+
+            case ColorTypePalette:
+                var entries = (plteData?.Length ?? 0) / 3;
+                if (trnsData.Length > entries)
+                {
+                    throw new InvalidDataException(
+                        $"PNG tRNS chunk has more entries ({trnsData.Length}) than the PLTE chunk defines ({entries}).");
+                }
+
+                return trnsData;
+
+            default:
+                // tRNS is not defined by the PNG specification for grayscale-with-alpha (4) or
+                // Truecolor-with-alpha (6); ignore it rather than rejecting the file
+                return null;
+        }
+    }
+
+    /// <summary>
+    ///     Reads a big-endian, unsigned 16-bit integer from a byte buffer at the given offset.
+    /// </summary>
+    private static int ReadUInt16Be(byte[] buffer, int offset) => (buffer[offset] << 8) | buffer[offset + 1];
 
     /// <summary>
     ///     Saves a <see cref="Surface"/> to a stream as a PNG image.
@@ -583,7 +1024,7 @@ public static class PngCodec
         var ihdrData = new byte[13];
         WriteUInt32Be(ihdrData, 0, (uint)surface.Width);
         WriteUInt32Be(ihdrData, 4, (uint)surface.Height);
-        ihdrData[8] = BitDepth;
+        ihdrData[8] = SaveBitDepth;
         ihdrData[9] = (byte)colorType;
         ihdrData[10] = CompressionMethodZlib;
         ihdrData[11] = FilterMethodStandard;
@@ -663,17 +1104,36 @@ public static class PngCodec
     ///     <see cref="Surface.MaxDimension"/> with an <see cref="InvalidDataException"/>, as
     ///     <see cref="Load(Stream)"/> requires. When <see langword="false"/>, the raw
     ///     header-declared width and height are returned without comparison, as
-    ///     <see cref="GetInfo(Stream)"/> requires.
+    ///     <see cref="GetInfo(Stream)"/> requires. This flag gates only this one check.
     /// </param>
-    /// <returns>The parsed image width, height, and PNG color type byte.</returns>
+    /// <param name="validateDecodability">
+    ///     When <see langword="true"/>, additionally rejects Adam7 interlacing (interlace method
+    ///     1) with an <see cref="InvalidDataException"/>, as <see cref="Load(Stream)"/> requires,
+    ///     since this codec does not implement Adam7 decoding. When <see langword="false"/>, an
+    ///     Adam7-interlaced <c>IHDR</c> is accepted, as <see cref="GetInfo(Stream)"/> requires,
+    ///     since Adam7 interlacing does not affect the declared width/height it reports. This
+    ///     flag gates only this one check - every other check below (bit depth in range, color
+    ///     type in range, their combination being legal per the PNG specification, compression/
+    ///     filter method, interlace method in range) is a well-formedness check always enforced
+    ///     regardless of this flag's value, since this codec's decodable color-type/bit-depth
+    ///     space is now the PNG specification's entire legal space (see the type-level remarks).
+    /// </param>
+    /// <returns>The parsed image width, height, PNG color type byte, and bit depth.</returns>
     /// <exception cref="System.IO.InvalidDataException">
     ///     Thrown when <paramref name="data"/> is not 13 bytes, describes non-positive
     ///     dimensions (or, when <paramref name="enforceMaxDimension"/> is <see langword="true"/>,
-    ///     oversized dimensions exceeding <see cref="Surface.MaxDimension"/>), or describes an
-    ///     unsupported bit depth, color type, compression method, filter method, or interlace
-    ///     method.
+    ///     oversized dimensions exceeding <see cref="Surface.MaxDimension"/>), describes a bit
+    ///     depth or color type not defined by the PNG specification, describes a bit-depth/color-
+    ///     type combination that is itself invalid per the specification (for example palette at
+    ///     16-bit depth), describes an unsupported compression or filter method, describes an
+    ///     interlace method not defined by the specification, or (only when
+    ///     <paramref name="validateDecodability"/> is <see langword="true"/>) declares Adam7
+    ///     interlacing.
     /// </exception>
-    private static (int Width, int Height, int ColorType) ParseIhdr(byte[] data, bool enforceMaxDimension)
+    private static (int Width, int Height, int ColorType, int BitDepth) ParseIhdr(
+        byte[] data,
+        bool enforceMaxDimension,
+        bool validateDecodability)
     {
         if (data.Length != 13)
         {
@@ -682,8 +1142,8 @@ public static class PngCodec
 
         var width = (int)ReadUInt32Be(data, 0);
         var height = (int)ReadUInt32Be(data, 4);
-        var bitDepth = data[8];
-        var colorType = data[9];
+        int bitDepth = data[8];
+        int colorType = data[9];
         var compressionMethod = data[10];
         var filterMethod = data[11];
         var interlaceMethod = data[12];
@@ -694,12 +1154,10 @@ public static class PngCodec
         }
 
         // Reject dimensions above Surface.MaxDimension here, before ParseIhdr returns and before
-        // any width/height arithmetic (e.g. DecodeScanlines' rowBytes = width * channels, which
-        // is computed before its Surface is constructed) is performed, so an oversized value
-        // surfaces as the documented InvalidDataException rather than an
-        // ArgumentOutOfRangeException escaping from deep inside Surface's constructor. Skipped
-        // entirely when enforceMaxDimension is false, so GetInfo can report the raw header
-        // dimensions even when they exceed the bound.
+        // any width/height arithmetic performed later in Load, so an oversized value surfaces as
+        // the documented InvalidDataException rather than an ArgumentOutOfRangeException escaping
+        // from deep inside Surface's constructor. Skipped entirely when enforceMaxDimension is
+        // false, so GetInfo can report the raw header dimensions even when they exceed the bound.
         if (enforceMaxDimension && (width > Surface.MaxDimension || height > Surface.MaxDimension))
         {
             throw new InvalidDataException(
@@ -707,16 +1165,27 @@ public static class PngCodec
                 $"{Surface.MaxDimension}x{Surface.MaxDimension}.");
         }
 
-        if (bitDepth != BitDepth)
+        if (bitDepth is not (1 or 2 or 4 or 8 or 16))
         {
             throw new InvalidDataException(
-                $"Unsupported PNG bit depth {bitDepth}; only 8 bits per channel is supported.");
+                $"Invalid PNG bit depth {bitDepth}; only 1, 2, 4, 8, or 16 bits per sample are " +
+                "defined by the PNG specification.");
         }
 
-        if (colorType != (int)PngColorType.Rgb && colorType != (int)PngColorType.Rgba)
+        if (colorType is not (ColorTypeGrayscale or ColorTypeTruecolor or ColorTypePalette
+            or ColorTypeGrayscaleAlpha or ColorTypeTruecolorAlpha))
         {
             throw new InvalidDataException(
-                $"Unsupported PNG color type {colorType}; only Truecolor (2) and Truecolor with alpha (6) are supported.");
+                $"Invalid PNG color type {colorType}; only grayscale (0), Truecolor (2), " +
+                "palette (3), grayscale-with-alpha (4), and Truecolor-with-alpha (6) are " +
+                "defined by the PNG specification.");
+        }
+
+        if (!IsValidBitDepthForColorType(colorType, bitDepth))
+        {
+            throw new InvalidDataException(
+                $"Bit depth {bitDepth} is not valid for PNG color type {colorType} per the PNG " +
+                "specification's color-type/bit-depth combination table.");
         }
 
         if (compressionMethod != CompressionMethodZlib)
@@ -731,14 +1200,23 @@ public static class PngCodec
                 $"Unsupported PNG filter method {filterMethod}; only the standard adaptive filter method (0) is supported.");
         }
 
-        if (interlaceMethod != InterlaceNone)
+        if (interlaceMethod is not (InterlaceNone or InterlaceAdam7))
         {
             throw new InvalidDataException(
-                $"Unsupported PNG interlace method {interlaceMethod}; only non-interlaced images (0) are supported.");
+                $"Invalid PNG interlace method {interlaceMethod}; only 0 (none) and 1 (Adam7) " +
+                "are defined by the PNG specification.");
         }
 
-        return (width, height, colorType);
+        if (validateDecodability && interlaceMethod == InterlaceAdam7)
+        {
+            throw new InvalidDataException(
+                "Adam7 interlacing is not supported by Load; use GetInfo to obtain this file's " +
+                "declared dimensions without decoding its pixel data.");
+        }
+
+        return (width, height, colorType, bitDepth);
     }
+
 
     /// <summary>
     ///     Determines whether a 4-byte chunk type field matches the given ASCII chunk type name.
@@ -907,27 +1385,6 @@ public static class PngCodec
         }
 
         return pb <= pc ? b : c;
-    }
-
-    /// <summary>
-    ///     Converts one row of raw PNG pixel bytes (RGB or RGBA, 8-bit depth) into the surface's
-    ///     RGBA byte order, forcing alpha to 255 when the source has no alpha channel.
-    /// </summary>
-    /// <param name="source">The row's raw pixel bytes (<paramref name="channels"/> bytes per pixel).</param>
-    /// <param name="destination">The surface row to fill, as RGBA bytes (4 bytes per pixel).</param>
-    /// <param name="width">The number of pixels in the row.</param>
-    /// <param name="channels">The number of bytes per pixel in <paramref name="source"/> (3 or 4).</param>
-    private static void UnpackRow(ReadOnlySpan<byte> source, Span<byte> destination, int width, int channels)
-    {
-        for (var x = 0; x < width; x++)
-        {
-            var sourceOffset = x * channels;
-            var destinationOffset = x * 4;
-            destination[destinationOffset] = source[sourceOffset];
-            destination[destinationOffset + 1] = source[sourceOffset + 1];
-            destination[destinationOffset + 2] = source[sourceOffset + 2];
-            destination[destinationOffset + 3] = channels == 4 ? source[sourceOffset + 3] : (byte)255;
-        }
     }
 
     /// <summary>

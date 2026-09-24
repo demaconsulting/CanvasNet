@@ -282,6 +282,488 @@ public class PngCodecTests
     }
 
     /// <summary>
+    ///     Proves that Load decodes an 8-bit grayscale (color type 0) image, replicating each
+    ///     gray sample into R, G, and B, with alpha forced to 255 (no tRNS chunk present).
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_Grayscale8Bit_ReturnsExpectedGrayPixels()
+    {
+        // Arrange: one row, two gray samples, filter type None
+        var rawRows = new[] { new byte[] { 10, 200 } };
+        var filterTypes = new byte[] { 0 };
+        var bytes = BuildPng(2, 1, 1, 0, rawRows, filterTypes, rowBytes: 2, bpp: 1);
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var loaded = PngCodec.Load(stream);
+
+        // Assert
+        Assert.Equal(new Rgba32(10, 10, 10, 255), loaded[0, 0]);
+        Assert.Equal(new Rgba32(200, 200, 200, 255), loaded[1, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that Load decodes an 8-bit grayscale-with-alpha (color type 4) image, retaining
+    ///     each pixel's stored alpha value.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_GrayscaleAlpha8Bit_ReturnsExpectedPixels()
+    {
+        // Arrange: one row, two (gray, alpha) sample pairs, filter type None
+        var rawRows = new[] { new byte[] { 50, 128, 90, 255 } };
+        var filterTypes = new byte[] { 0 };
+        var bytes = BuildPng(2, 1, 2, 4, rawRows, filterTypes, rowBytes: 4, bpp: 2);
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var loaded = PngCodec.Load(stream);
+
+        // Assert
+        Assert.Equal(new Rgba32(50, 50, 50, 128), loaded[0, 0]);
+        Assert.Equal(new Rgba32(90, 90, 90, 255), loaded[1, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that Load decodes an 8-bit palette (color type 3) image, resolving each
+    ///     palette-index sample through the PLTE chunk with alpha forced to 255 (no tRNS chunk
+    ///     present).
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_Palette8Bit_ResolvesIndicesThroughPlte()
+    {
+        // Arrange: a 3-entry palette and a row of three distinct indices
+        var plte = new byte[] { 10, 20, 30, 40, 50, 60, 70, 80, 90 };
+        var rawRows = new[] { new byte[] { 0, 1, 2 } };
+        var filterTypes = new byte[] { 0 };
+        var bytes = BuildPng(3, 1, 1, 3, rawRows, filterTypes, rowBytes: 3, bpp: 1, plteData: plte);
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var loaded = PngCodec.Load(stream);
+
+        // Assert
+        Assert.Equal(new Rgba32(10, 20, 30, 255), loaded[0, 0]);
+        Assert.Equal(new Rgba32(40, 50, 60, 255), loaded[1, 0]);
+        Assert.Equal(new Rgba32(70, 80, 90, 255), loaded[2, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that Load honors a palette (color type 3) image's tRNS chunk, applying each
+    ///     entry's per-palette-index alpha byte, and defaulting to fully opaque for any palette
+    ///     entry the tRNS chunk does not cover.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_PaletteWithTrns_AppliesPerIndexAlpha()
+    {
+        // Arrange: a 3-entry palette; tRNS covers only the first two entries
+        var plte = new byte[] { 10, 20, 30, 40, 50, 60, 70, 80, 90 };
+        var trns = new byte[] { 255, 0 }; // index 0 -> opaque, index 1 -> fully transparent
+        var rawRows = new[] { new byte[] { 0, 1, 2 } };
+        var filterTypes = new byte[] { 0 };
+        var bytes = BuildPng(3, 1, 1, 3, rawRows, filterTypes, rowBytes: 3, bpp: 1, plteData: plte, trnsData: trns);
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var loaded = PngCodec.Load(stream);
+
+        // Assert: index 0 opaque, index 1 transparent, index 2 (uncovered by tRNS) defaults opaque
+        Assert.Equal(new Rgba32(10, 20, 30, 255), loaded[0, 0]);
+        Assert.Equal(new Rgba32(40, 50, 60, 0), loaded[1, 0]);
+        Assert.Equal(new Rgba32(70, 80, 90, 255), loaded[2, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that Load rejects a palette (color type 3) image with no PLTE chunk, with
+    ///     InvalidDataException naming PLTE as the cause.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_PaletteWithoutPlte_ThrowsInvalidDataExceptionMentioningPlte()
+    {
+        // Arrange: a palette-color-type image with no PLTE chunk at all
+        var rawRows = new[] { new byte[] { 0 } };
+        var filterTypes = new byte[] { 0 };
+        var bytes = BuildPng(1, 1, 1, 3, rawRows, filterTypes, rowBytes: 1, bpp: 1);
+        using var stream = new MemoryStream(bytes);
+
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        Assert.Contains("PLTE", exception.Message);
+    }
+
+    /// <summary>
+    ///     Proves that Load rejects a palette-index sample outside the PLTE chunk's entry count
+    ///     with InvalidDataException.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_PaletteIndexOutOfRange_ThrowsInvalidDataException()
+    {
+        // Arrange: a 2-entry palette but a row containing index 5
+        var plte = new byte[] { 1, 2, 3, 4, 5, 6 };
+        var rawRows = new[] { new byte[] { 5 } };
+        var filterTypes = new byte[] { 0 };
+        var bytes = BuildPng(1, 1, 1, 3, rawRows, filterTypes, rowBytes: 1, bpp: 1, plteData: plte);
+        using var stream = new MemoryStream(bytes);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+    }
+
+    /// <summary>
+    ///     Proves that Load honors a grayscale (color type 0) image's tRNS chunk, marking exactly
+    ///     the pixels whose gray sample matches the tRNS value as fully transparent.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_GrayscaleWithTrns_MarksExactMatchTransparent()
+    {
+        // Arrange: two gray samples, one matching the tRNS value exactly, one not
+        var trns = new byte[] { 0, 100 }; // gray value 100 is the transparent key color
+        var rawRows = new[] { new byte[] { 100, 150 } };
+        var filterTypes = new byte[] { 0 };
+        var bytes = BuildPng(2, 1, 1, 0, rawRows, filterTypes, rowBytes: 2, bpp: 1, trnsData: trns);
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var loaded = PngCodec.Load(stream);
+
+        // Assert
+        Assert.Equal(new Rgba32(100, 100, 100, 0), loaded[0, 0]);
+        Assert.Equal(new Rgba32(150, 150, 150, 255), loaded[1, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that Load honors a Truecolor (color type 2) image's tRNS chunk, marking exactly
+    ///     the pixel whose RGB triple matches the tRNS value as fully transparent.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_TruecolorWithTrns_MarksExactMatchTransparent()
+    {
+        // Arrange: two RGB triples, one matching the tRNS value exactly, one not
+        var trns = new byte[] { 0, 10, 0, 20, 0, 30 }; // (10, 20, 30) is the transparent key color
+        var rawRows = new[] { new byte[] { 10, 20, 30, 11, 20, 30 } };
+        var filterTypes = new byte[] { 0 };
+        var bytes = BuildPng(2, 1, 3, (byte)PngColorType.Rgb, rawRows, filterTypes, trnsData: trns);
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var loaded = PngCodec.Load(stream);
+
+        // Assert
+        Assert.Equal(new Rgba32(10, 20, 30, 0), loaded[0, 0]);
+        Assert.Equal(new Rgba32(11, 20, 30, 255), loaded[1, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that Load decodes a 1-bit grayscale image, scaling each 1-bit sample to the full
+    ///     0-255 range and unpacking bits MSB-first, including across a non-byte-aligned final
+    ///     partial byte.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_Grayscale1BitDepth_ScalesSamplesAndUnpacksMsbFirst()
+    {
+        // Arrange: 8 one-bit samples [0,1,0,1,1,0,1,0] packed MSB-first into a single byte 0x5A
+        var rawRows = new[] { new byte[] { 0x5A } };
+        var filterTypes = new byte[] { 0 };
+        var bytes = BuildPng(8, 1, 1, 0, rawRows, filterTypes, bitDepth: 1, rowBytes: 1, bpp: 1);
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var loaded = PngCodec.Load(stream);
+
+        // Assert: 0 scales to 0, 1 scales to 255
+        var expectedGray = new byte[] { 0, 255, 0, 255, 255, 0, 255, 0 };
+        for (var x = 0; x < 8; x++)
+        {
+            var g = expectedGray[x];
+            Assert.Equal(new Rgba32(g, g, g, 255), loaded[x, 0]);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that Load decodes a 2-bit grayscale image, scaling each 2-bit sample (0-3) to
+    ///     the full 0-255 range.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_Grayscale2BitDepth_ScalesSamples()
+    {
+        // Arrange: four 2-bit samples [0,1,2,3] packed MSB-first into a single byte 0x1B
+        var rawRows = new[] { new byte[] { 0x1B } };
+        var filterTypes = new byte[] { 0 };
+        var bytes = BuildPng(4, 1, 1, 0, rawRows, filterTypes, bitDepth: 2, rowBytes: 1, bpp: 1);
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var loaded = PngCodec.Load(stream);
+
+        // Assert: sample * 255 / 3
+        var expectedGray = new byte[] { 0, 85, 170, 255 };
+        for (var x = 0; x < 4; x++)
+        {
+            var g = expectedGray[x];
+            Assert.Equal(new Rgba32(g, g, g, 255), loaded[x, 0]);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that Load decodes a 4-bit grayscale image, scaling each 4-bit sample (0-15) to
+    ///     the full 0-255 range.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_Grayscale4BitDepth_ScalesSamples()
+    {
+        // Arrange: two 4-bit samples [5,10] packed MSB-first into a single byte 0x5A
+        var rawRows = new[] { new byte[] { 0x5A } };
+        var filterTypes = new byte[] { 0 };
+        var bytes = BuildPng(2, 1, 1, 0, rawRows, filterTypes, bitDepth: 4, rowBytes: 1, bpp: 1);
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var loaded = PngCodec.Load(stream);
+
+        // Assert: sample * 255 / 15
+        Assert.Equal(new Rgba32(85, 85, 85, 255), loaded[0, 0]);
+        Assert.Equal(new Rgba32(170, 170, 170, 255), loaded[1, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that Load decodes a 2-bit palette image, unpacking each 2-bit palette-index
+    ///     sample (never scaled, unlike grayscale) and resolving it through the PLTE chunk.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_Palette2BitDepth_UnpacksIndicesWithoutScaling()
+    {
+        // Arrange: a 4-entry palette and four 2-bit indices [0,1,2,3] packed into byte 0x1B
+        var plte = new byte[] { 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4 };
+        var rawRows = new[] { new byte[] { 0x1B } };
+        var filterTypes = new byte[] { 0 };
+        var bytes = BuildPng(4, 1, 1, 3, rawRows, filterTypes, bitDepth: 2, rowBytes: 1, bpp: 1, plteData: plte);
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var loaded = PngCodec.Load(stream);
+
+        // Assert
+        Assert.Equal(new Rgba32(1, 1, 1, 255), loaded[0, 0]);
+        Assert.Equal(new Rgba32(2, 2, 2, 255), loaded[1, 0]);
+        Assert.Equal(new Rgba32(3, 3, 3, 255), loaded[2, 0]);
+        Assert.Equal(new Rgba32(4, 4, 4, 255), loaded[3, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that Load decodes a 16-bit grayscale image, discarding the low byte of each
+    ///     big-endian 16-bit sample.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_Grayscale16BitDepth_DiscardsLowByte()
+    {
+        // Arrange: two 16-bit big-endian samples, 0x1234 and 0xABCD
+        var rawRows = new[] { new byte[] { 0x12, 0x34, 0xAB, 0xCD } };
+        var filterTypes = new byte[] { 0 };
+        var bytes = BuildPng(2, 1, 2, 0, rawRows, filterTypes, bitDepth: 16, rowBytes: 4, bpp: 2);
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var loaded = PngCodec.Load(stream);
+
+        // Assert: only the high byte of each sample survives
+        Assert.Equal(new Rgba32(0x12, 0x12, 0x12, 255), loaded[0, 0]);
+        Assert.Equal(new Rgba32(0xAB, 0xAB, 0xAB, 255), loaded[1, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that Load decodes a 16-bit Truecolor-with-alpha image, discarding the low byte
+    ///     of every channel's big-endian 16-bit sample.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_TruecolorAlpha16BitDepth_DiscardsLowByteOfEveryChannel()
+    {
+        // Arrange: one pixel, R=0x0102, G=0x0304, B=0x0506, A=0x0708
+        var rawRows = new[] { new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 } };
+        var filterTypes = new byte[] { 0 };
+        var bytes = BuildPng(1, 1, 4, (byte)PngColorType.Rgba, rawRows, filterTypes, bitDepth: 16, rowBytes: 8, bpp: 8);
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var loaded = PngCodec.Load(stream);
+
+        // Assert
+        Assert.Equal(new Rgba32(0x01, 0x03, 0x05, 0x07), loaded[0, 0]);
+    }
+
+    /// <summary>
+    ///     Regression test for the tRNS-before-downshift ordering requirement: proves that a
+    ///     16-bit grayscale tRNS comparison uses the full 16-bit raw sample, not the downshifted
+    ///     8-bit value. Two pixels share the same downshifted (high) byte but differ in their raw
+    ///     16-bit value; only the one that matches the tRNS chunk's raw 16-bit value exactly is
+    ///     marked transparent. An implementation that incorrectly downshifted before comparing
+    ///     would mark both pixels transparent, since their downshifted values are identical.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_Grayscale16BitTrns_ComparesRawSampleBeforeDownshift()
+    {
+        // Arrange: pixel 0 raw = 0x0100 (256, matches tRNS exactly); pixel 1 raw = 0x01FF (511,
+        // downshifts to the same high byte as pixel 0 but does not match tRNS exactly)
+        var trns = new byte[] { 0x01, 0x00 };
+        var rawRows = new[] { new byte[] { 0x01, 0x00, 0x01, 0xFF } };
+        var filterTypes = new byte[] { 0 };
+        var bytes = BuildPng(2, 1, 2, 0, rawRows, filterTypes, bitDepth: 16, rowBytes: 4, bpp: 2, trnsData: trns);
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var loaded = PngCodec.Load(stream);
+
+        // Assert: both downshift to gray byte 0x01, but only the exact raw match is transparent
+        Assert.Equal(new Rgba32(0x01, 0x01, 0x01, 0), loaded[0, 0]);
+        Assert.Equal(new Rgba32(0x01, 0x01, 0x01, 255), loaded[1, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo reports the correct dimensions, 1 channel, and no alpha for a
+    ///     grayscale (color type 0) PNG.
+    /// </summary>
+    [Fact]
+    public void PngCodec_GetInfo_Grayscale_ReturnsExpectedInfoWithoutAlpha()
+    {
+        // Arrange
+        var rawRows = new[] { new byte[] { 10, 200 } };
+        var filterTypes = new byte[] { 0 };
+        var bytes = BuildPng(2, 1, 1, 0, rawRows, filterTypes, rowBytes: 2, bpp: 1);
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var info = PngCodec.GetInfo(stream);
+
+        // Assert
+        Assert.Equal(new ImageInfo(2, 1, 1, false), info);
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo reports the correct dimensions, 2 channels, and alpha for a
+    ///     grayscale-with-alpha (color type 4) PNG.
+    /// </summary>
+    [Fact]
+    public void PngCodec_GetInfo_GrayscaleAlpha_ReturnsExpectedInfoWithAlpha()
+    {
+        // Arrange
+        var rawRows = new[] { new byte[] { 50, 128 } };
+        var filterTypes = new byte[] { 0 };
+        var bytes = BuildPng(1, 1, 2, 4, rawRows, filterTypes, rowBytes: 2, bpp: 2);
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var info = PngCodec.GetInfo(stream);
+
+        // Assert
+        Assert.Equal(new ImageInfo(1, 1, 2, true), info);
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo reports a palette (color type 3) PNG's raw file encoding - 1
+    ///     channel, no alpha - rather than the 4-channel RGBA result Load would produce after
+    ///     resolving indices through PLTE/tRNS; this is the documented design decision, not an
+    ///     oversight.
+    /// </summary>
+    [Fact]
+    public void PngCodec_GetInfo_Palette_ReturnsRawFileEncodingNotDecodedRgba()
+    {
+        // Arrange: a palette PNG that Load would decode to opaque RGBA pixels
+        var plte = new byte[] { 10, 20, 30 };
+        var rawRows = new[] { new byte[] { 0 } };
+        var filterTypes = new byte[] { 0 };
+        var bytes = BuildPng(1, 1, 1, 3, rawRows, filterTypes, rowBytes: 1, bpp: 1, plteData: plte);
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var info = PngCodec.GetInfo(stream);
+
+        // Assert: 1 channel, no alpha - the raw file encoding, not Load's 4-channel RGBA result
+        Assert.Equal(new ImageInfo(1, 1, 1, false), info);
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo succeeds and reports the correct dimensions for every sub-byte bit
+    ///     depth (1, 2, 4) a well-formed grayscale IHDR may declare, without needing a full PLTE/
+    ///     IDAT/IEND stream.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(4)]
+    public void PngCodec_GetInfo_SubByteGrayscaleBitDepth_ReturnsCorrectDimensions(int bitDepth)
+    {
+        // Arrange
+        var bytes = BuildMinimalPngHeaderOnly(colorType: 0, bitDepth: (byte)bitDepth, width: 9, height: 3);
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var info = PngCodec.GetInfo(stream);
+
+        // Assert
+        Assert.Equal(9, info.Width);
+        Assert.Equal(3, info.Height);
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo succeeds and reports the correct dimensions for a 16-bit-depth
+    ///     Truecolor-with-alpha IHDR (a combination Load fully supports, but exercised here via
+    ///     the header-only path).
+    /// </summary>
+    [Fact]
+    public void PngCodec_GetInfo_BitDepth16_ReturnsCorrectDimensions()
+    {
+        // Arrange
+        var bytes = BuildMinimalPngHeaderOnly(colorType: (byte)PngColorType.Rgba, bitDepth: 16, width: 6, height: 4);
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var info = PngCodec.GetInfo(stream);
+
+        // Assert
+        Assert.Equal(6, info.Width);
+        Assert.Equal(4, info.Height);
+    }
+
+    /// <summary>
+    ///     Proves that both GetInfo and Load reject an out-of-range PNG bit depth (values other
+    ///     than 1, 2, 4, 8, or 16) with InvalidDataException - a well-formedness defect, not a
+    ///     decode-capability limitation.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3)]
+    [InlineData(99)]
+    public void PngCodec_GetInfoAndLoad_InvalidBitDepth_BothThrowInvalidDataException(int bitDepth)
+    {
+        // Arrange
+        var bytes = BuildMinimalPngHeaderOnly(colorType: (byte)PngColorType.Rgb, bitDepth: (byte)bitDepth);
+
+        // Act & Assert
+        using var infoStream = new MemoryStream(bytes);
+        Assert.Throws<InvalidDataException>(() => PngCodec.GetInfo(infoStream));
+        using var loadStream = new MemoryStream(bytes);
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(loadStream));
+    }
+
+    /// <summary>
+    ///     Proves that both GetInfo and Load reject an out-of-range PNG color type (values other
+    ///     than 0, 2, 3, 4, or 6) with InvalidDataException - a well-formedness defect, not a
+    ///     decode-capability limitation.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(9)]
+    public void PngCodec_GetInfoAndLoad_InvalidColorType_BothThrowInvalidDataException(int colorType)
+    {
+        // Arrange
+        var bytes = BuildMinimalPngHeaderOnly(colorType: (byte)colorType);
+
+        // Act & Assert
+        using var infoStream = new MemoryStream(bytes);
+        Assert.Throws<InvalidDataException>(() => PngCodec.GetInfo(infoStream));
+        using var loadStream = new MemoryStream(bytes);
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(loadStream));
+    }
+
+    /// <summary>
     ///     Proves that Load rejects a chunk whose CRC-32 does not match its type and data with
     ///     InvalidDataException.
     /// </summary>
@@ -359,66 +841,72 @@ public class PngCodecTests
     }
 
     /// <summary>
-    ///     Proves that Load rejects a grayscale (color type 0) IHDR with InvalidDataException.
-    /// </summary>
-    [Fact]
-    public void PngCodec_Load_UnsupportedColorTypeGrayscale_ThrowsInvalidDataException()
-    {
-        // Arrange: a minimal PNG declaring grayscale color type
-        var bytes = BuildMinimalPngHeaderOnly(colorType: 0);
-        using var stream = new MemoryStream(bytes);
-
-        // Act & Assert: the unsupported color type must be rejected
-        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
-    }
-
-    /// <summary>
-    ///     Proves that Load rejects a palette-based (color type 3) IHDR with
-    ///     InvalidDataException.
-    /// </summary>
-    [Fact]
-    public void PngCodec_Load_UnsupportedColorTypePalette_ThrowsInvalidDataException()
-    {
-        // Arrange: a minimal PNG declaring palette/indexed color type
-        var bytes = BuildMinimalPngHeaderOnly(colorType: 3);
-        using var stream = new MemoryStream(bytes);
-
-        // Act & Assert: the unsupported color type must be rejected
-        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
-    }
-
-    /// <summary>
-    ///     Proves that Load rejects unsupported bit depths (1, 2, 4, and 16) with
-    ///     InvalidDataException.
+    ///     Proves that Load rejects a bit-depth/color-type combination that is itself invalid per
+    ///     the PNG specification (not merely unimplemented by this codec), with
+    ///     InvalidDataException. No PngSuite fixture exercises these combinations, since they are
+    ///     not legal PNG files at all.
     /// </summary>
     [Theory]
-    [InlineData(1)]
-    [InlineData(2)]
-    [InlineData(4)]
-    [InlineData(16)]
-    public void PngCodec_Load_UnsupportedBitDepth_ThrowsInvalidDataException(int bitDepth)
+    [InlineData((byte)PngColorType.Rgb, (byte)1)] // Truecolor requires 8 or 16 bits
+    [InlineData((byte)PngColorType.Rgb, (byte)2)]
+    [InlineData((byte)PngColorType.Rgb, (byte)4)]
+    [InlineData((byte)3, (byte)16)] // Palette never permits 16-bit depth
+    [InlineData((byte)4, (byte)1)] // Grayscale-with-alpha requires 8 or 16 bits
+    [InlineData((byte)4, (byte)2)]
+    [InlineData((byte)4, (byte)4)]
+    [InlineData((byte)PngColorType.Rgba, (byte)1)] // Truecolor-with-alpha requires 8 or 16 bits
+    [InlineData((byte)PngColorType.Rgba, (byte)2)]
+    [InlineData((byte)PngColorType.Rgba, (byte)4)]
+    public void PngCodec_Load_InvalidBitDepthColorTypeCombination_ThrowsInvalidDataException(
+        byte colorType,
+        byte bitDepth)
     {
-        // Arrange: a minimal PNG declaring an unsupported bit depth
-        var bytes = BuildMinimalPngHeaderOnly(colorType: (byte)PngColorType.Rgb, bitDepth: (byte)bitDepth);
+        // Arrange: a minimal PNG declaring an IHDR combination the PNG specification itself
+        // never permits
+        var bytes = BuildMinimalPngHeaderOnly(colorType: colorType, bitDepth: bitDepth);
         using var stream = new MemoryStream(bytes);
 
-        // Act & Assert: the unsupported bit depth must be rejected
+        // Act & Assert: the invalid combination must be rejected
         Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo also rejects a bit-depth/color-type combination that is invalid
+    ///     per the PNG specification - unlike Adam7 interlacing, this is a well-formedness defect,
+    ///     not merely a decode-capability limitation, so GetInfo must reject it exactly as Load
+    ///     does.
+    /// </summary>
+    [Fact]
+    public void PngCodec_GetInfo_PaletteBitDepth16_ThrowsInvalidDataException()
+    {
+        // Arrange: a minimal PNG declaring palette color type at the never-legal 16-bit depth
+        var bytes = BuildMinimalPngHeaderOnly(colorType: 3, bitDepth: 16);
+        using var stream = new MemoryStream(bytes);
+
+        // Act & Assert: the invalid combination must be rejected by GetInfo too
+        Assert.Throws<InvalidDataException>(() => PngCodec.GetInfo(stream));
     }
 
     /// <summary>
     ///     Proves that Load rejects an interlaced (Adam7, interlace method 1) IHDR with
-    ///     InvalidDataException.
+    ///     InvalidDataException, since Adam7 decoding is not implemented, while GetInfo on the
+    ///     same bytes still succeeds and reports the correct declared dimensions.
     /// </summary>
     [Fact]
     public void PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsInvalidDataException()
     {
         // Arrange: a minimal PNG declaring Adam7 interlacing
-        var bytes = BuildMinimalPngHeaderOnly(colorType: (byte)PngColorType.Rgb, interlace: 1);
+        var bytes = BuildMinimalPngHeaderOnly(colorType: (byte)PngColorType.Rgb, interlace: 1, width: 5, height: 7);
         using var stream = new MemoryStream(bytes);
 
-        // Act & Assert: the unsupported interlace method must be rejected
+        // Act & Assert: the unsupported interlace method must be rejected by Load
         Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+
+        // Assert: GetInfo on the same bytes still succeeds with the correct dimensions
+        using var infoStream = new MemoryStream(bytes);
+        var info = PngCodec.GetInfo(infoStream);
+        Assert.Equal(5, info.Width);
+        Assert.Equal(7, info.Height);
     }
 
     /// <summary>
@@ -870,7 +1358,13 @@ public class PngCodecTests
     /// <summary>
     ///     Builds a complete, valid PNG byte sequence from explicitly specified raw (unfiltered)
     ///     scanline rows and a chosen filter type per row, splitting the compressed IDAT payload
-    ///     across a chosen number of chunks.
+    ///     across a chosen number of chunks. The <paramref name="rowBytes"/> and
+    ///     <paramref name="bpp"/> parameters let a caller build rows for any bit depth/color-type
+    ///     combination (not just <c>width * channels</c> at 8-bit depth): <paramref name="bpp"/>
+    ///     is the number of whole bytes per pixel used by the Sub/Average/Paeth filter
+    ///     predictors (matching PngCodec's own <c>Math.Max(1, (bitsPerPixel + 7) / 8)</c>
+    ///     formula), and <paramref name="rowBytes"/> is the packed byte width of one scanline
+    ///     (matching PngCodec's own <c>(width * bitsPerPixel + 7) / 8</c> formula).
     /// </summary>
     private static byte[] BuildPng(
         int width,
@@ -879,12 +1373,18 @@ public class PngCodecTests
         byte colorType,
         byte[][] rawRows,
         byte[] filterTypes,
-        int idatChunkCount = 1)
+        int idatChunkCount = 1,
+        byte bitDepth = 8,
+        int? rowBytes = null,
+        int? bpp = null,
+        byte[]? plteData = null,
+        byte[]? trnsData = null)
     {
-        var rowBytes = width * channels;
-        var raw = new byte[(rowBytes + 1) * height];
+        var effectiveRowBytes = rowBytes ?? width * channels;
+        var effectiveBpp = bpp ?? channels;
+        var raw = new byte[(effectiveRowBytes + 1) * height];
         var offset = 0;
-        var previousRow = new byte[rowBytes];
+        var previousRow = new byte[effectiveRowBytes];
         for (var y = 0; y < height; y++)
         {
             var filterType = filterTypes[y];
@@ -892,11 +1392,11 @@ public class PngCodecTests
             offset++;
 
             var rawRow = rawRows[y];
-            for (var i = 0; i < rowBytes; i++)
+            for (var i = 0; i < effectiveRowBytes; i++)
             {
-                int left = i >= channels ? rawRow[i - channels] : 0;
+                int left = i >= effectiveBpp ? rawRow[i - effectiveBpp] : 0;
                 int up = previousRow[i];
-                int upperLeft = i >= channels ? previousRow[i - channels] : 0;
+                int upperLeft = i >= effectiveBpp ? previousRow[i - effectiveBpp] : 0;
                 var predicted = filterType switch
                 {
                     0 => 0,
@@ -909,7 +1409,7 @@ public class PngCodecTests
                 raw[offset + i] = (byte)(rawRow[i] - predicted);
             }
 
-            offset += rowBytes;
+            offset += effectiveRowBytes;
             previousRow = rawRow;
         }
 
@@ -917,8 +1417,20 @@ public class PngCodecTests
 
         using var result = new MemoryStream();
         result.Write(Signature, 0, Signature.Length);
-        var ihdr = BuildIhdrChunk(width, height, 8, colorType, 0, 0, 0);
+        var ihdr = BuildIhdrChunk(width, height, bitDepth, colorType, 0, 0, 0);
         result.Write(ihdr, 0, ihdr.Length);
+
+        if (plteData != null)
+        {
+            var plte = BuildChunk("PLTE", plteData);
+            result.Write(plte, 0, plte.Length);
+        }
+
+        if (trnsData != null)
+        {
+            var trns = BuildChunk("tRNS", trnsData);
+            result.Write(trns, 0, trns.Length);
+        }
 
         var chunkSize = Math.Max(1, (int)Math.Ceiling(zlib.Length / (double)idatChunkCount));
         var position = 0;

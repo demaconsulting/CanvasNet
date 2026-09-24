@@ -20,8 +20,9 @@ DEMA Consulting best practices. The system consists of five implemented subsyste
 - **Codecs subsystem** (namespace `DemaConsulting.CanvasNet.Codecs`, folder
   `src/DemaConsulting.CanvasNet/Codecs/`, flat — no further nesting): four hand-rolled image
   format codecs, each converting to and from a `DemaConsulting.CanvasNet.Canvas.Surface` pixel buffer —
-  `BmpCodec` (uncompressed 24-bit/32-bit Windows BMP), `PngCodec` (8-bit-per-channel Truecolor
-  and Truecolor-with-alpha, non-interlaced PNG), `TiffCodec` (8-bit-per-sample RGB, RGBA, and
+  `BmpCodec` (uncompressed 24-bit/32-bit Windows BMP), `PngCodec` (saves 8-bit-per-channel
+  Truecolor and Truecolor-with-alpha, non-interlaced PNG; loads every non-interlaced, spec-valid
+  PNG color type/bit depth combination), `TiffCodec` (8-bit-per-sample RGB, RGBA, and
   Grayscale, strip-based TIFF 6.0 with None/PackBits/LZW/Deflate compression, either byte order),
   and `JpegCodec` (a common real-world subset of JPEG: baseline/progressive decode with
   4:4:4/4:2:2/4:2:0 support, baseline 4:2:0 encode). See _Codecs Subsystem Design_ (`codecs.md`).
@@ -154,10 +155,14 @@ The system exposes the following public API to external consumers:
   uncompressed 24-bit or 32-bit BMP stream or file. Throws `ArgumentNullException` for a null
   `surface`/`stream`/`path`, `ArgumentException` for an empty `path`, and
   `ArgumentOutOfRangeException` for an undefined `bitDepth`.
-- **PngCodec.Load(Stream stream)** / **PngCodec.Load(string path)**: Loads a `Surface` from an
-  8-bit-per-channel Truecolor (RGB) or Truecolor-with-alpha (RGBA), non-interlaced PNG stream or
-  file. Throws `ArgumentNullException` for a null `stream`/`path`, `ArgumentException` for an
-  empty `path`, and `InvalidDataException` for malformed or unsupported PNG data.
+- **PngCodec.Load(Stream stream)** / **PngCodec.Load(string path)**: Loads a `Surface` from a
+  non-interlaced PNG stream or file of any color type/bit-depth combination the PNG
+  specification defines (Grayscale, Truecolor, Palette, Grayscale-with-alpha, or
+  Truecolor-with-alpha, at bit depths 1/2/4/8/16 as each color type permits), honoring `tRNS`
+  key-color/per-palette-entry transparency where the specification defines it. Throws
+  `ArgumentNullException` for a null `stream`/`path`, `ArgumentException` for an empty `path`,
+  and `InvalidDataException` for malformed PNG data, Adam7-interlaced data (not decoded), or a
+  bit-depth/color-type combination the PNG specification does not define.
 - **PngCodec.Save(Surface surface, Stream stream, PngColorType colorType)** /
   **PngCodec.Save(Surface surface, string path, PngColorType colorType)**: Saves a `Surface` as an
   8-bit-per-channel RGB or RGBA PNG stream or file. Throws `ArgumentNullException` for a null
@@ -401,15 +406,20 @@ measures (IEC 62304 §5.3.3).
 
 1. **Input**: Method parameter `stream`/`path`
 2. **Validation**: `Load` rejects a null `stream`/`path` with `ArgumentNullException`, an empty
-   `path` with `ArgumentException`, and malformed/unsupported PNG data (bad signature, unsupported
-   color type, bit depth, compression method, filter method, or interlace method, a chunk CRC-32
-   mismatch, a malformed or unsupported zlib header, an Adler-32 checksum mismatch, an unsupported
-   scanline filter type, or a truncated stream) with `InvalidDataException`
-3. **Processing**: Validates the signature and every chunk's CRC-32, parses `IHDR`, concatenates
-   `IDAT` data across all chunks present, zlib-unwraps and inflates the payload, defilters each
-   scanline (reconstructing all five standard filter types), and unpacks each row directly into
-   the destination `Surface`'s rows via `Surface.GetRowSpanBytes`, forcing alpha to 255 for RGB
-   source data
+   `path` with `ArgumentException`, and malformed or unsupported PNG data (bad signature, a bit
+   depth/color type outside the values the PNG specification defines, a bit-depth/color-type
+   combination the specification does not define, an unsupported compression method, filter
+   method, or interlace-method value, Adam7-interlaced data — the only remaining
+   decode-capability limitation — a Palette file missing its `PLTE` chunk or containing an
+   out-of-range palette index, a malformed `tRNS` chunk, a chunk CRC-32 mismatch, a malformed or
+   unsupported zlib header, an Adler-32 checksum mismatch, an unsupported scanline filter type, or
+   a truncated stream) with `InvalidDataException`
+3. **Processing**: Validates the signature and every chunk's CRC-32, parses `IHDR`, `PLTE`, and
+   `tRNS`, concatenates `IDAT` data across all chunks present, zlib-unwraps and inflates the
+   payload, defilters each scanline (reconstructing all five standard filter types), extracts each
+   pixel's samples per the color type's bit depth, and maps them to RGBA (resolving palette
+   indices and `tRNS` transparency as needed) directly into the destination `Surface`'s rows via
+   `Surface.GetRowSpanBytes`
 4. **Output**: A new `Surface` containing the decoded pixels
 
 **TIFF save path:**

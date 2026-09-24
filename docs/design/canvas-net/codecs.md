@@ -24,9 +24,9 @@ subsystems to build and rasterize vector paths and text — see _SvgCodec Unit D
 
 - **BmpCodec** — hand-rolled loader/saver for uncompressed 24-bit and 32-bit Windows BMP files;
   see _BmpCodec Unit Design_ (`codecs/bmp-codec.md`)
-- **PngCodec** — hand-rolled loader/saver for 8-bit-per-channel Truecolor and
-  Truecolor-with-alpha, non-interlaced PNG files; see _PngCodec Unit Design_
-  (`codecs/png-codec.md`)
+- **PngCodec** — hand-rolled saver for 8-bit-per-channel Truecolor and Truecolor-with-alpha,
+  non-interlaced PNG files, and hand-rolled loader for every non-interlaced, spec-valid PNG
+  color type/bit depth combination; see _PngCodec Unit Design_ (`codecs/png-codec.md`)
 - **TiffCodec** — hand-rolled loader/saver for 8-bit-per-sample RGB, RGBA, and Grayscale,
   strip-based TIFF 6.0 files; see _TiffCodec Unit Design_ (`codecs/tiff-codec.md`)
 - **JpegCodec** — hand-rolled loader/saver for a common real-world subset of JPEG files; see
@@ -72,7 +72,14 @@ still enforces the limit as before, via `Surface`'s own constructor.
 Each of `BmpCodec`, `PngCodec`, `TiffCodec`, and `JpegCodec` shares a single internal
 header-parsing helper between `Load` and `GetInfo` (a `bool enforceMaxDimension` parameter selects
 whether the `Surface.MaxDimension` check is applied), so `GetInfo` can never drift out of sync
-with `Load`'s understanding of a well-formed header. `SvgCodec` does not use this pattern, because
+with `Load`'s understanding of a well-formed header. `PngCodec` additionally threads a second,
+orthogonal `bool validateDecodability` parameter through the same shared helper, gating only its
+Adam7-interlacing rejection (every other header-validity check is unconditional, since `Load`'s
+decodable color-type/bit-depth space now spans the PNG specification's entire legal space) — see
+_PngCodec Unit Design_ (`codecs/png-codec.md`) for the exact rationale; the other three raster
+codecs still use only the single `enforceMaxDimension` flag, since none of them has a
+feature-based `Load` refusal that is independent of header well-formedness. `SvgCodec` does not
+use this pattern, because
 its `Load` overloads take the requested output raster's width/height as ordinary caller-supplied
 parameters (not values decoded from the file) and delegate them directly to `Surface`'s own
 constructor — see _SvgCodec Unit Design_ (`codecs/svg-codec.md`) for its `GetInfo` fallback
