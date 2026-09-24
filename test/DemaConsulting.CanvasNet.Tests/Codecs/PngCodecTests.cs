@@ -703,7 +703,10 @@ public class PngCodecTests
     [Fact]
     public void PngCodec_Load_NonConsecutiveIdatChunks_ThrowsInvalidDataException()
     {
-        // Arrange: two IDAT chunks with an unrelated ancillary chunk between them
+        // Arrange: two IDAT chunks with an unrelated ancillary chunk between them, followed by a
+        // well-formed terminating IEND chunk so the only defect in this stream is the
+        // non-consecutive IDAT run itself (otherwise a truncated-stream EOF exception could mask
+        // the intended check and let this test pass for the wrong reason)
         using var stream = new MemoryStream();
         stream.Write(Signature, 0, Signature.Length);
         var ihdr = BuildIhdrChunk(1, 1, 8, 2 /* Truecolor */, 0, 0, 0);
@@ -714,10 +717,13 @@ public class PngCodecTests
         stream.Write(textChunk, 0, textChunk.Length);
         var idat2 = BuildChunk("IDAT", [4, 5, 6]);
         stream.Write(idat2, 0, idat2.Length);
+        var iend = BuildChunk("IEND", []);
+        stream.Write(iend, 0, iend.Length);
         stream.Position = 0;
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        var exception = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        Assert.Contains("consecutive", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
