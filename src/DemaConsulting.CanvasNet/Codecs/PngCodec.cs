@@ -765,24 +765,28 @@ public static class PngCodec
     ///     (3) a non-zero declared <c>IEND</c> chunk length, since <c>IEND</c> always carries zero
     ///     bytes of data per the PNG specification; (4) an <c>IDAT</c> chunk declared once the run
     ///     of consecutive <c>IDAT</c> chunks has already ended, regardless of its declared length,
-    ///     since the PNG specification requires every <c>IDAT</c> chunk to be consecutive; and
+    ///     since the PNG specification requires every <c>IDAT</c> chunk to be consecutive;
     ///     (5) an unrecognized critical chunk type (uppercase first type byte, per the PNG
     ///     naming convention, and not one of the five chunks this codec explicitly recognizes)
     ///     once <c>IHDR</c> has been parsed, regardless of its declared length, since such a chunk
-    ///     is always refused outright. Without these pre-allocation checks, a crafted PNG could
-    ///     declare a first-chunk, <c>PLTE</c>, <c>tRNS</c>, <c>IEND</c>, non-consecutive
-    ///     <c>IDAT</c>, or unrecognized-critical-chunk length that is large (but still below
+    ///     is always refused outright; and (6) a second <c>IHDR</c> chunk encountered once
+    ///     <c>IHDR</c> has already been parsed, regardless of its declared length, since only the
+    ///     very first chunk in the file may legitimately be <c>IHDR</c>. Without these
+    ///     pre-allocation checks, a crafted PNG could declare a first-chunk, <c>PLTE</c>,
+    ///     <c>tRNS</c>, <c>IEND</c>, non-consecutive <c>IDAT</c>, unrecognized-critical-chunk, or
+    ///     duplicate-<c>IHDR</c> length that is large (but still below
     ///     <see cref="uint.MaxValue"/>'s already-enforced <see cref="int.MaxValue"/> ceiling)
     ///     purely to force a large allocation before the full post-read checks in
     ///     <see cref="ProcessChunk"/> (IHDR-must-be-first, <c>PLTE</c>'s multiple-of-3 and exact
     ///     bit-depth-derived entry cap, the precise <c>ValidateAndNormalizeTrns</c>
     ///     per-color-type/per-PLTE-entry-count checks, <c>IEND</c>'s empty-payload check, the
-    ///     IDAT-chunks-must-be-consecutive check, and the unrecognized-critical-chunk refusal) get
-    ///     a chance to reject it - this method exists purely to close that memory-exhaustion
-    ///     attack vector, not to duplicate those precise correctness checks, so its bounds are
-    ///     deliberately loose (the largest a spec-valid chunk of that type could ever be), and for
-    ///     the <c>IDAT</c>/unrecognized-critical-chunk cases the declared length is irrelevant
-    ///     entirely since those chunks are rejected unconditionally once the relevant state holds.
+    ///     IDAT-chunks-must-be-consecutive check, the unrecognized-critical-chunk refusal, and the
+    ///     duplicate-IHDR refusal) get a chance to reject it - this method exists purely to close
+    ///     that memory-exhaustion attack vector, not to duplicate those precise correctness
+    ///     checks, so its bounds are deliberately loose (the largest a spec-valid chunk of that
+    ///     type could ever be), and for the <c>IDAT</c>/unrecognized-critical-chunk/duplicate-
+    ///     <c>IHDR</c> cases the declared length is irrelevant entirely since those chunks are
+    ///     rejected unconditionally once the relevant state holds.
     /// </summary>
     /// <param name="typeBytes">The chunk's 4-byte type field.</param>
     /// <param name="length">The chunk's declared data length, read from the chunk header.</param>
@@ -790,7 +794,8 @@ public static class PngCodec
     ///     The in-progress chunk-read state: <see cref="ChunkReadState.IhdrSeen"/> being
     ///     <see langword="false"/> identifies the current chunk as the very first chunk in the
     ///     file, since any earlier chunk that violated the IHDR-must-be-first rule would already
-    ///     have thrown before this chunk was ever reached; it is also used to narrow the
+    ///     have thrown before this chunk was ever reached, while being <see langword="true"/>
+    ///     identifies any further <c>IHDR</c> chunk as a duplicate; it is also used to narrow the
     ///     <c>tRNS</c> bound by color type once <c>IHDR</c> has been parsed - before that, only
     ///     the loosest (palette-sized) bound is available, which is still small enough to rule out
     ///     a memory-exhaustion attempt; <see cref="ChunkReadState.IdatRunEnded"/> identifies
@@ -801,8 +806,8 @@ public static class PngCodec
     ///     length is not exactly 13, a <c>PLTE</c>/<c>tRNS</c> chunk declares a length beyond the
     ///     largest value that type can legitimately have, an <c>IEND</c> chunk declares a
     ///     non-zero length, an <c>IDAT</c> chunk is declared after the <c>IDAT</c> run has already
-    ///     ended, or the chunk type is an unrecognized critical chunk encountered after
-    ///     <c>IHDR</c>.
+    ///     ended, the chunk type is an unrecognized critical chunk encountered after <c>IHDR</c>,
+    ///     or a second <c>IHDR</c> chunk is encountered.
     /// </exception>
     private static void ValidateChunkLengthBeforeAllocation(byte[] typeBytes, uint length, ChunkReadState state)
     {
@@ -817,6 +822,14 @@ public static class PngCodec
             {
                 throw new InvalidDataException("IHDR chunk does not have the required length of 13 bytes.");
             }
+        }
+        else if (ChunkTypeIs(typeBytes, "IHDR"))
+        {
+            // IHDR is only ever legitimate as the first chunk (handled above); a second IHDR
+            // encountered later is a duplicate regardless of its declared length, so reject it
+            // before ReadChunkFrame allocates a payload buffer for it, rather than only after the
+            // payload has already been allocated and read
+            throw new InvalidDataException("Duplicate IHDR chunk.");
         }
 
         if (ChunkTypeIs(typeBytes, "PLTE"))

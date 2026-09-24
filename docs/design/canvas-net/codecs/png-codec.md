@@ -353,13 +353,14 @@ the very first chunk in the file, that its type is `IHDR` and its declared lengt
 reads its first chunk through this same general-purpose reader rather than through
 `ReadIhdrChunkFrame`); for `PLTE` and `tRNS` specifically, the declared length against that
 type's largest legitimate size; for `IEND`, that the declared length is exactly zero; for `IDAT`,
-that the run of consecutive `IDAT` chunks has not already ended; and for an unrecognized critical
+that the run of consecutive `IDAT` chunks has not already ended; for an unrecognized critical
 chunk type (uppercase first type byte, per the PNG naming convention, and not one of the five
 chunks this codec explicitly recognizes) encountered once `IHDR` has been parsed, that it is
-rejected outright. A crafted first chunk, `PLTE`, `tRNS`, `IEND`, non-consecutive `IDAT`, or
-unrecognized critical chunk can therefore never force a large allocation by declaring a huge (but
-still sub-`int.MaxValue`) length: a non-`IHDR` first chunk, or an `IHDR`
-first chunk whose declared length is not exactly 13, is rejected before
+rejected outright; and for a second `IHDR` chunk encountered once `IHDR` has already been parsed,
+that it is rejected outright as a duplicate. A crafted first chunk, `PLTE`, `tRNS`, `IEND`,
+non-consecutive `IDAT`, unrecognized critical chunk, or duplicate `IHDR` can therefore never force
+a large allocation by declaring a huge (but still sub-`int.MaxValue`) length: a non-`IHDR` first
+chunk, or an `IHDR` first chunk whose declared length is not exactly 13, is rejected before
 any allocation; `PLTE`'s declared length is rejected once it exceeds 768 bytes (256 three-byte
 entries, the largest a spec-valid `PLTE` chunk can ever be, regardless of color type or bit depth);
 `tRNS`'s declared length is rejected once it exceeds the color type's exact size (2 bytes for
@@ -367,20 +368,21 @@ Grayscale, 6 for Truecolor) once `IHDR` has been parsed, or the 256-byte palette
 otherwise; `IEND`'s declared length is rejected the moment it is non-zero, since the PNG
 specification defines `IEND` as always carrying an empty payload; a further `IDAT` chunk is
 rejected the moment the `IDAT` run has already ended, regardless of its declared length, since the
-PNG specification requires every `IDAT` chunk to be consecutive; and an unrecognized critical
+PNG specification requires every `IDAT` chunk to be consecutive; an unrecognized critical
 chunk type is rejected regardless of its declared length, since such a chunk is always refused
-outright once `IHDR` has been parsed. This pre-allocation check is
-deliberately loose - it exists only to close the
+outright once `IHDR` has been parsed; and a second `IHDR` chunk is rejected regardless of its
+declared length, since only the very first chunk in the file may legitimately be `IHDR`. This
+pre-allocation check is deliberately loose - it exists only to close the
 memory-exhaustion vector, not to duplicate the exact per-color-type/per-bit-depth correctness
 checks that still run afterward on the (now safely small) allocated payload, in `ProcessChunk`,
-`ParseIhdr`, and `ValidateAndNormalizeTrns`; the post-read `IDAT`-consecutiveness and
-unrecognized-critical-chunk checks in `ProcessChunk` remain in place as defense-in-depth, exactly
-like the other checks this pre-allocation guard duplicates, even though they become unreachable on
-the success path once this guard is in place. Every other chunk type past the first (a
-still-in-progress `IDAT` run legitimately carries large payloads; any other recognized or
-unrecognized-ancillary chunk type has no small type-specific maximum to check) is unaffected and
-is still fully allocated and read before its type is otherwise interpreted, since `Load` always
-intends to read every chunk's data anyway.
+`ParseIhdr`, and `ValidateAndNormalizeTrns`; the post-read `IDAT`-consecutiveness,
+unrecognized-critical-chunk, and duplicate-`IHDR` checks in `ProcessChunk` remain in place as
+defense-in-depth, exactly like the other checks this pre-allocation guard duplicates, even though
+they become unreachable on the success path once this guard is in place. Every other chunk type
+past the first (a still-in-progress `IDAT` run legitimately carries large payloads; any other
+recognized or unrecognized-ancillary chunk type has no small type-specific maximum to check) is
+unaffected and is still fully allocated and read before its type is otherwise interpreted, since
+`Load` always intends to read every chunk's data anyway.
 
 **Design decision — two independent validation flags**: `enforceMaxDimension` and
 `validateDecodability` gate two orthogonal concerns, and `GetInfo` passes `false` for both while

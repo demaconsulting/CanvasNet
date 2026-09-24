@@ -2005,6 +2005,44 @@ public class PngCodecTests
     }
 
     /// <summary>
+    ///     Regression test for a code-review finding: the duplicate-IHDR rejection used to run
+    ///     only after <c>ReadChunkFrame</c> had already allocated and read the full declared
+    ///     payload for a second <c>IHDR</c> chunk, so a crafted PNG could declare a huge (but
+    ///     still sub-<see cref="int.MaxValue"/>) length on a duplicate <c>IHDR</c> chunk purely to
+    ///     force a large allocation before the rejection ran, even though that payload is never
+    ///     needed since the chunk is always refused as a duplicate. Proves, by measuring actual
+    ///     bytes allocated (never wall-clock time or a real multi-gigabyte buffer), that such a
+    ///     chunk is rejected before that payload is allocated.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_DuplicateIhdrWithHugeDeclaredLength_ThrowsWithoutLargeAllocation()
+    {
+        // Arrange: a valid IHDR followed by a second "IHDR"-typed chunk header declaring a huge
+        // length, with no real trailing data at all - if the declared length were allocated
+        // before the duplicate-IHDR check ran, this would force a huge allocation.
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 2 /* Truecolor */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var header = BuildFakeChunkHeader("IHDR", 0x7FFFFFFF);
+        stream.Write(header, 0, header.Length);
+        stream.Position = 0;
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert
+        Assert.Contains("Duplicate IHDR", ex.Message);
+
+        const long maxExpectedAllocatedBytes = 1024 * 1024;
+        Assert.True(
+            allocatedDuring < maxExpectedAllocatedBytes,
+            $"Expected no large allocation, but {allocatedDuring:N0} bytes were allocated.");
+    }
+
+    /// <summary>
     ///     Builds only a chunk's 8-byte length+type header (a 4-byte big-endian declared length
     ///     followed by the 4-byte ASCII type), deliberately writing no data or CRC bytes at all -
     ///     used only by the memory-exhaustion regression tests above to prove the declared length
