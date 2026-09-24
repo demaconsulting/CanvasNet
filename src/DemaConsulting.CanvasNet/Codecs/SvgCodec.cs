@@ -895,7 +895,24 @@ public static class SvgCodec
     private sealed record RenderContext(
         Surface Surface,
         Dictionary<string, XElement> IdIndex,
-        IReadOnlyDictionary<string, TrueTypeFont>? Fonts);
+        IReadOnlyDictionary<string, TrueTypeFont>? Fonts)
+    {
+        /// <summary>
+        ///     Caches each gradient element's own resolved (pre-alpha) color stops, keyed by the
+        ///     gradient <see cref="XElement"/>'s reference identity (matching the existing
+        ///     cycle-detection <see cref="HashSet{XElement}"/> idiom used by
+        ///     <see cref="ResolveGradientStops"/> itself), so a gradient referenced by many shapes
+        ///     - directly, or via <c>use</c> fan-out - has its <c>stop</c> children parsed only
+        ///     once per <c>Load</c> call rather than once per reference. Populated once and read
+        ///     many times, the same "one mutable dictionary field, populated once, shared for the
+        ///     lifetime of one render" lifetime as <see cref="IdIndex"/> above. Safe because a
+        ///     gradient's own stops never change within a single <c>Load</c> call - the parsed
+        ///     <see cref="XDocument"/> is never mutated after <c>Load</c> builds it once, and this
+        ///     codec implements no scripting/animation support that could redefine a gradient's
+        ///     stops mid-render.
+        /// </summary>
+        public Dictionary<XElement, List<GradientStop>> GradientStopCache { get; } = new();
+    }
 
     // ================================================================================================
     // Document tree walking and element dispatch
@@ -3112,7 +3129,10 @@ public static class SvgCodec
     /// <summary>
     ///     Resolves a gradient element's effective color stops, walking its <c>href</c>/
     ///     <c>xlink:href</c> template-inheritance chain (starting at <paramref name="start"/>
-    ///     itself) until an element with at least one <c>stop</c> child is found.
+    ///     itself) until an element with at least one <c>stop</c> child is found. The result is
+    ///     cached per <paramref name="start"/> element (see
+    ///     <see cref="RenderContext.GradientStopCache"/>), so a gradient referenced by many shapes
+    ///     has this chain walk performed only once per <c>Load</c> call.
     /// </summary>
     /// <param name="start">The gradient element originally referenced.</param>
     /// <param name="context">The fixed per-document render context.</param>
@@ -3124,6 +3144,11 @@ public static class SvgCodec
     /// <exception cref="InvalidDataException">Thrown when the chain revisits an element (a cycle).</exception>
     private static List<GradientStop> ResolveGradientStops(XElement start, RenderContext context)
     {
+        if (context.GradientStopCache.TryGetValue(start, out var cached))
+        {
+            return cached;
+        }
+
         var visited = new HashSet<XElement>();
         var current = start;
         while (visited.Add(current))
@@ -3131,12 +3156,16 @@ public static class SvgCodec
             var stops = ParseStops(current);
             if (stops.Count > 0)
             {
+                context.GradientStopCache[start] = stops;
                 return stops;
             }
 
             var hrefId = GetHrefAttribute(current) is { } href ? ExtractFragmentId(href) : null;
             if (hrefId == null || !context.IdIndex.TryGetValue(hrefId, out var next))
             {
+                // Cache the empty-list terminal case too, so a dangling/cycle-free-but-stopless
+                // chain is not re-walked on every future reference to the same starting element
+                context.GradientStopCache[start] = stops;
                 return stops;
             }
 

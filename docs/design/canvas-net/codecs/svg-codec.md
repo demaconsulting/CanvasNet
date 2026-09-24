@@ -216,7 +216,13 @@ raises `InvalidDataException` if the chain loops back on itself, rather than loo
 indefinitely. Only color stops are inherited this way — a gradient's own `gradientUnits`/
 `gradientTransform`/`spreadMethod`/coordinate attributes are always read directly from the
 gradient element itself, never inherited through the chain. This is a deliberate, bounded
-simplification of the full SVG href-inheritance model.
+simplification of the full SVG href-inheritance model. A gradient element's resolved (pre-alpha)
+color stops are cached per gradient element for the lifetime of one `Load` call (keyed by the
+gradient `XElement`'s own reference identity), so a gradient referenced by many shapes - directly,
+or via many sibling `use` elements - has its `stop` children parsed, and its `href` chain walked,
+only once rather than once per reference. This is safe because a gradient's stops never change
+within a single `Load` call: the parsed document is built once and never mutated afterward, and
+this codec implements no scripting/animation support that could redefine them mid-render.
 
 **Use.** A `use` element referencing any element by id via `href`/`xlink:href` renders a copy of
 the referenced element (translated by the `use` element's own `x`/`y`), resolved through the

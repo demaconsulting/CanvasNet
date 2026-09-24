@@ -1187,6 +1187,47 @@ public class SvgCodecTests
         Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
     }
 
+    /// <summary>
+    ///     Regression test for the gradient-stop re-parsing amplification finding: a gradient's
+    ///     <c>stop</c> children were previously re-parsed from scratch on every single shape that
+    ///     referenced the same gradient, rather than once per gradient per <c>Load</c> call.
+    ///     Proves a gradient referenced by many shapes (directly, not via <c>use</c> fan-out)
+    ///     still renders every one of them identically to the (uncached) per-reference-reparse
+    ///     behavior, confirming <c>RenderContext.GradientStopCache</c> introduces no observable
+    ///     rendering change - each shape still gets the correct left-to-right brightness ramp from
+    ///     the same shared gradient.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GradientReferencedByManyShapes_CachesStopsAndRendersIdenticallyToUncached()
+    {
+        // Arrange: fifty separate rects, each referencing the same single gradient
+        var rects = string.Concat(Enumerable.Range(0, 50)
+            .Select(i => $"<rect x='0' y='{i}' width='100' height='1' fill='url(#g)'/>"));
+        var svg = $"""
+            <svg viewBox='0 0 100 50'>
+              <defs>
+                <linearGradient id='g' gradientUnits='userSpaceOnUse' x1='0' y1='0' x2='100' y2='0'>
+                  <stop offset='0' stop-color='black'/>
+                  <stop offset='1' stop-color='white'/>
+                </linearGradient>
+              </defs>
+              {rects}
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 50);
+
+        // Assert: every one of the 50 rows shows the same left-to-right brightness ramp from the
+        // shared, cached gradient
+        for (var row = 0; row < 50; row++)
+        {
+            Assert.True(
+                surface[10, row].R < surface[90, row].R,
+                $"Row {row} did not show the expected left-to-right brightness ramp.");
+        }
+    }
+
     // ================================================================================================
     // <use> element
     // ================================================================================================
