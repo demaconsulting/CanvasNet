@@ -413,7 +413,8 @@ sections:
           - PngCodec_GetInfo_BitDepth16_ReturnsCorrectDimensions
           - PngCodec_GetInfoAndLoad_InvalidBitDepth_BothThrowInvalidDataException
           - PngCodec_GetInfoAndLoad_InvalidColorType_BothThrowInvalidDataException
-          - PngSuiteUnsupportedFile_GetInfoStillSucceeds
+          - PngSuiteUnsupportedFile_GetInfoReturnsCorrectDimensions
+          - PngCodec_PngSuiteCorruptAfterIhdrFile_GetInfoReturnsCorrectDimensions_ButLoadThrows
 
       - id: CanvasNet-Lib-PngGetInfoValidation
         title: >-
@@ -429,6 +430,7 @@ sections:
           - PngCodec_GetInfo_NullPath_ThrowsArgumentNullException
           - PngCodec_GetInfo_EmptyPath_ThrowsArgumentException
           - PngCodec_GetInfo_BadSignature_ThrowsInvalidDataException
+          - PngCodec_GetInfo_PngSuiteCorruptFile_ThrowsInvalidDataException
 
   - title: TIFF Codec API
     requirements:

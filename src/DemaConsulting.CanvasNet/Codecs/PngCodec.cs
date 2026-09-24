@@ -71,11 +71,17 @@ public enum PngColorType
 ///         on a grayscale or grayscale-with-alpha file, since grayscale samples are never resolved
 ///         through a palette; a <c>tRNS</c> chunk on a grayscale-with-alpha or Truecolor-with-alpha
 ///         file, since those color types already carry a full per-pixel alpha channel that leaves
-///         nothing for a single-key-color transparency chunk to add; and a <c>tRNS</c> chunk that
-///         precedes the <c>PLTE</c> chunk on a palette file, since its per-palette-entry alpha
-///         values are meaningless before the palette they index into has been read. An
-///         unrecognized <em>ancillary</em> chunk (lowercase first type byte, for example
-///         <c>tEXt</c>, <c>pHYs</c>, or <c>gAMA</c>) remains safe to skip, exactly as before.
+///         nothing for a single-key-color transparency chunk to add; a <c>tRNS</c> chunk that
+///         precedes the <c>PLTE</c> chunk on a palette file, or a <c>PLTE</c> chunk that appears
+///         after a <c>tRNS</c> chunk has already been accepted (for any color type that can
+///         legally carry both), since its per-palette-entry alpha values are meaningless before
+///         the palette they index into has been read; a non-consecutive run of <c>IDAT</c>
+///         chunks, since the specification requires every <c>IDAT</c> chunk to be consecutive;
+///         and any chunk of any type (including an otherwise-safe-to-skip ancillary chunk)
+///         encountered before the mandatory <c>IHDR</c> chunk, since <c>IHDR</c> is always
+///         required to be first. An unrecognized <em>ancillary</em> chunk (lowercase first type
+///         byte, for example <c>tEXt</c>, <c>pHYs</c>, or <c>gAMA</c>) that appears after
+///         <c>IHDR</c> remains safe to skip, exactly as before.
 ///     </para>
 ///     <para>
 ///         Design decision - palette (color type 3) tRNS/PLTE-to-RGBA mapping: a palette-indexed
@@ -235,8 +241,10 @@ public static class PngCodec
     ///     or interlace method; an unrecognized critical chunk (uppercase first type byte) is
     ///     encountered; a <c>PLTE</c> chunk appears on a grayscale or grayscale-with-alpha file;
     ///     a <c>tRNS</c> chunk appears on a grayscale-with-alpha or Truecolor-with-alpha file, or
-    ///     precedes the <c>PLTE</c> chunk on a palette file; any chunk's CRC-32 does not match;
-    ///     the decompressed scanline data
+    ///     precedes the <c>PLTE</c> chunk on a palette file; a <c>PLTE</c> chunk appears after a
+    ///     <c>tRNS</c> chunk has already been accepted; the <c>IDAT</c> chunks are not
+    ///     consecutive; any chunk appears before the mandatory <c>IHDR</c> chunk; any chunk's
+    ///     CRC-32 does not match; the decompressed scanline data
     ///     has an unexpected length; an unsupported scanline filter type is encountered; or the
     ///     stream ends before all header, chunk, or pixel data has been read.
     /// </exception>
@@ -477,6 +485,14 @@ public static class PngCodec
 
         /// <summary>Whether an IDAT chunk has already been seen.</summary>
         public bool IdatSeen { get; set; }
+
+        /// <summary>
+        ///     Whether the run of consecutive IDAT chunks has already ended - set the moment a
+        ///     non-IDAT chunk is processed after at least one IDAT chunk has been seen. The PNG
+        ///     specification requires every IDAT chunk to be consecutive, so a further IDAT chunk
+        ///     encountered once this flag is set indicates a non-conforming file.
+        /// </summary>
+        public bool IdatRunEnded { get; set; }
     }
 
     /// <summary>
@@ -524,6 +540,14 @@ public static class PngCodec
     {
         var (typeBytes, data) = ReadChunkFrame(stream);
 
+        // The PNG specification requires every IDAT chunk to be consecutive: the moment a
+        // non-IDAT chunk is processed after at least one IDAT chunk has been seen, the IDAT run
+        // has ended, so any further IDAT chunk encountered later is non-conforming
+        if (!ChunkTypeIs(typeBytes, "IDAT") && state.IdatSeen)
+        {
+            state.IdatRunEnded = true;
+        }
+
         if (ChunkTypeIs(typeBytes, "IHDR"))
         {
             if (state.IhdrSeen)
@@ -550,6 +574,15 @@ public static class PngCodec
             if (state.IdatSeen)
             {
                 throw new InvalidDataException("PLTE chunk encountered after the first IDAT chunk.");
+            }
+
+            // The PNG specification requires PLTE to precede tRNS whenever both are present,
+            // regardless of color type: a tRNS chunk that has already been accepted means a PLTE
+            // chunk arriving afterward is out of order, even for color types (2 and 6) where
+            // PLTE is merely an optional suggested palette rather than mandatory
+            if (state.TrnsSeen)
+            {
+                throw new InvalidDataException("PLTE chunk must precede tRNS chunk.");
             }
 
             if (data.Length % 3 != 0 || data.Length == 0)
@@ -636,6 +669,11 @@ public static class PngCodec
                 throw new InvalidDataException("IDAT chunk encountered before IHDR.");
             }
 
+            if (state.IdatRunEnded)
+            {
+                throw new InvalidDataException("IDAT chunks must be consecutive.");
+            }
+
             state.IdatSeen = true;
             idatStream.Write(data, 0, data.Length);
         }
@@ -662,7 +700,13 @@ public static class PngCodec
 
         // Any other chunk type (for example "tEXt", "pHYs", "gAMA") is an unrecognized ancillary
         // chunk this codec does not need; its CRC-32 has already been validated above, and its
-        // data is simply not accumulated anywhere, effectively skipping it
+        // data is simply not accumulated anywhere, effectively skipping it - except that, like
+        // every other chunk type, it must still not appear before the mandatory IHDR chunk, which
+        // the PNG specification requires to always be first
+        else if (!state.IhdrSeen)
+        {
+            throw new InvalidDataException("Chunk encountered before IHDR.");
+        }
     }
 
     /// <summary>

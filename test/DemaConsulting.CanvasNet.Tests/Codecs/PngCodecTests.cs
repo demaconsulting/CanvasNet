@@ -152,7 +152,9 @@ public class PngCodecTests
     ///     decompression, using a hand-built PNG with the compressed payload deliberately split
     ///     into five separate IDAT chunks of a fixed, small byte size (unrelated to the
     ///     compressed data's natural size), regardless of how PngCodec's own Save happens to
-    ///     chunk its output.
+    ///     chunk its output. This also proves the consecutive-IDAT-chunks requirement's
+    ///     no-regression case: a run of consecutive IDAT chunks with no other chunk type
+    ///     interleaved between them must still load successfully.
     /// </summary>
     [Fact]
     public void PngCodec_Load_MultipleIdatChunks_ReturnsExpectedPixels()
@@ -663,6 +665,81 @@ public class PngCodecTests
         // Act & Assert
         var exception = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
         Assert.Contains("PLTE", exception.Message);
+    }
+
+    /// <summary>
+    ///     Proves that Load rejects a PLTE chunk that appears after a tRNS chunk has already been
+    ///     accepted, with InvalidDataException naming tRNS as the cause. Truecolor (color type 2)
+    ///     is used here since it permits both an optional suggested PLTE and a key-color tRNS
+    ///     chunk, so this exercises the PLTE-after-tRNS ordering check independently of the
+    ///     already-covered indexed-color (Palette) tRNS-before-PLTE check.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_PlteAfterTrns_ThrowsInvalidDataException()
+    {
+        // Arrange: a Truecolor IHDR, then tRNS followed by PLTE - the specification requires
+        // PLTE to precede tRNS whenever both chunks are present
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 2 /* Truecolor */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var trns = BuildChunk("tRNS", [0, 10, 0, 20, 0, 30]);
+        stream.Write(trns, 0, trns.Length);
+        var plte = BuildChunk("PLTE", [1, 2, 3]);
+        stream.Write(plte, 0, plte.Length);
+        stream.Position = 0;
+
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        Assert.Contains("tRNS", exception.Message);
+    }
+
+    /// <summary>
+    ///     Proves that Load rejects a stream in which an ancillary chunk (tEXt) appears between
+    ///     two IDAT chunks, with InvalidDataException, since the PNG specification requires every
+    ///     IDAT chunk to be consecutive - no other chunk type may appear between the first and
+    ///     last IDAT chunk.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_NonConsecutiveIdatChunks_ThrowsInvalidDataException()
+    {
+        // Arrange: two IDAT chunks with an unrelated ancillary chunk between them
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 2 /* Truecolor */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var idat1 = BuildChunk("IDAT", [1, 2, 3]);
+        stream.Write(idat1, 0, idat1.Length);
+        var textChunk = BuildChunk("tEXt", [9, 9, 9]);
+        stream.Write(textChunk, 0, textChunk.Length);
+        var idat2 = BuildChunk("IDAT", [4, 5, 6]);
+        stream.Write(idat2, 0, idat2.Length);
+        stream.Position = 0;
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+    }
+
+    /// <summary>
+    ///     Proves that Load rejects a stream containing an ancillary chunk (tEXt) before the
+    ///     mandatory IHDR chunk, with InvalidDataException naming IHDR as the cause, since the
+    ///     PNG specification always requires IHDR to be the first chunk - even a chunk this codec
+    ///     would otherwise silently skip must still be rejected in this position.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_AncillaryChunkBeforeIhdr_ThrowsInvalidDataException()
+    {
+        // Arrange: a valid signature followed directly by an ancillary chunk, with no IHDR chunk
+        // present anywhere before it
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var textChunk = BuildChunk("tEXt", [9, 9, 9]);
+        stream.Write(textChunk, 0, textChunk.Length);
+        stream.Position = 0;
+
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        Assert.Contains("IHDR", exception.Message);
     }
 
     /// <summary>

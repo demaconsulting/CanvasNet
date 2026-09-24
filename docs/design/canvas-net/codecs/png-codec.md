@@ -160,7 +160,12 @@ per-palette-entry alpha values are meaningless before the palette they index int
 so `Load` rejects a Palette file whose `tRNS` chunk precedes its `PLTE` chunk with
 `InvalidDataException` naming `PLTE` as the cause. A `PLTE` chunk missing on a Palette-color-type
 file is a hard rejection (`InvalidDataException` naming "PLTE"), since there is no way to resolve
-a palette index to a color without it.
+a palette index to a color without it. Conversely, `Load` also rejects a `PLTE` chunk that appears
+_after_ a `tRNS` chunk has already been accepted, with `InvalidDataException` naming `tRNS` as the
+cause — this direction of the ordering requirement applies regardless of color type, not only to
+Palette files, since Truecolor and Truecolor-with-alpha files may also legally carry both chunks
+(with PLTE as an optional suggested palette) and PLTE must still come first whenever both are
+present.
 
 **Design decision — unrecognized critical chunks are rejected, not skipped**: the PNG
 specification uses a chunk type's first byte's case to mark it critical (uppercase) or ancillary
@@ -170,7 +175,27 @@ may change how pixel data must be interpreted — and `Load` rejects it with `In
 naming the chunk type, rather than risk silently producing incorrect pixels from a chunk it does
 not understand. An unrecognized _ancillary_ chunk (lowercase first type byte, for example `tEXt`,
 `pHYs`, or `gAMA`) remains safe to skip, exactly as before: its CRC-32 is still validated, but its
-data is not accumulated anywhere.
+data is not accumulated anywhere — except that, like every other chunk type, it must still not
+appear before the mandatory `IHDR` chunk (see the next two design decisions).
+
+**Design decision — every chunk, including an otherwise-safe-to-skip ancillary chunk, is rejected
+before `IHDR`**: the PNG specification requires `IHDR` to always be the first chunk in the file,
+since it supplies the width, height, and color type every later chunk depends on. `Load` already
+enforced this for `PLTE`, `tRNS`, `IDAT`, and `IEND` individually; the generic ancillary-chunk-skip
+fallback path was the one place this check was missing, so an ancillary chunk (for example `tEXt`)
+appearing before `IHDR` was previously skipped unconditionally instead of being rejected. `Load`
+now rejects any chunk of any type encountered before `IHDR` with `InvalidDataException` naming
+`IHDR` as the cause.
+
+**Design decision — `IDAT` chunks must be consecutive**: the PNG specification requires every
+`IDAT` chunk in a file to be consecutive — no other chunk type may appear between the first and
+last `IDAT` chunk. `Load` tracks the moment a non-`IDAT` chunk is processed after at least one
+`IDAT` chunk has already been seen (the IDAT run has ended); if a further `IDAT` chunk is then
+encountered, `Load` rejects it with `InvalidDataException`, since a non-conforming chunk ordering
+means the file's chunk boundaries no longer match a conforming encoder's output and silently
+concatenating the later `IDAT` chunk's bytes anyway would risk assembling a corrupt decompressed
+stream. A payload split across any number of directly consecutive `IDAT` chunks (the common case
+for streaming encoders) remains fully supported and unaffected by this check.
 
 ### Key Methods
 
@@ -186,9 +211,10 @@ before any width/height arithmetic, including the row-byte-width computation per
 decoding scanlines and by `Load` itself, now generalized to `ceil(width * samplesPerPixel *
 bitDepth / 8)` rather than the earlier `width * channels`); `PLTE` and `tRNS` chunks are parsed
 when present (see above), including the color-type and chunk-ordering rejections described above;
-`IDAT` chunk data is concatenated across as many chunks as are present; any other recognized
-ancillary chunk type (for example `tEXt`, `pHYs`, `gAMA`) is CRC-validated but otherwise skipped,
-while an unrecognized critical chunk type is rejected (see above).
+`IDAT` chunk data is concatenated across as many consecutive chunks as are present (see the
+`IDAT`-consecutiveness design decision above); any other recognized ancillary chunk type (for
+example `tEXt`, `pHYs`, `gAMA`) is CRC-validated but otherwise skipped, while an unrecognized
+critical chunk type is rejected (see above).
 Once `IEND` is reached, the concatenated `IDAT` payload is unwrapped as a zlib stream (2-byte
 header validated, `DeflateStream` inflates the DEFLATE data, the 4-byte Adler-32 trailer is
 validated against the decompressed bytes), then each scanline is defiltered (reconstructing all
@@ -213,18 +239,21 @@ though `Load` refuses them; see _GetInfo(Stream stream)_ below.
 **Throws:**
 
 * `ArgumentNullException` — `stream` is null
-* `InvalidDataException` — missing PNG signature; missing, duplicate, or malformed `IHDR`; an
-  `IDAT` or `IEND` chunk encountered before `IHDR`; a bit depth other than 1, 2, 4, 8, or 16; a
+* `InvalidDataException` — missing PNG signature; missing, duplicate, or malformed `IHDR`; any
+  chunk (including an otherwise-safe-to-skip ancillary chunk) encountered before `IHDR`; a bit
+  depth other than 1, 2, 4, 8, or 16; a
   color type other than 0, 2, 3, 4, or 6; a bit-depth/color-type combination the PNG
   specification does not define (for example color type 3 with bit depth 16); an unsupported
   compression method, filter method, or interlace method value; Adam7 interlacing (well-formed,
   but not a combination `Load` can decode); an unrecognized critical chunk (uppercase first type
-  byte); a `PLTE` chunk on a grayscale or grayscale-with-alpha file; a `tRNS` chunk on a
+  byte); a `PLTE` chunk on a grayscale or grayscale-with-alpha file; a `PLTE` chunk appearing
+  after a `tRNS` chunk has already been accepted; a `tRNS` chunk on a
   grayscale-with-alpha or Truecolor-with-alpha file, or one that precedes the `PLTE` chunk on a
   Palette file; a color-type-3 (Palette) file missing its `PLTE`
   chunk, or containing a pixel whose palette index is out of range; a malformed `tRNS` chunk
   length for its color type; non-positive width or height, or width/height exceeding
-  `Surface.MaxDimension`; any chunk's CRC-32 mismatch; a malformed or unsupported zlib header; an
+  `Surface.MaxDimension`; non-consecutive `IDAT` chunks; any chunk's CRC-32 mismatch; a malformed
+  or unsupported zlib header; an
   Adler-32 checksum mismatch; an unexpected decompressed data length; an unsupported scanline
   filter type; or the stream ends before all header, chunk, or pixel data has been read
 
@@ -397,13 +426,17 @@ In addition to the hand-built positive/negative unit tests above, `PngCodec` is 
 the industry-standard [PngSuite](http://www.schaik.com/pngsuite/) conformance corpus (Willem van
 Schaik, 1996-2011; freeware, redistributed under `PngSuite.LICENSE`). Each of the corpus's 175
 test files' actual IHDR fields were verified directly against its raw bytes (not trusted from its
-filename) and classified into exactly one of three groups: 126 well-formed, non-interlaced files
+filename) and classified into exactly one of four groups: 126 well-formed, non-interlaced files
 covering every color type and bit depth `Load` supports (must load successfully), 35
 Adam7-interlaced files (must be rejected by `Load` with `InvalidDataException`, but must still
-succeed and report correct dimensions via `GetInfo`), and 14 deliberately corrupt files (must be
-rejected by both `Load` and `GetInfo` with `InvalidDataException`). See
-`CanvasNet-Codecs-PngCodec-PngSuiteSupported`, `CanvasNet-Codecs-PngCodec-PngSuiteUnsupported`,
-and `CanvasNet-Codecs-PngCodec-PngSuiteCorrupt` for the corresponding requirements.
+succeed and report correct dimensions via `GetInfo`), 12 files deliberately corrupt at or before
+their IHDR chunk (must be rejected by both `Load` and `GetInfo` with `InvalidDataException`), and
+2 files deliberately corrupt only after a well-formed IHDR chunk — a corrupt IDAT CRC-32, and a
+missing IDAT chunk (must be rejected by `Load` with `InvalidDataException`, but must still succeed
+and report correct dimensions via `GetInfo`, exactly like the Adam7-interlaced files, since
+`GetInfo` never reads past `IHDR`). See `CanvasNet-Codecs-PngCodec-PngSuiteSupported`,
+`CanvasNet-Codecs-PngCodec-PngSuiteUnsupported`, `CanvasNet-Codecs-PngCodec-PngSuiteCorrupt`, and
+`CanvasNet-Codecs-PngCodec-PngSuiteCorruptAfterIhdr` for the corresponding requirements.
 
 ### Callers
 

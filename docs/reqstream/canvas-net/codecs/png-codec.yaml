@@ -325,16 +325,19 @@ sections:
 
               - id: CanvasNet-Codecs-PngCodec-LoadChunkBeforeIhdr
                 title: >-
-                  The PngCodec class shall reject a PNG stream in which an IDAT or IEND chunk appears
-                  before the mandatory IHDR chunk, with InvalidDataException naming IHDR as the cause.
+                  The PngCodec class shall reject a PNG stream in which any chunk - whether IDAT,
+                  IEND, or an otherwise-safe-to-skip ancillary chunk such as tEXt - appears before
+                  the mandatory IHDR chunk, with InvalidDataException naming IHDR as the cause.
                 justification: |
-                  IHDR is required by the PNG specification to be the first chunk and supplies the
-                  width, height, and color type every later chunk depends on; encountering IDAT or IEND
-                  first means no header has been parsed, so failing clearly here (rather than decoding
-                  pixel data from default/uninitialized header fields) prevents returning an incorrect
-                  surface.
+                  IHDR is required by the PNG specification to always be the first chunk and
+                  supplies the width, height, and color type every later chunk depends on;
+                  encountering any other chunk first means no header has been parsed, so failing
+                  clearly here (rather than decoding pixel data from default/uninitialized header
+                  fields, or silently skipping an ancillary chunk in an illegal position) prevents
+                  returning an incorrect surface.
                 tests:
                   - PngCodec_Load_IendBeforeIhdr_ThrowsInvalidDataExceptionMentioningIhdr
+                  - PngCodec_Load_AncillaryChunkBeforeIhdr_ThrowsInvalidDataException
 
               - id: CanvasNet-Codecs-PngCodec-LoadUnrecognizedCriticalChunk
                 title: >-
@@ -378,6 +381,22 @@ sections:
                 tests:
                   - PngCodec_Load_TrnsBeforePlteForIndexedColor_ThrowsInvalidDataException
 
+              - id: CanvasNet-Codecs-PngCodec-LoadPlteAfterTrns
+                title: >-
+                  The PngCodec class shall reject a PLTE chunk that appears after a tRNS chunk has
+                  already been accepted, with InvalidDataException naming tRNS as the cause,
+                  regardless of color type.
+                justification: |
+                  The PNG specification requires PLTE to precede tRNS whenever both chunks are
+                  present in a file, not only for indexed-color (Palette) images where PLTE is
+                  mandatory: a tRNS chunk's per-palette-entry alpha values (for Palette) or its
+                  ordering relative to an optional suggested PLTE (for Truecolor and
+                  Truecolor-with-alpha) both depend on this ordering, so a PLTE chunk arriving after
+                  tRNS has already been accepted indicates a non-conforming file a correct encoder
+                  never produces.
+                tests:
+                  - PngCodec_Load_PlteAfterTrns_ThrowsInvalidDataException
+
               - id: CanvasNet-Codecs-PngCodec-LoadTrnsForbiddenForAlphaColorTypes
                 title: >-
                   The PngCodec class shall reject a tRNS chunk on a grayscale-with-alpha (color type
@@ -390,6 +409,24 @@ sections:
                 tests:
                   - PngCodec_Load_TrnsOnGrayscaleAlpha_ThrowsInvalidDataException
                   - PngCodec_Load_TrnsOnTruecolorAlpha_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-LoadNonConsecutiveIdat
+                title: >-
+                  The PngCodec class shall reject a PNG stream in which any chunk other than IDAT
+                  appears between the first and last IDAT chunk, with InvalidDataException, while
+                  continuing to accept an IDAT payload split across any number of directly
+                  consecutive IDAT chunks.
+                justification: |
+                  The PNG specification requires every IDAT chunk to be consecutive; a non-IDAT
+                  chunk interleaved between two IDAT chunks means the image data's chunk boundaries
+                  no longer match a conforming encoder's output, so silently concatenating the later
+                  IDAT chunk's bytes anyway would risk assembling a corrupt decompressed stream from
+                  a non-conforming file. Encoders commonly split one image's compressed payload
+                  across several small, but still consecutive, IDAT chunks for streaming purposes,
+                  so that case must remain accepted.
+                tests:
+                  - PngCodec_Load_NonConsecutiveIdatChunks_ThrowsInvalidDataException
+                  - PngCodec_Load_MultipleIdatChunks_ReturnsExpectedPixels
 
               - id: CanvasNet-Codecs-PngCodec-GetInfo
                 title: >-
@@ -442,7 +479,7 @@ sections:
                   - PngCodec_GetInfoAndLoad_InvalidBitDepth_BothThrowInvalidDataException
                   - PngCodec_GetInfoAndLoad_InvalidColorType_BothThrowInvalidDataException
                   - PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsInvalidDataException
-                  - PngSuiteUnsupportedFile_GetInfoStillSucceeds
+                  - PngSuiteUnsupportedFile_GetInfoReturnsCorrectDimensions
 
               - id: CanvasNet-Codecs-PngCodec-GetInfoValidation
                 title: >-
@@ -483,15 +520,35 @@ sections:
                   misinterpreted, while confirming GetInfo remains unaffected by the same limitation.
                 tests:
                   - PngCodec_Load_PngSuiteUnsupportedFile_ThrowsInvalidDataException
-                  - PngSuiteUnsupportedFile_GetInfoStillSucceeds
+                  - PngSuiteUnsupportedFile_GetInfoReturnsCorrectDimensions
 
               - id: CanvasNet-Codecs-PngCodec-PngSuiteCorrupt
                 title: >-
-                  The PngCodec class shall reject every deliberately corrupt PngSuite conformance file
-                  with InvalidDataException.
+                  The PngCodec class shall reject every PngSuite conformance file deliberately
+                  corrupted at or before its IHDR chunk with InvalidDataException from both Load
+                  and GetInfo.
                 justification: |
-                  The PngSuite corpus includes files with deliberate corruption (bad signature, bad IHDR
-                  CRC-32, invalid color-type/bit-depth combinations); confirming each is rejected clearly
-                  demonstrates robustness against malformed real-world input.
+                  The PngSuite corpus includes files with deliberate corruption located at or
+                  before the IHDR chunk (bad signature, bad IHDR CRC-32, invalid
+                  color-type/bit-depth combinations); confirming each is rejected clearly by both
+                  entry points demonstrates robustness against malformed real-world input, since
+                  these are well-formedness defects rather than merely a decode-capability
+                  limitation GetInfo is designed to tolerate (unlike Adam7 interlacing, above).
                 tests:
                   - PngCodec_Load_PngSuiteCorruptFile_ThrowsInvalidDataException
+                  - PngCodec_GetInfo_PngSuiteCorruptFile_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-PngSuiteCorruptAfterIhdr
+                title: >-
+                  The PngCodec class shall reject every PngSuite conformance file deliberately
+                  corrupted only after a well-formed IHDR chunk with InvalidDataException from
+                  Load, while still reporting its correct declared dimensions via GetInfo.
+                justification: |
+                  Two PngSuite files (a corrupt IDAT chunk CRC-32, and a missing IDAT chunk
+                  entirely) have a well-formed IHDR chunk but are corrupt only in a later chunk;
+                  since GetInfo reads only the signature and IHDR chunk, it never encounters
+                  either corruption and succeeds, exactly like the Adam7-interlaced files above -
+                  but Load, which must fully parse the IDAT chunk to decode pixel data, correctly
+                  rejects both as genuinely malformed files.
+                tests:
+                  - PngCodec_PngSuiteCorruptAfterIhdrFile_GetInfoReturnsCorrectDimensions_ButLoadThrows

@@ -12,7 +12,7 @@ namespace DemaConsulting.CanvasNet.Tests.Codecs;
 ///     Every file's actual IHDR fields (color type, bit depth, interlace method) and, for the
 ///     deliberately corrupt files, the specific corruption, were verified directly against the
 ///     raw file bytes rather than trusted from the PngSuite filename convention, then classified
-///     into exactly one of the three groups below:
+///     into exactly one of the four groups below:
 ///     <list type="bullet">
 ///         <item>
 ///             <see cref="SupportedFiles"/> - every well-formed, non-interlaced PngSuite file
@@ -29,10 +29,19 @@ namespace DemaConsulting.CanvasNet.Tests.Codecs;
 ///             still refuses that is not itself a well-formedness defect.
 ///         </item>
 ///         <item>
-///             <see cref="CorruptFiles"/> - deliberately corrupt (bad signature, bad IHDR CRC-32,
-///             or an invalid color-type/bit-depth combination) and must be rejected with
-///             <see cref="InvalidDataException"/> by both <c>Load</c> and <c>GetInfo</c>, since
-///             these are well-formedness defects, not merely decode-capability limitations.
+///             <see cref="CorruptFiles"/> - deliberately corrupt at or before the IHDR chunk (bad
+///             signature, bad IHDR CRC-32, or an invalid color-type/bit-depth combination) (12 of
+///             175) and must be rejected with <see cref="InvalidDataException"/> by both
+///             <c>Load</c> and <c>GetInfo</c>, since these are well-formedness defects, not merely
+///             decode-capability limitations.
+///         </item>
+///         <item>
+///             <see cref="CorruptAfterIhdrFiles"/> - deliberately corrupt, but only in a chunk
+///             after a well-formed IHDR (2 of 175: a corrupt IDAT CRC-32, and a missing IDAT
+///             chunk entirely). <c>Load</c> rejects both with <see cref="InvalidDataException"/>,
+///             but <c>GetInfo</c> succeeds on both - reporting their correct declared dimensions -
+///             since <c>GetInfo</c> reads only the signature and IHDR chunk and therefore never
+///             encounters a corruption located later in the file.
 ///         </item>
 ///     </list>
 /// </remarks>
@@ -195,7 +204,8 @@ public class PngSuiteTests
     /// <summary>
     ///     Every Adam7-interlaced PngSuite file (35 of 175) - structurally well-formed PNG files
     ///     that <c>Load</c> still refuses, since Adam7 decoding is not implemented, but that
-    ///     <c>GetInfo</c> succeeds on (see <see cref="PngSuiteUnsupportedFile_GetInfoStillSucceeds"/>).
+    ///     <c>GetInfo</c> succeeds on (see
+    ///     <see cref="PngSuiteUnsupportedFile_GetInfoReturnsCorrectDimensions"/>).
     /// </summary>
     public static readonly TheoryData<string> UnsupportedFiles =
     [
@@ -239,8 +249,14 @@ public class PngSuiteTests
     ];
 
     /// <summary>
-    ///     PngSuite files that are deliberately corrupt (bad signature, bad IHDR CRC-32, or an
-    ///     invalid color-type/bit-depth combination).
+    ///     PngSuite files that are deliberately corrupt at or before the IHDR chunk (bad
+    ///     signature, bad IHDR CRC-32, or an invalid color-type/bit-depth combination), so the
+    ///     corruption is always encountered by <c>GetInfo</c> (which reads only the signature and
+    ///     IHDR chunk) as well as by <c>Load</c>. This deliberately excludes
+    ///     <c>xcsn0g01.png</c> (a corrupt IDAT chunk CRC-32) and <c>xdtn0g01.png</c> (a missing
+    ///     IDAT chunk) - see <see cref="CorruptAfterIhdrFiles"/> for those two, whose corruption
+    ///     lies entirely after a well-formed IHDR chunk and is therefore never encountered by
+    ///     <c>GetInfo</c>.
     /// </summary>
     public static readonly TheoryData<string> CorruptFiles =
     [
@@ -248,11 +264,9 @@ public class PngSuiteTests
         "xc1n0g08.png",
         "xc9n2c08.png",
         "xcrn0g04.png",
-        "xcsn0g01.png",
         "xd0n2c08.png",
         "xd3n2c08.png",
         "xd9n2c08.png",
-        "xdtn0g01.png",
         "xhdn0g08.png",
         "xlfn0g04.png",
         "xs1n0g01.png",
@@ -261,6 +275,42 @@ public class PngSuiteTests
         "xs7n0g01.png"
         // cspell:enable
     ];
+
+    /// <summary>
+    ///     PngSuite files whose IHDR chunk is well-formed but whose corruption lies entirely
+    ///     after it: <c>xcsn0g01.png</c> has a corrupt IDAT chunk CRC-32 (its CRC bytes literally
+    ///     spell the ASCII text "CSUM" rather than a computed checksum), and
+    ///     <c>xdtn0g01.png</c> has no IDAT chunk at all (its data was deleted, leaving only
+    ///     IHDR, gAMA, and IEND). Since <c>GetInfo</c> reads only the signature and IHDR chunk, it
+    ///     never encounters either corruption and succeeds, exactly like the Adam7-interlaced
+    ///     <see cref="UnsupportedFiles"/> above - but unlike those files, <c>Load</c> rejects
+    ///     these two because they are genuinely malformed, not merely because of an
+    ///     unimplemented decode feature.
+    /// </summary>
+    public static readonly TheoryData<string> CorruptAfterIhdrFiles =
+    [
+        // cspell:disable
+        "xcsn0g01.png",
+        "xdtn0g01.png"
+        // cspell:enable
+    ];
+
+    /// <summary>
+    ///     Reads a PNG file's declared width and height directly from its raw IHDR chunk bytes
+    ///     (the file's bytes 16-19 and 20-23, each a 4-byte big-endian integer), independent of
+    ///     <see cref="PngCodec"/>'s own IHDR parsing, so
+    ///     <see cref="PngSuiteUnsupportedFile_GetInfoReturnsCorrectDimensions"/> below has an
+    ///     independent ground truth to compare <c>GetInfo</c>'s reported dimensions against - the
+    ///     8-byte PNG signature is always immediately followed by a 4-byte chunk length, the
+    ///     4-byte ASCII chunk type "IHDR", then the 4-byte width and 4-byte height fields.
+    /// </summary>
+    private static (int Width, int Height) ReadRawIhdrDimensions(string filePath)
+    {
+        var bytes = File.ReadAllBytes(filePath);
+        var width = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
+        var height = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
+        return (width, height);
+    }
 
     /// <summary>
     ///     Proves that Load successfully decodes every well-formed, non-interlaced PngSuite
@@ -292,21 +342,27 @@ public class PngSuiteTests
     }
 
     /// <summary>
-    ///     Proves that GetInfo still succeeds - reporting a positive width and height - on every
-    ///     Adam7-interlaced PngSuite file that Load refuses, since Adam7 interlacing does not
-    ///     affect the declared dimensions GetInfo reports and is not itself a well-formedness
-    ///     defect.
+    ///     Proves that GetInfo still succeeds on every Adam7-interlaced PngSuite file that Load
+    ///     refuses, reporting the file's exact declared IHDR width and height (not merely
+    ///     positive values, which would pass even if the reported dimensions were wrong, for
+    ///     example swapped) - since Adam7 interlacing does not affect the declared dimensions
+    ///     GetInfo reports and is not itself a well-formedness defect.
     /// </summary>
     [Theory]
     [MemberData(nameof(UnsupportedFiles))]
-    public void PngSuiteUnsupportedFile_GetInfoStillSucceeds(string fileName)
+    public void PngSuiteUnsupportedFile_GetInfoReturnsCorrectDimensions(string fileName)
     {
-        // Act: GetInfo succeeds even though Load would refuse this file
-        var info = PngCodec.GetInfo(ResolveFixturePath(AssetsPath, fileName));
+        // Arrange: the fixture's actual declared IHDR dimensions, read directly from its raw
+        // bytes rather than trusted from GetInfo itself
+        var path = ResolveFixturePath(AssetsPath, fileName);
+        var (expectedWidth, expectedHeight) = ReadRawIhdrDimensions(path);
 
-        // Assert: positive declared dimensions were reported
-        Assert.True(info.Width > 0);
-        Assert.True(info.Height > 0);
+        // Act: GetInfo succeeds even though Load would refuse this file
+        var info = PngCodec.GetInfo(path);
+
+        // Assert: GetInfo reports the file's exact declared dimensions
+        Assert.Equal(expectedWidth, info.Width);
+        Assert.Equal(expectedHeight, info.Height);
     }
 
     /// <summary>
@@ -319,5 +375,50 @@ public class PngSuiteTests
     {
         // Act & Assert: the corrupt file must be rejected
         Assert.Throws<InvalidDataException>(() => PngCodec.Load(ResolveFixturePath(AssetsPath, fileName)));
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo also rejects every deliberately corrupt PngSuite file with
+    ///     InvalidDataException, exactly like Load, since these files (bad signature, bad IHDR
+    ///     CRC-32, or an invalid color-type/bit-depth combination) are well-formedness defects,
+    ///     not merely a decode-capability limitation GetInfo is designed to tolerate (unlike the
+    ///     Adam7-interlaced <see cref="UnsupportedFiles"/> above, which GetInfo still accepts).
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(CorruptFiles))]
+    public void PngCodec_GetInfo_PngSuiteCorruptFile_ThrowsInvalidDataException(string fileName)
+    {
+        // Act & Assert: the corrupt file must be rejected
+        Assert.Throws<InvalidDataException>(() => PngCodec.GetInfo(ResolveFixturePath(AssetsPath, fileName)));
+    }
+
+    /// <summary>
+    ///     Proves that, for both PngSuite files whose corruption lies entirely after a
+    ///     well-formed IHDR chunk (a corrupt IDAT CRC-32, and a missing IDAT chunk), GetInfo
+    ///     still succeeds - reporting the exact declared IHDR width and height, read directly
+    ///     from the file's raw bytes - while Load on the same file throws InvalidDataException.
+    ///     GetInfo never encounters either corruption since it reads only the signature and IHDR
+    ///     chunk, but Load must fully parse the IDAT chunk (or notice its absence) to decode
+    ///     pixel data.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(CorruptAfterIhdrFiles))]
+    public void PngCodec_PngSuiteCorruptAfterIhdrFile_GetInfoReturnsCorrectDimensions_ButLoadThrows(string fileName)
+    {
+        // Arrange: the fixture's actual declared IHDR dimensions, read directly from its raw
+        // bytes rather than trusted from GetInfo itself
+        var path = ResolveFixturePath(AssetsPath, fileName);
+        var (expectedWidth, expectedHeight) = ReadRawIhdrDimensions(path);
+
+        // Act: GetInfo succeeds even though the file is corrupt beyond its IHDR chunk
+        var info = PngCodec.GetInfo(path);
+
+        // Assert: GetInfo reports the file's exact declared dimensions
+        Assert.Equal(expectedWidth, info.Width);
+        Assert.Equal(expectedHeight, info.Height);
+
+        // Assert: Load on the same file still throws, since it must reach the corrupt/missing
+        // IDAT chunk to decode pixel data
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(path));
     }
 }

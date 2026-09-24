@@ -244,10 +244,12 @@ sections:
               The Codecs subsystem shall reject malformed PNG data (bad signature, an invalid bit
               depth or color type, a bit-depth/color-type combination the PNG specification does not
               define, dimensions exceeding Surface.MaxDimension, corrupt chunk CRC-32, corrupt
-              Adler-32 checksum, a chunk preceding IHDR, an unrecognized critical chunk, a PLTE
-              chunk on a grayscale color type, a tRNS chunk preceding PLTE on an indexed-color image,
-              a tRNS chunk on a color type that already carries a full alpha channel, or a truncated
-              stream), and Adam7-interlaced PNG data, with InvalidDataException.
+              Adler-32 checksum, any chunk (including an otherwise-safe-to-skip ancillary chunk)
+              preceding IHDR, an unrecognized critical chunk, a PLTE chunk on a grayscale color type,
+              a PLTE chunk appearing after a tRNS chunk has already been accepted, a tRNS chunk
+              preceding PLTE on an indexed-color image, a tRNS chunk on a color type that already
+              carries a full alpha channel, non-consecutive IDAT chunks, or a truncated stream), and
+              Adam7-interlaced PNG data, with InvalidDataException.
             justification: |
               Callers must be able to distinguish a genuinely malformed PNG file, or one using
               Adam7 interlacing (the only PNG feature this codec's Load does not decode), from a
@@ -263,10 +265,13 @@ sections:
               - CanvasNet-Codecs-PngCodec-LoadChunkBeforeIhdr
               - CanvasNet-Codecs-PngCodec-LoadUnrecognizedCriticalChunk
               - CanvasNet-Codecs-PngCodec-LoadPlteForbiddenForGrayscale
+              - CanvasNet-Codecs-PngCodec-LoadPlteAfterTrns
               - CanvasNet-Codecs-PngCodec-LoadTrnsOrderRequiresPlteForPalette
               - CanvasNet-Codecs-PngCodec-LoadTrnsForbiddenForAlphaColorTypes
+              - CanvasNet-Codecs-PngCodec-LoadNonConsecutiveIdat
               - CanvasNet-Codecs-PngCodec-PngSuiteUnsupported
               - CanvasNet-Codecs-PngCodec-PngSuiteCorrupt
+              - CanvasNet-Codecs-PngCodec-PngSuiteCorruptAfterIhdr
             tests:
               - PngCodec_Load_BadSignature_ThrowsInvalidDataException
               - PngCodec_GetInfoAndLoad_InvalidColorType_BothThrowInvalidDataException
@@ -278,12 +283,16 @@ sections:
               - PngCodec_Load_CorruptAdlerTrailer_ThrowsInvalidDataException
               - PngCodec_Load_TruncatedStream_ThrowsInvalidDataException
               - PngCodec_Load_IendBeforeIhdr_ThrowsInvalidDataExceptionMentioningIhdr
+              - PngCodec_Load_AncillaryChunkBeforeIhdr_ThrowsInvalidDataException
               - PngCodec_Load_UnrecognizedCriticalChunk_ThrowsInvalidDataException
               - PngCodec_Load_PlteOnGrayscale_ThrowsInvalidDataException
               - PngCodec_Load_PlteOnGrayscaleAlpha_ThrowsInvalidDataException
+              - PngCodec_Load_PlteAfterTrns_ThrowsInvalidDataException
               - PngCodec_Load_TrnsBeforePlteForIndexedColor_ThrowsInvalidDataException
               - PngCodec_Load_TrnsOnGrayscaleAlpha_ThrowsInvalidDataException
               - PngCodec_Load_TrnsOnTruecolorAlpha_ThrowsInvalidDataException
+              - PngCodec_Load_NonConsecutiveIdatChunks_ThrowsInvalidDataException
+              - PngCodec_PngSuiteCorruptAfterIhdrFile_GetInfoReturnsCorrectDimensions_ButLoadThrows
 
           - id: CanvasNet-Codecs-PngGetInfo
             title: >-
@@ -328,7 +337,8 @@ sections:
               - PngCodec_GetInfo_BitDepth16_ReturnsCorrectDimensions
               - PngCodec_GetInfoAndLoad_InvalidBitDepth_BothThrowInvalidDataException
               - PngCodec_GetInfoAndLoad_InvalidColorType_BothThrowInvalidDataException
-              - PngSuiteUnsupportedFile_GetInfoStillSucceeds
+              - PngSuiteUnsupportedFile_GetInfoReturnsCorrectDimensions
+              - PngCodec_PngSuiteCorruptAfterIhdrFile_GetInfoReturnsCorrectDimensions_ButLoadThrows
 
           - id: CanvasNet-Codecs-PngGetInfoValidation
             title: >-
