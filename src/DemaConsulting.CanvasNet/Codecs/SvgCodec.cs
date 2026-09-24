@@ -337,8 +337,8 @@ public static class SvgCodec
 
             // A tiny-but-positive, finite resolved viewBox/width/height (for example a subnormal
             // float) passes ResolveViewBoxOrSize's own "must be positive" check but can still
-            // overflow ComputeFitTransform's own division to a non-finite scale. Left unvalidated,
-            // the resulting non-finite fitTransform would silently fail IsFiniteTransform's
+            // overflow ComputeFitTransform's own division to a non-finite scale. Left without a
+            // check here, the resulting non-finite fitTransform would silently fail IsFiniteTransform's
             // per-element check for every single element in the document, rendering a blank,
             // fully-transparent surface with no exception at all - a worse "quiet" failure than
             // the sibling non-positive-viewBox case already throws for. Treat a degenerate fit
@@ -3163,8 +3163,8 @@ public static class SvgCodec
             var hrefId = GetHrefAttribute(current) is { } href ? ExtractFragmentId(href) : null;
             if (hrefId == null || !context.IdIndex.TryGetValue(hrefId, out var next))
             {
-                // Cache the empty-list terminal case too, so a dangling/cycle-free-but-stopless
-                // chain is not re-walked on every future reference to the same starting element
+                // Cache the empty-list terminal case too, so a dangling/cycle-free chain with no
+                // stops is not re-walked on every future reference to the same starting element
                 context.GradientStopCache[start] = stops;
                 return stops;
             }

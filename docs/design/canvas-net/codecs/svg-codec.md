@@ -167,7 +167,7 @@ An intrinsic size that is positive and finite (passing the checks above) can sti
 enough — a subnormal float, for example — that dividing the requested raster dimensions by it
 overflows the computed scale to a non-finite value. `Load` validates the resulting fit transform
 with the same finiteness check used for composed element transforms immediately after computing
-it, and rejects it with `InvalidDataException` rather than silently proceeding: an unvalidated
+it, and rejects it with `InvalidDataException` rather than silently proceeding: an unchecked
 non-finite fit transform would otherwise cause every element in the document to fail that same
 per-element finiteness check and render a blank, fully-transparent surface with no exception at
 all — a worse "quiet" failure than the sibling non-positive-size case already throws for.
@@ -393,7 +393,8 @@ differently:
   the whole `path` element is skipped (rendered as an empty path, the same no-op `RenderShape`
   already applies to any other empty path) rather than reaching `Drawing.DashSplitter`'s
   dash-interval walk with a non-finite path length, which would otherwise stall its finite-step
-  `while` loop indefinitely whenever the affected shape also has a   `stroke-dasharray`. An extreme-but-individually-finite arc radius (an `A`/`a` path-data command,
+  `while` loop indefinitely whenever the affected shape also has a
+  `stroke-dasharray`. An extreme-but-individually-finite arc radius (an `A`/`a` path-data command,
   or a `rect`'s rounded-corner/`circle`/`ellipse` quarter-arc construction) whose squared magnitude
   overflows `Geometry.SvgArcConverter`'s internal ellipse-center arithmetic to a non-finite control
   point or endpoint is likewise a tolerant case: each emitted Bezier segment's points are validated
