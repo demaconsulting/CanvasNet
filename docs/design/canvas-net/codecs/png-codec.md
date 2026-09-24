@@ -391,11 +391,80 @@ checks that still run afterward on the (now safely small) allocated payload, in 
 `ParseIhdr`, and `ValidateAndNormalizeTrns`; the post-read `IDAT`-consecutiveness,
 unrecognized-critical-chunk, and duplicate-`IHDR` checks in `ProcessChunk` remain in place as
 defense-in-depth, exactly like the other checks this pre-allocation guard duplicates, even though
-they become unreachable on the success path once this guard is in place. Every other chunk type
-past the first (a still-in-progress `IDAT` run legitimately carries large payloads; any other
-recognized or unrecognized-ancillary chunk type has no small type-specific maximum to check) is
-unaffected and is still fully allocated and read before its type is otherwise interpreted, since
-`Load` always intends to read every chunk's data anyway.
+they become unreachable on the success path once this guard is in place. A still-in-progress
+`IDAT` run legitimately carries large payloads, and an unrecognized-critical chunk type has
+already been rejected above by this point, so neither is affected by this guard's checks; a
+recognized ancillary chunk type (for example `tEXt` or `iCCP`) has no small type-specific maximum
+this guard could check either, but - unlike `IDAT` - its declared length is never actually
+allocated for; see the next design decision.
+
+**Design decision — streaming-discard of recognized ancillary chunk payloads**: a recognized
+ancillary chunk type (`tEXt`, `iCCP`, and any other chunk type this codec does not explicitly
+recognize but whose first type byte is lowercase, per the PNG naming convention) may legitimately
+declare a large payload - an embedded ICC color profile or a long text comment are both valid,
+unbounded-in-practice PNG content - so, unlike `PLTE`/`tRNS`/`IEND`, `ValidateChunkLengthBeforeAllocation`
+deliberately does not attempt to cap its declared length at all. Instead, `ReadChunkFrame` never
+buffers such a chunk's payload in a single array in the first place: once a chunk's type is known
+not to be one of the five types this codec recognizes and buffers (`IHDR`, `PLTE`, `tRNS`, `IDAT`,
+`IEND`) - which, by that point, can only mean the chunk is a recognized-and-ignored ancillary
+chunk, since an unrecognized critical chunk or any chunk preceding `IHDR` has already been rejected
+by `validateLengthBeforeAllocation` - its payload is read from the stream and folded into the
+running CRC-32 in bounded pieces of `AncillaryChunkStreamBufferSize` bytes via
+`StreamDiscardChunkPayload`, with each piece discarded immediately after being folded in, rather
+than being read in one `length`-sized allocation. This keeps peak allocation for such a chunk
+bounded by `AncillaryChunkStreamBufferSize` regardless of how large its declared length is, closing
+the same memory-exhaustion vector the pre-allocation checks above close for the other five chunk
+types, without rejecting any legitimately large ancillary chunk. To support this, the PNG/zlib
+CRC-32 algorithm (previously only exposed as the one-shot `ComputeCrc32`) was split into
+`Crc32InitialState`/`UpdateCrc32`/`FinalizeCrc32` steps so a caller can fold in data - a chunk's
+type bytes, then its payload in bounded pieces - across multiple calls instead of needing it all
+buffered in one array first; `ComputeCrc32` remains as a thin wrapper over those steps, so every
+other call site (the `IHDR`/`PLTE`/`tRNS`/`IDAT`/`IEND` buffered chunk-read path, and the `Save`
+path) is unaffected.
+
+**Design decision — streaming an `IDAT` chunk's payload directly into the accumulator**: unlike
+`PLTE`/`tRNS`/`IEND`, an `IDAT` chunk has no small type-specific maximum either - the PNG
+specification does not require encoders to split compressed image data into small pieces, so a
+conforming encoder may legitimately emit an entire large image's compressed data as one very large
+`IDAT` chunk - so an arbitrary length cap would incorrectly reject real, large, spec-conforming
+images. Because `ProcessChunk`'s `IDAT` handling only ever does one thing with the payload -
+appending it to the `idatStream` accumulator - `ReadChunkFrame` closes this chunk type's
+memory-exhaustion vector the same way it already closes it for a recognized ancillary chunk: an
+`IDAT` chunk's payload is never buffered in a single `length`-sized array either. `ReadChunkFrame`
+now accepts an optional `idatDestination` parameter (which `ProcessChunk` always supplies, passing
+its own `idatStream`), and when the chunk type is `IDAT` and a destination was supplied, the
+payload is read from the stream, folded into the running CRC-32, and written directly into
+`idatDestination` in the same bounded pieces of `AncillaryChunkStreamBufferSize` bytes that the
+ancillary-chunk stream-discard path uses - sharing the same underlying `StreamChunkPayload` helper,
+parameterized by a per-piece action that either discards the piece (the ancillary case) or writes
+it into the destination (the `IDAT` case). This keeps peak allocation for an `IDAT` chunk bounded
+by `AncillaryChunkStreamBufferSize` regardless of how large its declared length is - a declared
+500 MB `IDAT` length never forces anywhere near a 500 MB allocation - while still correctly
+accumulating every legitimately large `IDAT` chunk's bytes for later decompression, since
+`ReadChunkFrame` returns an empty data array for this case (exactly like the ancillary case) and
+`ProcessChunk`'s `IDAT` branch no longer needs to (and no longer does) copy `data` into
+`idatStream` itself.
+
+**Design decision — `ValidateChunkLengthBeforeAllocation` is the sole gate for ordering/identity
+rules, not a duplicate of `ProcessChunk`'s checks**: each round of pre-allocation hardening above
+(first-chunk-must-be-`IHDR`, duplicate `IHDR`, non-consecutive `IDAT`, unrecognized critical
+chunks, `IEND`'s empty payload, `PLTE`/`tRNS`'s declared-length ceiling) was originally added
+alongside an equivalent check already present in `ProcessChunk`, on the reasoning that the
+pre-allocation gate was "defense-in-depth" for a check `ProcessChunk` still owned. Once every one
+of those conditions is rejected unconditionally by `ValidateChunkLengthBeforeAllocation` before
+`ProcessChunk` is ever reached for that chunk, `ProcessChunk`'s equivalent checks became
+unreachable dead code - not genuine defense-in-depth, since both checks fire on the exact same
+condition and the earlier one always wins. `ProcessChunk` has been cleaned up to remove all of
+these now-unreachable checks (verified test-by-test that removing them changes no observable
+behavior, since every existing test that exercises these paths asserts only a message substring,
+not the specific wording either check happened to use), leaving `ValidateChunkLengthBeforeAllocation`
+as this codec's single authoritative place for every chunk-ordering/identity rule, and `ProcessChunk`
+containing only the content-dependent checks that genuinely require the buffered payload (duplicate/
+out-of-order `PLTE`/`tRNS`, `PLTE`'s exact bit-depth-derived entry cap, `tRNS`'s per-color-type
+rules). This also means the `PLTE`/`tRNS` length bounds in `ValidateChunkLengthBeforeAllocation`
+are no longer a merely-loose safety net layered under a tighter `ProcessChunk` check - for `PLTE`,
+`ValidateChunkLengthBeforeAllocation`'s 768-byte (256-entry) ceiling is now the only enforcement of
+that upper limit.
 
 **Design decision — two independent validation flags**: `enforceMaxDimension` and
 `validateDecodability` gate two orthogonal concerns, and `GetInfo` passes `false` for both while

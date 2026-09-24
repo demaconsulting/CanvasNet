@@ -487,7 +487,7 @@ every one.
 
 A unit test run passes when all test methods above pass without error or unexpected exception; any
 unexpected exception type or wrong return/byte value constitutes a failure. Across
-`PngCodecTests.cs` and `PngSuiteTests.cs`, this totals 78 test methods (74 in `PngCodecTests.cs`
-and 4 in `PngSuiteTests.cs`), which expand to a much larger number of executed xUnit test cases
+`PngCodecTests.cs` and `PngSuiteTests.cs`, this totals 101 test methods (95 in `PngCodecTests.cs`
+and 6 in `PngSuiteTests.cs`), which expand to a much larger number of executed xUnit test cases
 when every `[Theory]` data row is included, covering the full 175-file PngSuite conformance
 corpus.

@@ -216,6 +216,26 @@ public static class PngCodec
     private const int MaxIdatChunkSize = 8192;
 
     /// <summary>
+    ///     The size, in bytes, of the reusable buffer used to stream a chunk's payload in bounded
+    ///     pieces instead of buffering the whole declared length in one array - shared by two
+    ///     cases handled by <see cref="StreamChunkPayload"/>: stream-discarding a recognized
+    ///     ancillary chunk's payload (see <see cref="StreamDiscardChunkPayload"/>), and
+    ///     stream-appending an <c>IDAT</c> chunk's payload directly into the accumulating
+    ///     <c>idatStream</c> (see <see cref="ReadChunkFrame"/>'s <c>idatDestination</c>
+    ///     parameter). Both a recognized ancillary chunk (for example <c>tEXt</c> or
+    ///     <c>iCCP</c>) and a legitimate <c>IDAT</c> chunk may declare a large payload - for
+    ///     <c>IDAT</c>, the PNG specification does not require encoders to split compressed
+    ///     image data into small pieces, so a conforming encoder may legitimately emit an entire
+    ///     large image as a single, very large <c>IDAT</c> chunk - so unlike <c>PLTE</c> or
+    ///     <c>tRNS</c>, there is no small type-specific maximum that would let
+    ///     <see cref="ValidateChunkLengthBeforeAllocation"/> reject an oversized declared length
+    ///     before allocation for either case; instead, each piece is read and CRC-validated in
+    ///     bounded pieces of this size, keeping peak allocation bounded regardless of how large
+    ///     the declared length is.
+    /// </summary>
+    private const int AncillaryChunkStreamBufferSize = 8192;
+
+    /// <summary>
     ///     The maximum number of entries a PNG <c>PLTE</c> chunk may declare (one byte's worth of
     ///     palette index values), per the PNG specification. Used both by the full post-read
     ///     <c>PLTE</c> validation and by <see cref="ValidateChunkLengthBeforeAllocation"/>'s
@@ -564,32 +584,42 @@ public static class PngCodec
     }
 
     /// <summary>
-    ///     Reads, CRC-validates, and dispatches a single chunk: <c>IHDR</c> populates
-    ///     <paramref name="state"/>'s header fields, <c>PLTE</c>/<c>tRNS</c> data is stored for
-    ///     later use by the decode step, <c>IDAT</c> data is appended to
-    ///     <paramref name="idatStream"/>, <c>IEND</c> marks the chunk stream complete, and any
-    ///     other recognized-ancillary chunk type is validated but otherwise skipped. An
-    ///     unrecognized <em>critical</em> chunk (uppercase first type byte, per the PNG
-    ///     specification's chunk-naming convention) is rejected outright - see the "any other
-    ///     chunk type" handling at the end of this method.
+    ///     Reads, CRC-validates, and dispatches a single chunk. <see cref="ValidateChunkLengthBeforeAllocation"/>
+    ///     is this codec's single authoritative gate for every chunk-ordering/identity rule that
+    ///     does not depend on a chunk's payload content - IHDR-must-be-first, IHDR's exact
+    ///     13-byte length, duplicate IHDR, non-consecutive IDAT, and unrecognized critical chunks
+    ///     - so it always runs, and always rejects those cases, before this method is ever
+    ///     reached; this method therefore does not re-check any of them; only <em>content</em>-
+    ///     dependent rules (which require the chunk's actual payload, only available once
+    ///     buffered) are checked here. <c>IHDR</c> populates <paramref name="state"/>'s header
+    ///     fields; <c>PLTE</c>/<c>tRNS</c> data is stored for later use by the decode step;
+    ///     <c>IDAT</c> data has already been streamed directly into <paramref name="idatStream"/>
+    ///     by <see cref="ReadChunkFrame"/> itself (via its <c>idatDestination</c> parameter)
+    ///     rather than buffered and copied here, since <c>IDAT</c> may legitimately be very large;
+    ///     <c>IEND</c> marks the chunk stream complete; and every other chunk type reaching this
+    ///     method is, by elimination, a recognized-and-ignored ancillary chunk whose payload was
+    ///     never buffered at all - only streamed through the CRC-32 calculation in bounded pieces
+    ///     by <see cref="ReadChunkFrame"/> (see <see cref="StreamDiscardChunkPayload"/>) - so it
+    ///     requires no further action here.
     /// </summary>
     /// <exception cref="System.IO.InvalidDataException">
-    ///     Thrown, among the other per-chunk-type conditions documented inline below, when the
-    ///     chunk type is not one of <c>IHDR</c>/<c>PLTE</c>/<c>tRNS</c>/<c>IDAT</c>/<c>IEND</c>
-    ///     and its first byte is an uppercase ASCII letter, marking it critical: an unrecognized
-    ///     critical chunk may change how pixel data must be interpreted, so a conforming decoder
-    ///     that does not understand it must refuse to decode rather than risk producing incorrect
-    ///     pixels.
+    ///     Thrown for the content-dependent conditions documented inline below (duplicate/
+    ///     out-of-order <c>PLTE</c>/<c>tRNS</c>, invalid <c>PLTE</c> entry count, <c>tRNS</c>
+    ///     forbidden for the image's color type, non-empty <c>IEND</c> payload); see
+    ///     <see cref="ValidateChunkLengthBeforeAllocation"/> for every ordering/identity rule
+    ///     rejected before this method runs.
     /// </exception>
     private static void ProcessChunk(Stream stream, MemoryStream idatStream, ChunkReadState state)
     {
         var (typeBytes, data) = ReadChunkFrame(
             stream,
-            (chunkTypeBytes, declaredLength) => ValidateChunkLengthBeforeAllocation(chunkTypeBytes, declaredLength, state));
+            (chunkTypeBytes, declaredLength) => ValidateChunkLengthBeforeAllocation(chunkTypeBytes, declaredLength, state),
+            idatStream);
 
         // The PNG specification requires every IDAT chunk to be consecutive: the moment a
         // non-IDAT chunk is processed after at least one IDAT chunk has been seen, the IDAT run
-        // has ended, so any further IDAT chunk encountered later is non-conforming
+        // has ended, so any further IDAT chunk encountered later is non-conforming (rejected by
+        // ValidateChunkLengthBeforeAllocation before this method is reached)
         if (!ChunkTypeIs(typeBytes, "IDAT") && state.IdatSeen)
         {
             state.IdatRunEnded = true;
@@ -597,22 +627,12 @@ public static class PngCodec
 
         if (ChunkTypeIs(typeBytes, "IHDR"))
         {
-            if (state.IhdrSeen)
-            {
-                throw new InvalidDataException("Duplicate IHDR chunk.");
-            }
-
             (state.Width, state.Height, state.ColorType, state.BitDepth) =
                 ParseIhdr(data, enforceMaxDimension: true, validateDecodability: true);
             state.IhdrSeen = true;
         }
         else if (ChunkTypeIs(typeBytes, "PLTE"))
         {
-            if (!state.IhdrSeen)
-            {
-                throw new InvalidDataException("PLTE chunk encountered before IHDR.");
-            }
-
             if (state.PlteSeen)
             {
                 throw new InvalidDataException("Duplicate PLTE chunk.");
@@ -632,16 +652,12 @@ public static class PngCodec
                 throw new InvalidDataException("PLTE chunk must precede tRNS chunk.");
             }
 
+            // ValidateChunkLengthBeforeAllocation already bounds the declared length to at most
+            // 256 entries (768 bytes), so only the multiple-of-3/non-empty shape remains to check
             if (data.Length % 3 != 0 || data.Length == 0)
             {
                 throw new InvalidDataException(
                     $"Invalid PNG PLTE chunk length {data.Length}; expected a positive multiple of 3.");
-            }
-
-            if (data.Length > 256 * 3)
-            {
-                throw new InvalidDataException(
-                    $"PNG PLTE chunk declares {data.Length / 3} palette entries; at most 256 are permitted.");
             }
 
             // The PNG specification forbids a PLTE chunk for the two grayscale color types (0 and
@@ -671,11 +687,6 @@ public static class PngCodec
         }
         else if (ChunkTypeIs(typeBytes, "tRNS"))
         {
-            if (!state.IhdrSeen)
-            {
-                throw new InvalidDataException("tRNS chunk encountered before IHDR.");
-            }
-
             if (state.TrnsSeen)
             {
                 throw new InvalidDataException("Duplicate tRNS chunk.");
@@ -711,103 +722,59 @@ public static class PngCodec
         }
         else if (ChunkTypeIs(typeBytes, "IDAT"))
         {
-            if (!state.IhdrSeen)
-            {
-                throw new InvalidDataException("IDAT chunk encountered before IHDR.");
-            }
-
-            if (state.IdatRunEnded)
-            {
-                throw new InvalidDataException("IDAT chunks must be consecutive.");
-            }
-
+            // The payload has already been streamed directly into idatStream by ReadChunkFrame
+            // (via its idatDestination parameter) as it was read, in bounded pieces, rather than
+            // buffered into a single length-sized array first; data is always empty here, exactly
+            // like the recognized-ancillary-chunk stream-discard case, so there is nothing left
+            // to copy
             state.IdatSeen = true;
-            idatStream.Write(data, 0, data.Length);
         }
         else if (ChunkTypeIs(typeBytes, "IEND"))
         {
-            if (!state.IhdrSeen)
-            {
-                throw new InvalidDataException("IEND chunk encountered before IHDR.");
-            }
-
-            // The PNG specification defines IEND as always carrying zero bytes of data; a
-            // non-empty payload is non-conforming and must not be silently accepted as if it
-            // were a valid, empty IEND chunk
-            if (data.Length != 0)
-            {
-                throw new InvalidDataException(
-                    $"IEND chunk must have an empty payload, but declared {data.Length} bytes.");
-            }
-
+            // The PNG specification defines IEND as always carrying zero bytes of data;
+            // ValidateChunkLengthBeforeAllocation already rejects a non-zero declared length
+            // before this method is reached, so data is always empty here
             state.IendSeen = true;
         }
-        else if (typeBytes[0] is >= (byte)'A' and <= (byte)'Z')
-        {
-            // IHDR must always be the first chunk in the file, regardless of whether the chunk
-            // that precedes it is a recognized type; check that before classifying this chunk as
-            // an unrecognized critical chunk, so the error correctly identifies IHDR as the cause
-            // rather than the unrelated "unrecognized critical chunk" refusal below
-            if (!state.IhdrSeen)
-            {
-                throw new InvalidDataException("Chunk encountered before IHDR.");
-            }
 
-            // The PNG specification uses a chunk type's first byte's case to mark it critical
-            // (uppercase) or ancillary (lowercase). This chunk type is not one of the five
-            // chunks this codec explicitly recognizes above, yet its first byte is uppercase, so
-            // it is an unrecognized critical chunk: it may change how pixel data must be
-            // interpreted, so a conforming decoder that does not understand it must refuse to
-            // decode rather than risk silently producing incorrect pixels.
-            var typeName = System.Text.Encoding.ASCII.GetString(typeBytes);
-            throw new InvalidDataException($"Unrecognized critical PNG chunk '{typeName}'.");
-        }
-
-        // Any other chunk type (for example "tEXt", "pHYs", "gAMA") is an unrecognized ancillary
-        // chunk this codec does not need; its CRC-32 has already been validated above, and its
-        // data is simply not accumulated anywhere, effectively skipping it - except that, like
-        // every other chunk type, it must still not appear before the mandatory IHDR chunk, which
-        // the PNG specification requires to always be first
-        else if (!state.IhdrSeen)
-        {
-            throw new InvalidDataException("Chunk encountered before IHDR.");
-        }
+        // Every other chunk type reaching this point (for example "tEXt", "pHYs", "gAMA") is, by
+        // elimination, a recognized-and-ignored ancillary chunk: ValidateChunkLengthBeforeAllocation
+        // already rejects an unrecognized critical chunk (uppercase first type byte) and any chunk
+        // preceding the mandatory first IHDR, so nothing reaching here can be either of those. Its
+        // CRC-32 has already been validated by ReadChunkFrame and its data was never buffered at
+        // all, so no further action is required.
     }
 
     /// <summary>
-    ///     Rejects, before <see cref="ReadChunkFrame"/> allocates and reads a payload buffer of
-    ///     the declared size: (1) a first chunk that is not <c>IHDR</c>, or an <c>IHDR</c> first
-    ///     chunk whose declared length is not exactly the 13 bytes the PNG specification mandates
-    ///     - mirroring <see cref="ReadIhdrChunkFrame"/>'s identical pre-allocation guard used by
-    ///     <c>GetInfo</c>, since <c>Load</c>'s <see cref="ReadChunks"/> path reads its first chunk
-    ///     through this same general-purpose <see cref="ReadChunkFrame"/> rather than through
-    ///     <see cref="ReadIhdrChunkFrame"/>; (2) a declared <c>PLTE</c> or <c>tRNS</c> chunk
-    ///     length that already exceeds the largest length that type can legitimately have;
-    ///     (3) a non-zero declared <c>IEND</c> chunk length, since <c>IEND</c> always carries zero
-    ///     bytes of data per the PNG specification; (4) an <c>IDAT</c> chunk declared once the run
-    ///     of consecutive <c>IDAT</c> chunks has already ended, regardless of its declared length,
-    ///     since the PNG specification requires every <c>IDAT</c> chunk to be consecutive;
-    ///     (5) an unrecognized critical chunk type (uppercase first type byte, per the PNG
-    ///     naming convention, and not one of the five chunks this codec explicitly recognizes)
-    ///     once <c>IHDR</c> has been parsed, regardless of its declared length, since such a chunk
-    ///     is always refused outright; and (6) a second <c>IHDR</c> chunk encountered once
-    ///     <c>IHDR</c> has already been parsed, regardless of its declared length, since only the
-    ///     very first chunk in the file may legitimately be <c>IHDR</c>. Without these
-    ///     pre-allocation checks, a crafted PNG could declare a first-chunk, <c>PLTE</c>,
-    ///     <c>tRNS</c>, <c>IEND</c>, non-consecutive <c>IDAT</c>, unrecognized-critical-chunk, or
-    ///     duplicate-<c>IHDR</c> length that is large (but still below
-    ///     <see cref="uint.MaxValue"/>'s already-enforced <see cref="int.MaxValue"/> ceiling)
-    ///     purely to force a large allocation before the full post-read checks in
-    ///     <see cref="ProcessChunk"/> (IHDR-must-be-first, <c>PLTE</c>'s multiple-of-3 and exact
-    ///     bit-depth-derived entry cap, the precise <c>ValidateAndNormalizeTrns</c>
-    ///     per-color-type/per-PLTE-entry-count checks, <c>IEND</c>'s empty-payload check, the
-    ///     IDAT-chunks-must-be-consecutive check, the unrecognized-critical-chunk refusal, and the
-    ///     duplicate-IHDR refusal) get a chance to reject it - this method exists purely to close
-    ///     that memory-exhaustion attack vector, not to duplicate those precise correctness
-    ///     checks, so its bounds are deliberately loose (the largest a spec-valid chunk of that
-    ///     type could ever be), and for the <c>IDAT</c>/unrecognized-critical-chunk/duplicate-
-    ///     <c>IHDR</c> cases the declared length is irrelevant entirely since those chunks are
-    ///     rejected unconditionally once the relevant state holds.
+    ///     This codec's single authoritative gate for every chunk-ordering/identity rule that
+    ///     does not depend on a chunk's payload content, invoked by <see cref="ReadChunkFrame"/>
+    ///     before it allocates or reads any payload buffer. It rejects: a first chunk that is not
+    ///     <c>IHDR</c>, or an <c>IHDR</c> first chunk whose declared length is not exactly the 13
+    ///     bytes the PNG specification mandates (mirroring <see cref="ReadIhdrChunkFrame"/>'s
+    ///     identical guard used by <c>GetInfo</c>); a second <c>IHDR</c> chunk; a declared
+    ///     <c>PLTE</c> or <c>tRNS</c> chunk length beyond the largest that type can legitimately
+    ///     have; a non-zero declared <c>IEND</c> chunk length; a further <c>IDAT</c> chunk once
+    ///     the run of consecutive <c>IDAT</c> chunks has already ended; and an unrecognized
+    ///     critical chunk type (uppercase first type byte, per the PNG naming convention, and not
+    ///     one of the five chunks this codec recognizes) once <c>IHDR</c> has been parsed. Because
+    ///     every one of these rules is rejected here, unconditionally, before <see cref="ProcessChunk"/>
+    ///     ever runs, <see cref="ProcessChunk"/> does not duplicate them.
+    ///     <para>
+    ///         Its <c>PLTE</c>/<c>tRNS</c> length bounds are the sole enforcement of those upper
+    ///         limits (not merely a loose safety net), since <see cref="ProcessChunk"/> no longer
+    ///         re-checks them; the remaining, content-dependent rules it cannot check here (exact
+    ///         <c>PLTE</c> entry count against bit depth, precise <c>tRNS</c> per-color-type
+    ///         validation, etc.) still run in <see cref="ProcessChunk"/> once the payload is
+    ///         available. A recognized-and-ignored ancillary chunk type has no small type-specific
+    ///         maximum this method could bound a declared length against - unlike <c>PLTE</c> or
+    ///         <c>tRNS</c>, it may legitimately be large (for example an <c>iCCP</c> embedded color
+    ///         profile or a long <c>tEXt</c> comment) - so this method does not attempt to bound
+    ///         it; <see cref="ReadChunkFrame"/> instead closes that same memory-exhaustion vector
+    ///         for both ancillary and <c>IDAT</c> chunks by never buffering their payload in a
+    ///         single length-sized array, streaming it through the CRC-32 calculation (or into the
+    ///         <c>IDAT</c> accumulator) in bounded pieces instead - see
+    ///         <see cref="StreamChunkPayload"/>.
+    ///     </para>
     /// </summary>
     /// <param name="typeBytes">The chunk's 4-byte type field.</param>
     /// <param name="length">The chunk's declared data length, read from the chunk header.</param>
@@ -828,7 +795,8 @@ public static class PngCodec
     ///     largest value that type can legitimately have, an <c>IEND</c> chunk declares a
     ///     non-zero length, an <c>IDAT</c> chunk is declared after the <c>IDAT</c> run has already
     ///     ended, the chunk type is an unrecognized critical chunk encountered after <c>IHDR</c>,
-    ///     or a second <c>IHDR</c> chunk is encountered.
+    ///     or a second <c>IHDR</c> chunk is encountered. Also covers a chunk of any type
+    ///     encountered before the mandatory first <c>IHDR</c> chunk.
     /// </exception>
     private static void ValidateChunkLengthBeforeAllocation(byte[] typeBytes, uint length, ChunkReadState state)
     {
@@ -931,6 +899,28 @@ public static class PngCodec
     ///     checks run <em>before</em> the length-dependent payload buffer below is allocated and
     ///     read, so a crafted chunk with a malformed type code, or a declared length that already
     ///     violates a type-specific maximum, is rejected without first forcing a large allocation.
+    ///     A chunk type that is not one of the five this codec recognizes and buffers
+    ///     (<c>IHDR</c>/<c>PLTE</c>/<c>tRNS</c>/<c>IDAT</c>/<c>IEND</c>) can only reach the payload
+    ///     step below as a recognized-and-ignored ancillary chunk (lowercase first type byte): an
+    ///     unrecognized <em>critical</em> chunk, or any chunk preceding the mandatory first
+    ///     <c>IHDR</c>, is always rejected by <paramref name="validateLengthBeforeAllocation"/>
+    ///     before this point. Such an ancillary chunk's payload is never consumed by
+    ///     <see cref="ProcessChunk"/>, so - unlike the other four chunk types, whose data is
+    ///     actually used - its bytes are streamed through the CRC-32 calculation in small, bounded
+    ///     pieces via <see cref="StreamDiscardChunkPayload"/> and discarded immediately, rather
+    ///     than buffered in a single length-sized array; this bounds peak allocation to
+    ///     <see cref="AncillaryChunkStreamBufferSize"/> regardless of how large a declared
+    ///     ancillary chunk length is, closing the same memory-exhaustion vector that
+    ///     <paramref name="validateLengthBeforeAllocation"/> closes for the other five chunk
+    ///     types (which do have a small type-specific maximum to check up front). An <c>IDAT</c>
+    ///     chunk has no such small type-specific maximum either - a conforming encoder may
+    ///     legitimately emit an entire large image's compressed data as one very large <c>IDAT</c>
+    ///     chunk - so, when <paramref name="idatDestination"/> is supplied, an <c>IDAT</c> chunk's
+    ///     payload is likewise never buffered in a single length-sized array: it is instead read
+    ///     directly into <paramref name="idatDestination"/> in the same bounded pieces, via the
+    ///     shared <see cref="StreamChunkPayload"/> helper that also backs
+    ///     <see cref="StreamDiscardChunkPayload"/>, closing the identical memory-exhaustion vector
+    ///     for <c>IDAT</c> that the ancillary-chunk path already closes.
     /// </summary>
     /// <param name="stream">The stream to read the chunk frame from.</param>
     /// <param name="validateLengthBeforeAllocation">
@@ -941,7 +931,22 @@ public static class PngCodec
     ///     <see cref="System.IO.InvalidDataException"/> to reject; a non-throwing return accepts
     ///     the declared length.
     /// </param>
-    /// <returns>The chunk's 4-byte type field and its data payload.</returns>
+    /// <param name="idatDestination">
+    ///     Optional destination stream that, when supplied and the chunk type is <c>IDAT</c>,
+    ///     receives the chunk's payload directly as it is read in bounded pieces, instead of the
+    ///     payload being allocated as a single length-sized array first. <see cref="ProcessChunk"/>
+    ///     always passes its <c>idatStream</c> accumulator here; every other caller of this method
+    ///     reads only a first chunk (always expected to be <c>IHDR</c>, never <c>IDAT</c>) and
+    ///     leaves this at its default <see langword="null"/>, which falls back to the ordinary
+    ///     buffered-array path for <c>IDAT</c> as a safe default.
+    /// </param>
+    /// <returns>
+    ///     The chunk's 4-byte type field and its data payload - an empty array for a
+    ///     recognized-and-ignored ancillary chunk (whose payload is stream-discarded rather than
+    ///     buffered, since <see cref="ProcessChunk"/> never reads the data for that case) or for
+    ///     an <c>IDAT</c> chunk streamed into <paramref name="idatDestination"/> (whose payload
+    ///     has already been written there directly, so there is nothing left to return).
+    /// </returns>
     /// <exception cref="System.IO.InvalidDataException">
     ///     Thrown when the declared chunk length exceeds the supported range, the chunk type is
     ///     not four ASCII letters or violates the reserved-bit rule (see
@@ -951,7 +956,8 @@ public static class PngCodec
     /// </exception>
     private static (byte[] TypeBytes, byte[] Data) ReadChunkFrame(
         Stream stream,
-        Action<byte[], uint>? validateLengthBeforeAllocation = null)
+        Action<byte[], uint>? validateLengthBeforeAllocation = null,
+        MemoryStream? idatDestination = null)
     {
         var lengthBytes = ReadExactly(stream, 4, "chunk length");
         var length = ReadUInt32Be(lengthBytes, 0);
@@ -963,6 +969,29 @@ public static class PngCodec
         var typeBytes = ReadExactly(stream, 4, "chunk type");
         ValidateChunkTypeCode(typeBytes);
         validateLengthBeforeAllocation?.Invoke(typeBytes, length);
+
+        // A chunk type that is not one of the five this codec recognizes and buffers can only be
+        // a recognized-and-ignored ancillary chunk at this point (see the summary above); its
+        // payload is never consumed by ProcessChunk, so it is streamed through the CRC-32
+        // calculation and discarded in bounded pieces instead of being buffered in a single
+        // length-sized array
+        if (!IsBufferedChunkType(typeBytes))
+        {
+            StreamDiscardChunkPayload(stream, typeBytes, length);
+            return (typeBytes, []);
+        }
+
+        // An IDAT chunk may legitimately carry the entire compressed image as a single, very
+        // large payload - the PNG specification does not require encoders to split IDAT into
+        // small pieces - so, when the caller has supplied a destination to stream the payload
+        // into (ProcessChunk always does, passing its idatStream accumulator), the payload is
+        // read directly into that destination in the same bounded pieces used for ancillary
+        // chunks, rather than allocated as one array of the full declared length first
+        if (ChunkTypeIs(typeBytes, "IDAT") && idatDestination != null)
+        {
+            StreamChunkPayload(stream, typeBytes, length, idatDestination.Write);
+            return (typeBytes, []);
+        }
 
         var data = length == 0 ? [] : ReadExactly(stream, (int)length, "chunk data");
         var crcBytes = ReadExactly(stream, 4, "chunk CRC");
@@ -979,6 +1008,138 @@ public static class PngCodec
         }
 
         return (typeBytes, data);
+    }
+
+    /// <summary>
+    ///     Determines whether a chunk type is one of the five types this codec recognizes,
+    ///     namely <c>IHDR</c>, <c>PLTE</c>, <c>tRNS</c>, <c>IDAT</c>, and <c>IEND</c>, as opposed
+    ///     to an unrecognized (ancillary or unrecognized-critical) chunk type. Used by
+    ///     <see cref="ReadChunkFrame"/> to decide between reading the payload for later use
+    ///     (required for these five types - though <c>IDAT</c> is, when a destination is
+    ///     supplied, streamed directly into it rather than buffered in a single array; see
+    ///     <see cref="ReadChunkFrame"/>'s <c>idatDestination</c> parameter) and
+    ///     stream-discarding it in bounded pieces (safe for every other, ancillary, chunk type,
+    ///     whose data is never used at all).
+    /// </summary>
+    /// <param name="typeBytes">The chunk's 4-byte type field.</param>
+    /// <returns>
+    ///     <see langword="true"/> if the chunk type is one of the five recognized types;
+    ///     otherwise, <see langword="false"/>.
+    /// </returns>
+    private static bool IsBufferedChunkType(byte[] typeBytes) =>
+        ChunkTypeIs(typeBytes, "IHDR") ||
+        ChunkTypeIs(typeBytes, "PLTE") ||
+        ChunkTypeIs(typeBytes, "tRNS") ||
+        ChunkTypeIs(typeBytes, "IDAT") ||
+        ChunkTypeIs(typeBytes, "IEND");
+
+    /// <summary>
+    ///     Invoked once per bounded piece read by <see cref="StreamChunkPayload"/>, receiving that
+    ///     piece's bytes as a span rather than a copied array, so a caller that only needs to
+    ///     inspect or copy the bytes (for example writing them onward into another stream) never
+    ///     forces an extra allocation per piece. Declared as its own delegate type - rather than
+    ///     using <see cref="Action{T}"/> - because a <c>ReadOnlySpan&lt;byte&gt;</c> is a ref
+    ///     struct and this codec multi-targets a framework whose C# language version does not
+    ///     permit a ref struct as a generic type argument (the "allows ref struct" constraint
+    ///     needed for <c>Action&lt;ReadOnlySpan&lt;byte&gt;&gt;</c> requires a newer target); an
+    ///     ordinary (non-generic) delegate parameter has no such restriction.
+    /// </summary>
+    /// <param name="piece">The bytes of the chunk-payload piece just read.</param>
+    private delegate void ChunkPayloadPieceHandler(ReadOnlySpan<byte> piece);
+
+    /// <summary>
+    ///     Reads a chunk's declared-length payload from <paramref name="stream"/> and CRC-validates
+    ///     it, without ever buffering the full payload in a single array: bytes are read in pieces
+    ///     of at most <see cref="AncillaryChunkStreamBufferSize"/> via the same
+    ///     <see cref="ReadExactly"/> helper every other chunk read uses (so truncated-stream
+    ///     behavior is identical), each piece is folded into a running CRC-32 as soon as it is
+    ///     read, and every piece is then eligible for garbage collection before the next is read.
+    ///     This exists purely to bound peak allocation for a chunk type whose data this codec
+    ///     never needs (see <see cref="ReadChunkFrame"/>'s summary for why only such chunk types
+    ///     ever reach this method) - a declared ancillary chunk length of, say, 500 MB never
+    ///     forces anywhere near a 500 MB allocation, only <see cref="AncillaryChunkStreamBufferSize"/>
+    ///     at a time. Implemented as a thin wrapper around the shared <see cref="StreamChunkPayload"/>
+    ///     helper, passing a <see langword="null"/> per-piece action so each piece really is simply
+    ///     discarded once folded into the running CRC-32; <see cref="ReadChunkFrame"/>'s
+    ///     <c>IDAT</c>-streaming case reuses the same helper with a non-null action instead, to
+    ///     write each piece into the accumulating <c>idatStream</c> rather than discard it.
+    /// </summary>
+    /// <param name="stream">The stream to read the chunk's payload and trailing CRC-32 from.</param>
+    /// <param name="typeBytes">
+    ///     The chunk's already-read 4-byte type field, folded into the running CRC-32 before the
+    ///     payload, matching the PNG specification's CRC-32 coverage (type and data, not length).
+    /// </param>
+    /// <param name="length">The chunk's declared data length, already validated to be within range.</param>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown when the stream ends before <paramref name="length"/> payload bytes and the
+    ///     trailing 4-byte CRC-32 have been read, or the computed CRC-32 does not match the
+    ///     trailing CRC-32 value read from the stream.
+    /// </exception>
+    private static void StreamDiscardChunkPayload(Stream stream, byte[] typeBytes, uint length) =>
+        StreamChunkPayload(stream, typeBytes, length, onPieceRead: null);
+
+    /// <summary>
+    ///     Reads a chunk's declared-length payload from <paramref name="stream"/> and CRC-validates
+    ///     it, without ever buffering the full payload in a single array: bytes are read in pieces
+    ///     of at most <see cref="AncillaryChunkStreamBufferSize"/> via the same
+    ///     <see cref="ReadExactly"/> helper every other chunk read uses (so truncated-stream
+    ///     behavior is identical), each piece is folded into a running CRC-32 as soon as it is
+    ///     read, and then handed to <paramref name="onPieceRead"/>, if supplied, before the next
+    ///     piece is read - allowing each piece to become eligible for garbage collection
+    ///     immediately afterward regardless of what <paramref name="onPieceRead"/> does with it.
+    ///     This is the single shared implementation behind both bounded-piece streaming use cases
+    ///     in this codec: <see cref="StreamDiscardChunkPayload"/> calls this with a
+    ///     <see langword="null"/> action to simply discard each piece for a recognized ancillary
+    ///     chunk whose data this codec never needs, and <see cref="ReadChunkFrame"/>'s
+    ///     <c>IDAT</c>-streaming case calls this with an action that writes each piece into the
+    ///     accumulating <c>idatStream</c>, so that neither case ever allocates a single array
+    ///     sized to the full declared chunk length - a declared length of, say, 500 MB never
+    ///     forces anywhere near a 500 MB allocation for either case, only
+    ///     <see cref="AncillaryChunkStreamBufferSize"/> at a time.
+    /// </summary>
+    /// <param name="stream">The stream to read the chunk's payload and trailing CRC-32 from.</param>
+    /// <param name="typeBytes">
+    ///     The chunk's already-read 4-byte type field, folded into the running CRC-32 before the
+    ///     payload, matching the PNG specification's CRC-32 coverage (type and data, not length).
+    /// </param>
+    /// <param name="length">The chunk's declared data length, already validated to be within range.</param>
+    /// <param name="onPieceRead">
+    ///     Optional action invoked once per piece, immediately after that piece has been read and
+    ///     folded into the running CRC-32, receiving the piece's bytes. Pass <see langword="null"/>
+    ///     to simply discard each piece once its bytes have been folded into the CRC-32.
+    /// </param>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown when the stream ends before <paramref name="length"/> payload bytes and the
+    ///     trailing 4-byte CRC-32 have been read, or the computed CRC-32 does not match the
+    ///     trailing CRC-32 value read from the stream.
+    /// </exception>
+    private static void StreamChunkPayload(
+        Stream stream,
+        byte[] typeBytes,
+        uint length,
+        ChunkPayloadPieceHandler? onPieceRead)
+    {
+        var crc = UpdateCrc32(Crc32InitialState, typeBytes);
+
+        // Read and fold in the declared payload in bounded pieces, handing each piece to
+        // onPieceRead (or simply discarding it, when null) immediately, so peak allocation
+        // never grows with the declared length
+        var remaining = length;
+        while (remaining > 0)
+        {
+            var sliceLength = (int)Math.Min(remaining, AncillaryChunkStreamBufferSize);
+            var slice = ReadExactly(stream, sliceLength, "chunk data");
+            crc = UpdateCrc32(crc, slice);
+            onPieceRead?.Invoke(slice);
+            remaining -= (uint)sliceLength;
+        }
+
+        var crcBytes = ReadExactly(stream, 4, "chunk CRC");
+        var expectedCrc = ReadUInt32Be(crcBytes, 0);
+        if (FinalizeCrc32(crc) != expectedCrc)
+        {
+            throw new InvalidDataException("Corrupt PNG chunk (CRC-32 mismatch).");
+        }
     }
 
     /// <summary>
@@ -1010,7 +1171,7 @@ public static class PngCodec
     /// <summary>
     ///     Reads and CRC-validates the first chunk frame from <paramref name="stream"/>,
     ///     requiring it to be an <c>IHDR</c> chunk with the exact 13-byte length mandated by the
-    ///     PNG specification. Unlike <see cref="ReadChunkFrame(Stream, Action{byte[], uint})"/>, the chunk type and
+    ///     PNG specification. Unlike <see cref="ReadChunkFrame(Stream, Action{byte[], uint}, MemoryStream)"/>, the chunk type and
     ///     declared length are both validated <em>before</em> the (fixed-size) data payload is
     ///     allocated or read, so a crafted non-<c>IHDR</c> or wrong-length first chunk with a huge
     ///     declared length can never force a large allocation.
@@ -1908,20 +2069,60 @@ public static class PngCodec
     }
 
     /// <summary>
-    ///     Computes the PNG/zlib CRC-32 checksum of a byte sequence.
+    ///     The initial (pre-first-update) running CRC-32 state, as required by the PNG/zlib
+    ///     CRC-32 algorithm's bit-inversion convention. Callers that need to fold data into a
+    ///     CRC-32 across multiple calls - for example <see cref="StreamDiscardChunkPayload"/>,
+    ///     which folds in a chunk's type and then its payload in bounded pieces rather than in one
+    ///     buffered call - start from this value and pass the running result to
+    ///     <see cref="UpdateCrc32"/> for each subsequent piece, then to <see cref="FinalizeCrc32"/>
+    ///     once all pieces have been folded in.
     /// </summary>
-    /// <param name="data">The data to checksum.</param>
-    /// <returns>The 32-bit CRC checksum.</returns>
-    private static uint ComputeCrc32(ReadOnlySpan<byte> data)
+    private const uint Crc32InitialState = 0xFFFFFFFFu;
+
+    /// <summary>
+    ///     Folds a piece of data into a running CRC-32 state, without finalizing it. Splitting the
+    ///     PNG/zlib CRC-32 algorithm into <see cref="Crc32InitialState"/>/<see cref="UpdateCrc32"/>/
+    ///     <see cref="FinalizeCrc32"/> steps (rather than only exposing the one-shot
+    ///     <see cref="ComputeCrc32"/>) lets a caller checksum data that arrives in several pieces -
+    ///     for example a chunk's type bytes followed by its payload read in bounded chunks - without
+    ///     ever needing to buffer all of it in one array first.
+    /// </summary>
+    /// <param name="crc">
+    ///     The running CRC-32 state: <see cref="Crc32InitialState"/> for the first piece, or the
+    ///     previous call's return value for every subsequent piece.
+    /// </param>
+    /// <param name="data">The next piece of data to fold into the running CRC-32 state.</param>
+    /// <returns>The updated running CRC-32 state, not yet finalized.</returns>
+    private static uint UpdateCrc32(uint crc, ReadOnlySpan<byte> data)
     {
-        var crc = 0xFFFFFFFFu;
         foreach (var b in data)
         {
             crc = CrcTable[(crc ^ b) & 0xFF] ^ (crc >> 8);
         }
 
-        return crc ^ 0xFFFFFFFFu;
+        return crc;
     }
+
+    /// <summary>
+    ///     Finalizes a running CRC-32 state produced by <see cref="Crc32InitialState"/> and zero
+    ///     or more <see cref="UpdateCrc32"/> calls into the actual CRC-32 checksum value, applying
+    ///     the algorithm's final bit-inversion step.
+    /// </summary>
+    /// <param name="crc">The running CRC-32 state to finalize.</param>
+    /// <returns>The final 32-bit CRC checksum.</returns>
+    private static uint FinalizeCrc32(uint crc) => crc ^ 0xFFFFFFFFu;
+
+    /// <summary>
+    ///     Computes the PNG/zlib CRC-32 checksum of a byte sequence already fully available in
+    ///     memory. Implemented as a thin wrapper over <see cref="Crc32InitialState"/>,
+    ///     <see cref="UpdateCrc32"/>, and <see cref="FinalizeCrc32"/> so every one-shot call site
+    ///     (the <c>IHDR</c>/<c>PLTE</c>/<c>tRNS</c>/<c>IDAT</c>/<c>IEND</c> buffered chunk-read
+    ///     path, and the <c>Save</c> path) is unaffected by the incremental steps that
+    ///     <see cref="StreamDiscardChunkPayload"/> uses instead.
+    /// </summary>
+    /// <param name="data">The data to checksum.</param>
+    /// <returns>The 32-bit CRC checksum.</returns>
+    private static uint ComputeCrc32(ReadOnlySpan<byte> data) => FinalizeCrc32(UpdateCrc32(Crc32InitialState, data));
 
     /// <summary>
     ///     Computes the Adler-32 checksum of a byte sequence, as used by the zlib stream format

@@ -2143,6 +2143,125 @@ public class PngCodecTests
     }
 
     /// <summary>
+    ///     Regression test for the code-review finding fixed alongside this test: a recognized
+    ///     ancillary chunk (for example <c>tEXt</c>) has no small type-specific maximum that
+    ///     <c>ValidateChunkLengthBeforeAllocation</c> could reject its declared length against -
+    ///     unlike <c>PLTE</c>/<c>tRNS</c>/<c>IEND</c>/duplicate-<c>IHDR</c>/non-consecutive-
+    ///     <c>IDAT</c>/unrecognized-critical-chunk, all of which have such a bound - so
+    ///     <c>ReadChunkFrame</c> used to unconditionally allocate a buffer of the declared length
+    ///     for it before <c>ProcessChunk</c> discarded the chunk. Proves, by measuring actual
+    ///     bytes allocated (never wall-clock time or a real multi-gigabyte buffer), that a
+    ///     declared ancillary chunk length of 500 MB - with the stream deliberately truncated to
+    ///     only a handful of real trailing bytes - is rejected (as a truncated stream, once the
+    ///     real bytes run out) without ever forcing anywhere near a 500 MB allocation.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_AncillaryChunkWithHugeDeclaredLength_ThrowsWithoutLargeAllocation()
+    {
+        // Arrange: a valid IHDR followed by a "tEXt"-typed chunk header declaring a 500 MB
+        // length, with only a handful of real trailing bytes - if the declared length were
+        // buffered in one array before the payload was streamed, this would force a ~500 MB
+        // allocation; instead it must be rejected as a truncated stream well before that.
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 2 /* Truecolor */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var header = BuildFakeChunkHeader("tEXt", 500_000_000);
+        stream.Write(header, 0, header.Length);
+        var truncatedTrailingBytes = new byte[] { 1, 2, 3, 4, 5 };
+        stream.Write(truncatedTrailingBytes, 0, truncatedTrailingBytes.Length);
+        stream.Position = 0;
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert
+        Assert.Contains("Unexpected end of stream", ex.Message);
+
+        const long maxExpectedAllocatedBytes = 1024 * 1024;
+        Assert.True(
+            allocatedDuring < maxExpectedAllocatedBytes,
+            $"Expected no large allocation, but {allocatedDuring:N0} bytes were allocated.");
+    }
+
+    /// <summary>
+    ///     Regression test for the code-review finding fixed alongside this test: unlike the
+    ///     other four buffered chunk types (<c>IHDR</c>, <c>PLTE</c>, <c>tRNS</c>, <c>IEND</c>),
+    ///     an <c>IDAT</c> chunk has no small type-specific maximum that
+    ///     <c>ValidateChunkLengthBeforeAllocation</c> could reject its declared length against -
+    ///     a conforming encoder may legitimately emit an entire large image's compressed data as
+    ///     one very large <c>IDAT</c> chunk, so an arbitrary cap would break real large images -
+    ///     yet a legitimate (first/consecutive) <c>IDAT</c> chunk's declared length used to still
+    ///     be allocated as a single array of the full declared size by <c>ReadChunkFrame</c>
+    ///     before <c>ProcessChunk</c> ever touched it. Proves, by measuring actual bytes allocated
+    ///     (never wall-clock time or a real multi-gigabyte buffer), that a declared <c>IDAT</c>
+    ///     chunk length of 500 MB - with the stream deliberately truncated to only a handful of
+    ///     real trailing bytes - is rejected (as a truncated stream, once the real bytes run out)
+    ///     without ever forcing anywhere near a 500 MB allocation, exactly like the sibling
+    ///     ancillary-chunk regression test above.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_IdatChunkWithHugeDeclaredLength_ThrowsWithoutLargeAllocation()
+    {
+        // Arrange: a valid IHDR followed by an "IDAT"-typed chunk header declaring a 500 MB
+        // length, with only a handful of real trailing bytes - if the declared length were
+        // buffered in one array before the payload was streamed into idatStream, this would
+        // force a ~500 MB allocation; instead it must be rejected as a truncated stream well
+        // before that.
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 2 /* Truecolor */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var header = BuildFakeChunkHeader("IDAT", 500_000_000);
+        stream.Write(header, 0, header.Length);
+        var truncatedTrailingBytes = new byte[] { 1, 2, 3, 4, 5 };
+        stream.Write(truncatedTrailingBytes, 0, truncatedTrailingBytes.Length);
+        stream.Position = 0;
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert
+        Assert.Contains("Unexpected end of stream", ex.Message);
+
+        const long maxExpectedAllocatedBytes = 1024 * 1024;
+        Assert.True(
+            allocatedDuring < maxExpectedAllocatedBytes,
+            $"Expected no large allocation, but {allocatedDuring:N0} bytes were allocated.");
+    }
+
+    /// <summary>
+    ///     Proves that Load rejects a recognized ancillary chunk (for example <c>tEXt</c>) whose
+    ///     CRC-32 does not match its type and data with <see cref="InvalidDataException"/>,
+    ///     exercising the CRC-32 check performed by the streaming-discard path
+    ///     (<c>StreamDiscardChunkPayload</c>) that now handles such chunks, as distinct from
+    ///     <see cref="PngCodec_Load_CorruptChunkCrc_ThrowsInvalidDataException"/> which only
+    ///     covers an <c>IEND</c> chunk's CRC-32 on the buffered path.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_AncillaryChunkCorruptCrc_ThrowsInvalidDataException()
+    {
+        // Arrange: a valid IHDR followed by an otherwise-valid "tEXt" ancillary chunk whose final
+        // byte (part of its CRC-32) has been corrupted
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 2 /* Truecolor */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var textChunk = BuildChunk("tEXt", [9, 9, 9]);
+        textChunk[^1] ^= 0xFF;
+        stream.Write(textChunk, 0, textChunk.Length);
+        stream.Position = 0;
+
+        // Act & Assert: the corrupt CRC must be rejected
+        var ex = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        Assert.Contains("CRC-32 mismatch", ex.Message);
+    }
+
+    /// <summary>
     ///     Builds only a chunk's 8-byte length+type header (a 4-byte big-endian declared length
     ///     followed by the 4-byte ASCII type), deliberately writing no data or CRC bytes at all -
     ///     used only by the memory-exhaustion regression tests above to prove the declared length
