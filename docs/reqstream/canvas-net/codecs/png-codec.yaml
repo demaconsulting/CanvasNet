@@ -251,15 +251,15 @@ sections:
 
               - id: CanvasNet-Codecs-PngCodec-Load16BitDepth
                 title: >-
-                  The PngCodec class shall load a Surface from a Grayscale, Truecolor, Palette,
+                  The PngCodec class shall load a Surface from a Grayscale, Truecolor,
                   Grayscale-with-alpha, or Truecolor-with-alpha PNG whose bit depth is 16 bits per
-                  sample, by reducing each sample to an 8-bit channel value.
+                  sample, by using the high byte of each 16-bit sample as the 8-bit channel value.
                 justification: |
                   The PNG specification permits any color type except Palette to store 16-bit-per-sample
                   data for higher precision than this library's 8-bit-per-channel Surface pixel format
-                  retains; callers presenting such images need Load to decode them by reducing each
-                  sample to the nearest representable 8-bit value, rather than rejecting the file
-                  outright.
+                  retains; callers presenting such images need Load to decode them by using the high
+                  byte of each 16-bit sample (discarding the low byte) as the 8-bit channel value,
+                  rather than rejecting the file outright.
                 tests:
                   - PngCodec_Load_Grayscale16BitDepth_DiscardsLowByte
                   - PngCodec_Load_TruecolorAlpha16BitDepth_DiscardsLowByteOfEveryChannel

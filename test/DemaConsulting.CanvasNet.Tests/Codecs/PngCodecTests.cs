@@ -409,6 +409,140 @@ public class PngCodecTests
     }
 
     /// <summary>
+    ///     Proves that Load rejects a stream containing two PLTE chunks with InvalidDataException,
+    ///     since the PNG specification permits at most one PLTE chunk per file.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_DuplicatePlte_ThrowsInvalidDataException()
+    {
+        // Arrange: a valid IHDR followed by two PLTE chunks
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 2 /* Truecolor */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var plte1 = BuildChunk("PLTE", [1, 2, 3]);
+        stream.Write(plte1, 0, plte1.Length);
+        var plte2 = BuildChunk("PLTE", [4, 5, 6]);
+        stream.Write(plte2, 0, plte2.Length);
+        stream.Position = 0;
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+    }
+
+    /// <summary>
+    ///     Proves that Load rejects a stream containing two tRNS chunks with InvalidDataException,
+    ///     since the PNG specification permits at most one tRNS chunk per file.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_DuplicateTrns_ThrowsInvalidDataException()
+    {
+        // Arrange: a valid IHDR followed by two tRNS chunks
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 2 /* Truecolor */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var trns1 = BuildChunk("tRNS", [1, 2, 3]);
+        stream.Write(trns1, 0, trns1.Length);
+        var trns2 = BuildChunk("tRNS", [4, 5, 6]);
+        stream.Write(trns2, 0, trns2.Length);
+        stream.Position = 0;
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+    }
+
+    /// <summary>
+    ///     Proves that Load rejects a PLTE chunk that appears after the first IDAT chunk with
+    ///     InvalidDataException, since the PNG specification requires PLTE (when present) to
+    ///     precede the first IDAT chunk.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_PlteAfterIdat_ThrowsInvalidDataException()
+    {
+        // Arrange: a valid IHDR, an IDAT chunk, and then a PLTE chunk
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 2 /* Truecolor */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var idat = BuildChunk("IDAT", []);
+        stream.Write(idat, 0, idat.Length);
+        var plte = BuildChunk("PLTE", [1, 2, 3]);
+        stream.Write(plte, 0, plte.Length);
+        stream.Position = 0;
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+    }
+
+    /// <summary>
+    ///     Proves that Load rejects a tRNS chunk that appears after the first IDAT chunk with
+    ///     InvalidDataException, since the PNG specification requires tRNS (when present) to
+    ///     precede the first IDAT chunk.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_TrnsAfterIdat_ThrowsInvalidDataException()
+    {
+        // Arrange: a valid IHDR, an IDAT chunk, and then a tRNS chunk
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 2 /* Truecolor */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var idat = BuildChunk("IDAT", []);
+        stream.Write(idat, 0, idat.Length);
+        var trns = BuildChunk("tRNS", [1, 2, 3]);
+        stream.Write(trns, 0, trns.Length);
+        stream.Position = 0;
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+    }
+
+    /// <summary>
+    ///     Proves that Load rejects a PLTE chunk declaring more than 256 palette entries with
+    ///     InvalidDataException, since the PNG specification permits at most 256 PLTE entries
+    ///     regardless of color type.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_PlteExceeds256Entries_ThrowsInvalidDataException()
+    {
+        // Arrange: a valid IHDR followed by a PLTE chunk declaring 257 entries (771 bytes)
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 2 /* Truecolor */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var plte = BuildChunk("PLTE", new byte[257 * 3]);
+        stream.Write(plte, 0, plte.Length);
+        stream.Position = 0;
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+    }
+
+    /// <summary>
+    ///     Proves that Load rejects a palette (color type 3) image whose PLTE chunk declares more
+    ///     palette entries than the image's bit depth can index (2^bitDepth), with
+    ///     InvalidDataException - for example a 2-bit-depth palette image can address at most 4
+    ///     distinct entries.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_PlteEntryCountExceedsBitDepthCapacity_ThrowsInvalidDataException()
+    {
+        // Arrange: a 2-bit-depth palette image whose PLTE chunk declares 5 entries (only 4 are
+        // addressable by a 2-bit index)
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 2, 3 /* Palette */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var plte = BuildChunk("PLTE", new byte[5 * 3]);
+        stream.Write(plte, 0, plte.Length);
+        stream.Position = 0;
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+    }
+
+    /// <summary>
     ///     Proves that Load honors a grayscale (color type 0) image's tRNS chunk, marking exactly
     ///     the pixels whose gray sample matches the tRNS value as fully transparent.
     /// </summary>
@@ -455,23 +589,27 @@ public class PngCodecTests
     /// <summary>
     ///     Proves that Load decodes a 1-bit grayscale image, scaling each 1-bit sample to the full
     ///     0-255 range and unpacking bits MSB-first, including across a non-byte-aligned final
-    ///     partial byte.
+    ///     partial byte whose padding bits must not be misread as an extra sample.
     /// </summary>
     [Fact]
     public void PngCodec_Load_Grayscale1BitDepth_ScalesSamplesAndUnpacksMsbFirst()
     {
-        // Arrange: 8 one-bit samples [0,1,0,1,1,0,1,0] packed MSB-first into a single byte 0x5A
-        var rawRows = new[] { new byte[] { 0x5A } };
+        // Arrange: width 9 is not a multiple of 8, so the packed row is 2 bytes: the first byte
+        // holds 8 one-bit samples [0,1,0,1,1,0,1,0] (0x5A), and the second byte holds only 1 real
+        // sample (the 9th, value 1, in its MSB) followed by 7 padding bits deliberately set to 0
+        // so a bug that mis-locates the real bit (e.g. reads the LSB instead of the MSB) would be
+        // caught by the final assertion below
+        var rawRows = new[] { new byte[] { 0x5A, 0x80 } };
         var filterTypes = new byte[] { 0 };
-        var bytes = BuildPng(8, 1, 1, 0, rawRows, filterTypes, bitDepth: 1, rowBytes: 1, bpp: 1);
+        var bytes = BuildPng(9, 1, 1, 0, rawRows, filterTypes, bitDepth: 1, rowBytes: 2, bpp: 1);
         using var stream = new MemoryStream(bytes);
 
         // Act
         var loaded = PngCodec.Load(stream);
 
-        // Assert: 0 scales to 0, 1 scales to 255
-        var expectedGray = new byte[] { 0, 255, 0, 255, 255, 0, 255, 0 };
-        for (var x = 0; x < 8; x++)
+        // Assert: 0 scales to 0, 1 scales to 255, including the 9th (non-byte-aligned) sample
+        var expectedGray = new byte[] { 0, 255, 0, 255, 255, 0, 255, 0, 255 };
+        for (var x = 0; x < 9; x++)
         {
             var g = expectedGray[x];
             Assert.Equal(new Rgba32(g, g, g, 255), loaded[x, 0]);
@@ -504,6 +642,35 @@ public class PngCodecTests
     }
 
     /// <summary>
+    ///     Proves that Load decodes a 2-bit grayscale image whose width is not a multiple of 4,
+    ///     correctly unpacking the final partial byte's single real sample and ignoring its
+    ///     padding bits.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_Grayscale2BitDepthNonByteAlignedWidth_HandlesFinalPartialByte()
+    {
+        // Arrange: width 5 is not a multiple of 4, so the packed row is 2 bytes: the first byte
+        // holds 4 two-bit samples [0,1,2,3] (0x1B), and the second byte holds only 1 real sample
+        // (the 5th, value 1, in its top 2 bits) followed by 6 padding bits deliberately set to 1
+        // so a bug that reads beyond the real sample would be caught by the final assertion below
+        var rawRows = new[] { new byte[] { 0x1B, 0x7F } };
+        var filterTypes = new byte[] { 0 };
+        var bytes = BuildPng(5, 1, 1, 0, rawRows, filterTypes, bitDepth: 2, rowBytes: 2, bpp: 1);
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var loaded = PngCodec.Load(stream);
+
+        // Assert: sample * 255 / 3, including the 5th (non-byte-aligned) sample
+        var expectedGray = new byte[] { 0, 85, 170, 255, 85 };
+        for (var x = 0; x < 5; x++)
+        {
+            var g = expectedGray[x];
+            Assert.Equal(new Rgba32(g, g, g, 255), loaded[x, 0]);
+        }
+    }
+
+    /// <summary>
     ///     Proves that Load decodes a 4-bit grayscale image, scaling each 4-bit sample (0-15) to
     ///     the full 0-255 range.
     /// </summary>
@@ -522,6 +689,32 @@ public class PngCodecTests
         // Assert: sample * 255 / 15
         Assert.Equal(new Rgba32(85, 85, 85, 255), loaded[0, 0]);
         Assert.Equal(new Rgba32(170, 170, 170, 255), loaded[1, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that Load decodes a 4-bit grayscale image whose width is not a multiple of 2,
+    ///     correctly unpacking the final partial byte's single real sample and ignoring its
+    ///     padding bits.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_Grayscale4BitDepthNonByteAlignedWidth_HandlesFinalPartialByte()
+    {
+        // Arrange: width 3 is not a multiple of 2, so the packed row is 2 bytes: the first byte
+        // holds 2 four-bit samples [5,10] (0x5A), and the second byte holds only 1 real sample
+        // (the 3rd, value 7, in its top nibble) followed by 4 padding bits deliberately set to 1
+        // so a bug that reads beyond the real sample would be caught by the final assertion below
+        var rawRows = new[] { new byte[] { 0x5A, 0x7F } };
+        var filterTypes = new byte[] { 0 };
+        var bytes = BuildPng(3, 1, 1, 0, rawRows, filterTypes, bitDepth: 4, rowBytes: 2, bpp: 1);
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var loaded = PngCodec.Load(stream);
+
+        // Assert: sample * 255 / 15, including the 3rd (non-byte-aligned) sample
+        Assert.Equal(new Rgba32(85, 85, 85, 255), loaded[0, 0]);
+        Assert.Equal(new Rgba32(170, 170, 170, 255), loaded[1, 0]);
+        Assert.Equal(new Rgba32(119, 119, 119, 255), loaded[2, 0]);
     }
 
     /// <summary>

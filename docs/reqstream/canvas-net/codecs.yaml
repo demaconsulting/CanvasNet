@@ -263,9 +263,8 @@ sections:
               - CanvasNet-Codecs-PngCodec-PngSuiteCorrupt
             tests:
               - PngCodec_Load_BadSignature_ThrowsInvalidDataException
-              - PngCodec_Load_UnsupportedColorTypeGrayscale_ThrowsInvalidDataException
-              - PngCodec_Load_UnsupportedColorTypePalette_ThrowsInvalidDataException
-              - PngCodec_Load_UnsupportedBitDepth_ThrowsInvalidDataException
+              - PngCodec_GetInfoAndLoad_InvalidColorType_BothThrowInvalidDataException
+              - PngCodec_GetInfoAndLoad_InvalidBitDepth_BothThrowInvalidDataException
               - PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsInvalidDataException
               - PngCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException
               - PngCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException

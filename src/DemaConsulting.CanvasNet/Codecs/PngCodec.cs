@@ -444,6 +444,15 @@ public static class PngCodec
 
         /// <summary>The raw tRNS chunk data, or null if no tRNS chunk was present.</summary>
         public byte[]? TrnsData { get; set; }
+
+        /// <summary>Whether a PLTE chunk has already been seen.</summary>
+        public bool PlteSeen { get; set; }
+
+        /// <summary>Whether a tRNS chunk has already been seen.</summary>
+        public bool TrnsSeen { get; set; }
+
+        /// <summary>Whether an IDAT chunk has already been seen.</summary>
+        public bool IdatSeen { get; set; }
     }
 
     /// <summary>
@@ -498,13 +507,43 @@ public static class PngCodec
                 throw new InvalidDataException("PLTE chunk encountered before IHDR.");
             }
 
+            if (state.PlteSeen)
+            {
+                throw new InvalidDataException("Duplicate PLTE chunk.");
+            }
+
+            if (state.IdatSeen)
+            {
+                throw new InvalidDataException("PLTE chunk encountered after the first IDAT chunk.");
+            }
+
             if (data.Length % 3 != 0 || data.Length == 0)
             {
                 throw new InvalidDataException(
                     $"Invalid PNG PLTE chunk length {data.Length}; expected a positive multiple of 3.");
             }
 
+            if (data.Length > 256 * 3)
+            {
+                throw new InvalidDataException(
+                    $"PNG PLTE chunk declares {data.Length / 3} palette entries; at most 256 are permitted.");
+            }
+
+            if (state.ColorType == ColorTypePalette)
+            {
+                var maxEntries = 1 << state.BitDepth;
+                var entryCount = data.Length / 3;
+                if (entryCount > maxEntries)
+                {
+                    throw new InvalidDataException(
+                        $"PNG PLTE chunk declares {entryCount} palette entries, which exceeds the maximum of " +
+                        $"{maxEntries} entries permitted for a palette (color type 3) image at bit depth " +
+                        $"{state.BitDepth}.");
+                }
+            }
+
             state.PlteData = data;
+            state.PlteSeen = true;
         }
         else if (ChunkTypeIs(typeBytes, "tRNS"))
         {
@@ -513,7 +552,18 @@ public static class PngCodec
                 throw new InvalidDataException("tRNS chunk encountered before IHDR.");
             }
 
+            if (state.TrnsSeen)
+            {
+                throw new InvalidDataException("Duplicate tRNS chunk.");
+            }
+
+            if (state.IdatSeen)
+            {
+                throw new InvalidDataException("tRNS chunk encountered after the first IDAT chunk.");
+            }
+
             state.TrnsData = data;
+            state.TrnsSeen = true;
         }
         else if (ChunkTypeIs(typeBytes, "IDAT"))
         {
@@ -522,6 +572,7 @@ public static class PngCodec
                 throw new InvalidDataException("IDAT chunk encountered before IHDR.");
             }
 
+            state.IdatSeen = true;
             idatStream.Write(data, 0, data.Length);
         }
         else if (ChunkTypeIs(typeBytes, "IEND"))
