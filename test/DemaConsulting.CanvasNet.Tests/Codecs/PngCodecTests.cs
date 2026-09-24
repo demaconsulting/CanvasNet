@@ -1924,6 +1924,87 @@ public class PngCodecTests
     }
 
     /// <summary>
+    ///     Regression test for a code-review finding: the IDAT-chunks-must-be-consecutive check
+    ///     used to run only after <c>ReadChunkFrame</c> had already allocated and read the full
+    ///     declared payload of the offending later IDAT chunk, so a crafted PNG could end the
+    ///     IDAT run and then declare a huge (but still sub-<see cref="int.MaxValue"/>) length on
+    ///     a further IDAT chunk purely to force a large allocation before the
+    ///     non-consecutive-IDAT rejection ran. Proves, by measuring actual bytes allocated (never
+    ///     wall-clock time or a real multi-gigabyte buffer), that such a chunk is rejected before
+    ///     that payload is allocated.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_NonConsecutiveIdatWithHugeDeclaredLength_ThrowsWithoutLargeAllocation()
+    {
+        // Arrange: a valid IHDR, one small valid IDAT chunk, an ancillary tEXt chunk that ends
+        // the IDAT run, and then a second "IDAT"-typed chunk header declaring a huge length,
+        // with no real trailing data at all - if the declared length were allocated before the
+        // non-consecutive-IDAT check ran, this would force a huge allocation.
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 2 /* Truecolor */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var idat1 = BuildChunk("IDAT", [1, 2, 3]);
+        stream.Write(idat1, 0, idat1.Length);
+        var textChunk = BuildChunk("tEXt", [9, 9, 9]);
+        stream.Write(textChunk, 0, textChunk.Length);
+        var header = BuildFakeChunkHeader("IDAT", 0x7FFFFFFF);
+        stream.Write(header, 0, header.Length);
+        stream.Position = 0;
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert
+        Assert.Contains("consecutive", ex.Message, StringComparison.OrdinalIgnoreCase);
+
+        const long maxExpectedAllocatedBytes = 1024 * 1024;
+        Assert.True(
+            allocatedDuring < maxExpectedAllocatedBytes,
+            $"Expected no large allocation, but {allocatedDuring:N0} bytes were allocated.");
+    }
+
+    /// <summary>
+    ///     Regression test for a code-review finding: the unrecognized-critical-chunk rejection
+    ///     used to run only after <c>ReadChunkFrame</c> had already allocated and read the full
+    ///     declared payload, so a crafted PNG could declare a huge (but still
+    ///     sub-<see cref="int.MaxValue"/>) length on an unrecognized critical chunk type purely to
+    ///     force a large allocation before the rejection ran, even though that payload is never
+    ///     needed since the chunk is always refused. Proves, by measuring actual bytes allocated
+    ///     (never wall-clock time or a real multi-gigabyte buffer), that such a chunk is rejected
+    ///     before that payload is allocated.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_UnrecognizedCriticalChunkWithHugeDeclaredLength_ThrowsWithoutLargeAllocation()
+    {
+        // Arrange: a valid IHDR followed by a hypothetical unrecognized critical chunk "ZZZZ"
+        // header declaring a huge length, with no real trailing data at all - if the declared
+        // length were allocated before validation, this would force a huge allocation.
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 2 /* Truecolor */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var header = BuildFakeChunkHeader("ZZZZ", 0x7FFFFFFF);
+        stream.Write(header, 0, header.Length);
+        stream.Position = 0;
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert
+        Assert.Contains("Unrecognized critical PNG chunk", ex.Message);
+
+        const long maxExpectedAllocatedBytes = 1024 * 1024;
+        Assert.True(
+            allocatedDuring < maxExpectedAllocatedBytes,
+            $"Expected no large allocation, but {allocatedDuring:N0} bytes were allocated.");
+    }
+
+    /// <summary>
     ///     Builds only a chunk's 8-byte length+type header (a 4-byte big-endian declared length
     ///     followed by the 4-byte ASCII type), deliberately writing no data or CRC bytes at all -
     ///     used only by the memory-exhaustion regression tests above to prove the declared length
