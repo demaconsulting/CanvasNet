@@ -231,6 +231,14 @@ public static class PngCodec
     private const int MaxPlteDataLength = MaxPaletteEntries * 3;
 
     /// <summary>
+    ///     The exact byte length the PNG specification mandates for an <c>IHDR</c> chunk's data.
+    ///     Used both by <see cref="ParseIhdr"/>'s post-read validation and by the pre-allocation
+    ///     first-chunk checks in <see cref="ReadIhdrChunkFrame"/> and
+    ///     <see cref="ValidateChunkLengthBeforeAllocation"/>.
+    /// </summary>
+    private const int IhdrDataLength = 13;
+
+    /// <summary>
     ///     Loads a <see cref="Surface"/> from an open, readable stream containing a well-formed,
     ///     non-interlaced PNG image of any color type and bit depth combination the PNG
     ///     specification permits.
@@ -737,32 +745,55 @@ public static class PngCodec
     }
 
     /// <summary>
-    ///     Rejects a declared <c>PLTE</c> or <c>tRNS</c> chunk length that already exceeds the
-    ///     largest length that type can legitimately have, using only the 4-byte declared length
-    ///     from the chunk header - <em>before</em> <see cref="ReadChunkFrame"/> allocates and
-    ///     reads a payload buffer of that declared size. Without this pre-allocation check, a
-    ///     crafted PNG could declare a <c>PLTE</c> or <c>tRNS</c> length that is large (but still
-    ///     below <see cref="uint.MaxValue"/>'s already-enforced <see cref="int.MaxValue"/> ceiling)
-    ///     purely to force a large allocation before the full post-read checks in
-    ///     <see cref="ProcessChunk"/> (multiple-of-3, exact bit-depth-derived entry cap, and the
-    ///     precise <c>ValidateAndNormalizeTrns</c> per-color-type/per-PLTE-entry-count checks) get
-    ///     a chance to reject it - this method exists purely to close that memory-exhaustion
-    ///     attack vector, not to duplicate those precise correctness checks, so its bounds are
+    ///     Rejects, before <see cref="ReadChunkFrame"/> allocates and reads a payload buffer of
+    ///     the declared size: (1) a first chunk that is not <c>IHDR</c>, or an <c>IHDR</c> first
+    ///     chunk whose declared length is not exactly the 13 bytes the PNG specification mandates
+    ///     - mirroring <see cref="ReadIhdrChunkFrame"/>'s identical pre-allocation guard used by
+    ///     <c>GetInfo</c>, since <c>Load</c>'s <see cref="ReadChunks"/> path reads its first chunk
+    ///     through this same general-purpose <see cref="ReadChunkFrame"/> rather than through
+    ///     <see cref="ReadIhdrChunkFrame"/>; and (2) a declared <c>PLTE</c> or <c>tRNS</c> chunk
+    ///     length that already exceeds the largest length that type can legitimately have. Without
+    ///     these pre-allocation checks, a crafted PNG could declare a first-chunk, <c>PLTE</c>, or
+    ///     <c>tRNS</c> length that is large (but still below <see cref="uint.MaxValue"/>'s
+    ///     already-enforced <see cref="int.MaxValue"/> ceiling) purely to force a large allocation
+    ///     before the full post-read checks in <see cref="ProcessChunk"/> (IHDR-must-be-first,
+    ///     <c>PLTE</c>'s multiple-of-3 and exact bit-depth-derived entry cap, and the precise
+    ///     <c>ValidateAndNormalizeTrns</c> per-color-type/per-PLTE-entry-count checks) get a
+    ///     chance to reject it - this method exists purely to close that memory-exhaustion attack
+    ///     vector, not to duplicate those precise correctness checks, so its bounds are
     ///     deliberately loose (the largest a spec-valid chunk of that type could ever be).
     /// </summary>
     /// <param name="typeBytes">The chunk's 4-byte type field.</param>
     /// <param name="length">The chunk's declared data length, read from the chunk header.</param>
     /// <param name="state">
-    ///     The in-progress chunk-read state, used to narrow the <c>tRNS</c> bound by color type
-    ///     once <c>IHDR</c> has been parsed; before that, only the loosest (palette-sized) bound
-    ///     is available, which is still small enough to rule out a memory-exhaustion attempt.
+    ///     The in-progress chunk-read state: <see cref="ChunkReadState.IhdrSeen"/> being
+    ///     <see langword="false"/> identifies the current chunk as the very first chunk in the
+    ///     file, since any earlier chunk that violated the IHDR-must-be-first rule would already
+    ///     have thrown before this chunk was ever reached; it is also used to narrow the
+    ///     <c>tRNS</c> bound by color type once <c>IHDR</c> has been parsed - before that, only
+    ///     the loosest (palette-sized) bound is available, which is still small enough to rule out
+    ///     a memory-exhaustion attempt.
     /// </param>
     /// <exception cref="System.IO.InvalidDataException">
-    ///     Thrown when a <c>PLTE</c> or <c>tRNS</c> chunk declares a length beyond the largest
-    ///     value that type can legitimately have.
+    ///     Thrown when the first chunk is not <c>IHDR</c>, an <c>IHDR</c> first chunk's declared
+    ///     length is not exactly 13, or a <c>PLTE</c>/<c>tRNS</c> chunk declares a length beyond
+    ///     the largest value that type can legitimately have.
     /// </exception>
     private static void ValidateChunkLengthBeforeAllocation(byte[] typeBytes, uint length, ChunkReadState state)
     {
+        if (!state.IhdrSeen)
+        {
+            if (!ChunkTypeIs(typeBytes, "IHDR"))
+            {
+                throw new InvalidDataException("Chunk encountered before IHDR.");
+            }
+
+            if (length != IhdrDataLength)
+            {
+                throw new InvalidDataException("IHDR chunk does not have the required length of 13 bytes.");
+            }
+        }
+
         if (ChunkTypeIs(typeBytes, "PLTE"))
         {
             if (length > MaxPlteDataLength)
@@ -900,8 +931,6 @@ public static class PngCodec
     /// </exception>
     private static (byte[] TypeBytes, byte[] Data) ReadIhdrChunkFrame(Stream stream)
     {
-        const int ihdrDataLength = 13;
-
         var lengthBytes = ReadExactly(stream, 4, "chunk length");
         var length = ReadUInt32Be(lengthBytes, 0);
 
@@ -911,12 +940,12 @@ public static class PngCodec
             throw new InvalidDataException("First PNG chunk is not IHDR.");
         }
 
-        if (length != ihdrDataLength)
+        if (length != IhdrDataLength)
         {
             throw new InvalidDataException("IHDR chunk does not have the required length of 13 bytes.");
         }
 
-        var data = ReadExactly(stream, ihdrDataLength, "chunk data");
+        var data = ReadExactly(stream, IhdrDataLength, "chunk data");
         var crcBytes = ReadExactly(stream, 4, "chunk CRC");
         var expectedCrc = ReadUInt32Be(crcBytes, 0);
 
@@ -1418,7 +1447,7 @@ public static class PngCodec
         bool enforceMaxDimension,
         bool validateDecodability)
     {
-        if (data.Length != 13)
+        if (data.Length != IhdrDataLength)
         {
             throw new InvalidDataException($"Invalid IHDR chunk length {data.Length}; expected 13 bytes.");
         }

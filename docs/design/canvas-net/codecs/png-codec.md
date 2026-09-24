@@ -252,7 +252,11 @@ though `Load` refuses them; see _GetInfo(Stream stream)_ below.
 **Throws:**
 
 * `ArgumentNullException` — `stream` is null
-* `InvalidDataException` — missing PNG signature; missing, duplicate, or malformed `IHDR`; any
+* `InvalidDataException` — missing PNG signature; a first chunk whose type is not `IHDR`, or an
+  `IHDR` first chunk whose declared length is not exactly 13 (both checked before any
+  length-dependent allocation, mirroring `GetInfo`'s equivalent guard — see the pre-allocation
+  validation design decision above); missing (past the first chunk), duplicate, or malformed
+  `IHDR`; any
   chunk (including an otherwise-safe-to-skip ancillary chunk) encountered before `IHDR`; a
   malformed chunk type code (a byte that is not an ASCII letter, or a lowercase third byte
   violating the reserved-bit rule); a bit
@@ -339,21 +343,25 @@ before the type/length mismatch was ever discovered.
 
 **Design decision — pre-allocation validation in the general chunk-frame reader**:
 `ReadChunkFrame` validates every chunk's 4-byte type code (see the chunk-type-code validation
-design decision below) and, for `PLTE` and `tRNS` specifically, the declared length against that
-type's largest legitimate size — both checks run _before_ the declared-length data payload is
-allocated or read. A crafted `PLTE` or `tRNS` chunk can therefore never force a large allocation by
-declaring a huge (but still sub-`int.MaxValue`) length: `PLTE`'s declared length is rejected once it
-exceeds 768 bytes (256 three-byte entries, the largest a spec-valid `PLTE` chunk can ever be,
-regardless of color type or bit depth), and `tRNS`'s declared length is rejected once it exceeds the
-color type's exact size (2 bytes for Grayscale, 6 for Truecolor) once `IHDR` has been parsed, or the
-256-byte palette-entry ceiling otherwise. This pre-allocation check is deliberately loose - it exists
-only to close the memory-exhaustion vector, not to duplicate the exact per-color-type/per-bit-depth
-correctness checks that still run afterward on the (now safely small) allocated payload, in
-`ProcessChunk` and `ValidateAndNormalizeTrns`. Every other chunk type (`IHDR` itself is read by a
-separate helper; `IDAT` legitimately carries large payloads; any other recognized or unrecognized
-chunk type has no small type-specific maximum to check) is unaffected and is still fully allocated
-and read before its type is otherwise interpreted, since `Load` always intends to read every
-chunk's data anyway.
+design decision below) and, before any length-dependent data payload is allocated or read: for
+the very first chunk in the file, that its type is `IHDR` and its declared length is exactly 13
+(mirroring `ReadIhdrChunkFrame`'s identical guard on `GetInfo`'s path, since `Load`'s `ReadChunks`
+reads its first chunk through this same general-purpose reader rather than through
+`ReadIhdrChunkFrame`); and, for `PLTE` and `tRNS` specifically, the declared length against that
+type's largest legitimate size. A crafted first chunk, `PLTE`, or `tRNS` chunk can therefore never
+force a large allocation by declaring a huge (but still sub-`int.MaxValue`) length: a non-`IHDR`
+first chunk, or an `IHDR` first chunk whose declared length is not exactly 13, is rejected before
+any allocation; `PLTE`'s declared length is rejected once it exceeds 768 bytes (256 three-byte
+entries, the largest a spec-valid `PLTE` chunk can ever be, regardless of color type or bit depth);
+and `tRNS`'s declared length is rejected once it exceeds the color type's exact size (2 bytes for
+Grayscale, 6 for Truecolor) once `IHDR` has been parsed, or the 256-byte palette-entry ceiling
+otherwise. This pre-allocation check is deliberately loose - it exists only to close the
+memory-exhaustion vector, not to duplicate the exact per-color-type/per-bit-depth correctness
+checks that still run afterward on the (now safely small) allocated payload, in `ProcessChunk`,
+`ParseIhdr`, and `ValidateAndNormalizeTrns`. Every other chunk type past the first (`IDAT`
+legitimately carries large payloads; any other recognized or unrecognized chunk type has no small
+type-specific maximum to check) is unaffected and is still fully allocated and read before its
+type is otherwise interpreted, since `Load` always intends to read every chunk's data anyway.
 
 **Design decision — two independent validation flags**: `enforceMaxDimension` and
 `validateDecodability` gate two orthogonal concerns, and `GetInfo` passes `false` for both while

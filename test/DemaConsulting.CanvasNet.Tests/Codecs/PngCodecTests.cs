@@ -1711,6 +1711,78 @@ public class PngCodecTests
     }
 
     /// <summary>
+    ///     Regression test for a code-review finding: <see cref="PngCodec.Load(Stream)"/>'s
+    ///     <c>ReadChunks</c> path reads its first chunk through the general-purpose
+    ///     <c>ReadChunkFrame</c> (not <c>ReadIhdrChunkFrame</c>, which only <c>GetInfo</c> uses),
+    ///     so a non-<c>IHDR</c> first chunk with a huge declared length used to be fully
+    ///     allocated and read before the chunk type was ever inspected, even though the same
+    ///     attack was already closed for <c>GetInfo</c>. Proves, by measuring actual bytes
+    ///     allocated (never wall-clock time), that <c>ValidateChunkLengthBeforeAllocation</c>
+    ///     rejects the non-<c>IHDR</c> first chunk before any length-dependent allocation/read is
+    ///     attempted.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_NonIhdrFirstChunkWithHugeDeclaredLength_ThrowsWithoutLargeAllocation()
+    {
+        // Arrange: signature + a "tEXt"-typed chunk header declaring a 100 MB length, with no
+        // real trailing data at all - if the (fixed) code ever attempted to allocate/read the
+        // declared-length payload, it would throw a plain end-of-stream InvalidDataException
+        // instead of the expected "before IHDR" one, and would have allocated ~100 MB first.
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var header = BuildFakeChunkHeader("tEXt", 100_000_000);
+        stream.Write(header, 0, header.Length);
+        stream.Position = 0;
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert
+        Assert.Contains("IHDR", ex.Message);
+
+        const long maxExpectedAllocatedBytes = 1024 * 1024;
+        Assert.True(
+            allocatedDuring < maxExpectedAllocatedBytes,
+            $"Expected no large allocation, but {allocatedDuring:N0} bytes were allocated.");
+    }
+
+    /// <summary>
+    ///     Regression test for a code-review finding: an <c>IHDR</c>-typed first chunk with a huge
+    ///     declared length (anything other than the mandatory 13) reached by
+    ///     <see cref="PngCodec.Load(Stream)"/> used to be fully allocated and read before its
+    ///     length was validated, even though the same attack was already closed for
+    ///     <c>GetInfo</c>. Proves, by measuring actual bytes allocated (never wall-clock time),
+    ///     that <c>ValidateChunkLengthBeforeAllocation</c> rejects the wrong declared length
+    ///     before any length-dependent allocation/read is attempted.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_IhdrFirstChunkWithWrongDeclaredLength_ThrowsWithoutLargeAllocation()
+    {
+        // Arrange: signature + an "IHDR"-typed chunk header declaring a 100 MB length instead of
+        // the mandatory 13, with no real trailing data at all.
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var header = BuildFakeChunkHeader("IHDR", 100_000_000);
+        stream.Write(header, 0, header.Length);
+        stream.Position = 0;
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert
+        Assert.Contains("13", ex.Message);
+
+        const long maxExpectedAllocatedBytes = 1024 * 1024;
+        Assert.True(
+            allocatedDuring < maxExpectedAllocatedBytes,
+            $"Expected no large allocation, but {allocatedDuring:N0} bytes were allocated.");
+    }
+
+    /// <summary>
     ///     Regression test for a code-review finding: a <c>PLTE</c> chunk's size checks used to
     ///     run only after <c>ReadChunkFrame</c> had already allocated and read the full declared
     ///     payload, so a crafted PNG could declare a huge (but still sub-<see cref="int.MaxValue"/>)
