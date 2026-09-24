@@ -567,21 +567,77 @@ public class PngCodecTests
     }
 
     /// <summary>
+    ///     Regression test for a code-review finding: chunk-type classification (critical vs.
+    ///     ancillary, see <see cref="PngCodec_Load_UnrecognizedCriticalChunk_ThrowsInvalidDataException"/>
+    ///     and <see cref="PngCodec_Load_UnrecognizedAncillaryChunk_StillLoadsSuccessfully"/>) used
+    ///     to trust the chunk type's first byte alone, without validating that all four bytes are
+    ///     ASCII letters. Proves that Load rejects a chunk type containing a non-letter byte (for
+    ///     example <c>"a!cd"</c>) with InvalidDataException, before that malformed type ever
+    ///     reaches the classification logic.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_ChunkTypeWithNonLetterByte_ThrowsInvalidDataException()
+    {
+        // Arrange: a valid IHDR followed by a chunk whose type's second byte ('!') is not an
+        // ASCII letter at all
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 2 /* Truecolor */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var malformed = BuildChunk("a!cd", [1, 2, 3]);
+        stream.Write(malformed, 0, malformed.Length);
+        stream.Position = 0;
+
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        Assert.Contains("ASCII letter", exception.Message);
+    }
+
+    /// <summary>
+    ///     Regression test for a code-review finding: a chunk type whose reserved (third) byte is
+    ///     lowercase - for example <c>"abcd"</c> - is not spec-valid per the PNG specification's
+    ///     reserved-bit rule (the third byte must always be uppercase), yet the prior
+    ///     classification logic would have accepted it as an ordinary ancillary chunk based on the
+    ///     first byte's case alone. Proves that Load rejects such a chunk type with
+    ///     InvalidDataException instead of silently treating it as ancillary.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_ChunkTypeWithLowercaseReservedByte_ThrowsInvalidDataException()
+    {
+        // Arrange: a valid IHDR followed by an all-lowercase chunk type ("abcd"); its first byte
+        // being lowercase would otherwise mark it ancillary, but its lowercase third byte ('c')
+        // violates the reserved-bit rule
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 2 /* Truecolor */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var malformed = BuildChunk("abcd", [1, 2, 3]);
+        stream.Write(malformed, 0, malformed.Length);
+        stream.Position = 0;
+
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        Assert.Contains("reserved-bit rule", exception.Message);
+    }
+
+    /// <summary>
     ///     Proves that Load still decodes successfully when a stream contains an unrecognized
-    ///     <em>ancillary</em> chunk (lowercase first type byte, for example a hypothetical "abcd"
-    ///     chunk), since an unrecognized ancillary chunk carries no information required to
-    ///     decode pixels correctly and remains safe to skip.
+    ///     <em>ancillary</em> chunk (lowercase first type byte, for example a hypothetical "abCd"
+    ///     chunk - third byte uppercase, per the PNG specification's reserved-bit rule), since an
+    ///     unrecognized ancillary chunk carries no information required to decode pixels correctly
+    ///     and remains safe to skip.
     /// </summary>
     [Fact]
     public void PngCodec_Load_UnrecognizedAncillaryChunk_StillLoadsSuccessfully()
     {
-        // Arrange: a valid IHDR followed by a hypothetical unrecognized ancillary chunk "abcd",
-        // then the usual IDAT/IEND chunks for a single opaque Truecolor pixel
+        // Arrange: a valid IHDR followed by a hypothetical unrecognized ancillary chunk "abCd"
+        // (third byte uppercase, satisfying the reserved-bit rule), then the usual IDAT/IEND
+        // chunks for a single opaque Truecolor pixel
         using var stream = new MemoryStream();
         stream.Write(Signature, 0, Signature.Length);
         var ihdr = BuildIhdrChunk(1, 1, 8, (byte)PngColorType.Rgb, 0, 0, 0);
         stream.Write(ihdr, 0, ihdr.Length);
-        var unknownAncillary = BuildChunk("abcd", [9, 9, 9]);
+        var unknownAncillary = BuildChunk("abCd", [9, 9, 9]);
         stream.Write(unknownAncillary, 0, unknownAncillary.Length);
 
         var raw = new byte[] { 0, 10, 20, 30 }; // filter type 0 (None) + one RGB pixel
@@ -1629,10 +1685,84 @@ public class PngCodecTests
     }
 
     /// <summary>
+    ///     Regression test for a code-review finding: a <c>PLTE</c> chunk's size checks used to
+    ///     run only after <c>ReadChunkFrame</c> had already allocated and read the full declared
+    ///     payload, so a crafted PNG could declare a huge (but still sub-<see cref="int.MaxValue"/>)
+    ///     <c>PLTE</c> length purely to force a large allocation before any size check ran. Proves,
+    ///     by measuring actual bytes allocated (never wall-clock time or a real multi-gigabyte
+    ///     buffer), that a declared length far beyond the 768-byte (256-entry) maximum a
+    ///     <c>PLTE</c> chunk can legitimately have is rejected before that payload is allocated.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_PlteChunkWithHugeDeclaredLength_ThrowsWithoutLargeAllocation()
+    {
+        // Arrange: a valid IHDR followed by a "PLTE"-typed chunk header declaring a 100 MB
+        // length, with no real trailing data at all - if the declared length were allocated
+        // before validation, this would force a ~100 MB allocation.
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 2 /* Truecolor */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var header = BuildFakeChunkHeader("PLTE", 100_000_000);
+        stream.Write(header, 0, header.Length);
+        stream.Position = 0;
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert
+        Assert.Contains("PLTE", ex.Message);
+
+        const long maxExpectedAllocatedBytes = 1024 * 1024;
+        Assert.True(
+            allocatedDuring < maxExpectedAllocatedBytes,
+            $"Expected no large allocation, but {allocatedDuring:N0} bytes were allocated.");
+    }
+
+    /// <summary>
+    ///     Regression test for a code-review finding: a <c>tRNS</c> chunk's size checks used to
+    ///     run only after <c>ReadChunkFrame</c> had already allocated and read the full declared
+    ///     payload, so a crafted PNG could declare a huge (but still sub-<see cref="int.MaxValue"/>)
+    ///     <c>tRNS</c> length purely to force a large allocation before any size check ran. Proves,
+    ///     by measuring actual bytes allocated (never wall-clock time or a real multi-gigabyte
+    ///     buffer), that a declared length far beyond the 2-byte maximum a grayscale <c>tRNS</c>
+    ///     chunk can legitimately have is rejected before that payload is allocated.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_TrnsChunkWithHugeDeclaredLength_ThrowsWithoutLargeAllocation()
+    {
+        // Arrange: a valid grayscale IHDR followed by a "tRNS"-typed chunk header declaring a
+        // 100 MB length, with no real trailing data at all - if the declared length were
+        // allocated before validation, this would force a ~100 MB allocation.
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 0 /* Grayscale */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var header = BuildFakeChunkHeader("tRNS", 100_000_000);
+        stream.Write(header, 0, header.Length);
+        stream.Position = 0;
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert
+        Assert.Contains("tRNS", ex.Message);
+
+        const long maxExpectedAllocatedBytes = 1024 * 1024;
+        Assert.True(
+            allocatedDuring < maxExpectedAllocatedBytes,
+            $"Expected no large allocation, but {allocatedDuring:N0} bytes were allocated.");
+    }
+
+    /// <summary>
     ///     Builds only a chunk's 8-byte length+type header (a 4-byte big-endian declared length
     ///     followed by the 4-byte ASCII type), deliberately writing no data or CRC bytes at all -
-    ///     used only by the finding #1 regression tests above to prove the declared length is
-    ///     rejected before any length-dependent allocation is attempted, without needing to
+    ///     used only by the memory-exhaustion regression tests above to prove the declared length
+    ///     is rejected before any length-dependent allocation is attempted, without needing to
     ///     actually provide (or allocate) that much real trailing data.
     /// </summary>
     private static byte[] BuildFakeChunkHeader(string type, uint declaredLength)

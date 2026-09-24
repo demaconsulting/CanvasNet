@@ -356,6 +356,24 @@ sections:
                   - PngCodec_Load_UnrecognizedCriticalChunk_ThrowsInvalidDataException
                   - PngCodec_Load_UnrecognizedAncillaryChunk_StillLoadsSuccessfully
 
+              - id: CanvasNet-Codecs-PngCodec-LoadMalformedChunkType
+                title: >-
+                  The PngCodec class shall reject a PNG chunk whose 4-byte type code contains a
+                  non-ASCII-letter byte, or whose third byte is lowercase (violating the PNG
+                  specification's reserved-bit rule), with InvalidDataException, before that type is
+                  used for critical/ancillary classification.
+                justification: |
+                  Per the PNG specification, every chunk type byte must be an ASCII letter, and the
+                  third byte specifically must always be uppercase (the reserved bit); classifying a
+                  chunk as critical or ancillary from only its first byte's case, without validating
+                  the complete type code first, would let a malformed type such as "a!cd" (a
+                  non-letter byte) or "abcd"/"aBcd" (a lowercase third byte) be silently accepted as
+                  an ordinary ancillary chunk, contrary to this codec's spec-valid/malformed-input
+                  contract.
+                tests:
+                  - PngCodec_Load_ChunkTypeWithNonLetterByte_ThrowsInvalidDataException
+                  - PngCodec_Load_ChunkTypeWithLowercaseReservedByte_ThrowsInvalidDataException
+
               - id: CanvasNet-Codecs-PngCodec-LoadPlteForbiddenForGrayscale
                 title: >-
                   The PngCodec class shall reject a PLTE chunk on a grayscale (color type 0) or

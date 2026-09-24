@@ -167,16 +167,29 @@ Palette files, since Truecolor and Truecolor-with-alpha files may also legally c
 (with PLTE as an optional suggested palette) and PLTE must still come first whenever both are
 present.
 
+**Design decision — chunk-type codes are validated before classification**: the PNG
+specification defines a 4-byte chunk type as four ASCII letters, with each byte's case
+independently signaling a property (byte 1: ancillary/critical; byte 2: private/public; byte 3:
+reserved, currently always required to be uppercase; byte 4: safe-to-copy). `ReadChunkFrame`
+validates a chunk's type bytes - each must be an ASCII letter (`A`-`Z` or `a`-`z`), and the third
+byte specifically must be uppercase - before that type is used for anything, including the
+critical/ancillary classification described below. Without this check, a malformed type such as
+`a!cd` (a non-letter byte) or `aBcd`/`abcd` (a lowercase third byte, violating the reserved-bit
+rule) would have reached the classification below and been silently accepted as an ordinary
+ancillary chunk purely because its first byte happened to be lowercase; `Load` now rejects any
+such malformed chunk type with `InvalidDataException` instead.
+
 **Design decision — unrecognized critical chunks are rejected, not skipped**: the PNG
-specification uses a chunk type's first byte's case to mark it critical (uppercase) or ancillary
-(lowercase). `Load` recognizes exactly five chunk types (`IHDR`, `PLTE`, `tRNS`, `IDAT`, `IEND`);
-any other chunk whose first type byte is uppercase is an unrecognized _critical_ chunk — one that
-may change how pixel data must be interpreted — and `Load` rejects it with `InvalidDataException`
-naming the chunk type, rather than risk silently producing incorrect pixels from a chunk it does
-not understand. An unrecognized _ancillary_ chunk (lowercase first type byte, for example `tEXt`,
-`pHYs`, or `gAMA`) remains safe to skip, exactly as before: its CRC-32 is still validated, but its
-data is not accumulated anywhere — except that, like every other chunk type, it must still not
-appear before the mandatory `IHDR` chunk (see the next two design decisions).
+specification uses a (now type-code-validated, see above) chunk type's first byte's case to mark
+it critical (uppercase) or ancillary (lowercase). `Load` recognizes exactly five chunk types
+(`IHDR`, `PLTE`, `tRNS`, `IDAT`, `IEND`); any other chunk whose first type byte is uppercase is an
+unrecognized _critical_ chunk — one that may change how pixel data must be interpreted — and
+`Load` rejects it with `InvalidDataException` naming the chunk type, rather than risk silently
+producing incorrect pixels from a chunk it does not understand. An unrecognized _ancillary_ chunk
+(lowercase first type byte, for example `tEXt`, `pHYs`, or `gAMA`) remains safe to skip, exactly as
+before: its CRC-32 is still validated, but its data is not accumulated anywhere — except that, like
+every other chunk type, it must still not appear before the mandatory `IHDR` chunk (see the next
+two design decisions).
 
 **Design decision — every chunk, including an otherwise-safe-to-skip ancillary chunk, is rejected
 before `IHDR`**: the PNG specification requires `IHDR` to always be the first chunk in the file,
@@ -240,13 +253,17 @@ though `Load` refuses them; see _GetInfo(Stream stream)_ below.
 
 * `ArgumentNullException` — `stream` is null
 * `InvalidDataException` — missing PNG signature; missing, duplicate, or malformed `IHDR`; any
-  chunk (including an otherwise-safe-to-skip ancillary chunk) encountered before `IHDR`; a bit
+  chunk (including an otherwise-safe-to-skip ancillary chunk) encountered before `IHDR`; a
+  malformed chunk type code (a byte that is not an ASCII letter, or a lowercase third byte
+  violating the reserved-bit rule); a bit
   depth other than 1, 2, 4, 8, or 16; a
   color type other than 0, 2, 3, 4, or 6; a bit-depth/color-type combination the PNG
   specification does not define (for example color type 3 with bit depth 16); an unsupported
   compression method, filter method, or interlace method value; Adam7 interlacing (well-formed,
   but not a combination `Load` can decode); an unrecognized critical chunk (uppercase first type
-  byte); a `PLTE` chunk on a grayscale or grayscale-with-alpha file; a `PLTE` chunk appearing
+  byte); a `PLTE` or `tRNS` chunk whose declared length exceeds that type's maximum before its
+  payload is even allocated (see the pre-allocation validation design decision above); a `PLTE`
+  chunk on a grayscale or grayscale-with-alpha file; a `PLTE` chunk appearing
   after a `tRNS` chunk has already been accepted; a `tRNS` chunk on a
   grayscale-with-alpha or Truecolor-with-alpha file, or one that precedes the `PLTE` chunk on a
   Palette file; a color-type-3 (Palette) file missing its `PLTE`
@@ -313,14 +330,30 @@ Reads only the 8-byte PNG signature and the first (`IHDR`) chunk — never any s
 and in particular never any `IDAT` chunk — and returns an `ImageInfo` describing the file. `Load`
 and `GetInfo` share a `ReadIhdrOnly(Stream, bool enforceMaxDimension, bool validateDecodability)`
 helper, but the two use distinct chunk-frame readers: `Load` reuses the general `ReadChunkFrame`
-helper (which allocates and reads a chunk's declared-length data payload before its type is ever
-inspected — safe for `Load`, since `Load` always intends to read every chunk anyway), while
-`ReadIhdrOnly` calls a dedicated `ReadIhdrChunkFrame` helper that validates the chunk type is
-`IHDR` **and** that the declared length is exactly 13 _before_ allocating or reading any data
-payload at all. This ordering matters specifically for `GetInfo`'s "cheap probe of untrusted
+helper, while `ReadIhdrOnly` calls a dedicated `ReadIhdrChunkFrame` helper that validates the chunk
+type is `IHDR` **and** that the declared length is exactly 13 _before_ allocating or reading any
+data payload at all. This ordering matters specifically for `GetInfo`'s "cheap probe of untrusted
 input" purpose: without it, a crafted non-`IHDR` (or wrong-length `IHDR`) first chunk declaring an
 attacker-controlled multi-gigabyte length could force a huge allocation on `GetInfo`'s fast path
 before the type/length mismatch was ever discovered.
+
+**Design decision — pre-allocation validation in the general chunk-frame reader**:
+`ReadChunkFrame` validates every chunk's 4-byte type code (see the chunk-type-code validation
+design decision below) and, for `PLTE` and `tRNS` specifically, the declared length against that
+type's largest legitimate size — both checks run _before_ the declared-length data payload is
+allocated or read. A crafted `PLTE` or `tRNS` chunk can therefore never force a large allocation by
+declaring a huge (but still sub-`int.MaxValue`) length: `PLTE`'s declared length is rejected once it
+exceeds 768 bytes (256 three-byte entries, the largest a spec-valid `PLTE` chunk can ever be,
+regardless of color type or bit depth), and `tRNS`'s declared length is rejected once it exceeds the
+color type's exact size (2 bytes for Grayscale, 6 for Truecolor) once `IHDR` has been parsed, or the
+256-byte palette-entry ceiling otherwise. This pre-allocation check is deliberately loose - it exists
+only to close the memory-exhaustion vector, not to duplicate the exact per-color-type/per-bit-depth
+correctness checks that still run afterward on the (now safely small) allocated payload, in
+`ProcessChunk` and `ValidateAndNormalizeTrns`. Every other chunk type (`IHDR` itself is read by a
+separate helper; `IDAT` legitimately carries large payloads; any other recognized or unrecognized
+chunk type has no small type-specific maximum to check) is unaffected and is still fully allocated
+and read before its type is otherwise interpreted, since `Load` always intends to read every
+chunk's data anyway.
 
 **Design decision — two independent validation flags**: `enforceMaxDimension` and
 `validateDecodability` gate two orthogonal concerns, and `GetInfo` passes `false` for both while

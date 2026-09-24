@@ -215,6 +215,21 @@ public static class PngCodec
     private const int MaxIdatChunkSize = 8192;
 
     /// <summary>
+    ///     The maximum number of entries a PNG <c>PLTE</c> chunk may declare (one byte's worth of
+    ///     palette index values), per the PNG specification. Used both by the full post-read
+    ///     <c>PLTE</c> validation and by <see cref="ValidateChunkLengthBeforeAllocation"/>'s
+    ///     pre-allocation length check.
+    /// </summary>
+    private const int MaxPaletteEntries = 256;
+
+    /// <summary>
+    ///     The maximum byte length of a PNG <c>PLTE</c> chunk's data (<see cref="MaxPaletteEntries"/>
+    ///     three-byte RGB entries), used by <see cref="ValidateChunkLengthBeforeAllocation"/> to
+    ///     reject an oversized declared length before the payload buffer is allocated.
+    /// </summary>
+    private const int MaxPlteDataLength = MaxPaletteEntries * 3;
+
+    /// <summary>
     ///     Loads a <see cref="Surface"/> from an open, readable stream containing a well-formed,
     ///     non-interlaced PNG image of any color type and bit depth combination the PNG
     ///     specification permits.
@@ -538,7 +553,9 @@ public static class PngCodec
     /// </exception>
     private static void ProcessChunk(Stream stream, MemoryStream idatStream, ChunkReadState state)
     {
-        var (typeBytes, data) = ReadChunkFrame(stream);
+        var (typeBytes, data) = ReadChunkFrame(
+            stream,
+            (chunkTypeBytes, declaredLength) => ValidateChunkLengthBeforeAllocation(chunkTypeBytes, declaredLength, state));
 
         // The PNG specification requires every IDAT chunk to be consecutive: the moment a
         // non-IDAT chunk is processed after at least one IDAT chunk has been seen, the IDAT run
@@ -710,17 +727,96 @@ public static class PngCodec
     }
 
     /// <summary>
+    ///     Rejects a declared <c>PLTE</c> or <c>tRNS</c> chunk length that already exceeds the
+    ///     largest length that type can legitimately have, using only the 4-byte declared length
+    ///     from the chunk header - <em>before</em> <see cref="ReadChunkFrame"/> allocates and
+    ///     reads a payload buffer of that declared size. Without this pre-allocation check, a
+    ///     crafted PNG could declare a <c>PLTE</c> or <c>tRNS</c> length that is large (but still
+    ///     below <see cref="uint.MaxValue"/>'s already-enforced <see cref="int.MaxValue"/> ceiling)
+    ///     purely to force a large allocation before the full post-read checks in
+    ///     <see cref="ProcessChunk"/> (multiple-of-3, exact bit-depth-derived entry cap, and the
+    ///     precise <c>ValidateAndNormalizeTrns</c> per-color-type/per-PLTE-entry-count checks) get
+    ///     a chance to reject it - this method exists purely to close that memory-exhaustion
+    ///     attack vector, not to duplicate those precise correctness checks, so its bounds are
+    ///     deliberately loose (the largest a spec-valid chunk of that type could ever be).
+    /// </summary>
+    /// <param name="typeBytes">The chunk's 4-byte type field.</param>
+    /// <param name="length">The chunk's declared data length, read from the chunk header.</param>
+    /// <param name="state">
+    ///     The in-progress chunk-read state, used to narrow the <c>tRNS</c> bound by color type
+    ///     once <c>IHDR</c> has been parsed; before that, only the loosest (palette-sized) bound
+    ///     is available, which is still small enough to rule out a memory-exhaustion attempt.
+    /// </param>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown when a <c>PLTE</c> or <c>tRNS</c> chunk declares a length beyond the largest
+    ///     value that type can legitimately have.
+    /// </exception>
+    private static void ValidateChunkLengthBeforeAllocation(byte[] typeBytes, uint length, ChunkReadState state)
+    {
+        if (ChunkTypeIs(typeBytes, "PLTE"))
+        {
+            if (length > MaxPlteDataLength)
+            {
+                throw new InvalidDataException(
+                    $"PNG PLTE chunk declares a {length}-byte payload, which exceeds the maximum of " +
+                    $"{MaxPlteDataLength} bytes ({MaxPaletteEntries} entries) permitted by the PNG " +
+                    "specification, regardless of color type or bit depth.");
+            }
+        }
+        else if (ChunkTypeIs(typeBytes, "tRNS"))
+        {
+            // Once IHDR has been parsed, the color type pins the exact tRNS length for grayscale
+            // (2 bytes) and Truecolor (6 bytes); every other case - palette, an as-yet-unparsed
+            // IHDR, or a color type for which tRNS is not even permitted - falls back to the
+            // one-byte-per-palette-entry ceiling, which is still small enough to rule out a
+            // large allocation while leaving the precise rejection to the checks noted above
+            var maxLength = state switch
+            {
+                { IhdrSeen: true, ColorType: ColorTypeGrayscale } => 2,
+                { IhdrSeen: true, ColorType: ColorTypeTruecolor } => 6,
+                _ => MaxPaletteEntries
+            };
+
+            if (length > maxLength)
+            {
+                throw new InvalidDataException(
+                    $"PNG tRNS chunk declares a {length}-byte payload, which exceeds the maximum of " +
+                    $"{maxLength} bytes permitted for this file.");
+            }
+        }
+    }
+
+    /// <summary>
     ///     Reads and CRC-validates a single chunk frame (length, type, data, and CRC-32) from
-    ///     <paramref name="stream"/>, without interpreting the chunk type in any way.
+    ///     <paramref name="stream"/>. The chunk type's four bytes are validated against the PNG
+    ///     specification's letter/reserved-bit rules (see <see cref="ValidateChunkTypeCode"/>)
+    ///     before this method otherwise interprets the type in any way, and
+    ///     <paramref name="validateLengthBeforeAllocation"/>, when supplied, is invoked with the
+    ///     (now type-validated) type bytes and the declared length immediately afterward - both
+    ///     checks run <em>before</em> the length-dependent payload buffer below is allocated and
+    ///     read, so a crafted chunk with a malformed type code, or a declared length that already
+    ///     violates a type-specific maximum, is rejected without first forcing a large allocation.
     /// </summary>
     /// <param name="stream">The stream to read the chunk frame from.</param>
+    /// <param name="validateLengthBeforeAllocation">
+    ///     Optional callback invoked with the chunk's type bytes and declared length before the
+    ///     data payload is allocated or read, allowing a caller to reject a declared length that
+    ///     already exceeds a type-specific maximum (for example <c>PLTE</c> or <c>tRNS</c>)
+    ///     without first allocating a buffer of that size. Should throw
+    ///     <see cref="System.IO.InvalidDataException"/> to reject; a non-throwing return accepts
+    ///     the declared length.
+    /// </param>
     /// <returns>The chunk's 4-byte type field and its data payload.</returns>
     /// <exception cref="System.IO.InvalidDataException">
-    ///     Thrown when the declared chunk length exceeds the supported range, the stream ends
-    ///     before the full chunk frame has been read, or the chunk's CRC-32 does not match its
-    ///     type and data.
+    ///     Thrown when the declared chunk length exceeds the supported range, the chunk type is
+    ///     not four ASCII letters or violates the reserved-bit rule (see
+    ///     <see cref="ValidateChunkTypeCode"/>), <paramref name="validateLengthBeforeAllocation"/>
+    ///     rejects the declared length, the stream ends before the full chunk frame has been
+    ///     read, or the chunk's CRC-32 does not match its type and data.
     /// </exception>
-    private static (byte[] TypeBytes, byte[] Data) ReadChunkFrame(Stream stream)
+    private static (byte[] TypeBytes, byte[] Data) ReadChunkFrame(
+        Stream stream,
+        Action<byte[], uint>? validateLengthBeforeAllocation = null)
     {
         var lengthBytes = ReadExactly(stream, 4, "chunk length");
         var length = ReadUInt32Be(lengthBytes, 0);
@@ -730,6 +826,9 @@ public static class PngCodec
         }
 
         var typeBytes = ReadExactly(stream, 4, "chunk type");
+        ValidateChunkTypeCode(typeBytes);
+        validateLengthBeforeAllocation?.Invoke(typeBytes, length);
+
         var data = length == 0 ? [] : ReadExactly(stream, (int)length, "chunk data");
         var crcBytes = ReadExactly(stream, 4, "chunk CRC");
         var expectedCrc = ReadUInt32Be(crcBytes, 0);
@@ -776,7 +875,7 @@ public static class PngCodec
     /// <summary>
     ///     Reads and CRC-validates the first chunk frame from <paramref name="stream"/>,
     ///     requiring it to be an <c>IHDR</c> chunk with the exact 13-byte length mandated by the
-    ///     PNG specification. Unlike <see cref="ReadChunkFrame(Stream)"/>, the chunk type and
+    ///     PNG specification. Unlike <see cref="ReadChunkFrame(Stream, Action{byte[], uint})"/>, the chunk type and
     ///     declared length are both validated <em>before</em> the (fixed-size) data payload is
     ///     allocated or read, so a crafted non-<c>IHDR</c> or wrong-length first chunk with a huge
     ///     declared length can never force a large allocation.
@@ -1391,6 +1490,46 @@ public static class PngCodec
         return (width, height, colorType, bitDepth);
     }
 
+
+    /// <summary>
+    ///     Validates a 4-byte PNG chunk type field against the PNG specification's chunk-naming
+    ///     rules, before <see cref="ProcessChunk"/> uses the first byte's case to classify an
+    ///     otherwise-unrecognized chunk as critical or ancillary. Each of the four bytes must be
+    ///     an ASCII letter (<c>A</c>-<c>Z</c> or <c>a</c>-<c>z</c>), and the third byte (the
+    ///     specification's "reserved" bit position) must always be uppercase, since the
+    ///     specification currently reserves a lowercase third byte for future definition. Without
+    ///     this check, a malformed type such as <c>"a!cd"</c> (a non-letter byte) or <c>"aBcd"</c>
+    ///     (lowercase reserved byte) would reach the ancillary/critical classification below and
+    ///     be silently accepted as a spec-valid ancillary chunk, contrary to this codec's
+    ///     spec-valid/malformed-input contract.
+    /// </summary>
+    /// <param name="typeBytes">The 4-byte chunk type field read from the stream.</param>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown when any byte is not an ASCII letter, or the third byte is a lowercase letter.
+    /// </exception>
+    private static void ValidateChunkTypeCode(byte[] typeBytes)
+    {
+        for (var i = 0; i < 4; i++)
+        {
+            var b = typeBytes[i];
+            if (b is not (>= (byte)'A' and <= (byte)'Z') and not (>= (byte)'a' and <= (byte)'z'))
+            {
+                throw new InvalidDataException(
+                    $"Invalid PNG chunk type byte {i + 1} (0x{b:X2}); every chunk type byte must be an ASCII letter.");
+            }
+        }
+
+        // The PNG specification's reserved-bit rule requires the third chunk-type byte to
+        // always be uppercase; a lowercase third byte is reserved for future definition and is
+        // never spec-valid for a chunk produced today, so this codec rejects it outright rather
+        // than silently classifying it as ancillary (or critical) based on the first byte alone
+        if (typeBytes[2] is >= (byte)'a' and <= (byte)'z')
+        {
+            var typeName = System.Text.Encoding.ASCII.GetString(typeBytes);
+            throw new InvalidDataException(
+                $"Invalid PNG chunk type '{typeName}'; the third byte must be uppercase (reserved-bit rule).");
+        }
+    }
 
     /// <summary>
     ///     Determines whether a 4-byte chunk type field matches the given ASCII chunk type name.

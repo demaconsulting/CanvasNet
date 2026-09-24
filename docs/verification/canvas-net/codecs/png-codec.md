@@ -268,10 +268,22 @@ it appears before the mandatory, always-first `IHDR` chunk.
 Builds a valid `IHDR` followed by a hypothetical unrecognized chunk type `ABCD` (uppercase first
 type byte, marking it critical per the PNG specification), and asserts `Load` throws
 `InvalidDataException` naming `ABCD`. Separately builds a valid, otherwise-complete single-pixel
-PNG with a hypothetical unrecognized ancillary chunk type `abcd` (lowercase first type byte)
-inserted between `IHDR` and `IDAT`, and asserts `Load` still decodes the expected pixel
-successfully, proving the new critical-chunk rejection does not affect the existing
-ancillary-chunk-skip behavior.
+PNG with a hypothetical unrecognized ancillary chunk type `abCd` (lowercase first type byte,
+uppercase third byte per the reserved-bit rule) inserted between `IHDR` and `IDAT`, and asserts
+`Load` still decodes the expected pixel successfully, proving the new critical-chunk rejection does
+not affect the existing ancillary-chunk-skip behavior.
+
+#### CanvasNet-Codecs-PngCodec-LoadMalformedChunkType: Load Rejects a Malformed Chunk Type Code
+
+**Tests**: `PngCodec_Load_ChunkTypeWithNonLetterByte_ThrowsInvalidDataException`,
+`PngCodec_Load_ChunkTypeWithLowercaseReservedByte_ThrowsInvalidDataException`
+
+Builds a valid `IHDR` followed by a chunk whose type code is `a!cd` (a non-ASCII-letter second
+byte), and asserts `Load` throws `InvalidDataException` mentioning "ASCII letter". Separately
+builds a valid `IHDR` followed by a chunk whose type code is `abcd` (all four bytes lowercase, so
+its third byte violates the PNG specification's reserved-bit rule), and asserts `Load` throws
+`InvalidDataException` mentioning "reserved-bit rule" - proving both malformed cases are rejected
+before the codec's first-byte-only critical/ancillary classification ever sees them.
 
 #### CanvasNet-Codecs-PngCodec-LoadPlteForbiddenForGrayscale: Load Rejects PLTE on Grayscale Color Types
 
