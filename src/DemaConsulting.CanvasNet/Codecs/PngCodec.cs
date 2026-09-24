@@ -710,6 +710,15 @@ public static class PngCodec
                 throw new InvalidDataException("IEND chunk encountered before IHDR.");
             }
 
+            // The PNG specification defines IEND as always carrying zero bytes of data; a
+            // non-empty payload is non-conforming and must not be silently accepted as if it
+            // were a valid, empty IEND chunk
+            if (data.Length != 0)
+            {
+                throw new InvalidDataException(
+                    $"IEND chunk must have an empty payload, but declared {data.Length} bytes.");
+            }
+
             state.IendSeen = true;
         }
         else if (typeBytes[0] is >= (byte)'A' and <= (byte)'Z')
@@ -751,17 +760,20 @@ public static class PngCodec
     ///     - mirroring <see cref="ReadIhdrChunkFrame"/>'s identical pre-allocation guard used by
     ///     <c>GetInfo</c>, since <c>Load</c>'s <see cref="ReadChunks"/> path reads its first chunk
     ///     through this same general-purpose <see cref="ReadChunkFrame"/> rather than through
-    ///     <see cref="ReadIhdrChunkFrame"/>; and (2) a declared <c>PLTE</c> or <c>tRNS</c> chunk
-    ///     length that already exceeds the largest length that type can legitimately have. Without
-    ///     these pre-allocation checks, a crafted PNG could declare a first-chunk, <c>PLTE</c>, or
-    ///     <c>tRNS</c> length that is large (but still below <see cref="uint.MaxValue"/>'s
-    ///     already-enforced <see cref="int.MaxValue"/> ceiling) purely to force a large allocation
-    ///     before the full post-read checks in <see cref="ProcessChunk"/> (IHDR-must-be-first,
-    ///     <c>PLTE</c>'s multiple-of-3 and exact bit-depth-derived entry cap, and the precise
-    ///     <c>ValidateAndNormalizeTrns</c> per-color-type/per-PLTE-entry-count checks) get a
-    ///     chance to reject it - this method exists purely to close that memory-exhaustion attack
-    ///     vector, not to duplicate those precise correctness checks, so its bounds are
-    ///     deliberately loose (the largest a spec-valid chunk of that type could ever be).
+    ///     <see cref="ReadIhdrChunkFrame"/>; (2) a declared <c>PLTE</c> or <c>tRNS</c> chunk
+    ///     length that already exceeds the largest length that type can legitimately have; and
+    ///     (3) a non-zero declared <c>IEND</c> chunk length, since <c>IEND</c> always carries zero
+    ///     bytes of data per the PNG specification. Without these pre-allocation checks, a crafted
+    ///     PNG could declare a first-chunk, <c>PLTE</c>, <c>tRNS</c>, or <c>IEND</c> length that is
+    ///     large (but still below <see cref="uint.MaxValue"/>'s already-enforced
+    ///     <see cref="int.MaxValue"/> ceiling) purely to force a large allocation before the full
+    ///     post-read checks in <see cref="ProcessChunk"/> (IHDR-must-be-first, <c>PLTE</c>'s
+    ///     multiple-of-3 and exact bit-depth-derived entry cap, the precise
+    ///     <c>ValidateAndNormalizeTrns</c> per-color-type/per-PLTE-entry-count checks, and
+    ///     <c>IEND</c>'s empty-payload check) get a chance to reject it - this method exists
+    ///     purely to close that memory-exhaustion attack vector, not to duplicate those precise
+    ///     correctness checks, so its bounds are deliberately loose (the largest a spec-valid
+    ///     chunk of that type could ever be).
     /// </summary>
     /// <param name="typeBytes">The chunk's 4-byte type field.</param>
     /// <param name="length">The chunk's declared data length, read from the chunk header.</param>
@@ -776,8 +788,9 @@ public static class PngCodec
     /// </param>
     /// <exception cref="System.IO.InvalidDataException">
     ///     Thrown when the first chunk is not <c>IHDR</c>, an <c>IHDR</c> first chunk's declared
-    ///     length is not exactly 13, or a <c>PLTE</c>/<c>tRNS</c> chunk declares a length beyond
-    ///     the largest value that type can legitimately have.
+    ///     length is not exactly 13, a <c>PLTE</c>/<c>tRNS</c> chunk declares a length beyond the
+    ///     largest value that type can legitimately have, or an <c>IEND</c> chunk declares a
+    ///     non-zero length.
     /// </exception>
     private static void ValidateChunkLengthBeforeAllocation(byte[] typeBytes, uint length, ChunkReadState state)
     {
@@ -824,6 +837,14 @@ public static class PngCodec
                     $"PNG tRNS chunk declares a {length}-byte payload, which exceeds the maximum of " +
                     $"{maxLength} bytes permitted for this file.");
             }
+        }
+        else if (ChunkTypeIs(typeBytes, "IEND") && length != 0)
+        {
+            // IEND always carries zero bytes of data per the PNG specification; reject a
+            // non-zero declared length before ReadChunkFrame allocates a payload buffer for it,
+            // rather than only after the payload has already been allocated and read
+            throw new InvalidDataException(
+                $"IEND chunk must have an empty payload, but declared {length} bytes.");
         }
     }
 

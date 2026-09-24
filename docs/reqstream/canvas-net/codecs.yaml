@@ -271,6 +271,7 @@ sections:
               - CanvasNet-Codecs-PngCodec-LoadTrnsOrderRequiresPlteForPalette
               - CanvasNet-Codecs-PngCodec-LoadTrnsForbiddenForAlphaColorTypes
               - CanvasNet-Codecs-PngCodec-LoadNonConsecutiveIdat
+              - CanvasNet-Codecs-PngCodec-LoadIendNonEmptyPayload
               - CanvasNet-Codecs-PngCodec-PngSuiteUnsupported
               - CanvasNet-Codecs-PngCodec-PngSuiteCorrupt
               - CanvasNet-Codecs-PngCodec-PngSuiteCorruptAfterIhdr
@@ -296,6 +297,7 @@ sections:
               - PngCodec_Load_TrnsOnGrayscaleAlpha_ThrowsInvalidDataException
               - PngCodec_Load_TrnsOnTruecolorAlpha_ThrowsInvalidDataException
               - PngCodec_Load_NonConsecutiveIdatChunks_ThrowsInvalidDataException
+              - PngCodec_Load_IendWithNonEmptyPayload_ThrowsInvalidDataException
               - PngCodec_PngSuiteCorruptAfterIhdrFile_GetInfoReturnsCorrectDimensions_ButLoadThrows
 
           - id: CanvasNet-Codecs-PngGetInfo

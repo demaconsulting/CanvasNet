@@ -227,7 +227,10 @@ when present (see above), including the color-type and chunk-ordering rejections
 `IDAT` chunk data is concatenated across as many consecutive chunks as are present (see the
 `IDAT`-consecutiveness design decision above); any other recognized ancillary chunk type (for
 example `tEXt`, `pHYs`, `gAMA`) is CRC-validated but otherwise skipped, while an unrecognized
-critical chunk type is rejected (see above).
+critical chunk type is rejected (see above). `IEND`'s declared length must be exactly zero — the
+PNG specification defines `IEND` as always carrying an empty payload — checked both before
+allocation (a huge declared `IEND` length is rejected by the same pre-allocation callback used for
+`PLTE`/`tRNS`/the first chunk) and, redundantly, after the chunk is read.
 Once `IEND` is reached, the concatenated `IDAT` payload is unwrapped as a zlib stream (2-byte
 header validated, `DeflateStream` inflates the DEFLATE data, the 4-byte Adler-32 trailer is
 validated against the decompressed bytes), then each scanline is defiltered (reconstructing all
@@ -272,7 +275,8 @@ though `Load` refuses them; see _GetInfo(Stream stream)_ below.
   grayscale-with-alpha or Truecolor-with-alpha file, or one that precedes the `PLTE` chunk on a
   Palette file; a color-type-3 (Palette) file missing its `PLTE`
   chunk, or containing a pixel whose palette index is out of range; a malformed `tRNS` chunk
-  length for its color type; non-positive width or height, or width/height exceeding
+  length for its color type; a non-empty `IEND` payload (checked both before allocation and after
+  the chunk is read); non-positive width or height, or width/height exceeding
   `Surface.MaxDimension`; non-consecutive `IDAT` chunks; any chunk's CRC-32 mismatch; a malformed
   or unsupported zlib header; an
   Adler-32 checksum mismatch; an unexpected decompressed data length; an unsupported scanline
@@ -347,15 +351,18 @@ design decision below) and, before any length-dependent data payload is allocate
 the very first chunk in the file, that its type is `IHDR` and its declared length is exactly 13
 (mirroring `ReadIhdrChunkFrame`'s identical guard on `GetInfo`'s path, since `Load`'s `ReadChunks`
 reads its first chunk through this same general-purpose reader rather than through
-`ReadIhdrChunkFrame`); and, for `PLTE` and `tRNS` specifically, the declared length against that
-type's largest legitimate size. A crafted first chunk, `PLTE`, or `tRNS` chunk can therefore never
-force a large allocation by declaring a huge (but still sub-`int.MaxValue`) length: a non-`IHDR`
-first chunk, or an `IHDR` first chunk whose declared length is not exactly 13, is rejected before
+`ReadIhdrChunkFrame`); for `PLTE` and `tRNS` specifically, the declared length against that
+type's largest legitimate size; and for `IEND`, that the declared length is exactly zero. A
+crafted first chunk, `PLTE`, `tRNS`, or `IEND` chunk can therefore never force a large allocation
+by declaring a huge (but still sub-`int.MaxValue`) length: a non-`IHDR` first chunk, or an `IHDR`
+first chunk whose declared length is not exactly 13, is rejected before
 any allocation; `PLTE`'s declared length is rejected once it exceeds 768 bytes (256 three-byte
 entries, the largest a spec-valid `PLTE` chunk can ever be, regardless of color type or bit depth);
-and `tRNS`'s declared length is rejected once it exceeds the color type's exact size (2 bytes for
+`tRNS`'s declared length is rejected once it exceeds the color type's exact size (2 bytes for
 Grayscale, 6 for Truecolor) once `IHDR` has been parsed, or the 256-byte palette-entry ceiling
-otherwise. This pre-allocation check is deliberately loose - it exists only to close the
+otherwise; and `IEND`'s declared length is rejected the moment it is non-zero, since the PNG
+specification defines `IEND` as always carrying an empty payload. This pre-allocation check is
+deliberately loose - it exists only to close the
 memory-exhaustion vector, not to duplicate the exact per-color-type/per-bit-depth correctness
 checks that still run afterward on the (now safely small) allocated payload, in `ProcessChunk`,
 `ParseIhdr`, and `ValidateAndNormalizeTrns`. Every other chunk type past the first (`IDAT`

@@ -336,6 +336,15 @@ consecutive `IDAT` chunks (with no other chunk type interleaved) still loads and
 successfully, since encoders commonly split one image's payload across several small IDAT chunks
 for streaming purposes.
 
+#### CanvasNet-Codecs-PngCodec-LoadIendNonEmptyPayload: Load Rejects a Non-Empty IEND Payload
+
+**Test**: `PngCodec_Load_IendWithNonEmptyPayload_ThrowsInvalidDataException`
+
+Builds a valid one-pixel Truecolor PNG whose terminating `IEND` chunk declares a 3-byte payload
+(with a correct CRC-32 computed over that payload, so the rejection is due to the length check,
+not an incidental CRC mismatch), and asserts `Load` throws `InvalidDataException` naming `IEND`
+as the cause, since the PNG specification defines `IEND` as always carrying zero bytes of data.
+
 #### CanvasNet-Codecs-PngCodec-PngSuiteSupported: PngSuite Files Within Scope Load Successfully
 
 **Test**: `PngCodec_Load_PngSuiteSupportedFile_ReturnsCanvas` (`[Theory]` over 126 PngSuite files)

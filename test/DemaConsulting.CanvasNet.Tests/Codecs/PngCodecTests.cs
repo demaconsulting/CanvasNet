@@ -1364,6 +1364,73 @@ public class PngCodecTests
     }
 
     /// <summary>
+    ///     Regression test for a code-review finding: the PNG specification defines
+    ///     <c>IEND</c> as always carrying zero bytes of data, but <c>ProcessChunk</c> used to set
+    ///     <c>IendSeen</c> without checking the payload's length, so a CRC-valid <c>IEND</c>
+    ///     chunk with a non-empty payload was silently accepted and the file decoded successfully.
+    ///     Proves that Load now rejects such a file with <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_IendWithNonEmptyPayload_ThrowsInvalidDataException()
+    {
+        // Arrange: a valid one-pixel Truecolor PNG, but its terminating IEND chunk declares a
+        // 3-byte payload instead of the mandatory empty payload (CRC-32 computed to match)
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 2 /* Truecolor */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+
+        var raw = new byte[] { 0, 10, 20, 30 }; // filter type 0 (None) + one RGB pixel
+        var zlib = ZlibCompress(raw);
+        var idat = BuildChunk("IDAT", zlib);
+        stream.Write(idat, 0, idat.Length);
+
+        var iend = BuildChunk("IEND", [1, 2, 3]);
+        stream.Write(iend, 0, iend.Length);
+        stream.Position = 0;
+
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        Assert.Contains("IEND", exception.Message);
+    }
+
+    /// <summary>
+    ///     Regression test for a code-review finding: an <c>IEND</c> chunk's empty-payload check
+    ///     used to run only after <c>ReadChunkFrame</c> had already allocated and read the full
+    ///     declared payload, so a crafted PNG could declare a huge (but still
+    ///     sub-<see cref="int.MaxValue"/>) <c>IEND</c> length purely to force a large allocation
+    ///     before the empty-payload check ran. Proves, by measuring actual bytes allocated (never
+    ///     wall-clock time or a real multi-gigabyte buffer), that a non-zero declared <c>IEND</c>
+    ///     length is rejected before that payload is allocated.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_IendChunkWithHugeDeclaredLength_ThrowsWithoutLargeAllocation()
+    {
+        // Arrange: a valid IHDR followed by an "IEND"-typed chunk header declaring a 100 MB
+        // length, with no real trailing data at all
+        using var stream = new MemoryStream();
+        var ihdr = BuildIhdrChunk(1, 1, 8, 2 /* Truecolor */, 0, 0, 0);
+        stream.Write(Signature, 0, Signature.Length);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var header = BuildFakeChunkHeader("IEND", 100_000_000);
+        stream.Write(header, 0, header.Length);
+        stream.Position = 0;
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert
+        Assert.Contains("IEND", ex.Message);
+
+        const long maxExpectedAllocatedBytes = 1024 * 1024;
+        Assert.True(
+            allocatedDuring < maxExpectedAllocatedBytes,
+            $"Expected no large allocation, but {allocatedDuring:N0} bytes were allocated.");
+    }
+
+    /// <summary>
     ///     Proves that Load rejects a bit-depth/color-type combination that is itself invalid per
     ///     the PNG specification (not merely unimplemented by this codec), with
     ///     InvalidDataException. No PngSuite fixture exercises these combinations, since they are

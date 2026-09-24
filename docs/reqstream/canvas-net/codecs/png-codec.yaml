@@ -446,6 +446,18 @@ sections:
                   - PngCodec_Load_NonConsecutiveIdatChunks_ThrowsInvalidDataException
                   - PngCodec_Load_MultipleIdatChunks_ReturnsExpectedPixels
 
+              - id: CanvasNet-Codecs-PngCodec-LoadIendNonEmptyPayload
+                title: >-
+                  The PngCodec class shall reject an IEND chunk whose declared length is not
+                  exactly zero with InvalidDataException.
+                justification: |
+                  The PNG specification defines IEND as always carrying zero bytes of data; a
+                  non-empty payload is non-conforming and silently accepting it (as if it were a
+                  valid, empty IEND chunk) would mean tolerating a file a correct encoder never
+                  produces.
+                tests:
+                  - PngCodec_Load_IendWithNonEmptyPayload_ThrowsInvalidDataException
+
               - id: CanvasNet-Codecs-PngCodec-GetInfo
                 title: >-
                   The PngCodec class shall report a PNG's width, height, channel count, and alpha
