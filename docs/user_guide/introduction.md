@@ -750,8 +750,11 @@ is always 4 and `HasAlpha` is always true.
 
 - `ArgumentNullException`: Thrown when `stream` is null.
 - `InvalidDataException`: Thrown when the stream is not well-formed XML up to and including the
-  root start-tag, its root element is not named `svg`, or its `viewBox`/`width`/`height`
-  attributes are present but malformed.
+  root start-tag, its character count exceeds the document character cap, its root element is not
+  named `svg`, or its `viewBox` attribute is present but malformed (not exactly four numbers, or
+  non-positive width/height). A malformed or unparseable `width`/`height` attribute is **not**
+  included in this list: such a value is treated as absent and falls back to the next sizing tier
+  (ultimately the 300x150 default size) rather than throwing.
 
 ##### SvgCodec.GetInfo(string path)
 

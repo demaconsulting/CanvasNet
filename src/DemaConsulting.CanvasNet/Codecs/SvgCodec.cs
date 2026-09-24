@@ -418,8 +418,13 @@ public static class SvgCodec
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when the stream does not contain a well-formed SVG document, or its sizing
-    ///     attributes are malformed - see this class's error-handling policy remarks.
+    ///     Thrown when the stream is not well-formed XML up to and including the root start-tag,
+    ///     its character count exceeds <see cref="MaxDocumentCharacters"/>, its root element is not
+    ///     named <c>svg</c>, or its <c>viewBox</c> attribute is present but malformed (not exactly
+    ///     four numbers, or non-positive width/height). A malformed or unparseable <c>width</c>/
+    ///     <c>height</c> attribute is <b>not</b> included in this list: per this class's GetInfo
+    ///     fallback policy remarks, such a value is treated as absent and falls back to the next
+    ///     sizing tier (ultimately the 300x150 default size) rather than throwing.
     /// </exception>
     public static ImageInfo GetInfo(Stream stream)
     {

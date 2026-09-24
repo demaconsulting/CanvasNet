@@ -327,6 +327,7 @@ sections:
                   - SvgCodec_GetInfo_NoViewBoxWidthHeightPresent_ReturnsWidthHeight
                   - SvgCodec_GetInfo_NoViewBoxNoWidthHeight_ReturnsCssDefault300x150
                   - SvgCodec_GetInfo_WidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing
+                  - SvgCodec_GetInfo_WidthHeightInfinity_FallsBackToDefaultSize
 
               - id: CanvasNet-Codecs-SvgCodec-MalformedXmlRejected
                 title: >-
