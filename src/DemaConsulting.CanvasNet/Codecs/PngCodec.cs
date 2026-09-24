@@ -7,10 +7,11 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     Identifies the PNG color type used when saving a <see cref="Surface"/> to PNG format.
 /// </summary>
 /// <remarks>
-///     Only the two 8-bit-per-channel Truecolor variants supported by <see cref="PngCodec"/> are
-///     represented here, using the same numeric values as the PNG specification's color type
-///     byte; grayscale, palette/indexed, and 16-bit-depth PNG variants are out of scope for this
-///     codec and are never produced by <see cref="PngCodec.Save(Surface, System.IO.Stream, PngColorType)"/>.
+///     Only the two 8-bit-per-channel Truecolor variants supported by
+///     <see cref="PngCodec.Save(Surface, System.IO.Stream, PngColorType)"/> are represented here,
+///     using the same numeric values as the PNG specification's color type byte; grayscale,
+///     palette/indexed, and 16-bit-depth PNG variants are out of scope for <c>Save</c> and are
+///     never produced by it, but they are decoded by <see cref="PngCodec.Load(System.IO.Stream)"/>.
 /// </remarks>
 public enum PngColorType
 {
