@@ -455,6 +455,38 @@ public class PathStrokerTests
     }
 
     /// <summary>
+    ///     Proves that a huge-but-finite total path length combined with a fine dash span does
+    ///     not hang the public <see cref="PathStroker.Stroke(Path, StrokeStyle, float)"/> entry
+    ///     point, pairing with <see cref="DashSplitterTests.DashSplitter_Split_HugeFiniteTotalLengthWithFineDashSpan_FallsBackToSolidStroke"/>.
+    ///     Calls <c>Stroke</c> directly and synchronously (no <c>Task.Run</c>/<c>Task.WhenAny</c>/
+    ///     <c>Task.Delay</c> race): <c>DashSplitter.BuildOnIntervals</c>'s cheap pre-flight
+    ///     iteration estimate detects that this input's cost would exceed its iteration budget
+    ///     and short-circuits straight to the solid-stroke fallback without ever running the
+    ///     traversal loop, deterministically bounding the work (effectively O(1)) regardless of
+    ///     host machine speed, so the correct regression signal is that the call returns at all
+    ///     with a well-formed result, matching the direct-call convention already used by
+    ///     <see cref="PathStroker_Stroke_OverflowProneDashArrayWithNegativeOffset_CompletesWithoutHanging"/>
+    ///     above - not a wall-clock race that can spuriously report "hung" on slower CI hardware.
+    /// </summary>
+    [Fact]
+    public void PathStroker_Stroke_HugeFiniteCoordinatesWithFineDashPattern_CompletesWithoutHanging()
+    {
+        // Arrange
+        var path = new PathBuilder()
+            .MoveTo(new Vector2(-1e20f, -1e20f))
+            .LineTo(new Vector2(1e20f, 1e20f))
+            .Build();
+        var style = new StrokeStyle(2f, dashArray: [5f, 5f]);
+
+        // Act: direct, synchronous call - the pre-flight iteration-budget estimate (not
+        // wall-clock time) is what guarantees termination, so there is nothing to race against.
+        var stroked = PathStroker.Stroke(path, style);
+
+        // Assert: the call returned (did not hang) with a well-formed result.
+        Assert.NotNull(stroked);
+    }
+
+    /// <summary>
     ///     Proves that a sharp corner exceeding the miter limit falls back to bevel geometry.
     /// </summary>
     [Fact]

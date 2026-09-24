@@ -988,38 +988,32 @@ public class JpegCodecTests
     ///     just past the marker code, at the 2-byte length field itself), after which the next
     ///     iteration's marker scan advances forward looking for the next real <c>0xFF</c> marker
     ///     byte, so the position always strictly advances rather than looping forever. This test
-    ///     independently reproduces that scenario and bounds it with
-    ///     <see cref="Task.Wait(TimeSpan)"/> (never wall-clock timing as a pass/fail signal
-    ///     itself - only the boolean "completed in time" result and the exception type are
-    ///     asserted), locking in that GetInfo terminates promptly with
-    ///     <see cref="InvalidDataException"/> rather than hanging.
+    ///     independently reproduces that scenario by calling <c>GetInfo</c> directly and
+    ///     synchronously (no <c>Task.Run</c>/<c>Task.WhenAny</c>/<c>Task.Delay</c> race): the
+    ///     position always strictly advancing is a deterministic, hardware-independent guarantee,
+    ///     so the correct regression signal is that the call returns at all with the documented
+    ///     <see cref="InvalidDataException"/> - not how long it takes to do so on any given
+    ///     machine. No wall-clock timing assertion is used: this project never uses timing-based
+    ///     test criteria, since CI hardware speed is outside our control and unreliable as a
+    ///     signal. Algorithmic termination is a structural guarantee (position strictly advancing
+    ///     each iteration), verified by code review, not by measuring elapsed time here.
     /// </summary>
     [Fact]
-    public async Task JpegCodec_GetInfo_ZeroLengthSegment_TerminatesPromptlyWithInvalidDataException()
+    public void JpegCodec_GetInfo_ZeroLengthSegment_TerminatesPromptlyWithInvalidDataException()
     {
         // SOI, then an APP0 marker whose 2-byte length field declares a length of 0 (invalid:
         // the length field must include itself, so the minimum valid value is 2), then EOI.
         var jpeg = new byte[] { 0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x00, 0xFF, 0xD9 };
-        var cancellationToken = TestContext.Current.CancellationToken;
 
-        InvalidDataException? caught = null;
-        var task = Task.Run(
-            () =>
-            {
-                try
-                {
-                    JpegCodec.GetInfo(new MemoryStream(jpeg));
-                }
-                catch (InvalidDataException ex)
-                {
-                    caught = ex;
-                }
-            },
-            cancellationToken);
+        // Act: call directly and synchronously - no Task.Run/WhenAny/Delay race, and no
+        // Stopwatch/timing assertion. The position always strictly advancing deterministically
+        // bounds the work, so this either returns with the documented exception (fixed) or the
+        // process itself would need to be killed by the CI job's own timeout (regressed to truly
+        // unbounded) - there is no ambiguous "slow but fine" middle ground that timing would add
+        // value in distinguishing.
+        var caught = Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(new MemoryStream(jpeg)));
 
-        var completedTask = await Task.WhenAny(task, Task.Delay(TimeSpan.FromSeconds(10), cancellationToken));
-
-        Assert.Same(task, completedTask);
+        // Assert: the call returned (did not hang) with the documented exception.
         Assert.NotNull(caught);
     }
 

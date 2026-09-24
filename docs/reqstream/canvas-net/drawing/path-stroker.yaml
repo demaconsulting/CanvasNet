@@ -168,6 +168,8 @@ sections:
                   - DashSplitter_Split_OverflowProneDashArrayWithNegativeOffset_CompletesWithoutHanging
                   - DashSplitter_Split_TinyNegativeOffsetAgainstHugePattern_ProducesCorrectPhase
                   - DashSplitter_Split_TinyNegativeOffsetAgainstAsymmetricHugePattern_ProducesCorrectPhase
+                  - DashSplitter_Split_HugeFiniteTotalLengthWithFineDashSpan_FallsBackToSolidStroke
+                  - PathStroker_Stroke_HugeFiniteCoordinatesWithFineDashPattern_CompletesWithoutHanging
 
               - id: CanvasNet-Drawing-PathStroker-NumericRobustness
                 title: >-

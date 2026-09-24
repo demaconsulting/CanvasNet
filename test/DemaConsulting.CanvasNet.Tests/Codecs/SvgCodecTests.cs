@@ -1,0 +1,3051 @@
+// cspell:ignore Sfnt sfnt glyf cmap notdef codepoint
+// cspell:ignore Dasharray hhea Hhea hmtx Hmtx hrefs letterboxed Loca Maxp unstroked
+// cspell:ignore miterlimit
+// cspell:ignore unparseable overpainted bbox moveto lineto rects
+using System.Reflection;
+using System.Text;
+using System.Xml.Linq;
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Drawing;
+using DemaConsulting.CanvasNet.Fonts;
+using DemaConsulting.CanvasNet.Tests.TestSupport;
+
+namespace DemaConsulting.CanvasNet.Tests.Codecs;
+
+/// <summary>
+///     Unit tests for <see cref="SvgCodec"/>, using hand-authored SVG string/stream fixtures.
+///     See <see cref="SvgFixtureTests"/> for real-file corpus and real-font integration coverage.
+/// </summary>
+public class SvgCodecTests
+{
+    /// <summary>Wraps <paramref name="svg"/> as a UTF-8 stream for <see cref="SvgCodec"/> to read.</summary>
+    private static MemoryStream ToStream(string svg) => new(Encoding.UTF8.GetBytes(svg));
+
+    /// <summary>
+    ///     Builds a minimal, well-formed synthetic font with two mapped 50x50-unit square glyphs
+    ///     ('A' at codepoint 65, glyph index 1; 'B' at codepoint 66, glyph index 2), a 100-unit
+    ///     advance width on each, a 100-unit em-square, and a single kerning pair between them, for
+    ///     controlled, predictable text-layout assertions (unlike the real, irregularly-shaped
+    ///     glyphs used by <see cref="SvgFixtureTests"/>'s Open Sans integration test).
+    /// </summary>
+    private static TrueTypeFont BuildTestFont()
+    {
+        var square = SyntheticFontBuilder.SimpleGlyph(
+        [
+            [(0, 0, true), (50, 0, true), (50, 50, true), (0, 50, true)]
+        ]);
+
+        var cmap = SyntheticFontBuilder.CmapFormat4(3, 1, [(65, 1), (66, 2)]);
+        var kern = SyntheticFontBuilder.KernFormat0([(1, 2, -10)]);
+
+        var data = new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(100, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(3))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(100, 0, 0, 3))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([0, 100, 100]))
+            .AddTable("loca", SyntheticFontBuilder.Loca([0, square.Length, square.Length], longFormat: false))
+            .AddTable("glyf", [.. square, .. square])
+            .AddTable("cmap", cmap)
+            .AddTable("kern", kern)
+            .Build();
+
+        return TrueTypeFont.Load(new MemoryStream(data));
+    }
+
+    // ================================================================================================
+    // Basic shapes
+    // ================================================================================================
+
+    /// <summary>Proves that a filled <c>rect</c> renders its solid color within its bounds.</summary>
+    [Fact]
+    public void SvgCodec_Load_Rect_RendersFilledRectangle()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 20 20'><rect x='5' y='5' width='10' height='10' fill='#112233'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 20, 20);
+
+        // Assert
+        Assert.Equal(new Rgba32(0x11, 0x22, 0x33, 255), surface[10, 10]);
+        Assert.Equal(0, surface[1, 1].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>rect</c> with <c>rx</c>/<c>ry</c> rounds its corners - the exact
+    ///     corner pixel is unfilled (cut by the rounding) while the shape's center remains filled.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_RectWithRoundedCorners_CutsCornerButFillsCenter()
+    {
+        // Arrange: a large rect with a generous corner radius, so anti-aliasing at the exact
+        // corner pixel cannot produce a false positive
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='0' y='0' width='100' height='100' rx='30' ry='30' fill='black'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the extreme corner (well within the cut radius) is unfilled, the center is filled
+        Assert.Equal(0, surface[1, 1].A);
+        Assert.Equal(255, surface[50, 50].A);
+    }
+
+    /// <summary>Proves that a filled <c>circle</c> renders its solid color at its center.</summary>
+    [Fact]
+    public void SvgCodec_Load_Circle_RendersFilledCircle()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='#00ff00'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: center is filled; far corner (outside the circle) is not
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[50, 50]);
+        Assert.Equal(0, surface[2, 2].A);
+    }
+
+    /// <summary>
+    ///     Proves that an <c>ellipse</c> with unequal radii fills an elongated region - a point on
+    ///     the long axis, outside the shorter axis's circle-equivalent radius, is still filled.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_Ellipse_RendersElongatedFill()
+    {
+        // Arrange: rx=40 (long axis), ry=10 (short axis)
+        const string svg = "<svg viewBox='0 0 100 100'><ellipse cx='50' cy='50' rx='40' ry='10' fill='#0000ff'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: point (85,50) is within the long (x) axis's radius but would be outside a
+        // radius-10 circle - only a true ellipse (not a circle) fills it
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[85, 50]);
+        // Assert: point (50,25) is outside the short (y) axis's radius
+        Assert.Equal(0, surface[50, 25].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>line</c> element strokes a visible line along its endpoints (a
+    ///     <c>line</c> has no interior to fill, only a stroke).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_Line_RendersStrokedLine()
+    {
+        // Arrange: a horizontal line across the middle of the canvas
+        const string svg = "<svg viewBox='0 0 100 100'><line x1='10' y1='50' x2='90' y2='50' stroke='black' stroke-width='6'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: a point on the line is stroked; a point well away from the line is not
+        Assert.Equal(255, surface[50, 50].A);
+        Assert.Equal(0, surface[50, 10].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>polyline</c> does not implicitly close its path - the segment between
+    ///     the last and first points is not stroked, unlike <c>polygon</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_Polyline_DoesNotCloseBetweenLastAndFirstPoint()
+    {
+        // Arrange: an open "L" shaped polyline; the implicit closing segment would run diagonally
+        // through the canvas center - a point on that closing diagonal, but not on the "L" itself,
+        // must remain unstroked
+        const string svg = "<svg viewBox='0 0 100 100'><polyline points='10,10 10,90 90,90' stroke='black' stroke-width='4' fill='none'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: a point on the actual "L" path is stroked
+        Assert.Equal(255, surface[10, 50].A);
+        // Assert: the canvas center, on the hypothetical closing segment from (90,90) to (10,10)
+        // but nowhere near the actual "L" path, remains unstroked
+        Assert.Equal(0, surface[50, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>polygon</c> both closes its path and fills its interior.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_Polygon_RendersClosedFilledShape()
+    {
+        // Arrange: a triangle
+        const string svg = "<svg viewBox='0 0 100 100'><polygon points='50,10 90,90 10,90' fill='#ff00ff'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the triangle's centroid-ish interior point is filled
+        Assert.Equal(new Rgba32(255, 0, 255, 255), surface[50, 70]);
+        // Assert: a point outside the triangle (above its apex) is not
+        Assert.Equal(0, surface[50, 5].A);
+    }
+
+    // ================================================================================================
+    // Path data ('d' attribute) mini-language commands
+    // ================================================================================================
+
+    /// <summary>Proves that absolute <c>M</c>/<c>L</c>/<c>Z</c> path commands render a filled triangle.</summary>
+    [Fact]
+    public void SvgCodec_Load_PathWithAbsoluteMoveLineClose_RendersFilledTriangle()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><path d='M50,10 L90,90 L10,90 Z' fill='black'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert
+        Assert.Equal(255, surface[50, 70].A);
+        Assert.Equal(0, surface[50, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that relative <c>m</c>/<c>l</c>/<c>z</c> path commands render the exact same
+    ///     shape as their absolute equivalents.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PathWithRelativeMoveLineClose_RendersSameShapeAsAbsolute()
+    {
+        // Arrange: the relative equivalent of "M50,10 L90,90 L10,90 Z"
+        const string svg = "<svg viewBox='0 0 100 100'><path d='m50,10 l40,80 l-80,0 z' fill='black'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: identical filled/unfilled pixels to the absolute-command test above
+        Assert.Equal(255, surface[50, 70].A);
+        Assert.Equal(0, surface[50, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>H</c>/<c>V</c> (absolute horizontal/vertical line) path commands render
+    ///     a filled rectangle equivalent to an ordinary <c>rect</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PathWithHorizontalAndVerticalLines_RendersRectangle()
+    {
+        // Arrange: a 10..90 square built from H/V commands instead of L
+        const string svg = "<svg viewBox='0 0 100 100'><path d='M10,10 H90 V90 H10 Z' fill='black'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert
+        Assert.Equal(255, surface[50, 50].A);
+        Assert.Equal(0, surface[5, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that a cubic Bezier (<c>C</c>) path command, with control points bulging
+    ///     outward from a base rectangle, fills at least the base rectangle's interior (a
+    ///     conservative, curve-shape-agnostic assertion).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PathWithCubicBezier_RendersFilledCurvedShape()
+    {
+        // Arrange: a shape whose top edge bulges upward via a cubic Bezier
+        const string svg = "<svg viewBox='0 0 100 100'><path d='M10,50 C10,10 90,10 90,50 L90,90 L10,90 Z' fill='black'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the base rectangle's interior is filled; well above the bulge is not
+        Assert.Equal(255, surface[50, 70].A);
+        Assert.Equal(0, surface[50, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that a smooth cubic Bezier (<c>S</c>) path command following a <c>C</c> command
+    ///     is accepted and renders filled content (reflecting the preceding command's control
+    ///     point, per the SVG "smooth" command rule).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PathWithSmoothCubicBezier_RendersFilledShape()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><path d='M10,50 C10,10 50,10 50,50 S90,90 90,50 L90,90 L10,90 Z' fill='black'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert
+        Assert.Equal(255, surface[50, 60].A);
+    }
+
+    /// <summary>Proves that a quadratic Bezier (<c>Q</c>) path command renders filled content.</summary>
+    [Fact]
+    public void SvgCodec_Load_PathWithQuadraticBezier_RendersFilledShape()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><path d='M10,50 Q50,10 90,50 L90,90 L10,90 Z' fill='black'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert
+        Assert.Equal(255, surface[50, 70].A);
+        Assert.Equal(0, surface[50, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that a smooth quadratic Bezier (<c>T</c>) path command following a <c>Q</c>
+    ///     command is accepted and renders filled content.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PathWithSmoothQuadraticBezier_RendersFilledShape()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><path d='M10,50 Q30,10 50,50 T90,50 L90,90 L10,90 Z' fill='black'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert
+        Assert.Equal(255, surface[50, 60].A);
+    }
+
+    /// <summary>
+    ///     Proves that an elliptical arc (<c>A</c>) path command renders filled content - a
+    ///     half-disc built from a diameter line plus a semicircular arc.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PathWithArc_RendersFilledHalfDisc()
+    {
+        // Arrange: a half-disc of radius 40 centered at (50,50), flat edge on top
+        const string svg = "<svg viewBox='0 0 100 100'><path d='M10,50 A40,40 0 0 0 90,50 Z' fill='black'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: a point well within the half-disc (below the flat edge) is filled
+        Assert.Equal(255, surface[50, 80].A);
+        // Assert: a point above the flat edge (outside the half-disc) is not
+        Assert.Equal(0, surface[50, 20].A);
+    }
+
+    // ================================================================================================
+    // Group presentation-attribute inheritance and opacity
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that a <c>g</c> element's <c>fill</c> attribute cascades down to a child shape
+    ///     that does not set its own <c>fill</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GroupFillInheritance_AppliesToChildWithoutOwnFill()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><g fill='#ff8800'><rect x='10' y='10' width='30' height='30'/></g></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert
+        Assert.Equal(new Rgba32(0xFF, 0x88, 0x00, 255), surface[25, 25]);
+    }
+
+    /// <summary>
+    ///     Proves that a child element's own <c>fill</c> attribute overrides its parent group's
+    ///     cascaded <c>fill</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ChildOwnFill_OverridesGroupFill()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><g fill='red'><rect x='10' y='10' width='30' height='30' fill='blue'/></g></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[25, 25]);
+    }
+
+    /// <summary>
+    ///     Proves that nested groups' <c>opacity</c> values multiply together and are folded into
+    ///     the final shape's alpha, per this codec's documented opacity-cascade simplification.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_NestedGroupOpacity_MultipliesIntoFillAlpha()
+    {
+        // Arrange: two nested 50%-opacity groups multiply to 25% (0.25 * 255 = 63.75 ~ 64)
+        const string svg = "<svg viewBox='0 0 100 100'><g opacity='0.5'><g opacity='0.5'><rect x='10' y='10' width='30' height='30' fill='black'/></g></g></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: resulting alpha is approximately 25% of fully opaque, not 50% or 100%
+        var alpha = surface[25, 25].A;
+        Assert.InRange(alpha, 55, 70);
+    }
+
+    // ================================================================================================
+    // Transform attribute functions
+    // ================================================================================================
+
+    /// <summary>Proves that a <c>translate</c> transform moves a shape by the given offset.</summary>
+    [Fact]
+    public void SvgCodec_Load_TranslateTransform_MovesShapeByOffset()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='0' y='0' width='20' height='20' fill='black' transform='translate(40,40)'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: filled at the translated position; not filled at the pre-translation position
+        Assert.Equal(255, surface[50, 50].A);
+        Assert.Equal(0, surface[10, 10].A);
+    }
+
+    /// <summary>Proves that a <c>scale</c> transform enlarges a shape about the origin.</summary>
+    [Fact]
+    public void SvgCodec_Load_ScaleTransform_EnlargesShapeAboutOrigin()
+    {
+        // Arrange: a 10x10 rect scaled 5x becomes a 50x50 rect, both anchored at the origin
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='0' y='0' width='10' height='10' fill='black' transform='scale(5)'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: filled well within the scaled-up shape; not filled beyond it
+        Assert.Equal(255, surface[40, 40].A);
+        Assert.Equal(0, surface[60, 60].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>rotate</c> transform rotates a shape about the origin per the SVG
+    ///     formula (x' = x*cos(a) - y*sin(a), y' = x*sin(a) + y*cos(a)), mapping a 90-degree
+    ///     rotation of the point (40,0) to (0,40).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_RotateTransform_RotatesShapeAboutOrigin()
+    {
+        // Arrange: a small square far along the local +x axis, rotated 90 degrees
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='35' y='-5' width='10' height='10' fill='black' transform='rotate(90)'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the square (originally centered near local (40,0)) now renders near (0,40)
+        Assert.Equal(255, surface[0, 40].A);
+        // Assert: its pre-rotation position, near (40,0), is now unfilled
+        Assert.Equal(0, surface[40, 2].A);
+    }
+
+    /// <summary>Proves that a <c>matrix</c> transform applies its six raw components directly.</summary>
+    [Fact]
+    public void SvgCodec_Load_MatrixTransform_AppliesRawComponents()
+    {
+        // Arrange: matrix(1,0,0,1,40,40) is equivalent to translate(40,40)
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='0' y='0' width='20' height='20' fill='black' transform='matrix(1,0,0,1,40,40)'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert
+        Assert.Equal(255, surface[50, 50].A);
+        Assert.Equal(0, surface[10, 10].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>skewX</c> transform shears a shape along x, proportional to y - a
+    ///     point far down the shape shifts right, while the top edge (y=0) does not move at all.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_SkewXTransform_ShearsShapeAlongX()
+    {
+        // Arrange: a tall, thin vertical strip, skewed by 45 degrees (tan(45) = 1, so the shift
+        // at a given y equals y itself)
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='10' y='0' width='4' height='80' fill='black' transform='skewX(45)'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: near the top (y=1), the strip has barely moved and still covers x~13
+        Assert.Equal(255, surface[13, 1].A);
+        // Assert: near the bottom (y=70), the strip has shifted right by ~70 and no longer
+        // covers its original x~12 position
+        Assert.Equal(0, surface[12, 70].A);
+        // Assert: at y=70 the shifted strip now covers x~82 (10+70 to 14+70)
+        Assert.Equal(255, surface[82, 70].A);
+    }
+
+    /// <summary>
+    ///     Proves that a combined transform function list is composed per the SVG specification's
+    ///     "rightmost function applied first" rule: <c>"translate(40,40) rotate(90)"</c> rotates
+    ///     the shape about the local origin first, then translates the rotated result - not the
+    ///     other way around.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CombinedTransformFunctions_AppliesRightmostFunctionFirst()
+    {
+        // Arrange: a 10x10 local rect centered near local x equals 40, y equals 0;
+        // rotate(90) alone would map it near x equals 0, y equals 40; translate(40,40) then
+        // shifts that to x equals 40, y equals 80
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='35' y='-5' width='10' height='10' fill='black' transform='translate(40,40) rotate(90)'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: filled at the "rotate-then-translate" expected position
+        Assert.Equal(255, surface[40, 80].A);
+        // Assert: the shape's pre-transform local position (around local (40,0), left unmapped
+        // by either composition order) remains unfilled
+        Assert.Equal(0, surface[40, 2].A);
+    }
+
+    // ================================================================================================
+    // Presentation attributes (fill/stroke families, fill-rule, dash array)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that <c>fill-rule="evenodd"</c> punches a hole where two overlapping subpaths'
+    ///     windings cancel, unlike the default <c>nonzero</c> rule, which fills the union.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FillRuleEvenOdd_PunchesHoleInOverlappingSubpaths()
+    {
+        // Arrange: two same-direction overlapping rectangles - evenodd cancels their shared center
+        const string svg = "<svg viewBox='0 0 100 100'><path d='M10,10 L90,10 L90,90 L10,90 Z M30,30 L70,30 L70,70 L30,70 Z' fill-rule='evenodd' fill='black'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the shared overlapping center is a hole (unfilled); the outer ring is filled
+        Assert.Equal(0, surface[50, 50].A);
+        Assert.Equal(255, surface[15, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves that the same overlapping subpaths under the default <c>nonzero</c> fill rule
+    ///     fill the union, including the center - the opposite of the <c>evenodd</c> case above.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FillRuleNonzeroDefault_FillsUnionOfOverlappingSubpaths()
+    {
+        // Arrange: identical geometry to the evenodd test above, but without fill-rule specified
+        const string svg = "<svg viewBox='0 0 100 100'><path d='M10,10 L90,10 L90,90 L10,90 Z M30,30 L70,30 L70,70 L30,70 Z' fill='black'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the center is filled under nonzero, unlike under evenodd
+        Assert.Equal(255, surface[50, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>fill="none"</c> paired with a <c>stroke</c> renders only the outline,
+    ///     leaving the shape's interior unfilled.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FillNoneWithStroke_RendersOnlyOutline()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='20' y='20' width='60' height='60' fill='none' stroke='black' stroke-width='6'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the outline (near x=20) is stroked; the interior (center) is not filled
+        Assert.Equal(255, surface[20, 50].A);
+        Assert.Equal(0, surface[50, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>stroke-dasharray</c> leaves visible gaps along a stroked line, rather
+    ///     than rendering a solid stroke.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_StrokeDasharray_RendersGapsAlongLine()
+    {
+        // Arrange: a long horizontal line with an evenly-spaced 10-on/10-off dash pattern
+        const string svg = "<svg viewBox='0 0 100 100'><line x1='0' y1='50' x2='100' y2='50' stroke='black' stroke-width='4' stroke-dasharray='10,10'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: at least one sampled point along the line is unstroked (a dash gap) - a solid
+        // stroke (dasharray ignored) would leave every sampled point stroked
+        var foundGap = false;
+        for (var x = 0; x < 100; x += 2)
+        {
+            if (surface[x, 50].A == 0)
+            {
+                foundGap = true;
+                break;
+            }
+        }
+
+        Assert.True(foundGap, "Expected at least one unstroked gap along the dashed line.");
+
+        // Assert: the very start of the line (within the first "on" dash segment) is stroked
+        Assert.Equal(255, surface[2, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>stroke-miterlimit</c> value of <c>0</c> - below
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.StrokeStyle"/>'s documented contract of
+    ///     "finite and at least 1" -
+    ///     falls back to the inherited/default value rather than reaching
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.StrokeStyle"/>'s constructor and throwing an uncaught
+    ///     <see cref="ArgumentOutOfRangeException"/>, matching this codec's existing tolerant
+    ///     handling of a malformed <c>stroke-dasharray</c>. The stroke still renders (non-zero
+    ///     alpha), proving the fallback rather than the whole stroke being silently dropped.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_StrokeMiterLimitZero_FallsBackToInheritedDefaultWithoutThrowing()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='20' y='20' width='60' height='60' fill='none' stroke='black' stroke-width='6' stroke-miterlimit='0'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the outline still renders (no exception, and the stroke was not dropped)
+        Assert.Equal(255, surface[20, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves that a negative <c>stroke-miterlimit</c> value likewise falls back to the
+    ///     inherited/default value without throwing, rather than only the boundary case of
+    ///     <c>0</c> above being tolerated.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_StrokeMiterLimitNegative_FallsBackToInheritedDefaultWithoutThrowing()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='20' y='20' width='60' height='60' fill='none' stroke='black' stroke-width='6' stroke-miterlimit='-5'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the outline still renders (no exception, and the stroke was not dropped)
+        Assert.Equal(255, surface[20, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>stroke-miterlimit</c> value of <c>NaN</c> - non-finite, and therefore
+    ///     below <see cref="DemaConsulting.CanvasNet.Drawing.StrokeStyle"/>'s documented contract of
+    ///     "finite and at least 1" -
+    ///     falls back to the inherited/default value rather than reaching
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.StrokeStyle"/>'s constructor and throwing an uncaught
+    ///     <see cref="ArgumentOutOfRangeException"/>, matching this codec's existing tolerant
+    ///     handling of a malformed <c>stroke-dasharray</c>. The stroke still renders (non-zero
+    ///     alpha), proving the fallback rather than the whole stroke being silently dropped.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_StrokeMiterLimitNaN_FallsBackToInheritedDefaultWithoutThrowing()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='20' y='20' width='60' height='60' fill='none' stroke='black' stroke-width='6' stroke-miterlimit='NaN'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the outline still renders (no exception, and the stroke was not dropped)
+        Assert.Equal(255, surface[20, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>stroke-miterlimit</c> value of <c>Infinity</c> - non-finite, and
+    ///     therefore below <see cref="DemaConsulting.CanvasNet.Drawing.StrokeStyle"/>'s documented
+    ///     contract of "finite and at least 1" -
+    ///     falls back to the inherited/default value rather than reaching
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.StrokeStyle"/>'s constructor and throwing an uncaught
+    ///     <see cref="ArgumentOutOfRangeException"/>, matching this codec's existing tolerant
+    ///     handling of a malformed <c>stroke-dasharray</c>. The stroke still renders (non-zero
+    ///     alpha), proving the fallback rather than the whole stroke being silently dropped.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_StrokeMiterLimitInfinity_FallsBackToInheritedDefaultWithoutThrowing()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='20' y='20' width='60' height='60' fill='none' stroke='black' stroke-width='6' stroke-miterlimit='Infinity'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the outline still renders (no exception, and the stroke was not dropped)
+        Assert.Equal(255, surface[20, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves that a valid <c>stroke-miterlimit</c> value continues to be accepted and applied
+    ///     (rather than every value being tolerated/ignored after the validation added above).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_StrokeMiterLimitValid_RendersNormally()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='20' y='20' width='60' height='60' fill='none' stroke='black' stroke-width='6' stroke-miterlimit='4'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the outline renders normally
+        Assert.Equal(255, surface[20, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves the finding's exact repro scenario: an in-bound-but-large <c>stroke-width</c>
+    ///     (<c>900000</c>, at or under <c>MaxCoordinateMagnitude</c>) combined with an
+    ///     in-bound-but-extreme <c>stroke-miterlimit</c> (<c>1e12</c>, finite and <c>&gt;= 1</c>,
+    ///     so it passes <see cref="DemaConsulting.CanvasNet.Codecs.SvgCodec"/>'s own
+    ///     <c>ParseValidMiterLimit</c> check) and a vertex whose interior angle is only
+    ///     ~<c>0.005</c> degrees away from a full reversal (an acute "spike" vertex) synthesizes a
+    ///     miter-join point roughly <c>1e10</c> units from the origin - many orders of magnitude
+    ///     beyond <c>MaxCoordinateMagnitude</c> - even though every individual literal (every path
+    ///     coordinate, the stroke width, and the miterlimit) independently passes its own
+    ///     parse-time check. Before the post-stroke re-check, this synthesized point reached the
+    ///     rasterizer's fill step, relying only on its clip-bounds intersection with the canvas to
+    ///     avoid a hang/crash - not itself a bug fix. After the fix, the entire stroke is
+    ///     tolerantly skipped instead.
+    /// </summary>
+    /// <remarks>
+    ///     The three path points below - <c>(10,50)</c>, <c>(50,50)</c>, and
+    ///     <c>(10.0000002,50.0034907)</c> - form a needle-thin spike: the first segment runs due
+    ///     east, and the second segment runs back nearly due west (almost retracing the first),
+    ///     deviating from an exact 180-degree reversal by only ~0.005 degrees. Since a miter
+    ///     length is <c>halfWidth / sin(interiorAngle / 2)</c>, this near-zero interior angle
+    ///     drives the miter ratio (and therefore the synthesized point's distance from the vertex)
+    ///     to roughly <c>22,900</c> times <c>halfWidth</c> (<c>450,000</c>), i.e. ~<c>1.03e10</c> -
+    ///     comfortably past <c>MaxCoordinateMagnitude</c> (<c>1,000,000</c>), while the miter ratio
+    ///     itself (~<c>22,900</c>) stays comfortably under the extreme <c>1e12</c> miterlimit, so
+    ///     <c>TryCreateMiter</c>'s own ratio-vs-miterlimit check does not reject it - the gap this
+    ///     fix closes is purely about the synthesized point's absolute magnitude, not its ratio.
+    ///     <para>
+    ///     Because <c>stroke-width="900000"</c> alone already dwarfs the 100x100 canvas (its
+    ///     half-width alone is 4,500 times the canvas size), an un-skipped stroke - spike or not -
+    ///     would engulf the entire canvas in solid stroke color. The assertion below therefore
+    ///     checks that the canvas has <b>no</b> stroke color anywhere, which is only possible if
+    ///     the whole stroke - including its ordinarily-covering non-spike portions - was skipped
+    ///     as a unit, exactly as <see cref="DemaConsulting.CanvasNet.Codecs.SvgCodec"/>'s other
+    ///     tolerant-skip guards already do for a shape/stroke as a whole.
+    ///     </para>
+    /// </remarks>
+    [Fact]
+    public void SvgCodec_Load_ExtremeMiterLimitWithSpikeVertexSynthesizesOversizedMiterPoint_SkipsStrokeWithoutThrowing()
+    {
+        // Arrange: a needle-thin spike vertex (interior angle ~0.005 degrees) with an in-bound
+        // stroke-width (900000, at MaxCoordinateMagnitude's near-boundary) and an in-bound
+        // miterlimit (1e12) - each individually compliant, but composing to a miter point ~1e10
+        // units from the origin
+        const string svg = "<svg viewBox='0 0 100 100'>" +
+                            "<path d='M 10,50 L 50,50 L 10.0000002,50.0034907' fill='none' " +
+                            "stroke='black' stroke-width='900000' stroke-miterlimit='1e12'/>" +
+                            "</svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: rendering completed without incident (no hang/crash), and the whole stroke -
+        // which, un-skipped, would have engulfed the entire 100x100 canvas given its 900,000-unit
+        // width alone - was tolerantly skipped in its entirety instead
+        Assert.Equal(100, surface.Width);
+        Assert.Equal(0, surface[50, 50].A);
+        Assert.Equal(0, surface[10, 50].A);
+        Assert.Equal(0, surface[99, 99].A);
+    }
+
+    /// <summary>
+    ///     Proves that an ordinary, legitimate miter join - a small, typical <c>stroke-width</c>,
+    ///     the SVG-default <c>stroke-miterlimit</c> of <c>4</c>, and a normal (not a degenerate
+    ///     near-straight/near-reversed spike) vertex angle - continues to render exactly as before,
+    ///     completely unaffected by the new post-stroke coordinate-magnitude re-check added
+    ///     alongside <see cref="SvgCodec_Load_ExtremeMiterLimitWithSpikeVertexSynthesizesOversizedMiterPoint_SkipsStrokeWithoutThrowing"/>
+    ///     above.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_NormalMiterJoinWithDefaultMiterLimit_RendersNormally()
+    {
+        // Arrange: a simple 90-degree corner (a well-conditioned, everyday miter join) with a
+        // small stroke-width and the SVG spec's own default stroke-miterlimit of 4
+        const string svg = "<svg viewBox='0 0 100 100'>" +
+                            "<path d='M 20,20 L 60,20 L 60,60' fill='none' " +
+                            "stroke='black' stroke-width='6' stroke-miterlimit='4'/>" +
+                            "</svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the corner's sharp miter tip renders as expected, near (60,20)
+        Assert.Equal(255, surface[60, 20].A);
+
+        // ... as does a point along each straight segment away from the corner
+        Assert.Equal(255, surface[40, 20].A);
+        Assert.Equal(255, surface[60, 40].A);
+    }
+
+    /// <summary>
+    ///     Proves that a stroke whose effective width overflows to <c>Infinity</c> - because seven
+    ///     nested <c>transform="scale(1000000)"</c> groups each carry an individually-finite
+    ///     literal (each at or under the codec's fixed <c>MaxCoordinateMagnitude</c> bound), but
+    ///     their composed determinant inside <see cref="SvgCodec"/>'s <c>EstimateUniformScale</c>
+    ///     overflows a <see langword="float"/> once composed seven levels deep (<c>1,000,000^7</c>) -
+    ///     is silently skipped rather than reaching
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.StrokeStyle"/>'s constructor and throwing an
+    ///     uncaught <see cref="ArgumentOutOfRangeException"/>. An infinite width passes the
+    ///     pre-existing <c>strokeWidth &lt;= 0f</c> guard unmodified (since <c>Infinity &gt; 0</c>),
+    ///     so this proves the additional finiteness check.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_NestedTransformScaleOverflowsStrokeWidthToInfinity_SkipsStrokeWithoutThrowing()
+    {
+        // Arrange: seven nested scale(1000000) groups - each individual literal is at the codec's
+        // fixed MaxCoordinateMagnitude bound (so none is rejected on its own), but composing seven
+        // of them (1,000,000^7 = 1e42) overflows float's ~3.4e38 range, producing a non-finite
+        // effective stroke width
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <g transform='scale(1000000)'>
+                <g transform='scale(1000000)'>
+                  <g transform='scale(1000000)'>
+                    <g transform='scale(1000000)'>
+                      <g transform='scale(1000000)'>
+                        <g transform='scale(1000000)'>
+                          <g transform='scale(1000000)'>
+                            <rect x='1' y='1' width='2' height='2' fill='none' stroke='black' stroke-width='1'/>
+                          </g>
+                        </g>
+                      </g>
+                    </g>
+                  </g>
+                </g>
+              </g>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: rendering completed without the raw ArgumentOutOfRangeException a non-finite
+        // effective stroke width reaching StrokeStyle's constructor would otherwise throw
+        Assert.Equal(100, surface.Width);
+    }
+
+    /// <summary>
+    ///     Proves that a stroke whose effective width is <b>finite but extreme</b> - a compliant,
+    ///     in-bound <c>stroke-width</c> composed with a large-but-finite transform scale, such
+    ///     that the scaled result exceeds <see cref="SvgCodec"/>'s fixed
+    ///     <c>MaxCoordinateMagnitude</c> bound without overflowing to <c>Infinity</c> - is
+    ///     tolerantly skipped rather than being fed into
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.PathStroker"/>'s offset-curve generation at
+    ///     a magnitude it was never meant to see.
+    /// </summary>
+    /// <remarks>
+    ///     This is a genuinely different case from
+    ///     <see cref="SvgCodec_Load_NestedTransformScaleOverflowsStrokeWidthToInfinity_SkipsStrokeWithoutThrowing"/>
+    ///     immediately above: that test's effective width overflows <see langword="float"/> range
+    ///     entirely (<c>Infinity</c>), which the pre-existing <c>!float.IsFinite(strokeWidth)</c>
+    ///     guard alone already catches. Here, a single <c>scale(900000)</c> transform applied to a
+    ///     tiny, near-origin rect (so its own transformed vertex coordinates stay comfortably
+    ///     under <c>MaxCoordinateMagnitude</c>, meaning the shape's coordinate-magnitude check
+    ///     passes and the fill still renders) combined with a small, compliant <c>stroke-width</c>
+    ///     of <c>2</c> yields an effective width of <c>2 * 900,000 = 1,800,000</c> - finite, and
+    ///     therefore invisible to the pre-existing guard, but still far past the
+    ///     1,000,000-magnitude bound, exactly the gap this fix closes.
+    /// </remarks>
+    [Fact]
+    public void SvgCodec_Load_StrokeWidthScaledPastMagnitudeBound_SkipsStrokeWithoutThrowing()
+    {
+        // Arrange: a tiny rect near the origin (so its transformed coordinates, up to 90, stay
+        // comfortably under the 1,000,000-magnitude bound and its fill still renders normally),
+        // with a small, in-bound stroke-width (2) and a scale(900000) transform whose effective
+        // stroke width (2 * 900,000 = 1,800,000) exceeds the same bound.
+        const string svg = "<svg viewBox='0 0 100 100'>" +
+                            "<rect x='0' y='0' width='0.0001' height='0.0001' fill='black' " +
+                            "stroke='blue' stroke-width='2' transform='scale(900000)'/>" +
+                            "</svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the fill still renders normally (its own transformed geometry stays within
+        // bound) ...
+        Assert.Equal(255, surface[45, 45].A);
+
+        // ... but the stroke was skipped rather than reaching PathStroker with a 1,800,000-unit
+        // effective width: an un-skipped stroke that huge would engulf the whole 100x100 canvas
+        // (its half-width alone dwarfs the canvas), so the far corner staying unfilled is direct
+        // evidence the oversized stroke outline was never generated.
+        Assert.Equal(0, surface[99, 99].A);
+    }
+
+    /// <summary>
+    ///     Proves the finding's required concrete repro: an element whose own composed
+    ///     <c>transform</c> overflows to non-finite, filled via <c>fill="url(#g)"</c> referencing a
+    ///     <c>linearGradient</c>, no longer lets a non-finite transform reach
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.Gradient"/>'s constructor and throw an
+    ///     uncaught <see cref="ArgumentOutOfRangeException"/> - the document loads successfully
+    ///     with the affected element's rendering tolerantly skipped.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_NestedTransformScaleOverflowsGradientTransformToNonFinite_SkipsElementWithoutThrowing()
+    {
+        // Arrange: seven nested scale(1000000) groups (each literal at the codec's fixed
+        // MaxCoordinateMagnitude bound) around a gradient-filled rect - before the fix, this threw
+        // a raw ArgumentOutOfRangeException from Gradient's constructor
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <linearGradient id='g'>
+                  <stop offset='0' stop-color='black'/>
+                  <stop offset='1' stop-color='white'/>
+                </linearGradient>
+              </defs>
+              <g transform='scale(1000000)'>
+                <g transform='scale(1000000)'>
+                  <g transform='scale(1000000)'>
+                    <g transform='scale(1000000)'>
+                      <g transform='scale(1000000)'>
+                        <g transform='scale(1000000)'>
+                          <g transform='scale(1000000)'>
+                            <rect x='1' y='1' width='2' height='2' fill='url(#g)'/>
+                          </g>
+                        </g>
+                      </g>
+                    </g>
+                  </g>
+                </g>
+              </g>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: loads without throwing, and the (skipped) rect leaves nothing rendered
+        Assert.Equal(100, surface.Width);
+        Assert.Equal(0, surface[50, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>stroke-dasharray</c> entry that is itself modest (well within the
+    ///     codec's fixed <c>MaxCoordinateMagnitude</c> bound) can still overflow to non-finite once
+    ///     scaled by an extreme-but-finite composed transform's own scale factor (the same scale
+    ///     <c>stroke-width</c> is already scaled by) - tolerantly falling back to "no dashing" (a
+    ///     solid stroke) rather than reaching
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.StrokeStyle"/>'s constructor and throwing an
+    ///     uncaught exception - mirroring <c>ParseDashArray</c>'s own existing tolerant
+    ///     "malformed dash array -&gt; no dashing" convention.
+    /// </summary>
+    /// <remarks>
+    ///     <b>Superseded by the coordinate-magnitude bound (Finding 6).</b> This scenario required
+    ///     an individually-finite <c>stroke-dasharray</c> entry large enough that, once scaled by a
+    ///     composed transform's own extreme-but-finite scale factor, the product overflowed float.
+    ///     That scale factor is <c>EstimateUniformScale</c>'s <c>sqrt(|M11*M22 - M12*M21|)</c>,
+    ///     whose own internal squaring means the scale factor itself cannot exceed roughly
+    ///     <c>sqrt(float.MaxValue) ≈ 1.84e19</c> without <c>EstimateUniformScale</c>'s own
+    ///     determinant computation overflowing first (which would make <c>strokeWidth</c> itself
+    ///     non-finite, skipping the whole stroke via the earlier check above - a different,
+    ///     already-covered case). With every dasharray entry now capped at
+    ///     <c>MaxCoordinateMagnitude</c> (1,000,000), the largest a scaled entry can ever reach is
+    ///     approximately <c>1,000,000 * 1.84e19 ≈ 1.84e25</c> - far short of float's ~3.4e38 range.
+    ///     This specific dasharray-scaling-only overflow is therefore no longer reachable through
+    ///     any input <c>Load</c> can be given; the tolerant fallback in <c>RenderStroke</c> remains
+    ///     in place as defense-in-depth (matching this class's other now-unreachable-but-retained
+    ///     guards - see <c>GeometryWorkBudget.Charge</c>'s own reachability note). This test
+    ///     is retained under its original name, repurposed to instead prove the new, earlier
+    ///     rejection point: a dasharray entry whose own raw magnitude exceeds
+    ///     <c>MaxCoordinateMagnitude</c> is now rejected by <c>TryReadNumber</c> before it can ever
+    ///     reach <c>RenderStroke</c>'s scaling at all.
+    /// </remarks>
+    [Fact]
+    public void SvgCodec_Load_ScaledDashArrayOverflowsToInfinity_FallsBackToSolidStrokeWithoutThrowing()
+    {
+        // Arrange: a dasharray entry one unit over the codec's fixed MaxCoordinateMagnitude bound
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <rect x='5' y='5' width='40' height='40' fill='none' stroke='black' stroke-width='2' stroke-dasharray='1000001,1'/>
+            </svg>
+            """;
+
+        // Act & Assert: rejected at parse time, well before RenderStroke's own scaling would ever
+        // run
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves that <c>opacity</c> multiplies into a solid fill color's alpha rather than
+    ///     leaving it fully opaque.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_Opacity_MultipliesIntoFillAlpha()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='10' y='10' width='30' height='30' fill='black' opacity='0.4'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: alpha is approximately 40% of fully opaque (0.4 * 255 = 102), not 0 or 255
+        Assert.InRange((int)surface[25, 25].A, 90, 112);
+    }
+
+    // ================================================================================================
+    // Gradients (linear, radial, spreadMethod, href template inheritance)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that a <c>userSpaceOnUse</c> linear gradient's stops map directly onto document
+    ///     user-space coordinates rather than the shape's own bounding box.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_LinearGradientUserSpaceOnUse_VariesAlongUserSpaceAxis()
+    {
+        // Arrange: gradient runs black-to-white along x equals 0 to x equals 100 in user space,
+        // independent of the filled rect's own (smaller, offset) bounding box
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <linearGradient id='g' gradientUnits='userSpaceOnUse' x1='0' y1='0' x2='100' y2='0'>
+                  <stop offset='0' stop-color='black'/>
+                  <stop offset='1' stop-color='white'/>
+                </linearGradient>
+              </defs>
+              <rect x='10' y='10' width='80' height='80' fill='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: brightness increases left to right, and reflects the user-space (not
+        // bounding-box-relative) axis
+        Assert.True(surface[20, 50].R < surface[80, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves that a radial gradient centered on a shape is brighter at its center than near
+    ///     its edge, for a "bright center, dark edge" stop configuration.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_RadialGradient_VariesFromCenterToEdge()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <radialGradient id='g' cx='0.5' cy='0.5' r='0.5'>
+                  <stop offset='0' stop-color='white'/>
+                  <stop offset='1' stop-color='black'/>
+                </radialGradient>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the center is brighter than a point near the shape's edge
+        Assert.True(surface[50, 50].R > surface[95, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>radialGradient</c> with a negative <c>r</c> - below
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.RadialGradient"/>'s documented contract of
+    ///     "finite and greater than or equal to zero" - falls back to the default radius
+    ///     (<c>0.5</c>, in objectBoundingBox units) rather than reaching
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.RadialGradient"/>'s constructor and throwing an
+    ///     uncaught <see cref="ArgumentOutOfRangeException"/>, matching this codec's existing
+    ///     tolerant handling of every other gradient coordinate. The fill still renders (non-zero
+    ///     alpha), proving the fallback rather than the whole gradient being silently dropped.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_RadialGradientRNegative_FallsBackToDefaultRadiusWithoutThrowing()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <radialGradient id='g' r='-5'>
+                  <stop offset='0' stop-color='red'/>
+                  <stop offset='1' stop-color='blue'/>
+                </radialGradient>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the rect still renders (no exception, and the fill was not dropped)
+        Assert.Equal(255, surface[5, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>radialGradient</c> with a negative <c>fr</c> (the SVG 2 focal-radius
+    ///     attribute) likewise falls back to its default (<c>0</c>) without throwing, rather than
+    ///     only the end-circle radius (<c>r</c>) above being covered.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_RadialGradientFrNegative_FallsBackToDefaultFocalRadiusWithoutThrowing()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <radialGradient id='g' r='0.5' fr='-1'>
+                  <stop offset='0' stop-color='red'/>
+                  <stop offset='1' stop-color='blue'/>
+                </radialGradient>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the rect still renders (no exception, and the fill was not dropped)
+        Assert.Equal(255, surface[5, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that a valid (non-negative) <c>r</c>/<c>fr</c> continues to be accepted and applied
+    ///     (rather than every value being tolerated/ignored after the validation added above).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_RadialGradientRFrValid_RendersNormally()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <radialGradient id='g' cx='0.5' cy='0.5' r='0.5' fr='0.1'>
+                  <stop offset='0' stop-color='white'/>
+                  <stop offset='1' stop-color='black'/>
+                </radialGradient>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the center is brighter than a point near the shape's edge (gradient still applied)
+        Assert.True(surface[50, 50].R > surface[95, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves <c>BuildGradient</c>'s own independent finiteness guard: a shape whose own
+    ///     ancestor <c>transform</c> chain composes to a value that is extreme but still finite (so
+    ///     <c>RenderElement</c>'s own composed-transform guard never fires) combined with an
+    ///     extreme-but-individually-finite <c>width</c>/<c>height</c> (each at the codec's fixed
+    ///     <c>MaxCoordinateMagnitude</c> bound) and the gradient's own
+    ///     <c>gradientTransform="scale(1000000)"</c> overflows only <c>BuildGradient</c>'s own
+    ///     <c>gradientTransform * bboxMap * elementTransform</c> product to a non-finite value - a
+    ///     genuinely distinct repro from
+    ///     <see cref="SvgCodec_Load_NestedTransformScaleOverflowsGradientTransformToNonFinite_SkipsElementWithoutThrowing"/>'s
+    ///     case (where the ancestor composition itself overflows), since here
+    ///     <c>RenderElement</c>'s own guard never fires - the ancestor-composed transform alone
+    ///     (1,000,000^5 = 1e30) stays finite. Before the fix, this also threw a raw
+    ///     <see cref="ArgumentOutOfRangeException"/> from
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.Gradient"/>'s constructor.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GradientTransformComposedWithHugeBoundingBoxOverflowsToNonFinite_TreatsAsNoPaintWithoutThrowing()
+    {
+        // Arrange: five nested scale(1000000) ancestor groups compose to an extreme-but-finite
+        // elementTransform (1,000,000^5 = 1e30, well under float's ~3.4e38 range, so
+        // RenderElement's own composed-transform guard stays satisfied), the rect's own
+        // width/height (1000000 each, at the codec's fixed MaxCoordinateMagnitude bound) give it a
+        // huge object-bounding-box scale, and the gradient's own gradientTransform (1000000, also
+        // at the bound) - only once all three are multiplied together inside BuildGradient
+        // (1e30 * 1e6 * 1e6 = 1e42) does the product overflow to a non-finite value
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <linearGradient id='g' gradientTransform='scale(1000000)'>
+                  <stop offset='0' stop-color='black'/>
+                  <stop offset='1' stop-color='white'/>
+                </linearGradient>
+              </defs>
+              <g transform='scale(1000000)'>
+                <g transform='scale(1000000)'>
+                  <g transform='scale(1000000)'>
+                    <g transform='scale(1000000)'>
+                      <g transform='scale(1000000)'>
+                        <rect x='0' y='0' width='1000000' height='1000000' fill='url(#g)'/>
+                      </g>
+                    </g>
+                  </g>
+                </g>
+              </g>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: loads without throwing, and the gradient fill is tolerated as "no paint"
+        Assert.Equal(100, surface.Width);
+        Assert.Equal(0, surface[50, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>spreadMethod="repeat"</c> tiles the gradient's base range rather than
+    ///     clamping ("pad", the default) beyond it.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GradientSpreadMethodRepeat_TilesPastBaseRange()
+    {
+        // Arrange: base gradient range spans only the first fifth of the rect's bounding box
+        // width (20 of 100 units); with repeat, x equals 5 and x equals 25 fall at the same
+        // fractional offset within successive tiles and should render nearly identically
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <linearGradient id='g' x1='0' y1='0' x2='0.2' y2='0' spreadMethod='repeat'>
+                  <stop offset='0' stop-color='black'/>
+                  <stop offset='1' stop-color='white'/>
+                </linearGradient>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the tiled positions render nearly the same color (repeat), and that color is
+        // not the fully-clamped white a "pad" (default) spread would produce at x equals 25
+        Assert.InRange(Math.Abs(surface[5, 50].R - surface[25, 50].R), 0, 12);
+        Assert.True(surface[25, 50].R < 200);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>stroke="url(#id)"</c> gradient reference paints the stroke itself
+    ///     with varying color, not just the fill.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_StrokeGradient_PaintsVaryingColorAlongStroke()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <linearGradient id='g' gradientUnits='userSpaceOnUse' x1='0' y1='0' x2='100' y2='0'>
+                  <stop offset='0' stop-color='black'/>
+                  <stop offset='1' stop-color='white'/>
+                </linearGradient>
+              </defs>
+              <line x1='0' y1='50' x2='100' y2='50' fill='none' stroke='url(#g)' stroke-width='10'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the stroke is darker near the start than near the end
+        Assert.True(surface[10, 50].R < surface[90, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves that a gradient with no <c>stop</c> children of its own inherits its color
+    ///     stops from the gradient it references via <c>href</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GradientHrefInheritance_InheritsStopsFromTemplate()
+    {
+        // Arrange: "derived" has its own geometry attributes but no stops of its own
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <linearGradient id='base' x1='0' y1='0' x2='1' y2='0'>
+                  <stop offset='0' stop-color='black'/>
+                  <stop offset='1' stop-color='white'/>
+                </linearGradient>
+                <linearGradient id='derived' href='#base' x1='0' y1='0' x2='1' y2='0'/>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='url(#derived)'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the inherited stops still produce a left-to-right brightness gradient
+        Assert.True(surface[10, 50].R < surface[90, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves that a gradient <c>href</c> chain of more than one hop still resolves (walking
+    ///     through an intermediate stop-less link) to the eventual stop-bearing template.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GradientHrefChainOfTwoHops_ResolvesToEventualStops()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <linearGradient id='base' x1='0' y1='0' x2='1' y2='0'>
+                  <stop offset='0' stop-color='black'/>
+                  <stop offset='1' stop-color='white'/>
+                </linearGradient>
+                <linearGradient id='middle' href='#base'/>
+                <linearGradient id='derived' href='#middle' x1='0' y1='0' x2='1' y2='0'/>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='url(#derived)'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert
+        Assert.True(surface[10, 50].R < surface[90, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves that a cyclical gradient <c>href</c> chain is rejected as malformed input
+    ///     rather than looping indefinitely.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GradientHrefCycle_ThrowsInvalidDataException()
+    {
+        // Arrange: "a" hrefs "b", which hrefs back to "a"
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <linearGradient id='a' href='#b'/>
+                <linearGradient id='b' href='#a'/>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='url(#a)'/>
+            </svg>
+            """;
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Regression test for the gradient-stop re-parsing amplification finding: a gradient's
+    ///     <c>stop</c> children were previously re-parsed from scratch on every single shape that
+    ///     referenced the same gradient, rather than once per gradient per <c>Load</c> call.
+    ///     Proves a gradient referenced by many shapes (directly, not via <c>use</c> fan-out)
+    ///     still renders every one of them identically to the (uncached) per-reference-reparse
+    ///     behavior, confirming <c>RenderContext.GradientStopCache</c> introduces no observable
+    ///     rendering change - each shape still gets the correct left-to-right brightness ramp from
+    ///     the same shared gradient.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GradientReferencedByManyShapes_CachesStopsAndRendersIdenticallyToUncached()
+    {
+        // Arrange: fifty separate rects, each referencing the same single gradient
+        var rects = string.Concat(Enumerable.Range(0, 50)
+            .Select(i => $"<rect x='0' y='{i}' width='100' height='1' fill='url(#g)'/>"));
+        var svg = $"""
+            <svg viewBox='0 0 100 50'>
+              <defs>
+                <linearGradient id='g' gradientUnits='userSpaceOnUse' x1='0' y1='0' x2='100' y2='0'>
+                  <stop offset='0' stop-color='black'/>
+                  <stop offset='1' stop-color='white'/>
+                </linearGradient>
+              </defs>
+              {rects}
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 50);
+
+        // Assert: every one of the 50 rows shows the same left-to-right brightness ramp from the
+        // shared, cached gradient
+        for (var row = 0; row < 50; row++)
+        {
+            Assert.True(
+                surface[10, row].R < surface[90, row].R,
+                $"Row {row} did not show the expected left-to-right brightness ramp.");
+        }
+    }
+
+    /// <summary>
+    ///     Closes the coverage gap left by
+    ///     <see cref="SvgCodec_Load_GradientReferencedByManyShapes_CachesStopsAndRendersIdenticallyToUncached"/>:
+    ///     that test only asserts rendered-pixel output, which is identical whether
+    ///     <c>ResolveGradientStops</c> actually caches its result or always re-parses the gradient's
+    ///     <c>stop</c> children from scratch - a fully reverted caching fix would still pass it. This
+    ///     test instead invokes the private <c>SvgCodec.ResolveGradientStops</c> helper directly (via
+    ///     reflection, matching the existing <c>BindingFlags.NonPublic</c> idiom used by e.g.
+    ///     <c>CmapTableTests</c>) twice with the same gradient element and the same private
+    ///     <c>RenderContext</c> instance, and asserts the second call returns the exact same
+    ///     <see cref="List{T}"/> instance as the first - proving the second call was served from
+    ///     <c>RenderContext.GradientStopCache</c> rather than re-parsed - and that the cache holds
+    ///     exactly one entry afterward.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_ResolveGradientStops_SameGradientElementResolvedTwice_ReturnsCachedListInstance()
+    {
+        // Arrange: reflect the private RenderContext nested type and construct one instance
+        var contextType = typeof(SvgCodec).GetNestedType("RenderContext", BindingFlags.NonPublic);
+        Assert.NotNull(contextType);
+
+        var constructor = contextType
+            .GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+            .Single(c => c.GetParameters().Length == 3);
+        var context = constructor.Invoke(
+        [
+            new Surface(1, 1),
+            new Dictionary<string, XElement>(),
+            null
+        ]);
+
+        // Arrange: reflect the private static ResolveGradientStops(XElement, RenderContext) method
+        var method = typeof(SvgCodec).GetMethod("ResolveGradientStops", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        // Arrange: one standalone gradient element, resolved against the same context twice
+        var gradientElement = XElement.Parse(
+            "<linearGradient><stop offset='0' stop-color='black'/><stop offset='1' stop-color='white'/></linearGradient>");
+
+        // Act
+        var first = (List<GradientStop>?)method.Invoke(null, [gradientElement, context]);
+        var second = (List<GradientStop>?)method.Invoke(null, [gradientElement, context]);
+
+        // Assert: the second resolution returned the identical cached instance, not a fresh re-parse
+        Assert.Same(first, second);
+
+        // Assert: the cache holds exactly one entry - the second call was served from it, not from
+        // some unrelated memoization path
+        var cacheProperty = contextType.GetProperty("GradientStopCache", BindingFlags.Public | BindingFlags.Instance);
+        Assert.NotNull(cacheProperty);
+        var cache = (Dictionary<XElement, List<GradientStop>>?)cacheProperty.GetValue(context);
+        Assert.NotNull(cache);
+        Assert.Single(cache);
+    }
+
+    // ================================================================================================
+    // <use> element
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that a <c>&lt;use&gt;</c> element renders a copy of its referenced element,
+    ///     offset by its own <c>x</c>/<c>y</c>, while the original element still renders in place
+    ///     - and that this resolves correctly even when <c>&lt;use&gt;</c> textually precedes the
+    ///     element it references (id-index resolution is document-order independent).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_UseElement_RendersCopyAtOffsetIndependentOfDocumentOrder()
+    {
+        // Arrange: the <use> appears before the <rect id='box'> it references
+        const string svg = "<svg viewBox='0 0 10 10'><use href='#box' x='2' y='2'/><rect id='box' x='0' y='0' width='4' height='4' fill='black'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 10, 10);
+
+        // Assert: the original box renders at (0,0)-(4,4)
+        Assert.Equal(255, surface[1, 1].A);
+        // Assert: the <use> copy renders offset by (2,2), i.e. at (2,2)-(6,6)
+        Assert.Equal(255, surface[5, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>&lt;use&gt;</c> referencing a nonexistent id is tolerated as a silent
+    ///     no-op rather than throwing.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_UseElementDanglingReference_IsSilentNoOp()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 10 10'><use href='#missing' x='0' y='0'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 10, 10);
+
+        // Assert: no exception, and nothing was rendered
+        Assert.Equal(0, surface[5, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>&lt;use&gt;</c> can reference a <c>&lt;g&gt;</c> group, rendering all
+    ///     of the group's children.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_UseElementReferencingGroup_RendersAllGroupChildren()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <g id='pair'>
+                  <rect x='0' y='0' width='4' height='4' fill='black'/>
+                  <rect x='6' y='0' width='4' height='4' fill='black'/>
+                </g>
+              </defs>
+              <use href='#pair' x='0' y='0'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 20, 20);
+
+        // Assert: both group children rendered
+        Assert.Equal(255, surface[1, 1].A);
+        Assert.Equal(255, surface[7, 1].A);
+    }
+
+    /// <summary>
+    ///     Proves that a mutually-recursive chain of <c>&lt;use&gt;</c> references (exceeding the
+    ///     implementation's bounded recursion guard) is rejected rather than looping/recursing
+    ///     indefinitely.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_UseElementMutualRecursionCycle_ThrowsInvalidDataException()
+    {
+        // Arrange: "a" uses "b", "b" uses "a" - an unbounded mutual cycle
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <g id='a'><use href='#b'/></g>
+              <g id='b'><use href='#a'/></g>
+              <use href='#a'/>
+            </svg>
+            """;
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves that <c>&lt;use&gt;</c> fan-out - where a group is legitimately (non-cyclically)
+    ///     referenced by several sibling <c>&lt;use&gt;</c> elements that themselves fan out
+    ///     further - is rejected once the total number of rendered elements exceeds the
+    ///     implementation's fixed total-element budget, even though every individual reference
+    ///     chain stays well within both the <c>use</c>-nesting and element-tree depth limits. This
+    ///     is a distinct bound from <see cref="SvgCodec_Load_UseElementMutualRecursionCycle_ThrowsInvalidDataException"/>
+    ///     (which guards against a reference cycle) and
+    ///     <see cref="SvgCodec_Load_DeeplyNestedGroups_ThrowsInvalidDataException"/> (which guards
+    ///     against a single deep reference chain) - here every chain is short, but the total
+    ///     number of elements visited grows exponentially with nesting depth.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_UseFanOutExceedingTotalElementBudget_ThrowsInvalidDataException()
+    {
+        // Arrange: 10 levels of groups, each containing 4 <use> references to the previous
+        // level's group - a fan-out of 4 per level means the total element count would need to
+        // reach roughly 4^10 (over one million) to fully expand, but the fix's fail-fast budget
+        // check means only a small fraction of that tree is actually visited before it throws,
+        // keeping this test near-instant despite the pathological document shape
+        var builder = new StringBuilder();
+        builder.Append("<svg viewBox='0 0 10 10'><defs>");
+        builder.Append("<g id='g0'><rect width='1' height='1'/></g>");
+        for (var level = 1; level <= 10; level++)
+        {
+            builder.Append($"<g id='g{level}'>");
+            for (var branch = 0; branch < 4; branch++)
+            {
+                builder.Append($"<use href='#g{level - 1}'/>");
+            }
+
+            builder.Append("</g>");
+        }
+
+        builder.Append("</defs><use href='#g10'/></svg>");
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(builder.ToString()), 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves that an element tree nesting many levels of plain <c>&lt;g&gt;</c> groups (no
+    ///     <c>&lt;use&gt;</c> involved) is rejected once it exceeds the implementation's bounded
+    ///     element-tree recursion depth guard, rather than recursing without limit and risking a
+    ///     stack overflow.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_DeeplyNestedGroups_ThrowsInvalidDataException()
+    {
+        // Arrange: several hundred levels of single-child nesting, comfortably exceeding the
+        // codec's maximum element-tree depth while remaining trivially fast to parse and reject
+        const int nestingLevels = 500;
+        var svg = "<svg viewBox='0 0 10 10'>"
+            + string.Concat(Enumerable.Repeat("<g>", nestingLevels))
+            + "<rect width='1' height='1'/>"
+            + string.Concat(Enumerable.Repeat("</g>", nestingLevels))
+            + "</svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+    }
+
+    // ================================================================================================
+    // Total geometry-parsing work budget (path data / point lists / text characters)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that a single <c>&lt;path&gt;</c> element whose <c>d</c> attribute contains just
+    ///     over the codec's fixed combined geometry-parsing work budget worth of implicit-repeat
+    ///     <c>L</c> commands is rejected with <see cref="InvalidDataException"/>, even though it
+    ///     counts as only a single element toward
+    ///     <see cref="SvgCodec_Load_UseFanOutExceedingTotalElementBudget_ThrowsInvalidDataException"/>'s
+    ///     separate total-rendered-element budget. The budget is charged incrementally (once per
+    ///     parsed command), so this test throws quickly rather than only after the whole
+    ///     (otherwise unbounded) <c>d</c> string has already been scanned.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PathDataExceedingGeometryWorkBudget_ThrowsInvalidDataException()
+    {
+        // Arrange: one initial "M" command plus 200,001 implicitly-repeated "L" commands - one
+        // more than the codec's fixed 200,000 combined geometry-parsing work budget
+        var d = "M0,0 " + string.Concat(Enumerable.Repeat("L1,1 ", 200_001));
+        var svg = $"<svg viewBox='0 0 10 10'><path d='{d}'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves that a single <c>&lt;polyline&gt;</c> element whose <c>points</c> attribute
+    ///     resolves to just over the codec's fixed combined geometry-parsing work budget worth of
+    ///     coordinate pairs is rejected with <see cref="InvalidDataException"/>, exercising the
+    ///     same shared budget as the path-data test above from a different source.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PointListExceedingGeometryWorkBudget_ThrowsInvalidDataException()
+    {
+        // Arrange: 200,001 coordinate pairs - one more than the codec's fixed 200,000 combined
+        // geometry-parsing work budget
+        var points = string.Concat(Enumerable.Repeat("1,1 ", 200_001));
+        var svg = $"<svg viewBox='0 0 10 10'><polyline points='{points}'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+    }
+
+    /// <summary>
+    ///     Regression test for the points-list budget-charging finding: <c>ParsePointList</c> used
+    ///     to fully parse the entire <c>points</c> attribute into a <c>List&lt;float&gt;</c> (via
+    ///     <c>ParseNumberList</c>) and then a <c>List&lt;Vector2&gt;</c> of the whole resolved pair
+    ///     count, before ever charging the geometry-parsing work budget - so a hostile, far larger
+    ///     than the budget <c>points</c> string was still fully materialized into two full-sized
+    ///     lists before being rejected, on top of the single already-unavoidable
+    ///     <c>XDocument.Load</c> attribute-value allocation every implementation pays regardless.
+    ///     Proves, by measuring actual bytes allocated (never wall-clock time) during
+    ///     <see cref="SvgCodec.Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont}?)"/>,
+    ///     that the fixed, incrementally-charging <c>ParsePointList</c> throws as soon as the
+    ///     budget is exceeded without ever retaining more than the budget's worth of parsed points
+    ///     - allocating markedly less than the old, fully-materializing implementation for the
+    ///     same input (empirically observed as roughly a third the allocation at this test's pair
+    ///     count, verified locally against the pre-fix implementation).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PointsListLargeExceedingBudget_ThrowsWithoutLargeAllocation()
+    {
+        // Arrange: a points string sized far beyond the codec's fixed 200,000-pair budget
+        // (generated programmatically, never a literal fixture) - large enough that fully
+        // materializing it into List<float>/List<Vector2> before charging allocates tens of
+        // megabytes more than incremental charging, which stops shortly after the budget is
+        // exceeded regardless of how much larger the raw points string is
+        const int hugePairCount = 1_000_000;
+        var points = string.Concat(Enumerable.Repeat("1,1 ", hugePairCount));
+        var svg = $"<svg viewBox='0 0 10 10'><polyline points='{points}'/></svg>";
+        var stream = ToStream(svg);
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 10, 10));
+        var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert
+        Assert.Contains("geometry-parsing work", ex.Message, StringComparison.OrdinalIgnoreCase);
+
+        const long maxExpectedAllocatedBytes = 64 * 1024 * 1024;
+        Assert.True(
+            allocatedDuring < maxExpectedAllocatedBytes,
+            $"Expected no large allocation, but {allocatedDuring:N0} bytes were allocated.");
+    }
+
+    /// <summary>
+    ///     Proves that a single <c>&lt;text&gt;</c> element whose content is just over the
+    ///     codec's fixed combined geometry-parsing work budget worth of characters is rejected
+    ///     with <see cref="InvalidDataException"/>, exercising the same shared budget from a third
+    ///     source. The budget is charged with the whole character count before the per-rune
+    ///     glyph-outline/kerning loop begins, so this test remains fast despite the long string.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextExceedingGeometryWorkBudget_ThrowsInvalidDataException()
+    {
+        // Arrange: 200,001 characters - one more than the codec's fixed 200,000 combined
+        // geometry-parsing work budget
+        var text = new string('A', 200_001);
+        var svg = $"<svg viewBox='0 0 10 10'><text x='0' y='5' font-family='TestFont' font-size='10'>{text}</text></svg>";
+        var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10, fonts));
+    }
+
+    // ================================================================================================
+    // Number-list attribute length budget (viewBox / transform arguments / stroke-dasharray)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that a <c>stroke-dasharray</c> attribute containing more than
+    ///     <c>ParseNumberList</c>'s fixed maximum number of numbers is rejected with
+    ///     <see cref="InvalidDataException"/>, and that the cap is charged incrementally (per
+    ///     number, as each is parsed) rather than only after the whole list has already been
+    ///     materialized into an unbounded <see cref="List{T}"/> - proven by measuring actual bytes
+    ///     allocated, matching the <see cref="SvgCodec_Load_PointsListLargeExceedingBudget_ThrowsWithoutLargeAllocation"/>
+    ///     allocation-bound precedent above.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_StrokeDasharrayExceedingNumberListLengthCap_ThrowsWithoutLargeAllocation()
+    {
+        // Arrange: a dasharray far larger than the codec's fixed 10,000-number cap (generated
+        // programmatically, never a literal fixture)
+        const int hugeNumberCount = 1_000_000;
+        var dasharray = string.Join(',', Enumerable.Repeat("1", hugeNumberCount));
+        var svg = $"<svg viewBox='0 0 10 10'><rect width='5' height='5' fill='none' stroke='black' stroke-dasharray='{dasharray}'/></svg>";
+        var stream = ToStream(svg);
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 10, 10));
+        var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert
+        Assert.Contains("number list", ex.Message, StringComparison.OrdinalIgnoreCase);
+
+        const long maxExpectedAllocatedBytes = 16 * 1024 * 1024;
+        Assert.True(
+            allocatedDuring < maxExpectedAllocatedBytes,
+            $"Expected no large allocation, but {allocatedDuring:N0} bytes were allocated.");
+    }
+
+    /// <summary>
+    ///     Proves the same number-list length cap is reached identically via a transform
+    ///     function's own argument list (here, <c>matrix(...)</c>, reached from a plain
+    ///     <c>transform</c> attribute) - a second call site sharing <c>ParseNumberList</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TransformArgumentListExceedingLengthCap_ThrowsInvalidDataException()
+    {
+        // Arrange: a matrix(...) argument list far larger than the codec's fixed 10,000-number cap
+        var args = string.Join(',', Enumerable.Repeat("1", 10_001));
+        var svg = $"<svg viewBox='0 0 10 10'><rect width='5' height='5' transform='matrix({args})'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves the same number-list length cap is reached identically via the root
+    ///     <c>&lt;svg&gt;</c> element's own <c>viewBox</c> attribute - a third call site sharing
+    ///     <c>ParseNumberList</c>, even though a well-formed <c>viewBox</c> only ever needs exactly
+    ///     four numbers.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ViewBoxNumberListExceedingLengthCap_ThrowsInvalidDataException()
+    {
+        // Arrange: a viewBox with far more than the codec's fixed 10,000-number cap worth of
+        // numbers, even though only the first four would ever be meaningful
+        var numbers = string.Join(' ', Enumerable.Repeat("0", 10_001));
+        var svg = $"<svg viewBox='{numbers}'><rect width='5' height='5'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+    }
+
+    // ================================================================================================
+    // Total whole-document element budget (BuildIdIndex / ParseStops)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that <see cref="SvgCodec"/> bounds its whole-document <c>id</c>-index walk
+    ///     (<c>BuildIdIndex</c>), which runs before rendering and independently of the
+    ///     total-rendered-element budget: a <c>&lt;defs&gt;</c> subtree containing more elements
+    ///     than the budget - none of which are ever referenced or rendered - is still rejected
+    ///     with <see cref="InvalidDataException"/>, closing the gap where the rendering-time
+    ///     budget alone would never see them.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_UnrenderedDefsElementCountExceedingDocumentElementBudget_ThrowsInvalidDataException()
+    {
+        // Arrange: a <defs> subtree containing more plain, never-referenced <rect> elements than
+        // the codec's fixed 100,000-element document-wide budget - none of these are rendered or
+        // referenced by anything, so only BuildIdIndex's whole-document walk ever visits them
+        var builder = new StringBuilder();
+        builder.Append("<svg viewBox='0 0 10 10'><defs>");
+        for (var i = 0; i < 100_001; i++)
+        {
+            builder.Append("<rect width='1' height='1'/>");
+        }
+
+        builder.Append("</defs></svg>");
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(builder.ToString()), 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves the same whole-document element budget closes the related <c>ParseStops</c> gap:
+    ///     a <c>linearGradient</c>/<c>radialGradient</c> - a non-rendering element that
+    ///     <c>RenderElement</c> charges only once for itself and never recurses into - can
+    ///     otherwise carry an unbounded number of <c>&lt;stop&gt;</c> children, each allocating a
+    ///     <c>GradientStop</c>. Proves, by measuring actual bytes allocated (matching the
+    ///     allocation-bound precedent above), that an oversized <c>&lt;stop&gt;</c> list is
+    ///     rejected by <c>BuildIdIndex</c>'s whole-document walk before <c>ParseStops</c> ever
+    ///     runs, rather than after fully materializing the whole stop list.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GradientStopCountExceedingDocumentElementBudget_ThrowsWithoutLargeAllocation()
+    {
+        // Arrange: a linearGradient with more <stop> children than the codec's fixed
+        // 100,000-element document-wide budget
+        var builder = new StringBuilder();
+        builder.Append("<svg viewBox='0 0 10 10'><defs><linearGradient id='g'>");
+        for (var i = 0; i < 100_001; i++)
+        {
+            builder.Append("<stop offset='0' stop-color='black'/>");
+        }
+
+        builder.Append("</linearGradient></defs>");
+        builder.Append("<rect width='5' height='5' fill='url(#g)'/></svg>");
+        var stream = ToStream(builder.ToString());
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 10, 10));
+        var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert
+        Assert.Contains("elements", ex.Message, StringComparison.OrdinalIgnoreCase);
+
+        const long maxExpectedAllocatedBytes = 64 * 1024 * 1024;
+        Assert.True(
+            allocatedDuring < maxExpectedAllocatedBytes,
+            $"Expected no large allocation, but {allocatedDuring:N0} bytes were allocated.");
+    }
+
+    // ================================================================================================
+    // <text> rendering, text-anchor, and font fallback
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that <c>&lt;text&gt;</c> renders a matching font's glyph at the expected pixel
+    ///     position, using the synthetic test font's known 50x50 square glyph shape.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextWithMatchingFont_RendersGlyphAtExpectedPosition()
+    {
+        // Arrange: font-size equals the font's em-square (100), so scale is 1:1; the square glyph
+        // for 'A' should render spanning x equals 10 to 60, y equals 10 to 60 (baseline at y=60)
+        const string svg = "<svg viewBox='0 0 100 100'><text x='10' y='60' font-family='TestFont' font-size='100' fill='black'>A</text></svg>";
+        var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100, fonts);
+
+        // Assert: inside the glyph square
+        Assert.Equal(255, surface[35, 35].A);
+        // Assert: outside the glyph square (above baseline extent and off to the side)
+        Assert.Equal(0, surface[5, 5].A);
+        // Assert: below the baseline (nothing renders past the glyph's bottom edge)
+        Assert.Equal(0, surface[35, 90].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>text-anchor="middle"</c> centers the glyph run on the given <c>x</c>,
+    ///     rather than starting there.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextAnchorMiddle_CentersTextHorizontally()
+    {
+        // Arrange: single glyph, advance 100, anchored at x equals 50 - offsets the glyph square
+        // to span x equals 0 to 50 (half its width to either side of x equals 50)
+        const string svg = "<svg viewBox='0 0 100 100'><text x='50' y='60' font-family='TestFont' font-size='100' text-anchor='middle' fill='black'>A</text></svg>";
+        var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100, fonts);
+
+        // Assert: filled within the centered square
+        Assert.Equal(255, surface[25, 35].A);
+        // Assert: NOT filled where a start-anchored run would have placed the square instead
+        Assert.Equal(0, surface[75, 35].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>text-anchor="end"</c> right-aligns the glyph run so it ends at the given
+    ///     <c>x</c>, rather than starting there.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextAnchorEnd_RightAlignsText()
+    {
+        // Arrange: single glyph, advance 100, anchored (ending) at x equals 90 - offsets the
+        // glyph square to span local x equals -10 to 40 (visible portion 0 to 40)
+        const string svg = "<svg viewBox='0 0 100 100'><text x='90' y='60' font-family='TestFont' font-size='100' text-anchor='end' fill='black'>A</text></svg>";
+        var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100, fonts);
+
+        // Assert: filled within the visible part of the right-aligned square
+        Assert.Equal(255, surface[20, 35].A);
+        // Assert: NOT filled where a start-anchored run would have placed the square instead
+        Assert.Equal(0, surface[70, 35].A);
+    }
+
+    /// <summary>
+    ///     Proves that kerning between a known glyph pair shifts the second glyph's position,
+    ///     by comparing against the position a naive (kerning-ignoring) layout would produce.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextWithKerningPair_AppliesKerningBetweenGlyphs()
+    {
+        // Arrange: text "AB" at font-size 100 gives 1:1 scale. Glyph 'A' occupies x from 10
+        // to 60. Without kerning, glyph 'B' would start its 100-unit advance at pen position
+        // 110. With the test font's -10 kerning pair applied, 'B' instead starts at pen
+        // position 100, so x equals 105 is filled only under the kerned layout.
+        const string svg = "<svg viewBox='0 0 200 100'><text x='10' y='60' font-family='TestFont' font-size='100' fill='black'>AB</text></svg>";
+        var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 200, 100, fonts);
+
+        // Assert: filled only if the -10 kerning adjustment was applied before placing 'B'
+        Assert.Equal(255, surface[105, 35].A);
+        // Assert: sanity check that 'B' rendered at all, in a region common to both layouts
+        Assert.Equal(255, surface[140, 35].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>&lt;text&gt;</c> is silently skipped (no exception, no ink) when
+    ///     <see cref="SvgCodec.Load(Stream,int,int,IReadOnlyDictionary{string,TrueTypeFont}?)"/>
+    ///     is called with no fonts dictionary at all.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextWithoutFontsDictionary_SkipsSilentlyWithoutThrowing()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><text x='10' y='60' font-family='TestFont' font-size='100' fill='black'>A</text></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: no exception was thrown (implicit), and no ink was painted anywhere
+        Assert.Equal(0, surface[35, 35].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>&lt;text&gt;</c> is silently skipped when the fonts dictionary is
+    ///     supplied but contains no entry matching the requested <c>font-family</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextFontFamilyNoMatch_SkipsSilentlyWithoutThrowing()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><text x='10' y='60' font-family='TestFont' font-size='100' fill='black'>A</text></svg>";
+        var fonts = new Dictionary<string, TrueTypeFont> { ["OtherFont"] = BuildTestFont() };
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100, fonts);
+
+        // Assert: no exception, and no ink was painted
+        Assert.Equal(0, surface[35, 35].A);
+    }
+
+    /// <summary>
+    ///     Proves that a comma-separated <c>font-family</c> fallback list matches the first family
+    ///     actually present in the supplied fonts dictionary, skipping unavailable entries.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextFontFamilyCommaSeparatedList_MatchesFirstAvailableFont()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><text x='10' y='60' font-family='Nonexistent, TestFont' font-size='100' fill='black'>A</text></svg>";
+        var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100, fonts);
+
+        // Assert: the glyph rendered, proving the fallback list was walked to "TestFont"
+        Assert.Equal(255, surface[35, 35].A);
+    }
+
+    // ================================================================================================
+    // viewBox fitting ("meet, centered" / object-fit: contain)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that a wide (landscape) viewBox fit into a square raster is letterboxed with
+    ///     transparent bars above and below the centered content.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_WideViewBoxIntoSquareRaster_LetterboxesTopAndBottom()
+    {
+        // Arrange: 200x100 viewBox (2:1) into a 100x100 raster; scale equals 0.5, content
+        // occupies y equals 25 to 75, leaving transparent bars above/below
+        const string svg = "<svg viewBox='0 0 200 100'><rect x='0' y='0' width='200' height='100' fill='blue'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: content band is filled
+        Assert.Equal(255, surface[50, 50].A);
+        // Assert: top and bottom letterbox bars are transparent
+        Assert.Equal(0, surface[50, 5].A);
+        Assert.Equal(0, surface[50, 95].A);
+    }
+
+    /// <summary>
+    ///     Proves that a tall (portrait) viewBox fit into a square raster is letterboxed with
+    ///     transparent bars to the left and right of the centered content.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TallViewBoxIntoSquareRaster_LetterboxesLeftAndRight()
+    {
+        // Arrange: 100x200 viewBox (1:2) into a 100x100 raster; scale equals 0.5, content
+        // occupies x equals 25 to 75, leaving transparent bars to either side
+        const string svg = "<svg viewBox='0 0 100 200'><rect x='0' y='0' width='100' height='200' fill='blue'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: content band is filled
+        Assert.Equal(255, surface[50, 50].A);
+        // Assert: left and right letterbox bars are transparent
+        Assert.Equal(0, surface[5, 50].A);
+        Assert.Equal(0, surface[95, 50].A);
+    }
+
+    // ================================================================================================
+    // GetInfo and its three-tier fallback policy
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that <see cref="SvgCodec.GetInfo(Stream)"/> reports the <c>viewBox</c>
+    ///     dimensions when present, even when conflicting <c>width</c>/<c>height</c> attributes
+    ///     are also present (viewBox takes precedence).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfo_ViewBoxPresent_ReturnsViewBoxDimensions()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 40 20' width='999' height='999'></svg>";
+
+        // Act
+        var info = SvgCodec.GetInfo(ToStream(svg));
+
+        // Assert
+        Assert.Equal(40, info.Width);
+        Assert.Equal(20, info.Height);
+        Assert.Equal(4, info.Channels);
+        Assert.True(info.HasAlpha);
+    }
+
+    /// <summary>
+    ///     Proves that <see cref="SvgCodec.GetInfo(Stream)"/> falls back to <c>width</c>/
+    ///     <c>height</c> attributes when no <c>viewBox</c> is present.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfo_NoViewBoxWidthHeightPresent_ReturnsWidthHeight()
+    {
+        // Arrange
+        const string svg = "<svg width='64' height='32'></svg>";
+
+        // Act
+        var info = SvgCodec.GetInfo(ToStream(svg));
+
+        // Assert
+        Assert.Equal(64, info.Width);
+        Assert.Equal(32, info.Height);
+    }
+
+    /// <summary>
+    ///     Proves that <see cref="SvgCodec.GetInfo(Stream)"/> falls back to the CSS/UA default
+    ///     replaced-element intrinsic size (300x150) when neither a <c>viewBox</c> nor
+    ///     <c>width</c>/<c>height</c> are present.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfo_NoViewBoxNoWidthHeight_ReturnsCssDefault300x150()
+    {
+        // Arrange
+        const string svg = "<svg></svg>";
+
+        // Act
+        var info = SvgCodec.GetInfo(ToStream(svg));
+
+        // Assert
+        Assert.Equal(300, info.Width);
+        Assert.Equal(150, info.Height);
+    }
+
+    /// <summary>
+    ///     Proves that <see cref="SvgCodec.GetInfo(string)"/> (the file-path overload) returns the
+    ///     same information as the stream overload, reading through a real temporary file.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfo_FromFilePath_ReturnsExpectedInfo()
+    {
+        // Arrange
+        var path = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(path, "<svg viewBox='0 0 40 20'></svg>");
+
+            // Act
+            var info = SvgCodec.GetInfo(path);
+
+            // Assert
+            Assert.Equal(40, info.Width);
+            Assert.Equal(20, info.Height);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    /// <summary>
+    ///     Regression test for the <c>GetInfo</c> width/height-cast-overflow finding: a resolved
+    ///     dimension large enough to overflow <see cref="int"/> on a naive cast (previously
+    ///     <c>(int)MathF.Round(size.X)</c>, undefined for a value beyond <see cref="int.MaxValue"/>
+    ///     since <c>int.MaxValue</c> is not exactly representable as a <see cref="float"/>) must
+    ///     instead clamp to <see cref="int.MaxValue"/>.
+    /// </summary>
+    /// <remarks>
+    ///     <b>Superseded, for the <c>viewBox</c>-sourced case, by the coordinate-magnitude bound
+    ///     (Finding 6).</b> A <c>viewBox</c> width/height large enough to overflow
+    ///     <see cref="int.MaxValue"/> (~2.147 billion) necessarily also exceeds the codec's fixed
+    ///     <c>MaxCoordinateMagnitude</c> bound (1,000,000), so it is now rejected by
+    ///     <c>TryReadNumber</c> before the clamp-before-cast logic this test originally proved is
+    ///     ever reached - the clamp-before-cast logic itself remains fully covered by the sibling
+    ///     <c>width</c>/<c>height</c>-fallback-tier variant below
+    ///     (<see cref="SvgCodec_GetInfo_WidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing"/>),
+    ///     which is sourced from <c>ParseLength</c> (a separate, tolerant parser not gated by
+    ///     <c>MaxCoordinateMagnitude</c> - see this class's remarks on that method) and is
+    ///     therefore unaffected. This test is retained under its original name, repurposed to
+    ///     prove the new, earlier rejection point for the <c>viewBox</c>-sourced case specifically.
+    /// </remarks>
+    [Fact]
+    public void SvgCodec_GetInfo_ViewBoxWidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing()
+    {
+        // Arrange: a viewBox width large enough to overflow Int32.MaxValue also exceeds the
+        // codec's fixed MaxCoordinateMagnitude bound, so it is now rejected at parse time
+        const string svg = "<svg viewBox='0 0 1e20 1e20'></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.GetInfo(ToStream(svg)));
+    }
+
+    /// <summary>
+    ///     Regression test for the same <c>GetInfo</c> width/height-cast-overflow finding as
+    ///     <see cref="SvgCodec_GetInfo_ViewBoxWidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing"/>,
+    ///     sourced instead from the <c>width</c>/<c>height</c> fallback tier (no <c>viewBox</c>).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfo_WidthExceedsInt32Range_ClampsToInt32MaxValueWithoutThrowing()
+    {
+        // Arrange
+        const string svg = "<svg width='1e20' height='1e20'></svg>";
+
+        // Act
+        var info = SvgCodec.GetInfo(ToStream(svg));
+
+        // Assert
+        Assert.Equal(int.MaxValue, info.Width);
+        Assert.Equal(int.MaxValue, info.Height);
+    }
+
+    /// <summary>
+    ///     Proves that <see cref="SvgCodec.GetInfo(Stream)"/> is bounded to the root <c>svg</c>
+    ///     start-tag's own attributes: a document malformed only beyond the root element's
+    ///     attributes (an unclosed child tag - the same markup
+    ///     <see cref="SvgCodec_Load_MalformedXml_ThrowsInvalidDataException"/> proves the sibling
+    ///     <c>Load</c> call still correctly rejects) does not stop <c>GetInfo</c> from resolving
+    ///     and returning the <c>viewBox</c> dimensions, because it never reads that far into the
+    ///     document.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfo_MalformedXmlAfterRootElement_DoesNotThrowAndReturnsViewBoxDimensions()
+    {
+        // Arrange: an unclosed child tag - malformed beyond the root element's own attributes
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='0' y='0' width='10' height='10'";
+
+        // Act
+        var info = SvgCodec.GetInfo(ToStream(svg));
+
+        // Assert
+        Assert.Equal(100, info.Width);
+        Assert.Equal(100, info.Height);
+    }
+
+    /// <summary>
+    ///     Regression test for the unbounded <c>GetInfo</c> header-only parse finding:
+    ///     <c>LoadRootElementAttributesOnly</c> never reads past the root start-tag's attributes,
+    ///     but (pre-fix) used a plain <see cref="System.Xml.XmlReader"/> with no
+    ///     <c>MaxCharactersInDocument</c> setting, so a single oversized attribute value on the
+    ///     root <c>svg</c> element could still force it to materialize an unbounded amount of
+    ///     data, even though the reader never advances into the document body. Proves an attribute
+    ///     value padded well past the codec's fixed <c>MaxCharactersInDocument</c> bound is now
+    ///     rejected with <see cref="InvalidDataException"/>, matching the same bound
+    ///     <c>Load</c>'s own <c>LoadRootElement</c> already enforces. The oversized padding is
+    ///     generated programmatically, never committed as a literal giant fixture.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfo_OversizedRootAttributeValueExceedingCharacterBudget_ThrowsInvalidDataException()
+    {
+        // Arrange: a single root-element attribute value padded well past the codec's fixed
+        // 5,000,000-character document budget
+        var padding = new string('x', 5_100_000);
+        var svg = $"<svg viewBox='0 0 100 100' data-padding='{padding}'></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.GetInfo(ToStream(svg)));
+    }
+
+    // ================================================================================================
+    // Malformed-input rejection and tolerant unsupported-construct handling
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that syntactically invalid XML is rejected as an <see cref="InvalidDataException"/>
+    ///     rather than propagating the underlying <see cref="System.Xml.XmlException"/>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MalformedXml_ThrowsInvalidDataException()
+    {
+        // Arrange: an unclosed tag
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='0' y='0' width='10' height='10'";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves that a malformed <c>viewBox</c> attribute (wrong number count) is rejected as an
+    ///     <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MalformedViewBoxWrongNumberCount_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100'></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves that a <c>viewBox</c> with a non-positive width is rejected as an
+    ///     <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ViewBoxNonPositiveWidth_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 0 100'></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Regression test for the degenerate-fit-transform finding: a <c>viewBox</c> width that
+    ///     is extremely small but still finite and positive (a subnormal float) passes
+    ///     <c>ParseViewBox</c>'s existing "must be positive" check, but dividing the requested
+    ///     raster width by such a value overflows <c>ComputeFitTransform</c>'s own scale to
+    ///     <see cref="float.PositiveInfinity"/>. Left unguarded, the resulting non-finite fit
+    ///     transform would previously cause every element to silently fail
+    ///     <c>IsFiniteTransform</c>'s per-element check and render a blank, transparent surface
+    ///     with no exception - proves this now throws <see cref="InvalidDataException"/> instead,
+    ///     the same class of malformed-sizing-data error the sibling non-positive-width case
+    ///     already throws for.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ViewBoxWidthExtremelySmallCausesNonFiniteFitScale_ThrowsInvalidDataException()
+    {
+        // Arrange: a subnormal-magnitude viewBox width/height, positive and finite, but small
+        // enough that raster-width / width overflows float to Infinity
+        const string svg = "<svg viewBox='0 0 1e-40 1e-40'><rect x='0' y='0' width='1e-40' height='1e-40' fill='red'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves that malformed <c>path</c> "d" data (an unrecognized command letter) is rejected
+    ///     as an <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MalformedPathDataUnknownCommand_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><path d='M10,10 X99,99'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves that malformed <c>path</c> "d" data (a command missing its required numeric
+    ///     arguments) is rejected as an <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MalformedPathDataMissingArguments_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><path d='M10,10 L'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Regression test for the path-data relative-accumulation overflow finding: a relative
+    ///     command (<c>l</c>) accumulating an offset against a huge-but-finite current point can
+    ///     overflow to <see cref="float.PositiveInfinity"/> even though every individual literal
+    ///     token is finite. Left unguarded, the resulting non-finite path length would stall
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.DashSplitter"/>'s finite-step dash-interval
+    ///     walk forever once combined with a finite <c>stroke-dasharray</c>.
+    /// </summary>
+    /// <remarks>
+    ///     <b>Superseded by the coordinate-magnitude bound (Finding 6).</b> This scenario required
+    ///     a single raw coordinate literal (<c>3e38</c>) large enough that, summed with itself,
+    ///     the accumulation overflowed float. Every coordinate/length token is now individually
+    ///     capped at <c>MaxCoordinateMagnitude</c> (1,000,000) - far below any magnitude needed to
+    ///     overflow via a single relative-accumulation step - so <c>3e38</c> is now rejected by
+    ///     <c>TryReadNumber</c> before path-data parsing even begins, rather than reaching
+    ///     <c>PathDataParser</c>'s <c>RequireFinite</c> tolerant-skip guard at all. This test is
+    ///     retained under its original name, repurposed to prove the new, earlier rejection point.
+    /// </remarks>
+    [Fact]
+    public void SvgCodec_Load_PathRelativeAccumulationOverflowsToInfinity_TerminatesPromptlyWithoutHanging()
+    {
+        // Arrange: a coordinate literal (3e38) exceeding the codec's fixed MaxCoordinateMagnitude
+        // bound - rejected at parse time, well before any relative-accumulation arithmetic runs
+        const string svg = "<svg viewBox='0 0 100 100'>" +
+                            "<path d='M3e38,0 l3e38,0' stroke='black' stroke-width='1' stroke-dasharray='5,5'/>" +
+                            "</svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+    }
+
+    /// <summary>
+    ///     Regression test for the huge-finite-total-length-vs-fine-dash-span CPU-exhaustion
+    ///     finding: a path spanning coordinates on the order of <c>1e20</c> (finite, no overflow
+    ///     involved at all) combined with a fine <c>stroke-dasharray</c> would otherwise force
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.DashSplitter"/>'s dash-interval traversal
+    ///     loop to require an impractical number of iterations to reach the path's total length.
+    /// </summary>
+    /// <remarks>
+    ///     <b>Superseded by the coordinate-magnitude bound (Finding 6).</b> This scenario required
+    ///     a single raw coordinate literal (<c>1e20</c>) far beyond any real-world document's
+    ///     coordinate range. Every coordinate/length token is now individually capped at
+    ///     <c>MaxCoordinateMagnitude</c> (1,000,000), so <c>1e20</c> is now rejected by
+    ///     <c>TryReadNumber</c> before path-data parsing even begins, rather than ever reaching
+    ///     <c>DashSplitter</c>'s pre-flight iteration-budget short-circuit. This test is retained
+    ///     under its original name, repurposed to prove the new, earlier rejection point.
+    /// </remarks>
+    [Fact]
+    public void SvgCodec_Load_HugeFinitePathWithFineDashPattern_TerminatesPromptlyWithoutHanging()
+    {
+        // Arrange: coordinate literals (1e20) exceeding the codec's fixed MaxCoordinateMagnitude
+        // bound - rejected at parse time, well before DashSplitter is ever reached
+        const string svg = "<svg viewBox='0 0 100 100'>" +
+                            "<path d='M -1e20 -1e20 L 1e20 1e20' stroke='black' stroke-width='1' stroke-dasharray='5,5'/>" +
+                            "</svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+    }
+
+    /// <summary>
+    ///     Regression test for the audit-discovered <c>S</c>/<c>T</c> smooth-curve reflection
+    ///     overflow finding: <c>Reflect</c>'s <c>2*center - point</c> arithmetic can overflow to a
+    ///     non-finite value from an individually-finite cubic-Bezier control point and current
+    ///     point, an independent overflow path into the same
+    ///     <see cref="DemaConsulting.CanvasNet.Drawing.DashSplitter"/> hang risk as relative-
+    ///     coordinate accumulation.
+    /// </summary>
+    /// <remarks>
+    ///     <b>Superseded by the coordinate-magnitude bound (Finding 6).</b> This scenario required
+    ///     a control point literal (<c>3e38</c>) large enough that doubling it during reflection
+    ///     overflowed float. Every coordinate/length token is now individually capped at
+    ///     <c>MaxCoordinateMagnitude</c> (1,000,000) - far below any magnitude a single doubling
+    ///     could overflow from - so <c>3e38</c> is now rejected by <c>TryReadNumber</c> before
+    ///     path-data parsing even begins, rather than reaching <c>Reflect</c>'s <c>RequireFinite</c>
+    ///     tolerant-skip guard at all. This test is retained under its original name, repurposed to
+    ///     prove the new, earlier rejection point.
+    /// </remarks>
+    [Fact]
+    public void SvgCodec_Load_PathSmoothCubicReflectionOverflowsToInfinity_SkipsPathWithoutThrowing()
+    {
+        // Arrange: a control-point literal (3e38) exceeding the codec's fixed
+        // MaxCoordinateMagnitude bound - rejected at parse time, well before any reflection
+        // arithmetic runs
+        const string svg = "<svg viewBox='0 0 100 100'>" +
+                            "<path d='M0,0 C0,0 3e38,0 -3e38,0 S1,1 0,0' fill='red'/>" +
+                            "</svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+    }
+
+    /// <summary>
+    ///     Regression test for the unguarded <c>SvgArcConverter</c> output finding, exercised via
+    ///     the <c>A</c>/<c>a</c> path-data command: an extreme-but-individually-finite arc radius
+    ///     drives <c>Geometry.SvgArcConverter.ToBeziers</c>'s internal rotation/trig arithmetic
+    ///     (which squares the radii) to overflow one of its emitted control points to a non-finite
+    ///     value, even though every raw literal token (the radius itself) is finite.
+    /// </summary>
+    /// <remarks>
+    ///     <b>Superseded by the coordinate-magnitude bound (Finding 6).</b> This scenario required
+    ///     an arc radius literal (<c>1e18</c>) large enough that squaring it inside
+    ///     <c>SvgArcConverter</c>'s ellipse-center calculation overflowed float. Every
+    ///     coordinate/length token is now individually capped at <c>MaxCoordinateMagnitude</c>
+    ///     (1,000,000) - whose square (1e12) is far too small for any combination of
+    ///     within-the-bound radii/start/end points to overflow <c>SvgArcConverter</c>'s own
+    ///     arithmetic - so <c>1e18</c> is now rejected by <c>TryReadNumber</c> before path-data
+    ///     parsing even begins, rather than reaching <c>AppendArc</c>'s <c>RequireFinite</c>
+    ///     tolerant-skip guard at all. That guard (added for Finding 4) remains in place as
+    ///     defense-in-depth, matching this class's other now-unreachable-but-retained guards - see
+    ///     <c>GeometryWorkBudget.Charge</c>'s own reachability note. This test is retained
+    ///     under its original name, repurposed to prove the new, earlier rejection point.
+    /// </remarks>
+    [Fact]
+    public void SvgCodec_Load_PathArcCommandRadiusOverflowsToNonFinite_SkipsPathWithoutThrowing()
+    {
+        // Arrange: an arc radius literal (1e18) exceeding the codec's fixed
+        // MaxCoordinateMagnitude bound - rejected at parse time, well before SvgArcConverter is
+        // ever reached
+        const string svg = "<svg viewBox='0 0 100 100'>" +
+                            "<path d='M1e18,0 A1e18,1e18 0 0 1 0,1e18' fill='red'/>" +
+                            "</svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+    }
+
+    /// <summary>
+    ///     Regression test for the same unguarded <c>SvgArcConverter</c> output finding, exercised
+    ///     via <c>rect</c>'s rounded-corner construction (<c>AppendArcTo</c>) instead of an
+    ///     explicit path-data <c>A</c> command.
+    /// </summary>
+    /// <remarks>
+    ///     <b>Superseded by the coordinate-magnitude bound (Finding 6).</b> See
+    ///     <see cref="SvgCodec_Load_PathArcCommandRadiusOverflowsToNonFinite_SkipsPathWithoutThrowing"/>'s
+    ///     identical reachability note - the same <c>MaxCoordinateMagnitude</c> bound applies to
+    ///     <c>rect</c>'s <c>width</c>/<c>height</c>/<c>rx</c>/<c>ry</c> attributes via
+    ///     <c>ParseCoordinate</c>. The <c>AppendArcTo</c> guard (added for Finding 4) remains in
+    ///     place as defense-in-depth. This test is retained under its original name, repurposed to
+    ///     prove the new, earlier rejection point.
+    /// </remarks>
+    [Fact]
+    public void SvgCodec_Load_RectRoundedCornerArcConversionOverflowsToNonFinite_SkipsShapeWithoutThrowing()
+    {
+        // Arrange: a rect width/height/rx/ry literal (1e18/2e18) exceeding the codec's fixed
+        // MaxCoordinateMagnitude bound - rejected at parse time, well before AppendArcTo is ever
+        // reached
+        const string svg = "<svg viewBox='0 0 100 100'>" +
+                            "<rect x='0' y='0' width='2e18' height='2e18' rx='1e18' ry='1e18' fill='red'/>" +
+                            "</svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves that a shape built entirely from in-bound source literals, but whose composed
+    ///     <c>transform</c> amplifies every one of its points past
+    ///     <see cref="SvgCodec"/>'s fixed <c>MaxCoordinateMagnitude</c> bound once transformed, is
+    ///     tolerantly skipped rather than being fed into the fill/stroke pipeline at a magnitude it
+    ///     was never meant to see.
+    /// </summary>
+    /// <remarks>
+    ///     Unlike <see cref="SvgCodec_Load_PathArcCommandRadiusOverflowsToNonFinite_SkipsPathWithoutThrowing"/>
+    ///     and <see cref="SvgCodec_Load_RectRoundedCornerArcConversionOverflowsToNonFinite_SkipsShapeWithoutThrowing"/>
+    ///     immediately above (both now intercepted at parse time because their source literals
+    ///     themselves already exceed the bound), this path's every literal (<c>0</c> and <c>10</c>)
+    ///     is comfortably within <c>MaxCoordinateMagnitude</c>, and the <c>scale(1000000)</c>
+    ///     transform's own literal argument is exactly at the bound (not <i>greater than</i> it,
+    ///     so it is not rejected by <c>TryReadNumber</c>'s strict <c>&gt;</c> check either) -
+    ///     nothing at the parse-time, pre-transform level rejects this document. Only composing the
+    ///     two - baking the transform into the path's points via <c>TransformPath</c> - produces a
+    ///     final magnitude (<c>10 * 1,000,000 = 10,000,000</c>) the new post-transform check
+    ///     catches. The path's single degenerate cubic-curve command (<c>CubicBezierTo</c>, whose
+    ///     control points coincide with its endpoint) combines with two straight-line commands
+    ///     (<c>LineTo</c>) to form a closed square, proving the new check's <c>Control1</c>/
+    ///     <c>Control2</c> handling as well as its <c>EndPoint</c> handling. Without the fix, this square's transformed bounding box -
+    ///     (0,0) to (10,000,000, 10,000,000) - fully contains the visible 100x100 canvas near the
+    ///     origin, so the sampled pixel below would be filled; the fix instead skips the whole
+    ///     shape, leaving it unfilled.
+    /// </remarks>
+    [Fact]
+    public void SvgCodec_Load_TransformScaleAmplifiesCoordinatePastMagnitudeBound_SkipsShapeWithoutThrowing()
+    {
+        // Arrange: a small, entirely in-bound closed-square path (built from LineTo and a
+        // degenerate CubicBezierTo command) whose scale(1000000) transform - itself an in-bound
+        // literal, since 1,000,000 does not exceed the strict '>' magnitude check - amplifies
+        // every point to 10,000,000 once composed, far past MaxCoordinateMagnitude (1,000,000).
+        const string svg = "<svg viewBox='0 0 100 100'>" +
+                            "<path d='M0,0 L0,10 C10,10 10,10 10,10 L10,0 Z' fill='black' " +
+                            "transform='scale(1000000)'/>" +
+                            "</svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: Load did not throw, and the shape was tolerantly skipped entirely - the sampled
+        // pixel, which the scaled square's huge bounding box would otherwise cover if the shape
+        // were not skipped, stays unfilled.
+        Assert.Equal(0, surface[50, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves that a malformed <c>transform</c> attribute (an unrecognized function name) is
+    ///     rejected as an <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MalformedTransformUnrecognizedFunction_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='0' y='0' width='10' height='10' transform='wobble(1,2)'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Regression test for the unbounded <c>XDocument.Load</c> DOM-materialization finding:
+    ///     a document whose total character count exceeds the codec's fixed
+    ///     <c>MaxCharactersInDocument</c> bound must be rejected with
+    ///     <see cref="InvalidDataException"/> (surfaced through the existing
+    ///     <see cref="System.Xml.XmlException"/> catch) rather than being fully parsed into an
+    ///     unbounded in-memory DOM. The oversized padding is generated programmatically (a large
+    ///     XML comment), never committed as a literal giant fixture.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_DocumentExceedingCharacterBudget_ThrowsInvalidDataException()
+    {
+        // Arrange: a harmless XML comment padded well past the codec's fixed 5,000,000-character
+        // document budget
+        var padding = new string('x', 5_100_000);
+        var svg = $"<svg viewBox='0 0 100 100'><!--{padding}--></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves that a document sized just under the codec's fixed
+    ///     <c>MaxCharactersInDocument</c> bound still loads successfully, so the new bound does
+    ///     not false-positive-reject an ordinary (if unusually large) well-formed document.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_DocumentWithinCharacterBudget_LoadsSuccessfully()
+    {
+        // Arrange: a harmless XML comment padded well under the codec's fixed
+        // 5,000,000-character document budget
+        var padding = new string('x', 1_000_000);
+        var svg = $"<svg viewBox='0 0 100 100'><!--{padding}--><rect x='0' y='0' width='100' height='100' fill='red'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 10, 10);
+
+        // Assert: the rect still rendered
+        Assert.Equal(255, surface[5, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that a shape's numeric attribute value of literal <c>NaN</c> - a syntactically
+    ///     valid <see cref="float"/> literal that is never a meaningful coordinate - is rejected
+    ///     as an <see cref="InvalidDataException"/> rather than silently propagating into
+    ///     rendering. Exercises <c>ParseCoordinate</c>, which parses an attribute's entire trimmed
+    ///     text with no prior character-class filtering, so the literal <c>"NaN"</c> text reaches
+    ///     <see cref="float.Parse(string, System.IFormatProvider?)"/> unfiltered.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_WidthAttributeNaN_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 20 20'><rect x='0' y='0' width='NaN' height='10'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves that a <c>stroke-width</c> attribute value of literal <c>Infinity</c> is
+    ///     rejected as an <see cref="InvalidDataException"/>. Exercises <c>GetOptionalFloat</c> →
+    ///     <c>ParseCoordinate</c>, the same unfiltered-text parse path as the <c>NaN</c> test
+    ///     above.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_StrokeWidthInfinity_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 20 20'><rect x='0' y='0' width='10' height='10' stroke='#000' stroke-width='Infinity'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves that a <c>path</c> "d" data coordinate which overflows <see cref="float"/> to
+    ///     <see cref="float.PositiveInfinity"/> (rather than failing to parse at all) is rejected
+    ///     as an <see cref="InvalidDataException"/>. Exercises <c>TryReadNumber</c>'s finiteness
+    ///     check: unlike <c>ParseCoordinate</c>, <c>TryReadNumber</c>'s character-class scan never
+    ///     matches a leading letter, so literal text such as <c>"Infinity"</c>/<c>"NaN"</c> is
+    ///     rejected earlier, unrelated to the new check - only a legitimately-scanned, all-digit/
+    ///     exponent token that numerically overflows (confirmed empirically: <c>float.Parse</c>
+    ///     returns <see cref="float.PositiveInfinity"/> for <c>"1e400"</c> rather than throwing)
+    ///     actually exercises this method's new finiteness check.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PathDataNumberOverflowToInfinity_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 20 20'><path d='M0,0 L1e400,0'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves that a <c>points</c> list containing an exponent-overflow number (see the path
+    ///     "d" data test above for why an overflowing token, not literal <c>"Infinity"</c>/
+    ///     <c>"NaN"</c> text, is required to exercise this path) is rejected as an
+    ///     <see cref="InvalidDataException"/>. Exercises <c>ParseNumberList</c> →
+    ///     <c>TryReadNumber</c>'s finiteness check.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PointsListNumberOverflowToInfinity_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 20 20'><polyline points='0,0 1e400,0'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Regression test for the coordinate-magnitude-bound finding (Finding 6): a <c>path</c>
+    ///     "d" data coordinate that is finite (unlike the exponent-overflow test above) but whose
+    ///     magnitude exceeds the codec's fixed <c>MaxCoordinateMagnitude</c> bound is rejected as
+    ///     an <see cref="InvalidDataException"/>, exercising <c>TryReadNumber</c>'s new magnitude
+    ///     check.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PathDataCoordinateExceedingMaxMagnitude_ThrowsInvalidDataException()
+    {
+        // Arrange: one unit over the codec's fixed 1,000,000 coordinate-magnitude bound
+        const string svg = "<svg viewBox='0 0 20 20'><path d='M0,0 L1000001,0'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Regression test for the same coordinate-magnitude-bound finding (Finding 6), exercising
+    ///     <c>ParseNumberList</c> → <c>TryReadNumber</c>'s new magnitude check via a <c>points</c>
+    ///     list entry instead of path <c>d</c> data.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PointsListCoordinateExceedingMaxMagnitude_ThrowsInvalidDataException()
+    {
+        // Arrange: one unit over the codec's fixed 1,000,000 coordinate-magnitude bound
+        const string svg = "<svg viewBox='0 0 20 20'><polyline points='0,0 1000001,0'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves the coordinate-magnitude bound (Finding 6) does not false-positive-reject an
+    ///     ordinary, real-world-sized coordinate well under the bound - exercised via a shape
+    ///     attribute (<c>ParseCoordinate</c>), a path <c>d</c> coordinate, and a <c>points</c> list
+    ///     entry (both <c>TryReadNumber</c>), each at exactly the bound's boundary value, which
+    ///     must still be accepted (the bound rejects only magnitudes strictly greater than it).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CoordinateWithinMaxMagnitude_RendersSuccessfully()
+    {
+        // Arrange: a rect whose width/height sit exactly at the codec's fixed 1,000,000
+        // coordinate-magnitude bound, combined with a path and a points list each using a
+        // coordinate at the same boundary value
+        const string svg = "<svg viewBox='0 0 20 20'>" +
+                            "<rect x='0' y='0' width='1000000' height='1000000' fill='red'/>" +
+                            "<path d='M0,0 L1000000,0'/>" +
+                            "<polyline points='0,0 1000000,0'/>" +
+                            "</svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 10, 10);
+
+        // Assert: no exception, and the rect (which covers the whole viewBox) rendered
+        Assert.Equal(255, surface[5, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that the non-finite rejection added to <c>ParseCoordinate</c>/<c>TryReadNumber</c>
+    ///     does not reject legitimate finite values that share surface syntax with the rejected
+    ///     forms: a negative number, scientific notation, and a percentage. All three numeric
+    ///     styles must continue to parse and render exactly as before the fix.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_NegativeScientificAndPercentageValues_RendersWithoutThrowing()
+    {
+        // Arrange: x is negative, width/height use scientific notation, opacity is a percentage
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='-1e1' y='0' width='1e2' height='5e1' fill='black' opacity='50%'/></svg>";
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the rect (x=-10, width=100 => spans to x=90) covers (50,25) at ~50% opacity
+        // (0.5 * 255 = 127.5 ~ 127/128), not 0 (rejected) and not 255 (opacity ignored)
+        Assert.InRange((int)surface[50, 25].A, 115, 140);
+    }
+
+    /// <summary>
+    ///     Proves that a percentage value on a shape geometry attribute (<c>x</c>) is rejected
+    ///     with <see cref="InvalidDataException"/>, because this codec has no defined
+    ///     viewport-relative basis to resolve it against - unlike the opacity percentage exercised
+    ///     by <see cref="SvgCodec_Load_NegativeScientificAndPercentageValues_RendersWithoutThrowing"/>
+    ///     above, which continues to work correctly and is unaffected by this rejection.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_RectXPercentage_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='50%' y='0' width='10' height='10'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves that a percentage value on a shape geometry attribute (<c>width</c>) is
+    ///     rejected with <see cref="InvalidDataException"/>, for the same reason as the <c>x</c>
+    ///     attribute test above - exercising a different attribute through the same
+    ///     <c>GetFloatAttribute</c>/<c>ParseGeometryCoordinate</c> code path.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_RectWidthPercentage_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='0' y='0' width='50%' height='10'/></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves that a gradient <c>stop</c>'s <c>offset</c> attribute value of literal
+    ///     <c>NaN</c> - a syntactically valid <see cref="float"/> literal that is never a
+    ///     meaningful stop position - is treated the same as an absent/unparseable offset
+    ///     (falling back to <c>0</c>) rather than reaching <c>GradientStop</c>'s constructor,
+    ///     which would otherwise throw an uncaught <see cref="ArgumentOutOfRangeException"/> that
+    ///     propagates past <c>Load</c>'s <see cref="FormatException"/>-only catch boundary.
+    ///     Exercises <c>ParseStops</c> → <c>ParsePercentOrNumber</c>, which (like
+    ///     <c>ParseCoordinate</c>) calls <see cref="float.TryParse(string, System.Globalization.NumberStyles, System.IFormatProvider?, out float)"/>
+    ///     on the attribute's whole trimmed text with no prior character-class filtering, so the
+    ///     literal <c>"NaN"</c> text reaches it unfiltered.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GradientStopOffsetNaN_DoesNotThrowAndRenders()
+    {
+        // Arrange: the second stop's offset is a literal "NaN"
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <linearGradient id='g' x1='0' y1='0' x2='1' y2='0'>
+                  <stop offset='0' stop-color='black'/>
+                  <stop offset='NaN' stop-color='white'/>
+                </linearGradient>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: rendering completed without the raw ArgumentOutOfRangeException a non-finite
+        // offset reaching GradientStop's constructor would otherwise throw
+        Assert.Equal(100, surface.Width);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>linearGradient</c>'s <c>x1</c> attribute value of literal
+    ///     <c>Infinity</c> falls back to its documented default (<c>0</c>) rather than producing
+    ///     a non-finite gradient-space coordinate. Exercises
+    ///     <c>GetGradientCoordinateOrDefault</c> → <c>ParsePercentOrNumber</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GradientX1Infinity_FallsBackToDefaultAndRenders()
+    {
+        // Arrange: x1 is a literal "Infinity" - should fall back to its default of 0, producing
+        // the same left-to-right brightness ramp as if x1 had been omitted entirely
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <linearGradient id='g' x1='Infinity' y1='0' x2='1' y2='0'>
+                  <stop offset='0' stop-color='black'/>
+                  <stop offset='1' stop-color='white'/>
+                </linearGradient>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: brightness still increases left to right, proving x1 fell back to 0 rather
+        // than Infinity (which would break or degenerate the ramp)
+        Assert.True(surface[10, 50].R < surface[90, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves that an <c>rgba()</c> color's alpha channel value of literal <c>Infinity</c>
+    ///     causes the whole color to be treated as unrecognized ("no paint"), the same tolerant
+    ///     "unrecognized color" contract <c>ParseColor</c> already documents for an unknown
+    ///     keyword, rather than silently saturating to fully opaque. Exercises
+    ///     <c>ParseRgbFunctionColor</c> → <c>ParseColorChannel</c>/inline call →
+    ///     <c>ParsePercentOrNumber</c>.
+    /// </summary>
+    /// <remarks>
+    ///     <c>Infinity</c>, not <c>NaN</c>, is used here: pre-fix, <c>Math.Clamp(NaN, 0, 255)</c>
+    ///     returns <c>NaN</c> unchanged (IEEE comparisons against <c>NaN</c> are always false, so
+    ///     neither clamp bound is taken), which then casts to the byte alpha <c>0</c> (fully
+    ///     transparent) - incidentally matching this test's "background shows through" assertion
+    ///     even without the fix, and so failing to discriminate the gap. <c>Infinity</c> instead
+    ///     clamps to <c>255</c> (fully opaque black) pre-fix, which visibly hides the white
+    ///     background - a genuine, fix-dependent failure this test can actually detect.
+    /// </remarks>
+    [Fact]
+    public void SvgCodec_Load_RgbaAlphaInfinity_TreatsColorAsUnrecognizedNoPaint()
+    {
+        // Arrange: a white background rect, overpainted by a second rect whose rgba() alpha is
+        // a literal "Infinity" - if treated as unrecognized, the white background remains visible
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <rect x='0' y='0' width='10' height='10' fill='white'/>
+              <rect x='0' y='0' width='10' height='10' fill='rgba(0,0,0,Infinity)'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the background white shows through - the Infinity-alpha rgba() color was
+        // rejected as unrecognized, not drawn as (saturated-opaque) black
+        var pixel = surface[50, 50];
+        Assert.Equal(255, pixel.R);
+        Assert.Equal(255, pixel.G);
+        Assert.Equal(255, pixel.B);
+    }
+
+    /// <summary>
+    ///     Proves that a root <c>&lt;svg&gt;</c> element's <c>width</c>/<c>height</c> attribute
+    ///     values of literal <c>Infinity</c> fall back to the CSS/UA default
+    ///     <c>300x150</c> intrinsic size, rather than the undefined/saturated integer size that
+    ///     <c>(int)MathF.Round(float.PositiveInfinity)</c> would otherwise produce. Exercises
+    ///     <c>ResolveViewBoxOrSize</c> → <c>ParseLength</c>, consumed by both <c>GetInfo</c> and
+    ///     <c>Load</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfo_WidthHeightInfinity_FallsBackToDefaultSize()
+    {
+        // Arrange: no viewBox, width/height are both literal "Infinity"
+        const string svg = "<svg width='Infinity' height='Infinity'></svg>";
+
+        // Act
+        var info = SvgCodec.GetInfo(ToStream(svg));
+
+        // Assert: falls back to the CSS/UA default replaced-element intrinsic size
+        Assert.Equal(300, info.Width);
+        Assert.Equal(150, info.Height);
+    }
+
+    /// <summary>
+    ///     Proves that the non-finite rejection added to <c>ParseLength</c> does not reject a
+    ///     legitimate finite root <c>width</c>/<c>height</c> expressed in scientific notation.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfo_WidthHeightScientificNotation_ResolvesToBareValue()
+    {
+        // Arrange: width/height use scientific notation, no viewBox present
+        const string svg = "<svg width='1e2' height='1e2'></svg>";
+
+        // Act
+        var info = SvgCodec.GetInfo(ToStream(svg));
+
+        // Assert
+        Assert.Equal(100, info.Width);
+        Assert.Equal(100, info.Height);
+    }
+
+    /// <summary>
+    ///     Proves that the non-finite rejection added to <c>ParsePercentOrNumber</c> does not
+    ///     reject a legitimate finite gradient stop <c>offset</c> expressed as a percentage.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GradientStopOffsetPercentage_RendersGradientCorrectly()
+    {
+        // Arrange: stop offsets are percentages (0% / 100%) rather than bare 0/1 numbers
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <linearGradient id='g' x1='0' y1='0' x2='1' y2='0'>
+                  <stop offset='0%' stop-color='black'/>
+                  <stop offset='100%' stop-color='white'/>
+                </linearGradient>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: brightness increases left to right, as with the equivalent bare-number test
+        Assert.True(surface[10, 50].R < surface[90, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves that well-formed-but-out-of-scope constructs (<c>&lt;style&gt;</c>,
+    ///     <c>&lt;filter&gt;</c>, <c>&lt;mask&gt;</c>, <c>&lt;clipPath&gt;</c>,
+    ///     <c>&lt;pattern&gt;</c>, <c>&lt;marker&gt;</c>, a nested <c>&lt;svg&gt;</c>) are silently
+    ///     skipped and do not prevent the rest of the document from rendering.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_UnsupportedConstructs_StillRendersRestOfDocument()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>rect { fill: red; }</style>
+              <defs>
+                <filter id='f'><feGaussianBlur stdDeviation='2'/></filter>
+                <mask id='m'><rect width='100' height='100' fill='white'/></mask>
+                <clipPath id='c'><rect width='50' height='50'/></clipPath>
+                <pattern id='p' width='10' height='10'><rect width='5' height='5'/></pattern>
+                <marker id='mk'><circle r='2'/></marker>
+              </defs>
+              <svg x='0' y='0' width='10' height='10'><rect width='10' height='10' fill='yellow'/></svg>
+              <rect x='10' y='10' width='30' height='30' fill='black'/>
+            </svg>
+            """;
+
+        // Act
+        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+
+        // Assert: the plain rect after the unsupported constructs still rendered
+        Assert.Equal(255, surface[20, 20].A);
+    }
+
+    // ================================================================================================
+    // Argument validation
+    // ================================================================================================
+
+    /// <summary>Proves that <see cref="SvgCodec.Load(Stream,int,int,IReadOnlyDictionary{string,TrueTypeFont}?)"/> rejects a null stream.</summary>
+    [Fact]
+    public void SvgCodec_Load_NullStream_ThrowsArgumentNullException()
+    {
+        // Arrange, Act & Assert
+        Assert.Throws<ArgumentNullException>(() => SvgCodec.Load((Stream)null!, 10, 10));
+    }
+
+    /// <summary>Proves that <see cref="SvgCodec.Load(string,int,int,IReadOnlyDictionary{string,TrueTypeFont}?)"/> rejects a null path.</summary>
+    [Fact]
+    public void SvgCodec_Load_NullPath_ThrowsArgumentNullException()
+    {
+        // Arrange, Act & Assert
+        Assert.Throws<ArgumentNullException>(() => SvgCodec.Load((string)null!, 10, 10));
+    }
+
+    /// <summary>Proves that <see cref="SvgCodec.Load(string,int,int,IReadOnlyDictionary{string,TrueTypeFont}?)"/> rejects an empty path.</summary>
+    [Fact]
+    public void SvgCodec_Load_EmptyPath_ThrowsArgumentException()
+    {
+        // Arrange, Act & Assert
+        Assert.Throws<ArgumentException>(() => SvgCodec.Load(string.Empty, 10, 10));
+    }
+
+    /// <summary>Proves that <see cref="SvgCodec.Load(string,int,int,IReadOnlyDictionary{string,TrueTypeFont}?)"/> rejects a whitespace-only path.</summary>
+    [Fact]
+    public void SvgCodec_Load_WhitespacePath_ThrowsArgumentException()
+    {
+        // Arrange, Act & Assert
+        Assert.Throws<ArgumentException>(() => SvgCodec.Load("   ", 10, 10));
+    }
+
+    /// <summary>Proves that <see cref="SvgCodec.GetInfo(Stream)"/> rejects a null stream.</summary>
+    [Fact]
+    public void SvgCodec_GetInfo_NullStream_ThrowsArgumentNullException()
+    {
+        // Arrange, Act & Assert
+        Assert.Throws<ArgumentNullException>(() => SvgCodec.GetInfo((Stream)null!));
+    }
+
+    /// <summary>Proves that <see cref="SvgCodec.GetInfo(string)"/> rejects a null path.</summary>
+    [Fact]
+    public void SvgCodec_GetInfo_NullPath_ThrowsArgumentNullException()
+    {
+        // Arrange, Act & Assert
+        Assert.Throws<ArgumentNullException>(() => SvgCodec.GetInfo((string)null!));
+    }
+
+    /// <summary>Proves that <see cref="SvgCodec.GetInfo(string)"/> rejects an empty path.</summary>
+    [Fact]
+    public void SvgCodec_GetInfo_EmptyPath_ThrowsArgumentException()
+    {
+        // Arrange, Act & Assert
+        Assert.Throws<ArgumentException>(() => SvgCodec.GetInfo(string.Empty));
+    }
+
+    /// <summary>
+    ///     Proves that a non-positive requested output width propagates <see cref="Surface"/>'s
+    ///     own <see cref="ArgumentOutOfRangeException"/> unwrapped, per this codec's design
+    ///     decision to treat raster-target dimensions as ordinary API parameters rather than
+    ///     untrusted file data.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_NonPositiveWidth_PropagatesSurfaceArgumentOutOfRangeException()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 10 10'></svg>";
+
+        // Act & Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => SvgCodec.Load(ToStream(svg), 0, 10));
+    }
+
+    /// <summary>
+    ///     Proves that <see cref="SvgCodec.Load(string,int,int,IReadOnlyDictionary{string,TrueTypeFont}?)"/>
+    ///     (the file-path overload) reads and rasterizes a real file, mirroring the stream overload's
+    ///     behavior.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FromFilePath_ReturnsExpectedPixels()
+    {
+        // Arrange
+        var path = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(path, "<svg viewBox='0 0 10 10'><rect x='0' y='0' width='10' height='10' fill='blue'/></svg>");
+
+            // Act
+            var surface = SvgCodec.Load(path, 10, 10);
+
+            // Assert
+            Assert.Equal(255, surface[5, 5].A);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+}

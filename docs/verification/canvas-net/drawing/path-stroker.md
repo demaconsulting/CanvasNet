@@ -105,6 +105,9 @@ renders a visible stroke rather than vanishing to nothing.
 - `DashSplitter_Split_TinyNegativeOffsetAgainstAsymmetricHugePattern_ProducesCorrectPhase`
 - `DashSplitter_Split_ZeroLengthLeadingDashEntryOnZeroLengthPath_StartsInFollowingOffEntry`
 - `DashSplitter_Split_EdgeSpanningExtremeFloat32Coordinates_CompletesWithFiniteSegments`
+- `DashSplitter_Split_HugeFiniteTotalLengthWithFineDashSpan_FallsBackToSolidStroke`
+- `DashSplitter_Split_ManyRetainedOnIntervalsWithinIterationBudget_FallsBackToSolidStroke`
+- `PathStroker_Stroke_HugeFiniteCoordinatesWithFineDashPattern_CompletesWithoutHanging`
 - `StrokeOutliner_Outline_RoundJoinAtExtremeScale_ProducesCurvedNotStraightJoin`
 - `StrokeOutliner_Outline_RoundCapAtTypicalScale_MatchesExpectedSegmentCount`
 - `StrokeOutliner_Outline_RoundJoinSmallSweepAtExtremeScale_ProducesMultiSegmentCurve`
@@ -115,9 +118,19 @@ tessellation, and closed-contour collinearity/winding classification all remain 
 terminate promptly even when intermediate arithmetic would naively overflow or underflow float32 -
 covering a huge dash pattern combined with a tiny negative offset (symmetric and asymmetric
 patterns), an edge or closed contour spanning near-extreme float32 coordinate magnitudes, a
-zero-length leading dash-array entry evaluated against a zero-length path, and a round join/cap
-tessellated at extreme geometric scale - rather than hanging, misclassifying the contour as
-degenerate, or producing `NaN`/`Infinity` coordinates.
+zero-length leading dash-array entry evaluated against a zero-length path, a huge-but-finite total
+path length combined with a fine dash span (where `totalLength / dashSpan` would otherwise force
+the dash-interval traversal loop toward an impractical iteration count; a cheap pre-flight estimate
+now detects this before the loop runs and short-circuits directly to a solid-stroke fallback,
+resolving the case in O(1) time instead of consuming disproportionate CPU time), a dash pattern
+whose retained on-interval count would exceed `MaxOnIntervalCount` even while its iteration count
+stays within `MaxOnIntervalIterations`'s own budget (a 50,000,000-unit path with a `[1, 1]`
+pattern, whose 100,000,000 estimated iterations do not exceed the iteration cap but whose
+25,000,000 retained on-intervals do exceed the separate on-interval-count cap; the second,
+independent pre-flight estimate now catches this and falls back to a solid stroke before any
+interval is materialized), and a round join/cap tessellated at extreme geometric scale - rather
+than hanging, misclassifying the contour as degenerate, producing `NaN`/`Infinity` coordinates, or
+materializing an impractical number of retained intervals/segments.
 
 #### Public API Validation
 

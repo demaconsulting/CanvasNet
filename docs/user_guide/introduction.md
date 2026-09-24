@@ -1,6 +1,7 @@
 # Introduction
 
 <!-- cspell:ignore glyf sfnt codepoint -->
+<!-- cspell:ignore rasterizing unparseable SMIL -->
 
 ## Purpose
 
@@ -676,6 +677,99 @@ Saves a `Surface` to a file as a JPEG image, overwriting any existing file at `p
 - `ArgumentException`: Thrown when `path` is an empty string.
 - `ArgumentOutOfRangeException`: Thrown when `quality` is less than 1 or greater than 100.
 
+### SvgCodec
+
+The `SvgCodec` static class decodes and rasterizes a common real-world subset of SVG documents
+into a `Surface` of caller-chosen pixel dimensions. `SvgCodec` is decode-only: there is no `Save`.
+It supports basic shapes (`rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `path`),
+grouping (`g`) with cascading presentation attributes, `transform` functions, linear/radial
+gradients (including `xlink:href`/`href` template inheritance), `use` references, and best-effort
+`text` rendering against a caller-supplied dictionary of `TrueTypeFont` instances. The root
+`viewBox`/`width`/`height` are fit into the requested raster using a "meet, centered" policy
+equivalent to CSS `object-fit: contain` (`preserveAspectRatio` itself is not read). Well-formed but
+out-of-scope constructs (`style`, `filter`, `mask`, `clipPath`, `animate`/SMIL, `image`,
+`foreignObject`, `pattern`, `marker`, nested `svg`, CSS selectors) are silently skipped so the rest
+of the document still renders; malformed/unparseable input throws `InvalidDataException`.
+
+#### SvgCodec Methods
+
+##### SvgCodec.Load(Stream stream, int width, int height, IReadOnlyDictionary&lt;string, TrueTypeFont&gt;? fonts = null)
+
+```csharp
+public static Surface Load(
+    Stream stream,
+    int width,
+    int height,
+    IReadOnlyDictionary<string, TrueTypeFont>? fonts = null)
+```
+
+Decodes and rasterizes an SVG document from an open, readable stream into a new `width` x
+`height` `Surface`. If `fonts` is supplied, `text` elements are rendered using the matching
+`TrueTypeFont` keyed by family name; unmatched or missing fonts cause that `text` element to be
+silently skipped rather than throwing.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `stream` is null.
+- `ArgumentOutOfRangeException`: Thrown when `width` or `height` is not a valid `Surface` size (not
+  pre-validated by `SvgCodec`; propagates from `new Surface(width, height)`).
+- `InvalidDataException`: Thrown when the stream does not contain valid, supported SVG content.
+
+##### SvgCodec.Load(string path, int width, int height, IReadOnlyDictionary&lt;string, TrueTypeFont&gt;? fonts = null)
+
+```csharp
+public static Surface Load(
+    string path,
+    int width,
+    int height,
+    IReadOnlyDictionary<string, TrueTypeFont>? fonts = null)
+```
+
+Decodes and rasterizes an SVG file at the specified path, as `Load(Stream, int, int, ...)`.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `path` is null.
+- `ArgumentException`: Thrown when `path` is an empty string.
+- `ArgumentOutOfRangeException`: Thrown for the same reason as `Load(Stream, int, int, ...)`.
+- `InvalidDataException`: Thrown for the same conditions as `Load(Stream, int, int, ...)`.
+
+##### SvgCodec.GetInfo(Stream stream)
+
+```csharp
+public static ImageInfo GetInfo(Stream stream)
+```
+
+Parses only the SVG document's root `svg` start-tag and its own attributes (never reading into
+the document body) and returns an `ImageInfo` describing its intrinsic size, without rasterizing
+pixel data. Uses `viewBox` when present; otherwise falls back to `width`/`height` attributes;
+otherwise falls back to the CSS/UA default replaced-element intrinsic size of 300x150. `Channels`
+is always 4 and `HasAlpha` is always true.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `stream` is null.
+- `InvalidDataException`: Thrown when the stream is not well-formed XML up to and including the
+  root start-tag, its character count exceeds the document character cap, its root element is not
+  named `svg`, or its `viewBox` attribute is present but malformed (not exactly four numbers, or
+  non-positive width/height). A malformed or unparseable `width`/`height` attribute is **not**
+  included in this list: such a value is treated as absent and falls back to the next sizing tier
+  (ultimately the 300x150 default size) rather than throwing.
+
+##### SvgCodec.GetInfo(string path)
+
+```csharp
+public static ImageInfo GetInfo(string path)
+```
+
+Parses an SVG file at the specified path and returns an `ImageInfo`.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `path` is null.
+- `ArgumentException`: Thrown when `path` is an empty string.
+- `InvalidDataException`: Thrown for the same conditions as `GetInfo(Stream)`.
+
 ### TrueTypeFont
 
 The `TrueTypeFont` class loads glyph-based TrueType (`glyf`-based) SFNT fonts and exposes raw
@@ -1293,6 +1387,31 @@ var canvasOutline = TransformGlyph(glyphOutline, scale, baselineY: 56f);
 var surface = new Surface(64, 64);
 PathFiller.Fill(surface, canvasOutline, new Rgba32(20, 120, 255, 255));
 Console.WriteLine(font.GetAdvanceWidth(glyphIndex));
+```
+
+## Example 13: Decoding and Rasterizing an SVG Document
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using System.IO;
+using System.Text;
+
+const string svg = """
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+      <rect x="10" y="10" width="80" height="80" fill="#0080ff"/>
+    </svg>
+    """;
+
+// Probe the intrinsic size from the viewBox before rasterizing.
+using var probeStream = new MemoryStream(Encoding.UTF8.GetBytes(svg));
+var info = SvgCodec.GetInfo(probeStream);
+Console.WriteLine($"{info.Width}x{info.Height}"); // Output: 100x100
+
+// Rasterize the document into a caller-chosen 64x64 surface (SvgCodec is decode-only).
+using var loadStream = new MemoryStream(Encoding.UTF8.GetBytes(svg));
+var surfaceSvg = SvgCodec.Load(loadStream, 64, 64);
+Console.WriteLine(surfaceSvg[32, 32].A); // Output: 255 (well inside the filled rectangle)
 ```
 
 # References

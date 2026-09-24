@@ -1,6 +1,8 @@
 ---
 # Software Subsystem Requirements for Codecs
 #
+# cspell:ignore rasterizing letterboxing renderable
+#
 # These requirements decompose the CanvasNet system's image format support into the Codecs
 # subsystem's own responsibility: providing loaders and savers for BMP, PNG, TIFF, and JPEG,
 # each converting to and from a DemaConsulting.CanvasNet.Canvas.Surface pixel buffer. Each requirement here
@@ -602,3 +604,171 @@ sections:
               - JpegCodec_GetInfo_MissingSoiMarker_ThrowsInvalidDataException
               - JpegCodec_GetInfo_TruncatedBeforeSofFound_ThrowsInvalidDataException
               - JpegCodec_GetInfo_SosBeforeSof_ThrowsInvalidDataException
+
+          - id: CanvasNet-Codecs-SvgLoad
+            title: >-
+              The Codecs subsystem shall load a Surface by rasterizing a supported SVG document,
+              from either a stream or a file path, including basic shapes, the full path data
+              mini-language, group/attribute inheritance and nested transforms, transform
+              functions, presentation attributes, gradients (including href template
+              inheritance), and the use element.
+            justification: |
+              Callers need to import SVG vector artwork as pixel buffers for further processing
+              or display, since SvgCodec is decode/rasterize-only (no Save).
+            children:
+              - CanvasNet-Codecs-SvgCodec-LoadBasicShapes
+              - CanvasNet-Codecs-SvgCodec-LoadPathCommands
+              - CanvasNet-Codecs-SvgCodec-GroupTransformInheritance
+              - CanvasNet-Codecs-SvgCodec-TransformFunctions
+              - CanvasNet-Codecs-SvgCodec-PresentationAttributes
+              - CanvasNet-Codecs-SvgCodec-Gradients
+              - CanvasNet-Codecs-SvgCodec-GradientHrefInheritance
+              - CanvasNet-Codecs-SvgCodec-UseElement
+              - CanvasNet-Codecs-SvgCodec-ElementNestingDepthLimit
+              - CanvasNet-Codecs-SvgCodec-TotalElementBudget
+              - CanvasNet-Codecs-SvgCodec-TotalGeometryWorkBudget
+              - CanvasNet-Codecs-SvgCodec-NumberListLengthBudget
+              - CanvasNet-Codecs-SvgCodec-TotalDocumentElementBudget
+              - CanvasNet-Codecs-SvgCodec-ValidationOutputDimensions
+            tests:
+              - CanvasNet_SystemIntegration_SvgLoad_ReturnsExpectedPixel
+              - SvgCodec_Load_NonPositiveWidth_PropagatesSurfaceArgumentOutOfRangeException
+
+          - id: CanvasNet-Codecs-SvgViewBoxFitting
+            title: >-
+              The Codecs subsystem shall fit an SVG document's intrinsic viewBox into the
+              requested raster size using a "meet, centered" (CSS object-fit: contain
+              equivalent) transform.
+            justification: |
+              Callers request a specific raster size that may not share the document's
+              intrinsic aspect ratio; centered letterboxing avoids distorting or clipping the
+              document's content.
+            children:
+              - CanvasNet-Codecs-SvgCodec-ViewBoxFitting
+            tests:
+              - SvgCodec_Load_WideViewBoxIntoSquareRaster_LetterboxesTopAndBottom
+              - SvgCodec_Load_TallViewBoxIntoSquareRaster_LetterboxesLeftAndRight
+
+          - id: CanvasNet-Codecs-SvgGetInfo
+            title: >-
+              The Codecs subsystem shall report an SVG document's resolved intrinsic width,
+              height, channel count, and alpha presence via GetInfo, given a stream or a file
+              path, falling back from viewBox to width/height to a 300x150 default.
+            justification: |
+              Callers need to inspect an SVG document's intrinsic size before choosing a raster
+              target size to load it into, even for documents that omit explicit sizing
+              information.
+            children:
+              - CanvasNet-Codecs-SvgCodec-GetInfo
+              - CanvasNet-Codecs-SvgCodec-GetInfoFallback
+            tests:
+              - SvgCodec_GetInfo_ViewBoxPresent_ReturnsViewBoxDimensions
+              - SvgCodec_GetInfo_FromFilePath_ReturnsExpectedInfo
+              - SvgCodec_GetInfo_NoViewBoxWidthHeightPresent_ReturnsWidthHeight
+              - SvgCodec_GetInfo_NoViewBoxNoWidthHeight_ReturnsCssDefault300x150
+
+          - id: CanvasNet-Codecs-SvgTextRendering
+            title: >-
+              The Codecs subsystem shall render an SVG text element's characters as glyph
+              outlines from a caller-supplied font, positioned and anchored according to its
+              text-anchor, and shall silently skip text rendering when no matching font is
+              available.
+            justification: |
+              Callers need text content in an SVG document rendered as recognizable glyph shapes
+              using real font metrics, without a missing font turning an otherwise-renderable
+              document into a failure.
+            children:
+              - CanvasNet-Codecs-SvgCodec-TextRendering
+              - CanvasNet-Codecs-SvgCodec-TextFontFallbackSkipsSilently
+              - CanvasNet-Codecs-SvgCodec-TextAnchor
+            tests:
+              - SvgCodec_Load_TextWithMatchingFont_RendersGlyphAtExpectedPosition
+              - SvgCodec_Load_TextWithKerningPair_AppliesKerningBetweenGlyphs
+              - SvgCodec_Load_TextFixtureWithRealFont_RendersVisibleGlyphInk
+              - SvgCodec_Load_TextAnchorMiddle_CentersTextHorizontally
+              - SvgCodec_Load_TextAnchorEnd_RightAlignsText
+              - SvgCodec_Load_TextWithoutFontsDictionary_SkipsSilentlyWithoutThrowing
+              - SvgCodec_Load_TextFontFamilyNoMatch_SkipsSilentlyWithoutThrowing
+              - SvgCodec_Load_TextFontFamilyCommaSeparatedList_MatchesFirstAvailableFont
+
+          - id: CanvasNet-Codecs-SvgValidationNull
+            title: >-
+              The Codecs subsystem shall reject null stream/path arguments to SVG Load and
+              GetInfo operations with ArgumentNullException.
+            justification: |
+              Passing null to any SVG load or inspection operation is a programming error.
+              Throwing ArgumentNullException immediately surfaces the mistake and prevents
+              obscure failures deeper in the call stack.
+            children:
+              - CanvasNet-Codecs-SvgCodec-ValidationNull
+            tests:
+              - SvgCodec_Load_NullStream_ThrowsArgumentNullException
+              - SvgCodec_Load_NullPath_ThrowsArgumentNullException
+              - SvgCodec_GetInfo_NullStream_ThrowsArgumentNullException
+              - SvgCodec_GetInfo_NullPath_ThrowsArgumentNullException
+
+          - id: CanvasNet-Codecs-SvgValidationEmptyPath
+            title: >-
+              The Codecs subsystem shall reject an empty or whitespace-only path argument to SVG
+              Load and GetInfo operations with ArgumentException.
+            justification: |
+              Passing an empty or whitespace-only path to any SVG load or inspection operation
+              is a programming error. Throwing ArgumentException immediately surfaces the
+              mistake and prevents an obscure file-system error.
+            children:
+              - CanvasNet-Codecs-SvgCodec-ValidationEmptyPath
+            tests:
+              - SvgCodec_Load_EmptyPath_ThrowsArgumentException
+              - SvgCodec_Load_WhitespacePath_ThrowsArgumentException
+              - SvgCodec_GetInfo_EmptyPath_ThrowsArgumentException
+
+          - id: CanvasNet-Codecs-SvgUnsupportedFormatValidation
+            title: >-
+              The Codecs subsystem shall reject malformed SVG data (non-well-formed XML, a
+              malformed viewBox or transform attribute, or malformed path data) with
+              InvalidDataException.
+            justification: |
+              Callers must be able to distinguish a genuinely malformed SVG document from a
+              successful load, and receive a clear, actionable error rather than incorrect
+              pixel data.
+            children:
+              - CanvasNet-Codecs-SvgCodec-MalformedXmlRejected
+              - CanvasNet-Codecs-SvgCodec-MalformedPathDataRejected
+              - CanvasNet-Codecs-SvgCodec-PercentageGeometryRejected
+            tests:
+              - SvgCodec_Load_MalformedXml_ThrowsInvalidDataException
+              - SvgCodec_Load_MalformedViewBoxWrongNumberCount_ThrowsInvalidDataException
+              - SvgCodec_Load_ViewBoxNonPositiveWidth_ThrowsInvalidDataException
+              - SvgCodec_Load_MalformedTransformUnrecognizedFunction_ThrowsInvalidDataException
+              - SvgCodec_Load_MalformedPathDataUnknownCommand_ThrowsInvalidDataException
+              - SvgCodec_Load_MalformedPathDataMissingArguments_ThrowsInvalidDataException
+
+          - id: CanvasNet-Codecs-SvgTolerateUnsupportedConstructs
+            title: >-
+              The Codecs subsystem shall silently skip well-formed but out-of-scope SVG elements,
+              continuing to render the rest of the document, rather than rejecting the entire
+              document.
+            justification: |
+              Real-world SVG documents commonly include constructs outside this codec's
+              supported subset (such as filters, masks, or CSS styling); rejecting the entire
+              document because of one such element would be needlessly strict when the rest of
+              the document is renderable.
+            children:
+              - CanvasNet-Codecs-SvgCodec-UnsupportedConstructsIgnored
+            tests:
+              - SvgCodec_Load_UnsupportedConstructs_StillRendersRestOfDocument
+              - SvgCodec_Load_ToleratesUnsupportedConstructFixture_StillRendersRemainingContent
+
+          - id: CanvasNet-Codecs-SvgGetInfoValidation
+            title: >-
+              The Codecs subsystem shall reject invalid arguments passed to SVG GetInfo with the
+              same exception contract as Load.
+            justification: |
+              Callers need GetInfo's failure behavior to be exactly as predictable as Load's.
+            children:
+              - CanvasNet-Codecs-SvgCodec-ValidationNull
+              - CanvasNet-Codecs-SvgCodec-ValidationEmptyPath
+            tests:
+              - SvgCodec_GetInfo_NullStream_ThrowsArgumentNullException
+              - SvgCodec_GetInfo_NullPath_ThrowsArgumentNullException
+              - SvgCodec_GetInfo_EmptyPath_ThrowsArgumentException

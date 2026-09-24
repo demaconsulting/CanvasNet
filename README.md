@@ -31,6 +31,8 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 - 🎨 **PNG Codec** - Load and save 8-bit Truecolor (RGB) and Truecolor-with-alpha (RGBA) PNG files
 - 🖨️ **TIFF Codec** - Load and save 8-bit RGB/RGBA/Grayscale TIFF files with PackBits/LZW/Deflate
 - 🗜️ **JPEG Codec** - Load baseline/progressive JPEG and save baseline 4:2:0 JPEG with quality control
+- 📐 **SVG Codec** - Decode/rasterize a common real-world subset of SVG documents (shapes, paths,
+  transforms, gradients, `<use>`, text) into a `Surface` of caller-chosen dimensions
 - 🔍 **Header-Only Probing** - `GetInfo` reads only image headers (dimensions/channels/alpha) without
   decoding pixel data, letting callers triage untrusted files before calling `Load`
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of closed vector paths onto a `Surface`
@@ -78,6 +80,8 @@ var reloadedTiff = TiffCodec.Load("surface.tiff"); // load it back
 
 JpegCodec.Save(surface, "surface.jpg", 90);        // save as a baseline JPEG file
 var reloadedJpeg = JpegCodec.Load("surface.jpg"); // load it back
+
+var rasterized = SvgCodec.Load("icon.svg", 256, 256); // decode/rasterize an SVG into a 256x256 surface
 
 // Triage an untrusted file's header before decoding pixel data:
 var info = PngCodec.GetInfo("untrusted.png"); // reads only the header, never decodes IDAT

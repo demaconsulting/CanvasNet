@@ -210,6 +210,24 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/JpegCodecTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/JpegFixtureTests.cs"  # fixture conformance tests
 
+  # CanvasNet-Codecs-SvgCodec Review (one per unit)
+  - id: CanvasNet-Codecs-SvgCodec
+    title: Review that CanvasNet Codecs SvgCodec Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/codecs.md"
+      - "docs/reqstream/canvas-net/codecs.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/codecs/svg-codec.yaml"     # unit requirements
+      - "docs/design/canvas-net/codecs/svg-codec.md"         # unit design
+      - "docs/verification/canvas-net/codecs/svg-codec.md"   # unit verification
+      - "docs/sysml2/model/canvas-net/codecs/svg-codec.sysml"    # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet/Codecs/SvgCodec.cs"         # unit source
+      - "src/DemaConsulting.CanvasNet/Codecs/NamespaceDoc.cs"     # Codecs namespace documentation
+      - "test/DemaConsulting.CanvasNet.Tests/Codecs/SvgCodecTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Codecs/SvgFixtureTests.cs"  # fixture conformance tests
+
   # CanvasNet-Geometry Review (one per subsystem)
   - id: CanvasNet-Geometry
     title: Review that CanvasNet Geometry Subsystem Implementation is Correct

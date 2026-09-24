@@ -300,6 +300,178 @@ public class DashSplitterTests
     }
 
     /// <summary>
+    ///     Proves that a huge-but-finite total path length combined with a fine dash span (the
+    ///     combination that previously made <c>BuildOnIntervals</c>'s traversal loop require an
+    ///     impractical number of iterations to finish) falls back to a solid stroke instead of
+    ///     consuming disproportionate CPU time.
+    /// </summary>
+    /// <remarks>
+    ///     With endpoints at <c>(-1e20, -1e20)</c> and <c>(1e20, 1e20)</c>, the path length is
+    ///     roughly <c>2.83e20</c> - finite in double precision, but at that magnitude double's ULP
+    ///     (unit in the last place) is far larger than the 5-unit dash span in <c>[5, 5]</c>, so
+    ///     <c>totalLength / dashSpan</c> alone is an impractically large ratio, independent of the
+    ///     loop's separate <see cref="Math.BitIncrement(double)"/>-based defensive advance-guard
+    ///     (which exists for termination-safety at even larger magnitudes, but is not what makes
+    ///     this specific input slow). This test proves the fix: <c>BuildOnIntervals</c>'s cheap
+    ///     pre-flight iteration estimate detects that this input's cost would exceed the iteration
+    ///     budget and short-circuits straight to the fallback - without ever running the traversal
+    ///     loop - so dashing is abandoned entirely for the whole path and a solid stroke (a single
+    ///     segment containing the original points, unchanged) is returned instead, mirroring this
+    ///     codebase's other "cannot use this dash pattern -&gt; solid stroke" fallbacks.
+    ///     <para>
+    ///     Calls <see cref="DashSplitter.Split"/> directly and synchronously (no
+    ///     <c>Task.Run</c>/<c>Task.WhenAny</c>/<c>Task.Delay</c> race): the pre-flight
+    ///     short-circuit makes this a deterministic, hardware-independent, effectively O(1)
+    ///     computation - the same kind of guarantee already exercised by this test class's many
+    ///     other fixed budget/cap tests (e.g.
+    ///     <see cref="DashSplitter_Split_OrdinaryDashPatternOnOrdinaryPath_ProducesNormalDashSegments"/>
+    ///     immediately below) - so the correct regression signal is that the call returns at all
+    ///     with the documented fallback shape, not how long it takes on any given machine. No
+    ///     timing-based assertion is made here, consistent with this project's policy against
+    ///     elapsed-time-based test assertions.
+    ///     </para>
+    /// </remarks>
+    [Fact]
+    public void DashSplitter_Split_HugeFiniteTotalLengthWithFineDashSpan_FallsBackToSolidStroke()
+    {
+        // Arrange: an edge whose length is huge but finite, paired with a fine dash span whose
+        // resolution is far below double's ULP at that magnitude.
+        var points = new List<Vector2> { new(-1e20f, -1e20f), new(1e20f, 1e20f) };
+
+        // Act: direct, synchronous call - the pre-flight iteration-budget estimate (not
+        // wall-clock time) is what guarantees termination, so there is nothing to race against.
+        var segments = DashSplitter.Split(points, isClosed: false, dashArray: [5f, 5f], dashOffset: 0f);
+
+        // Assert: the call completed (did not hang) - dashing was abandoned entirely, and the
+        // whole path is emitted unchanged as a single (unclosed) segment, exactly as the other
+        // "cannot use this dash pattern" fallbacks above already behave.
+        Assert.Equal(points, Assert.Single(segments).Points);
+    }
+
+    /// <summary>
+    ///     Regression test for a cloud-PR-review-confirmed gap: a dash pattern whose iteration
+    ///     count stays at (not above) <c>MaxOnIntervalIterations</c> can still retain far more
+    ///     "on" intervals than <c>MaxOnIntervalCount</c> permits, and must fall back to a solid
+    ///     stroke instead of materializing millions of retained intervals/segments.
+    /// </summary>
+    /// <remarks>
+    ///     What is <i>counted</i> by <c>MaxOnIntervalIterations</c> (loop iterations - two per
+    ///     dash-pattern-entry transition) is a different quantity than what is <i>retained</i> in
+    ///     memory (only the strictly-positive, even-indexed "on" entries append an interval). For
+    ///     a two-point, 50,000,000-unit path with a <c>[1, 1]</c> pattern:
+    ///     <c>estimatedIterations = 2 * 2 * (50,000,000 / 2) = 100,000,000</c>, which is <i>not
+    ///     greater than</i> the 100,000,000-iteration cap - so <c>MaxOnIntervalIterations</c> alone
+    ///     does not trigger the fallback - yet the same input retains
+    ///     <c>estimatedOnIntervalCount = 1 * (50,000,000 / 2) = 25,000,000</c> on-intervals, far
+    ///     above the 10,000,000 <c>MaxOnIntervalCount</c> cap. This test proves the new,
+    ///     independent <c>MaxOnIntervalCount</c> pre-flight check catches exactly this case and
+    ///     falls back to a solid stroke (a single unchanged segment), the same fallback shape used
+    ///     by <see cref="DashSplitter_Split_HugeFiniteTotalLengthWithFineDashSpan_FallsBackToSolidStroke"/>
+    ///     above. Uses a single giant edge (rather than per-unit vertices, matching that test's
+    ///     "single giant edge, no per-point materialization" technique) so the test itself stays
+    ///     fast and allocation-free regardless of the pathological on-interval count it is proving
+    ///     is rejected before ever being materialized.
+    ///     <para>
+    ///     Calls <see cref="DashSplitter.Split"/> directly and synchronously (no
+    ///     <c>Task.Run</c>/<c>Task.WhenAny</c>/<c>Task.Delay</c> race): the pre-flight
+    ///     short-circuit makes this a deterministic, hardware-independent, effectively O(1)
+    ///     computation, so the correct regression signal is that the call returns at all with the
+    ///     documented fallback shape, not how long it takes on any given machine. No timing-based
+    ///     assertion is made here, consistent with this project's policy against elapsed-time-based
+    ///     test assertions.
+    ///     </para>
+    /// </remarks>
+    [Fact]
+    public void DashSplitter_Split_ManyRetainedOnIntervalsWithinIterationBudget_FallsBackToSolidStroke()
+    {
+        // Arrange: a single 50,000,000-unit edge (no per-point materialization) with a fine
+        // [1, 1] dash pattern - within MaxOnIntervalIterations' budget, but far above
+        // MaxOnIntervalCount's retained-on-interval budget.
+        var points = new List<Vector2> { new(0f, 0f), new(50_000_000f, 0f) };
+
+        // Act: direct, synchronous call - the pre-flight on-interval-count budget estimate (not
+        // wall-clock time) is what guarantees termination without materializing 25,000,000
+        // intervals, so there is nothing to race against.
+        var segments = DashSplitter.Split(points, isClosed: false, dashArray: [1f, 1f], dashOffset: 0f);
+
+        // Assert: the call completed (did not hang/OOM) - dashing was abandoned entirely, and the
+        // whole path is emitted unchanged as a single (unclosed) segment, exactly as the other
+        // "cannot use this dash pattern" fallbacks above already behave.
+        Assert.Equal(points, Assert.Single(segments).Points);
+    }
+
+    /// <summary>
+    ///     Regression test for a quality-review-confirmed pre-flight-formula bug: an
+    ///     <b>asymmetric</b> dash pattern (one small entry mixed with a much larger one) combined
+    ///     with a long-but-ordinary path must still produce genuine dashed output, not the
+    ///     solid-stroke fallback.
+    /// </summary>
+    /// <remarks>
+    ///     The pre-flight estimate's original formula, <c>2 * totalLength / minPositiveSpan</c>
+    ///     (based only on the single smallest positive pattern entry), ignored the pattern's total
+    ///     cycle length entirely. For this test's <c>[1, 1_000_000]</c> pattern over a
+    ///     100,000,000-unit path, that buggy formula computed <c>2 * 1e8 / 1 = 2e8</c>, which
+    ///     exceeds <c>MaxOnIntervalIterations</c> (100,000,000) and incorrectly short-circuited to
+    ///     the solid-stroke fallback - even though the real traversal loop only needs about 399
+    ///     iterations (roughly 100 pattern cycles) to resolve this input correctly. The corrected
+    ///     formula, <c>2 * positiveEntryCount * (totalLength / patternLength)</c>
+    ///     (<c>2 * 2 * (1e8 / 1_000_001) &#8776; 400</c>), stays comfortably under the cap and lets
+    ///     the real loop run to completion, producing exactly 100 one-unit "on" segments (verified
+    ///     by direct simulation of the traversal loop's exact cost model). This directly contrasts
+    ///     with <see cref="DashSplitter_Split_HugeFiniteTotalLengthWithFineDashSpan_FallsBackToSolidStroke"/>
+    ///     immediately above, which uses a symmetric <c>[5, 5]</c> pattern that genuinely does
+    ///     require an impractical iteration count and must still correctly fall back to a solid
+    ///     stroke - proving the fix distinguishes the two cases rather than merely disabling the
+    ///     short-circuit altogether.
+    /// </remarks>
+    [Fact]
+    public void DashSplitter_Split_AsymmetricDashPatternOnLongPath_ProducesGenuineDashSegments()
+    {
+        // Arrange: a 100,000,000-unit straight path (well within a realistic path length) with an
+        // asymmetric [1, 1_000_000] dash pattern - a tiny "on" span followed by a huge "off" span.
+        var points = new List<Vector2> { new(0f, 0f), new(1e8f, 0f) };
+
+        // Act
+        var segments = DashSplitter.Split(points, isClosed: false, dashArray: [1f, 1_000_000f], dashOffset: 0f);
+
+        // Assert: genuine dashing occurred - exactly the 100 small "on" segments the traversal
+        // loop's cost model predicts (independently verified by direct simulation of the loop),
+        // not the single whole-path solid-stroke fallback segment the pre-flight bug incorrectly
+        // produced. The segment count alone is decisive evidence of genuine dashing vs. fallback:
+        // the buggy formula collapsed this input to exactly one segment spanning the whole path.
+        Assert.Equal(100, segments.Count);
+        Assert.DoesNotContain(segments, segment => segment.Points.SequenceEqual(points));
+    }
+
+    /// <summary>
+    ///     Proves that an ordinary dash pattern on an ordinary-length path is entirely unaffected
+    ///     by the new iteration-budget cap: it neither triggers the solid-stroke fallback nor
+    ///     changes the emitted dash segments compared to pre-fix behavior.
+    /// </summary>
+    [Fact]
+    public void DashSplitter_Split_OrdinaryDashPatternOnOrdinaryPath_ProducesNormalDashSegments()
+    {
+        // Arrange: a simple 17-unit horizontal path with a [3, 2] dash pattern (well within any
+        // reasonable iteration count, and far from any extreme-magnitude coordinate), long enough
+        // to include a final partial "on" dash.
+        var points = new List<Vector2> { new(0, 0), new(17, 0) };
+
+        // Act
+        var segments = DashSplitter.Split(points, isClosed: false, dashArray: [3f, 2f], dashOffset: 0f);
+
+        // Assert: the expected three full "on" dashes plus one final partial dash, none of which
+        // is the whole-path solid-stroke fallback shape.
+        Assert.Equal(
+            [
+                new List<Vector2> { new(0, 0), new(3, 0) },
+                new List<Vector2> { new(5, 0), new(8, 0) },
+                new List<Vector2> { new(10, 0), new(13, 0) },
+                new List<Vector2> { new(15, 0), new(17, 0) }
+            ],
+            segments.Select(s => s.Points).ToList());
+    }
+
+    /// <summary>
     ///     Proves that an edge spanning near-extreme float32 coordinates (from near
     ///     <see cref="float.MinValue"/> to near <see cref="float.MaxValue"/>) - a legal, finite
     ///     pair of <see cref="Vector2"/> endpoints - completes and produces finite dash intervals,

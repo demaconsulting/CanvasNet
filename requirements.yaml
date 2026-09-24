@@ -16,6 +16,7 @@ includes:
   - docs/reqstream/canvas-net/codecs/png-codec.yaml
   - docs/reqstream/canvas-net/codecs/tiff-codec.yaml
   - docs/reqstream/canvas-net/codecs/jpeg-codec.yaml
+  - docs/reqstream/canvas-net/codecs/svg-codec.yaml
   - docs/reqstream/canvas-net/geometry.yaml
   - docs/reqstream/canvas-net/geometry/rect.yaml
   - docs/reqstream/canvas-net/geometry/path.yaml
