@@ -155,6 +155,22 @@ sections:
         tests:
           - Surface_MaxDimension_IsPubliclyAccessible_Equals8192
 
+      - id: CanvasNet-Lib-CanvasRgba32ParseHex
+        title: >-
+          The library shall parse an Rgba32 pixel value from a "#RRGGBB" or "#AARRGGBB" hex
+          color literal string, case-insensitively, via both a throwing Parse method and a
+          non-throwing TryParse method.
+        tags: [system]
+        justification: |
+          Callers commonly author colors as web-style hex string literals (for example from
+          configuration or markup); parsing them directly into Rgba32 avoids callers
+          hand-decoding hex digits themselves.
+        children:
+          - CanvasNet-Canvas-Rgba32
+        tests:
+          - Rgba32_Parse_6HexUppercase_ReturnsExpectedRgbaWithAlpha255
+          - Rgba32_TryParse_ValidInput_ReturnsTrueAndSetsResult
+
   - title: BMP Codec API
     requirements:
       - id: CanvasNet-Lib-BmpSave
@@ -919,6 +935,21 @@ sections:
         tests:
           - CanvasNet_SystemIntegration_BuildFlattenAndBoundPath_ReturnsExpectedBounds
 
+      - id: CanvasNet-Lib-GeometryCornerRoundEffect
+        title: >-
+          The library shall provide a path-level effect that replaces polyline corners with
+          tangent-radius arcs of a caller-specified radius, clamped per-corner to half of the
+          shorter adjacent segment, leaving curved corners unchanged.
+        tags: [system]
+        justification: |
+          Rounded polyline corners are a common effect; applying it as a pre-processing pass on
+          the immutable Path composes cleanly with downstream fill, stroke, and dashing without
+          requiring corner-aware stroke logic.
+        children:
+          - CanvasNet-Geometry-CornerRoundEffect
+        tests:
+          - CornerRoundEffect_Apply_SquareRectangle_ProducesCornerArcs
+
   - title: Drawing API
     requirements:
       - id: CanvasNet-Lib-DrawingPathFill
@@ -1127,3 +1158,53 @@ sections:
           - CanvasNet-Fonts-Metrics
         tests:
           - CanvasNet_SystemIntegration_LoadFontAndQueryMetrics_ReturnsExpectedValues
+
+  - title: Rendering API
+    requirements:
+      - id: CanvasNet-Lib-RenderingTransformStack
+        title: >-
+          The library shall wrap a pixel buffer with an affine transform stack (Save, Restore,
+          Translate, RotateDegrees) composed in row-vector prepend order, and shall bake the
+          current transform into every path fill/stroke while keeping output byte-identical to
+          direct fill/stroke calls at the identity transform.
+        tags: [system]
+        justification: |
+          Callers building composed scenes need a per-instance transform state so nested drawing
+          can be positioned and rotated without re-encoding coordinates; the byte-identical
+          no-transform regression preserves existing renders when the new wrapper is adopted.
+        children:
+          - CanvasNet-Rendering-TransformStack
+        tests:
+          - Canvas_Save_ThenRestore_RestoresPreviousTransform
+          - Canvas_FillPath_NoTransform_ProducesByteIdenticalOutputToPathFillerFill
+
+      - id: CanvasNet-Lib-RenderingTextRendering
+        title: >-
+          The library shall measure and render TrueType text at a chosen pixel size, summing
+          per-glyph advances plus kerning, honoring the current transform, and supporting
+          Left/Center/Right alignment relative to the anchor x-coordinate with a baseline anchor
+          y-coordinate.
+        tags: [system]
+        justification: |
+          Text rendering is a standard higher-level primitive callers need alongside path
+          rendering; measurement and drawing must agree on layout, and text must inherit any
+          transform applied to the target.
+        children:
+          - CanvasNet-Rendering-TextRendering
+        tests:
+          - TextRenderer_MeasureText_SingleGlyph_ReturnsAdvanceWidthScaledBySize
+          - TextRenderer_DrawText_LeftAlign_RendersGlyphsWithoutThrowing
+
+      - id: CanvasNet-Lib-RenderingShapes
+        title: >-
+          The library shall provide convenience fill and stroke helpers for axis-aligned
+          rectangles, rounded rectangles, and circles, each honoring the current transform.
+        tags: [system]
+        justification: |
+          Rectangles, rounded rectangles, and circles are the most common primitives; a caller
+          should not have to construct a Path manually for each.
+        children:
+          - CanvasNet-Rendering-Shapes
+        tests:
+          - Shapes_FillRect_WithSolidColor_PaintsRegion
+          - Shapes_FillCircle_ProducesRoundRegion

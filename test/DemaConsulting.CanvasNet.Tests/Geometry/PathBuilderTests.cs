@@ -372,9 +372,9 @@ public class PathBuilderTests
         Assert.Equal(new Rect(0, 0, 11, 11), bounds);
     }
 
-    /// <summary>TangentArcTo_QuarterTurn_ProducesLineToTangentAndCubicBezier.</summary>
+    /// <summary>PathBuilder_TangentArcTo_QuarterTurn_ProducesLineToTangentAndCubicBezier.</summary>
     [Fact]
-    public void TangentArcTo_QuarterTurn_ProducesLineToTangentAndCubicBezier()
+    public void PathBuilder_TangentArcTo_QuarterTurn_ProducesLineToTangentAndCubicBezier()
     {
         // Right angle at (10, 0): incoming ray from (0,0), outgoing ray to (10, 10). Radius 5.
         // Tangent distance = 5 / tan(45deg) = 5. Tangent-in = (5, 0), tangent-out = (10, 5).
@@ -392,9 +392,9 @@ public class PathBuilderTests
         Assert.Equal(5f, commands[1].EndPoint.Y, 3);
     }
 
-    /// <summary>TangentArcTo_CollinearInputs_DegradesToLineTo.</summary>
+    /// <summary>PathBuilder_TangentArcTo_CollinearInputs_DegradesToLineTo.</summary>
     [Fact]
-    public void TangentArcTo_CollinearInputs_DegradesToLineTo()
+    public void PathBuilder_TangentArcTo_CollinearInputs_DegradesToLineTo()
     {
         var builder = new PathBuilder();
         builder.MoveTo(new Vector2(0, 0));
@@ -405,9 +405,9 @@ public class PathBuilderTests
         Assert.Equal(new Vector2(5, 0), commands[0].EndPoint);
     }
 
-    /// <summary>TangentArcTo_ZeroRadius_DegradesToLineToCorner.</summary>
+    /// <summary>PathBuilder_TangentArcTo_ZeroRadius_DegradesToLineToCorner.</summary>
     [Fact]
-    public void TangentArcTo_ZeroRadius_DegradesToLineToCorner()
+    public void PathBuilder_TangentArcTo_ZeroRadius_DegradesToLineToCorner()
     {
         var builder = new PathBuilder();
         builder.MoveTo(new Vector2(0, 0));
@@ -418,18 +418,18 @@ public class PathBuilderTests
         Assert.Equal(new Vector2(10, 0), commands[0].EndPoint);
     }
 
-    /// <summary>TangentArcTo_NegativeRadius_ThrowsArgumentOutOfRangeException.</summary>
+    /// <summary>PathBuilder_TangentArcTo_NegativeRadius_ThrowsArgumentOutOfRangeException.</summary>
     [Fact]
-    public void TangentArcTo_NegativeRadius_ThrowsArgumentOutOfRangeException()
+    public void PathBuilder_TangentArcTo_NegativeRadius_ThrowsArgumentOutOfRangeException()
     {
         var builder = new PathBuilder();
         builder.MoveTo(new Vector2(0, 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => builder.TangentArcTo(new Vector2(10, 0), new Vector2(10, 10), -1f));
     }
 
-    /// <summary>TangentArcTo_NoCurrentPoint_ThrowsInvalidOperationException.</summary>
+    /// <summary>PathBuilder_TangentArcTo_NoCurrentPoint_ThrowsInvalidOperationException.</summary>
     [Fact]
-    public void TangentArcTo_NoCurrentPoint_ThrowsInvalidOperationException()
+    public void PathBuilder_TangentArcTo_NoCurrentPoint_ThrowsInvalidOperationException()
     {
         var builder = new PathBuilder();
         Assert.Throws<InvalidOperationException>(() => builder.TangentArcTo(new Vector2(10, 0), new Vector2(10, 10), 1f));
