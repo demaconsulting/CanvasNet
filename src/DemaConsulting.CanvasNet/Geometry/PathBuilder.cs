@@ -139,6 +139,117 @@ public sealed class PathBuilder
     }
 
     /// <summary>
+    ///     Appends a circular corner arc of the given <paramref name="radius"/> tangent to the
+    ///     ray from the current point through <paramref name="corner"/> and to the ray from
+    ///     <paramref name="corner"/> through <paramref name="end"/>, matching HTML5 canvas
+    ///     <c>arcTo</c> semantics.
+    /// </summary>
+    /// <param name="corner">The corner point (shared vertex of the two rays).</param>
+    /// <param name="end">A point on the outgoing ray past the corner.</param>
+    /// <param name="radius">The corner arc radius. Must be finite and non-negative.</param>
+    /// <returns>This builder, for fluent chaining.</returns>
+    /// <exception cref="InvalidOperationException">
+    ///     Thrown when called before the first <see cref="MoveTo"/>, or after <see cref="Close"/>
+    ///     without an intervening <see cref="MoveTo"/>.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <paramref name="radius"/> is not finite or is negative.
+    /// </exception>
+    /// <remarks>
+    ///     <para>
+    ///     The arc is approximated with a single cubic Bezier using the quarter-turn tangent
+    ///     constant kappa = 0.5522847498 (= 4/3 * (sqrt(2) - 1)) — exact for a 90-degree sweep,
+    ///     documented approximation for other angles (from Stanislaw K. Dzik / IBM 1975 derivation).
+    ///     Prior to the arc a <see cref="LineTo"/> is emitted to the tangent point on the
+    ///     incoming ray, matching HTML5 canvas <c>arcTo</c> semantics.
+    ///     </para>
+    ///     <para>
+    ///     Degenerates gracefully: when the two rays are collinear, the incoming/outgoing
+    ///     vectors are zero-length, or <paramref name="radius"/> is zero, the method emits a
+    ///     single <see cref="LineTo"/> to <paramref name="corner"/> instead of an arc.
+    ///     </para>
+    /// </remarks>
+    public PathBuilder TangentArcTo(Vector2 corner, Vector2 end, float radius)
+    {
+        EnsureCanDraw();
+        if (!float.IsFinite(radius) || radius < 0f)
+        {
+            throw new ArgumentOutOfRangeException(nameof(radius), radius, "Radius must be finite and non-negative.");
+        }
+
+        // Current pen point is the endpoint of the most recent command (or the subpath start).
+        Vector2 start;
+        if (_currentCommands.Count == 0)
+        {
+            start = _currentStart;
+        }
+        else
+        {
+            var lastCommand = _currentCommands[^1];
+            start = lastCommand.Type == PathCommandType.Close ? _currentStart : lastCommand.EndPoint;
+        }
+
+        var v1 = start - corner;
+        var v2 = end - corner;
+        var len1 = v1.Length();
+        var len2 = v2.Length();
+
+        if (radius == 0f || len1 == 0f || len2 == 0f)
+        {
+            _currentCommands.Add(PathCommand.LineTo(corner));
+            return this;
+        }
+
+        var n1 = v1 / len1;
+        var n2 = v2 / len2;
+
+        var dot = Vector2.Dot(n1, n2);
+        // Numeric clamp: |dot| may drift very slightly above 1 for near-collinear input; treat
+        // as a degenerate straight segment.
+        if (dot >= 1f - 1e-6f || dot <= -1f + 1e-6f)
+        {
+            _currentCommands.Add(PathCommand.LineTo(corner));
+            return this;
+        }
+
+        // Half-angle formula: tangent distance from corner to each tangent point along its ray.
+        var half = MathF.Acos(dot) * 0.5f;
+        var tan = MathF.Tan(half);
+        if (tan <= 0f || !float.IsFinite(tan))
+        {
+            _currentCommands.Add(PathCommand.LineTo(corner));
+            return this;
+        }
+
+        var distance = radius / tan;
+
+        // Clamp so we never overshoot the shorter of the two adjacent segments.
+        var maxDistance = MathF.Min(len1, len2);
+        if (distance > maxDistance)
+        {
+            distance = maxDistance;
+            // Corresponding radius when the tangent distance is clamped.
+            radius = distance * tan;
+        }
+
+        var tangentIn = corner + n1 * distance;
+        var tangentOut = corner + n2 * distance;
+
+        // Cubic Bezier approximation of the tangent circular arc with kappa=0.5522847498
+        // (= 4/3 * (sqrt(2)-1)); exact for a 90-degree sweep, close for other sweeps typically
+        // seen at rounded corners. Control points sit along the tangent rays at offset kappa * r
+        // from each tangent point, matching the quarter-circle Bezier derivation.
+        const float kappa = 0.5522847498f;
+        var control1 = tangentIn - n1 * (kappa * radius);
+        var control2 = tangentOut - n2 * (kappa * radius);
+
+        _currentCommands.Add(PathCommand.LineTo(tangentIn));
+        _currentCommands.Add(PathCommand.CubicBezierTo(control1, control2, tangentOut));
+        return this;
+    }
+
+
+    /// <summary>
     ///     Closes the current subpath with a straight line back to its start point.
     /// </summary>
     /// <returns>This builder, for fluent chaining.</returns>

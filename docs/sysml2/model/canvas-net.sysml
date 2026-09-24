@@ -19,5 +19,6 @@ package CanvasNet {
         part geometry : Geometry;
         part drawing : Drawing;
         part fonts : Fonts;
+        part renderingSubsystem : Rendering;
     }
 }

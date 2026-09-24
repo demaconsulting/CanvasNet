@@ -1,0 +1,65 @@
+---
+# Software Unit Requirements for Rgba32
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Canvas Requirements
+        sections:
+          - title: Rgba32 Requirements
+            requirements:
+              - id: CanvasNet-Canvas-Rgba32-ParseSixHex
+                title: >-
+                  The Rgba32 struct shall parse a "#RRGGBB" hex string, case-insensitively, into
+                  the corresponding red, green, blue channels and set alpha to 255.
+                justification: |
+                  The six-hex form is the most common web-style color literal; parsing lets
+                  callers author colors as strings without hand-decoding hex.
+                tests:
+                  - Rgba32_Parse_6HexUppercase_ReturnsExpectedRgbaWithAlpha255
+                  - Rgba32_Parse_6HexLowercase_ReturnsExpectedRgbaWithAlpha255
+                  - Rgba32_Parse_6HexMixedCase_ReturnsExpectedRgba
+
+              - id: CanvasNet-Canvas-Rgba32-ParseEightHex
+                title: >-
+                  The Rgba32 struct shall parse a "#AARRGGBB" hex string, case-insensitively,
+                  into the corresponding alpha, red, green, blue channels.
+                justification: |
+                  The eight-hex form allows a caller to specify alpha directly as part of the
+                  literal.
+                tests:
+                  - Rgba32_Parse_8HexUppercase_ReturnsExpectedArgb
+                  - Rgba32_Parse_8HexLowercase_ReturnsExpectedArgb
+
+              - id: CanvasNet-Canvas-Rgba32-ParseValidation
+                title: >-
+                  The Rgba32 Parse method shall throw ArgumentNullException on a null argument
+                  and FormatException on any other invalid input (missing '#', wrong length,
+                  short forms, non-hex characters), with a message that names the accepted
+                  formats.
+                justification: |
+                  Fail-fast validation gives callers a specific, actionable error rather than
+                  silently accepting garbage.
+                tests:
+                  - Rgba32_Parse_MissingHash_ThrowsFormatException
+                  - Rgba32_Parse_3HexShortForm_ThrowsFormatException
+                  - Rgba32_Parse_4HexArgbShortForm_ThrowsFormatException
+                  - Rgba32_Parse_7Hex_ThrowsFormatException
+                  - Rgba32_Parse_9Hex_ThrowsFormatException
+                  - Rgba32_Parse_NonHexCharacter_ThrowsFormatException
+                  - Rgba32_Parse_Null_ThrowsArgumentNullException
+                  - Rgba32_Parse_EmptyString_ThrowsFormatException
+                  - Rgba32_Parse_ExceptionMessage_ContainsFormatGuidance
+
+              - id: CanvasNet-Canvas-Rgba32-TryParse
+                title: >-
+                  The Rgba32 struct shall provide a TryParse method returning true and populating
+                  the result on a valid input string, or returning false and setting the result
+                  to default on any invalid input including null.
+                justification: |
+                  TryParse is the exception-free counterpart of Parse, expected by callers
+                  parsing user input or configuration.
+                tests:
+                  - Rgba32_TryParse_ValidInput_ReturnsTrueAndSetsResult
+                  - Rgba32_TryParse_InvalidInput_ReturnsFalseAndSetsResultToDefault
+                  - Rgba32_TryParse_Null_ReturnsFalse

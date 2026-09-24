@@ -49,6 +49,10 @@ software items, specifically:
 - **Fonts (Subsystem)** — TrueType (`glyf`-based) SFNT font support: the `TrueTypeFont` unit and
   its internal `SfntContainer`/`CmapTable`/`GlyfLocaReader`/`HmtxHheaReader`/`KernTable` helpers,
   producing `Geometry.Path` glyph outlines plus metrics and kerning
+- **Rendering (Subsystem)** — higher-level rendering primitives composing `Canvas`, `Geometry`,
+  `Drawing`, and `Fonts`: the transform-aware `Canvas` wrapper, `TextRenderer` (measure and draw
+  TrueType text with alignment and kerning), and `Shapes` (rectangle, rounded rectangle, and
+  circle helpers)
 
 The following OTS items are also covered:
 

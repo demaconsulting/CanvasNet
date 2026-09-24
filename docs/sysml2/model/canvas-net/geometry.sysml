@@ -10,5 +10,6 @@ package CanvasNet {
         part path : Path;
         part bezierFlattening : BezierFlattening;
         part svgArcConverter : SvgArcConverter;
+        part cornerRoundEffect : CornerRoundEffect;
     }
 }

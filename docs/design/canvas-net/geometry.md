@@ -35,6 +35,9 @@ has no dependency on either of them. `Geometry` is deliberately distinct from th
 - **SvgArcConverter** — conversion of SVG-style endpoint-parameterized elliptical arcs into cubic
   Bezier curves, following the SVG 1.1 Appendix F algorithm; see
   _SvgArcConverter Unit Design_ (`geometry/svg-arc-converter.md`)
+- **CornerRoundEffect** — path-level pre-processing that rounds polyline corners into
+  tangent-radius arcs by delegating to `PathBuilder.TangentArcTo`; see
+  _CornerRoundEffect Unit Design_ (`geometry/corner-round-effect.md`)
 
 ### Dependencies
 

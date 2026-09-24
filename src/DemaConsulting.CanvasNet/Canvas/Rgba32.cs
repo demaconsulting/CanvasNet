@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 
 namespace DemaConsulting.CanvasNet.Canvas;
@@ -102,4 +103,141 @@ public struct Rgba32 : IEquatable<Rgba32>
     /// <param name="right">The second instance to compare.</param>
     /// <returns><see langword="true"/> if the instances are different; otherwise, <see langword="false"/>.</returns>
     public static bool operator !=(Rgba32 left, Rgba32 right) => !left.Equals(right);
+
+    /// <summary>
+    ///     Parses a hexadecimal color string in the form <c>#RRGGBB</c> or <c>#AARRGGBB</c>
+    ///     (case-insensitive) into an <see cref="Rgba32"/> value.
+    /// </summary>
+    /// <param name="s">The hexadecimal color string to parse.</param>
+    /// <returns>The parsed <see cref="Rgba32"/> value.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="s"/> is <see langword="null"/>.</exception>
+    /// <exception cref="FormatException">
+    ///     Thrown when <paramref name="s"/> is not a valid <c>#RRGGBB</c> or <c>#AARRGGBB</c>
+    ///     hexadecimal color string. Shorthand forms (<c>#RGB</c>, <c>#ARGB</c>) are not
+    ///     supported and result in this exception.
+    /// </exception>
+    /// <remarks>
+    ///     <para>
+    ///     <c>#RRGGBB</c> parses to red/green/blue with alpha implicitly <c>255</c> (fully
+    ///     opaque). <c>#AARRGGBB</c> parses to alpha/red/green/blue directly. Both forms are
+    ///     case-insensitive: <c>#ABCDEF</c> and <c>#abcdef</c> parse identically.
+    ///     </para>
+    ///     <para>
+    ///     Delegates to the shared internal <see cref="TryParseCore"/> so that the accept/reject
+    ///     behavior is provably identical to <see cref="TryParse"/>.
+    ///     </para>
+    /// </remarks>
+    public static Rgba32 Parse(string s)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        if (!TryParseCore(s, out var result, out var reason))
+        {
+            throw new FormatException(reason);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    ///     Attempts to parse a hexadecimal color string in the form <c>#RRGGBB</c> or
+    ///     <c>#AARRGGBB</c> (case-insensitive) into an <see cref="Rgba32"/> value. Never throws.
+    /// </summary>
+    /// <param name="s">The hexadecimal color string to parse, or <see langword="null"/>.</param>
+    /// <param name="result">
+    ///     When this method returns <see langword="true"/>, the parsed value; otherwise, the
+    ///     default (<c>0,0,0,0</c>) <see cref="Rgba32"/> value.
+    /// </param>
+    /// <returns>
+    ///     <see langword="true"/> if <paramref name="s"/> was successfully parsed as either
+    ///     <c>#RRGGBB</c> or <c>#AARRGGBB</c>; <see langword="false"/> otherwise, including when
+    ///     <paramref name="s"/> is <see langword="null"/>.
+    /// </returns>
+    public static bool TryParse(string? s, out Rgba32 result)
+    {
+        if (s is null)
+        {
+            result = default;
+            return false;
+        }
+
+        return TryParseCore(s, out result, out _);
+    }
+
+    /// <summary>
+    ///     Shared accept/reject core used by both <see cref="Parse"/> and <see cref="TryParse"/>.
+    ///     Never throws.
+    /// </summary>
+    /// <param name="s">A non-null candidate hexadecimal color string.</param>
+    /// <param name="result">
+    ///     The parsed color on success; the default (<c>0,0,0,0</c>) value on failure.
+    /// </param>
+    /// <param name="reason">
+    ///     A human-readable failure message on failure; <see langword="null"/> on success. Used
+    ///     verbatim as the <see cref="FormatException"/> message thrown by <see cref="Parse"/>.
+    /// </param>
+    /// <returns><see langword="true"/> on success; <see langword="false"/> on failure.</returns>
+    private static bool TryParseCore(string s, out Rgba32 result, out string? reason)
+    {
+        result = default;
+
+        if (s.Length != 7 && s.Length != 9)
+        {
+            reason = "Rgba32 hex string must be '#RRGGBB' or '#AARRGGBB'.";
+            return false;
+        }
+
+        if (s[0] != '#')
+        {
+            reason = "Rgba32 hex string must be '#RRGGBB' or '#AARRGGBB'.";
+            return false;
+        }
+
+        // Reject any non-hex character before letting byte.TryParse succeed on partially valid
+        // inputs (for example, byte.TryParse would accept whitespace or a sign character that we
+        // deliberately do not permit in a hex color literal).
+        for (var i = 1; i < s.Length; i++)
+        {
+            if (!IsHexDigit(s[i]))
+            {
+                reason = "Rgba32 hex string contains a non-hexadecimal character.";
+                return false;
+            }
+        }
+
+        const NumberStyles hex = NumberStyles.HexNumber;
+        var culture = CultureInfo.InvariantCulture;
+
+        byte a, r, g, b;
+        if (s.Length == 7)
+        {
+            if (!byte.TryParse(s.AsSpan(1, 2), hex, culture, out r) ||
+                !byte.TryParse(s.AsSpan(3, 2), hex, culture, out g) ||
+                !byte.TryParse(s.AsSpan(5, 2), hex, culture, out b))
+            {
+                reason = "Rgba32 hex string contains a non-hexadecimal character.";
+                return false;
+            }
+
+            a = 255;
+        }
+        else
+        {
+            if (!byte.TryParse(s.AsSpan(1, 2), hex, culture, out a) ||
+                !byte.TryParse(s.AsSpan(3, 2), hex, culture, out r) ||
+                !byte.TryParse(s.AsSpan(5, 2), hex, culture, out g) ||
+                !byte.TryParse(s.AsSpan(7, 2), hex, culture, out b))
+            {
+                reason = "Rgba32 hex string contains a non-hexadecimal character.";
+                return false;
+            }
+        }
+
+        result = new Rgba32(r, g, b, a);
+        reason = null;
+        return true;
+    }
+
+    /// <summary>Returns whether <paramref name="c"/> is a valid ASCII hexadecimal digit.</summary>
+    private static bool IsHexDigit(char c) =>
+        (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }

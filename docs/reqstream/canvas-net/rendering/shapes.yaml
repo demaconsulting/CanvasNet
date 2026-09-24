@@ -1,0 +1,54 @@
+---
+# Software Unit Requirements for Shapes (Rendering)
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Rendering Requirements
+        sections:
+          - title: Shapes Requirements
+            requirements:
+              - id: CanvasNet-Rendering-Shapes-Rect
+                title: >-
+                  The Shapes extension class shall provide FillRect and StrokeRect helpers that
+                  fill or stroke an axis-aligned rectangle using the Canvas current transform.
+                justification: |
+                  Rectangles are the most common convenience primitive; a helper avoids ad-hoc
+                  Path.Rectangle boilerplate at each call site.
+                tests:
+                  - Shapes_FillRect_WithSolidColor_PaintsRegion
+                  - Shapes_StrokeRect_WithSolidStyle_PaintsPixels
+                  - Shapes_FillRect_RespectsCanvasCurrentTransform
+
+              - id: CanvasNet-Rendering-Shapes-RoundRect
+                title: >-
+                  The Shapes extension class shall provide FillRoundRect and StrokeRoundRect
+                  helpers that fill or stroke a rounded rectangle, clamping the corner radius to
+                  half of the shorter side.
+                justification: |
+                  Rounded rectangles are a common convenience primitive; radius clamping matches
+                  the Path.RoundRectangle contract so callers cannot request a degenerate shape.
+                tests:
+                  - Shapes_FillRoundRect_RadiusClampedAndPaintsPixels
+
+              - id: CanvasNet-Rendering-Shapes-Circle
+                title: >-
+                  The Shapes extension class shall provide FillCircle and StrokeCircle helpers
+                  that fill or stroke a circle at a given center and radius using the Canvas
+                  current transform.
+                justification: |
+                  Circles are a common convenience primitive; a helper avoids ad-hoc
+                  Path.Circle boilerplate at each call site.
+                tests:
+                  - Shapes_FillCircle_ProducesRoundRegion
+                  - Shapes_StrokeCircle_ProducesRing
+
+              - id: CanvasNet-Rendering-Shapes-Validation
+                title: >-
+                  The Shapes extension class shall reject a null Canvas argument to any helper
+                  with ArgumentNullException.
+                justification: |
+                  A null canvas would make every draw operation fail later with a
+                  NullReferenceException; failing at the entry point is clearer.
+                tests:
+                  - Shapes_NullCanvas_ThrowsArgumentNullException

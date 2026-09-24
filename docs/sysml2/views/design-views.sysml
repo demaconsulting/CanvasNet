@@ -31,4 +31,8 @@ package CanvasNet {
     view FontsView {
         expose Fonts;
     }
+
+    view RenderingView {
+        expose Rendering;
+    }
 }

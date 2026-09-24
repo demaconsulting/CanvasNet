@@ -1,0 +1,65 @@
+---
+# Software Subsystem Requirements for Rendering
+#
+# The Rendering subsystem provides higher-level rendering primitives that compose Canvas,
+# Geometry, Drawing, and Fonts into a transform-aware surface API (Canvas), text rendering
+# (TextRenderer), and convenience shape helpers (Shapes).
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Rendering Requirements
+        requirements:
+          - id: CanvasNet-Rendering-TransformStack
+            title: >-
+              The Rendering subsystem shall wrap a Surface with an affine transform stack
+              (Save, Restore, Translate, RotateDegrees) composed in row-vector prepend order,
+              and shall bake the current transform into every path fill/stroke while keeping
+              output byte-identical to direct PathFiller/PathStroker calls at the identity
+              transform.
+            justification: |
+              Callers building composed scenes need a per-instance transform state so nested
+              drawing can be positioned and rotated without re-encoding coordinates; the
+              byte-identical no-transform regression preserves existing renders when the new
+              wrapper is adopted.
+            children:
+              - CanvasNet-Rendering-Canvas-Save
+              - CanvasNet-Rendering-Canvas-Restore
+              - CanvasNet-Rendering-Canvas-RestoreEmpty
+              - CanvasNet-Rendering-Canvas-Translate
+              - CanvasNet-Rendering-Canvas-RotateDegrees
+              - CanvasNet-Rendering-Canvas-FillPath
+              - CanvasNet-Rendering-Canvas-StrokePath
+              - CanvasNet-Rendering-Canvas-Identity
+              - CanvasNet-Rendering-Canvas-Validation
+
+          - id: CanvasNet-Rendering-TextRendering
+            title: >-
+              The Rendering subsystem shall measure and render TrueType text at a chosen pixel
+              size, summing per-glyph advances plus kerning, honoring the Canvas current
+              transform, and supporting Left/Center/Right alignment relative to the anchor
+              x-coordinate with a baseline anchor y-coordinate.
+            justification: |
+              Text rendering is a standard higher-level primitive callers need alongside path
+              rendering; measurement and drawing must agree on layout, and text must inherit
+              any transform applied to the Canvas.
+            children:
+              - CanvasNet-Rendering-TextRenderer-Measure
+              - CanvasNet-Rendering-TextRenderer-Draw
+              - CanvasNet-Rendering-TextRenderer-Alignment
+              - CanvasNet-Rendering-TextRenderer-TransformComposition
+              - CanvasNet-Rendering-TextRenderer-Validation
+
+          - id: CanvasNet-Rendering-Shapes
+            title: >-
+              The Rendering subsystem shall provide convenience fill and stroke helpers for
+              axis-aligned rectangles, rounded rectangles, and circles, each honoring the
+              Canvas current transform.
+            justification: |
+              Rectangles, rounded rectangles, and circles are the most common primitives; a
+              caller should not have to construct a Path manually for each.
+            children:
+              - CanvasNet-Rendering-Shapes-Rect
+              - CanvasNet-Rendering-Shapes-RoundRect
+              - CanvasNet-Rendering-Shapes-Circle
+              - CanvasNet-Rendering-Shapes-Validation
