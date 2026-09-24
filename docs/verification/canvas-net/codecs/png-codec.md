@@ -363,7 +363,7 @@ above, which `GetInfo` still accepts). This deliberately excludes the two files 
 `CanvasNet-Codecs-PngCodec-PngSuiteCorruptAfterIhdr` below, whose corruption lies entirely after a
 well-formed IHDR chunk and is therefore never encountered by `GetInfo`.
 
-#### CanvasNet-Codecs-PngCodec-PngSuiteCorruptAfterIhdr: PngSuite Files Corrupt Only After IHDR Are Rejected by Load; GetInfo Still Succeeds
+#### CanvasNet-Codecs-PngCodec-PngSuiteCorruptAfterIhdr: Corrupt-After-IHDR Files: Load Rejects, GetInfo Succeeds
 
 **Test**: `PngCodec_PngSuiteCorruptAfterIhdrFile_GetInfoReturnsCorrectDimensions_ButLoadThrows`
 (`[Theory]` over 2 PngSuite files)

@@ -32,6 +32,7 @@ words:
   - Casteljau
   - CMYK
   - coeffs
+  - CSUM
   - Decodability
   - dequantize
   - dequantizes
@@ -85,6 +86,8 @@ words:
   - unstuffed
   - upsamples
   - vectorizing
+  - xcsn
+  - xdtn
   - xunit
   - YCCK
   - Paeth
