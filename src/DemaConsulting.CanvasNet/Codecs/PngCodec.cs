@@ -245,7 +245,9 @@ public static class PngCodec
     /// </summary>
     /// <param name="stream">
     ///     The stream to read the PNG image from. Reading begins at the stream's current position
-    ///     and consumes exactly the PNG signature, all chunks through <c>IEND</c>.
+    ///     and consumes exactly the PNG signature, all chunks through <c>IEND</c>, and one further
+    ///     byte read to confirm the stream ends there, per the PNG specification's requirement
+    ///     that <c>IEND</c> be the final chunk in the datastream.
     /// </param>
     /// <returns>
     ///     A new <see cref="Surface"/> containing the decoded pixels, always as RGBA regardless of
@@ -265,11 +267,14 @@ public static class PngCodec
     ///     or interlace method; an unrecognized critical chunk (uppercase first type byte) is
     ///     encountered; a <c>PLTE</c> chunk appears on a grayscale or grayscale-with-alpha file;
     ///     a <c>tRNS</c> chunk appears on a grayscale-with-alpha or Truecolor-with-alpha file, or
-    ///     precedes the <c>PLTE</c> chunk on a palette file; a <c>PLTE</c> chunk appears after a
+    ///     precedes the <c>PLTE</c> chunk on a palette file; a grayscale or Truecolor <c>tRNS</c>
+    ///     chunk encodes a key sample value that exceeds the maximum value representable at the
+    ///     file's bit depth; a <c>PLTE</c> chunk appears after a
     ///     <c>tRNS</c> chunk has already been accepted; the <c>IDAT</c> chunks are not
     ///     consecutive; any chunk appears before the mandatory <c>IHDR</c> chunk; any chunk's
     ///     CRC-32 does not match; the decompressed scanline data
-    ///     has an unexpected length; an unsupported scanline filter type is encountered; or the
+    ///     has an unexpected length; an unsupported scanline filter type is encountered; data is
+    ///     found in the stream after the <c>IEND</c> chunk; or the
     ///     stream ends before all header, chunk, or pixel data has been read.
     /// </exception>
     /// <example>
@@ -299,7 +304,7 @@ public static class PngCodec
             throw new InvalidDataException("PNG palette color type (3) requires a PLTE chunk.");
         }
 
-        var trns = ValidateAndNormalizeTrns(header.ColorType, plteData, trnsData);
+        var trns = ValidateAndNormalizeTrns(header.ColorType, header.BitDepth, plteData, trnsData);
 
         var samplesPerPixel = SamplesPerPixel(header.ColorType);
         var bitsPerPixel = samplesPerPixel * header.BitDepth;
@@ -523,7 +528,14 @@ public static class PngCodec
     ///     Reads and validates every chunk from <paramref name="stream"/> until (and including)
     ///     <c>IEND</c>, accumulating <c>IDAT</c> payload bytes into <paramref name="idatData"/>
     ///     and returning the parsed <c>IHDR</c> fields plus any <c>PLTE</c>/<c>tRNS</c> payloads.
+    ///     The PNG specification requires <c>IEND</c> to be the final chunk in the datastream, so
+    ///     once the <c>IEND</c> chunk itself has been consumed, the stream must immediately reach
+    ///     end-of-file; any further byte found after <c>IEND</c> is rejected.
     /// </summary>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown, in addition to the per-chunk conditions <see cref="ProcessChunk"/> documents,
+    ///     when the stream contains any further byte after the <c>IEND</c> chunk has been read.
+    /// </exception>
     private static PngHeader ReadChunks(Stream stream, out byte[] idatData, out byte[]? plteData, out byte[]? trnsData)
     {
         var state = new ChunkReadState();
@@ -534,6 +546,15 @@ public static class PngCodec
         while (!state.IendSeen)
         {
             ProcessChunk(stream, idatStream, state);
+        }
+
+        // The PNG specification requires IEND to be the final chunk in the datastream: reading
+        // a single byte here (rather than relying on Stream.Length, which is unavailable for a
+        // non-seekable stream) works uniformly for both seekable and non-seekable streams and
+        // returns -1 only once the stream is genuinely exhausted.
+        if (stream.ReadByte() != -1)
+        {
+            throw new InvalidDataException("Data found after IEND chunk.");
         }
 
         idatData = idatStream.ToArray();
@@ -1294,20 +1315,28 @@ public static class PngCodec
     };
 
     /// <summary>
-    ///     Validates a raw <c>tRNS</c> chunk payload against the file's color type and (for
-    ///     palette) its <c>PLTE</c> chunk, returning the chunk unchanged when applicable or null
-    ///     when absent. A <c>tRNS</c> chunk can never reach this method for the
+    ///     Validates a raw <c>tRNS</c> chunk payload against the file's color type, bit depth, and
+    ///     (for palette) its <c>PLTE</c> chunk, returning the chunk unchanged when applicable or
+    ///     null when absent. A <c>tRNS</c> chunk can never reach this method for the
     ///     grayscale-with-alpha or Truecolor-with-alpha color types - <c>ProcessChunk</c> rejects
     ///     such a chunk outright as soon as it is encountered, since neither color type is
     ///     spec-defined for <c>tRNS</c> - so the <c>default</c> case below exists only as a
     ///     defensive fallback for any other, already-rejected-earlier color type.
     /// </summary>
+    /// <param name="colorType">The PNG color type declared by the file's IHDR chunk.</param>
+    /// <param name="bitDepth">
+    ///     The PNG bit depth declared by the file's IHDR chunk, used to bound the maximum sample
+    ///     value a grayscale or Truecolor tRNS key may legally encode.
+    /// </param>
+    /// <param name="plteData">The file's PLTE chunk payload, or null if absent.</param>
+    /// <param name="trnsData">The raw tRNS chunk payload to validate, or null if absent.</param>
     /// <exception cref="System.IO.InvalidDataException">
     ///     Thrown when a grayscale or Truecolor <c>tRNS</c> chunk does not have its mandatory
-    ///     fixed length, or a palette <c>tRNS</c> chunk has more entries than the PLTE chunk
-    ///     defines.
+    ///     fixed length, or encodes a key sample value that exceeds the maximum value
+    ///     representable at the file's bit depth (<c>(1 &lt;&lt; bitDepth) - 1</c>); or a palette
+    ///     <c>tRNS</c> chunk has more entries than the PLTE chunk defines.
     /// </exception>
-    private static byte[]? ValidateAndNormalizeTrns(int colorType, byte[]? plteData, byte[]? trnsData)
+    private static byte[]? ValidateAndNormalizeTrns(int colorType, int bitDepth, byte[]? plteData, byte[]? trnsData)
     {
         if (trnsData == null)
         {
@@ -1323,6 +1352,15 @@ public static class PngCodec
                         $"Invalid PNG tRNS chunk length {trnsData.Length} for grayscale; expected 2 bytes.");
                 }
 
+                var maxGraySample = (1 << bitDepth) - 1;
+                var grayKey = ReadUInt16Be(trnsData, 0);
+                if (grayKey > maxGraySample)
+                {
+                    throw new InvalidDataException(
+                        $"PNG tRNS grayscale key {grayKey} exceeds the maximum representable value " +
+                        $"{maxGraySample} for bit depth {bitDepth}.");
+                }
+
                 return trnsData;
 
             case ColorTypeTruecolor:
@@ -1330,6 +1368,17 @@ public static class PngCodec
                 {
                     throw new InvalidDataException(
                         $"Invalid PNG tRNS chunk length {trnsData.Length} for Truecolor; expected 6 bytes.");
+                }
+
+                var maxTruecolorSample = (1 << bitDepth) - 1;
+                var redKey = ReadUInt16Be(trnsData, 0);
+                var greenKey = ReadUInt16Be(trnsData, 2);
+                var blueKey = ReadUInt16Be(trnsData, 4);
+                if (redKey > maxTruecolorSample || greenKey > maxTruecolorSample || blueKey > maxTruecolorSample)
+                {
+                    throw new InvalidDataException(
+                        $"PNG tRNS Truecolor key (red {redKey}, green {greenKey}, blue {blueKey}) exceeds the " +
+                        $"maximum representable value {maxTruecolorSample} for bit depth {bitDepth}.");
                 }
 
                 return trnsData;

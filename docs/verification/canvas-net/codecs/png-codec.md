@@ -323,6 +323,18 @@ Truecolor-with-alpha (color type 6) `IHDR` followed by a `tRNS` chunk, and asser
 `InvalidDataException` in both cases, since both color types already carry a full per-pixel alpha
 channel that leaves nothing for a single-key-color transparency chunk to add.
 
+#### CanvasNet-Codecs-PngCodec-LoadTrnsKeyExceedsBitDepthRange: Load Rejects a tRNS Key Outside the Bit-Depth Range
+
+**Tests**: `PngCodec_Load_TrnsGrayscaleKeyExceedsBitDepthRange_ThrowsInvalidDataException`,
+`PngCodec_Load_TrnsTruecolorKeyExceedsBitDepthRange_ThrowsInvalidDataException`
+
+Builds a 1-bit Grayscale `IHDR` (whose only representable sample values are 0 and 1) followed by
+a `tRNS` chunk declaring an out-of-range gray key of 200, and separately an 8-bit Truecolor
+`IHDR` followed by a `tRNS` chunk declaring an out-of-range red key of 256 (stored as the 2-byte
+big-endian value `{0x01, 0x00}`, since tRNS keys are always 2 bytes regardless of bit depth), and
+asserts `Load` throws `InvalidDataException` in both cases, since a key that can never match any
+real pixel at the file's declared bit depth is non-conforming.
+
 #### CanvasNet-Codecs-PngCodec-LoadNonConsecutiveIdat: Load Rejects Non-Consecutive IDAT Chunks
 
 **Tests**: `PngCodec_Load_NonConsecutiveIdatChunks_ThrowsInvalidDataException`,
@@ -344,6 +356,15 @@ Builds a valid one-pixel Truecolor PNG whose terminating `IEND` chunk declares a
 (with a correct CRC-32 computed over that payload, so the rejection is due to the length check,
 not an incidental CRC mismatch), and asserts `Load` throws `InvalidDataException` naming `IEND`
 as the cause, since the PNG specification defines `IEND` as always carrying zero bytes of data.
+
+#### CanvasNet-Codecs-PngCodec-LoadTrailingDataAfterIend: Load Rejects Data After the IEND Chunk
+
+**Test**: `PngCodec_Load_TrailingDataAfterIend_ThrowsInvalidDataException`
+
+Builds a complete, valid one-pixel Truecolor PNG (`IHDR` + `IDAT` + a CRC-valid, empty-payload
+`IEND` chunk), then appends one extra, arbitrary byte after the `IEND` chunk, and asserts `Load`
+throws `InvalidDataException` naming `IEND` as the cause, since the PNG specification requires
+`IEND` to be the final chunk in the datastream.
 
 #### CanvasNet-Codecs-PngCodec-PngSuiteSupported: PngSuite Files Within Scope Load Successfully
 

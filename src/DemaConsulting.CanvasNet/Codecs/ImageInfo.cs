@@ -80,8 +80,12 @@ namespace DemaConsulting.CanvasNet.Codecs;
 /// <param name="Width">The image width, in pixels, as declared by the file's header.</param>
 /// <param name="Height">The image height, in pixels, as declared by the file's header.</param>
 /// <param name="Channels">
-///     The number of color/alpha channels per pixel that decoding this file would produce, as
-///     declared by the file's header (see the per-format derivation in the type-level remarks).
+///     The number of color/alpha channels per pixel that decoding this file would normally
+///     produce, as declared by the file's header (see the per-format derivation in the type-level
+///     remarks) - except for a PNG palette (color type 3) image, where this instead reports the
+///     raw file's single palette-index channel rather than the 4-channel RGBA a full
+///     <see cref="PngCodec.Load(Stream)"/> would produce (see the PNG entry in the type-level
+///     remarks above for the full explanation).
 /// </param>
 /// <param name="HasAlpha">
 ///     <see langword="true"/> if the file's header declares an alpha channel;

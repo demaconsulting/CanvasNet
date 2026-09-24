@@ -873,6 +873,73 @@ public class PngCodecTests
     }
 
     /// <summary>
+    ///     Regression test for a code-review finding: a grayscale <c>tRNS</c> chunk's gray key was
+    ///     only validated for its 2-byte length, never for whether the encoded sample value fits
+    ///     within the image's actual bit depth. A 1-bit grayscale image can only have gray sample
+    ///     values 0 or 1, so a tRNS key of 200 is non-conforming even though it is harmless in
+    ///     effect (it can never match a real pixel). Proves that Load now rejects such a file with
+    ///     <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_TrnsGrayscaleKeyExceedsBitDepthRange_ThrowsInvalidDataException()
+    {
+        // Arrange: a 1-bit grayscale IHDR (max representable sample value 1) followed by a tRNS
+        // chunk declaring an out-of-range gray key of 200
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 1 /* bit depth 1 */, 0 /* Grayscale */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var trns = BuildChunk("tRNS", [0, 200]);
+        stream.Write(trns, 0, trns.Length);
+
+        var raw = new byte[] { 0, 0 }; // filter type 0 (None) + one packed byte of gray samples
+        var zlib = ZlibCompress(raw);
+        var idat = BuildChunk("IDAT", zlib);
+        stream.Write(idat, 0, idat.Length);
+
+        var iend = BuildChunk("IEND", []);
+        stream.Write(iend, 0, iend.Length);
+        stream.Position = 0;
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+    }
+
+    /// <summary>
+    ///     Regression test for a code-review finding: a Truecolor <c>tRNS</c> chunk's RGB key
+    ///     components were only validated for the chunk's 6-byte length, never for whether each
+    ///     component's encoded sample value fits within the image's actual bit depth. Since tRNS
+    ///     values are always stored as 2-byte big-endian regardless of bit depth, an 8-bit
+    ///     Truecolor image can declare a raw chunk byte value up to 65535, but only 0-255 is valid
+    ///     for an 8-bit image. Proves that Load now rejects a red component of 256 (bytes
+    ///     0x01, 0x00) with <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_TrnsTruecolorKeyExceedsBitDepthRange_ThrowsInvalidDataException()
+    {
+        // Arrange: an 8-bit Truecolor IHDR (max representable sample value 255) followed by a
+        // tRNS chunk declaring an out-of-range red key of 256
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 2 /* Truecolor */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+        var trns = BuildChunk("tRNS", [1, 0, 0, 0, 0, 0]); // red = 256, green = 0, blue = 0
+        stream.Write(trns, 0, trns.Length);
+
+        var raw = new byte[] { 0, 10, 20, 30 }; // filter type 0 (None) + one RGB pixel
+        var zlib = ZlibCompress(raw);
+        var idat = BuildChunk("IDAT", zlib);
+        stream.Write(idat, 0, idat.Length);
+
+        var iend = BuildChunk("IEND", []);
+        stream.Write(iend, 0, iend.Length);
+        stream.Position = 0;
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+    }
+
+    /// <summary>
     ///     Proves that Load honors a grayscale (color type 0) image's tRNS chunk, marking exactly
     ///     the pixels whose gray sample matches the tRNS value as fully transparent.
     /// </summary>
@@ -1392,6 +1459,39 @@ public class PngCodecTests
         // Act & Assert
         var exception = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
         Assert.Contains("IEND", exception.Message);
+    }
+
+    /// <summary>
+    ///     Regression test for a code-review finding: <c>ReadChunks</c> used to stop the instant
+    ///     a CRC-valid, empty-payload <c>IEND</c> chunk was processed, silently ignoring any
+    ///     further bytes or chunks appended after it. The PNG specification requires <c>IEND</c>
+    ///     to be the final chunk in the datastream, so trailing data makes the file
+    ///     non-conforming. Proves that Load now rejects such a file with
+    ///     <see cref="InvalidDataException"/> naming <c>IEND</c> as the cause.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_TrailingDataAfterIend_ThrowsInvalidDataException()
+    {
+        // Arrange: a complete, valid one-pixel Truecolor PNG (IHDR + IDAT + IEND), followed by
+        // one extra, arbitrary byte the PNG specification forbids
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(1, 1, 8, 2 /* Truecolor */, 0, 0, 0);
+        stream.Write(ihdr, 0, ihdr.Length);
+
+        var raw = new byte[] { 0, 10, 20, 30 }; // filter type 0 (None) + one RGB pixel
+        var zlib = ZlibCompress(raw);
+        var idat = BuildChunk("IDAT", zlib);
+        stream.Write(idat, 0, idat.Length);
+
+        var iend = BuildChunk("IEND", []);
+        stream.Write(iend, 0, iend.Length);
+        stream.WriteByte(0xFF); // trailing data after IEND, which must be rejected
+        stream.Position = 0;
+
+        // Act & Assert
+        var exception = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        Assert.Contains("iend", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

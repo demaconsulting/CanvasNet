@@ -153,7 +153,12 @@ A `tRNS` chunk on either alpha-carrying color type (4 or 6) is not defined by th
 specification — since those color types already carry an explicit per-pixel alpha sample, there is
 nothing for a single-key-color transparency chunk to add — and `Load` rejects such a file with
 `InvalidDataException` (this codec no longer tolerates it, unlike some permissive decoders that
-ignore a defensively-emitted tRNS chunk in this position). A `tRNS` chunk on a Palette
+ignore a defensively-emitted tRNS chunk in this position). For Grayscale and Truecolor, `Load`
+also validates that every key sample value the `tRNS` chunk encodes fits within the maximum value
+representable at the file's declared bit depth (`(1 << bitDepth) - 1`) — for example, a 1-bit
+Grayscale image can only encode gray sample values 0 or 1, so a `tRNS` key of 200 can never match
+a real pixel — and rejects an out-of-range key with `InvalidDataException`, even though such a key
+is otherwise harmless in effect, since it is still non-conforming input. A `tRNS` chunk on a Palette
 (color-type-3) file must also appear _after_ the `PLTE` chunk, not merely after `IHDR` and before
 the first `IDAT` (the ordering `Load` already enforced for every color type): a tRNS chunk's
 per-palette-entry alpha values are meaningless before the palette they index into has been read,
@@ -230,7 +235,12 @@ example `tEXt`, `pHYs`, `gAMA`) is CRC-validated but otherwise skipped, while an
 critical chunk type is rejected (see above). `IEND`'s declared length must be exactly zero — the
 PNG specification defines `IEND` as always carrying an empty payload — checked both before
 allocation (a huge declared `IEND` length is rejected by the same pre-allocation callback used for
-`PLTE`/`tRNS`/the first chunk) and, redundantly, after the chunk is read.
+`PLTE`/`tRNS`/the first chunk) and, redundantly, after the chunk is read. The PNG specification
+also requires `IEND` to be the final chunk in the datastream, so once the chunk-reading loop stops
+at a CRC-valid, empty-payload `IEND` chunk, `Load` reads one further byte from the stream (which
+works uniformly for both seekable and non-seekable streams) and rejects the file with
+`InvalidDataException` naming `IEND` as the cause if that read does not immediately return
+end-of-stream — any trailing byte or additional chunk appended after `IEND` is non-conforming.
 Once `IEND` is reached, the concatenated `IDAT` payload is unwrapped as a zlib stream (2-byte
 header validated, `DeflateStream` inflates the DEFLATE data, the 4-byte Adler-32 trailer is
 validated against the decompressed bytes), then each scanline is defiltered (reconstructing all
@@ -273,10 +283,13 @@ though `Load` refuses them; see _GetInfo(Stream stream)_ below.
   chunk on a grayscale or grayscale-with-alpha file; a `PLTE` chunk appearing
   after a `tRNS` chunk has already been accepted; a `tRNS` chunk on a
   grayscale-with-alpha or Truecolor-with-alpha file, or one that precedes the `PLTE` chunk on a
-  Palette file; a color-type-3 (Palette) file missing its `PLTE`
+  Palette file; a Grayscale or Truecolor `tRNS` chunk whose key sample value (or, for Truecolor,
+  any of its red/green/blue components) exceeds the maximum value representable at the file's bit
+  depth; a color-type-3 (Palette) file missing its `PLTE`
   chunk, or containing a pixel whose palette index is out of range; a malformed `tRNS` chunk
   length for its color type; a non-empty `IEND` payload (checked both before allocation and after
-  the chunk is read); non-positive width or height, or width/height exceeding
+  the chunk is read); data found in the stream after the `IEND` chunk; non-positive width or
+  height, or width/height exceeding
   `Surface.MaxDimension`; non-consecutive `IDAT` chunks; any chunk's CRC-32 mismatch; a malformed
   or unsupported zlib header; an
   Adler-32 checksum mismatch; an unexpected decompressed data length; an unsupported scanline

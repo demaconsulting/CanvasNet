@@ -428,6 +428,23 @@ sections:
                   - PngCodec_Load_TrnsOnGrayscaleAlpha_ThrowsInvalidDataException
                   - PngCodec_Load_TrnsOnTruecolorAlpha_ThrowsInvalidDataException
 
+              - id: CanvasNet-Codecs-PngCodec-LoadTrnsKeyExceedsBitDepthRange
+                title: >-
+                  The PngCodec class shall reject a grayscale or Truecolor tRNS chunk whose key
+                  sample value (or, for Truecolor, any of its red/green/blue key components)
+                  exceeds the maximum value representable at the image's declared bit depth, with
+                  InvalidDataException.
+                justification: |
+                  A tRNS key is meant to identify a specific gray or RGB sample value the decoded
+                  pixel data can actually contain; a key exceeding the maximum value representable
+                  at the file's bit depth (for example a gray value of 200 declared for a 1-bit
+                  image, which can only encode 0 or 1) can never match a real pixel, so accepting
+                  it would mean tolerating a file a correct encoder never produces, even though the
+                  effect is harmless.
+                tests:
+                  - PngCodec_Load_TrnsGrayscaleKeyExceedsBitDepthRange_ThrowsInvalidDataException
+                  - PngCodec_Load_TrnsTruecolorKeyExceedsBitDepthRange_ThrowsInvalidDataException
+
               - id: CanvasNet-Codecs-PngCodec-LoadNonConsecutiveIdat
                 title: >-
                   The PngCodec class shall reject a PNG stream in which any chunk other than IDAT
@@ -457,6 +474,17 @@ sections:
                   produces.
                 tests:
                   - PngCodec_Load_IendWithNonEmptyPayload_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-LoadTrailingDataAfterIend
+                title: >-
+                  The PngCodec class shall reject any stream containing data after the IEND chunk
+                  with InvalidDataException.
+                justification: |
+                  The PNG specification requires IEND to be the final chunk in the datastream;
+                  silently ignoring bytes or additional chunks appended after a CRC-valid, empty
+                  IEND chunk would mean tolerating a file a correct encoder never produces.
+                tests:
+                  - PngCodec_Load_TrailingDataAfterIend_ThrowsInvalidDataException
 
               - id: CanvasNet-Codecs-PngCodec-GetInfo
                 title: >-
