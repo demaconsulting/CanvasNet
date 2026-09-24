@@ -115,7 +115,8 @@ src/DemaConsulting.CanvasNet/
 │   └── NamespaceDoc.cs          — Namespace-level XML documentation
 ├── Codecs/
 │   ├── BmpCodec.cs               — Uncompressed 24-bit/32-bit Windows BMP loader/saver
-│   ├── PngCodec.cs               — 8-bit Truecolor/Truecolor-with-alpha PNG loader/saver
+│   ├── PngCodec.cs               — PNG loader (any spec-valid, non-interlaced color type/bit
+│   │                                depth) and saver (8-bit Truecolor/Truecolor-with-alpha)
 │   ├── TiffCodec.cs              — 8-bit RGB/RGBA/Grayscale, strip-based TIFF loader/saver
 │   ├── JpegCodec.cs              — Baseline/progressive JPEG loader and baseline JPEG saver
 │   ├── SvgCodec.cs               — Decode/rasterize-only loader for a subset of SVG documents

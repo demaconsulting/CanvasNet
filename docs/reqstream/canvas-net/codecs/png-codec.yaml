@@ -157,31 +157,134 @@ sections:
                 tests:
                   - PngCodec_Load_BadSignature_ThrowsInvalidDataException
 
-              - id: CanvasNet-Codecs-PngCodec-LoadUnsupportedColorType
+              - id: CanvasNet-Codecs-PngCodec-LoadGrayscale
                 title: >-
-                  The PngCodec class shall reject a PNG whose color type is not Truecolor (2) or
-                  Truecolor with alpha (6) with InvalidDataException.
+                  The PngCodec class shall load a Surface from an 8-bit Grayscale PNG, mapping each
+                  gray sample to equal red, green, and blue channel values.
                 justification: |
-                  Grayscale, grayscale-with-alpha, and palette/indexed color types use pixel encodings
-                  this codec does not implement; failing clearly here prevents misinterpreting their
-                  samples as direct RGB(A) values.
+                  Grayscale is one of the five color types the PNG specification defines; callers
+                  presenting grayscale source images need Load to decode them, not just the truecolor
+                  color types.
                 tests:
-                  - PngCodec_Load_UnsupportedColorTypeGrayscale_ThrowsInvalidDataException
-                  - PngCodec_Load_UnsupportedColorTypePalette_ThrowsInvalidDataException
+                  - PngCodec_Load_Grayscale8Bit_ReturnsExpectedGrayPixels
 
-              - id: CanvasNet-Codecs-PngCodec-LoadUnsupportedBitDepth
-                title: The PngCodec class shall reject a PNG whose bit depth is not 8 bits with InvalidDataException.
+              - id: CanvasNet-Codecs-PngCodec-LoadGrayscaleAlpha
+                title: >-
+                  The PngCodec class shall load a Surface from an 8-bit Grayscale-with-alpha PNG,
+                  mapping each gray sample to equal red, green, and blue channel values and preserving
+                  the file's per-pixel alpha sample exactly.
                 justification: |
-                  Bit depths other than 8 (1, 2, 4, or 16) pack or extend samples differently than this
-                  codec implements; failing clearly here prevents misinterpreting sample bytes.
+                  Grayscale-with-alpha is one of the five color types the PNG specification defines;
+                  callers presenting grayscale-with-alpha source images need Load to decode them with
+                  their alpha channel preserved.
                 tests:
-                  - PngCodec_Load_UnsupportedBitDepth_ThrowsInvalidDataException
+                  - PngCodec_Load_GrayscaleAlpha8Bit_ReturnsExpectedPixels
+
+              - id: CanvasNet-Codecs-PngCodec-LoadPalette
+                title: >-
+                  The PngCodec class shall load a Surface from an 8-bit Palette (indexed-color) PNG,
+                  resolving each pixel's palette index to its corresponding color, and shall reject a
+                  Palette PNG missing its required palette chunk, or containing an out-of-range palette
+                  index, with InvalidDataException.
+                justification: |
+                  Palette/indexed color is one of the five color types the PNG specification defines;
+                  callers presenting palette-encoded source images need Load to decode them. A palette
+                  index cannot be resolved to a color without the file's palette data present and
+                  covering every index used, so a missing or insufficient palette must be rejected
+                  rather than silently producing an incorrect or out-of-bounds color.
+                tests:
+                  - PngCodec_Load_Palette8Bit_ResolvesIndicesThroughPlte
+                  - PngCodec_Load_PaletteWithoutPlte_ThrowsInvalidDataExceptionMentioningPlte
+                  - PngCodec_Load_PaletteIndexOutOfRange_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-LoadTrnsPalette
+                title: >-
+                  The PngCodec class shall apply a Palette PNG's per-palette-entry transparency values
+                  to every pixel using the corresponding palette index.
+                justification: |
+                  The PNG specification allows a Palette image to declare a distinct alpha value for
+                  each palette entry; callers need those transparency values honored to reproduce the
+                  image's intended appearance.
+                tests:
+                  - PngCodec_Load_PaletteWithTrns_AppliesPerIndexAlpha
+
+              - id: CanvasNet-Codecs-PngCodec-LoadTrnsGrayscale
+                title: >-
+                  The PngCodec class shall make fully transparent every pixel of a Grayscale PNG whose
+                  sample exactly matches its declared single-gray-value transparency key, comparing the
+                  full-precision sample value (not a value already reduced to 8 bits) against the key.
+                justification: |
+                  The PNG specification allows a Grayscale image to declare one gray value as
+                  fully transparent wherever it occurs (key-color transparency); comparing against the
+                  full-precision sample, rather than a value already reduced for display, avoids
+                  false-positive transparency matches at higher bit depths.
+                tests:
+                  - PngCodec_Load_GrayscaleWithTrns_MarksExactMatchTransparent
+                  - PngCodec_Load_Grayscale16BitTrns_ComparesRawSampleBeforeDownshift
+
+              - id: CanvasNet-Codecs-PngCodec-LoadTrnsTruecolor
+                title: >-
+                  The PngCodec class shall make fully transparent every pixel of a Truecolor PNG whose
+                  red/green/blue samples exactly match its declared single-color transparency key.
+                justification: |
+                  The PNG specification allows a Truecolor image to declare one RGB color as fully
+                  transparent wherever it occurs (key-color transparency); callers need this honored to
+                  reproduce the image's intended appearance.
+                tests:
+                  - PngCodec_Load_TruecolorWithTrns_MarksExactMatchTransparent
+
+              - id: CanvasNet-Codecs-PngCodec-LoadSubByteDepths
+                title: >-
+                  The PngCodec class shall load a Surface from a Grayscale or Palette PNG whose bit
+                  depth is 1, 2, or 4 bits per sample, scaling Grayscale samples to the full 0-255
+                  channel range.
+                justification: |
+                  The PNG specification permits Grayscale and Palette images to store samples more
+                  compactly than one byte each; callers presenting such compactly-encoded images need
+                  Load to decode them, with grayscale brightness scaled to a full display range rather
+                  than left compressed into a few low bit values.
+                tests:
+                  - PngCodec_Load_Grayscale1BitDepth_ScalesSamplesAndUnpacksMsbFirst
+                  - PngCodec_Load_Grayscale2BitDepth_ScalesSamples
+                  - PngCodec_Load_Grayscale4BitDepth_ScalesSamples
+                  - PngCodec_Load_Palette2BitDepth_UnpacksIndicesWithoutScaling
+
+              - id: CanvasNet-Codecs-PngCodec-Load16BitDepth
+                title: >-
+                  The PngCodec class shall load a Surface from a Grayscale, Truecolor,
+                  Grayscale-with-alpha, or Truecolor-with-alpha PNG whose bit depth is 16 bits per
+                  sample, by using the high byte of each 16-bit sample as the 8-bit channel value.
+                justification: |
+                  The PNG specification permits any color type except Palette to store 16-bit-per-sample
+                  data for higher precision than this library's 8-bit-per-channel Surface pixel format
+                  retains; callers presenting such images need Load to decode them by using the high
+                  byte of each 16-bit sample (discarding the low byte) as the 8-bit channel value,
+                  rather than rejecting the file outright.
+                tests:
+                  - PngCodec_Load_Grayscale16BitDepth_DiscardsLowByte
+                  - PngCodec_Load_TruecolorAlpha16BitDepth_DiscardsLowByteOfEveryChannel
+
+              - id: CanvasNet-Codecs-PngCodec-LoadInvalidCombination
+                title: >-
+                  The PngCodec class shall reject a PNG whose bit depth and color type form a
+                  combination the PNG specification does not define with InvalidDataException.
+                justification: |
+                  The PNG specification restricts which bit depths are legal for each color type (for
+                  example, Palette images are never encoded at 16 bits per sample); such a combination
+                  cannot represent any valid PNG image, so failing clearly here prevents attempting to
+                  interpret data whose byte layout is undefined.
+                tests:
+                  - PngCodec_Load_InvalidBitDepthColorTypeCombination_ThrowsInvalidDataException
 
               - id: CanvasNet-Codecs-PngCodec-LoadUnsupportedInterlace
-                title: The PngCodec class shall reject an interlaced (Adam7) PNG with InvalidDataException.
+                title: >-
+                  The PngCodec class shall reject an Adam7-interlaced PNG with InvalidDataException,
+                  even though such a file is otherwise well-formed.
                 justification: |
                   Adam7 interlacing reorders scanline data into seven sequential passes that this codec
                   does not decode; failing clearly here prevents silently producing a scrambled image.
+                  This is the only remaining color-type/bit-depth/interlace combination Load refuses
+                  that is not itself malformed per the PNG specification.
                 tests:
                   - PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsInvalidDataException
 
@@ -222,16 +325,166 @@ sections:
 
               - id: CanvasNet-Codecs-PngCodec-LoadChunkBeforeIhdr
                 title: >-
-                  The PngCodec class shall reject a PNG stream in which an IDAT or IEND chunk appears
-                  before the mandatory IHDR chunk, with InvalidDataException naming IHDR as the cause.
+                  The PngCodec class shall reject a PNG stream in which any chunk - whether IDAT,
+                  IEND, or an otherwise-safe-to-skip ancillary chunk such as tEXt - appears before
+                  the mandatory IHDR chunk, with InvalidDataException naming IHDR as the cause.
                 justification: |
-                  IHDR is required by the PNG specification to be the first chunk and supplies the
-                  width, height, and color type every later chunk depends on; encountering IDAT or IEND
-                  first means no header has been parsed, so failing clearly here (rather than decoding
-                  pixel data from default/uninitialized header fields) prevents returning an incorrect
-                  surface.
+                  IHDR is required by the PNG specification to always be the first chunk and
+                  supplies the width, height, and color type every later chunk depends on;
+                  encountering any other chunk first means no header has been parsed, so failing
+                  clearly here (rather than decoding pixel data from default/uninitialized header
+                  fields, or silently skipping an ancillary chunk in an illegal position) prevents
+                  returning an incorrect surface.
                 tests:
                   - PngCodec_Load_IendBeforeIhdr_ThrowsInvalidDataExceptionMentioningIhdr
+                  - PngCodec_Load_AncillaryChunkBeforeIhdr_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-LoadUnrecognizedCriticalChunk
+                title: >-
+                  The PngCodec class shall reject a PNG stream containing an unrecognized critical
+                  chunk (a chunk type not IHDR/PLTE/tRNS/IDAT/IEND whose first type byte is an
+                  uppercase ASCII letter) with InvalidDataException, while continuing to skip an
+                  unrecognized ancillary chunk (lowercase first type byte) exactly as before.
+                justification: |
+                  Per the PNG specification, a chunk type's first byte's case marks it critical
+                  (uppercase) or ancillary (lowercase); an unrecognized critical chunk may change how
+                  pixel data must be interpreted, so a conforming decoder that does not understand it
+                  must refuse to decode rather than risk silently producing incorrect pixels. An
+                  unrecognized ancillary chunk carries no information required to decode pixels
+                  correctly and remains safe to skip.
+                tests:
+                  - PngCodec_Load_UnrecognizedCriticalChunk_ThrowsInvalidDataException
+                  - PngCodec_Load_UnrecognizedAncillaryChunk_StillLoadsSuccessfully
+
+              - id: CanvasNet-Codecs-PngCodec-LoadMalformedChunkType
+                title: >-
+                  The PngCodec class shall reject a PNG chunk whose 4-byte type code contains a
+                  non-ASCII-letter byte, or whose third byte is lowercase (violating the PNG
+                  specification's reserved-bit rule), with InvalidDataException, before that type is
+                  used for critical/ancillary classification.
+                justification: |
+                  Per the PNG specification, every chunk type byte must be an ASCII letter, and the
+                  third byte specifically must always be uppercase (the reserved bit); classifying a
+                  chunk as critical or ancillary from only its first byte's case, without validating
+                  the complete type code first, would let a malformed type such as "a!cd" (a
+                  non-letter byte) or "abcd"/"aBcd" (a lowercase third byte) be silently accepted as
+                  an ordinary ancillary chunk, contrary to this codec's spec-valid/malformed-input
+                  contract.
+                tests:
+                  - PngCodec_Load_ChunkTypeWithNonLetterByte_ThrowsInvalidDataException
+                  - PngCodec_Load_ChunkTypeWithLowercaseReservedByte_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-LoadPlteForbiddenForGrayscale
+                title: >-
+                  The PngCodec class shall reject a PLTE chunk on a grayscale (color type 0) or
+                  grayscale-with-alpha (color type 4) PNG with InvalidDataException.
+                justification: |
+                  The PNG specification forbids a PLTE chunk for either grayscale color type, since
+                  grayscale samples are sample magnitudes, never palette indices, and are therefore
+                  never resolved through a palette; tolerating a PLTE chunk on such a file would mean
+                  accepting a non-conforming file a correct encoder never produces.
+                tests:
+                  - PngCodec_Load_PlteOnGrayscale_ThrowsInvalidDataException
+                  - PngCodec_Load_PlteOnGrayscaleAlpha_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-LoadTrnsOrderRequiresPlteForPalette
+                title: >-
+                  The PngCodec class shall reject a tRNS chunk that precedes the PLTE chunk on an
+                  indexed-color (color type 3) PNG with InvalidDataException naming PLTE as the cause.
+                justification: |
+                  A palette tRNS chunk's per-palette-entry alpha values are meaningless until the
+                  palette they index into has been read; the PNG specification requires tRNS to follow
+                  PLTE for indexed-color images, a stricter ordering than the existing
+                  after-IHDR-and-before-IDAT check this codec already enforced.
+                tests:
+                  - PngCodec_Load_TrnsBeforePlteForIndexedColor_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-LoadPlteAfterTrns
+                title: >-
+                  The PngCodec class shall reject a PLTE chunk that appears after a tRNS chunk has
+                  already been accepted, with InvalidDataException naming tRNS as the cause,
+                  regardless of color type.
+                justification: |
+                  The PNG specification requires PLTE to precede tRNS whenever both chunks are
+                  present in a file, not only for indexed-color (Palette) images where PLTE is
+                  mandatory: a tRNS chunk's per-palette-entry alpha values (for Palette) or its
+                  ordering relative to an optional suggested PLTE (for Truecolor and
+                  Truecolor-with-alpha) both depend on this ordering, so a PLTE chunk arriving after
+                  tRNS has already been accepted indicates a non-conforming file a correct encoder
+                  never produces.
+                tests:
+                  - PngCodec_Load_PlteAfterTrns_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-LoadTrnsForbiddenForAlphaColorTypes
+                title: >-
+                  The PngCodec class shall reject a tRNS chunk on a grayscale-with-alpha (color type
+                  4) or Truecolor-with-alpha (color type 6) PNG with InvalidDataException.
+                justification: |
+                  Both color types already carry a full per-pixel alpha channel, leaving nothing for a
+                  single-key-color transparency chunk to add; the PNG specification forbids tRNS for
+                  these color types, so tolerating it would mean accepting a non-conforming file a
+                  correct encoder never produces.
+                tests:
+                  - PngCodec_Load_TrnsOnGrayscaleAlpha_ThrowsInvalidDataException
+                  - PngCodec_Load_TrnsOnTruecolorAlpha_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-LoadTrnsKeyExceedsBitDepthRange
+                title: >-
+                  The PngCodec class shall reject a grayscale or Truecolor tRNS chunk whose key
+                  sample value (or, for Truecolor, any of its red/green/blue key components)
+                  exceeds the maximum value representable at the image's declared bit depth, with
+                  InvalidDataException.
+                justification: |
+                  A tRNS key is meant to identify a specific gray or RGB sample value the decoded
+                  pixel data can actually contain; a key exceeding the maximum value representable
+                  at the file's bit depth (for example a gray value of 200 declared for a 1-bit
+                  image, which can only encode 0 or 1) can never match a real pixel, so accepting
+                  it would mean tolerating a file a correct encoder never produces, even though the
+                  effect is harmless.
+                tests:
+                  - PngCodec_Load_TrnsGrayscaleKeyExceedsBitDepthRange_ThrowsInvalidDataException
+                  - PngCodec_Load_TrnsTruecolorKeyExceedsBitDepthRange_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-LoadNonConsecutiveIdat
+                title: >-
+                  The PngCodec class shall reject a PNG stream in which any chunk other than IDAT
+                  appears between the first and last IDAT chunk, with InvalidDataException, while
+                  continuing to accept an IDAT payload split across any number of directly
+                  consecutive IDAT chunks.
+                justification: |
+                  The PNG specification requires every IDAT chunk to be consecutive; a non-IDAT
+                  chunk interleaved between two IDAT chunks means the image data's chunk boundaries
+                  no longer match a conforming encoder's output, so silently concatenating the later
+                  IDAT chunk's bytes anyway would risk assembling a corrupt decompressed stream from
+                  a non-conforming file. Encoders commonly split one image's compressed payload
+                  across several small, but still consecutive, IDAT chunks for streaming purposes,
+                  so that case must remain accepted.
+                tests:
+                  - PngCodec_Load_NonConsecutiveIdatChunks_ThrowsInvalidDataException
+                  - PngCodec_Load_MultipleIdatChunks_ReturnsExpectedPixels
+
+              - id: CanvasNet-Codecs-PngCodec-LoadIendNonEmptyPayload
+                title: >-
+                  The PngCodec class shall reject an IEND chunk whose declared length is not
+                  exactly zero with InvalidDataException.
+                justification: |
+                  The PNG specification defines IEND as always carrying zero bytes of data; a
+                  non-empty payload is non-conforming and silently accepting it (as if it were a
+                  valid, empty IEND chunk) would mean tolerating a file a correct encoder never
+                  produces.
+                tests:
+                  - PngCodec_Load_IendWithNonEmptyPayload_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-LoadTrailingDataAfterIend
+                title: >-
+                  The PngCodec class shall reject any stream containing data after the IEND chunk
+                  with InvalidDataException.
+                justification: |
+                  The PNG specification requires IEND to be the final chunk in the datastream;
+                  silently ignoring bytes or additional chunks appended after a CRC-valid, empty
+                  IEND chunk would mean tolerating a file a correct encoder never produces.
+                tests:
+                  - PngCodec_Load_TrailingDataAfterIend_ThrowsInvalidDataException
 
               - id: CanvasNet-Codecs-PngCodec-GetInfo
                 title: >-
@@ -240,7 +493,10 @@ sections:
                   and IHDR chunk, without decoding IDAT pixel data and without enforcing
                   Surface.MaxDimension. The first chunk's type, and (only once confirmed IHDR) its
                   declared length, shall both be validated to be IHDR / exactly 13 before any
-                  length-dependent allocation or read of the chunk's data payload is attempted.
+                  length-dependent allocation or read of the chunk's data payload is attempted. For a
+                  Palette PNG, the reported channel count and alpha presence shall describe the file's
+                  raw palette-index encoding (one channel, no alpha), not the color Load produces after
+                  resolving each index.
                 justification: |
                   Callers need to inspect a PNG's declared dimensions and color type (for example to
                   reject unreasonably large images before allocating a Surface) without paying the cost
@@ -248,7 +504,10 @@ sections:
                   preemptively rejecting dimensions that only Load's allocation path needs to guard
                   against. Because GetInfo exists specifically to let callers cheaply triage untrusted
                   input, a crafted first chunk declaring an attacker-controlled multi-gigabyte length
-                  must never be allocated/read before its type and length are known to be valid.
+                  must never be allocated/read before its type and length are known to be valid. A
+                  Palette file's raw encoding is a single index per pixel; reporting the post-resolution
+                  channel count would misrepresent what GetInfo actually inspected (it never reads the
+                  palette).
                 tests:
                   - PngCodec_GetInfo_Rgb_ReturnsExpectedInfoWithoutAlpha
                   - PngCodec_GetInfo_Rgba_ReturnsExpectedInfoWithAlpha
@@ -257,6 +516,28 @@ sections:
                   - PngCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows
                   - PngCodec_GetInfo_NonIhdrFirstChunkWithHugeDeclaredLength_ThrowsWithoutLargeAllocation
                   - PngCodec_GetInfo_IhdrChunkWithWrongDeclaredLength_ThrowsWithoutLargeAllocation
+                  - PngCodec_GetInfo_Grayscale_ReturnsExpectedInfoWithoutAlpha
+                  - PngCodec_GetInfo_GrayscaleAlpha_ReturnsExpectedInfoWithAlpha
+                  - PngCodec_GetInfo_Palette_ReturnsRawFileEncodingNotDecodedRgba
+
+              - id: CanvasNet-Codecs-PngCodec-GetInfoAnyDecodability
+                title: >-
+                  The PngCodec class shall report a PNG's width and height via GetInfo for every file
+                  whose IHDR chunk is well-formed, regardless of whether Load can decode that file's
+                  color type, bit depth, or interlacing.
+                justification: |
+                  Probing a file's declared size is strictly safer than decoding its pixels, and is
+                  exactly the operation a caller needs to reject an oversized or otherwise suspect file
+                  before deciding whether to invoke Load at all; requiring a file to also be decodable
+                  before GetInfo will report its size would defeat that purpose for the exact files most
+                  worth probing first (unusually large or unfamiliar-format images).
+                tests:
+                  - PngCodec_GetInfo_SubByteGrayscaleBitDepth_ReturnsCorrectDimensions
+                  - PngCodec_GetInfo_BitDepth16_ReturnsCorrectDimensions
+                  - PngCodec_GetInfoAndLoad_InvalidBitDepth_BothThrowInvalidDataException
+                  - PngCodec_GetInfoAndLoad_InvalidColorType_BothThrowInvalidDataException
+                  - PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsInvalidDataException
+                  - PngSuiteUnsupportedFile_GetInfoReturnsCorrectDimensions
 
               - id: CanvasNet-Codecs-PngCodec-GetInfoValidation
                 title: >-
@@ -275,37 +556,57 @@ sections:
 
               - id: CanvasNet-Codecs-PngCodec-PngSuiteSupported
                 title: >-
-                  The PngCodec class shall successfully load every PngSuite conformance file within its
-                  supported feature set (8-bit-per-channel Truecolor or Truecolor-with-alpha,
-                  non-interlaced).
+                  The PngCodec class shall successfully load every well-formed, non-interlaced PngSuite
+                  conformance file, covering every color type and bit depth combination the PNG
+                  specification defines.
                 justification: |
                   The PngSuite corpus is the industry-standard conformance suite for PNG decoders;
-                  successfully loading every file within the codec's declared supported feature set
-                  demonstrates interoperability with real-world encoder output, not just hand-built test
-                  streams.
+                  successfully loading every well-formed, non-interlaced file it contains demonstrates
+                  interoperability with real-world encoder output across the full range of color
+                  types and bit depths, not just hand-built test streams.
                 tests:
                   - PngCodec_Load_PngSuiteSupportedFile_ReturnsCanvas
 
               - id: CanvasNet-Codecs-PngCodec-PngSuiteUnsupported
                 title: >-
-                  The PngCodec class shall reject every PngSuite conformance file using a color type, bit
-                  depth, or interlace method outside its supported feature set with
-                  InvalidDataException.
+                  The PngCodec class shall reject every Adam7-interlaced PngSuite conformance file with
+                  InvalidDataException, while still reporting its correct dimensions via GetInfo.
                 justification: |
-                  Grayscale, grayscale-with-alpha, palette/indexed, non-8-bit, and interlaced PNG files
-                  are structurally valid but use encodings this codec does not implement; the PngSuite
-                  corpus exercises every such combination and confirms each is rejected clearly rather
-                  than silently misinterpreted.
+                  Adam7-interlaced files are structurally valid PNG files this codec's Load does not
+                  reconstruct; the PngSuite corpus exercises every interlaced encoding this codec
+                  produces and confirms each is rejected by Load clearly rather than silently
+                  misinterpreted, while confirming GetInfo remains unaffected by the same limitation.
                 tests:
                   - PngCodec_Load_PngSuiteUnsupportedFile_ThrowsInvalidDataException
+                  - PngSuiteUnsupportedFile_GetInfoReturnsCorrectDimensions
 
               - id: CanvasNet-Codecs-PngCodec-PngSuiteCorrupt
                 title: >-
-                  The PngCodec class shall reject every deliberately corrupt PngSuite conformance file
-                  with InvalidDataException.
+                  The PngCodec class shall reject every PngSuite conformance file deliberately
+                  corrupted at or before its IHDR chunk with InvalidDataException from both Load
+                  and GetInfo.
                 justification: |
-                  The PngSuite corpus includes files with deliberate corruption (bad signature, bad IHDR
-                  CRC-32, invalid color-type/bit-depth combinations); confirming each is rejected clearly
-                  demonstrates robustness against malformed real-world input.
+                  The PngSuite corpus includes files with deliberate corruption located at or
+                  before the IHDR chunk (bad signature, bad IHDR CRC-32, invalid
+                  color-type/bit-depth combinations); confirming each is rejected clearly by both
+                  entry points demonstrates robustness against malformed real-world input, since
+                  these are well-formedness defects rather than merely a decode-capability
+                  limitation GetInfo is designed to tolerate (unlike Adam7 interlacing, above).
                 tests:
                   - PngCodec_Load_PngSuiteCorruptFile_ThrowsInvalidDataException
+                  - PngCodec_GetInfo_PngSuiteCorruptFile_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-PngCodec-PngSuiteCorruptAfterIhdr
+                title: >-
+                  The PngCodec class shall reject every PngSuite conformance file deliberately
+                  corrupted only after a well-formed IHDR chunk with InvalidDataException from
+                  Load, while still reporting its correct declared dimensions via GetInfo.
+                justification: |
+                  Two PngSuite files (a corrupt IDAT chunk CRC-32, and a missing IDAT chunk
+                  entirely) have a well-formed IHDR chunk but are corrupt only in a later chunk;
+                  since GetInfo reads only the signature and IHDR chunk, it never encounters
+                  either corruption and succeeds, exactly like the Adam7-interlaced files above -
+                  but Load, which must fully parse the IDAT chunk to decode pixel data, correctly
+                  rejects both as genuinely malformed files.
+                tests:
+                  - PngCodec_PngSuiteCorruptAfterIhdrFile_GetInfoReturnsCorrectDimensions_ButLoadThrows

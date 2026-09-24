@@ -150,27 +150,83 @@ Calls `Load` with an empty path and asserts `ArgumentException` is thrown.
 Builds 8 zero bytes (not matching the PNG signature) and asserts `Load` throws
 `InvalidDataException`.
 
-#### CanvasNet-Codecs-PngCodec-LoadUnsupportedColorType: Load Rejects Unsupported Color Types
+#### CanvasNet-Codecs-PngCodec-LoadGrayscale / -LoadGrayscaleAlpha: Load Decodes Grayscale and Grayscale-with-Alpha PNGs
 
-**Tests**: `PngCodec_Load_UnsupportedColorTypeGrayscale_ThrowsInvalidDataException`,
-`PngCodec_Load_UnsupportedColorTypePalette_ThrowsInvalidDataException`
+**Tests**: `PngCodec_Load_Grayscale8Bit_ReturnsExpectedGrayPixels`,
+`PngCodec_Load_GrayscaleAlpha8Bit_ReturnsExpectedPixels`
 
-Builds a minimal PNG (signature + `IHDR` only) declaring color type 0 (grayscale), and separately
-color type 3 (palette/indexed), and asserts `Load` throws `InvalidDataException` for each.
+Hand-builds an 8-bit Grayscale (color type 0) PNG and separately an 8-bit Grayscale-with-alpha
+(color type 4) PNG with independently pre-computed expected pixel values, and asserts `Load`
+produces those exact R=G=B(=gray) and alpha values.
 
-#### CanvasNet-Codecs-PngCodec-LoadUnsupportedBitDepth: Load Rejects Unsupported Bit Depths
+#### CanvasNet-Codecs-PngCodec-LoadPalette: Load Decodes Palette PNGs and Requires a PLTE Chunk
 
-**Test**: `PngCodec_Load_UnsupportedBitDepth_ThrowsInvalidDataException` (`[Theory]` over 1, 2, 4, 16)
+**Tests**: `PngCodec_Load_Palette8Bit_ResolvesIndicesThroughPlte`,
+`PngCodec_Load_PaletteWithoutPlte_ThrowsInvalidDataExceptionMentioningPlte`,
+`PngCodec_Load_PaletteIndexOutOfRange_ThrowsInvalidDataException`
 
-Builds a minimal PNG declaring each unsupported bit depth in turn, and asserts `Load` throws
-`InvalidDataException` for every value.
+Hand-builds an 8-bit Palette (color type 3) PNG with a `PLTE` chunk and asserts `Load` resolves
+each pixel's index to the correct RGB triple. Separately asserts `Load` throws
+`InvalidDataException` naming `PLTE` when a Palette-color-type file has no `PLTE` chunk, and
+throws `InvalidDataException` when a pixel's palette index is out of range for the supplied
+`PLTE` chunk.
 
-#### CanvasNet-Codecs-PngCodec-LoadUnsupportedInterlace: Load Rejects Adam7 Interlacing
+#### CanvasNet-Codecs-PngCodec-LoadTrnsPalette / -LoadTrnsGrayscale / -LoadTrnsTruecolor: Load Honors tRNS Transparency
+
+**Tests**: `PngCodec_Load_PaletteWithTrns_AppliesPerIndexAlpha`,
+`PngCodec_Load_GrayscaleWithTrns_MarksExactMatchTransparent`,
+`PngCodec_Load_TruecolorWithTrns_MarksExactMatchTransparent`,
+`PngCodec_Load_Grayscale16BitTrns_ComparesRawSampleBeforeDownshift`
+
+Hand-builds a Palette PNG with a `tRNS` chunk assigning a distinct alpha byte to specific palette
+entries, and asserts `Load` applies each entry's alpha to every pixel using that index. Hand-builds
+an 8-bit Grayscale PNG and separately an 8-bit Truecolor PNG, each with a `tRNS` chunk naming one
+exact gray value (respectively one exact RGB triple) as transparent, and asserts `Load` makes only
+exact-match pixels fully transparent (alpha 0), leaving every other pixel opaque. Hand-builds a
+16-bit Grayscale PNG whose `tRNS` chunk's 16-bit key value and a pixel's raw 16-bit sample differ
+only in their low byte (so both share the same post-downshift 8-bit value), and asserts `Load`
+does **not** treat that pixel as transparent — proving the 16-bit `tRNS` comparison happens before
+downshifting, not after.
+
+#### CanvasNet-Codecs-PngCodec-LoadSubByteDepths: Load Decodes Sub-Byte (1/2/4-bit) Grayscale and Palette PNGs
+
+**Tests**: `PngCodec_Load_Grayscale1BitDepth_ScalesSamplesAndUnpacksMsbFirst`,
+`PngCodec_Load_Grayscale2BitDepth_ScalesSamples`, `PngCodec_Load_Grayscale4BitDepth_ScalesSamples`,
+`PngCodec_Load_Palette2BitDepth_UnpacksIndicesWithoutScaling`
+
+Hand-builds 1-bit, 2-bit, and 4-bit Grayscale PNGs, each with independently pre-computed
+MSB-first-packed row bytes at a width not evenly divisible into whole bytes (exercising row-padding
+edges), and asserts `Load` unpacks each sample and scales it to the full 0-255 range. Hand-builds a
+2-bit Palette PNG and asserts `Load` unpacks each palette index without any scaling (an index
+selects a palette entry; it is never a sample magnitude).
+
+#### CanvasNet-Codecs-PngCodec-Load16BitDepth: Load Decodes 16-Bit-Per-Sample PNGs by Discarding the Low Byte
+
+**Tests**: `PngCodec_Load_Grayscale16BitDepth_DiscardsLowByte`,
+`PngCodec_Load_TruecolorAlpha16BitDepth_DiscardsLowByteOfEveryChannel`
+
+Hand-builds a 16-bit Grayscale PNG and separately a 16-bit Truecolor-with-alpha PNG, each with
+distinct high and low sample bytes, and asserts `Load` produces the expected 8-bit pixel values by
+discarding each sample's low byte (`value >> 8`).
+
+#### CanvasNet-Codecs-PngCodec-LoadInvalidCombination: Load Rejects Invalid Bit-Depth/Color-Type Combinations
+
+**Test**: `PngCodec_Load_InvalidBitDepthColorTypeCombination_ThrowsInvalidDataException` (`[Theory]`
+over multiple invalid combinations: Truecolor at 1/2/4 bits, Palette at 16 bits, Grayscale-with-alpha
+at 1/2/4 bits, Truecolor-with-alpha at 1/2/4 bits)
+
+Hand-builds a minimal PNG declaring each invalid bit-depth/color-type pairing in turn, and asserts
+`Load` throws `InvalidDataException` for every one — these combinations are invalid per the PNG
+specification itself, independent of any feature this codec chooses to support.
+
+#### CanvasNet-Codecs-PngCodec-LoadUnsupportedInterlace: Load Rejects Adam7 Interlacing, but GetInfo Still Succeeds
 
 **Test**: `PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsInvalidDataException`
 
 Builds a minimal PNG declaring interlace method 1 (Adam7), and asserts `Load` throws
-`InvalidDataException`.
+`InvalidDataException`, while `GetInfo` on the exact same bytes succeeds and reports the correct
+declared width and height — proving Adam7 interlacing is a decode-capability limitation, not a
+well-formedness defect.
 
 #### CanvasNet-Codecs-PngCodec-LoadExceedsMaxDimension: Load Rejects Dimensions Exceeding Surface.MaxDimension
 
@@ -191,42 +247,179 @@ Builds a valid signature and `IHDR` chunk but omits every chunk that should foll
 `IEND`), and asserts `Load` throws `InvalidDataException` when the stream ends while looking for
 the next chunk.
 
-#### CanvasNet-Codecs-PngCodec-LoadChunkBeforeIhdr: Load Rejects a Chunk Preceding IHDR
+#### CanvasNet-Codecs-PngCodec-LoadChunkBeforeIhdr: Load Rejects Any Chunk Preceding IHDR
 
-**Test**: `PngCodec_Load_IendBeforeIhdr_ThrowsInvalidDataExceptionMentioningIhdr`
+**Tests**: `PngCodec_Load_IendBeforeIhdr_ThrowsInvalidDataExceptionMentioningIhdr`,
+`PngCodec_Load_AncillaryChunkBeforeIhdr_ThrowsInvalidDataException`
 
 Builds a valid signature followed directly by a well-formed `IEND` chunk (correct CRC-32), with
 no `IHDR` chunk present anywhere in the stream, and asserts `Load` throws
-`InvalidDataException` with a message naming `IHDR` as the missing chunk.
+`InvalidDataException` with a message naming `IHDR` as the missing chunk. Separately builds a
+valid signature followed directly by an otherwise-safe-to-skip ancillary chunk (`tEXt`), again
+with no `IHDR` chunk present, and asserts `Load` throws the same `InvalidDataException` naming
+`IHDR`, proving even a chunk type this codec would otherwise silently skip is still rejected when
+it appears before the mandatory, always-first `IHDR` chunk.
+
+#### CanvasNet-Codecs-PngCodec-LoadUnrecognizedCriticalChunk: Load Rejects Unrecognized Critical Chunks
+
+**Tests**: `PngCodec_Load_UnrecognizedCriticalChunk_ThrowsInvalidDataException`,
+`PngCodec_Load_UnrecognizedAncillaryChunk_StillLoadsSuccessfully`
+
+Builds a valid `IHDR` followed by a hypothetical unrecognized chunk type `ABCD` (uppercase first
+type byte, marking it critical per the PNG specification), and asserts `Load` throws
+`InvalidDataException` naming `ABCD`. Separately builds a valid, otherwise-complete single-pixel
+PNG with a hypothetical unrecognized ancillary chunk type `abCd` (lowercase first type byte,
+uppercase third byte per the reserved-bit rule) inserted between `IHDR` and `IDAT`, and asserts
+`Load` still decodes the expected pixel successfully, proving the new critical-chunk rejection does
+not affect the existing ancillary-chunk-skip behavior.
+
+#### CanvasNet-Codecs-PngCodec-LoadMalformedChunkType: Load Rejects a Malformed Chunk Type Code
+
+**Tests**: `PngCodec_Load_ChunkTypeWithNonLetterByte_ThrowsInvalidDataException`,
+`PngCodec_Load_ChunkTypeWithLowercaseReservedByte_ThrowsInvalidDataException`
+
+Builds a valid `IHDR` followed by a chunk whose type code is `a!cd` (a non-ASCII-letter second
+byte), and asserts `Load` throws `InvalidDataException` mentioning "ASCII letter". Separately
+builds a valid `IHDR` followed by a chunk whose type code is `abcd` (all four bytes lowercase, so
+its third byte violates the PNG specification's reserved-bit rule), and asserts `Load` throws
+`InvalidDataException` mentioning "reserved-bit rule" - proving both malformed cases are rejected
+before the codec's first-byte-only critical/ancillary classification ever sees them.
+
+#### CanvasNet-Codecs-PngCodec-LoadPlteForbiddenForGrayscale: Load Rejects PLTE on Grayscale Color Types
+
+**Tests**: `PngCodec_Load_PlteOnGrayscale_ThrowsInvalidDataException`,
+`PngCodec_Load_PlteOnGrayscaleAlpha_ThrowsInvalidDataException`
+
+Builds a Grayscale (color type 0) `IHDR` followed by a `PLTE` chunk, and separately a
+Grayscale-with-alpha (color type 4) `IHDR` followed by a `PLTE` chunk, and asserts `Load` throws
+`InvalidDataException` in both cases, since grayscale samples are never resolved through a
+palette.
+
+#### CanvasNet-Codecs-PngCodec-LoadTrnsOrderRequiresPlteForPalette: Load Rejects tRNS Before PLTE
+
+**Test**: `PngCodec_Load_TrnsBeforePlteForIndexedColor_ThrowsInvalidDataException`
+
+Builds a Palette (color type 3) `IHDR` followed by a `tRNS` chunk and then a `PLTE` chunk (the
+reverse of the order the PNG specification requires), and asserts `Load` throws
+`InvalidDataException` with a message naming `PLTE` as the cause.
+
+#### CanvasNet-Codecs-PngCodec-LoadPlteAfterTrns: Load Rejects PLTE Appearing After tRNS
+
+**Test**: `PngCodec_Load_PlteAfterTrns_ThrowsInvalidDataException`
+
+Builds a Truecolor (color type 2, where PLTE is an optional suggested palette rather than
+mandatory) `IHDR` followed by a `tRNS` chunk and then a `PLTE` chunk, and asserts `Load` throws
+`InvalidDataException` with a message naming `tRNS` as the cause, proving the PLTE-before-tRNS
+ordering requirement is enforced in both directions and for every color type that can legally
+carry both chunks, not only the already-covered indexed-color (Palette) tRNS-before-PLTE case.
+
+#### CanvasNet-Codecs-PngCodec-LoadTrnsForbiddenForAlphaColorTypes: Load Rejects tRNS on Alpha Color Types
+
+**Tests**: `PngCodec_Load_TrnsOnGrayscaleAlpha_ThrowsInvalidDataException`,
+`PngCodec_Load_TrnsOnTruecolorAlpha_ThrowsInvalidDataException`
+
+Builds a Grayscale-with-alpha (color type 4) `IHDR` followed by a `tRNS` chunk, and separately a
+Truecolor-with-alpha (color type 6) `IHDR` followed by a `tRNS` chunk, and asserts `Load` throws
+`InvalidDataException` in both cases, since both color types already carry a full per-pixel alpha
+channel that leaves nothing for a single-key-color transparency chunk to add.
+
+#### CanvasNet-Codecs-PngCodec-LoadTrnsKeyExceedsBitDepthRange: Load Rejects a tRNS Key Outside the Bit-Depth Range
+
+**Tests**: `PngCodec_Load_TrnsGrayscaleKeyExceedsBitDepthRange_ThrowsInvalidDataException`,
+`PngCodec_Load_TrnsTruecolorKeyExceedsBitDepthRange_ThrowsInvalidDataException`
+
+Builds a 1-bit Grayscale `IHDR` (whose only representable sample values are 0 and 1) followed by
+a `tRNS` chunk declaring an out-of-range gray key of 200, and separately an 8-bit Truecolor
+`IHDR` followed by a `tRNS` chunk declaring an out-of-range red key of 256 (stored as the 2-byte
+big-endian value `{0x01, 0x00}`, since tRNS keys are always 2 bytes regardless of bit depth), and
+asserts `Load` throws `InvalidDataException` in both cases, since a key that can never match any
+real pixel at the file's declared bit depth is non-conforming.
+
+#### CanvasNet-Codecs-PngCodec-LoadNonConsecutiveIdat: Load Rejects Non-Consecutive IDAT Chunks
+
+**Tests**: `PngCodec_Load_NonConsecutiveIdatChunks_ThrowsInvalidDataException`,
+`PngCodec_Load_MultipleIdatChunks_ReturnsExpectedPixels`
+
+Builds a stream with two `IDAT` chunks separated by an unrelated ancillary (`tEXt`) chunk, and
+asserts `Load` throws `InvalidDataException`, since the PNG specification requires every `IDAT`
+chunk to be consecutive. Separately, `PngCodec_Load_MultipleIdatChunks_ReturnsExpectedPixels`
+proves the no-regression case: a compressed payload deliberately split across five directly
+consecutive `IDAT` chunks (with no other chunk type interleaved) still loads and decodes
+successfully, since encoders commonly split one image's payload across several small IDAT chunks
+for streaming purposes.
+
+#### CanvasNet-Codecs-PngCodec-LoadIendNonEmptyPayload: Load Rejects a Non-Empty IEND Payload
+
+**Test**: `PngCodec_Load_IendWithNonEmptyPayload_ThrowsInvalidDataException`
+
+Builds a valid one-pixel Truecolor PNG whose terminating `IEND` chunk declares a 3-byte payload
+(with a correct CRC-32 computed over that payload, so the rejection is due to the length check,
+not an incidental CRC mismatch), and asserts `Load` throws `InvalidDataException` naming `IEND`
+as the cause, since the PNG specification defines `IEND` as always carrying zero bytes of data.
+
+#### CanvasNet-Codecs-PngCodec-LoadTrailingDataAfterIend: Load Rejects Data After the IEND Chunk
+
+**Test**: `PngCodec_Load_TrailingDataAfterIend_ThrowsInvalidDataException`
+
+Builds a complete, valid one-pixel Truecolor PNG (`IHDR` + `IDAT` + a CRC-valid, empty-payload
+`IEND` chunk), then appends one extra, arbitrary byte after the `IEND` chunk, and asserts `Load`
+throws `InvalidDataException` naming `IEND` as the cause, since the PNG specification requires
+`IEND` to be the final chunk in the datastream.
 
 #### CanvasNet-Codecs-PngCodec-PngSuiteSupported: PngSuite Files Within Scope Load Successfully
 
-**Test**: `PngCodec_Load_PngSuiteSupportedFile_ReturnsCanvas` (`[Theory]` over 30 PngSuite files)
+**Test**: `PngCodec_Load_PngSuiteSupportedFile_ReturnsCanvas` (`[Theory]` over 126 PngSuite files)
 
-Loads every PngSuite conformance file whose IHDR declares an 8-bit-per-channel Truecolor (color
-type 2) or Truecolor-with-alpha (color type 6), non-interlaced image — verified directly against
-each file's raw IHDR bytes rather than trusted from its filename — and asserts `Load` returns a
-surface with non-zero width and height, without throwing.
+Loads every well-formed, non-interlaced PngSuite conformance file — verified directly against
+each file's raw IHDR bytes rather than trusted from its filename — covering every color type
+(Grayscale, Truecolor, Palette, Grayscale-with-alpha, Truecolor-with-alpha) and every bit depth
+each color type permits (1, 2, 4, 8, or 16 as applicable), and asserts `Load` returns a surface
+with non-zero width and height, without throwing.
 
-#### CanvasNet-Codecs-PngCodec-PngSuiteUnsupported: PngSuite Files Outside Scope Are Rejected
+#### CanvasNet-Codecs-PngCodec-PngSuiteUnsupported: Adam7-Interlaced PngSuite Files Rejected by Load; GetInfo Still Succeeds
 
-**Test**: `PngCodec_Load_PngSuiteUnsupportedFile_ThrowsInvalidDataException` (`[Theory]` over 131
-PngSuite files)
+**Tests**: `PngCodec_Load_PngSuiteUnsupportedFile_ThrowsInvalidDataException`,
+`PngSuiteUnsupportedFile_GetInfoReturnsCorrectDimensions` (`[Theory]` over 35 PngSuite files)
 
-Loads every PngSuite conformance file that is structurally valid but declares a color type, bit
-depth, or interlace method outside `PngCodec`'s supported feature set (grayscale,
-grayscale-with-alpha, palette/indexed color types; bit depths other than 8; or Adam7 interlacing),
-and asserts `Load` throws `InvalidDataException` for every one, rather than silently producing
-incorrect pixels.
+Loads every PngSuite conformance file that is structurally well-formed but Adam7-interlaced —
+verified directly against each file's raw IHDR bytes — and asserts `Load` throws
+`InvalidDataException` for every one, rather than silently producing incorrect pixels. Separately
+calls `GetInfo` on the same 35 files and asserts it succeeds, reporting the file's exact declared
+IHDR width and height (read directly from each file's raw bytes, not merely asserted positive,
+which would pass even if the reported dimensions were wrong, for example swapped), since Adam7
+interlacing does not affect the declared dimensions and is not itself a well-formedness defect.
 
-#### CanvasNet-Codecs-PngCodec-PngSuiteCorrupt: Deliberately Corrupt PngSuite Files Are Rejected
+#### CanvasNet-Codecs-PngCodec-PngSuiteCorrupt: PngSuite Files Corrupt At/Before IHDR Are Rejected by Both Load and GetInfo
 
-**Test**: `PngCodec_Load_PngSuiteCorruptFile_ThrowsInvalidDataException` (`[Theory]` over 14
-PngSuite files)
+**Tests**: `PngCodec_Load_PngSuiteCorruptFile_ThrowsInvalidDataException`,
+`PngCodec_GetInfo_PngSuiteCorruptFile_ThrowsInvalidDataException` (`[Theory]` over 12 PngSuite
+files each)
 
-Loads every PngSuite conformance file that is deliberately corrupt (bad signature, bad IHDR
-CRC-32, or an invalid color-type/bit-depth combination — verified directly against each file's raw
-bytes), and asserts `Load` throws `InvalidDataException` for every one.
+Loads every PngSuite conformance file that is deliberately corrupt at or before its IHDR chunk
+(bad signature, bad IHDR CRC-32, or an invalid color-type/bit-depth combination — verified
+directly against each file's raw bytes), and asserts `Load` throws `InvalidDataException` for
+every one. Separately calls `GetInfo` on the same 12 files and asserts it also throws
+`InvalidDataException`, since these files are well-formedness defects rather than merely a
+decode-capability limitation `GetInfo` is designed to tolerate (unlike the Adam7-interlaced files
+above, which `GetInfo` still accepts). This deliberately excludes the two files covered by
+`CanvasNet-Codecs-PngCodec-PngSuiteCorruptAfterIhdr` below, whose corruption lies entirely after a
+well-formed IHDR chunk and is therefore never encountered by `GetInfo`.
+
+#### CanvasNet-Codecs-PngCodec-PngSuiteCorruptAfterIhdr: Corrupt-After-IHDR Files: Load Rejects, GetInfo Succeeds
+
+**Test**: `PngCodec_PngSuiteCorruptAfterIhdrFile_GetInfoReturnsCorrectDimensions_ButLoadThrows`
+(`[Theory]` over 2 PngSuite files)
+
+Exercises the two PngSuite files whose IHDR chunk is well-formed but whose corruption lies
+entirely in a later chunk — `xcsn0g01.png` (its IDAT chunk's CRC-32 bytes literally spell the
+ASCII text "CSUM" rather than a computed checksum) and `xdtn0g01.png` (its IDAT chunk is missing
+entirely, verified directly against each file's raw bytes) — and asserts, for each, that `GetInfo`
+succeeds, reporting the file's exact declared IHDR width and height (read directly from the raw
+bytes), while `Load` on the same file throws `InvalidDataException`. `GetInfo` never encounters
+either corruption since it reads only the signature and IHDR chunk, exactly like the
+Adam7-interlaced files in `CanvasNet-Codecs-PngCodec-PngSuiteUnsupported` above — but unlike those
+files, `Load` rejects both because they are genuinely malformed, not merely because of an
+unimplemented decode feature.
 
 #### CanvasNet-Codecs-PngCodec-GetInfo: GetInfo Reports Dimensions/Channels/Alpha Without Decoding Pixels
 
@@ -253,24 +446,48 @@ before any length-dependent allocation is attempted — once for a non-`IHDR` fi
 once for an `IHDR` chunk whose declared length is not the mandatory 13 — asserting both a bounded
 (well under 1 MB) allocation delta and `InvalidDataException` in each case.
 
+#### CanvasNet-Codecs-PngCodec-GetInfoAnyDecodability: GetInfo Succeeds Regardless of Whether Load Can Decode the File
+
+**Tests**: `PngCodec_GetInfo_Grayscale_ReturnsExpectedInfoWithoutAlpha`,
+`PngCodec_GetInfo_GrayscaleAlpha_ReturnsExpectedInfoWithAlpha`,
+`PngCodec_GetInfo_Palette_ReturnsRawFileEncodingNotDecodedRgba`,
+`PngCodec_GetInfo_SubByteGrayscaleBitDepth_ReturnsCorrectDimensions` (`[Theory]` over bit depths
+1, 2, 4), `PngCodec_GetInfo_BitDepth16_ReturnsCorrectDimensions`,
+`PngCodec_GetInfoAndLoad_InvalidBitDepth_BothThrowInvalidDataException` (`[Theory]`),
+`PngCodec_GetInfoAndLoad_InvalidColorType_BothThrowInvalidDataException` (`[Theory]`)
+
+Calls `GetInfo` on hand-built Grayscale and Grayscale-with-alpha PNGs and asserts the correct
+`Channels`/`HasAlpha` mapping (1/false and 2/true respectively). Calls `GetInfo` on a hand-built
+Palette PNG and asserts it reports `Channels=1, HasAlpha=false` — the raw file encoding (one
+palette-index sample per pixel, packed at sub-byte bit depths) — deliberately not the four-channel
+RGBA result `Load` would produce after
+resolving indices through `PLTE`/`tRNS`. Calls `GetInfo` on hand-built sub-byte-depth (1, 2, 4)
+and 16-bit Grayscale PNGs and asserts the correct declared width/height are reported. Calls both
+`GetInfo` and `Load` on a hand-built PNG declaring an invalid bit depth, and separately an invalid
+color type, and asserts both methods throw `InvalidDataException` symmetrically — proving
+well-formedness (as opposed to decodability) is enforced identically by both entry points.
+
 #### CanvasNet-Codecs-PngCodec-GetInfoValidation: GetInfo Rejects Invalid Arguments and Malformed Headers
 
 **Tests**: `PngCodec_GetInfo_NullStream_ThrowsArgumentNullException`,
 `PngCodec_GetInfo_NullPath_ThrowsArgumentNullException`,
 `PngCodec_GetInfo_EmptyPath_ThrowsArgumentException`,
-`PngCodec_GetInfo_BadSignature_ThrowsInvalidDataException`
+`PngCodec_GetInfo_BadSignature_ThrowsInvalidDataException`,
+`PngCodec_GetInfo_PngSuiteCorruptFile_ThrowsInvalidDataException`
 
 Calls `GetInfo(Stream)` with a null stream, `GetInfo(string)` with a null path and separately an
 empty path, and `GetInfo(Stream)` with an 8-byte all-zero buffer (an incorrect signature),
 asserting `ArgumentNullException`, `ArgumentNullException`, `ArgumentException`, and
 `InvalidDataException` respectively — the same exception contract as the corresponding `Load`
-scenarios.
+scenarios. Also calls `GetInfo(string)` on every deliberately corrupt PngSuite conformance file
+(see `CanvasNet-Codecs-PngCodec-PngSuiteCorrupt` above) and asserts `InvalidDataException` for
+every one.
 
 ### Acceptance Criteria
 
 A unit test run passes when all test methods above pass without error or unexpected exception; any
 unexpected exception type or wrong return/byte value constitutes a failure. Across
-`PngCodecTests.cs` and `PngSuiteTests.cs`, this totals 41 test methods (38 in `PngCodecTests.cs`
-and 3 in `PngSuiteTests.cs`), which expand to a much larger number of executed xUnit test cases
+`PngCodecTests.cs` and `PngSuiteTests.cs`, this totals 101 test methods (95 in `PngCodecTests.cs`
+and 6 in `PngSuiteTests.cs`), which expand to a much larger number of executed xUnit test cases
 when every `[Theory]` data row is included, covering the full 175-file PngSuite conformance
 corpus.

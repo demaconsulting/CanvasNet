@@ -353,10 +353,14 @@ Saves a `Surface` to a file as an uncompressed BMP image, overwriting any existi
 
 ### PngCodec
 
-The `PngCodec` static class loads and saves `Surface` pixel buffers as PNG files, supporting only
-8-bit-per-channel Truecolor (RGB) and Truecolor-with-alpha (RGBA) color types, non-interlaced.
-Grayscale, palette-based color types, other bit depths, and Adam7 interlacing are rejected with
-`InvalidDataException`.
+The `PngCodec` static class loads and saves `Surface` pixel buffers as PNG files. `Load` decodes
+any non-interlaced PNG whose color type and bit depth form a combination the PNG specification
+defines: Grayscale, Truecolor, Palette/indexed, Grayscale-with-alpha, and Truecolor-with-alpha, at
+whichever bit depths (1, 2, 4, 8, or 16) each color type permits, honoring `tRNS`-chunk
+transparency for Grayscale, Truecolor, and Palette source data. `Save` writes only
+8-bit-per-channel Truecolor (RGB) or Truecolor-with-alpha (RGBA), non-interlaced. Adam7-interlaced
+data and any bit-depth/color-type combination the PNG specification itself does not define (for
+example Palette at bit depth 16) are rejected by `Load` with `InvalidDataException`.
 
 #### PngColorType
 
@@ -376,13 +380,18 @@ public enum PngColorType
 public static Surface Load(Stream stream)
 ```
 
-Loads a `Surface` from an open, readable stream containing a supported PNG image. Pixels decoded
-from an RGB (color type 2) image always have alpha 255 (fully opaque).
+Loads a `Surface` from an open, readable stream containing a PNG image whose color type and bit
+depth combination the PNG specification defines, and which is not Adam7-interlaced. Pixels decoded
+from source data without an alpha channel (Grayscale, Truecolor, or Palette without a `tRNS`
+match) always have alpha 255 (fully opaque) unless a `tRNS`-chunk key-color or per-palette-entry
+value makes them fully transparent (alpha 0).
 
 **Exceptions:**
 
 - `ArgumentNullException`: Thrown when `stream` is null.
-- `InvalidDataException`: Thrown when the stream does not contain a valid, supported PNG image.
+- `InvalidDataException`: Thrown when the stream does not contain a valid PNG image, is
+  Adam7-interlaced, or uses a bit-depth/color-type combination the PNG specification does not
+  define.
 
 ##### PngCodec.Load(string path)
 
@@ -405,12 +414,18 @@ public static ImageInfo GetInfo(Stream stream)
 ```
 
 Reads only the PNG signature and `IHDR` chunk (never pixel data) from an open, readable stream
-and returns an `ImageInfo` describing the image. Does not enforce `Surface.MaxDimension`.
+and returns an `ImageInfo` describing the image. Succeeds for every well-formed `IHDR`, including
+Adam7-interlaced files and every color-type/bit-depth combination the PNG specification defines,
+even those `Load` refuses (Adam7). Does not enforce `Surface.MaxDimension`. For Palette (indexed)
+files, `Channels` and `HasAlpha` describe the raw file encoding (1 channel, no alpha) rather than
+the 4-channel RGBA result `Load` would produce after resolving palette indices.
 
 **Exceptions:**
 
 - `ArgumentNullException`: Thrown when `stream` is null.
-- `InvalidDataException`: Thrown when the stream does not contain a valid PNG signature/`IHDR`.
+- `InvalidDataException`: Thrown when the stream does not contain a valid PNG signature/`IHDR`,
+  or when `IHDR` declares a bit-depth/color-type combination the PNG specification does not
+  define.
 
 ##### PngCodec.GetInfo(string path)
 

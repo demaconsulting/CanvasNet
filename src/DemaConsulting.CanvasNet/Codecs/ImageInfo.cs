@@ -42,9 +42,18 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///         </item>
 ///         <item>
 ///             <description>
-///                 PNG: <see cref="Channels"/> is 4 for the RGBA color type and 3 for the RGB
-///                 color type (the only two color types this library's codec supports);
-///                 <see cref="HasAlpha"/> is <see langword="true"/> only for the RGBA color type.
+///                 PNG: <see cref="Channels"/>/<see cref="HasAlpha"/> are derived from the file's
+///                 declared color type, independently of whether <c>Load</c> can actually decode
+///                 that color type/bit depth/interlace combination (see
+///                 <see cref="PngCodec.GetInfo(Stream)"/>'s remarks): grayscale (0) reports 1
+///                 channel, no alpha; Truecolor (2) reports 3 channels, no alpha; palette/indexed
+///                 (3) reports 1 channel, no alpha - this is the <em>raw file encoding</em> (one
+///                 palette-index sample per pixel, packed at sub-byte bit depths), deliberately
+///                 <em>not</em> the 4-channel RGBA result a full <c>Load</c> would produce after
+///                 resolving each index through the
+///                 file's <c>PLTE</c>/<c>tRNS</c> chunks, since <c>GetInfo</c> never reads those
+///                 chunks; grayscale-with-alpha (4) reports 2 channels, has alpha; Truecolor-with-
+///                 alpha (6) reports 4 channels, has alpha.
 ///             </description>
 ///         </item>
 ///         <item>
@@ -71,8 +80,12 @@ namespace DemaConsulting.CanvasNet.Codecs;
 /// <param name="Width">The image width, in pixels, as declared by the file's header.</param>
 /// <param name="Height">The image height, in pixels, as declared by the file's header.</param>
 /// <param name="Channels">
-///     The number of color/alpha channels per pixel that decoding this file would produce, as
-///     declared by the file's header (see the per-format derivation in the type-level remarks).
+///     The number of color/alpha channels per pixel that decoding this file would normally
+///     produce, as declared by the file's header (see the per-format derivation in the type-level
+///     remarks) - except for a PNG palette (color type 3) image, where this instead reports the
+///     raw file's single palette-index channel rather than the 4-channel RGBA a full
+///     <see cref="PngCodec.Load(Stream)"/> would produce (see the PNG entry in the type-level
+///     remarks above for the full explanation).
 /// </param>
 /// <param name="HasAlpha">
 ///     <see langword="true"/> if the file's header declares an alpha channel;

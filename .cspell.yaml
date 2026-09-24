@@ -32,6 +32,8 @@ words:
   - Casteljau
   - CMYK
   - coeffs
+  - CSUM
+  - Decodability
   - dequantize
   - dequantizes
   - Deflate
@@ -39,6 +41,7 @@ words:
   - Defilter
   - defiltered
   - defilters
+  - deinterlacing
   - Deinterleave
   - deinterleaved
   - desaturated
@@ -54,6 +57,7 @@ words:
   - fileassert
   - blittable
   - colorspace
+  - formedness
   - gAMA
   - Grayscale
   - grayscale
@@ -74,11 +78,16 @@ words:
   - nameof
   - nonzero
   - Outliner
+  - Plte
+  - plte
+  - PLTE
   - quantizer
   - subsampled
   - unstuffed
   - upsamples
   - vectorizing
+  - xcsn
+  - xdtn
   - xunit
   - YCCK
   - Paeth
@@ -120,6 +129,9 @@ words:
   - sysml
   - tEXt
   - triaging
+  - Trns
+  - trns
+  - tRNS
   - Truecolor
   - Unpremultiply
   - unioning

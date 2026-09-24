@@ -297,12 +297,14 @@ sections:
 
       - id: CanvasNet-Lib-PngLoad
         title: >-
-          The library shall load a Surface from an 8-bit-per-channel Truecolor (RGB) or
-          Truecolor-with-alpha (RGBA) PNG file, from either a stream or a file path.
+          The library shall load a Surface from a non-interlaced PNG file, from either a stream or
+          a file path, for every color type and bit depth combination the PNG specification
+          defines, honoring the file's transparency chunk where the specification defines one.
         tags: [system]
         justification: |
           Callers need to import existing PNG images as pixel buffers for further processing or
-          display.
+          display, across the full range of color types and bit depths PNG-producing tools may
+          emit, not only truecolor images.
         children:
           - CanvasNet-Codecs-PngLoad
         tests:
@@ -356,20 +358,20 @@ sections:
 
       - id: CanvasNet-Lib-PngUnsupportedFormatValidation
         title: >-
-          The library shall reject malformed or unsupported PNG data (bad signature, unsupported
-          color type, unsupported bit depth, interlacing, corrupt chunk CRC-32, corrupt Adler-32
-          checksum, or a truncated stream) with InvalidDataException.
+          The library shall reject malformed PNG data (bad signature, an invalid bit depth or
+          color type, a bit-depth/color-type combination the PNG specification does not define,
+          corrupt chunk CRC-32, corrupt Adler-32 checksum, or a truncated stream), and
+          Adam7-interlaced PNG data, with InvalidDataException.
         tags: [system]
         justification: |
-          Callers must be able to distinguish a genuinely malformed or unsupported PNG file from a
+          Callers must be able to distinguish a genuinely malformed PNG file, or one using Adam7
+          interlacing (the only PNG feature this library's Load does not decode), from a
           successful load, and receive a clear, actionable error rather than incorrect pixel data.
         children:
           - CanvasNet-Codecs-PngUnsupportedFormatValidation
         tests:
           - PngCodec_Load_BadSignature_ThrowsInvalidDataException
-          - PngCodec_Load_UnsupportedColorTypeGrayscale_ThrowsInvalidDataException
-          - PngCodec_Load_UnsupportedColorTypePalette_ThrowsInvalidDataException
-          - PngCodec_Load_UnsupportedBitDepth_ThrowsInvalidDataException
+          - PngCodec_Load_InvalidBitDepthColorTypeCombination_ThrowsInvalidDataException
           - PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsInvalidDataException
           - PngCodec_Load_CorruptChunkCrc_ThrowsInvalidDataException
           - PngCodec_Load_CorruptAdlerTrailer_ThrowsInvalidDataException
@@ -394,6 +396,26 @@ sections:
           - PngCodec_GetInfo_SucceedsWithCorruptIdatRegion_ButLoadThrows
           - PngCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows
 
+      - id: CanvasNet-Lib-PngGetInfoAnyDecodability
+        title: >-
+          The library shall report a PNG's width and height via GetInfo for every file whose IHDR
+          chunk is well-formed, regardless of whether Load can decode that file's color type, bit
+          depth, or interlacing.
+        tags: [system]
+        justification: |
+          Probing a file's declared size before deciding whether to invoke Load is exactly the
+          operation that matters most for large or unfamiliar-format images; requiring
+          decodability first would defeat that purpose.
+        children:
+          - CanvasNet-Codecs-PngGetInfoAnyDecodability
+        tests:
+          - PngCodec_GetInfo_SubByteGrayscaleBitDepth_ReturnsCorrectDimensions
+          - PngCodec_GetInfo_BitDepth16_ReturnsCorrectDimensions
+          - PngCodec_GetInfoAndLoad_InvalidBitDepth_BothThrowInvalidDataException
+          - PngCodec_GetInfoAndLoad_InvalidColorType_BothThrowInvalidDataException
+          - PngSuiteUnsupportedFile_GetInfoReturnsCorrectDimensions
+          - PngCodec_PngSuiteCorruptAfterIhdrFile_GetInfoReturnsCorrectDimensions_ButLoadThrows
+
       - id: CanvasNet-Lib-PngGetInfoValidation
         title: >-
           The library shall reject invalid arguments or malformed PNG data passed to GetInfo with
@@ -408,6 +430,7 @@ sections:
           - PngCodec_GetInfo_NullPath_ThrowsArgumentNullException
           - PngCodec_GetInfo_EmptyPath_ThrowsArgumentException
           - PngCodec_GetInfo_BadSignature_ThrowsInvalidDataException
+          - PngCodec_GetInfo_PngSuiteCorruptFile_ThrowsInvalidDataException
 
   - title: TIFF Codec API
     requirements:
