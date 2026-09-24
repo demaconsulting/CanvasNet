@@ -706,6 +706,15 @@ public static class PngCodec
         }
         else if (typeBytes[0] is >= (byte)'A' and <= (byte)'Z')
         {
+            // IHDR must always be the first chunk in the file, regardless of whether the chunk
+            // that precedes it is a recognized type; check that before classifying this chunk as
+            // an unrecognized critical chunk, so the error correctly identifies IHDR as the cause
+            // rather than the unrelated "unrecognized critical chunk" refusal below
+            if (!state.IhdrSeen)
+            {
+                throw new InvalidDataException("Chunk encountered before IHDR.");
+            }
+
             // The PNG specification uses a chunk type's first byte's case to mark it critical
             // (uppercase) or ancillary (lowercase). This chunk type is not one of the five
             // chunks this codec explicitly recognizes above, yet its first byte is uppercase, so

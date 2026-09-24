@@ -805,6 +805,32 @@ public class PngCodecTests
     }
 
     /// <summary>
+    ///     Regression test for a code-review finding: an unrecognized critical chunk (uppercase
+    ///     first type byte, not one of IHDR/PLTE/tRNS/IDAT/IEND) appearing before IHDR used to be
+    ///     classified and rejected as an "unrecognized critical chunk" before the generic
+    ///     before-IHDR check ever ran, so the exception message omitted IHDR even though the
+    ///     PNG specification's IHDR-must-be-first rule - not the chunk's unrecognized type - is
+    ///     the actual cause. Proves that Load instead identifies IHDR as the cause in this case,
+    ///     consistent with <see cref="PngCodec_Load_AncillaryChunkBeforeIhdr_ThrowsInvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_UnrecognizedCriticalChunkBeforeIhdr_ThrowsInvalidDataExceptionMentioningIhdr()
+    {
+        // Arrange: a valid signature followed directly by an unrecognized critical chunk ("ABCD"),
+        // with no IHDR chunk present anywhere before it
+        using var stream = new MemoryStream();
+        stream.Write(Signature, 0, Signature.Length);
+        var unknownCritical = BuildChunk("ABCD", [1, 2, 3]);
+        stream.Write(unknownCritical, 0, unknownCritical.Length);
+        stream.Position = 0;
+
+        // Act & Assert: the missing IHDR chunk must be identified as the cause, not the chunk's
+        // unrecognized type
+        var exception = Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        Assert.Contains("IHDR", exception.Message);
+    }
+
+    /// <summary>
     ///     Proves that Load rejects a tRNS chunk on a grayscale-with-alpha (color type 4) image
     ///     with InvalidDataException, since that color type already carries a full per-pixel
     ///     alpha channel, leaving nothing for a single-key-color transparency chunk to add.
