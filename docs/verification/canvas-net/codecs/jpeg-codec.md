@@ -228,7 +228,10 @@ identical.
 `JpegCodec_GetInfo_LargeLeadingAppSegments_SucceedsAndMatchesLoadResult`,
 `JpegCodec_GetInfo_SofShortlyAfterProbeCap_StopsAtSofWithoutDrainingStream`,
 `JpegCodec_GetInfo_NoSofEverFound_StopsAtHardLimitWithInvalidDataException`,
-`JpegCodec_GetInfoVsLoad_LeadingMetadataExceedsHardLimit_IsAcceptedParityException`,
+`JpegCodec_GetInfoVsLoad_LeadingMetadataExceedsHardLimit_BothThrowConsistently`,
+`JpegCodec_GetInfoVsLoad_LeadingSegmentCountExceedsLimit_BothThrowConsistently`,
+`JpegCodec_GetInfoVsLoad_SofSegmentStraddlesHardLimit_BothThrowConsistently`,
+`JpegCodec_GetInfoVsLoad_SosBeforeSofAtSegmentCountBoundary_BothThrowSosMessageNotSegmentLimit`,
 `JpegCodec_GetInfo_ManyMinimalSegmentsNoSof_StopsAtSegmentCountLimitBeforeByteLimit`,
 `JpegCodec_GetInfo_SofAsSegmentImmediatelyAfterSegmentCountLimit_StillSucceeds`,
 `JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows`,
@@ -279,16 +282,27 @@ correct implementation must never reach, wrapped in a `BoundedReadStream` config
 distinct `InvalidOperationException` the instant more than the hard limit (plus a small slack) is
 read - so the test fails loudly rather than hanging if the hard-limit protection were ever removed
 again - and asserts `GetInfo` instead throws `InvalidDataException` referencing the hard limit.
-Proves this hard limit is a deliberate, narrow, and explicitly documented exception to the
-general "`GetInfo` never throws for an input `Load` would successfully decode" invariant, not a
-regression: builds a genuinely valid, fully decodable minimal JPEG (well-formed DQT/DHT/SOF0/SOS
-segments and matching entropy data) preceded by well-formed APP0 filler segments comfortably
-exceeding `MaxProbeHeaderBytesHardLimit` before the SOF0 marker is ever seen, then asserts `Load`
-decodes the file successfully (confirming it is genuinely valid, not malformed) while `GetInfo` on
-the exact same bytes throws `InvalidDataException` referencing the hard limit - proving this
-divergence between `GetInfo` and `Load` is real, intentional, and narrowly scoped to this one
-pathological input shape. Proves that scanning past the soft cap is additionally bounded by a
-second, independent
+Proves `Load` and `GetInfo` throw `InvalidDataException` consistently — true parity, not a
+documented exception — once a JPEG's leading marker-segment data exceeds
+`MaxProbeHeaderBytesHardLimit` before a SOF0/SOF2 marker is ever seen: builds well-formed,
+non-SOF APP0 filler segments comfortably exceeding that hard limit before a valid SOF0/SOS/entropy
+tail, and asserts both `Load` and `GetInfo` on the exact same bytes throw `InvalidDataException`
+referencing the hard limit, rather than `Load` accepting the file while only `GetInfo` rejects it.
+Proves the same true-parity behavior for the independent segment-count ceiling: builds many more
+than `MaxProbeSegmentCount`'s worth of well-formed, minimal (4-byte) non-SOF APP0 filler segments —
+totalling well under `MaxProbeHeaderBytesHardLimit`, so only the segment-count ceiling can be what
+trips — followed by a valid SOF0/SOS/entropy tail, and asserts both `Load` and `GetInfo` on the
+exact same bytes throw `InvalidDataException` referencing the segment limit, proving `Load`'s own
+pre-SOF segment walk enforces the same segment-count ceiling `GetInfo` enforces. Proves the
+byte-based hard ceiling applies unconditionally to every byte read, including the SOF0/SOF2
+segment's own bytes, not merely the leading filler that precedes it: builds leading filler so the
+cumulative byte count immediately before the SOF0 segment starts is just a few bytes under
+`MaxProbeHeaderBytesHardLimit`, so consuming the SOF0 segment's own bytes is what pushes the
+cumulative count past the ceiling, and asserts both `Load` and `GetInfo` on the exact same bytes
+still throw `InvalidDataException` referencing the hard limit - guarding against a regression where
+the check is gated on "has SOF0/SOF2 been found yet" using the state *after* processing the current
+segment, which would wrongly skip the check specifically for the one segment whose own bytes cross
+the ceiling. Proves that scanning past the soft cap is additionally bounded by a second, independent
 segment-count ceiling that catches an attack shape the byte-based hard limit alone would take
 millions of iterations to reach: builds many more than the segment-count limit's worth of
 well-formed, minimal (4-byte) non-SOF APP0 filler segments - totalling only a few kilobytes,
@@ -304,7 +318,16 @@ segment-count limit's worth of non-SOF marker segments (minimal APP0 filler plus
 segments `Load` itself needs) followed immediately by a normal SOF0 segment and SOS/entropy data,
 and asserts `GetInfo` still succeeds and matches `Load`'s own decoded dimensions on the identical
 bytes exactly - proving the segment-count check is applied only to non-terminating segments, never
-to the SOF0/SOF2 marker itself. Proves `GetInfo`
+to the SOF0/SOF2 marker itself. Proves the segment-count check also excludes an SOS-before-SOF
+marker, not just the terminating SOF0/SOF2 marker, mirroring exactly which marker kinds
+`ProbeDimensions`' segment-count check counts: builds exactly `MaxProbeSegmentCount` minimal
+(4-byte) APP0 filler segments - which, if the following SOS marker were also counted, would push
+that next segment past the ceiling - followed by an SOS marker with no SOF marker ever having
+appeared, and asserts both `Load` and `GetInfo`, on the exact same bytes, throw
+`InvalidDataException` referencing the SOS-before-SOF condition rather than the segment-count
+limit message - guarding against a narrower regression where an SOS-before-SOF marker landing
+exactly on the boundary segment would make `Load` throw the generic segment-count message while
+`GetInfo` throws its own, more specific message for the same bytes. Proves `GetInfo`
 does not enforce `Surface.MaxDimension` by building an SOF0 segment
 declaring a width one greater than `Surface.MaxDimension`, asserting `GetInfo` returns that raw
 oversized width without throwing, and then asserting `Load` on the exact same bytes still throws
@@ -339,7 +362,7 @@ corresponding `Load` scenarios, plus JPEG-specific malformed-ordering cases `Loa
 
 A unit test run passes when all test methods above pass without error or unexpected exception; any
 unexpected exception type or wrong return/value relationship constitutes a failure. Across
-`JpegCodecTests.cs` and `JpegFixtureTests.cs`, this totals 52 test methods (48 in
+`JpegCodecTests.cs` and `JpegFixtureTests.cs`, this totals 55 test methods (51 in
 `JpegCodecTests.cs` and 4 in `JpegFixtureTests.cs`); several of these are `[Theory]` methods that
 additionally expand to multiple executed xUnit test cases, plus the system-level integration
 scenarios documented in `docs/verification/canvas-net.md`.

@@ -46,25 +46,15 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///         a SOF0/SOF2 marker, it keeps scanning segment headers past the cap - one marker
 ///         segment at a time, exactly as it does below the cap - until a SOF0/SOF2 marker is
 ///         found or the stream genuinely ends, rather than giving up while more data still
-///         remains, and without ever reading into entropy-coded scan data.
-///     </para>
-///     <para>
-///         <see cref="JpegCodec.GetInfo(Stream)"/> carries one deliberate, narrow, and
-///         explicitly documented exception to that second invariant: a pathological JPEG whose
-///         leading marker-segment data before any SOF0/SOF2 marker exceeds
-///         <see cref="JpegCodec.MaxProbeHeaderBytesHardLimit"/> (16 MiB) - or whose leading
-///         marker segments before any SOF0/SOF2 marker exceed
-///         <see cref="JpegCodec.MaxProbeSegmentCount"/> (512) in number - is accepted by
-///         <see cref="JpegCodec.Load(Stream)"/> (which buffers the entire stream
-///         unconditionally and enforces no equivalent ceiling of its own) but is rejected by
-///         <see cref="JpegCodec.GetInfo(Stream)"/>, which enforces these two independent
-///         ceilings specifically to bound its own worst-case resource consumption against a
-///         malformed, adversarial, or effectively-infinite stream that never presents a
-///         SOF0/SOF2 marker. This is a deliberate, narrowly-scoped, and fully documented
-///         carve-out from the general parity contract - not a defect - chosen because a hard
-///         resource ceiling on cheap header probing is considered more important than absolute
-///         parity for this one pathological, unrealistic input shape; both ceilings are sized
-///         generously enough that no realistic real-world JPEG is affected.
+///         remains, and without ever reading into entropy-coded scan data. Additionally, JPEG's
+///         <see cref="JpegCodec.GetInfo(Stream)"/> and <see cref="JpegCodec.Load(Stream)"/> both
+///         enforce the exact same two independent ceilings on that pre-SOF marker-segment
+///         walk - <see cref="JpegCodec.MaxProbeHeaderBytesHardLimit"/> (16 MiB of leading
+///         marker-segment data) and <see cref="JpegCodec.MaxProbeSegmentCount"/> (512
+///         non-terminating marker segments) - so a pathological JPEG that exceeds either ceiling
+///         is rejected consistently by both methods, upholding the invariant unconditionally
+///         rather than through a documented exception: there is no JPEG input <c>GetInfo</c>
+///         rejects that <c>Load</c> would otherwise have accepted.
 ///     </para>
 ///     <para>
 ///         This type is a plain, immutable data carrier with no behavior beyond its record-struct

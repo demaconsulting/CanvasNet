@@ -645,25 +645,31 @@ sections:
               post-soft-cap scanning is bounded by two independent ceilings - a separate, larger hard
               byte limit, and a hard limit on the number of non-terminating marker segments scanned:
               once either is reached without a supported SOF marker ever being found, GetInfo throws
-              InvalidDataException rather than continuing to read, buffer, or loop without bound.
+              InvalidDataException rather than continuing to read, buffer, or loop without bound. Load
+              enforces these same two ceilings on its own pre-SOF marker-segment walk and throws the
+              same InvalidDataException for the same condition, so GetInfo and Load agree consistently
+              on this input shape.
             justification: |
               Callers need to inspect a JPEG's declared dimensions and component count without paying
               the cost of entropy-decoding the scan data, without an unbounded scan over a
               pathological stream that never presents an SOF marker, and without unconditionally
               reading up to the full probe cap even when the SOF appears near the start of a much
-              larger stream. Since Load itself has no overall file-size ceiling, treating the soft cap
-              as a hard failure point would violate the invariant that GetInfo never throws for an
-              input Load would successfully decode; however, upholding that invariant unconditionally
-              (with no outer bound at all) would itself reintroduce a denial-of-service vector for a
-              malformed, adversarial, or effectively-infinite stream that never presents a SOF marker.
-              The separate, much larger hard byte limit resolves part of this tension: it is generous
-              enough to still accommodate real-world files with unusually large leading metadata, while
-              guaranteeing GetInfo's worst-case read/buffer size remains a small, fixed, documented
-              bound rather than unbounded. A byte-based bound alone, however, does not cheaply bound
-              the number of scan iterations, since a marker segment can be as small as 4 bytes; the
-              additional segment-count limit closes that gap directly, bounding iterations to a small
-              fixed value without ever applying to the terminating SOF marker itself, so a well-formed
-              file's genuine SOF marker always succeeds regardless of which segment number it falls on.
+              larger stream. Treating the soft cap as a hard failure point would violate the invariant
+              that GetInfo never throws for an input Load would successfully decode; however,
+              upholding that invariant unconditionally (with no outer bound at all) would itself
+              reintroduce a denial-of-service vector for a malformed, adversarial, or
+              effectively-infinite stream that never presents a SOF marker. The separate, much larger
+              hard byte limit resolves part of this tension: it is generous enough to still
+              accommodate real-world files with unusually large leading metadata, while guaranteeing
+              GetInfo's worst-case read/buffer size remains a small, fixed, documented bound rather
+              than unbounded. A byte-based bound alone, however, does not cheaply bound the number of
+              scan iterations, since a marker segment can be as small as 4 bytes; the additional
+              segment-count limit closes that gap directly, bounding iterations to a small fixed value
+              without ever applying to the terminating SOF marker itself, so a well-formed file's
+              genuine SOF marker always succeeds regardless of which segment number it falls on.
+              Because Load enforces these same two ceilings on its own pre-SOF marker-segment walk, a
+              pathological JPEG whose leading marker-segment data exceeds either ceiling is rejected
+              consistently by both GetInfo and Load - true parity, not a documented exception.
             children:
               - CanvasNet-Codecs-JpegCodec-GetInfo
             tests:
@@ -677,6 +683,10 @@ sections:
               - JpegCodec_GetInfo_LargeLeadingAppSegments_SucceedsAndMatchesLoadResult
               - JpegCodec_GetInfo_SofShortlyAfterProbeCap_StopsAtSofWithoutDrainingStream
               - JpegCodec_GetInfo_NoSofEverFound_StopsAtHardLimitWithInvalidDataException
+              - JpegCodec_GetInfoVsLoad_LeadingMetadataExceedsHardLimit_BothThrowConsistently
+              - JpegCodec_GetInfoVsLoad_LeadingSegmentCountExceedsLimit_BothThrowConsistently
+              - JpegCodec_GetInfoVsLoad_SofSegmentStraddlesHardLimit_BothThrowConsistently
+              - JpegCodec_GetInfoVsLoad_SosBeforeSofAtSegmentCountBoundary_BothThrowSosMessageNotSegmentLimit
               - JpegCodec_GetInfo_ManyMinimalSegmentsNoSof_StopsAtSegmentCountLimitBeforeByteLimit
               - JpegCodec_GetInfo_SofAsSegmentImmediatelyAfterSegmentCountLimit_StillSucceeds
               - JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows

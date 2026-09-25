@@ -329,8 +329,12 @@ public static class JpegCodec
     ///     SOF0/SOF2, including arithmetic-coding variants), the component count is not 1 or 3,
     ///     the frame width or height exceeds <see cref="Surface.MaxDimension"/>, a DHT/DQT table
     ///     referenced by SOF/SOS is missing, a mandatory segment (SOF, DHT, DQT, or SOS) is
-    ///     missing, the marker structure is malformed, or the stream ends before all header or
-    ///     entropy-coded data has been read.
+    ///     missing, the marker structure is malformed, the stream ends before all header or
+    ///     entropy-coded data has been read, more than <see cref="MaxProbeHeaderBytesHardLimit"/>
+    ///     bytes of leading marker-segment data precede the SOF0/SOF2 marker, or more than
+    ///     <see cref="MaxProbeSegmentCount"/> non-terminating marker segments precede the
+    ///     SOF0/SOF2 marker (the same two ceilings, and the same exceptions,
+    ///     <see cref="GetInfo(Stream)"/> enforces for these conditions - see its remarks).
     /// </exception>
     /// <example>
     ///     <code>
@@ -423,18 +427,15 @@ public static class JpegCodec
     /// <remarks>
     ///     <see cref="ImageInfo"/>'s type-level remarks document the general cross-codec
     ///     invariant that <c>GetInfo</c> never fails on an input <see cref="Load(Stream)"/> would
-    ///     accept. This method carries one deliberate, narrow, and explicitly documented exception
-    ///     to that invariant: a pathological JPEG containing more than
-    ///     <see cref="MaxProbeHeaderBytesHardLimit"/> (16 MiB) bytes - or more than
-    ///     <see cref="MaxProbeSegmentCount"/> (512) marker segments - of leading marker-segment
-    ///     data before a SOF0/SOF2 marker is found is accepted by <see cref="Load(Stream)"/>
-    ///     (which buffers the entire stream unconditionally and enforces no equivalent ceiling of
-    ///     its own) but is rejected by this method (which enforces these two independent ceilings
-    ///     specifically to prevent unbounded resource consumption during cheap header probing).
-    ///     This is a deliberate, documented, narrow exception to the general parity contract, not
-    ///     a defect: both ceilings are sized generously enough - far beyond any realistic
-    ///     real-world JPEG's leading metadata - that only a pathological, adversarial, or
-    ///     effectively-infinite input is ever affected.
+    ///     accept. For JPEG this is a genuine, unconditional agreement, not merely a best effort:
+    ///     <see cref="Load(Stream)"/> enforces the exact same two independent ceilings on its own
+    ///     pre-SOF marker-segment walk that this method enforces - <see cref="MaxProbeHeaderBytesHardLimit"/>
+    ///     (16 MiB of leading marker-segment data) and <see cref="MaxProbeSegmentCount"/> (512
+    ///     non-terminating marker segments) - throwing the identical <see cref="InvalidDataException"/>
+    ///     this method throws for the same condition. A pathological JPEG whose leading
+    ///     marker-segment data before any SOF0/SOF2 marker exceeds either ceiling is therefore
+    ///     rejected consistently by both methods; there is no input this method rejects that
+    ///     <see cref="Load(Stream)"/> would otherwise have accepted.
     /// </remarks>
     public static ImageInfo GetInfo(Stream stream)
     {
@@ -961,6 +962,7 @@ public static class JpegCodec
             var state = new DecodeState();
 
             var pos = 2;
+            var segmentCount = 0;
             while (true)
             {
                 pos = SkipToMarker(file, pos);
@@ -972,7 +974,49 @@ public static class JpegCodec
                     break;
                 }
 
+                // Captured before ProcessSegment runs, since ProcessSegment sets state.SofSeen to
+                // true while processing the SOF0/SOF2 segment itself - using the post-segment
+                // value here would wrongly exempt the SOF segment's own bytes/segment-count from
+                // both ceilings below, unlike GetInfo's ProbeDimensions (whose byte-based hard
+                // limit is enforced unconditionally by the underlying buffer, including while
+                // reading the SOF segment's own length field and payload; only its segment-count
+                // ceiling excludes the terminating SOF0/SOF2 segment).
+                var sofSeenBeforeSegment = state.SofSeen;
+
+                // Shares GetInfo's MaxProbeSegmentCount ceiling on the number of non-terminating
+                // marker segments preceding the SOF0/SOF2 marker, so Load and GetInfo genuinely
+                // agree on this input shape too, not just the byte-based ceiling below: a stream
+                // of many minimal-size segments before SOF is rejected consistently by both.
+                // Counts exactly the marker kinds ProbeDimensions' CheckSegmentCount counts (stray
+                // restart markers and the generic APPn/COM/etc. fallback), excluding not just the
+                // terminating SOF0/SOF2 marker but also SOS-before-SOF and unsupported-SOF/frame
+                // markers - both of which unconditionally throw their own, more specific
+                // InvalidDataException in ProcessSegment/ProbeDimensions regardless of how many
+                // segments preceded them - so Load and GetInfo never diverge on which exception
+                // message a given byte sequence produces.
+                if (!sofSeenBeforeSegment && CountsTowardSegmentLimit(marker) &&
+                    ++segmentCount > JpegCodec.MaxProbeSegmentCount)
+                {
+                    throw BuildSegmentCountLimitException(JpegCodec.MaxProbeSegmentCount);
+                }
+
                 pos = ProcessSegment(file, pos, marker, state);
+
+                // Shares GetInfo's MaxProbeHeaderBytesHardLimit ceiling on leading marker-segment
+                // data preceding the SOF0/SOF2 marker, so Load and GetInfo genuinely agree on this
+                // input shape rather than diverging: once this many bytes have been walked past
+                // the SOI marker without finding SOF0/SOF2, Load throws the same InvalidDataException
+                // GetInfo already throws for the same condition, instead of continuing to accept a
+                // file GetInfo would reject. Gated on the pre-segment SofSeen value, so - exactly
+                // as ProbeDimensions' byte-based ceiling does - this still applies while consuming
+                // the SOF segment's own bytes (a well-formed file whose SOF segment itself
+                // straddles this threshold is rejected by both GetInfo and Load, not silently
+                // exempted), but never applies to the SOS/entropy-coded data that follows once the
+                // SOF segment has been fully processed.
+                if (!sofSeenBeforeSegment && pos > JpegCodec.MaxProbeHeaderBytesHardLimit)
+                {
+                    throw BuildHardLimitException(JpegCodec.MaxProbeHeaderBytesHardLimit);
+                }
             }
 
             if (!state.SofSeen || !state.SosSeen || state.Components == null)
@@ -982,6 +1026,28 @@ public static class JpegCodec
 
             return AssembleCanvas(state.Width, state.Height, state.Components, state.QuantTables);
         }
+
+        /// <summary>
+        ///     Determines whether <paramref name="marker"/> counts toward <see cref="Decode"/>'s
+        ///     <see cref="JpegCodec.MaxProbeSegmentCount"/> ceiling, mirroring exactly which marker
+        ///     kinds <see cref="ProbeDimensions"/>'s <c>CheckSegmentCount</c> counts: stray restart
+        ///     markers and the generic APPn/COM/etc. fallback segment, but not SOS-before-SOF or an
+        ///     unsupported SOF/frame marker - both of which throw their own, more specific
+        ///     <see cref="InvalidDataException"/> unconditionally in <see cref="ProcessSegment"/>/
+        ///     <see cref="ProbeDimensions"/> regardless of how many segments preceded them. Without
+        ///     this exact alignment, a stream crafted so one of those specific markers lands exactly
+        ///     on what would otherwise be the segment-count-exceeding segment could make
+        ///     <see cref="Decode"/> throw the segment-count message while <see cref="ProbeDimensions"/>
+        ///     throws its own more specific message for the same bytes - both still
+        ///     <see cref="InvalidDataException"/>, but with diverging text, unlike every other
+        ///     shared-ceiling case this file's exception-building helpers are designed to keep
+        ///     identical between <see cref="JpegCodec.Load(Stream)"/> and
+        ///     <see cref="JpegCodec.GetInfo(Stream)"/>.
+        /// </summary>
+        private static bool CountsTowardSegmentLimit(int marker) =>
+            marker != MarkerSof0 && marker != MarkerSof2 && marker != MarkerSos &&
+            marker is not (0xC1 or 0xC3 or 0xC5 or 0xC6 or 0xC7 or 0xC9 or 0xCA or 0xCB or
+                0xCD or 0xCE or 0xCF or 0xC8 or 0xCC);
 
         /// <summary>
         ///     Validates that <paramref name="file"/> begins with the 2-byte SOI marker

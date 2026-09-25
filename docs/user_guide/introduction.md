@@ -670,12 +670,11 @@ from many minimal-size segments. Once either ceiling is reached, `GetInfo` throw
 against a malformed, adversarial, or effectively-infinite stream that never presents a SOF0/SOF2
 marker. The segment-count limit never applies to the terminating SOF0/SOF2 marker segment itself,
 so a well-formed file's SOF marker always succeeds regardless of which segment number it falls on.
-Because `Load` itself enforces no equivalent ceiling (it buffers the entire stream unconditionally
-regardless of how much leading marker-segment data precedes the SOF marker), a pathological JPEG
-whose leading marker-segment data exceeds either ceiling is accepted by `Load` but rejected by
-`GetInfo` - a deliberate, narrow, and documented exception to `GetInfo`/`Load` parity, accepted
-because both ceilings are sized generously enough (16 MiB, or 512 segments) that no realistic
-real-world JPEG is ever affected by it.
+`Load` enforces these same two ceilings on its own pre-SOF marker-segment walk and throws the same
+`InvalidDataException` for the same condition, so a pathological JPEG whose leading marker-segment
+data exceeds either ceiling is rejected consistently by both `GetInfo` and `Load` - true parity,
+not a documented exception - because both ceilings are sized generously enough (16 MiB, or 512
+segments) that no realistic real-world JPEG is ever affected by it.
 
 **Exceptions:**
 
@@ -686,7 +685,8 @@ real-world JPEG is ever affected by it.
   input) - the same condition `Load(Stream)` itself would reject on the same bytes - the
   `MaxProbeHeaderBytesHardLimit` hard ceiling is reached without a SOF0/SOF2 marker ever being
   found, or the `MaxProbeSegmentCount` segment-count ceiling is reached without a SOF0/SOF2 marker
-  ever being found.
+  ever being found - both of the latter two conditions equally rejected by `Load(Stream)` on the
+  same bytes.
 
 ##### JpegCodec.GetInfo(string path)
 

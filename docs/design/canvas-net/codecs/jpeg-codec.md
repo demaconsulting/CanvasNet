@@ -105,8 +105,11 @@ assuming any implicit standard tables are present.
 - `InvalidDataException` — the stream does not begin with SOI; an unsupported SOF marker,
   arithmetic-coded variant, or unsupported component count is encountered; a frame width or height
   that is non-positive or exceeds `Surface.MaxDimension`; a referenced DHT/DQT table is missing; a
-  mandatory SOF/DHT/DQT/SOS segment is missing; the marker/segment structure is malformed; or the
-  stream ends before all header or entropy-coded data has been read
+  mandatory SOF/DHT/DQT/SOS segment is missing; the marker/segment structure is malformed; the
+  stream ends before all header or entropy-coded data has been read; or the pre-SOF marker-segment
+  walk exceeds `MaxProbeHeaderBytesHardLimit` (16 MiB) or `MaxProbeSegmentCount` (512 segments)
+  without a SOF0/SOF2 marker ever being found — the same two ceilings `GetInfo` enforces, described
+  further below
 
 #### Load(string path)
 
@@ -255,24 +258,38 @@ segments realistic files with rich EXIF/ICC/XMP/APP14/COM metadata might need, a
 maximal-length segments it takes to reach `MaxProbeHeaderBytesHardLimit`, the two ceilings remain
 genuinely independent rather than one silently overriding the other.
 
-**Architectural decision (the hard ceilings are a deliberate, narrow, documented exception to
-GetInfo/Load parity, not a defect):** `Load` itself enforces no ceiling on the total size of a
-JPEG's leading marker-segment data — it buffers the entire stream unconditionally regardless of
-how much of it precedes the SOF marker. This means a pathological (but well-formed) JPEG whose
-leading marker-segment data exceeds `MaxProbeHeaderBytesHardLimit` (16 MiB) or
-`MaxProbeSegmentCount` (512 segments) before its SOF0/SOF2 marker is still accepted by `Load`, yet
-is rejected by `GetInfo` once either ceiling is reached. This is the one place where `GetInfo` does
-not uphold the general "`GetInfo` never throws for an input `Load` would successfully decode"
-invariant described on `ImageInfo`. The team deliberately chose *not* to close this gap by adding a
-matching ceiling to `Load`'s own segment walk (that would re-open a separate, previously deferred
-concern about `Load`'s overall unbounded-size `ReadAllBytes` read, which is out of scope here), and
-deliberately chose *not* to remove `GetInfo`'s ceilings either (which would reintroduce the
-denial-of-service vector both ceilings exist to prevent). Instead, this divergence is accepted and
-explicitly documented as a narrow, intentional carve-out: both ceilings are sized generously enough
-(16 MiB of legitimate leading metadata, or 512 legitimate leading segments) that no realistic
-real-world JPEG is ever affected by it — only a pathological, adversarial, or effectively-infinite
-input triggers the divergence. See `JpegCodec_GetInfoVsLoad_LeadingMetadataExceedsHardLimit_IsAcceptedParityException`
-for the regression test proving and documenting this accepted exception.
+**Architectural decision (`Load` shares the same two hard ceilings as `GetInfo`, achieving true
+parity rather than a documented exception):** `Load`'s own pre-SOF marker-segment walk (in
+`Decoder.Decode`) enforces the identical `MaxProbeHeaderBytesHardLimit` (16 MiB) and
+`MaxProbeSegmentCount` (512 segments) ceilings that `GetInfo`'s `ProbeDimensions` enforces,
+throwing the same `InvalidDataException` (via the same `BuildHardLimitException`/
+`BuildSegmentCountLimitException` helpers, so the message text is identical regardless of which
+public entry point triggers it) once either ceiling is reached without a SOF0/SOF2 marker ever
+being found. An earlier round of this work considered instead documenting the divergence as a
+deliberate, narrow, accepted exception to the "`GetInfo` never throws for an input `Load` would
+successfully decode" invariant on `ImageInfo` — reasoning that a matching cap on `Load`'s own
+segment walk would re-open a separate, previously deferred concern about `Load`'s overall
+unbounded-size `ReadAllBytes` read. On further review, sharing the same two ceilings between
+`Load` and `GetInfo` was chosen instead: it resolves the parity concern without any exception
+language, without touching `Load`'s separate (and still out-of-scope) overall file-size behavior,
+and without weakening either ceiling's DoS-prevention rationale — both ceilings remain sized
+generously enough (16 MiB of legitimate leading metadata, or 512 legitimate leading segments) that
+no realistic real-world JPEG is ever affected by either; only a pathological, adversarial, or
+effectively-infinite input triggers either throw, and it now does so identically for `Load` and
+`GetInfo`. See `JpegCodec_GetInfoVsLoad_LeadingMetadataExceedsHardLimit_BothThrowConsistently` and
+`JpegCodec_GetInfoVsLoad_LeadingSegmentCountExceedsLimit_BothThrowConsistently` for the regression
+tests proving both methods throw consistently for the same over-ceiling input, for each of the two
+independent ceilings respectively. See also
+`JpegCodec_GetInfoVsLoad_SofSegmentStraddlesHardLimit_BothThrowConsistently`, which proves the
+byte-based ceiling applies unconditionally to every byte read - including the SOF0/SOF2 segment's
+own bytes, not merely the leading filler that precedes it - guarding against a narrower regression
+where gating the check on post-segment state (rather than the state immediately before the current
+segment is processed) would wrongly exempt the one segment whose own bytes cross the ceiling. See
+also `JpegCodec_GetInfoVsLoad_SosBeforeSofAtSegmentCountBoundary_BothThrowSosMessageNotSegmentLimit`,
+which proves the segment-count ceiling excludes an SOS-before-SOF marker (in addition to the
+terminating SOF0/SOF2 marker) from its count, exactly as `ProbeDimensions`' segment-count check
+does, so `Load` and `GetInfo` never diverge on which specific `InvalidDataException` message a
+given byte sequence produces.
 
 **Throws:**
 

@@ -706,23 +706,22 @@ sections:
           otherwise be exceeded. GetInfo shall throw InvalidDataException if the stream genuinely
           ends without an SOF0/SOF2 marker ever being found, and shall also throw
           InvalidDataException, without reading further, if either an explicit hard byte ceiling
-          or an explicit hard segment-count ceiling on the post-soft-cap scan is reached first -
-          this is a deliberate, narrow, and documented exception to GetInfo's general parity with
-          Load, accepted specifically to bound GetInfo's worst-case resource consumption against a
-          malformed or adversarial stream that never presents an SOF0/SOF2 marker.
+          or an explicit hard segment-count ceiling on the post-soft-cap scan is reached first.
+          Load shall enforce these same two ceilings on its own pre-SOF marker-segment walk, and
+          throw the same InvalidDataException for the same condition, so GetInfo and Load agree
+          consistently on this input shape rather than diverging.
         tags: [system]
         justification: |
           Callers need to inspect a JPEG's declared dimensions and component count - for example
           to reject unreasonably large images before allocating a Surface - without paying the
           cost of entropy-decoding the scan data, and without an unbounded scan over a
-          pathological stream that never presents an SOF marker. Since Load itself has no overall
-          file-size ceiling, GetInfo must not throw merely because a well-formed file's leading
-          segments happen to exceed the soft cap - but it must still throw, rather than reading
-          without bound, once either of its two independent hard ceilings is reached without an
-          SOF0/SOF2 marker ever being found; a pathological file whose leading marker-segment data
-          exceeds both the soft cap and the hard ceilings is accepted by Load (which buffers the
-          entire stream unconditionally) but is deliberately rejected by GetInfo, as a documented,
-          narrow exception to the general GetInfo/Load parity contract.
+          pathological stream that never presents an SOF marker. GetInfo must not throw merely
+          because a well-formed file's leading segments happen to exceed the soft cap - but it
+          must still throw, rather than reading without bound, once either of its two independent
+          hard ceilings is reached without an SOF0/SOF2 marker ever being found. Because Load
+          enforces the same two ceilings on its own pre-SOF marker-segment walk, a pathological
+          file whose leading marker-segment data exceeds either ceiling is rejected consistently
+          by both GetInfo and Load - true parity, not a documented exception.
         children:
           - CanvasNet-Codecs-JpegGetInfo
         tests:
@@ -733,7 +732,10 @@ sections:
           - JpegCodec_GetInfo_NoSofAnywhereEvenBeyondProbeCap_ThrowsInvalidDataException
           - JpegCodec_GetInfo_LargeLeadingAppSegments_SucceedsAndMatchesLoadResult
           - JpegCodec_GetInfo_SofShortlyAfterProbeCap_StopsAtSofWithoutDrainingStream
-          - JpegCodec_GetInfoVsLoad_LeadingMetadataExceedsHardLimit_IsAcceptedParityException
+          - JpegCodec_GetInfoVsLoad_LeadingMetadataExceedsHardLimit_BothThrowConsistently
+          - JpegCodec_GetInfoVsLoad_LeadingSegmentCountExceedsLimit_BothThrowConsistently
+          - JpegCodec_GetInfoVsLoad_SofSegmentStraddlesHardLimit_BothThrowConsistently
+          - JpegCodec_GetInfoVsLoad_SosBeforeSofAtSegmentCountBoundary_BothThrowSosMessageNotSegmentLimit
           - JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows
           - CanvasNet_SystemIntegration_JpegGetInfoWithLargeLeadingSegments_ReturnsExpectedInfo
 
