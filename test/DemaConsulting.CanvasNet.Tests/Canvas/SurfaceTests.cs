@@ -1769,4 +1769,38 @@ public class SurfaceTests
         // Act & Assert
         Assert.Throws<ObjectDisposedException>(() => surface.Clear(new Rgba32(1, 2, 3, 4)));
     }
+
+    /// <summary>
+    ///     Proves that calling the internal workspace-reusing constant-color CompositeOverSpan
+    ///     overload on a disposed surface throws ObjectDisposedException.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpanWithWorkspace_AfterDispose_ThrowsObjectDisposedException()
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+        using var workspace = new Surface.CompositeSpanWorkspace(1);
+        surface.Dispose();
+
+        // Act & Assert
+        Assert.Throws<ObjectDisposedException>(
+            () => surface.CompositeOverSpan(0, 0, [1f], new Rgba32(1, 2, 3, 4), workspace));
+    }
+
+    /// <summary>
+    ///     Proves that calling the internal workspace-reusing per-pixel-color CompositeOverSpan
+    ///     overload on a disposed surface throws ObjectDisposedException.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpanWithWorkspacePerPixelColors_AfterDispose_ThrowsObjectDisposedException()
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+        using var workspace = new Surface.CompositeSpanWorkspace(1);
+        surface.Dispose();
+
+        // Act & Assert
+        Assert.Throws<ObjectDisposedException>(
+            () => surface.CompositeOverSpan(0, 0, [1f], (ReadOnlySpan<Rgba32>)[new Rgba32(1, 2, 3, 4)], workspace));
+    }
 }

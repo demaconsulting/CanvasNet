@@ -282,6 +282,17 @@ data was set — exactly matches the clear color, confirming that a regression i
 `Canvas.Clear` -> `Surface.Clear` passthrough would be caught at the system level even if it were
 otherwise masked by `Rendering` unit-level test isolation.
 
+### Integration: Dispose Surface Then Use It Throws ObjectDisposedException
+
+**Test**: `CanvasNet_SystemIntegration_DisposeSurfaceThenUseIt_ThrowsObjectDisposedException`
+
+Exercises end-to-end system behavior for the `Surface` unit's disposal contract: constructs a
+`Surface` through the public API, sets a pixel, then calls `Dispose()` through the public API.
+Asserts calling `Dispose()` a second time remains safe (idempotent), and that a representative
+sample of public buffer-touching members (the indexer, `GetRowSpan`, `Clear`, `Crop`) all reject
+further use with `ObjectDisposedException`, confirming the system-level disposal guarantee - not
+merely the individual unit-level guard on any single member.
+
 ### Integration: TIFF GetInfo on Non-Seekable Stream Returns Expected Info
 
 **Test**: `CanvasNet_SystemIntegration_TiffGetInfoOnNonSeekableStream_ReturnsExpectedInfo`

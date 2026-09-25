@@ -380,4 +380,6 @@ sections:
                   - Surface_CompositeOverColor_AfterDispose_ThrowsObjectDisposedException
                   - Surface_CompositeOverSpan_AfterDispose_ThrowsObjectDisposedException
                   - Surface_CompositeOverSpanPerPixelColors_AfterDispose_ThrowsObjectDisposedException
+                  - Surface_CompositeOverSpanWithWorkspace_AfterDispose_ThrowsObjectDisposedException
+                  - Surface_CompositeOverSpanWithWorkspacePerPixelColors_AfterDispose_ThrowsObjectDisposedException
                   - Surface_Clear_AfterDispose_ThrowsObjectDisposedException

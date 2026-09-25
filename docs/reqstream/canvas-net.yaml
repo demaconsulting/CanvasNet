@@ -170,8 +170,7 @@ sections:
         children:
           - CanvasNet-Canvas-Disposal
         tests:
-          - Surface_Dispose_CalledOnce_DoesNotThrow
-          - Surface_IndexerGet_AfterDispose_ThrowsObjectDisposedException
+          - CanvasNet_SystemIntegration_DisposeSurfaceThenUseIt_ThrowsObjectDisposedException
 
       - id: CanvasNet-Lib-CanvasMaxDimensionPublic
         title: >-

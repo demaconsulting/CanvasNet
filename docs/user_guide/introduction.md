@@ -1224,12 +1224,12 @@ surface[0, 0] = new Rgba32(255, 0, 0, 128); // semi-transparent red pixel
 
 // Save with alpha preserved (Bit32, the default)
 BmpCodec.Save(surface, "surface.bmp");
-var loaded = BmpCodec.Load("surface.bmp");
+using var loaded = BmpCodec.Load("surface.bmp");
 Console.WriteLine(loaded[0, 0].A); // Output: 128
 
 // Save without alpha (Bit24) - reloading always yields opaque pixels
 BmpCodec.Save(surface, "surface24.bmp", BmpBitDepth.Bit24);
-var loaded24 = BmpCodec.Load("surface24.bmp");
+using var loaded24 = BmpCodec.Load("surface24.bmp");
 Console.WriteLine(loaded24[0, 0].A); // Output: 255
 ```
 
@@ -1244,12 +1244,12 @@ surface[0, 0] = new Rgba32(0, 255, 0, 128); // semi-transparent green pixel
 
 // Save with alpha preserved (Rgba, the default)
 PngCodec.Save(surface, "surface.png");
-var loaded = PngCodec.Load("surface.png");
+using var loaded = PngCodec.Load("surface.png");
 Console.WriteLine(loaded[0, 0].A); // Output: 128
 
 // Save without alpha (Rgb) - reloading always yields opaque pixels
 PngCodec.Save(surface, "surface-rgb.png", PngColorType.Rgb);
-var loadedRgb = PngCodec.Load("surface-rgb.png");
+using var loadedRgb = PngCodec.Load("surface-rgb.png");
 Console.WriteLine(loadedRgb[0, 0].A); // Output: 255
 ```
 
@@ -1264,12 +1264,12 @@ surface[0, 0] = new Rgba32(0, 0, 255, 128); // semi-transparent blue pixel
 
 // Save uncompressed (the default)
 TiffCodec.Save(surface, "surface.tiff");
-var loaded = TiffCodec.Load("surface.tiff");
+using var loaded = TiffCodec.Load("surface.tiff");
 Console.WriteLine(loaded[0, 0].A); // Output: 128
 
 // Save with LZW compression and an automatic horizontal-differencing predictor
 TiffCodec.Save(surface, "surface-lzw.tiff", TiffCompression.Lzw);
-var loadedLzw = TiffCodec.Load("surface-lzw.tiff");
+using var loadedLzw = TiffCodec.Load("surface-lzw.tiff");
 Console.WriteLine(loadedLzw[0, 0].B); // Output: 255
 ```
 
@@ -1284,7 +1284,7 @@ surface[0, 0] = new Rgba32(255, 128, 0, 255); // opaque orange pixel
 
 // Save at quality 90 (the default)
 JpegCodec.Save(surface, "surface.jpg", 90);
-var loaded = JpegCodec.Load("surface.jpg");
+using var loaded = JpegCodec.Load("surface.jpg");
 Console.WriteLine(loaded[0, 0].A); // Output: 255
 
 // JPEG is lossy, so compare color channels with a tolerance rather than exact equality
@@ -1329,7 +1329,7 @@ if (info.Width > Surface.MaxDimension || info.Height > Surface.MaxDimension || p
 }
 
 // Only decode pixel data once the header has been judged safe.
-var surface = PngCodec.Load("untrusted.png");
+using var surface = PngCodec.Load("untrusted.png");
 Console.WriteLine($"{surface.Width}x{surface.Height}, alpha: {info.HasAlpha}");
 ```
 
@@ -1485,7 +1485,7 @@ Console.WriteLine($"{info.Width}x{info.Height}"); // Output: 100x100
 
 // Rasterize the document into a caller-chosen 64x64 surface (SvgCodec is decode-only).
 using var loadStream = new MemoryStream(Encoding.UTF8.GetBytes(svg));
-var surfaceSvg = SvgCodec.Load(loadStream, 64, 64);
+using var surfaceSvg = SvgCodec.Load(loadStream, 64, 64);
 Console.WriteLine(surfaceSvg[32, 32].A); // Output: 255 (well inside the filled rectangle)
 ```
 

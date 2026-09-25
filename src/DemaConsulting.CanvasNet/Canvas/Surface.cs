@@ -272,6 +272,17 @@ public sealed class Surface : IDisposable
     ///     internal row padding (see the class-level remarks): any padding bytes physically
     ///     stored beyond the row's <c>Width * 4</c> pixel bytes are never included in, or
     ///     observable through, the returned span.
+    ///     <para>
+    ///         <b>Span lifetime</b>: the returned span is only valid until this surface is
+    ///         disposed. A caller that retains the span and continues to read or write through it
+    ///         after calling <see cref="Dispose"/> gets undefined behavior - today that means
+    ///         reading or writing the backing array after it has merely been marked unavailable
+    ///         (harmless but unsupported); under a future pooled-array implementation, the same
+    ///         array could already have been rented out to, and be actively used by, a different
+    ///         <see cref="Surface"/>, so the same stale-span access would corrupt unrelated pixel
+    ///         data. Callers must not retain a span returned by this method past a call to
+    ///         <see cref="Dispose"/> on the same surface.
+    ///     </para>
     /// </remarks>
     public Span<byte> GetRowSpanBytes(int y)
     {
@@ -303,6 +314,12 @@ public sealed class Surface : IDisposable
     ///     byte row returned by <see cref="GetRowSpanBytes"/> as <see cref="Rgba32"/> values
     ///     without copying any data, so writes through the returned span are immediately visible
     ///     through the indexer and <see cref="GetRowSpanBytes"/>, and vice versa.
+    ///     <para>
+    ///         <b>Span lifetime</b>: see <see cref="GetRowSpanBytes"/> - the same rule applies
+    ///         here, since the returned span aliases the same underlying storage. Callers must
+    ///         not retain a span returned by this method past a call to <see cref="Dispose"/> on
+    ///         the same surface.
+    ///     </para>
     /// </remarks>
     public Span<Rgba32> GetRowSpan(int y)
     {
@@ -781,6 +798,7 @@ public sealed class Surface : IDisposable
     ///     <see cref="CompositeOverSpan(int, int, ReadOnlySpan{float}, Rgba32)"/>, or when
     ///     <c>coverage.Length</c> exceeds <paramref name="workspace"/>'s capacity.
     /// </exception>
+    /// <exception cref="ObjectDisposedException">Thrown when this surface has been disposed.</exception>
     /// <remarks>
     ///     This overload is internal because it exposes an implementation-detail allocation
     ///     strategy (buffer reuse), not new externally observable behavior: for a given
@@ -790,6 +808,8 @@ public sealed class Surface : IDisposable
     /// </remarks>
     internal void CompositeOverSpan(int y, int x, ReadOnlySpan<float> coverage, Rgba32 color, CompositeSpanWorkspace workspace)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         ValidateCompositeOverSpanArgs(y, x, coverage.Length);
         ArgumentNullException.ThrowIfNull(workspace);
 
@@ -893,6 +913,7 @@ public sealed class Surface : IDisposable
     ///     Thrown when <paramref name="colors"/>'s length does not equal <paramref name="coverage"/>'s
     ///     length.
     /// </exception>
+    /// <exception cref="ObjectDisposedException">Thrown when this surface has been disposed.</exception>
     /// <remarks>
     ///     Internal for the same reason as <see cref="CompositeOverSpan(int, int, ReadOnlySpan{float}, Rgba32, CompositeSpanWorkspace)"/>:
     ///     it exposes an implementation-detail allocation strategy, not new externally observable
@@ -901,6 +922,8 @@ public sealed class Surface : IDisposable
     /// </remarks>
     internal void CompositeOverSpan(int y, int x, ReadOnlySpan<float> coverage, ReadOnlySpan<Rgba32> colors, CompositeSpanWorkspace workspace)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         ValidateCompositeOverSpanArgs(y, x, coverage.Length);
         ArgumentNullException.ThrowIfNull(workspace);
 

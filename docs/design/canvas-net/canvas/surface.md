@@ -333,10 +333,13 @@ target-framework gating is required.
 #### Dispose()
 
 Releases the resources held by this `Surface` and implements `IDisposable`. This method is
-idempotent: a second (or subsequent) call has no additional effect, matching the existing
-`RowChannelBuffers`/`CompositeWorkBuffers` internal helper types elsewhere in this same file,
-which follow the same "flag check, set, return" idempotent-disposal shape (though those types
-also have rented `ArrayPool<T>` arrays to actually return, whereas `Surface` currently does not).
+idempotent: a second (or subsequent) call has no additional effect, guarded by the `_disposed`
+flag. This differs from the existing `RowChannelBuffers`/`CompositeWorkBuffers` internal helper
+types elsewhere in this same file, which rent-and-return `ArrayPool<T>` arrays but do **not**
+guard `Dispose()` with a flag - callers must not call their `Dispose()` more than once, since a
+second call would return the same rented arrays a second time. `Surface.Dispose()` intentionally
+does not follow that shape, since `IDisposable.Dispose()` is conventionally expected to tolerate
+repeated calls.
 
 In this release, `_buffer` is a plain managed `byte[]`, not rented from an `ArrayPool<T>`, so
 there is nothing for `Dispose()` to actually release yet — it exists purely to establish the
@@ -351,7 +354,19 @@ After `Dispose()` has been called, every other public member that touches the pi
 (the indexer, `GetRowSpanBytes`, `GetRowSpan`, `Crop`, `PremultiplyAlpha`, `UnpremultiplyAlpha`,
 `Clear`, both `CompositeOver` overloads, and both public `CompositeOverSpan` overloads) throws
 `ObjectDisposedException` via an `ObjectDisposedException.ThrowIf(_disposed, this)` guard as the
-first statement in the member.
+first statement in the member. The two `internal` workspace-reusing `CompositeOverSpan` overloads
+used by `ScanlineRasterizer` carry the same guard, so a disposed surface cannot be mutated through
+either the public or the internal fill path.
+
+**Span lifetime**: `GetRowSpanBytes`/`GetRowSpan` return a span that aliases `_buffer` directly,
+and the disposal guard only runs when those methods are _called_ - it cannot revoke a span a
+caller already obtained and is still holding. A caller that retains such a span across a call to
+`Dispose()` and continues reading or writing through it gets undefined behavior: harmless today
+(the backing array is merely unreachable through `Surface` itself), but under a future pooled-array
+implementation the same array could already be rented out to, and actively used by, a different
+`Surface`, so the stale-span access would corrupt unrelated pixel data. Callers must treat a span
+returned by either method as invalid once `Dispose()` has been called on the same surface, and must
+not retain one across a `Dispose()` call.
 
 ### Error Handling
 

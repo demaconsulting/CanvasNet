@@ -77,18 +77,18 @@ surface[1, 1] = new Rgba32(255, 0, 0, 255);   // set a red, opaque pixel
 using var cropped = surface.Crop(0, 0, 2, 2); // independent 2x2 copy
 
 BmpCodec.Save(surface, "surface.bmp");        // save as a 32-bit BMP file
-var reloaded = BmpCodec.Load("surface.bmp"); // load it back
+using var reloaded = BmpCodec.Load("surface.bmp"); // load it back
 
 PngCodec.Save(surface, "surface.png");        // save as an RGBA PNG file
-var reloadedPng = PngCodec.Load("surface.png"); // load it back
+using var reloadedPng = PngCodec.Load("surface.png"); // load it back
 
 TiffCodec.Save(surface, "surface.tiff");        // save as an RGBA TIFF file
-var reloadedTiff = TiffCodec.Load("surface.tiff"); // load it back
+using var reloadedTiff = TiffCodec.Load("surface.tiff"); // load it back
 
 JpegCodec.Save(surface, "surface.jpg", 90);        // save as a baseline JPEG file
-var reloadedJpeg = JpegCodec.Load("surface.jpg"); // load it back
+using var reloadedJpeg = JpegCodec.Load("surface.jpg"); // load it back
 
-var rasterized = SvgCodec.Load("icon.svg", 256, 256); // decode/rasterize an SVG into a 256x256 surface
+using var rasterized = SvgCodec.Load("icon.svg", 256, 256); // decode/rasterize an SVG into a 256x256 surface
 
 // Triage an untrusted file's header before decoding pixel data:
 var info = PngCodec.GetInfo("untrusted.png"); // reads only the header, never decodes IDAT
@@ -99,7 +99,7 @@ if (info.Width > Surface.MaxDimension
     throw new InvalidDataException("Image dimensions exceed the supported maximum.");
 }
 
-var safeSurface = PngCodec.Load("untrusted.png"); // safe to decode fully
+using var safeSurface = PngCodec.Load("untrusted.png"); // safe to decode fully
 ```
 
 Filling a vector path onto a surface:

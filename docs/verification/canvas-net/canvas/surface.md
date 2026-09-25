@@ -374,13 +374,18 @@ workspace-reusing per-pixel-color overload matches the public overload's output 
 `Surface_CompositeOverColor_AfterDispose_ThrowsObjectDisposedException`,
 `Surface_CompositeOverSpan_AfterDispose_ThrowsObjectDisposedException`,
 `Surface_CompositeOverSpanPerPixelColors_AfterDispose_ThrowsObjectDisposedException`,
+`Surface_CompositeOverSpanWithWorkspace_AfterDispose_ThrowsObjectDisposedException`,
+`Surface_CompositeOverSpanWithWorkspacePerPixelColors_AfterDispose_ThrowsObjectDisposedException`,
 `Surface_Clear_AfterDispose_ThrowsObjectDisposedException`
 
 Confirms that calling `Dispose()` once does not throw, and that calling it a second time is also
 safe (idempotent). Separately confirms that once a `Surface` has been disposed, every public
 buffer-touching member — the indexer (both get and set), `GetRowSpanBytes`, `GetRowSpan`, `Crop`,
 `PremultiplyAlpha`, `UnpremultiplyAlpha`, `Clear`, both `CompositeOver` overloads, and both public
-`CompositeOverSpan` overloads — rejects further use by throwing `ObjectDisposedException`.
+`CompositeOverSpan` overloads — rejects further use by throwing `ObjectDisposedException`. The
+same guard is also confirmed on the two `internal` workspace-reusing `CompositeOverSpan`
+overloads used by `ScanlineRasterizer`'s fill path, so a disposed surface cannot be mutated
+through either the public or the internal fill entry point.
 `CompositeOver(Surface)` additionally rejects a disposed `foreground` argument, even when this
 surface itself has not been disposed.
 
