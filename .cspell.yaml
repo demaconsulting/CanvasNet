@@ -51,6 +51,7 @@ words:
   - Dema
   - elementwise
   - evenodd
+  - EXIF
   - FDCT
   - FCHECK
   - FileAssert
@@ -108,6 +109,7 @@ words:
   - reviewmark
   - Rgba
   - Reinterleave
+  - reinterleaves
   - reinterleaving
   - rescan
   - RRGGBB
@@ -124,6 +126,7 @@ words:
   - supersampling
   - seekable
   - Seekable
+  - seekability
   - Subpaths
   - subpaths
   - sysml

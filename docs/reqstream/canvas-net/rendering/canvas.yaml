@@ -16,6 +16,21 @@ sections:
                 tests:
                   - Canvas_Save_ThenRestore_RestoresPreviousTransform
 
+              - id: CanvasNet-Rendering-Canvas-Clear
+                title: >-
+                  The Canvas class shall fill every pixel of its underlying Surface with a
+                  constant color, as a direct passthrough to Surface.Clear, unaffected by the
+                  current transform.
+                justification: |
+                  Clearing the whole surface to a known background color is a common first step
+                  before drawing, and does not involve any geometry to transform - unlike
+                  FillPath/StrokePath, the current transform stack must have no effect on the
+                  result, so this is a thin, transform-independent passthrough rather than a
+                  transform-aware entry point.
+                tests:
+                  - Canvas_Clear_DelegatesToSurfaceClear_ProducesByteIdenticalOutput
+                  - Canvas_Clear_WithNonIdentityTransform_StillFillsWholeSurfaceIdentically
+
               - id: CanvasNet-Rendering-Canvas-Restore
                 title: >-
                   The Canvas class shall pop the transform stack and replace the current

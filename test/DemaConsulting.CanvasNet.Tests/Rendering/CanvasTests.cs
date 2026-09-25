@@ -130,6 +130,65 @@ public class CanvasTests
         Assert.Equal(0f, mapped.Y, 3);
     }
 
+    /// <summary>
+    ///     Proves that Canvas.Clear(Rgba32) delegates to Surface.Clear and produces
+    ///     byte-identical output to calling Surface.Clear directly on an independent surface with
+    ///     the same starting pixel data.
+    /// </summary>
+    [Fact]
+    public void Canvas_Clear_DelegatesToSurfaceClear_ProducesByteIdenticalOutput()
+    {
+        // Arrange: two independent surfaces starting with identical, non-trivial pixel data
+        var direct = NewSurface(9, 5);
+        var viaCanvas = NewSurface(9, 5);
+        for (var y = 0; y < direct.Height; y++)
+        {
+            for (var x = 0; x < direct.Width; x++)
+            {
+                var pixel = new Rgba32((byte)(x * 7), (byte)(y * 11), 5, 250);
+                direct[x, y] = pixel;
+                viaCanvas[x, y] = pixel;
+            }
+        }
+
+        var canvas = new RenderCanvas(viaCanvas);
+        var color = new Rgba32(9, 99, 199, 249);
+
+        // Act
+        direct.Clear(color);
+        canvas.Clear(color);
+
+        // Assert
+        Assert.Equal(SurfaceBytes(direct), SurfaceBytes(viaCanvas));
+    }
+
+    /// <summary>
+    ///     Proves that Canvas.Clear(Rgba32) is unaffected by the current transform - unlike
+    ///     FillPath/StrokePath, the whole surface is always filled regardless of any pending
+    ///     Translate/RotateDegrees composition.
+    /// </summary>
+    [Fact]
+    public void Canvas_Clear_WithNonIdentityTransform_StillFillsWholeSurfaceIdentically()
+    {
+        // Arrange: two canvases with identical starting pixels, one with a non-identity
+        // transform applied before Clear
+        var plain = NewSurface(4, 4);
+        var transformed = NewSurface(4, 4);
+        var plainCanvas = new RenderCanvas(plain);
+        var transformedCanvas = new RenderCanvas(transformed);
+        transformedCanvas.Translate(2, 2);
+        transformedCanvas.RotateDegrees(45);
+
+        var color = new Rgba32(1, 2, 3, 4);
+
+        // Act
+        plainCanvas.Clear(color);
+        transformedCanvas.Clear(color);
+
+        // Assert: the transform has no effect on Clear's result
+        Assert.Equal(SurfaceBytes(plain), SurfaceBytes(transformed));
+    }
+
     /// <summary>Canvas_FillPath_NoTransform_ProducesByteIdenticalOutputToPathFillerFill.</summary>
     [Fact]
     public void Canvas_FillPath_NoTransform_ProducesByteIdenticalOutputToPathFillerFill()
@@ -288,4 +347,5 @@ public class CanvasTests
         var canvas = new RenderCanvas(NewSurface());
         Assert.Throws<ArgumentOutOfRangeException>(() => canvas.FillPath(Triangle(), new Rgba32(0, 0, 0, 255), (FillRule)999));
     }
+
 }

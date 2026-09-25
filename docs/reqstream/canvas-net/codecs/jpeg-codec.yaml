@@ -265,26 +265,88 @@ sections:
                   supported SOF segment (skipping other length-prefixed segments without
                   entropy-decoding scan data, and reading no more of the stream than necessary once the
                   target SOF has been fully parsed), without requiring an SOS segment or entropy-coded
-                  data to be present, and without enforcing Surface.MaxDimension. GetInfo shall bound
-                  its marker scan to at most MaxProbeHeaderBytes (1,048,576) bytes as a hard outer cap,
-                  throwing InvalidDataException if that limit is reached before a supported SOF marker
-                  is found.
+                  data to be present, and without enforcing Surface.MaxDimension. GetInfo's incremental
+                  marker scan shall treat MaxProbeHeaderBytes (1,048,576) as a soft cap on its fast
+                  chunked-read path only: once that cap is reached without a supported SOF marker
+                  having been found, GetInfo shall continue scanning past the cap - reading no more of
+                  the stream than each successive marker/segment boundary actually requires, and never
+                  reading entropy-coded scan data - rather than throwing. That post-soft-cap scanning
+                  is bounded by two independent ceilings, either of which triggers InvalidDataException
+                  once reached without a supported SOF marker ever being found: MaxProbeHeaderBytesHardLimit
+                  (16,777,216, 16x the soft cap), a hard ceiling on the total bytes read; and
+                  MaxProbeSegmentCount (512), a hard ceiling on the number of non-terminating marker
+                  segments scanned, independent of how many bytes those segments contain. Load shall
+                  enforce these same two ceilings on its own pre-SOF marker-segment walk, throwing the
+                  same InvalidDataException for the same condition, so GetInfo and Load agree
+                  consistently on this input shape. The segment-count ceiling shall never be applied
+                  to the terminating SOF0/SOF2 marker segment itself, so a well-formed file whose SOF
+                  marker happens to be exactly the segment that would otherwise exceed the
+                  segment-count ceiling still decodes/probes successfully via both methods; the
+                  byte-based hard ceiling, by contrast, applies unconditionally to all bytes read
+                  including the SOF segment's own bytes, so a well-formed file whose SOF segment
+                  itself straddles the byte ceiling is rejected by both methods rather than exempted.
+                  GetInfo shall also throw
+                  InvalidDataException when the stream genuinely ends - even after continuing to scan
+                  past the soft cap - without a supported SOF marker ever being found.
                 justification: |
                   Callers need to inspect a JPEG's declared dimensions and component count (for example
                   to reject unreasonably large images before allocating a Surface) without paying the
                   cost of entropy-decoding the scan data, without an unbounded scan over a pathological
                   stream that never presents an SOF marker, and without unconditionally reading up to
                   the full probe cap even when the SOF appears near the start of a much larger stream;
-                  JPEG has no alpha channel, so GetInfo always reports HasAlpha as false.
+                  JPEG has no alpha channel, so GetInfo always reports HasAlpha as false. A hard outer
+                  cap on GetInfo's probe would violate the cross-codec invariant documented on
+                  ImageInfo ("GetInfo never throws for an input that Load would successfully decode")
+                  for any file whose leading marker-segment data happens to exceed the soft cap;
+                  treating the cap as a threshold for continuing incremental, bounded reads - rather
+                  than as a point of failure - upholds that invariant while still avoiding an eager,
+                  always-maximal read for the common case where the SOF appears near the start of the
+                  stream, and while never reading beyond the SOF segment even for a file with unusually
+                  large leading metadata. However, that invariant cannot be upheld unconditionally
+                  without reintroducing a denial-of-service vector: a malformed,
+                  adversarial, or effectively-infinite stream that never presents a SOF marker would
+                  otherwise let the post-soft-cap scan grow its buffer and read from the stream without
+                  bound. MaxProbeHeaderBytesHardLimit resolves this by sizing generously (16x the soft
+                  cap) to still accommodate the real-world files with unusually large leading ICC/XMP
+                  metadata that motivated the soft-cap-continuation behavior, while guaranteeing
+                  GetInfo's total worst-case read/buffer size remains a small, fixed, documented
+                  multiple of realistic header sizes rather than unbounded. A byte-based ceiling alone,
+                  however, does not
+                  cheaply bound the number of scan iterations: a JPEG marker segment can be as small as
+                  4 bytes (a 2-byte marker plus a 2-byte length field), so a malformed stream composed
+                  entirely of minimal-size segments could still force on the order of millions of loop
+                  iterations before MaxProbeHeaderBytesHardLimit is ever reached. MaxProbeSegmentCount
+                  closes this gap as a second, independent defense-in-depth ceiling that bounds
+                  iterations directly, sized (512) to comfortably exceed both the segment counts real-
+                  world JPEGs with unusually rich metadata (EXIF, ICC, XMP, Adobe APP14, multiple
+                  COM/thumbnail segments) realistically need, and the segment count it takes to reach
+                  MaxProbeHeaderBytesHardLimit using maximal-length segments - so the two ceilings remain
+                  genuinely independent rather than one silently overriding the other. Because Load
+                  enforces these same two ceilings on its own pre-SOF marker-segment walk (rather than
+                  GetInfo alone bearing a documented, narrow exception to the cross-codec parity
+                  invariant), a pathological file whose leading marker-segment data exceeds either
+                  ceiling is rejected consistently by both GetInfo and Load - upholding the invariant
+                  unconditionally rather than through an accepted exception.
                 tests:
                   - JpegCodec_GetInfo_Grayscale_ReturnsExpectedInfoWithoutSosOrEntropyData
                   - JpegCodec_GetInfo_Color_ReturnsExpectedInfo
                   - JpegCodec_GetInfoPath_ReturnsExpectedInfo
                   - JpegCodec_GetInfo_LargeStream_NeverReadsPastProbeLimit
                   - JpegCodec_GetInfo_SofNearStart_DoesNotReadFarBeyondWhatIsNeeded
-                  - JpegCodec_GetInfo_ProbeLimitExceededWithoutSof_ThrowsInvalidDataException
+                  - JpegCodec_GetInfo_NoSofAnywhereEvenBeyondProbeCap_ThrowsInvalidDataException
+                  - JpegCodec_GetInfo_SofSegmentExtendsBeyondProbeCap_FailsForFormatReasonNotProbeCap
+                  - JpegCodec_GetInfo_LargeLeadingAppSegments_SucceedsAndMatchesLoadResult
+                  - JpegCodec_GetInfo_SofShortlyAfterProbeCap_StopsAtSofWithoutDrainingStream
+                  - JpegCodec_GetInfo_NoSofEverFound_StopsAtHardLimitWithInvalidDataException
+                  - JpegCodec_GetInfoVsLoad_LeadingMetadataExceedsHardLimit_BothThrowConsistently
+                  - JpegCodec_GetInfoVsLoad_LeadingSegmentCountExceedsLimit_BothThrowConsistently
+                  - JpegCodec_GetInfoVsLoad_SofSegmentStraddlesHardLimit_BothThrowConsistently
+                  - JpegCodec_GetInfoVsLoad_SosBeforeSofAtSegmentCountBoundary_BothThrowSosMessageNotSegmentLimit
+                  - JpegCodec_GetInfo_ManyMinimalSegmentsNoSof_StopsAtSegmentCountLimitBeforeByteLimit
+                  - JpegCodec_GetInfo_SofAsSegmentImmediatelyAfterSegmentCountLimit_StillSucceeds
                   - JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows
                   - JpegCodec_GetInfo_ZeroLengthSegment_TerminatesPromptlyWithInvalidDataException
+                  - CanvasNet_SystemIntegration_JpegGetInfoWithLargeLeadingSegments_ReturnsExpectedInfo
 
               - id: CanvasNet-Codecs-JpegCodec-GetInfoValidation
                 title: >-

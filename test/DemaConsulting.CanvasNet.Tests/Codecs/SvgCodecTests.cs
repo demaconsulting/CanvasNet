@@ -2205,6 +2205,70 @@ public class SvgCodecTests
     }
 
     // ================================================================================================
+    // XXE hardening: DTD/external-entity rejection
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that <see cref="SvgCodec.Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont})"/> rejects a document containing
+    ///     a <c>&lt;!DOCTYPE ...&gt;</c> declaration with <see cref="InvalidDataException"/>
+    ///     (via the same malformed-XML <see cref="System.Xml.XmlException"/> wrapping every other
+    ///     syntactically-rejected document goes through), demonstrating that
+    ///     <see cref="System.Xml.DtdProcessing.Prohibit"/> is in effect on the
+    ///     <see cref="System.Xml.XmlReaderSettings"/> <c>LoadRootElement</c> constructs.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_DocumentWithDoctypeDeclaration_ThrowsInvalidDataException()
+    {
+        // Arrange: a well-formed document that is otherwise entirely valid, except for a DOCTYPE
+        // declaration - proving rejection is specifically attributable to the DOCTYPE, not to
+        // some other malformed construct
+        const string svg = "<!DOCTYPE svg [<!ENTITY foo \"bar\">]><svg viewBox='0 0 100 100'></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves that <see cref="SvgCodec.Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont})"/> rejects a document whose
+    ///     DOCTYPE declares and references an external, file-system-resolving general entity
+    ///     (the classic XXE injection shape) with <see cref="InvalidDataException"/>, rather than
+    ///     ever attempting to resolve the external entity - demonstrating both
+    ///     <see cref="System.Xml.DtdProcessing.Prohibit"/> and a <see langword="null"/>
+    ///     <see cref="System.Xml.XmlResolver"/> are in effect.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_DocumentWithExternalEntityDoctype_ThrowsInvalidDataException()
+    {
+        // Arrange: a DOCTYPE declaring an external general entity referencing a local file, and
+        // the document body referencing that entity - the canonical XXE payload shape
+        const string svg =
+            "<!DOCTYPE svg [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]>" +
+            "<svg viewBox='0 0 100 100'><title>&xxe;</title></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves that <see cref="SvgCodec.GetInfo(Stream)"/> also rejects a document whose
+    ///     DOCTYPE declares and references an external general entity with
+    ///     <see cref="InvalidDataException"/>, demonstrating the same XXE hardening is in effect
+    ///     on <c>LoadRootElementAttributesOnly</c>'s independent
+    ///     <see cref="System.Xml.XmlReaderSettings"/> instance, not merely <c>Load</c>'s.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfo_DocumentWithExternalEntityDoctype_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg =
+            "<!DOCTYPE svg [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]>" +
+            "<svg viewBox='0 0 100 100'><title>&xxe;</title></svg>";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => SvgCodec.GetInfo(ToStream(svg)));
+    }
+
+    // ================================================================================================
     // Malformed-input rejection and tolerant unsupported-construct handling
     // ================================================================================================
 

@@ -86,14 +86,116 @@ public static class JpegCodec
     private const byte MarkerRst7 = 0xD7;
 
     /// <summary>
-    ///     The maximum number of bytes <see cref="GetInfo(Stream)"/> will read while searching for
-    ///     a SOF0/SOF2 marker before giving up with an <see cref="InvalidDataException"/>. Chosen
-    ///     to comfortably bound even a pathological run of maximal-length (65,535-byte) APPn/COM
-    ///     segments preceding the frame header (16 such segments alone would consume roughly 1 MiB),
-    ///     while remaining minuscule next to the entropy-coded body of any real photographic image,
-    ///     which this probe never needs to read.
+    ///     A soft cap, in bytes, on <see cref="GetInfo(Stream)"/>'s fast incremental chunked-read
+    ///     probe path. Chosen to comfortably bound even a pathological run of maximal-length
+    ///     (65,535-byte) APPn/COM segments preceding the frame header (16 such segments alone
+    ///     would consume roughly 1 MiB), while remaining minuscule next to the entropy-coded body
+    ///     of any real photographic image, which this probe never needs to read.
     /// </summary>
-    private const int MaxProbeHeaderBytes = 1_048_576;
+    /// <remarks>
+    ///     This is a soft cap only: once reached without finding a SOF0/SOF2 marker,
+    ///     <see cref="GetInfo(Stream)"/> keeps scanning segment headers past the cap - one marker
+    ///     segment at a time, exactly as it does below the cap - reading only as far as each
+    ///     segment boundary actually requires, until a SOF0/SOF2 marker is found or the stream
+    ///     genuinely ends. It never reads entropy-coded scan data, and it never bulk-reads or
+    ///     drains the remainder of the stream merely because the cap was crossed, so
+    ///     <see cref="GetInfo(Stream)"/> never throws merely because a file has more than
+    ///     <c>MaxProbeHeaderBytes</c> of leading marker-segment data - as long as
+    ///     <see cref="Load(Stream)"/> itself would successfully parse that file up to and
+    ///     including the SOF marker. A file that is genuinely truncated or malformed (no SOF
+    ///     marker anywhere, even after reading to end-of-stream) still throws
+    ///     <see cref="InvalidDataException"/>, matching <see cref="Load(Stream)"/>'s own rejection
+    ///     of the same bytes. Declared <see langword="internal"/> (rather than
+    ///     <see langword="private"/>) so the test project (which the assembly already grants
+    ///     <c>InternalsVisibleTo</c>) can construct fixtures that deliberately straddle this
+    ///     threshold without hard-coding its value.
+    /// </remarks>
+    internal const int MaxProbeHeaderBytes = 1_048_576;
+
+    /// <summary>
+    ///     A hard ceiling, in bytes, on the total amount of leading marker-segment data
+    ///     <see cref="GetInfo(Stream)"/> will ever read while scanning past the
+    ///     <see cref="MaxProbeHeaderBytes"/> soft cap in search of a SOF0/SOF2 marker.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///     Unlike <see cref="MaxProbeHeaderBytes"/> - which is only a soft cap that scanning
+    ///     deliberately continues past, one bounded segment at a time, so that files with
+    ///     unusually large (but legitimate) leading metadata still probe successfully - this
+    ///     limit is a genuine, non-negotiable ceiling: once reached without finding a SOF0/SOF2
+    ///     marker, <see cref="GetInfo(Stream)"/> throws <see cref="InvalidDataException"/> rather
+    ///     than continuing to read. Without it, a malformed, adversarial, or effectively-infinite
+    ///     stream that never presents a SOF0/SOF2 marker (and never itself reaches end-of-stream)
+    ///     would let the post-soft-cap fallback scan grow its buffer and read from the stream
+    ///     without any upper bound, reintroducing the same denial-of-service exposure the soft
+    ///     cap exists to prevent.
+    ///     </para>
+    ///     <para>
+    ///     Sized at 16 MiB - sixteen times <see cref="MaxProbeHeaderBytes"/> - to comfortably
+    ///     accommodate the small set of genuine real-world files that legitimately exceed the
+    ///     1 MiB soft cap, such as JPEGs carrying large embedded ICC color profiles or XMP
+    ///     metadata blocks, which can themselves reach several MiB, while still keeping the
+    ///     total worst-case read/buffer size for <see cref="GetInfo(Stream)"/> a small, fixed,
+    ///     documented multiple of realistic header sizes rather than unbounded.
+    ///     </para>
+    ///     <para>
+    ///     Declared <see langword="internal"/> (rather than <see langword="private"/>), matching
+    ///     <see cref="MaxProbeHeaderBytes"/>, so the test project (which the assembly already
+    ///     grants <c>InternalsVisibleTo</c>) can construct fixtures that exercise this hard limit
+    ///     without hard-coding its value.
+    ///     </para>
+    ///     <para>
+    ///     This byte-based ceiling bounds the total <em>data volume</em> the post-soft-cap
+    ///     fallback scan can read, but does not, by itself, cheaply bound the number of loop
+    ///     iterations that scan performs: a marker segment can be as small as 4 bytes (a 2-byte
+    ///     marker code plus a 2-byte length field), so a malformed or adversarial stream composed
+    ///     entirely of minimal-size segments could still take on the order of millions of
+    ///     iterations before this byte ceiling is reached. See
+    ///     <see cref="MaxProbeSegmentCount"/> for the independent, iteration-count-based ceiling
+    ///     that closes that gap.
+    ///     </para>
+    /// </remarks>
+    internal const int MaxProbeHeaderBytesHardLimit = 16 * MaxProbeHeaderBytes;
+
+    /// <summary>
+    ///     A hard ceiling, independent of <see cref="MaxProbeHeaderBytesHardLimit"/>, on the total
+    ///     number of marker segments <see cref="GetInfo(Stream)"/> will scan past the SOI marker
+    ///     while searching for a SOF0/SOF2 marker.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///     <see cref="MaxProbeHeaderBytesHardLimit"/> bounds the total number of bytes the
+    ///     post-soft-cap fallback scan can read, but a JPEG marker segment can be as small as
+    ///     4 bytes (a 2-byte marker code plus a 2-byte length field), so a malformed or
+    ///     adversarial stream composed entirely of minimal-size segments could still force on the
+    ///     order of <c>MaxProbeHeaderBytesHardLimit / 4</c> (roughly four million) loop
+    ///     iterations before that byte ceiling is ever reached. This constant bounds the number of
+    ///     iterations directly, independently of the byte ceiling: once this many marker segments
+    ///     have been scanned without finding a SOF0/SOF2 marker,
+    ///     <see cref="GetInfo(Stream)"/> throws <see cref="InvalidDataException"/> rather than
+    ///     scanning further segments - whichever of the two independent ceilings (this one, or
+    ///     <see cref="MaxProbeHeaderBytesHardLimit"/>) is reached first triggers the throw.
+    ///     </para>
+    ///     <para>
+    ///     Sized at 512 to give generous headroom for real-world JPEGs, where EXIF, ICC color
+    ///     profile, XMP metadata, Adobe APP14, and multiple COM/thumbnail segments can realistically
+    ///     combine to reach 20-30+ segments in unusual but still legitimate files - and to
+    ///     comfortably exceed the roughly 260 maximal-length (65,535-byte) segments it takes to
+    ///     reach the <see cref="MaxProbeHeaderBytesHardLimit"/> byte ceiling, so the two ceilings
+    ///     remain genuinely independent (a file that legitimately needs to scan that many large
+    ///     segments to reach the byte ceiling is not cut off early by the segment-count ceiling
+    ///     instead) - while still bounding the worst-case iteration count of the post-soft-cap
+    ///     scan to a small, fixed, documented value, orders of magnitude below the millions of
+    ///     iterations a minimal-segment attack would otherwise force.
+    ///     </para>
+    ///     <para>
+    ///     Declared <see langword="internal"/> (rather than <see langword="private"/>), matching
+    ///     <see cref="MaxProbeHeaderBytes"/> and <see cref="MaxProbeHeaderBytesHardLimit"/>, so the
+    ///     test project (which the assembly already grants <c>InternalsVisibleTo</c>) can
+    ///     construct fixtures that exercise this limit without hard-coding its value.
+    ///     </para>
+    /// </remarks>
+    internal const int MaxProbeSegmentCount = 512;
 
     /// <summary>
     ///     The standard 64-entry zigzag scan order: index <c>z</c> holds the natural (row-major)
@@ -227,8 +329,12 @@ public static class JpegCodec
     ///     SOF0/SOF2, including arithmetic-coding variants), the component count is not 1 or 3,
     ///     the frame width or height exceeds <see cref="Surface.MaxDimension"/>, a DHT/DQT table
     ///     referenced by SOF/SOS is missing, a mandatory segment (SOF, DHT, DQT, or SOS) is
-    ///     missing, the marker structure is malformed, or the stream ends before all header or
-    ///     entropy-coded data has been read.
+    ///     missing, the marker structure is malformed, the stream ends before all header or
+    ///     entropy-coded data has been read, more than <see cref="MaxProbeHeaderBytesHardLimit"/>
+    ///     bytes of leading marker-segment data precede the SOF0/SOF2 marker, or more than
+    ///     <see cref="MaxProbeSegmentCount"/> non-terminating marker segments precede the
+    ///     SOF0/SOF2 marker (the same two ceilings, and the same exceptions,
+    ///     <see cref="GetInfo(Stream)"/> enforces for these conditions - see its remarks).
     /// </exception>
     /// <example>
     ///     <code>
@@ -288,13 +394,18 @@ public static class JpegCodec
     /// </summary>
     /// <param name="stream">
     ///     The stream to read the JPEG marker segments from. Reading begins at the stream's
-    ///     current position and consumes at most <see cref="MaxProbeHeaderBytes"/> bytes,
-    ///     incrementally: in practice, only up through the end of the first SOF0/SOF2 segment,
-    ///     since SOS (and any entropy-coded data) is never required to determine
-    ///     <see cref="ImageInfo"/>, and reading grows only as far as the scan actually needs
-    ///     rather than eagerly consuming a full fixed-size prefix regardless of where the SOF
-    ///     marker is.
-    /// </param>
+    ///     current position; in the common case where the SOF segment appears within the first
+    ///     <see cref="MaxProbeHeaderBytes"/> bytes (as it does for essentially all real-world
+    ///     JPEG files), only that much is read incrementally. If that soft cap is reached without
+    ///     finding a SOF0/SOF2 marker, scanning continues past it - one marker segment at a time,
+    ///     the same way it does below the cap, never reading into entropy-coded scan data - so
+    ///     <see cref="GetInfo(Stream)"/> never throws merely because a file has an unusually
+    ///     large amount of leading marker-segment data, up to two independent ceilings: the
+    ///     <see cref="MaxProbeHeaderBytesHardLimit"/> hard byte ceiling, and the
+    ///     <see cref="MaxProbeSegmentCount"/> segment-count ceiling. A malformed or adversarial
+    ///     stream that never presents a SOF0/SOF2 marker within either limit causes
+    ///     <see cref="InvalidDataException"/> rather than unbounded reading.
+    ///     </param>
     /// <returns>
     ///     An <see cref="ImageInfo"/> describing the file's declared width, height, and component
     ///     count (1 for grayscale, 3 for YCbCr). <see cref="ImageInfo.HasAlpha"/> is always
@@ -304,13 +415,28 @@ public static class JpegCodec
     /// <exception cref="System.IO.InvalidDataException">
     ///     Thrown when the SOI marker is missing, an SOS marker or end-of-image is reached before
     ///     any SOF0/SOF2 marker is found, an unsupported SOF/frame marker (for example SOF1/SOF3,
-    ///     the same markers <see cref="Load(Stream)"/> rejects) is encountered, or no SOF0/SOF2
-    ///     marker is found within <see cref="MaxProbeHeaderBytes"/> bytes (whether because the
-    ///     stream ended first, or because the probe's bounded cap was reached while the stream
-    ///     still had more data - the two conditions are reported with distinct messages).
+    ///     the same markers <see cref="Load(Stream)"/> rejects) is encountered, no SOF0/SOF2
+    ///     marker is found anywhere in the stream (a genuinely truncated or non-JPEG input) - the
+    ///     same condition <see cref="Load(Stream)"/> itself would reject on the same bytes - or
+    ///     either the <see cref="MaxProbeHeaderBytesHardLimit"/> byte ceiling or the
+    ///     <see cref="MaxProbeSegmentCount"/> segment-count ceiling is reached without a SOF0/SOF2
+    ///     marker ever being found.
     ///     <see cref="Surface.MaxDimension"/> is <em>not</em> enforced - the raw header-declared
     ///     values are always returned; see <see cref="ImageInfo"/> for why.
     /// </exception>
+    /// <remarks>
+    ///     <see cref="ImageInfo"/>'s type-level remarks document the general cross-codec
+    ///     invariant that <c>GetInfo</c> never fails on an input <see cref="Load(Stream)"/> would
+    ///     accept. For JPEG this is a genuine, unconditional agreement, not merely a best effort:
+    ///     <see cref="Load(Stream)"/> enforces the exact same two independent ceilings on its own
+    ///     pre-SOF marker-segment walk that this method enforces - <see cref="MaxProbeHeaderBytesHardLimit"/>
+    ///     (16 MiB of leading marker-segment data) and <see cref="MaxProbeSegmentCount"/> (512
+    ///     non-terminating marker segments) - throwing the identical <see cref="InvalidDataException"/>
+    ///     this method throws for the same condition. A pathological JPEG whose leading
+    ///     marker-segment data before any SOF0/SOF2 marker exceeds either ceiling is therefore
+    ///     rejected consistently by both methods; there is no input this method rejects that
+    ///     <see cref="Load(Stream)"/> would otherwise have accepted.
+    /// </remarks>
     public static ImageInfo GetInfo(Stream stream)
     {
         ArgumentNullException.ThrowIfNull(stream);
@@ -836,6 +962,7 @@ public static class JpegCodec
             var state = new DecodeState();
 
             var pos = 2;
+            var segmentCount = 0;
             while (true)
             {
                 pos = SkipToMarker(file, pos);
@@ -847,7 +974,55 @@ public static class JpegCodec
                     break;
                 }
 
+                // Captured before ProcessSegment runs, since ProcessSegment sets state.SofSeen to
+                // true while processing the SOF0/SOF2 segment itself - using the post-segment
+                // value here would wrongly exempt the SOF segment's own bytes/segment-count from
+                // both ceilings below, unlike GetInfo's ProbeDimensions (whose byte-based hard
+                // limit is enforced unconditionally by the underlying buffer, including while
+                // reading the SOF segment's own length field and payload; only its segment-count
+                // ceiling excludes the terminating SOF0/SOF2 segment).
+                var sofSeenBeforeSegment = state.SofSeen;
+
+                // Shares GetInfo's MaxProbeSegmentCount ceiling on the number of non-terminating
+                // marker segments preceding the SOF0/SOF2 marker, so Load and GetInfo genuinely
+                // agree on this input shape too, not just the byte-based ceiling below: a stream
+                // of many minimal-size segments before SOF is rejected consistently by both.
+                // Counts exactly the marker kinds ProbeDimensions' CheckSegmentCount counts (stray
+                // restart markers and the generic APPn/COM/etc. fallback), excluding not just the
+                // terminating SOF0/SOF2 marker but also SOS-before-SOF and unsupported-SOF/frame
+                // markers - both of which unconditionally throw their own, more specific
+                // InvalidDataException in ProcessSegment/ProbeDimensions regardless of how many
+                // segments preceded them - so Load and GetInfo never diverge on which exception
+                // message a given byte sequence produces. Also mirrors ProbeDimensions'
+                // CheckSegmentCount in being a no-op until the soft cap has already been crossed
+                // (via pos, Load's equivalent of GetInfo's probe.Length), since this ceiling exists
+                // purely to bound the post-soft-cap fallback scan's iteration count - a legitimate
+                // file entirely under the soft cap with many small metadata segments must not be
+                // rejected merely for that.
+                if (!sofSeenBeforeSegment && pos > JpegCodec.MaxProbeHeaderBytes &&
+                    CountsTowardSegmentLimit(marker) &&
+                    ++segmentCount > JpegCodec.MaxProbeSegmentCount)
+                {
+                    throw BuildSegmentCountLimitException(JpegCodec.MaxProbeSegmentCount);
+                }
+
                 pos = ProcessSegment(file, pos, marker, state);
+
+                // Shares GetInfo's MaxProbeHeaderBytesHardLimit ceiling on leading marker-segment
+                // data preceding the SOF0/SOF2 marker, so Load and GetInfo genuinely agree on this
+                // input shape rather than diverging: once this many bytes have been walked past
+                // the SOI marker without finding SOF0/SOF2, Load throws the same InvalidDataException
+                // GetInfo already throws for the same condition, instead of continuing to accept a
+                // file GetInfo would reject. Gated on the pre-segment SofSeen value, so - exactly
+                // as ProbeDimensions' byte-based ceiling does - this still applies while consuming
+                // the SOF segment's own bytes (a well-formed file whose SOF segment itself
+                // straddles this threshold is rejected by both GetInfo and Load, not silently
+                // exempted), but never applies to the SOS/entropy-coded data that follows once the
+                // SOF segment has been fully processed.
+                if (!sofSeenBeforeSegment && pos > JpegCodec.MaxProbeHeaderBytesHardLimit)
+                {
+                    throw BuildHardLimitException(JpegCodec.MaxProbeHeaderBytesHardLimit);
+                }
             }
 
             if (!state.SofSeen || !state.SosSeen || state.Components == null)
@@ -857,6 +1032,28 @@ public static class JpegCodec
 
             return AssembleCanvas(state.Width, state.Height, state.Components, state.QuantTables);
         }
+
+        /// <summary>
+        ///     Determines whether <paramref name="marker"/> counts toward <see cref="Decode"/>'s
+        ///     <see cref="JpegCodec.MaxProbeSegmentCount"/> ceiling, mirroring exactly which marker
+        ///     kinds <see cref="ProbeDimensions"/>'s <c>CheckSegmentCount</c> counts: stray restart
+        ///     markers and the generic APPn/COM/etc. fallback segment, but not SOS-before-SOF or an
+        ///     unsupported SOF/frame marker - both of which throw their own, more specific
+        ///     <see cref="InvalidDataException"/> unconditionally in <see cref="ProcessSegment"/>/
+        ///     <see cref="ProbeDimensions"/> regardless of how many segments preceded them. Without
+        ///     this exact alignment, a stream crafted so one of those specific markers lands exactly
+        ///     on what would otherwise be the segment-count-exceeding segment could make
+        ///     <see cref="Decode"/> throw the segment-count message while <see cref="ProbeDimensions"/>
+        ///     throws its own more specific message for the same bytes - both still
+        ///     <see cref="InvalidDataException"/>, but with diverging text, unlike every other
+        ///     shared-ceiling case this file's exception-building helpers are designed to keep
+        ///     identical between <see cref="JpegCodec.Load(Stream)"/> and
+        ///     <see cref="JpegCodec.GetInfo(Stream)"/>.
+        /// </summary>
+        private static bool CountsTowardSegmentLimit(int marker) =>
+            marker != MarkerSof0 && marker != MarkerSof2 && marker != MarkerSos &&
+            marker is not (0xC1 or 0xC3 or 0xC5 or 0xC6 or 0xC7 or 0xC9 or 0xCA or 0xCB or
+                0xCD or 0xCE or 0xCF or 0xC8 or 0xCC);
 
         /// <summary>
         ///     Validates that <paramref name="file"/> begins with the 2-byte SOI marker
@@ -874,38 +1071,63 @@ public static class JpegCodec
         ///     A growable byte buffer backed by a <see cref="Stream"/>, used by
         ///     <see cref="ProbeDimensions(Stream)"/> to read only as many bytes as the marker scan
         ///     actually needs at any point, rather than eagerly reading a full fixed-size prefix
-        ///     up front. Grows in small chunks, on demand, up to an outer <paramref name="maxLength"/>
-        ///     safety cap.
+        ///     up front. Grows in small chunks, on demand, up to a <paramref name="softCap"/>;
+        ///     once that soft cap is reached without satisfying a request, it keeps scanning past
+        ///     it - still bounded to exactly what each request asks for, in larger chunks for
+        ///     efficiency - rather than giving up outright. Because the caller (the
+        ///     segment-parsing loop in <see cref="ProbeDimensions(Stream)"/>) only ever requests
+        ///     as far as the next marker/segment boundary, this never reads ahead into
+        ///     entropy-coded scan data, and never reads further than genuinely necessary to find
+        ///     (or rule out) a SOF0/SOF2 marker - it does not unconditionally drain the stream to
+        ///     end-of-stream. However, this soft-cap fallback scanning is itself bounded by a
+        ///     separate, non-negotiable <paramref name="hardLimit"/>: a request for more than
+        ///     <paramref name="hardLimit"/> total bytes is refused outright (see
+        ///     <see cref="HardLimitExceeded"/>) rather than attempted, so a malformed,
+        ///     adversarial, or effectively-infinite stream that never presents a SOF0/SOF2 marker
+        ///     cannot make this buffer grow, or read from the stream, without bound.
         /// </summary>
-        private sealed class IncrementalProbeBuffer(Stream stream, int maxLength)
+        private sealed class IncrementalProbeBuffer(Stream stream, int softCap, int hardLimit)
         {
-            /// <summary>The chunk size used for each incremental stream read.</summary>
+            /// <summary>The chunk size used for each incremental stream read up to the soft cap.</summary>
             private const int ChunkSize = 4096;
 
-            private byte[] _data = new byte[Math.Min(ChunkSize, maxLength)];
+            /// <summary>
+            ///     The chunk size used for reads past the soft cap, where fewer, larger reads are
+            ///     more efficient since the soft cap has already proven insufficient.
+            /// </summary>
+            private const int BulkChunkSize = 81920;
 
-            /// <summary>The number of bytes currently buffered (always &lt;= the outer max-length cap).</summary>
+            private byte[] _data = new byte[Math.Min(ChunkSize, softCap)];
+
+            /// <summary>The number of bytes currently buffered.</summary>
             public int Length { get; private set; }
 
             /// <summary>
-            ///     Whether the outer max-length cap was reached without buffering as many bytes as
-            ///     the most recent <see cref="TryEnsureLength"/> call requested (as opposed to the
-            ///     stream itself ending first).
+            ///     <see langword="true"/> once a request has been refused because it would have
+            ///     required buffering more than <c>hardLimit</c> total bytes; used by callers to
+            ///     select the appropriate <see cref="InvalidDataException"/> message.
             /// </summary>
-            public bool CapReached { get; private set; }
+            public bool HardLimitExceeded { get; private set; }
 
             public byte this[int index] => _data[index];
 
             /// <summary>
             ///     Ensures at least <paramref name="requiredLength"/> bytes are buffered, reading
-            ///     further chunks from the stream only as needed, never past the outer max-length
-            ///     cap in total.
+            ///     further chunks from the stream only as needed. While <paramref name="requiredLength"/>
+            ///     stays within the outer <c>softCap</c>, only that many bytes are ever read; once
+            ///     the soft cap would otherwise be exceeded, reading continues past it - but only
+            ///     as far as <paramref name="requiredLength"/>, never further - instead of giving
+            ///     up (see <see cref="IncrementalProbeBuffer"/> remarks), so this method only
+            ///     returns <see langword="false"/> once the stream has genuinely ended without
+            ///     enough data to satisfy the request, or <paramref name="requiredLength"/>
+            ///     exceeds the <c>hardLimit</c> ceiling (see <see cref="HardLimitExceeded"/>).
             /// </summary>
             /// <returns>
             ///     <see langword="true"/> if at least <paramref name="requiredLength"/> bytes are
-            ///     now buffered; <see langword="false"/> if the stream ended, or the outer
-            ///     max-length cap was reached, before that many bytes could be read (see
-            ///     <see cref="CapReached"/> to distinguish the two cases).
+            ///     now buffered; <see langword="false"/> if the stream ended before that many
+            ///     bytes could be read (even after reading past the soft cap), or if
+            ///     <paramref name="requiredLength"/> exceeds the hard limit and was refused
+            ///     without attempting to read it.
             /// </returns>
             public bool TryEnsureLength(int requiredLength)
             {
@@ -914,14 +1136,29 @@ public static class JpegCodec
                     return true;
                 }
 
-                var target = Math.Min(requiredLength, maxLength);
+                // The hard limit is a genuine ceiling: refuse outright, without reading anything
+                // further, rather than letting the soft-cap fallback below grow unboundedly for a
+                // malformed/adversarial/effectively-infinite stream that never yields a SOF0/SOF2
+                // marker.
+                if (requiredLength > hardLimit)
+                {
+                    HardLimitExceeded = true;
+                    return false;
+                }
+
+                var target = Math.Min(requiredLength, softCap);
                 while (Length < target)
                 {
-                    var chunk = Math.Min(ChunkSize, maxLength - Length);
-                    if (_data.Length < Length + chunk)
-                    {
-                        Array.Resize(ref _data, Length + chunk);
-                    }
+                    // Bounded by the smaller of the chunk size and how many bytes are actually
+                    // still needed to satisfy target (which is itself at most requiredLength).
+                    // Bounding only by softCap - Length here would read a full ChunkSize chunk
+                    // even when only a few bytes are needed to reach the next marker or the SOF
+                    // segment boundary, over-reading past requiredLength into whatever data
+                    // follows - including entropy-coded scan data - since stream.Read always
+                    // consumes what it's asked for from the underlying stream regardless of how
+                    // much of it the caller actually needed.
+                    var chunk = Math.Min(ChunkSize, target - Length);
+                    EnsureCapacity(Length + chunk);
 
                     var read = stream.Read(_data, Length, chunk);
                     if (read == 0)
@@ -932,13 +1169,49 @@ public static class JpegCodec
                     Length += read;
                 }
 
-                if (Length < requiredLength)
+                // The soft cap was reached before requiredLength was satisfied - keep reading,
+                // in larger chunks for efficiency, but strictly bounded to requiredLength (which
+                // is itself now known to be within the hard limit) rather than draining the
+                // stream to end-of-stream. Because ProbeDimensions only ever asks for as far as
+                // the next segment boundary, this stops the instant a SOF0/SOF2 marker is found
+                // and never reads into entropy-coded scan data.
+                while (Length < requiredLength)
                 {
-                    CapReached = true;
-                    return false;
+                    var chunk = Math.Min(BulkChunkSize, requiredLength - Length);
+                    EnsureCapacity(Length + chunk);
+
+                    var read = stream.Read(_data, Length, chunk);
+                    if (read == 0)
+                    {
+                        return false;
+                    }
+
+                    Length += read;
                 }
 
                 return true;
+            }
+
+            /// <summary>
+            ///     Grows the backing array to at least <paramref name="requiredCapacity"/> bytes,
+            ///     using geometric (doubling) growth rather than resizing to exactly
+            ///     <paramref name="requiredCapacity"/> each call. The post-soft-cap fallback scan
+            ///     grows the buffer in many small, fixed-size (<see cref="BulkChunkSize"/>) steps
+            ///     while working toward <c>hardLimit</c> (up to 16 MiB); resizing to the exact
+            ///     capacity needed on every such step would copy the entire buffer roughly
+            ///     <c>hardLimit / BulkChunkSize</c> times (around 200 full-array copies), which is
+            ///     quadratic in the amount of data read. Doubling capacity instead makes the total
+            ///     copying work amortized linear in the final buffer size, capped at
+            ///     <c>hardLimit</c> since the buffer is never grown beyond what
+            ///     <see cref="TryEnsureLength"/> has already confirmed is within the hard limit.
+            /// </summary>
+            private void EnsureCapacity(int requiredCapacity)
+            {
+                if (_data.Length < requiredCapacity)
+                {
+                    var newCapacity = Math.Min(Math.Max(requiredCapacity, _data.Length * 2), hardLimit);
+                    Array.Resize(ref _data, newCapacity);
+                }
             }
 
             /// <summary>
@@ -950,9 +1223,8 @@ public static class JpegCodec
             {
                 if (!TryEnsureLength(length))
                 {
-                    throw CapReached
-                        ? new InvalidDataException(
-                            $"JPEG segment extends beyond the {JpegCodec.MaxProbeHeaderBytes}-byte header probe limit.")
+                    throw HardLimitExceeded
+                        ? BuildHardLimitException(hardLimit)
                         : new InvalidDataException(
                             "Unexpected end of stream while reading a JPEG segment during header probing.");
                 }
@@ -962,14 +1234,53 @@ public static class JpegCodec
         }
 
         /// <summary>
+        ///     Builds the <see cref="InvalidDataException"/> thrown when
+        ///     <see cref="ProbeDimensions(Stream)"/>'s post-soft-cap fallback scan reaches the
+        ///     <see cref="MaxProbeHeaderBytesHardLimit"/> hard ceiling without ever finding a
+        ///     SOF0/SOF2 marker, shared by both <see cref="IncrementalProbeBuffer.ToExactArray"/>
+        ///     and <see cref="ProbeExhaustedException"/> so the two report the same message shape
+        ///     for the same underlying condition.
+        /// </summary>
+        private static InvalidDataException BuildHardLimitException(int hardLimit) =>
+            new($"JPEG SOF0/SOF2 marker not found within the {hardLimit}-byte header probe hard limit.");
+
+        /// <summary>
+        ///     Builds the <see cref="InvalidDataException"/> thrown when
+        ///     <see cref="ProbeDimensions(Stream)"/>'s post-soft-cap fallback scan reaches the
+        ///     <see cref="JpegCodec.MaxProbeSegmentCount"/> segment-count ceiling without ever
+        ///     finding a SOF0/SOF2 marker - independent of, and typically reached far sooner than,
+        ///     the byte-based <see cref="JpegCodec.MaxProbeHeaderBytesHardLimit"/> for a malformed
+        ///     stream composed of many minimal-size (4-byte) segments.
+        /// </summary>
+        private static InvalidDataException BuildSegmentCountLimitException(int maxSegmentCount) =>
+            new($"JPEG SOF0/SOF2 marker not found within the {maxSegmentCount}-segment header probe limit.");
+
+        /// <summary>
         ///     Scans a JPEG stream's leading marker segments, reading incrementally and only as
         ///     far as necessary, looking for the first SOF0/SOF2 marker, and returns its declared
         ///     dimensions and component count without ever reaching <c>SOS</c>/entropy-coded scan
-        ///     data. Reads at most <see cref="JpegCodec.MaxProbeHeaderBytes"/> bytes total from
-        ///     <paramref name="stream"/>, but in the common case where the SOF segment appears
-        ///     near the start of the stream (as it does for essentially all real-world JPEG
-        ///     files), reads only as far as the end of that segment - never a full fixed-size
-        ///     prefix regardless of where the SOF marker actually is.
+        ///     data. In the common case where the SOF segment appears near the start of the
+        ///     stream (as it does for essentially all real-world JPEG files), reads only as far
+        ///     as the end of that segment - never a full fixed-size prefix regardless of where
+        ///     the SOF marker actually is. If more than <see cref="JpegCodec.MaxProbeHeaderBytes"/>
+        ///     bytes of leading marker-segment data are present, continues scanning segment
+        ///     headers past that soft cap - one marker segment at a time, exactly as below the
+        ///     cap - until a SOF0/SOF2 marker is found or the stream genuinely ends, so this never
+        ///     gives up merely because the soft cap was reached while more data remained, and
+        ///     never reads into entropy-coded scan data even for files with unusually large
+        ///     leading metadata. That post-soft-cap scanning is bounded by two independent
+        ///     ceilings, either of which triggers a throw once reached without a SOF0/SOF2 marker
+        ///     ever being found: the <see cref="JpegCodec.MaxProbeHeaderBytesHardLimit"/> hard
+        ///     ceiling on total bytes read, and the <see cref="JpegCodec.MaxProbeSegmentCount"/>
+        ///     hard ceiling on the number of marker segments scanned. The byte ceiling alone does
+        ///     not cheaply bound the number of loop iterations, since a marker segment can be as
+        ///     small as 4 bytes; the segment-count ceiling exists specifically to bound iterations
+        ///     directly for a malformed or adversarial stream composed of many minimal-size
+        ///     segments, which would otherwise take millions of iterations to reach the byte
+        ///     ceiling. Either way, a malformed, adversarial, or effectively-infinite stream that
+        ///     never presents a SOF0/SOF2 marker causes this method to throw once whichever
+        ///     ceiling is reached first, rather than reading or buffering data, or looping,
+        ///     without bound.
         /// </summary>
         /// <param name="stream">
         ///     The stream to read JPEG marker segments from, starting at its current position.
@@ -977,13 +1288,19 @@ public static class JpegCodec
         /// <exception cref="System.IO.InvalidDataException">
         ///     Thrown when the SOI marker is missing, an SOS marker or end-of-image is reached
         ///     before any SOF0/SOF2 marker is found, an unsupported SOF/frame marker (for example
-        ///     SOF1/SOF3) is encountered, or the bounded prefix is exhausted (either because the
-        ///     stream itself ended, or because <see cref="JpegCodec.MaxProbeHeaderBytes"/> was
-        ///     reached while more data remained) without finding a SOF0/SOF2 marker.
+        ///     SOF1/SOF3) is encountered, the stream genuinely ends (even after continuing to scan
+        ///     past the <see cref="JpegCodec.MaxProbeHeaderBytes"/> soft cap) without a SOF0/SOF2
+        ///     marker ever being found, the <see cref="JpegCodec.MaxProbeHeaderBytesHardLimit"/>
+        ///     hard ceiling is reached without a SOF0/SOF2 marker ever being found, or the
+        ///     <see cref="JpegCodec.MaxProbeSegmentCount"/> segment-count ceiling is reached
+        ///     without a SOF0/SOF2 marker ever being found.
         /// </exception>
         public static ImageInfo ProbeDimensions(Stream stream)
         {
-            var probe = new IncrementalProbeBuffer(stream, JpegCodec.MaxProbeHeaderBytes);
+            var probe = new IncrementalProbeBuffer(
+                stream,
+                JpegCodec.MaxProbeHeaderBytes,
+                JpegCodec.MaxProbeHeaderBytesHardLimit);
 
             if (!probe.TryEnsureLength(4) || probe[0] != MarkerPrefix || probe[1] != MarkerSoi)
             {
@@ -991,6 +1308,33 @@ public static class JpegCodec
             }
 
             var pos = 2;
+            var segmentCount = 0;
+
+            // Defense-in-depth, independent of the byte-based hard limit above: bounds the
+            // number of non-terminating marker segments scanned directly, since a segment can be
+            // as small as 4 bytes and a malformed/adversarial stream of many such minimal
+            // segments could otherwise take millions of iterations to reach
+            // MaxProbeHeaderBytesHardLimit. Called only for segments where scanning continues
+            // (stray restart markers and the general/APPn/COM/etc. fallback path below), never
+            // for the terminating SOF0/SOF2 marker itself, so a legitimate file whose SOF0/SOF2
+            // marker happens to be the segment that would otherwise exceed the ceiling still
+            // probes successfully, exactly as Load would decode it. A no-op until the soft cap
+            // has already been crossed, since this ceiling exists purely to bound the post-soft-cap
+            // fallback scan's iteration count - a legitimate file entirely under the soft cap that
+            // happens to have many small metadata segments must not be rejected merely for that.
+            void CheckSegmentCount()
+            {
+                if (probe.Length <= JpegCodec.MaxProbeHeaderBytes)
+                {
+                    return;
+                }
+
+                if (++segmentCount > JpegCodec.MaxProbeSegmentCount)
+                {
+                    throw BuildSegmentCountLimitException(JpegCodec.MaxProbeSegmentCount);
+                }
+            }
+
             while (true)
             {
                 if (!probe.TryEnsureLength(pos + 2))
@@ -1046,7 +1390,11 @@ public static class JpegCodec
                             "JPEG end-of-image marker reached before a SOF0/SOF2 marker was found.");
 
                     case >= MarkerRst0 and <= MarkerRst7:
-                        // Stray restart marker outside entropy-coded data; ignore.
+                        // Stray restart marker outside entropy-coded data; ignore. Counts toward
+                        // the segment-count ceiling below, since scanning continues past it - a
+                        // stream of many stray restart markers is just as cheap an iteration-count
+                        // attack shape as many minimal APPn segments.
+                        CheckSegmentCount();
                         break;
 
                     case 0xC1 or 0xC3 or 0xC5 or 0xC6 or 0xC7 or 0xC9 or 0xCA or 0xCB or
@@ -1058,6 +1406,8 @@ public static class JpegCodec
                         break;
 
                     default:
+                        CheckSegmentCount();
+
                         if (!probe.TryEnsureLength(pos + 2))
                         {
                             throw ProbeExhaustedException(probe);
@@ -1070,16 +1420,19 @@ public static class JpegCodec
         }
 
         /// <summary>
-        ///     Builds the appropriate <see cref="InvalidDataException"/> for
-        ///     <see cref="ProbeDimensions(Stream)"/> running out of buffered/readable data before
-        ///     a SOF0/SOF2 marker was found, distinguishing "the stream itself ended" from "the
-        ///     <see cref="JpegCodec.MaxProbeHeaderBytes"/> probe cap was reached" with separate
-        ///     messages.
+        ///     Builds the <see cref="InvalidDataException"/> for <see cref="ProbeDimensions(Stream)"/>
+        ///     running out of readable data before a SOF0/SOF2 marker was found. Now that
+        ///     <see cref="IncrementalProbeBuffer"/> keeps scanning segment headers past its soft
+        ///     cap rather than giving up at it, this is thrown either when the stream has
+        ///     genuinely ended (truncated or non-JPEG data) - never merely because
+        ///     <see cref="JpegCodec.MaxProbeHeaderBytes"/> was reached - or when the
+        ///     post-soft-cap scan reaches the <see cref="JpegCodec.MaxProbeHeaderBytesHardLimit"/>
+        ///     hard ceiling without a SOF0/SOF2 marker ever being found, distinguished via
+        ///     <see cref="IncrementalProbeBuffer.HardLimitExceeded"/>.
         /// </summary>
         private static InvalidDataException ProbeExhaustedException(IncrementalProbeBuffer probe) =>
-            probe.CapReached
-                ? new InvalidDataException(
-                    $"JPEG SOF0/SOF2 marker not found within the {JpegCodec.MaxProbeHeaderBytes}-byte header probe limit.")
+            probe.HardLimitExceeded
+                ? BuildHardLimitException(JpegCodec.MaxProbeHeaderBytesHardLimit)
                 : new InvalidDataException(
                     "Stream ended before a JPEG SOF0/SOF2 marker was found (truncated or non-JPEG data).");
 

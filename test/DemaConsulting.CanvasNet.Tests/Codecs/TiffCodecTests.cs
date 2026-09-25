@@ -1562,60 +1562,44 @@ public class TiffCodecTests
     }
 
     /// <summary>
-    ///     Proves that GetInfo throws NotSupportedException immediately for a non-seekable
-    ///     stream, even when that stream contains a completely valid, well-formed TIFF image and
-    ///     its <c>Position</c>/<c>Read</c> members would otherwise work perfectly fine. Uses
+    ///     Proves that GetInfo succeeds on a non-seekable stream that carries a completely valid,
+    ///     well-formed TIFF image, buffering the whole stream, and that its reported dimensions
+    ///     match the dimensions <see cref="TiffCodec.Load(Stream)"/> actually decodes from the
+    ///     identical bytes - the GetInfo/Load parity invariant. Uses
     ///     <see cref="FunctionallySeekableButCanSeekFalseStream"/> (which reports
     ///     <c>CanSeek == false</c> but otherwise forwards every member to a fully functional inner
-    ///     <see cref="MemoryStream"/>) rather than <see cref="NonSeekableStream"/>, so that this
-    ///     test genuinely exercises GetInfo's dedicated seekable-stream guard: if that guard were
-    ///     removed, GetInfo would successfully parse the valid TIFF bytes and return an
-    ///     <see cref="ImageInfo"/> without throwing at all, rather than incidentally still
-    ///     throwing <see cref="NotSupportedException"/> from some unrelated stream member.
+    ///     <see cref="MemoryStream"/>) so the test genuinely exercises the non-seekable buffering
+    ///     fallback path rather than incidentally succeeding via some other stream member.
     /// </summary>
     [Fact]
-    public void TiffCodec_GetInfo_NonSeekableStream_ThrowsNotSupportedException()
+    public void TiffCodec_GetInfo_NonSeekableStream_SucceedsAndMatchesLoadResult()
     {
         // Arrange
-        var file = StandardRgbBuilder(false, 3, 2, 1, 2)
-            .WithStrips(new byte[3 * 3 * 2])
+        const int width = 3;
+        const int height = 2;
+        var file = StandardRgbBuilder(false, width, height, 1, height)
+            .WithStrips(new byte[width * height * 3])
             .Build();
-        using var stream = new FunctionallySeekableButCanSeekFalseStream(new MemoryStream(file));
+        using var nonSeekableStream = new FunctionallySeekableButCanSeekFalseStream(new MemoryStream(file));
+        var loadedSurface = TiffCodec.Load(new MemoryStream(file));
 
-        // Act / Assert
-        Assert.Throws<NotSupportedException>(() => TiffCodec.GetInfo(stream));
-    }
+        // Act
+        var info = TiffCodec.GetInfo(nonSeekableStream);
 
-    /// <summary>
-    ///     Proves that GetInfo throws NotSupportedException for a non-seekable stream before
-    ///     reading any bytes from it at all: wraps a stream whose <c>Read</c> throws
-    ///     <see cref="InvalidOperationException"/> (rather than merely tolerating a read), so
-    ///     that if the seekable-stream guard were ever bypassed or reordered after some other read,
-    ///     the test would fail with the wrong exception type instead of silently passing.
-    ///     Deliberately avoids <see cref="NonSeekableStream"/> here, since its
-    ///     <see cref="Stream.Position"/> getter itself always throws
-    ///     <see cref="NotSupportedException"/>, which would let this regression test pass even if
-    ///     GetInfo's dedicated seekable-stream guard were removed entirely (the incidental exception
-    ///     from touching <c>Position</c> would mask the missing guard).
-    /// </summary>
-    [Fact]
-    public void TiffCodec_GetInfo_NonSeekableStream_ThrowsBeforeReadingAnyBytes()
-    {
-        // Arrange
-        using var stream = new ReadThrowsNonSeekableStream();
-
-        // Act / Assert
-        Assert.Throws<NotSupportedException>(() => TiffCodec.GetInfo(stream));
+        // Assert: GetInfo succeeds without throwing on a non-seekable stream, and its reported
+        // dimensions match what Load actually decodes from the identical bytes.
+        Assert.Equal(new ImageInfo(width, height, 3, false), info);
+        Assert.Equal(loadedSurface.Width, info.Width);
+        Assert.Equal(loadedSurface.Height, info.Height);
     }
 
     /// <summary>
     ///     A test-only stream that reports <see cref="CanSeek"/> as <see langword="false"/> while
     ///     forwarding <see cref="Position"/>, <see cref="Seek"/>, <see cref="Read(byte[], int, int)"/>,
-    ///     and <see cref="Length"/> to a fully functional inner stream, used only to prove
-    ///     <see cref="TiffCodec.GetInfo(Stream)"/> rejects a non-seekable stream via its own
-    ///     dedicated <see cref="NotSupportedException"/> guard rather than merely happening to
-    ///     surface some other exception a particular stream implementation's members throw when
-    ///     touched.
+    ///     and <see cref="Length"/> to a fully functional inner stream, used to prove
+    ///     <see cref="TiffCodec.GetInfo(Stream)"/>'s non-seekable buffering fallback succeeds on
+    ///     genuinely non-seekable input rather than merely happening to work because the stream
+    ///     is functionally seekable underneath.
     /// </summary>
     private sealed class FunctionallySeekableButCanSeekFalseStream(Stream inner) : Stream
     {
@@ -1652,47 +1636,6 @@ public class TiffCodecTests
 
             base.Dispose(disposing);
         }
-    }
-
-    /// <summary>
-    ///     A test-only, non-seekable stream whose <see cref="Position"/> getter/setter and
-    ///     <see cref="Read(byte[], int, int)"/> both throw <see cref="InvalidOperationException"/>
-    ///     (not <see cref="NotSupportedException"/>), used only to prove
-    ///     <see cref="TiffCodec.GetInfo(Stream)"/> rejects a non-seekable stream via its own
-    ///     dedicated <see cref="NotSupportedException"/> guard before touching <c>Position</c> or
-    ///     <c>Read</c> at all, rather than merely happening to surface some other exception a
-    ///     particular stream implementation's members throw.
-    /// </summary>
-    private sealed class ReadThrowsNonSeekableStream : Stream
-    {
-        public override bool CanRead => true;
-
-        public override bool CanSeek => false;
-
-        public override bool CanWrite => false;
-
-        public override long Length => throw new InvalidOperationException("Length must not be read.");
-
-        public override long Position
-        {
-            get => throw new InvalidOperationException("Position must not be read.");
-            set => throw new InvalidOperationException("Position must not be set.");
-        }
-
-        public override int Read(byte[] buffer, int offset, int count) =>
-            throw new InvalidOperationException("Read must not be called.");
-
-        public override void Flush()
-        {
-        }
-
-        public override long Seek(long offset, SeekOrigin origin) =>
-            throw new InvalidOperationException("Seek must not be called.");
-
-        public override void SetLength(long value) => throw new InvalidOperationException("SetLength must not be called.");
-
-        public override void Write(byte[] buffer, int offset, int count) =>
-            throw new InvalidOperationException("Write must not be called.");
     }
 
     /// <summary>

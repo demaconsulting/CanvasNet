@@ -230,6 +230,19 @@ Composites the constant `color` "over" every pixel of this surface in place, usi
 formula as `CompositeOver(Surface)` with `color` acting as the foreground at every pixel. Never
 throws.
 
+##### Clear(Rgba32 color)
+
+```csharp
+public void Clear(Rgba32 color)
+```
+
+Overwrites every pixel of this surface with the constant `color`, in place, replacing rather
+than blending against existing pixel data. Unlike `CompositeOver(Rgba32)`, no Porter-Duff "over"
+formula is evaluated — every pixel becomes exactly `color`, regardless of `color.A` or of what
+was previously stored there. This is the recommended way to establish a known background before
+drawing (for example clearing a surface to transparent black before filling shapes onto it).
+Never throws. `Canvas.Clear(Rgba32)` is a thin, transform-independent passthrough to this method.
+
 ### Rgba32
 
 The `Rgba32` struct represents a single 32-bit RGBA pixel, with public `R`, `G`, `B`, and `A`
@@ -528,25 +541,24 @@ public static ImageInfo GetInfo(Stream stream)
 ```
 
 Reads only the TIFF header and the relevant IFD tags (never strip data) and returns an
-`ImageInfo` describing the image. Does not enforce `Surface.MaxDimension`. Requires a seekable
-`stream`: a TIFF's IFD can legitimately be located anywhere in the file (unlike PNG/JPEG/BMP,
-whose headers are always near the start), so no bounded, purely sequential scan can reliably
-resolve every well-formed TIFF from a non-seekable source. If `stream.CanSeek` is `false`,
-`GetInfo` throws `NotSupportedException` immediately, before reading any bytes from `stream` at
-all; a caller with a genuinely non-seekable source (for example a network stream) can trivially
-wrap it in a seekable buffer such as `MemoryStream` first. Once past that check, `stream` resolves
-every tag through the exact same validating parser `Load` itself uses (`ReadTiffImageInfo`). A
-`StreamTiffDataSource` seeks directly to the IFD and reads only the bytes the parser actually asks
-for - the header, IFD entries, and any out-of-line tag value needed (for example a multi-value
-`BitsPerSample` tag) - resolving `ImageWidth`, `ImageLength`, `BitsPerSample`, `SamplesPerPixel`,
-`Compression`, `PhotometricInterpretation`, `PlanarConfiguration`, `Predictor`, and `ExtraSamples`,
-and never reading `StripOffsets`/`RowsPerStrip`/`StripByteCounts` or any strip/pixel data.
+`ImageInfo` describing the image. Does not enforce `Surface.MaxDimension`. A TIFF's IFD can
+legitimately be located anywhere in the file (unlike PNG/JPEG/BMP, whose headers are always near
+the start), so the reporting strategy depends on `stream.CanSeek`. When `stream.CanSeek` is
+`true`, a `StreamTiffDataSource` seeks directly to the IFD and reads only the bytes the parser
+actually asks for - the header, IFD entries, and any out-of-line tag value needed (for example a
+multi-value `BitsPerSample` tag) - and never reads `StripOffsets`/`RowsPerStrip`/`StripByteCounts`
+or any strip/pixel data. When `stream.CanSeek` is `false` (for example a network stream), `GetInfo`
+falls back to the same unconditional buffering `Load` already performs: the entire stream is
+read into memory and the resulting bytes are probed through the same validating parser, so a
+non-seekable source's IFD can still be located and resolved wherever it lies, and `GetInfo` never
+throws merely because its input happens to be non-seekable. In both cases every tag is resolved
+through the exact same validating parser `Load` itself uses (`ReadTiffImageInfo`), resolving
+`ImageWidth`, `ImageLength`, `BitsPerSample`, `SamplesPerPixel`, `Compression`,
+`PhotometricInterpretation`, `PlanarConfiguration`, `Predictor`, and `ExtraSamples`.
 
 **Exceptions:**
 
 - `ArgumentNullException`: Thrown when `stream` is null.
-- `NotSupportedException`: Thrown when `stream` does not support seeking; wrap a non-seekable
-  source (for example a network stream) in a seekable buffer such as a `MemoryStream` first.
 - `InvalidDataException`: Thrown when the stream does not contain a valid TIFF header/IFD.
 
 ##### TiffCodec.GetInfo(string path)
@@ -641,14 +653,40 @@ public static ImageInfo GetInfo(Stream stream)
 
 Scans markers (skipping length-prefixed segments without entropy-decoding any scan data) to find
 the first SOF0/SOF2 marker, and returns an `ImageInfo` describing the image. Does not enforce
-`Surface.MaxDimension`. Reads at most `MaxProbeHeaderBytes` (1,048,576 bytes) before giving up;
-throws `InvalidDataException` if no SOF0/SOF2 marker is found within that limit.
+`Surface.MaxDimension`. Incrementally reads up to a soft cap of `MaxProbeHeaderBytes` (1,048,576
+bytes), which comfortably covers the leading marker segments of essentially all real-world JPEG
+files. If that soft cap is reached without finding a SOF0/SOF2 marker, `GetInfo` keeps scanning
+past the cap - one marker segment at a time, exactly as it does below the cap - until a SOF0/SOF2
+marker is found, so `GetInfo` never throws merely because a file has more than
+`MaxProbeHeaderBytes` of leading marker-segment data - as long as `Load` itself would successfully
+parse that file up to and including the SOF marker. That post-soft-cap scanning is bounded by two
+independent ceilings, either of which stops it once reached without a SOF0/SOF2 marker ever being
+found: a much larger hard byte limit, `MaxProbeHeaderBytesHardLimit` (16,777,216 bytes, 16x the
+soft cap), and a hard segment-count limit, `MaxProbeSegmentCount` (512), which bounds the number
+of non-terminating marker segments scanned directly - since a marker segment can be as small as
+4 bytes, the byte limit alone would not cheaply bound scan iterations for a malformed stream built
+from many minimal-size segments. Once either ceiling is reached, `GetInfo` throws
+`InvalidDataException` rather than continuing to read, buffer, or loop without bound, protecting
+against a malformed, adversarial, or effectively-infinite stream that never presents a SOF0/SOF2
+marker. The segment-count limit never applies to the terminating SOF0/SOF2 marker segment itself,
+so a well-formed file's SOF marker always succeeds regardless of which segment number it falls on.
+`Load` enforces these same two ceilings on its own pre-SOF marker-segment walk and throws the same
+`InvalidDataException` for the same condition, so a pathological JPEG whose leading marker-segment
+data exceeds either ceiling is rejected consistently by both `GetInfo` and `Load` - true parity,
+not a documented exception - because both ceilings are sized generously enough (16 MiB, or 512
+segments) that no realistic real-world JPEG is ever affected by it.
 
 **Exceptions:**
 
 - `ArgumentNullException`: Thrown when `stream` is null.
-- `InvalidDataException`: Thrown when the stream does not contain a valid JPEG header, or no
-  SOF0/SOF2 marker is found within `MaxProbeHeaderBytes`.
+- `InvalidDataException`: Thrown when the SOI marker is missing, an SOS marker or end-of-image is
+  reached before any SOF0/SOF2 marker is found, an unsupported SOF/frame marker is encountered, no
+  SOF0/SOF2 marker is found before the stream genuinely ends (a genuinely truncated or non-JPEG
+  input) - the same condition `Load(Stream)` itself would reject on the same bytes - the
+  `MaxProbeHeaderBytesHardLimit` hard ceiling is reached without a SOF0/SOF2 marker ever being
+  found, or the `MaxProbeSegmentCount` segment-count ceiling is reached without a SOF0/SOF2 marker
+  ever being found - both of the latter two conditions equally rejected by `Load(Stream)` on the
+  same bytes.
 
 ##### JpegCodec.GetInfo(string path)
 

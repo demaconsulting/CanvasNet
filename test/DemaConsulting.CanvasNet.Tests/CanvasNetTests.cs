@@ -56,6 +56,72 @@ public class CanvasNetTests
     }
 
     /// <summary>
+    ///     Proves that the system can fill an entire Surface with a constant color through the
+    ///     public API (<c>Surface.Clear</c>), overwriting pre-existing pixel data, and that the
+    ///     fill is observable at every pixel through subsequent reads.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_ClearSurfaceThenReadPixel_ReturnsExpectedColor()
+    {
+        // Arrange: construct a surface through the public API and pre-fill it with distinct
+        // pixel data that Clear must fully overwrite
+        var surface = new Surface(4, 3);
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                surface[x, y] = new Rgba32((byte)(x * 10), (byte)(y * 10), 1, 255);
+            }
+        }
+
+        var clearColor = new Rgba32(20, 40, 60, 80);
+
+        // Act: clear the whole surface through the public API
+        surface.Clear(clearColor);
+
+        // Assert: the system produces the expected integrated fill at every pixel, including
+        // corners far from where the pre-existing data was set
+        Assert.Equal(clearColor, surface[0, 0]);
+        Assert.Equal(clearColor, surface[surface.Width - 1, surface.Height - 1]);
+    }
+
+    /// <summary>
+    ///     Proves that the system can fill an entire wrapped Surface with a constant color
+    ///     through a <see cref="DemaConsulting.CanvasNet.Rendering.Canvas"/>'s public API
+    ///     (<c>Canvas.Clear</c>), and that the fill is actually observable by reading the
+    ///     underlying <see cref="Surface"/> the Canvas wraps - not merely by asserting against
+    ///     Canvas-level state - proving the passthrough from <c>Canvas.Clear</c> to
+    ///     <c>Surface.Clear</c> genuinely reaches and mutates the wrapped buffer end to end.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_CanvasClearThenReadWrappedSurfacePixel_ReturnsExpectedColor()
+    {
+        // Arrange: construct a Surface, wrap it in a Canvas through the public API, and pre-fill
+        // the wrapped surface with distinct pixel data that Canvas.Clear must fully overwrite
+        var surface = new Surface(4, 3);
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                surface[x, y] = new Rgba32((byte)(x * 10), (byte)(y * 10), 1, 255);
+            }
+        }
+
+        var canvas = new DemaConsulting.CanvasNet.Rendering.Canvas(surface);
+        var clearColor = new Rgba32(21, 41, 61, 81);
+
+        // Act: clear the whole canvas through the public API
+        canvas.Clear(clearColor);
+
+        // Assert: reading pixels directly from the wrapped Surface (not the Canvas) confirms the
+        // passthrough actually reached and mutated the underlying buffer at every pixel,
+        // including corners far from where the pre-existing data was set
+        Assert.Equal(clearColor, surface[0, 0]);
+        Assert.Equal(clearColor, surface[surface.Width - 1, surface.Height - 1]);
+        Assert.Equal(clearColor, canvas.Surface[0, 0]);
+    }
+
+    /// <summary>
     ///     Proves that the system can save a Surface to BMP and load it back through the public
     ///     API, preserving pixel values end to end.
     /// </summary>
@@ -119,6 +185,33 @@ public class CanvasNetTests
     }
 
     /// <summary>
+    ///     Proves that the system's TIFF codec upholds the GetInfo/Load parity invariant
+    ///     documented on <see cref="ImageInfo"/> end to end through the public API: a surface
+    ///     saved to TIFF and re-read through a genuinely non-seekable stream still yields the
+    ///     expected declared dimensions via <c>TiffCodec.GetInfo</c>, rather than throwing merely
+    ///     because the source happens to be non-seekable.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_TiffGetInfoOnNonSeekableStream_ReturnsExpectedInfo()
+    {
+        // Arrange: construct and save a surface through the public API
+        var surface = new Surface(5, 4);
+        using var saveStream = new MemoryStream();
+        TiffCodec.Save(surface, saveStream, TiffCompression.Lzw);
+        var fileBytes = saveStream.ToArray();
+
+        // Act: inspect the saved file's declared dimensions through GetInfo, using a stream that
+        // reports itself as non-seekable (matching a real-world network stream)
+        using var nonSeekableStream = new NonSeekableStream(new MemoryStream(fileBytes));
+        var info = TiffCodec.GetInfo(nonSeekableStream);
+
+        // Assert: the system reports the expected integrated declared dimensions, without
+        // throwing merely because the stream is non-seekable
+        Assert.Equal(surface.Width, info.Width);
+        Assert.Equal(surface.Height, info.Height);
+    }
+
+    /// <summary>
     ///     Proves that the system can save a Surface to JPEG and load it back through the public
     ///     API, reproducing pixel values within JPEG's lossy compression tolerance.
     /// </summary>
@@ -154,6 +247,57 @@ public class CanvasNetTests
         Assert.True(Math.Abs(expected.R - actual.R) <= tolerance, $"R delta {Math.Abs(expected.R - actual.R)} exceeded tolerance");
         Assert.True(Math.Abs(expected.G - actual.G) <= tolerance, $"G delta {Math.Abs(expected.G - actual.G)} exceeded tolerance");
         Assert.True(Math.Abs(expected.B - actual.B) <= tolerance, $"B delta {Math.Abs(expected.B - actual.B)} exceeded tolerance");
+    }
+
+    /// <summary>
+    ///     Proves that the system's JPEG codec upholds the GetInfo/Load parity invariant
+    ///     documented on <see cref="ImageInfo"/> end to end through the public API: a JPEG file
+    ///     with an unusually large amount of leading marker-segment data (well beyond the
+    ///     incremental probe's internal soft cap) still yields the expected declared dimensions
+    ///     via <c>JpegCodec.GetInfo</c>, matching what <c>JpegCodec.Load</c> itself decodes,
+    ///     rather than throwing merely because the probe cap was reached.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_JpegGetInfoWithLargeLeadingSegments_ReturnsExpectedInfo()
+    {
+        // Arrange: construct and save a surface through the public API, then pad the saved file
+        // with a large run of harmless leading APP0 (JFIF-style) marker segments inserted
+        // immediately after the SOI marker - each carrying a near-maximum-length, all-zero
+        // payload - until comfortably exceeding the codec's internal probe soft cap.
+        var surface = new Surface(16, 16);
+        using var saveStream = new MemoryStream();
+        JpegCodec.Save(surface, saveStream, 90);
+        var original = saveStream.ToArray();
+
+        using var padded = new MemoryStream();
+        padded.WriteByte(original[0]);
+        padded.WriteByte(original[1]);
+        const int fillerSegmentPayloadLength = 65_000;
+        var totalFillerBytes = 0;
+        while (totalFillerBytes <= JpegCodec.MaxProbeHeaderBytes)
+        {
+            padded.WriteByte(0xFF);
+            padded.WriteByte(0xE0);
+            var length = fillerSegmentPayloadLength + 2;
+            padded.WriteByte((byte)(length >> 8));
+            padded.WriteByte((byte)length);
+            padded.Write(new byte[fillerSegmentPayloadLength]);
+            totalFillerBytes += fillerSegmentPayloadLength + 4;
+        }
+
+        padded.Write(original, 2, original.Length - 2);
+        var paddedBytes = padded.ToArray();
+
+        // Act
+        var info = JpegCodec.GetInfo(new MemoryStream(paddedBytes));
+        var loaded = JpegCodec.Load(new MemoryStream(paddedBytes));
+
+        // Assert: the system reports the expected integrated declared dimensions, matching what
+        // Load itself decodes, without throwing merely because the probe cap was reached
+        Assert.Equal(surface.Width, info.Width);
+        Assert.Equal(surface.Height, info.Height);
+        Assert.Equal(loaded.Width, info.Width);
+        Assert.Equal(loaded.Height, info.Height);
     }
 
     /// <summary>

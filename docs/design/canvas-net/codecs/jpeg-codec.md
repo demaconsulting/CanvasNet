@@ -105,8 +105,11 @@ assuming any implicit standard tables are present.
 - `InvalidDataException` — the stream does not begin with SOI; an unsupported SOF marker,
   arithmetic-coded variant, or unsupported component count is encountered; a frame width or height
   that is non-positive or exceeds `Surface.MaxDimension`; a referenced DHT/DQT table is missing; a
-  mandatory SOF/DHT/DQT/SOS segment is missing; the marker/segment structure is malformed; or the
-  stream ends before all header or entropy-coded data has been read
+  mandatory SOF/DHT/DQT/SOS segment is missing; the marker/segment structure is malformed; the
+  stream ends before all header or entropy-coded data has been read; or the pre-SOF marker-segment
+  walk exceeds `MaxProbeHeaderBytesHardLimit` (16 MiB) or `MaxProbeSegmentCount` (512 segments)
+  without a SOF0/SOF2 marker ever being found — the same two ceilings `GetInfo` enforces, described
+  further below
 
 #### Load(string path)
 
@@ -187,29 +190,106 @@ by `GetInfo`, which would report the dimensions from the later, valid SOF0. Shar
 helper between both call sites makes this divergence structurally impossible rather than merely
 untested.
 
-**Architectural decision (incremental scanning, not full-budget up-front buffering):**
+**Architectural decision (incremental scanning, not full-budget up-front buffering, with a soft
+rather than hard cap):**
 `GetInfo` used to unconditionally read a full `MaxProbeHeaderBytes` (1 MiB) buffer from the stream
 before scanning a single marker, so even a file whose SOF appears in its first few dozen bytes
 still forced up to 1 MiB of stream reads. `ProbeDimensions` now reads from the stream
 incrementally, in small growing chunks, via an internal `IncrementalProbeBuffer` helper, and stops
-issuing further reads the moment the target SOF segment has been fully materialized - only a
-pathological file with no SOF anywhere near the start (or an attacker deliberately padding with
-filler before the SOF) causes it to approach the unchanged `MaxProbeHeaderBytes` outer safety cap,
-which still bounds the *total* number of bytes `GetInfo` will ever read from the stream, exactly
-as before.
+issuing further reads the moment the target SOF segment has been fully materialized - only a file
+with no SOF anywhere near the start (or leading filler segments before the SOF) causes it to
+approach `MaxProbeHeaderBytes` (internal, not private, so the test project can reference it
+directly).
 
 Unlike `BmpCodec`/`PngCodec` (whose headers have a small, fixed maximum size) and unlike
 `TiffCodec` (which can seek directly to its IFD), a JPEG's SOF marker can in principle be preceded
-by an unbounded run of APPn/COM segments (each up to 65,533 bytes), so an unbounded sequential
-scan is not safe against a pathological or malicious stream; `MaxProbeHeaderBytes` remains the
-hard outer cap for exactly this reason. If no SOF0/SOF2 marker is found within that budget, it
-throws `InvalidDataException` with a message distinguishing "probe limit reached with more data
-possibly remaining" from "stream ended before an SOF marker was found" (the latter also covers the
-ordinary truncated/malformed-header case). The same distinction applies once an SOF0/SOF2 marker
-*has* been found but its declared segment length would require reading past the cap:
-`IncrementalProbeBuffer.ToExactArray` checks `CapReached` before throwing, so this case is also
-reported as the probe limit rather than misleadingly worded as an unexpected end of stream (the
-underlying stream is not actually truncated in this case; it simply was not read any further).
+by an unbounded run of APPn/COM segments (each up to 65,533 bytes). `MaxProbeHeaderBytes` was
+previously treated as a hard outer cap: reaching it caused `GetInfo` to throw, even for a
+perfectly well-formed JPEG that `Load` would decode successfully without any size limit of its
+own — violating the cross-codec invariant documented on `ImageInfo` ("GetInfo never throws for an
+input that Load would successfully decode"). `MaxProbeHeaderBytes` is now instead a *soft* cap on
+`IncrementalProbeBuffer`'s fast chunked-read growth strategy only: once satisfying the next
+requested length would exceed it, `TryEnsureLength` keeps reading past the cap in larger chunks
+(for efficiency) but strictly bounded to exactly the requested length - never further - so
+`ProbeDimensions`'s segment-by-segment scanning loop continues past the cap exactly as it does
+below it, one marker segment at a time, and stops issuing further reads the instant a SOF0/SOF2
+marker is found. This never bulk-reads or drains the remainder of the stream merely because the
+cap was crossed, so `GetInfo` never reads entropy-coded scan data.
+
+**Architectural decision (a separate hard limit bounds the post-soft-cap fallback scan):**
+Continuing to scan past `MaxProbeHeaderBytes` with no upper bound at all (other than genuine
+end-of-stream) reintroduces a denial-of-service vector: a malformed, adversarial, or
+effectively-infinite stream that never presents a SOF0/SOF2 marker would let
+`IncrementalProbeBuffer` grow its buffer and read from the stream without bound. `MaxProbeHeaderBytesHardLimit`
+(16 MiB, 16x `MaxProbeHeaderBytes`, internal like `MaxProbeHeaderBytes` so the test project can
+reference it directly) is a genuine, non-negotiable ceiling on the *total* amount of leading
+marker-segment data `IncrementalProbeBuffer.TryEnsureLength` will ever request from the stream:
+a request for more than that many total bytes is refused outright (`HardLimitExceeded`) without
+attempting to read it, rather than being satisfied. Once that ceiling is reached without a SOF0/SOF2
+marker ever being found, `ProbeDimensions` throws `InvalidDataException` — "JPEG SOF0/SOF2 marker
+not found within the 16777216-byte header probe hard limit." — rather than continuing to read or
+buffer data indefinitely. Sized generously (16x the soft cap) so that the real-world files with
+unusually large leading ICC/XMP metadata that motivated the soft-cap-continuation behavior above
+still probe successfully, this hard limit means `GetInfo` now throws `InvalidDataException` in
+exactly two cases: the stream genuinely ends before a supported SOF marker is found (same message
+as before), or the hard limit is reached first for a stream that never yields one.
+
+**Architectural decision (a second, independent hard limit bounds the number of segments
+scanned):** The byte-based `MaxProbeHeaderBytesHardLimit` bounds the total *data volume*
+`ProbeDimensions` can read past the soft cap, but does not, by itself, cheaply bound the number of
+loop iterations: a JPEG marker segment can be as small as 4 bytes (a 2-byte marker code plus a
+2-byte length field), so a malformed or adversarial stream composed entirely of minimal-size
+segments could still force on the order of `MaxProbeHeaderBytesHardLimit / 4` (roughly four
+million) scan iterations before the byte ceiling is ever reached. `MaxProbeSegmentCount` (512,
+internal like the other probe constants so the test project can reference it directly) closes
+this gap as a second, independent defense-in-depth ceiling: `ProbeDimensions` counts each
+non-terminating marker segment it scans past (stray restart markers and the general
+APPn/COM/DQT/DHT/etc. fallback path), and once more than `MaxProbeSegmentCount` such segments have
+been scanned without a SOF0/SOF2 marker ever being found, throws `InvalidDataException` —
+"JPEG SOF0/SOF2 marker not found within the 512-segment header probe limit." — rather than
+scanning further. Whichever of the two independent ceilings (this one, or
+`MaxProbeHeaderBytesHardLimit`) is reached first triggers the throw. Critically, the segment-count
+check is applied only to segments the scan continues *past* — never to the terminating SOF0/SOF2
+marker segment itself — so a well-formed file whose SOF marker happens to land exactly on what
+would otherwise be the `MaxProbeSegmentCount + 1`-th segment still probes successfully, preserving
+the same "`GetInfo` never throws for an input `Load` would successfully decode" invariant that
+motivates the soft cap's continuation behavior. Sized at 512, comfortably above both the ~20-30
+segments realistic files with rich EXIF/ICC/XMP/APP14/COM metadata might need, and the roughly 260
+maximal-length segments it takes to reach `MaxProbeHeaderBytesHardLimit`, the two ceilings remain
+genuinely independent rather than one silently overriding the other.
+
+**Architectural decision (`Load` shares the same two hard ceilings as `GetInfo`, achieving true
+parity rather than a documented exception):** `Load`'s own pre-SOF marker-segment walk (in
+`Decoder.Decode`) enforces the identical `MaxProbeHeaderBytesHardLimit` (16 MiB) and
+`MaxProbeSegmentCount` (512 segments) ceilings that `GetInfo`'s `ProbeDimensions` enforces,
+throwing the same `InvalidDataException` (via the same `BuildHardLimitException`/
+`BuildSegmentCountLimitException` helpers, so the message text is identical regardless of which
+public entry point triggers it) once either ceiling is reached without a SOF0/SOF2 marker ever
+being found. An earlier round of this work considered instead documenting the divergence as a
+deliberate, narrow, accepted exception to the "`GetInfo` never throws for an input `Load` would
+successfully decode" invariant on `ImageInfo` — reasoning that a matching cap on `Load`'s own
+segment walk would re-open a separate, previously deferred concern about `Load`'s overall
+unbounded-size `ReadAllBytes` read. On further review, sharing the same two ceilings between
+`Load` and `GetInfo` was chosen instead: it resolves the parity concern without any exception
+language, without touching `Load`'s separate (and still out-of-scope) overall file-size behavior,
+and without weakening either ceiling's DoS-prevention rationale — both ceilings remain sized
+generously enough (16 MiB of legitimate leading metadata, or 512 legitimate leading segments) that
+no realistic real-world JPEG is ever affected by either; only a pathological, adversarial, or
+effectively-infinite input triggers either throw, and it now does so identically for `Load` and
+`GetInfo`. See `JpegCodec_GetInfoVsLoad_LeadingMetadataExceedsHardLimit_BothThrowConsistently` and
+`JpegCodec_GetInfoVsLoad_LeadingSegmentCountExceedsLimit_BothThrowConsistently` for the regression
+tests proving both methods throw consistently for the same over-ceiling input, for each of the two
+independent ceilings respectively. See also
+`JpegCodec_GetInfoVsLoad_SofSegmentStraddlesHardLimit_BothThrowConsistently`, which proves the
+byte-based ceiling applies unconditionally to every byte read - including the SOF0/SOF2 segment's
+own bytes, not merely the leading filler that precedes it - guarding against a narrower regression
+where gating the check on post-segment state (rather than the state immediately before the current
+segment is processed) would wrongly exempt the one segment whose own bytes cross the ceiling. See
+also `JpegCodec_GetInfoVsLoad_SosBeforeSofAtSegmentCountBoundary_BothThrowSosMessageNotSegmentLimit`,
+which proves the segment-count ceiling excludes an SOS-before-SOF marker (in addition to the
+terminating SOF0/SOF2 marker) from its count, exactly as `ProbeDimensions`' segment-count check
+does, so `Load` and `GetInfo` never diverge on which specific `InvalidDataException` message a
+given byte sequence produces.
 
 **Throws:**
 
@@ -217,10 +297,12 @@ underlying stream is not actually truncated in this case; it simply was not read
 - `InvalidDataException` — the stream does not begin with SOI; an unsupported SOF/frame marker
   (any SOF variant other than SOF0/SOF2, or an arithmetic-coded/JPG-extension marker) or
   unsupported component count is encountered; an SOS marker is encountered before any SOF0/SOF2
-  marker; the marker/segment structure is malformed; the stream ends before an SOF0/SOF2 marker is
-  found; or the `MaxProbeHeaderBytes` probe limit is reached before an SOF0/SOF2 marker is found
-  (same contract as `Load`, except the `Surface.MaxDimension` check is skipped, entropy-coded scan
-  data is never required or read, and the probe-limit case is new to `GetInfo`)
+  marker; the marker/segment structure is malformed; the stream genuinely ends (even after
+  continuing to scan past the soft cap described above) before an SOF0/SOF2 marker is found; the
+  `MaxProbeHeaderBytesHardLimit` hard ceiling is reached without an SOF0/SOF2 marker ever being
+  found; or the `MaxProbeSegmentCount` segment-count ceiling is reached without an SOF0/SOF2
+  marker ever being found (same contract as `Load`, except the `Surface.MaxDimension` check is
+  skipped and entropy-coded scan data is never required or read)
 
 #### GetInfo(string path)
 

@@ -7,6 +7,10 @@ The `Canvas` unit is verified by `test/DemaConsulting.CanvasNet.Tests/Rendering/
 - **Stack semantics**: `Canvas_Save_ThenRestore_RestoresPreviousTransform` and
   `Canvas_Save_NestedSaveRestore_UnwindsInLifoOrder` verify Save/Restore behavior;
   `Canvas_Restore_OnEmptyStack_ThrowsInvalidOperationException` verifies the empty-stack throw.
+- **Transform-independent Clear**: `Canvas_Clear_DelegatesToSurfaceClear_ProducesByteIdenticalOutput`
+  compares `Canvas.Clear`'s output byte-for-byte against calling `Surface.Clear` directly;
+  `Canvas_Clear_WithNonIdentityTransform_StillFillsWholeSurfaceIdentically` proves a non-identity
+  `CurrentTransform` has no effect on `Clear`'s result, unlike every fill/stroke member.
 - **Composition order**: `Canvas_Translate_ThenTranslate_ComposesAdditively`,
   `Canvas_RotateDegrees_ThenTranslate_AppliesTranslationInRotatedFrame`, and
   `Canvas_Translate_ThenRotateDegrees_AppliesRotationInTranslatedFrame` verify prepend

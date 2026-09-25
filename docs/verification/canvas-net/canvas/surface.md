@@ -270,6 +270,25 @@ Separately, composites a constant opaque color over a multi-row, multi-column su
 every pixel is replaced, confirming the per-row loop is applied uniformly across the whole
 surface, not just a single pixel.
 
+#### CanvasNet-Canvas-Surface-Clear: Clear Overwrites Every Pixel Without Blending
+
+**Tests**: `Surface_Clear_MultiRowSurfaceWithNonAlignedWidth_OverwritesEveryPixel`,
+`Surface_Clear_AnyRgba32Value_NeverThrowsAndAppliesExactly`,
+`Surface_Clear_TransparentColorOverOpaqueBackground_OverwritesRatherThanBlending`,
+`CanvasNet_SystemIntegration_ClearSurfaceThenReadPixel_ReturnsExpectedColor`
+
+Clears a multi-row surface whose width is not a multiple of the SIMD vector width to a constant
+color and asserts every pixel, in every row (including any scalar remainder column), exactly
+equals that color. Separately, a `Theory` sweeps a representative set of `Rgba32` values
+(including fully opaque, fully transparent, and partially transparent) and asserts `Clear` never
+throws and every pixel exactly equals the value cleared to. Separately, clears a surface that was
+first filled with a fully opaque background color to a fully transparent color and asserts every
+pixel becomes exactly zero RGBA - proving `Clear` overwrites rather than blending, since
+`CompositeOver(Rgba32)` with the same transparent color would leave the opaque background
+unchanged. The system-level test additionally exercises `Clear` end-to-end through the public
+`Canvas`/`Surface` API surface and reads a pixel back to confirm the expected color, per
+`docs/verification/canvas-net.md`'s system-level evidence contract.
+
 #### CanvasNet-Canvas-Surface-CompositeOverSpan: CompositeOverSpan Matches Independently Computed Results
 
 **Tests**: `Surface_CompositeOverSpan_FullCoverage_MatchesCompositeOverColor`,

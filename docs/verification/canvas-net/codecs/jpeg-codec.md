@@ -223,30 +223,111 @@ identical.
 `JpegCodec_GetInfo_Color_ReturnsExpectedInfo`, `JpegCodec_GetInfoPath_ReturnsExpectedInfo`,
 `JpegCodec_GetInfo_LargeStream_NeverReadsPastProbeLimit`,
 `JpegCodec_GetInfo_SofNearStart_DoesNotReadFarBeyondWhatIsNeeded`,
-`JpegCodec_GetInfo_ProbeLimitExceededWithoutSof_ThrowsInvalidDataException`,
-`JpegCodec_GetInfo_SofSegmentExtendsBeyondProbeLimit_ThrowsWithProbeLimitMessage`,
+`JpegCodec_GetInfo_NoSofAnywhereEvenBeyondProbeCap_ThrowsInvalidDataException`,
+`JpegCodec_GetInfo_SofSegmentExtendsBeyondProbeCap_FailsForFormatReasonNotProbeCap`,
+`JpegCodec_GetInfo_LargeLeadingAppSegments_SucceedsAndMatchesLoadResult`,
+`JpegCodec_GetInfo_SofShortlyAfterProbeCap_StopsAtSofWithoutDrainingStream`,
+`JpegCodec_GetInfo_NoSofEverFound_StopsAtHardLimitWithInvalidDataException`,
+`JpegCodec_GetInfoVsLoad_LeadingMetadataExceedsHardLimit_BothThrowConsistently`,
+`JpegCodec_GetInfoVsLoad_LeadingSegmentCountExceedsLimit_BothThrowConsistently`,
+`JpegCodec_GetInfoVsLoad_SofSegmentStraddlesHardLimit_BothThrowConsistently`,
+`JpegCodec_GetInfoVsLoad_SosBeforeSofAtSegmentCountBoundary_BothThrowSosMessageNotSegmentLimit`,
+`JpegCodec_GetInfo_ManyMinimalSegmentsNoSof_StopsAtSegmentCountLimitBeforeByteLimit`,
+`JpegCodec_GetInfo_SofAsSegmentImmediatelyAfterSegmentCountLimit_StillSucceeds`,
 `JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows`,
-`JpegCodec_GetInfo_ZeroLengthSegment_TerminatesPromptlyWithInvalidDataException`
+`JpegCodec_GetInfo_ZeroLengthSegment_TerminatesPromptlyWithInvalidDataException`,
+`CanvasNet_SystemIntegration_JpegGetInfoWithLargeLeadingSegments_ReturnsExpectedInfo`
 
 Builds a hand-crafted stream containing only SOI/DQT/DHT/SOF0 for a 1-component grayscale frame
 (deliberately omitting SOS and all entropy-coded data), calls `GetInfo`, and asserts the returned
 `ImageInfo` reports the correct width/height, `Channels == 1`, and `HasAlpha == false`; repeats for
 a 3-component color frame. Confirms the file-path overload returns the same result as the stream
-overload via a temporary file. Proves `GetInfo` never reads past its `MaxProbeHeaderBytes`
-(1 MiB) hard outer cap by building a stream several megabytes long with the SOF marker near the
+overload via a temporary file. Proves `GetInfo` never reads past `MaxProbeHeaderBytes`
+(1 MiB) on its fast incremental path by building a stream several megabytes long with the SOF marker near the
 start and asserting `stream.Position` after `GetInfo` returns is at most 1,048,576 even though
 `stream.Length` is much larger. Proves `GetInfo` parses incrementally rather than upfront-buffering
 the full 1 MiB budget: using a bounded-read test stream (`BoundedReadStream`) that fails the test if
 more bytes are requested than a small margin beyond what the leading SOI/DQT/DHT/SOF0 segments
-actually require, asserts `GetInfo` still succeeds and never triggers that bound. Proves the
-probe-limit case is rejected distinctly by building over 1 MiB of filler bytes containing no SOF
-marker at all and asserting `GetInfo` throws `InvalidDataException` with a message mentioning the
-probe limit. Proves the same probe-limit attribution applies once an SOF0/SOF2 marker has already
-been found but its declared segment length would require reading past the cap: pads a stream with
-filler APPn segments up to just under the cap, appends an SOF0 marker declaring the maximum
-possible segment length (65,535), and asserts `GetInfo` throws `InvalidDataException` whose message
-still mentions the probe limit rather than misleadingly reporting an unexpected end of stream (the
-underlying stream is not actually truncated - it simply is not read any further). Proves `GetInfo`
+actually require, asserts `GetInfo` still succeeds and never triggers that bound. Proves that an
+input with no SOF marker anywhere - even far beyond the soft cap - still terminates and throws
+`InvalidDataException` (rather than looping or reading forever) once the stream genuinely ends:
+builds several megabytes of filler bytes containing no SOF marker at all and asserts `GetInfo`
+throws `InvalidDataException` with a message mentioning the SOF0/SOF2 marker never being found.
+Proves the soft cap does not itself cause a spurious failure once an SOF0/SOF2 marker's declared
+segment extends past where the cap would previously have stopped reading: pads a stream with
+filler APPn segments up to just under the cap, appends an SOF0 marker whose payload happens to be
+malformed in a way `Load` would also reject (sample precision 0), and asserts `GetInfo` throws
+`InvalidDataException` whose message reports that genuine format problem (mentioning "sample
+precision") rather than any wording referencing a probe limit - proving that continuing to scan
+past the cap transparently supplies the extra bytes needed to reach and parse the SOF segment, so
+the resulting failure is attributable only to the segment's own invalid content, not to the soft
+cap. Proves that continuing to scan past the soft cap succeeds end-to-end for a well-formed file
+whose leading segments exceed the cap: builds over 1 MiB of leading APP0 filler segments followed
+by a genuinely valid, decodable minimal single-component JPEG, and asserts `GetInfo` succeeds and
+reports the same `Width`/`Height` that `Load` on the identical bytes decodes - proving a large
+leading run of filler no longer causes `GetInfo` to throw for an input `Load` would successfully
+decode, upholding the cross-codec invariant documented on `ImageInfo`. Proves that once past the
+soft cap, `GetInfo` still stops reading the instant the SOF0/SOF2 marker is found rather than
+draining the stream to end-of-stream: builds a stream whose leading APP0 filler segments cross the
+soft cap immediately followed by a normal SOF0 segment, then an unbounded, never-ending "entropy"
+tail (`InfiniteTailStream`, wrapped in a `BoundedReadStream` so any attempt to read into that tail
+fails fast rather than hanging the test), and asserts `GetInfo` still returns the correct
+dimensions without the bound ever being tripped - this test fails against the previous
+implementation, which drained the tail (and would hang against a genuinely unbounded stream) even
+after the SOF marker had already been found. Proves that scanning past the soft cap is itself
+bounded by a much larger, separate hard limit rather than being able to continue indefinitely:
+builds well-formed, non-SOF APP0 filler segments comfortably exceeding that hard limit (with
+margin), followed by an unbounded, never-ending zero-byte tail (`InfiniteTailStream`) that a
+correct implementation must never reach, wrapped in a `BoundedReadStream` configured to throw a
+distinct `InvalidOperationException` the instant more than the hard limit (plus a small slack) is
+read - so the test fails loudly rather than hanging if the hard-limit protection were ever removed
+again - and asserts `GetInfo` instead throws `InvalidDataException` referencing the hard limit.
+Proves `Load` and `GetInfo` throw `InvalidDataException` consistently — true parity, not a
+documented exception — once a JPEG's leading marker-segment data exceeds
+`MaxProbeHeaderBytesHardLimit` before a SOF0/SOF2 marker is ever seen: builds well-formed,
+non-SOF APP0 filler segments comfortably exceeding that hard limit before a valid SOF0/SOS/entropy
+tail, and asserts both `Load` and `GetInfo` on the exact same bytes throw `InvalidDataException`
+referencing the hard limit, rather than `Load` accepting the file while only `GetInfo` rejects it.
+Proves the same true-parity behavior for the independent segment-count ceiling: builds many more
+than `MaxProbeSegmentCount`'s worth of well-formed, minimal (4-byte) non-SOF APP0 filler segments —
+totalling well under `MaxProbeHeaderBytesHardLimit`, so only the segment-count ceiling can be what
+trips — followed by a valid SOF0/SOS/entropy tail, and asserts both `Load` and `GetInfo` on the
+exact same bytes throw `InvalidDataException` referencing the segment limit, proving `Load`'s own
+pre-SOF segment walk enforces the same segment-count ceiling `GetInfo` enforces. Proves the
+byte-based hard ceiling applies unconditionally to every byte read, including the SOF0/SOF2
+segment's own bytes, not merely the leading filler that precedes it: builds leading filler so the
+cumulative byte count immediately before the SOF0 segment starts is just a few bytes under
+`MaxProbeHeaderBytesHardLimit`, so consuming the SOF0 segment's own bytes is what pushes the
+cumulative count past the ceiling, and asserts both `Load` and `GetInfo` on the exact same bytes
+still throw `InvalidDataException` referencing the hard limit - guarding against a regression where
+the check is gated on "has SOF0/SOF2 been found yet" using the state *after* processing the current
+segment, which would wrongly skip the check specifically for the one segment whose own bytes cross
+the ceiling. Proves that scanning past the soft cap is additionally bounded by a second, independent
+segment-count ceiling that catches an attack shape the byte-based hard limit alone would take
+millions of iterations to reach: builds many more than the segment-count limit's worth of
+well-formed, minimal (4-byte) non-SOF APP0 filler segments - totalling only a few kilobytes,
+nowhere near either byte-based cap - followed by an unbounded, never-ending zero-byte tail
+(`InfiniteTailStream`), wrapped in a `BoundedReadStream` configured with a small, generous budget
+(comfortably covering both the known prefix and the probe buffer's eager internal chunk reads,
+while remaining a tiny fraction of the byte-based soft cap and hard limit), and asserts `GetInfo`
+throws `InvalidDataException` referencing the segment limit well within that budget - proving the
+segment-count cap, not the byte-based cap, is what catches this attack shape. Proves the
+segment-count cap never rejects a well-formed file merely because its terminating SOF0/SOF2 marker
+happens to land exactly on what would otherwise be the limit-exceeding segment: builds exactly the
+segment-count limit's worth of non-SOF marker segments (minimal APP0 filler plus the DQT/DHT
+segments `Load` itself needs) followed immediately by a normal SOF0 segment and SOS/entropy data,
+and asserts `GetInfo` still succeeds and matches `Load`'s own decoded dimensions on the identical
+bytes exactly - proving the segment-count check is applied only to non-terminating segments, never
+to the SOF0/SOF2 marker itself. Proves the segment-count check also excludes an SOS-before-SOF
+marker, not just the terminating SOF0/SOF2 marker, mirroring exactly which marker kinds
+`ProbeDimensions`' segment-count check counts: builds exactly `MaxProbeSegmentCount` minimal
+(4-byte) APP0 filler segments - which, if the following SOS marker were also counted, would push
+that next segment past the ceiling - followed by an SOS marker with no SOF marker ever having
+appeared, and asserts both `Load` and `GetInfo`, on the exact same bytes, throw
+`InvalidDataException` referencing the SOS-before-SOF condition rather than the segment-count
+limit message - guarding against a narrower regression where an SOS-before-SOF marker landing
+exactly on the boundary segment would make `Load` throw the generic segment-count message while
+`GetInfo` throws its own, more specific message for the same bytes. Proves `GetInfo`
 does not enforce `Surface.MaxDimension` by building an SOF0 segment
 declaring a width one greater than `Surface.MaxDimension`, asserting `GetInfo` returns that raw
 oversized width without throwing, and then asserting `Load` on the exact same bytes still throws
@@ -256,7 +337,10 @@ zero, calls `GetInfo` directly and synchronously, and asserts it throws `Invalid
 No timing measurement is used (consistent with this project's no-timing-based-tests policy);
 termination is guaranteed structurally because the read position strictly advances on every
 iteration, locking in that `GetInfo` already terminates promptly rather than looping forever
-re-reading the same zero-length segment.
+re-reading the same zero-length segment. The system-level test additionally exercises scanning
+past the soft cap end-to-end through the public `JpegCodec.GetInfo` entry point against a
+manually constructed, padded JPEG byte stream, per `docs/verification/canvas-net.md`'s
+system-level evidence contract.
 
 #### CanvasNet-Codecs-JpegCodec-GetInfoValidation: GetInfo Rejects Invalid Arguments and Malformed Headers
 
@@ -278,7 +362,7 @@ corresponding `Load` scenarios, plus JPEG-specific malformed-ordering cases `Loa
 
 A unit test run passes when all test methods above pass without error or unexpected exception; any
 unexpected exception type or wrong return/value relationship constitutes a failure. Across
-`JpegCodecTests.cs` and `JpegFixtureTests.cs`, this totals 45 test methods (41 in
+`JpegCodecTests.cs` and `JpegFixtureTests.cs`, this totals 55 test methods (51 in
 `JpegCodecTests.cs` and 4 in `JpegFixtureTests.cs`); several of these are `[Theory]` methods that
 additionally expand to multiple executed xUnit test cases, plus the system-level integration
 scenarios documented in `docs/verification/canvas-net.md`.

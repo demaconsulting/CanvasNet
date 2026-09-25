@@ -277,6 +277,23 @@ sections:
                   - Surface_CompositeOverColor_PartialAlpha_MatchesIndependentlyComputedResult
                   - Surface_CompositeOverColor_MultiRowSurface_AppliesToEveryPixel
 
+              - id: CanvasNet-Canvas-Surface-Clear
+                title: >-
+                  The Surface class shall fill every pixel of itself with a constant color in
+                  place, overwriting any existing pixel data rather than blending against it.
+                justification: |
+                  Establishing a solid background fill before drawing (for example clearing a
+                  surface to a known color before compositing shapes onto it) is a common
+                  operation that should be a single vectorized bulk fill rather than requiring
+                  callers to either loop over every pixel individually or route the fill through
+                  CompositeOver's alpha-blending formula, which would incorrectly blend rather
+                  than overwrite when the surface already has non-matching pixel data.
+                tests:
+                  - Surface_Clear_MultiRowSurfaceWithNonAlignedWidth_OverwritesEveryPixel
+                  - Surface_Clear_AnyRgba32Value_NeverThrowsAndAppliesExactly
+                  - Surface_Clear_TransparentColorOverOpaqueBackground_OverwritesRatherThanBlending
+                  - CanvasNet_SystemIntegration_ClearSurfaceThenReadPixel_ReturnsExpectedColor
+
               - id: CanvasNet-Canvas-Surface-CompositeOverSpan
                 title: >-
                   The Surface class shall composite a constant color "over" a horizontal run of

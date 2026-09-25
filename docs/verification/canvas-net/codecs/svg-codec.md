@@ -385,6 +385,29 @@ bounded by the same character cap `LoadRootElement` already enforces — even th
 past the root start-tag, it still advances character-by-character through the tag's own attribute
 values.
 
+#### CanvasNet-Codecs-SvgCodec-XxeHardening: DOCTYPE-Bearing Documents Rejected via Both Load and GetInfo
+
+**Tests**: `SvgCodec_Load_DocumentWithDoctypeDeclaration_ThrowsInvalidDataException`,
+`SvgCodec_Load_DocumentWithExternalEntityDoctype_ThrowsInvalidDataException`,
+`SvgCodec_GetInfo_DocumentWithExternalEntityDoctype_ThrowsInvalidDataException`
+
+Asserts `Load` throws `InvalidDataException` for a well-formed-XML document that nonetheless
+declares a bare `DOCTYPE` (no entities involved), proving `DtdProcessing.Prohibit` rejects DTD
+processing outright rather than merely limiting what an entity can resolve to. Separately, asserts
+`Load` throws `InvalidDataException` for a document whose `DOCTYPE` declares and references an
+external general entity (a `file:///etc/passwd` SYSTEM URI - the canonical XXE payload shape). Per
+.NET's documented `DtdProcessing.Prohibit` behavior, the reader raises `XmlException` as soon as it
+encounters the `DOCTYPE` node itself, before any entity resolution is ever attempted, so the
+referenced resource is never read or requested - the tests prove the document is rejected, not
+(via a resolver spy or similar) that no fetch attempt occurs; that guarantee rests on the
+documented framework behavior of `DtdProcessing.Prohibit` combined with the `null` `XmlResolver`.
+This coverage is for external *general* entities only; external *parameter* entities are not
+separately tested, though the same `DtdProcessing.Prohibit` rejection applies equally to both.
+Separately, asserts `GetInfo` throws `InvalidDataException` for the same external-entity-declaring
+document, proving the hardening applies equally to `LoadRootElementAttributesOnly`'s
+root-start-tag-only `XmlReaderSettings`, not only to `LoadRootElement`'s full-document
+`XmlReaderSettings`.
+
 #### CanvasNet-Codecs-SvgCodec-MalformedPathDataRejected: Malformed Path "d" Data Rejected
 
 **Tests**: `SvgCodec_Load_MalformedPathDataUnknownCommand_ThrowsInvalidDataException`,

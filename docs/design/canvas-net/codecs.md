@@ -87,9 +87,11 @@ policy. Every `GetInfo` overload uses the same exception contract as the corresp
 overload (`ArgumentNullException` for a null stream/path, `ArgumentException` for an empty path,
 `InvalidDataException` for malformed/unparseable source data) — see each codec's own unit design
 document for the exact header-parsing strategy and any format-specific nuance (in particular
-`TiffCodec.GetInfo(Stream)`'s seek-only strategy, which additionally throws
-`NotSupportedException` for a non-seekable stream rather than attempting to buffer it, and
-`JpegCodec`'s bounded marker scan).
+`TiffCodec.GetInfo(Stream)`'s seek-based fast path with a buffering fallback for a non-seekable
+stream, and `JpegCodec`'s incremental marker scan continuing past its soft cap segment-by-segment
+rather than giving up) - see the
+_ImageInfo_ section above for the cross-codec invariant these fallbacks exist to uphold: GetInfo
+never throws for an input Load would successfully decode.
 
 The `Codecs` subsystem depends on the `Canvas` subsystem's `Surface` unit (constructing surfaces
 when loading and reading/writing rows via `Surface.GetRowSpanBytes` when saving) — see _Canvas
