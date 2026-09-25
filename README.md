@@ -73,8 +73,8 @@ using DemaConsulting.CanvasNet.Codecs;
 using System.IO;
 
 using var surface = new Surface(4, 4);
-surface[1, 1] = new Rgba32(255, 0, 0, 255); // set a red, opaque pixel
-var cropped = surface.Crop(0, 0, 2, 2);     // independent 2x2 copy
+surface[1, 1] = new Rgba32(255, 0, 0, 255);   // set a red, opaque pixel
+using var cropped = surface.Crop(0, 0, 2, 2); // independent 2x2 copy
 
 BmpCodec.Save(surface, "surface.bmp");        // save as a 32-bit BMP file
 var reloaded = BmpCodec.Load("surface.bmp"); // load it back

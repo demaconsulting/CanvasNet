@@ -1694,6 +1694,22 @@ public class SurfaceTests
     }
 
     /// <summary>
+    ///     Proves that calling CompositeOver(Surface) with a disposed foreground surface throws
+    ///     ObjectDisposedException, even when this surface itself has not been disposed.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSurface_ForegroundDisposed_ThrowsObjectDisposedException()
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+        var foreground = new Surface(2, 2);
+        foreground.Dispose();
+
+        // Act & Assert
+        Assert.Throws<ObjectDisposedException>(() => surface.CompositeOver(foreground));
+    }
+
+    /// <summary>
     ///     Proves that calling CompositeOver(Rgba32) on a disposed surface throws
     ///     ObjectDisposedException.
     /// </summary>
@@ -1738,5 +1754,19 @@ public class SurfaceTests
         // Act & Assert
         Assert.Throws<ObjectDisposedException>(
             () => surface.CompositeOverSpan(0, 0, [1f], (ReadOnlySpan<Rgba32>)[new Rgba32(1, 2, 3, 4)]));
+    }
+
+    /// <summary>
+    ///     Proves that calling Clear on a disposed surface throws ObjectDisposedException.
+    /// </summary>
+    [Fact]
+    public void Surface_Clear_AfterDispose_ThrowsObjectDisposedException()
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+        surface.Dispose();
+
+        // Act & Assert
+        Assert.Throws<ObjectDisposedException>(() => surface.Clear(new Rgba32(1, 2, 3, 4)));
     }
 }

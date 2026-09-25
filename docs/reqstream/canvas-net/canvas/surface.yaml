@@ -354,10 +354,10 @@ sections:
 
               - id: CanvasNet-Canvas-Surface-Disposal
                 title: >-
-                  The Surface class shall implement IDisposable, releasing its pixel-buffer
-                  resources when Dispose is called, tolerating a second call to Dispose without
-                  throwing, and rejecting any further use of a disposed instance's
-                  buffer-touching members with ObjectDisposedException.
+                  The Surface class shall implement IDisposable, logically releasing its
+                  pixel-buffer on Dispose so that it can no longer be used, tolerating a second
+                  call to Dispose without throwing, and rejecting any further use of a disposed
+                  instance's buffer-touching members with ObjectDisposedException.
                 justification: |
                   Surface currently owns a plain managed byte array, but a future non-breaking
                   change may back it with an ArrayPool-rented array to reduce allocation pressure
@@ -376,6 +376,8 @@ sections:
                   - Surface_PremultiplyAlpha_AfterDispose_ThrowsObjectDisposedException
                   - Surface_UnpremultiplyAlpha_AfterDispose_ThrowsObjectDisposedException
                   - Surface_CompositeOverSurface_AfterDispose_ThrowsObjectDisposedException
+                  - Surface_CompositeOverSurface_ForegroundDisposed_ThrowsObjectDisposedException
                   - Surface_CompositeOverColor_AfterDispose_ThrowsObjectDisposedException
                   - Surface_CompositeOverSpan_AfterDispose_ThrowsObjectDisposedException
                   - Surface_CompositeOverSpanPerPixelColors_AfterDispose_ThrowsObjectDisposedException
+                  - Surface_Clear_AfterDispose_ThrowsObjectDisposedException

@@ -399,7 +399,8 @@ sections:
           - id: CanvasNet-Canvas-Disposal
             title: >-
               The Canvas subsystem shall provide explicit resource-lifetime management for its
-              pixel buffer, releasing resources on demand and rejecting further use once released.
+              pixel buffer, logically releasing it on demand and rejecting further use once
+              released.
             justification: |
               Reserving the option to back the pixel buffer with a pooled (ArrayPool-rented)
               array in a future release - without another breaking API change - requires an
@@ -417,6 +418,8 @@ sections:
               - Surface_PremultiplyAlpha_AfterDispose_ThrowsObjectDisposedException
               - Surface_UnpremultiplyAlpha_AfterDispose_ThrowsObjectDisposedException
               - Surface_CompositeOverSurface_AfterDispose_ThrowsObjectDisposedException
+              - Surface_CompositeOverSurface_ForegroundDisposed_ThrowsObjectDisposedException
               - Surface_CompositeOverColor_AfterDispose_ThrowsObjectDisposedException
               - Surface_CompositeOverSpan_AfterDispose_ThrowsObjectDisposedException
               - Surface_CompositeOverSpanPerPixelColors_AfterDispose_ThrowsObjectDisposedException
+              - Surface_Clear_AfterDispose_ThrowsObjectDisposedException

@@ -98,7 +98,7 @@ public void Dispose()
 
 After `Dispose()` has been called, every other public member that touches the pixel buffer (the
 indexer, `GetRowSpanBytes`, `GetRowSpan`, `Crop`, `PremultiplyAlpha`, `UnpremultiplyAlpha`,
-`CompositeOver`, and `CompositeOverSpan`) throws `ObjectDisposedException`.
+`Clear`, `CompositeOver`, and `CompositeOverSpan`) throws `ObjectDisposedException`.
 
 **Exceptions:**
 
@@ -1207,7 +1207,7 @@ using DemaConsulting.CanvasNet.Codecs;
 using var surface = new Surface(4, 4);
 surface[1, 1] = new Rgba32(0, 255, 0, 255); // opaque green pixel
 
-var cropped = surface.Crop(1, 1, 2, 2);
+using var cropped = surface.Crop(1, 1, 2, 2);
 Console.WriteLine(cropped.Width);  // Output: 2
 Console.WriteLine(cropped.Height); // Output: 2
 Console.WriteLine(cropped[0, 0].G); // Output: 255

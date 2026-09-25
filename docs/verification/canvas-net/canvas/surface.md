@@ -370,15 +370,19 @@ workspace-reusing per-pixel-color overload matches the public overload's output 
 `Surface_PremultiplyAlpha_AfterDispose_ThrowsObjectDisposedException`,
 `Surface_UnpremultiplyAlpha_AfterDispose_ThrowsObjectDisposedException`,
 `Surface_CompositeOverSurface_AfterDispose_ThrowsObjectDisposedException`,
+`Surface_CompositeOverSurface_ForegroundDisposed_ThrowsObjectDisposedException`,
 `Surface_CompositeOverColor_AfterDispose_ThrowsObjectDisposedException`,
 `Surface_CompositeOverSpan_AfterDispose_ThrowsObjectDisposedException`,
-`Surface_CompositeOverSpanPerPixelColors_AfterDispose_ThrowsObjectDisposedException`
+`Surface_CompositeOverSpanPerPixelColors_AfterDispose_ThrowsObjectDisposedException`,
+`Surface_Clear_AfterDispose_ThrowsObjectDisposedException`
 
 Confirms that calling `Dispose()` once does not throw, and that calling it a second time is also
 safe (idempotent). Separately confirms that once a `Surface` has been disposed, every public
 buffer-touching member — the indexer (both get and set), `GetRowSpanBytes`, `GetRowSpan`, `Crop`,
-`PremultiplyAlpha`, `UnpremultiplyAlpha`, both `CompositeOver` overloads, and both public
+`PremultiplyAlpha`, `UnpremultiplyAlpha`, `Clear`, both `CompositeOver` overloads, and both public
 `CompositeOverSpan` overloads — rejects further use by throwing `ObjectDisposedException`.
+`CompositeOver(Surface)` additionally rejects a disposed `foreground` argument, even when this
+surface itself has not been disposed.
 
 #### Rgba32 Sanity Checks (no requirement link)
 

@@ -531,7 +531,9 @@ public sealed class Surface : IDisposable
     ///     Thrown when <paramref name="foreground"/>'s <see cref="Width"/> or <see cref="Height"/>
     ///     does not match this surface's.
     /// </exception>
-    /// <exception cref="ObjectDisposedException">Thrown when this surface has been disposed.</exception>
+    /// <exception cref="ObjectDisposedException">
+    ///     Thrown when this surface, or <paramref name="foreground"/>, has been disposed.
+    /// </exception>
     /// <remarks>
     ///     Both this surface and <paramref name="foreground"/> are assumed to hold straight
     ///     (unassociated) alpha on input, and the result is also straight alpha - callers do not
@@ -547,6 +549,8 @@ public sealed class Surface : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         ArgumentNullException.ThrowIfNull(foreground);
+
+        ObjectDisposedException.ThrowIf(foreground._disposed, foreground);
 
         if (foreground.Width != Width || foreground.Height != Height)
         {

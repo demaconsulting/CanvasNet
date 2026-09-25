@@ -28,7 +28,7 @@ section below).
 | `_buffer`       | `byte[]`           | Contiguous, row-major pixel storage, sized `Height * _strideBytes`.  |
 | `_strideBytes`  | `int`              | The physical byte size of one row, including trailing padding.       |
 | `BytesPerPixel` | `const int`        | The number of bytes per pixel (always 4: R, G, B, A).                |
-| `_disposed`     | `bool`             | Set once by `Dispose()`; buffer-touching members throw `ObjectDisposedException` if set.       |
+| `_disposed`     | `bool`             | Set once by `Dispose()`; guarded members then throw.                 |
 
 `MaxDimension` is `public` (not merely internal) so that callers can compare a probed image's
 declared dimensions — for example, a codec's `GetInfo(Stream)`/`GetInfo(string)` result — against
@@ -209,6 +209,7 @@ Results are converted back to bytes with round-half-away-from-zero, clamped to `
 
 - `ArgumentNullException` — when `foreground` is `null`
 - `ArgumentException` — when `foreground.Width != Width` or `foreground.Height != Height`
+- `ObjectDisposedException` — when this surface, or `foreground`, has been disposed
 
 #### CompositeOver(Rgba32 color)
 
@@ -348,7 +349,7 @@ never leak an unmanaged or pooled resource.
 
 After `Dispose()` has been called, every other public member that touches the pixel buffer
 (the indexer, `GetRowSpanBytes`, `GetRowSpan`, `Crop`, `PremultiplyAlpha`, `UnpremultiplyAlpha`,
-both `CompositeOver` overloads, and both public `CompositeOverSpan` overloads) throws
+`Clear`, both `CompositeOver` overloads, and both public `CompositeOverSpan` overloads) throws
 `ObjectDisposedException` via an `ObjectDisposedException.ThrowIf(_disposed, this)` guard as the
 first statement in the member.
 
@@ -364,7 +365,7 @@ written, and before the destination surface is mutated in `Crop`.
 
 Additionally, once `Dispose()` has been called, every public member that touches the pixel
 buffer — the indexer (get and set), `GetRowSpanBytes`, `GetRowSpan`, `Crop`, `PremultiplyAlpha`,
-`UnpremultiplyAlpha`, `CompositeOver(Surface)`, `CompositeOver(Rgba32)`, and both public
+`UnpremultiplyAlpha`, `Clear`, `CompositeOver(Surface)`, `CompositeOver(Rgba32)`, and both public
 `CompositeOverSpan` overloads — throws `ObjectDisposedException` via a guard at entry, before any
 of the member's own argument validation runs.
 
