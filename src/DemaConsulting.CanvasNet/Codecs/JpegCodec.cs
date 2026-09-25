@@ -993,8 +993,14 @@ public static class JpegCodec
                 // markers - both of which unconditionally throw their own, more specific
                 // InvalidDataException in ProcessSegment/ProbeDimensions regardless of how many
                 // segments preceded them - so Load and GetInfo never diverge on which exception
-                // message a given byte sequence produces.
-                if (!sofSeenBeforeSegment && CountsTowardSegmentLimit(marker) &&
+                // message a given byte sequence produces. Also mirrors ProbeDimensions'
+                // CheckSegmentCount in being a no-op until the soft cap has already been crossed
+                // (via pos, Load's equivalent of GetInfo's probe.Length), since this ceiling exists
+                // purely to bound the post-soft-cap fallback scan's iteration count - a legitimate
+                // file entirely under the soft cap with many small metadata segments must not be
+                // rejected merely for that.
+                if (!sofSeenBeforeSegment && pos > JpegCodec.MaxProbeHeaderBytes &&
+                    CountsTowardSegmentLimit(marker) &&
                     ++segmentCount > JpegCodec.MaxProbeSegmentCount)
                 {
                     throw BuildSegmentCountLimitException(JpegCodec.MaxProbeSegmentCount);
@@ -1143,7 +1149,15 @@ public static class JpegCodec
                 var target = Math.Min(requiredLength, softCap);
                 while (Length < target)
                 {
-                    var chunk = Math.Min(ChunkSize, softCap - Length);
+                    // Bounded by the smaller of the chunk size and how many bytes are actually
+                    // still needed to satisfy target (which is itself at most requiredLength).
+                    // Bounding only by softCap - Length here would read a full ChunkSize chunk
+                    // even when only a few bytes are needed to reach the next marker or the SOF
+                    // segment boundary, over-reading past requiredLength into whatever data
+                    // follows - including entropy-coded scan data - since stream.Read always
+                    // consumes what it's asked for from the underlying stream regardless of how
+                    // much of it the caller actually needed.
+                    var chunk = Math.Min(ChunkSize, target - Length);
                     EnsureCapacity(Length + chunk);
 
                     var read = stream.Read(_data, Length, chunk);
@@ -1291,9 +1305,17 @@ public static class JpegCodec
             // (stray restart markers and the general/APPn/COM/etc. fallback path below), never
             // for the terminating SOF0/SOF2 marker itself, so a legitimate file whose SOF0/SOF2
             // marker happens to be the segment that would otherwise exceed the ceiling still
-            // probes successfully, exactly as Load would decode it.
+            // probes successfully, exactly as Load would decode it. A no-op until the soft cap
+            // has already been crossed, since this ceiling exists purely to bound the post-soft-cap
+            // fallback scan's iteration count - a legitimate file entirely under the soft cap that
+            // happens to have many small metadata segments must not be rejected merely for that.
             void CheckSegmentCount()
             {
+                if (probe.Length <= JpegCodec.MaxProbeHeaderBytes)
+                {
+                    return;
+                }
+
                 if (++segmentCount > JpegCodec.MaxProbeSegmentCount)
                 {
                     throw BuildSegmentCountLimitException(JpegCodec.MaxProbeSegmentCount);
