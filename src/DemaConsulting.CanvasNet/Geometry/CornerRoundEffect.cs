@@ -148,8 +148,15 @@ public static class CornerRoundEffect
                     // an aggressive requested radius never overshoots either adjacent segment.
                     // "Incoming length" here uses the builder pen's current position (which is
                     // the tangent-out point of the previous corner if the previous vertex was
-                    // also rounded, or the previous vertex itself otherwise).
-                    var incomingStart = i >= 1 ? commands[i - 1].EndPoint : moveToPoint;
+                    // also rounded, or the previous vertex itself otherwise). For the first
+                    // corner (i == 0), the pen's actual current position is moveToPoint, but when
+                    // a wrap-around corner was rounded, moveToPoint is already the tangent-out
+                    // point of that rounding - i.e. it has been pulled in along this same edge.
+                    // Using it here would shorten the apparent edge length and clamp this
+                    // corner's radius too aggressively. The clamp must instead reflect the
+                    // original (pre-rounding) edge length, so use the subpath's original,
+                    // un-adjusted start point in that case.
+                    var incomingStart = i >= 1 ? commands[i - 1].EndPoint : subpath.Start;
                     var effectiveRadius = ClampRadius(radius, incomingStart, cornerPoint, nextEnd);
 
                     builder.TangentArcTo(cornerPoint, nextEnd, effectiveRadius);

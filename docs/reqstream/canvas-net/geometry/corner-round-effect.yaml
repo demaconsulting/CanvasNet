@@ -23,6 +23,7 @@ sections:
                   - CornerRoundEffect_Apply_SquareRectangle_ProducesCornerArcs
                   - CornerRoundEffect_Apply_ClosedSquare_RoundsAllFourCornersIncludingWrapAroundCorner
                   - CornerRoundEffect_Apply_ClampsRadiusToHalfShorterAdjacentSegment
+                  - CornerRoundEffect_Apply_Size10SquareRadius5_AllFourCornersGetSameUnclampedRadius
 
               - id: CanvasNet-Geometry-CornerRoundEffect-ZeroRadius
                 title: The CornerRoundEffect class shall return the source path unchanged when the radius is zero.

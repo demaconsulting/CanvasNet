@@ -85,6 +85,54 @@ public class CornerRoundEffectTests
         }
     }
 
+    /// <summary>
+    ///     CornerRoundEffect_Apply_Size10SquareRadius5_AllFourCornersGetSameUnclampedRadius.
+    /// </summary>
+    /// <remarks>
+    ///     Regression test for a clamp-cascade bug introduced alongside the wrap-around corner
+    ///     fix: when computing the clamp for the first real corner (i == 0), the code used the
+    ///     already-tangent-adjusted <c>moveToPoint</c> (the wrap-around corner's tangent-out
+    ///     point) as the incoming-edge start, which shortens the apparent edge length and
+    ///     over-clamps that corner's radius. For a size-10 square with corner radius 5, every
+    ///     original adjacent segment is length 10, so <c>min(incoming, outgoing) / 2 == 5</c> for
+    ///     every corner: radius 5 should NOT be clamped anywhere, and every corner's actual
+    ///     tangent length (the distance from each original sharp corner to its rounded arc's
+    ///     tangent-in point) must come out identical (5), not just "some cubic exists" - the
+    ///     previously buggy code instead clamped the first corner to a tangent length of 2.5
+    ///     while leaving the other three at 5.
+    /// </remarks>
+    [Fact]
+    public void CornerRoundEffect_Apply_Size10SquareRadius5_AllFourCornersGetSameUnclampedRadius()
+    {
+        var rounded = CornerRoundEffect.Apply(Square(), 5f);
+        var sub = Assert.Single(rounded.Subpaths);
+        var commands = sub.Commands;
+
+        Vector2[] corners = [new(0, 0), new(10, 0), new(10, 10), new(0, 10)];
+        var tangentLengths = new List<float>();
+
+        for (var i = 0; i + 1 < commands.Count; i++)
+        {
+            if (commands[i].Type != PathCommandType.LineTo || commands[i + 1].Type != PathCommandType.CubicBezierTo)
+            {
+                continue;
+            }
+
+            // The LineTo immediately preceding a CubicBezierTo is the arc's tangent-in point -
+            // its distance to the nearest original sharp corner is that corner's actual
+            // (possibly clamped) tangent length.
+            var tangentIn = commands[i].EndPoint;
+            var nearestCorner = corners.OrderBy(c => Vector2.Distance(c, tangentIn)).First();
+            tangentLengths.Add(Vector2.Distance(nearestCorner, tangentIn));
+        }
+
+        // All four corners of the square must have been rounded (four tangent-in points found),
+        // and every one of them must have the SAME, unclamped tangent length (radius 5, since
+        // min(10, 10) / 2 == 5 for every original adjacent segment).
+        Assert.Equal(4, tangentLengths.Count);
+        Assert.All(tangentLengths, length => Assert.Equal(5f, length, 0.001f));
+    }
+
     /// <summary>CornerRoundEffect_Apply_ClampsRadiusToHalfShorterAdjacentSegment.</summary>
     [Fact]
     public void CornerRoundEffect_Apply_ClampsRadiusToHalfShorterAdjacentSegment()
