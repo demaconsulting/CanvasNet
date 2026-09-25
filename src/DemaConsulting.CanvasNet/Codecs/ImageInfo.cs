@@ -28,6 +28,26 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///         method continues to enforce <see cref="Surface.MaxDimension"/> exactly as before.
 ///     </para>
 ///     <para>
+///         A second, equally deliberate invariant: <b><c>GetInfo</c> never throws for an input
+///         that <c>Load</c> would successfully decode</b>. A caller that first calls <c>GetInfo</c>
+///         to triage a file's declared dimensions must be able to trust that, having done so
+///         successfully, a subsequent <c>Load</c> call on the same bytes will not itself fail for
+///         a reason <c>GetInfo</c> could have - but did not - already surfaced. Each codec upholds
+///         this differently: BMP/PNG's headers are always at a small, fixed offset near the start
+///         of the file, so their <c>GetInfo</c> methods read exactly the same fixed-size header
+///         <c>Load</c> itself reads, with no separate code path to diverge from it. TIFF's Image
+///         File Directory can legitimately be located anywhere in the file, including on a
+///         non-seekable stream; <see cref="TiffCodec.GetInfo(Stream)"/> upholds the invariant by
+///         falling back to buffering the whole stream (exactly as <see cref="TiffCodec.Load(Stream)"/>
+///         already does unconditionally) whenever the input is non-seekable, rather than
+///         rejecting it. JPEG's marker segments preceding the frame header have no fixed bound in
+///         a well-formed file; <see cref="JpegCodec.GetInfo(Stream)"/> upholds the invariant by
+///         treating its incremental probe cap as a soft threshold - once reached without finding
+///         a SOF0/SOF2 marker, it falls back to bulk-reading the remainder of the stream (matching
+///         <see cref="JpegCodec.Load(Stream)"/>'s own unbounded buffering) and continues scanning,
+///         rather than giving up while more data still remains.
+///     </para>
+///     <para>
 ///         This type is a plain, immutable data carrier with no behavior beyond its record-struct
 ///         value equality; it deliberately has no new struct type per format, since all four
 ///         codecs report the same four properties from their respective header formats:
@@ -60,9 +80,9 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///             <description>
 ///                 TIFF: <see cref="Channels"/> is the <c>SamplesPerPixel</c> tag's value,
 ///                 defaulting to <c>BitsPerSample</c>'s entry count when the tag is
-///                 absent, resolved through the same validating parser for every seekable
-///                 stream (a seekable stream is required; a non-seekable stream causes
-///                 <c>GetInfo</c> to throw <see cref="NotSupportedException"/> immediately);
+///                 absent, resolved through the same validating parser regardless of whether the
+///                 source stream is seekable (a non-seekable stream is buffered into memory
+///                 first; see <see cref="TiffCodec.GetInfo(Stream)"/>'s remarks);
 ///                 <see cref="HasAlpha"/> is <see langword="true"/> only for an RGB image
 ///                 with 4 samples per pixel and a valid <c>ExtraSamples</c> tag value of
 ///                 2.

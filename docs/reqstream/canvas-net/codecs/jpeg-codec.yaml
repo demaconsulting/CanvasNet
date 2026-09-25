@@ -265,26 +265,40 @@ sections:
                   supported SOF segment (skipping other length-prefixed segments without
                   entropy-decoding scan data, and reading no more of the stream than necessary once the
                   target SOF has been fully parsed), without requiring an SOS segment or entropy-coded
-                  data to be present, and without enforcing Surface.MaxDimension. GetInfo shall bound
-                  its marker scan to at most MaxProbeHeaderBytes (1,048,576) bytes as a hard outer cap,
-                  throwing InvalidDataException if that limit is reached before a supported SOF marker
-                  is found.
+                  data to be present, and without enforcing Surface.MaxDimension. GetInfo's incremental
+                  marker scan shall treat MaxProbeHeaderBytes (1,048,576) as a soft cap on its fast
+                  chunked-read path only: once that cap is reached without a supported SOF marker
+                  having been found, GetInfo shall fall back to bulk-reading the remainder of the
+                  stream (matching Load's own unbounded buffering) and continue scanning against the
+                  fully-buffered data, rather than throwing. GetInfo shall throw InvalidDataException
+                  only when the stream genuinely ends - even after that bulk-read fallback - without a
+                  supported SOF marker ever being found.
                 justification: |
                   Callers need to inspect a JPEG's declared dimensions and component count (for example
                   to reject unreasonably large images before allocating a Surface) without paying the
                   cost of entropy-decoding the scan data, without an unbounded scan over a pathological
                   stream that never presents an SOF marker, and without unconditionally reading up to
                   the full probe cap even when the SOF appears near the start of a much larger stream;
-                  JPEG has no alpha channel, so GetInfo always reports HasAlpha as false.
+                  JPEG has no alpha channel, so GetInfo always reports HasAlpha as false. Load itself has
+                  no overall file-size ceiling, so a hard outer cap on GetInfo's probe would violate the
+                  cross-codec invariant documented on ImageInfo ("GetInfo never throws for an input that
+                  Load would successfully decode") for any file whose leading marker-segment data happens
+                  to exceed the soft cap; treating the cap as a threshold for switching from incremental
+                  chunked reads to a single bulk read - rather than as a point of failure - upholds that
+                  invariant while still avoiding an eager, always-maximal read for the common case where
+                  the SOF appears near the start of the stream.
                 tests:
                   - JpegCodec_GetInfo_Grayscale_ReturnsExpectedInfoWithoutSosOrEntropyData
                   - JpegCodec_GetInfo_Color_ReturnsExpectedInfo
                   - JpegCodec_GetInfoPath_ReturnsExpectedInfo
                   - JpegCodec_GetInfo_LargeStream_NeverReadsPastProbeLimit
                   - JpegCodec_GetInfo_SofNearStart_DoesNotReadFarBeyondWhatIsNeeded
-                  - JpegCodec_GetInfo_ProbeLimitExceededWithoutSof_ThrowsInvalidDataException
+                  - JpegCodec_GetInfo_NoSofAnywhereEvenBeyondProbeCap_ThrowsInvalidDataException
+                  - JpegCodec_GetInfo_SofSegmentExtendsBeyondProbeCap_FailsForFormatReasonNotProbeCap
+                  - JpegCodec_GetInfo_LargeLeadingAppSegments_SucceedsAndMatchesLoadResult
                   - JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows
                   - JpegCodec_GetInfo_ZeroLengthSegment_TerminatesPromptlyWithInvalidDataException
+                  - CanvasNet_SystemIntegration_JpegGetInfoWithLargeLeadingSegments_ReturnsExpectedInfo
 
               - id: CanvasNet-Codecs-JpegCodec-GetInfoValidation
                 title: >-

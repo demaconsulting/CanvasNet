@@ -347,6 +347,28 @@ sections:
                   - SvgCodec_Load_ViewBoxWidthExtremelySmallCausesNonFiniteFitScale_ThrowsInvalidDataException
                   - SvgCodec_GetInfo_OversizedRootAttributeValueExceedingCharacterBudget_ThrowsInvalidDataException
 
+              - id: CanvasNet-Codecs-SvgCodec-XxeHardening
+                title: >-
+                  The SvgCodec class shall explicitly disable DTD processing (DtdProcessing.Prohibit)
+                  and external entity/DTD resolution (a null XmlResolver) on every XmlReaderSettings
+                  instance it constructs - both Load's full-document parse and GetInfo's root-start-tag-
+                  only parse - and shall reject a document containing a DOCTYPE declaration (including
+                  one that declares an external or parameter entity) with InvalidDataException via
+                  either entry point.
+                justification: |
+                  Although these are already the effective default XmlReaderSettings behavior on
+                  .NET, making them explicit is defense-in-depth documentation clarity against XML
+                  External Entity (XXE) injection: a reader that processes a DOCTYPE or resolves an
+                  external entity could otherwise be tricked into reading arbitrary local files or
+                  making unexpected network requests merely by parsing a maliciously crafted SVG
+                  document. Explicit settings ensure this hardening cannot be silently lost by a future
+                  .NET default change or a well-intentioned but incomplete edit to either
+                  XmlReaderSettings construction.
+                tests:
+                  - SvgCodec_Load_DocumentWithDoctypeDeclaration_ThrowsInvalidDataException
+                  - SvgCodec_Load_DocumentWithExternalEntityDoctype_ThrowsInvalidDataException
+                  - SvgCodec_GetInfo_DocumentWithExternalEntityDoctype_ThrowsInvalidDataException
+
               - id: CanvasNet-Codecs-SvgCodec-MalformedPathDataRejected
                 title: >-
                   The SvgCodec class shall reject a path element whose "d" data contains an

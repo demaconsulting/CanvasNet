@@ -89,6 +89,19 @@ public sealed class Canvas
     }
 
     /// <summary>
+    ///     Fills every pixel of the underlying <see cref="Surface"/> with the constant
+    ///     <paramref name="color"/>, overwriting any existing pixel data.
+    /// </summary>
+    /// <param name="color">The color to fill the entire surface with.</param>
+    /// <remarks>
+    ///     A direct passthrough to <see cref="DemaConsulting.CanvasNet.Canvas.Surface.Clear(Rgba32)"/>. Unlike
+    ///     <see cref="FillPath(Path, Rgba32, FillRule)"/> and <see cref="StrokePath"/>, no
+    ///     geometry is involved, so <see cref="CurrentTransform"/> has no effect on the result -
+    ///     the whole surface is filled unconditionally, regardless of the current transform.
+    /// </remarks>
+    public void Clear(Rgba32 color) => Surface.Clear(color);
+
+    /// <summary>
     ///     Fills <paramref name="path"/> with a solid color, honoring the current transform.
     /// </summary>
     /// <param name="path">The path to fill. Must not be <see langword="null"/>.</param>

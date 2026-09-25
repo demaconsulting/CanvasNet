@@ -21,6 +21,7 @@ namespace DemaConsulting.CanvasNet.Canvas;
 ///     and every public row accessor (<see cref="GetRowSpanBytes"/>, <see cref="GetRowSpan"/>)
 ///     always return exactly <c>Width</c>-length data - the padding bytes are never observable
 ///     through any public member.
+///
 /// </remarks>
 public sealed class Surface
 {
@@ -253,7 +254,10 @@ public sealed class Surface
     ///     without copying any data, so writes through the returned span are immediately visible
     ///     through the indexer and <see cref="GetRowSpanBytes"/>, and vice versa.
     /// </remarks>
-    public Span<Rgba32> GetRowSpan(int y) => MemoryMarshal.Cast<byte, Rgba32>(GetRowSpanBytes(y));
+    public Span<Rgba32> GetRowSpan(int y)
+    {
+        return MemoryMarshal.Cast<byte, Rgba32>(GetRowSpanBytes(y));
+    }
 
     /// <summary>
     ///     Returns the full physical (padded) bytes of the specified row, including any trailing
@@ -267,11 +271,11 @@ public sealed class Surface
     /// <remarks>
     ///     This is a private helper used only by bulk, whole-row vectorized pixel operations
     ///     (<see cref="PremultiplyAlpha"/>, <see cref="UnpremultiplyAlpha"/>,
-    ///     <see cref="CompositeOver(Surface)"/>, <see cref="CompositeOver(Rgba32)"/>) so that
-    ///     they can process the full physical row in one vectorized pass with zero scalar
-    ///     remainder. The padding bytes it exposes are never read back through any public
-    ///     accessor, and callers of this helper must never persist or observe them as meaningful
-    ///     pixel data.
+    ///     <see cref="CompositeOver(Surface)"/>, <see cref="CompositeOver(Rgba32)"/>,
+    ///     <see cref="Clear"/>) so that they can process the full physical row in one vectorized
+    ///     pass with zero scalar remainder. The padding bytes it exposes are never read back
+    ///     through any public accessor, and callers of this helper must never persist or observe
+    ///     them as meaningful pixel data.
     /// </remarks>
     private Span<byte> GetPaddedRowSpanBytes(int y) => _buffer.AsSpan(y * _strideBytes, _strideBytes);
 
@@ -569,6 +573,50 @@ public sealed class Surface
             ZeroColorWhereAlphaByteIsZero(bg.ABytes, bg.RBytes, bg.GBytes, bg.BBytes, pixelsPerRow);
 
             ReinterleaveRow(bgRow, bg, pixelsPerRow);
+        }
+    }
+
+    /// <summary>
+    ///     Fills every pixel of this surface with the constant <paramref name="color"/>,
+    ///     overwriting any existing pixel data in place.
+    /// </summary>
+    /// <param name="color">The color to fill the entire surface with.</param>
+    /// <remarks>
+    ///     Unlike <see cref="CompositeOver(Rgba32)"/>, this is a pure overwrite - no alpha
+    ///     blending against existing pixel data is performed, so <paramref name="color"/> becomes
+    ///     the exact value of every pixel regardless of its alpha component. It builds a single
+    ///     padded interleaved row containing <paramref name="color"/> repeated across every pixel
+    ///     (reusing the same <see cref="RowChannelBuffers"/>/<see cref="ReinterleaveRow"/>
+    ///     broadcast-and-reuse pattern <see cref="CompositeOver(Rgba32)"/> uses to build its
+    ///     constant foreground row) and then bulk-copies that one pattern row into every row of
+    ///     the surface via <see cref="Span{T}.CopyTo"/>, so the fill cost is one vectorized memory
+    ///     copy per row rather than a per-pixel store. Every possible <see cref="Rgba32"/> value
+    ///     is valid, so this method never throws.
+    /// </remarks>
+    /// <example>
+    ///     <code>
+    ///     var surface = new Surface(4, 4);
+    ///     surface.Clear(new Rgba32(0, 0, 0, 255)); // fill the whole surface with opaque black
+    ///     </code>
+    /// </example>
+    public void Clear(Rgba32 color)
+    {
+        var pixelsPerRow = _strideBytes / BytesPerPixel;
+        using var pattern = new RowChannelBuffers(pixelsPerRow);
+
+        Array.Fill(pattern.RBytes, color.R, 0, pixelsPerRow);
+        Array.Fill(pattern.GBytes, color.G, 0, pixelsPerRow);
+        Array.Fill(pattern.BBytes, color.B, 0, pixelsPerRow);
+        Array.Fill(pattern.ABytes, color.A, 0, pixelsPerRow);
+
+        // Build one padded interleaved pattern row and reuse it for every row of the surface -
+        // a bulk memory copy per row rather than a per-pixel loop.
+        var patternRow = new byte[_strideBytes];
+        ReinterleaveRow(patternRow, pattern, pixelsPerRow);
+
+        for (var y = 0; y < Height; y++)
+        {
+            patternRow.AsSpan().CopyTo(GetPaddedRowSpanBytes(y));
         }
     }
 

@@ -215,6 +215,36 @@ Composites the constant `color` "over" every pixel of this surface, using the sa
 rounding rule as `CompositeOver(Surface)`, with `color` acting as the foreground at every pixel.
 Every possible `Rgba32` value is valid, so this method never throws.
 
+#### Clear(Rgba32 color)
+
+Overwrites every pixel of this surface with the constant `color`, replacing rather than
+blending against existing pixel data. Every possible `Rgba32` value is valid, so this method
+never throws.
+
+**Architectural note (overwrite vs. blend)**: `Clear` is distinct from `CompositeOver(Rgba32)`
+in kind, not merely in speed — `CompositeOver(Rgba32)` runs `color` through the Porter-Duff
+"over" formula against the surface's existing pixels, so a semi-transparent `color` blends with
+whatever was already there, and even a fully-opaque `color` requires evaluating the full blend
+formula per pixel. `Clear` performs no blend math at all: the exact same `Rgba32` byte pattern is
+written into every pixel regardless of what was previously stored there or of `color.A`. This
+matters for a genuine "establish a known background" use case (for example clearing a surface to
+transparent black before drawing), where the existing pixel data is irrelevant garbage (freshly
+rented/reused memory, or leftovers from a previous frame) that must not influence the result —
+blending against it via `CompositeOver(Rgba32)` would be both wrong (a non-opaque `color` would
+partially preserve that garbage) and needlessly expensive (full blend math for what is
+conceptually a pure overwrite).
+
+**Algorithm** (broadcast-fill, distinct from `CompositeOver`'s per-row blend pipeline): rents a
+single `RowChannelBuffers` (the same planar-channel scratch buffer type the vectorized
+compositing operations use) sized for one row, fills each of its four `byte[]` planar channel
+arrays with `color`'s corresponding component via `Array.Fill`, reinterleaves that single row of
+constant planar data into one `byte[_strideBytes]` pattern buffer via the existing
+`ReinterleaveRow` helper, then copies that one pattern buffer into every row's padded byte span
+(`GetPaddedRowSpanBytes`) via `Span<byte>.CopyTo`. Only one row's worth of channel buffers and
+one pattern buffer are ever allocated/rented regardless of surface height — every subsequent row
+reuses the same already-built pattern via a fixed-size `CopyTo`, rather than repeating the
+fill/reinterleave work per row.
+
 #### CompositeOverSpan(int y, int x, ReadOnlySpan\<float\> coverage, Rgba32 color)
 
 Composites the constant `color` "over" a horizontal run of `coverage.Length` pixels within row

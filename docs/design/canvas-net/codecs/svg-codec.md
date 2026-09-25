@@ -74,6 +74,24 @@ through the element tree alongside an accumulated `System.Numerics.Matrix3x2` tr
 private `RenderContext` capturing fixed per-document state (the id→`XElement` index, the caller's
 font dictionary, and the resolved fit transform).
 
+### XML Parsing Hardening (XXE)
+
+Both `LoadRootElement` (backing `Load`'s full-document parse) and `LoadRootElementAttributesOnly`
+(backing `GetInfo`'s root-start-tag-only parse) construct their own `System.Xml.XmlReaderSettings`
+and explicitly set `DtdProcessing = DtdProcessing.Prohibit` and `XmlResolver = null` on each,
+in addition to the `MaxCharactersInDocument` budget each already enforces (see _GetInfo Fallback
+Policy_ and _Error Handling_ below). These two settings are already `XmlReaderSettings`'s
+effective defaults on .NET, so this does not change observed behavior for any input accepted
+today; the point is defense-in-depth documentation clarity against XML External Entity (XXE)
+injection, rather than closing a currently-exploitable gap. A reader that processed a `DOCTYPE`
+declaration, or resolved an external entity referenced from one, could otherwise be used to read
+arbitrary local files or trigger unexpected network requests merely by parsing a maliciously
+crafted SVG document; explicit settings on both `XmlReaderSettings` instances ensure this
+hardening cannot be silently lost by a future .NET default change or by an incomplete edit to only
+one of the two settings-construction sites. A `DOCTYPE`-bearing document - including one declaring
+an external or parameter entity - is rejected with `InvalidDataException` via both `Load` and
+`GetInfo`, exactly as any other malformed-XML input is (see _Error Handling_ below).
+
 ### Key Methods
 
 #### Load(Stream stream, int width, int height, IReadOnlyDictionary\<string, TrueTypeFont\>? fonts = null)

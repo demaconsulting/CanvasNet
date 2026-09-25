@@ -869,38 +869,43 @@ public class JpegCodecTests
     }
 
     /// <summary>
-    ///     Verifies that GetInfo throws InvalidDataException, with a message distinguishable from
-    ///     the truncated-stream case, when no SOF0/SOF2 marker is found within the
-    ///     MaxProbeHeaderBytes probe cap even though the stream itself is much larger.
+    ///     Verifies that GetInfo still throws InvalidDataException for a stream that never
+    ///     contains a SOF0/SOF2 marker anywhere, even well beyond the MaxProbeHeaderBytes soft
+    ///     cap: the soft cap's bulk-read fallback buffers the remainder of the stream and
+    ///     continues scanning, but a genuinely SOF-less stream is still correctly rejected once
+    ///     end-of-stream is reached, matching <see cref="JpegCodec.Load(Stream)"/>'s own
+    ///     rejection of the same bytes.
     /// </summary>
     [Fact]
-    public void JpegCodec_GetInfo_ProbeLimitExceededWithoutSof_ThrowsInvalidDataException()
+    public void JpegCodec_GetInfo_NoSofAnywhereEvenBeyondProbeCap_ThrowsInvalidDataException()
     {
         // Filler bytes containing no 0xFF marker byte at all, long enough to exceed the 1 MiB
-        // probe cap before any SOF0/SOF2 marker could ever be found.
+        // soft cap and trigger the bulk-read fallback before any SOF0/SOF2 marker could ever be
+        // found.
         var filler = new byte[1_100_000];
 
         var jpeg = BuildJpeg([], entropyData: filler, includeEoi: false);
 
         var exception = Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(new MemoryStream(jpeg)));
-        Assert.Contains("probe limit", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("SOF0/SOF2 marker", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
     ///     Regression test: when the SOF0/SOF2 marker itself is found within the
-    ///     MaxProbeHeaderBytes cap, but its declared segment length would require reading past the
-    ///     cap, <c>IncrementalProbeBuffer.ToExactArray</c> used to report the generic
-    ///     "unexpected end of stream" message unconditionally - even though the stream is not
-    ///     actually truncated, and plenty more data follows - because it ignored
-    ///     <c>CapReached</c>. Verifies the exception message now correctly attributes this case to
-    ///     the probe limit, matching <see cref="JpegCodec_GetInfo_ProbeLimitExceededWithoutSof_ThrowsInvalidDataException"/>'s
-    ///     wording for the analogous marker-scan-side case.
+    ///     MaxProbeHeaderBytes soft cap, but its declared segment length would require reading
+    ///     past that cap, GetInfo used to throw a "probe limit" InvalidDataException even though
+    ///     plenty more of the stream remained (not a genuine truncation). Now the soft cap
+    ///     triggers a one-time bulk-read fallback instead, so this exact byte sequence is scanned
+    ///     to completion and rejected only for a genuine format-validation reason (the filler
+    ///     bytes used as the SOF payload do not encode a valid 8-bit sample precision) - proving
+    ///     GetInfo no longer fails merely because the SOF segment's declared length crosses the
+    ///     soft cap.
     /// </summary>
     [Fact]
-    public void JpegCodec_GetInfo_SofSegmentExtendsBeyondProbeLimit_ThrowsWithProbeLimitMessage()
+    public void JpegCodec_GetInfo_SofSegmentExtendsBeyondProbeCap_FailsForFormatReasonNotProbeCap()
     {
         // Filler APP0 segments (each just under the 64 KiB segment-length limit) to advance the
-        // scan position to just under the 1 MiB probe cap without ever encountering a SOF marker.
+        // scan position to just under the 1 MiB soft cap without ever encountering a SOF marker.
         const int fillerSegmentPayloadLength = 65_000;
         var segments = new List<byte[]>();
         for (var total = 0; total < 1_000_000; total += fillerSegmentPayloadLength + 2)
@@ -909,15 +914,60 @@ public class JpegCodecTests
         }
 
         // An SOF0 marker whose declared segment length (65535, the maximum a ushort can express)
-        // pushes the required end position well past the 1 MiB cap, even though the underlying
-        // stream continues for a long time afterwards (so this is not a genuine truncation).
+        // pushes the required end position well past the 1 MiB soft cap, even though the
+        // underlying stream continues for a long time afterwards (so this is not a genuine
+        // truncation) - the bulk-read fallback buffers the rest of the stream and this segment's
+        // (all-zero filler) payload is then parsed as an actual SOF payload.
         var sofMarker = new byte[] { MarkerPrefix, MarkerSof0, 0xFF, 0xFF };
         segments.Add(sofMarker);
 
         var jpeg = BuildJpeg([.. segments], entropyData: new byte[200_000], includeEoi: false);
 
         var exception = Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(new MemoryStream(jpeg)));
-        Assert.Contains("probe limit", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("probe limit", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("sample precision", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    ///     Proves the core GetInfo/Load parity fix in this bundle: a genuinely valid, decodable
+    ///     JPEG (the same minimal 16x8 single-component fixture used by
+    ///     <see cref="JpegCodec_Load_WithRestartMarkers_DecodesIdenticallyToWithoutRestartMarkers"/>)
+    ///     preceded by more than <see cref="JpegCodec.MaxProbeHeaderBytes"/> of leading APP0
+    ///     filler segments - which used to make GetInfo throw a "probe limit" InvalidDataException
+    ///     even though <see cref="JpegCodec.Load(Stream)"/> would successfully decode the exact
+    ///     same bytes - now succeeds via the soft-cap bulk-read fallback and matches Load's own
+    ///     decoded dimensions and component count exactly.
+    /// </summary>
+    [Fact]
+    public void JpegCodec_GetInfo_LargeLeadingAppSegments_SucceedsAndMatchesLoadResult()
+    {
+        // Arrange: enough leading APP0 filler segments to exceed MaxProbeHeaderBytes before the
+        // SOF0 marker is ever seen, followed by the minimal valid, decodable JPEG fixture.
+        const int fillerSegmentPayloadLength = 65_000;
+        var segments = new List<byte[]>();
+        var totalFillerBytes = 0;
+        while (totalFillerBytes <= JpegCodec.MaxProbeHeaderBytes)
+        {
+            segments.Add(BuildSegment(0xE0, new byte[fillerSegmentPayloadLength]));
+            totalFillerBytes += fillerSegmentPayloadLength + 4;
+        }
+
+        segments.Add(BuildMinimalDqtSegment());
+        segments.Add(BuildMinimalDhtSegment());
+        segments.Add(BuildSofSegment(MarkerSof0, 16, 8, (1, 0x11, 0)));
+        segments.Add(BuildSosSegment((1, 0x00)));
+
+        var jpeg = BuildJpeg([.. segments], entropyData: [0x00, 0x00]);
+
+        // Act
+        var info = JpegCodec.GetInfo(new MemoryStream(jpeg));
+        var surface = JpegCodec.Load(new MemoryStream(jpeg));
+
+        // Assert: GetInfo succeeds (rather than throwing merely because the soft cap was
+        // reached) and matches Load's own decoded dimensions/channel count exactly.
+        Assert.Equal(new ImageInfo(16, 8, 1, false), info);
+        Assert.Equal(16, surface.Width);
+        Assert.Equal(8, surface.Height);
     }
 
     /// <summary>

@@ -86,14 +86,29 @@ public static class JpegCodec
     private const byte MarkerRst7 = 0xD7;
 
     /// <summary>
-    ///     The maximum number of bytes <see cref="GetInfo(Stream)"/> will read while searching for
-    ///     a SOF0/SOF2 marker before giving up with an <see cref="InvalidDataException"/>. Chosen
-    ///     to comfortably bound even a pathological run of maximal-length (65,535-byte) APPn/COM
-    ///     segments preceding the frame header (16 such segments alone would consume roughly 1 MiB),
-    ///     while remaining minuscule next to the entropy-coded body of any real photographic image,
-    ///     which this probe never needs to read.
+    ///     A soft cap, in bytes, on <see cref="GetInfo(Stream)"/>'s fast incremental chunked-read
+    ///     probe path. Chosen to comfortably bound even a pathological run of maximal-length
+    ///     (65,535-byte) APPn/COM segments preceding the frame header (16 such segments alone
+    ///     would consume roughly 1 MiB), while remaining minuscule next to the entropy-coded body
+    ///     of any real photographic image, which this probe never needs to read.
     /// </summary>
-    private const int MaxProbeHeaderBytes = 1_048_576;
+    /// <remarks>
+    ///     This is a soft cap only: once reached without finding a SOF0/SOF2 marker,
+    ///     <see cref="GetInfo(Stream)"/> falls back to bulk-reading the remainder of the stream
+    ///     (matching <see cref="Load(Stream)"/>'s own unbounded buffering via
+    ///     <see cref="ReadAllBytes"/>) and continues scanning against the fully-buffered data, so
+    ///     <see cref="GetInfo(Stream)"/> never throws merely because a file has more than
+    ///     <c>MaxProbeHeaderBytes</c> of leading marker-segment data - as long as
+    ///     <see cref="Load(Stream)"/> itself would successfully parse that file up to and
+    ///     including the SOF marker. A file that is genuinely truncated or malformed (no SOF
+    ///     marker anywhere, even after reading to end-of-stream) still throws
+    ///     <see cref="InvalidDataException"/>, matching <see cref="Load(Stream)"/>'s own rejection
+    ///     of the same bytes. Declared <see langword="internal"/> (rather than
+    ///     <see langword="private"/>) so the test project (which the assembly already grants
+    ///     <c>InternalsVisibleTo</c>) can construct fixtures that deliberately straddle this
+    ///     threshold without hard-coding its value.
+    /// </remarks>
+    internal const int MaxProbeHeaderBytes = 1_048_576;
 
     /// <summary>
     ///     The standard 64-entry zigzag scan order: index <c>z</c> holds the natural (row-major)
@@ -288,12 +303,13 @@ public static class JpegCodec
     /// </summary>
     /// <param name="stream">
     ///     The stream to read the JPEG marker segments from. Reading begins at the stream's
-    ///     current position and consumes at most <see cref="MaxProbeHeaderBytes"/> bytes,
-    ///     incrementally: in practice, only up through the end of the first SOF0/SOF2 segment,
-    ///     since SOS (and any entropy-coded data) is never required to determine
-    ///     <see cref="ImageInfo"/>, and reading grows only as far as the scan actually needs
-    ///     rather than eagerly consuming a full fixed-size prefix regardless of where the SOF
-    ///     marker is.
+    ///     current position; in the common case where the SOF segment appears within the first
+    ///     <see cref="MaxProbeHeaderBytes"/> bytes (as it does for essentially all real-world
+    ///     JPEG files), only that much is read incrementally. If that soft cap is reached without
+    ///     finding a SOF0/SOF2 marker, the remainder of the stream is read in one bulk read and
+    ///     scanning continues - matching <see cref="Load(Stream)"/>'s own unbounded buffering -
+    ///     so <see cref="GetInfo(Stream)"/> never throws merely because a file has an unusually
+    ///     large amount of leading marker-segment data.
     /// </param>
     /// <returns>
     ///     An <see cref="ImageInfo"/> describing the file's declared width, height, and component
@@ -305,9 +321,8 @@ public static class JpegCodec
     ///     Thrown when the SOI marker is missing, an SOS marker or end-of-image is reached before
     ///     any SOF0/SOF2 marker is found, an unsupported SOF/frame marker (for example SOF1/SOF3,
     ///     the same markers <see cref="Load(Stream)"/> rejects) is encountered, or no SOF0/SOF2
-    ///     marker is found within <see cref="MaxProbeHeaderBytes"/> bytes (whether because the
-    ///     stream ended first, or because the probe's bounded cap was reached while the stream
-    ///     still had more data - the two conditions are reported with distinct messages).
+    ///     marker is found anywhere in the stream (a genuinely truncated or non-JPEG input) - the
+    ///     same condition <see cref="Load(Stream)"/> itself would reject on the same bytes.
     ///     <see cref="Surface.MaxDimension"/> is <em>not</em> enforced - the raw header-declared
     ///     values are always returned; see <see cref="ImageInfo"/> for why.
     /// </exception>
@@ -874,38 +889,48 @@ public static class JpegCodec
         ///     A growable byte buffer backed by a <see cref="Stream"/>, used by
         ///     <see cref="ProbeDimensions(Stream)"/> to read only as many bytes as the marker scan
         ///     actually needs at any point, rather than eagerly reading a full fixed-size prefix
-        ///     up front. Grows in small chunks, on demand, up to an outer <paramref name="maxLength"/>
-        ///     safety cap.
+        ///     up front. Grows in small chunks, on demand, up to a <paramref name="maxLength"/>
+        ///     soft cap; once that soft cap is reached without satisfying a request, it falls
+        ///     back to a single bulk read of the remainder of the stream (mirroring
+        ///     <see cref="JpegCodec.ReadAllBytes"/>'s own unbounded buffering) so that only a
+        ///     genuine end-of-stream - never merely exceeding the soft cap - leaves a request
+        ///     unsatisfied thereafter.
         /// </summary>
         private sealed class IncrementalProbeBuffer(Stream stream, int maxLength)
         {
             /// <summary>The chunk size used for each incremental stream read.</summary>
             private const int ChunkSize = 4096;
 
-            private byte[] _data = new byte[Math.Min(ChunkSize, maxLength)];
-
-            /// <summary>The number of bytes currently buffered (always &lt;= the outer max-length cap).</summary>
-            public int Length { get; private set; }
+            /// <summary>The chunk size used once the bulk-read fallback has been triggered.</summary>
+            private const int BulkChunkSize = 81920;
 
             /// <summary>
-            ///     Whether the outer max-length cap was reached without buffering as many bytes as
-            ///     the most recent <see cref="TryEnsureLength"/> call requested (as opposed to the
-            ///     stream itself ending first).
+            ///     Whether the bulk-read fallback has already been triggered, so it is only ever
+            ///     performed once per probe.
             /// </summary>
-            public bool CapReached { get; private set; }
+            private bool _bulkFallbackApplied;
+
+            private byte[] _data = new byte[Math.Min(ChunkSize, maxLength)];
+
+            /// <summary>The number of bytes currently buffered.</summary>
+            public int Length { get; private set; }
 
             public byte this[int index] => _data[index];
 
             /// <summary>
             ///     Ensures at least <paramref name="requiredLength"/> bytes are buffered, reading
-            ///     further chunks from the stream only as needed, never past the outer max-length
-            ///     cap in total.
+            ///     further chunks from the stream only as needed. While <paramref name="requiredLength"/>
+            ///     stays within the outer <c>maxLength</c> soft cap, only that many bytes are ever
+            ///     read; once the cap would otherwise be exceeded, a one-time bulk read of the
+            ///     remainder of the stream is triggered instead of giving up (see
+            ///     <see cref="IncrementalProbeBuffer"/> remarks), so this method only returns
+            ///     <see langword="false"/> once the stream has genuinely ended without enough
+            ///     data to satisfy the request.
             /// </summary>
             /// <returns>
             ///     <see langword="true"/> if at least <paramref name="requiredLength"/> bytes are
-            ///     now buffered; <see langword="false"/> if the stream ended, or the outer
-            ///     max-length cap was reached, before that many bytes could be read (see
-            ///     <see cref="CapReached"/> to distinguish the two cases).
+            ///     now buffered; <see langword="false"/> if the stream ended before that many
+            ///     bytes could be read, even after the bulk-read fallback was attempted.
             /// </returns>
             public bool TryEnsureLength(int requiredLength)
             {
@@ -918,10 +943,7 @@ public static class JpegCodec
                 while (Length < target)
                 {
                     var chunk = Math.Min(ChunkSize, maxLength - Length);
-                    if (_data.Length < Length + chunk)
-                    {
-                        Array.Resize(ref _data, Length + chunk);
-                    }
+                    EnsureCapacity(Length + chunk);
 
                     var read = stream.Read(_data, Length, chunk);
                     if (read == 0)
@@ -934,11 +956,65 @@ public static class JpegCodec
 
                 if (Length < requiredLength)
                 {
-                    CapReached = true;
-                    return false;
+                    // The soft cap was reached before requiredLength was satisfied - fall back
+                    // to bulk-reading the remainder of the stream (once) rather than giving up,
+                    // matching Load's own unbounded buffering, then re-check.
+                    if (!_bulkFallbackApplied)
+                    {
+                        _bulkFallbackApplied = true;
+                        BulkReadRemainder(requiredLength);
+                    }
+
+                    return Length >= requiredLength;
                 }
 
                 return true;
+            }
+
+            /// <summary>
+            ///     Performs the one-time bulk-read fallback: reads forward at least as far as
+            ///     <paramref name="atLeastLength"/> (if the stream has that much data left), then
+            ///     keeps reading in larger chunks until the stream ends, so every subsequent
+            ///     <see cref="TryEnsureLength"/> call against already-buffered data succeeds
+            ///     without needing a further fallback.
+            /// </summary>
+            private void BulkReadRemainder(int atLeastLength)
+            {
+                while (Length < atLeastLength)
+                {
+                    var chunk = atLeastLength - Length;
+                    EnsureCapacity(Length + chunk);
+
+                    var read = stream.Read(_data, Length, chunk);
+                    if (read == 0)
+                    {
+                        return;
+                    }
+
+                    Length += read;
+                }
+
+                while (true)
+                {
+                    EnsureCapacity(Length + BulkChunkSize);
+
+                    var read = stream.Read(_data, Length, BulkChunkSize);
+                    if (read == 0)
+                    {
+                        return;
+                    }
+
+                    Length += read;
+                }
+            }
+
+            /// <summary>Grows the backing array to at least <paramref name="requiredCapacity"/> bytes.</summary>
+            private void EnsureCapacity(int requiredCapacity)
+            {
+                if (_data.Length < requiredCapacity)
+                {
+                    Array.Resize(ref _data, requiredCapacity);
+                }
             }
 
             /// <summary>
@@ -950,11 +1026,8 @@ public static class JpegCodec
             {
                 if (!TryEnsureLength(length))
                 {
-                    throw CapReached
-                        ? new InvalidDataException(
-                            $"JPEG segment extends beyond the {JpegCodec.MaxProbeHeaderBytes}-byte header probe limit.")
-                        : new InvalidDataException(
-                            "Unexpected end of stream while reading a JPEG segment during header probing.");
+                    throw new InvalidDataException(
+                        "Unexpected end of stream while reading a JPEG segment during header probing.");
                 }
 
                 return _data.AsSpan(0, length).ToArray();
@@ -965,11 +1038,14 @@ public static class JpegCodec
         ///     Scans a JPEG stream's leading marker segments, reading incrementally and only as
         ///     far as necessary, looking for the first SOF0/SOF2 marker, and returns its declared
         ///     dimensions and component count without ever reaching <c>SOS</c>/entropy-coded scan
-        ///     data. Reads at most <see cref="JpegCodec.MaxProbeHeaderBytes"/> bytes total from
-        ///     <paramref name="stream"/>, but in the common case where the SOF segment appears
-        ///     near the start of the stream (as it does for essentially all real-world JPEG
-        ///     files), reads only as far as the end of that segment - never a full fixed-size
-        ///     prefix regardless of where the SOF marker actually is.
+        ///     data. In the common case where the SOF segment appears near the start of the
+        ///     stream (as it does for essentially all real-world JPEG files), reads only as far
+        ///     as the end of that segment - never a full fixed-size prefix regardless of where
+        ///     the SOF marker actually is. If more than <see cref="JpegCodec.MaxProbeHeaderBytes"/>
+        ///     bytes of leading marker-segment data are present, falls back to bulk-reading the
+        ///     remainder of the stream (matching <see cref="JpegCodec.Load(Stream)"/>'s own
+        ///     unbounded buffering) and continues scanning, so this never gives up merely because
+        ///     the soft cap was reached while more data remained.
         /// </summary>
         /// <param name="stream">
         ///     The stream to read JPEG marker segments from, starting at its current position.
@@ -977,9 +1053,9 @@ public static class JpegCodec
         /// <exception cref="System.IO.InvalidDataException">
         ///     Thrown when the SOI marker is missing, an SOS marker or end-of-image is reached
         ///     before any SOF0/SOF2 marker is found, an unsupported SOF/frame marker (for example
-        ///     SOF1/SOF3) is encountered, or the bounded prefix is exhausted (either because the
-        ///     stream itself ended, or because <see cref="JpegCodec.MaxProbeHeaderBytes"/> was
-        ///     reached while more data remained) without finding a SOF0/SOF2 marker.
+        ///     SOF1/SOF3) is encountered, or the stream genuinely ends (even after the
+        ///     <see cref="JpegCodec.MaxProbeHeaderBytes"/> soft-cap bulk-read fallback) without a
+        ///     SOF0/SOF2 marker ever being found.
         /// </exception>
         public static ImageInfo ProbeDimensions(Stream stream)
         {
@@ -995,7 +1071,7 @@ public static class JpegCodec
             {
                 if (!probe.TryEnsureLength(pos + 2))
                 {
-                    throw ProbeExhaustedException(probe);
+                    throw ProbeExhaustedException();
                 }
 
                 // Skip any fill bytes (0xFF) before the marker code.
@@ -1004,7 +1080,7 @@ public static class JpegCodec
                     pos++;
                     if (!probe.TryEnsureLength(pos + 2))
                     {
-                        throw ProbeExhaustedException(probe);
+                        throw ProbeExhaustedException();
                     }
                 }
 
@@ -1015,7 +1091,7 @@ public static class JpegCodec
 
                 if (!probe.TryEnsureLength(pos + 2))
                 {
-                    throw ProbeExhaustedException(probe);
+                    throw ProbeExhaustedException();
                 }
 
                 var marker = probe[pos + 1];
@@ -1028,7 +1104,7 @@ public static class JpegCodec
                         {
                             if (!probe.TryEnsureLength(pos + 2))
                             {
-                                throw ProbeExhaustedException(probe);
+                                throw ProbeExhaustedException();
                             }
 
                             var segmentLength = (ushort)((probe[pos] << 8) | probe[pos + 1]);
@@ -1060,7 +1136,7 @@ public static class JpegCodec
                     default:
                         if (!probe.TryEnsureLength(pos + 2))
                         {
-                            throw ProbeExhaustedException(probe);
+                            throw ProbeExhaustedException();
                         }
 
                         pos += (ushort)((probe[pos] << 8) | probe[pos + 1]);
@@ -1070,18 +1146,16 @@ public static class JpegCodec
         }
 
         /// <summary>
-        ///     Builds the appropriate <see cref="InvalidDataException"/> for
-        ///     <see cref="ProbeDimensions(Stream)"/> running out of buffered/readable data before
-        ///     a SOF0/SOF2 marker was found, distinguishing "the stream itself ended" from "the
-        ///     <see cref="JpegCodec.MaxProbeHeaderBytes"/> probe cap was reached" with separate
-        ///     messages.
+        ///     Builds the <see cref="InvalidDataException"/> for <see cref="ProbeDimensions(Stream)"/>
+        ///     running out of readable data before a SOF0/SOF2 marker was found - which, now that
+        ///     <see cref="IncrementalProbeBuffer"/> falls back to bulk-reading the remainder of the
+        ///     stream once its soft cap is reached, only happens when the stream has genuinely
+        ///     ended (truncated or non-JPEG data), never merely because
+        ///     <see cref="JpegCodec.MaxProbeHeaderBytes"/> was reached.
         /// </summary>
-        private static InvalidDataException ProbeExhaustedException(IncrementalProbeBuffer probe) =>
-            probe.CapReached
-                ? new InvalidDataException(
-                    $"JPEG SOF0/SOF2 marker not found within the {JpegCodec.MaxProbeHeaderBytes}-byte header probe limit.")
-                : new InvalidDataException(
-                    "Stream ended before a JPEG SOF0/SOF2 marker was found (truncated or non-JPEG data).");
+        private static InvalidDataException ProbeExhaustedException() =>
+            new(
+                "Stream ended before a JPEG SOF0/SOF2 marker was found (truncated or non-JPEG data).");
 
         /// <summary>
         ///     Mutable state threaded through <see cref="ProcessSegment"/> while <see cref="Decode"/>

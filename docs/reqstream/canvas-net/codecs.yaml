@@ -496,20 +496,20 @@ sections:
             title: >-
               The Codecs subsystem shall report a TIFF's width, height, samples-per-pixel, and alpha
               presence via GetInfo, given a stream or a file path, without decoding strip data and
-              without enforcing Surface.MaxDimension, requiring a seekable stream and seeking
-              directly to the IFD rather than buffering the whole file, rejecting a non-seekable
-              stream immediately with NotSupportedException before reading any bytes, rejecting a
-              tiled TIFF, and resolving stream-relative positions from wherever the caller's stream
-              was actually positioned when GetInfo was invoked, identically to Load.
+              without enforcing Surface.MaxDimension, seeking directly to the IFD for a seekable
+              stream, buffering the whole stream (matching Load's own unconditional buffering) as a
+              fallback for a non-seekable stream, rejecting a tiled TIFF, and resolving
+              stream-relative positions from wherever the caller's stream was actually positioned when
+              GetInfo was invoked, identically to Load.
             justification: |
               Callers need to inspect a TIFF's declared dimensions and channel layout without paying
               the cost of decoding strip data, via a handful of small seeks rather than buffering
-              the whole file. Unlike PNG/JPEG/BMP, a TIFF's IFD can legitimately be located
-              anywhere in the file, so no bounded, purely sequential scan can reliably resolve
-              every well-formed TIFF from a non-seekable source; requiring a seekable stream up front
-              keeps GetInfo's behavior identical for every well-formed file regardless of stream
-              capability, rather than risking a divergence a bounded fallback would otherwise
-              introduce.
+              the whole file when the stream is seekable. Unlike PNG/JPEG/BMP, a TIFF's IFD can
+              legitimately be located anywhere in the file, so no bounded, purely sequential scan can
+              reliably resolve every well-formed TIFF from a non-seekable source; rather than
+              rejecting a non-seekable stream outright, GetInfo upholds the invariant that it never
+              throws for an input Load would successfully decode by falling back to Load's own
+              buffering strategy only when the stream genuinely cannot seek.
             children:
               - CanvasNet-Codecs-TiffCodec-GetInfo
               - CanvasNet-Codecs-TiffCodec-GetInfoTiledRejection
@@ -522,8 +522,8 @@ sections:
               - TiffCodec_GetInfo_SucceedsWithTruncatedStripData_ButLoadThrows
               - TiffCodec_GetInfo_Seekable_TiledTiff_ThrowsInvalidDataException
               - TiffCodec_GetInfo_Seekable_StreamNotAtPositionZero_ReturnsCorrectImageInfo
-              - TiffCodec_GetInfo_NonSeekableStream_ThrowsNotSupportedException
-              - TiffCodec_GetInfo_NonSeekableStream_ThrowsBeforeReadingAnyBytes
+              - TiffCodec_GetInfo_NonSeekableStream_SucceedsAndMatchesLoadResult
+              - CanvasNet_SystemIntegration_TiffGetInfoOnNonSeekableStream_ReturnsExpectedInfo
 
           - id: CanvasNet-Codecs-TiffGetInfoValidation
             title: >-
@@ -637,14 +637,18 @@ sections:
               GetInfo, given a stream or a file path, by scanning markers incrementally for a
               supported SOF segment without entropy-decoding scan data, without requiring an SOS
               segment or entropy-coded data, and without enforcing Surface.MaxDimension, reading no
-              more of the stream than necessary once the target SOF has been fully parsed and bounding
-              the scan to a fixed maximum number of probed header bytes as a hard outer cap.
+              more of the stream than necessary once the target SOF has been fully parsed and treating
+              a fixed maximum number of probed header bytes as a soft cap: once reached without a
+              supported SOF marker having been found, GetInfo falls back to bulk-reading the
+              remainder of the stream (matching Load's own unbounded buffering) rather than throwing.
             justification: |
               Callers need to inspect a JPEG's declared dimensions and component count without paying
               the cost of entropy-decoding the scan data, without an unbounded scan over a
               pathological stream that never presents an SOF marker, and without unconditionally
               reading up to the full probe cap even when the SOF appears near the start of a much
-              larger stream.
+              larger stream. Since Load itself has no overall file-size ceiling, treating the cap as a
+              hard failure point would violate the invariant that GetInfo never throws for an input
+              Load would successfully decode.
             children:
               - CanvasNet-Codecs-JpegCodec-GetInfo
             tests:
@@ -653,8 +657,11 @@ sections:
               - JpegCodec_GetInfoPath_ReturnsExpectedInfo
               - JpegCodec_GetInfo_LargeStream_NeverReadsPastProbeLimit
               - JpegCodec_GetInfo_SofNearStart_DoesNotReadFarBeyondWhatIsNeeded
-              - JpegCodec_GetInfo_ProbeLimitExceededWithoutSof_ThrowsInvalidDataException
+              - JpegCodec_GetInfo_NoSofAnywhereEvenBeyondProbeCap_ThrowsInvalidDataException
+              - JpegCodec_GetInfo_SofSegmentExtendsBeyondProbeCap_FailsForFormatReasonNotProbeCap
+              - JpegCodec_GetInfo_LargeLeadingAppSegments_SucceedsAndMatchesLoadResult
               - JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows
+              - CanvasNet_SystemIntegration_JpegGetInfoWithLargeLeadingSegments_ReturnsExpectedInfo
 
           - id: CanvasNet-Codecs-JpegGetInfoValidation
             title: >-
@@ -809,6 +816,23 @@ sections:
               - SvgCodec_Load_MalformedTransformUnrecognizedFunction_ThrowsInvalidDataException
               - SvgCodec_Load_MalformedPathDataUnknownCommand_ThrowsInvalidDataException
               - SvgCodec_Load_MalformedPathDataMissingArguments_ThrowsInvalidDataException
+
+          - id: CanvasNet-Codecs-SvgXxeHardening
+            title: >-
+              The Codecs subsystem shall explicitly disable DTD processing and external entity
+              resolution for SVG parsing (both Load and GetInfo), rejecting a document containing
+              a DOCTYPE declaration with InvalidDataException.
+            justification: |
+              Defense-in-depth documentation clarity against XML External Entity (XXE) injection:
+              a reader that processed a DOCTYPE or resolved an external entity could otherwise be
+              tricked into reading arbitrary local files or making unexpected network requests
+              merely by parsing a maliciously crafted SVG document.
+            children:
+              - CanvasNet-Codecs-SvgCodec-XxeHardening
+            tests:
+              - SvgCodec_Load_DocumentWithDoctypeDeclaration_ThrowsInvalidDataException
+              - SvgCodec_Load_DocumentWithExternalEntityDoctype_ThrowsInvalidDataException
+              - SvgCodec_GetInfo_DocumentWithExternalEntityDoctype_ThrowsInvalidDataException
 
           - id: CanvasNet-Codecs-SvgTolerateUnsupportedConstructs
             title: >-

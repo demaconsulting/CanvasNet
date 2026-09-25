@@ -187,29 +187,35 @@ by `GetInfo`, which would report the dimensions from the later, valid SOF0. Shar
 helper between both call sites makes this divergence structurally impossible rather than merely
 untested.
 
-**Architectural decision (incremental scanning, not full-budget up-front buffering):**
+**Architectural decision (incremental scanning, not full-budget up-front buffering, with a soft
+rather than hard cap):**
 `GetInfo` used to unconditionally read a full `MaxProbeHeaderBytes` (1 MiB) buffer from the stream
 before scanning a single marker, so even a file whose SOF appears in its first few dozen bytes
 still forced up to 1 MiB of stream reads. `ProbeDimensions` now reads from the stream
 incrementally, in small growing chunks, via an internal `IncrementalProbeBuffer` helper, and stops
-issuing further reads the moment the target SOF segment has been fully materialized - only a
-pathological file with no SOF anywhere near the start (or an attacker deliberately padding with
-filler before the SOF) causes it to approach the unchanged `MaxProbeHeaderBytes` outer safety cap,
-which still bounds the *total* number of bytes `GetInfo` will ever read from the stream, exactly
-as before.
+issuing further reads the moment the target SOF segment has been fully materialized - only a file
+with no SOF anywhere near the start (or leading filler segments before the SOF) causes it to
+approach `MaxProbeHeaderBytes` (internal, not private, so the test project can reference it
+directly).
 
 Unlike `BmpCodec`/`PngCodec` (whose headers have a small, fixed maximum size) and unlike
 `TiffCodec` (which can seek directly to its IFD), a JPEG's SOF marker can in principle be preceded
-by an unbounded run of APPn/COM segments (each up to 65,533 bytes), so an unbounded sequential
-scan is not safe against a pathological or malicious stream; `MaxProbeHeaderBytes` remains the
-hard outer cap for exactly this reason. If no SOF0/SOF2 marker is found within that budget, it
-throws `InvalidDataException` with a message distinguishing "probe limit reached with more data
-possibly remaining" from "stream ended before an SOF marker was found" (the latter also covers the
-ordinary truncated/malformed-header case). The same distinction applies once an SOF0/SOF2 marker
-*has* been found but its declared segment length would require reading past the cap:
-`IncrementalProbeBuffer.ToExactArray` checks `CapReached` before throwing, so this case is also
-reported as the probe limit rather than misleadingly worded as an unexpected end of stream (the
-underlying stream is not actually truncated in this case; it simply was not read any further).
+by an unbounded run of APPn/COM segments (each up to 65,533 bytes). `MaxProbeHeaderBytes` was
+previously treated as a hard outer cap: reaching it caused `GetInfo` to throw, even for a
+perfectly well-formed JPEG that `Load` would decode successfully without any size limit of its
+own — violating the cross-codec invariant documented on `ImageInfo` ("GetInfo never throws for an
+input that Load would successfully decode"). `MaxProbeHeaderBytes` is now instead a *soft* cap on
+`IncrementalProbeBuffer`'s fast chunked-read growth strategy only: the moment satisfying the next
+requested length would exceed it, `IncrementalProbeBuffer.BulkReadRemainder` performs a one-time
+bulk read of the rest of the stream (first satisfying the immediate request, then continuing in
+fixed-size chunks until the stream is exhausted), after which every subsequent
+`TryEnsureLength`/`ToExactArray` call is satisfied from the now-fully-buffered data with no further
+fallback attempts. This mirrors `Load`'s own unbounded buffering exactly, so `GetInfo` only ever
+throws `InvalidDataException` when the stream genuinely ends (even after that bulk read) without a
+supported SOF marker ever being found — the single, unconditional message "Stream ended before a
+JPEG SOF0/SOF2 marker was found (truncated or non-JPEG data)." covers both the ordinary
+truncated/malformed-header case and the case where an SOF0/SOF2 marker's declared segment length
+would extend past whatever data is actually available in the stream.
 
 **Throws:**
 
@@ -217,10 +223,10 @@ underlying stream is not actually truncated in this case; it simply was not read
 - `InvalidDataException` — the stream does not begin with SOI; an unsupported SOF/frame marker
   (any SOF variant other than SOF0/SOF2, or an arithmetic-coded/JPG-extension marker) or
   unsupported component count is encountered; an SOS marker is encountered before any SOF0/SOF2
-  marker; the marker/segment structure is malformed; the stream ends before an SOF0/SOF2 marker is
-  found; or the `MaxProbeHeaderBytes` probe limit is reached before an SOF0/SOF2 marker is found
-  (same contract as `Load`, except the `Surface.MaxDimension` check is skipped, entropy-coded scan
-  data is never required or read, and the probe-limit case is new to `GetInfo`)
+  marker; the marker/segment structure is malformed; or the stream genuinely ends (even after the
+  soft-cap bulk-read fallback described above) before an SOF0/SOF2 marker is found (same contract
+  as `Load`, except the `Surface.MaxDimension` check is skipped and entropy-coded scan data is
+  never required or read)
 
 #### GetInfo(string path)
 

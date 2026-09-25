@@ -34,6 +34,19 @@ sections:
               - CanvasNet-Rendering-Canvas-Identity
               - CanvasNet-Rendering-Canvas-Validation
 
+          - id: CanvasNet-Rendering-Clear
+            title: >-
+              The Rendering subsystem shall provide a Canvas.Clear passthrough that fills every
+              pixel of the wrapped Surface with a constant color, unaffected by the current
+              transform.
+            justification: |
+              Clearing a Canvas's whole surface to a known background color is a common first
+              step before drawing and involves no geometry to transform, so it is exposed as a
+              thin, transform-independent passthrough rather than a transform-aware entry point
+              like FillPath/StrokePath.
+            children:
+              - CanvasNet-Rendering-Canvas-Clear
+
           - id: CanvasNet-Rendering-TextRendering
             title: >-
               The Rendering subsystem shall measure and render TrueType text at a chosen pixel

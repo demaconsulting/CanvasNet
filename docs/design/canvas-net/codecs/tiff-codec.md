@@ -229,8 +229,9 @@ parser (`ParseIfd` and `ReadTiffImageInfo(..., enforceMaxDimension: false)`) tha
 uses. This is required because a TIFF's Image File Directory is not necessarily near the start of
 the file (its offset is given by the 8-byte header's 4th field, and a well-formed writer may place
 it anywhere, including after the strip data it describes); a purely sequential short-prefix read
-(as used by `BmpCodec`/`PngCodec`) cannot reliably reach it. `stream` must be seekable — see the
-non-seekable rejection description below.
+(as used by `BmpCodec`/`PngCodec`) cannot reliably reach it. For a seekable `stream`, `GetInfo`
+seeks directly to the IFD; for a non-seekable `stream`, `GetInfo` falls back to buffering the
+whole stream first — see the non-seekable fallback description below.
 
 **Architectural decision**: `GetInfo`'s parsing logic previously diverged from `Load`'s when the
 stream was seekable — a hand-written four-tag subset scan defaulted `SamplesPerPixel`'s absent-tag
@@ -244,27 +245,29 @@ construction rather than by two hand-synchronized implementations.
 
 `ITiffDataSource` is a small internal interface exposing one member, `ReadBytes(position, length,
 what)`, abstracting "read `length` bytes at absolute file position `position`" over either a
-fully-buffered `byte[]` (`ByteArrayTiffDataSource`, used only by `Load`) or a seekable `Stream`
-(`StreamTiffDataSource`, used only by `GetInfo`, which seeks to the requested position and reads
+fully-buffered `byte[]` (`ByteArrayTiffDataSource`, used by `Load` always, and by `GetInfo` only
+on its non-seekable fallback path) or a seekable `Stream` (`StreamTiffDataSource`, used by
+`GetInfo`'s fast path, which seeks to the requested position and reads
 directly from the stream). `ParseIfd`, `ReadTagValues`, `RequireTagValues`, `TryGetTagValues`, and
 `ReadTiffImageInfo` are all written once against this interface.
 
-`GetInfo` rejects a non-seekable `stream` immediately, before reading any bytes, with
-`NotSupportedException`. Unlike PNG/JPEG/BMP (whose headers are always near the start of the
-file), a TIFF's IFD can legitimately be located anywhere in the file, so there is no bounded,
-purely-sequential scan that can reliably resolve every well-formed TIFF from a non-seekable
-source — a previous bounded-buffer fallback attempted this but could, for some well-formed files,
-throw `InvalidDataException` where a seekable stream over the same bytes would succeed; requiring
-a seekable stream up front removes that divergence entirely. A caller with a genuinely non-seekable
-source (for example a network stream) can trivially wrap it in a seekable buffer such as
-`MemoryStream` first.
+When `stream` is non-seekable, `GetInfo` falls back to reading the entire stream into a `byte[]`
+via the same `ReadAllBytes` helper `Load` already uses unconditionally, then resolves the IFD
+against a `ByteArrayTiffDataSource` over that buffer — the identical code path `Load` itself
+takes. Unlike PNG/JPEG/BMP (whose headers are always near the start of the file), a TIFF's IFD can
+legitimately be located anywhere in the file, so there is no bounded, purely-sequential scan that
+can reliably resolve every well-formed TIFF from a non-seekable source; rather than rejecting a
+non-seekable stream outright (a previous design), buffering the whole stream upholds the
+cross-codec invariant documented on `ImageInfo` ("GetInfo never throws for an input that Load
+would successfully decode") at the cost of `Load`'s own memory/read profile, which only applies
+when the caller's stream genuinely cannot seek.
 
-Once past that guard, a `StreamTiffDataSource` backs the parser directly, so only the bytes the
+Once past that branch, for a seekable stream a `StreamTiffDataSource` backs the parser directly, so only the bytes the
 parser actually asks for are ever read from the stream — the 8-byte header, the IFD entry count
 and entries, and any out-of-line tag value `ReadTiffImageInfo` needs (for example a multi-value
 `BitsPerSample` tag, which typically requires one additional seek-and-read of 3-4 bytes).
 `ReadTiffImageInfo` never resolves `StripOffsets`/`RowsPerStrip`/`StripByteCounts`, so strip/pixel
-data is never requested. `GetInfo(Stream)` captures `stream.Position` *before* reading the header
+data is never requested (on the seekable fast path). `GetInfo(Stream)` captures `stream.Position` *before* reading the header
 and passes it to `StreamTiffDataSource` as a base offset that every subsequent position/seek is
 added to, so a caller that has already advanced `stream` past some other content (for example a
 container format embedding a TIFF payload after a header of its own) is still resolved correctly,
@@ -280,7 +283,6 @@ count, identically to `Load`. `GetInfo` does not enforce `Surface.MaxDimension` 
 **Throws:**
 
 - `ArgumentNullException` — `stream` is null
-- `NotSupportedException` — `stream` does not support seeking
 - `InvalidDataException` — for the same format-support reasons as `Load` (a tiled TIFF; a missing
   mandatory tag; an unsupported bit depth, compression, photometric interpretation, planar
   configuration, or predictor value; an RGB image with 4 samples per pixel lacking a correct
@@ -297,8 +299,8 @@ count, identically to `Load`. `GetInfo` does not enforce `Surface.MaxDimension` 
 #### GetInfo(string path)
 
 Opens `path` as a read-only `FileStream` and delegates to `GetInfo(Stream)`. Note that a
-`FileStream` is always seekable, so opening by path always exercises `GetInfo`'s seek-based path
-and never triggers its `NotSupportedException` guard.
+`FileStream` is always seekable, so opening by path always exercises `GetInfo`'s seek-based fast
+path rather than its non-seekable buffering fallback.
 
 **Throws:**
 

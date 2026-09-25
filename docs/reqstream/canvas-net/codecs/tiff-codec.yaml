@@ -341,32 +341,34 @@ sections:
                 title: >-
                   The TiffCodec class shall report a TIFF's width, height, samples-per-pixel, and alpha
                   presence via GetInfo, given a stream or a file path, without decoding strip data and
-                  without enforcing Surface.MaxDimension. GetInfo shall require a seekable stream,
-                  rejecting a non-seekable stream immediately with NotSupportedException before reading
-                  any bytes from it. For a seekable stream, GetInfo shall seek directly to the IFD and
-                  resolve/validate only the same tags ReadTiffImageInfo needs - ImageWidth, ImageLength,
-                  SamplesPerPixel, BitsPerSample, Compression, PhotometricInterpretation,
-                  PlanarConfiguration, Predictor, and ExtraSamples - never StripOffsets, RowsPerStrip, or
-                  StripByteCounts.
+                  without enforcing Surface.MaxDimension. For a seekable stream, GetInfo shall seek
+                  directly to the IFD and resolve/validate only the same tags ReadTiffImageInfo needs -
+                  ImageWidth, ImageLength, SamplesPerPixel, BitsPerSample, Compression,
+                  PhotometricInterpretation, PlanarConfiguration, Predictor, and ExtraSamples - never
+                  StripOffsets, RowsPerStrip, or StripByteCounts. For a non-seekable stream, GetInfo
+                  shall buffer the whole stream into memory (exactly as Load already does
+                  unconditionally) and resolve the same tags against the buffered bytes, so GetInfo
+                  succeeds on a non-seekable stream rather than rejecting it.
                 justification: |
                   Callers need to inspect a TIFF's declared dimensions and channel layout (for example to
                   reject unreasonably large images before allocating a Surface) without paying the cost
-                  of decoding strip data, via a handful of small seeks rather than buffering the whole
-                  file. Unlike PNG/JPEG/BMP, a TIFF's IFD can legitimately be located anywhere in the
-                  file, so no bounded, purely sequential scan can reliably resolve every well-formed TIFF
-                  from a non-seekable source (for example a network stream); requiring a seekable stream
-                  up front, and rejecting a non-seekable stream immediately rather than attempting a bounded
-                  fallback, guarantees GetInfo's behavior is identical for every well-formed file
-                  regardless of stream capability. A caller with a genuinely non-seekable source can
-                  trivially wrap it in a seekable buffer such as MemoryStream first.
+                  of decoding strip data. For a seekable stream this costs only a handful of small seeks
+                  rather than buffering the whole file. Unlike PNG/JPEG/BMP, a TIFF's IFD can
+                  legitimately be located anywhere in the file, so no bounded, purely sequential scan can
+                  reliably resolve every well-formed TIFF from a non-seekable source (for example a
+                  network stream); rather than rejecting a non-seekable stream outright, GetInfo upholds
+                  the cross-codec invariant documented on ImageInfo ("GetInfo never throws for an input
+                  that Load would successfully decode") by falling back to the same unconditional
+                  buffering Load already performs, trading the cheap seek-based probe for Load's own
+                  cost profile only when the caller's stream is genuinely non-seekable.
                 tests:
                   - TiffCodec_GetInfo_Seekable_Rgb_ReturnsExpectedInfoWithoutAlpha
                   - TiffCodec_GetInfo_Seekable_Rgba_ReturnsExpectedInfoWithAlpha
                   - TiffCodec_GetInfo_Seekable_PositionStaysWellBelowFullLength
                   - TiffCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows
                   - TiffCodec_GetInfo_SucceedsWithTruncatedStripData_ButLoadThrows
-                  - TiffCodec_GetInfo_NonSeekableStream_ThrowsNotSupportedException
-                  - TiffCodec_GetInfo_NonSeekableStream_ThrowsBeforeReadingAnyBytes
+                  - TiffCodec_GetInfo_NonSeekableStream_SucceedsAndMatchesLoadResult
+                  - CanvasNet_SystemIntegration_TiffGetInfoOnNonSeekableStream_ReturnsExpectedInfo
 
               - id: CanvasNet-Codecs-TiffCodec-GetInfoValidation
                 title: >-

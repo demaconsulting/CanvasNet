@@ -508,8 +508,18 @@ public static class SvgCodec
         {
             // Bound the reader's total character count via MaxCharactersInDocument before
             // XDocument.Load ever begins materializing the DOM tree - see MaxDocumentCharacters'
-            // own remarks for why this is a raw-size bound, not a full streaming parse
-            var settings = new XmlReaderSettings { MaxCharactersInDocument = MaxDocumentCharacters };
+            // own remarks for why this is a raw-size bound, not a full streaming parse.
+            // Disabling DTD processing and setting no XML resolver are already .NET's effective
+            // defaults for XmlReaderSettings; they are set explicitly below as defense-in-depth
+            // documentation clarity, making it explicit (rather than merely implicit) that this
+            // parser never processes a DOCTYPE declaration or resolves an external entity/DTD -
+            // hardening against XML External Entity (XXE) injection.
+            var settings = new XmlReaderSettings
+            {
+                MaxCharactersInDocument = MaxDocumentCharacters,
+                DtdProcessing = DtdProcessing.Prohibit,
+                XmlResolver = null
+            };
             using var reader = XmlReader.Create(stream, settings);
             document = XDocument.Load(reader, LoadOptions.None);
         }
@@ -561,8 +571,18 @@ public static class SvgCodec
             // still advances character-by-character through a single root-tag attribute value
             // even though it never reads any further afterward, so an oversized attribute value
             // alone (never mind the document body) could otherwise force this method to
-            // materialize an unbounded amount of data.
-            var settings = new XmlReaderSettings { MaxCharactersInDocument = MaxDocumentCharacters };
+            // materialize an unbounded amount of data. Disabling DTD processing and setting no
+            // XML resolver are already .NET's effective defaults for XmlReaderSettings; they are
+            // set explicitly below as defense-in-depth documentation clarity, making it explicit
+            // (rather than merely implicit) that this parser never processes a DOCTYPE
+            // declaration or resolves an external entity/DTD - hardening against XML External
+            // Entity (XXE) injection.
+            var settings = new XmlReaderSettings
+            {
+                MaxCharactersInDocument = MaxDocumentCharacters,
+                DtdProcessing = DtdProcessing.Prohibit,
+                XmlResolver = null
+            };
             using var reader = XmlReader.Create(stream, settings);
             if (reader.MoveToContent() != XmlNodeType.Element || reader.LocalName != "svg")
             {

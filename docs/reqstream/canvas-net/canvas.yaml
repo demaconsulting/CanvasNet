@@ -307,6 +307,23 @@ sections:
               - Surface_CompositeOverColor_TransparentColor_LeavesBackgroundUnchanged
               - Surface_CompositeOverColor_PartialAlpha_MatchesIndependentlyComputedResult
 
+          - id: CanvasNet-Canvas-Clear
+            title: >-
+              The Canvas subsystem shall fill every pixel of a buffer with a constant color in
+              place, overwriting rather than blending against existing pixel data.
+            justification: |
+              Establishing a solid background fill before drawing is a common operation that
+              should be a single vectorized bulk fill rather than a per-pixel loop, and must
+              overwrite rather than blend so it behaves predictably regardless of what pixel data
+              a buffer previously held.
+            children:
+              - CanvasNet-Canvas-Surface-Clear
+            tests:
+              - Surface_Clear_MultiRowSurfaceWithNonAlignedWidth_OverwritesEveryPixel
+              - Surface_Clear_AnyRgba32Value_NeverThrowsAndAppliesExactly
+              - Surface_Clear_TransparentColorOverOpaqueBackground_OverwritesRatherThanBlending
+              - CanvasNet_SystemIntegration_ClearSurfaceThenReadPixel_ReturnsExpectedColor
+
           - id: CanvasNet-Canvas-CompositeOverSpan
             title: >-
               The Canvas subsystem shall composite a constant color "over" a horizontal run of

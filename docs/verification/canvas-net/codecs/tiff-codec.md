@@ -317,8 +317,8 @@ successful load, correct dimensions, and R == G == B per pixel.
 `TiffCodec_GetInfo_Seekable_SamplesPerPixelTagOmitted_DefaultsToBitsPerSampleCount`,
 `TiffCodec_GetInfo_Seekable_UnsupportedBitsPerSample_ThrowsInvalidDataException`,
 `TiffCodec_GetInfo_Seekable_StreamNotAtPositionZero_ReturnsCorrectImageInfo`,
-`TiffCodec_GetInfo_NonSeekableStream_ThrowsNotSupportedException`,
-`TiffCodec_GetInfo_NonSeekableStream_ThrowsBeforeReadingAnyBytes`
+`TiffCodec_GetInfo_NonSeekableStream_SucceedsAndMatchesLoadResult`,
+`CanvasNet_SystemIntegration_TiffGetInfoOnNonSeekableStream_ReturnsExpectedInfo`
 
 Builds a seekable RGB TIFF and separately an RGBA TIFF (with an `ExtraSamples` tag), calls
 `GetInfo` on a `MemoryStream` for each, and asserts the returned `ImageInfo` reports the correct
@@ -340,16 +340,20 @@ Proves the stream-position fix (`GetInfo` resolving `StreamTiffDataSource` reads
 stream's starting position rather than absolute byte 0): writes a non-empty byte prefix to a
 `MemoryStream`, then a valid TIFF, sets `stream.Position` past the prefix, and asserts `GetInfo`
 returns the correct `ImageInfo` for the TIFF that follows the prefix rather than misinterpreting
-bytes at absolute offset 0. Proves `GetInfo` rejects a non-seekable stream immediately with
-`NotSupportedException`, even for a completely valid, well-formed TIFF image: wraps the valid TIFF
-bytes in a test-only stream that reports `CanSeek == false` while otherwise forwarding every
-member (`Position`, `Seek`, `Read`, `Length`) to a fully functional inner `MemoryStream`, so the
-test genuinely exercises `GetInfo`'s dedicated seekable-stream guard rather than incidentally
-observing some unrelated stream member throw `NotSupportedException` of its own accord. Proves
-that rejection happens before any bytes are read from the stream: wraps a stream whose `Read`
-throws `InvalidOperationException` (a different, distinguishable exception type) and asserts
-`GetInfo` still throws `NotSupportedException`, proving the guard rejects the stream before ever
-calling `Read`.
+bytes at absolute offset 0. Proves `GetInfo` succeeds on a non-seekable stream and matches the
+result `GetInfo` reports for a seekable copy of the exact same bytes: the unit test wraps valid
+TIFF bytes in the unit's private `FunctionallySeekableButCanSeekFalseStream` helper (reports
+`CanSeek == false` while forwarding `Position`/`Seek`/`Length`/`Read` to a fully functional inner
+`MemoryStream` - none of those members throw), asserts `GetInfo` on that stream succeeds via the
+buffer-and-probe fallback, and asserts the resulting `ImageInfo` is identical to calling `GetInfo`
+on a seekable `MemoryStream` over the same bytes - proving the non-seekable fallback does not
+merely avoid throwing but resolves the exact same dimensions/channels/alpha the seekable fast path
+would. The system-level test separately uses `TestSupport.NonSeekableStream` (a test-only stream
+reporting `CanSeek == false` while forwarding `Read`/`Flush` to a fully functional inner buffer,
+but genuinely throwing `NotSupportedException` from `Position`/`Length`/`Seek` themselves) to
+exercise the fallback end-to-end through the public `TiffCodec.GetInfo` entry point with a
+saved-then-reloaded TIFF file, per `docs/verification/canvas-net.md`'s system-level evidence
+contract.
 
 #### CanvasNet-Codecs-TiffCodec-TagValueCountUpperBound: GetInfo Rejects an Implausibly Large Tag Count
 

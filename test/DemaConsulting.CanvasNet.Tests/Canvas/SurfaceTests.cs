@@ -948,6 +948,86 @@ public class SurfaceTests
     }
 
     /// <summary>
+    ///     Proves that Clear(Rgba32) overwrites every pixel of a multi-row, multi-column surface
+    ///     with the given color, including rows/columns exercising a width not a multiple of the
+    ///     internal row-alignment padding (16 pixels), and that pre-existing pixel data (of a
+    ///     different color and alpha at every pixel) is fully overwritten rather than blended.
+    /// </summary>
+    [Fact]
+    public void Surface_Clear_MultiRowSurfaceWithNonAlignedWidth_OverwritesEveryPixel()
+    {
+        // Arrange: a 17x3 surface (17 is not a multiple of the 16-pixel row-alignment padding),
+        // pre-filled with distinct, non-matching pixel data (including partial alpha) at every
+        // pixel, so a bug that only cleared the padded-but-not-logical region, or that blended
+        // rather than overwrote, would be observable
+        var surface = new Surface(17, 3);
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                surface[x, y] = new Rgba32((byte)(x + 1), (byte)(y + 1), 42, 77);
+            }
+        }
+
+        // Act
+        surface.Clear(new Rgba32(11, 22, 33, 44));
+
+        // Assert: every pixel, including the last column, equals the clear color exactly - no
+        // blending against the prior pixel's alpha occurred
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                Assert.Equal(new Rgba32(11, 22, 33, 44), surface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves that Clear(Rgba32) accepts every possible Rgba32 value without throwing,
+    ///     including a color with a partially- or fully-transparent alpha component (which a
+    ///     blending operation would treat specially, but a pure overwrite must not).
+    /// </summary>
+    [Theory]
+    [InlineData((byte)0, (byte)0, (byte)0, (byte)0)]
+    [InlineData((byte)255, (byte)255, (byte)255, (byte)255)]
+    [InlineData((byte)128, (byte)64, (byte)32, (byte)16)]
+    public void Surface_Clear_AnyRgba32Value_NeverThrowsAndAppliesExactly(byte r, byte g, byte b, byte a)
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+        var color = new Rgba32(r, g, b, a);
+
+        // Act
+        var exception = Record.Exception(() => surface.Clear(color));
+
+        // Assert
+        Assert.Null(exception);
+        Assert.Equal(color, surface[0, 0]);
+        Assert.Equal(color, surface[1, 1]);
+    }
+
+    /// <summary>
+    ///     Proves that Clear(Rgba32) overwrites a fully opaque background with a fully
+    ///     transparent color exactly - unlike CompositeOver(Rgba32), a fully transparent Clear
+    ///     color must still zero out the previously opaque pixel, since Clear never blends.
+    /// </summary>
+    [Fact]
+    public void Surface_Clear_TransparentColorOverOpaqueBackground_OverwritesRatherThanBlending()
+    {
+        // Arrange
+        var surface = new Surface(1, 1);
+        surface[0, 0] = new Rgba32(200, 150, 100, 255);
+
+        // Act
+        surface.Clear(new Rgba32(0, 0, 0, 0));
+
+        // Assert: a pure overwrite, not a no-op blend (CompositeOver would have left this pixel
+        // unchanged)
+        Assert.Equal(new Rgba32(0, 0, 0, 0), surface[0, 0]);
+    }
+
+    /// <summary>
     ///     Proves that Surface.MaxDimension is declared as a genuinely public member (not merely
     ///     internal) and equals the documented maximum of 8192, so that external callers (for
     ///     example a GetInfo-based caller performing bomb triage before Load) can compare a
@@ -1465,4 +1545,5 @@ public class SurfaceTests
             Assert.Equal(expected[x, 0], actual[x, 0]);
         }
     }
+
 }

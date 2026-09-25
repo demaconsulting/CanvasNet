@@ -223,30 +223,42 @@ identical.
 `JpegCodec_GetInfo_Color_ReturnsExpectedInfo`, `JpegCodec_GetInfoPath_ReturnsExpectedInfo`,
 `JpegCodec_GetInfo_LargeStream_NeverReadsPastProbeLimit`,
 `JpegCodec_GetInfo_SofNearStart_DoesNotReadFarBeyondWhatIsNeeded`,
-`JpegCodec_GetInfo_ProbeLimitExceededWithoutSof_ThrowsInvalidDataException`,
-`JpegCodec_GetInfo_SofSegmentExtendsBeyondProbeLimit_ThrowsWithProbeLimitMessage`,
+`JpegCodec_GetInfo_NoSofAnywhereEvenBeyondProbeCap_ThrowsInvalidDataException`,
+`JpegCodec_GetInfo_SofSegmentExtendsBeyondProbeCap_FailsForFormatReasonNotProbeCap`,
+`JpegCodec_GetInfo_LargeLeadingAppSegments_SucceedsAndMatchesLoadResult`,
 `JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows`,
-`JpegCodec_GetInfo_ZeroLengthSegment_TerminatesPromptlyWithInvalidDataException`
+`JpegCodec_GetInfo_ZeroLengthSegment_TerminatesPromptlyWithInvalidDataException`,
+`CanvasNet_SystemIntegration_JpegGetInfoWithLargeLeadingSegments_ReturnsExpectedInfo`
 
 Builds a hand-crafted stream containing only SOI/DQT/DHT/SOF0 for a 1-component grayscale frame
 (deliberately omitting SOS and all entropy-coded data), calls `GetInfo`, and asserts the returned
 `ImageInfo` reports the correct width/height, `Channels == 1`, and `HasAlpha == false`; repeats for
 a 3-component color frame. Confirms the file-path overload returns the same result as the stream
-overload via a temporary file. Proves `GetInfo` never reads past its `MaxProbeHeaderBytes`
-(1 MiB) hard outer cap by building a stream several megabytes long with the SOF marker near the
+overload via a temporary file. Proves `GetInfo` never reads past `MaxProbeHeaderBytes`
+(1 MiB) on its fast incremental path by building a stream several megabytes long with the SOF marker near the
 start and asserting `stream.Position` after `GetInfo` returns is at most 1,048,576 even though
 `stream.Length` is much larger. Proves `GetInfo` parses incrementally rather than upfront-buffering
 the full 1 MiB budget: using a bounded-read test stream (`BoundedReadStream`) that fails the test if
 more bytes are requested than a small margin beyond what the leading SOI/DQT/DHT/SOF0 segments
-actually require, asserts `GetInfo` still succeeds and never triggers that bound. Proves the
-probe-limit case is rejected distinctly by building over 1 MiB of filler bytes containing no SOF
-marker at all and asserting `GetInfo` throws `InvalidDataException` with a message mentioning the
-probe limit. Proves the same probe-limit attribution applies once an SOF0/SOF2 marker has already
-been found but its declared segment length would require reading past the cap: pads a stream with
-filler APPn segments up to just under the cap, appends an SOF0 marker declaring the maximum
-possible segment length (65,535), and asserts `GetInfo` throws `InvalidDataException` whose message
-still mentions the probe limit rather than misleadingly reporting an unexpected end of stream (the
-underlying stream is not actually truncated - it simply is not read any further). Proves `GetInfo`
+actually require, asserts `GetInfo` still succeeds and never triggers that bound. Proves that an
+input with no SOF marker anywhere - even far beyond the soft cap - still terminates and throws
+`InvalidDataException` (rather than looping or reading forever) once the stream genuinely ends:
+builds several megabytes of filler bytes containing no SOF marker at all and asserts `GetInfo`
+throws `InvalidDataException` with a message mentioning the SOF0/SOF2 marker never being found.
+Proves the soft cap does not itself cause a spurious failure once an SOF0/SOF2 marker's declared
+segment extends past where the cap would previously have stopped reading: pads a stream with
+filler APPn segments up to just under the cap, appends an SOF0 marker whose payload happens to be
+malformed in a way `Load` would also reject (sample precision 0), and asserts `GetInfo` throws
+`InvalidDataException` whose message reports that genuine format problem (mentioning "sample
+precision") rather than any wording referencing a probe limit - proving the bulk-read fallback
+transparently supplies the extra bytes needed to reach and parse the SOF segment, so the resulting
+failure is attributable only to the segment's own invalid content, not to the soft cap. Proves the
+soft cap's bulk-read fallback succeeds end-to-end for a well-formed file whose leading segments
+exceed the cap: builds over 1 MiB of leading APP0 filler segments followed by a genuinely valid,
+decodable minimal single-component JPEG, and asserts `GetInfo` succeeds and reports the same
+`Width`/`Height` that `Load` on the identical bytes decodes - proving a large leading run of
+filler no longer causes `GetInfo` to throw for an input `Load` would successfully decode, upholding
+the cross-codec invariant documented on `ImageInfo`. Proves `GetInfo`
 does not enforce `Surface.MaxDimension` by building an SOF0 segment
 declaring a width one greater than `Surface.MaxDimension`, asserting `GetInfo` returns that raw
 oversized width without throwing, and then asserting `Load` on the exact same bytes still throws
@@ -256,7 +268,10 @@ zero, calls `GetInfo` directly and synchronously, and asserts it throws `Invalid
 No timing measurement is used (consistent with this project's no-timing-based-tests policy);
 termination is guaranteed structurally because the read position strictly advances on every
 iteration, locking in that `GetInfo` already terminates promptly rather than looping forever
-re-reading the same zero-length segment.
+re-reading the same zero-length segment. The system-level test additionally exercises the
+soft-cap bulk-read fallback end-to-end through the public `JpegCodec.GetInfo` entry point against a
+manually constructed, padded JPEG byte stream, per `docs/verification/canvas-net.md`'s
+system-level evidence contract.
 
 #### CanvasNet-Codecs-JpegCodec-GetInfoValidation: GetInfo Rejects Invalid Arguments and Malformed Headers
 
