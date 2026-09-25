@@ -55,6 +55,26 @@ public class ShapesTests
         Assert.True(CountAlphaPixels(canvas.Surface) > 30);
     }
 
+    /// <summary>Shapes_StrokeRoundRect_WithSolidStyle_PaintsPixels.</summary>
+    [Fact]
+    public void Shapes_StrokeRoundRect_WithSolidStyle_PaintsPixels()
+    {
+        var canvas = new RenderCanvas(NewSurface());
+        canvas.StrokeRoundRect(4, 4, 10, 10, 3, new StrokeStyle(1f), new Rgba32(0, 255, 255, 255));
+        Assert.True(CountAlphaPixels(canvas.Surface) > 15);
+    }
+
+    /// <summary>Shapes_StrokeRoundRect_RadiusLargerThanHalfShorterSide_ClampsAndPaintsPixels.</summary>
+    [Fact]
+    public void Shapes_StrokeRoundRect_RadiusLargerThanHalfShorterSide_ClampsAndPaintsPixels()
+    {
+        // Radius (100) far exceeds half of the shorter dimension (8x8 -> clamp to 4); exercises
+        // the clamped-radius code path rather than a straightforward small-radius round rect.
+        var canvas = new RenderCanvas(NewSurface());
+        canvas.StrokeRoundRect(4, 4, 8, 8, 100, new StrokeStyle(1f), new Rgba32(0, 255, 255, 255));
+        Assert.True(CountAlphaPixels(canvas.Surface) > 15);
+    }
+
     /// <summary>Shapes_FillCircle_ProducesRoundRegion.</summary>
     [Fact]
     public void Shapes_FillCircle_ProducesRoundRegion()

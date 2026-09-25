@@ -86,6 +86,44 @@ public class PathTests
         Assert.Equal(PathCommandType.Close, commands[3].Type);
     }
 
+    /// <summary>Path_Transform_ArcTo_ConvertsToTransformedCubicBezierSegments.</summary>
+    [Fact]
+    public void Path_Transform_ArcTo_ConvertsToTransformedCubicBezierSegments()
+    {
+        var arcStart = new Vector2(0, 0);
+        var arcRadius = new Vector2(5, 5);
+        var arcEnd = new Vector2(10, 0);
+        var source = new PathBuilder()
+            .MoveTo(arcStart)
+            .ArcTo(arcRadius, 0f, false, true, arcEnd)
+            .Build();
+
+        var translation = Matrix3x2.CreateTranslation(3, 4);
+        var result = source.Transform(translation);
+        var commands = result.Subpaths[0].Commands;
+
+        // The ArcTo command must have been converted to one or more CubicBezierTo commands as
+        // part of the transform - never left as ArcTo, and never any other command type.
+        Assert.NotEmpty(commands);
+        Assert.All(commands, c => Assert.Equal(PathCommandType.CubicBezierTo, c.Type));
+
+        // The arc's declared endpoint must land at the translated position after conversion.
+        Assert.Equal(arcEnd + new Vector2(3, 4), commands[^1].EndPoint);
+
+        // Every transformed segment's control points and endpoint must equal the untransformed
+        // arc-to-Bezier conversion's own control points and endpoint plus the same translation -
+        // confirming control points (not just endpoints) were genuinely transformed.
+        var untransformedSegments = new List<(Vector2 Control1, Vector2 Control2, Vector2 End)>();
+        SvgArcConverter.ToBeziers(arcStart, arcRadius, 0f, false, true, arcEnd, untransformedSegments);
+        Assert.Equal(untransformedSegments.Count, commands.Count);
+        for (var i = 0; i < commands.Count; i++)
+        {
+            Assert.Equal(untransformedSegments[i].Control1 + new Vector2(3, 4), commands[i].Control1);
+            Assert.Equal(untransformedSegments[i].Control2 + new Vector2(3, 4), commands[i].Control2);
+            Assert.Equal(untransformedSegments[i].End + new Vector2(3, 4), commands[i].EndPoint);
+        }
+    }
+
     /// <summary>Path_Rectangle_ProducesFourLineToClosedSubpath.</summary>
     [Fact]
     public void Path_Rectangle_ProducesFourLineToClosedSubpath()
@@ -107,6 +145,16 @@ public class PathTests
     {
         Assert.Empty(GeoPath.Rectangle(0, 0, 0, 5).Subpaths);
         Assert.Empty(GeoPath.Rectangle(0, 0, 5, 0).Subpaths);
+    }
+
+    /// <summary>Path_Rectangle_WithNegativeSize_ProducesEmptyPath.</summary>
+    [Fact]
+    public void Path_Rectangle_WithNegativeSize_ProducesEmptyPath()
+    {
+        // Negative width or height must also produce an empty path (matching the documented
+        // "non-positive width or height" contract), not a reversed/inverted rectangle.
+        Assert.Empty(GeoPath.Rectangle(0, 0, -4, 5).Subpaths);
+        Assert.Empty(GeoPath.Rectangle(0, 0, 5, -4).Subpaths);
     }
 
     /// <summary>Path_RoundRectangle_ProducesCornerArcsWithCorrectRadius.</summary>
@@ -146,6 +194,16 @@ public class PathTests
         Assert.Equal(r.Subpaths[0].Commands.Count, rr.Subpaths[0].Commands.Count);
     }
 
+    /// <summary>Path_RoundRectangle_WithNegativeSize_ProducesEmptyPath.</summary>
+    [Fact]
+    public void Path_RoundRectangle_WithNegativeSize_ProducesEmptyPath()
+    {
+        // Negative width or height must produce an empty path, matching the "non-positive width
+        // or height" contract shared with Rectangle - not a reversed/inverted rounded rectangle.
+        Assert.Empty(GeoPath.RoundRectangle(0, 0, -10, 5, 2).Subpaths);
+        Assert.Empty(GeoPath.RoundRectangle(0, 0, 10, -5, 2).Subpaths);
+    }
+
     /// <summary>Path_Circle_ProducesFourCubicBezierQuadrantsClosingAtStart.</summary>
     [Fact]
     public void Path_Circle_ProducesFourCubicBezierQuadrantsClosingAtStart()
@@ -162,5 +220,14 @@ public class PathTests
     public void Path_Circle_WithZeroRadius_ProducesEmptyPath()
     {
         Assert.Empty(GeoPath.Circle(0, 0, 0).Subpaths);
+    }
+
+    /// <summary>Path_Circle_WithNegativeRadius_ProducesEmptyPath.</summary>
+    [Fact]
+    public void Path_Circle_WithNegativeRadius_ProducesEmptyPath()
+    {
+        // A negative radius must produce an empty path (matching the documented "non-positive
+        // radius" contract), not a path with inverted cardinal points.
+        Assert.Empty(GeoPath.Circle(5, 5, -3).Subpaths);
     }
 }

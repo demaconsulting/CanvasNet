@@ -131,4 +131,22 @@ public class Rgba32Tests
         var ex = Assert.Throws<FormatException>(() => Rgba32.Parse("XYZ"));
         Assert.Contains("#RRGGBB", ex.Message, StringComparison.Ordinal);
     }
+
+    /// <summary>Rgba32_Parse_MissingHashPrefixAtValidLength_MessageIdentifiesMissingHash.</summary>
+    [Fact]
+    public void Rgba32_Parse_MissingHashPrefixAtValidLength_MessageIdentifiesMissingHash()
+    {
+        // "ABCDEF0" is 7 characters (a valid #RRGGBB length) but has no leading '#', so this
+        // must reach the dedicated missing-'#' branch rather than the length-check branch.
+        var ex = Assert.Throws<FormatException>(() => Rgba32.Parse("ABCDEF0"));
+        Assert.Contains("'#'", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>Rgba32_Parse_NonHexCharacter_MessageIncludesOffendingCharacter.</summary>
+    [Fact]
+    public void Rgba32_Parse_NonHexCharacter_MessageIncludesOffendingCharacter()
+    {
+        var ex = Assert.Throws<FormatException>(() => Rgba32.Parse("#GGGGGG"));
+        Assert.Contains("'G'", ex.Message, StringComparison.Ordinal);
+    }
 }

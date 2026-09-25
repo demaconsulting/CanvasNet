@@ -252,12 +252,12 @@ public sealed class Path
     /// </summary>
     /// <param name="x">The rectangle's left edge x-coordinate.</param>
     /// <param name="y">The rectangle's top edge y-coordinate.</param>
-    /// <param name="width">The rectangle's width. When zero, <see cref="Empty"/> is returned.</param>
-    /// <param name="height">The rectangle's height. When zero, <see cref="Empty"/> is returned.</param>
+    /// <param name="width">The rectangle's width. When non-positive, <see cref="Empty"/> is returned.</param>
+    /// <param name="height">The rectangle's height. When non-positive, <see cref="Empty"/> is returned.</param>
     /// <returns>A closed rectangular <see cref="Path"/> traversed clockwise in y-down space.</returns>
     public static Path Rectangle(float x, float y, float width, float height)
     {
-        if (width == 0f || height == 0f)
+        if (width <= 0f || height <= 0f)
         {
             return Empty;
         }
@@ -278,8 +278,8 @@ public sealed class Path
     /// </summary>
     /// <param name="x">The rectangle's left edge x-coordinate.</param>
     /// <param name="y">The rectangle's top edge y-coordinate.</param>
-    /// <param name="width">The rectangle's width. When zero, <see cref="Empty"/> is returned.</param>
-    /// <param name="height">The rectangle's height. When zero, <see cref="Empty"/> is returned.</param>
+    /// <param name="width">The rectangle's width. When non-positive, <see cref="Empty"/> is returned.</param>
+    /// <param name="height">The rectangle's height. When non-positive, <see cref="Empty"/> is returned.</param>
     /// <param name="radius">The corner radius. Negative values are treated as zero; large values are clamped to <c>min(width, height) / 2</c>.</param>
     /// <returns>
     ///     A closed rounded-rectangle <see cref="Path"/>. When <paramref name="radius"/> is zero
@@ -287,7 +287,7 @@ public sealed class Path
     /// </returns>
     public static Path RoundRectangle(float x, float y, float width, float height, float radius)
     {
-        if (width == 0f || height == 0f)
+        if (width <= 0f || height <= 0f)
         {
             return Empty;
         }
@@ -349,14 +349,14 @@ public sealed class Path
     /// </summary>
     /// <param name="centerX">The circle's center x-coordinate.</param>
     /// <param name="centerY">The circle's center y-coordinate.</param>
-    /// <param name="radius">The circle's radius. When zero, <see cref="Empty"/> is returned.</param>
+    /// <param name="radius">The circle's radius. When non-positive, <see cref="Empty"/> is returned.</param>
     /// <returns>
     ///     A closed circular <see cref="Path"/> composed of four cubic Bezier quadrants joined at
     ///     the four cardinal points.
     /// </returns>
     public static Path Circle(float centerX, float centerY, float radius)
     {
-        if (radius == 0f)
+        if (radius <= 0f)
         {
             return Empty;
         }

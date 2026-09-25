@@ -32,6 +32,40 @@ public class CornerRoundEffectTests
         Assert.Contains(sub.Commands, c => c.Type == PathCommandType.CubicBezierTo);
     }
 
+    /// <summary>
+    ///     CornerRoundEffect_Apply_ClosedSquare_RoundsAllFourCornersIncludingWrapAroundCorner.
+    /// </summary>
+    /// <remarks>
+    ///     Regression test: the square's fourth (wrap-around) corner - between the closing edge
+    ///     (last LineTo back to Start, implied by Close) and the first LineTo out of Start - must
+    ///     also be rounded, not just the three interior LineTo-meets-LineTo corners.
+    /// </remarks>
+    [Fact]
+    public void CornerRoundEffect_Apply_ClosedSquare_RoundsAllFourCornersIncludingWrapAroundCorner()
+    {
+        var rounded = CornerRoundEffect.Apply(Square(), 2f);
+        var sub = Assert.Single(rounded.Subpaths);
+
+        // Exactly four rounded corners means exactly four CubicBezierTo commands: one per
+        // corner of the square, including the wrap-around corner at (0, 0).
+        var cubics = sub.Commands.Count(c => c.Type == PathCommandType.CubicBezierTo);
+        Assert.Equal(4, cubics);
+
+        // No command may pass exactly through any of the four original sharp corners - if any
+        // corner had been left un-rounded, at least one LineTo would still terminate exactly at
+        // that corner.
+        Vector2[] sharpCorners = [new(0, 0), new(10, 0), new(10, 10), new(0, 10)];
+        foreach (var corner in sharpCorners)
+        {
+            Assert.DoesNotContain(sub.Commands, c => c.Type == PathCommandType.LineTo && c.EndPoint == corner);
+        }
+
+        // The rounded shape must still start and end (via Close) at the same point, closing the
+        // loop exactly - the wrap-around arc's tangent-out point must match the subpath's
+        // recorded Start (the point the builder actually moved to).
+        Assert.Equal(PathCommandType.Close, sub.Commands[^1].Type);
+    }
+
     /// <summary>CornerRoundEffect_Apply_LeavesCurvedCornersUnchanged.</summary>
     [Fact]
     public void CornerRoundEffect_Apply_LeavesCurvedCornersUnchanged()

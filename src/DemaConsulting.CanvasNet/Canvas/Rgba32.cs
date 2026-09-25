@@ -188,7 +188,7 @@ public struct Rgba32 : IEquatable<Rgba32>
 
         if (s[0] != '#')
         {
-            reason = "Rgba32 hex string must be '#RRGGBB' or '#AARRGGBB'.";
+            reason = "Rgba32 hex string must start with '#'.";
             return false;
         }
 
@@ -199,7 +199,7 @@ public struct Rgba32 : IEquatable<Rgba32>
         {
             if (!IsHexDigit(s[i]))
             {
-                reason = "Rgba32 hex string contains a non-hexadecimal character.";
+                reason = $"Rgba32 hex string contains a non-hexadecimal character '{s[i]}'.";
                 return false;
             }
         }
