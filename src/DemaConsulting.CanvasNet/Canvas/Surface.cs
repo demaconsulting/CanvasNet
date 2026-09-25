@@ -22,8 +22,20 @@ namespace DemaConsulting.CanvasNet.Canvas;
 ///     always return exactly <c>Width</c>-length data - the padding bytes are never observable
 ///     through any public member.
 ///
+///     <c>Surface</c> implements <see cref="IDisposable"/> so that its pixel-storage strategy can
+///     be changed in a future release (for example, to an <see cref="ArrayPool{T}"/>-rented
+///     array) without another breaking API change. In this release the internal buffer is a
+///     plain managed <see cref="byte"/> array, not rented from a pool, so <see cref="Dispose"/>
+///     has nothing to actually release yet; it exists purely to establish the disposal contract
+///     early. Because the only backing storage is managed memory that the garbage collector
+///     already reclaims safely on its own, <c>Surface</c> deliberately declares no finalizer -
+///     forgetting to call <see cref="Dispose"/> only forgoes the (currently nonexistent) prompt
+///     release, it can never leak an unmanaged or pooled resource. Calling <see cref="Dispose"/>
+///     is idempotent (safe to call more than once), and every other public member that touches
+///     the pixel buffer throws <see cref="ObjectDisposedException"/> once the instance has been
+///     disposed.
 /// </remarks>
-public sealed class Surface
+public sealed class Surface : IDisposable
 {
     /// <summary>
     ///     The number of bytes used to store a single pixel (one byte per RGBA channel).
@@ -83,6 +95,13 @@ public sealed class Surface
     ///     accessor.
     /// </summary>
     private readonly byte[] _buffer;
+
+    /// <summary>
+    ///     Set once <see cref="Dispose"/> has been called; every other public member that touches
+    ///     <see cref="_buffer"/> checks this flag first via <see cref="ObjectDisposedException"/>'s
+    ///     <c>ThrowIf</c> helper and rejects further use once it is <see langword="true"/>.
+    /// </summary>
+    private bool _disposed;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="Surface"/> class with the specified
@@ -156,6 +175,28 @@ public sealed class Surface
     }
 
     /// <summary>
+    ///     Releases the resources held by this <see cref="Surface"/>.
+    /// </summary>
+    /// <remarks>
+    ///     Idempotent: calling this method more than once has no additional effect. In this
+    ///     release <see cref="_buffer"/> is a plain managed array, not rented from a pool, so
+    ///     there is nothing to actually release yet - this method exists to establish the
+    ///     disposal contract before a future release backs <see cref="_buffer"/> with an
+    ///     <see cref="ArrayPool{T}"/>-rented array (at which point this method would return that
+    ///     array to the pool here). After this method has been called, every other public member
+    ///     that touches the pixel buffer throws <see cref="ObjectDisposedException"/>.
+    /// </remarks>
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+    }
+
+    /// <summary>
     ///     Gets the width of the surface, in pixels.
     /// </summary>
     public int Width { get; }
@@ -175,6 +216,7 @@ public sealed class Surface
     ///     Thrown when <paramref name="x"/> is outside <c>[0, Width)</c> or <paramref name="y"/> is
     ///     outside <c>[0, Height)</c>.
     /// </exception>
+    /// <exception cref="ObjectDisposedException">Thrown when this surface has been disposed.</exception>
     /// <remarks>
     ///     This indexer is a convenience for single-pixel access and is slower than working
     ///     directly with <see cref="GetRowSpan"/> or <see cref="GetRowSpanBytes"/>, because each
@@ -186,6 +228,8 @@ public sealed class Surface
     {
         get
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+
             var row = GetRowSpan(y);
             if (x < 0 || x >= Width)
             {
@@ -196,6 +240,8 @@ public sealed class Surface
         }
         set
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+
             var row = GetRowSpan(y);
             if (x < 0 || x >= Width)
             {
@@ -218,6 +264,7 @@ public sealed class Surface
     /// <exception cref="ArgumentOutOfRangeException">
     ///     Thrown when <paramref name="y"/> is outside <c>[0, Height)</c>.
     /// </exception>
+    /// <exception cref="ObjectDisposedException">Thrown when this surface has been disposed.</exception>
     /// <remarks>
     ///     The returned span aliases this surface's internal buffer directly - no data is copied,
     ///     so writes through the span are immediately visible through the indexer and vice versa.
@@ -228,6 +275,8 @@ public sealed class Surface
     /// </remarks>
     public Span<byte> GetRowSpanBytes(int y)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         if (y < 0 || y >= Height)
         {
             throw new ArgumentOutOfRangeException(nameof(y), y, "Y must be within the surface height.");
@@ -248,6 +297,7 @@ public sealed class Surface
     /// <exception cref="ArgumentOutOfRangeException">
     ///     Thrown when <paramref name="y"/> is outside <c>[0, Height)</c>.
     /// </exception>
+    /// <exception cref="ObjectDisposedException">Thrown when this surface has been disposed.</exception>
     /// <remarks>
     ///     Uses <see cref="MemoryMarshal"/>'s span-reinterpretation cast to reinterpret the raw
     ///     byte row returned by <see cref="GetRowSpanBytes"/> as <see cref="Rgba32"/> values
@@ -256,6 +306,8 @@ public sealed class Surface
     /// </remarks>
     public Span<Rgba32> GetRowSpan(int y)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         return MemoryMarshal.Cast<byte, Rgba32>(GetRowSpanBytes(y));
     }
 
@@ -297,6 +349,7 @@ public sealed class Surface
     ///     less than or equal to zero, <c>x + width</c> exceeds <see cref="Width"/>, or
     ///     <c>y + height</c> exceeds <see cref="Height"/>.
     /// </exception>
+    /// <exception cref="ObjectDisposedException">Thrown when this surface has been disposed.</exception>
     /// <remarks>
     ///     The returned surface owns an entirely separate buffer: subsequent writes to either
     ///     surface never affect the other. Each row of the sub-region is copied in a single
@@ -316,6 +369,8 @@ public sealed class Surface
     /// </example>
     public Surface Crop(int x, int y, int width, int height)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         // Validate each argument individually so that callers get a precise parameter name
         // identifying exactly which value was invalid
         if (x < 0)
@@ -381,6 +436,7 @@ public sealed class Surface
     ///     <c>[0, 255]</c>; the alpha channel itself is unchanged. Every possible input byte
     ///     pattern is valid, so this method never throws.
     /// </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown when this surface has been disposed.</exception>
     /// <example>
     ///     <code>
     ///     var surface = new Surface(1, 1);
@@ -391,6 +447,8 @@ public sealed class Surface
     /// </example>
     public void PremultiplyAlpha()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         var pixelsPerRow = _strideBytes / BytesPerPixel;
         using var row = new RowChannelBuffers(pixelsPerRow);
 
@@ -423,6 +481,7 @@ public sealed class Surface
     ///     itself is unchanged. Every possible input byte pattern is valid, so this method never
     ///     throws.
     /// </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown when this surface has been disposed.</exception>
     /// <example>
     ///     <code>
     ///     var surface = new Surface(1, 1);
@@ -433,6 +492,8 @@ public sealed class Surface
     /// </example>
     public void UnpremultiplyAlpha()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         var pixelsPerRow = _strideBytes / BytesPerPixel;
         using var row = new RowChannelBuffers(pixelsPerRow);
 
@@ -470,6 +531,7 @@ public sealed class Surface
     ///     Thrown when <paramref name="foreground"/>'s <see cref="Width"/> or <see cref="Height"/>
     ///     does not match this surface's.
     /// </exception>
+    /// <exception cref="ObjectDisposedException">Thrown when this surface has been disposed.</exception>
     /// <remarks>
     ///     Both this surface and <paramref name="foreground"/> are assumed to hold straight
     ///     (unassociated) alpha on input, and the result is also straight alpha - callers do not
@@ -482,6 +544,8 @@ public sealed class Surface
     /// </remarks>
     public void CompositeOver(Surface foreground)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         ArgumentNullException.ThrowIfNull(foreground);
 
         if (foreground.Width != Width || foreground.Height != Height)
@@ -524,6 +588,7 @@ public sealed class Surface
     ///     into this surface in place.
     /// </summary>
     /// <param name="color">The constant foreground color to composite over every pixel.</param>
+    /// <exception cref="ObjectDisposedException">Thrown when this surface has been disposed.</exception>
     /// <remarks>
     ///     Uses the same formula and rounding rule as <see cref="CompositeOver(Surface)"/>, with
     ///     <paramref name="color"/> acting as the foreground at every pixel. Every possible
@@ -539,6 +604,8 @@ public sealed class Surface
     /// </example>
     public void CompositeOver(Rgba32 color)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         // Build a single-pixel-wide "foreground surface" whose one row is broadcast as the
         // constant foreground for every row of this surface - this reuses exactly the same
         // per-row compositing formula as CompositeOver(Surface) without duplicating it,
@@ -591,8 +658,9 @@ public sealed class Surface
     ///     constant foreground row) and then bulk-copies that one pattern row into every row of
     ///     the surface via <see cref="Span{T}.CopyTo"/>, so the fill cost is one vectorized memory
     ///     copy per row rather than a per-pixel store. Every possible <see cref="Rgba32"/> value
-    ///     is valid, so this method never throws.
+    ///     is valid, so this method never throws for that reason.
     /// </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown when this surface has been disposed.</exception>
     /// <example>
     ///     <code>
     ///     var surface = new Surface(4, 4);
@@ -601,6 +669,8 @@ public sealed class Surface
     /// </example>
     public void Clear(Rgba32 color)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         var pixelsPerRow = _strideBytes / BytesPerPixel;
         using var pattern = new RowChannelBuffers(pixelsPerRow);
 
@@ -643,6 +713,7 @@ public sealed class Surface
     ///     Thrown when <paramref name="y"/> is outside <c>[0, Height)</c>, or when
     ///     <paramref name="x"/> or <c>x + coverage.Length</c> is outside <c>[0, Width]</c>.
     /// </exception>
+    /// <exception cref="ObjectDisposedException">Thrown when this surface has been disposed.</exception>
     /// <remarks>
     ///     This is the first partial-row compositing primitive in <see cref="Surface"/>: every
     ///     other <c>CompositeOver</c> overload always processes a full row (or the whole
@@ -658,6 +729,8 @@ public sealed class Surface
     /// </remarks>
     public void CompositeOverSpan(int y, int x, ReadOnlySpan<float> coverage, Rgba32 color)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         // The public entry point always rents its own scratch buffers for the single call - see
         // CompositeOverSpan(int, int, ReadOnlySpan<float>, Rgba32, CompositeSpanWorkspace) for the
         // amortized-workspace overload used by hot loops such as
@@ -756,6 +829,7 @@ public sealed class Surface
     ///     Thrown when <paramref name="colors"/>'s length does not equal <paramref name="coverage"/>'s
     ///     length.
     /// </exception>
+    /// <exception cref="ObjectDisposedException">Thrown when this surface has been disposed.</exception>
     /// <remarks>
     ///     This overload exists for per-pixel-color callers - such as
     ///     <see cref="DemaConsulting.CanvasNet.Drawing.ScanlineRasterizer"/>'s gradient fill
@@ -768,6 +842,8 @@ public sealed class Surface
     /// </remarks>
     public void CompositeOverSpan(int y, int x, ReadOnlySpan<float> coverage, ReadOnlySpan<Rgba32> colors)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         ValidateCompositeOverSpanArgs(y, x, coverage.Length);
 
         if (colors.Length != coverage.Length)

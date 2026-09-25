@@ -1546,4 +1546,197 @@ public class SurfaceTests
         }
     }
 
+    /// <summary>
+    ///     Proves that calling Dispose once on a surface does not throw.
+    /// </summary>
+    [Fact]
+    public void Surface_Dispose_CalledOnce_DoesNotThrow()
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+
+        // Act & Assert
+        var exception = Record.Exception(surface.Dispose);
+        Assert.Null(exception);
+    }
+
+    /// <summary>
+    ///     Proves that calling Dispose a second time on an already-disposed surface does not
+    ///     throw (Dispose is idempotent).
+    /// </summary>
+    [Fact]
+    public void Surface_Dispose_CalledTwice_DoesNotThrow()
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+        surface.Dispose();
+
+        // Act & Assert
+        var exception = Record.Exception(surface.Dispose);
+        Assert.Null(exception);
+    }
+
+    /// <summary>
+    ///     Proves that reading the indexer on a disposed surface throws ObjectDisposedException.
+    /// </summary>
+    [Fact]
+    public void Surface_IndexerGet_AfterDispose_ThrowsObjectDisposedException()
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+        surface.Dispose();
+
+        // Act & Assert
+        Assert.Throws<ObjectDisposedException>(() => surface[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that writing the indexer on a disposed surface throws ObjectDisposedException.
+    /// </summary>
+    [Fact]
+    public void Surface_IndexerSet_AfterDispose_ThrowsObjectDisposedException()
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+        surface.Dispose();
+
+        // Act & Assert
+        Assert.Throws<ObjectDisposedException>(() => surface[0, 0] = new Rgba32(1, 2, 3, 4));
+    }
+
+    /// <summary>
+    ///     Proves that calling GetRowSpanBytes on a disposed surface throws
+    ///     ObjectDisposedException.
+    /// </summary>
+    [Fact]
+    public void Surface_GetRowSpanBytes_AfterDispose_ThrowsObjectDisposedException()
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+        surface.Dispose();
+
+        // Act & Assert
+        Assert.Throws<ObjectDisposedException>(() => surface.GetRowSpanBytes(0));
+    }
+
+    /// <summary>
+    ///     Proves that calling GetRowSpan on a disposed surface throws ObjectDisposedException.
+    /// </summary>
+    [Fact]
+    public void Surface_GetRowSpan_AfterDispose_ThrowsObjectDisposedException()
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+        surface.Dispose();
+
+        // Act & Assert
+        Assert.Throws<ObjectDisposedException>(() => surface.GetRowSpan(0));
+    }
+
+    /// <summary>
+    ///     Proves that calling Crop on a disposed surface throws ObjectDisposedException.
+    /// </summary>
+    [Fact]
+    public void Surface_Crop_AfterDispose_ThrowsObjectDisposedException()
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+        surface.Dispose();
+
+        // Act & Assert
+        Assert.Throws<ObjectDisposedException>(() => surface.Crop(0, 0, 1, 1));
+    }
+
+    /// <summary>
+    ///     Proves that calling PremultiplyAlpha on a disposed surface throws
+    ///     ObjectDisposedException.
+    /// </summary>
+    [Fact]
+    public void Surface_PremultiplyAlpha_AfterDispose_ThrowsObjectDisposedException()
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+        surface.Dispose();
+
+        // Act & Assert
+        Assert.Throws<ObjectDisposedException>(surface.PremultiplyAlpha);
+    }
+
+    /// <summary>
+    ///     Proves that calling UnpremultiplyAlpha on a disposed surface throws
+    ///     ObjectDisposedException.
+    /// </summary>
+    [Fact]
+    public void Surface_UnpremultiplyAlpha_AfterDispose_ThrowsObjectDisposedException()
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+        surface.Dispose();
+
+        // Act & Assert
+        Assert.Throws<ObjectDisposedException>(surface.UnpremultiplyAlpha);
+    }
+
+    /// <summary>
+    ///     Proves that calling CompositeOver(Surface) on a disposed surface throws
+    ///     ObjectDisposedException.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSurface_AfterDispose_ThrowsObjectDisposedException()
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+        var foreground = new Surface(2, 2);
+        surface.Dispose();
+
+        // Act & Assert
+        Assert.Throws<ObjectDisposedException>(() => surface.CompositeOver(foreground));
+    }
+
+    /// <summary>
+    ///     Proves that calling CompositeOver(Rgba32) on a disposed surface throws
+    ///     ObjectDisposedException.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverColor_AfterDispose_ThrowsObjectDisposedException()
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+        surface.Dispose();
+
+        // Act & Assert
+        Assert.Throws<ObjectDisposedException>(() => surface.CompositeOver(new Rgba32(1, 2, 3, 4)));
+    }
+
+    /// <summary>
+    ///     Proves that calling the constant-color CompositeOverSpan overload on a disposed
+    ///     surface throws ObjectDisposedException.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpan_AfterDispose_ThrowsObjectDisposedException()
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+        surface.Dispose();
+
+        // Act & Assert
+        Assert.Throws<ObjectDisposedException>(
+            () => surface.CompositeOverSpan(0, 0, [1f], new Rgba32(1, 2, 3, 4)));
+    }
+
+    /// <summary>
+    ///     Proves that calling the per-pixel-color CompositeOverSpan overload on a disposed
+    ///     surface throws ObjectDisposedException.
+    /// </summary>
+    [Fact]
+    public void Surface_CompositeOverSpanPerPixelColors_AfterDispose_ThrowsObjectDisposedException()
+    {
+        // Arrange
+        var surface = new Surface(2, 2);
+        surface.Dispose();
+
+        // Act & Assert
+        Assert.Throws<ObjectDisposedException>(
+            () => surface.CompositeOverSpan(0, 0, [1f], (ReadOnlySpan<Rgba32>)[new Rgba32(1, 2, 3, 4)]));
+    }
 }

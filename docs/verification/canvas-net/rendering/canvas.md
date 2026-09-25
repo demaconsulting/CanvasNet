@@ -22,6 +22,11 @@ The `Canvas` unit is verified by `test/DemaConsulting.CanvasNet.Tests/Rendering/
   verifies pixels shift by the translation applied.
 - **Validation**: null-surface, null-path, null-gradient, null-style, and invalid fill-rule
   tests cover the validation contract.
+- **Surface ownership (no requirement link)**:
+  `Canvas_Surface_DisposedExternally_CanvasDoesNotThrowFromAccessingSurfaceProperty` is a
+  design-intent regression test confirming `Canvas` holds a non-owning reference to its wrapped
+  `Surface` — it disposes the `Surface` externally, then confirms accessing `Canvas.Surface`
+  itself does not throw, proving `Canvas` adds no ownership check of its own.
 
 ### Traceability
 

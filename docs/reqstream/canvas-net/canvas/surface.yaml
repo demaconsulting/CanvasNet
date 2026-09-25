@@ -351,3 +351,31 @@ sections:
                   - Surface_CompositeOverSpan_PerPixelColors_ZeroCoverage_LeavesBackgroundUnchanged
                   - Surface_CompositeOverSpan_PerPixelColors_LengthMismatch_ThrowsArgumentException
                   - Surface_CompositeOverSpanWithWorkspace_PerPixelColors_MatchesPublicOverload
+
+              - id: CanvasNet-Canvas-Surface-Disposal
+                title: >-
+                  The Surface class shall implement IDisposable, releasing its pixel-buffer
+                  resources when Dispose is called, tolerating a second call to Dispose without
+                  throwing, and rejecting any further use of a disposed instance's
+                  buffer-touching members with ObjectDisposedException.
+                justification: |
+                  Surface currently owns a plain managed byte array, but a future non-breaking
+                  change may back it with an ArrayPool-rented array to reduce allocation pressure
+                  in hot rendering/codec paths. Adding the IDisposable contract now - even before
+                  any pooling is implemented - lets that optimization land later without another
+                  breaking API change, and gives callers a single, consistent lifetime-management
+                  pattern regardless of the internal storage strategy in effect at any given time.
+                tests:
+                  - Surface_Dispose_CalledOnce_DoesNotThrow
+                  - Surface_Dispose_CalledTwice_DoesNotThrow
+                  - Surface_IndexerGet_AfterDispose_ThrowsObjectDisposedException
+                  - Surface_IndexerSet_AfterDispose_ThrowsObjectDisposedException
+                  - Surface_GetRowSpanBytes_AfterDispose_ThrowsObjectDisposedException
+                  - Surface_GetRowSpan_AfterDispose_ThrowsObjectDisposedException
+                  - Surface_Crop_AfterDispose_ThrowsObjectDisposedException
+                  - Surface_PremultiplyAlpha_AfterDispose_ThrowsObjectDisposedException
+                  - Surface_UnpremultiplyAlpha_AfterDispose_ThrowsObjectDisposedException
+                  - Surface_CompositeOverSurface_AfterDispose_ThrowsObjectDisposedException
+                  - Surface_CompositeOverColor_AfterDispose_ThrowsObjectDisposedException
+                  - Surface_CompositeOverSpan_AfterDispose_ThrowsObjectDisposedException
+                  - Surface_CompositeOverSpanPerPixelColors_AfterDispose_ThrowsObjectDisposedException

@@ -348,4 +348,23 @@ public class CanvasTests
         Assert.Throws<ArgumentOutOfRangeException>(() => canvas.FillPath(Triangle(), new Rgba32(0, 0, 0, 255), (FillRule)999));
     }
 
+    /// <summary>
+    ///     Design-intent regression test: Canvas does not own or dispose the Surface it wraps, so
+    ///     disposing that Surface externally must not cause Canvas itself to throw when its
+    ///     Surface property is subsequently accessed - Canvas adds no ownership check of its own.
+    ///     (Calling a buffer-touching member on the returned, already-disposed Surface would
+    ///     legitimately throw ObjectDisposedException from Surface - that is not exercised here.)
+    /// </summary>
+    [Fact]
+    public void Canvas_Surface_DisposedExternally_CanvasDoesNotThrowFromAccessingSurfaceProperty()
+    {
+        var surface = NewSurface();
+        var canvas = new RenderCanvas(surface);
+
+        surface.Dispose();
+
+        var exception = Record.Exception(() => canvas.Surface);
+        Assert.Null(exception);
+        Assert.Same(surface, canvas.Surface);
+    }
 }

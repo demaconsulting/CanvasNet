@@ -34,6 +34,15 @@ gradient-paint `FillPath` overload likewise skips `Gradient.WithTransform` and p
 `Gradient` reference straight through. This preserves the exact bit pattern of pre-existing
 renders when callers adopt the wrapper.
 
+#### Surface Ownership
+
+`Canvas` holds a non-owning reference to the `Canvas.Surface` passed to its constructor: it never
+calls `Surface.Dispose()` and does not itself implement `IDisposable`. The caller that
+constructed the `Surface` remains solely responsible for disposing it, once both the `Canvas` and
+the `Surface` are no longer needed. This is a deliberate design choice — `Canvas` is a thin,
+transform-aware wrapper around a `Surface` a caller already owns, not an owner of that surface's
+lifetime.
+
 #### Validation
 
 - The constructor throws `ArgumentNullException` on a null `Surface`.

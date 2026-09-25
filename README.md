@@ -72,7 +72,7 @@ using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using System.IO;
 
-var surface = new Surface(4, 4);
+using var surface = new Surface(4, 4);
 surface[1, 1] = new Rgba32(255, 0, 0, 255); // set a red, opaque pixel
 var cropped = surface.Crop(0, 0, 2, 2);     // independent 2x2 copy
 
@@ -110,7 +110,7 @@ using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Geometry;
 using System.Numerics;
 
-var canvas = new Surface(64, 64);
+using var canvas = new Surface(64, 64);
 var triangle = new PathBuilder()
     .MoveTo(new Vector2(8, 56))
     .LineTo(new Vector2(56, 56))
@@ -129,7 +129,7 @@ using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Geometry;
 using System.Numerics;
 
-var canvas = new Surface(64, 64);
+using var canvas = new Surface(64, 64);
 var polyline = new PathBuilder()
     .MoveTo(new Vector2(8, 48))
     .LineTo(new Vector2(32, 16))
@@ -154,7 +154,7 @@ using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Geometry;
 using System.Numerics;
 
-var canvas = new Surface(64, 64);
+using var canvas = new Surface(64, 64);
 var rectangle = new PathBuilder()
     .MoveTo(new Vector2(4, 4))
     .LineTo(new Vector2(60, 4))
@@ -221,7 +221,7 @@ var glyphOutline = font.GetGlyphOutline(glyphIndex); // raw font-design-unit coo
 var scale = 48f / font.UnitsPerEm;
 var canvasOutline = TransformGlyph(glyphOutline, scale, baselineY: 56f);
 
-var surface = new Surface(64, 64);
+using var surface = new Surface(64, 64);
 PathFiller.Fill(surface, canvasOutline, new Rgba32(20, 120, 255, 255));
 ```
 
