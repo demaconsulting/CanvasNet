@@ -345,10 +345,14 @@ In this release, `_buffer` is a plain managed `byte[]`, not rented from an `Arra
 there is nothing for `Dispose()` to actually release yet — it exists purely to establish the
 disposal contract _before_ the pixel-storage strategy changes, so that a future release can back
 `_buffer` with a pooled array (returning it to the pool inside `Dispose()`) without another
-breaking API change. Because the only backing storage today is managed memory the garbage
-collector already reclaims safely on its own, `Surface` deliberately declares no finalizer:
-forgetting to call `Dispose()` only forgoes a (currently nonexistent) prompt release — it can
-never leak an unmanaged or pooled resource.
+breaking _API surface_ change. That claim is limited to the API surface: a future pooled
+implementation must still honor the span-lifetime rule below as a design constraint, since it
+cannot retroactively invalidate a span a caller obtained before `Dispose()` was called — pooling
+does not get to relax that rule, only to make violating it (a stale span read/write after the
+array is re-rented to another `Surface`) more expensive than it is today. Because the only
+backing storage today is managed memory the garbage collector already reclaims safely on its
+own, `Surface` deliberately declares no finalizer: forgetting to call `Dispose()` only forgoes a
+(currently nonexistent) prompt release — it can never leak an unmanaged or pooled resource.
 
 After `Dispose()` has been called, every other public member that touches the pixel buffer
 (the indexer, `GetRowSpanBytes`, `GetRowSpan`, `Crop`, `PremultiplyAlpha`, `UnpremultiplyAlpha`,

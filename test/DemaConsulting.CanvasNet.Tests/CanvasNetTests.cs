@@ -123,8 +123,9 @@ public class CanvasNetTests
 
     /// <summary>
     ///     Proves that the system's disposal contract is enforced end to end through the public
-    ///     API: disposing a Surface is idempotent, and subsequently reaches every buffer-touching
-    ///     public member (not just one), rejecting further use with ObjectDisposedException.
+    ///     API: disposing a Surface is idempotent, and subsequently rejects further use through a
+    ///     representative sample of buffer-touching public members with ObjectDisposedException.
+    ///     The complete member-by-member matrix is covered by the unit tests in SurfaceTests.
     /// </summary>
     [Fact]
     public void CanvasNet_SystemIntegration_DisposeSurfaceThenUseIt_ThrowsObjectDisposedException()
