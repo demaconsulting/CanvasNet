@@ -1373,11 +1373,13 @@ else
 ```
 
 A caller that commits directly to `Load` without checking `CanDecode` first can instead catch
-`UnsupportedImageFeatureException`. This is a distinct type from `InvalidDataException` (which
-`InvalidDataException` itself being `sealed` in .NET prevents this type from deriving from), so
-an existing `catch (InvalidDataException)` block does **not** catch it - a caller that wants to
-handle both "malformed" and "well-formed but unsupported" files together should catch their common
-base, `IOException`, or add an explicit second `catch` clause:
+`UnsupportedImageFeatureException`. This is a distinct type from `InvalidDataException`
+(`InvalidDataException` itself being `sealed` in .NET prevents this type from deriving from it),
+so an existing `catch (InvalidDataException)` block does **not** catch it. `InvalidDataException`
+derives directly from `SystemException`, not `IOException`, so `IOException` is **not** a common
+base that can catch both - a caller that wants to
+handle both "malformed" and "well-formed but unsupported" files together must add two explicit
+catch clauses, one per type:
 
 ```csharp
 using DemaConsulting.CanvasNet.Codecs;

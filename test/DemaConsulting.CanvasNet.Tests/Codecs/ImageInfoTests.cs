@@ -62,4 +62,20 @@ public class ImageInfoTests
 
         Assert.Equal(first, second);
     }
+
+    /// <summary>
+    ///     Proves that <c>default(ImageInfo)</c> has <see cref="ImageInfo.CanDecode"/> equal to
+    ///     false - not true, despite the property's <c>= true</c> initializer - because a struct's
+    ///     field initializers only run when one of its declared constructors runs, and
+    ///     <c>default(ImageInfo)</c> zero-initializes every field directly, bypassing every
+    ///     constructor and initializer. This is a documented caveat, not a bug: no codec's
+    ///     <c>GetInfo</c> ever produces a bare <c>default(ImageInfo)</c>.
+    /// </summary>
+    [Fact]
+    public void ImageInfo_DefaultValue_HasCanDecodeFalse()
+    {
+        var info = default(ImageInfo);
+
+        Assert.False(info.CanDecode);
+    }
 }

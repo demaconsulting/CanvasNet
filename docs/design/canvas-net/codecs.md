@@ -111,10 +111,14 @@ well-formed per its own format specification — PNG's Adam7 interlacing (the ot
 thrown by them). `PngCodec.Load` signals this specific case with `UnsupportedImageFeatureException`
 rather than `InvalidDataException`, so a caller can distinguish "well-formed but unsupported" from
 "malformed" without string-matching `Exception.Message`. This type derives from `IOException`
-rather than `InvalidDataException`, because `System.IO.InvalidDataException` is `sealed` in .NET —
-a deliberate, narrow, documented behavior change (an existing `catch (InvalidDataException)`
-around `PngCodec.Load` no longer catches the Adam7 case; callers must catch `IOException` or add
-an explicit second `catch (UnsupportedImageFeatureException)` clause). `ImageInfo.CanDecode` (see
+rather than `InvalidDataException`, because `System.IO.InvalidDataException` is `sealed` in .NET.
+Note that `InvalidDataException` itself derives directly from `SystemException`, not
+`IOException` — `IOException` is **not** a common base a caller can catch to handle both
+"malformed" (`InvalidDataException`) and "well-formed but unsupported"
+(`UnsupportedImageFeatureException`) cases together. This is a deliberate, narrow, documented
+behavior change (an existing `catch (InvalidDataException)`
+around `PngCodec.Load` no longer catches the Adam7 case); a caller that wants to handle both
+cases must add two explicit catch clauses, one per type. `ImageInfo.CanDecode` (see
 above) lets a caller detect this case from `GetInfo` before ever calling `Load` at all — see
 _PngCodec Unit Design_ (`codecs/png-codec.md`) for the exact throw site and `CanDecode`
 computation.

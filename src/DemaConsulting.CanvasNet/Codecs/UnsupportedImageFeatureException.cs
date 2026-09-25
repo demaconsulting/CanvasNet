@@ -13,16 +13,20 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     can distinguish "well-formed but unsupported" from "malformed" without having to
 ///     string-match <see cref="Exception.Message"/>. <see cref="InvalidDataException"/> itself is
 ///     a <see langword="sealed"/> class in .NET and therefore cannot be a base type here; this
-///     type instead derives from <see cref="IOException"/>, <see cref="InvalidDataException"/>'s
-///     own base class. <b>This means an existing <c>catch (InvalidDataException)</c> block does
-///     not catch this exception</b> - a caller that wants to handle both the malformed and the
-///     well-formed-but-unsupported cases together must catch <see cref="IOException"/> (its and
-///     <see cref="InvalidDataException"/>'s common base) or add a second, explicit
-///     <c>catch (UnsupportedImageFeatureException)</c> clause. This is a deliberate, narrow
+///     type instead derives from <see cref="IOException"/> - a sibling of
+///     <see cref="InvalidDataException"/>, not its base type: <see cref="InvalidDataException"/>
+///     actually derives directly from <see cref="SystemException"/>, not <see cref="IOException"/>.
+///     <b>This means an existing <c>catch (InvalidDataException)</c> block does
+///     not catch this exception</b> - and, because <see cref="IOException"/> is <em>not</em> a
+///     common base of the two types, a caller that wants to handle both the malformed and the
+///     well-formed-but-unsupported cases together cannot do so with a single
+///     <c>catch (IOException)</c> clause; it must add two explicit clauses, one per type
+///     (<c>catch (UnsupportedImageFeatureException)</c> and
+///     <c>catch (InvalidDataException)</c>). This is a deliberate, narrow
 ///     behavior change limited to the one throw site this type replaces (PNG Adam7 interlacing);
 ///     it is the direct mechanism by which callers gain the ability to distinguish the two cases
-///     at all - a caller that does not need to distinguish them can simply catch both types (or
-///     <see cref="IOException"/>) instead of only <see cref="InvalidDataException"/>.
+///     at all - a caller that does not need to distinguish them can simply catch both types
+///     explicitly instead of only <see cref="InvalidDataException"/>.
 ///     <see cref="Feature"/> is a short, stable, machine-matchable token identifying which
 ///     unsupported feature was encountered (for example <c>"png-adam7-interlace"</c>), distinct
 ///     from the free-text, human-readable <see cref="Exception.Message"/>, so that branching on

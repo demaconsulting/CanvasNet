@@ -379,7 +379,10 @@ public static class PngCodec
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="path"/> is an empty string.</exception>
     /// <exception cref="System.IO.InvalidDataException">
-    ///     Thrown for the same malformed/unsupported-format conditions as <see cref="Load(Stream)"/>.
+    ///     Thrown for the same malformed-format conditions as <see cref="Load(Stream)"/>.
+    /// </exception>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown for the same Adam7-interlacing condition as <see cref="Load(Stream)"/>.
     /// </exception>
     /// <remarks>
     ///     File-system exceptions (for example <see cref="FileNotFoundException"/>,
@@ -1727,8 +1730,9 @@ public static class PngCodec
     /// </param>
     /// <param name="validateDecodability">
     ///     When <see langword="true"/>, additionally rejects Adam7 interlacing (interlace method
-    ///     1) with an <see cref="InvalidDataException"/>, as <see cref="Load(Stream)"/> requires,
-    ///     since this codec does not implement Adam7 decoding. When <see langword="false"/>, an
+    ///     1) with an <see cref="UnsupportedImageFeatureException"/>, as
+    ///     <see cref="Load(Stream)"/> requires, since this codec does not implement Adam7
+    ///     decoding. When <see langword="false"/>, an
     ///     Adam7-interlaced <c>IHDR</c> is accepted, as <see cref="GetInfo(Stream)"/> requires,
     ///     since Adam7 interlacing does not affect the declared width/height it reports. This
     ///     flag gates only this one check - every other check below (bit depth in range, color

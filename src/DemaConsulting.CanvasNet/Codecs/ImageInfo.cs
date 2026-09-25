@@ -130,7 +130,9 @@ public readonly record struct ImageInfo(int Width, int Height, int Channels, boo
     ///     <em>well-formed-but-unsupported</em> file, as distinct from a malformed one - a
     ///     malformed file makes <c>GetInfo</c> itself throw, rather than returning an
     ///     <see cref="ImageInfo"/> with this property set to <see langword="false"/>). Defaults
-    ///     to <see langword="true"/>, since every codec except <see cref="PngCodec"/> today has no
+    ///     to <see langword="true"/> for every <see cref="ImageInfo"/> constructed via its primary
+    ///     constructor (which is how every codec's <c>GetInfo</c> constructs its result), since
+    ///     every codec except <see cref="PngCodec"/> today has no
     ///     well-formed-but-unsupported case at all - see
     ///     <see cref="PngCodec.GetInfo(System.IO.Stream)"/>'s remarks for the one case (Adam7
     ///     interlacing) where this is <see langword="false"/>.
@@ -144,6 +146,19 @@ public readonly record struct ImageInfo(int Width, int Height, int Channels, boo
     ///     at the IL level, not just at the source level. A caller that wants to set this
     ///     property uses object-initializer syntax:
     ///     <c>new ImageInfo(width, height, channels, hasAlpha) { CanDecode = false }</c>.
+    ///     <para>
+    ///         <b>Caveat: <c>default(ImageInfo)</c> (or an uninitialized array/field of type
+    ///         <see cref="ImageInfo"/>) has <c>CanDecode == false</c>, not <see langword="true"/>
+    ///         as the property initializer above would otherwise suggest.</b> Because
+    ///         <see cref="ImageInfo"/> is a <see langword="struct"/>, <c>default(ImageInfo)</c>
+    ///         zero-initializes every field directly, bypassing this property's <c>= true</c>
+    ///         initializer entirely (a <see langword="struct"/>'s field initializers only run
+    ///         when one of its declared constructors runs). No codec's <c>GetInfo</c> ever
+    ///         produces a bare <c>default(ImageInfo)</c> - every <c>GetInfo</c> implementation
+    ///         calls the primary constructor, which does apply this initializer - so this caveat
+    ///         only matters to a caller that itself default-constructs, or allocates an
+    ///         uninitialized array of, <see cref="ImageInfo"/> values directly.
+    ///     </para>
     /// </remarks>
     public bool CanDecode { get; init; } = true;
 }
