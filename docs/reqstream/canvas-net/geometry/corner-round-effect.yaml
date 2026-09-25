@@ -43,6 +43,8 @@ sections:
                   out of scope; the documented policy keeps behavior predictable.
                 tests:
                   - CornerRoundEffect_Apply_LeavesCurvedCornersUnchanged
+                  - CornerRoundEffect_Apply_CubicThenLineThenLine_LeavesCurveAdjacentVertexUnroundedButRoundsLineLineCorner
+                  - CornerRoundEffect_Apply_CubicThenLineThenClose_LeavesCurveAdjacentVertexUnrounded
 
               - id: CanvasNet-Geometry-CornerRoundEffect-Validation
                 title: >-

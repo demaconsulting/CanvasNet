@@ -135,9 +135,19 @@ public static class CornerRoundEffect
                 // PathBuilder.TangentArcTo). The subsequent command, on the next loop iteration,
                 // starts from the tangent-out point and goes to its own vertex (which may itself
                 // be another polyline corner handled the same way).
+                //
+                // Both the INCOMING and OUTGOING edges meeting at this vertex must be straight
+                // for it to qualify: the incoming edge is `command` itself (the edge arriving at
+                // command.EndPoint from the previous command's endpoint, or from subpath.Start
+                // when i == 0), so requiring command.Type == LineTo is what enforces "incoming
+                // edge is straight" - a curved command (QuadraticBezierTo/CubicBezierTo/ArcTo)
+                // immediately before a LineTo never satisfies this, so the vertex where a curve
+                // meets a following LineTo is correctly left unrounded. The outgoing edge is the
+                // next command, `next`, checked separately below.
                 var next = i + 1 < commands.Count ? (PathCommandType?)commands[i + 1].Type : null;
-                var isPolylineCorner = command.Type == PathCommandType.LineTo &&
-                                        (next == PathCommandType.LineTo || next == PathCommandType.Close);
+                var isIncomingStraight = command.Type == PathCommandType.LineTo;
+                var isOutgoingStraight = next == PathCommandType.LineTo || next == PathCommandType.Close;
+                var isPolylineCorner = isIncomingStraight && isOutgoingStraight;
 
                 if (isPolylineCorner)
                 {

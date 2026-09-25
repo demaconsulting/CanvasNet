@@ -22,6 +22,7 @@ sections:
                   - TextRenderer_MeasureText_SingleGlyph_ReturnsAdvanceWidthScaledBySize
                   - TextRenderer_MeasureText_MultipleGlyphs_SumsAdvancesAndAppliesKerning
                   - TextRenderer_MeasureText_ReturnsAscentAndDescentFromFontMetrics
+                  - TextRenderer_MeasureText_PositiveRawDescender_ReturnsPositiveAbsoluteDescent
 
               - id: CanvasNet-Rendering-TextRenderer-Draw
                 title: >-
@@ -60,6 +61,7 @@ sections:
                   transform should apply to filled paths and to filled glyph paths.
                 tests:
                   - TextRenderer_DrawText_UnderTranslatedCanvas_ShiftsGlyphsByTranslation
+                  - TextRenderer_DrawText_UnderRotatedCanvas_MatchesManuallyPreTransformedGlyphFill
 
               - id: CanvasNet-Rendering-TextRenderer-Validation
                 title: >-

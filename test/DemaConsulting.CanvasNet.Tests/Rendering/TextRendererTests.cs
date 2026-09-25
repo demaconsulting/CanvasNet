@@ -1,4 +1,6 @@
+using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Rendering;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
@@ -73,6 +75,58 @@ public class TextRendererTests
         var metrics = TextRenderer.MeasureText("A", font, 100f);
         Assert.Equal(80f, metrics.Ascent, 3);
         Assert.Equal(20f, metrics.Descent, 3);
+    }
+
+    /// <summary>
+    ///     A synthetic font whose <c>hhea.descender</c> is stored as a POSITIVE value, unlike
+    ///     the normal (and every other test's) negative-descender convention. The font loader
+    ///     preserves whatever sign the font file happens to use, without enforcing negativity, so
+    ///     this exercises the documented "Descent is the absolute value of the descender"
+    ///     contract against a font that violates the usual sign convention.
+    /// </summary>
+    private static TrueTypeFont NewFontWithPositiveDescender()
+    {
+        var notdef = SyntheticFontBuilder.SimpleGlyph();
+        var glyphA = SyntheticFontBuilder.SimpleGlyph(
+            [(0, 0, true), (500, 0, true), (250, 800, true)]);
+
+        var cmap = SyntheticFontBuilder.CmapFormat4(3, 1, [(65, 1)]);
+
+        var data = new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(2))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, 200, 0, 2)) // descender is POSITIVE 200
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([0, 500]))
+            .AddTable("loca", SyntheticFontBuilder.Loca([notdef.Length, glyphA.Length], longFormat: false))
+            .AddTable("glyf", [.. notdef, .. glyphA])
+            .AddTable("cmap", cmap)
+            .Build();
+
+        return TrueTypeFont.Load(new MemoryStream(data));
+    }
+
+    /// <summary>
+    ///     TextRenderer_MeasureText_PositiveRawDescender_ReturnsPositiveAbsoluteDescent.
+    /// </summary>
+    /// <remarks>
+    ///     Regression test: <see cref="TextMetrics.Descent"/> is documented as the absolute value
+    ///     of the font descender. A bare negation of a POSITIVE raw <c>hhea.descender</c> (as
+    ///     produced by a font that doesn't follow the usual negative-descender convention) would
+    ///     incorrectly yield a negative Descent; taking the absolute value keeps it positive
+    ///     regardless of the font's sign convention. Distinct from
+    ///     <see cref="TextRenderer_MeasureText_ReturnsAscentAndDescentFromFontMetrics"/>, which
+    ///     covers the normal negative-descender case.
+    /// </remarks>
+    [Fact]
+    public void TextRenderer_MeasureText_PositiveRawDescender_ReturnsPositiveAbsoluteDescent()
+    {
+        var font = NewFontWithPositiveDescender();
+        var metrics = TextRenderer.MeasureText("A", font, 100f);
+
+        // Raw descender is +200 units * (100/1000) = 20; the absolute value is still +20, not
+        // -20 (which a bare `-font.Descender * scale` negation would have produced).
+        Assert.Equal(20f, metrics.Descent, 3);
+        Assert.True(metrics.Descent >= 0f, "Descent must be non-negative regardless of the font's descender sign convention.");
     }
 
     /// <summary>TextRenderer_MeasureText_NonFiniteSize_ThrowsArgumentOutOfRangeException.</summary>
@@ -212,5 +266,82 @@ public class TextRendererTests
         {
             Assert.True(s1.GetRowSpanBytes(y).SequenceEqual(s2.GetRowSpanBytes(y)));
         }
+    }
+
+    /// <summary>TextRenderer_DrawText_UnderRotatedCanvas_MatchesManuallyPreTransformedGlyphFill.</summary>
+    /// <remarks>
+    ///     Regression test: translation alone cannot catch an incorrect transform-composition
+    ///     order or a sign error in the glyph's y-flip-vs-rotation interaction, since rotation and
+    ///     y-flip don't commute. Draws text via <see cref="RenderCanvas"/> + <see cref="TextRenderer.DrawText"/>
+    ///     inside a Save/Translate/RotateDegrees/Restore block for a 90-degree rotation (re-centered
+    ///     onto the surface, since rotating strictly about the origin would carry the glyph
+    ///     off-canvas), then independently re-derives the same glyph-space transform (scale +
+    ///     y-flip + baseline translation, composed with the same rotation-then-recenter current
+    ///     transform) and fills the raw glyph outline directly through the static
+    ///     <see cref="PathFiller"/> - matching the "compare against manual pre-transform"
+    ///     technique used for the gradient-transform fix elsewhere in this PR cycle. The two
+    ///     surfaces must be byte-identical.
+    /// </remarks>
+    [Fact]
+    public void TextRenderer_DrawText_UnderRotatedCanvas_MatchesManuallyPreTransformedGlyphFill()
+    {
+        var font = NewFont();
+        var color = new Rgba32(0, 200, 100, 255);
+        const float x = 0f;
+        const float y = 0f;
+        const float size = 24f;
+        const float angleDegrees = 90f;
+        const float centerX = 48f;
+        const float centerY = 48f;
+
+        // Act: render "A" via the public Canvas + TextRenderer API inside a rotated Save/Restore
+        // block. Rotating strictly around the origin would carry the glyph off-canvas (its
+        // baseline anchor sits at positive x/y), so a translate-to-center is composed after the
+        // rotation: per Canvas' documented row-vector prepend order, calling Translate then
+        // RotateDegrees means "rotate first (around the origin), then translate" - i.e. the
+        // rotated glyph is re-centered onto the surface.
+        var rotatedSurface = new Surface(96, 96);
+        var rotatedCanvas = new RenderCanvas(rotatedSurface);
+        rotatedCanvas.Save();
+        rotatedCanvas.Translate(centerX, centerY);
+        rotatedCanvas.RotateDegrees(angleDegrees);
+        rotatedCanvas.DrawText("A", x, y, TextAlign.Left, font, size, color);
+        rotatedCanvas.Restore();
+
+        // Assert (manual re-derivation): independently reconstruct the same glyph-space
+        // transform TextRenderer.DrawText bakes internally (scale + y-flip, baseline
+        // translation, then the canvas' current transform composed on the outside) and fill the
+        // raw glyph outline directly via the static PathFiller, entirely independently of
+        // TextRenderer's own implementation.
+        var glyphIndex = font.GetGlyphIndex('A');
+        var outline = font.GetGlyphOutline(glyphIndex);
+        var scale = size / font.UnitsPerEm;
+        var rotation = Matrix3x2.CreateRotation(angleDegrees * (MathF.PI / 180f));
+        var recenter = Matrix3x2.CreateTranslation(centerX, centerY);
+        var currentTransform = rotation * recenter; // matches Canvas' Translate-then-RotateDegrees prepend order
+        var glyphMatrix = Matrix3x2.CreateScale(scale, -scale) * Matrix3x2.CreateTranslation(x, y) * currentTransform;
+        var manualSurface = new Surface(96, 96);
+        PathFiller.Fill(manualSurface, outline.Transform(glyphMatrix), color);
+
+        // Assert: both surfaces are painted identically, pixel for pixel, and the render actually
+        // produced some non-trivial coverage (guards against a degenerate transform collapsing
+        // the glyph to nothing).
+        var paintedPixelCount = 0;
+        for (var py = 0; py < rotatedSurface.Height; py++)
+        {
+            var rotatedRow = rotatedSurface.GetRowSpanBytes(py);
+            var manualRow = manualSurface.GetRowSpanBytes(py);
+            Assert.True(rotatedRow.SequenceEqual(manualRow), $"Row {py} mismatch");
+
+            foreach (var px in rotatedSurface.GetRowSpan(py))
+            {
+                if (px.A > 0)
+                {
+                    paintedPixelCount++;
+                }
+            }
+        }
+
+        Assert.True(paintedPixelCount > 0, "DrawText under a rotated canvas produced no pixels");
     }
 }

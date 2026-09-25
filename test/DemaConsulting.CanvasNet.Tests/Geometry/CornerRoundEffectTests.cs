@@ -86,6 +86,75 @@ public class CornerRoundEffectTests
     }
 
     /// <summary>
+    ///     CornerRoundEffect_Apply_CubicThenLineThenLine_LeavesCurveAdjacentVertexUnroundedButRoundsLineLineCorner.
+    /// </summary>
+    /// <remarks>
+    ///     Regression test distinguishing two different vertices in the same path: a
+    ///     <c>CubicBezierTo -> LineTo -> LineTo</c> sequence. The vertex between the
+    ///     <c>CubicBezierTo</c> and the first <c>LineTo</c> has a curved INCOMING edge and must
+    ///     be left as a sharp, unrounded vertex; the vertex between the first and second
+    ///     <c>LineTo</c> has both a straight incoming AND straight outgoing edge (a genuine
+    ///     polyline corner) elsewhere in the same path, and must still be rounded. Also covers
+    ///     the equivalent <c>CubicBezierTo -> LineTo -> Close</c> shape (the sharp curve-adjacent
+    ///     vertex must remain unrounded when the following corner is the implicit closing edge
+    ///     rather than a second explicit LineTo).
+    /// </remarks>
+    [Fact]
+    public void CornerRoundEffect_Apply_CubicThenLineThenLine_LeavesCurveAdjacentVertexUnroundedButRoundsLineLineCorner()
+    {
+        // MoveTo(0,0) -> CubicBezierTo(...,end=(10,0)) -> LineTo(10,0)->(10,10) -> LineTo(10,10)->(0,10).
+        // Vertex A = (10, 0): between the CubicBezierTo and the first LineTo - curve-adjacent,
+        // must NOT be rounded. Vertex B = (10, 10): between the first and second LineTo - a
+        // genuine line-to-line-to-line corner, must be rounded.
+        var source = new PathBuilder()
+            .MoveTo(new Vector2(0, 0))
+            .CubicBezierTo(new Vector2(3, 1), new Vector2(7, 1), new Vector2(10, 0))
+            .LineTo(new Vector2(10, 10))
+            .LineTo(new Vector2(0, 10))
+            .Build();
+
+        var rounded = CornerRoundEffect.Apply(source, 2f);
+        var commands = Assert.Single(rounded.Subpaths).Commands;
+
+        // The curve-adjacent vertex A = (10, 0) must still appear exactly as a sharp point: the
+        // CubicBezierTo must still end exactly there (unmodified), and no LineTo/CubicBezierTo
+        // pair around it should have replaced it with a tangent-cut arc.
+        Assert.Contains(commands, c => c.Type == PathCommandType.CubicBezierTo && c.EndPoint == new Vector2(10, 0));
+
+        // The genuine line-line corner at B = (10, 10) must have been replaced with a rounded
+        // arc: no command may terminate exactly at the original sharp point (10, 10).
+        Assert.DoesNotContain(commands, c => c.Type == PathCommandType.LineTo && c.EndPoint == new Vector2(10, 10));
+        Assert.Contains(commands, c => c.Type == PathCommandType.CubicBezierTo && c.EndPoint != new Vector2(10, 0));
+    }
+
+    /// <summary>
+    ///     CornerRoundEffect_Apply_CubicThenLineThenClose_LeavesCurveAdjacentVertexUnrounded.
+    /// </summary>
+    /// <remarks>
+    ///     Same regression as
+    ///     <see cref="CornerRoundEffect_Apply_CubicThenLineThenLine_LeavesCurveAdjacentVertexUnroundedButRoundsLineLineCorner"/>,
+    ///     but for the <c>CubicBezierTo -> LineTo -> Close</c> variant: the curve-adjacent vertex
+    ///     must remain unrounded even when the LineTo's own following corner is the implicit
+    ///     closing edge rather than a second explicit LineTo.
+    /// </remarks>
+    [Fact]
+    public void CornerRoundEffect_Apply_CubicThenLineThenClose_LeavesCurveAdjacentVertexUnrounded()
+    {
+        var source = new PathBuilder()
+            .MoveTo(new Vector2(0, 0))
+            .CubicBezierTo(new Vector2(1, 1), new Vector2(2, 1), new Vector2(3, 0))
+            .LineTo(new Vector2(3, 6))
+            .Close()
+            .Build();
+
+        var rounded = CornerRoundEffect.Apply(source, 1f);
+        var commands = Assert.Single(rounded.Subpaths).Commands;
+
+        // The curve-adjacent vertex at (3, 0) must still appear exactly as a sharp point.
+        Assert.Contains(commands, c => c.Type == PathCommandType.CubicBezierTo && c.EndPoint == new Vector2(3, 0));
+    }
+
+    /// <summary>
     ///     CornerRoundEffect_Apply_Size10SquareRadius5_AllFourCornersGetSameUnclampedRadius.
     /// </summary>
     /// <remarks>

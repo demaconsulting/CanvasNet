@@ -164,6 +164,7 @@ src/DemaConsulting.CanvasNet/
 │   ├── PathBuilder.cs             — Mutable, fluent builder that produces a Path
 │   ├── BezierFlattening.cs        — Adaptive quadratic/cubic Bezier curve flattening
 │   ├── SvgArcConverter.cs         — SVG-style elliptical arc to cubic Bezier conversion
+│   ├── CornerRoundEffect.cs       — Replaces polyline corners with tangent circular arcs
 │   └── NamespaceDoc.cs            — Namespace-level XML documentation
 └── Rendering/
     ├── Canvas.cs                   — Transform-aware Save/Restore/Translate/RotateDegrees wrapper

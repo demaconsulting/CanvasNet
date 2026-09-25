@@ -52,7 +52,11 @@ public static class TextRenderer
         }
 
         var ascent = font.Ascender * scale;
-        var descent = -font.Descender * scale;
+        // Descent is documented as the absolute value of the font descender: most fonts store
+        // hhea.descender as a negative value (below the baseline), but the font loader preserves
+        // whatever sign the font file uses as-is, so a bare negation would yield a negative
+        // Descent for a (non-conformant) font whose raw descender happens to be positive.
+        var descent = MathF.Abs(font.Descender * scale);
         return new TextMetrics(width, ascent, descent);
     }
 

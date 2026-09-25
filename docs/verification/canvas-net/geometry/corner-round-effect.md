@@ -15,6 +15,11 @@ The `CornerRoundEffect` unit is verified by
   terminates exactly at any of the four original sharp corner points.
 - **Curved-corner policy**: `CornerRoundEffect_Apply_LeavesCurvedCornersUnchanged` verifies
   that curved segments are left as-is.
+  `CornerRoundEffect_Apply_CubicThenLineThenLine_LeavesCurveAdjacentVertexUnroundedButRoundsLineLineCorner`
+  and `CornerRoundEffect_Apply_CubicThenLineThenClose_LeavesCurveAdjacentVertexUnrounded` extend
+  this to a `CubicBezierTo -> LineTo -> LineTo` (and `-> Close`) sequence, confirming the
+  curve-adjacent vertex stays sharp while a genuine line-to-line-to-line corner elsewhere in the
+  same path is still rounded.
 - **Radius clamping**: `CornerRoundEffect_Apply_ClampsRadiusToHalfShorterAdjacentSegment`
   verifies the per-corner clamp to half the shorter adjacent segment.
 - **Zero radius**: `CornerRoundEffect_Apply_ZeroRadius_ReturnsSourcePath` verifies the no-op
