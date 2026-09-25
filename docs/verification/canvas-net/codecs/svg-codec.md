@@ -394,16 +394,19 @@ values.
 Asserts `Load` throws `InvalidDataException` for a well-formed-XML document that nonetheless
 declares a bare `DOCTYPE` (no entities involved), proving `DtdProcessing.Prohibit` rejects DTD
 processing outright rather than merely limiting what an entity can resolve to. Separately, asserts
-`Load` throws `InvalidDataException` for a document whose `DOCTYPE` declares an external general
-entity (referencing a URI, for example a local file path or a loopback network address) and/or an
-external parameter entity, and that the referenced external resource is never actually read or
-requested — proving both `DtdProcessing.Prohibit` and the `null` `XmlResolver` are effective, since
-either one alone would already prevent the resource from being fetched, but only `DtdProcessing`
-being set to `Prohibit` guarantees the reader fails fast on the `DOCTYPE` itself rather than merely
-failing later when attempting (and being unable) to resolve the entity. Separately, asserts
-`GetInfo` throws `InvalidDataException` for the same external-entity-declaring document, proving
-the hardening applies equally to `LoadRootElementAttributesOnly`'s root-start-tag-only
-`XmlReaderSettings`, not only to `LoadRootElement`'s full-document `XmlReaderSettings`.
+`Load` throws `InvalidDataException` for a document whose `DOCTYPE` declares and references an
+external general entity (a `file:///etc/passwd` SYSTEM URI - the canonical XXE payload shape). Per
+.NET's documented `DtdProcessing.Prohibit` behavior, the reader raises `XmlException` as soon as it
+encounters the `DOCTYPE` node itself, before any entity resolution is ever attempted, so the
+referenced resource is never read or requested - the tests prove the document is rejected, not
+(via a resolver spy or similar) that no fetch attempt occurs; that guarantee rests on the
+documented framework behavior of `DtdProcessing.Prohibit` combined with the `null` `XmlResolver`.
+This coverage is for external *general* entities only; external *parameter* entities are not
+separately tested, though the same `DtdProcessing.Prohibit` rejection applies equally to both.
+Separately, asserts `GetInfo` throws `InvalidDataException` for the same external-entity-declaring
+document, proving the hardening applies equally to `LoadRootElementAttributesOnly`'s
+root-start-tag-only `XmlReaderSettings`, not only to `LoadRootElement`'s full-document
+`XmlReaderSettings`.
 
 #### CanvasNet-Codecs-SvgCodec-MalformedPathDataRejected: Malformed Path "d" Data Rejected
 

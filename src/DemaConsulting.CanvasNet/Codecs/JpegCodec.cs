@@ -1192,12 +1192,25 @@ public static class JpegCodec
                 return true;
             }
 
-            /// <summary>Grows the backing array to at least <paramref name="requiredCapacity"/> bytes.</summary>
+            /// <summary>
+            ///     Grows the backing array to at least <paramref name="requiredCapacity"/> bytes,
+            ///     using geometric (doubling) growth rather than resizing to exactly
+            ///     <paramref name="requiredCapacity"/> each call. The post-soft-cap fallback scan
+            ///     grows the buffer in many small, fixed-size (<see cref="BulkChunkSize"/>) steps
+            ///     while working toward <c>hardLimit</c> (up to 16 MiB); resizing to the exact
+            ///     capacity needed on every such step would copy the entire buffer roughly
+            ///     <c>hardLimit / BulkChunkSize</c> times (around 200 full-array copies), which is
+            ///     quadratic in the amount of data read. Doubling capacity instead makes the total
+            ///     copying work amortized linear in the final buffer size, capped at
+            ///     <c>hardLimit</c> since the buffer is never grown beyond what
+            ///     <see cref="TryEnsureLength"/> has already confirmed is within the hard limit.
+            /// </summary>
             private void EnsureCapacity(int requiredCapacity)
             {
                 if (_data.Length < requiredCapacity)
                 {
-                    Array.Resize(ref _data, requiredCapacity);
+                    var newCapacity = Math.Min(Math.Max(requiredCapacity, _data.Length * 2), hardLimit);
+                    Array.Resize(ref _data, newCapacity);
                 }
             }
 
