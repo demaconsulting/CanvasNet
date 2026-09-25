@@ -228,6 +228,8 @@ identical.
 `JpegCodec_GetInfo_LargeLeadingAppSegments_SucceedsAndMatchesLoadResult`,
 `JpegCodec_GetInfo_SofShortlyAfterProbeCap_StopsAtSofWithoutDrainingStream`,
 `JpegCodec_GetInfo_NoSofEverFound_StopsAtHardLimitWithInvalidDataException`,
+`JpegCodec_GetInfo_ManyMinimalSegmentsNoSof_StopsAtSegmentCountLimitBeforeByteLimit`,
+`JpegCodec_GetInfo_SofAsSegmentImmediatelyAfterSegmentCountLimit_StillSucceeds`,
 `JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows`,
 `JpegCodec_GetInfo_ZeroLengthSegment_TerminatesPromptlyWithInvalidDataException`,
 `CanvasNet_SystemIntegration_JpegGetInfoWithLargeLeadingSegments_ReturnsExpectedInfo`
@@ -276,7 +278,23 @@ correct implementation must never reach, wrapped in a `BoundedReadStream` config
 distinct `InvalidOperationException` the instant more than the hard limit (plus a small slack) is
 read - so the test fails loudly rather than hanging if the hard-limit protection were ever removed
 again - and asserts `GetInfo` instead throws `InvalidDataException` referencing the hard limit.
-Proves `GetInfo`
+Proves that scanning past the soft cap is additionally bounded by a second, independent
+segment-count ceiling that catches an attack shape the byte-based hard limit alone would take
+millions of iterations to reach: builds many more than the segment-count limit's worth of
+well-formed, minimal (4-byte) non-SOF APP0 filler segments - totalling only a few kilobytes,
+nowhere near either byte-based cap - followed by an unbounded, never-ending zero-byte tail
+(`InfiniteTailStream`), wrapped in a `BoundedReadStream` configured with a small, generous budget
+(comfortably covering both the known prefix and the probe buffer's eager internal chunk reads,
+while remaining a tiny fraction of the byte-based soft cap and hard limit), and asserts `GetInfo`
+throws `InvalidDataException` referencing the segment limit well within that budget - proving the
+segment-count cap, not the byte-based cap, is what catches this attack shape. Proves the
+segment-count cap never rejects a well-formed file merely because its terminating SOF0/SOF2 marker
+happens to land exactly on what would otherwise be the limit-exceeding segment: builds exactly the
+segment-count limit's worth of non-SOF marker segments (minimal APP0 filler plus the DQT/DHT
+segments `Load` itself needs) followed immediately by a normal SOF0 segment and SOS/entropy data,
+and asserts `GetInfo` still succeeds and matches `Load`'s own decoded dimensions on the identical
+bytes exactly - proving the segment-count check is applied only to non-terminating segments, never
+to the SOF0/SOF2 marker itself. Proves `GetInfo`
 does not enforce `Surface.MaxDimension` by building an SOF0 segment
 declaring a width one greater than `Surface.MaxDimension`, asserting `GetInfo` returns that raw
 oversized width without throwing, and then asserting `Load` on the exact same bytes still throws
@@ -311,7 +329,7 @@ corresponding `Load` scenarios, plus JPEG-specific malformed-ordering cases `Loa
 
 A unit test run passes when all test methods above pass without error or unexpected exception; any
 unexpected exception type or wrong return/value relationship constitutes a failure. Across
-`JpegCodecTests.cs` and `JpegFixtureTests.cs`, this totals 49 test methods (45 in
+`JpegCodecTests.cs` and `JpegFixtureTests.cs`, this totals 51 test methods (47 in
 `JpegCodecTests.cs` and 4 in `JpegFixtureTests.cs`); several of these are `[Theory]` methods that
 additionally expand to multiple executed xUnit test cases, plus the system-level integration
 scenarios documented in `docs/verification/canvas-net.md`.

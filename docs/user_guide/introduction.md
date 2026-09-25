@@ -659,12 +659,17 @@ files. If that soft cap is reached without finding a SOF0/SOF2 marker, `GetInfo`
 past the cap - one marker segment at a time, exactly as it does below the cap - until a SOF0/SOF2
 marker is found, so `GetInfo` never throws merely because a file has more than
 `MaxProbeHeaderBytes` of leading marker-segment data - as long as `Load` itself would successfully
-parse that file up to and including the SOF marker. That post-soft-cap scanning is itself bounded
-by a much larger hard limit of `MaxProbeHeaderBytesHardLimit` (16,777,216 bytes, 16x the soft
-cap): once that ceiling is reached without a SOF0/SOF2 marker ever being found, `GetInfo` throws
-`InvalidDataException` rather than continuing to read or buffer data without bound, protecting
+parse that file up to and including the SOF marker. That post-soft-cap scanning is bounded by two
+independent ceilings, either of which stops it once reached without a SOF0/SOF2 marker ever being
+found: a much larger hard byte limit, `MaxProbeHeaderBytesHardLimit` (16,777,216 bytes, 16x the
+soft cap), and a hard segment-count limit, `MaxProbeSegmentCount` (512), which bounds the number
+of non-terminating marker segments scanned directly - since a marker segment can be as small as
+4 bytes, the byte limit alone would not cheaply bound scan iterations for a malformed stream built
+from many minimal-size segments. Once either ceiling is reached, `GetInfo` throws
+`InvalidDataException` rather than continuing to read, buffer, or loop without bound, protecting
 against a malformed, adversarial, or effectively-infinite stream that never presents a SOF0/SOF2
-marker.
+marker. The segment-count limit never applies to the terminating SOF0/SOF2 marker segment itself,
+so a well-formed file's SOF marker always succeeds regardless of which segment number it falls on.
 
 **Exceptions:**
 
@@ -672,9 +677,10 @@ marker.
 - `InvalidDataException`: Thrown when the SOI marker is missing, an SOS marker or end-of-image is
   reached before any SOF0/SOF2 marker is found, an unsupported SOF/frame marker is encountered, no
   SOF0/SOF2 marker is found before the stream genuinely ends (a genuinely truncated or non-JPEG
-  input) - the same condition `Load(Stream)` itself would reject on the same bytes - or the
+  input) - the same condition `Load(Stream)` itself would reject on the same bytes - the
   `MaxProbeHeaderBytesHardLimit` hard ceiling is reached without a SOF0/SOF2 marker ever being
-  found.
+  found, or the `MaxProbeSegmentCount` segment-count ceiling is reached without a SOF0/SOF2 marker
+  ever being found.
 
 ##### JpegCodec.GetInfo(string path)
 

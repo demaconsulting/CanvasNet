@@ -231,6 +231,30 @@ still probe successfully, this hard limit means `GetInfo` now throws `InvalidDat
 exactly two cases: the stream genuinely ends before a supported SOF marker is found (same message
 as before), or the hard limit is reached first for a stream that never yields one.
 
+**Architectural decision (a second, independent hard limit bounds the number of segments
+scanned):** The byte-based `MaxProbeHeaderBytesHardLimit` bounds the total *data volume*
+`ProbeDimensions` can read past the soft cap, but does not, by itself, cheaply bound the number of
+loop iterations: a JPEG marker segment can be as small as 4 bytes (a 2-byte marker code plus a
+2-byte length field), so a malformed or adversarial stream composed entirely of minimal-size
+segments could still force on the order of `MaxProbeHeaderBytesHardLimit / 4` (roughly four
+million) scan iterations before the byte ceiling is ever reached. `MaxProbeSegmentCount` (512,
+internal like the other probe constants so the test project can reference it directly) closes
+this gap as a second, independent defense-in-depth ceiling: `ProbeDimensions` counts each
+non-terminating marker segment it scans past (stray restart markers and the general
+APPn/COM/DQT/DHT/etc. fallback path), and once more than `MaxProbeSegmentCount` such segments have
+been scanned without a SOF0/SOF2 marker ever being found, throws `InvalidDataException` —
+"JPEG SOF0/SOF2 marker not found within the 512-segment header probe limit." — rather than
+scanning further. Whichever of the two independent ceilings (this one, or
+`MaxProbeHeaderBytesHardLimit`) is reached first triggers the throw. Critically, the segment-count
+check is applied only to segments the scan continues *past* — never to the terminating SOF0/SOF2
+marker segment itself — so a well-formed file whose SOF marker happens to land exactly on what
+would otherwise be the `MaxProbeSegmentCount + 1`-th segment still probes successfully, preserving
+the same "`GetInfo` never throws for an input `Load` would successfully decode" invariant that
+motivates the soft cap's continuation behavior. Sized at 512, comfortably above both the ~20-30
+segments realistic files with rich EXIF/ICC/XMP/APP14/COM metadata might need, and the roughly 260
+maximal-length segments it takes to reach `MaxProbeHeaderBytesHardLimit`, the two ceilings remain
+genuinely independent rather than one silently overriding the other.
+
 **Throws:**
 
 - `ArgumentNullException` — `stream` is null
@@ -238,10 +262,11 @@ as before), or the hard limit is reached first for a stream that never yields on
   (any SOF variant other than SOF0/SOF2, or an arithmetic-coded/JPG-extension marker) or
   unsupported component count is encountered; an SOS marker is encountered before any SOF0/SOF2
   marker; the marker/segment structure is malformed; the stream genuinely ends (even after
-  continuing to scan past the soft cap described above) before an SOF0/SOF2 marker is found; or
-  the `MaxProbeHeaderBytesHardLimit` hard ceiling is reached without an SOF0/SOF2 marker ever being
-  found (same contract as `Load`, except the `Surface.MaxDimension` check is skipped and
-  entropy-coded scan data is never required or read)
+  continuing to scan past the soft cap described above) before an SOF0/SOF2 marker is found; the
+  `MaxProbeHeaderBytesHardLimit` hard ceiling is reached without an SOF0/SOF2 marker ever being
+  found; or the `MaxProbeSegmentCount` segment-count ceiling is reached without an SOF0/SOF2
+  marker ever being found (same contract as `Load`, except the `Surface.MaxDimension` check is
+  skipped and entropy-coded scan data is never required or read)
 
 #### GetInfo(string path)
 
