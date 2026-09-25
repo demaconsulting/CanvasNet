@@ -363,7 +363,7 @@ public class CanvasTests
 
         surface.Dispose();
 
-        var exception = Record.Exception(() => canvas.Surface);
+        var exception = Record.Exception(() => _ = canvas.Surface);
         Assert.Null(exception);
         Assert.Same(surface, canvas.Surface);
     }
