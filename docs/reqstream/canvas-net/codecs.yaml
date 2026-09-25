@@ -249,12 +249,15 @@ sections:
               chunk on a grayscale color type,
               a PLTE chunk appearing after a tRNS chunk has already been accepted, a tRNS chunk
               preceding PLTE on an indexed-color image, a tRNS chunk on a color type that already
-              carries a full alpha channel, non-consecutive IDAT chunks, or a truncated stream), and
-              Adam7-interlaced PNG data, with InvalidDataException.
+              carries a full alpha channel, non-consecutive IDAT chunks, or a truncated stream) with
+              InvalidDataException, and shall reject Adam7-interlaced PNG data (a well-formed file
+              using the one PNG feature this codec's Load does not decode) with the distinct
+              UnsupportedImageFeatureException.
             justification: |
-              Callers must be able to distinguish a genuinely malformed PNG file, or one using
-              Adam7 interlacing (the only PNG feature this codec's Load does not decode), from a
-              successful load, and receive a clear, actionable error rather than incorrect pixel data.
+              Callers must be able to distinguish a genuinely malformed PNG file from one using Adam7
+              interlacing, and receive a clear, actionable error rather than incorrect pixel data;
+              the distinct UnsupportedImageFeatureException type lets a caller tell the two cases
+              apart without string-matching the exception message.
             children:
               - CanvasNet-Codecs-PngCodec-LoadBadSignature
               - CanvasNet-Codecs-PngCodec-LoadInvalidCombination
@@ -281,7 +284,7 @@ sections:
               - PngCodec_Load_BadSignature_ThrowsInvalidDataException
               - PngCodec_GetInfoAndLoad_InvalidColorType_BothThrowInvalidDataException
               - PngCodec_GetInfoAndLoad_InvalidBitDepth_BothThrowInvalidDataException
-              - PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsInvalidDataException
+              - PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsUnsupportedImageFeatureException
               - PngCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException
               - PngCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException
               - PngCodec_Load_CorruptChunkCrc_ThrowsInvalidDataException
@@ -350,6 +353,21 @@ sections:
               - PngCodec_GetInfoAndLoad_InvalidColorType_BothThrowInvalidDataException
               - PngSuiteUnsupportedFile_GetInfoReturnsCorrectDimensions
               - PngCodec_PngSuiteCorruptAfterIhdrFile_GetInfoReturnsCorrectDimensions_ButLoadThrows
+
+          - id: CanvasNet-Codecs-PngGetInfoCanDecode
+            title: >-
+              The Codecs subsystem shall report ImageInfo.CanDecode as false via GetInfo for an
+              Adam7-interlaced PNG, and true for every other well-formed PNG, so a caller can detect
+              this well-formed-but-unsupported case before calling Load.
+            justification: |
+              GetInfo already parses the header and knows whether Load will be able to decode the
+              file; surfacing that as a boolean lets a caller triage before committing to Load instead
+              of having to call Load and catch UnsupportedImageFeatureException.
+            children:
+              - CanvasNet-Codecs-PngCodec-GetInfoCanDecode
+            tests:
+              - PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsUnsupportedImageFeatureException
+              - PngCodec_GetInfo_NonInterlaced_ReportsCanDecodeTrue
 
           - id: CanvasNet-Codecs-PngGetInfoValidation
             title: >-

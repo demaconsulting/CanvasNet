@@ -121,4 +121,29 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     <see langword="false"/> otherwise (see the per-format derivation in the type-level
 ///     remarks).
 /// </param>
-public readonly record struct ImageInfo(int Width, int Height, int Channels, bool HasAlpha);
+public readonly record struct ImageInfo(int Width, int Height, int Channels, bool HasAlpha)
+{
+    /// <summary>
+    ///     <see langword="true"/> if a subsequent call to the corresponding codec's <c>Load</c>
+    ///     method on the same bytes is expected to succeed; <see langword="false"/> if the file's
+    ///     header declares a well-formed feature that <c>Load</c> does not implement (a
+    ///     <em>well-formed-but-unsupported</em> file, as distinct from a malformed one - a
+    ///     malformed file makes <c>GetInfo</c> itself throw, rather than returning an
+    ///     <see cref="ImageInfo"/> with this property set to <see langword="false"/>). Defaults
+    ///     to <see langword="true"/>, since every codec except <see cref="PngCodec"/> today has no
+    ///     well-formed-but-unsupported case at all - see
+    ///     <see cref="PngCodec.GetInfo(System.IO.Stream)"/>'s remarks for the one case (Adam7
+    ///     interlacing) where this is <see langword="false"/>.
+    /// </summary>
+    /// <remarks>
+    ///     Deliberately declared here as an <see langword="init"/>-only member outside this
+    ///     record struct's primary constructor parameter list, rather than as a fifth positional
+    ///     parameter, so that adding it does not change the primary constructor's or
+    ///     <c>Deconstruct</c>'s emitted signature - both of which every existing caller that
+    ///     constructs or positionally deconstructs an <see cref="ImageInfo"/> already depends on
+    ///     at the IL level, not just at the source level. A caller that wants to set this
+    ///     property uses object-initializer syntax:
+    ///     <c>new ImageInfo(width, height, channels, hasAlpha) { CanDecode = false }</c>.
+    /// </remarks>
+    public bool CanDecode { get; init; } = true;
+}

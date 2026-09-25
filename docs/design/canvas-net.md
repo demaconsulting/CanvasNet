@@ -168,8 +168,9 @@ The system exposes the following public API to external consumers:
   Truecolor-with-alpha, at bit depths 1/2/4/8/16 as each color type permits), honoring `tRNS`
   key-color/per-palette-entry transparency where the specification defines it. Throws
   `ArgumentNullException` for a null `stream`/`path`, `ArgumentException` for an empty `path`,
-  and `InvalidDataException` for malformed PNG data, Adam7-interlaced data (not decoded), or a
-  bit-depth/color-type combination the PNG specification does not define.
+  `InvalidDataException` for malformed PNG data or a bit-depth/color-type combination the PNG
+  specification does not define, and `UnsupportedImageFeatureException` (distinct from
+  `InvalidDataException`) for well-formed but Adam7-interlaced data (not decoded).
 - **PngCodec.Save(Surface surface, Stream stream, PngColorType colorType)** /
   **PngCodec.Save(Surface surface, string path, PngColorType colorType)**: Saves a `Surface` as an
   8-bit-per-channel RGB or RGBA PNG stream or file. Throws `ArgumentNullException` for a null

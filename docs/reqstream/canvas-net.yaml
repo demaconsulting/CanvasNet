@@ -407,22 +407,41 @@ sections:
         title: >-
           The library shall reject malformed PNG data (bad signature, an invalid bit depth or
           color type, a bit-depth/color-type combination the PNG specification does not define,
-          corrupt chunk CRC-32, corrupt Adler-32 checksum, or a truncated stream), and
-          Adam7-interlaced PNG data, with InvalidDataException.
+          corrupt chunk CRC-32, corrupt Adler-32 checksum, or a truncated stream) with
+          InvalidDataException, and shall reject Adam7-interlaced PNG data (a well-formed file
+          using the one PNG feature this library's Load does not decode) with the distinct
+          UnsupportedImageFeatureException.
         tags: [system]
         justification: |
-          Callers must be able to distinguish a genuinely malformed PNG file, or one using Adam7
-          interlacing (the only PNG feature this library's Load does not decode), from a
-          successful load, and receive a clear, actionable error rather than incorrect pixel data.
+          Callers must be able to distinguish a genuinely malformed PNG file from one using Adam7
+          interlacing, and receive a clear, actionable error rather than incorrect pixel data; the
+          distinct UnsupportedImageFeatureException type lets a caller tell the two cases apart
+          without string-matching the exception message.
         children:
           - CanvasNet-Codecs-PngUnsupportedFormatValidation
         tests:
           - PngCodec_Load_BadSignature_ThrowsInvalidDataException
           - PngCodec_Load_InvalidBitDepthColorTypeCombination_ThrowsInvalidDataException
-          - PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsInvalidDataException
+          - PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsUnsupportedImageFeatureException
           - PngCodec_Load_CorruptChunkCrc_ThrowsInvalidDataException
           - PngCodec_Load_CorruptAdlerTrailer_ThrowsInvalidDataException
           - PngCodec_Load_TruncatedStream_ThrowsInvalidDataException
+
+      - id: CanvasNet-Lib-PngGetInfoCanDecode
+        title: >-
+          The library shall report ImageInfo.CanDecode as false via GetInfo for an
+          Adam7-interlaced PNG, and true for every other well-formed PNG, so a caller can detect
+          this well-formed-but-unsupported case before calling Load.
+        tags: [system]
+        justification: |
+          GetInfo already parses the header and knows whether Load will be able to decode the
+          file; surfacing that as a boolean lets a caller triage before committing to Load instead
+          of having to call Load and catch UnsupportedImageFeatureException.
+        children:
+          - CanvasNet-Codecs-PngGetInfoCanDecode
+        tests:
+          - PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsUnsupportedImageFeatureException
+          - PngCodec_GetInfo_NonInterlaced_ReportsCanDecodeTrue
 
       - id: CanvasNet-Lib-PngGetInfo
         title: >-

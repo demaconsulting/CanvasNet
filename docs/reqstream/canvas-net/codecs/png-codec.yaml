@@ -278,15 +278,31 @@ sections:
 
               - id: CanvasNet-Codecs-PngCodec-LoadUnsupportedInterlace
                 title: >-
-                  The PngCodec class shall reject an Adam7-interlaced PNG with InvalidDataException,
-                  even though such a file is otherwise well-formed.
+                  The PngCodec class shall reject an Adam7-interlaced PNG with
+                  UnsupportedImageFeatureException (Feature "png-adam7-interlace"), even though such a
+                  file is otherwise well-formed.
                 justification: |
                   Adam7 interlacing reorders scanline data into seven sequential passes that this codec
                   does not decode; failing clearly here prevents silently producing a scrambled image.
                   This is the only remaining color-type/bit-depth/interlace combination Load refuses
-                  that is not itself malformed per the PNG specification.
+                  that is not itself malformed per the PNG specification, so it is rejected with the
+                  distinct UnsupportedImageFeatureException type rather than a generic
+                  InvalidDataException, letting a caller distinguish "well-formed but unsupported" from
+                  "malformed" without string-matching the exception message.
                 tests:
-                  - PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsInvalidDataException
+                  - PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsUnsupportedImageFeatureException
+
+              - id: CanvasNet-Codecs-PngCodec-GetInfoCanDecode
+                title: >-
+                  The PngCodec class shall report ImageInfo.CanDecode as false via GetInfo for an
+                  Adam7-interlaced PNG, and true for every other well-formed PNG.
+                justification: |
+                  A caller triaging a file via GetInfo before committing to Load needs to be able to
+                  detect the one well-formed-but-unsupported PNG feature (Adam7 interlacing) without
+                  having to call Load and catch UnsupportedImageFeatureException.
+                tests:
+                  - PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsUnsupportedImageFeatureException
+                  - PngCodec_GetInfo_NonInterlaced_ReportsCanDecodeTrue
 
               - id: CanvasNet-Codecs-PngCodec-LoadExceedsMaxDimension
                 title: >-
@@ -536,7 +552,7 @@ sections:
                   - PngCodec_GetInfo_BitDepth16_ReturnsCorrectDimensions
                   - PngCodec_GetInfoAndLoad_InvalidBitDepth_BothThrowInvalidDataException
                   - PngCodec_GetInfoAndLoad_InvalidColorType_BothThrowInvalidDataException
-                  - PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsInvalidDataException
+                  - PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsUnsupportedImageFeatureException
                   - PngSuiteUnsupportedFile_GetInfoReturnsCorrectDimensions
 
               - id: CanvasNet-Codecs-PngCodec-GetInfoValidation
@@ -570,14 +586,17 @@ sections:
               - id: CanvasNet-Codecs-PngCodec-PngSuiteUnsupported
                 title: >-
                   The PngCodec class shall reject every Adam7-interlaced PngSuite conformance file with
-                  InvalidDataException, while still reporting its correct dimensions via GetInfo.
+                  UnsupportedImageFeatureException, while still reporting its correct dimensions and
+                  CanDecode as false via GetInfo.
                 justification: |
                   Adam7-interlaced files are structurally valid PNG files this codec's Load does not
                   reconstruct; the PngSuite corpus exercises every interlaced encoding this codec
-                  produces and confirms each is rejected by Load clearly rather than silently
-                  misinterpreted, while confirming GetInfo remains unaffected by the same limitation.
+                  produces and confirms each is rejected by Load clearly (with the distinct
+                  UnsupportedImageFeatureException, not a generic InvalidDataException) rather than
+                  silently misinterpreted, while confirming GetInfo remains unaffected by the same
+                  limitation.
                 tests:
-                  - PngCodec_Load_PngSuiteUnsupportedFile_ThrowsInvalidDataException
+                  - PngCodec_Load_PngSuiteUnsupportedFile_ThrowsUnsupportedImageFeatureException
                   - PngSuiteUnsupportedFile_GetInfoReturnsCorrectDimensions
 
               - id: CanvasNet-Codecs-PngCodec-PngSuiteCorrupt

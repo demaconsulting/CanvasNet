@@ -58,8 +58,15 @@ public enum PngColorType
 ///         itself invalid per the PNG specification (for example palette at 16-bit depth) is, by
 ///         contrast, a genuine well-formedness defect: <see cref="ParseIhdr"/> rejects it
 ///         unconditionally for both <c>Load</c> and <c>GetInfo</c>, exactly like any other
-///         malformed <c>IHDR</c> field. Both cases are rejected with a descriptive
-///         <see cref="System.IO.InvalidDataException"/> rather than silently producing incorrect
+///         malformed <c>IHDR</c> field, with a descriptive <see cref="System.IO.InvalidDataException"/>.
+///         Adam7 interlacing, being a well-formed-but-unsupported feature rather than a
+///         well-formedness defect, is instead rejected with the more specific
+///         <see cref="UnsupportedImageFeatureException"/> (which does <em>not</em> derive from
+///         <see cref="System.IO.InvalidDataException"/>, since that type is sealed in .NET - see
+///         <see cref="UnsupportedImageFeatureException"/>'s own remarks for the compatibility
+///         implications), letting a caller distinguish the two cases without string-matching the
+///         exception message; see <see cref="ImageInfo.CanDecode"/> for how a caller can detect
+///         this case before calling <c>Load</c> at all. Neither case silently produces incorrect
 ///         pixels. <c>Save</c>'s output scope is unchanged - only the two 8-bit Truecolor variants
 ///         named by <see cref="PngColorType"/>.
 ///     </para>
@@ -300,6 +307,12 @@ public static class PngCodec
     ///     found in the stream after the <c>IEND</c> chunk; or the
     ///     stream ends before all header, chunk, or pixel data has been read.
     /// </exception>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown when the file is a well-formed PNG that declares Adam7 interlacing, which this
+    ///     codec does not implement; use <see cref="GetInfo(Stream)"/>'s
+    ///     <see cref="ImageInfo.CanDecode"/> to detect this case beforehand without catching this
+    ///     exception.
+    /// </exception>
     /// <example>
     ///     <code>
     ///     using var stream = new MemoryStream();
@@ -409,6 +422,11 @@ public static class PngCodec
     ///     produces after resolving each index through the <c>PLTE</c>/<c>tRNS</c> chunks, since
     ///     <c>GetInfo</c> deliberately never reads those chunks; grayscale-with-alpha (4) reports
     ///     2 channels, has alpha; Truecolor-with-alpha (6) reports 4 channels, has alpha.
+    ///     <see cref="ImageInfo.CanDecode"/> is <see langword="false"/> when the file declares
+    ///     Adam7 interlacing (the one well-formed PNG feature <see cref="Load(Stream)"/> does not
+    ///     implement) and <see langword="true"/> otherwise, letting a caller detect this case
+    ///     before calling <c>Load</c> instead of having to catch
+    ///     <see cref="UnsupportedImageFeatureException"/> from it.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
     /// <exception cref="System.IO.InvalidDataException">
@@ -420,9 +438,9 @@ public static class PngCodec
     ///     combination that is not defined by the PNG specification at all. Unlike
     ///     <see cref="Load(Stream)"/>, a width or height above <see cref="Surface.MaxDimension"/>
     ///     is <em>not</em> rejected (see <see cref="ImageInfo"/> for why), and Adam7 interlacing
-    ///     is <em>not</em> rejected (this is the one feature <c>Load</c> refuses that is still a
-    ///     well-formed PNG). Any corruption in a subsequent chunk (including <c>PLTE</c>,
-    ///     <c>tRNS</c>, <c>IDAT</c>, or <c>IEND</c>) is never encountered by <c>GetInfo</c>.
+    ///     is <em>not</em> rejected (see <see cref="ImageInfo.CanDecode"/> above instead). Any
+    ///     corruption in a subsequent chunk (including <c>PLTE</c>, <c>tRNS</c>, <c>IDAT</c>, or
+    ///     <c>IEND</c>) is never encountered by <c>GetInfo</c>.
     /// </exception>
     public static ImageInfo GetInfo(Stream stream)
     {
@@ -438,7 +456,10 @@ public static class PngCodec
             ColorTypeTruecolorAlpha => (4, true),
             _ => throw new InvalidDataException($"Unsupported PNG color type {header.ColorType}.")
         };
-        return new ImageInfo(header.Width, header.Height, channels, hasAlpha);
+        return new ImageInfo(header.Width, header.Height, channels, hasAlpha)
+        {
+            CanDecode = header.InterlaceMethod != InterlaceAdam7
+        };
     }
 
 
@@ -495,7 +516,7 @@ public static class PngCodec
     ///     produced by <see cref="ReadChunks"/> once the chunk stream has been fully consumed
     ///     through <c>IEND</c> (or by <see cref="ReadIhdrOnly"/>, which never reads past IHDR).
     /// </summary>
-    private readonly record struct PngHeader(int Width, int Height, int ColorType, int BitDepth);
+    private readonly record struct PngHeader(int Width, int Height, int ColorType, int BitDepth, int InterlaceMethod);
 
     /// <summary>
     ///     Tracks whether the mandatory <c>IHDR</c> chunk has been seen and accumulates the
@@ -583,7 +604,7 @@ public static class PngCodec
         idatData = idatStream.ToArray();
         plteData = state.PlteData;
         trnsData = state.TrnsData;
-        return new PngHeader(state.Width, state.Height, state.ColorType, state.BitDepth);
+        return new PngHeader(state.Width, state.Height, state.ColorType, state.BitDepth, InterlaceNone);
     }
 
     /// <summary>
@@ -630,7 +651,7 @@ public static class PngCodec
 
         if (ChunkTypeIs(typeBytes, "IHDR"))
         {
-            (state.Width, state.Height, state.ColorType, state.BitDepth) =
+            (state.Width, state.Height, state.ColorType, state.BitDepth, _) =
                 ParseIhdr(data, enforceMaxDimension: true, validateDecodability: true);
             state.IhdrSeen = true;
         }
@@ -1166,8 +1187,8 @@ public static class PngCodec
         ValidateSignature(stream);
 
         var (_, data) = ReadIhdrChunkFrame(stream);
-        var (width, height, colorType, bitDepth) = ParseIhdr(data, enforceMaxDimension, validateDecodability);
-        return new PngHeader(width, height, colorType, bitDepth);
+        var (width, height, colorType, bitDepth, interlaceMethod) = ParseIhdr(data, enforceMaxDimension, validateDecodability);
+        return new PngHeader(width, height, colorType, bitDepth, interlaceMethod);
     }
 
 
@@ -1716,19 +1737,22 @@ public static class PngCodec
     ///     regardless of this flag's value, since this codec's decodable color-type/bit-depth
     ///     space is now the PNG specification's entire legal space (see the type-level remarks).
     /// </param>
-    /// <returns>The parsed image width, height, PNG color type byte, and bit depth.</returns>
+    /// <returns>The parsed image width, height, PNG color type byte, bit depth, and interlace method.</returns>
     /// <exception cref="System.IO.InvalidDataException">
     ///     Thrown when <paramref name="data"/> is not 13 bytes, describes non-positive
     ///     dimensions (or, when <paramref name="enforceMaxDimension"/> is <see langword="true"/>,
     ///     oversized dimensions exceeding <see cref="Surface.MaxDimension"/>), describes a bit
     ///     depth or color type not defined by the PNG specification, describes a bit-depth/color-
     ///     type combination that is itself invalid per the specification (for example palette at
-    ///     16-bit depth), describes an unsupported compression or filter method, describes an
-    ///     interlace method not defined by the specification, or (only when
-    ///     <paramref name="validateDecodability"/> is <see langword="true"/>) declares Adam7
-    ///     interlacing.
+    ///     16-bit depth), describes an unsupported compression or filter method, or describes an
+    ///     interlace method not defined by the specification.
     /// </exception>
-    private static (int Width, int Height, int ColorType, int BitDepth) ParseIhdr(
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown when <paramref name="validateDecodability"/> is <see langword="true"/> and
+    ///     <paramref name="data"/> declares Adam7 interlacing - a well-formed PNG feature that
+    ///     <see cref="Load(Stream)"/> does not implement.
+    /// </exception>
+    private static (int Width, int Height, int ColorType, int BitDepth, int InterlaceMethod) ParseIhdr(
         byte[] data,
         bool enforceMaxDimension,
         bool validateDecodability)
@@ -1807,12 +1831,13 @@ public static class PngCodec
 
         if (validateDecodability && interlaceMethod == InterlaceAdam7)
         {
-            throw new InvalidDataException(
+            throw new UnsupportedImageFeatureException(
+                "png-adam7-interlace",
                 "Adam7 interlacing is not supported by Load; use GetInfo to obtain this file's " +
                 "declared dimensions without decoding its pixel data.");
         }
 
-        return (width, height, colorType, bitDepth);
+        return (width, height, colorType, bitDepth, interlaceMethod);
     }
 
 

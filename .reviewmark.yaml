@@ -153,6 +153,10 @@ reviews:
       - "docs/reqstream/canvas-net/codecs.yaml"                # subsystem requirements
       - "docs/design/canvas-net/codecs.md"                    # subsystem design
       - "docs/verification/canvas-net/codecs.md"              # subsystem verification
+      - "src/DemaConsulting.CanvasNet/Codecs/ImageInfo.cs"        # shared header-only probe result type
+      - "src/DemaConsulting.CanvasNet/Codecs/UnsupportedImageFeatureException.cs"  # shared exception type
+      - "test/DemaConsulting.CanvasNet.Tests/Codecs/ImageInfoTests.cs"  # shared type unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Codecs/UnsupportedImageFeatureExceptionTests.cs"  # shared type unit tests
       - "test/DemaConsulting.CanvasNet.Tests/TestSupport/BoundedReadStream.cs"  # shared test helper
       - "test/DemaConsulting.CanvasNet.Tests/TestSupport/NonSeekableStream.cs"  # shared test helper
       - "test/DemaConsulting.CanvasNet.Tests/TestSupport/InfiniteTailStream.cs"  # shared test helper
@@ -188,6 +192,7 @@ reviews:
       - "docs/verification/canvas-net/codecs/png-codec.md"    # unit verification
       - "src/DemaConsulting.CanvasNet/Codecs/PngCodec.cs"         # unit source
       - "src/DemaConsulting.CanvasNet/Codecs/ImageInfo.cs"        # shared header-only probe result type
+      - "src/DemaConsulting.CanvasNet/Codecs/UnsupportedImageFeatureException.cs"  # shared exception type
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/PngCodecTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/PngSuiteTests.cs"  # PngSuite conformance tests
 

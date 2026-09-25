@@ -284,6 +284,13 @@ they are safe to call on untrusted or very large files before deciding whether t
 Unlike `Load`, `GetInfo` does not enforce `Surface.MaxDimension`, so callers should compare the
 returned dimensions against `Surface.MaxDimension` themselves when triaging untrusted input.
 
+`ImageInfo` also has a `CanDecode` property (`init`-only, defaulting to `true`), set by a codec's
+`GetInfo` to `false` when the probed file is well-formed but declares a feature that codec's
+`Load` does not implement (currently: PNG Adam7 interlacing). A caller can check `CanDecode`
+before calling `Load` to detect this case up front, instead of catching
+`UnsupportedImageFeatureException` from `Load` itself - see [Handling Unsupported
+Features](#handling-unsupported-features).
+
 ### BmpCodec
 
 The `BmpCodec` static class loads and saves `Surface` pixel buffers as uncompressed Windows BMP
@@ -393,9 +400,14 @@ any non-interlaced PNG whose color type and bit depth form a combination the PNG
 defines: Grayscale, Truecolor, Palette/indexed, Grayscale-with-alpha, and Truecolor-with-alpha, at
 whichever bit depths (1, 2, 4, 8, or 16) each color type permits, honoring `tRNS`-chunk
 transparency for Grayscale, Truecolor, and Palette source data. `Save` writes only
-8-bit-per-channel Truecolor (RGB) or Truecolor-with-alpha (RGBA), non-interlaced. Adam7-interlaced
-data and any bit-depth/color-type combination the PNG specification itself does not define (for
-example Palette at bit depth 16) are rejected by `Load` with `InvalidDataException`.
+8-bit-per-channel Truecolor (RGB) or Truecolor-with-alpha (RGBA), non-interlaced. Any
+bit-depth/color-type combination the PNG specification itself does not define (for example
+Palette at bit depth 16) is malformed and is rejected by `Load` with `InvalidDataException`.
+Adam7-interlaced data is well-formed but not implemented by `Load`, which rejects it with the
+distinct `UnsupportedImageFeatureException` (see [Handling Unsupported
+Features](#handling-unsupported-features)) rather than `InvalidDataException` - callers that need
+to detect this case before calling `Load` at all should check `GetInfo`'s `CanDecode` result
+instead.
 
 #### PngColorType
 
@@ -424,9 +436,11 @@ value makes them fully transparent (alpha 0).
 **Exceptions:**
 
 - `ArgumentNullException`: Thrown when `stream` is null.
-- `InvalidDataException`: Thrown when the stream does not contain a valid PNG image, is
-  Adam7-interlaced, or uses a bit-depth/color-type combination the PNG specification does not
-  define.
+- `InvalidDataException`: Thrown when the stream does not contain a valid PNG image, or uses a
+  bit-depth/color-type combination the PNG specification does not define.
+- `UnsupportedImageFeatureException`: Thrown when the image is well-formed but Adam7-interlaced
+  (`Feature` is `"png-adam7-interlace"`). This is a distinct type from `InvalidDataException` -
+  see [Handling Unsupported Features](#handling-unsupported-features).
 
 ##### PngCodec.Load(string path)
 
@@ -440,7 +454,8 @@ Loads a `Surface` from a PNG file at the specified path.
 
 - `ArgumentNullException`: Thrown when `path` is null.
 - `ArgumentException`: Thrown when `path` is an empty string.
-- `InvalidDataException`: Thrown for the same conditions as `Load(Stream)`.
+- `InvalidDataException`/`UnsupportedImageFeatureException`: Thrown for the same conditions as
+  `Load(Stream)`.
 
 ##### PngCodec.GetInfo(Stream stream)
 
@@ -451,9 +466,11 @@ public static ImageInfo GetInfo(Stream stream)
 Reads only the PNG signature and `IHDR` chunk (never pixel data) from an open, readable stream
 and returns an `ImageInfo` describing the image. Succeeds for every well-formed `IHDR`, including
 Adam7-interlaced files and every color-type/bit-depth combination the PNG specification defines,
-even those `Load` refuses (Adam7). Does not enforce `Surface.MaxDimension`. For Palette (indexed)
-files, `Channels` and `HasAlpha` describe the raw file encoding (1 channel, no alpha) rather than
-the 4-channel RGBA result `Load` would produce after resolving palette indices.
+even those `Load` refuses (Adam7) - for these, the returned `ImageInfo.CanDecode` is `false`,
+signaling that `Load` will throw `UnsupportedImageFeatureException` rather than decode the file.
+Does not enforce `Surface.MaxDimension`. For Palette (indexed) files, `Channels` and `HasAlpha`
+describe the raw file encoding (1 channel, no alpha) rather than the 4-channel RGBA result `Load`
+would produce after resolving palette indices.
 
 **Exceptions:**
 
@@ -1331,6 +1348,52 @@ if (info.Width > Surface.MaxDimension || info.Height > Surface.MaxDimension || p
 // Only decode pixel data once the header has been judged safe.
 using var surface = PngCodec.Load("untrusted.png");
 Console.WriteLine($"{surface.Width}x{surface.Height}, alpha: {info.HasAlpha}");
+```
+
+### Handling Unsupported Features
+
+`GetInfo`'s `CanDecode` property lets a caller detect a well-formed-but-unsupported file (for
+example an Adam7-interlaced PNG) before calling `Load` at all, instead of discovering it only via
+an exception from `Load`:
+
+```csharp
+using DemaConsulting.CanvasNet.Codecs;
+
+var info = PngCodec.GetInfo("untrusted.png");
+if (!info.CanDecode)
+{
+    // Well-formed per the PNG specification, but declares a feature this library does not
+    // implement (currently: Adam7 interlacing) - deny without attempting to decode.
+    Console.WriteLine("This PNG uses a feature CanvasNet cannot decode.");
+}
+else
+{
+    using var surface = PngCodec.Load("untrusted.png");
+}
+```
+
+A caller that commits directly to `Load` without checking `CanDecode` first can instead catch
+`UnsupportedImageFeatureException`. This is a distinct type from `InvalidDataException` (which
+`InvalidDataException` itself being `sealed` in .NET prevents this type from deriving from), so
+an existing `catch (InvalidDataException)` block does **not** catch it - a caller that wants to
+handle both "malformed" and "well-formed but unsupported" files together should catch their common
+base, `IOException`, or add an explicit second `catch` clause:
+
+```csharp
+using DemaConsulting.CanvasNet.Codecs;
+
+try
+{
+    using var surface = PngCodec.Load("untrusted.png");
+}
+catch (UnsupportedImageFeatureException ex)
+{
+    Console.WriteLine($"Unsupported feature '{ex.Feature}': {ex.Message}");
+}
+catch (InvalidDataException ex)
+{
+    Console.WriteLine($"Malformed PNG: {ex.Message}");
+}
 ```
 
 ## Example 9: Filling a Vector Path
