@@ -22,9 +22,10 @@ namespace DemaConsulting.CanvasNet.Tests.Codecs;
 ///         </item>
 ///         <item>
 ///             <see cref="UnsupportedFiles"/> - every Adam7-interlaced PngSuite file (35 of 175).
-///             These are structurally well-formed PNG files - <c>GetInfo</c> succeeds and reports
-///             their correct declared dimensions - but Adam7 decoding is not implemented, so
-///             <c>Load</c> rejects them with <see cref="InvalidDataException"/> rather than
+///             These are structurally well-formed PNG files - <c>GetInfo</c> succeeds, reports
+///             their correct declared dimensions, and reports <see cref="ImageInfo.CanDecode"/> as
+///             <see langword="false"/> - but Adam7 decoding is not implemented, so <c>Load</c>
+///             rejects them with <see cref="UnsupportedImageFeatureException"/> rather than
 ///             silently producing incorrect pixels. This is the only PNG feature <c>Load</c>
 ///             still refuses that is not itself a well-formedness defect.
 ///         </item>
@@ -330,23 +331,26 @@ public class PngSuiteTests
 
     /// <summary>
     ///     Proves that Load rejects every Adam7-interlaced PngSuite file with
-    ///     InvalidDataException, since Adam7 decoding is not implemented, rather than silently
-    ///     producing incorrect pixels.
+    ///     UnsupportedImageFeatureException, since Adam7 decoding is not implemented, rather than
+    ///     silently producing incorrect pixels.
     /// </summary>
     [Theory]
     [MemberData(nameof(UnsupportedFiles))]
-    public void PngCodec_Load_PngSuiteUnsupportedFile_ThrowsInvalidDataException(string fileName)
+    public void PngCodec_Load_PngSuiteUnsupportedFile_ThrowsUnsupportedImageFeatureException(string fileName)
     {
-        // Act & Assert: the unsupported feature must be rejected
-        Assert.Throws<InvalidDataException>(() => PngCodec.Load(ResolveFixturePath(AssetsPath, fileName)));
+        // Act & Assert: the unsupported feature must be rejected, with a Feature token
+        // identifying which feature was rejected
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(
+            () => PngCodec.Load(ResolveFixturePath(AssetsPath, fileName)));
+        Assert.Equal("png-adam7-interlace", exception.Feature);
     }
 
     /// <summary>
     ///     Proves that GetInfo still succeeds on every Adam7-interlaced PngSuite file that Load
     ///     refuses, reporting the file's exact declared IHDR width and height (not merely
     ///     positive values, which would pass even if the reported dimensions were wrong, for
-    ///     example swapped) - since Adam7 interlacing does not affect the declared dimensions
-    ///     GetInfo reports and is not itself a well-formedness defect.
+    ///     example swapped) and CanDecode as false - since Adam7 interlacing does not affect the
+    ///     declared dimensions GetInfo reports and is not itself a well-formedness defect.
     /// </summary>
     [Theory]
     [MemberData(nameof(UnsupportedFiles))]
@@ -360,9 +364,11 @@ public class PngSuiteTests
         // Act: GetInfo succeeds even though Load would refuse this file
         var info = PngCodec.GetInfo(path);
 
-        // Assert: GetInfo reports the file's exact declared dimensions
+        // Assert: GetInfo reports the file's exact declared dimensions and that Load cannot
+        // decode this file
         Assert.Equal(expectedWidth, info.Width);
         Assert.Equal(expectedHeight, info.Height);
+        Assert.False(info.CanDecode);
     }
 
     /// <summary>

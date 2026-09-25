@@ -99,6 +99,13 @@ if (info.Width > Surface.MaxDimension
     throw new InvalidDataException("Image dimensions exceed the supported maximum.");
 }
 
+if (!info.CanDecode)
+{
+    throw new UnsupportedImageFeatureException(
+        "png-adam7-interlace",
+        "File is well-formed but declares an unsupported feature.");
+}
+
 using var safeSurface = PngCodec.Load("untrusted.png"); // safe to decode fully
 ```
 

@@ -24,14 +24,19 @@ defines: Grayscale (0) at bit depths 1/2/4/8/16, Truecolor (2) and Truecolor-wit
 depths 8/16, Palette/indexed (3) at bit depths 1/2/4/8, and Grayscale-with-alpha (4) at bit depths
 8/16, including `tRNS`-chunk key-color/per-palette-entry transparency where the specification
 defines it (Grayscale, Truecolor, and Palette). Only two things remain outside `Load`'s decode
-capability, and both are rejected with a descriptive `System.IO.InvalidDataException` rather than
-silently producing incorrect pixels: Adam7-interlaced scanline order (`Load` has no interlacing
-reconstruction logic), and any color-type/bit-depth combination the PNG specification itself does
-not define (for example color type 3 with bit depth 16). `GetInfo`, by contrast, succeeds and
+capability: any color-type/bit-depth combination the PNG specification itself does not define (for
+example color type 3 with bit depth 16), which is malformed and is rejected with a descriptive
+`System.IO.InvalidDataException`; and Adam7-interlaced scanline order (`Load` has no interlacing
+reconstruction logic), which is well-formed but unsupported, and is rejected with the distinct
+`UnsupportedImageFeatureException` (see _Load(Stream stream)_ below) rather than
+`InvalidDataException`, so a caller can tell the two cases apart without string-matching
+`Exception.Message`. `GetInfo`, by contrast, succeeds and
 reports width/height for **every** PNG whose `IHDR` chunk is well-formed, including
 Adam7-interlaced files and every bit-depth/color-type combination `Load` accepts — because
 probing a file's declared size is a strictly weaker, always-safe operation than decoding its
-pixels; see _GetInfo(Stream stream)_ below for the exact design rationale.
+pixels; see _GetInfo(Stream stream)_ below for the exact design rationale. For Adam7-interlaced
+files specifically, `GetInfo` also reports `ImageInfo.CanDecode = false`, letting a caller detect
+this case before ever calling `Load`.
 
 `PngCodec` is a `static` class: PNG encoding/decoding has no instance state to carry, so a static
 utility shape was chosen over an object with nothing to construct or configure, matching
@@ -260,7 +265,12 @@ an Adam7-interlaced PNG is a completely valid PNG file; `Load` rejects it only b
 has no interlaced-scanline reconstruction logic (deinterlacing 7 separate reduced images per the
 Adam7 pass pattern), not because the file itself is malformed. This is why `GetInfo` — which never
 attempts to decode any pixel data — succeeds and reports correct dimensions for these files even
-though `Load` refuses them; see _GetInfo(Stream stream)_ below.
+though `Load` refuses them (setting `ImageInfo.CanDecode = false`); see _GetInfo(Stream stream)_
+below. Because this is a decode-capability limitation rather than a well-formedness defect, `Load`
+signals it with the distinct `UnsupportedImageFeatureException` (`Feature` =
+`"png-adam7-interlace"`) rather than `InvalidDataException` — see
+`UnsupportedImageFeatureException`'s own unit design in _Shared Types_ (`codecs.md`) for the full
+rationale, including why it derives from `IOException` rather than `InvalidDataException`.
 
 **Throws:**
 
@@ -276,8 +286,8 @@ though `Load` refuses them; see _GetInfo(Stream stream)_ below.
   depth other than 1, 2, 4, 8, or 16; a
   color type other than 0, 2, 3, 4, or 6; a bit-depth/color-type combination the PNG
   specification does not define (for example color type 3 with bit depth 16); an unsupported
-  compression method, filter method, or interlace method value; Adam7 interlacing (well-formed,
-  but not a combination `Load` can decode); an unrecognized critical chunk (uppercase first type
+  compression method, filter method, or interlace method value; an unrecognized critical chunk
+  (uppercase first type
   byte); a `PLTE` or `tRNS` chunk whose declared length exceeds that type's maximum before its
   payload is even allocated (see the pre-allocation validation design decision above); a `PLTE`
   chunk on a grayscale or grayscale-with-alpha file; a `PLTE` chunk appearing
@@ -294,6 +304,9 @@ though `Load` refuses them; see _GetInfo(Stream stream)_ below.
   or unsupported zlib header; an
   Adler-32 checksum mismatch; an unexpected decompressed data length; an unsupported scanline
   filter type; or the stream ends before all header, chunk, or pixel data has been read
+* `UnsupportedImageFeatureException` — the file is well-formed but Adam7-interlaced (`Feature` =
+  `"png-adam7-interlace"`); this is a distinct type from `InvalidDataException` — see the design
+  decision above
 
 #### Load(string path)
 
@@ -303,7 +316,7 @@ Opens `path` as a read-only `FileStream` and delegates to `Load(Stream)`.
 
 * `ArgumentNullException` — `path` is null
 * `ArgumentException` — `path` is an empty string
-* `InvalidDataException` — see `Load(Stream)`
+* `InvalidDataException`/`UnsupportedImageFeatureException` — see `Load(Stream)`
 * Underlying file-system exceptions (`FileNotFoundException`, `DirectoryNotFoundException`,
   `UnauthorizedAccessException`, `IOException`) propagate uncaught
 
@@ -510,7 +523,7 @@ fully-resolved 4-channel `Surface` regardless of source color type.
   compression method, filter method, or interlace-method value outside {0, 1}; non-positive width
   or height; the stream ends before the signature and `IHDR` chunk have been fully read (same
   contract as `Load`, except the `Surface.MaxDimension` check is skipped and Adam7 interlacing is
-  not rejected)
+  not rejected — instead reported via the returned `ImageInfo.CanDecode = false`)
 
 #### GetInfo(string path)
 
@@ -557,8 +570,10 @@ checks precede any byte write.
 `Surface.GetRowSpanBytes` in `Save`), using only `Surface`'s existing public API exactly as
 `BmpCodec` does. No new public members were added to `Surface` or `Rgba32` to support this codec.
 `PngCodec` also depends on the `Codecs` subsystem's shared `ImageInfo` record struct as the
-return type of `GetInfo` — see _Codecs Subsystem Design_ (`../codecs.md`). Beyond `Surface` and
-`ImageInfo`, `PngCodec` uses only the .NET base class library's `System.IO` namespace (`Stream`,
+return type of `GetInfo`, and its shared `UnsupportedImageFeatureException` type (thrown by
+`Load` for Adam7-interlaced files) — see _Codecs Subsystem Design_ (`../codecs.md`). Beyond
+`Surface`, `ImageInfo`, and `UnsupportedImageFeatureException`, `PngCodec` uses only the .NET base
+class library's `System.IO` namespace (`Stream`,
 `FileStream`, `InvalidDataException`) and `System.IO.Compression.DeflateStream` (available on
 every one of CanvasNet's target frameworks with no new runtime NuGet dependency); the zlib
 wrapper (2-byte header, Adler-32 trailer) and every PNG chunk's CRC-32 are computed by hand-rolled
@@ -572,8 +587,9 @@ Schaik, 1996-2011; freeware, redistributed under `PngSuite.LICENSE`). Each of th
 test files' actual IHDR fields were verified directly against its raw bytes (not trusted from its
 filename) and classified into exactly one of four groups: 126 well-formed, non-interlaced files
 covering every color type and bit depth `Load` supports (must load successfully), 35
-Adam7-interlaced files (must be rejected by `Load` with `InvalidDataException`, but must still
-succeed and report correct dimensions via `GetInfo`), 12 files deliberately corrupt at or before
+Adam7-interlaced files (must be rejected by `Load` with `UnsupportedImageFeatureException`, but
+must still
+succeed and report correct dimensions and `CanDecode = false` via `GetInfo`), 12 files deliberately corrupt at or before
 their IHDR chunk (must be rejected by both `Load` and `GetInfo` with `InvalidDataException`), and
 2 files deliberately corrupt only after a well-formed IHDR chunk — a corrupt IDAT CRC-32, and a
 missing IDAT chunk (must be rejected by `Load` with `InvalidDataException`, but must still succeed

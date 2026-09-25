@@ -41,13 +41,24 @@ subsystems to build and rasterize vector paths and text — see _SvgCodec Unit D
 `ImageInfo` is a `public readonly record struct` shared by all five codecs' `GetInfo` methods:
 
 ```csharp
-public readonly record struct ImageInfo(int Width, int Height, int Channels, bool HasAlpha);
+public readonly record struct ImageInfo(int Width, int Height, int Channels, bool HasAlpha)
+{
+    public bool CanDecode { get; init; } = true;
+}
 ```
 
 It reports a candidate image's declared width, height, channel count, and alpha presence without
 requiring the caller to decode (or even fully read) the file. It is the return type of every
 `{Codec}.GetInfo(Stream)` / `{Codec}.GetInfo(string)` method across `BmpCodec`, `PngCodec`,
-`TiffCodec`, `JpegCodec`, and `SvgCodec`.
+`TiffCodec`, `JpegCodec`, and `SvgCodec`. `CanDecode` is declared as an `init`-only property
+outside the primary constructor (rather than a fifth positional parameter) specifically to avoid
+changing the compiler-emitted constructor/`Deconstruct` signature — a binary-compatibility
+concern, since a fifth positional parameter would break any pre-compiled caller's IL even though
+source would still compile unchanged. It defaults to `true` and is set to `false` only by
+`PngCodec.GetInfo` when the probed file is well-formed per the PNG specification but declares
+Adam7 interlacing, the one case (see below) where a codec's `Load` refuses a file `GetInfo`
+otherwise accepts. Because `ImageInfo` is a record struct, `CanDecode` participates in its
+generated value equality like every other member.
 
 ### Header-Only Probing (`GetInfo`)
 
@@ -92,6 +103,25 @@ stream, and `JpegCodec`'s incremental marker scan continuing past its soft cap s
 rather than giving up) - see the
 _ImageInfo_ section above for the cross-codec invariant these fallbacks exist to uphold: GetInfo
 never throws for an input Load would successfully decode.
+
+**Well-formed but unsupported: `UnsupportedImageFeatureException`.** Investigation across all
+four raster codecs found exactly one case where a codec's `Load` refuses a file that is
+well-formed per its own format specification — PNG's Adam7 interlacing (the other codecs conflate
+"unsupported" and "malformed" at `GetInfo`-time already, so this exception type is not currently
+thrown by them). `PngCodec.Load` signals this specific case with `UnsupportedImageFeatureException`
+rather than `InvalidDataException`, so a caller can distinguish "well-formed but unsupported" from
+"malformed" without string-matching `Exception.Message`. This type derives from `IOException`
+rather than `InvalidDataException`, because `System.IO.InvalidDataException` is `sealed` in .NET.
+Note that `InvalidDataException` itself derives directly from `SystemException`, not
+`IOException` — `IOException` is **not** a common base a caller can catch to handle both
+"malformed" (`InvalidDataException`) and "well-formed but unsupported"
+(`UnsupportedImageFeatureException`) cases together. This is a deliberate, narrow, documented
+behavior change (an existing `catch (InvalidDataException)`
+around `PngCodec.Load` no longer catches the Adam7 case); a caller that wants to handle both
+cases must add two explicit catch clauses, one per type. `ImageInfo.CanDecode` (see
+above) lets a caller detect this case from `GetInfo` before ever calling `Load` at all — see
+_PngCodec Unit Design_ (`codecs/png-codec.md`) for the exact throw site and `CanDecode`
+computation.
 
 The `Codecs` subsystem depends on the `Canvas` subsystem's `Surface` unit (constructing surfaces
 when loading and reading/writing rows via `Surface.GetRowSpanBytes` when saving) — see _Canvas

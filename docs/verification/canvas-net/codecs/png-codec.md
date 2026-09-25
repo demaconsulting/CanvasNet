@@ -221,12 +221,22 @@ specification itself, independent of any feature this codec chooses to support.
 
 #### CanvasNet-Codecs-PngCodec-LoadUnsupportedInterlace: Load Rejects Adam7 Interlacing, but GetInfo Still Succeeds
 
-**Test**: `PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsInvalidDataException`
+**Test**: `PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsUnsupportedImageFeatureException`
 
 Builds a minimal PNG declaring interlace method 1 (Adam7), and asserts `Load` throws
-`InvalidDataException`, while `GetInfo` on the exact same bytes succeeds and reports the correct
-declared width and height — proving Adam7 interlacing is a decode-capability limitation, not a
+`UnsupportedImageFeatureException` with `Feature` set to `"png-adam7-interlace"`, while `GetInfo`
+on the exact same bytes succeeds, reports the correct declared width and height, and reports
+`CanDecode` as `false` — proving Adam7 interlacing is a decode-capability limitation, not a
 well-formedness defect.
+
+#### CanvasNet-Codecs-PngCodec-GetInfoCanDecode: GetInfo Reports CanDecode for Adam7-Interlaced and Non-Interlaced PNGs
+
+**Tests**: `PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsUnsupportedImageFeatureException`,
+`PngCodec_GetInfo_NonInterlaced_ReportsCanDecodeTrue`
+
+Confirms `GetInfo` reports `ImageInfo.CanDecode` as `false` for an Adam7-interlaced PNG (see the
+test above) and as `true` for a well-formed, non-interlaced PNG, letting a caller detect the one
+well-formed-but-unsupported PNG feature before calling `Load` at all.
 
 #### CanvasNet-Codecs-PngCodec-LoadExceedsMaxDimension: Load Rejects Dimensions Exceeding Surface.MaxDimension
 
@@ -378,16 +388,17 @@ with non-zero width and height, without throwing.
 
 #### CanvasNet-Codecs-PngCodec-PngSuiteUnsupported: Adam7-Interlaced PngSuite Files Rejected by Load; GetInfo Still Succeeds
 
-**Tests**: `PngCodec_Load_PngSuiteUnsupportedFile_ThrowsInvalidDataException`,
+**Tests**: `PngCodec_Load_PngSuiteUnsupportedFile_ThrowsUnsupportedImageFeatureException`,
 `PngSuiteUnsupportedFile_GetInfoReturnsCorrectDimensions` (`[Theory]` over 35 PngSuite files)
 
 Loads every PngSuite conformance file that is structurally well-formed but Adam7-interlaced —
 verified directly against each file's raw IHDR bytes — and asserts `Load` throws
-`InvalidDataException` for every one, rather than silently producing incorrect pixels. Separately
-calls `GetInfo` on the same 35 files and asserts it succeeds, reporting the file's exact declared
-IHDR width and height (read directly from each file's raw bytes, not merely asserted positive,
-which would pass even if the reported dimensions were wrong, for example swapped), since Adam7
-interlacing does not affect the declared dimensions and is not itself a well-formedness defect.
+`UnsupportedImageFeatureException` (with `Feature` set to `"png-adam7-interlace"`) for every one,
+rather than silently producing incorrect pixels. Separately calls `GetInfo` on the same 35 files
+and asserts it succeeds, reporting the file's exact declared IHDR width and height (read directly
+from each file's raw bytes, not merely asserted positive, which would pass even if the reported
+dimensions were wrong, for example swapped) and `CanDecode` as `false`, since Adam7 interlacing
+does not affect the declared dimensions and is not itself a well-formedness defect.
 
 #### CanvasNet-Codecs-PngCodec-PngSuiteCorrupt: PngSuite Files Corrupt At/Before IHDR Are Rejected by Both Load and GetInfo
 

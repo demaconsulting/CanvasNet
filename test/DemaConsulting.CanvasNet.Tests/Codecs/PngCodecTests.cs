@@ -1579,24 +1579,46 @@ public class PngCodecTests
 
     /// <summary>
     ///     Proves that Load rejects an interlaced (Adam7, interlace method 1) IHDR with
-    ///     InvalidDataException, since Adam7 decoding is not implemented, while GetInfo on the
-    ///     same bytes still succeeds and reports the correct declared dimensions.
+    ///     UnsupportedImageFeatureException, since Adam7 decoding is not implemented, while
+    ///     GetInfo on the same bytes still succeeds, reports the correct declared dimensions, and
+    ///     reports CanDecode as false.
     /// </summary>
     [Fact]
-    public void PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsInvalidDataException()
+    public void PngCodec_Load_UnsupportedInterlaceAdam7_ThrowsUnsupportedImageFeatureException()
     {
         // Arrange: a minimal PNG declaring Adam7 interlacing
         var bytes = BuildMinimalPngHeaderOnly(colorType: (byte)PngColorType.Rgb, interlace: 1, width: 5, height: 7);
         using var stream = new MemoryStream(bytes);
 
-        // Act & Assert: the unsupported interlace method must be rejected by Load
-        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        // Act & Assert: the unsupported interlace method must be rejected by Load, with a
+        // Feature token identifying which feature was rejected
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(() => PngCodec.Load(stream));
+        Assert.Equal("png-adam7-interlace", exception.Feature);
 
-        // Assert: GetInfo on the same bytes still succeeds with the correct dimensions
+        // Assert: GetInfo on the same bytes still succeeds with the correct dimensions and
+        // reports that Load cannot decode this file
         using var infoStream = new MemoryStream(bytes);
         var info = PngCodec.GetInfo(infoStream);
         Assert.Equal(5, info.Width);
         Assert.Equal(7, info.Height);
+        Assert.False(info.CanDecode);
+    }
+
+    /// <summary>
+    ///     Proves that GetInfo reports CanDecode as true for a well-formed, non-interlaced PNG.
+    /// </summary>
+    [Fact]
+    public void PngCodec_GetInfo_NonInterlaced_ReportsCanDecodeTrue()
+    {
+        // Arrange: a minimal, non-interlaced PNG
+        var bytes = BuildMinimalPngHeaderOnly(colorType: (byte)PngColorType.Rgb, interlace: 0, width: 5, height: 7);
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var info = PngCodec.GetInfo(stream);
+
+        // Assert
+        Assert.True(info.CanDecode);
     }
 
     /// <summary>
