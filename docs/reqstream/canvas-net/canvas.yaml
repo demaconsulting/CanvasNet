@@ -360,3 +360,21 @@ sections:
               - Surface_CompositeOverSpan_PerPixelColors_MatchesConstantColorOverload_WhenAllColorsEqual
               - Surface_CompositeOverSpan_PerPixelColors_FullCoverage_AppliesEachPixelsOwnColor
               - Surface_CompositeOverSpan_PerPixelColors_LengthMismatch_ThrowsArgumentException
+
+          - id: CanvasNet-Canvas-Rgba32
+            title: >-
+              The Canvas subsystem shall parse an Rgba32 pixel value from a "#RRGGBB" or
+              "#AARRGGBB" hex color literal string, case-insensitively, via both a throwing
+              Parse method and a non-throwing TryParse method.
+            justification: |
+              Callers commonly author colors as web-style hex string literals (for example from
+              configuration or markup); parsing them directly into Rgba32 avoids callers
+              hand-decoding hex digits themselves.
+            children:
+              - CanvasNet-Canvas-Rgba32-ParseSixHex
+              - CanvasNet-Canvas-Rgba32-ParseEightHex
+              - CanvasNet-Canvas-Rgba32-ParseValidation
+              - CanvasNet-Canvas-Rgba32-TryParse
+            tests:
+              - Rgba32_Parse_6HexUppercase_ReturnsExpectedRgbaWithAlpha255
+              - Rgba32_TryParse_ValidInput_ReturnsTrueAndSetsResult

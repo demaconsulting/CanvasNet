@@ -7,5 +7,6 @@ package CanvasNet {
         comment reqRef /* Requirements: docs/reqstream/canvas-net/canvas.yaml */
 
         part surface : Surface;
+        part rgba32 : Rgba32;
     }
 }

@@ -211,8 +211,54 @@ synthetic TrueType font through `TrueTypeFont.Load`, then asserts `UnitsPerEm`, 
 values. This scenario proves the system exposes font-level scalar metrics independently of glyph
 rendering.
 
+### Integration: Parse Hex Color and Set Surface Pixel Returns Expected Pixel
+
+**Test**: `CanvasNet_SystemIntegration_ParseHexColorAndSetSurfacePixel_ReturnsExpectedPixel`
+
+Exercises end-to-end system behavior across the `Canvas` subsystem's `Rgba32` and `Surface`
+units together: parses a `"#AARRGGBB"` hex color literal via `Rgba32.Parse`, stores the parsed
+value into a `Surface` pixel, and reads it back. Asserts the round-tripped pixel's channels
+match the literal exactly, confirming the system integrates hex-color parsing with pixel-buffer
+storage across the `Canvas` subsystem's public boundary.
+
+### Integration: Round Path Corners and Fill Onto Surface Clips Sharp Corner
+
+**Test**: `CanvasNet_SystemIntegration_RoundPathCornersAndFillOntoSurface_ClipsSharpCorner`
+
+Exercises end-to-end system behavior across the `Geometry`, `Drawing`, and `Canvas` subsystems
+together: builds a closed square `Path` via `PathBuilder`, applies `CornerRoundEffect.Apply` to
+round every corner with a generous radius, and fills the rounded path through `PathFiller` onto
+a `Surface`. Asserts the original sharp top-left corner pixel is fully transparent (clipped away
+by the rounding) while an interior pixel away from every corner remains fully opaque, confirming
+the system integrates the `Geometry` subsystem's corner-rounding pre-processing with the
+`Drawing` subsystem's fill rasterizer.
+
+### Integration: Fill Round Rect Under Translated Canvas Matches Direct Placement
+
+**Test**: `CanvasNet_SystemIntegration_FillRoundRectUnderTranslatedCanvas_MatchesDirectPlacement`
+
+Exercises end-to-end system behavior across the `Rendering`, `Geometry`, `Drawing`, and `Canvas`
+subsystems together: draws a rounded rectangle via `Rendering.Canvas.FillRoundRect` through a
+translated `Rendering.Canvas` transform, and separately draws the same rounded rectangle directly
+at the equivalent absolute coordinates on an untransformed `Rendering.Canvas`. Asserts both
+surfaces are painted identically, pixel for pixel, confirming the `Rendering` subsystem's shape
+helpers correctly compose with its transform stack all the way down to pixel output.
+
+### Integration: Draw and Measure Text via Canvas Renders and Measures Expected Result
+
+**Test**: `CanvasNet_SystemIntegration_DrawAndMeasureTextViaCanvas_RendersAndMeasuresExpectedResult`
+
+Exercises end-to-end system behavior across the `Rendering`, `Fonts`, `Geometry`, `Drawing`, and
+`Canvas` subsystems together: loads a synthetic TrueType font through `TrueTypeFont`'s public API,
+measures a text run through `TextRenderer.MeasureText` and asserts the reported width, ascent, and
+descent agree with the font's declared advance width and metrics, then draws the same text run
+through `TextRenderer.DrawText` onto a public `Rendering.Canvas`. Asserts non-trivial rendered
+pixel coverage on the underlying `Surface`, confirming the `Rendering` subsystem's text
+measurement and text drawing boundaries integrate correctly end to end through the fully public
+API surface.
+
 ## Acceptance Criteria
 
-A system-level test run passes when all sixteen scenarios above pass without error or exception
+A system-level test run passes when all twenty scenarios above pass without error or exception
 beyond those explicitly asserted. Any unexpected exception, wrong exception type, or wrong return
 value constitutes a failure.

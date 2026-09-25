@@ -1,0 +1,81 @@
+---
+# Software Unit Requirements for TextRenderer
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Rendering Requirements
+        sections:
+          - title: TextRenderer Requirements
+            requirements:
+              - id: CanvasNet-Rendering-TextRenderer-Measure
+                title: >-
+                  The TextRenderer class shall measure a string against a TrueType font at a pixel
+                  size, returning width equal to the sum of scaled advances plus scaled kerning,
+                  ascent equal to the font ascender scaled to pixels, and descent equal to the
+                  absolute value of the font descender scaled to pixels.
+                justification: |
+                  Measurement is a caller's primary layout tool; consistent, well-defined width
+                  and vertical metrics let text be positioned deterministically before drawing.
+                tests:
+                  - TextRenderer_MeasureText_EmptyString_ReturnsZeroWidth
+                  - TextRenderer_MeasureText_SingleGlyph_ReturnsAdvanceWidthScaledBySize
+                  - TextRenderer_MeasureText_MultipleGlyphs_SumsAdvancesAndAppliesKerning
+                  - TextRenderer_MeasureText_ReturnsAscentAndDescentFromFontMetrics
+                  - TextRenderer_MeasureText_PositiveRawDescender_ReturnsPositiveAbsoluteDescent
+
+              - id: CanvasNet-Rendering-TextRenderer-Draw
+                title: >-
+                  The TextRenderer DrawText extension method shall render a string on a Canvas
+                  at a given (x, y) baseline anchor by filling each glyph outline transformed by
+                  the current transform composed with the glyph pen position, using the given
+                  color.
+                justification: |
+                  Drawing composes with the Canvas transform stack so scenes can transform text
+                  identically to other primitives; baseline anchoring is the standard glyph
+                  reference.
+                tests:
+                  - TextRenderer_DrawText_LeftAlign_RendersGlyphsWithoutThrowing
+                  - TextRenderer_DrawText_UnderTranslatedCanvas_ShiftsGlyphsByTranslation
+
+              - id: CanvasNet-Rendering-TextRenderer-Alignment
+                title: >-
+                  The TextRenderer DrawText extension method shall support Left, Center, and Right
+                  text alignment, positioning glyphs relative to the anchor x-coordinate such that
+                  a Left run starts at x, a Center run is centered on x, and a Right run ends at x.
+                justification: |
+                  Layout callers commonly need to right-align labels or center titles; a first-class
+                  alignment enum avoids caller-side measurement bookkeeping.
+                tests:
+                  - TextRenderer_DrawText_LeftAlign_RendersGlyphsWithoutThrowing
+                  - TextRenderer_DrawText_CenterAlign_CentersRunAroundGivenX
+                  - TextRenderer_DrawText_RightAlign_PlacesLastGlyphEndAtGivenX
+
+              - id: CanvasNet-Rendering-TextRenderer-TransformComposition
+                title: >-
+                  The TextRenderer DrawText extension method shall compose the Canvas current
+                  transform with the per-glyph pen and unit-flip transforms so translated or
+                  rotated canvases render text under the composed transform.
+                justification: |
+                  Text must behave like other primitives under transforms; the same scene graph
+                  transform should apply to filled paths and to filled glyph paths.
+                tests:
+                  - TextRenderer_DrawText_UnderTranslatedCanvas_ShiftsGlyphsByTranslation
+                  - TextRenderer_DrawText_UnderRotatedCanvas_MatchesManuallyPreTransformedGlyphFill
+
+              - id: CanvasNet-Rendering-TextRenderer-Validation
+                title: >-
+                  The TextRenderer class shall reject null text or null font arguments with
+                  ArgumentNullException, reject a non-finite size argument with
+                  ArgumentOutOfRangeException, and reject an undefined TextAlign with
+                  ArgumentOutOfRangeException.
+                justification: |
+                  Fail-fast validation surfaces caller bugs immediately instead of producing
+                  garbage output or throwing later inside glyph rasterization.
+                tests:
+                  - TextRenderer_MeasureText_NullText_ThrowsArgumentNullException
+                  - TextRenderer_MeasureText_NullFont_ThrowsArgumentNullException
+                  - TextRenderer_MeasureText_NonFiniteSize_ThrowsArgumentOutOfRangeException
+                  - TextRenderer_DrawText_NullText_ThrowsArgumentNullException
+                  - TextRenderer_DrawText_NullFont_ThrowsArgumentNullException
+                  - TextRenderer_DrawText_InvalidAlign_ThrowsArgumentOutOfRangeException

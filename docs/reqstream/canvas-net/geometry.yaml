@@ -65,6 +65,11 @@ sections:
               - CanvasNet-Geometry-Path-GetBoundsConservative
               - CanvasNet-Geometry-Path-GetBoundsFlattened
               - CanvasNet-Geometry-Path-GetBoundsMultipleSubpaths
+              - CanvasNet-Geometry-Path-Transform
+              - CanvasNet-Geometry-Path-Rectangle
+              - CanvasNet-Geometry-Path-RoundRectangle
+              - CanvasNet-Geometry-Path-Circle
+              - CanvasNet-Geometry-PathBuilder-TangentArcTo
             tests:
               - PathBuilder_Build_EveryCommandType_RecordsCommandsInOrder
               - Path_GetBounds_ConservativeMode_CubicWithControlPointsOutsideChord_ReturnsControlPointConvexHull
@@ -108,3 +113,21 @@ sections:
             tests:
               - SvgArcConverter_ToBeziers_Semicircle_ProducesContinuousChainOnExpectedCircle
               - SvgArcConverter_ToBeziers_StartEqualsEnd_EmitsNoSegments
+
+          - id: CanvasNet-Geometry-CornerRoundEffect
+            title: >-
+              The Geometry subsystem shall provide a path-level effect that replaces polyline
+              corners with tangent-radius arcs of a caller-specified radius, clamped per-corner
+              to half of the shorter adjacent segment, leaving curved corners unchanged.
+            justification: |
+              Rounded polyline corners are a common effect; applying it as a pre-processing pass
+              on the immutable Path composes cleanly with downstream fill, stroke, and dashing
+              without requiring corner-aware stroke logic.
+            children:
+              - CanvasNet-Geometry-CornerRoundEffect-Apply
+              - CanvasNet-Geometry-CornerRoundEffect-ZeroRadius
+              - CanvasNet-Geometry-CornerRoundEffect-CurvedCorners
+              - CanvasNet-Geometry-CornerRoundEffect-Validation
+            tests:
+              - CornerRoundEffect_Apply_SquareRectangle_ProducesCornerArcs
+              - CornerRoundEffect_Apply_ZeroRadius_ReturnsSourcePath

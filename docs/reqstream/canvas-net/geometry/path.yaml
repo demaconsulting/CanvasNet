@@ -199,3 +199,79 @@ sections:
                   merely its first subpath.
                 tests:
                   - Path_GetBounds_MultipleSubpaths_UnionsAllSubpaths
+
+              - id: CanvasNet-Geometry-Path-Transform
+                title: >-
+                  The Path class shall return a new Path whose points are all transformed by the
+                  given 3x2 affine matrix, preserving the sequence of command types except that
+                  ArcTo commands are first converted to CubicBezierTo commands via SvgArcConverter.
+                justification: |
+                  Baking a transform into a path lets high-level renderers apply per-instance
+                  transforms without special-case matrix support inside the fill and stroke
+                  pipelines; arc-to-Bezier normalization is necessary because SVG arc parameters
+                  cannot be preserved under arbitrary affine maps.
+                tests:
+                  - Path_Transform_Identity_ReturnsPathWithSameVertices
+                  - Path_Transform_Translation_MovesAllControlPointsAndEndpoints
+                  - Path_Transform_Rotation_RotatesEndpointsCorrectly
+                  - Path_Transform_PreservesPathCommandTypeSequenceForNonArcCommands
+                  - Path_Transform_ArcTo_ConvertsToTransformedCubicBezierSegments
+
+              - id: CanvasNet-Geometry-Path-Rectangle
+                title: >-
+                  The Path class shall provide a Rectangle static factory that returns a closed
+                  four-LineTo axis-aligned rectangle path for a given rect, and shall return an
+                  empty path when width or height is zero or negative.
+                justification: |
+                  Rectangles are the most common convenience shape; a factory keeps the
+                  authoritative geometry in one place used by both Shapes helpers and callers.
+                tests:
+                  - Path_Rectangle_ProducesFourLineToClosedSubpath
+                  - Path_Rectangle_WithZeroSize_ProducesEmptyPath
+                  - Path_Rectangle_WithNegativeSize_ProducesEmptyPath
+
+              - id: CanvasNet-Geometry-Path-RoundRectangle
+                title: >-
+                  The Path class shall provide a RoundRectangle static factory that returns a
+                  closed rounded-rectangle path with the given corner radius, using cubic Bezier
+                  quarter-arc approximations at kappa=0.5522847498, and clamping the radius to
+                  half of the shorter side.
+                justification: |
+                  Rounded rectangles are a common convenience shape; radius clamping prevents
+                  degenerate self-intersecting shapes and matches HTML5 canvas behavior.
+                tests:
+                  - Path_RoundRectangle_ProducesCornerArcsWithCorrectRadius
+                  - Path_RoundRectangle_RadiusClampsToHalfMinDimension
+                  - Path_RoundRectangle_ZeroRadius_EquivalentToRectangle
+                  - Path_RoundRectangle_WithNegativeSize_ProducesEmptyPath
+
+              - id: CanvasNet-Geometry-Path-Circle
+                title: >-
+                  The Path class shall provide a Circle static factory that returns a closed
+                  circle path made of four cubic Bezier quadrants, using kappa=0.5522847498, and
+                  shall return an empty path when radius is zero or negative.
+                justification: |
+                  Circles are a common convenience shape; centralizing the geometry ensures
+                  consistent quality between direct Path use and Shapes helpers.
+                tests:
+                  - Path_Circle_ProducesFourCubicBezierQuadrantsClosingAtStart
+                  - Path_Circle_WithZeroRadius_ProducesEmptyPath
+                  - Path_Circle_WithNegativeRadius_ProducesEmptyPath
+
+              - id: CanvasNet-Geometry-PathBuilder-TangentArcTo
+                title: >-
+                  The PathBuilder class shall provide a TangentArcTo(corner, end, radius) method
+                  that emits an HTML5-canvas-style tangent-radius arc between the incoming edge
+                  (current point to corner) and the outgoing edge (corner to end), approximated
+                  with a single cubic Bezier at kappa=0.5522847498, degrading to a straight
+                  LineTo(corner) when the input is collinear or the radius is zero, and
+                  rejecting a negative radius or a missing current point.
+                justification: |
+                  The tangent-radius arc form is the natural building block for rounding polyline
+                  corners; the Bezier approximation is exact enough for typical UI corner radii.
+                tests:
+                  - PathBuilder_TangentArcTo_QuarterTurn_ProducesLineToTangentAndCubicBezier
+                  - PathBuilder_TangentArcTo_CollinearInputs_DegradesToLineTo
+                  - PathBuilder_TangentArcTo_ZeroRadius_DegradesToLineToCorner
+                  - PathBuilder_TangentArcTo_NegativeRadius_ThrowsArgumentOutOfRangeException
+                  - PathBuilder_TangentArcTo_NoCurrentPoint_ThrowsInvalidOperationException

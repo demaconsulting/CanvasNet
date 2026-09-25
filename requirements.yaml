@@ -11,6 +11,7 @@ includes:
   - docs/reqstream/canvas-net.yaml
   - docs/reqstream/canvas-net/canvas.yaml
   - docs/reqstream/canvas-net/canvas/surface.yaml
+  - docs/reqstream/canvas-net/canvas/rgba32.yaml
   - docs/reqstream/canvas-net/codecs.yaml
   - docs/reqstream/canvas-net/codecs/bmp-codec.yaml
   - docs/reqstream/canvas-net/codecs/png-codec.yaml
@@ -22,12 +23,17 @@ includes:
   - docs/reqstream/canvas-net/geometry/path.yaml
   - docs/reqstream/canvas-net/geometry/bezier-flattening.yaml
   - docs/reqstream/canvas-net/geometry/svg-arc-converter.yaml
+  - docs/reqstream/canvas-net/geometry/corner-round-effect.yaml
   - docs/reqstream/canvas-net/drawing.yaml
   - docs/reqstream/canvas-net/drawing/path-filler.yaml
   - docs/reqstream/canvas-net/drawing/path-stroker.yaml
   - docs/reqstream/canvas-net/drawing/gradient-paint.yaml
   - docs/reqstream/canvas-net/fonts.yaml
   - docs/reqstream/canvas-net/fonts/true-type-font.yaml
+  - docs/reqstream/canvas-net/rendering.yaml
+  - docs/reqstream/canvas-net/rendering/canvas.yaml
+  - docs/reqstream/canvas-net/rendering/text-renderer.yaml
+  - docs/reqstream/canvas-net/rendering/shapes.yaml
   - docs/reqstream/canvas-net/platform-requirements.yaml
   - docs/reqstream/ots/xunit.yaml
   - docs/reqstream/ots/reqstream.yaml

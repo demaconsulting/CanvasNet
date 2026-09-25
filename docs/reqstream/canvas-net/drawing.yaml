@@ -173,6 +173,7 @@ sections:
               - CanvasNet-Drawing-GradientPaint-DegenerateFlatFill
               - CanvasNet-Drawing-GradientPaint-ExtremeCoordinates
               - CanvasNet-Drawing-GradientPaint-Paint
+              - CanvasNet-Drawing-GradientPaint-WithTransform
               - CanvasNet-Drawing-PathFiller-GradientFill
             tests:
               - PathFiller_Fill_Gradient_HorizontalRectangleWithHorizontalLinearGradient_VariesLeftToRight

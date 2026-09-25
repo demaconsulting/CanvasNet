@@ -1429,6 +1429,96 @@ var surfaceSvg = SvgCodec.Load(loadStream, 64, 64);
 Console.WriteLine(surfaceSvg[32, 32].A); // Output: 255 (well inside the filled rectangle)
 ```
 
+## Rendering (transform-aware Canvas, text, and shapes)
+
+The `Rendering` subsystem adds a transform-aware `Canvas` wrapper over `Surface`, along with
+text rendering and shape helpers.
+
+### Canvas transform stack
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Rendering;
+using System.Numerics;
+
+var surface = new Surface(200, 200);
+var canvas = new Canvas(surface);
+
+canvas.Save();
+canvas.Translate(100, 100);
+canvas.RotateDegrees(45f);
+// ... drawing here is in a rotated, translated frame
+canvas.Restore(); // pops back to the identity
+```
+
+`Save` pushes the current transform; `Restore` pops it. `Restore` on an empty stack throws
+`InvalidOperationException`. `Translate` and `RotateDegrees` prepend to the current transform.
+
+### DrawText and MeasureText
+
+```csharp
+using DemaConsulting.CanvasNet.Fonts;
+using DemaConsulting.CanvasNet.Rendering;
+
+// Load a TrueType font.
+using var stream = File.OpenRead("OpenSans-Regular.ttf");
+var font = TrueTypeFont.Load(stream);
+
+// Measure text before drawing.
+var metrics = TextRenderer.MeasureText("Hello", font, size: 32f);
+Console.WriteLine($"width={metrics.Width} ascent={metrics.Ascent}");
+
+// Draw text at a baseline anchor with alignment.
+canvas.DrawText("Hello", x: 100, y: 100, TextAlign.Center, font, size: 32f, new Rgba32(0, 0, 0, 255));
+```
+
+`DrawText` respects the Canvas current transform, so translated/rotated text works too.
+
+### Shape helpers
+
+```csharp
+var red = new Rgba32(255, 0, 0, 255);
+canvas.FillRect(10, 10, 50, 50, red);
+canvas.FillRoundRect(70, 10, 50, 50, radius: 12f, red);
+canvas.FillCircle(150, 35, radius: 20f, red);
+```
+
+`FillRoundRect` clamps `radius` to half of the shorter side; degenerate zero-size shapes are
+no-op.
+
+### CornerRoundEffect
+
+```csharp
+var polygon = new PathBuilder()
+    .MoveTo(new Vector2(10, 10))
+    .LineTo(new Vector2(100, 10))
+    .LineTo(new Vector2(100, 100))
+    .LineTo(new Vector2(10, 100))
+    .Close()
+    .Build();
+
+var rounded = CornerRoundEffect.Apply(polygon, radius: 12f);
+canvas.FillPath(rounded, red);
+```
+
+`CornerRoundEffect` rounds polyline corners only; curved corners are preserved as documented.
+The radius is clamped per-corner to half of the shorter adjacent segment.
+
+### Rgba32.Parse
+
+```csharp
+var opaqueRed = Rgba32.Parse("#FF0000");     // A=255
+var translucentRed = Rgba32.Parse("#80FF0000"); // A=128
+
+if (Rgba32.TryParse(userInput, out var color))
+{
+    canvas.FillRect(10, 10, 50, 50, color);
+}
+```
+
+Accepts `#RRGGBB` (alpha defaults to 255) and `#AARRGGBB`, case-insensitive. Rejects short
+forms, missing `#`, wrong length, and non-hex characters.
+
 # References
 
 - [REF-1] Continuous Compliance Methodology (<https://github.com/demaconsulting/ContinuousCompliance>)

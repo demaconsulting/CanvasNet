@@ -44,6 +44,11 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
   with pad/reflect/repeat spread and premultiplied-alpha color interpolation
 - 🔤 **TrueType Fonts** - Load glyph-based TrueType SFNT fonts, map Unicode codepoints to glyph
   indices, extract glyph outlines as `Geometry.Path`, and query advance widths and basic kerning
+- 🎬 **Rendering** - Transform-aware `Canvas` (Save/Restore/Translate/RotateDegrees), text
+  rendering with alignment (`DrawText`, `MeasureText`), shape helpers (`FillRect`,
+  `FillRoundRect`, `FillCircle`, and their strokes), corner rounding
+  (`CornerRoundEffect.Apply`), and `Rgba32.Parse`/`TryParse` for `#RRGGBB` / `#AARRGGBB`
+  color literals
 - ⚡ **Span-Based** - Fast, allocation-conscious row and pixel access
 - 🔄 **Multi-Target** - Supports .NET 8, 9, and 10
 - 📦 **NuGet Ready** - Easy integration via NuGet package

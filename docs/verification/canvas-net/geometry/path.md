@@ -136,6 +136,34 @@ compile-time `IReadOnlyList<T>` view to the mutable `IList<T>` interface that it
 `Subpath` cannot be mutated in place even by a caller deliberately bypassing the read-only
 compile-time type.
 
+#### CanvasNet-Geometry-Path-Transform: ArcTo Commands Convert to Bezier Before Transforming
+
+**Test**: `Path_Transform_ArcTo_ConvertsToTransformedCubicBezierSegments`
+
+Builds a path containing an `ArcTo` command, calls `Transform` with a non-identity affine matrix,
+and asserts every resulting command is a `CubicBezierTo` (confirming the arc-to-Bezier conversion
+happens as part of the transform, matching `SvgArcConverter`'s own untransformed output) and that
+every transformed endpoint/control point equals the untransformed `SvgArcConverter.ToBeziers`
+output with the same matrix applied.
+
+#### CanvasNet-Geometry-Path-Rectangle / -RoundRectangle: Negative Width or Height Produces an Empty Path
+
+**Tests**: `Path_Rectangle_WithNegativeSize_ProducesEmptyPath`,
+`Path_RoundRectangle_WithNegativeSize_ProducesEmptyPath`
+
+Calls `Path.Rectangle`/`Path.RoundRectangle` with a negative `width` and, separately, a negative
+`height`, and asserts the result equals `Path.Empty` in each case - confirming the "non-positive
+width or height returns an empty path" contract holds for negative values, not only for exactly
+zero.
+
+#### CanvasNet-Geometry-Path-Circle: Negative Radius Produces an Empty Path
+
+**Test**: `Path_Circle_WithNegativeRadius_ProducesEmptyPath`
+
+Calls `Path.Circle` with a negative `radius` and asserts the result equals `Path.Empty` -
+confirming the "non-positive radius returns an empty path" contract holds for negative values,
+not only for exactly zero.
+
 ### Acceptance Criteria
 
 A unit test run passes when every scenario above passes without error or unexpected exception.

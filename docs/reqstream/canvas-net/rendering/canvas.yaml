@@ -1,0 +1,122 @@
+---
+# Software Unit Requirements for Canvas (Rendering)
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Rendering Requirements
+        sections:
+          - title: Canvas Requirements
+            requirements:
+              - id: CanvasNet-Rendering-Canvas-Save
+                title: The Canvas class shall push the current transform onto its transform stack.
+                justification: |
+                  Save is the counterpart of Restore; pushing the current transform lets callers
+                  temporarily apply transforms and revert to the prior state.
+                tests:
+                  - Canvas_Save_ThenRestore_RestoresPreviousTransform
+
+              - id: CanvasNet-Rendering-Canvas-Restore
+                title: >-
+                  The Canvas class shall pop the transform stack and replace the current
+                  transform with the popped value.
+                justification: |
+                  Restore reverts to a previously saved transform, enabling scoped transforms
+                  without manual bookkeeping.
+                tests:
+                  - Canvas_Save_ThenRestore_RestoresPreviousTransform
+                  - Canvas_Save_NestedSaveRestore_UnwindsInLifoOrder
+
+              - id: CanvasNet-Rendering-Canvas-RestoreEmpty
+                title: >-
+                  The Canvas class shall throw InvalidOperationException when Restore is
+                  called with an empty stack.
+                justification: |
+                  A stack underflow indicates a caller programming error; failing loudly prevents
+                  silently drawing under a stale transform.
+                tests:
+                  - Canvas_Restore_OnEmptyStack_ThrowsInvalidOperationException
+
+              - id: CanvasNet-Rendering-Canvas-Translate
+                title: The Canvas class shall prepend a translation to the current transform.
+                justification: |
+                  Translation is the most common transform operation; prepending matches HTML5
+                  canvas and Skia semantics so that later operations apply first in local space.
+                tests:
+                  - Canvas_Translate_ThenTranslate_ComposesAdditively
+                  - Canvas_FillPath_WithTranslate_ShiftsOutputByExpectedPixels
+
+              - id: CanvasNet-Rendering-Canvas-RotateDegrees
+                title: The Canvas class shall prepend a rotation, specified in degrees, to the current transform.
+                justification: |
+                  Degrees are the ergonomic unit for authoring; rotation composes with translation
+                  to produce arbitrary rigid motions.
+                tests:
+                  - Canvas_RotateDegrees_ThenTranslate_AppliesTranslationInRotatedFrame
+                  - Canvas_Translate_ThenRotateDegrees_AppliesRotationInTranslatedFrame
+
+              - id: CanvasNet-Rendering-Canvas-FillPath
+                title: >-
+                  The Canvas class shall fill a path with the given color, baking the
+                  current transform into the path first.
+                justification: |
+                  Filling with the baked transform is what makes the transform stack observable
+                  in output; a solid-color fill is the primary fill mode.
+                tests:
+                  - Canvas_FillPath_NoTransform_ProducesByteIdenticalOutputToPathFillerFill
+                  - Canvas_FillPath_WithTranslate_ShiftsOutputByExpectedPixels
+
+              - id: CanvasNet-Rendering-Canvas-FillPathGradient
+                title: >-
+                  The Canvas class's gradient-paint FillPath overload shall bake the current
+                  transform into both the path (as the solid-color overload already does) and the
+                  gradient paint's own coordinate mapping (via Gradient.WithTransform), so a
+                  gradient continues to visually follow the filled shape under a translated or
+                  rotated Canvas instead of remaining fixed in the shape's old, untransformed
+                  local frame.
+                justification: |
+                  A gradient's coordinates are meaningful only relative to the path it paints;
+                  transforming the path without equally transforming the gradient's own mapping
+                  would visibly detach the gradient from the shape it is meant to paint whenever
+                  the Canvas has a non-identity transform.
+                tests:
+                  - Canvas_FillPath_GradientWithRotateAndTranslate_MatchesPreTransformedGradientFill
+
+              - id: CanvasNet-Rendering-Canvas-StrokePath
+                title: >-
+                  The Canvas class shall stroke a path with the given stroke style and
+                  color, baking the current transform into the path first.
+                justification: |
+                  Stroking with the baked transform mirrors filling, so callers get consistent
+                  behavior across both operations.
+                tests:
+                  - Canvas_StrokePath_NoTransform_ProducesByteIdenticalOutputToPathStrokerPlusPathFiller
+
+              - id: CanvasNet-Rendering-Canvas-Identity
+                title: >-
+                  The Canvas class shall produce byte-identical output to direct
+                  PathFiller/PathStroker calls when the current transform is the identity.
+                justification: |
+                  Preserving the exact pre-existing bit pattern lets callers adopt the wrapper
+                  without regressing golden images or rendered fixtures.
+                tests:
+                  - Canvas_FillPath_NoTransform_ProducesByteIdenticalOutputToPathFillerFill
+                  - Canvas_StrokePath_NoTransform_ProducesByteIdenticalOutputToPathStrokerPlusPathFiller
+                  - Canvas_Constructor_WithSurface_HasIdentityTransform
+
+              - id: CanvasNet-Rendering-Canvas-Validation
+                title: >-
+                  The Canvas class shall reject a null Surface argument to its constructor with
+                  ArgumentNullException, reject a null Path argument to fill or stroke, a null
+                  Gradient argument to the gradient-paint FillPath overload, and a null
+                  StrokeStyle argument to stroke, all with ArgumentNullException, and reject an
+                  invalid fill-rule with ArgumentOutOfRangeException.
+                justification: |
+                  A null surface, path, gradient, or stroke style would make every draw operation
+                  fail later with a NullReferenceException; failing at the entry point is clearer.
+                tests:
+                  - Canvas_Constructor_WithNullSurface_ThrowsArgumentNullException
+                  - Canvas_FillPath_NullPath_ThrowsArgumentNullException
+                  - Canvas_FillPath_NullGradient_ThrowsArgumentNullException
+                  - Canvas_StrokePath_NullStyle_ThrowsArgumentNullException
+                  - Canvas_FillPath_InvalidFillRule_ThrowsArgumentOutOfRangeException

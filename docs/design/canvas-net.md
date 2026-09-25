@@ -10,7 +10,7 @@ This document provides the system-level design for CanvasNet.
 ## Architecture
 
 CanvasNet is a .NET library providing a canvas-based drawing and rendering API, following
-DEMA Consulting best practices. The system consists of five implemented subsystems:
+DEMA Consulting best practices. The system consists of six implemented subsystems:
 
 - **Canvas subsystem** (namespace `DemaConsulting.CanvasNet.Canvas`, folder
   `src/DemaConsulting.CanvasNet/Canvas/`): the pixel-buffer primitives on which all other
@@ -60,6 +60,13 @@ DEMA Consulting best practices. The system consists of five implemented subsyste
   because it produces vector outlines and scalar metrics, not pixels. It does not depend on
   `Canvas`, `Drawing`, or `Codecs`; callers combine its output with `Drawing` and `Canvas` when
   they want rendered text. See _Fonts Subsystem Design_ (`fonts.md`).
+- **Rendering subsystem** (namespace `DemaConsulting.CanvasNet.Rendering`, folder
+  `src/DemaConsulting.CanvasNet/Rendering/`, flat — no further nesting): higher-level
+  rendering primitives that compose `Canvas`, `Geometry`, `Drawing`, and `Fonts` — the
+  transform-aware `Canvas` wrapper (Save/Restore/Translate/RotateDegrees), the `TextRenderer`
+  (measure and draw TrueType text with alignment and kerning), and the `Shapes` extension
+  helpers (rectangles, rounded rectangles, circles). See _Rendering Subsystem Design_
+  (`rendering.md`).
 
 The `Codecs` subsystem depends on the `Canvas` subsystem's `Surface` unit (constructing surfaces
 and reading/writing rows via `Surface.GetRowSpanBytes`); the `Canvas` subsystem has no dependency

@@ -1,0 +1,60 @@
+---
+# Software Unit Requirements for CornerRoundEffect
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Geometry Requirements
+        sections:
+          - title: CornerRoundEffect Requirements
+            requirements:
+              - id: CanvasNet-Geometry-CornerRoundEffect-Apply
+                title: >-
+                  The CornerRoundEffect class shall return a new Path in which every polyline
+                  corner (a LineTo followed by a LineTo, or, for a closed subpath, the
+                  wrap-around corner at the subpath's start and the corner at the last real
+                  vertex before the closing edge) is replaced by a tangent-radius arc of the
+                  given radius, clamped per-corner to half of the shorter adjacent segment.
+                justification: |
+                  Rounded polyline corners are a common effect; a path-level pre-processing
+                  step composes cleanly with downstream fill, stroke, and dashing without
+                  requiring corner-aware stroke logic.
+                tests:
+                  - CornerRoundEffect_Apply_SquareRectangle_ProducesCornerArcs
+                  - CornerRoundEffect_Apply_ClosedSquare_RoundsAllFourCornersIncludingWrapAroundCorner
+                  - CornerRoundEffect_Apply_ClampsRadiusToHalfShorterAdjacentSegment
+                  - CornerRoundEffect_Apply_Size10SquareRadius5_AllFourCornersGetSameUnclampedRadius
+
+              - id: CanvasNet-Geometry-CornerRoundEffect-ZeroRadius
+                title: The CornerRoundEffect class shall return the source path unchanged when the radius is zero.
+                justification: |
+                  A zero radius means "no rounding"; returning the source path avoids allocating
+                  a redundant copy and preserves the exact command sequence.
+                tests:
+                  - CornerRoundEffect_Apply_ZeroRadius_ReturnsSourcePath
+
+              - id: CanvasNet-Geometry-CornerRoundEffect-CurvedCorners
+                title: >-
+                  The CornerRoundEffect class shall leave corners that involve a curved segment
+                  (cubic or quadratic Bezier or arc) unchanged, applying rounding only to
+                  polyline corners.
+                justification: |
+                  Rounding a curve tangent cleanly requires derivative-matching logic that is
+                  out of scope; the documented policy keeps behavior predictable.
+                tests:
+                  - CornerRoundEffect_Apply_LeavesCurvedCornersUnchanged
+                  - CornerRoundEffect_Apply_CubicThenLineThenLine_LeavesCurveAdjacentVertexUnroundedButRoundsLineLineCorner
+                  - CornerRoundEffect_Apply_CubicThenLineThenClose_LeavesCurveAdjacentVertexUnrounded
+
+              - id: CanvasNet-Geometry-CornerRoundEffect-Validation
+                title: >-
+                  The CornerRoundEffect class shall reject a null source path with
+                  ArgumentNullException and a negative or non-finite radius with
+                  ArgumentOutOfRangeException.
+                justification: |
+                  Fail-fast validation surfaces caller bugs immediately rather than producing a
+                  meaningless output path.
+                tests:
+                  - CornerRoundEffect_Apply_NullSource_ThrowsArgumentNullException
+                  - CornerRoundEffect_Apply_NegativeRadius_ThrowsArgumentOutOfRangeException
+                  - CornerRoundEffect_Apply_NonFiniteRadius_ThrowsArgumentOutOfRangeException

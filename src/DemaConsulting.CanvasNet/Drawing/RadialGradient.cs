@@ -125,4 +125,8 @@ public sealed class RadialGradient : Gradient
     ///     reaches its last stop's offset (<c>1</c>).
     /// </summary>
     public float EndRadius { get; }
+
+    /// <inheritdoc/>
+    public override Gradient WithTransform(Matrix3x2 transform) =>
+        new RadialGradient(StartCenter, StartRadius, EndCenter, EndRadius, Stops, Spread, Transform * transform);
 }

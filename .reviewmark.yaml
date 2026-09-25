@@ -125,9 +125,23 @@ reviews:
       - "docs/design/canvas-net/canvas/surface.md"            # unit design
       - "docs/verification/canvas-net/canvas/surface.md"      # unit verification
       - "src/DemaConsulting.CanvasNet/Canvas/Surface.cs"          # unit source
-      - "src/DemaConsulting.CanvasNet/Canvas/Rgba32.cs"           # supporting value type source
       - "src/DemaConsulting.CanvasNet/Canvas/NamespaceDoc.cs"     # Canvas namespace documentation
       - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceTests.cs"  # unit tests
+
+  # CanvasNet-Canvas-Rgba32 Review (one per unit)
+  - id: CanvasNet-Canvas-Rgba32
+    title: Review that CanvasNet Canvas Rgba32 Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/canvas.md"
+      - "docs/reqstream/canvas-net/canvas.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/canvas/rgba32.yaml"        # unit requirements
+      - "docs/design/canvas-net/canvas/rgba32.md"            # unit design
+      - "docs/verification/canvas-net/canvas/rgba32.md"      # unit verification
+      - "src/DemaConsulting.CanvasNet/Canvas/Rgba32.cs"          # unit source
+      - "test/DemaConsulting.CanvasNet.Tests/Canvas/Rgba32Tests.cs"  # unit tests
 
   # CanvasNet-Codecs Review (one per subsystem)
   - id: CanvasNet-Codecs
@@ -273,6 +287,22 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Geometry/PathCommand.cs"    # supporting data type source
       - "src/DemaConsulting.CanvasNet/Geometry/PathCommandType.cs"  # supporting data type source
       - "test/DemaConsulting.CanvasNet.Tests/Geometry/PathBuilderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Geometry/PathTests.cs"        # unit tests
+
+  # CanvasNet-Geometry-CornerRoundEffect Review (one per unit)
+  - id: CanvasNet-Geometry-CornerRoundEffect
+    title: Review that CanvasNet Geometry CornerRoundEffect Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/geometry.md"
+      - "docs/reqstream/canvas-net/geometry.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/geometry/corner-round-effect.yaml"     # unit requirements
+      - "docs/design/canvas-net/geometry/corner-round-effect.md"         # unit design
+      - "docs/verification/canvas-net/geometry/corner-round-effect.md"   # unit verification
+      - "src/DemaConsulting.CanvasNet/Geometry/CornerRoundEffect.cs"        # unit source
+      - "test/DemaConsulting.CanvasNet.Tests/Geometry/CornerRoundEffectTests.cs"  # unit tests
 
   # CanvasNet-Geometry-BezierFlattening Review (one per unit)
   - id: CanvasNet-Geometry-BezierFlattening
@@ -435,6 +465,65 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/TrueTypeFontTests.cs"   # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/TrueTypeFontRealFontIntegrationTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/TestSupport/SyntheticFontBuilder.cs"  # shared test helper
+
+  # CanvasNet-Rendering Review (one per subsystem)
+  - id: CanvasNet-Rendering
+    title: Review that CanvasNet Rendering Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/rendering.yaml"                # subsystem requirements
+      - "docs/design/canvas-net/rendering.md"                    # subsystem design
+      - "docs/verification/canvas-net/rendering.md"              # subsystem verification
+      - "src/DemaConsulting.CanvasNet/Rendering/NamespaceDoc.cs"     # namespace documentation
+      - "src/DemaConsulting.CanvasNet/Rendering/TextAlign.cs"        # subsystem-scoped enum
+      - "src/DemaConsulting.CanvasNet/Rendering/TextMetrics.cs"      # subsystem-scoped value type
+
+  # CanvasNet-Rendering-Canvas Review (one per unit)
+  - id: CanvasNet-Rendering-Canvas
+    title: Review that CanvasNet Rendering Canvas Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/rendering.md"
+      - "docs/reqstream/canvas-net/rendering.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/rendering/canvas.yaml"        # unit requirements
+      - "docs/design/canvas-net/rendering/canvas.md"            # unit design
+      - "docs/verification/canvas-net/rendering/canvas.md"      # unit verification
+      - "src/DemaConsulting.CanvasNet/Rendering/Canvas.cs"          # unit source
+      - "test/DemaConsulting.CanvasNet.Tests/Rendering/CanvasTests.cs"  # unit tests
+
+  # CanvasNet-Rendering-TextRenderer Review (one per unit)
+  - id: CanvasNet-Rendering-TextRenderer
+    title: Review that CanvasNet Rendering TextRenderer Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/rendering.md"
+      - "docs/reqstream/canvas-net/rendering.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/rendering/text-renderer.yaml"        # unit requirements
+      - "docs/design/canvas-net/rendering/text-renderer.md"            # unit design
+      - "docs/verification/canvas-net/rendering/text-renderer.md"      # unit verification
+      - "src/DemaConsulting.CanvasNet/Rendering/TextRenderer.cs"          # unit source
+      - "test/DemaConsulting.CanvasNet.Tests/Rendering/TextRendererTests.cs"  # unit tests
+
+  # CanvasNet-Rendering-Shapes Review (one per unit)
+  - id: CanvasNet-Rendering-Shapes
+    title: Review that CanvasNet Rendering Shapes Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/rendering.md"
+      - "docs/reqstream/canvas-net/rendering.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/rendering/shapes.yaml"        # unit requirements
+      - "docs/design/canvas-net/rendering/shapes.md"            # unit design
+      - "docs/verification/canvas-net/rendering/shapes.md"      # unit verification
+      - "src/DemaConsulting.CanvasNet/Rendering/Shapes.cs"          # unit source
+      - "test/DemaConsulting.CanvasNet.Tests/Rendering/ShapesTests.cs"  # unit tests
 
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark
