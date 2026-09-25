@@ -87,7 +87,7 @@ diagram or the prose below.
 
 ![Software Structure](SoftwareStructureView.svg)
 
-CanvasNet is organized into five subsystems under the system level: the `Canvas` subsystem
+CanvasNet is organized into six subsystems under the system level: the `Canvas` subsystem
 (the `Surface` and `Rgba32` units, namespace `DemaConsulting.CanvasNet.Canvas`), the `Codecs`
 subsystem (the `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, and `SvgCodec` units, namespace
 `DemaConsulting.CanvasNet.Codecs`, flat — no further nesting), the `Geometry` subsystem (the
@@ -99,10 +99,13 @@ supporting `LineCap`/`LineJoin`/`StrokeStyle` types and the internal
 `StrokePathFlattener`/`DashSplitter`/`StrokeOutliner` helpers inline, and the `GradientPaint`
 unit, covering the public `Gradient`/`LinearGradient`/`RadialGradient`/`GradientStop`/
 `GradientSpread` types and the internal `GradientEvaluator` helper inline, namespace
-`DemaConsulting.CanvasNet.Drawing`, flat — no further nesting), and the `Fonts` subsystem (the
+`DemaConsulting.CanvasNet.Drawing`, flat — no further nesting), the `Fonts` subsystem (the
 `TrueTypeFont` unit, covering the internal `SfntContainer`/`CmapTable`/`GlyfLocaReader`/
 `HmtxHheaReader`/`KernTable` helpers inline, namespace `DemaConsulting.CanvasNet.Fonts`, flat —
-no further nesting). As additional functionality is added, further subsystems and nested
+no further nesting), and the `Rendering` subsystem (the transform-aware `Canvas` wrapper unit,
+the `TextRenderer` unit, covering the supporting `TextAlign` and `TextMetrics` types inline, and
+the `Shapes` extension-method unit, namespace `DemaConsulting.CanvasNet.Rendering`, flat — no
+further nesting). As additional functionality is added, further subsystems and nested
 subsystems would organize related units and provide architectural boundaries with well-defined
 interfaces and responsibilities.
 
@@ -152,19 +155,27 @@ src/DemaConsulting.CanvasNet/
 │   ├── HmtxHheaReader.cs          — Horizontal metrics parsing and advance-width lookup
 │   ├── KernTable.cs               — Format-0 horizontal kerning lookup
 │   └── NamespaceDoc.cs            — Namespace-level XML documentation
-└── Geometry/
-    ├── Rect.cs                    — Axis-aligned bounding rectangle (position plus size)
-    ├── PathCommandType.cs         — Enumeration of path drawing command kinds
-    ├── PathCommand.cs             — Tagged-union path drawing command value
-    ├── Subpath.cs                 — One independent contour of a path
-    ├── Path.cs                    — Immutable vector path (ordered collection of subpaths)
-    ├── PathBuilder.cs             — Mutable, fluent builder that produces a Path
-    ├── BezierFlattening.cs        — Adaptive quadratic/cubic Bezier curve flattening
-    ├── SvgArcConverter.cs         — SVG-style elliptical arc to cubic Bezier conversion
-    └── NamespaceDoc.cs            — Namespace-level XML documentation
+├── Geometry/
+│   ├── Rect.cs                    — Axis-aligned bounding rectangle (position plus size)
+│   ├── PathCommandType.cs         — Enumeration of path drawing command kinds
+│   ├── PathCommand.cs             — Tagged-union path drawing command value
+│   ├── Subpath.cs                 — One independent contour of a path
+│   ├── Path.cs                    — Immutable vector path (ordered collection of subpaths)
+│   ├── PathBuilder.cs             — Mutable, fluent builder that produces a Path
+│   ├── BezierFlattening.cs        — Adaptive quadratic/cubic Bezier curve flattening
+│   ├── SvgArcConverter.cs         — SVG-style elliptical arc to cubic Bezier conversion
+│   └── NamespaceDoc.cs            — Namespace-level XML documentation
+└── Rendering/
+    ├── Canvas.cs                   — Transform-aware Save/Restore/Translate/RotateDegrees wrapper
+    ├── TextAlign.cs                — Text horizontal-alignment enumeration
+    ├── TextMetrics.cs              — Measured width/ascent/descent result for a text run
+    ├── TextRenderer.cs             — Measures and draws TrueType text with alignment and kerning
+    ├── Shapes.cs                   — Fill/stroke extension helpers for rectangles, rounded
+    │                                 rectangles, and circles
+    └── NamespaceDoc.cs             — Namespace-level XML documentation
 ```
 
-This five-subsystem folder structure reflects the small number of subsystems in the system
+This six-subsystem folder structure reflects the small number of subsystems in the system
 today. As the system grows with additional subsystems and units, the folder structure will
 expand further to mirror the software architecture. `Canvas/Surface.cs` also gained a
 `CompositeOverSpan` method used internally by `Drawing/PathFiller.cs`, and the `Drawing`

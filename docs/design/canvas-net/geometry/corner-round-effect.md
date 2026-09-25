@@ -30,6 +30,21 @@ a `LineTo`, the corner is:
    arc at kappa = 0.5522847498.
 5. The next iteration's `LineTo` continues from the tangent-out point to `nextEnd`.
 
+For a closed subpath (one ending in a trailing `Close`), the same corner-detection and
+`TangentArcTo` mechanics also apply to two additional vertices that have no literal adjacent
+`LineTo`-then-`LineTo` pair in the command list:
+
+- The vertex at the last real command's endpoint, immediately before the trailing `Close`: its
+  `nextEnd` is the subpath's start point (`Subpath.Start`), since the implicit closing edge
+  drawn by `Close` runs from that vertex back to the start.
+- The wrap-around vertex at the subpath's start point itself: its "incoming" edge is that same
+  implicit closing edge, and its "outgoing" edge is the subpath's first `LineTo`. Because the
+  builder must begin the new subpath with a `MoveTo` before either corner has been rounded, the
+  effect first computes this wrap-around corner's tangent-out point with a scratch
+  `PathBuilder`, then issues the real `MoveTo` directly to that point instead of to the
+  un-rounded start; the closing `Close` command is then replaced with a final
+  `TangentArcTo` back to the start followed by `Close`.
+
 Corners involving a curved segment (cubic or quadratic Bezier or arc) are left unchanged.
 This documented policy avoids the derivative-matching logic that would be required to round
 curve tangents cleanly.

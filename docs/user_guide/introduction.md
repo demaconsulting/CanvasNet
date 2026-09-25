@@ -1445,7 +1445,7 @@ var surface = new Surface(200, 200);
 var canvas = new Canvas(surface);
 
 canvas.Save();
-canvas.Translate(new Vector2(100, 100));
+canvas.Translate(100, 100);
 canvas.RotateDegrees(45f);
 // ... drawing here is in a rotated, translated frame
 canvas.Restore(); // pops back to the identity
@@ -1477,12 +1477,10 @@ canvas.DrawText("Hello", x: 100, y: 100, TextAlign.Center, font, size: 32f, new 
 ### Shape helpers
 
 ```csharp
-using DemaConsulting.CanvasNet.Geometry;
-
 var red = new Rgba32(255, 0, 0, 255);
-canvas.FillRect(new Rect(10, 10, 50, 50), red);
-canvas.FillRoundRect(new Rect(70, 10, 50, 50), radius: 12f, red);
-canvas.FillCircle(new Vector2(150, 35), radius: 20f, red);
+canvas.FillRect(10, 10, 50, 50, red);
+canvas.FillRoundRect(70, 10, 50, 50, radius: 12f, red);
+canvas.FillCircle(150, 35, radius: 20f, red);
 ```
 
 `FillRoundRect` clamps `radius` to half of the shorter side; degenerate zero-size shapes are

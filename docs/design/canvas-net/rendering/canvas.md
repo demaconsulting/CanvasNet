@@ -8,7 +8,7 @@ The `Canvas` class is the sole stateful unit in the `Rendering` subsystem. It wr
 - Own the current 2D affine transform as a `System.Numerics.Matrix3x2` field `_current`,
   initialized to the identity.
 - Own a `Stack<Matrix3x2>` for `Save` / `Restore` bookkeeping.
-- Expose `Translate(Vector2)` and `RotateDegrees(float)` mutators that prepend the operation
+- Expose `Translate(float x, float y)` and `RotateDegrees(float)` mutators that prepend the operation
   to `_current` (`_current = newOp * _current`) matching HTML5 canvas / Skia semantics.
 - Expose `CurrentTransform` as a read-only property.
 - Expose `FillPath(Path, Rgba32)` and `StrokePath(Path, StrokeStyle, Rgba32)` that first bake

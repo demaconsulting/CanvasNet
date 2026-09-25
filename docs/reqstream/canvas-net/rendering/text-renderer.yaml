@@ -53,8 +53,8 @@ sections:
               - id: CanvasNet-Rendering-TextRenderer-TransformComposition
                 title: >-
                   The TextRenderer DrawText extension method shall compose the Canvas current
-                  transform with the per-glyph pen and unit-flip transforms so translated,
-                  rotated, or scaled canvases render text under the composed transform.
+                  transform with the per-glyph pen and unit-flip transforms so translated or
+                  rotated canvases render text under the composed transform.
                 justification: |
                   Text must behave like other primitives under transforms; the same scene graph
                   transform should apply to filled paths and to filled glyph paths.
