@@ -268,6 +268,20 @@ including the corners farthest from where the original per-pixel data was set �
 the clear color, confirming the system's public `Clear` API integrates correctly and fully
 overwrites pre-existing pixel data across the whole surface.
 
+### Integration: Canvas Clear Then Read Wrapped Surface Pixel Returns Expected Color
+
+**Test**: `CanvasNet_SystemIntegration_CanvasClearThenReadWrappedSurfacePixel_ReturnsExpectedColor`
+
+Exercises end-to-end system behavior for the `Rendering.Canvas` passthrough onto its wrapped
+`Surface`'s vectorized bulk-fill operation, distinct from the `Surface`-only evidence above:
+constructs a `Surface`, wraps it in a `Rendering.Canvas` through the public API, pre-fills the
+wrapped surface with distinct per-pixel data, then calls `Canvas.Clear` with a single color. Reads
+pixels back directly from the underlying wrapped `Surface` (not merely through the `Canvas`) and
+asserts every sampled pixel — including the corners farthest from where the original per-pixel
+data was set — exactly matches the clear color, confirming that a regression in the
+`Canvas.Clear` -> `Surface.Clear` passthrough would be caught at the system level even if it were
+otherwise masked by `Rendering` unit-level test isolation.
+
 ### Integration: TIFF GetInfo on Non-Seekable Stream Returns Expected Info
 
 **Test**: `CanvasNet_SystemIntegration_TiffGetInfoOnNonSeekableStream_ReturnsExpectedInfo`
@@ -293,6 +307,6 @@ an input `Load` would successfully decode.
 
 ## Acceptance Criteria
 
-A system-level test run passes when all twenty-three scenarios above pass without error or
+A system-level test run passes when all twenty-four scenarios above pass without error or
 exception beyond those explicitly asserted. Any unexpected exception, wrong exception type, or
 wrong return value constitutes a failure.

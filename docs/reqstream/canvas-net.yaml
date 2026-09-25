@@ -156,6 +156,7 @@ sections:
           - CanvasNet-Rendering-Clear
         tests:
           - CanvasNet_SystemIntegration_ClearSurfaceThenReadPixel_ReturnsExpectedColor
+          - CanvasNet_SystemIntegration_CanvasClearThenReadWrappedSurfacePixel_ReturnsExpectedColor
 
       - id: CanvasNet-Lib-CanvasMaxDimensionPublic
         title: >-
@@ -702,8 +703,13 @@ sections:
           number of probed header bytes as a soft cap on its fast incremental scan only,
           continuing to scan past that cap - reading no more of the stream than each successive
           marker/segment boundary actually requires - rather than throwing once that cap would
-          otherwise be exceeded, and shall throw InvalidDataException only if the stream genuinely
-          ends without an SOF0/SOF2 marker ever being found.
+          otherwise be exceeded. GetInfo shall throw InvalidDataException if the stream genuinely
+          ends without an SOF0/SOF2 marker ever being found, and shall also throw
+          InvalidDataException, without reading further, if either an explicit hard byte ceiling
+          or an explicit hard segment-count ceiling on the post-soft-cap scan is reached first -
+          this is a deliberate, narrow, and documented exception to GetInfo's general parity with
+          Load, accepted specifically to bound GetInfo's worst-case resource consumption against a
+          malformed or adversarial stream that never presents an SOF0/SOF2 marker.
         tags: [system]
         justification: |
           Callers need to inspect a JPEG's declared dimensions and component count - for example
@@ -711,7 +717,12 @@ sections:
           cost of entropy-decoding the scan data, and without an unbounded scan over a
           pathological stream that never presents an SOF marker. Since Load itself has no overall
           file-size ceiling, GetInfo must not throw merely because a well-formed file's leading
-          segments happen to exceed the soft cap.
+          segments happen to exceed the soft cap - but it must still throw, rather than reading
+          without bound, once either of its two independent hard ceilings is reached without an
+          SOF0/SOF2 marker ever being found; a pathological file whose leading marker-segment data
+          exceeds both the soft cap and the hard ceilings is accepted by Load (which buffers the
+          entire stream unconditionally) but is deliberately rejected by GetInfo, as a documented,
+          narrow exception to the general GetInfo/Load parity contract.
         children:
           - CanvasNet-Codecs-JpegGetInfo
         tests:
@@ -722,6 +733,7 @@ sections:
           - JpegCodec_GetInfo_NoSofAnywhereEvenBeyondProbeCap_ThrowsInvalidDataException
           - JpegCodec_GetInfo_LargeLeadingAppSegments_SucceedsAndMatchesLoadResult
           - JpegCodec_GetInfo_SofShortlyAfterProbeCap_StopsAtSofWithoutDrainingStream
+          - JpegCodec_GetInfoVsLoad_LeadingMetadataExceedsHardLimit_IsAcceptedParityException
           - JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows
           - CanvasNet_SystemIntegration_JpegGetInfoWithLargeLeadingSegments_ReturnsExpectedInfo
 

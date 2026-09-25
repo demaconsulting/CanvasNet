@@ -420,6 +420,22 @@ public static class JpegCodec
     ///     <see cref="Surface.MaxDimension"/> is <em>not</em> enforced - the raw header-declared
     ///     values are always returned; see <see cref="ImageInfo"/> for why.
     /// </exception>
+    /// <remarks>
+    ///     <see cref="ImageInfo"/>'s type-level remarks document the general cross-codec
+    ///     invariant that <c>GetInfo</c> never fails on an input <see cref="Load(Stream)"/> would
+    ///     accept. This method carries one deliberate, narrow, and explicitly documented exception
+    ///     to that invariant: a pathological JPEG containing more than
+    ///     <see cref="MaxProbeHeaderBytesHardLimit"/> (16 MiB) bytes - or more than
+    ///     <see cref="MaxProbeSegmentCount"/> (512) marker segments - of leading marker-segment
+    ///     data before a SOF0/SOF2 marker is found is accepted by <see cref="Load(Stream)"/>
+    ///     (which buffers the entire stream unconditionally and enforces no equivalent ceiling of
+    ///     its own) but is rejected by this method (which enforces these two independent ceilings
+    ///     specifically to prevent unbounded resource consumption during cheap header probing).
+    ///     This is a deliberate, documented, narrow exception to the general parity contract, not
+    ///     a defect: both ceilings are sized generously enough - far beyond any realistic
+    ///     real-world JPEG's leading metadata - that only a pathological, adversarial, or
+    ///     effectively-infinite input is ever affected.
+    /// </remarks>
     public static ImageInfo GetInfo(Stream stream)
     {
         ArgumentNullException.ThrowIfNull(stream);

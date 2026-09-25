@@ -255,6 +255,25 @@ segments realistic files with rich EXIF/ICC/XMP/APP14/COM metadata might need, a
 maximal-length segments it takes to reach `MaxProbeHeaderBytesHardLimit`, the two ceilings remain
 genuinely independent rather than one silently overriding the other.
 
+**Architectural decision (the hard ceilings are a deliberate, narrow, documented exception to
+GetInfo/Load parity, not a defect):** `Load` itself enforces no ceiling on the total size of a
+JPEG's leading marker-segment data — it buffers the entire stream unconditionally regardless of
+how much of it precedes the SOF marker. This means a pathological (but well-formed) JPEG whose
+leading marker-segment data exceeds `MaxProbeHeaderBytesHardLimit` (16 MiB) or
+`MaxProbeSegmentCount` (512 segments) before its SOF0/SOF2 marker is still accepted by `Load`, yet
+is rejected by `GetInfo` once either ceiling is reached. This is the one place where `GetInfo` does
+not uphold the general "`GetInfo` never throws for an input `Load` would successfully decode"
+invariant described on `ImageInfo`. The team deliberately chose *not* to close this gap by adding a
+matching ceiling to `Load`'s own segment walk (that would re-open a separate, previously deferred
+concern about `Load`'s overall unbounded-size `ReadAllBytes` read, which is out of scope here), and
+deliberately chose *not* to remove `GetInfo`'s ceilings either (which would reintroduce the
+denial-of-service vector both ceilings exist to prevent). Instead, this divergence is accepted and
+explicitly documented as a narrow, intentional carve-out: both ceilings are sized generously enough
+(16 MiB of legitimate leading metadata, or 512 legitimate leading segments) that no realistic
+real-world JPEG is ever affected by it — only a pathological, adversarial, or effectively-infinite
+input triggers the divergence. See `JpegCodec_GetInfoVsLoad_LeadingMetadataExceedsHardLimit_IsAcceptedParityException`
+for the regression test proving and documenting this accepted exception.
+
 **Throws:**
 
 - `ArgumentNullException` — `stream` is null

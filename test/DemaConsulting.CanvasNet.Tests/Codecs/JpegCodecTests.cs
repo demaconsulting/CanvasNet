@@ -1077,6 +1077,63 @@ public class JpegCodecTests
     }
 
     /// <summary>
+    ///     Documents and proves the single deliberate, accepted, and narrow exception to the
+    ///     cross-codec "GetInfo never throws for an input Load would successfully decode"
+    ///     invariant (see the type-level remarks on <see cref="ImageInfo"/>): a JPEG whose leading
+    ///     marker-segment data before the SOF0/SOF2 marker exceeds
+    ///     <see cref="JpegCodec.MaxProbeHeaderBytesHardLimit"/> is accepted by
+    ///     <see cref="JpegCodec.Load(Stream)"/> - which buffers the entire stream unconditionally
+    ///     and has no equivalent header-size ceiling of its own - but is deliberately rejected by
+    ///     <see cref="JpegCodec.GetInfo(Stream)"/>, which enforces this bound specifically to
+    ///     prevent unbounded resource consumption during cheap header probing. Builds a genuinely
+    ///     valid, fully decodable JPEG (well-formed DQT/DHT/SOF0/SOS segments and matching entropy
+    ///     data, exactly like the minimal fixture used elsewhere in this file) preceded by more
+    ///     well-formed APP0 filler segments than are needed to exceed
+    ///     <see cref="JpegCodec.MaxProbeHeaderBytesHardLimit"/> before the SOF0 marker is ever
+    ///     seen. Confirms <see cref="JpegCodec.Load(Stream)"/> decodes this file successfully,
+    ///     while <see cref="JpegCodec.GetInfo(Stream)"/> on the exact same bytes throws
+    ///     <see cref="InvalidDataException"/> referencing the hard limit - proving this is a real,
+    ///     intentional, and narrowly-scoped divergence from GetInfo/Load parity, not an
+    ///     unintended regression.
+    /// </summary>
+    [Fact]
+    public void JpegCodec_GetInfoVsLoad_LeadingMetadataExceedsHardLimit_IsAcceptedParityException()
+    {
+        // Arrange: enough well-formed, non-SOF APP0 filler segments to comfortably exceed
+        // MaxProbeHeaderBytesHardLimit (with margin) before the SOF0 marker is ever seen, followed
+        // by a genuinely valid, fully decodable minimal JPEG (DQT/DHT/SOF0/SOS plus matching
+        // entropy data), so Load can and does successfully decode the whole file.
+        const int fillerSegmentPayloadLength = 65_000;
+        const int margin = 200_000;
+        var segments = new List<byte[]>();
+        var totalFillerBytes = 0;
+        while (totalFillerBytes <= JpegCodec.MaxProbeHeaderBytesHardLimit + margin)
+        {
+            segments.Add(BuildSegment(0xE0, new byte[fillerSegmentPayloadLength]));
+            totalFillerBytes += fillerSegmentPayloadLength + 4;
+        }
+
+        segments.Add(BuildMinimalDqtSegment());
+        segments.Add(BuildMinimalDhtSegment());
+        segments.Add(BuildSofSegment(MarkerSof0, 16, 8, (1, 0x11, 0)));
+        segments.Add(BuildSosSegment((1, 0x00)));
+
+        var jpeg = BuildJpeg([.. segments], entropyData: [0x00, 0x00]);
+
+        // Act
+        var surface = JpegCodec.Load(new MemoryStream(jpeg));
+        var exception = Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(new MemoryStream(jpeg)));
+
+        // Assert: Load decodes the file successfully (proving this is a genuinely valid,
+        // decodable JPEG, not a malformed one), while GetInfo on the exact same bytes throws,
+        // referencing the hard limit - the documented, narrow, accepted exception to the general
+        // GetInfo/Load parity contract.
+        Assert.Equal(16, surface.Width);
+        Assert.Equal(8, surface.Height);
+        Assert.Contains("hard limit", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     ///     Regression test for the segment-count defense-in-depth cap: the byte-based
     ///     <see cref="JpegCodec.MaxProbeHeaderBytesHardLimit"/> bounds total bytes read, but a
     ///     JPEG marker segment can be as small as 4 bytes (a 2-byte marker plus a 2-byte length

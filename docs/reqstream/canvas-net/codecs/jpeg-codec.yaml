@@ -327,6 +327,7 @@ sections:
                   - JpegCodec_GetInfo_LargeLeadingAppSegments_SucceedsAndMatchesLoadResult
                   - JpegCodec_GetInfo_SofShortlyAfterProbeCap_StopsAtSofWithoutDrainingStream
                   - JpegCodec_GetInfo_NoSofEverFound_StopsAtHardLimitWithInvalidDataException
+                  - JpegCodec_GetInfoVsLoad_LeadingMetadataExceedsHardLimit_IsAcceptedParityException
                   - JpegCodec_GetInfo_ManyMinimalSegmentsNoSof_StopsAtSegmentCountLimitBeforeByteLimit
                   - JpegCodec_GetInfo_SofAsSegmentImmediatelyAfterSegmentCountLimit_StillSucceeds
                   - JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows

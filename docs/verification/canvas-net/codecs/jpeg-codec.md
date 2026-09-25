@@ -228,6 +228,7 @@ identical.
 `JpegCodec_GetInfo_LargeLeadingAppSegments_SucceedsAndMatchesLoadResult`,
 `JpegCodec_GetInfo_SofShortlyAfterProbeCap_StopsAtSofWithoutDrainingStream`,
 `JpegCodec_GetInfo_NoSofEverFound_StopsAtHardLimitWithInvalidDataException`,
+`JpegCodec_GetInfoVsLoad_LeadingMetadataExceedsHardLimit_IsAcceptedParityException`,
 `JpegCodec_GetInfo_ManyMinimalSegmentsNoSof_StopsAtSegmentCountLimitBeforeByteLimit`,
 `JpegCodec_GetInfo_SofAsSegmentImmediatelyAfterSegmentCountLimit_StillSucceeds`,
 `JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows`,
@@ -278,7 +279,16 @@ correct implementation must never reach, wrapped in a `BoundedReadStream` config
 distinct `InvalidOperationException` the instant more than the hard limit (plus a small slack) is
 read - so the test fails loudly rather than hanging if the hard-limit protection were ever removed
 again - and asserts `GetInfo` instead throws `InvalidDataException` referencing the hard limit.
-Proves that scanning past the soft cap is additionally bounded by a second, independent
+Proves this hard limit is a deliberate, narrow, and explicitly documented exception to the
+general "`GetInfo` never throws for an input `Load` would successfully decode" invariant, not a
+regression: builds a genuinely valid, fully decodable minimal JPEG (well-formed DQT/DHT/SOF0/SOS
+segments and matching entropy data) preceded by well-formed APP0 filler segments comfortably
+exceeding `MaxProbeHeaderBytesHardLimit` before the SOF0 marker is ever seen, then asserts `Load`
+decodes the file successfully (confirming it is genuinely valid, not malformed) while `GetInfo` on
+the exact same bytes throws `InvalidDataException` referencing the hard limit - proving this
+divergence between `GetInfo` and `Load` is real, intentional, and narrowly scoped to this one
+pathological input shape. Proves that scanning past the soft cap is additionally bounded by a
+second, independent
 segment-count ceiling that catches an attack shape the byte-based hard limit alone would take
 millions of iterations to reach: builds many more than the segment-count limit's worth of
 well-formed, minimal (4-byte) non-SOF APP0 filler segments - totalling only a few kilobytes,
@@ -329,7 +339,7 @@ corresponding `Load` scenarios, plus JPEG-specific malformed-ordering cases `Loa
 
 A unit test run passes when all test methods above pass without error or unexpected exception; any
 unexpected exception type or wrong return/value relationship constitutes a failure. Across
-`JpegCodecTests.cs` and `JpegFixtureTests.cs`, this totals 51 test methods (47 in
+`JpegCodecTests.cs` and `JpegFixtureTests.cs`, this totals 52 test methods (48 in
 `JpegCodecTests.cs` and 4 in `JpegFixtureTests.cs`); several of these are `[Theory]` methods that
 additionally expand to multiple executed xUnit test cases, plus the system-level integration
 scenarios documented in `docs/verification/canvas-net.md`.

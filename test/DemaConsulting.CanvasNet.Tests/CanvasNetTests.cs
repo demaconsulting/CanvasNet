@@ -86,6 +86,42 @@ public class CanvasNetTests
     }
 
     /// <summary>
+    ///     Proves that the system can fill an entire wrapped Surface with a constant color
+    ///     through a <see cref="DemaConsulting.CanvasNet.Rendering.Canvas"/>'s public API
+    ///     (<c>Canvas.Clear</c>), and that the fill is actually observable by reading the
+    ///     underlying <see cref="Surface"/> the Canvas wraps - not merely by asserting against
+    ///     Canvas-level state - proving the passthrough from <c>Canvas.Clear</c> to
+    ///     <c>Surface.Clear</c> genuinely reaches and mutates the wrapped buffer end to end.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_CanvasClearThenReadWrappedSurfacePixel_ReturnsExpectedColor()
+    {
+        // Arrange: construct a Surface, wrap it in a Canvas through the public API, and pre-fill
+        // the wrapped surface with distinct pixel data that Canvas.Clear must fully overwrite
+        var surface = new Surface(4, 3);
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                surface[x, y] = new Rgba32((byte)(x * 10), (byte)(y * 10), 1, 255);
+            }
+        }
+
+        var canvas = new DemaConsulting.CanvasNet.Rendering.Canvas(surface);
+        var clearColor = new Rgba32(21, 41, 61, 81);
+
+        // Act: clear the whole canvas through the public API
+        canvas.Clear(clearColor);
+
+        // Assert: reading pixels directly from the wrapped Surface (not the Canvas) confirms the
+        // passthrough actually reached and mutated the underlying buffer at every pixel,
+        // including corners far from where the pre-existing data was set
+        Assert.Equal(clearColor, surface[0, 0]);
+        Assert.Equal(clearColor, surface[surface.Width - 1, surface.Height - 1]);
+        Assert.Equal(clearColor, canvas.Surface[0, 0]);
+    }
+
+    /// <summary>
     ///     Proves that the system can save a Surface to BMP and load it back through the public
     ///     API, preserving pixel values end to end.
     /// </summary>

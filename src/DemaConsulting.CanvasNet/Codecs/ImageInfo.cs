@@ -49,6 +49,24 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///         remains, and without ever reading into entropy-coded scan data.
 ///     </para>
 ///     <para>
+///         <see cref="JpegCodec.GetInfo(Stream)"/> carries one deliberate, narrow, and
+///         explicitly documented exception to that second invariant: a pathological JPEG whose
+///         leading marker-segment data before any SOF0/SOF2 marker exceeds
+///         <see cref="JpegCodec.MaxProbeHeaderBytesHardLimit"/> (16 MiB) - or whose leading
+///         marker segments before any SOF0/SOF2 marker exceed
+///         <see cref="JpegCodec.MaxProbeSegmentCount"/> (512) in number - is accepted by
+///         <see cref="JpegCodec.Load(Stream)"/> (which buffers the entire stream
+///         unconditionally and enforces no equivalent ceiling of its own) but is rejected by
+///         <see cref="JpegCodec.GetInfo(Stream)"/>, which enforces these two independent
+///         ceilings specifically to bound its own worst-case resource consumption against a
+///         malformed, adversarial, or effectively-infinite stream that never presents a
+///         SOF0/SOF2 marker. This is a deliberate, narrowly-scoped, and fully documented
+///         carve-out from the general parity contract - not a defect - chosen because a hard
+///         resource ceiling on cheap header probing is considered more important than absolute
+///         parity for this one pathological, unrealistic input shape; both ceilings are sized
+///         generously enough that no realistic real-world JPEG is affected.
+///     </para>
+///     <para>
 ///         This type is a plain, immutable data carrier with no behavior beyond its record-struct
 ///         value equality; it deliberately has no new struct type per format, since all four
 ///         codecs report the same four properties from their respective header formats:
