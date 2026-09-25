@@ -35,18 +35,22 @@ sections:
                 title: >-
                   The Rgba32 Parse method shall throw ArgumentNullException on a null argument
                   and FormatException on any other invalid input (missing '#', wrong length,
-                  short forms, non-hex characters), with a message that names the accepted
-                  formats.
+                  short forms, non-hex characters), with a message that identifies the specific
+                  problem — naming the accepted formats for length/short-form mismatches, the
+                  missing '#' prefix by name, and the offending character for a non-hex
+                  character.
                 justification: |
                   Fail-fast validation gives callers a specific, actionable error rather than
                   silently accepting garbage.
                 tests:
                   - Rgba32_Parse_MissingHash_ThrowsFormatException
+                  - Rgba32_Parse_MissingHashPrefixAtValidLength_MessageIdentifiesMissingHash
                   - Rgba32_Parse_3HexShortForm_ThrowsFormatException
                   - Rgba32_Parse_4HexArgbShortForm_ThrowsFormatException
                   - Rgba32_Parse_7Hex_ThrowsFormatException
                   - Rgba32_Parse_9Hex_ThrowsFormatException
                   - Rgba32_Parse_NonHexCharacter_ThrowsFormatException
+                  - Rgba32_Parse_NonHexCharacter_MessageIncludesOffendingCharacter
                   - Rgba32_Parse_Null_ThrowsArgumentNullException
                   - Rgba32_Parse_EmptyString_ThrowsFormatException
                   - Rgba32_Parse_ExceptionMessage_ContainsFormatGuidance

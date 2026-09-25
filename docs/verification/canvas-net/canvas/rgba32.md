@@ -14,6 +14,10 @@ The `Rgba32` `Parse` and `TryParse` methods are verified by
 - **Invalid inputs**: missing-hash, short forms (#RGB, #ARGB), wrong length (7 and 9 hex),
   non-hex characters, null, and empty string all throw the correct exception type; the
   format-guidance test verifies the message names the accepted formats.
+  `Rgba32_Parse_MissingHashPrefixAtValidLength_MessageIdentifiesMissingHash` verifies the
+  missing-`#` message specifically names the missing prefix rather than the generic format
+  message, and `Rgba32_Parse_NonHexCharacter_MessageIncludesOffendingCharacter` verifies the
+  non-hex-character message includes the actual offending character.
 - **TryParse**: valid, invalid, and null inputs all behave per contract, with `result` set to
   `default` on failure.
 

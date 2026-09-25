@@ -30,6 +30,8 @@ sections:
                   the Path.RoundRectangle contract so callers cannot request a degenerate shape.
                 tests:
                   - Shapes_FillRoundRect_RadiusClampedAndPaintsPixels
+                  - Shapes_StrokeRoundRect_WithSolidStyle_PaintsPixels
+                  - Shapes_StrokeRoundRect_RadiusLargerThanHalfShorterSide_ClampsAndPaintsPixels
 
               - id: CanvasNet-Rendering-Shapes-Circle
                 title: >-

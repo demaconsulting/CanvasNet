@@ -11,14 +11,17 @@ sections:
               - id: CanvasNet-Geometry-CornerRoundEffect-Apply
                 title: >-
                   The CornerRoundEffect class shall return a new Path in which every polyline
-                  corner (a LineTo followed by a LineTo) is replaced by a tangent-radius arc of
-                  the given radius, clamped per-corner to half of the shorter adjacent segment.
+                  corner (a LineTo followed by a LineTo, or, for a closed subpath, the
+                  wrap-around corner at the subpath's start and the corner at the last real
+                  vertex before the closing edge) is replaced by a tangent-radius arc of the
+                  given radius, clamped per-corner to half of the shorter adjacent segment.
                 justification: |
                   Rounded polyline corners are a common effect; a path-level pre-processing
                   step composes cleanly with downstream fill, stroke, and dashing without
                   requiring corner-aware stroke logic.
                 tests:
                   - CornerRoundEffect_Apply_SquareRectangle_ProducesCornerArcs
+                  - CornerRoundEffect_Apply_ClosedSquare_RoundsAllFourCornersIncludingWrapAroundCorner
                   - CornerRoundEffect_Apply_ClampsRadiusToHalfShorterAdjacentSegment
 
               - id: CanvasNet-Geometry-CornerRoundEffect-ZeroRadius

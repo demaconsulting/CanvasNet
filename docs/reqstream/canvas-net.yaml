@@ -168,8 +168,7 @@ sections:
         children:
           - CanvasNet-Canvas-Rgba32
         tests:
-          - Rgba32_Parse_6HexUppercase_ReturnsExpectedRgbaWithAlpha255
-          - Rgba32_TryParse_ValidInput_ReturnsTrueAndSetsResult
+          - CanvasNet_SystemIntegration_ParseHexColorAndSetSurfacePixel_ReturnsExpectedPixel
 
   - title: BMP Codec API
     requirements:
@@ -948,7 +947,7 @@ sections:
         children:
           - CanvasNet-Geometry-CornerRoundEffect
         tests:
-          - CornerRoundEffect_Apply_SquareRectangle_ProducesCornerArcs
+          - CanvasNet_SystemIntegration_RoundPathCornersAndFillOntoSurface_ClipsSharpCorner
 
   - title: Drawing API
     requirements:
@@ -1206,5 +1205,4 @@ sections:
         children:
           - CanvasNet-Rendering-Shapes
         tests:
-          - Shapes_FillRect_WithSolidColor_PaintsRegion
-          - Shapes_FillCircle_ProducesRoundRegion
+          - CanvasNet_SystemIntegration_FillRoundRectUnderTranslatedCanvas_MatchesDirectPlacement

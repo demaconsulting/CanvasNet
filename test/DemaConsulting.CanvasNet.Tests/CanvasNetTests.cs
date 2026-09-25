@@ -7,6 +7,7 @@ using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Geometry;
+using DemaConsulting.CanvasNet.Rendering;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 
 namespace DemaConsulting.CanvasNet.Tests;
@@ -547,5 +548,98 @@ public class CanvasNetTests
         Assert.Equal(2, font.GlyphCount);
         Assert.Equal(1000, advanceWidth);
         Assert.Equal(0, font.GetKerning(0, glyphIndex));
+    }
+
+    /// <summary>
+    ///     Proves that the system can parse a web-style hex color literal through
+    ///     <see cref="Rgba32.Parse"/> and use the resulting value end to end to set and read
+    ///     back a pixel on a <see cref="Surface"/> constructed through its public API,
+    ///     confirming the <c>Canvas</c> subsystem's hex-color-parsing boundary integrates
+    ///     correctly with its pixel-buffer boundary.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_ParseHexColorAndSetSurfacePixel_ReturnsExpectedPixel()
+    {
+        // Arrange: construct a surface through the public API
+        var surface = new Surface(4, 4);
+
+        // Act: parse a hex color literal and set/read a pixel with it
+        var color = Rgba32.Parse("#80112233");
+        surface[2, 2] = color;
+        var result = surface[2, 2];
+
+        // Assert: the system's integrated parse-then-store-then-read pipeline round-trips
+        // exactly
+        Assert.Equal(new Rgba32(0x11, 0x22, 0x33, 0x80), result);
+    }
+
+    /// <summary>
+    ///     Proves that the system can build a closed polyline path, apply
+    ///     <see cref="CornerRoundEffect.Apply"/> to round its corners, and fill the result
+    ///     through <see cref="PathFiller"/>'s <c>Fill</c> entry point onto a
+    ///     <see cref="Surface"/>, confirming the <c>Geometry</c> subsystem's corner-round
+    ///     pre-processing boundary integrates correctly with the <c>Drawing</c> and
+    ///     <c>Canvas</c> subsystems: a pixel at the shape's original sharp corner must be
+    ///     clipped away (fully transparent) by the rounding, while a pixel well inside the
+    ///     shape remains fully painted.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_RoundPathCornersAndFillOntoSurface_ClipsSharpCorner()
+    {
+        // Arrange: a 40x40 square positioned so its top-left corner sits well inside the surface
+        var square = new PathBuilder()
+            .MoveTo(new Vector2(5, 5))
+            .LineTo(new Vector2(45, 5))
+            .LineTo(new Vector2(45, 45))
+            .LineTo(new Vector2(5, 45))
+            .Close()
+            .Build();
+        var surface = new Surface(50, 50);
+
+        // Act: round every corner with a generous radius, then fill the rounded path
+        var rounded = CornerRoundEffect.Apply(square, 12f);
+        PathFiller.Fill(surface, rounded, new Rgba32(255, 255, 255, 255));
+
+        // Assert: the original sharp top-left corner pixel is clipped away by the rounding...
+        Assert.Equal((byte)0, surface[6, 6].A);
+
+        // ...while a pixel well inside the shape (away from every rounded corner) remains fully
+        // painted
+        Assert.Equal((byte)255, surface[25, 25].A);
+    }
+
+    /// <summary>
+    ///     Proves that the system's transform-aware <c>Rendering.Canvas</c> wrapper, composed
+    ///     with the <c>Rendering.Shapes</c> convenience helpers, honors an applied translation
+    ///     end to end: a rounded rectangle filled at the origin under a translated Canvas paints
+    ///     the same pixels as the same rounded rectangle filled directly at the translated
+    ///     coordinates on an untransformed Canvas, confirming the <c>Rendering</c> subsystem's
+    ///     shape-helper boundary integrates correctly with its transform-stack boundary.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_FillRoundRectUnderTranslatedCanvas_MatchesDirectPlacement()
+    {
+        // Arrange: two identical surfaces, one drawn through a translated Canvas, one drawn
+        // directly at the equivalent absolute coordinates
+        var translatedSurface = new Surface(40, 40);
+        var directSurface = new Surface(40, 40);
+        var color = new Rgba32(10, 20, 30, 255);
+
+        // Act
+        var translatedCanvas = new DemaConsulting.CanvasNet.Rendering.Canvas(translatedSurface);
+        translatedCanvas.Translate(10, 10);
+        translatedCanvas.FillRoundRect(0, 0, 15, 15, 4, color);
+
+        var directCanvas = new DemaConsulting.CanvasNet.Rendering.Canvas(directSurface);
+        directCanvas.FillRoundRect(10, 10, 15, 15, 4, color);
+
+        // Assert: both surfaces are painted identically, pixel for pixel
+        for (var y = 0; y < translatedSurface.Height; y++)
+        {
+            for (var x = 0; x < translatedSurface.Width; x++)
+            {
+                Assert.Equal(directSurface[x, y], translatedSurface[x, y]);
+            }
+        }
     }
 }

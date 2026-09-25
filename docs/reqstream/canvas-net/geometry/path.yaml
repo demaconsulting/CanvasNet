@@ -215,6 +215,7 @@ sections:
                   - Path_Transform_Translation_MovesAllControlPointsAndEndpoints
                   - Path_Transform_Rotation_RotatesEndpointsCorrectly
                   - Path_Transform_PreservesPathCommandTypeSequenceForNonArcCommands
+                  - Path_Transform_ArcTo_ConvertsToTransformedCubicBezierSegments
 
               - id: CanvasNet-Geometry-Path-Rectangle
                 title: >-
@@ -227,6 +228,7 @@ sections:
                 tests:
                   - Path_Rectangle_ProducesFourLineToClosedSubpath
                   - Path_Rectangle_WithZeroSize_ProducesEmptyPath
+                  - Path_Rectangle_WithNegativeSize_ProducesEmptyPath
 
               - id: CanvasNet-Geometry-Path-RoundRectangle
                 title: >-
@@ -241,6 +243,7 @@ sections:
                   - Path_RoundRectangle_ProducesCornerArcsWithCorrectRadius
                   - Path_RoundRectangle_RadiusClampsToHalfMinDimension
                   - Path_RoundRectangle_ZeroRadius_EquivalentToRectangle
+                  - Path_RoundRectangle_WithNegativeSize_ProducesEmptyPath
 
               - id: CanvasNet-Geometry-Path-Circle
                 title: >-
@@ -253,6 +256,7 @@ sections:
                 tests:
                   - Path_Circle_ProducesFourCubicBezierQuadrantsClosingAtStart
                   - Path_Circle_WithZeroRadius_ProducesEmptyPath
+                  - Path_Circle_WithNegativeRadius_ProducesEmptyPath
 
               - id: CanvasNet-Geometry-PathBuilder-TangentArcTo
                 title: >-
