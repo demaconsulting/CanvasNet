@@ -1193,6 +1193,7 @@ sections:
         tests:
           - TextRenderer_MeasureText_SingleGlyph_ReturnsAdvanceWidthScaledBySize
           - TextRenderer_DrawText_LeftAlign_RendersGlyphsWithoutThrowing
+          - CanvasNet_SystemIntegration_DrawAndMeasureTextViaCanvas_RendersAndMeasuresExpectedResult
 
       - id: CanvasNet-Lib-RenderingShapes
         title: >-

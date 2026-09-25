@@ -642,4 +642,54 @@ public class CanvasNetTests
             }
         }
     }
+
+    /// <summary>
+    ///     Proves that the system can load a synthetic TrueType font through
+    ///     <see cref="TrueTypeFont"/>'s public API and, through the fully public
+    ///     <c>Rendering</c> surface, both measure and draw a text run with it: measures "A" with
+    ///     <see cref="TextRenderer.MeasureText"/> and confirms the reported width/ascent/descent
+    ///     agree with the font's declared advance width and metrics, then draws the same text
+    ///     onto a <see cref="DemaConsulting.CanvasNet.Rendering.Canvas"/> with
+    ///     <see cref="TextRenderer.DrawText"/> and confirms non-trivial rendered pixel coverage,
+    ///     confirming the <c>Rendering</c> subsystem's text-measurement and text-drawing
+    ///     boundaries integrate correctly end to end with the <c>Fonts</c>, <c>Geometry</c>,
+    ///     <c>Drawing</c>, and <c>Canvas</c> subsystems.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_DrawAndMeasureTextViaCanvas_RendersAndMeasuresExpectedResult()
+    {
+        // Arrange: load a synthetic font with a single diamond-shaped glyph mapped from 'A'
+        var fontData = BuildSyntheticFontWithDiamondGlyph();
+        var font = TrueTypeFont.Load(new MemoryStream(fontData));
+        const float size = 32f;
+        var color = new Rgba32(0, 128, 255, 255);
+
+        // Act: measure the text through the public MeasureText API
+        var metrics = TextRenderer.MeasureText("A", font, size);
+
+        // Assert: measured metrics match the font's declared advance width (1000 units) and
+        // ascender/descender (800/-200 units), scaled by size / UnitsPerEm (32/1000)
+        Assert.Equal(32f, metrics.Width, 3);
+        Assert.Equal(25.6f, metrics.Ascent, 3);
+        Assert.Equal(6.4f, metrics.Descent, 3);
+
+        // Act: draw the same text onto a public Canvas via the public DrawText API
+        var canvas = new DemaConsulting.CanvasNet.Rendering.Canvas(new Surface(48, 48));
+        canvas.DrawText("A", 8, 40, TextAlign.Left, font, size, color);
+
+        // Assert: the glyph produced non-trivial rendered pixel coverage on the public Surface
+        var coveredPixelCount = 0;
+        for (var y = 0; y < canvas.Surface.Height; y++)
+        {
+            for (var x = 0; x < canvas.Surface.Width; x++)
+            {
+                if (canvas.Surface[x, y].A > 0)
+                {
+                    coveredPixelCount++;
+                }
+            }
+        }
+
+        Assert.True(coveredPixelCount > 0, "DrawText produced no rendered pixels");
+    }
 }

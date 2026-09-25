@@ -244,8 +244,21 @@ at the equivalent absolute coordinates on an untransformed `Rendering.Canvas`. A
 surfaces are painted identically, pixel for pixel, confirming the `Rendering` subsystem's shape
 helpers correctly compose with its transform stack all the way down to pixel output.
 
+### Integration: Draw and Measure Text via Canvas Renders and Measures Expected Result
+
+**Test**: `CanvasNet_SystemIntegration_DrawAndMeasureTextViaCanvas_RendersAndMeasuresExpectedResult`
+
+Exercises end-to-end system behavior across the `Rendering`, `Fonts`, `Geometry`, `Drawing`, and
+`Canvas` subsystems together: loads a synthetic TrueType font through `TrueTypeFont`'s public API,
+measures a text run through `TextRenderer.MeasureText` and asserts the reported width, ascent, and
+descent agree with the font's declared advance width and metrics, then draws the same text run
+through `TextRenderer.DrawText` onto a public `Rendering.Canvas`. Asserts non-trivial rendered
+pixel coverage on the underlying `Surface`, confirming the `Rendering` subsystem's text
+measurement and text drawing boundaries integrate correctly end to end through the fully public
+API surface.
+
 ## Acceptance Criteria
 
-A system-level test run passes when all nineteen scenarios above pass without error or exception
+A system-level test run passes when all twenty scenarios above pass without error or exception
 beyond those explicitly asserted. Any unexpected exception, wrong exception type, or wrong return
 value constitutes a failure.
