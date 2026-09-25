@@ -49,7 +49,7 @@ dotnet add package DemaConsulting.CanvasNet
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 
-var surface = new Surface(4, 4);
+using var surface = new Surface(4, 4);
 surface[0, 0] = new Rgba32(255, 0, 0, 255); // opaque red pixel
 Console.WriteLine(surface[0, 0].R); // Output: 255
 ```
@@ -82,6 +82,28 @@ is fully transparent (all channels zero) until pixels are explicitly set.
 
 - `ArgumentOutOfRangeException`: Thrown when `width` or `height` is less than or equal to zero, or
   greater than 8192.
+
+#### Disposal
+
+`Surface` implements `IDisposable`. In this release its pixel buffer is a plain managed array, so
+`Dispose()` has nothing to actually release yet — it exists to establish the disposal contract
+ahead of a future release that may back the buffer with a pooled array, without another breaking
+API change. Call `Dispose()` (or wrap construction in a `using`/`using var` statement) once a
+`Surface` is no longer needed; calling `Dispose()` more than once is safe and has no additional
+effect.
+
+```csharp
+public void Dispose()
+```
+
+After `Dispose()` has been called, every other public member that touches the pixel buffer (the
+indexer, `GetRowSpanBytes`, `GetRowSpan`, `Crop`, `PremultiplyAlpha`, `UnpremultiplyAlpha`,
+`Clear`, `CompositeOver`, and `CompositeOverSpan`) throws `ObjectDisposedException`.
+
+**Exceptions:**
+
+- `ObjectDisposedException`: Thrown by any other public buffer-touching member once this
+  `Surface` has been disposed.
 
 #### Surface Properties
 
@@ -1170,7 +1192,7 @@ explicitly-supplied value - including the all-zero matrix - is preserved exactly
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 
-var surface = new Surface(4, 4);
+using var surface = new Surface(4, 4);
 surface[1, 1] = new Rgba32(255, 0, 0, 255); // opaque red pixel
 var pixel = surface[1, 1];
 Console.WriteLine(pixel.R); // Output: 255
@@ -1182,10 +1204,10 @@ Console.WriteLine(pixel.R); // Output: 255
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 
-var surface = new Surface(4, 4);
+using var surface = new Surface(4, 4);
 surface[1, 1] = new Rgba32(0, 255, 0, 255); // opaque green pixel
 
-var cropped = surface.Crop(1, 1, 2, 2);
+using var cropped = surface.Crop(1, 1, 2, 2);
 Console.WriteLine(cropped.Width);  // Output: 2
 Console.WriteLine(cropped.Height); // Output: 2
 Console.WriteLine(cropped[0, 0].G); // Output: 255
@@ -1197,17 +1219,17 @@ Console.WriteLine(cropped[0, 0].G); // Output: 255
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 
-var surface = new Surface(2, 2);
+using var surface = new Surface(2, 2);
 surface[0, 0] = new Rgba32(255, 0, 0, 128); // semi-transparent red pixel
 
 // Save with alpha preserved (Bit32, the default)
 BmpCodec.Save(surface, "surface.bmp");
-var loaded = BmpCodec.Load("surface.bmp");
+using var loaded = BmpCodec.Load("surface.bmp");
 Console.WriteLine(loaded[0, 0].A); // Output: 128
 
 // Save without alpha (Bit24) - reloading always yields opaque pixels
 BmpCodec.Save(surface, "surface24.bmp", BmpBitDepth.Bit24);
-var loaded24 = BmpCodec.Load("surface24.bmp");
+using var loaded24 = BmpCodec.Load("surface24.bmp");
 Console.WriteLine(loaded24[0, 0].A); // Output: 255
 ```
 
@@ -1217,17 +1239,17 @@ Console.WriteLine(loaded24[0, 0].A); // Output: 255
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 
-var surface = new Surface(2, 2);
+using var surface = new Surface(2, 2);
 surface[0, 0] = new Rgba32(0, 255, 0, 128); // semi-transparent green pixel
 
 // Save with alpha preserved (Rgba, the default)
 PngCodec.Save(surface, "surface.png");
-var loaded = PngCodec.Load("surface.png");
+using var loaded = PngCodec.Load("surface.png");
 Console.WriteLine(loaded[0, 0].A); // Output: 128
 
 // Save without alpha (Rgb) - reloading always yields opaque pixels
 PngCodec.Save(surface, "surface-rgb.png", PngColorType.Rgb);
-var loadedRgb = PngCodec.Load("surface-rgb.png");
+using var loadedRgb = PngCodec.Load("surface-rgb.png");
 Console.WriteLine(loadedRgb[0, 0].A); // Output: 255
 ```
 
@@ -1237,17 +1259,17 @@ Console.WriteLine(loadedRgb[0, 0].A); // Output: 255
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 
-var surface = new Surface(2, 2);
+using var surface = new Surface(2, 2);
 surface[0, 0] = new Rgba32(0, 0, 255, 128); // semi-transparent blue pixel
 
 // Save uncompressed (the default)
 TiffCodec.Save(surface, "surface.tiff");
-var loaded = TiffCodec.Load("surface.tiff");
+using var loaded = TiffCodec.Load("surface.tiff");
 Console.WriteLine(loaded[0, 0].A); // Output: 128
 
 // Save with LZW compression and an automatic horizontal-differencing predictor
 TiffCodec.Save(surface, "surface-lzw.tiff", TiffCompression.Lzw);
-var loadedLzw = TiffCodec.Load("surface-lzw.tiff");
+using var loadedLzw = TiffCodec.Load("surface-lzw.tiff");
 Console.WriteLine(loadedLzw[0, 0].B); // Output: 255
 ```
 
@@ -1257,12 +1279,12 @@ Console.WriteLine(loadedLzw[0, 0].B); // Output: 255
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 
-var surface = new Surface(16, 16);
+using var surface = new Surface(16, 16);
 surface[0, 0] = new Rgba32(255, 128, 0, 255); // opaque orange pixel
 
 // Save at quality 90 (the default)
 JpegCodec.Save(surface, "surface.jpg", 90);
-var loaded = JpegCodec.Load("surface.jpg");
+using var loaded = JpegCodec.Load("surface.jpg");
 Console.WriteLine(loaded[0, 0].A); // Output: 255
 
 // JPEG is lossy, so compare color channels with a tolerance rather than exact equality
@@ -1274,7 +1296,7 @@ Console.WriteLine(Math.Abs(loaded[0, 0].R - surface[0, 0].R) <= 15); // Output: 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
 
-var background = new Surface(1, 1);
+using var background = new Surface(1, 1);
 background[0, 0] = new Rgba32(0, 255, 0, 255); // opaque green background
 
 // Composite a semi-transparent red overlay over the background, in place
@@ -1307,7 +1329,7 @@ if (info.Width > Surface.MaxDimension || info.Height > Surface.MaxDimension || p
 }
 
 // Only decode pixel data once the header has been judged safe.
-var surface = PngCodec.Load("untrusted.png");
+using var surface = PngCodec.Load("untrusted.png");
 Console.WriteLine($"{surface.Width}x{surface.Height}, alpha: {info.HasAlpha}");
 ```
 
@@ -1319,7 +1341,7 @@ using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Geometry;
 using System.Numerics;
 
-var canvas = new Surface(64, 64);
+using var canvas = new Surface(64, 64);
 var triangle = new PathBuilder()
     .MoveTo(new Vector2(8, 56))
     .LineTo(new Vector2(56, 56))
@@ -1340,7 +1362,7 @@ using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Geometry;
 using System.Numerics;
 
-var canvas = new Surface(64, 64);
+using var canvas = new Surface(64, 64);
 var polyline = new PathBuilder()
     .MoveTo(new Vector2(8, 48))
     .LineTo(new Vector2(32, 16))
@@ -1366,7 +1388,7 @@ using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Geometry;
 using System.Numerics;
 
-var canvas = new Surface(64, 64);
+using var canvas = new Surface(64, 64);
 var square = new PathBuilder()
     .MoveTo(new Vector2(4, 4))
     .LineTo(new Vector2(60, 4))
@@ -1437,7 +1459,7 @@ var glyphOutline = font.GetGlyphOutline(glyphIndex);
 var scale = 48f / font.UnitsPerEm;
 var canvasOutline = TransformGlyph(glyphOutline, scale, baselineY: 56f);
 
-var surface = new Surface(64, 64);
+using var surface = new Surface(64, 64);
 PathFiller.Fill(surface, canvasOutline, new Rgba32(20, 120, 255, 255));
 Console.WriteLine(font.GetAdvanceWidth(glyphIndex));
 ```
@@ -1463,7 +1485,7 @@ Console.WriteLine($"{info.Width}x{info.Height}"); // Output: 100x100
 
 // Rasterize the document into a caller-chosen 64x64 surface (SvgCodec is decode-only).
 using var loadStream = new MemoryStream(Encoding.UTF8.GetBytes(svg));
-var surfaceSvg = SvgCodec.Load(loadStream, 64, 64);
+using var surfaceSvg = SvgCodec.Load(loadStream, 64, 64);
 Console.WriteLine(surfaceSvg[32, 32].A); // Output: 255 (well inside the filled rectangle)
 ```
 
@@ -1479,7 +1501,7 @@ using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Rendering;
 using System.Numerics;
 
-var surface = new Surface(200, 200);
+using var surface = new Surface(200, 200);
 var canvas = new Canvas(surface);
 
 canvas.Save();

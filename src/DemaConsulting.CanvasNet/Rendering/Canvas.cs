@@ -38,6 +38,13 @@ public sealed class Canvas
     private Matrix3x2 _current = Matrix3x2.Identity;
 
     /// <summary>The underlying pixel surface every fill/stroke on this Canvas writes to.</summary>
+    /// <remarks>
+    ///     <c>Canvas</c> holds a non-owning reference to this <see cref="Surface"/>: it never
+    ///     calls <see cref="Surface.Dispose"/> and does not itself implement
+    ///     <see cref="IDisposable"/>. The caller that constructed the <see cref="Surface"/> passed
+    ///     to the constructor remains solely responsible for disposing it once both this
+    ///     <c>Canvas</c> and the <see cref="Surface"/> are no longer needed.
+    /// </remarks>
     public Surface Surface { get; }
 
     /// <summary>The current composed affine transform.</summary>
@@ -47,7 +54,13 @@ public sealed class Canvas
     ///     Initializes a new <see cref="Canvas"/> wrapping <paramref name="surface"/>. Starts
     ///     with <see cref="Matrix3x2.Identity"/> as the current transform and an empty stack.
     /// </summary>
-    /// <param name="surface">The pixel surface to render into. Must not be <see langword="null"/>.</param>
+    /// <param name="surface">
+    ///     The pixel surface to render into. Must not be <see langword="null"/>. Ownership of
+    ///     <paramref name="surface"/> is not transferred to this <c>Canvas</c>: this constructor
+    ///     stores only a reference to it, and the caller remains responsible for calling
+    ///     <see cref="Surface.Dispose"/> on it once both this <c>Canvas</c> and the
+    ///     <see cref="Surface"/> are no longer needed.
+    /// </param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="surface"/> is <see langword="null"/>.</exception>
     public Canvas(Surface surface)
     {

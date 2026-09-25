@@ -122,6 +122,35 @@ public class CanvasNetTests
     }
 
     /// <summary>
+    ///     Proves that the system's disposal contract is enforced end to end through the public
+    ///     API: disposing a Surface is idempotent, and subsequently rejects further use through a
+    ///     representative sample of buffer-touching public members with ObjectDisposedException.
+    ///     The complete member-by-member matrix is covered by the unit tests in SurfaceTests.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_DisposeSurfaceThenUseIt_ThrowsObjectDisposedException()
+    {
+        // Arrange: construct a surface through the public API and set a pixel so there is
+        // something meaningful for the guarded members below to have acted on, had they not
+        // thrown first
+        var surface = new Surface(2, 2);
+        surface[0, 0] = new Rgba32(1, 2, 3, 4);
+
+        // Act: dispose the surface through the public API
+        surface.Dispose();
+
+        // Assert: disposing a second time remains safe (idempotent)
+        var secondDispose = Record.Exception(surface.Dispose);
+        Assert.Null(secondDispose);
+
+        // Assert: every public buffer-touching member now rejects further use
+        Assert.Throws<ObjectDisposedException>(() => surface[0, 0]);
+        Assert.Throws<ObjectDisposedException>(() => surface.GetRowSpan(0));
+        Assert.Throws<ObjectDisposedException>(() => surface.Clear(new Rgba32(5, 6, 7, 8)));
+        Assert.Throws<ObjectDisposedException>(() => surface.Crop(0, 0, 1, 1));
+    }
+
+    /// <summary>
     ///     Proves that the system can save a Surface to BMP and load it back through the public
     ///     API, preserving pixel values end to end.
     /// </summary>

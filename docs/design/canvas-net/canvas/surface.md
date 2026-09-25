@@ -28,6 +28,7 @@ section below).
 | `_buffer`       | `byte[]`           | Contiguous, row-major pixel storage, sized `Height * _strideBytes`.  |
 | `_strideBytes`  | `int`              | The physical byte size of one row, including trailing padding.       |
 | `BytesPerPixel` | `const int`        | The number of bytes per pixel (always 4: R, G, B, A).                |
+| `_disposed`     | `bool`             | Set once by `Dispose()`; guarded members then throw.                 |
 
 `MaxDimension` is `public` (not merely internal) so that callers can compare a probed image's
 declared dimensions — for example, a codec's `GetInfo(Stream)`/`GetInfo(string)` result — against
@@ -208,6 +209,7 @@ Results are converted back to bytes with round-half-away-from-zero, clamped to `
 
 - `ArgumentNullException` — when `foreground` is `null`
 - `ArgumentException` — when `foreground.Width != Width` or `foreground.Height != Height`
+- `ObjectDisposedException` — when this surface, or `foreground`, has been disposed
 
 #### CompositeOver(Rgba32 color)
 
@@ -328,6 +330,48 @@ no conditional-select primitive. Since `netstandard2.0` support has been dropped
 single, unconditional code path shared by `net8.0`, `net9.0`, and `net10.0` — no `#if`
 target-framework gating is required.
 
+#### Dispose()
+
+Releases the resources held by this `Surface` and implements `IDisposable`. This method is
+idempotent: a second (or subsequent) call has no additional effect, guarded by the `_disposed`
+flag. This differs from the existing `RowChannelBuffers`/`CompositeWorkBuffers` internal helper
+types elsewhere in this same file, which rent-and-return `ArrayPool<T>` arrays but do **not**
+guard `Dispose()` with a flag - callers must not call their `Dispose()` more than once, since a
+second call would return the same rented arrays a second time. `Surface.Dispose()` intentionally
+does not follow that shape, since `IDisposable.Dispose()` is conventionally expected to tolerate
+repeated calls.
+
+In this release, `_buffer` is a plain managed `byte[]`, not rented from an `ArrayPool<T>`, so
+there is nothing for `Dispose()` to actually release yet — it exists purely to establish the
+disposal contract _before_ the pixel-storage strategy changes, so that a future release can back
+`_buffer` with a pooled array (returning it to the pool inside `Dispose()`) without another
+breaking _API surface_ change. That claim is limited to the API surface: a future pooled
+implementation must still honor the span-lifetime rule below as a design constraint, since it
+cannot retroactively invalidate a span a caller obtained before `Dispose()` was called — pooling
+does not get to relax that rule, only to make violating it (a stale span read/write after the
+array is re-rented to another `Surface`) more expensive than it is today. Because the only
+backing storage today is managed memory the garbage collector already reclaims safely on its
+own, `Surface` deliberately declares no finalizer: forgetting to call `Dispose()` only forgoes a
+(currently nonexistent) prompt release — it can never leak an unmanaged or pooled resource.
+
+After `Dispose()` has been called, every other public member that touches the pixel buffer
+(the indexer, `GetRowSpanBytes`, `GetRowSpan`, `Crop`, `PremultiplyAlpha`, `UnpremultiplyAlpha`,
+`Clear`, both `CompositeOver` overloads, and both public `CompositeOverSpan` overloads) throws
+`ObjectDisposedException` via an `ObjectDisposedException.ThrowIf(_disposed, this)` guard as the
+first statement in the member. The two `internal` workspace-reusing `CompositeOverSpan` overloads
+used by `ScanlineRasterizer` carry the same guard, so a disposed surface cannot be mutated through
+either the public or the internal fill path.
+
+**Span lifetime**: `GetRowSpanBytes`/`GetRowSpan` return a span that aliases `_buffer` directly,
+and the disposal guard only runs when those methods are _called_ - it cannot revoke a span a
+caller already obtained and is still holding. A caller that retains such a span across a call to
+`Dispose()` and continues reading or writing through it gets undefined behavior: harmless today
+(the backing array is merely unreachable through `Surface` itself), but under a future pooled-array
+implementation the same array could already be rented out to, and actively used by, a different
+`Surface`, so the stale-span access would corrupt unrelated pixel data. Callers must treat a span
+returned by either method as invalid once `Dispose()` has been called on the same surface, and must
+not retain one across a `Dispose()` call.
+
 ### Error Handling
 
 All validation is performed at the start of the constructor, indexer, `GetRowSpanBytes`, `Crop`,
@@ -337,6 +381,12 @@ performs no local error handling or recovery — validation failures are detecte
 entry and the resulting exception propagates directly to the caller uncaught. There is no
 internal state to roll back because invalid arguments are rejected before any field is read or
 written, and before the destination surface is mutated in `Crop`.
+
+Additionally, once `Dispose()` has been called, every public member that touches the pixel
+buffer — the indexer (get and set), `GetRowSpanBytes`, `GetRowSpan`, `Crop`, `PremultiplyAlpha`,
+`UnpremultiplyAlpha`, `Clear`, `CompositeOver(Surface)`, `CompositeOver(Rgba32)`, and both public
+`CompositeOverSpan` overloads — throws `ObjectDisposedException` via a guard at entry, before any
+of the member's own argument validation runs.
 
 ### Dependencies
 

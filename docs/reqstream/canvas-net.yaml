@@ -158,6 +158,20 @@ sections:
           - CanvasNet_SystemIntegration_ClearSurfaceThenReadPixel_ReturnsExpectedColor
           - CanvasNet_SystemIntegration_CanvasClearThenReadWrappedSurfacePixel_ReturnsExpectedColor
 
+      - id: CanvasNet-Lib-CanvasDisposal
+        title: >-
+          The library shall provide explicit resource-lifetime management for a pixel buffer,
+          logically releasing it on demand and rejecting further use of a released buffer.
+        tags: [system]
+        justification: |
+          Reserving the option to back the pixel buffer with a pooled (ArrayPool-rented) array in
+          a future release - without another breaking API change - requires an explicit disposal
+          contract to exist on the buffer type from the start.
+        children:
+          - CanvasNet-Canvas-Disposal
+        tests:
+          - CanvasNet_SystemIntegration_DisposeSurfaceThenUseIt_ThrowsObjectDisposedException
+
       - id: CanvasNet-Lib-CanvasMaxDimensionPublic
         title: >-
           The library shall expose the maximum permitted pixel-buffer dimension as a public
