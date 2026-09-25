@@ -227,6 +227,7 @@ identical.
 `JpegCodec_GetInfo_SofSegmentExtendsBeyondProbeCap_FailsForFormatReasonNotProbeCap`,
 `JpegCodec_GetInfo_LargeLeadingAppSegments_SucceedsAndMatchesLoadResult`,
 `JpegCodec_GetInfo_SofShortlyAfterProbeCap_StopsAtSofWithoutDrainingStream`,
+`JpegCodec_GetInfo_NoSofEverFound_StopsAtHardLimitWithInvalidDataException`,
 `JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows`,
 `JpegCodec_GetInfo_ZeroLengthSegment_TerminatesPromptlyWithInvalidDataException`,
 `CanvasNet_SystemIntegration_JpegGetInfoWithLargeLeadingSegments_ReturnsExpectedInfo`
@@ -267,7 +268,15 @@ tail (`InfiniteTailStream`, wrapped in a `BoundedReadStream` so any attempt to r
 fails fast rather than hanging the test), and asserts `GetInfo` still returns the correct
 dimensions without the bound ever being tripped - this test fails against the previous
 implementation, which drained the tail (and would hang against a genuinely unbounded stream) even
-after the SOF marker had already been found. Proves `GetInfo`
+after the SOF marker had already been found. Proves that scanning past the soft cap is itself
+bounded by a much larger, separate hard limit rather than being able to continue indefinitely:
+builds well-formed, non-SOF APP0 filler segments comfortably exceeding that hard limit (with
+margin), followed by an unbounded, never-ending zero-byte tail (`InfiniteTailStream`) that a
+correct implementation must never reach, wrapped in a `BoundedReadStream` configured to throw a
+distinct `InvalidOperationException` the instant more than the hard limit (plus a small slack) is
+read - so the test fails loudly rather than hanging if the hard-limit protection were ever removed
+again - and asserts `GetInfo` instead throws `InvalidDataException` referencing the hard limit.
+Proves `GetInfo`
 does not enforce `Surface.MaxDimension` by building an SOF0 segment
 declaring a width one greater than `Surface.MaxDimension`, asserting `GetInfo` returns that raw
 oversized width without throwing, and then asserting `Load` on the exact same bytes still throws
@@ -302,7 +311,7 @@ corresponding `Load` scenarios, plus JPEG-specific malformed-ordering cases `Loa
 
 A unit test run passes when all test methods above pass without error or unexpected exception; any
 unexpected exception type or wrong return/value relationship constitutes a failure. Across
-`JpegCodecTests.cs` and `JpegFixtureTests.cs`, this totals 48 test methods (44 in
+`JpegCodecTests.cs` and `JpegFixtureTests.cs`, this totals 49 test methods (45 in
 `JpegCodecTests.cs` and 4 in `JpegFixtureTests.cs`); several of these are `[Theory]` methods that
 additionally expand to multiple executed xUnit test cases, plus the system-level integration
 scenarios documented in `docs/verification/canvas-net.md`.

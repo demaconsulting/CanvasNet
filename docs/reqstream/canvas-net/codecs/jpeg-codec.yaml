@@ -270,9 +270,13 @@ sections:
                   chunked-read path only: once that cap is reached without a supported SOF marker
                   having been found, GetInfo shall continue scanning past the cap - reading no more of
                   the stream than each successive marker/segment boundary actually requires, and never
-                  reading entropy-coded scan data - rather than throwing. GetInfo shall throw
-                  InvalidDataException only when the stream genuinely ends - even after continuing to
-                  scan past that soft cap - without a supported SOF marker ever being found.
+                  reading entropy-coded scan data - rather than throwing. That post-soft-cap scanning
+                  is itself bounded by MaxProbeHeaderBytesHardLimit (16,777,216, 16x the soft cap): once
+                  that hard ceiling is reached without a supported SOF marker ever being found, GetInfo
+                  shall throw InvalidDataException rather than continuing to read or buffer data
+                  without bound. GetInfo shall also throw InvalidDataException when the stream
+                  genuinely ends - even after continuing to scan past the soft cap - without a
+                  supported SOF marker ever being found.
                 justification: |
                   Callers need to inspect a JPEG's declared dimensions and component count (for example
                   to reject unreasonably large images before allocating a Surface) without paying the
@@ -287,7 +291,16 @@ sections:
                   bounded reads - rather than as a point of failure - upholds that invariant while still
                   avoiding an eager, always-maximal read for the common case where the SOF appears near
                   the start of the stream, and while never reading beyond the SOF segment even for a
-                  file with unusually large leading metadata.
+                  file with unusually large leading metadata. However, that invariant cannot be upheld
+                  unconditionally without reintroducing a denial-of-service vector: a malformed,
+                  adversarial, or effectively-infinite stream that never presents a SOF marker would
+                  otherwise let the post-soft-cap scan grow its buffer and read from the stream without
+                  bound. MaxProbeHeaderBytesHardLimit resolves this tension by accepting a narrow,
+                  explicitly bounded exception to the invariant: sized generously (16x the soft cap) to
+                  still accommodate the real-world files with unusually large leading ICC/XMP metadata
+                  that motivated the soft-cap-continuation behavior, while guaranteeing GetInfo's total
+                  worst-case read/buffer size remains a small, fixed, documented multiple of realistic
+                  header sizes rather than unbounded.
                 tests:
                   - JpegCodec_GetInfo_Grayscale_ReturnsExpectedInfoWithoutSosOrEntropyData
                   - JpegCodec_GetInfo_Color_ReturnsExpectedInfo
@@ -298,6 +311,7 @@ sections:
                   - JpegCodec_GetInfo_SofSegmentExtendsBeyondProbeCap_FailsForFormatReasonNotProbeCap
                   - JpegCodec_GetInfo_LargeLeadingAppSegments_SucceedsAndMatchesLoadResult
                   - JpegCodec_GetInfo_SofShortlyAfterProbeCap_StopsAtSofWithoutDrainingStream
+                  - JpegCodec_GetInfo_NoSofEverFound_StopsAtHardLimitWithInvalidDataException
                   - JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows
                   - JpegCodec_GetInfo_ZeroLengthSegment_TerminatesPromptlyWithInvalidDataException
                   - CanvasNet_SystemIntegration_JpegGetInfoWithLargeLeadingSegments_ReturnsExpectedInfo

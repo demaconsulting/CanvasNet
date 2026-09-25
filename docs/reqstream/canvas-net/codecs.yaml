@@ -641,15 +641,24 @@ sections:
               a fixed maximum number of probed header bytes as a soft cap: once reached without a
               supported SOF marker having been found, GetInfo continues scanning past the cap -
               reading no more of the stream than each successive marker/segment boundary actually
-              requires, and never reading entropy-coded scan data - rather than throwing.
+              requires, and never reading entropy-coded scan data - rather than throwing. That
+              post-soft-cap scanning is itself bounded by a separate, larger hard limit: once reached
+              without a supported SOF marker ever being found, GetInfo throws InvalidDataException
+              rather than continuing to read or buffer data without bound.
             justification: |
               Callers need to inspect a JPEG's declared dimensions and component count without paying
               the cost of entropy-decoding the scan data, without an unbounded scan over a
               pathological stream that never presents an SOF marker, and without unconditionally
               reading up to the full probe cap even when the SOF appears near the start of a much
-              larger stream. Since Load itself has no overall file-size ceiling, treating the cap as a
-              hard failure point would violate the invariant that GetInfo never throws for an input
-              Load would successfully decode.
+              larger stream. Since Load itself has no overall file-size ceiling, treating the soft cap
+              as a hard failure point would violate the invariant that GetInfo never throws for an
+              input Load would successfully decode; however, upholding that invariant unconditionally
+              (with no outer bound at all) would itself reintroduce a denial-of-service vector for a
+              malformed, adversarial, or effectively-infinite stream that never presents a SOF marker.
+              The separate, much larger hard limit resolves this tension: it is generous enough to
+              still accommodate real-world files with unusually large leading metadata, while
+              guaranteeing GetInfo's worst-case read/buffer size remains a small, fixed, documented
+              bound rather than unbounded.
             children:
               - CanvasNet-Codecs-JpegCodec-GetInfo
             tests:
@@ -662,6 +671,7 @@ sections:
               - JpegCodec_GetInfo_SofSegmentExtendsBeyondProbeCap_FailsForFormatReasonNotProbeCap
               - JpegCodec_GetInfo_LargeLeadingAppSegments_SucceedsAndMatchesLoadResult
               - JpegCodec_GetInfo_SofShortlyAfterProbeCap_StopsAtSofWithoutDrainingStream
+              - JpegCodec_GetInfo_NoSofEverFound_StopsAtHardLimitWithInvalidDataException
               - JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows
               - CanvasNet_SystemIntegration_JpegGetInfoWithLargeLeadingSegments_ReturnsExpectedInfo
 

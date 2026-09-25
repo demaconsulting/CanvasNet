@@ -1023,6 +1023,59 @@ public class JpegCodecTests
     }
 
     /// <summary>
+    ///     Regression test for the DoS-reintroduction finding: after the previous round's fix
+    ///     made the post-soft-cap fallback scan continue segment-by-segment (rather than
+    ///     bulk-draining the stream), that scan had no upper bound at all besides genuine
+    ///     end-of-stream. Builds a known (but deliberately huge) prefix of well-formed APP0
+    ///     marker segments - comfortably exceeding
+    ///     <see cref="JpegCodec.MaxProbeHeaderBytesHardLimit"/> - that never contains a SOF0/SOF2
+    ///     marker anywhere, followed by an endless zero-byte tail
+    ///     (<see cref="InfiniteTailStream"/>) that a correctly bounded GetInfo must never reach.
+    ///     Wraps the whole thing in a <see cref="BoundedReadStream"/> configured to throw a
+    ///     distinct <see cref="InvalidOperationException"/> the instant more than
+    ///     <see cref="JpegCodec.MaxProbeHeaderBytesHardLimit"/> (plus a small slack) bytes are
+    ///     read, so this test fails loudly - rather than reading unboundedly or hanging - if the
+    ///     hard-limit ceiling were ever removed again (in which case scanning would consume the
+    ///     entire oversized known prefix and then run into the never-ending tail). Proves GetInfo
+    ///     instead throws <see cref="InvalidDataException"/> referencing the hard limit once that
+    ///     ceiling is reached, exactly as it does for a genuinely truncated stream, rather than
+    ///     continuing to read indefinitely.
+    /// </summary>
+    [Fact]
+    public void JpegCodec_GetInfo_NoSofEverFound_StopsAtHardLimitWithInvalidDataException()
+    {
+        // Arrange: enough well-formed, non-SOF APP0 filler segments to comfortably exceed the
+        // hard limit (with margin), so the hard limit is reached while scanning through
+        // legitimate segment structure (efficient large jumps) rather than an unstructured byte
+        // stream, followed by a never-ending zero-byte tail that a correct implementation must
+        // never reach.
+        const int fillerSegmentPayloadLength = 65_000;
+        const int margin = 200_000;
+        var segments = new List<byte[]>();
+        var totalFillerBytes = 0;
+        while (totalFillerBytes <= JpegCodec.MaxProbeHeaderBytesHardLimit + margin)
+        {
+            segments.Add(BuildSegment(0xE0, new byte[fillerSegmentPayloadLength]));
+            totalFillerBytes += fillerSegmentPayloadLength + 4;
+        }
+
+        var knownPrefix = BuildJpeg([.. segments], entropyData: null, includeEoi: false);
+
+        const int slack = 4096;
+        using var stream = new BoundedReadStream(
+            new InfiniteTailStream(knownPrefix),
+            maxBytes: JpegCodec.MaxProbeHeaderBytesHardLimit + slack);
+
+        // Act
+        var exception = Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(stream));
+
+        // Assert: GetInfo throws referencing the hard limit, having stopped well before the
+        // BoundedReadStream's budget (and therefore never reached the never-ending tail), rather
+        // than reading or buffering data without bound.
+        Assert.Contains("hard limit", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     ///     Proves that GetInfo does not decode the full file: for a stream much larger than the
     ///     MaxProbeHeaderBytes cap, the stream position after GetInfo returns is capped at
     ///     MaxProbeHeaderBytes even though the underlying stream is several times longer.

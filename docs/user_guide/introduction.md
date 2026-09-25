@@ -657,17 +657,24 @@ the first SOF0/SOF2 marker, and returns an `ImageInfo` describing the image. Doe
 bytes), which comfortably covers the leading marker segments of essentially all real-world JPEG
 files. If that soft cap is reached without finding a SOF0/SOF2 marker, `GetInfo` keeps scanning
 past the cap - one marker segment at a time, exactly as it does below the cap - until a SOF0/SOF2
-marker is found or the stream genuinely ends, so `GetInfo` never throws merely because a file has
-more than `MaxProbeHeaderBytes` of leading marker-segment data - as long as `Load` itself would
-successfully parse that file up to and including the SOF marker.
+marker is found, so `GetInfo` never throws merely because a file has more than
+`MaxProbeHeaderBytes` of leading marker-segment data - as long as `Load` itself would successfully
+parse that file up to and including the SOF marker. That post-soft-cap scanning is itself bounded
+by a much larger hard limit of `MaxProbeHeaderBytesHardLimit` (16,777,216 bytes, 16x the soft
+cap): once that ceiling is reached without a SOF0/SOF2 marker ever being found, `GetInfo` throws
+`InvalidDataException` rather than continuing to read or buffer data without bound, protecting
+against a malformed, adversarial, or effectively-infinite stream that never presents a SOF0/SOF2
+marker.
 
 **Exceptions:**
 
 - `ArgumentNullException`: Thrown when `stream` is null.
 - `InvalidDataException`: Thrown when the SOI marker is missing, an SOS marker or end-of-image is
-  reached before any SOF0/SOF2 marker is found, an unsupported SOF/frame marker is encountered, or
-  no SOF0/SOF2 marker is found anywhere in the stream (a genuinely truncated or non-JPEG input) -
-  the same condition `Load(Stream)` itself would reject on the same bytes.
+  reached before any SOF0/SOF2 marker is found, an unsupported SOF/frame marker is encountered, no
+  SOF0/SOF2 marker is found before the stream genuinely ends (a genuinely truncated or non-JPEG
+  input) - the same condition `Load(Stream)` itself would reject on the same bytes - or the
+  `MaxProbeHeaderBytesHardLimit` hard ceiling is reached without a SOF0/SOF2 marker ever being
+  found.
 
 ##### JpegCodec.GetInfo(string path)
 
