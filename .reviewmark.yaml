@@ -155,6 +155,7 @@ reviews:
       - "docs/verification/canvas-net/codecs.md"              # subsystem verification
       - "test/DemaConsulting.CanvasNet.Tests/TestSupport/BoundedReadStream.cs"  # shared test helper
       - "test/DemaConsulting.CanvasNet.Tests/TestSupport/NonSeekableStream.cs"  # shared test helper
+      - "test/DemaConsulting.CanvasNet.Tests/TestSupport/InfiniteTailStream.cs"  # shared test helper
 
   # CanvasNet-Codecs-BmpCodec Review (one per unit)
   - id: CanvasNet-Codecs-BmpCodec

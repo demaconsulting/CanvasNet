@@ -43,9 +43,10 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///         rejecting it. JPEG's marker segments preceding the frame header have no fixed bound in
 ///         a well-formed file; <see cref="JpegCodec.GetInfo(Stream)"/> upholds the invariant by
 ///         treating its incremental probe cap as a soft threshold - once reached without finding
-///         a SOF0/SOF2 marker, it falls back to bulk-reading the remainder of the stream (matching
-///         <see cref="JpegCodec.Load(Stream)"/>'s own unbounded buffering) and continues scanning,
-///         rather than giving up while more data still remains.
+///         a SOF0/SOF2 marker, it keeps scanning segment headers past the cap - one marker
+///         segment at a time, exactly as it does below the cap - until a SOF0/SOF2 marker is
+///         found or the stream genuinely ends, rather than giving up while more data still
+///         remains, and without ever reading into entropy-coded scan data.
 ///     </para>
 ///     <para>
 ///         This type is a plain, immutable data carrier with no behavior beyond its record-struct

@@ -1563,9 +1563,9 @@ public class TiffCodecTests
 
     /// <summary>
     ///     Proves that GetInfo succeeds on a non-seekable stream that carries a completely valid,
-    ///     well-formed TIFF image, buffering the whole stream and returning the same
-    ///     <see cref="ImageInfo"/> that a seekable copy of the identical bytes would produce - the
-    ///     GetInfo/Load parity invariant documented on <see cref="ImageInfo"/>. Uses
+    ///     well-formed TIFF image, buffering the whole stream, and that its reported dimensions
+    ///     match the dimensions <see cref="TiffCodec.Load(Stream)"/> actually decodes from the
+    ///     identical bytes - the GetInfo/Load parity invariant. Uses
     ///     <see cref="FunctionallySeekableButCanSeekFalseStream"/> (which reports
     ///     <c>CanSeek == false</c> but otherwise forwards every member to a fully functional inner
     ///     <see cref="MemoryStream"/>) so the test genuinely exercises the non-seekable buffering
@@ -1581,15 +1581,16 @@ public class TiffCodecTests
             .WithStrips(new byte[width * height * 3])
             .Build();
         using var nonSeekableStream = new FunctionallySeekableButCanSeekFalseStream(new MemoryStream(file));
-        using var seekableStream = new MemoryStream(file);
-        var expected = TiffCodec.GetInfo(seekableStream);
+        var loadedSurface = TiffCodec.Load(new MemoryStream(file));
 
         // Act
         var info = TiffCodec.GetInfo(nonSeekableStream);
 
-        // Assert: GetInfo succeeds without throwing and matches the seekable-path result exactly
-        Assert.Equal(expected, info);
+        // Assert: GetInfo succeeds without throwing on a non-seekable stream, and its reported
+        // dimensions match what Load actually decodes from the identical bytes.
         Assert.Equal(new ImageInfo(width, height, 3, false), info);
+        Assert.Equal(loadedSurface.Width, info.Width);
+        Assert.Equal(loadedSurface.Height, info.Height);
     }
 
     /// <summary>

@@ -94,9 +94,11 @@ public static class JpegCodec
     /// </summary>
     /// <remarks>
     ///     This is a soft cap only: once reached without finding a SOF0/SOF2 marker,
-    ///     <see cref="GetInfo(Stream)"/> falls back to bulk-reading the remainder of the stream
-    ///     (matching <see cref="Load(Stream)"/>'s own unbounded buffering via
-    ///     <see cref="ReadAllBytes"/>) and continues scanning against the fully-buffered data, so
+    ///     <see cref="GetInfo(Stream)"/> keeps scanning segment headers past the cap - one marker
+    ///     segment at a time, exactly as it does below the cap - reading only as far as each
+    ///     segment boundary actually requires, until a SOF0/SOF2 marker is found or the stream
+    ///     genuinely ends. It never reads entropy-coded scan data, and it never bulk-reads or
+    ///     drains the remainder of the stream merely because the cap was crossed, so
     ///     <see cref="GetInfo(Stream)"/> never throws merely because a file has more than
     ///     <c>MaxProbeHeaderBytes</c> of leading marker-segment data - as long as
     ///     <see cref="Load(Stream)"/> itself would successfully parse that file up to and
@@ -306,9 +308,9 @@ public static class JpegCodec
     ///     current position; in the common case where the SOF segment appears within the first
     ///     <see cref="MaxProbeHeaderBytes"/> bytes (as it does for essentially all real-world
     ///     JPEG files), only that much is read incrementally. If that soft cap is reached without
-    ///     finding a SOF0/SOF2 marker, the remainder of the stream is read in one bulk read and
-    ///     scanning continues - matching <see cref="Load(Stream)"/>'s own unbounded buffering -
-    ///     so <see cref="GetInfo(Stream)"/> never throws merely because a file has an unusually
+    ///     finding a SOF0/SOF2 marker, scanning continues past it - one marker segment at a time,
+    ///     the same way it does below the cap, never reading into entropy-coded scan data - so
+    ///     <see cref="GetInfo(Stream)"/> never throws merely because a file has an unusually
     ///     large amount of leading marker-segment data.
     /// </param>
     /// <returns>
@@ -890,25 +892,25 @@ public static class JpegCodec
         ///     <see cref="ProbeDimensions(Stream)"/> to read only as many bytes as the marker scan
         ///     actually needs at any point, rather than eagerly reading a full fixed-size prefix
         ///     up front. Grows in small chunks, on demand, up to a <paramref name="maxLength"/>
-        ///     soft cap; once that soft cap is reached without satisfying a request, it falls
-        ///     back to a single bulk read of the remainder of the stream (mirroring
-        ///     <see cref="JpegCodec.ReadAllBytes"/>'s own unbounded buffering) so that only a
-        ///     genuine end-of-stream - never merely exceeding the soft cap - leaves a request
-        ///     unsatisfied thereafter.
+        ///     soft cap; once that soft cap is reached without satisfying a request, it keeps
+        ///     scanning past the cap - still bounded to exactly what each request asks for, in
+        ///     larger chunks for efficiency - rather than giving up outright. Because the caller
+        ///     (the segment-parsing loop in <see cref="ProbeDimensions(Stream)"/>) only ever
+        ///     requests as far as the next marker/segment boundary, this never reads ahead into
+        ///     entropy-coded scan data, and never reads further than genuinely necessary to find
+        ///     (or rule out) a SOF0/SOF2 marker - it does not unconditionally drain the stream to
+        ///     end-of-stream.
         /// </summary>
         private sealed class IncrementalProbeBuffer(Stream stream, int maxLength)
         {
-            /// <summary>The chunk size used for each incremental stream read.</summary>
+            /// <summary>The chunk size used for each incremental stream read up to the soft cap.</summary>
             private const int ChunkSize = 4096;
 
-            /// <summary>The chunk size used once the bulk-read fallback has been triggered.</summary>
-            private const int BulkChunkSize = 81920;
-
             /// <summary>
-            ///     Whether the bulk-read fallback has already been triggered, so it is only ever
-            ///     performed once per probe.
+            ///     The chunk size used for reads past the soft cap, where fewer, larger reads are
+            ///     more efficient since the soft cap has already proven insufficient.
             /// </summary>
-            private bool _bulkFallbackApplied;
+            private const int BulkChunkSize = 81920;
 
             private byte[] _data = new byte[Math.Min(ChunkSize, maxLength)];
 
@@ -921,16 +923,16 @@ public static class JpegCodec
             ///     Ensures at least <paramref name="requiredLength"/> bytes are buffered, reading
             ///     further chunks from the stream only as needed. While <paramref name="requiredLength"/>
             ///     stays within the outer <c>maxLength</c> soft cap, only that many bytes are ever
-            ///     read; once the cap would otherwise be exceeded, a one-time bulk read of the
-            ///     remainder of the stream is triggered instead of giving up (see
-            ///     <see cref="IncrementalProbeBuffer"/> remarks), so this method only returns
-            ///     <see langword="false"/> once the stream has genuinely ended without enough
-            ///     data to satisfy the request.
+            ///     read; once the cap would otherwise be exceeded, reading continues past it - but
+            ///     only as far as <paramref name="requiredLength"/>, never further - instead of
+            ///     giving up (see <see cref="IncrementalProbeBuffer"/> remarks), so this method
+            ///     only returns <see langword="false"/> once the stream has genuinely ended
+            ///     without enough data to satisfy the request.
             /// </summary>
             /// <returns>
             ///     <see langword="true"/> if at least <paramref name="requiredLength"/> bytes are
             ///     now buffered; <see langword="false"/> if the stream ended before that many
-            ///     bytes could be read, even after the bulk-read fallback was attempted.
+            ///     bytes could be read, even after reading past the soft cap.
             /// </returns>
             public bool TryEnsureLength(int requiredLength)
             {
@@ -954,58 +956,26 @@ public static class JpegCodec
                     Length += read;
                 }
 
-                if (Length < requiredLength)
+                // The soft cap was reached before requiredLength was satisfied - keep reading,
+                // in larger chunks for efficiency, but strictly bounded to requiredLength rather
+                // than draining the stream to end-of-stream. Because ProbeDimensions only ever
+                // asks for as far as the next segment boundary, this stops the instant a SOF0/SOF2
+                // marker is found and never reads into entropy-coded scan data.
+                while (Length < requiredLength)
                 {
-                    // The soft cap was reached before requiredLength was satisfied - fall back
-                    // to bulk-reading the remainder of the stream (once) rather than giving up,
-                    // matching Load's own unbounded buffering, then re-check.
-                    if (!_bulkFallbackApplied)
-                    {
-                        _bulkFallbackApplied = true;
-                        BulkReadRemainder(requiredLength);
-                    }
-
-                    return Length >= requiredLength;
-                }
-
-                return true;
-            }
-
-            /// <summary>
-            ///     Performs the one-time bulk-read fallback: reads forward at least as far as
-            ///     <paramref name="atLeastLength"/> (if the stream has that much data left), then
-            ///     keeps reading in larger chunks until the stream ends, so every subsequent
-            ///     <see cref="TryEnsureLength"/> call against already-buffered data succeeds
-            ///     without needing a further fallback.
-            /// </summary>
-            private void BulkReadRemainder(int atLeastLength)
-            {
-                while (Length < atLeastLength)
-                {
-                    var chunk = atLeastLength - Length;
+                    var chunk = Math.Min(BulkChunkSize, requiredLength - Length);
                     EnsureCapacity(Length + chunk);
 
                     var read = stream.Read(_data, Length, chunk);
                     if (read == 0)
                     {
-                        return;
+                        return false;
                     }
 
                     Length += read;
                 }
 
-                while (true)
-                {
-                    EnsureCapacity(Length + BulkChunkSize);
-
-                    var read = stream.Read(_data, Length, BulkChunkSize);
-                    if (read == 0)
-                    {
-                        return;
-                    }
-
-                    Length += read;
-                }
+                return true;
             }
 
             /// <summary>Grows the backing array to at least <paramref name="requiredCapacity"/> bytes.</summary>
@@ -1042,10 +1012,12 @@ public static class JpegCodec
         ///     stream (as it does for essentially all real-world JPEG files), reads only as far
         ///     as the end of that segment - never a full fixed-size prefix regardless of where
         ///     the SOF marker actually is. If more than <see cref="JpegCodec.MaxProbeHeaderBytes"/>
-        ///     bytes of leading marker-segment data are present, falls back to bulk-reading the
-        ///     remainder of the stream (matching <see cref="JpegCodec.Load(Stream)"/>'s own
-        ///     unbounded buffering) and continues scanning, so this never gives up merely because
-        ///     the soft cap was reached while more data remained.
+        ///     bytes of leading marker-segment data are present, continues scanning segment
+        ///     headers past that soft cap - one marker segment at a time, exactly as below the
+        ///     cap - until a SOF0/SOF2 marker is found or the stream genuinely ends, so this never
+        ///     gives up merely because the soft cap was reached while more data remained, and
+        ///     never reads into entropy-coded scan data even for files with unusually large
+        ///     leading metadata.
         /// </summary>
         /// <param name="stream">
         ///     The stream to read JPEG marker segments from, starting at its current position.
@@ -1053,8 +1025,8 @@ public static class JpegCodec
         /// <exception cref="System.IO.InvalidDataException">
         ///     Thrown when the SOI marker is missing, an SOS marker or end-of-image is reached
         ///     before any SOF0/SOF2 marker is found, an unsupported SOF/frame marker (for example
-        ///     SOF1/SOF3) is encountered, or the stream genuinely ends (even after the
-        ///     <see cref="JpegCodec.MaxProbeHeaderBytes"/> soft-cap bulk-read fallback) without a
+        ///     SOF1/SOF3) is encountered, or the stream genuinely ends (even after continuing to
+        ///     scan past the <see cref="JpegCodec.MaxProbeHeaderBytes"/> soft cap) without a
         ///     SOF0/SOF2 marker ever being found.
         /// </exception>
         public static ImageInfo ProbeDimensions(Stream stream)
@@ -1148,9 +1120,9 @@ public static class JpegCodec
         /// <summary>
         ///     Builds the <see cref="InvalidDataException"/> for <see cref="ProbeDimensions(Stream)"/>
         ///     running out of readable data before a SOF0/SOF2 marker was found - which, now that
-        ///     <see cref="IncrementalProbeBuffer"/> falls back to bulk-reading the remainder of the
-        ///     stream once its soft cap is reached, only happens when the stream has genuinely
-        ///     ended (truncated or non-JPEG data), never merely because
+        ///     <see cref="IncrementalProbeBuffer"/> keeps scanning segment headers past its soft
+        ///     cap rather than giving up at it, only happens when the stream has genuinely ended
+        ///     (truncated or non-JPEG data), never merely because
         ///     <see cref="JpegCodec.MaxProbeHeaderBytes"/> was reached.
         /// </summary>
         private static InvalidDataException ProbeExhaustedException() =>

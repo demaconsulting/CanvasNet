@@ -226,6 +226,7 @@ identical.
 `JpegCodec_GetInfo_NoSofAnywhereEvenBeyondProbeCap_ThrowsInvalidDataException`,
 `JpegCodec_GetInfo_SofSegmentExtendsBeyondProbeCap_FailsForFormatReasonNotProbeCap`,
 `JpegCodec_GetInfo_LargeLeadingAppSegments_SucceedsAndMatchesLoadResult`,
+`JpegCodec_GetInfo_SofShortlyAfterProbeCap_StopsAtSofWithoutDrainingStream`,
 `JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows`,
 `JpegCodec_GetInfo_ZeroLengthSegment_TerminatesPromptlyWithInvalidDataException`,
 `CanvasNet_SystemIntegration_JpegGetInfoWithLargeLeadingSegments_ReturnsExpectedInfo`
@@ -250,15 +251,23 @@ segment extends past where the cap would previously have stopped reading: pads a
 filler APPn segments up to just under the cap, appends an SOF0 marker whose payload happens to be
 malformed in a way `Load` would also reject (sample precision 0), and asserts `GetInfo` throws
 `InvalidDataException` whose message reports that genuine format problem (mentioning "sample
-precision") rather than any wording referencing a probe limit - proving the bulk-read fallback
-transparently supplies the extra bytes needed to reach and parse the SOF segment, so the resulting
-failure is attributable only to the segment's own invalid content, not to the soft cap. Proves the
-soft cap's bulk-read fallback succeeds end-to-end for a well-formed file whose leading segments
-exceed the cap: builds over 1 MiB of leading APP0 filler segments followed by a genuinely valid,
-decodable minimal single-component JPEG, and asserts `GetInfo` succeeds and reports the same
-`Width`/`Height` that `Load` on the identical bytes decodes - proving a large leading run of
-filler no longer causes `GetInfo` to throw for an input `Load` would successfully decode, upholding
-the cross-codec invariant documented on `ImageInfo`. Proves `GetInfo`
+precision") rather than any wording referencing a probe limit - proving that continuing to scan
+past the cap transparently supplies the extra bytes needed to reach and parse the SOF segment, so
+the resulting failure is attributable only to the segment's own invalid content, not to the soft
+cap. Proves that continuing to scan past the soft cap succeeds end-to-end for a well-formed file
+whose leading segments exceed the cap: builds over 1 MiB of leading APP0 filler segments followed
+by a genuinely valid, decodable minimal single-component JPEG, and asserts `GetInfo` succeeds and
+reports the same `Width`/`Height` that `Load` on the identical bytes decodes - proving a large
+leading run of filler no longer causes `GetInfo` to throw for an input `Load` would successfully
+decode, upholding the cross-codec invariant documented on `ImageInfo`. Proves that once past the
+soft cap, `GetInfo` still stops reading the instant the SOF0/SOF2 marker is found rather than
+draining the stream to end-of-stream: builds a stream whose leading APP0 filler segments cross the
+soft cap immediately followed by a normal SOF0 segment, then an unbounded, never-ending "entropy"
+tail (`InfiniteTailStream`, wrapped in a `BoundedReadStream` so any attempt to read into that tail
+fails fast rather than hanging the test), and asserts `GetInfo` still returns the correct
+dimensions without the bound ever being tripped - this test fails against the previous
+implementation, which drained the tail (and would hang against a genuinely unbounded stream) even
+after the SOF marker had already been found. Proves `GetInfo`
 does not enforce `Surface.MaxDimension` by building an SOF0 segment
 declaring a width one greater than `Surface.MaxDimension`, asserting `GetInfo` returns that raw
 oversized width without throwing, and then asserting `Load` on the exact same bytes still throws
@@ -268,8 +277,8 @@ zero, calls `GetInfo` directly and synchronously, and asserts it throws `Invalid
 No timing measurement is used (consistent with this project's no-timing-based-tests policy);
 termination is guaranteed structurally because the read position strictly advances on every
 iteration, locking in that `GetInfo` already terminates promptly rather than looping forever
-re-reading the same zero-length segment. The system-level test additionally exercises the
-soft-cap bulk-read fallback end-to-end through the public `JpegCodec.GetInfo` entry point against a
+re-reading the same zero-length segment. The system-level test additionally exercises scanning
+past the soft cap end-to-end through the public `JpegCodec.GetInfo` entry point against a
 manually constructed, padded JPEG byte stream, per `docs/verification/canvas-net.md`'s
 system-level evidence contract.
 
@@ -293,7 +302,7 @@ corresponding `Load` scenarios, plus JPEG-specific malformed-ordering cases `Loa
 
 A unit test run passes when all test methods above pass without error or unexpected exception; any
 unexpected exception type or wrong return/value relationship constitutes a failure. Across
-`JpegCodecTests.cs` and `JpegFixtureTests.cs`, this totals 45 test methods (41 in
+`JpegCodecTests.cs` and `JpegFixtureTests.cs`, this totals 48 test methods (44 in
 `JpegCodecTests.cs` and 4 in `JpegFixtureTests.cs`); several of these are `[Theory]` methods that
 additionally expand to multiple executed xUnit test cases, plus the system-level integration
 scenarios documented in `docs/verification/canvas-net.md`.

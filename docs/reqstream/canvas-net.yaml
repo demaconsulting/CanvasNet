@@ -699,11 +699,11 @@ sections:
           a stream or a file path, by scanning markers for an SOF0/SOF2 segment without
           entropy-decoding scan data, without requiring an SOS segment or entropy-coded data, and
           without enforcing the maximum permitted dimension. GetInfo shall treat a fixed maximum
-          number of probed header bytes as a soft cap on its fast incremental scan only, falling
-          back to bulk-reading the remainder of the stream (matching Load's own unbounded
-          buffering) rather than throwing once that cap would otherwise be exceeded, and shall
-          throw InvalidDataException only if the stream genuinely ends without an SOF0/SOF2 marker
-          ever being found.
+          number of probed header bytes as a soft cap on its fast incremental scan only,
+          continuing to scan past that cap - reading no more of the stream than each successive
+          marker/segment boundary actually requires - rather than throwing once that cap would
+          otherwise be exceeded, and shall throw InvalidDataException only if the stream genuinely
+          ends without an SOF0/SOF2 marker ever being found.
         tags: [system]
         justification: |
           Callers need to inspect a JPEG's declared dimensions and component count - for example
@@ -721,6 +721,7 @@ sections:
           - JpegCodec_GetInfo_LargeStream_NeverReadsPastProbeLimit
           - JpegCodec_GetInfo_NoSofAnywhereEvenBeyondProbeCap_ThrowsInvalidDataException
           - JpegCodec_GetInfo_LargeLeadingAppSegments_SucceedsAndMatchesLoadResult
+          - JpegCodec_GetInfo_SofShortlyAfterProbeCap_StopsAtSofWithoutDrainingStream
           - JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows
           - CanvasNet_SystemIntegration_JpegGetInfoWithLargeLeadingSegments_ReturnsExpectedInfo
 

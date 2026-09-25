@@ -655,10 +655,10 @@ Scans markers (skipping length-prefixed segments without entropy-decoding any sc
 the first SOF0/SOF2 marker, and returns an `ImageInfo` describing the image. Does not enforce
 `Surface.MaxDimension`. Incrementally reads up to a soft cap of `MaxProbeHeaderBytes` (1,048,576
 bytes), which comfortably covers the leading marker segments of essentially all real-world JPEG
-files. If that soft cap is reached without finding a SOF0/SOF2 marker, `GetInfo` falls back to
-bulk-reading the remainder of the stream (matching `Load`'s own unbounded buffering) and continues
-scanning against the fully-buffered data, so `GetInfo` never throws merely because a file has more
-than `MaxProbeHeaderBytes` of leading marker-segment data - as long as `Load` itself would
+files. If that soft cap is reached without finding a SOF0/SOF2 marker, `GetInfo` keeps scanning
+past the cap - one marker segment at a time, exactly as it does below the cap - until a SOF0/SOF2
+marker is found or the stream genuinely ends, so `GetInfo` never throws merely because a file has
+more than `MaxProbeHeaderBytes` of leading marker-segment data - as long as `Load` itself would
 successfully parse that file up to and including the SOF marker.
 
 **Exceptions:**

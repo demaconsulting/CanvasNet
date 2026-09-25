@@ -340,15 +340,17 @@ Proves the stream-position fix (`GetInfo` resolving `StreamTiffDataSource` reads
 stream's starting position rather than absolute byte 0): writes a non-empty byte prefix to a
 `MemoryStream`, then a valid TIFF, sets `stream.Position` past the prefix, and asserts `GetInfo`
 returns the correct `ImageInfo` for the TIFF that follows the prefix rather than misinterpreting
-bytes at absolute offset 0. Proves `GetInfo` succeeds on a non-seekable stream and matches the
-result `GetInfo` reports for a seekable copy of the exact same bytes: the unit test wraps valid
-TIFF bytes in the unit's private `FunctionallySeekableButCanSeekFalseStream` helper (reports
-`CanSeek == false` while forwarding `Position`/`Seek`/`Length`/`Read` to a fully functional inner
-`MemoryStream` - none of those members throw), asserts `GetInfo` on that stream succeeds via the
-buffer-and-probe fallback, and asserts the resulting `ImageInfo` is identical to calling `GetInfo`
-on a seekable `MemoryStream` over the same bytes - proving the non-seekable fallback does not
-merely avoid throwing but resolves the exact same dimensions/channels/alpha the seekable fast path
-would. The system-level test separately uses `TestSupport.NonSeekableStream` (a test-only stream
+bytes at absolute offset 0. Proves `GetInfo` succeeds on a non-seekable stream and that its
+reported dimensions match what `TiffCodec.Load` actually decodes from the identical bytes - the
+GetInfo/Load parity invariant: the unit test wraps valid TIFF bytes in the unit's private
+`FunctionallySeekableButCanSeekFalseStream` helper (reports `CanSeek == false` while forwarding
+`Position`/`Seek`/`Length`/`Read` to a fully functional inner `MemoryStream` - none of those
+members throw), asserts `GetInfo` on that stream succeeds via the buffer-and-probe fallback, and
+asserts `GetInfo`'s reported `Width`/`Height` match the `Surface.Width`/`Surface.Height` that
+`TiffCodec.Load` decodes from a separate, seekable `MemoryStream` over the same bytes - proving
+the non-seekable fallback resolves dimensions that genuinely agree with what `Load` would produce,
+not merely dimensions that agree with another `GetInfo` call. The system-level test separately uses
+`TestSupport.NonSeekableStream` (a test-only stream
 reporting `CanSeek == false` while forwarding `Read`/`Flush` to a fully functional inner buffer,
 but genuinely throwing `NotSupportedException` from `Position`/`Length`/`Seek` themselves) to
 exercise the fallback end-to-end through the public `TiffCodec.GetInfo` entry point with a

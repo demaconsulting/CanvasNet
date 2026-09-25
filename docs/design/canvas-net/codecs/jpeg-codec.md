@@ -205,17 +205,18 @@ previously treated as a hard outer cap: reaching it caused `GetInfo` to throw, e
 perfectly well-formed JPEG that `Load` would decode successfully without any size limit of its
 own — violating the cross-codec invariant documented on `ImageInfo` ("GetInfo never throws for an
 input that Load would successfully decode"). `MaxProbeHeaderBytes` is now instead a *soft* cap on
-`IncrementalProbeBuffer`'s fast chunked-read growth strategy only: the moment satisfying the next
-requested length would exceed it, `IncrementalProbeBuffer.BulkReadRemainder` performs a one-time
-bulk read of the rest of the stream (first satisfying the immediate request, then continuing in
-fixed-size chunks until the stream is exhausted), after which every subsequent
-`TryEnsureLength`/`ToExactArray` call is satisfied from the now-fully-buffered data with no further
-fallback attempts. This mirrors `Load`'s own unbounded buffering exactly, so `GetInfo` only ever
-throws `InvalidDataException` when the stream genuinely ends (even after that bulk read) without a
-supported SOF marker ever being found — the single, unconditional message "Stream ended before a
-JPEG SOF0/SOF2 marker was found (truncated or non-JPEG data)." covers both the ordinary
-truncated/malformed-header case and the case where an SOF0/SOF2 marker's declared segment length
-would extend past whatever data is actually available in the stream.
+`IncrementalProbeBuffer`'s fast chunked-read growth strategy only: once satisfying the next
+requested length would exceed it, `TryEnsureLength` keeps reading past the cap in larger chunks
+(for efficiency) but strictly bounded to exactly the requested length - never further - so
+`ProbeDimensions`'s segment-by-segment scanning loop continues past the cap exactly as it does
+below it, one marker segment at a time, and stops issuing further reads the instant a SOF0/SOF2
+marker is found. This never bulk-reads or drains the remainder of the stream merely because the
+cap was crossed, so `GetInfo` never reads entropy-coded scan data, and only ever throws
+`InvalidDataException` when the stream genuinely ends without a supported SOF marker ever being
+found — the single, unconditional message "Stream ended before a JPEG SOF0/SOF2 marker was found
+(truncated or non-JPEG data)." covers both the ordinary truncated/malformed-header case and the
+case where an SOF0/SOF2 marker's declared segment length would extend past whatever data is
+actually available in the stream.
 
 **Throws:**
 
@@ -223,10 +224,10 @@ would extend past whatever data is actually available in the stream.
 - `InvalidDataException` — the stream does not begin with SOI; an unsupported SOF/frame marker
   (any SOF variant other than SOF0/SOF2, or an arithmetic-coded/JPG-extension marker) or
   unsupported component count is encountered; an SOS marker is encountered before any SOF0/SOF2
-  marker; the marker/segment structure is malformed; or the stream genuinely ends (even after the
-  soft-cap bulk-read fallback described above) before an SOF0/SOF2 marker is found (same contract
-  as `Load`, except the `Surface.MaxDimension` check is skipped and entropy-coded scan data is
-  never required or read)
+  marker; the marker/segment structure is malformed; or the stream genuinely ends (even after
+  continuing to scan past the soft cap described above) before an SOF0/SOF2 marker is found (same
+  contract as `Load`, except the `Surface.MaxDimension` check is skipped and entropy-coded scan
+  data is never required or read)
 
 #### GetInfo(string path)
 

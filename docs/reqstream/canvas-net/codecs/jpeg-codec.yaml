@@ -268,11 +268,11 @@ sections:
                   data to be present, and without enforcing Surface.MaxDimension. GetInfo's incremental
                   marker scan shall treat MaxProbeHeaderBytes (1,048,576) as a soft cap on its fast
                   chunked-read path only: once that cap is reached without a supported SOF marker
-                  having been found, GetInfo shall fall back to bulk-reading the remainder of the
-                  stream (matching Load's own unbounded buffering) and continue scanning against the
-                  fully-buffered data, rather than throwing. GetInfo shall throw InvalidDataException
-                  only when the stream genuinely ends - even after that bulk-read fallback - without a
-                  supported SOF marker ever being found.
+                  having been found, GetInfo shall continue scanning past the cap - reading no more of
+                  the stream than each successive marker/segment boundary actually requires, and never
+                  reading entropy-coded scan data - rather than throwing. GetInfo shall throw
+                  InvalidDataException only when the stream genuinely ends - even after continuing to
+                  scan past that soft cap - without a supported SOF marker ever being found.
                 justification: |
                   Callers need to inspect a JPEG's declared dimensions and component count (for example
                   to reject unreasonably large images before allocating a Surface) without paying the
@@ -283,10 +283,11 @@ sections:
                   no overall file-size ceiling, so a hard outer cap on GetInfo's probe would violate the
                   cross-codec invariant documented on ImageInfo ("GetInfo never throws for an input that
                   Load would successfully decode") for any file whose leading marker-segment data happens
-                  to exceed the soft cap; treating the cap as a threshold for switching from incremental
-                  chunked reads to a single bulk read - rather than as a point of failure - upholds that
-                  invariant while still avoiding an eager, always-maximal read for the common case where
-                  the SOF appears near the start of the stream.
+                  to exceed the soft cap; treating the cap as a threshold for continuing incremental,
+                  bounded reads - rather than as a point of failure - upholds that invariant while still
+                  avoiding an eager, always-maximal read for the common case where the SOF appears near
+                  the start of the stream, and while never reading beyond the SOF segment even for a
+                  file with unusually large leading metadata.
                 tests:
                   - JpegCodec_GetInfo_Grayscale_ReturnsExpectedInfoWithoutSosOrEntropyData
                   - JpegCodec_GetInfo_Color_ReturnsExpectedInfo
@@ -296,6 +297,7 @@ sections:
                   - JpegCodec_GetInfo_NoSofAnywhereEvenBeyondProbeCap_ThrowsInvalidDataException
                   - JpegCodec_GetInfo_SofSegmentExtendsBeyondProbeCap_FailsForFormatReasonNotProbeCap
                   - JpegCodec_GetInfo_LargeLeadingAppSegments_SucceedsAndMatchesLoadResult
+                  - JpegCodec_GetInfo_SofShortlyAfterProbeCap_StopsAtSofWithoutDrainingStream
                   - JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows
                   - JpegCodec_GetInfo_ZeroLengthSegment_TerminatesPromptlyWithInvalidDataException
                   - CanvasNet_SystemIntegration_JpegGetInfoWithLargeLeadingSegments_ReturnsExpectedInfo

@@ -639,8 +639,9 @@ sections:
               segment or entropy-coded data, and without enforcing Surface.MaxDimension, reading no
               more of the stream than necessary once the target SOF has been fully parsed and treating
               a fixed maximum number of probed header bytes as a soft cap: once reached without a
-              supported SOF marker having been found, GetInfo falls back to bulk-reading the
-              remainder of the stream (matching Load's own unbounded buffering) rather than throwing.
+              supported SOF marker having been found, GetInfo continues scanning past the cap -
+              reading no more of the stream than each successive marker/segment boundary actually
+              requires, and never reading entropy-coded scan data - rather than throwing.
             justification: |
               Callers need to inspect a JPEG's declared dimensions and component count without paying
               the cost of entropy-decoding the scan data, without an unbounded scan over a
@@ -660,6 +661,7 @@ sections:
               - JpegCodec_GetInfo_NoSofAnywhereEvenBeyondProbeCap_ThrowsInvalidDataException
               - JpegCodec_GetInfo_SofSegmentExtendsBeyondProbeCap_FailsForFormatReasonNotProbeCap
               - JpegCodec_GetInfo_LargeLeadingAppSegments_SucceedsAndMatchesLoadResult
+              - JpegCodec_GetInfo_SofShortlyAfterProbeCap_StopsAtSofWithoutDrainingStream
               - JpegCodec_GetInfo_OversizedDimensions_NotRejected_ButLoadThrows
               - CanvasNet_SystemIntegration_JpegGetInfoWithLargeLeadingSegments_ReturnsExpectedInfo
 
