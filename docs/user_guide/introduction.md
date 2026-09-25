@@ -1512,7 +1512,7 @@ var translucentRed = Rgba32.Parse("#80FF0000"); // A=128
 
 if (Rgba32.TryParse(userInput, out var color))
 {
-    canvas.FillRect(rect, color);
+    canvas.FillRect(10, 10, 50, 50, color);
 }
 ```
 

@@ -34,8 +34,10 @@ runes and for each glyph:
    which converts y-up font design units to y-down pixel space and positions the pen.
 3. Composes that with `canvas.CurrentTransform` so scene transforms apply to text as they do
    to filled paths.
-4. Bakes the composed transform into the glyph path and dispatches to `canvas.FillPath` with
-   the fill color.
+4. Bakes the composed transform into the glyph path and dispatches directly to
+   `Drawing.PathFiller.Fill` with the fill color, rather than `canvas.FillPath` - the glyph
+   path is already in transformed/surface space at this point, so routing it back through
+   `canvas.FillPath` would apply the canvas's current transform a second time.
 5. Advances the pen by the scaled advance width plus scaled kerning with the next glyph.
 
 `alignOffset` is `0` for `Left`, `-width / 2` for `Center`, and `-width` for `Right`, where
