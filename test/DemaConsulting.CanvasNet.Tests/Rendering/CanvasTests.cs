@@ -273,6 +273,14 @@ public class CanvasTests
         Assert.Throws<ArgumentNullException>(() => canvas.StrokePath(Triangle(), null!, new Rgba32(0, 0, 0, 255)));
     }
 
+    /// <summary>Canvas_FillPath_NullGradient_ThrowsArgumentNullException.</summary>
+    [Fact]
+    public void Canvas_FillPath_NullGradient_ThrowsArgumentNullException()
+    {
+        var canvas = new RenderCanvas(NewSurface());
+        Assert.Throws<ArgumentNullException>(() => canvas.FillPath(Triangle(), (Gradient)null!, FillRule.NonZero));
+    }
+
     /// <summary>Canvas_FillPath_InvalidFillRule_ThrowsArgumentOutOfRangeException.</summary>
     [Fact]
     public void Canvas_FillPath_InvalidFillRule_ThrowsArgumentOutOfRangeException()

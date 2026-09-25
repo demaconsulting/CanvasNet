@@ -16,8 +16,8 @@ The `Canvas` unit is verified by `test/DemaConsulting.CanvasNet.Tests/Rendering/
   compare the surface byte-for-byte against direct `PathFiller`/`PathStroker` output at identity.
 - **Observable transform**: `Canvas_FillPath_WithTranslate_ShiftsOutputByExpectedPixels`
   verifies pixels shift by the translation applied.
-- **Validation**: null-surface, null-path, null-style, and invalid fill-rule tests cover the
-  validation contract.
+- **Validation**: null-surface, null-path, null-gradient, null-style, and invalid fill-rule
+  tests cover the validation contract.
 
 ### Traceability
 

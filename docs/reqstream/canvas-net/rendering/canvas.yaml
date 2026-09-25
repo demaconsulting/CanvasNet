@@ -107,14 +107,16 @@ sections:
               - id: CanvasNet-Rendering-Canvas-Validation
                 title: >-
                   The Canvas class shall reject a null Surface argument to its constructor with
-                  ArgumentNullException, reject a null Path argument to fill or stroke with
-                  ArgumentNullException, and reject an invalid fill-rule with
-                  ArgumentOutOfRangeException.
+                  ArgumentNullException, reject a null Path argument to fill or stroke, a null
+                  Gradient argument to the gradient-paint FillPath overload, and a null
+                  StrokeStyle argument to stroke, all with ArgumentNullException, and reject an
+                  invalid fill-rule with ArgumentOutOfRangeException.
                 justification: |
-                  A null surface or path would make every draw operation fail later with a
-                  NullReferenceException; failing at the entry point is clearer.
+                  A null surface, path, gradient, or stroke style would make every draw operation
+                  fail later with a NullReferenceException; failing at the entry point is clearer.
                 tests:
                   - Canvas_Constructor_WithNullSurface_ThrowsArgumentNullException
                   - Canvas_FillPath_NullPath_ThrowsArgumentNullException
+                  - Canvas_FillPath_NullGradient_ThrowsArgumentNullException
                   - Canvas_StrokePath_NullStyle_ThrowsArgumentNullException
                   - Canvas_FillPath_InvalidFillRule_ThrowsArgumentOutOfRangeException
