@@ -29,6 +29,7 @@ sections:
               - CanvasNet-Rendering-Canvas-Translate
               - CanvasNet-Rendering-Canvas-RotateDegrees
               - CanvasNet-Rendering-Canvas-FillPath
+              - CanvasNet-Rendering-Canvas-FillPathGradient
               - CanvasNet-Rendering-Canvas-StrokePath
               - CanvasNet-Rendering-Canvas-Identity
               - CanvasNet-Rendering-Canvas-Validation

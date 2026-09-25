@@ -196,6 +196,67 @@ public class CanvasTests
         Assert.Equal(SurfaceBytes(s2), SurfaceBytes(s1));
     }
 
+    /// <summary>
+    ///     Canvas_FillPath_GradientWithRotateAndTranslate_MatchesPreTransformedGradientFill.
+    /// </summary>
+    /// <remarks>
+    ///     Regression test: <see cref="RenderCanvas.FillPath(GeoPath, Gradient, FillRule)"/> must
+    ///     compose the Canvas's current transform into the <see cref="Gradient"/>'s own coordinate
+    ///     mapping (<see cref="Gradient.Transform"/>), not just into the filled path - otherwise a
+    ///     transformed Canvas moves the filled geometry while the gradient is still sampled in the
+    ///     old, untransformed local frame, so the gradient no longer visually follows the
+    ///     transformed shape. Verified by comparing against manually pre-transforming both the
+    ///     path and the gradient (via <see cref="Gradient.WithTransform"/>) and filling with the
+    ///     static <see cref="PathFiller"/> directly, with no Canvas transform involved at all -
+    ///     the two must produce byte-identical output.
+    /// </remarks>
+    [Fact]
+    public void Canvas_FillPath_GradientWithRotateAndTranslate_MatchesPreTransformedGradientFill()
+    {
+        var s1 = NewSurface();
+        var s2 = NewSurface();
+        var basePath = new PathBuilder()
+            .MoveTo(new Vector2(2, 2))
+            .LineTo(new Vector2(14, 2))
+            .LineTo(new Vector2(14, 14))
+            .LineTo(new Vector2(2, 14))
+            .Close()
+            .Build();
+
+        var gradient = new LinearGradient(
+            new Vector2(2, 2),
+            new Vector2(14, 14),
+            [new GradientStop(0f, new Rgba32(255, 0, 0, 255)), new GradientStop(1f, new Rgba32(0, 0, 255, 255))]);
+
+        var canvas = new RenderCanvas(s1);
+        // 30 degrees (not a multiple of 90) rotates the diagonal gradient vector away from any
+        // reflective/rotational symmetry the shape or gradient might otherwise coincidentally
+        // share with a 90-degree rotation - which would let a bugged, untransformed-gradient fill
+        // accidentally match the correct output and defeat this regression test.
+        canvas.RotateDegrees(30);
+        canvas.Translate(10, 4);
+        canvas.FillPath(basePath, gradient);
+
+        // Reference: pre-transform both the path and the gradient's own mapping with the exact
+        // same composed transform, then fill directly via the static PathFiller with no Canvas
+        // transform involved.
+        var transformedPath = basePath.Transform(canvas.CurrentTransform);
+        var transformedGradient = gradient.WithTransform(canvas.CurrentTransform);
+        PathFiller.Fill(s2, transformedPath, transformedGradient);
+
+        Assert.Equal(SurfaceBytes(s2), SurfaceBytes(s1));
+
+        // Sanity check that this scenario actually exercises the bug this test guards against:
+        // transforming the path alone while leaving the gradient in its old, untransformed local
+        // frame (the pre-fix behavior) must produce a visibly DIFFERENT result from the correct,
+        // fully-composed reference above - otherwise this test could pass "by accident" even
+        // without Canvas.FillPath(Path, Gradient, FillRule) composing the transform into the
+        // gradient.
+        var s3 = NewSurface();
+        PathFiller.Fill(s3, transformedPath, gradient);
+        Assert.NotEqual(SurfaceBytes(s2), SurfaceBytes(s3));
+    }
+
     /// <summary>Canvas_FillPath_NullPath_ThrowsArgumentNullException.</summary>
     [Fact]
     public void Canvas_FillPath_NullPath_ThrowsArgumentNullException()

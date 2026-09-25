@@ -107,6 +107,21 @@ public abstract class Gradient
     public Matrix3x2 Transform { get; }
 
     /// <summary>
+    ///     Returns a new gradient of the same runtime type and with the same
+    ///     <see cref="Stops"/>/<see cref="Spread"/>, whose <see cref="Transform"/> is this
+    ///     gradient's own <see cref="Transform"/> composed with <paramref name="transform"/>
+    ///     (row-vector convention, matching <see cref="Geometry.Path.Transform(Matrix3x2)"/>:
+    ///     this gradient's existing <see cref="Transform"/> is applied first - mapping
+    ///     gradient-defining coordinates into the caller's original path-local coordinate space -
+    ///     then <paramref name="transform"/> is applied on top of that, e.g. a
+    ///     <see cref="Rendering.Canvas"/>'s current transform mapping path-local space into
+    ///     surface space).
+    /// </summary>
+    /// <param name="transform">The additional transform to compose after this gradient's own <see cref="Transform"/>.</param>
+    /// <returns>A new gradient instance with the composed transform; the original is unchanged.</returns>
+    public abstract Gradient WithTransform(Matrix3x2 transform);
+
+    /// <summary>
     ///     Determines whether every component of <paramref name="matrix"/> is a finite value.
     /// </summary>
     private static bool IsFinite(Matrix3x2 matrix) =>

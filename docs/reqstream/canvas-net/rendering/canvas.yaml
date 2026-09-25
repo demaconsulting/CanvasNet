@@ -66,6 +66,22 @@ sections:
                   - Canvas_FillPath_NoTransform_ProducesByteIdenticalOutputToPathFillerFill
                   - Canvas_FillPath_WithTranslate_ShiftsOutputByExpectedPixels
 
+              - id: CanvasNet-Rendering-Canvas-FillPathGradient
+                title: >-
+                  The Canvas class's gradient-paint FillPath overload shall bake the current
+                  transform into both the path (as the solid-color overload already does) and the
+                  gradient paint's own coordinate mapping (via Gradient.WithTransform), so a
+                  gradient continues to visually follow the filled shape under a translated or
+                  rotated Canvas instead of remaining fixed in the shape's old, untransformed
+                  local frame.
+                justification: |
+                  A gradient's coordinates are meaningful only relative to the path it paints;
+                  transforming the path without equally transforming the gradient's own mapping
+                  would visibly detach the gradient from the shape it is meant to paint whenever
+                  the Canvas has a non-identity transform.
+                tests:
+                  - Canvas_FillPath_GradientWithRotateAndTranslate_MatchesPreTransformedGradientFill
+
               - id: CanvasNet-Rendering-Canvas-StrokePath
                 title: >-
                   The Canvas class shall stroke a path with the given stroke style and

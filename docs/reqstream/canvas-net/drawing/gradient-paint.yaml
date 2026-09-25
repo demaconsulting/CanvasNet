@@ -266,3 +266,22 @@ sections:
                   - PathFiller_Fill_Gradient_NullPaint_ThrowsArgumentNullException
                   - PathFiller_Fill_Gradient_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException
                   - PathFiller_Fill_Gradient_UndefinedFillRule_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Drawing-GradientPaint-WithTransform
+                title: >-
+                  A gradient shall expose a WithTransform operation returning a new gradient of
+                  the same runtime type and with the same stops/spread/geometry, whose transform
+                  is this gradient's own existing transform composed with the supplied transform
+                  (this gradient's transform applied first, then the supplied transform),
+                  without mutating the original gradient instance.
+                justification: |
+                  A caller that composes a gradient-painted fill with an outer coordinate-space
+                  transform (for example a Rendering.Canvas's current transform) needs a way to
+                  fold that outer transform into the gradient's own coordinate mapping so the
+                  gradient continues to track the transformed shape, mirroring
+                  Geometry.Path.Transform's role for path geometry; returning a new instance
+                  (rather than mutating in place) keeps Gradient's other established immutability
+                  guarantees intact.
+                tests:
+                  - LinearGradient_WithTransform_ComposesTransformPreservingOtherProperties
+                  - RadialGradient_WithTransform_ComposesTransformPreservingOtherProperties

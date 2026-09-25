@@ -148,4 +148,31 @@ public class RadialGradientTests
         Assert.Equal(default, gradient.Transform);
         Assert.NotEqual(Matrix3x2.Identity, gradient.Transform);
     }
+
+    /// <summary>
+    ///     Proves that <see cref="Gradient.WithTransform"/> composes the supplied transform after
+    ///     this gradient's own existing <see cref="Gradient.Transform"/> (row-vector convention:
+    ///     <c>this.Transform * transform</c>), returning a new <see cref="RadialGradient"/> that
+    ///     otherwise preserves every other property (StartCenter/StartRadius/EndCenter/EndRadius/
+    ///     Spread) unchanged, and leaves the original gradient instance untouched.
+    /// </summary>
+    [Fact]
+    public void RadialGradient_WithTransform_ComposesTransformPreservingOtherProperties()
+    {
+        var startCenter = new Vector2(1, 2);
+        var endCenter = new Vector2(9, 8);
+        var original = new RadialGradient(startCenter, 3f, endCenter, 7f, OneStop(), GradientSpread.Repeat, Matrix3x2.CreateScale(2f));
+        var extra = Matrix3x2.CreateTranslation(10f, 5f);
+
+        var result = original.WithTransform(extra);
+        var radialResult = Assert.IsType<RadialGradient>(result);
+
+        Assert.Equal(original.Transform * extra, radialResult.Transform);
+        Assert.Equal(startCenter, radialResult.StartCenter);
+        Assert.Equal(3f, radialResult.StartRadius);
+        Assert.Equal(endCenter, radialResult.EndCenter);
+        Assert.Equal(7f, radialResult.EndRadius);
+        Assert.Equal(GradientSpread.Repeat, radialResult.Spread);
+        Assert.Equal(Matrix3x2.CreateScale(2f), original.Transform);
+    }
 }

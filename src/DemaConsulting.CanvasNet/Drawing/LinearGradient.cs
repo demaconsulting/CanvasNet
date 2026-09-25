@@ -76,4 +76,8 @@ public sealed class LinearGradient : Gradient
     ///     stop's offset (<c>1</c>).
     /// </summary>
     public Vector2 End { get; }
+
+    /// <inheritdoc/>
+    public override Gradient WithTransform(Matrix3x2 transform) =>
+        new LinearGradient(Start, End, Stops, Spread, Transform * transform);
 }

@@ -102,6 +102,22 @@ preserved exactly as given and validated/stored unchanged. A plain `Matrix3x2 tr
 parameter cannot distinguish "the caller omitted the argument" from "the caller explicitly passed
 the all-zero matrix"; the nullable parameter removes that ambiguity without any special-casing.
 
+#### Gradient.WithTransform(transform) (abstract; overridden by LinearGradient/RadialGradient)
+
+Returns a new gradient of the same runtime type and with the same `Stops`/`Spread`/geometry
+(`Start`/`End` for `LinearGradient`; `StartCenter`/`StartRadius`/`EndCenter`/`EndRadius` for
+`RadialGradient`), whose `Transform` is this gradient's own existing `Transform` composed with the
+supplied `transform` (row-vector convention matching `Geometry.Path.Transform(Matrix3x2)`: this
+gradient's existing `Transform` is applied first - mapping gradient-defining coordinates into the
+caller's original path-local coordinate space - then the supplied `transform` is applied on top of
+that, i.e. `Transform * transform`). This lets a caller that composes a gradient-painted fill with
+an outer coordinate-space transform (for example `Rendering.Canvas`'s current transform - see
+`Canvas.FillPath(Path, Gradient, FillRule)` in `canvas.md`) fold that outer transform into the
+gradient's own coordinate mapping so the gradient continues to track the transformed shape, rather
+than remaining fixed in the shape's old, untransformed local frame. `WithTransform` never mutates
+the original instance - it returns a new gradient, preserving `Gradient`'s existing immutability
+guarantees.
+
 #### GradientEvaluator.CreatePlan / EvaluatePoint / EvaluateRow (internal)
 
 `CreatePlan` computes every quantity that depends only on `gradient` itself and not on the point
@@ -243,8 +259,11 @@ itself (`ArgumentNullException`).
 
 `GradientPaint`'s public types (`Gradient`, `LinearGradient`, `RadialGradient`, `GradientStop`,
 `GradientSpread`) are constructed directly by consumers of the CanvasNet package and passed to
-`PathFiller.Fill(Surface, Path, Gradient, FillRule, float)`. The internal `GradientEvaluator`
-helper is invoked exclusively by `ScanlineRasterizer`'s gradient-aware `Fill` overload (see
-_PathFiller Unit Design_, `path-filler.md`). The unit is exercised by `GradientStopTests`,
-`LinearGradientTests`, `RadialGradientTests`, and `GradientEvaluatorTests`, and indirectly by
-`PathFillerTests`'/`ScanlineRasterizerTests`' gradient-specific scenarios.
+`PathFiller.Fill(Surface, Path, Gradient, FillRule, float)` or `Rendering.Canvas`'s
+gradient-paint `FillPath(Path, Gradient, FillRule)` overload (see `canvas.md`), which calls
+`Gradient.WithTransform` to fold its current transform into the gradient before filling. The
+internal `GradientEvaluator` helper is invoked exclusively by `ScanlineRasterizer`'s
+gradient-aware `Fill` overload (see _PathFiller Unit Design_, `path-filler.md`). The unit is
+exercised by `GradientStopTests`, `LinearGradientTests`, `RadialGradientTests`, and
+`GradientEvaluatorTests`, and indirectly by `PathFillerTests`'/`ScanlineRasterizerTests`'
+gradient-specific scenarios.

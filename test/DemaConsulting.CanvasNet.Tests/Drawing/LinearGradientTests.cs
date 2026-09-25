@@ -205,4 +205,30 @@ public class LinearGradientTests
         Assert.Throws<ArgumentOutOfRangeException>(
             () => new LinearGradient(Vector2.Zero, new Vector2(float.PositiveInfinity, 0), OneStop()));
     }
+
+    /// <summary>
+    ///     Proves that <see cref="Gradient.WithTransform"/> composes the supplied transform after
+    ///     this gradient's own existing <see cref="Gradient.Transform"/> (row-vector convention:
+    ///     <c>this.Transform * transform</c>), returning a new <see cref="LinearGradient"/> that
+    ///     otherwise preserves every other property (Start/End/Stops/Spread) unchanged, and leaves
+    ///     the original gradient instance untouched.
+    /// </summary>
+    [Fact]
+    public void LinearGradient_WithTransform_ComposesTransformPreservingOtherProperties()
+    {
+        var start = new Vector2(1, 2);
+        var end = new Vector2(3, 4);
+        var stops = OneStop();
+        var original = new LinearGradient(start, end, stops, GradientSpread.Reflect, Matrix3x2.CreateScale(2f));
+        var extra = Matrix3x2.CreateTranslation(10f, 5f);
+
+        var result = original.WithTransform(extra);
+        var linearResult = Assert.IsType<LinearGradient>(result);
+
+        Assert.Equal(original.Transform * extra, linearResult.Transform);
+        Assert.Equal(start, linearResult.Start);
+        Assert.Equal(end, linearResult.End);
+        Assert.Equal(GradientSpread.Reflect, linearResult.Spread);
+        Assert.Equal(Matrix3x2.CreateScale(2f), original.Transform);
+    }
 }

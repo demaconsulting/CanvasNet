@@ -116,7 +116,8 @@ public sealed class Canvas
     {
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(paint);
-        PathFiller.Fill(Surface, TransformIfNeeded(path), paint, fillRule);
+        var transformedPaint = _current.IsIdentity ? paint : paint.WithTransform(_current);
+        PathFiller.Fill(Surface, TransformIfNeeded(path), transformedPaint, fillRule);
     }
 
     /// <summary>
