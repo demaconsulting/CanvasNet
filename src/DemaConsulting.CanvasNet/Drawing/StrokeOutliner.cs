@@ -403,16 +403,18 @@ internal static class StrokeOutliner
         // degenerate" check with a small tolerance rather than an exact-zero comparison - a
         // ring that is only nearly collinear could otherwise land at a tiny nonzero double
         // instead of exactly 0.0, and still needs to be treated as having no meaningful sign.
-        // The tolerance must scale with the rings' own extent rather than use a fixed absolute
-        // cutoff: shoelace-formula rounding error grows with the square of the coordinate
-        // magnitude, and a fixed absolute cutoff would either wrongly treat a tiny but
-        // legitimate stroke (e.g. a micron-scale closed path) as degenerate, or fail to catch
-        // genuine rounding noise on a very large one. Extent (bounding-box span) rather than raw
-        // coordinate magnitude is used so the tolerance is translation-invariant - a ring far
-        // from the origin is not penalized for its absolute position.
+        // The tolerance must scale with the rings' own area magnitude rather than use a fixed
+        // absolute cutoff: shoelace-formula rounding error grows with the coordinate magnitude,
+        // and a fixed absolute cutoff would either wrongly treat a tiny but legitimate stroke
+        // (e.g. a micron-scale closed path) as degenerate, or fail to catch genuine rounding
+        // noise on a very large one. The X and Y bounding-box spans are multiplied together
+        // (rather than combined via a single max-extent squared) so a skinny ring - large along
+        // one axis, tiny along the other - gets a tolerance matching its own area order of
+        // magnitude instead of one inflated by its unrelated long axis; each span is itself
+        // translation-invariant, so a ring far from the origin is not penalized either.
         const double relativeAreaTolerance = 1e-9;
-        var ringExtent = Math.Max(RingExtent(outerRing), RingExtent(innerRing));
-        var areaNearZeroTolerance = ringExtent * ringExtent * relativeAreaTolerance;
+        var ringAreaScale = Math.Max(RingAreaScale(outerRing), RingAreaScale(innerRing));
+        var areaNearZeroTolerance = ringAreaScale * relativeAreaTolerance;
         if (Math.Abs(outerArea) > areaNearZeroTolerance
             && Math.Abs(innerArea) > areaNearZeroTolerance
             && Math.Sign(outerArea) == Math.Sign(innerArea))
@@ -1086,17 +1088,20 @@ internal static class StrokeOutliner
     }
 
     /// <summary>
-    ///     Computes the larger bounding-box span (width or height) of a set of points.
+    ///     Computes the product of a ring's X and Y bounding-box spans, as a proxy for its area
+    ///     magnitude.
     /// </summary>
     /// <remarks>
-    ///     Used to derive an extent-relative tolerance for near-zero area comparisons:
-    ///     shoelace-formula rounding error grows with the square of the coordinate magnitude, so
-    ///     a fixed absolute tolerance would misclassify degeneracy at both very small and very
-    ///     large scales. Bounding-box span (rather than raw coordinate magnitude) is used so the
-    ///     result is translation-invariant - a ring far from the origin is not penalized for its
-    ///     absolute position.
+    ///     Used to derive an area-relative tolerance for near-zero area comparisons:
+    ///     shoelace-formula rounding error grows with the coordinate magnitude, so a fixed
+    ///     absolute tolerance would misclassify degeneracy at both very small and very large
+    ///     scales. Multiplying the two independent axis spans (rather than squaring a single
+    ///     combined extent) keeps the estimate accurate for skinny rings - large along one axis,
+    ///     tiny along the other - instead of inflating the tolerance to match the longer axis.
+    ///     Each span is itself translation-invariant, so a ring far from the origin is not
+    ///     penalized for its absolute position either.
     /// </remarks>
-    private static double RingExtent(IReadOnlyList<Vector2> points)
+    private static double RingAreaScale(IReadOnlyList<Vector2> points)
     {
         var minX = double.PositiveInfinity;
         var maxX = double.NegativeInfinity;
@@ -1110,6 +1115,6 @@ internal static class StrokeOutliner
             maxY = Math.Max(maxY, point.Y);
         }
 
-        return Math.Max(maxX - minX, maxY - minY);
+        return (maxX - minX) * (maxY - minY);
     }
 }

@@ -198,14 +198,21 @@ public sealed class PathBuilder
         // zero radius (mirroring HTML5 canvas arcTo semantics) means "no arc", regardless of how
         // that value was produced. len1/len2, however, are Length() results of computed vectors,
         // so a tolerance (rather than exact zero) catches a corner that is only near-coincident
-        // with start/end - avoiding an ill-conditioned near-unit-vector normalization below. The
-        // tolerance is scaled to the chord length between start and end (the one pairwise
-        // distance that is independent of len1/len2 themselves) rather than the points' distance
-        // from the origin, so the check is translation-invariant: an ordinary corner far from the
-        // origin is not mistaken for coincidence, while a corner that is genuinely coincident
-        // relative to its own local geometry still degrades to a straight line.
-        var coincidenceTolerance = Vector2.Distance(start, end) * 1e-6f;
-        if (radius == 0f || len1 <= coincidenceTolerance || len2 <= coincidenceTolerance)
+        // with start/end - avoiding an ill-conditioned near-unit-vector normalization below. Each
+        // ray gets its own tolerance, scaled only to the magnitude of the two points that define
+        // it (never the other, unrelated ray), so an ordinary long ray on the other side of the
+        // corner cannot make this ray look coincident, and a genuinely tiny local corner is not
+        // mistaken for coincidence either.
+        const float relativeCoincidenceTolerance = 1e-6f;
+        var ray1Scale = MathF.Max(
+            MathF.Max(MathF.Abs(start.X), MathF.Abs(start.Y)),
+            MathF.Max(MathF.Abs(corner.X), MathF.Abs(corner.Y)));
+        var ray2Scale = MathF.Max(
+            MathF.Max(MathF.Abs(end.X), MathF.Abs(end.Y)),
+            MathF.Max(MathF.Abs(corner.X), MathF.Abs(corner.Y)));
+        if (radius == 0f
+            || len1 <= ray1Scale * relativeCoincidenceTolerance
+            || len2 <= ray2Scale * relativeCoincidenceTolerance)
         {
             _currentCommands.Add(PathCommand.LineTo(corner));
             return this;
