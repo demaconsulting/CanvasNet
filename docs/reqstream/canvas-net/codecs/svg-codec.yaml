@@ -154,6 +154,56 @@ sections:
                   - SvgCodec_Load_UseElementMutualRecursionCycle_ThrowsInvalidDataException
                   - SvgCodec_Load_UseReferenceFixture_RendersAtOffsetPositionOnly
 
+              - id: CanvasNet-Codecs-SvgCodec-MarkerRendering
+                title: >-
+                  The SvgCodec class shall render a marker element referenced via a line,
+                  polyline, polygon, or path element's marker-start/marker-mid/marker-end
+                  presentation attributes at that shape's first/interior/last vertex
+                  respectively, honoring markerWidth/markerHeight, refX/refY, markerUnits
+                  (strokeWidth or userSpaceOnUse), orient (auto, auto-start-reverse, or a fixed
+                  angle in degrees), and an optional viewBox, while never rendering a marker for
+                  rect/circle/ellipse and never inheriting the referencing shape's own
+                  fill/stroke into the marker's own content.
+                justification: |
+                  Markers are the standard SVG mechanism for arrowheads and other per-vertex
+                  decorations on connector lines and paths; callers building diagrams,
+                  flowcharts, or annotated line art need these to render rather than silently
+                  vanish, with correct per-vertex placement, orientation, sizing, and an
+                  independent presentation-attribute cascade matching the SVG specification's
+                  marker-content model.
+                tests:
+                  - SvgCodec_Load_MarkerEndOnLine_RendersArrowheadPastLineEnd
+                  - SvgCodec_Load_MarkerStartMidEndOnPolyline_RendersDistinctMarkersAtEachVertex
+                  - SvgCodec_Load_MarkerOrientAutoOnHorizontalLine_OrientsAlongPositiveX
+                  - SvgCodec_Load_MarkerOrientAutoOnVerticalLine_OrientsAlongPositiveY
+                  - SvgCodec_Load_MarkerOrientAutoOnDiagonalLine_OrientsAlong45Degrees
+                  - SvgCodec_Load_MarkerStartOrientAuto_PointsIntoLine
+                  - SvgCodec_Load_MarkerStartOrientAutoStartReverse_PointsAwayFromLine
+                  - SvgCodec_Load_MarkerUnitsUserSpaceOnUseVsStrokeWidthDefault_ScalesDifferently
+                  - SvgCodec_Load_MarkerWithViewBox_FitsContentToMarkerWidthHeight
+                  - SvgCodec_Load_MarkerOnMultiSubpathPath_AppliesStartEndOnlyAtWholePathEnds
+                  - SvgCodec_Load_MarkerOnRectCircleEllipse_NeverRendersMarker
+                  - SvgCodec_Load_MarkerContent_DoesNotInheritReferencingShapeFillOrStroke
+                  - SvgCodec_Load_ArrowMarkersFixture_RendersArrowheadPastLineEnd
+
+              - id: CanvasNet-Codecs-SvgCodec-MarkerReferenceCycle
+                title: >-
+                  The SvgCodec class shall tolerate a marker-start/marker-mid/marker-end
+                  reference to a nonexistent id as a silent no-op, and shall reject an unbounded
+                  marker-referencing-marker reference cycle (directly, or through a chain) with
+                  InvalidDataException, mirroring the use element's own recursion-guard
+                  behavior via an independent recursion-depth counter.
+                justification: |
+                  A marker's own content can itself contain shapes with further marker
+                  references, so an unbounded or cyclic marker reference chain must be rejected
+                  the same way an unbounded use reference chain already is, rather than
+                  recursing indefinitely; a dangling reference (a common authoring mistake) must
+                  not abort rendering of the rest of the document.
+                tests:
+                  - SvgCodec_Load_MarkerDanglingReference_IsSilentNoOp
+                  - SvgCodec_Load_MarkerSelfReferenceCycle_ThrowsInvalidDataException
+                  - SvgCodec_Load_MarkerTwoElementReferenceCycle_ThrowsInvalidDataException
+
               - id: CanvasNet-Codecs-SvgCodec-ElementNestingDepthLimit
                 title: >-
                   The SvgCodec class shall reject an SVG document whose element tree - including
@@ -403,7 +453,7 @@ sections:
               - id: CanvasNet-Codecs-SvgCodec-UnsupportedConstructsIgnored
                 title: >-
                   The SvgCodec class shall silently skip well-formed but out-of-scope elements
-                  (including style, filter, mask, clipPath, pattern, marker, a nested svg,
+                  (including style, filter, mask, clipPath, pattern, a nested svg,
                   animate/SMIL, image, and foreignObject), continuing to render the rest of the
                   document.
                 justification: |

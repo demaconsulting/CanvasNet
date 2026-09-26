@@ -17,6 +17,7 @@ for their provenance and licensing.
 | `use-reference.svg` | `defs` (non-rendering template storage) and `use` (reference + `x`/`y` offset) |
 | `text.svg` | `text` rendering, paired in tests with the real `FontFixtures/OpenSans-Regular.ttf` font |
 | `tolerant-unsupported.svg` | A well-formed but out-of-scope `filter`, alongside a `rect` that still renders |
+| `arrow-markers.svg` | `marker` referenced via `marker-end`, `orient="auto"`, `markerUnits="userSpaceOnUse"` |
 
 ## Real-world third-party fixtures
 

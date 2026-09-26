@@ -58,20 +58,33 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     <c>radialGradient</c> (with <c>stop</c> children, <c>gradientUnits</c>,
 ///     <c>gradientTransform</c>, <c>spreadMethod</c>, and a single linear <c>href</c>/
 ///     <c>xlink:href</c> template-inheritance chain, cycle-checked); <c>use</c> (with
-///     <c>x</c>/<c>y</c> translation); and <c>text</c> (with <c>font-family</c> best-effort
+///     <c>x</c>/<c>y</c> translation); <c>marker</c> (referenced from a <c>line</c>/
+///     <c>polyline</c>/<c>polygon</c>/<c>path</c>'s <c>marker-start</c>/<c>marker-mid</c>/
+///     <c>marker-end</c> presentation attributes via <c>url(#id)</c>; supports
+///     <c>markerWidth</c>/<c>markerHeight</c>/<c>refX</c>/<c>refY</c>/<c>markerUnits</c>
+///     (<c>strokeWidth</c> or <c>userSpaceOnUse</c>)/<c>orient</c> (<c>auto</c>,
+///     <c>auto-start-reverse</c>, or a fixed angle in degrees) and an optional <c>viewBox</c>
+///     fitted with the same "meet, centered" policy described below; marker content renders with
+///     its own fresh presentation-attribute cascade, never the referencing shape's fill/stroke -
+///     see this class's <c>RenderMarkers</c>/<c>RenderOneMarker</c> remarks for the documented
+///     vertex-placement, orientation-averaging, and multi-subpath simplifications); and
+///     <c>text</c> (with <c>font-family</c> best-effort
 ///     matching against a caller-supplied font dictionary, <c>font-size</c>, <c>fill</c>, and
 ///     <c>text-anchor</c>).
 ///     </para>
 ///     <para>
 ///     <b>Out of scope (silently ignored, per element).</b> <c>style</c> blocks and CSS
 ///     class/id selectors, <c>filter</c>, <c>mask</c>, <c>clipPath</c>, <c>pattern</c>,
-///     <c>marker</c>, SMIL animation (<c>animate</c>/<c>animateTransform</c>/<c>animateMotion</c>/
+///     SMIL animation (<c>animate</c>/<c>animateTransform</c>/<c>animateMotion</c>/
 ///     <c>animateColor</c>/<c>set</c>), <c>image</c>, <c>foreignObject</c>, nested <c>svg</c>, and
 ///     an inline <c>style="..."</c> presentation attribute are all well-formed-but-unsupported
 ///     constructs: encountering one never aborts the document, it is simply skipped, and every
 ///     other element continues to render normally. The <c>preserveAspectRatio</c> attribute is
 ///     never read - see this class's viewBox-fitting remarks below for the one fitting policy this
-///     codec always applies instead.
+///     codec always applies instead. Within the supported <c>marker</c> feature itself,
+///     <c>markerContentUnits</c> (a rarely-used SVG 2 attribute) is not read, and a marker's
+///     <c>overflow</c>/clipping-to-its-own-viewport behavior is not implemented (marker content is
+///     never clipped to <c>markerWidth</c>/<c>markerHeight</c>) - both explicitly out of scope.
 ///     </para>
 ///     <para>
 ///     <b>ViewBox fitting.</b> <see cref="Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont}?)"/>
@@ -154,6 +167,21 @@ public static class SvgCodec
     ///     otherwise recurse indefinitely.
     /// </summary>
     private const int MaxUseDepth = 32;
+
+    /// <summary>
+    ///     The maximum number of nested <c>marker</c> references this codec follows before giving
+    ///     up, guarding against a reference cycle (a <c>marker</c> whose own content references
+    ///     itself, directly or indirectly, via <c>marker-start</c>/<c>marker-mid</c>/
+    ///     <c>marker-end</c>) that would otherwise recurse indefinitely. Mirrors
+    ///     <see cref="MaxUseDepth"/>'s value and rationale: a marker cycle is structurally the
+    ///     same kind of id-resolved recursive re-entry into <see cref="RenderElement"/> as a
+    ///     <c>use</c> cycle, so it is guarded the same way, with its own independent counter
+    ///     rather than sharing <see cref="MaxUseDepth"/> or relying solely on
+    ///     <see cref="MaxElementDepth"/> (a marker reference is not a <c>use</c> reference, and
+    ///     conflating the two budgets would make an unrelated document's <c>use</c> nesting depth
+    ///     affect how many marker references a separate part of the same document may chain).
+    /// </summary>
+    private const int MaxMarkerDepth = 32;
 
     /// <summary>
     ///     The maximum <see cref="RenderElement"/> recursion depth this codec descends through
@@ -876,6 +904,19 @@ public static class SvgCodec
     /// <param name="FontFamily">The <c>font-family</c> value, or <see langword="null"/> if never set.</param>
     /// <param name="FontSize">The <c>font-size</c> value, in local user-space units.</param>
     /// <param name="TextAnchor">The <c>text-anchor</c> value.</param>
+    /// <param name="MarkerStart">
+    ///     The raw <c>marker-start</c> paint-like specification (<c>none</c> or <c>url(#id)</c>),
+    ///     naming the <c>marker</c> element rendered at a <c>line</c>/<c>polyline</c>/
+    ///     <c>polygon</c>/<c>path</c>'s first vertex - see this class's marker-rendering remarks.
+    /// </param>
+    /// <param name="MarkerMid">
+    ///     The raw <c>marker-mid</c> specification, in the same form as <paramref name="MarkerStart"/>,
+    ///     applied to every vertex strictly between the first and last.
+    /// </param>
+    /// <param name="MarkerEnd">
+    ///     The raw <c>marker-end</c> specification, in the same form as <paramref name="MarkerStart"/>,
+    ///     applied to the last vertex.
+    /// </param>
     private sealed record RenderState(
         string Fill,
         string Stroke,
@@ -891,7 +932,10 @@ public static class SvgCodec
         float StrokeDashOffset,
         string? FontFamily,
         float FontSize,
-        TextAnchor TextAnchor)
+        TextAnchor TextAnchor,
+        string MarkerStart,
+        string MarkerMid,
+        string MarkerEnd)
     {
         /// <summary>
         ///     The default render state every document starts with, matching the SVG/CSS initial
@@ -912,7 +956,10 @@ public static class SvgCodec
             StrokeDashOffset: 0f,
             FontFamily: null,
             FontSize: 16f,
-            TextAnchor: TextAnchor.Start);
+            TextAnchor: TextAnchor.Start,
+            MarkerStart: "none",
+            MarkerMid: "none",
+            MarkerEnd: "none");
     }
 
     /// <summary>
@@ -983,7 +1030,7 @@ public static class SvgCodec
         var workBudget = new GeometryWorkBudget();
         foreach (var child in root.Elements())
         {
-            RenderElement(child, rootState, fitTransform, context, useDepth: 0, elementDepth: 0, ref totalElements, workBudget);
+            RenderElement(child, rootState, fitTransform, context, useDepth: 0, elementDepth: 0, markerDepth: 0, ref totalElements, workBudget);
         }
     }
 
@@ -1005,6 +1052,11 @@ public static class SvgCodec
     ///     this method can enforce <see cref="MaxElementDepth"/> before descending further,
     ///     regardless of whether the recursion arises from plain <c>g</c>/<c>symbol</c> nesting or
     ///     from a <c>use</c> reference.
+    /// </param>
+    /// <param name="markerDepth">
+    ///     The current <c>marker</c>-reference nesting depth, propagated so <see cref="RenderOneMarker"/>
+    ///     can enforce <see cref="MaxMarkerDepth"/>. Not incremented by plain <c>g</c>/<c>symbol</c>
+    ///     nesting or by a <c>use</c> reference - only by rendering one marker's own content.
     /// </param>
     /// <param name="totalElements">
     ///     The running count of elements rendered/visited so far across the whole document walk,
@@ -1058,6 +1110,7 @@ public static class SvgCodec
         RenderContext context,
         int useDepth,
         int elementDepth,
+        int markerDepth,
         ref int totalElements,
         GeometryWorkBudget workBudget)
     {
@@ -1109,7 +1162,7 @@ public static class SvgCodec
                 // renders when referenced via <use>)
                 foreach (var child in element.Elements())
                 {
-                    RenderElement(child, state, transform, context, useDepth, elementDepth + 1, ref totalElements, workBudget);
+                    RenderElement(child, state, transform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget);
                 }
 
                 break;
@@ -1127,23 +1180,39 @@ public static class SvgCodec
                 break;
 
             case "line":
-                RenderShape(BuildLinePath(element), state, transform, context);
-                break;
+                {
+                    var linePath = BuildLinePath(element);
+                    RenderShape(linePath, state, transform, context);
+                    RenderMarkers(linePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
+                    break;
+                }
 
             case "polyline":
-                RenderShape(BuildPolyPath(element, closed: false, workBudget), state, transform, context);
-                break;
+                {
+                    var polylinePath = BuildPolyPath(element, closed: false, workBudget);
+                    RenderShape(polylinePath, state, transform, context);
+                    RenderMarkers(polylinePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
+                    break;
+                }
 
             case "polygon":
-                RenderShape(BuildPolyPath(element, closed: true, workBudget), state, transform, context);
-                break;
+                {
+                    var polygonPath = BuildPolyPath(element, closed: true, workBudget);
+                    RenderShape(polygonPath, state, transform, context);
+                    RenderMarkers(polygonPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
+                    break;
+                }
 
             case "path":
-                RenderShape(BuildPathDataPath(element, workBudget), state, transform, context);
-                break;
+                {
+                    var dataPath = BuildPathDataPath(element, workBudget);
+                    RenderShape(dataPath, state, transform, context);
+                    RenderMarkers(dataPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
+                    break;
+                }
 
             case "use":
-                RenderUse(element, state, transform, context, useDepth, elementDepth, ref totalElements, workBudget);
+                RenderUse(element, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
                 break;
 
             case "text":
@@ -1191,7 +1260,10 @@ public static class SvgCodec
             StrokeDashOffset = GetOptionalFloat(element, "stroke-dashoffset") ?? parent.StrokeDashOffset,
             FontFamily = (string?)element.Attribute("font-family") ?? parent.FontFamily,
             FontSize = GetOptionalFloat(element, "font-size") ?? parent.FontSize,
-            TextAnchor = ParseTextAnchor((string?)element.Attribute("text-anchor")) ?? parent.TextAnchor
+            TextAnchor = ParseTextAnchor((string?)element.Attribute("text-anchor")) ?? parent.TextAnchor,
+            MarkerStart = (string?)element.Attribute("marker-start") ?? parent.MarkerStart,
+            MarkerMid = (string?)element.Attribute("marker-mid") ?? parent.MarkerMid,
+            MarkerEnd = (string?)element.Attribute("marker-end") ?? parent.MarkerEnd
         };
     }
 
@@ -2681,7 +2753,7 @@ public static class SvgCodec
     private static void RenderStroke(Path localPath, Path pixelPath, RenderState state, Matrix3x2 transform, RenderContext context)
     {
         var scale = EstimateUniformScale(transform);
-        var strokeWidth = state.StrokeWidth * scale;
+        var strokeWidth = EstimateEffectiveStrokeWidth(state.StrokeWidth, scale);
         if (!float.IsFinite(strokeWidth) || strokeWidth <= 0f || strokeWidth > MaxCoordinateMagnitude)
         {
             return;
@@ -2779,6 +2851,27 @@ public static class SvgCodec
     /// </remarks>
     private static float EstimateUniformScale(Matrix3x2 transform) =>
         MathF.Sqrt(MathF.Abs((transform.M11 * transform.M22) - (transform.M12 * transform.M21)));
+
+    /// <summary>
+    ///     Scales a local-space <c>stroke-width</c> into its effective pixel-space width, shared by
+    ///     <see cref="RenderStroke"/> (to size the actual stroke outline) and
+    ///     <see cref="RenderMarkers"/> (to size a <c>markerUnits="strokeWidth"</c> marker, the SVG
+    ///     default) - extracted so both call sites compute this one expression identically rather
+    ///     than duplicating it, per this codebase's no-copy-paste coding standard.
+    /// </summary>
+    /// <param name="strokeWidth">The local-space <c>stroke-width</c> value.</param>
+    /// <param name="uniformScale">
+    ///     The isotropic scale factor estimated by <see cref="EstimateUniformScale"/> for the
+    ///     accumulated transform in effect.
+    /// </param>
+    /// <returns>
+    ///     The effective pixel-space stroke width. Can be non-finite, non-positive, or extremely
+    ///     large if <paramref name="uniformScale"/> is itself extreme - each caller is responsible
+    ///     for its own tolerant-skip validation of the result, matching <see cref="RenderStroke"/>'s
+    ///     existing guard.
+    /// </returns>
+    private static float EstimateEffectiveStrokeWidth(float strokeWidth, float uniformScale) =>
+        strokeWidth * uniformScale;
 
     /// <summary>Scales every entry of a dash array by <paramref name="scale"/>.</summary>
     /// <param name="dashArray">The local-space dash array, or <see langword="null"/> for a solid stroke.</param>
@@ -3521,6 +3614,12 @@ public static class SvgCodec
     ///     propagated to the re-rendered target so it also contributes toward
     ///     <see cref="MaxElementDepth"/>.
     /// </param>
+    /// <param name="markerDepth">
+    ///     The current <c>marker</c>-reference nesting depth, propagated unchanged to the
+    ///     re-rendered target - a <c>use</c> reference is not itself a marker reference, but a
+    ///     <c>marker</c> reference reached inside the re-rendered target must still contribute
+    ///     toward <see cref="MaxMarkerDepth"/>.
+    /// </param>
     /// <param name="totalElements">
     ///     The running total-rendered-elements count, propagated to the re-rendered target so it
     ///     also contributes toward <see cref="MaxTotalRenderedElements"/>.
@@ -3535,7 +3634,7 @@ public static class SvgCodec
     ///     no-op (nothing is rendered), consistent with this class's general dangling-reference
     ///     handling elsewhere.
     /// </remarks>
-    private static void RenderUse(XElement element, RenderState state, Matrix3x2 transform, RenderContext context, int useDepth, int elementDepth, ref int totalElements, GeometryWorkBudget workBudget)
+    private static void RenderUse(XElement element, RenderState state, Matrix3x2 transform, RenderContext context, int useDepth, int elementDepth, int markerDepth, ref int totalElements, GeometryWorkBudget workBudget)
     {
         if (useDepth >= MaxUseDepth)
         {
@@ -3550,7 +3649,502 @@ public static class SvgCodec
 
         var offset = new Vector2(GetFloatAttribute(element, "x"), GetFloatAttribute(element, "y"));
         var useTransform = Matrix3x2.CreateTranslation(offset) * transform;
-        RenderElement(target, state, useTransform, context, useDepth + 1, elementDepth + 1, ref totalElements, workBudget);
+        RenderElement(target, state, useTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget);
+    }
+
+    // ================================================================================================
+    // "marker" element handling
+    // ================================================================================================
+
+    /// <summary>
+    ///     One vertex of a <c>line</c>/<c>polyline</c>/<c>polygon</c>/<c>path</c>'s local-space
+    ///     outline eligible to receive a <c>marker-start</c>/<c>marker-mid</c>/<c>marker-end</c>
+    ///     marker, together with the unit tangent direction(s) of the segment(s) meeting at it -
+    ///     used to compute an <c>orient="auto"</c> marker's rotation angle (see
+    ///     <see cref="ComputeVertexAngleDegrees"/>).
+    /// </summary>
+    /// <remarks>
+    ///     Either tangent is <see langword="null"/> at an open subpath's first (no incoming
+    ///     segment) or last (no outgoing segment) vertex, or when the adjacent segment itself
+    ///     degenerates to a zero-length direction (for example a repeated coordinate) - see
+    ///     <see cref="ComputeCommandTangents"/>.
+    /// </remarks>
+    private readonly struct MarkerVertex(Vector2 position, Vector2? incomingTangent, Vector2? outgoingTangent)
+    {
+        /// <summary>The vertex's position, in the shape's own local (untransformed) space.</summary>
+        public Vector2 Position { get; } = position;
+
+        /// <summary>The unit direction of the segment arriving at this vertex, or <see langword="null"/> if none.</summary>
+        public Vector2? IncomingTangent { get; } = incomingTangent;
+
+        /// <summary>The unit direction of the segment leaving this vertex, or <see langword="null"/> if none.</summary>
+        public Vector2? OutgoingTangent { get; } = outgoingTangent;
+
+        /// <summary>Returns a copy of this vertex with <see cref="OutgoingTangent"/> replaced.</summary>
+        /// <param name="outgoingTangent">The new outgoing tangent.</param>
+        public MarkerVertex WithOutgoingTangent(Vector2? outgoingTangent) => new(Position, IncomingTangent, outgoingTangent);
+    }
+
+    /// <summary>
+    ///     Classifies a marker-eligible vertex's position within its shape's whole, flattened
+    ///     (whole-document-order, not per-subpath) vertex sequence, selecting which of
+    ///     <c>marker-start</c>/<c>marker-mid</c>/<c>marker-end</c> applies to it.
+    /// </summary>
+    private enum MarkerVertexRole
+    {
+        /// <summary>The very first vertex of the whole shape - uses <c>marker-start</c>.</summary>
+        Start,
+
+        /// <summary>Every vertex strictly between the first and last - uses <c>marker-mid</c>.</summary>
+        Mid,
+
+        /// <summary>The very last vertex of the whole shape - uses <c>marker-end</c>.</summary>
+        End
+    }
+
+    /// <summary>
+    ///     Builds the ordered, whole-shape list of marker-eligible vertices (and their tangents)
+    ///     from a <c>line</c>/<c>polyline</c>/<c>polygon</c>/<c>path</c>'s already-built
+    ///     local-space outline, for <see cref="RenderMarkers"/> to place markers along.
+    /// </summary>
+    /// <param name="localPath">
+    ///     The shape's local-space outline, exactly as returned by <see cref="BuildLinePath"/>/
+    ///     <see cref="BuildPolyPath"/>/<see cref="BuildPathDataPath"/> - reused directly, never
+    ///     re-parsed from the shape's own raw attribute text.
+    /// </param>
+    /// <returns>
+    ///     The vertices in whole-path document order: every subpath's start point, followed by
+    ///     every one of its non-<c>Close</c> commands' end points, subpaths concatenated in the
+    ///     order they appear in <paramref name="localPath"/>. A multi-subpath <c>path</c>'s
+    ///     <c>marker-start</c>/<c>marker-end</c> therefore apply only to the very first/last
+    ///     vertex of the whole path, not per-subpath - a deliberate, documented simplification
+    ///     (matches at least one common browser's behavior; the SVG specification's own wording
+    ///     on this point is not unambiguous across implementations) rather than a stricter
+    ///     per-subpath interpretation. A <c>Close</c> command contributes no new vertex (it always
+    ///     returns to the subpath's own <see cref="Subpath.Start"/>, already recorded) and, as a
+    ///     further documented simplification, no orientation tangent of its own either.
+    /// </returns>
+    private static List<MarkerVertex> BuildMarkerVertices(Path localPath)
+    {
+        var vertices = new List<MarkerVertex>();
+        foreach (var subpath in localPath.Subpaths)
+        {
+            vertices.Add(new MarkerVertex(subpath.Start, incomingTangent: null, outgoingTangent: null));
+            var current = subpath.Start;
+
+            foreach (var command in subpath.Commands)
+            {
+                if (command.Type == PathCommandType.Close)
+                {
+                    // Returns to Start (already recorded above) without introducing a new vertex
+                    // or a tangent of its own - see this method's documented simplification
+                    current = subpath.Start;
+                    continue;
+                }
+
+                var (outgoing, incoming) = ComputeCommandTangents(command, current);
+
+                // Fold this command's outgoing tangent into the vertex it starts from (the
+                // previously-added vertex, whether that was the subpath's own Start or a prior
+                // command's end point)
+                var previousIndex = vertices.Count - 1;
+                vertices[previousIndex] = vertices[previousIndex].WithOutgoingTangent(outgoing);
+
+                vertices.Add(new MarkerVertex(command.EndPoint, incoming, outgoingTangent: null));
+                current = command.EndPoint;
+            }
+        }
+
+        return vertices;
+    }
+
+    /// <summary>
+    ///     Computes one path command's outgoing (leaving its start point) and incoming (arriving
+    ///     at its end point) unit tangent directions, per this class's documented per-command-type
+    ///     rules.
+    /// </summary>
+    /// <param name="command">The command to inspect - a <see cref="PathCommandType.LineTo"/>, <see cref="PathCommandType.QuadraticBezierTo"/>, or <see cref="PathCommandType.CubicBezierTo"/>.</param>
+    /// <param name="start">The command's start point (the previous vertex's position).</param>
+    /// <returns>
+    ///     The outgoing/incoming unit tangents, or <see langword="null"/> for either when the
+    ///     relevant control points/endpoints are coincident (a zero-length direction has no
+    ///     meaningful tangent).
+    /// </returns>
+    /// <remarks>
+    ///     <see cref="PathCommandType.ArcTo"/> is deliberately not one of this method's cases:
+    ///     every one of this class's own shape builders (<see cref="BuildRectPath"/>,
+    ///     <see cref="BuildEllipsePath"/>, and <see cref="PathDataParser"/>'s own arc handling)
+    ///     converts an SVG arc to cubic Bezier segments immediately, via <see cref="AppendArcTo"/>/
+    ///     <see cref="PathDataParser.AppendArc"/>, before ever building a <see cref="Path"/> -
+    ///     confirmed directly from this codec's own source, not merely assumed - so an
+    ///     <see cref="PathCommandType.ArcTo"/> command never actually appears in a local-space
+    ///     <see cref="Path"/> this method is called against. The <c>default</c> case below still
+    ///     handles it (and <see cref="PathCommandType.Close"/>, though that is filtered out by
+    ///     <see cref="BuildMarkerVertices"/> before reaching here) defensively, returning "no
+    ///     tangent" rather than throwing, so a future change elsewhere in this class that ever did
+    ///     produce one would degrade to an un-oriented marker rather than an uncaught exception.
+    /// </remarks>
+    private static (Vector2? Outgoing, Vector2? Incoming) ComputeCommandTangents(PathCommand command, Vector2 start)
+    {
+        switch (command.Type)
+        {
+            case PathCommandType.LineTo:
+                var lineDirection = NormalizeOrNull(command.EndPoint - start);
+                return (lineDirection, lineDirection);
+
+            case PathCommandType.QuadraticBezierTo:
+                var outgoingQuad = NormalizeOrNull(command.Control1 - start)
+                    ?? NormalizeOrNull(command.EndPoint - start);
+                var incomingQuad = NormalizeOrNull(command.EndPoint - command.Control1)
+                    ?? NormalizeOrNull(command.EndPoint - start);
+                return (outgoingQuad, incomingQuad);
+
+            case PathCommandType.CubicBezierTo:
+                var outgoingCubic = NormalizeOrNull(command.Control1 - start)
+                    ?? NormalizeOrNull(command.Control2 - start)
+                    ?? NormalizeOrNull(command.EndPoint - start);
+                var incomingCubic = NormalizeOrNull(command.EndPoint - command.Control2)
+                    ?? NormalizeOrNull(command.EndPoint - command.Control1)
+                    ?? NormalizeOrNull(command.EndPoint - start);
+                return (outgoingCubic, incomingCubic);
+
+            default:
+                return (null, null);
+        }
+    }
+
+    /// <summary>Normalizes <paramref name="vector"/>, tolerating a zero-length or non-finite result.</summary>
+    /// <param name="vector">The vector to normalize.</param>
+    /// <returns>
+    ///     The unit-length direction, or <see langword="null"/> if <paramref name="vector"/>'s
+    ///     length is zero, subnormal-to-zero, or non-finite (a degenerate direction has no
+    ///     meaningful orientation to contribute).
+    /// </returns>
+    private static Vector2? NormalizeOrNull(Vector2 vector)
+    {
+        var lengthSquared = vector.LengthSquared();
+        return float.IsFinite(lengthSquared) && lengthSquared > float.Epsilon
+            ? Vector2.Normalize(vector)
+            : null;
+    }
+
+    /// <summary>
+    ///     Computes an <c>orient="auto"</c> marker's rotation angle at <paramref name="vertex"/>,
+    ///     per the SVG averaging rule: the average of the incoming and outgoing tangents when both
+    ///     are present, falling back to whichever single tangent is present, or <c>0</c> degrees
+    ///     for a fully degenerate (zero-length) vertex.
+    /// </summary>
+    /// <param name="vertex">The vertex to orient a marker at.</param>
+    /// <returns>The computed angle, in degrees, suitable for <see cref="Matrix3x2.CreateRotation(float)"/> via <see cref="DegreesToRadians"/>.</returns>
+    private static float ComputeVertexAngleDegrees(MarkerVertex vertex)
+    {
+        Vector2? direction;
+        if (vertex.IncomingTangent.HasValue && vertex.OutgoingTangent.HasValue)
+        {
+            // Average the two tangents; if they nearly cancel (a near-180-degree reversal), fall
+            // back to just the outgoing tangent (or the incoming one, if outgoing is somehow also
+            // absent) rather than an undefined zero-length average
+            var sum = vertex.IncomingTangent.Value + vertex.OutgoingTangent.Value;
+            direction = NormalizeOrNull(sum) ?? vertex.OutgoingTangent ?? vertex.IncomingTangent;
+        }
+        else
+        {
+            direction = vertex.OutgoingTangent ?? vertex.IncomingTangent;
+        }
+
+        return direction.HasValue
+            ? MathF.Atan2(direction.Value.Y, direction.Value.X) * (180f / MathF.PI)
+            : 0f;
+    }
+
+    /// <summary>
+    ///     Renders every marker attached to a marker-eligible shape (<c>line</c>/<c>polyline</c>/
+    ///     <c>polygon</c>/<c>path</c>), one per vertex whose corresponding
+    ///     <c>marker-start</c>/<c>marker-mid</c>/<c>marker-end</c> spec is not <c>none</c> and
+    ///     resolves to an actual <c>marker</c> element.
+    /// </summary>
+    /// <param name="localPath">The shape's local-space outline (see <see cref="BuildMarkerVertices"/>).</param>
+    /// <param name="state">The shape's own cascaded render state, supplying the three marker specs and effective stroke width.</param>
+    /// <param name="transform">The shape's own accumulated transform - every marker instance is transformed through this same transform.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="useDepth">The current <c>use</c>-reference nesting depth, propagated unchanged to each marker's content.</param>
+    /// <param name="elementDepth">The current element-tree recursion depth, propagated to each marker's content.</param>
+    /// <param name="markerDepth">The current <c>marker</c>-reference nesting depth, propagated to each marker's content.</param>
+    /// <param name="totalElements">The running total-rendered-elements count.</param>
+    /// <param name="workBudget">The shared geometry-parsing work budget.</param>
+    /// <remarks>
+    ///     Never called for <c>rect</c>/<c>circle</c>/<c>ellipse</c> - those shapes have no
+    ///     natural vertices to orient a marker along, per the SVG specification, and this class's
+    ///     <see cref="RenderElement"/> dispatch simply never routes them through this method.
+    ///     Cheaply no-ops (before building any vertex list) when every one of
+    ///     <paramref name="state"/>'s three marker specs is <c>"none"</c> - the overwhelming
+    ///     majority of real-world shapes - so ordinary marker-free rendering pays only one string
+    ///     comparison per marker-eligible element.
+    /// </remarks>
+    private static void RenderMarkers(
+        Path localPath,
+        RenderState state,
+        Matrix3x2 transform,
+        RenderContext context,
+        int useDepth,
+        int elementDepth,
+        int markerDepth,
+        ref int totalElements,
+        GeometryWorkBudget workBudget)
+    {
+        if (state.MarkerStart == "none" && state.MarkerMid == "none" && state.MarkerEnd == "none")
+        {
+            return;
+        }
+
+        var vertices = BuildMarkerVertices(localPath);
+        if (vertices.Count < 2)
+        {
+            // A single-vertex (or empty) shape has no segment to orient a marker along - no
+            // start, mid, or end marker applies, per the SVG specification
+            return;
+        }
+
+        var effectiveStrokeWidth = EstimateEffectiveStrokeWidth(state.StrokeWidth, EstimateUniformScale(transform));
+
+        for (var i = 0; i < vertices.Count; i++)
+        {
+            MarkerVertexRole role;
+            if (i == 0)
+            {
+                role = MarkerVertexRole.Start;
+            }
+            else if (i == vertices.Count - 1)
+            {
+                role = MarkerVertexRole.End;
+            }
+            else
+            {
+                role = MarkerVertexRole.Mid;
+            }
+
+            var spec = role switch
+            {
+                MarkerVertexRole.Start => state.MarkerStart,
+                MarkerVertexRole.End => state.MarkerEnd,
+                _ => state.MarkerMid
+            };
+
+            if (string.Equals(spec.Trim(), "none", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var markerElement = ResolveMarkerElement(spec, context);
+            if (markerElement == null)
+            {
+                continue;
+            }
+
+            var vertex = vertices[i];
+            var angleDegrees = ComputeVertexAngleDegrees(vertex);
+            RenderOneMarker(
+                markerElement,
+                vertex.Position,
+                angleDegrees,
+                isStartVertex: role == MarkerVertexRole.Start,
+                effectiveStrokeWidth,
+                transform,
+                context,
+                useDepth,
+                elementDepth,
+                markerDepth,
+                ref totalElements,
+                workBudget);
+        }
+    }
+
+    /// <summary>
+    ///     Resolves a raw <c>marker-start</c>/<c>marker-mid</c>/<c>marker-end</c> specification
+    ///     (<c>url(#id)</c>) to its referenced <c>marker</c> element, reusing the exact same
+    ///     <c>url(#id)</c>-parsing and dangling-reference tolerance as <see cref="ResolvePaint"/>.
+    /// </summary>
+    /// <param name="spec">The raw, already-known-non-<c>"none"</c> marker specification.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <returns>
+    ///     The referenced <c>marker</c> element, or <see langword="null"/> if <paramref name="spec"/>
+    ///     is not <c>url(#id)</c> syntax, the id is dangling (no matching element), or the
+    ///     resolved element is not literally a <c>marker</c> (a <c>url(#id)</c> mistakenly
+    ///     pointing at an unrelated element, such as a <c>rect</c>, is tolerated the same way).
+    /// </returns>
+    private static XElement? ResolveMarkerElement(string spec, RenderContext context)
+    {
+        var trimmed = spec.Trim();
+        if (!trimmed.StartsWith("url(", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var id = ExtractUrlId(trimmed);
+        if (id == null || !context.IdIndex.TryGetValue(id, out var element))
+        {
+            return null;
+        }
+
+        return element.Name.LocalName == "marker" ? element : null;
+    }
+
+    /// <summary>
+    ///     Renders one resolved <c>marker</c> element's content at one shape vertex: computes the
+    ///     marker's own <c>refX</c>/<c>refY</c>/<c>markerWidth</c>/<c>markerHeight</c>/
+    ///     <c>markerUnits</c>/<c>orient</c>/<c>viewBox</c> transform, composes it with
+    ///     <paramref name="shapeTransform"/>, then re-enters <see cref="RenderElement"/> for each
+    ///     of the marker's own children with a fresh cascade seeded from the marker element itself
+    ///     (never inheriting <paramref name="shapeTransform"/>'s own fill/stroke state).
+    /// </summary>
+    /// <param name="markerElement">The resolved <c>marker</c> element.</param>
+    /// <param name="vertexPosition">The vertex's position, in the referencing shape's own local space.</param>
+    /// <param name="vertexAngleDegrees">
+    ///     The vertex's own computed tangent angle (see <see cref="ComputeVertexAngleDegrees"/>),
+    ///     used when <c>orient</c> is <c>auto</c>/<c>auto-start-reverse</c>/absent.
+    /// </param>
+    /// <param name="isStartVertex">
+    ///     Whether this vertex is the referencing shape's very first vertex - needed only to
+    ///     resolve <c>orient="auto-start-reverse"</c>, which reverses by 180 degrees at the start
+    ///     vertex only.
+    /// </param>
+    /// <param name="effectiveStrokeWidth">
+    ///     The referencing shape's own effective (pixel-space) stroke width, used to scale this
+    ///     marker instance when <c>markerUnits</c> is <c>strokeWidth</c> (the SVG default).
+    /// </param>
+    /// <param name="shapeTransform">The referencing shape's own accumulated transform.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="useDepth">The current <c>use</c>-reference nesting depth, propagated unchanged to the marker's content.</param>
+    /// <param name="elementDepth">The current element-tree recursion depth, propagated (incremented by one) to the marker's content.</param>
+    /// <param name="markerDepth">
+    ///     The current <c>marker</c>-reference nesting depth, checked against
+    ///     <see cref="MaxMarkerDepth"/> before any other work, then propagated (incremented by
+    ///     one) to the marker's own content.
+    /// </param>
+    /// <param name="totalElements">The running total-rendered-elements count.</param>
+    /// <param name="workBudget">The shared geometry-parsing work budget.</param>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="markerDepth"/> has already reached
+    ///     <see cref="MaxMarkerDepth"/>, guarding against a marker-referencing-marker reference
+    ///     cycle (directly, or via a chain) that would otherwise recurse indefinitely - mirrors
+    ///     <see cref="RenderUse"/>'s identical <see cref="MaxUseDepth"/> guard, checked before any
+    ///     other work for the same reason.
+    /// </exception>
+    /// <remarks>
+    ///     A degenerate <c>markerWidth</c>/<c>markerHeight</c> (non-finite or non-positive), a
+    ///     degenerate <c>markerUnits="strokeWidth"</c> scale (non-finite, non-positive, or beyond
+    ///     <see cref="MaxCoordinateMagnitude"/> - which also tolerantly covers a zero/negative
+    ///     <c>stroke-width</c>, since <c>stroke="none"</c> shapes still have a defined, positive
+    ///     <c>stroke-width</c> value even when nothing is actually stroked), or a non-finite
+    ///     composed transform are all tolerant per-marker-instance skips (this one vertex renders
+    ///     no marker), mirroring <see cref="RenderStroke"/>'s/<see cref="RenderElement"/>'s own
+    ///     established tolerant-skip conventions - none of them abort the whole document.
+    /// </remarks>
+    private static void RenderOneMarker(
+        XElement markerElement,
+        Vector2 vertexPosition,
+        float vertexAngleDegrees,
+        bool isStartVertex,
+        float effectiveStrokeWidth,
+        Matrix3x2 shapeTransform,
+        RenderContext context,
+        int useDepth,
+        int elementDepth,
+        int markerDepth,
+        ref int totalElements,
+        GeometryWorkBudget workBudget)
+    {
+        if (markerDepth >= MaxMarkerDepth)
+        {
+            throw new InvalidDataException("Exceeded the maximum <marker> reference nesting depth.");
+        }
+
+        var markerWidth = GetFloatAttribute(markerElement, "markerWidth", 3f);
+        var markerHeight = GetFloatAttribute(markerElement, "markerHeight", 3f);
+        if (!float.IsFinite(markerWidth) || !float.IsFinite(markerHeight) || markerWidth <= 0f || markerHeight <= 0f)
+        {
+            return;
+        }
+
+        var refX = GetFloatAttribute(markerElement, "refX");
+        var refY = GetFloatAttribute(markerElement, "refY");
+
+        var isUserSpaceOnUse = string.Equals(
+            (string?)markerElement.Attribute("markerUnits"), "userSpaceOnUse", StringComparison.OrdinalIgnoreCase);
+        var unitsScale = isUserSpaceOnUse ? 1f : effectiveStrokeWidth;
+        if (!float.IsFinite(unitsScale) || unitsScale <= 0f || unitsScale > MaxCoordinateMagnitude)
+        {
+            return;
+        }
+
+        var angleDegrees = ParseMarkerOrient((string?)markerElement.Attribute("orient"), vertexAngleDegrees, isStartVertex);
+
+        var viewBox = ParseViewBox((string?)markerElement.Attribute("viewBox"));
+        var contentScale = viewBox.HasValue
+            ? MathF.Min(markerWidth / viewBox.Value.Size.X, markerHeight / viewBox.Value.Size.Y)
+            : 1f;
+
+        // Composition order (see this method's remarks): recenter the marker's own content on its
+        // refX/refY anchor, scale by the viewBox-fit factor (if any) and then by the
+        // markerUnits-derived units scale, rotate by the resolved orientation angle, translate to
+        // the shape-local vertex position, then finally compose with the shape's own accumulated
+        // transform - row-vector convention, matching every other transform composition in this
+        // class (Vector2.Transform(p, A * B) applies A first, then B)
+        var contentTransform =
+            Matrix3x2.CreateTranslation(-refX, -refY)
+            * Matrix3x2.CreateScale(contentScale)
+            * Matrix3x2.CreateScale(unitsScale)
+            * Matrix3x2.CreateRotation(DegreesToRadians(angleDegrees))
+            * Matrix3x2.CreateTranslation(vertexPosition)
+            * shapeTransform;
+
+        if (!IsFiniteTransform(contentTransform))
+        {
+            return;
+        }
+
+        // A marker's content cascade starts fresh from RenderState.Initial (seeded by the marker
+        // element's own presentation attributes, if any) - never inherited from the referencing
+        // shape's own state, per the SVG specification's marker-content-is-independent model and
+        // this class's explicit task contract
+        var markerState = ApplyPresentationAttributes(RenderState.Initial, markerElement);
+        foreach (var child in markerElement.Elements())
+        {
+            RenderElement(child, markerState, contentTransform, context, useDepth, elementDepth + 1, markerDepth + 1, ref totalElements, workBudget);
+        }
+    }
+
+    /// <summary>
+    ///     Resolves a <c>marker</c> element's <c>orient</c> attribute to a concrete rotation angle.
+    /// </summary>
+    /// <param name="raw">The raw <c>orient</c> attribute value, or <see langword="null"/> if absent.</param>
+    /// <param name="autoAngleDegrees">The vertex's own computed tangent angle (see <see cref="ComputeVertexAngleDegrees"/>).</param>
+    /// <param name="isStartVertex">Whether this vertex is the referencing shape's very first vertex.</param>
+    /// <returns>
+    ///     <paramref name="autoAngleDegrees"/> when <paramref name="raw"/> is absent or
+    ///     <c>"auto"</c> (the common case); <paramref name="autoAngleDegrees"/> plus 180 degrees
+    ///     when <paramref name="raw"/> is <c>"auto-start-reverse"</c> and <paramref name="isStartVertex"/>
+    ///     is <see langword="true"/> (unchanged at any other vertex); otherwise an attempted fixed
+    ///     degrees value, tolerantly falling back to <c>0</c> if <paramref name="raw"/> is not a
+    ///     valid/finite number - a cosmetic-only concern parallel to this class's existing tolerant
+    ///     handling of an invalid <c>stroke-miterlimit"</c>/<c>stroke-dasharray</c>, not a
+    ///     document-abort concern.
+    /// </returns>
+    private static float ParseMarkerOrient(string? raw, float autoAngleDegrees, bool isStartVertex)
+    {
+        if (string.IsNullOrWhiteSpace(raw) || string.Equals(raw.Trim(), "auto", StringComparison.OrdinalIgnoreCase))
+        {
+            return autoAngleDegrees;
+        }
+
+        if (string.Equals(raw.Trim(), "auto-start-reverse", StringComparison.OrdinalIgnoreCase))
+        {
+            return isStartVertex ? autoAngleDegrees + 180f : autoAngleDegrees;
+        }
+
+        return float.TryParse(raw.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var fixedAngle) && float.IsFinite(fixedAngle)
+            ? fixedAngle
+            : 0f;
     }
 
     // ================================================================================================

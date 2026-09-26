@@ -889,12 +889,14 @@ The `SvgCodec` static class decodes and rasterizes a common real-world subset of
 into a `Surface` of caller-chosen pixel dimensions. `SvgCodec` is decode-only: there is no `Save`.
 It supports basic shapes (`rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `path`),
 grouping (`g`) with cascading presentation attributes, `transform` functions, linear/radial
-gradients (including `xlink:href`/`href` template inheritance), `use` references, and best-effort
-`text` rendering against a caller-supplied dictionary of `TrueTypeFont` instances. The root
-`viewBox`/`width`/`height` are fit into the requested raster using a "meet, centered" policy
+gradients (including `xlink:href`/`href` template inheritance), `use` references, `marker`
+elements (referenced via `marker-start`/`marker-mid`/`marker-end`, with `markerWidth`/
+`markerHeight`, `refX`/`refY`, `markerUnits`, `orient`, and an optional `viewBox`), and
+best-effort `text` rendering against a caller-supplied dictionary of `TrueTypeFont` instances. The
+root `viewBox`/`width`/`height` are fit into the requested raster using a "meet, centered" policy
 equivalent to CSS `object-fit: contain` (`preserveAspectRatio` itself is not read). Well-formed but
 out-of-scope constructs (`style`, `filter`, `mask`, `clipPath`, `animate`/SMIL, `image`,
-`foreignObject`, `pattern`, `marker`, nested `svg`, CSS selectors) are silently skipped so the rest
+`foreignObject`, `pattern`, nested `svg`, CSS selectors) are silently skipped so the rest
 of the document still renders; malformed/unparseable input throws `InvalidDataException`.
 
 #### SvgCodec Methods

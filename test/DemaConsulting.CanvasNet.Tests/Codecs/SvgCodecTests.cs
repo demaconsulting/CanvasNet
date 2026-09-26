@@ -1,7 +1,7 @@
 // cspell:ignore Sfnt sfnt glyf cmap notdef codepoint
 // cspell:ignore Dasharray hhea Hhea hmtx Hmtx hrefs letterboxed Loca Maxp unstroked
 // cspell:ignore miterlimit
-// cspell:ignore unparseable overpainted bbox moveto lineto rects
+// cspell:ignore unparseable overpainted bbox moveto lineto rects unrotated
 using System.Reflection;
 using System.Text;
 using System.Xml.Linq;
@@ -1637,6 +1637,513 @@ public class SvgCodecTests
     }
 
     // ================================================================================================
+    // <marker> element
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that a <c>marker-end</c> reference renders its <c>marker</c> element's content
+    ///     at the shape's final vertex, oriented along the segment's own direction
+    ///     (<c>orient="auto"</c>, the default) and sized in user-space units
+    ///     (<c>markerUnits="userSpaceOnUse"</c>).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerEndOnLine_RendersArrowheadPastLineEnd()
+    {
+        // Arrange: a horizontal line from (0,5) to (8,5); its marker-end places a 4x4
+        // "userSpaceOnUse" red square anchored at (2,2) (refX/refY), so at the (8,5) end vertex
+        // (tangent (1,0), angle 0) the square occupies (6,3)-(10,7)
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <marker id='m' markerWidth='4' markerHeight='4' refX='2' refY='2' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='4' height='4' fill='red'/>
+                </marker>
+              </defs>
+              <line x1='0' y1='5' x2='8' y2='5' stroke='black' stroke-width='1' marker-end='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the marker's red square is visible past the line's own x2=8 end point, outside
+        // the line's own stroke band (y in roughly [4.5,5.5])
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[7, 4]);
+
+        // Assert: no marker content appears at the line's start vertex (no marker-start was set)
+        Assert.Equal(0, surface[1, 3].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>marker-start</c>/<c>marker-mid</c>/<c>marker-end</c> each independently
+    ///     resolve and render their own distinct marker at the correct vertex of a
+    ///     <c>polyline</c>, and that each marker's own reference point (<c>refX</c>/<c>refY</c>)
+    ///     lands exactly on its vertex regardless of that vertex's orientation angle.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerStartMidEndOnPolyline_RendersDistinctMarkersAtEachVertex()
+    {
+        // Arrange: an L-shaped polyline with three vertices - (2.4,2.4) start, (10.4,2.4) mid,
+        // (10.4,10.4) end - each marker is a 2x2 square centered on its own refX/refY=1, so its
+        // center always lands exactly on the vertex position regardless of rotation
+        const string svg = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <marker id='ms' markerWidth='2' markerHeight='2' refX='1' refY='1' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='2' height='2' fill='red'/>
+                </marker>
+                <marker id='mm' markerWidth='2' markerHeight='2' refX='1' refY='1' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='2' height='2' fill='green'/>
+                </marker>
+                <marker id='me' markerWidth='2' markerHeight='2' refX='1' refY='1' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='2' height='2' fill='blue'/>
+                </marker>
+              </defs>
+              <polyline points='2.4,2.4 10.4,2.4 10.4,10.4' fill='none' stroke='black' stroke-width='1'
+                        marker-start='url(#ms)' marker-mid='url(#mm)' marker-end='url(#me)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert: each vertex shows its own marker's own color
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[2, 2]);
+        Assert.Equal(new Rgba32(0, 128, 0, 255), surface[10, 2]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[10, 10]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>orient="auto"</c> orients a marker along a purely horizontal segment's
+    ///     own direction of travel.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerOrientAutoOnHorizontalLine_OrientsAlongPositiveX()
+    {
+        // Arrange: a marker whose content is a bar offset 2-4 units away from its refX/refY=0
+        // anchor, along local +x - when unrotated (angle 0), it extends further in +x from the
+        // vertex it is placed at
+        const string svg = """
+            <svg viewBox='0 0 16 8'>
+              <defs>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' markerUnits='userSpaceOnUse'>
+                  <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
+                </marker>
+              </defs>
+              <line x1='1' y1='6.5' x2='7' y2='6.5' stroke='black' stroke-width='1' marker-end='url(#bar)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 16, 8);
+
+        // Assert: the bar extends to the right of the (7,6.5) end vertex - a point beyond the
+        // line's own x2=7 extent, in the bar's expected x[9,11]/y[6,7] footprint
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[9, 6]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>orient="auto"</c> orients a marker along a purely vertical segment's own
+    ///     direction of travel (rotated 90 degrees relative to the horizontal case).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerOrientAutoOnVerticalLine_OrientsAlongPositiveY()
+    {
+        // Arrange: the same "bar" marker as the horizontal test, but the line now travels
+        // straight down, so the bar should extend further downward (+y) from its end vertex
+        // rather than to the right
+        const string svg = """
+            <svg viewBox='0 0 12 12'>
+              <defs>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' markerUnits='userSpaceOnUse'>
+                  <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
+                </marker>
+              </defs>
+              <line x1='6.5' y1='1' x2='6.5' y2='7' stroke='black' stroke-width='1' marker-end='url(#bar)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 12, 12);
+
+        // Assert: the bar extends below the (6.5,7) end vertex - a point beyond the line's own
+        // y2=7 extent, in the bar's expected x[6,7]/y[9,11] footprint
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[6, 9]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>orient="auto"</c> orients a marker along a diagonal segment's own
+    ///     direction of travel (a 45-degree angle between the horizontal and vertical cases).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerOrientAutoOnDiagonalLine_OrientsAlong45Degrees()
+    {
+        // Arrange: the same "bar" marker, on a line traveling diagonally (equal x and y
+        // displacement) - the bar should extend further along that same 45-degree diagonal
+        const string svg = """
+            <svg viewBox='0 0 12 12'>
+              <defs>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' markerUnits='userSpaceOnUse'>
+                  <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
+                </marker>
+              </defs>
+              <line x1='1' y1='1' x2='7' y2='7' stroke='black' stroke-width='1' marker-end='url(#bar)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 12, 12);
+
+        // Assert: the bar's centerline, roughly 3 units further along the 45-degree diagonal
+        // from the (7,7) end vertex, lands close to (9,9) - a lower alpha threshold (rather than
+        // full opacity) tolerates this rasterizer's edge anti-aliasing on a thin, diagonally
+        // rotated shape, whose straight edges rarely align exactly with pixel boundaries
+        var actual = surface[9, 9];
+        Assert.True(
+            actual.R == 255 && actual.G == 0 && actual.B == 0 && actual.A > 150,
+            $"Expected a strongly red-tinted pixel at (9,9), got R={actual.R} G={actual.G} B={actual.B} A={actual.A}.");
+    }
+
+    /// <summary>
+    ///     Proves that a plain <c>orient="auto"</c> <c>marker-start</c> is oriented the same way
+    ///     as the outgoing segment's own direction (pointing into the line), contrasted by
+    ///     <see cref="SvgCodec_Load_MarkerStartOrientAutoStartReverse_PointsAwayFromLine"/>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerStartOrientAuto_PointsIntoLine()
+    {
+        // Arrange: the same "bar" marker, referenced as marker-start with plain orient="auto" -
+        // the bar should extend toward +x, i.e. into the line's own body
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse'>
+                  <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
+                </marker>
+              </defs>
+              <line x1='5' y1='5.5' x2='9' y2='5.5' stroke='black' stroke-width='1' marker-start='url(#bar)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the bar occupies x[7,9] (toward the line body), not x[1,3] (away from it)
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[7, 5]);
+        Assert.Equal(0, surface[2, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>orient="auto-start-reverse"</c> reverses a <c>marker-start</c> marker's
+    ///     orientation by 180 degrees relative to plain <c>orient="auto"</c>, placing it away from
+    ///     the line's own body rather than into it - the conventional orientation for an arrowhead
+    ///     at the tail of a line.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerStartOrientAutoStartReverse_PointsAwayFromLine()
+    {
+        // Arrange: the same scenario as the plain orient="auto" test, but with
+        // orient="auto-start-reverse" - the bar should now extend toward -x, away from the line
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto-start-reverse' markerUnits='userSpaceOnUse'>
+                  <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
+                </marker>
+              </defs>
+              <line x1='5' y1='5.5' x2='9' y2='5.5' stroke='black' stroke-width='1' marker-start='url(#bar)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the bar occupies x[1,3] (away from the line body), not x[7,9] (into it) - the
+        // line's own black stroke also covers x[7,9] at this y, so a not-equal-to-red check (not
+        // an alpha-zero check) is what actually distinguishes "no marker content here" from "the
+        // line's own stroke happens to cover this pixel too"
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[2, 5]);
+        Assert.NotEqual(new Rgba32(255, 0, 0, 255), surface[7, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>markerUnits="userSpaceOnUse"</c> keeps a marker's size independent of
+    ///     the referencing shape's effective stroke width, while the default
+    ///     <c>markerUnits="strokeWidth"</c> scales the marker proportionally to it.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerUnitsUserSpaceOnUseVsStrokeWidthDefault_ScalesDifferently()
+    {
+        // Arrange: two identical 2x2 marker definitions (refX/refY=1, so each marker's ref point
+        // is its own center), one explicitly "userSpaceOnUse" and one left at the default
+        // "strokeWidth" - both lines use stroke-width="4", so the default-units marker should
+        // scale up to 8x8 (half-width 4) while the userSpaceOnUse marker stays 2x2 (half-width 1)
+        const string svg = """
+            <svg viewBox='0 0 30 15'>
+              <defs>
+                <marker id='sqSmall' markerWidth='2' markerHeight='2' refX='1' refY='1' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='2' height='2' fill='blue'/>
+                </marker>
+                <marker id='sqBig' markerWidth='2' markerHeight='2' refX='1' refY='1'>
+                  <rect x='0' y='0' width='2' height='2' fill='blue'/>
+                </marker>
+              </defs>
+              <line x1='2' y1='5' x2='7' y2='5' stroke='black' stroke-width='4' marker-end='url(#sqSmall)'/>
+              <line x1='20' y1='5' x2='25' y2='5' stroke='black' stroke-width='4' marker-end='url(#sqBig)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 30, 15);
+
+        // Assert: the "userSpaceOnUse" marker did not grow with stroke-width - a point 3 units
+        // beyond its (7,5) vertex is outside its 2x2 footprint
+        Assert.Equal(0, surface[10, 5].A);
+
+        // Assert: the default "strokeWidth" marker did grow - a point 3 units beyond its (25,5)
+        // vertex is still within its 8x8 (half-width 4) footprint
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[28, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that a marker element's own <c>viewBox</c> is fitted into
+    ///     <c>markerWidth</c>/<c>markerHeight</c> (a uniform "meet" scale-down), rather than the
+    ///     marker's content rendering at its raw, unfitted local-coordinate size.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerWithViewBox_FitsContentToMarkerWidthHeight()
+    {
+        // Arrange: a marker with a 10x10 viewBox but only a 2x2 markerWidth/markerHeight - its
+        // 10x10 content rect should be scaled down by 0.2, landing within (5,5)-(7,7) of its
+        // (5,5) vertex rather than the unfitted (5,5)-(15,15)
+        const string svg = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <marker id='vb' markerWidth='2' markerHeight='2' refX='0' refY='0' viewBox='0 0 10 10' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='10' height='10' fill='green'/>
+                </marker>
+              </defs>
+              <line x1='1' y1='5' x2='5' y2='5' stroke='black' stroke-width='1' marker-end='url(#vb)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert: the fitted, scaled-down content is visible close to the vertex
+        Assert.Equal(new Rgba32(0, 128, 0, 255), surface[6, 6]);
+
+        // Assert: a point that would only be covered by the unfitted, raw 10x10 content remains
+        // transparent - proving the viewBox fit actually scaled the content down
+        Assert.Equal(0, surface[9, 9].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>marker-end</c> reference to a nonexistent id is tolerated as a silent
+    ///     no-op, matching this codec's general dangling-reference convention, rather than
+    ///     throwing or aborting the rest of the document.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerDanglingReference_IsSilentNoOp()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <line x1='1' y1='5.5' x2='7' y2='5.5' stroke='black' stroke-width='1' marker-end='url(#missing)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the line itself still rendered
+        Assert.Equal(255, surface[4, 5].A);
+
+        // Assert: no exception, and no marker content appeared past the line's own end point
+        Assert.Equal(0, surface[9, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>marker</c> element whose own content directly references itself (via
+    ///     <c>marker-start</c> on a child shape) is rejected once the bounded
+    ///     <c>marker</c>-reference nesting depth guard is reached, rather than recursing
+    ///     indefinitely, mirroring <see cref="SvgCodec_Load_UseElementMutualRecursionCycle_ThrowsInvalidDataException"/>'s
+    ///     identical <see cref="InvalidDataException"/> behavior for <c>use</c> cycles.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerSelfReferenceCycle_ThrowsInvalidDataException()
+    {
+        // Arrange: marker "m" contains a line whose own marker-start references "m" again
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <marker id='m'>
+                  <line x1='0' y1='0' x2='1' y2='0' marker-start='url(#m)'/>
+                </marker>
+              </defs>
+              <line x1='0' y1='0' x2='5' y2='5' marker-start='url(#m)'/>
+            </svg>
+            """;
+
+        // Act & Assert
+        using var stream = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves that a two-marker reference chain (<c>m1</c> referencing <c>m2</c> referencing
+    ///     <c>m1</c>) is likewise rejected, not only a direct self-reference.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerTwoElementReferenceCycle_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <marker id='m1'>
+                  <line x1='0' y1='0' x2='1' y2='0' marker-start='url(#m2)'/>
+                </marker>
+                <marker id='m2'>
+                  <line x1='0' y1='0' x2='1' y2='0' marker-start='url(#m1)'/>
+                </marker>
+              </defs>
+              <line x1='0' y1='0' x2='5' y2='5' marker-start='url(#m1)'/>
+            </svg>
+            """;
+
+        // Act & Assert
+        using var stream = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves that, for a multi-subpath <c>path</c>, <c>marker-start</c>/<c>marker-end</c>
+    ///     apply only to the very first/last vertex of the whole path - not to each subpath's own
+    ///     start/end - a deliberate, documented simplification (matches at least one common
+    ///     browser's behavior).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerOnMultiSubpathPath_AppliesStartEndOnlyAtWholePathEnds()
+    {
+        // Arrange: two separate horizontal subpaths at y=2 - vertices in whole-path order are
+        // (0,2) start, (4,2) mid, (6,2) mid, (10,2) end. marker-mid is "none", so the two
+        // interior subpath boundary vertices should show nothing
+        const string svg = """
+            <svg viewBox='0 0 12 4'>
+              <defs>
+                <marker id='s' markerWidth='2' markerHeight='2' refX='1' refY='1' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='2' height='2' fill='red'/>
+                </marker>
+                <marker id='e' markerWidth='2' markerHeight='2' refX='1' refY='1' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='2' height='2' fill='blue'/>
+                </marker>
+              </defs>
+              <path d='M0,2 L4,2 M6,2 L10,2' fill='none' stroke='none'
+                    marker-start='url(#s)' marker-mid='none' marker-end='url(#e)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 12, 4);
+
+        // Assert: the whole path's very first vertex (0,2) shows the "start" marker
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[0, 2]);
+
+        // Assert: the whole path's very last vertex (10,2) shows the "end" marker
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[10, 2]);
+
+        // Assert: the two interior subpath-boundary vertices (4,2) and (6,2) show nothing, since
+        // they are classified as "mid" vertices (marker-mid="none") rather than per-subpath
+        // start/end vertices
+        Assert.Equal(0, surface[4, 2].A);
+        Assert.Equal(0, surface[6, 2].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>rect</c>, <c>circle</c>, and <c>ellipse</c> never receive markers, even
+    ///     when a <c>marker-end</c> attribute referencing a valid marker is present - these shapes
+    ///     have no natural vertices to orient a marker along, per the SVG specification.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerOnRectCircleEllipse_NeverRendersMarker()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 30 10'>
+              <defs>
+                <marker id='m' markerWidth='2' markerHeight='2' refX='1' refY='1' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='2' height='2' fill='red'/>
+                </marker>
+              </defs>
+              <rect x='1' y='1' width='4' height='4' fill='black' marker-end='url(#m)'/>
+              <circle cx='15' cy='5' r='2' fill='black' marker-end='url(#m)'/>
+              <ellipse cx='25' cy='5' rx='3' ry='2' fill='black' marker-end='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 30, 10);
+
+        // Assert: no exception, each shape still renders its own black fill
+        Assert.Equal(255, surface[2, 2].A);
+        Assert.Equal(255, surface[15, 5].A);
+        Assert.Equal(255, surface[25, 5].A);
+
+        // Assert: no red marker content appears anywhere in the canvas
+        for (var y = 0; y < 10; y++)
+        {
+            for (var x = 0; x < 30; x++)
+            {
+                Assert.NotEqual(new Rgba32(255, 0, 0, 255), surface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves that a marker's own content renders with a fresh presentation-attribute cascade
+    ///     starting from the SVG/CSS initial values, rather than inheriting the referencing
+    ///     shape's own <c>fill</c>/<c>stroke</c> - per the SVG specification's independent marker
+    ///     content model.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerContent_DoesNotInheritReferencingShapeFillOrStroke()
+    {
+        // Arrange: the line sets a bright "red" fill/stroke, but the marker's own <rect> has no
+        // fill attribute of its own, so it should fall back to the initial default ("black"),
+        // not inherit the line's "red"
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <marker id='m' markerWidth='2' markerHeight='2' refX='1' refY='1' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='2' height='2'/>
+                </marker>
+              </defs>
+              <line x1='1' y1='5.5' x2='7' y2='5.5' fill='red' stroke='red' stroke-width='1' marker-end='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the marker's rect rendered its own initial-default "black" fill, not "red"
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[7, 5]);
+    }
+
+    // ================================================================================================
     // Total geometry-parsing work budget (path data / point lists / text characters)
     // ================================================================================================
 
@@ -3097,7 +3604,7 @@ public class SvgCodecTests
     /// <summary>
     ///     Proves that well-formed-but-out-of-scope constructs (<c>&lt;style&gt;</c>,
     ///     <c>&lt;filter&gt;</c>, <c>&lt;mask&gt;</c>, <c>&lt;clipPath&gt;</c>,
-    ///     <c>&lt;pattern&gt;</c>, <c>&lt;marker&gt;</c>, a nested <c>&lt;svg&gt;</c>) are silently
+    ///     <c>&lt;pattern&gt;</c>, a nested <c>&lt;svg&gt;</c>) are silently
     ///     skipped and do not prevent the rest of the document from rendering.
     /// </summary>
     [Fact]
@@ -3112,7 +3619,6 @@ public class SvgCodecTests
                 <mask id='m'><rect width='100' height='100' fill='white'/></mask>
                 <clipPath id='c'><rect width='50' height='50'/></clipPath>
                 <pattern id='p' width='10' height='10'><rect width='5' height='5'/></pattern>
-                <marker id='mk'><circle r='2'/></marker>
               </defs>
               <svg x='0' y='0' width='10' height='10'><rect width='10' height='10' fill='yellow'/></svg>
               <rect x='10' y='10' width='30' height='30' fill='black'/>

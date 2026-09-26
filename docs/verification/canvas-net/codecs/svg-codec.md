@@ -173,6 +173,60 @@ does not throw; a `use` referencing a `g` group renders every one of the group's
 mutually-recursive `use`/`use` reference chain that would otherwise recurse indefinitely is
 rejected with `InvalidDataException` once the bounded recursion guard is exceeded.
 
+#### CanvasNet-Codecs-SvgCodec-MarkerRendering: Marker Vertex Placement, Orientation, and Units
+
+**Tests**: `SvgCodec_Load_MarkerEndOnLine_RendersArrowheadPastLineEnd`,
+`SvgCodec_Load_MarkerStartMidEndOnPolyline_RendersDistinctMarkersAtEachVertex`,
+`SvgCodec_Load_MarkerOrientAutoOnHorizontalLine_OrientsAlongPositiveX`,
+`SvgCodec_Load_MarkerOrientAutoOnVerticalLine_OrientsAlongPositiveY`,
+`SvgCodec_Load_MarkerOrientAutoOnDiagonalLine_OrientsAlong45Degrees`,
+`SvgCodec_Load_MarkerStartOrientAuto_PointsIntoLine`,
+`SvgCodec_Load_MarkerStartOrientAutoStartReverse_PointsAwayFromLine`,
+`SvgCodec_Load_MarkerUnitsUserSpaceOnUseVsStrokeWidthDefault_ScalesDifferently`,
+`SvgCodec_Load_MarkerWithViewBox_FitsContentToMarkerWidthHeight`,
+`SvgCodec_Load_MarkerOnMultiSubpathPath_AppliesStartEndOnlyAtWholePathEnds`,
+`SvgCodec_Load_MarkerOnRectCircleEllipse_NeverRendersMarker`,
+`SvgCodec_Load_MarkerContent_DoesNotInheritReferencingShapeFillOrStroke`,
+`SvgCodec_Load_ArrowMarkersFixture_RendersArrowheadPastLineEnd`
+
+Asserts a `marker-end` reference renders its `marker` element's content past a `line`'s own end
+point, sized in user-space units; asserts `marker-start`/`marker-mid`/`marker-end` each
+independently resolve and render their own distinct marker at the correct vertex of a
+multi-vertex `polyline`, with each marker's own reference point (`refX`/`refY`) landing exactly on
+its vertex regardless of rotation; asserts `orient="auto"` orients a marker along a horizontal,
+vertical, and 45-degree diagonal segment's own direction of travel (the diagonal case uses an
+alpha threshold rather than exact full opacity, tolerating this rasterizer's edge anti-aliasing on
+a thin, diagonally rotated shape); asserts a plain `orient="auto"` `marker-start` points into the
+line's own body while `orient="auto-start-reverse"` reverses it by 180 degrees to point away from
+the line instead; asserts `markerUnits="userSpaceOnUse"` keeps a marker's size independent of the
+referencing shape's effective stroke width while the default `markerUnits="strokeWidth"` scales it
+proportionally; asserts a marker's own `viewBox` is fitted ("meet" scale-down) into
+`markerWidth`/`markerHeight` rather than rendering at its raw, unfitted size; asserts a
+multi-subpath `path`'s `marker-start`/`marker-end` apply only to the very first/last vertex of the
+whole path, not to each subpath's own start/end, with the interior subpath-boundary vertices
+correctly classified as "mid" instead; asserts `rect`/`circle`/`ellipse` never render a marker
+even when a `marker-end` attribute is present, since these shapes have no natural vertices to
+orient one along; and asserts a marker's own content renders with a fresh presentation-attribute
+cascade from the SVG/CSS initial defaults, not inheriting the referencing shape's own
+`fill`/`stroke`. A real fixture file (`SvgFixtures/arrow-markers.svg`) exercises the common
+`marker-end` arrowhead scenario end-to-end.
+
+#### CanvasNet-Codecs-SvgCodec-MarkerReferenceCycle: Marker Reference Dangling and Cycle Rejection
+
+**Tests**: `SvgCodec_Load_MarkerDanglingReference_IsSilentNoOp`,
+`SvgCodec_Load_MarkerSelfReferenceCycle_ThrowsInvalidDataException`,
+`SvgCodec_Load_MarkerTwoElementReferenceCycle_ThrowsInvalidDataException`
+
+Asserts a `marker-end` reference to a nonexistent id is tolerated as a silent no-op (the
+referencing shape still renders normally, and no marker content appears), matching this codec's
+general dangling-reference convention; asserts a `marker` element whose own content directly
+references itself (via `marker-start` on a child shape) is rejected with `InvalidDataException`
+once the bounded `marker`-reference recursion depth guard is exceeded, rather than recursing
+indefinitely; and asserts a two-marker reference chain (`m1` referencing `m2` referencing `m1`) is
+likewise rejected, not only a direct self-reference. This mirrors
+`CanvasNet-Codecs-SvgCodec-UseElement`'s identical `InvalidDataException` cycle-rejection
+behavior for `use`, applied to `marker`'s own independent recursion-depth counter.
+
 #### CanvasNet-Codecs-SvgCodec-ElementNestingDepthLimit: Element/Group Nesting Depth Limit
 
 **Tests**: `SvgCodec_Load_DeeplyNestedGroups_ThrowsInvalidDataException`
@@ -461,7 +515,7 @@ opacity-family attributes and gradient coordinates remain correctly unaffected b
 `SvgCodec_Load_ToleratesUnsupportedConstructFixture_StillRendersRemainingContent`,
 `SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent`
 
-Builds a document containing `style`, `filter`, `mask`, `clipPath`, `pattern`, `marker`, and a
+Builds a document containing `style`, `filter`, `mask`, `clipPath`, `pattern`, and a
 nested `svg` alongside an ordinary `rect`, and asserts the ordinary `rect` still renders — proving
 none of the out-of-scope elements abort the whole document. A real fixture file exercises the
 same property end-to-end.

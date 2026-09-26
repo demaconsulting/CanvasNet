@@ -260,4 +260,25 @@ public class SvgFixtureTests
         Assert.Equal(0, surface[100, 50].A);
         Assert.Equal(0, surface[50, 100].A);
     }
+
+    /// <summary>
+    ///     Proves that <c>arrow-markers.svg</c>'s <c>marker-end</c>-referenced arrowhead
+    ///     (<c>orient="auto"</c>, <c>markerUnits="userSpaceOnUse"</c>) renders its own "navy"
+    ///     triangle content past the line's own end point, and that a point clearly outside both
+    ///     the line and the arrowhead remains transparent.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ArrowMarkersFixture_RendersArrowheadPastLineEnd()
+    {
+        // Arrange & Act
+        var surface = SvgCodec.Load(ResolveFixturePath("arrow-markers.svg"), 100, 100);
+
+        // Assert: the arrowhead's own "navy" fill is visible past the line's own x2=80 end point
+        // (the triangle's tip reaches x=82 at y=50, per its refX=8/refY=5 anchor and
+        // markerWidth=markerHeight=10)
+        Assert.Equal(new Rgba32(0, 0, 128, 255), surface[78, 50]);
+
+        // Assert: a point clearly outside both the line and the arrowhead remains transparent
+        Assert.Equal(0, surface[10, 90].A);
+    }
 }

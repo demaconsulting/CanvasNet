@@ -40,19 +40,25 @@ same reason as the other codecs: rasterizing an SVG document has no instance sta
   (`pad`/`reflect`/`repeat`), and a bounded, cycle-checked `href`/`xlink:href` template
   inheritance chain for color stops
 - `use`, referencing any element by id via `href`/`xlink:href`, with `x`/`y` translation
+- `marker`, referenced from `line`/`polyline`/`polygon`/`path` via the `marker-start`/
+  `marker-mid`/`marker-end` presentation attributes (`url(#id)`), with `markerWidth`/
+  `markerHeight`, `refX`/`refY`, `markerUnits` (`strokeWidth`/`userSpaceOnUse`), `orient`
+  (`auto`/`auto-start-reverse`/a fixed angle in degrees), and an optional `viewBox`
 - `text`, with `x`/`y`, `font-family`, `font-size`, `fill`, and `text-anchor`
   (`start`/`middle`/`end`), rendered through a caller-supplied font dictionary
 
 #### Out-of-scope subset (tolerated, silently skipped)
 
-`style`, `filter`, `mask`, `clipPath`, `pattern`, `marker`, a nested `svg`, `animate`/other SMIL
+`style`, `filter`, `mask`, `clipPath`, `pattern`, a nested `svg`, `animate`/other SMIL
 animation elements, `image`, `foreignObject`, and CSS class/id selectors are all well-formed SVG
 constructs this codec does not implement. Encountering one of these does not fail the whole
 document: `SvgCodec` silently skips just that element (and, for a container element, everything
 nested inside it) and continues walking the rest of the tree. This is a deliberate,
 tolerant-parsing policy distinct from the codec's malformed-input rejection policy (see
 _Error Handling_ below) — a document using an out-of-scope construct is not itself invalid SVG,
-only partially outside this codec's supported feature set.
+only partially outside this codec's supported feature set. Within the supported `marker` feature
+itself, `markerContentUnits` (a rarely-used SVG 2 attribute) and clipping marker content to its
+own `markerWidth`/`markerHeight` viewport (`overflow`) are both explicitly out of scope.
 
 A percentage value on a shape/text geometry attribute (`x`, `y`, `width`, `height`, `rx`, `ry`,
 `cx`, `cy`, `r`, `x1`/`y1`/`x2`/`y2`, `font-size`, `stroke-width`, `stroke-miterlimit`,
@@ -69,10 +75,11 @@ attributes and gradient coordinates/`stop` `offset` are unaffected, since both h
 (see _Codecs Subsystem Design_, `../codecs.md`). Internally, it defines a private `RenderState`
 record capturing the cascading presentation state (fill, stroke, fill-opacity, stroke-opacity,
 opacity, fill-rule, stroke-width, stroke-linecap, stroke-linejoin, stroke-miterlimit,
-stroke-dasharray, stroke-dashoffset, font-family, font-size, text-anchor) that is threaded down
-through the element tree alongside an accumulated `System.Numerics.Matrix3x2` transform, plus a
-private `RenderContext` capturing fixed per-document state (the id→`XElement` index, the caller's
-font dictionary, and the resolved fit transform).
+stroke-dasharray, stroke-dashoffset, font-family, font-size, text-anchor, and the three
+marker-start/marker-mid/marker-end specifications) that is threaded down through the element tree
+alongside an accumulated `System.Numerics.Matrix3x2` transform, plus a private `RenderContext`
+capturing fixed per-document state (the id→`XElement` index, the caller's font dictionary, and
+the resolved fit transform).
 
 ### XML Parsing Hardening (XXE)
 
@@ -250,6 +257,41 @@ intervening groups), rendering guards against unbounded mutual recursion with a 
 recursion depth, raising `InvalidDataException` if it is exceeded rather than recursing
 indefinitely - see **Element/Group Nesting and Total-Element Bounds** below for why this depth
 cap, on its own, does not bound every form of unbounded rendering work.
+
+**Markers.** A `line`/`polyline`/`polygon`/`path` element's own `marker-start`/`marker-mid`/
+`marker-end` presentation attributes (each `url(#id)`, resolved through the same id index and
+dangling-reference tolerance as a gradient `fill`/`stroke` reference above) each identify a
+`marker` element rendered once per eligible vertex of that shape's already-built local-space
+outline (never re-parsed from the shape's own raw attribute text): the first vertex uses
+`marker-start`, the last uses `marker-end`, and every vertex between uses `marker-mid` - a
+2-vertex shape therefore has a start and an end but no mid. For a multi-subpath `path`, this
+whole-shape first/last classification is a deliberate, documented simplification: `marker-start`/
+`marker-end` apply only to the very first/last vertex of the _whole_ path, not to each subpath's
+own start/end (matches at least one common browser's behavior, rather than a spec clause verified
+directly). A vertex's `orient="auto"` rotation angle is the average of its incoming and outgoing
+segment tangents (falling back to whichever one is present at an open subpath's own start/end),
+except that `orient="auto-start-reverse"` adds a further 180 degrees at the shape's very first
+vertex only. Each marker instance is scaled by `markerWidth`/`markerHeight` (further fitted by the
+marker's own optional `viewBox`, using the same "meet" scale-down as the top-level document's
+own viewBox-fitting policy, but without that policy's additional centering step - a deliberate
+simplification since a marker's `refX`/`refY` already provide an equivalent anchor point), then
+by the referencing shape's own effective stroke width when `markerUnits` is `strokeWidth` (the
+default) or left at 1:1 for `userSpaceOnUse`, then rotated and translated to the vertex position,
+and finally composed with the shape's own accumulated transform - so a marker is transformed
+through exactly the same pipeline as the shape it decorates. A marker's content renders through a
+fresh `RenderState` cascade seeded from the marker element's own presentation attributes (or the
+SVG/CSS initial defaults if it sets none), never inheriting the referencing shape's own fill/
+stroke - per the SVG specification's independent marker-content model. Marker content renders
+through the same `RenderElement` recursion used for every other element (including `use`), so the
+existing element-tree-depth and total-rendered-element bounds described below apply to it
+automatically; because a `marker` can reference another `marker` (directly, or through a chain,
+via a child shape's own `marker-start`/`marker-mid`/`marker-end`), rendering additionally tracks
+its own independent `marker`-reference recursion depth, mirroring `use`'s cycle guard exactly
+(same fixed-depth-cap pattern, same `InvalidDataException` on exceeding it) but counted
+separately, since a marker chain and a `use` chain are independent nesting concerns. `rect`/
+`circle`/`ellipse` never receive markers (these shapes have no natural vertices to orient one
+along), and a `marker-start`/`marker-mid`/`marker-end` referencing a nonexistent id, or an id that
+does not resolve to a `marker` element, is tolerated as a silent no-op for that one vertex.
 
 #### Element/Group Nesting and Total-Element Bounds
 

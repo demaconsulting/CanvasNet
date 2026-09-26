@@ -963,6 +963,28 @@ sections:
         tests:
           - CanvasNet_SystemIntegration_SvgLoad_ReturnsExpectedPixel
 
+      - id: CanvasNet-Lib-SvgMarkerRendering
+        title: >-
+          The library shall rasterize marker elements referenced from a line, polyline, polygon,
+          or path element's marker-start/marker-mid/marker-end presentation attributes, at the
+          correct vertex, orientation, and scale, and shall reject an unbounded
+          marker-referencing-marker reference cycle the same way an unbounded use reference cycle
+          is already rejected.
+        tags: [system]
+        justification: |
+          Connector arrowheads and other per-vertex line decorations built via SVG's marker
+          mechanism are common in real-world diagrams and flowcharts; callers need these to
+          render rather than silently vanish, with the same bounded, predictable error-handling
+          behavior already established for use reference cycles.
+        children:
+          - CanvasNet-Codecs-SvgMarkerRendering
+        tests:
+          - SvgCodec_Load_MarkerEndOnLine_RendersArrowheadPastLineEnd
+          - SvgCodec_Load_MarkerStartMidEndOnPolyline_RendersDistinctMarkersAtEachVertex
+          - SvgCodec_Load_ArrowMarkersFixture_RendersArrowheadPastLineEnd
+          - SvgCodec_Load_MarkerSelfReferenceCycle_ThrowsInvalidDataException
+          - SvgCodec_Load_MarkerTwoElementReferenceCycle_ThrowsInvalidDataException
+
       - id: CanvasNet-Lib-SvgViewBoxFitting
         title: >-
           The library shall fit an SVG document's intrinsic viewBox into the requested raster size
