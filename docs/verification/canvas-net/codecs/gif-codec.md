@@ -122,6 +122,18 @@ asserts `Load` still throws `InvalidDataException` even though this codec never 
 frame's pixel data - proving every Image Descriptor's color table is validated, not merely the
 first.
 
+#### CanvasNet-Codecs-GifCodec-OutOfRangeMinCodeSize: Load Rejects an Out-of-Range Minimum Code Size in Any Frame
+
+**Tests**: `GifCodec_Load_SecondFrameOutOfRangeMinCodeSize_ThrowsInvalidDataException`,
+`GifCodec_Load_SecondFrameZeroMinCodeSize_ThrowsInvalidDataException`
+
+Builds a multi-frame GIF whose first frame declares a valid minimum code size (and so decodes
+successfully) but whose second frame declares a minimum code size of 9 - one above the valid 2-8
+range - and asserts `Load` throws `InvalidDataException` even though this codec never decodes the
+second frame's pixel data. Separately, repeats the same scenario with a second-frame minimum code
+size of 0, proving the 2-8 range is validated for every Image Descriptor, not merely the first
+frame whose pixel data `DecodeGifLzw` itself range-checks.
+
 #### CanvasNet-Codecs-GifCodec-MalformedGraphicControlExtension: Load Rejects a Wrong-Length GCE
 
 **Tests**: `GifCodec_Load_MalformedGraphicControlExtension_ThrowsInvalidDataException`,
@@ -244,8 +256,19 @@ empty path, and `GetInfo(Stream)` with a stream carrying an incorrect signature,
 `ArgumentNullException`, `ArgumentNullException`, `ArgumentException`, and `InvalidDataException`
 respectively — the same exception contract as the corresponding `Load` scenarios.
 
+#### CanvasNet-Codecs-GifCodec-GetInfoZeroDimension: GetInfo Rejects a Zero-Dimensioned Logical Screen Descriptor
+
+**Tests**: `GifCodec_GetInfo_ZeroWidth_ThrowsInvalidDataException`,
+`GifCodec_GetInfo_ZeroHeight_ThrowsInvalidDataException`
+
+Builds a Logical Screen Descriptor declaring a width of zero, and separately a height of zero, and
+asserts `GetInfo` throws `InvalidDataException` in both cases - matching the identical non-positive
+dimension check `Load` already performs - proving `GetInfo` never reports `CanDecode == true` for a
+GIF that can never be decoded, while still not enforcing `Surface.MaxDimension` (see
+`GifCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows` above, unchanged).
+
 ### Acceptance Criteria
 
-A unit test run passes when all test methods above (37 in `GifCodecTests.cs` plus 16 fixture-based
+A unit test run passes when all test methods above (41 in `GifCodecTests.cs` plus 16 fixture-based
 theory cases in `GifFixtureTests.cs`) pass without error or unexpected exception; any unexpected
 exception type or pixel-value mismatch constitutes a failure.

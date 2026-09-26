@@ -839,12 +839,12 @@ sections:
       - id: CanvasNet-Lib-GifUnsupportedFormatValidation
         title: >-
           The library shall reject malformed or unsupported GIF data (bad signature, an oversized
-          declared dimension, a missing color table, a malformed Graphic Control Extension, an
-          unexpected block introducer, trailing data after the Trailer, no Image Descriptor at
-          all, an out-of-bounds Image Descriptor, a truncated stream, an invalid LZW code,
-          insufficient LZW output, an LZW stream missing its End-of-Information code or
-          overrunning the declared pixel count, or excessive total sub-block data) with
-          InvalidDataException.
+          declared dimension, a missing color table, an out-of-range LZW minimum code size in any
+          frame, a malformed Graphic Control Extension, an unexpected block introducer, trailing
+          data after the Trailer, no Image Descriptor at all, an out-of-bounds Image Descriptor, a
+          truncated stream, an invalid LZW code, insufficient LZW output, an LZW stream missing its
+          End-of-Information code or overrunning the declared pixel count, or excessive total
+          sub-block data) with InvalidDataException.
         tags: [system]
         justification: |
           Callers must be able to distinguish a genuinely malformed or unsupported GIF file from a
@@ -876,8 +876,9 @@ sections:
 
       - id: CanvasNet-Lib-GifGetInfoValidation
         title: >-
-          The library shall reject invalid arguments or malformed GIF data passed to GetInfo with
-          the same exception contract as Load.
+          The library shall reject invalid arguments or malformed GIF data (including a
+          zero-dimensioned Logical Screen Descriptor) passed to GetInfo with the same exception
+          contract as Load.
         tags: [system]
         justification: |
           Callers need GetInfo's failure behavior to be exactly as predictable as Load's.
@@ -888,6 +889,8 @@ sections:
           - GifCodec_GetInfo_NullPath_ThrowsArgumentNullException
           - GifCodec_GetInfo_EmptyPath_ThrowsArgumentException
           - GifCodec_GetInfo_BadSignature_ThrowsInvalidDataException
+          - GifCodec_GetInfo_ZeroWidth_ThrowsInvalidDataException
+          - GifCodec_GetInfo_ZeroHeight_ThrowsInvalidDataException
 
   - title: SVG Codec API
     requirements:

@@ -142,11 +142,12 @@ public static class GifCodec
     ///     signature is not "GIF87a"/"GIF89a", the width or height is non-positive or exceeds
     ///     <see cref="Surface.MaxDimension"/>, no color table (global or local) is available for
     ///     the first Image Descriptor, a Graphic Control Extension's data is not exactly 4 bytes,
-    ///     an Image Descriptor's region lies outside the logical screen, an unexpected block
-    ///     introducer byte is encountered, bytes remain in the stream after the Trailer, no Image
-    ///     Descriptor is ever encountered before the Trailer, the compressed image data contains
-    ///     an invalid or out-of-range LZW code, or the stream ends before all header, color-table,
-    ///     or block data has been read.
+    ///     an Image Descriptor's region lies outside the logical screen, any Image Descriptor
+    ///     (not merely the first) declares an LZW minimum code size outside the 2-8 range, an
+    ///     unexpected block introducer byte is encountered, bytes remain in the stream after the
+    ///     Trailer, no Image Descriptor is ever encountered before the Trailer, the compressed
+    ///     image data contains an invalid or out-of-range LZW code, or the stream ends before all
+    ///     header, color-table, or block data has been read.
     /// </exception>
     /// <example>
     ///     <code>
@@ -245,6 +246,15 @@ public static class GifCodec
                         {
                             throw new InvalidDataException(
                                 "Unexpected end of stream while reading a GIF LZW minimum code size.");
+                        }
+
+                        // Validate the range for every frame - not merely the first, whose pixel
+                        // data is decoded (and thus range-checked) by DecodeGifLzw below - because
+                        // a later frame's out-of-range minimum code size is just as structurally
+                        // invalid even though this codec never decodes that frame's pixels.
+                        if (minCodeSizeByte is < 2 or > 8)
+                        {
+                            throw new InvalidDataException($"Invalid GIF LZW minimum code size {minCodeSizeByte}.");
                         }
 
                         var imageData = ReadSubBlocks(stream, ref remainingSubBlockBudget);
@@ -372,8 +382,9 @@ public static class GifCodec
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
     /// <exception cref="System.IO.InvalidDataException">
-    ///     Thrown when the signature is not "GIF87a"/"GIF89a", or the stream ends before the
-    ///     13-byte signature and Logical Screen Descriptor has been read.
+    ///     Thrown when the signature is not "GIF87a"/"GIF89a", the declared width or height is
+    ///     non-positive (matching <see cref="Load(Stream)"/>'s identical check), or the stream
+    ///     ends before the 13-byte signature and Logical Screen Descriptor has been read.
     /// </exception>
     /// <remarks>
     ///     Deliberately, <c>GetInfo</c> never enforces <see cref="Surface.MaxDimension"/> - it
@@ -381,13 +392,23 @@ public static class GifCodec
     ///     bound - and never reads the color table, extension, or image blocks that follow the
     ///     Logical Screen Descriptor, so a stream that is truncated or malformed only <em>after</em>
     ///     its first 13 bytes does not cause <c>GetInfo</c> to throw, even though the same stream
-    ///     would cause <see cref="Load(Stream)"/> to throw.
+    ///     would cause <see cref="Load(Stream)"/> to throw. It does, however, reject a
+    ///     non-positive width or height exactly as <see cref="Load(Stream)"/> does, because a zero
+    ///     (or negative, were that representable) dimension can never be decoded regardless of
+    ///     the <see cref="Surface.MaxDimension"/> cap, so reporting <see cref="ImageInfo.CanDecode"/>
+    ///     as <see langword="true"/> for it would be a false promise rather than a decodable
+    ///     oversized image.
     /// </remarks>
     public static ImageInfo GetInfo(Stream stream)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
         var (width, height, _) = ReadLogicalScreenDescriptor(stream);
+        if (width <= 0 || height <= 0)
+        {
+            throw new InvalidDataException($"Invalid GIF dimensions {width}x{height}.");
+        }
+
         return new ImageInfo(width, height, 1, false);
     }
 

@@ -782,12 +782,13 @@ sections:
           - id: CanvasNet-Codecs-GifUnsupportedFormatValidation
             title: >-
               The Codecs subsystem shall reject malformed or unsupported GIF data (bad signature,
-              dimensions exceeding Surface.MaxDimension, missing color table, a malformed Graphic
-              Control Extension, an unexpected block introducer, trailing data after the Trailer,
-              a stream with no Image Descriptor, an out-of-bounds Image Descriptor, a truncated
-              stream, an invalid LZW code, insufficient LZW output, an LZW stream missing its
-              End-of-Information code or overrunning the declared pixel count, or excessive total
-              sub-block data) with InvalidDataException.
+              dimensions exceeding Surface.MaxDimension, missing color table, an out-of-range LZW
+              minimum code size in any frame, a malformed Graphic Control Extension, an unexpected
+              block introducer, trailing data after the Trailer, a stream with no Image
+              Descriptor, an out-of-bounds Image Descriptor, a truncated stream, an invalid LZW
+              code, insufficient LZW output, an LZW stream missing its End-of-Information code or
+              overrunning the declared pixel count, or excessive total sub-block data) with
+              InvalidDataException.
             justification: |
               Callers must be able to distinguish a genuinely malformed or unsupported GIF file
               from a successful load, and receive a clear, actionable error rather than incorrect
@@ -796,6 +797,7 @@ sections:
               - CanvasNet-Codecs-GifCodec-LoadBadSignature
               - CanvasNet-Codecs-GifCodec-LoadExceedsMaxDimension
               - CanvasNet-Codecs-GifCodec-NoColorTable
+              - CanvasNet-Codecs-GifCodec-OutOfRangeMinCodeSize
               - CanvasNet-Codecs-GifCodec-MalformedGraphicControlExtension
               - CanvasNet-Codecs-GifCodec-UnexpectedBlockIntroducer
               - CanvasNet-Codecs-GifCodec-TrailingDataAfterTrailer
@@ -812,6 +814,8 @@ sections:
               - GifCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException
               - GifCodec_Load_NoColorTable_ThrowsInvalidDataException
               - GifCodec_Load_SecondFrameMissingColorTable_ThrowsInvalidDataException
+              - GifCodec_Load_SecondFrameOutOfRangeMinCodeSize_ThrowsInvalidDataException
+              - GifCodec_Load_SecondFrameZeroMinCodeSize_ThrowsInvalidDataException
               - GifCodec_Load_MalformedGraphicControlExtension_ThrowsInvalidDataException
               - GifCodec_Load_UnexpectedBlockIntroducer_ThrowsInvalidDataException
               - GifCodec_Load_TrailingDataAfterTrailer_ThrowsInvalidDataException
@@ -844,17 +848,21 @@ sections:
 
           - id: CanvasNet-Codecs-GifGetInfoValidation
             title: >-
-              The Codecs subsystem shall reject invalid arguments or malformed GIF data passed to
-              GetInfo with the same exception contract as Load.
+              The Codecs subsystem shall reject invalid arguments or malformed GIF data (including
+              a zero-dimensioned Logical Screen Descriptor) passed to GetInfo with the same
+              exception contract as Load.
             justification: |
               Callers need GetInfo's failure behavior to be exactly as predictable as Load's.
             children:
               - CanvasNet-Codecs-GifCodec-GetInfoValidation
+              - CanvasNet-Codecs-GifCodec-GetInfoZeroDimension
             tests:
               - GifCodec_GetInfo_NullStream_ThrowsArgumentNullException
               - GifCodec_GetInfo_NullPath_ThrowsArgumentNullException
               - GifCodec_GetInfo_EmptyPath_ThrowsArgumentException
               - GifCodec_GetInfo_BadSignature_ThrowsInvalidDataException
+              - GifCodec_GetInfo_ZeroWidth_ThrowsInvalidDataException
+              - GifCodec_GetInfo_ZeroHeight_ThrowsInvalidDataException
 
           - id: CanvasNet-Codecs-SvgLoad
             title: >-

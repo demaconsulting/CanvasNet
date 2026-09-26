@@ -116,9 +116,11 @@ a time:
   exactly 4 bytes and its transparency flag/transparent-color-index are recorded for the *next*
   Image Descriptor only. Every other extension label's data is read and discarded (no special
   casing needed, since `ReadSubBlocks` already fully consumes it).
-- **Image Descriptor (`0x2C`)** — reads the 9-byte descriptor, any Local Color Table, the
-  LZW-minimum-code-size byte, and the compressed image sub-block chain. Validates the frame's
-  width/height are positive and its region lies fully within the logical screen. On the *first*
+- **Image Descriptor (`0x2C`)** — reads the 9-byte descriptor, any Local Color Table, and the
+  LZW-minimum-code-size byte, validating it is in the range 2-8 for *every* frame (not merely the
+  first, whose pixel data `DecodeGifLzw` separately range-checks as part of decoding); then reads
+  the compressed image sub-block chain. Validates the frame's width/height are positive and its
+  region lies fully within the logical screen. On the *first*
   Image Descriptor only: decodes the compressed data via the GIF-native LZW decoder
   (`DecodeGifLzw`), de-interlaces it first if the interlace flag is set, resolves each palette
   index through the active color table (Local, else Global, else `InvalidDataException`) to an
@@ -137,7 +139,8 @@ was seen.
 - `ArgumentNullException` — `stream` is null
 - `InvalidDataException` — missing `"GIF87a"`/`"GIF89a"` signature; non-positive or
   oversized (`> Surface.MaxDimension`) width/height; no color table (Global or Local) available
-  for the first Image Descriptor; a Graphic Control Extension whose data is not exactly 4 bytes;
+  for the first Image Descriptor; any Image Descriptor's LZW minimum code size byte outside the
+  2-8 range; a Graphic Control Extension whose data is not exactly 4 bytes;
   an Image Descriptor region lying outside the logical screen; an unexpected block introducer
   byte; bytes remaining after the Trailer; no Image Descriptor ever seen; an invalid/out-of-range
   LZW code; insufficient LZW output before the stream ends; the stream ending before all header,
@@ -157,7 +160,9 @@ Opens `path` as a read-only `FileStream` and delegates to `Load(Stream)`.
 
 #### GetInfo(Stream stream)
 
-Calls the shared `ReadLogicalScreenDescriptor` helper and returns immediately:
+Calls the shared `ReadLogicalScreenDescriptor` helper, validates the declared width/height are
+positive (the identical non-positive check `Load` performs, but without `Load`'s additional
+`Surface.MaxDimension` upper bound), and returns
 `new ImageInfo(width, height, 1, false)`. No color table, extension, or image block is ever read;
 `Surface.MaxDimension` is never enforced — the raw header-declared width/height are always
 returned, even when they exceed it, matching `ImageInfo`'s documented "bomb triage" contract (see
@@ -169,8 +174,9 @@ full rationale). `CanDecode` defaults to `true` and is never overridden — see 
 **Throws:**
 
 - `ArgumentNullException` — `stream` is null
-- `InvalidDataException` — missing `"GIF87a"`/`"GIF89a"` signature; the stream ends before the
-  13-byte signature and Logical Screen Descriptor has been fully read
+- `InvalidDataException` — missing `"GIF87a"`/`"GIF89a"` signature; non-positive declared width or
+  height; the stream ends before the 13-byte signature and Logical Screen Descriptor has been
+  fully read
 
 #### GetInfo(string path)
 

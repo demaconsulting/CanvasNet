@@ -424,6 +424,28 @@ public class GifCodecTests
         Assert.Throws<InvalidDataException>(() => GifCodec.Load(new MemoryStream(bytes)));
     }
 
+    /// <summary>Test: GifCodec_GetInfo_ZeroWidth_ThrowsInvalidDataException.</summary>
+    [Fact]
+    public void GifCodec_GetInfo_ZeroWidth_ThrowsInvalidDataException()
+    {
+        using var stream = new MemoryStream();
+        WriteHeader(stream, 0, 1, null);
+        stream.Position = 0;
+
+        Assert.Throws<InvalidDataException>(() => GifCodec.GetInfo(stream));
+    }
+
+    /// <summary>Test: GifCodec_GetInfo_ZeroHeight_ThrowsInvalidDataException.</summary>
+    [Fact]
+    public void GifCodec_GetInfo_ZeroHeight_ThrowsInvalidDataException()
+    {
+        using var stream = new MemoryStream();
+        WriteHeader(stream, 1, 0, null);
+        stream.Position = 0;
+
+        Assert.Throws<InvalidDataException>(() => GifCodec.GetInfo(stream));
+    }
+
     // ---------------------------------------------------------------------------------------
     // Block-structure / color-table validation
     // ---------------------------------------------------------------------------------------
@@ -456,6 +478,46 @@ public class GifCodecTests
         // fall back on, which is structurally malformed even though this codec never decodes its
         // pixel data (only the first frame is ever decoded).
         WriteImageDescriptor(stream, 0, 0, 2, 2, false, null, 2, [0, 0, 0, 0]);
+        WriteTrailer(stream);
+        stream.Position = 0;
+
+        Assert.Throws<InvalidDataException>(() => GifCodec.Load(stream));
+    }
+
+    /// <summary>Test: GifCodec_Load_SecondFrameOutOfRangeMinCodeSize_ThrowsInvalidDataException.</summary>
+    [Fact]
+    public void GifCodec_Load_SecondFrameOutOfRangeMinCodeSize_ThrowsInvalidDataException()
+    {
+        using var stream = new MemoryStream();
+        var gct = BuildColorTable((255, 0, 0), (0, 0, 255));
+        WriteHeader(stream, 2, 2, gct);
+
+        // First frame uses a valid minimum code size, so it decodes successfully...
+        WriteImageDescriptor(stream, 0, 0, 2, 2, false, null, 2, [0, 0, 0, 0]);
+
+        // ...but the second frame declares a minimum code size of 9, outside the valid 2-8 range
+        // enforced by DecodeGifLzw, which is structurally malformed even though this codec never
+        // decodes this frame's pixel data (only the first frame is ever decoded).
+        WriteImageDescriptor(stream, 0, 0, 2, 2, false, null, 9, [0, 0, 0, 0]);
+        WriteTrailer(stream);
+        stream.Position = 0;
+
+        Assert.Throws<InvalidDataException>(() => GifCodec.Load(stream));
+    }
+
+    /// <summary>Test: GifCodec_Load_SecondFrameZeroMinCodeSize_ThrowsInvalidDataException.</summary>
+    [Fact]
+    public void GifCodec_Load_SecondFrameZeroMinCodeSize_ThrowsInvalidDataException()
+    {
+        using var stream = new MemoryStream();
+        var gct = BuildColorTable((255, 0, 0), (0, 0, 255));
+        WriteHeader(stream, 2, 2, gct);
+
+        // First frame uses a valid minimum code size, so it decodes successfully...
+        WriteImageDescriptor(stream, 0, 0, 2, 2, false, null, 2, [0, 0, 0, 0]);
+
+        // ...but the second frame declares a minimum code size of 0, outside the valid 2-8 range.
+        WriteImageDescriptor(stream, 0, 0, 2, 2, false, null, 0, [0, 0, 0, 0]);
         WriteTrailer(stream);
         stream.Position = 0;
 
