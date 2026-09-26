@@ -820,7 +820,8 @@ sections:
         children:
           - CanvasNet-Codecs-GifValidationNull
         tests:
-          - CanvasNet_SystemIntegration_GifLoad_ReturnsExpectedPixel
+          - GifCodec_Load_NullStream_ThrowsArgumentNullException
+          - GifCodec_Load_NullPath_ThrowsArgumentNullException
 
       - id: CanvasNet-Lib-GifValidationEmptyPath
         title: >-
