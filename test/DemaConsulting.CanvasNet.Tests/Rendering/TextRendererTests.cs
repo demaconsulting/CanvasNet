@@ -36,7 +36,8 @@ public class TextRendererTests
             .AddTable("kern", kern)
             .Build();
 
-        return TrueTypeFont.Load(new MemoryStream(data));
+        using var stream = new MemoryStream(data);
+        return TrueTypeFont.Load(stream);
     }
 
     /// <summary>TextRenderer_MeasureText_EmptyString_ReturnsZeroWidth.</summary>
@@ -102,7 +103,8 @@ public class TextRendererTests
             .AddTable("cmap", cmap)
             .Build();
 
-        return TrueTypeFont.Load(new MemoryStream(data));
+        using var stream = new MemoryStream(data);
+        return TrueTypeFont.Load(stream);
     }
 
     /// <summary>

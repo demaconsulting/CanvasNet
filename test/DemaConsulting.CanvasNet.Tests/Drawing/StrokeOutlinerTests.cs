@@ -569,8 +569,15 @@ public class StrokeOutlinerTests
         // defeated by the same float32 overflow being proven fixed above.
         var outerArea = GetSignedAreaDouble(polygons[0]);
         var innerArea = GetSignedAreaDouble(polygons[1]);
+
+        // Mirror StrokeOutliner's own near-zero tolerance (rather than an exact-zero comparison)
+        // when treating a computed area as "non-zero" - these areas are computed, not literal
+        // sentinel values, so a tiny tolerance guards against floating noise near true zero.
+        const double areaNearZeroTolerance = 1e-9;
         Assert.True(
-            outerArea != 0.0 && innerArea != 0.0 && Math.Sign(outerArea) != Math.Sign(innerArea),
+            Math.Abs(outerArea) > areaNearZeroTolerance
+            && Math.Abs(innerArea) > areaNearZeroTolerance
+            && Math.Sign(outerArea) != Math.Sign(innerArea),
             $"Expected oppositely-wound non-zero rings, but got outerArea={outerArea}, innerArea={innerArea}.");
     }
 

@@ -192,7 +192,7 @@ public static class PathFiller
         Surface surface,
         Path path,
         float flattenTolerance,
-        out IReadOnlyList<List<Vector2>> polygons,
+        out List<List<Vector2>> polygons,
         out Rect clipBounds)
     {
         polygons = EdgeFlattener.Flatten(path, flattenTolerance);

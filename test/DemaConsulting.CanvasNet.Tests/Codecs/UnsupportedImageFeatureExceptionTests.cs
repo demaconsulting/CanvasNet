@@ -90,7 +90,7 @@ public class UnsupportedImageFeatureExceptionTests
     {
         var exception = new UnsupportedImageFeatureException("test-feature", "test message");
 
-        Assert.IsAssignableFrom<IOException>(exception);
+        Assert.IsType<IOException>(exception, exactMatch: false);
     }
 
     /// <summary>

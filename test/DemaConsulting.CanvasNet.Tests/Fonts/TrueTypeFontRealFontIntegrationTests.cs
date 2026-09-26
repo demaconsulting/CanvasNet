@@ -22,9 +22,12 @@ public class TrueTypeFontRealFontIntegrationTests
 {
     /// <summary>
     ///     The path to the real "Open Sans" TrueType font, copied to the test output directory by
-    ///     the test project's <c>FontFixtures\**</c> content item.
+    ///     the test project's <c>FontFixtures\**</c> content item. <see cref="System.IO.Path.Join(string, string, string)"/>
+    ///     is used instead of <see cref="System.IO.Path.Combine(string, string, string)"/> purely
+    ///     to avoid CodeQL's <c>cs/path-combine</c> rule, since <c>Path.Join</c> does not discard
+    ///     preceding segments when a later segment looks rooted.
     /// </summary>
-    private static string FontPath => System.IO.Path.Combine(AppContext.BaseDirectory, "FontFixtures", "OpenSans-Regular.ttf");
+    private static string FontPath => System.IO.Path.Join(AppContext.BaseDirectory, "FontFixtures", "OpenSans-Regular.ttf");
 
     /// <summary>
     ///     Proves that a real glyph loaded from a real production font, when transformed into

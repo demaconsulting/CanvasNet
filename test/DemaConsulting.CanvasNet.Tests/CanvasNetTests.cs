@@ -318,8 +318,10 @@ public class CanvasNetTests
         var paddedBytes = padded.ToArray();
 
         // Act
-        var info = JpegCodec.GetInfo(new MemoryStream(paddedBytes));
-        var loaded = JpegCodec.Load(new MemoryStream(paddedBytes));
+        using var infoStream = new MemoryStream(paddedBytes);
+        var info = JpegCodec.GetInfo(infoStream);
+        using var loadStream = new MemoryStream(paddedBytes);
+        var loaded = JpegCodec.Load(loadStream);
 
         // Assert: the system reports the expected integrated declared dimensions, matching what
         // Load itself decodes, without throwing merely because the probe cap was reached
@@ -361,7 +363,8 @@ public class CanvasNetTests
         ];
 
         // Act: load the surface through the public API
-        var surface = GifCodec.Load(new MemoryStream(gif));
+        using var gifStream = new MemoryStream(gif);
+        var surface = GifCodec.Load(gifStream);
 
         // Assert: the system produces the expected integrated decoded pixel value
         Assert.Equal(1, surface.Width);
@@ -675,7 +678,8 @@ public class CanvasNetTests
         // Arrange: load a synthetic font, look up 'A', and extract its glyph outline in raw font
         // design units (0..1000, matching this font's UnitsPerEm)
         var fontData = BuildSyntheticFontWithDiamondGlyph();
-        var font = TrueTypeFont.Load(new MemoryStream(fontData));
+        using var fontStream = new MemoryStream(fontData);
+        var font = TrueTypeFont.Load(fontStream);
         var glyphIndex = font.GetGlyphIndex('A');
         var outline = font.GetGlyphOutline(glyphIndex);
 
@@ -750,7 +754,8 @@ public class CanvasNetTests
         // Arrange/Act: load a synthetic font and query its top-level metrics and the glyph's
         // advance width through the public API
         var fontData = BuildSyntheticFontWithDiamondGlyph();
-        var font = TrueTypeFont.Load(new MemoryStream(fontData));
+        using var fontStream = new MemoryStream(fontData);
+        var font = TrueTypeFont.Load(fontStream);
         var glyphIndex = font.GetGlyphIndex('A');
         var advanceWidth = font.GetAdvanceWidth(glyphIndex);
 
@@ -873,7 +878,8 @@ public class CanvasNetTests
     {
         // Arrange: load a synthetic font with a single diamond-shaped glyph mapped from 'A'
         var fontData = BuildSyntheticFontWithDiamondGlyph();
-        var font = TrueTypeFont.Load(new MemoryStream(fontData));
+        using var fontStream = new MemoryStream(fontData);
+        var font = TrueTypeFont.Load(fontStream);
         const float size = 32f;
         var color = new Rgba32(0, 128, 255, 255);
 

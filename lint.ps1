@@ -136,8 +136,63 @@ dotnet restore > $null
 if ($LASTEXITCODE -ne 0) { $lintError = $true; $skipDotnetFormat = $true }
 
 if (-not $skipDotnetFormat) {
-    dotnet format --verify-no-changes --no-restore
-    if ($LASTEXITCODE -ne 0) { $lintError = $true }
+    # NOTE: `dotnet format --verify-no-changes` has a known cross-platform exit-code
+    # bug (e.g. dotnet/sdk#41422) where it can report a non-zero exit code even when
+    # zero files require formatting, inconsistently between operating systems. To get
+    # a reliable check, format in place and use `git diff` as the source of truth.
+    #
+    # A plain `git diff` after formatting would also include any pre-existing
+    # uncommitted *.cs changes unrelated to formatting (e.g. a developer's
+    # in-progress edits), causing false failures. Stash those away first so the
+    # formatter runs against a clean tree and the diff reflects only its own
+    # changes, then restore the original working tree afterward regardless of
+    # outcome, leaving no side effects from running this check.
+    #
+    # `git status --porcelain` (rather than `git diff`) is used to detect
+    # pre-existing changes so that untracked *.cs files are also caught and
+    # stashed - otherwise an untracked file reformatted by `dotnet format`
+    # would be left modified with no diff ever having been checked against it.
+    # `--index` on the pop restores the original staged/unstaged split rather
+    # than flattening everything into the working tree.
+    $statusBeforeFormat = git status --porcelain -- '*.cs'
+    $hasPreexistingCsChanges = [bool]$statusBeforeFormat
+    if ($hasPreexistingCsChanges) {
+        git stash push --include-untracked --quiet --message "lint.ps1: pre-existing *.cs changes" -- '*.cs'
+        if ($LASTEXITCODE -ne 0) {
+            $lintError = $true
+            $skipDotnetFormat = $true
+            Write-Host "Failed to stash pre-existing *.cs changes; skipping dotnet format check."
+            $hasPreexistingCsChanges = $false
+        }
+    }
+}
+
+if (-not $skipDotnetFormat) {
+    dotnet format --no-restore
+    if ($LASTEXITCODE -ne 0) {
+        $lintError = $true
+    }
+    else {
+        git diff --exit-code -- '*.cs'
+        if ($LASTEXITCODE -ne 0) {
+            $lintError = $true
+            Write-Host "dotnet format made changes; run fix.ps1 locally and commit the results."
+        }
+    }
+
+    # Restore the working tree to its original state: discard any in-place
+    # formatting changes made purely for this check, then reapply the
+    # developer's original uncommitted *.cs changes (if any were stashed).
+    # `--index` restores the original staged/unstaged split rather than
+    # dropping everything into the working tree unstaged.
+    git checkout -- '*.cs' 2>$null
+    if ($hasPreexistingCsChanges) {
+        git stash pop --index --quiet
+        if ($LASTEXITCODE -ne 0) {
+            $lintError = $true
+            Write-Host "Failed to restore stashed *.cs changes; check 'git stash list' and resolve manually."
+        }
+    }
 }
 
 # [PROJECT-SPECIFIC] Add additional format verification checks here.

@@ -251,13 +251,7 @@ internal static class DashSplitter
     {
         if (dashArray.Count % 2 == 0)
         {
-            var even = new float[dashArray.Count];
-            for (var i = 0; i < dashArray.Count; i++)
-            {
-                even[i] = dashArray[i];
-            }
-
-            return even;
+            return dashArray.ToArray();
         }
 
         var duplicated = new float[dashArray.Count * 2];
@@ -324,7 +318,7 @@ internal static class DashSplitter
     ///     its <c>while (position &lt; totalLength)</c> loop forever.
     ///     </para>
     /// </remarks>
-    private static double[] BuildCumulativeLengths(IReadOnlyList<Vector2> points, bool isClosed)
+    private static double[] BuildCumulativeLengths(List<Vector2> points, bool isClosed)
     {
         var edgeCount = isClosed ? points.Count : points.Count - 1;
         var cumulative = new double[edgeCount + 1];
@@ -547,31 +541,7 @@ internal static class DashSplitter
         budgetExceeded = false;
         var intervals = new List<(double Start, double End)>();
 
-        // Cheap, O(pattern.Count) pre-flight estimates: short-circuit straight to the
-        // cap-exceeded fallback for hopeless inputs (e.g. a huge-but-finite totalLength paired
-        // with a fine dash span, or a pattern whose "on" entries dominate its transitions) without
-        // ever entering the loop below - see this method's remarks for both cost models and their
-        // known, bounded slack.
-        var patternLength = GetPatternLength(pattern);
-        var positiveEntryCount = pattern.Count(entry => entry > 0f);
-        var estimatedIterations = 2d * positiveEntryCount * (totalLength / patternLength);
-        if (estimatedIterations > MaxOnIntervalIterations)
-        {
-            budgetExceeded = true;
-            return intervals;
-        }
-
-        var onEntryCount = 0;
-        for (var i = 0; i < pattern.Count; i += 2)
-        {
-            if (pattern[i] > 0f)
-            {
-                onEntryCount++;
-            }
-        }
-
-        var estimatedOnIntervalCount = onEntryCount * (totalLength / patternLength);
-        if (estimatedOnIntervalCount > MaxOnIntervalCount)
+        if (EstimatesExceedBudget(pattern, totalLength, out var patternLength))
         {
             budgetExceeded = true;
             return intervals;
@@ -643,6 +613,56 @@ internal static class DashSplitter
     }
 
     /// <summary>
+    ///     Cheap, <c>O(pattern.Count)</c> pre-flight cost estimate deciding whether
+    ///     <see cref="BuildOnIntervals"/>'s walking loop should even begin: short-circuits to the
+    ///     cap-exceeded fallback for hopeless inputs (e.g. a huge-but-finite <paramref name="totalLength"/>
+    ///     paired with a fine dash span, or a pattern whose "on" entries dominate its transitions)
+    ///     without ever entering the loop.
+    /// </summary>
+    /// <remarks>
+    ///     Isolated from <see cref="BuildOnIntervals"/> as its own self-contained, independently
+    ///     testable estimate - it is pure arithmetic over <paramref name="pattern"/> and
+    ///     <paramref name="totalLength"/>, with no dependency on the loop's own walking state.
+    ///     Combines two independent estimates against two independent caps
+    ///     (<see cref="MaxOnIntervalIterations"/> and <see cref="MaxOnIntervalCount"/>) - see
+    ///     <see cref="BuildOnIntervals"/>'s own remarks for why both are necessary and for their
+    ///     known, bounded slack. This is a heuristic estimate closely tracking the loop's real
+    ///     cost model, not an exact prediction or a strict mathematical upper bound; the loop's
+    ///     own running counters remain the authoritative backstop for any input either estimate
+    ///     under-counts.
+    /// </remarks>
+    /// <param name="pattern">The normalized dash pattern.</param>
+    /// <param name="totalLength">The polyline's total arc length.</param>
+    /// <param name="patternLength">Receives the pattern's total cycle length.</param>
+    /// <returns>
+    ///     <see langword="true"/> if either estimate exceeds its cap and the walking loop should
+    ///     be skipped entirely.
+    /// </returns>
+    private static bool EstimatesExceedBudget(IReadOnlyList<float> pattern, double totalLength, out double patternLength)
+    {
+        patternLength = GetPatternLength(pattern);
+
+        var positiveEntryCount = pattern.Count(entry => entry > 0f);
+        var estimatedIterations = 2d * positiveEntryCount * (totalLength / patternLength);
+        if (estimatedIterations > MaxOnIntervalIterations)
+        {
+            return true;
+        }
+
+        var onEntryCount = 0;
+        for (var i = 0; i < pattern.Count; i += 2)
+        {
+            if (pattern[i] > 0f)
+            {
+                onEntryCount++;
+            }
+        }
+
+        var estimatedOnIntervalCount = onEntryCount * (totalLength / patternLength);
+        return estimatedOnIntervalCount > MaxOnIntervalCount;
+    }
+
+    /// <summary>
     ///     Advances to the next positive-length dash entry.
     /// </summary>
     private static void AdvanceDash(IReadOnlyList<float> pattern, ref int dashIndex, ref double remainingInDash)
@@ -670,9 +690,9 @@ internal static class DashSplitter
     ///     number of polyline edges plus the number of intervals rather than their product.
     /// </remarks>
     private static List<Vector2> ExtractIntervalPolyline(
-        IReadOnlyList<Vector2> points,
+        List<Vector2> points,
         bool isClosed,
-        IReadOnlyList<double> cumulativeLengths,
+        double[] cumulativeLengths,
         double startDistance,
         double endDistance,
         ref int vertexCursor,
@@ -681,7 +701,7 @@ internal static class DashSplitter
         var segment = new List<Vector2>();
         AddPointIfDistinct(segment, GetPointAtDistance(points, isClosed, cumulativeLengths, startDistance, ref pointCursor));
 
-        var edgeCount = cumulativeLengths.Count - 1;
+        var edgeCount = cumulativeLengths.Length - 1;
 
         // Advance past any vertex boundaries at or before startDistance (including the implicit
         // index 0 boundary, whose cumulative length is always zero).
@@ -731,9 +751,9 @@ internal static class DashSplitter
     ///     </para>
     /// </remarks>
     private static Vector2 GetPointAtDistance(
-        IReadOnlyList<Vector2> points,
+        List<Vector2> points,
         bool isClosed,
-        IReadOnlyList<double> cumulativeLengths,
+        double[] cumulativeLengths,
         double distance,
         ref int edgeCursor)
     {
@@ -748,7 +768,7 @@ internal static class DashSplitter
             return isClosed ? points[0] : points[^1];
         }
 
-        var edgeCount = cumulativeLengths.Count - 1;
+        var edgeCount = cumulativeLengths.Length - 1;
         while (edgeCursor < edgeCount - 1 && distance > cumulativeLengths[edgeCursor + 1])
         {
             edgeCursor++;

@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Numerics;
 
 // cspell:ignore Outliner outliner underflows underflowed inradius
@@ -20,6 +21,32 @@ internal static class StrokeOutliner
     ///     The displacement below which vectors are treated as degenerate for join/cap math.
     /// </summary>
     private const float NearZeroDistance = 1e-6f;
+
+    /// <summary>
+    ///     The offsetting parameters shared by every join built for one side (<see cref="SideSign"/>
+    ///     of <c>+1</c>/<c>-1</c>) of a stroked polyline: which <see cref="StrokeStyle"/> to honor,
+    ///     how far to offset (<see cref="HalfWidth"/>), and how finely to tessellate any round
+    ///     join/cap arcs (<see cref="FlattenTolerance"/>).
+    /// </summary>
+    /// <remarks>
+    ///     Bundles the four arguments that <see cref="AppendOpenJoin"/>, <see cref="AppendStyledJoin"/>,
+    ///     and their <see cref="BuildOpenSide"/>/<see cref="BuildClosedSide"/> callers always pass
+    ///     together, unchanged, for the entire side of a polyline being offset.
+    /// </remarks>
+    private readonly record struct StrokeSideGeometry(float SideSign, StrokeStyle Style, float HalfWidth, float FlattenTolerance);
+
+    /// <summary>
+    ///     The tessellation parameters shared by every arc-appending helper: the arc's
+    ///     <see cref="Radius"/>, the flattening <see cref="FlattenTolerance"/> bounding each
+    ///     segment's sagitta, and whether the arc's start/end point should itself be emitted
+    ///     (<see cref="IncludeStart"/>/<see cref="IncludeEnd"/>) or left for the caller to add.
+    /// </summary>
+    /// <remarks>
+    ///     Bundles the four arguments <see cref="AppendArcShortest"/>, <see cref="AppendArcThrough"/>,
+    ///     and <see cref="AppendArc"/> all share identically - only the arc's angular span itself
+    ///     differs between the three.
+    /// </remarks>
+    private readonly record struct ArcTessellation(float Radius, float FlattenTolerance, bool IncludeStart, bool IncludeEnd);
 
     /// <summary>
     ///     Converts one flattened path segment into its closed outline polygon(s).
@@ -72,14 +99,20 @@ internal static class StrokeOutliner
     /// </summary>
     private static List<Vector2> SimplifyPoints(IReadOnlyList<Vector2> points, bool isClosed)
     {
-        var simplified = new List<Vector2>(points.Count);
-        foreach (var point in points)
+        // Tracks the last point that survived the filter below, so each candidate point is kept
+        // only when it differs from the previous KEPT point - not merely the previous SOURCE
+        // point - reproducing the original loop's "simplified[^1] != point" comparison exactly.
+        Vector2? lastKept = null;
+        var simplified = points.Where(point =>
         {
-            if (simplified.Count == 0 || simplified[^1] != point)
+            if (lastKept == point)
             {
-                simplified.Add(point);
+                return false;
             }
-        }
+
+            lastKept = point;
+            return true;
+        }).ToList();
 
         if (isClosed && simplified.Count > 1 && simplified[0] == simplified[^1])
         {
@@ -246,10 +279,7 @@ internal static class StrokeOutliner
                 leftEnd - end,
                 rightEnd - end,
                 tangent * halfWidth,
-                halfWidth,
-                flattenTolerance,
-                includeStart: false,
-                includeEnd: true);
+                new ArcTessellation(halfWidth, flattenTolerance, IncludeStart: false, IncludeEnd: true));
 
             AppendReversed(rightSide, polygon, skipFirst: true);
         }
@@ -270,10 +300,7 @@ internal static class StrokeOutliner
                 rightStart - start,
                 leftStart - start,
                 -tangent * halfWidth,
-                halfWidth,
-                flattenTolerance,
-                includeStart: false,
-                includeEnd: false);
+                new ArcTessellation(halfWidth, flattenTolerance, IncludeStart: false, IncludeEnd: false));
         }
 
         RemoveTrailingDuplicateOfFirst(polygon);
@@ -371,7 +398,26 @@ internal static class StrokeOutliner
         // product to Infinity or (Infinity * 0) to NaN.
         var outerArea = ComputeSignedArea(outerRing);
         var innerArea = ComputeSignedArea(innerRing);
-        if (outerArea != 0.0 && innerArea != 0.0 && Math.Sign(outerArea) == Math.Sign(innerArea))
+
+        // Areas are computed (not caller-supplied literal) values, so guard the "is this ring
+        // degenerate" check with a small tolerance rather than an exact-zero comparison - a
+        // ring that is only nearly collinear could otherwise land at a tiny nonzero double
+        // instead of exactly 0.0, and still needs to be treated as having no meaningful sign.
+        // The tolerance must scale with the rings' own area magnitude rather than use a fixed
+        // absolute cutoff: shoelace-formula rounding error grows with the coordinate magnitude,
+        // and a fixed absolute cutoff would either wrongly treat a tiny but legitimate stroke
+        // (e.g. a micron-scale closed path) as degenerate, or fail to catch genuine rounding
+        // noise on a very large one. The X and Y bounding-box spans are multiplied together
+        // (rather than combined via a single max-extent squared) so a skinny ring - large along
+        // one axis, tiny along the other - gets a tolerance matching its own area order of
+        // magnitude instead of one inflated by its unrelated long axis; each span is itself
+        // translation-invariant, so a ring far from the origin is not penalized either.
+        const double relativeAreaTolerance = 1e-9;
+        var ringAreaScale = Math.Max(RingAreaScale(outerRing), RingAreaScale(innerRing));
+        var areaNearZeroTolerance = ringAreaScale * relativeAreaTolerance;
+        if (Math.Abs(outerArea) > areaNearZeroTolerance
+            && Math.Abs(innerArea) > areaNearZeroTolerance
+            && Math.Sign(outerArea) == Math.Sign(innerArea))
         {
             innerRing.Reverse();
         }
@@ -426,7 +472,7 @@ internal static class StrokeOutliner
     /// </summary>
     private static List<Vector2> BuildOpenSide(
         IReadOnlyList<Vector2> points,
-        IReadOnlyList<(Vector2 Tangent, Vector2 Normal)> frames,
+        (Vector2 Tangent, Vector2 Normal)[] frames,
         float sideSign,
         StrokeStyle style,
         float halfWidth,
@@ -435,9 +481,10 @@ internal static class StrokeOutliner
         var side = new List<Vector2>(points.Count * 2);
         AddPointIfDistinct(side, GetOpenEndpoint(points[0], frames[0].Tangent, frames[0].Normal, sideSign, style.Cap, -1f, halfWidth));
 
+        var sideGeometry = new StrokeSideGeometry(sideSign, style, halfWidth, flattenTolerance);
         for (var i = 1; i < points.Count - 1; i++)
         {
-            AppendOpenJoin(side, points[i], frames[i - 1], frames[i], sideSign, style, halfWidth, flattenTolerance);
+            AppendOpenJoin(side, points[i], frames[i - 1], frames[i], sideGeometry);
         }
 
         AddPointIfDistinct(side, GetOpenEndpoint(points[^1], frames[^1].Tangent, frames[^1].Normal, sideSign, style.Cap, +1f, halfWidth));
@@ -474,13 +521,10 @@ internal static class StrokeOutliner
         Vector2 vertex,
         (Vector2 Tangent, Vector2 Normal) previousFrame,
         (Vector2 Tangent, Vector2 Normal) nextFrame,
-        float sideSign,
-        StrokeStyle style,
-        float halfWidth,
-        float flattenTolerance)
+        StrokeSideGeometry geometry)
     {
-        var previousPoint = vertex + sideSign * previousFrame.Normal * halfWidth;
-        var nextPoint = vertex + sideSign * nextFrame.Normal * halfWidth;
+        var previousPoint = vertex + geometry.SideSign * previousFrame.Normal * geometry.HalfWidth;
+        var nextPoint = vertex + geometry.SideSign * nextFrame.Normal * geometry.HalfWidth;
         var turn = Cross(previousFrame.Tangent, nextFrame.Tangent);
         var dot = Vector2.Dot(previousFrame.Tangent, nextFrame.Tangent);
         if (MathF.Abs(turn) <= NearZeroDistance && dot > 0f)
@@ -489,7 +533,7 @@ internal static class StrokeOutliner
             return;
         }
 
-        var isConvexOnThisSide = turn * sideSign < 0f;
+        var isConvexOnThisSide = turn * geometry.SideSign < 0f;
         if (!isConvexOnThisSide)
         {
             AddPointIfDistinct(side, previousPoint);
@@ -497,17 +541,7 @@ internal static class StrokeOutliner
             return;
         }
 
-        AppendStyledJoin(
-            side,
-            vertex,
-            previousFrame.Tangent,
-            nextFrame.Tangent,
-            previousFrame.Normal,
-            nextFrame.Normal,
-            sideSign,
-            style,
-            halfWidth,
-            flattenTolerance);
+        AppendStyledJoin(side, vertex, previousFrame, nextFrame, geometry);
     }
 
     /// <summary>
@@ -545,6 +579,7 @@ internal static class StrokeOutliner
     {
         var frames = BuildSegmentFrames(points, isClosed: true);
         var ring = new List<Vector2>(points.Count * 2);
+        var geometry = new StrokeSideGeometry(sideSign, style, halfWidth, flattenTolerance);
 
         // Tracks, for each source vertex, the ring index of the single plain offset point emitted
         // for it (see the remarks below), or -1 if that vertex instead emitted a styled join
@@ -569,14 +604,9 @@ internal static class StrokeOutliner
             AppendStyledJoin(
                 ring,
                 points[i],
-                previousFrame.Tangent,
-                nextFrame.Tangent,
-                previousFrame.Normal,
-                nextFrame.Normal,
-                sideSign,
-                style,
-                halfWidth,
-                flattenTolerance,
+                previousFrame,
+                nextFrame,
+                geometry,
                 forceExactIntersection: !isConvexOnThisSide);
 
             // Only a locally concave (forceExactIntersection) vertex that emitted exactly one
@@ -619,16 +649,11 @@ internal static class StrokeOutliner
     /// <summary>
     ///     Appends the requested styled join between two offset segments.
     /// </summary>
-    /// <param name="target"></param>
-    /// <param name="vertex"></param>
-    /// <param name="previousTangent"></param>
-    /// <param name="nextTangent"></param>
-    /// <param name="previousNormal"></param>
-    /// <param name="nextNormal"></param>
-    /// <param name="sideSign"></param>
-    /// <param name="style"></param>
-    /// <param name="halfWidth"></param>
-    /// <param name="flattenTolerance"></param>
+    /// <param name="target">The point list to append the join's vertices to.</param>
+    /// <param name="vertex">The source polyline vertex the join is centered on.</param>
+    /// <param name="previousFrame">The incoming segment's tangent/normal frame.</param>
+    /// <param name="nextFrame">The outgoing segment's tangent/normal frame.</param>
+    /// <param name="geometry">The side/style/half-width/tolerance this join is built with.</param>
     /// <param name="forceExactIntersection">
     ///     When <see langword="true"/>, ignores <see cref="StrokeStyle.Join"/> and always emits
     ///     the geometrically exact intersection of the two offset edges (falling back to the
@@ -640,22 +665,17 @@ internal static class StrokeOutliner
     private static void AppendStyledJoin(
         List<Vector2> target,
         Vector2 vertex,
-        Vector2 previousTangent,
-        Vector2 nextTangent,
-        Vector2 previousNormal,
-        Vector2 nextNormal,
-        float sideSign,
-        StrokeStyle style,
-        float halfWidth,
-        float flattenTolerance,
+        (Vector2 Tangent, Vector2 Normal) previousFrame,
+        (Vector2 Tangent, Vector2 Normal) nextFrame,
+        StrokeSideGeometry geometry,
         bool forceExactIntersection = false)
     {
-        var previousPoint = vertex + sideSign * previousNormal * halfWidth;
-        var nextPoint = vertex + sideSign * nextNormal * halfWidth;
+        var previousPoint = vertex + geometry.SideSign * previousFrame.Normal * geometry.HalfWidth;
+        var nextPoint = vertex + geometry.SideSign * nextFrame.Normal * geometry.HalfWidth;
 
         if (forceExactIntersection)
         {
-            if (TryIntersectLines(previousPoint, previousTangent, nextPoint, nextTangent, out var intersection))
+            if (TryIntersectLines(previousPoint, previousFrame.Tangent, nextPoint, nextFrame.Tangent, out var intersection))
             {
                 AddPointIfDistinct(target, intersection);
             }
@@ -668,7 +688,7 @@ internal static class StrokeOutliner
             return;
         }
 
-        switch (style.Join)
+        switch (geometry.Style.Join)
         {
             case LineJoin.Round:
                 AddPointIfDistinct(target, previousPoint);
@@ -677,10 +697,7 @@ internal static class StrokeOutliner
                     vertex,
                     previousPoint - vertex,
                     nextPoint - vertex,
-                    halfWidth,
-                    flattenTolerance,
-                    includeStart: false,
-                    includeEnd: true);
+                    new ArcTessellation(geometry.HalfWidth, geometry.FlattenTolerance, IncludeStart: false, IncludeEnd: true));
                 break;
 
             case LineJoin.Bevel:
@@ -689,7 +706,7 @@ internal static class StrokeOutliner
                 break;
 
             default:
-                if (TryCreateMiter(vertex, previousPoint, nextPoint, previousTangent, nextTangent, style.Width, style.MiterLimit, out var miter))
+                if (TryCreateMiter(vertex, (previousPoint, previousFrame.Tangent), (nextPoint, nextFrame.Tangent), geometry.Style.Width, geometry.Style.MiterLimit, out var miter))
                 {
                     AddPointIfDistinct(target, miter);
                 }
@@ -719,16 +736,14 @@ internal static class StrokeOutliner
     /// </remarks>
     private static bool TryCreateMiter(
         Vector2 vertex,
-        Vector2 previousPoint,
-        Vector2 nextPoint,
-        Vector2 previousTangent,
-        Vector2 nextTangent,
+        (Vector2 Point, Vector2 Direction) previousLine,
+        (Vector2 Point, Vector2 Direction) nextLine,
         float strokeWidth,
         float miterLimit,
         out Vector2 miterPoint)
     {
         miterPoint = default;
-        if (!TryIntersectLines(previousPoint, previousTangent, nextPoint, nextTangent, out var intersection))
+        if (!TryIntersectLines(previousLine.Point, previousLine.Direction, nextLine.Point, nextLine.Direction, out var intersection))
         {
             return false;
         }
@@ -775,15 +790,12 @@ internal static class StrokeOutliner
         Vector2 center,
         Vector2 startVector,
         Vector2 endVector,
-        float radius,
-        float flattenTolerance,
-        bool includeStart,
-        bool includeEnd)
+        ArcTessellation arc)
     {
         var startAngle = MathF.Atan2(startVector.Y, startVector.X);
         var endAngle = MathF.Atan2(endVector.Y, endVector.X);
         var sweep = NormalizeSignedAngle(endAngle - startAngle);
-        AppendArc(target, center, startAngle, sweep, radius, flattenTolerance, includeStart, includeEnd);
+        AppendArc(target, center, startAngle, sweep, arc);
     }
 
     /// <summary>
@@ -796,10 +808,7 @@ internal static class StrokeOutliner
         Vector2 startVector,
         Vector2 endVector,
         Vector2 throughVector,
-        float radius,
-        float flattenTolerance,
-        bool includeStart,
-        bool includeEnd)
+        ArcTessellation arc)
     {
         var startAngle = MathF.Atan2(startVector.Y, startVector.X);
         var endAngle = MathF.Atan2(endVector.Y, endVector.X);
@@ -810,7 +819,7 @@ internal static class StrokeOutliner
             sweep = sweep > 0f ? sweep - 2f * MathF.PI : sweep + 2f * MathF.PI;
         }
 
-        AppendArc(target, center, startAngle, sweep, radius, flattenTolerance, includeStart, includeEnd);
+        AppendArc(target, center, startAngle, sweep, arc);
     }
 
     /// <summary>
@@ -821,26 +830,23 @@ internal static class StrokeOutliner
         Vector2 center,
         float startAngle,
         float sweep,
-        float radius,
-        float flattenTolerance,
-        bool includeStart,
-        bool includeEnd)
+        ArcTessellation arc)
     {
-        var segmentCount = GetArcSegmentCount(radius, MathF.Abs(sweep), flattenTolerance);
+        var segmentCount = GetArcSegmentCount(arc.Radius, MathF.Abs(sweep), arc.FlattenTolerance);
         for (var i = 0; i <= segmentCount; i++)
         {
-            if (i == 0 && !includeStart)
+            if (i == 0 && !arc.IncludeStart)
             {
                 continue;
             }
 
-            if (i == segmentCount && !includeEnd)
+            if (i == segmentCount && !arc.IncludeEnd)
             {
                 continue;
             }
 
             var angle = startAngle + sweep * i / segmentCount;
-            var point = center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius;
+            var point = center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * arc.Radius;
             AddPointIfDistinct(target, point);
         }
     }
@@ -921,7 +927,7 @@ internal static class StrokeOutliner
     /// <summary>
     ///     Appends <paramref name="source"/> in reverse order to <paramref name="target"/>.
     /// </summary>
-    private static void AppendReversed(IReadOnlyList<Vector2> source, List<Vector2> target, bool skipFirst)
+    private static void AppendReversed(List<Vector2> source, List<Vector2> target, bool skipFirst)
     {
         var endIndex = skipFirst ? source.Count - 2 : source.Count - 1;
         for (var i = endIndex; i >= 0; i--)
@@ -1079,5 +1085,36 @@ internal static class StrokeOutliner
         }
 
         return area / 2.0;
+    }
+
+    /// <summary>
+    ///     Computes the product of a ring's X and Y bounding-box spans, as a proxy for its area
+    ///     magnitude.
+    /// </summary>
+    /// <remarks>
+    ///     Used to derive an area-relative tolerance for near-zero area comparisons:
+    ///     shoelace-formula rounding error grows with the coordinate magnitude, so a fixed
+    ///     absolute tolerance would misclassify degeneracy at both very small and very large
+    ///     scales. Multiplying the two independent axis spans (rather than squaring a single
+    ///     combined extent) keeps the estimate accurate for skinny rings - large along one axis,
+    ///     tiny along the other - instead of inflating the tolerance to match the longer axis.
+    ///     Each span is itself translation-invariant, so a ring far from the origin is not
+    ///     penalized for its absolute position either.
+    /// </remarks>
+    private static double RingAreaScale(IReadOnlyList<Vector2> points)
+    {
+        var minX = double.PositiveInfinity;
+        var maxX = double.NegativeInfinity;
+        var minY = double.PositiveInfinity;
+        var maxY = double.NegativeInfinity;
+        foreach (var point in points)
+        {
+            minX = Math.Min(minX, point.X);
+            maxX = Math.Max(maxX, point.X);
+            minY = Math.Min(minY, point.Y);
+            maxY = Math.Max(maxY, point.Y);
+        }
+
+        return (maxX - minX) * (maxY - minY);
     }
 }

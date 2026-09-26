@@ -48,7 +48,8 @@ public class TrueTypeFontTests
         var data = BuildWellFormedFont();
 
         // Act: load the font
-        var font = TrueTypeFont.Load(new MemoryStream(data));
+        using var ms50 = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms50);
 
         // Assert: font-level metrics are exposed as configured
         Assert.Equal(1000, font.UnitsPerEm);
@@ -68,7 +69,8 @@ public class TrueTypeFontTests
         var data = BuildWellFormedFont();
 
         // Act: load the font and query glyph index, outline, advance width, and kerning
-        var font = TrueTypeFont.Load(new MemoryStream(data));
+        using var ms70 = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms70);
         var glyphIndex = font.GetGlyphIndex('A');
         var outline = font.GetGlyphOutline(glyphIndex);
         var advance = font.GetAdvanceWidth(glyphIndex);
@@ -148,7 +150,8 @@ public class TrueTypeFontTests
             .Build(); // missing maxp/hhea/hmtx/loca/glyf
 
         // Act/Assert: loading the font with missing required tables throws
-        Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(new MemoryStream(data)));
+        using var ms150 = new MemoryStream(data);
+        Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(ms150));
     }
 
     /// <summary>
@@ -164,7 +167,8 @@ public class TrueTypeFontTests
             .Build();
 
         // Act/Assert: loading the OTTO font throws
-        Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(new MemoryStream(data)));
+        using var ms166 = new MemoryStream(data);
+        Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(ms166));
     }
 
     /// <summary>
@@ -185,7 +189,8 @@ public class TrueTypeFontTests
             .Build();
 
         // Act/Assert: loading the font with the unsupported maxp version throws
-        Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(new MemoryStream(data)));
+        using var ms187 = new MemoryStream(data);
+        Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(ms187));
     }
 
     /// <summary>
@@ -212,7 +217,8 @@ public class TrueTypeFontTests
             .Build();
 
         // Act/Assert: loading the font with the truncated version 1.0 maxp table throws
-        Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(new MemoryStream(data)));
+        using var ms214 = new MemoryStream(data);
+        Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(ms214));
     }
 
     /// <summary>
@@ -233,7 +239,8 @@ public class TrueTypeFontTests
             .Build();
 
         // Act/Assert: loading the font with zero unitsPerEm throws
-        Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(new MemoryStream(data)));
+        using var ms235 = new MemoryStream(data);
+        Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(ms235));
     }
 
     /// <summary>
@@ -254,7 +261,8 @@ public class TrueTypeFontTests
             .Build();
 
         // Act/Assert: loading the font with the invalid indexToLocFormat throws
-        Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(new MemoryStream(data)));
+        using var ms256 = new MemoryStream(data);
+        Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(ms256));
     }
 
     /// <summary>
@@ -275,7 +283,8 @@ public class TrueTypeFontTests
             .Build();
 
         // Act: load the font and query codepoint lookup and kerning
-        var font = TrueTypeFont.Load(new MemoryStream(data));
+        using var ms277 = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms277);
 
         // Assert: missing optional tables fall back gracefully to default values
         Assert.Equal(0, font.GetGlyphIndex('A'));
@@ -289,7 +298,8 @@ public class TrueTypeFontTests
     public void TrueTypeFont_GetGlyphOutline_NegativeGlyphIndex_ThrowsArgumentOutOfRangeException()
     {
         // Arrange: load a well-formed font
-        var font = TrueTypeFont.Load(new MemoryStream(BuildWellFormedFont()));
+        using var ms291 = new MemoryStream(BuildWellFormedFont());
+        var font = TrueTypeFont.Load(ms291);
 
         // Act/Assert: requesting a negative glyph index throws
         Assert.Throws<ArgumentOutOfRangeException>(() => font.GetGlyphOutline(-1));
@@ -302,7 +312,8 @@ public class TrueTypeFontTests
     public void TrueTypeFont_GetGlyphOutline_GlyphIndexTooLarge_ThrowsArgumentOutOfRangeException()
     {
         // Arrange: load a well-formed font
-        var font = TrueTypeFont.Load(new MemoryStream(BuildWellFormedFont()));
+        using var ms304 = new MemoryStream(BuildWellFormedFont());
+        var font = TrueTypeFont.Load(ms304);
 
         // Act/Assert: requesting a glyph index at/beyond the glyph count throws
         Assert.Throws<ArgumentOutOfRangeException>(() => font.GetGlyphOutline(font.GlyphCount));
@@ -315,7 +326,8 @@ public class TrueTypeFontTests
     public void TrueTypeFont_GetAdvanceWidth_GlyphIndexTooLarge_ThrowsArgumentOutOfRangeException()
     {
         // Arrange: load a well-formed font
-        var font = TrueTypeFont.Load(new MemoryStream(BuildWellFormedFont()));
+        using var ms317 = new MemoryStream(BuildWellFormedFont());
+        var font = TrueTypeFont.Load(ms317);
 
         // Act/Assert: requesting the advance width of an out-of-range glyph index throws
         Assert.Throws<ArgumentOutOfRangeException>(() => font.GetAdvanceWidth(font.GlyphCount));
@@ -328,7 +340,8 @@ public class TrueTypeFontTests
     public void TrueTypeFont_GetKerning_OutOfRangeGlyphIndex_NeverThrows()
     {
         // Arrange: load a well-formed font
-        var font = TrueTypeFont.Load(new MemoryStream(BuildWellFormedFont()));
+        using var ms330 = new MemoryStream(BuildWellFormedFont());
+        var font = TrueTypeFont.Load(ms330);
 
         // Act: query kerning with out-of-range glyph indices
         var result = font.GetKerning(-1, 99999);
@@ -363,7 +376,8 @@ public class TrueTypeFontTests
             .AddTable("kern", kern)
             .Build();
 
-        var font = TrueTypeFont.Load(new MemoryStream(data));
+        using var ms365 = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms365);
 
         // Act: query kerning for the pair recorded in the kern table
         var result = font.GetKerning(100, 101);
@@ -381,7 +395,8 @@ public class TrueTypeFontTests
     public void TrueTypeFont_GetGlyphIndex_UnmappedCodepoint_NeverThrows()
     {
         // Arrange: load a well-formed font
-        var font = TrueTypeFont.Load(new MemoryStream(BuildWellFormedFont()));
+        using var ms383 = new MemoryStream(BuildWellFormedFont());
+        var font = TrueTypeFont.Load(ms383);
 
         // Act: query the glyph index for a codepoint absent from the cmap
         var result = font.GetGlyphIndex(0x10FFFF);
@@ -416,7 +431,8 @@ public class TrueTypeFontTests
             .Build();
 
         // Act: load the font and resolve the malformed-mapped codepoint
-        var font = TrueTypeFont.Load(new MemoryStream(data));
+        using var ms418 = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms418);
         var glyphIndex = font.GetGlyphIndex(65);
 
         // Assert: the out-of-range mapped glyph index is clamped to zero rather than propagated,
@@ -436,6 +452,7 @@ public class TrueTypeFontTests
         var truncated = data[..(data.Length / 2)];
 
         // Act/Assert: loading the truncated stream throws
-        Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(new MemoryStream(truncated)));
+        using var ms438 = new MemoryStream(truncated);
+        Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(ms438));
     }
 }

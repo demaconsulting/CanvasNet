@@ -72,40 +72,9 @@ public static class CornerRoundEffect
         foreach (var subpath in source.Subpaths)
         {
             var commands = subpath.Commands;
-
-            // A "wrap-around corner" is the vertex at subpath.Start where the *implicit* closing
-            // edge (drawn by a trailing Close, from the last real command's endpoint back to
-            // subpath.Start) meets the *first* LineTo (from subpath.Start to commands[0].EndPoint).
-            // This is the same kind of "LineTo meets LineTo" polyline corner the main loop below
-            // detects for every interior vertex, except neither edge is literally adjacent in the
-            // commands list - one is the implicit closing edge (whose "command" is Close, at
-            // lastIndex), the other is the first command. It requires at least two LineTo
-            // commands before Close (a single LineTo before Close would make the "incoming" and
-            // "outgoing" edges the same segment, which is not a real corner).
             var lastIndex = commands.Count - 1;
-            var closingLineIndex = lastIndex - 1;
-            var hasWrapAroundCorner = closingLineIndex > 0 &&
-                                       commands[lastIndex].Type == PathCommandType.Close &&
-                                       commands[closingLineIndex].Type == PathCommandType.LineTo &&
-                                       commands[0].Type == PathCommandType.LineTo;
 
-            var moveToPoint = subpath.Start;
-            var wrapRadius = radius;
-            if (hasWrapAroundCorner)
-            {
-                var incomingStart = commands[closingLineIndex].EndPoint;
-                var outgoingEnd = commands[0].EndPoint;
-                wrapRadius = ClampRadius(radius, incomingStart, subpath.Start, outgoingEnd);
-
-                // Compute where the wrap-around arc's tangent-out point lands using a scratch
-                // builder (the same TangentArcTo math used for every other corner), so the real
-                // subpath below can start there directly instead of at the un-rounded Start.
-                var scratch = new PathBuilder()
-                    .MoveTo(incomingStart)
-                    .TangentArcTo(subpath.Start, outgoingEnd, wrapRadius)
-                    .Build();
-                moveToPoint = scratch.Subpaths[0].Commands[^1].EndPoint;
-            }
+            var (hasWrapAroundCorner, wrapRadius, moveToPoint) = ComputeWrapAroundCorner(subpath, radius);
 
             builder.MoveTo(moveToPoint);
 
@@ -196,6 +165,64 @@ public static class CornerRoundEffect
         }
 
         return builder.Build();
+    }
+
+    /// <summary>
+    ///     Determines whether <paramref name="subpath"/> has a "wrap-around corner" at its start
+    ///     point - where the implicit closing edge (drawn by a trailing <see cref="PathCommandType.Close"/>,
+    ///     from the last real command's endpoint back to <see cref="Subpath.Start"/>) meets the
+    ///     first <see cref="PathCommandType.LineTo"/> - and, when it does, computes the rounded
+    ///     radius and the tangent-out point the rest of the subpath should start from instead of
+    ///     the un-rounded start point.
+    /// </summary>
+    /// <remarks>
+    ///     Isolated from <see cref="Apply"/> as its own self-contained computation - determining
+    ///     and rounding the wrap-around corner is independent of the traversal loop that emits the
+    ///     rest of the subpath's commands, and does not depend on any state the loop accumulates.
+    ///     This is the same kind of "LineTo meets LineTo" polyline corner <see cref="Apply"/>'s
+    ///     main loop detects for every interior vertex, except neither edge is literally adjacent
+    ///     in the commands list - one is the implicit closing edge (whose "command" is
+    ///     <see cref="PathCommandType.Close"/>, at the subpath's last index), the other is the
+    ///     first command. It requires at least two <see cref="PathCommandType.LineTo"/> commands
+    ///     before <see cref="PathCommandType.Close"/> (a single LineTo before Close would make the
+    ///     "incoming" and "outgoing" edges the same segment, which is not a real corner).
+    /// </remarks>
+    /// <param name="subpath">The subpath to inspect.</param>
+    /// <param name="radius">The requested corner radius, before per-corner clamping.</param>
+    /// <returns>
+    ///     Whether a wrap-around corner exists, its clamped radius (equal to <paramref name="radius"/>
+    ///     when none exists), and the point the subpath should actually start from (equal to
+    ///     <see cref="Subpath.Start"/> when none exists).
+    /// </returns>
+    private static (bool HasWrapAroundCorner, float WrapRadius, Vector2 MoveToPoint) ComputeWrapAroundCorner(Subpath subpath, float radius)
+    {
+        var commands = subpath.Commands;
+        var lastIndex = commands.Count - 1;
+        var closingLineIndex = lastIndex - 1;
+        var hasWrapAroundCorner = closingLineIndex > 0 &&
+                                   commands[lastIndex].Type == PathCommandType.Close &&
+                                   commands[closingLineIndex].Type == PathCommandType.LineTo &&
+                                   commands[0].Type == PathCommandType.LineTo;
+
+        if (!hasWrapAroundCorner)
+        {
+            return (false, radius, subpath.Start);
+        }
+
+        var incomingStart = commands[closingLineIndex].EndPoint;
+        var outgoingEnd = commands[0].EndPoint;
+        var wrapRadius = ClampRadius(radius, incomingStart, subpath.Start, outgoingEnd);
+
+        // Compute where the wrap-around arc's tangent-out point lands using a scratch builder
+        // (the same TangentArcTo math used for every other corner), so the real subpath below
+        // can start there directly instead of at the un-rounded Start.
+        var scratch = new PathBuilder()
+            .MoveTo(incomingStart)
+            .TangentArcTo(subpath.Start, outgoingEnd, wrapRadius)
+            .Build();
+        var moveToPoint = scratch.Subpaths[0].Commands[^1].EndPoint;
+
+        return (true, wrapRadius, moveToPoint);
     }
 
     /// <summary>

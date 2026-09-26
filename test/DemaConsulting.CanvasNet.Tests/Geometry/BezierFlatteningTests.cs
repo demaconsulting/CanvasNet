@@ -184,8 +184,8 @@ public class BezierFlatteningTests
         BezierFlattening.FlattenCubic(p, p, p, p, 0.01f, output);
 
         // Assert: terminates immediately (already flat) with just the end point
-        Assert.Single(output);
-        Assert.Equal(p, output[0]);
+        var point = Assert.Single(output);
+        Assert.Equal(p, point);
     }
 
     /// <summary>

@@ -942,7 +942,7 @@ public static class SvgCodec
         ///     codec implements no scripting/animation support that could redefine a gradient's
         ///     stops mid-render.
         /// </summary>
-        public Dictionary<XElement, List<GradientStop>> GradientStopCache { get; } = new();
+        public Dictionary<XElement, List<GradientStop>> GradientStopCache { get; } = [];
     }
 
     // ================================================================================================
@@ -1274,7 +1274,7 @@ public static class SvgCodec
     /// </summary>
     /// <param name="raw">The attribute's raw, non-<c>"none"</c> value.</param>
     /// <returns>The parsed dash array, or <see langword="null"/> for an effectively-solid stroke.</returns>
-    private static IReadOnlyList<float>? ParseDashArray(string raw)
+    private static List<float>? ParseDashArray(string raw)
     {
         var numbers = ParseNumberList(raw);
         return numbers.Count == 0 || numbers.Exists(v => v < 0f) || numbers.TrueForAll(v => v == 0f)
@@ -1497,7 +1497,7 @@ public static class SvgCodec
     ///     Thrown when <paramref name="name"/> is not recognized, or <paramref name="arguments"/>
     ///     does not have one of the argument counts that function accepts.
     /// </exception>
-    private static Matrix3x2 BuildTransformFunction(string name, IReadOnlyList<float> arguments) => name switch
+    private static Matrix3x2 BuildTransformFunction(string name, List<float> arguments) => name switch
     {
         "translate" => BuildTranslate(arguments),
         "scale" => BuildScale(arguments),
@@ -1518,7 +1518,7 @@ public static class SvgCodec
     /// <param name="arguments">The function's parsed arguments (one or two numbers).</param>
     /// <returns>The translation matrix.</returns>
     /// <exception cref="InvalidDataException">Thrown when the argument count is not one or two.</exception>
-    private static Matrix3x2 BuildTranslate(IReadOnlyList<float> arguments) => arguments.Count switch
+    private static Matrix3x2 BuildTranslate(List<float> arguments) => arguments.Count switch
     {
         1 => Matrix3x2.CreateTranslation(arguments[0], 0f),
         2 => Matrix3x2.CreateTranslation(arguments[0], arguments[1]),
@@ -1529,7 +1529,7 @@ public static class SvgCodec
     /// <param name="arguments">The function's parsed arguments (one or two numbers).</param>
     /// <returns>The scale matrix.</returns>
     /// <exception cref="InvalidDataException">Thrown when the argument count is not one or two.</exception>
-    private static Matrix3x2 BuildScale(IReadOnlyList<float> arguments) => arguments.Count switch
+    private static Matrix3x2 BuildScale(List<float> arguments) => arguments.Count switch
     {
         1 => Matrix3x2.CreateScale(arguments[0], arguments[0]),
         2 => Matrix3x2.CreateScale(arguments[0], arguments[1]),
@@ -1540,7 +1540,7 @@ public static class SvgCodec
     /// <param name="arguments">The function's parsed arguments (one or three numbers, angle in degrees).</param>
     /// <returns>The rotation matrix, about the origin or about <c>(cx, cy)</c>.</returns>
     /// <exception cref="InvalidDataException">Thrown when the argument count is not one or three.</exception>
-    private static Matrix3x2 BuildRotate(IReadOnlyList<float> arguments)
+    private static Matrix3x2 BuildRotate(List<float> arguments)
     {
         switch (arguments.Count)
         {
@@ -2784,21 +2784,8 @@ public static class SvgCodec
     /// <param name="dashArray">The local-space dash array, or <see langword="null"/> for a solid stroke.</param>
     /// <param name="scale">The local-to-pixel-space scale factor.</param>
     /// <returns>The scaled dash array, or <see langword="null"/> if <paramref name="dashArray"/> is <see langword="null"/>.</returns>
-    private static IReadOnlyList<float>? ScaleDashArray(IReadOnlyList<float>? dashArray, float scale)
-    {
-        if (dashArray == null)
-        {
-            return null;
-        }
-
-        var scaled = new float[dashArray.Count];
-        for (var i = 0; i < dashArray.Count; i++)
-        {
-            scaled[i] = dashArray[i] * scale;
-        }
-
-        return scaled;
-    }
+    private static float[]? ScaleDashArray(IReadOnlyList<float>? dashArray, float scale) =>
+        dashArray?.Select(value => value * scale).ToArray();
 
     // ================================================================================================
     // Paint and color resolution
@@ -3403,16 +3390,8 @@ public static class SvgCodec
     /// <param name="stops">The source stops.</param>
     /// <param name="multiplier">The multiplier to apply to each stop's existing alpha.</param>
     /// <returns>A new list of stops with their colors' alpha scaled.</returns>
-    private static List<GradientStop> ApplyAlphaToStops(List<GradientStop> stops, float multiplier)
-    {
-        var result = new List<GradientStop>(stops.Count);
-        foreach (var stop in stops)
-        {
-            result.Add(new GradientStop(stop.Offset, ApplyAlpha(stop.Color, multiplier)));
-        }
-
-        return result;
-    }
+    private static List<GradientStop> ApplyAlphaToStops(List<GradientStop> stops, float multiplier) =>
+        stops.Select(stop => new GradientStop(stop.Offset, ApplyAlpha(stop.Color, multiplier))).ToList();
 
     /// <summary>Parses a <c>spreadMethod</c> keyword.</summary>
     /// <param name="raw">The attribute's raw value, or <see langword="null"/> if absent.</param>

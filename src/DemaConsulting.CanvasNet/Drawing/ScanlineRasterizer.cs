@@ -328,47 +328,8 @@ internal static class ScanlineRasterizer
                 var rowTop = (float)y;
                 var rowBottom = rowTop + 1f;
 
-                // Remove every edge bucketed to expire at this row (see the bucketing below):
-                // this touches exactly the edges that actually expire on this row, never the
-                // whole active list, so - unlike a full
-                // "activeEdges.RemoveAll(edge => edge.BottomY <= rowTop)" scan of every still-
-                // active edge on every row - this bookkeeping never re-examines an edge that still
-                // has rows left to contribute to.
-                var expiringHere = _expiringEdgeIds[y - _clipMinY];
-                if (expiringHere != null)
-                {
-                    foreach (var expiredId in expiringHere)
-                    {
-                        RemoveActiveEdge(expiredId, _activeEdges, _activeEdgeIds, _activeEdgePositions);
-                    }
-                }
-
-                while (_nextEdgeIndex < _edges.Count && _edges[_nextEdgeIndex].TopY < rowBottom)
-                {
-                    // Each edge is identified by its own fixed position in the sorted edge table
-                    // ("_edges"), which never changes and is never reused, so it is a stable id to
-                    // bucket by even though its position within the unordered "_activeEdges" list
-                    // itself can move (see RemoveActiveEdge's swap-remove).
-                    var edgeId = _nextEdgeIndex;
-                    var edge = _edges[edgeId];
-                    _activeEdgePositions[edgeId] = _activeEdges.Count;
-                    _activeEdges.Add(edge);
-                    _activeEdgeIds.Add(edgeId);
-
-                    // Bucket this edge's removal at the earliest row it can actually be observed
-                    // as expired. Removal always happens at the *start* of a row, before this
-                    // row's own additions, so an edge just added this row cannot be examined for
-                    // expiry until at least the next row - hence the "y + 1" floor alongside the
-                    // edge's own BottomY.
-                    var expireRow = Math.Max((int)MathF.Ceiling(edge.BottomY), y + 1);
-                    if (expireRow < _clipMaxY)
-                    {
-                        var bucket = _expiringEdgeIds[expireRow - _clipMinY] ??= [];
-                        bucket.Add(edgeId);
-                    }
-
-                    _nextEdgeIndex++;
-                }
+                ExpireEdgesForRow(y);
+                ActivateEdgesThroughRow(y, rowBottom);
 
                 if (_activeEdges.Count == 0)
                 {
@@ -381,27 +342,7 @@ internal static class ScanlineRasterizer
                     continue;
                 }
 
-                // Accumulate every active edge's row-restricted slice into the shared cell
-                // arrays - a single O(edges) pass, with no sorting and no pairing of edges into
-                // "inside gaps".
-                Array.Clear(_cover);
-                Array.Clear(_area);
-                foreach (var edge in _rowEdges)
-                {
-                    AccumulateRowEdge(edge, _clipMinX, _clipMaxX, _cover, _area);
-                }
-
-                // Single left-to-right sweep: "accumulatedCover" is the running winding total. At
-                // each column, "accumulatedCover" is first advanced by this column's own
-                // "cover[x]", then the updated running total plus this column's own partial-edge
-                // geometry ("area[x]") is resolved to a [0, 1] coverage fraction per fill rule.
-                var accumulatedCover = 0f;
-                for (var i = 0; i < Width; i++)
-                {
-                    accumulatedCover += _cover[i];
-                    var total = accumulatedCover + _area[i];
-                    _rowCoverage[i] = ResolveCoverage(total, _fillRule);
-                }
+                AccumulateRowCoverage();
 
                 rowCoverage = _rowCoverage;
                 return true;
@@ -410,6 +351,103 @@ internal static class ScanlineRasterizer
             y = 0;
             rowCoverage = default;
             return false;
+        }
+
+        /// <summary>
+        ///     Removes every active edge bucketed to expire at row <paramref name="y"/> (see the
+        ///     bucketing performed by <see cref="ActivateEdgesThroughRow"/>): this touches exactly
+        ///     the edges that actually expire on this row, never the whole active list, so -
+        ///     unlike a full <c>activeEdges.RemoveAll(edge =&gt; edge.BottomY &lt;= rowTop)</c>
+        ///     scan of every still-active edge on every row - this bookkeeping never re-examines
+        ///     an edge that still has rows left to contribute to.
+        /// </summary>
+        /// <remarks>
+        ///     Isolated from <see cref="MoveNext"/> as its own self-contained row-sweep phase,
+        ///     independently nameable from edge activation and coverage accumulation.
+        /// </remarks>
+        private void ExpireEdgesForRow(int y)
+        {
+            var expiringHere = _expiringEdgeIds[y - _clipMinY];
+            if (expiringHere == null)
+            {
+                return;
+            }
+
+            foreach (var expiredId in expiringHere)
+            {
+                RemoveActiveEdge(expiredId, _activeEdges, _activeEdgeIds, _activeEdgePositions);
+            }
+        }
+
+        /// <summary>
+        ///     Activates every edge in the sorted edge table whose top y falls before
+        ///     <paramref name="rowBottom"/>, bucketing each newly-activated edge's future removal
+        ///     at the earliest row it can actually be observed as expired.
+        /// </summary>
+        /// <remarks>
+        ///     Isolated from <see cref="MoveNext"/> as its own self-contained row-sweep phase,
+        ///     independently nameable from edge expiration and coverage accumulation. Removal
+        ///     always happens at the <em>start</em> of a row, before this row's own additions, so
+        ///     an edge just added this row cannot be examined for expiry until at least the next
+        ///     row - hence the <c>y + 1</c> floor alongside the edge's own <c>BottomY</c>.
+        /// </remarks>
+        private void ActivateEdgesThroughRow(int y, float rowBottom)
+        {
+            while (_nextEdgeIndex < _edges.Count && _edges[_nextEdgeIndex].TopY < rowBottom)
+            {
+                // Each edge is identified by its own fixed position in the sorted edge table
+                // ("_edges"), which never changes and is never reused, so it is a stable id to
+                // bucket by even though its position within the unordered "_activeEdges" list
+                // itself can move (see RemoveActiveEdge's swap-remove).
+                var edgeId = _nextEdgeIndex;
+                var edge = _edges[edgeId];
+                _activeEdgePositions[edgeId] = _activeEdges.Count;
+                _activeEdges.Add(edge);
+                _activeEdgeIds.Add(edgeId);
+
+                var expireRow = Math.Max((int)MathF.Ceiling(edge.BottomY), y + 1);
+                if (expireRow < _clipMaxY)
+                {
+                    var bucket = _expiringEdgeIds[expireRow - _clipMinY] ??= [];
+                    bucket.Add(edgeId);
+                }
+
+                _nextEdgeIndex++;
+            }
+        }
+
+        /// <summary>
+        ///     Accumulates every active, row-restricted edge into the shared <c>cover</c>/<c>area</c>
+        ///     cell arrays, then sweeps left to right exactly once to resolve <see cref="_rowCoverage"/>.
+        /// </summary>
+        /// <remarks>
+        ///     Isolated from <see cref="MoveNext"/> as its own self-contained row-sweep phase,
+        ///     independently nameable from edge expiration/activation - see this class's
+        ///     type-level remarks for the cell-based accumulation technique.
+        /// </remarks>
+        private void AccumulateRowCoverage()
+        {
+            // Accumulate every active edge's row-restricted slice into the shared cell
+            // arrays - a single O(edges) pass, with no sorting and no pairing of edges into
+            // "inside gaps".
+            Array.Clear(_cover);
+            Array.Clear(_area);
+            foreach (var edge in _rowEdges)
+            {
+                AccumulateRowEdge(edge, _clipMinX, _clipMaxX, _cover, _area);
+            }
+
+            // Single left-to-right sweep: "accumulatedCover" is the running winding total. At
+            // each column, "accumulatedCover" is first advanced by this column's own
+            // "cover[x]", then the updated running total plus this column's own partial-edge
+            // geometry ("area[x]") is resolved to a [0, 1] coverage fraction per fill rule.
+            var accumulatedCover = 0f;
+            for (var i = 0; i < Width; i++)
+            {
+                accumulatedCover += _cover[i];
+                var total = accumulatedCover + _area[i];
+                _rowCoverage[i] = ResolveCoverage(total, _fillRule);
+            }
         }
 
         /// <summary>
