@@ -339,8 +339,8 @@ internal sealed class GlyfLocaReader
     /// <summary>
     ///     Decodes one axis (x or y) of a simple glyph's delta-encoded, running-sum point
     ///     coordinates, and advances <paramref name="pos"/> past the bytes consumed. Shared
-    ///     between the x and y passes by parameterizing which flag bit selects the short (1-byte
-    ///     magnitude) encoding and which bit selects that byte's sign, or - for the 2-byte
+    ///     between the x and y passes by taking as parameters which flag bit selects the short
+    ///     (1-byte magnitude) encoding and which bit selects that byte's sign, or - for the 2-byte
     ///     encoding - whether the coordinate repeats the previous value unchanged.
     /// </summary>
     private int[] ReadCoordinates(byte[] flags, int numPoints, int limit, int shortVectorFlag, int sameOrPositiveFlag, ref int pos)

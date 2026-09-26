@@ -136,10 +136,20 @@ dotnet restore > $null
 if ($LASTEXITCODE -ne 0) { $lintError = $true; $skipDotnetFormat = $true }
 
 if (-not $skipDotnetFormat) {
-    dotnet format --verify-no-changes --no-restore --verbosity diagnostic --report artifacts/format-report
+    # NOTE: `dotnet format --verify-no-changes` has a known cross-platform exit-code
+    # bug (e.g. dotnet/sdk#41422) where it can report a non-zero exit code even when
+    # zero files require formatting, inconsistently between operating systems. To get
+    # a reliable check, format in place and use `git diff` as the source of truth.
+    dotnet format --no-restore
     if ($LASTEXITCODE -ne 0) {
         $lintError = $true
-        Get-Content artifacts/format-report/format-report.json -ErrorAction SilentlyContinue | Write-Host
+    }
+    else {
+        git diff --exit-code -- '*.cs'
+        if ($LASTEXITCODE -ne 0) {
+            $lintError = $true
+            Write-Host "dotnet format made changes; run fix.ps1 locally and commit the results."
+        }
     }
 }
 
