@@ -797,6 +797,7 @@ public class JpegCodecTests
         var info = JpegCodec.GetInfo(ms779);
 
         Assert.Equal(new ImageInfo(4, 3, 1, false), info);
+        Assert.Equal(1, info.FrameCount);
     }
 
     /// <summary>

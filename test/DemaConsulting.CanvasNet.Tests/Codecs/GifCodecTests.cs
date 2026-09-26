@@ -1,7 +1,6 @@
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
-using DemaConsulting.CanvasNet.Tests.TestSupport;
 
 namespace DemaConsulting.CanvasNet.Tests.Codecs;
 
@@ -414,13 +413,17 @@ public class GifCodecTests
     {
         var oversized = Surface.MaxDimension + 1;
         using var stream = new MemoryStream();
+        var lct = BuildColorTable((255, 0, 0), (0, 0, 255));
         WriteHeader(stream, oversized, oversized, null);
+        WriteImageDescriptor(stream, 0, 0, 1, 1, false, lct, 2, [0]);
+        WriteTrailer(stream);
         var bytes = stream.ToArray();
 
         using var infoStream = new MemoryStream(bytes);
         var info = GifCodec.GetInfo(infoStream);
         Assert.Equal(oversized, info.Width);
         Assert.Equal(oversized, info.Height);
+        Assert.Equal(1, info.FrameCount);
 
         using var loadStream = new MemoryStream(bytes);
         Assert.Throws<InvalidDataException>(() => GifCodec.Load(loadStream));
@@ -1071,7 +1074,10 @@ public class GifCodecTests
     public void GifCodec_GetInfo_ReturnsExpectedDimensionsChannelsAndCanDecode()
     {
         using var stream = new MemoryStream();
-        WriteHeader(stream, 12, 7, null);
+        var gct = BuildColorTable((254, 0, 0), (0, 0, 254));
+        WriteHeader(stream, 12, 7, gct);
+        WriteImageDescriptor(stream, 0, 0, 12, 7, false, null, 2, new byte[12 * 7]);
+        WriteTrailer(stream);
         stream.Position = 0;
 
         var info = GifCodec.GetInfo(stream);
@@ -1081,20 +1087,280 @@ public class GifCodecTests
         Assert.Equal(1, info.Channels);
         Assert.False(info.HasAlpha);
         Assert.True(info.CanDecode);
+        Assert.Equal(1, info.FrameCount);
     }
 
-    /// <summary>Test: GifCodec_GetInfo_NeverReadsPixelData.</summary>
+    /// <summary>
+    ///     Test: GifCodec_GetInfo_CorruptFirstFrameLzwData_ReportsCanDecodeFalse.
+    ///     GetInfo attempts the same LZW decode of the first frame's compressed data that Load
+    ///     performs when it decodes that frame's pixels - discarding the decoded output rather
+    ///     than resolving it into a Surface - specifically so a corrupt first-frame LZW payload
+    ///     is reported via CanDecode = false instead of GetInfo silently claiming a subsequent
+    ///     Load call would succeed.
+    /// </summary>
     [Fact]
-    public void GifCodec_GetInfo_NeverReadsPixelData()
+    public void GifCodec_GetInfo_CorruptFirstFrameLzwData_ReportsCanDecodeFalse()
     {
         using var stream = new MemoryStream();
-        WriteHeader(stream, 3, 3, null);
-        var headerBytes = stream.ToArray();
+        var gct = BuildColorTable((254, 0, 0), (0, 0, 254));
+        WriteHeader(stream, 2, 2, gct);
 
-        using var bounded = new BoundedReadStream(new MemoryStream(headerBytes), headerBytes.Length);
-        var info = GifCodec.GetInfo(bounded);
+        // Manually write an Image Descriptor whose compressed sub-block data is not a valid GIF
+        // LZW stream (it does not start with a Clear code) - Load's DecodeGifLzw rejects this
+        // when it decodes the first frame's pixels, and GetInfo now attempts that same decode
+        // (discarding its output) purely to detect this case, so it must report CanDecode = false
+        // rather than throwing, while still reporting the correct declared dimensions and frame
+        // count.
+        stream.WriteByte(0x2C);
+        WriteU16(stream, 0);
+        WriteU16(stream, 0);
+        WriteU16(stream, 2);
+        WriteU16(stream, 2);
+        stream.WriteByte(0); // packed: no local color table, no interlace
+        stream.WriteByte(2); // LZW minimum code size
+        WriteSubBlocks(stream, [0xFF, 0xFF, 0xFF, 0xFF]);
+        WriteTrailer(stream);
+        var bytes = stream.ToArray();
 
-        Assert.Equal(3, info.Width);
-        Assert.Equal(3, info.Height);
+        using var infoStream = new MemoryStream(bytes);
+        var info = GifCodec.GetInfo(infoStream);
+        Assert.Equal(2, info.Width);
+        Assert.Equal(2, info.Height);
+        Assert.Equal(1, info.FrameCount);
+        Assert.False(info.CanDecode);
+
+        using var loadStream = new MemoryStream(bytes);
+        Assert.Throws<InvalidDataException>(() => GifCodec.Load(loadStream));
+    }
+
+    /// <summary>
+    ///     Test: GifCodec_GetInfo_PathologicallyLargeFirstFrame_SkipsValidationAndReportsCanDecodeTrue.
+    ///     GetInfo deliberately never bounds a frame's declared width/height by
+    ///     Surface.MaxDimension, so a first frame declaring a pathologically large size (here,
+    ///     60000x60000 - a product that both overflows plain int arithmetic and vastly exceeds
+    ///     Surface.MaxDimension squared) must not make GetInfo throw an unhandled overflow
+    ///     exception, run out of memory attempting to allocate a proportional index buffer, or
+    ///     otherwise fail: this first-frame LZW-decode-validation attempt must instead be safely
+    ///     skipped for such a frame, leaving CanDecode at its default of true.
+    /// </summary>
+    [Fact]
+    public void GifCodec_GetInfo_PathologicallyLargeFirstFrame_SkipsValidationAndReportsCanDecodeTrue()
+    {
+        using var stream = new MemoryStream();
+        var gct = BuildColorTable((254, 0, 0), (0, 0, 254));
+
+        // 60000 x 60000 = 3,600,000,000 - overflows a plain `int` product (max ~2.147 billion)
+        // and vastly exceeds Surface.MaxDimension squared (8192 x 8192 = 67,108,864), the bound
+        // beyond which GetInfo's first-frame decode-validation attempt is skipped.
+        const int hugeDimension = 60000;
+        WriteHeader(stream, hugeDimension, hugeDimension, gct);
+
+        // Manually write an Image Descriptor declaring this pathologically large first frame.
+        // Its compressed sub-block data is deliberately just one arbitrary byte followed by the
+        // sub-block terminator: GetInfo's first-frame LZW-decode-validation attempt must never
+        // actually be reached for a frame this large, so the content of this data is irrelevant,
+        // and building a real 3.6-billion-index LZW stream here would itself be infeasible.
+        stream.WriteByte(0x2C);
+        WriteU16(stream, 0);
+        WriteU16(stream, 0);
+        WriteU16(stream, hugeDimension);
+        WriteU16(stream, hugeDimension);
+        stream.WriteByte(0); // packed: no local color table, no interlace
+        stream.WriteByte(2); // LZW minimum code size
+        WriteSubBlocks(stream, [0xFF]);
+        WriteTrailer(stream);
+        var bytes = stream.ToArray();
+
+        using var infoStream = new MemoryStream(bytes);
+        var info = GifCodec.GetInfo(infoStream);
+
+        Assert.Equal(hugeDimension, info.Width);
+        Assert.Equal(hugeDimension, info.Height);
+        Assert.Equal(1, info.FrameCount);
+        Assert.True(info.CanDecode);
+    }
+
+    /// <summary>
+    ///     Test: GifCodec_GetInfo_FirstFrameIndexOutOfRangeForColorTable_ReportsCanDecodeFalse.
+    ///     A structurally valid LZW stream can still decode to a palette index with no
+    ///     corresponding entry in its resolved color table - the same out-of-range condition
+    ///     BlitIndexedFrame itself rejects when Load blits this frame - so GetInfo must check
+    ///     every decoded index against the resolved color table's length, not merely confirm the
+    ///     LZW decode itself succeeds, and report CanDecode = false for this case too.
+    /// </summary>
+    [Fact]
+    public void GifCodec_GetInfo_FirstFrameIndexOutOfRangeForColorTable_ReportsCanDecodeFalse()
+    {
+        // Arrange: a 2x1 GIF with a 2-entry Global Color Table (valid indices 0-1) whose single
+        // frame's LZW stream is structurally valid but decodes to indices [0, 2] - index 2 has no
+        // corresponding color table entry, even though the LZW decode itself succeeds.
+        using var stream = new MemoryStream();
+        var gct = BuildColorTable((254, 0, 0), (0, 0, 254));
+        WriteHeader(stream, 2, 1, gct);
+        WriteImageDescriptor(stream, 0, 0, 2, 1, false, null, 2, [0, 2]);
+        WriteTrailer(stream);
+        var bytes = stream.ToArray();
+
+        // Act: GetInfo on the out-of-range-index fixture, and Load on the identical bytes
+        using var infoStream = new MemoryStream(bytes);
+        var info = GifCodec.GetInfo(infoStream);
+
+        // Assert: GetInfo reports the correct declared dimensions and frame count but
+        // CanDecode = false, while Load on the same bytes throws InvalidDataException
+        Assert.Equal(2, info.Width);
+        Assert.Equal(1, info.Height);
+        Assert.Equal(1, info.FrameCount);
+        Assert.False(info.CanDecode);
+
+        using var loadStream = new MemoryStream(bytes);
+        Assert.Throws<InvalidDataException>(() => GifCodec.Load(loadStream));
+    }
+
+    /// <summary>
+    ///     Test: GifCodec_GetInfo_CorruptLaterFrameLzwData_StillReportsCanDecodeTrue.
+    ///     GetInfo only ever attempts to LZW-decode the first frame's compressed data - matching
+    ///     Load's own decode-only-the-first-frame scope - so a second-or-later frame's corrupt
+    ///     LZW payload (which Load itself never decodes either) must not affect CanDecode, and
+    ///     frame counting must still report every Image Descriptor encountered.
+    /// </summary>
+    [Fact]
+    public void GifCodec_GetInfo_CorruptLaterFrameLzwData_StillReportsCanDecodeTrue()
+    {
+        using var stream = new MemoryStream();
+        var gct = BuildColorTable((254, 0, 0), (0, 0, 254));
+        WriteHeader(stream, 2, 2, gct);
+
+        // First frame's compressed data is entirely valid...
+        WriteImageDescriptor(stream, 0, 0, 2, 2, false, null, 2, [0, 0, 0, 0]);
+
+        // ...but the second frame's compressed sub-block data is not a valid GIF LZW stream (it
+        // does not start with a Clear code) - structurally well-formed (a valid sub-block chain),
+        // but undecodable pixel data that neither Load nor GetInfo ever attempts to decode for a
+        // frame after the first.
+        stream.WriteByte(0x2C);
+        WriteU16(stream, 0);
+        WriteU16(stream, 0);
+        WriteU16(stream, 2);
+        WriteU16(stream, 2);
+        stream.WriteByte(0); // packed: no local color table, no interlace
+        stream.WriteByte(2); // LZW minimum code size
+        WriteSubBlocks(stream, [0xFF, 0xFF, 0xFF, 0xFF]);
+        WriteTrailer(stream);
+        stream.Position = 0;
+
+        var info = GifCodec.GetInfo(stream);
+        Assert.Equal(2, info.FrameCount);
+        Assert.True(info.CanDecode);
+    }
+
+    /// <summary>Test: GifCodec_GetInfo_SingleFrame_ReportsFrameCountOne.</summary>
+    [Fact]
+    public void GifCodec_GetInfo_SingleFrame_ReportsFrameCountOne()
+    {
+        using var stream = new MemoryStream();
+        var gct = BuildColorTable((254, 0, 0), (0, 0, 254));
+        WriteHeader(stream, 2, 2, gct);
+        WriteImageDescriptor(stream, 0, 0, 2, 2, false, null, 2, [0, 0, 0, 0]);
+        WriteTrailer(stream);
+        stream.Position = 0;
+
+        var info = GifCodec.GetInfo(stream);
+
+        Assert.Equal(1, info.FrameCount);
+    }
+
+    /// <summary>Test: GifCodec_GetInfo_MultiFrame_ReportsCorrectFrameCount.</summary>
+    [Fact]
+    public void GifCodec_GetInfo_MultiFrame_ReportsCorrectFrameCount()
+    {
+        using var stream = new MemoryStream();
+        var gct = BuildColorTable((254, 0, 0), (0, 0, 254));
+        WriteHeader(stream, 2, 2, gct);
+        WriteImageDescriptor(stream, 0, 0, 2, 2, false, null, 2, [0, 0, 0, 0]);
+        WriteImageDescriptor(stream, 0, 0, 2, 2, false, null, 2, [1, 1, 1, 1]);
+        WriteImageDescriptor(stream, 0, 0, 2, 2, false, null, 2, [0, 1, 0, 1]);
+        WriteTrailer(stream);
+        stream.Position = 0;
+
+        var info = GifCodec.GetInfo(stream);
+
+        Assert.Equal(3, info.FrameCount);
+    }
+
+    /// <summary>Test: GifCodec_GetInfo_SecondFrameMissingColorTable_ThrowsInvalidDataException.</summary>
+    [Fact]
+    public void GifCodec_GetInfo_SecondFrameMissingColorTable_ThrowsInvalidDataException()
+    {
+        using var stream = new MemoryStream();
+        var lct = BuildColorTable((255, 0, 0), (0, 0, 255));
+        WriteHeader(stream, 2, 2, null); // no Global Color Table at all
+
+        // First frame supplies its own Local Color Table, so it is structurally valid...
+        WriteImageDescriptor(stream, 0, 0, 2, 2, false, lct, 2, [0, 0, 0, 0]);
+
+        // ...but the second frame has neither a Local Color Table nor a Global Color Table to
+        // fall back on - structurally malformed, and frame counting must not weaken this
+        // rejection merely because it never decodes any frame's pixel data.
+        WriteImageDescriptor(stream, 0, 0, 2, 2, false, null, 2, [0, 0, 0, 0]);
+        WriteTrailer(stream);
+        stream.Position = 0;
+
+        Assert.Throws<InvalidDataException>(() => GifCodec.GetInfo(stream));
+    }
+
+    /// <summary>
+    ///     Test: GifCodec_GetInfo_TrailingDataAfterTrailer_ThrowsInvalidDataException.
+    ///     GetInfo must reject a stream with trailing data after the GIF Trailer exactly as
+    ///     Load does, preserving the "GetInfo never accepts what Load would reject" parity - the
+    ///     frame-counting walk must not stop merely upon seeing the Trailer byte without also
+    ///     checking for extra data beyond it.
+    /// </summary>
+    [Fact]
+    public void GifCodec_GetInfo_TrailingDataAfterTrailer_ThrowsInvalidDataException()
+    {
+        using var stream = new MemoryStream();
+        var gct = BuildColorTable((255, 0, 0), (0, 0, 255));
+        WriteHeader(stream, 1, 1, gct);
+        WriteImageDescriptor(stream, 0, 0, 1, 1, false, null, 2, [0]);
+        WriteTrailer(stream);
+        stream.WriteByte(0xFF); // trailing garbage
+        stream.Position = 0;
+
+        Assert.Throws<InvalidDataException>(() => GifCodec.GetInfo(stream));
+    }
+
+    /// <summary>
+    ///     Test: GifCodec_GetInfo_ExcessiveSubBlockData_ThrowsInvalidDataException.
+    ///     GetInfo's frame-counting walk shares the exact same cumulative sub-block byte budget
+    ///     Load enforces. This proves the budget guard still applies identically when the
+    ///     sub-block chain is only skipped (never buffered into a byte array) by GetInfo's
+    ///     internal skip helper - the switch away from buffering must not weaken this limit.
+    /// </summary>
+    [Fact]
+    public void GifCodec_GetInfo_ExcessiveSubBlockData_ThrowsInvalidDataException()
+    {
+        using var stream = new MemoryStream();
+        WriteHeader(stream, 1, 1, null); // tiny declared dimensions
+
+        // A single Comment Extension (label 0xFE) whose sub-block chain's cumulative declared
+        // size is one byte more than GifCodec.MaxTotalSubBlockBytes. Content is irrelevant - only
+        // total volume matters - so a single reusable zero-filled 255-byte buffer is written
+        // repeatedly rather than allocating one huge array up front.
+        stream.WriteByte(0x21); // Extension Introducer
+        stream.WriteByte(0xFE); // Comment Extension label
+
+        var remaining = GifCodec.MaxTotalSubBlockBytes + 1;
+        var chunk = new byte[255];
+        while (remaining > 0)
+        {
+            var chunkSize = (int)Math.Min(255, remaining);
+            stream.WriteByte((byte)chunkSize);
+            stream.Write(chunk, 0, chunkSize);
+            remaining -= chunkSize;
+        }
+
+        stream.Position = 0;
+
+        Assert.Throws<InvalidDataException>(() => GifCodec.GetInfo(stream));
     }
 }

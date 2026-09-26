@@ -18,12 +18,28 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///         <em>first</em> Image Descriptor's pixel data - every subsequent frame is parsed only
 ///         far enough to validate its structure and is then discarded. This is a deliberate,
 ///         documented scope limitation, not a malformed-input condition, so a multi-frame GIF
-///         never causes <c>Load</c> to throw. For the same reason, <see cref="ImageInfo.CanDecode"/>
-///         is always <see langword="true"/> for a well-formed GIF file reported by
-///         <see cref="GetInfo(Stream)"/>: unlike <see cref="PngCodec"/>'s Adam7-interlacing case,
-///         a GIF file isn't malformed - nor is a subsequent <c>Load</c> call expected to fail -
-///         merely because it has more than one frame; only its first frame is ever decoded, by
-///         design, and that always succeeds for a well-formed file.
+///         never causes <c>Load</c> to throw, and <c>GetInfo</c>'s reported
+///         <see cref="ImageInfo.FrameCount"/> can legitimately exceed 1 without that alone
+///         affecting <see cref="ImageInfo.CanDecode"/>: unlike <see cref="PngCodec"/>'s
+///         Adam7-interlacing case, a GIF file isn't malformed - nor is a subsequent <c>Load</c>
+///         call expected to fail - merely because it has more than one frame; only its first
+///         frame is ever decoded, by design. <see cref="GetInfo(Stream)"/> reports the file's true
+///         total frame count via <see cref="ImageInfo.FrameCount"/> by walking every block in the
+///         file, structurally validating every frame exactly as <c>Load</c> does, and never
+///         invoking the LZW decoder for any frame after the first - a second-or-later frame's LZW
+///         corruption never affects <c>CanDecode</c>, since neither <c>Load</c> nor <c>GetInfo</c>
+///         ever decodes that frame's pixels. The <em>first</em> frame is different:
+///         <see cref="GetInfo(Stream)"/> does attempt the same LZW decode of the first frame's
+///         compressed data that <c>Load</c> performs, additionally checking every decoded index
+///         against the first frame's resolved color table length - the same out-of-range check
+///         <c>BlitIndexedFrame</c> performs when <c>Load</c> blits this same frame - and then
+///         discarding the decoded palette indices instead of resolving and blitting them into a
+///         <see cref="Surface"/>, specifically so that a first-frame LZW corruption or an
+///         out-of-range decoded index, either of which would make <c>Load</c> throw, is instead
+///         reflected as <see cref="ImageInfo.CanDecode"/> equal to <see langword="false"/> - a
+///         third well-formed-but-undecodable case, alongside <see cref="PngCodec"/>'s
+///         Adam7-interlacing case; see <see cref="GetInfo(Stream)"/>'s own remarks for the full
+///         reasoning.
 ///     </para>
 ///     <para>
 ///         GIF's LZW compression is a distinct variant from the one <see cref="TiffCodec"/>
@@ -92,30 +108,48 @@ public static class GifCodec
     private const int Trailer = 0x3B;
 
     /// <summary>
-    ///     The maximum total number of sub-block data bytes <see cref="Load(Stream)"/> will
-    ///     accumulate across every extension and Image Descriptor sub-block chain in a single
-    ///     file, including chains whose contents are ultimately discarded (a Comment/Application/
-    ///     Plain Text extension, or a second-or-later frame's compressed image data). Without this
-    ///     bound, a GIF with tiny declared dimensions could still carry an effectively unlimited
-    ///     number of 255-byte sub-blocks - each individually valid - forcing unbounded buffering
-    ///     and risking an out-of-memory condition rather than a clean, prompt
-    ///     <see cref="InvalidDataException"/>. 64 MiB comfortably exceeds the compressed data size
-    ///     any real-world GIF encoder produces for a legitimately-sized frame, including at
-    ///     <see cref="Surface.MaxDimension"/>. It is, however, a deliberate, documented
-    ///     resource-safety limit rather than a mathematical guarantee: GIF LZW compression has no
-    ///     enforced minimum compression ratio, so a pathological (not merely malicious) encoder
-    ///     could, in principle, emit more than 64 MiB of compressed data for a single frame whose
-    ///     declared dimensions are themselves well within <see cref="Surface.MaxDimension"/> -
-    ///     such a file would be rejected by this bound even though its declared dimensions alone
-    ///     would otherwise be decodable, and <see cref="GetInfo(Stream)"/> (which never reads
-    ///     sub-block data at all) would still report <see cref="ImageInfo.CanDecode"/> as
-    ///     <see langword="true"/> for it. This asymmetry is accepted: prioritizing a bounded,
-    ///     predictable worst-case memory footprint over the vanishingly rare legitimate file that
-    ///     would exceed it. Declared <see langword="internal"/> (rather than
-    ///     <see langword="private"/>), matching <see cref="JpegCodec.MaxProbeHeaderBytes"/>'s
-    ///     established precedent, so the test project (which the assembly already grants
-    ///     <c>InternalsVisibleTo</c>) can construct a just-over-budget fixture that exercises this
-    ///     limit without hard-coding its value.
+    ///     The maximum total number of sub-block data bytes <see cref="Load(Stream)"/> or
+    ///     <see cref="GetInfo(Stream)"/> will accumulate across every extension and Image
+    ///     Descriptor sub-block chain in a single file, including chains whose contents are
+    ///     ultimately discarded (a Comment/Application/Plain Text extension, a second-or-later
+    ///     frame's compressed image data for either method - <c>GetInfo</c> attempts an LZW-decode
+    ///     validation of only the <em>first</em> frame's compressed data, including checking every
+    ///     decoded index against that frame's resolved color table length, discarding its decoded
+    ///     output rather than the sub-block bytes themselves; see <see cref="GetInfo(Stream)"/>'s
+    ///     remarks). Without this bound, a GIF with tiny declared dimensions could still carry an
+    ///     effectively unlimited number of 255-byte sub-blocks - each individually valid -
+    ///     forcing unbounded buffering and risking an out-of-memory condition rather than a
+    ///     clean, prompt <see cref="InvalidDataException"/>. 64 MiB comfortably exceeds the
+    ///     compressed data size any real-world GIF encoder produces for a legitimately-sized
+    ///     frame, including at <see cref="Surface.MaxDimension"/>. It is, however, a deliberate,
+    ///     documented resource-safety limit rather than a mathematical guarantee: GIF LZW
+    ///     compression has no enforced minimum compression ratio, so a pathological (not merely
+    ///     malicious) encoder could, in principle, emit more than 64 MiB of compressed data for a
+    ///     single frame whose declared dimensions are themselves well within
+    ///     <see cref="Surface.MaxDimension"/> - such a file would be rejected by this bound even
+    ///     though its declared dimensions alone would otherwise be decodable. This asymmetry is
+    ///     accepted: prioritizing a bounded, predictable worst-case memory footprint over the
+    ///     vanishingly rare legitimate file that would exceed it. Declared
+    ///     <see langword="internal"/> (rather than <see langword="private"/>), matching
+    ///     <see cref="JpegCodec.MaxProbeHeaderBytes"/>'s established precedent, so the test
+    ///     project (which the assembly already grants <c>InternalsVisibleTo</c>) can construct a
+    ///     just-over-budget fixture that exercises this limit without hard-coding its value.
+    ///     <para>
+    ///         Sharing this same budget (and the same <c>ReadSubBlocks</c>/<c>SkipSubBlocks</c>/
+    ///         <c>ReadGraphicControlExtensionData</c> helpers) between <c>Load</c> and
+    ///         <c>GetInfo</c>'s frame-counting walk is a deliberate resource-safety choice, not
+    ///         merely a code-reuse convenience: it means <c>GetInfo</c> introduces no new
+    ///         unbounded-loop or resource-exhaustion risk of its own. The frame-counting loop
+    ///         performs no allocation proportional to the frame count beyond a single
+    ///         <see langword="int"/> counter; every per-frame allocation it does perform (a Local
+    ///         Color Table, or a discarded sub-block chain) is itself capped by this same 64 MiB
+    ///         cumulative budget; and the loop is strictly bounded by the number of bytes actually
+    ///         present in the input stream - it cannot iterate, or allocate, without consuming
+    ///         input from the stream passed to <see cref="Load(Stream)"/> or
+    ///         <see cref="GetInfo(Stream)"/>. A GIF's frame count is therefore never itself an
+    ///         independent attack surface distinct from the one this budget already defends
+    ///         against.
+    ///     </para>
     /// </summary>
     internal const long MaxTotalSubBlockBytes = 64 * 1024 * 1024;
 
@@ -228,65 +262,25 @@ public static class GifCodec
 
                 case ImageSeparator:
                     {
-                        var descriptor = ReadExactly(stream, ImageDescriptorSize, "GIF Image Descriptor");
-                        var left = ReadUInt16Le(descriptor, 0);
-                        var top = ReadUInt16Le(descriptor, 2);
-                        var imgWidth = ReadUInt16Le(descriptor, 4);
-                        var imgHeight = ReadUInt16Le(descriptor, 6);
-                        var imgPacked = descriptor[8];
-
-                        Rgba32[]? localColorTable = null;
-                        if ((imgPacked & 0x80) != 0)
-                        {
-                            var localColorTableSize = 2 << (imgPacked & 0x07);
-                            localColorTable = ReadColorTable(stream, localColorTableSize);
-                        }
-
-                        var minCodeSizeByte = stream.ReadByte();
-                        if (minCodeSizeByte < 0)
-                        {
-                            throw new InvalidDataException(
-                                "Unexpected end of stream while reading a GIF LZW minimum code size.");
-                        }
-
-                        // Validate the range for every frame - not merely the first, whose pixel
-                        // data is decoded (and thus range-checked) by DecodeGifLzw below - because
-                        // a later frame's out-of-range minimum code size is just as structurally
-                        // invalid even though this codec never decodes that frame's pixels.
-                        if (minCodeSizeByte is < 2 or > 8)
-                        {
-                            throw new InvalidDataException($"Invalid GIF LZW minimum code size {minCodeSizeByte}.");
-                        }
-
+                        var header = ReadImageDescriptorHeader(stream);
                         var imageData = ReadSubBlocks(stream, ref remainingSubBlockBudget);
 
-                        if (imgWidth <= 0 || imgHeight <= 0)
-                        {
-                            throw new InvalidDataException($"Invalid GIF Image Descriptor size {imgWidth}x{imgHeight}.");
-                        }
-
-                        if (left + imgWidth > canvasWidth || top + imgHeight > canvasHeight)
-                        {
-                            throw new InvalidDataException(
-                                "GIF Image Descriptor region lies outside the logical screen bounds.");
-                        }
-
-                        // Every Image Descriptor - not merely the first - must have a resolvable
-                        // color table to be a structurally valid GIF frame, even though only the
-                        // first frame's pixel data is ever actually decoded below; validating this
-                        // unconditionally ensures a later frame's malformed pixel data (here, a
-                        // missing color table) is never silently accepted merely because this
-                        // codec has already decoded the frame it needed.
-                        var activeColorTable = localColorTable ?? globalColorTable ??
-                            throw new InvalidDataException(
-                                "GIF Image Descriptor has no local or global color table available.");
+                        var activeColorTable = ValidateFrameRegionAndResolveColorTable(
+                            header.Width,
+                            header.Height,
+                            header.Left,
+                            header.Top,
+                            canvasWidth,
+                            canvasHeight,
+                            header.LocalColorTable,
+                            globalColorTable);
 
                         if (result is null)
                         {
-                            var indices = DecodeGifLzw(imageData, minCodeSizeByte, imgWidth * imgHeight);
-                            if ((imgPacked & 0x40) != 0)
+                            var indices = DecodeGifLzw(imageData, header.MinCodeSize, header.Width * header.Height);
+                            if ((header.Packed & 0x40) != 0)
                             {
-                                indices = Deinterlace(indices, imgWidth, imgHeight);
+                                indices = Deinterlace(indices, header.Width, header.Height);
                             }
 
                             result = new Surface(canvasWidth, canvasHeight);
@@ -294,10 +288,10 @@ public static class GifCodec
                                 result,
                                 indices,
                                 activeColorTable,
-                                left,
-                                top,
-                                imgWidth,
-                                imgHeight,
+                                header.Left,
+                                header.Top,
+                                header.Width,
+                                header.Height,
                                 pendingTransparencyFlag,
                                 pendingTransparentIndex);
                         }
@@ -409,56 +403,163 @@ public static class GifCodec
     }
 
     /// <summary>
-    ///     Reads a GIF file's Logical Screen Descriptor and reports its declared dimensions,
-    ///     without reading any color table, block, or pixel data.
+    ///     Reads a GIF file's Logical Screen Descriptor, Global Color Table (if any), and every
+    ///     subsequent block up to and including the Trailer, reporting the file's declared
+    ///     dimensions and total Image Descriptor (frame) count, without resolving any frame's
+    ///     decoded pixels into a <see cref="Surface"/> - though it does attempt an LZW-decode
+    ///     validation of the <em>first</em> frame's compressed data (see this method's remarks).
     /// </summary>
     /// <param name="stream">
-    ///     The stream to read the GIF header from. Reading begins at the stream's current
-    ///     position and consumes exactly the 13-byte signature and Logical Screen Descriptor; the
-    ///     stream is left positioned immediately after it.
+    ///     The stream to read the GIF data from. Reading begins at the stream's current position
+    ///     and consumes the entire GIF data stream, through and including its Trailer, exactly as
+    ///     <see cref="Load(Stream)"/> does.
     /// </param>
     /// <returns>
     ///     An <see cref="ImageInfo"/> describing the file's declared width and height, always
     ///     with <see cref="ImageInfo.Channels"/> equal to 1 and <see cref="ImageInfo.HasAlpha"/>
     ///     equal to <see langword="false"/> (see this codec's type-level remarks and
-    ///     <see cref="ImageInfo"/>'s remarks for why); <see cref="ImageInfo.CanDecode"/> is always
-    ///     <see langword="true"/> for a well-formed GIF file (see this codec's type-level remarks).
+    ///     <see cref="ImageInfo"/>'s remarks for why); <see cref="ImageInfo.CanDecode"/> is
+    ///     <see langword="false"/> when the first Image Descriptor's compressed data either fails
+    ///     the same LZW decode <see cref="Load(Stream)"/> itself performs for that frame, or
+    ///     LZW-decodes successfully but yields an index with no corresponding entry in that
+    ///     frame's resolved color table - the same out-of-range condition
+    ///     <see cref="BlitIndexedFrame"/> itself rejects when <see cref="Load(Stream)"/> blits
+    ///     this same frame - and <see langword="true"/> for every other well-formed GIF file (see
+    ///     this codec's type-level remarks and this method's own remarks below);
+    ///     <see cref="ImageInfo.FrameCount"/> is the file's true total number of Image Descriptors
+    ///     (1 or more).
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
     /// <exception cref="System.IO.InvalidDataException">
     ///     Thrown when the signature is not "GIF87a"/"GIF89a", the declared width or height is
-    ///     non-positive (matching <see cref="Load(Stream)"/>'s identical check), or the stream
-    ///     ends before the 13-byte signature and Logical Screen Descriptor has been read.
+    ///     non-positive (matching <see cref="Load(Stream)"/>'s identical check), no color table
+    ///     (global or local) is available for some Image Descriptor, a Graphic Control
+    ///     Extension's data is not exactly 4 bytes, an Image Descriptor's region lies outside the
+    ///     logical screen, any Image Descriptor declares an LZW minimum code size outside the 2-8
+    ///     range, an unexpected block introducer byte is encountered, no Image Descriptor is ever
+    ///     encountered before the Trailer, the total sub-block data across the whole file exceeds
+    ///     <see cref="MaxTotalSubBlockBytes"/>, or the stream ends before all header, color-table,
+    ///     or block data has been read. This is <em>structural</em> malformation only - a
+    ///     well-formed container whose first frame's compressed data merely fails to LZW-decode is
+    ///     reported via <see cref="ImageInfo.CanDecode"/> equal to <see langword="false"/>
+    ///     instead of throwing; see this method's remarks below.
     /// </exception>
     /// <remarks>
     ///     Deliberately, <c>GetInfo</c> never enforces <see cref="Surface.MaxDimension"/> - it
     ///     always reports the raw header-declared width and height, even when they exceed that
-    ///     bound - and never reads the color table, extension, or image blocks that follow the
-    ///     Logical Screen Descriptor, so a stream that is truncated or malformed only <em>after</em>
-    ///     its first 13 bytes does not cause <c>GetInfo</c> to throw, even though the same stream
-    ///     would cause <see cref="Load(Stream)"/> to throw. It does, however, reject a
+    ///     bound; a stream whose dimensions exceed <see cref="Surface.MaxDimension"/> is otherwise
+    ///     walked and validated identically to any other stream. It does, however, reject a
     ///     non-positive width or height exactly as <see cref="Load(Stream)"/> does, because a zero
     ///     (or negative, were that representable) dimension can never be decoded regardless of
     ///     the <see cref="Surface.MaxDimension"/> cap, so reporting <see cref="ImageInfo.CanDecode"/>
     ///     as <see langword="true"/> for it would be a false promise rather than a decodable
     ///     oversized image.
+    ///     <para>
+    ///         Counting a GIF's frames correctly requires walking every block in the file - not
+    ///         merely reading the Logical Screen Descriptor, as a prior version of this method
+    ///         did - because an Image Descriptor's position in the file is not otherwise
+    ///         predictable (it is interleaved with an arbitrary number of extension blocks).
+    ///         <c>GetInfo</c> shares its per-frame structural validation (region bounds, minimum
+    ///         code size range, color table resolution) with <see cref="Load(Stream)"/> via the
+    ///         same private helpers (<c>ReadImageDescriptorHeader</c>,
+    ///         <c>ValidateFrameRegionAndResolveColorTable</c>), so any input <c>GetInfo</c> rejects
+    ///         for a structural reason is also an input <c>Load</c> would reject - upholding
+    ///         <see cref="ImageInfo"/>'s "never throws for input <c>Load</c> would accept"
+    ///         invariant. <c>GetInfo</c> never invokes the LZW decoder (<c>DecodeGifLzw</c>) for
+    ///         any frame after the first - <see cref="Load(Stream)"/> itself never decodes those
+    ///         frames' pixels either, so this introduces no divergence. The <em>first</em> frame is
+    ///         different: <c>GetInfo</c> does invoke <c>DecodeGifLzw</c> on the first frame's
+    ///         compressed data, reusing the exact same decoder <see cref="Load(Stream)"/> calls,
+    ///         and also checks every decoded index against the first frame's resolved color
+    ///         table length (reusing the color table <c>ValidateFrameRegionAndResolveColorTable</c>
+    ///         already resolved for that frame) - the same out-of-range check
+    ///         <see cref="BlitIndexedFrame"/> performs when <see cref="Load(Stream)"/> blits this
+    ///         frame - but discards the decoded palette-index bytes afterward instead of
+    ///         resolving them through the color table and blitting them into a
+    ///         <see cref="Surface"/> - so this still never materializes decoded pixels, only
+    ///         determines whether <c>Load</c>'s own first-frame decode-and-blit attempt on the
+    ///         same bytes would succeed. Because the first frame's declared width and height
+    ///         are not themselves bounded by <see cref="Surface.MaxDimension"/> here (see
+    ///         above), this first-frame decode-validation attempt is only ever made when their
+    ///         product does not exceed <see cref="Surface.MaxDimension"/> squared - the widest
+    ///         index count any frame <c>Load</c> could ever actually decode; a pathologically
+    ///         large first frame beyond that bound is skipped entirely, leaving
+    ///         <see cref="ImageInfo.CanDecode"/> at its default of <see langword="true"/> for
+    ///         that file rather than risking an <see langword="int"/> overflow or an
+    ///         allocation proportional to an untrusted, unbounded declared size - a deliberate
+    ///         leniency carve-out, not an oversight: such a frame is not itself malformed, so
+    ///         <c>GetInfo</c> must not throw for it, it is merely too large for this
+    ///         particular validation attempt to safely perform. When the decode attempt throws
+    ///         <see cref="InvalidDataException"/> (an invalid or out-of-range LZW code, a stream
+    ///         that never starts with a Clear code, a truncated compressed stream, or one that
+    ///         decodes to the wrong number of palette-index bytes - see <c>DecodeGifLzw</c>'s own
+    ///         exception conditions), or when the decode succeeds but any decoded index has no
+    ///         corresponding entry in the resolved color table, <c>GetInfo</c> reports
+    ///         <see cref="ImageInfo.CanDecode"/> as <see langword="false"/>, rather than letting
+    ///         <c>GetInfo</c> itself throw or <c>Load</c> later throw for the same input: this is a
+    ///         well-formed-but-undecodable-payload case - the file's block structure is entirely
+    ///         valid, only its first frame's compressed pixel data is corrupt - precisely mirroring
+    ///         how <see cref="PngCodec.GetInfo(Stream)"/> reports Adam7 interlacing via
+    ///         <see cref="ImageInfo.CanDecode"/> rather than throwing. This upholds both of
+    ///         <see cref="ImageInfo"/>'s documented invariants at once: <c>GetInfo</c> never
+    ///         throws for an input <c>Load</c> would accept (a structurally malformed input still
+    ///         throws exactly as before), and <c>GetInfo</c> never silently claims a
+    ///         first-frame-undecodable input can be decoded. The frame-counting walk reuses the
+    ///         exact same <see cref="MaxTotalSubBlockBytes"/> cumulative budget <c>Load</c>
+    ///         enforces - see
+    ///         that constant's remarks for why this introduces no new unbounded-loop or
+    ///         resource-exhaustion risk.
+    ///     </para>
+    ///     <para>
+    ///         This first-frame decode-validation attempt is a deliberate, accepted cost -
+    ///         not an oversight - and is an explicit part of <c>GetInfo</c>'s documented
+    ///         contract for GIF specifically (see this type's and <see cref="ImageInfo"/>'s
+    ///         own remarks, <c>README.md</c>, and the user guide, all of which call out this
+    ///         same GIF exception to the other four codecs' pure header-only probing). A
+    ///         caller who only needs <see cref="ImageInfo.FrameCount"/> or the declared
+    ///         dimensions, and does not care whether <see cref="ImageInfo.CanDecode"/> is
+    ///         accurate, pays this cost regardless, because <c>GetInfo</c> returns a single
+    ///         <see cref="ImageInfo"/> value covering all of its properties at once - there is
+    ///         no lighter-weight overload that reports frame count without also attempting this
+    ///         validation. This was a considered trade-off, not an accidental regression:
+    ///         an earlier revision of this method never decoded the first frame at all and
+    ///         consequently reported <see cref="ImageInfo.CanDecode"/> as
+    ///         <see langword="true"/> even for a GIF whose first frame's compressed data was
+    ///         corrupt in a way that made <see cref="Load(Stream)"/> itself throw - directly
+    ///         contradicting <see cref="ImageInfo.CanDecode"/>'s documented contract. Between
+    ///         that contract violation and this bounded, documented decode cost (capped by the
+    ///         same <see cref="Surface.MaxDimension"/>-squared ceiling described above), this
+    ///         method deliberately accepts the cost.
+    ///     </para>
     /// </remarks>
     public static ImageInfo GetInfo(Stream stream)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
-        var (width, height, _) = ReadLogicalScreenDescriptor(stream);
+        var (width, height, packed) = ReadLogicalScreenDescriptor(stream);
         if (width <= 0 || height <= 0)
         {
             throw new InvalidDataException($"Invalid GIF dimensions {width}x{height}.");
         }
 
-        return new ImageInfo(width, height, 1, false);
+        Rgba32[]? globalColorTable = null;
+        if ((packed & 0x80) != 0)
+        {
+            var globalColorTableSize = 2 << (packed & 0x07);
+            globalColorTable = ReadColorTable(stream, globalColorTableSize);
+        }
+
+        var (frameCount, canDecode) = CountFrames(stream, width, height, globalColorTable);
+
+        return new ImageInfo(width, height, 1, false) { FrameCount = frameCount, CanDecode = canDecode };
     }
 
     /// <summary>
-    ///     Reads a GIF file's Logical Screen Descriptor at the specified path and reports its
-    ///     declared dimensions, without reading any color table, block, or pixel data.
+    ///     Reads a GIF file at the specified path in full - its Logical Screen Descriptor, Global
+    ///     Color Table (if any), and every subsequent block through and including the Trailer -
+    ///     and reports its declared dimensions together with its true total frame count via
+    ///     <see cref="ImageInfo.FrameCount"/>; see <see cref="GetInfo(Stream)"/> for the complete
+    ///     reporting contract.
     /// </summary>
     /// <param name="path">The path of the GIF file to inspect. Must not be null or empty.</param>
     /// <returns>
@@ -468,7 +569,7 @@ public static class GifCodec
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="path"/> is an empty string.</exception>
     /// <exception cref="System.IO.InvalidDataException">
-    ///     Thrown for the same malformed-header conditions as <see cref="GetInfo(Stream)"/>.
+    ///     Thrown for the same malformed-input conditions as <see cref="GetInfo(Stream)"/>.
     /// </exception>
     /// <remarks>
     ///     File-system exceptions (for example <see cref="FileNotFoundException"/>,
@@ -628,9 +729,9 @@ public static class GifCodec
     /// <param name="stream">The stream to read the sub-block chain from.</param>
     /// <param name="remainingBudget">
     ///     The number of sub-block data bytes still permitted across the entire file, shared
-    ///     across every call for the same <see cref="Load(Stream)"/> invocation (see
-    ///     <see cref="MaxTotalSubBlockBytes"/>) - decremented as bytes are read, regardless of
-    ///     whether the caller ultimately uses or discards this chain's data.
+    ///     across every call for the same <see cref="Load(Stream)"/> or <see cref="GetInfo(Stream)"/>
+    ///     invocation (see <see cref="MaxTotalSubBlockBytes"/>) - decremented as bytes are read,
+    ///     regardless of whether the caller ultimately uses or discards this chain's data.
     /// </param>
     /// <returns>The concatenated bytes of every sub-block in the chain.</returns>
     /// <exception cref="InvalidDataException">
@@ -667,6 +768,382 @@ public static class GifCodec
         }
 
         return buffer.ToArray();
+    }
+
+    /// <summary>
+    ///     Walks a GIF sub-block chain exactly as <see cref="ReadSubBlocks"/> does - the same
+    ///     length-prefixed sub-blocks, the same zero-length terminator, and the same
+    ///     <paramref name="remainingBudget"/> guard, decremented identically - but discards each
+    ///     sub-block's bytes as they are read instead of concatenating them into a buffer. Used
+    ///     by <see cref="CountFrames"/>, which never needs a sub-block chain's actual contents
+    ///     (only to advance the stream past it while enforcing the same resource limits), so it
+    ///     never has to pay for buffering data - up to the full <see cref="MaxTotalSubBlockBytes"/>
+    ///     budget, per chain - that it would immediately discard.
+    /// </summary>
+    /// <param name="stream">The stream to read the sub-block chain from.</param>
+    /// <param name="remainingBudget">
+    ///     The number of sub-block data bytes still permitted across the entire file; see
+    ///     <see cref="ReadSubBlocks"/>'s identical parameter for the shared-budget contract.
+    /// </param>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the stream ends before the terminating zero-length sub-block is read, or
+    ///     when reading this chain would exceed <paramref name="remainingBudget"/>.
+    /// </exception>
+    private static void SkipSubBlocks(Stream stream, ref long remainingBudget)
+    {
+        while (true)
+        {
+            var size = stream.ReadByte();
+            if (size < 0)
+            {
+                throw new InvalidDataException("Unexpected end of stream while reading a GIF sub-block chain.");
+            }
+
+            if (size == 0)
+            {
+                break;
+            }
+
+            if (size > remainingBudget)
+            {
+                throw new InvalidDataException(
+                    $"GIF sub-block data exceeds the maximum total permitted size of " +
+                    $"{MaxTotalSubBlockBytes} bytes across the whole file.");
+            }
+
+            remainingBudget -= size;
+
+            SkipExactly(stream, size, "GIF sub-block");
+        }
+    }
+
+    /// <summary>
+    ///     Reads a single Image Descriptor's 9-byte fixed header, optional Local Color Table, and
+    ///     LZW minimum code size byte (with its 2-8 range check), without reading the descriptor's
+    ///     compressed image data sub-block chain. Used identically by <see cref="Load(Stream)"/>'s
+    ///     <c>ImageSeparator</c> case and <see cref="CountFrames"/>, so both walk an Image
+    ///     Descriptor's fixed-size fields in exactly the same order and with exactly the same
+    ///     validation.
+    /// </summary>
+    /// <param name="stream">
+    ///     The stream, positioned immediately after the Image Separator (<c>0x2C</c>) introducer
+    ///     byte.
+    /// </param>
+    /// <returns>
+    ///     The descriptor's placement (<c>Left</c>, <c>Top</c>), declared size (<c>Width</c>,
+    ///     <c>Height</c>), packed byte (bit 7 = local color table flag, bit 6 = interlace flag,
+    ///     bits 0-2 = local color table size exponent when present), any Local Color Table, and
+    ///     the validated LZW minimum code size.
+    /// </returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the stream ends before the 9-byte descriptor, any Local Color Table, or the
+    ///     minimum code size byte has been read, or the minimum code size is outside the 2-8
+    ///     range - validated here for every Image Descriptor, not merely the first, whose pixel
+    ///     data is separately range-checked (again) by <c>DecodeGifLzw</c> when
+    ///     <see cref="Load(Stream)"/> decodes it, because a later frame's out-of-range minimum
+    ///     code size is just as structurally invalid even when that frame's pixels are never
+    ///     decoded.
+    /// </exception>
+    private static (int Left, int Top, int Width, int Height, byte Packed, Rgba32[]? LocalColorTable, int MinCodeSize)
+        ReadImageDescriptorHeader(Stream stream)
+    {
+        var descriptor = ReadExactly(stream, ImageDescriptorSize, "GIF Image Descriptor");
+        var left = ReadUInt16Le(descriptor, 0);
+        var top = ReadUInt16Le(descriptor, 2);
+        var imgWidth = ReadUInt16Le(descriptor, 4);
+        var imgHeight = ReadUInt16Le(descriptor, 6);
+        var imgPacked = descriptor[8];
+
+        Rgba32[]? localColorTable = null;
+        if ((imgPacked & 0x80) != 0)
+        {
+            var localColorTableSize = 2 << (imgPacked & 0x07);
+            localColorTable = ReadColorTable(stream, localColorTableSize);
+        }
+
+        var minCodeSizeByte = stream.ReadByte();
+        if (minCodeSizeByte < 0)
+        {
+            throw new InvalidDataException(
+                "Unexpected end of stream while reading a GIF LZW minimum code size.");
+        }
+
+        if (minCodeSizeByte is < 2 or > 8)
+        {
+            throw new InvalidDataException($"Invalid GIF LZW minimum code size {minCodeSizeByte}.");
+        }
+
+        return (left, top, imgWidth, imgHeight, imgPacked, localColorTable, minCodeSizeByte);
+    }
+
+    /// <summary>
+    ///     Validates that an Image Descriptor's declared size is positive and its placement lies
+    ///     entirely within the logical screen, then resolves its active color table (its own
+    ///     Local Color Table if present, otherwise the file's Global Color Table). Used
+    ///     identically by <see cref="Load(Stream)"/>'s <c>ImageSeparator</c> case and
+    ///     <see cref="CountFrames"/>, so both apply exactly the same per-frame structural
+    ///     validation - not merely to the first frame, whose pixel data is the only one either
+    ///     method ever actually decodes or counts pixels for.
+    /// </summary>
+    /// <param name="imgWidth">The Image Descriptor's declared width.</param>
+    /// <param name="imgHeight">The Image Descriptor's declared height.</param>
+    /// <param name="left">The Image Descriptor's declared left placement offset.</param>
+    /// <param name="top">The Image Descriptor's declared top placement offset.</param>
+    /// <param name="canvasWidth">The logical screen's declared width.</param>
+    /// <param name="canvasHeight">The logical screen's declared height.</param>
+    /// <param name="localColorTable">The Image Descriptor's own Local Color Table, if any.</param>
+    /// <param name="globalColorTable">The file's Global Color Table, if any.</param>
+    /// <returns>The resolved color table (<paramref name="localColorTable"/> if present, otherwise <paramref name="globalColorTable"/>).</returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="imgWidth"/> or <paramref name="imgHeight"/> is
+    ///     non-positive, the descriptor's region lies outside the logical screen bounds, or
+    ///     neither a Local nor a Global Color Table is available.
+    /// </exception>
+    private static Rgba32[] ValidateFrameRegionAndResolveColorTable(
+        int imgWidth,
+        int imgHeight,
+        int left,
+        int top,
+        int canvasWidth,
+        int canvasHeight,
+        Rgba32[]? localColorTable,
+        Rgba32[]? globalColorTable)
+    {
+        if (imgWidth <= 0 || imgHeight <= 0)
+        {
+            throw new InvalidDataException($"Invalid GIF Image Descriptor size {imgWidth}x{imgHeight}.");
+        }
+
+        if (left + imgWidth > canvasWidth || top + imgHeight > canvasHeight)
+        {
+            throw new InvalidDataException(
+                "GIF Image Descriptor region lies outside the logical screen bounds.");
+        }
+
+        // Every Image Descriptor - not merely the first - must have a resolvable color table to
+        // be a structurally valid GIF frame, even though only the first frame's pixel data is
+        // ever actually decoded by Load; validating this unconditionally ensures a later frame's
+        // malformed pixel data (here, a missing color table) is never silently accepted merely
+        // because the frame that mattered has already been handled.
+        return localColorTable ?? globalColorTable ??
+            throw new InvalidDataException(
+                "GIF Image Descriptor has no local or global color table available.");
+    }
+
+    /// <summary>
+    ///     Walks a GIF file's blocks from the current stream position (immediately after any
+    ///     Global Color Table) through and including the Trailer, counting every Image Descriptor
+    ///     encountered and applying the same per-frame structural validation
+    ///     <see cref="Load(Stream)"/> applies. Every frame after the first has its compressed
+    ///     image data, and every other extension's sub-block data, read only far enough to be
+    ///     skipped via <see cref="SkipSubBlocks"/>, without buffering it or ever invoking the LZW
+    ///     decoder. The <em>first</em> frame is different: its compressed image data is buffered
+    ///     via <see cref="ReadSubBlocks"/> and then fed through the same LZW decoder
+    ///     (<c>DecodeGifLzw</c>) <see cref="Load(Stream)"/> itself invokes for that frame, so that
+    ///     a corrupt first-frame LZW payload can be detected and reported via the returned
+    ///     <c>CanDecode</c> value rather than silently accepted; the decoded palette-index bytes
+    ///     that call produces are then checked against the resolved color table's length - the
+    ///     same out-of-range check <see cref="BlitIndexedFrame"/> itself performs when
+    ///     <see cref="Load(Stream)"/> blits this same frame - so an out-of-range index is also
+    ///     reported via <c>CanDecode</c> instead of only surfacing when <c>Load</c> later throws;
+    ///     the decoded indices are discarded immediately after this check - never resolved into a
+    ///     <see cref="Surface"/> - so this still performs no full pixel decode. This first-frame
+    ///     LZW-decode-validation attempt is itself skipped - leaving the returned <c>CanDecode</c>
+    ///     at <see langword="true"/> - whenever the first frame's declared width times height
+    ///     (widened to <see langword="long"/> before multiplying, so the check itself cannot
+    ///     overflow) exceeds <see cref="Surface.MaxDimension"/> squared, because this method
+    ///     deliberately never bounds a frame's declared dimensions by
+    ///     <see cref="Surface.MaxDimension"/> and an unbounded declared size could otherwise force
+    ///     an allocation of proportional, attacker-influenced size inside <c>DecodeGifLzw</c>; see
+    ///     this method's call site for the full reasoning. Also rejects any trailing data after
+    ///     the Trailer, exactly as <see cref="Load(Stream)"/> does, so <c>GetInfo</c> never
+    ///     succeeds on a structurally malformed stream <c>Load</c> would reject.
+    /// </summary>
+    /// <param name="stream">The stream, positioned immediately after the Global Color Table (or Logical Screen Descriptor, if none).</param>
+    /// <param name="canvasWidth">The logical screen's declared width, from the Logical Screen Descriptor.</param>
+    /// <param name="canvasHeight">The logical screen's declared height, from the Logical Screen Descriptor.</param>
+    /// <param name="globalColorTable">The file's Global Color Table, if any.</param>
+    /// <returns>
+    ///     The total number of Image Descriptors encountered before the Trailer (always at least
+    ///     1), together with whether the first Image Descriptor's compressed data successfully
+    ///     LZW-decoded <em>and</em> every decoded index was within range of its resolved color
+    ///     table (<see langword="false"/> when that decode attempt threw
+    ///     <see cref="InvalidDataException"/>, or when any decoded index had no corresponding
+    ///     entry in the resolved color table - see this method's remarks).
+    /// </returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown for any of the same <em>structural</em> reasons <see cref="Load(Stream)"/>
+    ///     throws while walking its blocks (an unexpected block introducer byte, a malformed
+    ///     Graphic Control Extension, an Image Descriptor failing
+    ///     <see cref="ValidateFrameRegionAndResolveColorTable"/>, the total sub-block data
+    ///     exceeding <see cref="MaxTotalSubBlockBytes"/>, the stream ending unexpectedly, trailing
+    ///     data remaining after the Trailer, or no Image Descriptor ever being encountered before
+    ///     the Trailer) - see <see cref="MaxTotalSubBlockBytes"/>'s remarks for why this shared
+    ///     budget introduces no new unbounded-loop or resource-exhaustion risk specific to frame
+    ///     counting. Deliberately <em>not</em> thrown when only the first frame's compressed data
+    ///     fails to LZW-decode - that well-formed-but-undecodable-payload case is instead reported
+    ///     via this method's returned <c>CanDecode</c> value; see this method's remarks.
+    /// </exception>
+    private static (int FrameCount, bool CanDecode) CountFrames(
+        Stream stream,
+        int canvasWidth,
+        int canvasHeight,
+        Rgba32[]? globalColorTable)
+    {
+        var frameCount = 0;
+        var canDecode = true;
+        var sawTrailer = false;
+        var remainingSubBlockBudget = MaxTotalSubBlockBytes;
+
+        while (!sawTrailer)
+        {
+            var introducer = stream.ReadByte();
+            if (introducer < 0)
+            {
+                throw new InvalidDataException("Unexpected end of stream while reading a GIF block.");
+            }
+
+            switch (introducer)
+            {
+                case ExtensionIntroducer:
+                    {
+                        var labelByte = stream.ReadByte();
+                        if (labelByte < 0)
+                        {
+                            throw new InvalidDataException("Unexpected end of stream while reading a GIF extension.");
+                        }
+
+                        if (labelByte == GraphicControlLabel)
+                        {
+                            // GetInfo never resolves transparency, but still reads (and
+                            // structurally validates) the Graphic Control Extension's data,
+                            // exactly as Load does, purely to advance the stream past this block.
+                            ReadGraphicControlExtensionData(stream, ref remainingSubBlockBudget);
+                        }
+                        else
+                        {
+                            SkipSubBlocks(stream, ref remainingSubBlockBudget);
+                        }
+
+                        break;
+                    }
+
+                case ImageSeparator:
+                    {
+                        var header = ReadImageDescriptorHeader(stream);
+                        var isFirstFrame = frameCount == 0;
+
+                        // Only the first frame's compressed image data is ever actually needed:
+                        // Load only ever decodes the first frame's pixels, and GetInfo mirrors
+                        // that scope exactly (see this method's remarks) - so only the first
+                        // frame's sub-block chain is buffered (via ReadSubBlocks) so it can be
+                        // fed through the exact same LZW-decode validation attempt below; every
+                        // later frame's chain is still merely skipped (via SkipSubBlocks),
+                        // without buffering, exactly as before.
+                        byte[]? imageData = null;
+                        if (isFirstFrame)
+                        {
+                            imageData = ReadSubBlocks(stream, ref remainingSubBlockBudget);
+                        }
+                        else
+                        {
+                            SkipSubBlocks(stream, ref remainingSubBlockBudget);
+                        }
+
+                        var activeColorTable = ValidateFrameRegionAndResolveColorTable(
+                            header.Width,
+                            header.Height,
+                            header.Left,
+                            header.Top,
+                            canvasWidth,
+                            canvasHeight,
+                            header.LocalColorTable,
+                            globalColorTable);
+
+                        if (isFirstFrame)
+                        {
+                            // Attempt the exact same LZW decode Load performs for the first
+                            // frame, reusing DecodeGifLzw unchanged, but discarding its decoded
+                            // palette-index output instead of resolving it against a color table
+                            // and blitting it into a Surface - GetInfo must never materialize
+                            // decoded pixels, only determine whether Load's identical decode
+                            // attempt would succeed. A failure here means the first frame's
+                            // compressed data is corrupt in a way Load's LZW decoder would reject
+                            // (see DecodeGifLzw's own exception conditions); this is a
+                            // well-formed-container-but-undecodable-payload case - like PngCodec's
+                            // Adam7-interlacing case - so it is reported via CanDecode = false
+                            // rather than making GetInfo itself throw. A structurally valid LZW
+                            // stream can still decode to an index with no corresponding entry in
+                            // the resolved color table - the same out-of-range condition
+                            // BlitIndexedFrame itself rejects when Load blits this same frame -
+                            // so every decoded index is also checked against
+                            // activeColorTable.Length here, without ever allocating a Surface or
+                            // blitting: only the index bytes are compared to the color table's
+                            // length.
+                            //
+                            // header.Width and header.Height are each declared-header values that
+                            // GetInfo deliberately never bounds by Surface.MaxDimension (see this
+                            // method's and GetInfo's own remarks) - Load itself is not at risk
+                            // here because it rejects an over-large canvas via Surface.MaxDimension
+                            // long before this code path is ever reached. Multiplying two such
+                            // unbounded int values with plain int arithmetic could silently
+                            // overflow (e.g. 50,000 x 50,000), and even a non-overflowing but huge
+                            // product would force DecodeGifLzw to allocate a `new byte[...]`
+                            // proportional to that untrusted product. The product is therefore
+                            // widened to long first, and this first-frame decode-validation
+                            // attempt is skipped entirely - leaving canDecode at its default of
+                            // true - whenever that long product exceeds
+                            // Surface.MaxDimension * Surface.MaxDimension, the largest index count
+                            // any frame Load could ever actually decode would require. This is a
+                            // deliberate leniency, not an oversight: a pathologically large but
+                            // otherwise well-formed frame is not itself malformed, so GetInfo must
+                            // not throw for it; it is simply too large for this validation
+                            // attempt to safely perform, exactly as MaxTotalSubBlockBytes already
+                            // accepts a comparable asymmetry for a different resource (see that
+                            // constant's remarks).
+                            var expectedIndexCount = (long)header.Width * header.Height;
+                            if (expectedIndexCount <= (long)Surface.MaxDimension * Surface.MaxDimension)
+                            {
+                                try
+                                {
+                                    var indices = DecodeGifLzw(imageData!, header.MinCodeSize, (int)expectedIndexCount);
+                                    foreach (var index in indices)
+                                    {
+                                        if (index >= activeColorTable.Length)
+                                        {
+                                            canDecode = false;
+                                            break;
+                                        }
+                                    }
+                                }
+                                catch (InvalidDataException)
+                                {
+                                    canDecode = false;
+                                }
+                            }
+                        }
+
+                        frameCount++;
+                        break;
+                    }
+
+                case Trailer:
+                    sawTrailer = true;
+                    break;
+
+                default:
+                    throw new InvalidDataException($"Unexpected GIF block introducer byte 0x{introducer:X2}.");
+            }
+        }
+
+        if (stream.ReadByte() != -1)
+        {
+            throw new InvalidDataException("Unexpected trailing data after the GIF trailer.");
+        }
+
+        return frameCount == 0
+            ? throw new InvalidDataException("GIF stream contains no Image Descriptor.")
+            : (frameCount, canDecode);
     }
 
     /// <summary>
@@ -875,6 +1352,36 @@ public static class GifCodec
         }
 
         return buffer;
+    }
+
+    /// <summary>
+    ///     Advances a stream past exactly <paramref name="count"/> bytes without retaining them,
+    ///     using a small fixed-size reusable buffer regardless of <paramref name="count"/> - the
+    ///     skipping counterpart to <see cref="ReadExactly"/>, for callers (such as
+    ///     <see cref="SkipSubBlocks"/>) that need only to consume the bytes, not read their
+    ///     contents.
+    /// </summary>
+    /// <param name="stream">The stream to advance.</param>
+    /// <param name="count">The exact number of bytes to skip.</param>
+    /// <param name="what">A short description of the data being skipped, used in the error message.</param>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the stream ends before <paramref name="count"/> bytes could be skipped.
+    /// </exception>
+    private static void SkipExactly(Stream stream, int count, string what)
+    {
+        Span<byte> buffer = stackalloc byte[Math.Min(count, 4096)];
+        var remaining = count;
+        while (remaining > 0)
+        {
+            var chunkSize = Math.Min(remaining, buffer.Length);
+            var read = stream.Read(buffer[..chunkSize]);
+            if (read == 0)
+            {
+                throw new InvalidDataException($"Unexpected end of stream while reading {what}.");
+            }
+
+            remaining -= read;
+        }
     }
 
     /// <summary>

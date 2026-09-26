@@ -279,17 +279,28 @@ public readonly record struct ImageInfo(int Width, int Height, int Channels, boo
 The `ImageInfo` record struct represents the result of a header-only probe of an image file via
 a codec's `GetInfo` method: the image's `Width` and `Height` in pixels, its `Channels` count (3
 for RGB, 4 for RGBA, 1 for grayscale where applicable), and whether it `HasAlpha`. `GetInfo`
-methods read only enough of the file to populate an `ImageInfo` - never decoding pixel data - so
-they are safe to call on untrusted or very large files before deciding whether to call `Load`.
+methods read only enough of the file to populate an `ImageInfo` - never decoding pixel data for
+every codec except `GifCodec`, whose `GetInfo` decodes the first frame's compressed pixel data (to
+determine `CanDecode`, without ever resolving that data into a rendered `Surface`) - so they are
+safe to call on untrusted or very large files before deciding whether to call `Load`.
 Unlike `Load`, `GetInfo` does not enforce `Surface.MaxDimension`, so callers should compare the
 returned dimensions against `Surface.MaxDimension` themselves when triaging untrusted input.
 
 `ImageInfo` also has a `CanDecode` property (`init`-only, defaulting to `true`), set by a codec's
 `GetInfo` to `false` when the probed file is well-formed but declares a feature that codec's
-`Load` does not implement (currently: PNG Adam7 interlacing). A caller can check `CanDecode`
-before calling `Load` to detect this case up front, instead of catching
-`UnsupportedImageFeatureException` from `Load` itself - see [Handling Unsupported
-Features](#handling-unsupported-features).
+`Load` does not implement (PNG Adam7 interlacing), or when its pixel data is corrupt in a way only
+detectable by attempting to decode it (GIF: the first frame's compressed data fails to LZW-decode).
+A caller can check `CanDecode` before calling `Load` to detect either case up front, instead of
+catching `UnsupportedImageFeatureException` or `InvalidDataException` from `Load` itself - see
+[Handling Unsupported Features](#handling-unsupported-features).
+
+`ImageInfo` also has a `FrameCount` property (`init`-only, defaulting to `1`), reporting the
+total number of frames a codec's `Load` would find in the file if it inspected every one.
+Every codec except `GifCodec` reports `FrameCount == 1` unconditionally, since none of them has a
+concept of multiple frames. `GifCodec.GetInfo` is the sole exception: a GIF file may legitimately
+declare more than one frame (an animation), and `GifCodec.GetInfo` reports the file's true count
+by walking its block structure - without ever resolving any frame's decoded pixels into a
+`Surface` - see [GifCodec](#gifcodec) below.
 
 ### BmpCodec
 
@@ -776,12 +787,14 @@ decode-only: there is no `Save`. A well-formed GIF file may contain multiple fra
 animation), but this codec decodes only the *first* Image Descriptor's pixel data - every
 subsequent frame is parsed only far enough to validate its structure and is then discarded. This
 is a deliberate, documented scope limitation, not a malformed-input condition, so a multi-frame
-GIF never causes `Load` to throw, and `GetInfo`'s `CanDecode` is always `true` for a well-formed
-GIF file. Supported features include a Global or Local Color Table, the Graphic Control
-Extension's transparent color index, interlaced Image Descriptors (de-interlaced back to normal
-row order), and Image Descriptors covering a sub-region of the logical screen. GIF's LZW
-compression uses a distinct bit-packing and code-value scheme from `TiffCodec`'s, so `GifCodec`
-implements its own private GIF-native LZW decoder rather than reusing `TiffCodec`'s.
+GIF never causes `Load` to throw, and a well-formed multi-frame GIF is not, by itself, a
+`CanDecode == false` case; `GetInfo`'s `CanDecode` is `false` only when the first frame's
+compressed pixel data fails to LZW-decode (see `GifCodec.GetInfo(Stream stream)` below).
+Supported features include a Global or Local Color Table, the Graphic Control Extension's
+transparent color index, interlaced Image Descriptors (de-interlaced back to normal row order),
+and Image Descriptors covering a sub-region of the logical screen. GIF's LZW compression uses a
+distinct bit-packing and code-value scheme from `TiffCodec`'s, so `GifCodec` implements its own
+private GIF-native LZW decoder rather than reusing `TiffCodec`'s.
 
 #### GifCodec Methods
 
@@ -829,16 +842,31 @@ Loads a `Surface` from a GIF file at the specified path.
 public static ImageInfo GetInfo(Stream stream)
 ```
 
-Reads only the GIF signature and Logical Screen Descriptor (the same shared, private step `Load`
-itself calls first) and returns an `ImageInfo` describing the image, without decoding any pixel
-data, color table, or block data, and without enforcing `Surface.MaxDimension`. `Channels` is
-always 1 and `CanDecode` is always `true`.
+Walks the GIF's Logical Screen Descriptor, color tables, and every subsequent block through and
+including the Trailer, and returns an `ImageInfo` describing the image - including the file's
+true total frame count in `FrameCount` - without ever resolving any frame's decoded pixels into a
+`Surface`, and without enforcing `Surface.MaxDimension`. `Channels` is always 1. `GetInfo` never
+invokes the LZW decoder for any frame after the first (matching `Load`'s own
+decode-only-the-first-frame scope), but it does attempt the same first-frame LZW decode `Load`
+performs - discarding the decoded palette-index output instead of resolving it into a `Surface` -
+so `CanDecode` is `false` only when that first-frame decode attempt fails (a well-formed container
+whose first frame's compressed pixel data is corrupt); `true` for every other well-formed GIF
+file, including one with more than one frame.
 
 **Exceptions:**
 
 - `ArgumentNullException`: Thrown when `stream` is null.
 - `InvalidDataException`: Thrown when the stream does not begin with the "GIF87a"/"GIF89a"
-  signature, or ends before the Logical Screen Descriptor has been fully read.
+  signature, the declared width or height is non-positive, no color table (global or local) is
+  available for some Image Descriptor, a Graphic Control Extension's data is not exactly 4 bytes,
+  an Image Descriptor's region lies outside the logical screen, any Image Descriptor's LZW minimum
+  code size is outside the 2-8 range, an unexpected/unrecognized block introducer byte is
+  encountered, no Image Descriptor is ever encountered before the Trailer, trailing bytes remain in
+  the stream after the Trailer, the cumulative sub-block data read across the whole file exceeds
+  `GifCodec.MaxTotalSubBlockBytes`, or the stream ends before all header, color-table, or block
+  data has been read. This is *structural* malformation only - a well-formed container whose first
+  frame's compressed data merely fails to LZW-decode does **not** throw from `GetInfo`; it is
+  instead reported via `CanDecode == false` (see above).
 
 ##### GifCodec.GetInfo(string path)
 
@@ -846,8 +874,8 @@ always 1 and `CanDecode` is always `true`.
 public static ImageInfo GetInfo(string path)
 ```
 
-Reads the signature and Logical Screen Descriptor of a GIF file at the specified path and returns
-an `ImageInfo`.
+Reads the signature, Logical Screen Descriptor, and every block of a GIF file at the specified
+path and returns an `ImageInfo`.
 
 **Exceptions:**
 

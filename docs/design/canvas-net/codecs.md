@@ -34,7 +34,8 @@ in-memory pixel representation; `SvgCodec` additionally depends on the `Geometry
 - **JpegCodec** — hand-rolled loader/saver for a common real-world subset of JPEG files; see
   _JpegCodec Unit Design_ (`codecs/jpeg-codec.md`)
 - **GifCodec** — hand-rolled, decode-only loader for a common real-world subset of GIF files
-  (first frame only); see _GifCodec Unit Design_ (`codecs/gif-codec.md`)
+  (first frame only); `GetInfo` additionally reports the file's true total frame count; see
+  _GifCodec Unit Design_ (`codecs/gif-codec.md`)
 - **SvgCodec** — decode/rasterize-only loader for a common real-world subset of SVG documents; see
   _SvgCodec Unit Design_ (`codecs/svg-codec.md`)
 
@@ -48,21 +49,29 @@ in-memory pixel representation; `SvgCodec` additionally depends on the `Geometry
 public readonly record struct ImageInfo(int Width, int Height, int Channels, bool HasAlpha)
 {
     public bool CanDecode { get; init; } = true;
+    public int FrameCount { get; init; } = 1;
 }
 ```
 
 It reports a candidate image's declared width, height, channel count, and alpha presence without
 requiring the caller to decode (or even fully read) the file. It is the return type of every
 `{Codec}.GetInfo(Stream)` / `{Codec}.GetInfo(string)` method across `BmpCodec`, `PngCodec`,
-`TiffCodec`, `JpegCodec`, `GifCodec`, and `SvgCodec`. `CanDecode` is declared as an `init`-only property
-outside the primary constructor (rather than a fifth positional parameter) specifically to avoid
-changing the compiler-emitted constructor/`Deconstruct` signature — a binary-compatibility
-concern, since a fifth positional parameter would break any pre-compiled caller's IL even though
-source would still compile unchanged. It defaults to `true` and is set to `false` only by
-`PngCodec.GetInfo` when the probed file is well-formed per the PNG specification but declares
-Adam7 interlacing, the one case (see below) where a codec's `Load` refuses a file `GetInfo`
-otherwise accepts. Because `ImageInfo` is a record struct, `CanDecode` participates in its
-generated value equality like every other member.
+`TiffCodec`, `JpegCodec`, `GifCodec`, and `SvgCodec`. `CanDecode` and `FrameCount` are both
+declared as `init`-only properties outside the primary constructor (rather than positional
+parameters) specifically to avoid changing the compiler-emitted constructor/`Deconstruct`
+signature — a binary-compatibility concern, since an additional positional parameter would break
+any pre-compiled caller's IL even though source would still compile unchanged. `CanDecode`
+defaults to `true` and is set to `false` by `PngCodec.GetInfo` when the probed file is well-formed
+per the PNG specification but declares Adam7 interlacing (the one well-formed-but-unsupported
+case), and by `GifCodec.GetInfo` when the first Image Descriptor's compressed data fails the same
+LZW decode `Load` itself performs for that frame (a well-formed container with an undecodable
+payload) — see below and _GifCodec Unit Design_ (`codecs/gif-codec.md`) for the exact rationale.
+`FrameCount` defaults to `1` and is overridden only by `GifCodec.GetInfo`, the only codec whose
+file format can legitimately declare more than one frame (an animation); it reports the file's
+true total Image Descriptor count by walking the file's block structure, never resolving any
+frame's decoded pixels into a `Surface` — see _GifCodec Unit Design_ (`codecs/gif-codec.md`) for
+the exact walk. Because `ImageInfo` is a record struct, `CanDecode` and `FrameCount` both
+participate in its generated value equality like every other member.
 
 ### Header-Only Probing (`GetInfo`)
 
@@ -83,7 +92,12 @@ pixel data that will only be thrown away. Deliberately, **`GetInfo` never enforc
 `Surface.MaxDimension` itself** — it always reports the raw header-declared (or, for `SvgCodec`,
 document-resolved) dimensions, even when they exceed the maximum a `Surface` can hold, so that
 callers can make exactly this before-you-allocate decision themselves; `Load` on the same bytes
-still enforces the limit as before, via `Surface`'s own constructor.
+still enforces the limit as before, via `Surface`'s own constructor. `GifCodec` is the one
+exception to the "without paying the cost of decoding pixel data" claim above: its `GetInfo`
+scans the entire file's block structure and, bounded conditions permitting, also LZW-decodes the
+first frame's compressed pixel data solely to validate `CanDecode` — see this section's `GifCodec`
+paragraph below for the exact scope and the bound that keeps this attempt from ever costing more
+than a well-formed, `Surface.MaxDimension`-sized frame would.
 
 Each of `BmpCodec`, `PngCodec`, `TiffCodec`, and `JpegCodec` shares a single internal
 header-parsing helper between `Load` and `GetInfo` (a `bool enforceMaxDimension` parameter selects
@@ -94,12 +108,24 @@ Adam7-interlacing rejection (every other header-validity check is unconditional,
 decodable color-type/bit-depth space now spans the PNG specification's entire legal space) — see
 _PngCodec Unit Design_ (`codecs/png-codec.md`) for the exact rationale; the other three raster
 codecs still use only the single `enforceMaxDimension` flag, since none of them has a
-feature-based `Load` refusal that is independent of header well-formedness. `GifCodec` shares a
-similarly-purposed internal header-parsing helper (`ReadLogicalScreenDescriptor`), but with no
-boolean flag at all: unlike the other four raster codecs, `GifCodec.GetInfo` never enforces
-`Surface.MaxDimension` under any circumstance, since it performs no arithmetic or allocation based
-on the reported width/height beyond constructing the returned `ImageInfo` itself — see _GifCodec
-Unit Design_ (`codecs/gif-codec.md`) for the exact rationale. `SvgCodec` does not
+feature-based `Load` refusal that is independent of header well-formedness. `GifCodec` shares its
+per-frame structural-validation helpers (region bounds, minimum code size range, color table
+resolution) between `Load` and `GetInfo`'s frame-counting walk, but with no boolean flag at all:
+unlike the other four raster codecs, `GifCodec.GetInfo` never enforces `Surface.MaxDimension`
+under any circumstance; every frame's own per-frame bounds-check arithmetic is bounded, and its
+budget-capped sub-block buffer (see `MaxTotalSubBlockBytes`) is its only allocation proportional
+to file size for every frame after the first — see _GifCodec Unit Design_ (`codecs/gif-codec.md`)
+for the exact rationale, including how `GetInfo` never invokes the LZW decoder for any frame after
+the first, but does attempt an LZW decode of the first frame's compressed data (reusing `Load`'s
+own decoder, discarding its decoded output) purely to determine `CanDecode`, so a first-frame
+compressed-data corruption that makes `Load` throw is reflected as `CanDecode == false` rather
+than making `GetInfo` throw. Because the first frame's declared width/height is not itself bounded
+by `Surface.MaxDimension` here, this first-frame decode attempt _does_ allocate an index buffer
+proportional to that declared size — but only when their product (computed with widened
+arithmetic to avoid overflow) does not exceed `Surface.MaxDimension` squared; a pathologically
+large declared first frame instead skips this validation attempt entirely, leaving `CanDecode` at
+its default of `true` rather than risking an overflow or an unbounded allocation. `SvgCodec`
+does not
 use this pattern, because
 its `Load` overloads take the requested output raster's width/height as ordinary caller-supplied
 parameters (not values decoded from the file) and delegate them directly to `Surface`'s own
@@ -114,15 +140,19 @@ rather than giving up) - see the
 _ImageInfo_ section above for the cross-codec invariant these fallbacks exist to uphold: GetInfo
 never throws for an input Load would successfully decode.
 
-**Well-formed but unsupported: `UnsupportedImageFeatureException`.** Investigation across all
-five raster codecs found exactly one case where a codec's `Load` refuses a file that is
-well-formed per its own format specification — PNG's Adam7 interlacing (the other codecs conflate
-"unsupported" and "malformed" at `GetInfo`-time already, so this exception type is not currently
-thrown by them). `GifCodec` is deliberately not a second such case: a multi-frame GIF is
-well-formed and `Load` never refuses it — it decodes only the first frame, by design, so
-`GifCodec.GetInfo` always reports `CanDecode == true` (see _GifCodec Unit Design_,
-`codecs/gif-codec.md`, for the rationale).
-`PngCodec.Load` signals this specific case with `UnsupportedImageFeatureException`
+**Well-formed but unsupported/undecodable: `UnsupportedImageFeatureException` and
+`ImageInfo.CanDecode == false`.** Investigation across all five raster codecs found exactly one
+case where a codec's `Load` refuses a file that is well-formed per its own format specification —
+PNG's Adam7 interlacing (the other codecs conflate "unsupported" and "malformed" at `GetInfo`-time
+already, so this exception type is not currently thrown by them). `GifCodec` is a related, but
+distinct, second case: a multi-frame GIF is well-formed and `Load` never refuses it — it decodes
+only the first frame, by design, so a well-formed multi-frame GIF is not, by itself, a
+`CanDecode == false` case. However, `GifCodec.GetInfo` does report `CanDecode == false` when the
+first frame's compressed data is corrupt enough that `Load`'s LZW decoder would reject it — a
+well-formed container with an undecodable payload, detected by `GetInfo` attempting (and
+discarding the result of) that same first-frame LZW decode — see _GifCodec Unit Design_,
+`codecs/gif-codec.md`, for the full rationale.
+`PngCodec.Load` signals its specific case with `UnsupportedImageFeatureException`
 rather than `InvalidDataException`, so a caller can distinguish "well-formed but unsupported" from
 "malformed" without string-matching `Exception.Message`. This type derives from `IOException`
 rather than `InvalidDataException`, because `System.IO.InvalidDataException` is `sealed` in .NET.
