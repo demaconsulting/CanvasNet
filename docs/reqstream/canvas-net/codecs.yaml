@@ -730,8 +730,8 @@ sections:
             title: >-
               The Codecs subsystem shall load a Surface by decoding the first frame of a GIF
               image, from either a stream or a file path, including its Logical Screen
-              Descriptor, Global Color Table, Graphic Control Extension (including transparent
-              color index handling), interlacing, and sub-region blitting.
+              Descriptor, Global Color Table or Local Color Table, Graphic Control Extension
+              (including transparent color index handling), interlacing, and sub-region blitting.
             justification: |
               Callers need to import existing GIF images as pixel buffers for further processing
               or display, since GifCodec is decode-only (no Save) and intentionally decodes only
@@ -746,6 +746,7 @@ sections:
               - GifCodec_Load_FirstFrame_DecodesExpectedPixels
               - GifCodec_Load_FromFilePath_ReturnsExpectedPixels
               - GifCodec_Load_MultiFrame_DecodesFirstFrameOnlyWithoutThrowing
+              - GifCodec_Load_LocalColorTableOnly_DecodesExpectedPixels
 
           - id: CanvasNet-Codecs-GifValidationNull
             title: >-
@@ -784,11 +785,13 @@ sections:
               dimensions exceeding Surface.MaxDimension, missing color table, a malformed Graphic
               Control Extension, an unexpected block introducer, trailing data after the Trailer,
               a stream with no Image Descriptor, an out-of-bounds Image Descriptor, a truncated
-              stream, an invalid LZW code, or insufficient LZW output) with InvalidDataException.
+              stream, an invalid LZW code, insufficient LZW output, an LZW stream missing its
+              End-of-Information code or overrunning the declared pixel count, or excessive total
+              sub-block data) with InvalidDataException.
             justification: |
               Callers must be able to distinguish a genuinely malformed or unsupported GIF file
               from a successful load, and receive a clear, actionable error rather than incorrect
-              pixel data or an unhandled exception.
+              pixel data, an unhandled exception, or unbounded resource consumption.
             children:
               - CanvasNet-Codecs-GifCodec-LoadBadSignature
               - CanvasNet-Codecs-GifCodec-LoadExceedsMaxDimension
@@ -801,6 +804,8 @@ sections:
               - CanvasNet-Codecs-GifCodec-TruncatedStream
               - CanvasNet-Codecs-GifCodec-InvalidLzwCode
               - CanvasNet-Codecs-GifCodec-InsufficientLzwOutput
+              - CanvasNet-Codecs-GifCodec-LzwRequiresEoi
+              - CanvasNet-Codecs-GifCodec-SubBlockBudget
             tests:
               - GifCodec_Load_BadSignature_ThrowsInvalidDataException
               - GifCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException
@@ -816,6 +821,9 @@ sections:
               - GifCodec_Load_TruncatedAtSubBlock_ThrowsInvalidDataException
               - GifCodec_Load_InvalidLzwCode_ThrowsInvalidDataException
               - GifCodec_Load_InsufficientLzwOutput_ThrowsInvalidDataException
+              - GifCodec_Load_LzwStreamMissingEoi_ThrowsInvalidDataException
+              - GifCodec_Load_LzwStreamOverrunsExpectedCount_ThrowsInvalidDataException
+              - GifCodec_Load_ExcessiveSubBlockData_ThrowsInvalidDataException
 
           - id: CanvasNet-Codecs-GifGetInfo
             title: >-
