@@ -264,7 +264,7 @@ public class PathBuilderTests
         var path = builder.Build();
 
         // Act: cast the read-only view back down to a mutable interface
-        var mutable = Assert.IsAssignableFrom<IList<Subpath>>(path.Subpaths);
+        var mutable = Assert.IsType<IList<Subpath>>(path.Subpaths, exactMatch: false);
 
         // Assert: every mutating member throws, regardless of the compile-time IReadOnlyList<T> type
         Assert.Throws<NotSupportedException>(() => mutable.Add(default));
@@ -287,7 +287,7 @@ public class PathBuilderTests
         var subpath = path.Subpaths[0];
 
         // Act
-        var mutable = Assert.IsAssignableFrom<IList<PathCommand>>(subpath.Commands);
+        var mutable = Assert.IsType<IList<PathCommand>>(subpath.Commands, exactMatch: false);
 
         // Assert
         Assert.Throws<NotSupportedException>(() => mutable.Add(default));
@@ -400,9 +400,9 @@ public class PathBuilderTests
         builder.MoveTo(new Vector2(0, 0));
         builder.TangentArcTo(new Vector2(5, 0), new Vector2(10, 0), 2f);
         var commands = builder.Build().Subpaths[0].Commands;
-        Assert.Single(commands);
-        Assert.Equal(PathCommandType.LineTo, commands[0].Type);
-        Assert.Equal(new Vector2(5, 0), commands[0].EndPoint);
+        var command = Assert.Single(commands);
+        Assert.Equal(PathCommandType.LineTo, command.Type);
+        Assert.Equal(new Vector2(5, 0), command.EndPoint);
     }
 
     /// <summary>PathBuilder_TangentArcTo_ZeroRadius_DegradesToLineToCorner.</summary>
@@ -413,9 +413,9 @@ public class PathBuilderTests
         builder.MoveTo(new Vector2(0, 0));
         builder.TangentArcTo(new Vector2(10, 0), new Vector2(10, 10), 0f);
         var commands = builder.Build().Subpaths[0].Commands;
-        Assert.Single(commands);
-        Assert.Equal(PathCommandType.LineTo, commands[0].Type);
-        Assert.Equal(new Vector2(10, 0), commands[0].EndPoint);
+        var command = Assert.Single(commands);
+        Assert.Equal(PathCommandType.LineTo, command.Type);
+        Assert.Equal(new Vector2(10, 0), command.EndPoint);
     }
 
     /// <summary>PathBuilder_TangentArcTo_NegativeRadius_ThrowsArgumentOutOfRangeException.</summary>

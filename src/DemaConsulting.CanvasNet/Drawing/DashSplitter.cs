@@ -318,7 +318,7 @@ internal static class DashSplitter
     ///     its <c>while (position &lt; totalLength)</c> loop forever.
     ///     </para>
     /// </remarks>
-    private static double[] BuildCumulativeLengths(IReadOnlyList<Vector2> points, bool isClosed)
+    private static double[] BuildCumulativeLengths(List<Vector2> points, bool isClosed)
     {
         var edgeCount = isClosed ? points.Count : points.Count - 1;
         var cumulative = new double[edgeCount + 1];
@@ -664,9 +664,9 @@ internal static class DashSplitter
     ///     number of polyline edges plus the number of intervals rather than their product.
     /// </remarks>
     private static List<Vector2> ExtractIntervalPolyline(
-        IReadOnlyList<Vector2> points,
+        List<Vector2> points,
         bool isClosed,
-        IReadOnlyList<double> cumulativeLengths,
+        double[] cumulativeLengths,
         double startDistance,
         double endDistance,
         ref int vertexCursor,
@@ -675,7 +675,7 @@ internal static class DashSplitter
         var segment = new List<Vector2>();
         AddPointIfDistinct(segment, GetPointAtDistance(points, isClosed, cumulativeLengths, startDistance, ref pointCursor));
 
-        var edgeCount = cumulativeLengths.Count - 1;
+        var edgeCount = cumulativeLengths.Length - 1;
 
         // Advance past any vertex boundaries at or before startDistance (including the implicit
         // index 0 boundary, whose cumulative length is always zero).
@@ -725,9 +725,9 @@ internal static class DashSplitter
     ///     </para>
     /// </remarks>
     private static Vector2 GetPointAtDistance(
-        IReadOnlyList<Vector2> points,
+        List<Vector2> points,
         bool isClosed,
-        IReadOnlyList<double> cumulativeLengths,
+        double[] cumulativeLengths,
         double distance,
         ref int edgeCursor)
     {
@@ -742,7 +742,7 @@ internal static class DashSplitter
             return isClosed ? points[0] : points[^1];
         }
 
-        var edgeCount = cumulativeLengths.Count - 1;
+        var edgeCount = cumulativeLengths.Length - 1;
         while (edgeCursor < edgeCount - 1 && distance > cumulativeLengths[edgeCursor + 1])
         {
             edgeCursor++;

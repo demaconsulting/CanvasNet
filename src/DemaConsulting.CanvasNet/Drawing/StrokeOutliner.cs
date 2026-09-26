@@ -441,7 +441,7 @@ internal static class StrokeOutliner
     /// </summary>
     private static List<Vector2> BuildOpenSide(
         IReadOnlyList<Vector2> points,
-        IReadOnlyList<(Vector2 Tangent, Vector2 Normal)> frames,
+        (Vector2 Tangent, Vector2 Normal)[] frames,
         float sideSign,
         StrokeStyle style,
         float halfWidth,
@@ -936,7 +936,7 @@ internal static class StrokeOutliner
     /// <summary>
     ///     Appends <paramref name="source"/> in reverse order to <paramref name="target"/>.
     /// </summary>
-    private static void AppendReversed(IReadOnlyList<Vector2> source, List<Vector2> target, bool skipFirst)
+    private static void AppendReversed(List<Vector2> source, List<Vector2> target, bool skipFirst)
     {
         var endIndex = skipFirst ? source.Count - 2 : source.Count - 1;
         for (var i = endIndex; i >= 0; i--)

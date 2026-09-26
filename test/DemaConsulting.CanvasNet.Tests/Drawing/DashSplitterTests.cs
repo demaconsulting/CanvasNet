@@ -463,10 +463,10 @@ public class DashSplitterTests
         // is the whole-path solid-stroke fallback shape.
         Assert.Equal(
             [
-                new List<Vector2> { new(0, 0), new(3, 0) },
-                new List<Vector2> { new(5, 0), new(8, 0) },
-                new List<Vector2> { new(10, 0), new(13, 0) },
-                new List<Vector2> { new(15, 0), new(17, 0) }
+                [new(0, 0), new(3, 0)],
+                [new(5, 0), new(8, 0)],
+                [new(10, 0), new(13, 0)],
+                [new(15, 0), new(17, 0)]
             ],
             segments.Select(s => s.Points).ToList());
     }

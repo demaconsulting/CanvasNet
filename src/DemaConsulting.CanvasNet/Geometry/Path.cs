@@ -24,7 +24,7 @@ public sealed class Path
     ///     <see cref="Rect"/>'s union-identity convention: an empty path contributes nothing to
     ///     any bounds it is combined with.
     /// </remarks>
-    public static readonly Path Empty = new(new List<Subpath>());
+    public static readonly Path Empty = new([]);
 
     /// <summary>
     ///     The ordered collection of independent subpaths making up this path.

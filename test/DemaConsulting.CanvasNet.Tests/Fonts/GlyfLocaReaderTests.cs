@@ -50,8 +50,7 @@ public class GlyfLocaReaderTests
         var path = reader.GetGlyphOutline(0);
 
         // Assert: a single subpath of straight line segments is produced
-        Assert.Single(path.Subpaths);
-        var subpath = path.Subpaths[0];
+        var subpath = Assert.Single(path.Subpaths);
         Assert.Equal(new System.Numerics.Vector2(0, 0), subpath.Start);
         Assert.All(subpath.Commands, c => Assert.True(c.Type is PathCommandType.LineTo or PathCommandType.Close));
     }

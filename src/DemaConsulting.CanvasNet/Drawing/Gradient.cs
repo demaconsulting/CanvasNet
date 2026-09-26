@@ -132,7 +132,7 @@ public abstract class Gradient
     /// <summary>
     ///     Produces an immutable, stable-sorted-by-offset defensive copy of <paramref name="stops"/>.
     /// </summary>
-    private static IReadOnlyList<GradientStop> CopyStableSorted(IReadOnlyList<GradientStop> stops)
+    private static ReadOnlyCollection<GradientStop> CopyStableSorted(IReadOnlyList<GradientStop> stops)
     {
         // OrderBy is a documented-stable sort (unlike Array.Sort/List<T>.Sort), which is required
         // to preserve caller-supplied relative order among stops sharing the same Offset - see
