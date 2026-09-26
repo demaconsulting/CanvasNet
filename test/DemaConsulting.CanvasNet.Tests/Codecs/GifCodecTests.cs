@@ -1177,4 +1177,60 @@ public class GifCodecTests
 
         Assert.Throws<InvalidDataException>(() => GifCodec.GetInfo(stream));
     }
+
+    /// <summary>
+    ///     Test: GifCodec_GetInfo_TrailingDataAfterTrailer_ThrowsInvalidDataException.
+    ///     GetInfo must reject a stream with trailing data after the GIF Trailer exactly as
+    ///     Load does, preserving the "GetInfo never accepts what Load would reject" parity - the
+    ///     frame-counting walk must not stop merely upon seeing the Trailer byte without also
+    ///     checking for extra data beyond it.
+    /// </summary>
+    [Fact]
+    public void GifCodec_GetInfo_TrailingDataAfterTrailer_ThrowsInvalidDataException()
+    {
+        using var stream = new MemoryStream();
+        var gct = BuildColorTable((255, 0, 0), (0, 0, 255));
+        WriteHeader(stream, 1, 1, gct);
+        WriteImageDescriptor(stream, 0, 0, 1, 1, false, null, 2, [0]);
+        WriteTrailer(stream);
+        stream.WriteByte(0xFF); // trailing garbage
+        stream.Position = 0;
+
+        Assert.Throws<InvalidDataException>(() => GifCodec.GetInfo(stream));
+    }
+
+    /// <summary>
+    ///     Test: GifCodec_GetInfo_ExcessiveSubBlockData_ThrowsInvalidDataException.
+    ///     GetInfo's frame-counting walk shares the exact same cumulative sub-block byte budget
+    ///     Load enforces. This proves the budget guard still applies identically when the
+    ///     sub-block chain is only skipped (never buffered into a byte array) by GetInfo's
+    ///     internal skip helper - the switch away from buffering must not weaken this limit.
+    /// </summary>
+    [Fact]
+    public void GifCodec_GetInfo_ExcessiveSubBlockData_ThrowsInvalidDataException()
+    {
+        using var stream = new MemoryStream();
+        WriteHeader(stream, 1, 1, null); // tiny declared dimensions
+
+        // A single Comment Extension (label 0xFE) whose sub-block chain's cumulative declared
+        // size is one byte more than GifCodec.MaxTotalSubBlockBytes. Content is irrelevant - only
+        // total volume matters - so a single reusable zero-filled 255-byte buffer is written
+        // repeatedly rather than allocating one huge array up front.
+        stream.WriteByte(0x21); // Extension Introducer
+        stream.WriteByte(0xFE); // Comment Extension label
+
+        var remaining = GifCodec.MaxTotalSubBlockBytes + 1;
+        var chunk = new byte[255];
+        while (remaining > 0)
+        {
+            var chunkSize = (int)Math.Min(255, remaining);
+            stream.WriteByte((byte)chunkSize);
+            stream.Write(chunk, 0, chunkSize);
+            remaining -= chunkSize;
+        }
+
+        stream.Position = 0;
+
+        Assert.Throws<InvalidDataException>(() => GifCodec.GetInfo(stream));
+    }
 }

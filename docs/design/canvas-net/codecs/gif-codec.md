@@ -22,8 +22,10 @@ malformed-input condition: a multi-frame GIF never causes `Load` to throw, and
 case (see *Codecs Subsystem Design*, `../codecs.md`, for the cross-codec `CanDecode` rationale).
 `GifCodec.GetInfo` additionally reports the file's true total frame count via
 `ImageInfo.FrameCount`, by walking every block in the file and structurally validating every
-frame exactly as `Load` does — but, like `Load`, never decoding any frame's LZW-compressed pixel
-data (see *Codecs Subsystem Design*, `../codecs.md`, for the cross-codec `FrameCount` rationale).
+frame exactly as `Load` does. Unlike `Load` — which decodes the first frame's LZW data to
+produce pixels — `GetInfo` never decodes any frame's LZW-compressed pixel data; it only counts
+frames and validates structure (see *Codecs Subsystem Design*, `../codecs.md`, for the
+cross-codec `FrameCount` rationale).
 
 `GifCodec` is a `static` class: GIF decoding has no instance state to carry, so a static utility
 shape was chosen over an object with nothing to construct or configure.

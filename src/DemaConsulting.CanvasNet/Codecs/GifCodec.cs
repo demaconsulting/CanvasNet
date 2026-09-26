@@ -479,8 +479,11 @@ public static class GifCodec
     }
 
     /// <summary>
-    ///     Reads a GIF file's Logical Screen Descriptor at the specified path and reports its
-    ///     declared dimensions, without reading any color table, block, or pixel data.
+    ///     Reads a GIF file at the specified path in full - its Logical Screen Descriptor, Global
+    ///     Color Table (if any), and every subsequent block through and including the Trailer -
+    ///     and reports its declared dimensions together with its true total frame count via
+    ///     <see cref="ImageInfo.FrameCount"/>; see <see cref="GetInfo(Stream)"/> for the complete
+    ///     reporting contract.
     /// </summary>
     /// <param name="path">The path of the GIF file to inspect. Must not be null or empty.</param>
     /// <returns>
@@ -490,7 +493,7 @@ public static class GifCodec
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="path"/> is an empty string.</exception>
     /// <exception cref="System.IO.InvalidDataException">
-    ///     Thrown for the same malformed-header conditions as <see cref="GetInfo(Stream)"/>.
+    ///     Thrown for the same malformed-input conditions as <see cref="GetInfo(Stream)"/>.
     /// </exception>
     /// <remarks>
     ///     File-system exceptions (for example <see cref="FileNotFoundException"/>,
@@ -692,6 +695,53 @@ public static class GifCodec
     }
 
     /// <summary>
+    ///     Walks a GIF sub-block chain exactly as <see cref="ReadSubBlocks"/> does - the same
+    ///     length-prefixed sub-blocks, the same zero-length terminator, and the same
+    ///     <paramref name="remainingBudget"/> guard, decremented identically - but discards each
+    ///     sub-block's bytes as they are read instead of concatenating them into a buffer. Used
+    ///     by <see cref="CountFrames"/>, which never needs a sub-block chain's actual contents
+    ///     (only to advance the stream past it while enforcing the same resource limits), so it
+    ///     never has to pay for buffering data - up to the full <see cref="MaxTotalSubBlockBytes"/>
+    ///     budget, per chain - that it would immediately discard.
+    /// </summary>
+    /// <param name="stream">The stream to read the sub-block chain from.</param>
+    /// <param name="remainingBudget">
+    ///     The number of sub-block data bytes still permitted across the entire file; see
+    ///     <see cref="ReadSubBlocks"/>'s identical parameter for the shared-budget contract.
+    /// </param>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the stream ends before the terminating zero-length sub-block is read, or
+    ///     when reading this chain would exceed <paramref name="remainingBudget"/>.
+    /// </exception>
+    private static void SkipSubBlocks(Stream stream, ref long remainingBudget)
+    {
+        while (true)
+        {
+            var size = stream.ReadByte();
+            if (size < 0)
+            {
+                throw new InvalidDataException("Unexpected end of stream while reading a GIF sub-block chain.");
+            }
+
+            if (size == 0)
+            {
+                break;
+            }
+
+            if (size > remainingBudget)
+            {
+                throw new InvalidDataException(
+                    $"GIF sub-block data exceeds the maximum total permitted size of " +
+                    $"{MaxTotalSubBlockBytes} bytes across the whole file.");
+            }
+
+            remainingBudget -= size;
+
+            SkipExactly(stream, size, "GIF sub-block");
+        }
+    }
+
+    /// <summary>
     ///     Reads a single Image Descriptor's 9-byte fixed header, optional Local Color Table, and
     ///     LZW minimum code size byte (with its 2-8 range check), without reading the descriptor's
     ///     compressed image data sub-block chain. Used identically by <see cref="Load(Stream)"/>'s
@@ -810,8 +860,10 @@ public static class GifCodec
     ///     encountered and applying the same per-frame structural validation
     ///     <see cref="Load(Stream)"/> applies, but without ever invoking the LZW decoder for any
     ///     frame's compressed image data - the compressed data for every frame (not merely
-    ///     frames after the first) is read only far enough to be skipped via
-    ///     <see cref="ReadSubBlocks"/>, discarding the result.
+    ///     frames after the first), and every other extension's sub-block data, is read only far
+    ///     enough to be skipped via <see cref="SkipSubBlocks"/>, without buffering it. Also
+    ///     rejects any trailing data after the Trailer, exactly as <see cref="Load(Stream)"/>
+    ///     does, so <c>GetInfo</c> never succeeds on a stream <c>Load</c> would reject.
     /// </summary>
     /// <param name="stream">The stream, positioned immediately after the Global Color Table (or Logical Screen Descriptor, if none).</param>
     /// <param name="canvasWidth">The logical screen's declared width, from the Logical Screen Descriptor.</param>
@@ -823,8 +875,9 @@ public static class GifCodec
     ///     walking its blocks (an unexpected block introducer byte, a malformed Graphic Control
     ///     Extension, an Image Descriptor failing <see cref="ValidateFrameRegionAndResolveColorTable"/>,
     ///     the total sub-block data exceeding <see cref="MaxTotalSubBlockBytes"/>, the stream
-    ///     ending unexpectedly, or no Image Descriptor ever being encountered before the Trailer) -
-    ///     see <see cref="MaxTotalSubBlockBytes"/>'s remarks for why this shared budget introduces
+    ///     ending unexpectedly, trailing data remaining after the Trailer, or no Image Descriptor
+    ///     ever being encountered before the Trailer) - see
+    ///     <see cref="MaxTotalSubBlockBytes"/>'s remarks for why this shared budget introduces
     ///     no new unbounded-loop or resource-exhaustion risk specific to frame counting.
     /// </exception>
     private static int CountFrames(Stream stream, int canvasWidth, int canvasHeight, Rgba32[]? globalColorTable)
@@ -860,7 +913,7 @@ public static class GifCodec
                         }
                         else
                         {
-                            ReadSubBlocks(stream, ref remainingSubBlockBudget);
+                            SkipSubBlocks(stream, ref remainingSubBlockBudget);
                         }
 
                         break;
@@ -873,7 +926,7 @@ public static class GifCodec
                         // Skip - never decode - this frame's compressed image data; GetInfo
                         // counts frames without ever invoking the LZW decoder, for the first
                         // frame or any other.
-                        ReadSubBlocks(stream, ref remainingSubBlockBudget);
+                        SkipSubBlocks(stream, ref remainingSubBlockBudget);
 
                         ValidateFrameRegionAndResolveColorTable(
                             header.Width,
@@ -896,6 +949,11 @@ public static class GifCodec
                 default:
                     throw new InvalidDataException($"Unexpected GIF block introducer byte 0x{introducer:X2}.");
             }
+        }
+
+        if (stream.ReadByte() != -1)
+        {
+            throw new InvalidDataException("Unexpected trailing data after the GIF trailer.");
         }
 
         return frameCount == 0
@@ -1109,6 +1167,36 @@ public static class GifCodec
         }
 
         return buffer;
+    }
+
+    /// <summary>
+    ///     Advances a stream past exactly <paramref name="count"/> bytes without retaining them,
+    ///     using a small fixed-size reusable buffer regardless of <paramref name="count"/> - the
+    ///     skipping counterpart to <see cref="ReadExactly"/>, for callers (such as
+    ///     <see cref="SkipSubBlocks"/>) that need only to consume the bytes, not read their
+    ///     contents.
+    /// </summary>
+    /// <param name="stream">The stream to advance.</param>
+    /// <param name="count">The exact number of bytes to skip.</param>
+    /// <param name="what">A short description of the data being skipped, used in the error message.</param>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the stream ends before <paramref name="count"/> bytes could be skipped.
+    /// </exception>
+    private static void SkipExactly(Stream stream, int count, string what)
+    {
+        Span<byte> buffer = stackalloc byte[Math.Min(count, 4096)];
+        var remaining = count;
+        while (remaining > 0)
+        {
+            var chunkSize = Math.Min(remaining, buffer.Length);
+            var read = stream.Read(buffer[..chunkSize]);
+            if (read == 0)
+            {
+                throw new InvalidDataException($"Unexpected end of stream while reading {what}.");
+            }
+
+            remaining -= read;
+        }
     }
 
     /// <summary>
