@@ -50,7 +50,8 @@ public class SvgCodecTests
             .AddTable("kern", kern)
             .Build();
 
-        return TrueTypeFont.Load(new MemoryStream(data));
+        using var stream = new MemoryStream(data);
+        return TrueTypeFont.Load(stream);
     }
 
     // ================================================================================================
@@ -65,7 +66,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 20 20'><rect x='5' y='5' width='10' height='10' fill='#112233'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 20, 20);
+        using var stream67 = ToStream(svg);
+        var surface = SvgCodec.Load(stream67, 20, 20);
 
         // Assert
         Assert.Equal(new Rgba32(0x11, 0x22, 0x33, 255), surface[10, 10]);
@@ -84,7 +86,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><rect x='0' y='0' width='100' height='100' rx='30' ry='30' fill='black'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream86 = ToStream(svg);
+        var surface = SvgCodec.Load(stream86, 100, 100);
 
         // Assert: the extreme corner (well within the cut radius) is unfilled, the center is filled
         Assert.Equal(0, surface[1, 1].A);
@@ -99,7 +102,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='#00ff00'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream101 = ToStream(svg);
+        var surface = SvgCodec.Load(stream101, 100, 100);
 
         // Assert: center is filled; far corner (outside the circle) is not
         Assert.Equal(new Rgba32(0, 255, 0, 255), surface[50, 50]);
@@ -117,7 +121,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><ellipse cx='50' cy='50' rx='40' ry='10' fill='#0000ff'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream119 = ToStream(svg);
+        var surface = SvgCodec.Load(stream119, 100, 100);
 
         // Assert: point (85,50) is within the long (x) axis's radius but would be outside a
         // radius-10 circle - only a true ellipse (not a circle) fills it
@@ -137,7 +142,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><line x1='10' y1='50' x2='90' y2='50' stroke='black' stroke-width='6'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream139 = ToStream(svg);
+        var surface = SvgCodec.Load(stream139, 100, 100);
 
         // Assert: a point on the line is stroked; a point well away from the line is not
         Assert.Equal(255, surface[50, 50].A);
@@ -157,7 +163,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><polyline points='10,10 10,90 90,90' stroke='black' stroke-width='4' fill='none'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream159 = ToStream(svg);
+        var surface = SvgCodec.Load(stream159, 100, 100);
 
         // Assert: a point on the actual "L" path is stroked
         Assert.Equal(255, surface[10, 50].A);
@@ -176,7 +183,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><polygon points='50,10 90,90 10,90' fill='#ff00ff'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream178 = ToStream(svg);
+        var surface = SvgCodec.Load(stream178, 100, 100);
 
         // Assert: the triangle's centroid-ish interior point is filled
         Assert.Equal(new Rgba32(255, 0, 255, 255), surface[50, 70]);
@@ -196,7 +204,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><path d='M50,10 L90,90 L10,90 Z' fill='black'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream198 = ToStream(svg);
+        var surface = SvgCodec.Load(stream198, 100, 100);
 
         // Assert
         Assert.Equal(255, surface[50, 70].A);
@@ -214,7 +223,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><path d='m50,10 l40,80 l-80,0 z' fill='black'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream216 = ToStream(svg);
+        var surface = SvgCodec.Load(stream216, 100, 100);
 
         // Assert: identical filled/unfilled pixels to the absolute-command test above
         Assert.Equal(255, surface[50, 70].A);
@@ -232,7 +242,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><path d='M10,10 H90 V90 H10 Z' fill='black'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream234 = ToStream(svg);
+        var surface = SvgCodec.Load(stream234, 100, 100);
 
         // Assert
         Assert.Equal(255, surface[50, 50].A);
@@ -251,7 +262,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><path d='M10,50 C10,10 90,10 90,50 L90,90 L10,90 Z' fill='black'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream253 = ToStream(svg);
+        var surface = SvgCodec.Load(stream253, 100, 100);
 
         // Assert: the base rectangle's interior is filled; well above the bulge is not
         Assert.Equal(255, surface[50, 70].A);
@@ -270,7 +282,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><path d='M10,50 C10,10 50,10 50,50 S90,90 90,50 L90,90 L10,90 Z' fill='black'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream272 = ToStream(svg);
+        var surface = SvgCodec.Load(stream272, 100, 100);
 
         // Assert
         Assert.Equal(255, surface[50, 60].A);
@@ -284,7 +297,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><path d='M10,50 Q50,10 90,50 L90,90 L10,90 Z' fill='black'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream286 = ToStream(svg);
+        var surface = SvgCodec.Load(stream286, 100, 100);
 
         // Assert
         Assert.Equal(255, surface[50, 70].A);
@@ -302,7 +316,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><path d='M10,50 Q30,10 50,50 T90,50 L90,90 L10,90 Z' fill='black'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream304 = ToStream(svg);
+        var surface = SvgCodec.Load(stream304, 100, 100);
 
         // Assert
         Assert.Equal(255, surface[50, 60].A);
@@ -319,7 +334,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><path d='M10,50 A40,40 0 0 0 90,50 Z' fill='black'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream321 = ToStream(svg);
+        var surface = SvgCodec.Load(stream321, 100, 100);
 
         // Assert: a point well within the half-disc (below the flat edge) is filled
         Assert.Equal(255, surface[50, 80].A);
@@ -342,7 +358,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><g fill='#ff8800'><rect x='10' y='10' width='30' height='30'/></g></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream344 = ToStream(svg);
+        var surface = SvgCodec.Load(stream344, 100, 100);
 
         // Assert
         Assert.Equal(new Rgba32(0xFF, 0x88, 0x00, 255), surface[25, 25]);
@@ -359,7 +376,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><g fill='red'><rect x='10' y='10' width='30' height='30' fill='blue'/></g></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream361 = ToStream(svg);
+        var surface = SvgCodec.Load(stream361, 100, 100);
 
         // Assert
         Assert.Equal(new Rgba32(0, 0, 255, 255), surface[25, 25]);
@@ -376,7 +394,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><g opacity='0.5'><g opacity='0.5'><rect x='10' y='10' width='30' height='30' fill='black'/></g></g></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream378 = ToStream(svg);
+        var surface = SvgCodec.Load(stream378, 100, 100);
 
         // Assert: resulting alpha is approximately 25% of fully opaque, not 50% or 100%
         var alpha = surface[25, 25].A;
@@ -395,7 +414,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><rect x='0' y='0' width='20' height='20' fill='black' transform='translate(40,40)'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream397 = ToStream(svg);
+        var surface = SvgCodec.Load(stream397, 100, 100);
 
         // Assert: filled at the translated position; not filled at the pre-translation position
         Assert.Equal(255, surface[50, 50].A);
@@ -410,7 +430,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><rect x='0' y='0' width='10' height='10' fill='black' transform='scale(5)'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream412 = ToStream(svg);
+        var surface = SvgCodec.Load(stream412, 100, 100);
 
         // Assert: filled well within the scaled-up shape; not filled beyond it
         Assert.Equal(255, surface[40, 40].A);
@@ -429,7 +450,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><rect x='35' y='-5' width='10' height='10' fill='black' transform='rotate(90)'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream431 = ToStream(svg);
+        var surface = SvgCodec.Load(stream431, 100, 100);
 
         // Assert: the square (originally centered near local (40,0)) now renders near (0,40)
         Assert.Equal(255, surface[0, 40].A);
@@ -445,7 +467,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><rect x='0' y='0' width='20' height='20' fill='black' transform='matrix(1,0,0,1,40,40)'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream447 = ToStream(svg);
+        var surface = SvgCodec.Load(stream447, 100, 100);
 
         // Assert
         Assert.Equal(255, surface[50, 50].A);
@@ -464,7 +487,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><rect x='10' y='0' width='4' height='80' fill='black' transform='skewX(45)'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream466 = ToStream(svg);
+        var surface = SvgCodec.Load(stream466, 100, 100);
 
         // Assert: near the top (y=1), the strip has barely moved and still covers x~13
         Assert.Equal(255, surface[13, 1].A);
@@ -490,7 +514,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><rect x='35' y='-5' width='10' height='10' fill='black' transform='translate(40,40) rotate(90)'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream492 = ToStream(svg);
+        var surface = SvgCodec.Load(stream492, 100, 100);
 
         // Assert: filled at the "rotate-then-translate" expected position
         Assert.Equal(255, surface[40, 80].A);
@@ -514,7 +539,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><path d='M10,10 L90,10 L90,90 L10,90 Z M30,30 L70,30 L70,70 L30,70 Z' fill-rule='evenodd' fill='black'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream516 = ToStream(svg);
+        var surface = SvgCodec.Load(stream516, 100, 100);
 
         // Assert: the shared overlapping center is a hole (unfilled); the outer ring is filled
         Assert.Equal(0, surface[50, 50].A);
@@ -532,7 +558,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><path d='M10,10 L90,10 L90,90 L10,90 Z M30,30 L70,30 L70,70 L30,70 Z' fill='black'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream534 = ToStream(svg);
+        var surface = SvgCodec.Load(stream534, 100, 100);
 
         // Assert: the center is filled under nonzero, unlike under evenodd
         Assert.Equal(255, surface[50, 50].A);
@@ -549,7 +576,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><rect x='20' y='20' width='60' height='60' fill='none' stroke='black' stroke-width='6'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream551 = ToStream(svg);
+        var surface = SvgCodec.Load(stream551, 100, 100);
 
         // Assert: the outline (near x=20) is stroked; the interior (center) is not filled
         Assert.Equal(255, surface[20, 50].A);
@@ -567,7 +595,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><line x1='0' y1='50' x2='100' y2='50' stroke='black' stroke-width='4' stroke-dasharray='10,10'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream569 = ToStream(svg);
+        var surface = SvgCodec.Load(stream569, 100, 100);
 
         // Assert: at least one sampled point along the line is unstroked (a dash gap) - a solid
         // stroke (dasharray ignored) would leave every sampled point stroked
@@ -604,7 +633,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><rect x='20' y='20' width='60' height='60' fill='none' stroke='black' stroke-width='6' stroke-miterlimit='0'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream606 = ToStream(svg);
+        var surface = SvgCodec.Load(stream606, 100, 100);
 
         // Assert: the outline still renders (no exception, and the stroke was not dropped)
         Assert.Equal(255, surface[20, 50].A);
@@ -622,7 +652,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><rect x='20' y='20' width='60' height='60' fill='none' stroke='black' stroke-width='6' stroke-miterlimit='-5'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream624 = ToStream(svg);
+        var surface = SvgCodec.Load(stream624, 100, 100);
 
         // Assert: the outline still renders (no exception, and the stroke was not dropped)
         Assert.Equal(255, surface[20, 50].A);
@@ -645,7 +676,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><rect x='20' y='20' width='60' height='60' fill='none' stroke='black' stroke-width='6' stroke-miterlimit='NaN'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream647 = ToStream(svg);
+        var surface = SvgCodec.Load(stream647, 100, 100);
 
         // Assert: the outline still renders (no exception, and the stroke was not dropped)
         Assert.Equal(255, surface[20, 50].A);
@@ -668,7 +700,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><rect x='20' y='20' width='60' height='60' fill='none' stroke='black' stroke-width='6' stroke-miterlimit='Infinity'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream670 = ToStream(svg);
+        var surface = SvgCodec.Load(stream670, 100, 100);
 
         // Assert: the outline still renders (no exception, and the stroke was not dropped)
         Assert.Equal(255, surface[20, 50].A);
@@ -685,7 +718,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><rect x='20' y='20' width='60' height='60' fill='none' stroke='black' stroke-width='6' stroke-miterlimit='4'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream687 = ToStream(svg);
+        var surface = SvgCodec.Load(stream687, 100, 100);
 
         // Assert: the outline renders normally
         Assert.Equal(255, surface[20, 50].A);
@@ -741,7 +775,8 @@ public class SvgCodecTests
                             "</svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream743 = ToStream(svg);
+        var surface = SvgCodec.Load(stream743, 100, 100);
 
         // Assert: rendering completed without incident (no hang/crash), and the whole stroke -
         // which, un-skipped, would have engulfed the entire 100x100 canvas given its 900,000-unit
@@ -771,7 +806,8 @@ public class SvgCodecTests
                             "</svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream773 = ToStream(svg);
+        var surface = SvgCodec.Load(stream773, 100, 100);
 
         // Assert: the corner's sharp miter tip renders as expected, near (60,20)
         Assert.Equal(255, surface[60, 20].A);
@@ -821,7 +857,8 @@ public class SvgCodecTests
             """;
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream823 = ToStream(svg);
+        var surface = SvgCodec.Load(stream823, 100, 100);
 
         // Assert: rendering completed without the raw ArgumentOutOfRangeException a non-finite
         // effective stroke width reaching StrokeStyle's constructor would otherwise throw
@@ -863,7 +900,8 @@ public class SvgCodecTests
                             "</svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream865 = ToStream(svg);
+        var surface = SvgCodec.Load(stream865, 100, 100);
 
         // Assert: the fill still renders normally (its own transformed geometry stays within
         // bound) ...
@@ -917,7 +955,8 @@ public class SvgCodecTests
             """;
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream919 = ToStream(svg);
+        var surface = SvgCodec.Load(stream919, 100, 100);
 
         // Assert: loads without throwing, and the (skipped) rect leaves nothing rendered
         Assert.Equal(100, surface.Width);
@@ -967,7 +1006,8 @@ public class SvgCodecTests
 
         // Act & Assert: rejected at parse time, well before RenderStroke's own scaling would ever
         // run
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+        using var stream969 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream969, 100, 100));
     }
 
     /// <summary>
@@ -981,7 +1021,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><rect x='10' y='10' width='30' height='30' fill='black' opacity='0.4'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream983 = ToStream(svg);
+        var surface = SvgCodec.Load(stream983, 100, 100);
 
         // Assert: alpha is approximately 40% of fully opaque (0.4 * 255 = 102), not 0 or 255
         Assert.InRange((int)surface[25, 25].A, 90, 112);
@@ -1013,7 +1054,8 @@ public class SvgCodecTests
             """;
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream1015 = ToStream(svg);
+        var surface = SvgCodec.Load(stream1015, 100, 100);
 
         // Assert: brightness increases left to right, and reflects the user-space (not
         // bounding-box-relative) axis
@@ -1041,7 +1083,8 @@ public class SvgCodecTests
             """;
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream1043 = ToStream(svg);
+        var surface = SvgCodec.Load(stream1043, 100, 100);
 
         // Assert: the center is brighter than a point near the shape's edge
         Assert.True(surface[50, 50].R > surface[95, 50].R);
@@ -1074,7 +1117,8 @@ public class SvgCodecTests
             """;
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream1076 = ToStream(svg);
+        var surface = SvgCodec.Load(stream1076, 100, 100);
 
         // Assert: the rect still renders (no exception, and the fill was not dropped)
         Assert.Equal(255, surface[5, 5].A);
@@ -1102,7 +1146,8 @@ public class SvgCodecTests
             """;
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream1104 = ToStream(svg);
+        var surface = SvgCodec.Load(stream1104, 100, 100);
 
         // Assert: the rect still renders (no exception, and the fill was not dropped)
         Assert.Equal(255, surface[5, 5].A);
@@ -1129,7 +1174,8 @@ public class SvgCodecTests
             """;
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream1131 = ToStream(svg);
+        var surface = SvgCodec.Load(stream1131, 100, 100);
 
         // Assert: the center is brighter than a point near the shape's edge (gradient still applied)
         Assert.True(surface[50, 50].R > surface[95, 50].R);
@@ -1184,7 +1230,8 @@ public class SvgCodecTests
             """;
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream1186 = ToStream(svg);
+        var surface = SvgCodec.Load(stream1186, 100, 100);
 
         // Assert: loads without throwing, and the gradient fill is tolerated as "no paint"
         Assert.Equal(100, surface.Width);
@@ -1214,7 +1261,8 @@ public class SvgCodecTests
             """;
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream1216 = ToStream(svg);
+        var surface = SvgCodec.Load(stream1216, 100, 100);
 
         // Assert: the tiled positions render nearly the same color (repeat), and that color is
         // not the fully-clamped white a "pad" (default) spread would produce at x equals 25
@@ -1243,7 +1291,8 @@ public class SvgCodecTests
             """;
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream1245 = ToStream(svg);
+        var surface = SvgCodec.Load(stream1245, 100, 100);
 
         // Assert: the stroke is darker near the start than near the end
         Assert.True(surface[10, 50].R < surface[90, 50].R);
@@ -1271,7 +1320,8 @@ public class SvgCodecTests
             """;
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream1273 = ToStream(svg);
+        var surface = SvgCodec.Load(stream1273, 100, 100);
 
         // Assert: the inherited stops still produce a left-to-right brightness gradient
         Assert.True(surface[10, 50].R < surface[90, 50].R);
@@ -1300,7 +1350,8 @@ public class SvgCodecTests
             """;
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream1302 = ToStream(svg);
+        var surface = SvgCodec.Load(stream1302, 100, 100);
 
         // Assert
         Assert.True(surface[10, 50].R < surface[90, 50].R);
@@ -1325,7 +1376,8 @@ public class SvgCodecTests
             """;
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+        using var stream1327 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream1327, 100, 100));
     }
 
     /// <summary>
@@ -1357,7 +1409,8 @@ public class SvgCodecTests
             """;
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 50);
+        using var stream1359 = ToStream(svg);
+        var surface = SvgCodec.Load(stream1359, 100, 50);
 
         // Assert: every one of the 50 rows shows the same left-to-right brightness ramp from the
         // shared, cached gradient
@@ -1441,7 +1494,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 10 10'><use href='#box' x='2' y='2'/><rect id='box' x='0' y='0' width='4' height='4' fill='black'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 10, 10);
+        using var stream1443 = ToStream(svg);
+        var surface = SvgCodec.Load(stream1443, 10, 10);
 
         // Assert: the original box renders at (0,0)-(4,4)
         Assert.Equal(255, surface[1, 1].A);
@@ -1460,7 +1514,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 10 10'><use href='#missing' x='0' y='0'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 10, 10);
+        using var stream1462 = ToStream(svg);
+        var surface = SvgCodec.Load(stream1462, 10, 10);
 
         // Assert: no exception, and nothing was rendered
         Assert.Equal(0, surface[5, 5].A);
@@ -1487,7 +1542,8 @@ public class SvgCodecTests
             """;
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 20, 20);
+        using var stream1489 = ToStream(svg);
+        var surface = SvgCodec.Load(stream1489, 20, 20);
 
         // Assert: both group children rendered
         Assert.Equal(255, surface[1, 1].A);
@@ -1512,7 +1568,8 @@ public class SvgCodecTests
             """;
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+        using var stream1514 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream1514, 10, 10));
     }
 
     /// <summary>
@@ -1552,7 +1609,8 @@ public class SvgCodecTests
         builder.Append("</defs><use href='#g10'/></svg>");
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(builder.ToString()), 10, 10));
+        using var stream1554 = ToStream(builder.ToString());
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream1554, 10, 10));
     }
 
     /// <summary>
@@ -1574,7 +1632,8 @@ public class SvgCodecTests
             + "</svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+        using var stream1576 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream1576, 10, 10));
     }
 
     // ================================================================================================
@@ -1600,7 +1659,8 @@ public class SvgCodecTests
         var svg = $"<svg viewBox='0 0 10 10'><path d='{d}'/></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+        using var stream1602 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream1602, 10, 10));
     }
 
     /// <summary>
@@ -1618,7 +1678,8 @@ public class SvgCodecTests
         var svg = $"<svg viewBox='0 0 10 10'><polyline points='{points}'/></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+        using var stream1620 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream1620, 10, 10));
     }
 
     /// <summary>
@@ -1648,7 +1709,7 @@ public class SvgCodecTests
         const int hugePairCount = 1_000_000;
         var points = string.Concat(Enumerable.Repeat("1,1 ", hugePairCount));
         var svg = $"<svg viewBox='0 0 10 10'><polyline points='{points}'/></svg>";
-        var stream = ToStream(svg);
+        using var stream = ToStream(svg);
 
         // Act
         var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
@@ -1681,7 +1742,8 @@ public class SvgCodecTests
         var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10, fonts));
+        using var stream1683 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream1683, 10, 10, fonts));
     }
 
     // ================================================================================================
@@ -1705,7 +1767,7 @@ public class SvgCodecTests
         const int hugeNumberCount = 1_000_000;
         var dasharray = string.Join(',', Enumerable.Repeat("1", hugeNumberCount));
         var svg = $"<svg viewBox='0 0 10 10'><rect width='5' height='5' fill='none' stroke='black' stroke-dasharray='{dasharray}'/></svg>";
-        var stream = ToStream(svg);
+        using var stream = ToStream(svg);
 
         // Act
         var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
@@ -1734,7 +1796,8 @@ public class SvgCodecTests
         var svg = $"<svg viewBox='0 0 10 10'><rect width='5' height='5' transform='matrix({args})'/></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+        using var stream1736 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream1736, 10, 10));
     }
 
     /// <summary>
@@ -1752,7 +1815,8 @@ public class SvgCodecTests
         var svg = $"<svg viewBox='{numbers}'><rect width='5' height='5'/></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+        using var stream1754 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream1754, 10, 10));
     }
 
     // ================================================================================================
@@ -1783,7 +1847,8 @@ public class SvgCodecTests
         builder.Append("</defs></svg>");
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(builder.ToString()), 10, 10));
+        using var stream1785 = ToStream(builder.ToString());
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream1785, 10, 10));
     }
 
     /// <summary>
@@ -1810,7 +1875,7 @@ public class SvgCodecTests
 
         builder.Append("</linearGradient></defs>");
         builder.Append("<rect width='5' height='5' fill='url(#g)'/></svg>");
-        var stream = ToStream(builder.ToString());
+        using var stream = ToStream(builder.ToString());
 
         // Act
         var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
@@ -1843,7 +1908,8 @@ public class SvgCodecTests
         var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100, fonts);
+        using var stream1845 = ToStream(svg);
+        var surface = SvgCodec.Load(stream1845, 100, 100, fonts);
 
         // Assert: inside the glyph square
         Assert.Equal(255, surface[35, 35].A);
@@ -1866,7 +1932,8 @@ public class SvgCodecTests
         var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100, fonts);
+        using var stream1868 = ToStream(svg);
+        var surface = SvgCodec.Load(stream1868, 100, 100, fonts);
 
         // Assert: filled within the centered square
         Assert.Equal(255, surface[25, 35].A);
@@ -1887,7 +1954,8 @@ public class SvgCodecTests
         var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100, fonts);
+        using var stream1889 = ToStream(svg);
+        var surface = SvgCodec.Load(stream1889, 100, 100, fonts);
 
         // Assert: filled within the visible part of the right-aligned square
         Assert.Equal(255, surface[20, 35].A);
@@ -1910,7 +1978,8 @@ public class SvgCodecTests
         var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 200, 100, fonts);
+        using var stream1912 = ToStream(svg);
+        var surface = SvgCodec.Load(stream1912, 200, 100, fonts);
 
         // Assert: filled only if the -10 kerning adjustment was applied before placing 'B'
         Assert.Equal(255, surface[105, 35].A);
@@ -1930,7 +1999,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><text x='10' y='60' font-family='TestFont' font-size='100' fill='black'>A</text></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream1932 = ToStream(svg);
+        var surface = SvgCodec.Load(stream1932, 100, 100);
 
         // Assert: no exception was thrown (implicit), and no ink was painted anywhere
         Assert.Equal(0, surface[35, 35].A);
@@ -1948,7 +2018,8 @@ public class SvgCodecTests
         var fonts = new Dictionary<string, TrueTypeFont> { ["OtherFont"] = BuildTestFont() };
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100, fonts);
+        using var stream1950 = ToStream(svg);
+        var surface = SvgCodec.Load(stream1950, 100, 100, fonts);
 
         // Assert: no exception, and no ink was painted
         Assert.Equal(0, surface[35, 35].A);
@@ -1966,7 +2037,8 @@ public class SvgCodecTests
         var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100, fonts);
+        using var stream1968 = ToStream(svg);
+        var surface = SvgCodec.Load(stream1968, 100, 100, fonts);
 
         // Assert: the glyph rendered, proving the fallback list was walked to "TestFont"
         Assert.Equal(255, surface[35, 35].A);
@@ -1988,7 +2060,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 200 100'><rect x='0' y='0' width='200' height='100' fill='blue'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream1990 = ToStream(svg);
+        var surface = SvgCodec.Load(stream1990, 100, 100);
 
         // Assert: content band is filled
         Assert.Equal(255, surface[50, 50].A);
@@ -2009,7 +2082,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 200'><rect x='0' y='0' width='100' height='200' fill='blue'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream2011 = ToStream(svg);
+        var surface = SvgCodec.Load(stream2011, 100, 100);
 
         // Assert: content band is filled
         Assert.Equal(255, surface[50, 50].A);
@@ -2034,7 +2108,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 40 20' width='999' height='999'></svg>";
 
         // Act
-        var info = SvgCodec.GetInfo(ToStream(svg));
+        using var stream2036 = ToStream(svg);
+        var info = SvgCodec.GetInfo(stream2036);
 
         // Assert
         Assert.Equal(40, info.Width);
@@ -2054,7 +2129,8 @@ public class SvgCodecTests
         const string svg = "<svg width='64' height='32'></svg>";
 
         // Act
-        var info = SvgCodec.GetInfo(ToStream(svg));
+        using var stream2056 = ToStream(svg);
+        var info = SvgCodec.GetInfo(stream2056);
 
         // Assert
         Assert.Equal(64, info.Width);
@@ -2073,7 +2149,8 @@ public class SvgCodecTests
         const string svg = "<svg></svg>";
 
         // Act
-        var info = SvgCodec.GetInfo(ToStream(svg));
+        using var stream2075 = ToStream(svg);
+        var info = SvgCodec.GetInfo(stream2075);
 
         // Assert
         Assert.Equal(300, info.Width);
@@ -2135,7 +2212,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 1e20 1e20'></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.GetInfo(ToStream(svg)));
+        using var stream2137 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.GetInfo(stream2137));
     }
 
     /// <summary>
@@ -2150,7 +2228,8 @@ public class SvgCodecTests
         const string svg = "<svg width='1e20' height='1e20'></svg>";
 
         // Act
-        var info = SvgCodec.GetInfo(ToStream(svg));
+        using var stream2152 = ToStream(svg);
+        var info = SvgCodec.GetInfo(stream2152);
 
         // Assert
         Assert.Equal(int.MaxValue, info.Width);
@@ -2173,7 +2252,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><rect x='0' y='0' width='10' height='10'";
 
         // Act
-        var info = SvgCodec.GetInfo(ToStream(svg));
+        using var stream2175 = ToStream(svg);
+        var info = SvgCodec.GetInfo(stream2175);
 
         // Assert
         Assert.Equal(100, info.Width);
@@ -2201,7 +2281,8 @@ public class SvgCodecTests
         var svg = $"<svg viewBox='0 0 100 100' data-padding='{padding}'></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.GetInfo(ToStream(svg)));
+        using var stream2203 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.GetInfo(stream2203));
     }
 
     // ================================================================================================
@@ -2225,7 +2306,8 @@ public class SvgCodecTests
         const string svg = "<!DOCTYPE svg [<!ENTITY foo \"bar\">]><svg viewBox='0 0 100 100'></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+        using var stream2227 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2227, 100, 100));
     }
 
     /// <summary>
@@ -2246,7 +2328,8 @@ public class SvgCodecTests
             "<svg viewBox='0 0 100 100'><title>&xxe;</title></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+        using var stream2248 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2248, 100, 100));
     }
 
     /// <summary>
@@ -2265,7 +2348,8 @@ public class SvgCodecTests
             "<svg viewBox='0 0 100 100'><title>&xxe;</title></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.GetInfo(ToStream(svg)));
+        using var stream2267 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.GetInfo(stream2267));
     }
 
     // ================================================================================================
@@ -2283,7 +2367,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><rect x='0' y='0' width='10' height='10'";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+        using var stream2285 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2285, 100, 100));
     }
 
     /// <summary>
@@ -2297,7 +2382,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100'></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+        using var stream2299 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2299, 100, 100));
     }
 
     /// <summary>
@@ -2311,7 +2397,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 0 100'></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+        using var stream2313 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2313, 100, 100));
     }
 
     /// <summary>
@@ -2334,7 +2421,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 1e-40 1e-40'><rect x='0' y='0' width='1e-40' height='1e-40' fill='red'/></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+        using var stream2336 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2336, 100, 100));
     }
 
     /// <summary>
@@ -2348,7 +2436,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><path d='M10,10 X99,99'/></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+        using var stream2350 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2350, 100, 100));
     }
 
     /// <summary>
@@ -2362,7 +2451,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><path d='M10,10 L'/></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+        using var stream2364 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2364, 100, 100));
     }
 
     /// <summary>
@@ -2393,7 +2483,8 @@ public class SvgCodecTests
                             "</svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+        using var stream2395 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2395, 10, 10));
     }
 
     /// <summary>
@@ -2422,7 +2513,8 @@ public class SvgCodecTests
                             "</svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+        using var stream2424 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2424, 10, 10));
     }
 
     /// <summary>
@@ -2454,7 +2546,8 @@ public class SvgCodecTests
                             "</svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+        using var stream2456 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2456, 10, 10));
     }
 
     /// <summary>
@@ -2489,7 +2582,8 @@ public class SvgCodecTests
                             "</svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+        using var stream2491 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2491, 10, 10));
     }
 
     /// <summary>
@@ -2517,7 +2611,8 @@ public class SvgCodecTests
                             "</svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 10, 10));
+        using var stream2519 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2519, 10, 10));
     }
 
     /// <summary>
@@ -2559,7 +2654,8 @@ public class SvgCodecTests
                             "</svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream2561 = ToStream(svg);
+        var surface = SvgCodec.Load(stream2561, 100, 100);
 
         // Assert: Load did not throw, and the shape was tolerantly skipped entirely - the sampled
         // pixel, which the scaled square's huge bounding box would otherwise cover if the shape
@@ -2578,7 +2674,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><rect x='0' y='0' width='10' height='10' transform='wobble(1,2)'/></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+        using var stream2580 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2580, 100, 100));
     }
 
     /// <summary>
@@ -2599,7 +2696,8 @@ public class SvgCodecTests
         var svg = $"<svg viewBox='0 0 100 100'><!--{padding}--></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+        using var stream2601 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2601, 100, 100));
     }
 
     /// <summary>
@@ -2616,7 +2714,8 @@ public class SvgCodecTests
         var svg = $"<svg viewBox='0 0 100 100'><!--{padding}--><rect x='0' y='0' width='100' height='100' fill='red'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 10, 10);
+        using var stream2618 = ToStream(svg);
+        var surface = SvgCodec.Load(stream2618, 10, 10);
 
         // Assert: the rect still rendered
         Assert.Equal(255, surface[5, 5].A);
@@ -2637,7 +2736,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 20 20'><rect x='0' y='0' width='NaN' height='10'/></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+        using var stream2639 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2639, 100, 100));
     }
 
     /// <summary>
@@ -2653,7 +2753,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 20 20'><rect x='0' y='0' width='10' height='10' stroke='#000' stroke-width='Infinity'/></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+        using var stream2655 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2655, 100, 100));
     }
 
     /// <summary>
@@ -2674,7 +2775,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 20 20'><path d='M0,0 L1e400,0'/></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+        using var stream2676 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2676, 100, 100));
     }
 
     /// <summary>
@@ -2691,7 +2793,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 20 20'><polyline points='0,0 1e400,0'/></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+        using var stream2693 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2693, 100, 100));
     }
 
     /// <summary>
@@ -2708,7 +2811,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 20 20'><path d='M0,0 L1000001,0'/></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+        using var stream2710 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2710, 100, 100));
     }
 
     /// <summary>
@@ -2723,7 +2827,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 20 20'><polyline points='0,0 1000001,0'/></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+        using var stream2725 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2725, 100, 100));
     }
 
     /// <summary>
@@ -2746,7 +2851,8 @@ public class SvgCodecTests
                             "</svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 10, 10);
+        using var stream2748 = ToStream(svg);
+        var surface = SvgCodec.Load(stream2748, 10, 10);
 
         // Assert: no exception, and the rect (which covers the whole viewBox) rendered
         Assert.Equal(255, surface[5, 5].A);
@@ -2765,7 +2871,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><rect x='-1e1' y='0' width='1e2' height='5e1' fill='black' opacity='50%'/></svg>";
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream2767 = ToStream(svg);
+        var surface = SvgCodec.Load(stream2767, 100, 100);
 
         // Assert: the rect (x=-10, width=100 => spans to x=90) covers (50,25) at ~50% opacity
         // (0.5 * 255 = 127.5 ~ 127/128), not 0 (rejected) and not 255 (opacity ignored)
@@ -2786,7 +2893,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><rect x='50%' y='0' width='10' height='10'/></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+        using var stream2788 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2788, 100, 100));
     }
 
     /// <summary>
@@ -2802,7 +2910,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 100 100'><rect x='0' y='0' width='50%' height='10'/></svg>";
 
         // Act & Assert
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(ToStream(svg), 100, 100));
+        using var stream2804 = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2804, 100, 100));
     }
 
     /// <summary>
@@ -2834,7 +2943,8 @@ public class SvgCodecTests
             """;
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream2836 = ToStream(svg);
+        var surface = SvgCodec.Load(stream2836, 100, 100);
 
         // Assert: rendering completed without the raw ArgumentOutOfRangeException a non-finite
         // offset reaching GradientStop's constructor would otherwise throw
@@ -2865,7 +2975,8 @@ public class SvgCodecTests
             """;
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream2867 = ToStream(svg);
+        var surface = SvgCodec.Load(stream2867, 100, 100);
 
         // Assert: brightness still increases left to right, proving x1 fell back to 0 rather
         // than Infinity (which would break or degenerate the ramp)
@@ -2902,7 +3013,8 @@ public class SvgCodecTests
             """;
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream2904 = ToStream(svg);
+        var surface = SvgCodec.Load(stream2904, 100, 100);
 
         // Assert: the background white shows through - the Infinity-alpha rgba() color was
         // rejected as unrecognized, not drawn as (saturated-opaque) black
@@ -2927,7 +3039,8 @@ public class SvgCodecTests
         const string svg = "<svg width='Infinity' height='Infinity'></svg>";
 
         // Act
-        var info = SvgCodec.GetInfo(ToStream(svg));
+        using var stream2929 = ToStream(svg);
+        var info = SvgCodec.GetInfo(stream2929);
 
         // Assert: falls back to the CSS/UA default replaced-element intrinsic size
         Assert.Equal(300, info.Width);
@@ -2945,7 +3058,8 @@ public class SvgCodecTests
         const string svg = "<svg width='1e2' height='1e2'></svg>";
 
         // Act
-        var info = SvgCodec.GetInfo(ToStream(svg));
+        using var stream2947 = ToStream(svg);
+        var info = SvgCodec.GetInfo(stream2947);
 
         // Assert
         Assert.Equal(100, info.Width);
@@ -2973,7 +3087,8 @@ public class SvgCodecTests
             """;
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream2975 = ToStream(svg);
+        var surface = SvgCodec.Load(stream2975, 100, 100);
 
         // Assert: brightness increases left to right, as with the equivalent bare-number test
         Assert.True(surface[10, 50].R < surface[90, 50].R);
@@ -3005,7 +3120,8 @@ public class SvgCodecTests
             """;
 
         // Act
-        var surface = SvgCodec.Load(ToStream(svg), 100, 100);
+        using var stream3007 = ToStream(svg);
+        var surface = SvgCodec.Load(stream3007, 100, 100);
 
         // Assert: the plain rect after the unsupported constructs still rendered
         Assert.Equal(255, surface[20, 20].A);
@@ -3084,7 +3200,8 @@ public class SvgCodecTests
         const string svg = "<svg viewBox='0 0 10 10'></svg>";
 
         // Act & Assert
-        Assert.Throws<ArgumentOutOfRangeException>(() => SvgCodec.Load(ToStream(svg), 0, 10));
+        using var stream3086 = ToStream(svg);
+        Assert.Throws<ArgumentOutOfRangeException>(() => SvgCodec.Load(stream3086, 0, 10));
     }
 
     /// <summary>

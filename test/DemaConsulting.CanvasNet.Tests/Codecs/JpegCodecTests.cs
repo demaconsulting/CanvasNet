@@ -366,7 +366,8 @@ public class JpegCodecTests
     {
         var bytes = new byte[] { 0x00, 0x00, MarkerPrefix, MarkerEoi };
 
-        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(new MemoryStream(bytes)));
+        using var ms368 = new MemoryStream(bytes);
+        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(ms368));
     }
 
     /// <summary>
@@ -384,7 +385,8 @@ public class JpegCodecTests
             BuildSofSegment(marker, 1, 1, (1, 0x11, 0))
         ]);
 
-        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(new MemoryStream(jpeg)));
+        using var ms386 = new MemoryStream(jpeg);
+        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(ms386));
     }
 
     /// <summary>
@@ -408,8 +410,10 @@ public class JpegCodecTests
             BuildSofSegment(MarkerSof0, 4, 3, (1, 0x11, 0))
         ]);
 
-        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(new MemoryStream(jpeg)));
-        Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(new MemoryStream(jpeg)));
+        using var ms410 = new MemoryStream(jpeg);
+        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(ms410));
+        using var ms411 = new MemoryStream(jpeg);
+        Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(ms411));
     }
 
     /// <summary>
@@ -430,7 +434,8 @@ public class JpegCodecTests
                 (4, 0x11, 0))
         ]);
 
-        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(new MemoryStream(jpeg)));
+        using var ms432 = new MemoryStream(jpeg);
+        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(ms432));
     }
 
     /// <summary>
@@ -447,7 +452,8 @@ public class JpegCodecTests
             BuildSofSegment(MarkerSof0, Surface.MaxDimension + 1, 1, (1, 0x11, 0))
         ]);
 
-        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(new MemoryStream(jpeg)));
+        using var ms449 = new MemoryStream(jpeg);
+        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(ms449));
     }
 
     /// <summary>
@@ -463,7 +469,8 @@ public class JpegCodecTests
             BuildSofSegment(MarkerSof0, 1, Surface.MaxDimension + 1, (1, 0x11, 0))
         ]);
 
-        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(new MemoryStream(jpeg)));
+        using var ms465 = new MemoryStream(jpeg);
+        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(ms465));
     }
 
     /// <summary>
@@ -479,7 +486,8 @@ public class JpegCodecTests
             BuildSosSegment((1, 0x00))
         ]);
 
-        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(new MemoryStream(jpeg)));
+        using var ms481 = new MemoryStream(jpeg);
+        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(ms481));
     }
 
     /// <summary>
@@ -496,7 +504,8 @@ public class JpegCodecTests
             ],
             entropyData: [0x00]);
 
-        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(new MemoryStream(jpeg)));
+        using var ms498 = new MemoryStream(jpeg);
+        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(ms498));
     }
 
     /// <summary>
@@ -513,7 +522,8 @@ public class JpegCodecTests
             ],
             entropyData: [0x00]);
 
-        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(new MemoryStream(jpeg)));
+        using var ms515 = new MemoryStream(jpeg);
+        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(ms515));
     }
 
     /// <summary>
@@ -529,7 +539,8 @@ public class JpegCodecTests
             BuildSofSegment(MarkerSof0, 1, 1, (1, 0x11, 0))
         ]);
 
-        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(new MemoryStream(jpeg)));
+        using var ms531 = new MemoryStream(jpeg);
+        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(ms531));
     }
 
     /// <summary>
@@ -541,7 +552,8 @@ public class JpegCodecTests
     {
         var jpeg = new byte[] { MarkerPrefix, MarkerSoi, MarkerPrefix, MarkerSof0, 0x00 };
 
-        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(new MemoryStream(jpeg)));
+        using var ms543 = new MemoryStream(jpeg);
+        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(ms543));
     }
 
     /// <summary>
@@ -561,7 +573,8 @@ public class JpegCodecTests
             entropyData: [],
             includeEoi: false);
 
-        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(new MemoryStream(jpeg)));
+        using var ms563 = new MemoryStream(jpeg);
+        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(ms563));
     }
 
     /// <summary>
@@ -608,7 +621,8 @@ public class JpegCodecTests
     [MemberData(nameof(TruncatedSegmentPayloadCases))]
     public void JpegCodec_Load_TruncatedSegmentPayload_ThrowsInvalidDataException(byte[] jpeg)
     {
-        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(new MemoryStream(jpeg)));
+        using var ms610 = new MemoryStream(jpeg);
+        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(ms610));
     }
 
     // ------------------------------------------------------------------------------------------
@@ -707,8 +721,10 @@ public class JpegCodecTests
             ],
             entropyData: [0x00, MarkerPrefix, MarkerRst0, 0x00]);
 
-        var canvasWithoutRestartMarkers = JpegCodec.Load(new MemoryStream(withoutRestartMarkers));
-        var canvasWithRestartMarkers = JpegCodec.Load(new MemoryStream(withRestartMarkers));
+        using var ms709 = new MemoryStream(withoutRestartMarkers);
+        var canvasWithoutRestartMarkers = JpegCodec.Load(ms709);
+        using var ms710 = new MemoryStream(withRestartMarkers);
+        var canvasWithRestartMarkers = JpegCodec.Load(ms710);
 
         AssertPixelsApproximatelyEqual(canvasWithoutRestartMarkers, canvasWithRestartMarkers, 0);
     }
@@ -777,7 +793,8 @@ public class JpegCodecTests
             BuildSofSegment(MarkerSof0, 4, 3, (1, 0x11, 0))
         ], includeEoi: false);
 
-        var info = JpegCodec.GetInfo(new MemoryStream(jpeg));
+        using var ms779 = new MemoryStream(jpeg);
+        var info = JpegCodec.GetInfo(ms779);
 
         Assert.Equal(new ImageInfo(4, 3, 1, false), info);
     }
@@ -797,7 +814,8 @@ public class JpegCodecTests
             BuildSofSegment(MarkerSof0, 6, 4, (1, 0x22, 0), (2, 0x11, 1), (3, 0x11, 1))
         ]);
 
-        var info = JpegCodec.GetInfo(new MemoryStream(jpeg));
+        using var ms799 = new MemoryStream(jpeg);
+        var info = JpegCodec.GetInfo(ms799);
 
         Assert.Equal(new ImageInfo(6, 4, 3, false), info);
     }
@@ -867,7 +885,8 @@ public class JpegCodecTests
     {
         var jpeg = new byte[] { 0x00, 0x00, 0x00, 0x00 };
 
-        Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(new MemoryStream(jpeg)));
+        using var ms869 = new MemoryStream(jpeg);
+        Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(ms869));
     }
 
     /// <summary>
@@ -879,7 +898,8 @@ public class JpegCodecTests
     {
         var jpeg = BuildJpeg([BuildMinimalDqtSegment()], includeEoi: false);
 
-        Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(new MemoryStream(jpeg)));
+        using var ms881 = new MemoryStream(jpeg);
+        Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(ms881));
     }
 
     /// <summary>
@@ -891,7 +911,8 @@ public class JpegCodecTests
     {
         var jpeg = BuildJpeg([BuildSosSegment((1, 0x00))]);
 
-        Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(new MemoryStream(jpeg)));
+        using var ms893 = new MemoryStream(jpeg);
+        Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(ms893));
     }
 
     /// <summary>
@@ -911,7 +932,8 @@ public class JpegCodecTests
 
         var jpeg = BuildJpeg([], entropyData: filler, includeEoi: false);
 
-        var exception = Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(new MemoryStream(jpeg)));
+        using var ms913 = new MemoryStream(jpeg);
+        var exception = Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(ms913));
         Assert.Contains("SOF0/SOF2 marker", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -949,7 +971,8 @@ public class JpegCodecTests
 
         var jpeg = BuildJpeg([.. segments], entropyData: new byte[200_000], includeEoi: false);
 
-        var exception = Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(new MemoryStream(jpeg)));
+        using var ms951 = new MemoryStream(jpeg);
+        var exception = Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(ms951));
         Assert.DoesNotContain("probe limit", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("sample precision", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -986,8 +1009,10 @@ public class JpegCodecTests
         var jpeg = BuildJpeg([.. segments], entropyData: [0x00, 0x00]);
 
         // Act
-        var info = JpegCodec.GetInfo(new MemoryStream(jpeg));
-        var surface = JpegCodec.Load(new MemoryStream(jpeg));
+        using var ms988 = new MemoryStream(jpeg);
+        var info = JpegCodec.GetInfo(ms988);
+        using var ms989 = new MemoryStream(jpeg);
+        var surface = JpegCodec.Load(ms989);
 
         // Assert: GetInfo succeeds (rather than throwing merely because the soft cap was
         // reached) and matches Load's own decoded dimensions/channel count exactly.
@@ -1145,8 +1170,10 @@ public class JpegCodecTests
         var jpeg = BuildJpeg([.. segments], entropyData: [0x00, 0x00]);
 
         // Act
-        var loadException = Assert.Throws<InvalidDataException>(() => JpegCodec.Load(new MemoryStream(jpeg)));
-        var getInfoException = Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(new MemoryStream(jpeg)));
+        using var ms1147 = new MemoryStream(jpeg);
+        var loadException = Assert.Throws<InvalidDataException>(() => JpegCodec.Load(ms1147));
+        using var ms1148 = new MemoryStream(jpeg);
+        var getInfoException = Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(ms1148));
 
         // Assert: both Load and GetInfo, on the exact same bytes, throw InvalidDataException
         // referencing the hard limit - true parity, not a documented exception.
@@ -1196,8 +1223,10 @@ public class JpegCodecTests
             "segment-count cap can plausibly trigger the failure for either method.");
 
         // Act
-        var loadException = Assert.Throws<InvalidDataException>(() => JpegCodec.Load(new MemoryStream(jpeg)));
-        var getInfoException = Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(new MemoryStream(jpeg)));
+        using var ms1198 = new MemoryStream(jpeg);
+        var loadException = Assert.Throws<InvalidDataException>(() => JpegCodec.Load(ms1198));
+        using var ms1199 = new MemoryStream(jpeg);
+        var getInfoException = Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(ms1199));
 
         // Assert: both Load and GetInfo, on the exact same bytes, throw InvalidDataException
         // referencing the segment limit - true parity, not a documented exception.
@@ -1263,8 +1292,10 @@ public class JpegCodecTests
             "Test fixture must place the SOF0 segment so it straddles MaxProbeHeaderBytesHardLimit.");
 
         // Act
-        var loadException = Assert.Throws<InvalidDataException>(() => JpegCodec.Load(new MemoryStream(jpeg)));
-        var getInfoException = Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(new MemoryStream(jpeg)));
+        using var ms1265 = new MemoryStream(jpeg);
+        var loadException = Assert.Throws<InvalidDataException>(() => JpegCodec.Load(ms1265));
+        using var ms1266 = new MemoryStream(jpeg);
+        var getInfoException = Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(ms1266));
 
         // Assert: both Load and GetInfo, on the exact same bytes, throw InvalidDataException
         // referencing the hard limit even though the SOF0 segment - not merely the leading filler
@@ -1309,8 +1340,10 @@ public class JpegCodecTests
         var jpeg = BuildJpeg([.. segments], entropyData: null, includeEoi: false);
 
         // Act
-        var loadException = Assert.Throws<InvalidDataException>(() => JpegCodec.Load(new MemoryStream(jpeg)));
-        var getInfoException = Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(new MemoryStream(jpeg)));
+        using var ms1311 = new MemoryStream(jpeg);
+        var loadException = Assert.Throws<InvalidDataException>(() => JpegCodec.Load(ms1311));
+        using var ms1312 = new MemoryStream(jpeg);
+        var getInfoException = Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(ms1312));
 
         // Assert: both Load and GetInfo, on the exact same bytes, throw InvalidDataException
         // referencing the SOS-before-SOF condition, not the segment-count limit - proving the SOS
@@ -1423,8 +1456,10 @@ public class JpegCodecTests
         var jpeg = BuildJpeg([.. segments], entropyData: [0x00, 0x00]);
 
         // Act
-        var info = JpegCodec.GetInfo(new MemoryStream(jpeg));
-        var surface = JpegCodec.Load(new MemoryStream(jpeg));
+        using var ms1425 = new MemoryStream(jpeg);
+        var info = JpegCodec.GetInfo(ms1425);
+        using var ms1426 = new MemoryStream(jpeg);
+        var surface = JpegCodec.Load(ms1426);
 
         // Assert: GetInfo succeeds (rather than throwing merely because the SOF marker landed
         // immediately past the segment-count ceiling) and matches Load's own decoded
@@ -1525,7 +1560,8 @@ public class JpegCodecTests
         // process itself would need to be killed by the CI job's own timeout (regressed to truly
         // unbounded) - there is no ambiguous "slow but fine" middle ground that timing would add
         // value in distinguishing.
-        var caught = Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(new MemoryStream(jpeg)));
+        using var ms1527 = new MemoryStream(jpeg);
+        var caught = Assert.Throws<InvalidDataException>(() => JpegCodec.GetInfo(ms1527));
 
         // Assert: the call returned (did not hang) with the documented exception.
         Assert.NotNull(caught);
@@ -1544,9 +1580,11 @@ public class JpegCodecTests
             BuildSofSegment(MarkerSof0, Surface.MaxDimension + 1, 1, (1, 0x11, 0))
         ]);
 
-        var info = JpegCodec.GetInfo(new MemoryStream(jpeg));
+        using var ms1546 = new MemoryStream(jpeg);
+        var info = JpegCodec.GetInfo(ms1546);
 
         Assert.Equal(Surface.MaxDimension + 1, info.Width);
-        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(new MemoryStream(jpeg)));
+        using var ms1549 = new MemoryStream(jpeg);
+        Assert.Throws<InvalidDataException>(() => JpegCodec.Load(ms1549));
     }
 }

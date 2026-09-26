@@ -921,7 +921,8 @@ public class TiffCodecTests
             .WithStrips(raw)
             .Build();
 
-        var surface = TiffCodec.Load(new MemoryStream(file));
+        using var ms923 = new MemoryStream(file);
+        var surface = TiffCodec.Load(ms923);
 
         Assert.Equal(width, surface.Width);
         Assert.Equal(height, surface.Height);
@@ -947,7 +948,8 @@ public class TiffCodecTests
             .WithStrips(raw)
             .Build();
 
-        var surface = TiffCodec.Load(new MemoryStream(file));
+        using var ms949 = new MemoryStream(file);
+        var surface = TiffCodec.Load(ms949);
 
         Assert.Equal(new Rgba32(1, 2, 3, 255), surface[0, 0]);
         Assert.Equal(new Rgba32(4, 5, 6, 255), surface[1, 0]);
@@ -976,7 +978,8 @@ public class TiffCodecTests
             .WithStrips(raw)
             .Build();
 
-        var surface = TiffCodec.Load(new MemoryStream(file));
+        using var ms978 = new MemoryStream(file);
+        var surface = TiffCodec.Load(ms978);
 
         Assert.Equal(new Rgba32(1, 2, 3, 128), surface[0, 0]);
         Assert.Equal(new Rgba32(4, 5, 6, 64), surface[1, 0]);
@@ -1004,7 +1007,8 @@ public class TiffCodecTests
             .WithStrips(raw)
             .Build();
 
-        var surface = TiffCodec.Load(new MemoryStream(file));
+        using var ms1006 = new MemoryStream(file);
+        var surface = TiffCodec.Load(ms1006);
 
         Assert.Equal(new Rgba32(100, 100, 100, 255), surface[0, 0]);
         Assert.Equal(new Rgba32(200, 200, 200, 255), surface[1, 0]);
@@ -1027,7 +1031,8 @@ public class TiffCodecTests
             .WithStrips(strip0, strip1, strip2, strip3)
             .Build();
 
-        var surface = TiffCodec.Load(new MemoryStream(file));
+        using var ms1029 = new MemoryStream(file);
+        var surface = TiffCodec.Load(ms1029);
 
         Assert.Equal(new Rgba32(1, 1, 1, 255), surface[0, 0]);
         Assert.Equal(new Rgba32(2, 2, 2, 255), surface[1, 0]);
@@ -1054,7 +1059,8 @@ public class TiffCodecTests
             .WithStrips(strip0, strip1)
             .Build();
 
-        var surface = TiffCodec.Load(new MemoryStream(file));
+        using var ms1056 = new MemoryStream(file);
+        var surface = TiffCodec.Load(ms1056);
 
         Assert.Equal(new Rgba32(10, 10, 10, 255), surface[0, 0]);
         Assert.Equal(new Rgba32(20, 20, 20, 255), surface[0, 1]);
@@ -1076,7 +1082,8 @@ public class TiffCodecTests
             .WithStrips(compressed)
             .Build();
 
-        var surface = TiffCodec.Load(new MemoryStream(file));
+        using var ms1078 = new MemoryStream(file);
+        var surface = TiffCodec.Load(ms1078);
 
         Assert.Equal(new Rgba32(1, 2, 3, 255), surface[0, 0]);
         Assert.Equal(new Rgba32(4, 5, 6, 255), surface[1, 0]);
@@ -1099,7 +1106,8 @@ public class TiffCodecTests
             .WithStrips(compressed)
             .Build();
 
-        var surface = TiffCodec.Load(new MemoryStream(file));
+        using var ms1101 = new MemoryStream(file);
+        var surface = TiffCodec.Load(ms1101);
 
         Assert.Equal(new Rgba32(1, 2, 3, 255), surface[0, 0]);
         Assert.Equal(new Rgba32(4, 5, 6, 255), surface[1, 0]);
@@ -1127,7 +1135,8 @@ public class TiffCodecTests
             .WithStrips(compressed)
             .Build();
 
-        var surface = TiffCodec.Load(new MemoryStream(file));
+        using var ms1129 = new MemoryStream(file);
+        var surface = TiffCodec.Load(ms1129);
 
         for (var x = 0; x < width; x++)
         {
@@ -1151,7 +1160,8 @@ public class TiffCodecTests
             .WithStrips(compressed)
             .Build();
 
-        var surface = TiffCodec.Load(new MemoryStream(file));
+        using var ms1153 = new MemoryStream(file);
+        var surface = TiffCodec.Load(ms1153);
 
         Assert.Equal(new Rgba32(1, 2, 3, 255), surface[0, 0]);
         Assert.Equal(new Rgba32(4, 5, 6, 255), surface[1, 0]);
@@ -1183,7 +1193,8 @@ public class TiffCodecTests
             .WithStrips(compressed)
             .Build();
 
-        var surface = TiffCodec.Load(new MemoryStream(file));
+        using var ms1185 = new MemoryStream(file);
+        var surface = TiffCodec.Load(ms1185);
 
         for (var x = 0; x < width; x++)
         {
@@ -1209,7 +1220,8 @@ public class TiffCodecTests
             .WithStrips(compressed)
             .Build();
 
-        var surface = TiffCodec.Load(new MemoryStream(file));
+        using var ms1211 = new MemoryStream(file);
+        var surface = TiffCodec.Load(ms1211);
 
         for (var x = 0; x < width; x++)
         {
@@ -1231,7 +1243,8 @@ public class TiffCodecTests
         file[0] = (byte)'X';
         file[1] = (byte)'X';
 
-        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+        using var ms1233 = new MemoryStream(file);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(ms1233));
     }
 
     /// <summary>
@@ -1241,7 +1254,8 @@ public class TiffCodecTests
     public void TiffCodec_Load_TruncatedHeader_ThrowsInvalidDataException()
     {
         var file = new byte[] { (byte)'I', (byte)'I', 42 };
-        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+        using var ms1243 = new MemoryStream(file);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(ms1243));
     }
 
     /// <summary>
@@ -1252,7 +1266,8 @@ public class TiffCodecTests
     {
         var file = StandardRgbBuilder(false, 4, 4, 1, 4).WithStrips(new byte[] { 1, 2, 3 }).Build();
 
-        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+        using var ms1254 = new MemoryStream(file);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(ms1254));
     }
 
     /// <summary>
@@ -1273,7 +1288,8 @@ public class TiffCodecTests
             .WithStrips(new byte[] { 1, 2, 3, 4, 5, 6 })
             .Build();
 
-        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+        using var ms1275 = new MemoryStream(file);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(ms1275));
     }
 
     /// <summary>
@@ -1294,7 +1310,8 @@ public class TiffCodecTests
             .WithStrips(new byte[] { 1 })
             .Build();
 
-        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+        using var ms1296 = new MemoryStream(file);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(ms1296));
     }
 
     /// <summary>
@@ -1305,7 +1322,8 @@ public class TiffCodecTests
     {
         var file = StandardRgbBuilder(false, 1, 1, 6, 1).WithStrips(new byte[] { 1, 2, 3 }).Build();
 
-        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+        using var ms1307 = new MemoryStream(file);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(ms1307));
     }
 
     /// <summary>
@@ -1322,7 +1340,8 @@ public class TiffCodecTests
             .WithStrips(new byte[width * 3])
             .Build();
 
-        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+        using var ms1324 = new MemoryStream(file);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(ms1324));
     }
 
     /// <summary>
@@ -1338,7 +1357,8 @@ public class TiffCodecTests
             .WithStrips(new byte[height * 3])
             .Build();
 
-        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+        using var ms1340 = new MemoryStream(file);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(ms1340));
     }
 
     /// <summary>
@@ -1359,7 +1379,8 @@ public class TiffCodecTests
             .WithStrips(new byte[] { 1, 2, 3 })
             .Build();
 
-        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+        using var ms1361 = new MemoryStream(file);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(ms1361));
     }
 
     /// <summary>
@@ -1380,7 +1401,8 @@ public class TiffCodecTests
             .Add(TagTileLength, TypeLong, 16)
             .Build();
 
-        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+        using var ms1382 = new MemoryStream(file);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(ms1382));
     }
 
     /// <summary>
@@ -1406,7 +1428,8 @@ public class TiffCodecTests
             .Add(TagTileLength, TypeLong, 16)
             .Build();
 
-        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(file)));
+        using var ms1408 = new MemoryStream(file);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(ms1408));
     }
 
     /// <summary>
@@ -1504,7 +1527,8 @@ public class TiffCodecTests
 
         var file = builder.Build();
 
-        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+        using var ms1506 = new MemoryStream(file);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(ms1506));
     }
 
     /// <summary>
@@ -1518,7 +1542,8 @@ public class TiffCodecTests
             .WithStrips(new byte[3 * 3 * 2])
             .Build();
 
-        var info = TiffCodec.GetInfo(new MemoryStream(file));
+        using var ms1520 = new MemoryStream(file);
+        var info = TiffCodec.GetInfo(ms1520);
 
         Assert.Equal(new ImageInfo(3, 2, 3, false), info);
     }
@@ -1535,7 +1560,8 @@ public class TiffCodecTests
             .WithStrips(new byte[3 * 4 * 2])
             .Build();
 
-        var info = TiffCodec.GetInfo(new MemoryStream(file));
+        using var ms1537 = new MemoryStream(file);
+        var info = TiffCodec.GetInfo(ms1537);
 
         Assert.Equal(new ImageInfo(3, 2, 4, true), info);
     }
@@ -1581,7 +1607,8 @@ public class TiffCodecTests
             .WithStrips(new byte[width * height * 3])
             .Build();
         using var nonSeekableStream = new FunctionallySeekableButCanSeekFalseStream(new MemoryStream(file));
-        var loadedSurface = TiffCodec.Load(new MemoryStream(file));
+        using var ms1583 = new MemoryStream(file);
+        var loadedSurface = TiffCodec.Load(ms1583);
 
         // Act
         var info = TiffCodec.GetInfo(nonSeekableStream);
@@ -1676,7 +1703,8 @@ public class TiffCodecTests
         bytes[0] = (byte)'X';
         bytes[1] = (byte)'X';
 
-        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(bytes)));
+        using var ms1678 = new MemoryStream(bytes);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(ms1678));
     }
 
     /// <summary>
@@ -1692,10 +1720,12 @@ public class TiffCodecTests
             .WithStrips(new byte[width * 3])
             .Build();
 
-        var info = TiffCodec.GetInfo(new MemoryStream(file));
+        using var ms1694 = new MemoryStream(file);
+        var info = TiffCodec.GetInfo(ms1694);
         Assert.Equal(width, info.Width);
 
-        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+        using var ms1697 = new MemoryStream(file);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(ms1697));
     }
 
     /// <summary>
@@ -1715,10 +1745,12 @@ public class TiffCodecTests
         // Truncate away the trailing strip data entirely, leaving the header and IFD intact
         var truncated = file[..(file.Length - (width * height * 3))];
 
-        var info = TiffCodec.GetInfo(new MemoryStream(truncated));
+        using var ms1717 = new MemoryStream(truncated);
+        var info = TiffCodec.GetInfo(ms1717);
         Assert.Equal(new ImageInfo(width, height, 3, false), info);
 
-        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(truncated)));
+        using var ms1720 = new MemoryStream(truncated);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(ms1720));
     }
 
     /// <summary>
@@ -1739,7 +1771,8 @@ public class TiffCodecTests
             .Build();
 
         // Act
-        var seekableInfo = TiffCodec.GetInfo(new MemoryStream(file));
+        using var ms1741 = new MemoryStream(file);
+        var seekableInfo = TiffCodec.GetInfo(ms1741);
 
         // Assert: Channels defaults to BitsPerSample's entry count (3)
         var expected = new ImageInfo(width, height, 3, false);
@@ -1772,7 +1805,8 @@ public class TiffCodecTests
         var file = builder.WithStrips(new byte[width * height * 3 * 2]).Build();
 
         // Act / Assert: the seekable stream rejects the file
-        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(file)));
+        using var ms1774 = new MemoryStream(file);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(ms1774));
     }
 
     /// <summary>
@@ -1817,7 +1851,8 @@ public class TiffCodecTests
         // from the fixed code. The allocated-byte count does: the bug allocates the full
         // ~1.8 GB claimed by the malicious Count before discovering the stream is too short.
         var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
-        var ex = Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(file)));
+        using var ms1819 = new MemoryStream(file);
+        var ex = Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(ms1819));
         var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
 
         Assert.Contains("implausibly large declared value count", ex.Message);
@@ -1847,7 +1882,8 @@ public class TiffCodecTests
     {
         var file = BuildFileWithZeroCountImageWidth();
 
-        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+        using var ms1849 = new MemoryStream(file);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(ms1849));
     }
 
     /// <summary>
@@ -1859,7 +1895,8 @@ public class TiffCodecTests
     {
         var file = BuildFileWithZeroCountImageWidth();
 
-        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(file)));
+        using var ms1861 = new MemoryStream(file);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(ms1861));
     }
 
     /// <summary>
@@ -1893,7 +1930,8 @@ public class TiffCodecTests
     {
         var file = BuildHeaderOnlyFileWithIfdOffset(3_000_000_000);
 
-        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+        using var ms1895 = new MemoryStream(file);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(ms1895));
     }
 
     /// <summary>
@@ -1905,7 +1943,8 @@ public class TiffCodecTests
     {
         var file = BuildHeaderOnlyFileWithIfdOffset(3_000_000_000);
 
-        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(file)));
+        using var ms1907 = new MemoryStream(file);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(ms1907));
     }
 
     /// <summary>
@@ -1938,7 +1977,8 @@ public class TiffCodecTests
     {
         var file = BuildFileWithBitsPerSampleOverride(count: 3, valueOrOffset: 3_000_000_000);
 
-        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+        using var ms1940 = new MemoryStream(file);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(ms1940));
     }
 
     /// <summary>
@@ -1950,7 +1990,8 @@ public class TiffCodecTests
     {
         var file = BuildFileWithBitsPerSampleOverride(count: 3, valueOrOffset: 3_000_000_000);
 
-        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(file)));
+        using var ms1952 = new MemoryStream(file);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(ms1952));
     }
 
     /// <summary>
@@ -2012,7 +2053,8 @@ public class TiffCodecTests
         Assert.True(ifdEndOffset + (bitsPerSampleCount * 2) <= file.Length);
 
         var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
-        var ex = Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(new MemoryStream(file)));
+        using var ms2014 = new MemoryStream(file);
+        var ex = Assert.Throws<InvalidDataException>(() => TiffCodec.GetInfo(ms2014));
         var allocatedDuring = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
 
         Assert.Contains("implausibly large declared value count", ex.Message);
@@ -2050,7 +2092,8 @@ public class TiffCodecTests
         // itself; overwriting it in place does not disturb the file's layout.
         PatchInlineTagEntryValue(file, entryIndex: 5, value: 3_000_000_000);
 
-        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+        using var ms2052 = new MemoryStream(file);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(ms2052));
     }
 
     /// <summary>
@@ -2069,7 +2112,8 @@ public class TiffCodecTests
 
         PatchInlineTagEntryValue(file, entryIndex: 8, value: 3_000_000_000);
 
-        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(new MemoryStream(file)));
+        using var ms2071 = new MemoryStream(file);
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(ms2071));
     }
 
     /// <summary>

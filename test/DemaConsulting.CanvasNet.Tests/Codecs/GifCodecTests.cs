@@ -417,11 +417,13 @@ public class GifCodecTests
         WriteHeader(stream, oversized, oversized, null);
         var bytes = stream.ToArray();
 
-        var info = GifCodec.GetInfo(new MemoryStream(bytes));
+        using var infoStream = new MemoryStream(bytes);
+        var info = GifCodec.GetInfo(infoStream);
         Assert.Equal(oversized, info.Width);
         Assert.Equal(oversized, info.Height);
 
-        Assert.Throws<InvalidDataException>(() => GifCodec.Load(new MemoryStream(bytes)));
+        using var loadStream = new MemoryStream(bytes);
+        Assert.Throws<InvalidDataException>(() => GifCodec.Load(loadStream));
     }
 
     /// <summary>Test: GifCodec_GetInfo_ZeroWidth_ThrowsInvalidDataException.</summary>
