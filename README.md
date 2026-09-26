@@ -23,35 +23,22 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 
 ## Features
 
-- 🖼️ **Pixel Buffer** - Mutable 32-bit RGBA `Surface` with span-based row access
-- ✂️ **Cropping** - Independent-copy cropping for load/crop/save workflows
-- 🌈 **Compositing** - Vectorized alpha premultiply/unpremultiply and Porter-Duff "over"
-  compositing (surface-over-surface and surface-over-constant-color)
-- 📀 **BMP Codec** - Load and save 24-bit and 32-bit uncompressed Windows BMP files
-- 🎨 **PNG Codec** - Load any non-interlaced, spec-valid PNG color type/bit depth combination
-  (Grayscale, Palette, Truecolor, and their alpha variants, at bit depths 1-16, with `tRNS`
-  transparency); save 8-bit Truecolor (RGB) and Truecolor-with-alpha (RGBA) PNG files
-- 🖨️ **TIFF Codec** - Load and save 8-bit RGB/RGBA/Grayscale TIFF files with PackBits/LZW/Deflate
-- 🗜️ **JPEG Codec** - Load baseline/progressive JPEG and save baseline 4:2:0 JPEG with quality control
-- 🎞️ **GIF Codec** - Decode-only load of the first frame of a GIF87a/GIF89a file, including a
-  GIF-native LZW decoder, interlacing, and transparency
-- 📐 **SVG Codec** - Decode/rasterize a common real-world subset of SVG documents (shapes, paths,
-  transforms, gradients, `<use>`, text) into a `Surface` of caller-chosen dimensions
-- 🔍 **Header-Only Probing** - `GetInfo` reads only image headers (dimensions/channels/alpha) without
-  decoding pixel data, letting callers triage untrusted files before calling `Load`
-- 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of closed vector paths onto a `Surface`
-- 🖊️ **Stroke-to-Fill** - Convert stroked vector paths (caps, joins, dashes, miter limits) into
-  fillable outline geometry and render them through the same antialiased fill pipeline
-- 🌅 **Gradient Paint** - Fill a path with a linear or two-circle radial gradient color ramp,
-  with pad/reflect/repeat spread and premultiplied-alpha color interpolation
-- 🔤 **TrueType Fonts** - Load glyph-based TrueType SFNT fonts, map Unicode codepoints to glyph
-  indices, extract glyph outlines as `Geometry.Path`, and query advance widths and basic kerning
-- 🎬 **Rendering** - Transform-aware `Canvas` (Save/Restore/Translate/RotateDegrees), text
-  rendering with alignment (`DrawText`, `MeasureText`), shape helpers (`FillRect`,
-  `FillRoundRect`, `FillCircle`, and their strokes), corner rounding
-  (`CornerRoundEffect.Apply`), and `Rgba32.Parse`/`TryParse` for `#RRGGBB` / `#AARRGGBB`
-  color literals
-- ⚡ **Span-Based** - Fast, allocation-conscious row and pixel access
+- 🖼️ **Pixel Buffer** - Mutable 32-bit RGBA surface with span access
+- ✂️ **Cropping** - Independent-copy crop for load/crop/save workflows
+- 🌈 **Compositing** - Alpha premultiply and Porter-Duff "over" compositing
+- 📀 **BMP Codec** - Load/save 24-bit and 32-bit BMP files
+- 🎨 **PNG Codec** - Load most PNGs; save 8-bit RGBA
+- 🖨️ **TIFF Codec** - Load/save 8-bit RGB/RGBA/Grayscale TIFF files
+- 🗜️ **JPEG Codec** - Load baseline/progressive; save baseline JPEG
+- 🎞️ **GIF Codec** - Decode-only load of first GIF frame
+- 📐 **SVG Codec** - Rasterize a common SVG subset to a surface
+- 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels
+- 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
+- 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
+- 🌅 **Gradient Paint** - Linear or radial gradient fills with spread
+- 🔤 **TrueType Fonts** - Load fonts, map codepoints, extract glyph outlines
+- 🎬 **Rendering** - Transform-aware canvas with text and shape drawing
+- ⚡ **Span-Based** - Fast, allocation-conscious pixel and row access
 - 🔄 **Multi-Target** - Supports .NET 8, 9, and 10
 - 📦 **NuGet Ready** - Easy integration via NuGet package
 
@@ -74,28 +61,35 @@ using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using System.IO;
 
+// Create a surface, set a pixel, and crop an independent copy
 using var surface = new Surface(4, 4);
-surface[1, 1] = new Rgba32(255, 0, 0, 255);   // set a red, opaque pixel
-using var cropped = surface.Crop(0, 0, 2, 2); // independent 2x2 copy
+surface[1, 1] = new Rgba32(255, 0, 0, 255);
+using var cropped = surface.Crop(0, 0, 2, 2);
 
-BmpCodec.Save(surface, "surface.bmp");        // save as a 32-bit BMP file
-using var reloaded = BmpCodec.Load("surface.bmp"); // load it back
+// Save as BMP and load it back
+BmpCodec.Save(surface, "surface.bmp");
+using var reloaded = BmpCodec.Load("surface.bmp");
 
-PngCodec.Save(surface, "surface.png");        // save as an RGBA PNG file
-using var reloadedPng = PngCodec.Load("surface.png"); // load it back
+// Save as PNG and load it back
+PngCodec.Save(surface, "surface.png");
+using var reloadedPng = PngCodec.Load("surface.png");
 
-TiffCodec.Save(surface, "surface.tiff");        // save as an RGBA TIFF file
-using var reloadedTiff = TiffCodec.Load("surface.tiff"); // load it back
+// Save as TIFF and load it back
+TiffCodec.Save(surface, "surface.tiff");
+using var reloadedTiff = TiffCodec.Load("surface.tiff");
 
-JpegCodec.Save(surface, "surface.jpg", 90);        // save as a baseline JPEG file
-using var reloadedJpeg = JpegCodec.Load("surface.jpg"); // load it back
+// Save as JPEG and load it back
+JpegCodec.Save(surface, "surface.jpg", 90);
+using var reloadedJpeg = JpegCodec.Load("surface.jpg");
 
-using var reloadedGif = GifCodec.Load("surface.gif"); // decode-only: load the first frame of a GIF
+// Decode-only: load the first frame of a GIF
+using var reloadedGif = GifCodec.Load("surface.gif");
 
-using var rasterized = SvgCodec.Load("icon.svg", 256, 256); // decode/rasterize an SVG into a 256x256 surface
+// Decode/rasterize an SVG into a 256x256 surface
+using var rasterized = SvgCodec.Load("icon.svg", 256, 256);
 
-// Triage an untrusted file's header before decoding pixel data:
-var info = PngCodec.GetInfo("untrusted.png"); // reads only the header, never decodes IDAT
+// Triage an untrusted file's header before decoding pixel data
+var info = PngCodec.GetInfo("untrusted.png");
 if (info.Width > Surface.MaxDimension
     || info.Height > Surface.MaxDimension
     || (long)info.Width * info.Height > (long)Surface.MaxDimension * Surface.MaxDimension)
@@ -103,6 +97,7 @@ if (info.Width > Surface.MaxDimension
     throw new InvalidDataException("Image dimensions exceed the supported maximum.");
 }
 
+// Reject files that declare a feature the codec cannot decode
 if (!info.CanDecode)
 {
     throw new UnsupportedImageFeatureException(
@@ -110,7 +105,8 @@ if (!info.CanDecode)
         "File is well-formed but declares an unsupported feature.");
 }
 
-using var safeSurface = PngCodec.Load("untrusted.png"); // safe to decode fully
+// Now safe to decode fully
+using var safeSurface = PngCodec.Load("untrusted.png");
 ```
 
 Filling a vector path onto a surface:
@@ -122,6 +118,8 @@ using DemaConsulting.CanvasNet.Geometry;
 using System.Numerics;
 
 using var canvas = new Surface(64, 64);
+
+// Build a triangular path
 var triangle = new PathBuilder()
     .MoveTo(new Vector2(8, 56))
     .LineTo(new Vector2(56, 56))
@@ -129,7 +127,8 @@ var triangle = new PathBuilder()
     .Close()
     .Build();
 
-PathFiller.Fill(canvas, triangle, new Rgba32(0, 128, 255, 255)); // antialiased solid fill
+// Fill the triangle with an antialiased solid color
+PathFiller.Fill(canvas, triangle, new Rgba32(0, 128, 255, 255));
 ```
 
 Stroking a vector path onto a surface:
@@ -141,18 +140,22 @@ using DemaConsulting.CanvasNet.Geometry;
 using System.Numerics;
 
 using var canvas = new Surface(64, 64);
+
+// Build a zig-zag polyline
 var polyline = new PathBuilder()
     .MoveTo(new Vector2(8, 48))
     .LineTo(new Vector2(32, 16))
     .LineTo(new Vector2(56, 48))
     .Build();
 
+// Define a round-capped, round-joined, dashed stroke style
 var style = new StrokeStyle(
     width: 6f,
     cap: LineCap.Round,
     join: LineJoin.Round,
     dashArray: [10f, 6f]);
 
+// Convert the stroke to fillable outline geometry and fill it
 var strokedOutline = PathStroker.Stroke(polyline, style);
 PathFiller.Fill(canvas, strokedOutline, new Rgba32(255, 128, 0, 255));
 ```
@@ -166,6 +169,8 @@ using DemaConsulting.CanvasNet.Geometry;
 using System.Numerics;
 
 using var canvas = new Surface(64, 64);
+
+// Build a square path
 var rectangle = new PathBuilder()
     .MoveTo(new Vector2(4, 4))
     .LineTo(new Vector2(60, 4))
@@ -174,6 +179,7 @@ var rectangle = new PathBuilder()
     .Close()
     .Build();
 
+// Define a red-to-blue horizontal gradient
 var gradient = new LinearGradient(
     start: new Vector2(4, 0),
     end: new Vector2(60, 0),
@@ -183,7 +189,8 @@ var gradient = new LinearGradient(
         new GradientStop(1f, new Rgba32(0, 0, 255, 255))
     ]);
 
-PathFiller.Fill(canvas, rectangle, gradient, FillRule.NonZero, 1f); // red-to-blue ramp
+// Fill the square with the gradient
+PathFiller.Fill(canvas, rectangle, gradient, FillRule.NonZero, 1f);
 ```
 
 Loading a TrueType font and filling a glyph outline:
@@ -195,6 +202,7 @@ using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Geometry;
 using System.Numerics;
 
+// Convert a glyph outline from font units (Y up) to canvas space (Y down)
 static Path TransformGlyph(Path glyph, float scale, float baselineY)
 {
     var builder = new PathBuilder();
@@ -226,12 +234,14 @@ static Path TransformGlyph(Path glyph, float scale, float baselineY)
     return builder.Build();
 }
 
+// Load the font and get glyph 'A' scaled to a 48px em size
 var font = TrueTypeFont.Load("font.ttf");
 var glyphIndex = font.GetGlyphIndex('A');
-var glyphOutline = font.GetGlyphOutline(glyphIndex); // raw font-design-unit coordinates (Y up)
+var glyphOutline = font.GetGlyphOutline(glyphIndex);
 var scale = 48f / font.UnitsPerEm;
 var canvasOutline = TransformGlyph(glyphOutline, scale, baselineY: 56f);
 
+// Fill the transformed glyph outline
 using var surface = new Surface(64, 64);
 PathFiller.Fill(surface, canvasOutline, new Rgba32(20, 120, 255, 255));
 ```
