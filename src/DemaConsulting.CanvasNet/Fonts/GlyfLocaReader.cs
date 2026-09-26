@@ -79,6 +79,14 @@ internal sealed class GlyfLocaReader
     private const int ScaledComponentOffset = 0x0800;
     private const int UnscaledComponentOffset = 0x1000;
 
+    // Per-point flag bits for a simple glyph's contour data (TrueType 'glyf' simple glyph flags).
+    private const int OnCurvePoint = 0x01;
+    private const int XShortVector = 0x02;
+    private const int YShortVector = 0x04;
+    private const int RepeatFlag = 0x08;
+    private const int XIsSameOrPositiveXShortVector = 0x10;
+    private const int YIsSameOrPositiveYShortVector = 0x20;
+
     private readonly byte[] _data;
     private readonly int _glyfOffset;
     private readonly int _glyfLength;
@@ -244,22 +252,7 @@ internal sealed class GlyfLocaReader
             return Path.Empty;
         }
 
-        EnsureAvailable(pos, numberOfContours * 2, limit);
-        var endPts = new int[numberOfContours];
-        var previousEnd = -1;
-        for (var i = 0; i < numberOfContours; i++)
-        {
-            var value = SfntContainer.ReadUInt16(_data, pos);
-            pos += 2;
-            if (value <= previousEnd)
-            {
-                throw new InvalidDataException("Glyph contour end points must be strictly increasing.");
-            }
-
-            endPts[i] = value;
-            previousEnd = value;
-        }
-
+        var endPts = ReadContourEndPoints(numberOfContours, limit, ref pos);
         var numPoints = endPts[^1] + 1;
 
         // Charge the budget before allocating the flags/xs/ys arrays below - a crafted glyph
@@ -277,71 +270,112 @@ internal sealed class GlyfLocaReader
         EnsureAvailable(pos, instructionLength, limit);
         pos += instructionLength;
 
+        var flags = ReadPointFlags(numPoints, limit, ref pos);
+        var xs = ReadCoordinates(flags, numPoints, limit, XShortVector, XIsSameOrPositiveXShortVector, ref pos);
+        var ys = ReadCoordinates(flags, numPoints, limit, YShortVector, YIsSameOrPositiveYShortVector, ref pos);
+
+        return BuildSimpleGlyphPath(numberOfContours, endPts, flags, xs, ys);
+    }
+
+    /// <summary>
+    ///     Reads a simple glyph's per-contour end-point indices, validating that they are
+    ///     strictly increasing (a TrueType contour is always non-empty, and contours are always
+    ///     stored in point order), and advances <paramref name="pos"/> past the bytes consumed.
+    /// </summary>
+    private int[] ReadContourEndPoints(int numberOfContours, int limit, ref int pos)
+    {
+        EnsureAvailable(pos, numberOfContours * 2, limit);
+        var endPts = new int[numberOfContours];
+        var previousEnd = -1;
+        for (var i = 0; i < numberOfContours; i++)
+        {
+            var value = SfntContainer.ReadUInt16(_data, pos);
+            pos += 2;
+            if (value <= previousEnd)
+            {
+                throw new InvalidDataException("Glyph contour end points must be strictly increasing.");
+            }
+
+            endPts[i] = value;
+            previousEnd = value;
+        }
+
+        return endPts;
+    }
+
+    /// <summary>
+    ///     Decodes a simple glyph's run-length-encoded per-point flag bytes, expanding every
+    ///     <see cref="RepeatFlag"/> run into its repeated flag value, and advances
+    ///     <paramref name="pos"/> past the bytes consumed.
+    /// </summary>
+    private byte[] ReadPointFlags(int numPoints, int limit, ref int pos)
+    {
         var flags = new byte[numPoints];
-        var i2 = 0;
-        while (i2 < numPoints)
+        var i = 0;
+        while (i < numPoints)
         {
             EnsureAvailable(pos, 1, limit);
             var flag = _data[pos++];
-            flags[i2++] = flag;
-            if ((flag & 0x08) != 0)
+            flags[i++] = flag;
+            if ((flag & RepeatFlag) != 0)
             {
                 EnsureAvailable(pos, 1, limit);
                 var repeatCount = _data[pos++];
-                if (repeatCount > numPoints - i2)
+                if (repeatCount > numPoints - i)
                 {
                     throw new InvalidDataException("Glyph flag repeat count exceeds the declared point count.");
                 }
 
                 for (var r = 0; r < repeatCount; r++)
                 {
-                    flags[i2++] = flag;
+                    flags[i++] = flag;
                 }
             }
         }
 
-        var xs = new int[numPoints];
-        var x = 0;
+        return flags;
+    }
+
+    /// <summary>
+    ///     Decodes one axis (x or y) of a simple glyph's delta-encoded, running-sum point
+    ///     coordinates, and advances <paramref name="pos"/> past the bytes consumed. Shared
+    ///     between the x and y passes by parameterizing which flag bit selects the short (1-byte
+    ///     magnitude) encoding and which bit selects that byte's sign, or - for the 2-byte
+    ///     encoding - whether the coordinate repeats the previous value unchanged.
+    /// </summary>
+    private int[] ReadCoordinates(byte[] flags, int numPoints, int limit, int shortVectorFlag, int sameOrPositiveFlag, ref int pos)
+    {
+        var coords = new int[numPoints];
+        var value = 0;
         for (var i = 0; i < numPoints; i++)
         {
             var flag = flags[i];
-            if ((flag & 0x02) != 0)
+            if ((flag & shortVectorFlag) != 0)
             {
                 EnsureAvailable(pos, 1, limit);
-                var dx = _data[pos++];
-                x += (flag & 0x10) != 0 ? dx : -dx;
+                var delta = _data[pos++];
+                value += (flag & sameOrPositiveFlag) != 0 ? delta : -delta;
             }
-            else if ((flag & 0x10) == 0)
+            else if ((flag & sameOrPositiveFlag) == 0)
             {
                 EnsureAvailable(pos, 2, limit);
-                x += SfntContainer.ReadInt16(_data, pos);
+                value += SfntContainer.ReadInt16(_data, pos);
                 pos += 2;
             }
 
-            xs[i] = x;
+            coords[i] = value;
         }
 
-        var ys = new int[numPoints];
-        var y = 0;
-        for (var i = 0; i < numPoints; i++)
-        {
-            var flag = flags[i];
-            if ((flag & 0x04) != 0)
-            {
-                EnsureAvailable(pos, 1, limit);
-                var dy = _data[pos++];
-                y += (flag & 0x20) != 0 ? dy : -dy;
-            }
-            else if ((flag & 0x20) == 0)
-            {
-                EnsureAvailable(pos, 2, limit);
-                y += SfntContainer.ReadInt16(_data, pos);
-                pos += 2;
-            }
+        return coords;
+    }
 
-            ys[i] = y;
-        }
-
+    /// <summary>
+    ///     Assembles a simple glyph's decoded per-contour end points, flags, and x/y coordinate
+    ///     arrays into a <see cref="Path"/> by slicing the flat point arrays back into their
+    ///     per-contour ranges and emitting one <see cref="EmitContour"/> call per contour.
+    /// </summary>
+    private static Path BuildSimpleGlyphPath(int numberOfContours, int[] endPts, byte[] flags, int[] xs, int[] ys)
+    {
         var builder = new PathBuilder();
         var contourStart = 0;
         for (var c = 0; c < numberOfContours; c++)
@@ -350,7 +384,7 @@ internal sealed class GlyfLocaReader
             var points = new List<(Vector2 Point, bool OnCurve)>(contourEnd - contourStart + 1);
             for (var p = contourStart; p <= contourEnd; p++)
             {
-                points.Add((new Vector2(xs[p], ys[p]), (flags[p] & 0x01) != 0));
+                points.Add((new Vector2(xs[p], ys[p]), (flags[p] & OnCurvePoint) != 0));
             }
 
             EmitContour(builder, points);
@@ -440,7 +474,6 @@ internal sealed class GlyfLocaReader
         var limit = glyphOffset + glyphLength;
         var pos = glyphOffset + 10;
         var builder = new PathBuilder();
-        var hasContent = false;
 
         bool more;
         do
@@ -511,13 +544,18 @@ internal sealed class GlyfLocaReader
             }
 
             AppendTransformed(builder, componentPath, a, b, c, d, dx, dy, ref totalPoints);
-            hasContent = true;
 
             more = (flags & MoreComponents) != 0;
         }
         while (more);
 
-        return hasContent ? builder.Build() : Path.Empty;
+        // No separate "did we add anything" tracking is needed here: the loop above always runs
+        // at least once (it is a do-while over at least one component record), but Build() already
+        // returns Path.Empty whenever no subpath was ever committed to the builder (for example
+        // when every referenced component itself resolved to Path.Empty and contributed no
+        // commands via AppendTransformed), so it produces the same result as an explicit
+        // "had any component contributed content" flag would.
+        return builder.Build();
     }
 
     /// <summary>

@@ -238,6 +238,11 @@ public struct Rgba32 : IEquatable<Rgba32>
     }
 
     /// <summary>Returns whether <paramref name="c"/> is a valid ASCII hexadecimal digit.</summary>
-    private static bool IsHexDigit(char c) =>
-        (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+    /// <remarks>
+    ///     Delegates to <see cref="char.IsAsciiHexDigit"/> rather than a hand-written combination
+    ///     of range comparisons - it is exactly equivalent (true for <c>'0'-'9'</c>,
+    ///     <c>'a'-'f'</c>, and <c>'A'-'F'</c>) while avoiding a hard-to-scan, multi-operator
+    ///     boolean expression.
+    /// </remarks>
+    private static bool IsHexDigit(char c) => char.IsAsciiHexDigit(c);
 }
