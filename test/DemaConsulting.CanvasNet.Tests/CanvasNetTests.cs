@@ -330,6 +330,46 @@ public class CanvasNetTests
     }
 
     /// <summary>
+    ///     Proves that the system can decode a GIF stream into a Surface through the public API,
+    ///     producing the expected integrated pixel result for a single-pixel, single-frame image.
+    ///     Unlike the BMP/PNG/TIFF/JPEG system-integration tests above, there is no "Save" half to
+    ///     this round-trip: <see cref="GifCodec"/> is decode-only (see <c>GifCodecTests</c>/
+    ///     <c>GifFixtureTests</c> for the full unit test coverage, including interlacing,
+    ///     transparency, sub-region blitting, and multi-frame tolerance). The 1x1 GIF stream below
+    ///     is hand-built directly (signature, Logical Screen Descriptor, a 2-entry Global Color
+    ///     Table, a single Image Descriptor with a literal-code LZW stream, and the Trailer)
+    ///     rather than round-tripped through a save step, since GifCodec has no encoder.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_GifLoad_ReturnsExpectedPixel()
+    {
+        // Arrange: a minimal, hand-built 1x1 GIF89a stream - Global Color Table with a black
+        // entry (index 0) and a distinct color entry (index 1), whose single pixel selects index
+        // 1 - encoded as a literal-code LZW stream (Clear, index 1, End-of-Information)
+        byte[] gif =
+        [
+            (byte)'G', (byte)'I', (byte)'F', (byte)'8', (byte)'9', (byte)'a', // signature
+            0x01, 0x00, 0x01, 0x00, // Logical Screen Descriptor: width=1, height=1
+            0x80, 0x00, 0x00, // packed (Global Color Table present, 2 entries), background, aspect
+            0x00, 0x00, 0x00, // Global Color Table entry 0: black
+            0x0B, 0x16, 0x21, // Global Color Table entry 1: rgb(11, 22, 33)
+            0x2C, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, // Image Descriptor: 1x1, no local color table
+            0x02, // LZW Minimum Code Size
+            0x02, 0x4C, 0x01, // sub-block: Clear(4), index(1), EOI(5) packed LSB-first, 3 bits each
+            0x00, // sub-block terminator
+            0x3B // Trailer
+        ];
+
+        // Act: load the surface through the public API
+        var surface = GifCodec.Load(new MemoryStream(gif));
+
+        // Assert: the system produces the expected integrated decoded pixel value
+        Assert.Equal(1, surface.Width);
+        Assert.Equal(1, surface.Height);
+        Assert.Equal(new Rgba32(11, 22, 33, 255), surface[0, 0]);
+    }
+
+    /// <summary>
     ///     Proves that the system can rasterize an SVG document into a Surface through the public
     ///     API, producing the expected integrated pixel result for a shape filled with a solid
     ///     color. Unlike the BMP/PNG/TIFF/JPEG system-integration tests above, there is no "Save"

@@ -17,11 +17,14 @@ sections:
                   LZW-compressed pixel data into matching RGBA pixel values with fully opaque alpha.
                 justification: |
                   Callers need to import existing GIF images as pixel buffers for further
-                  processing or display, matching the file's own declared color table exactly.
+                  processing or display, matching the file's own declared color table exactly,
+                  whether that color table is the Global Color Table or, when a frame declares
+                  its own, a Local Color Table.
                 tests:
                   - GifCodec_Load_FirstFrame_DecodesExpectedPixels
                   - GifCodec_Load_FromFilePath_ReturnsExpectedPixels
                   - GifCodec_Load_SolidColorFixture_MatchesOwnGlobalColorTable
+                  - GifCodec_Load_LocalColorTableOnly_DecodesExpectedPixels
 
               - id: CanvasNet-Codecs-GifCodec-FirstFrameOnly
                 title: >-
@@ -222,6 +225,40 @@ sections:
                   returning a surface with uninitialized trailing pixels.
                 tests:
                   - GifCodec_Load_InsufficientLzwOutput_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-GifCodec-LzwRequiresEoi
+                title: >-
+                  The GifCodec class shall continue decoding LZW-compressed pixel data until an
+                  End-of-Information code is read - never stopping merely because the Image
+                  Descriptor's declared width times height index values have already been
+                  produced - and shall reject with InvalidDataException both a stream that omits
+                  the End-of-Information code and a stream whose decoded output would exceed that
+                  declared count before an End-of-Information code is read.
+                justification: |
+                  A compressed stream that never emits the required End-of-Information code, or
+                  that decodes to a different pixel count than the Image Descriptor declared
+                  (whether via table-entry expansion or otherwise), is malformed; silently
+                  stopping early or truncating such a stream (rather than rejecting it) could
+                  mask corrupted or non-conformant compressed data behind an apparently
+                  successful decode.
+                tests:
+                  - GifCodec_Load_LzwStreamMissingEoi_ThrowsInvalidDataException
+                  - GifCodec_Load_LzwStreamOverrunsExpectedCount_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-GifCodec-SubBlockBudget
+                title: >-
+                  The GifCodec class shall bound the total number of sub-block data bytes it
+                  accumulates across every extension and Image Descriptor sub-block chain in a
+                  single file - including chains whose contents are ultimately discarded - and
+                  reject a file whose cumulative sub-block data would exceed that bound with
+                  InvalidDataException.
+                justification: |
+                  Without a total-file bound, a GIF with tiny declared canvas dimensions could
+                  still carry an effectively unlimited number of valid 255-byte sub-blocks across
+                  its extensions and frames, forcing unbounded buffering and risking an
+                  out-of-memory condition rather than a clean, prompt InvalidDataException.
+                tests:
+                  - GifCodec_Load_ExcessiveSubBlockData_ThrowsInvalidDataException
 
               - id: CanvasNet-Codecs-GifCodec-GetInfo
                 title: >-

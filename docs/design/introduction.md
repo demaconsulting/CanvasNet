@@ -29,8 +29,9 @@ software items, specifically:
 - **CanvasNet (System)** — The complete .NET library system
 - **Canvas (Subsystem)** — Pixel-buffer primitives: the `Surface` unit (mutable, in-memory
   32-bit RGBA pixel buffer with span-based row access) and the `Rgba32` unit
-- **Codecs (Subsystem)** — Image format codecs: `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`,
-  and `GifCodec`, each converting to and from a `Surface` pixel buffer, plus `SvgCodec`, a
+- **Codecs (Subsystem)** — Image format codecs: `BmpCodec`, `PngCodec`, `TiffCodec`, and
+  `JpegCodec`, each converting to and from a `Surface` pixel buffer; `GifCodec`, a decode-only
+  unit that loads a `Surface` from the first frame of a GIF file; and `SvgCodec`, a
   decode/rasterize-only unit that rasterizes a subset of SVG vector documents into a `Surface`
 - **Geometry (Subsystem)** — Vector-geometry primitives, distinct from the `Drawing`
   subsystem (which covers rasterization built on top of these primitives): the `Rect` unit

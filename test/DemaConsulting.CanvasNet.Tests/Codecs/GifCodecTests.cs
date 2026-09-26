@@ -241,6 +241,43 @@ public class GifCodecTests
     }
 
     /// <summary>
+    ///     Identical to <see cref="EncodeGifLzw"/> except it never writes the final
+    ///     End-of-Information code, used to build a fixture that decodes exactly the expected
+    ///     number of palette-index bytes but omits the terminating EOI code entirely.
+    /// </summary>
+    private static byte[] EncodeGifLzwWithoutEoi(int minCodeSize, byte[] indices)
+    {
+        var clearCode = 1 << minCodeSize;
+        var eoiCode = clearCode + 1;
+        var firstAvailableCode = eoiCode + 1;
+
+        var writer = new LzwBitWriter();
+        var codeSize = minCodeSize + 1;
+        var tableCount = 0;
+        var haveIndex = false;
+
+        writer.WriteCode(clearCode, codeSize);
+        foreach (var index in indices)
+        {
+            writer.WriteCode(index, codeSize);
+
+            if (haveIndex && firstAvailableCode + tableCount < 4096)
+            {
+                tableCount++;
+                var nextCode = firstAvailableCode + tableCount;
+                if (nextCode == 1 << codeSize && codeSize < 12)
+                {
+                    codeSize++;
+                }
+            }
+
+            haveIndex = true;
+        }
+
+        return writer.ToArray();
+    }
+
+    /// <summary>
     ///     Packs variable-width codes into bytes least-significant-bit-first, the same bit order
     ///     <c>GifCodec</c>'s own private LZW bit reader requires.
     /// </summary>
@@ -529,6 +566,39 @@ public class GifCodecTests
     }
 
     // ---------------------------------------------------------------------------------------
+    // Sub-block budget
+    // ---------------------------------------------------------------------------------------
+
+    /// <summary>Test: GifCodec_Load_ExcessiveSubBlockData_ThrowsInvalidDataException.</summary>
+    [Fact]
+    public void GifCodec_Load_ExcessiveSubBlockData_ThrowsInvalidDataException()
+    {
+        using var stream = new MemoryStream();
+        WriteHeader(stream, 1, 1, null); // tiny declared dimensions
+
+        // A single Comment Extension (label 0xFE) whose sub-block chain's cumulative declared
+        // size is one byte more than GifCodec.MaxTotalSubBlockBytes. Content is irrelevant - only
+        // total volume matters - so a single reusable zero-filled 255-byte buffer is written
+        // repeatedly rather than allocating one huge array up front.
+        stream.WriteByte(0x21); // Extension Introducer
+        stream.WriteByte(0xFE); // Comment Extension label
+
+        var remaining = GifCodec.MaxTotalSubBlockBytes + 1;
+        var chunk = new byte[255];
+        while (remaining > 0)
+        {
+            var chunkSize = (int)Math.Min(255, remaining);
+            stream.WriteByte((byte)chunkSize);
+            stream.Write(chunk, 0, chunkSize);
+            remaining -= chunkSize;
+        }
+
+        stream.Position = 0;
+
+        Assert.Throws<InvalidDataException>(() => GifCodec.Load(stream));
+    }
+
+    // ---------------------------------------------------------------------------------------
     // LZW validation
     // ---------------------------------------------------------------------------------------
 
@@ -586,6 +656,61 @@ public class GifCodecTests
         Assert.Throws<InvalidDataException>(() => GifCodec.Load(stream));
     }
 
+    /// <summary>Test: GifCodec_Load_LzwStreamMissingEoi_ThrowsInvalidDataException.</summary>
+    [Fact]
+    public void GifCodec_Load_LzwStreamMissingEoi_ThrowsInvalidDataException()
+    {
+        using var stream = new MemoryStream();
+        var gct = BuildColorTable((255, 0, 0), (0, 0, 255));
+        WriteHeader(stream, 2, 2, gct);
+        stream.WriteByte(0x2C);
+        WriteU16(stream, 0);
+        WriteU16(stream, 0);
+        WriteU16(stream, 2);
+        WriteU16(stream, 2); // 4 pixels expected
+        stream.WriteByte(0);
+        stream.WriteByte(2);
+
+        // Decodes exactly the 4 expected palette-index bytes, but the stream ends immediately
+        // afterward without ever emitting the End-of-Information code.
+        var lzwBytes = EncodeGifLzwWithoutEoi(2, [0, 1, 1, 0]);
+        WriteSubBlocks(stream, lzwBytes);
+        WriteTrailer(stream);
+        stream.Position = 0;
+
+        Assert.Throws<InvalidDataException>(() => GifCodec.Load(stream));
+    }
+
+    /// <summary>Test: GifCodec_Load_LzwStreamOverrunsExpectedCount_ThrowsInvalidDataException.</summary>
+    [Fact]
+    public void GifCodec_Load_LzwStreamOverrunsExpectedCount_ThrowsInvalidDataException()
+    {
+        using var stream = new MemoryStream();
+        var gct = BuildColorTable((255, 0, 0), (0, 0, 255));
+        WriteHeader(stream, 2, 1, gct);
+        stream.WriteByte(0x2C);
+        WriteU16(stream, 0);
+        WriteU16(stream, 0);
+        WriteU16(stream, 2);
+        WriteU16(stream, 1); // 2 pixels expected
+        stream.WriteByte(0);
+        stream.WriteByte(2); // minCodeSize=2 => clearCode=4, eoiCode=5, firstAvailableCode=6
+
+        // Clear, literal 0, literal 0 (defines table entry code 6 = [0, 0] via KwKwK growth),
+        // then code 6 itself - a 2-byte back-reference that would push total output to 4 bytes,
+        // exceeding the 2 expected palette-index bytes, before any End-of-Information code.
+        var writer = new LzwBitWriter();
+        writer.WriteCode(4, 3); // Clear
+        writer.WriteCode(0, 3); // literal 0 -> outputCount=1
+        writer.WriteCode(0, 3); // literal 0 -> outputCount=2, table entry 6 = [0, 0] defined
+        writer.WriteCode(6, 3); // back-reference [0, 0] -> would push outputCount to 4
+        WriteSubBlocks(stream, writer.ToArray());
+        WriteTrailer(stream);
+        stream.Position = 0;
+
+        Assert.Throws<InvalidDataException>(() => GifCodec.Load(stream));
+    }
+
     // ---------------------------------------------------------------------------------------
     // Correctness
     // ---------------------------------------------------------------------------------------
@@ -609,6 +734,27 @@ public class GifCodecTests
         Assert.Equal(new Rgba32(0, 0, 254, 255), surface[1, 0]);
         Assert.Equal(new Rgba32(0, 0, 254, 255), surface[0, 1]);
         Assert.Equal(new Rgba32(254, 0, 0, 255), surface[1, 1]);
+    }
+
+    /// <summary>Test: GifCodec_Load_LocalColorTableOnly_DecodesExpectedPixels.</summary>
+    [Fact]
+    public void GifCodec_Load_LocalColorTableOnly_DecodesExpectedPixels()
+    {
+        using var stream = new MemoryStream();
+        var lct = BuildColorTable((10, 20, 30), (200, 210, 220));
+        WriteHeader(stream, 2, 2, null); // no Global Color Table
+        WriteImageDescriptor(stream, 0, 0, 2, 2, false, lct, 2, [0, 1, 1, 0]);
+        WriteTrailer(stream);
+        stream.Position = 0;
+
+        using var surface = GifCodec.Load(stream);
+
+        Assert.Equal(2, surface.Width);
+        Assert.Equal(2, surface.Height);
+        Assert.Equal(new Rgba32(10, 20, 30, 255), surface[0, 0]);
+        Assert.Equal(new Rgba32(200, 210, 220, 255), surface[1, 0]);
+        Assert.Equal(new Rgba32(200, 210, 220, 255), surface[0, 1]);
+        Assert.Equal(new Rgba32(10, 20, 30, 255), surface[1, 1]);
     }
 
     /// <summary>Test: GifCodec_Load_FromFilePath_ReturnsExpectedPixels.</summary>

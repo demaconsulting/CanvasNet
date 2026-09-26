@@ -33,14 +33,17 @@ Unit tests reside in `GifCodecTests.cs` and `GifFixtureTests.cs` within the
 
 **Tests**: `GifCodec_Load_FirstFrame_DecodesExpectedPixels`,
 `GifCodec_Load_FromFilePath_ReturnsExpectedPixels`,
-`GifCodec_Load_SolidColorFixture_MatchesOwnGlobalColorTable`
+`GifCodec_Load_SolidColorFixture_MatchesOwnGlobalColorTable`,
+`GifCodec_Load_LocalColorTableOnly_DecodesExpectedPixels`
 
 Builds a small hand-crafted GIF (2x2 pixels, an explicit Global Color Table, and LZW-compressed
 index data) and asserts every decoded pixel's RGB and alpha (255) matches expectations; repeats
-via the `Load(string)` file-path overload against a temporary file; and, for each of the 5
+via the `Load(string)` file-path overload against a temporary file; for each of the 5
 solid-color real-world fixtures, reads that file's own Global Color Table entry 0 directly from
 its raw bytes and asserts multiple sampled pixels (all four corners plus the center) returned by
-`Load` match it exactly.
+`Load` match it exactly; and builds a hand-crafted GIF with no Global Color Table at all, whose
+sole Image Descriptor declares its own Local Color Table, asserting the decoded pixels match that
+Local Color Table's entries exactly.
 
 #### CanvasNet-Codecs-GifCodec-FirstFrameOnly: Multi-Frame GIFs Decode Only the First Frame
 
@@ -172,6 +175,28 @@ an already-defined table entry, nor the valid next KwKwK code, and asserts `Load
 Builds LZW-compressed data that decodes to fewer index values than the Image Descriptor's declared
 width times height, and asserts `Load` throws `InvalidDataException`.
 
+#### CanvasNet-Codecs-GifCodec-LzwRequiresEoi: Load Rejects Missing EOI and Output-Count Overrun
+
+**Tests**: `GifCodec_Load_LzwStreamMissingEoi_ThrowsInvalidDataException`,
+`GifCodec_Load_LzwStreamOverrunsExpectedCount_ThrowsInvalidDataException`
+
+Builds LZW-compressed data that decodes exactly the Image Descriptor's declared width times
+height index values but ends without ever emitting an End-of-Information code, and asserts `Load`
+throws `InvalidDataException` rather than treating the stream as successfully decoded. Separately,
+builds a hand-written LZW code sequence whose table-entry (KwKwK back-reference) expansion would
+decode more index values than the declared width times height before any End-of-Information code
+is read, and asserts `Load` throws `InvalidDataException` immediately rather than silently
+truncating the excess output.
+
+#### CanvasNet-Codecs-GifCodec-SubBlockBudget: Load Rejects Excessive Total Sub-Block Data
+
+**Test**: `GifCodec_Load_ExcessiveSubBlockData_ThrowsInvalidDataException`
+
+Builds a hand-crafted GIF with tiny (1x1) declared canvas dimensions containing a single Comment
+Extension whose sub-block chain's cumulative declared size is one byte more than
+`GifCodec.MaxTotalSubBlockBytes`, and asserts `Load` throws `InvalidDataException` rather than
+buffering an unbounded amount of sub-block data.
+
 #### CanvasNet-Codecs-GifCodec-GetInfo: GetInfo Reports Dimensions/Channels/CanDecode Without Decoding Pixels
 
 **Tests**: `GifCodec_GetInfo_ReturnsExpectedDimensionsChannelsAndCanDecode`,
@@ -203,6 +228,6 @@ respectively — the same exception contract as the corresponding `Load` scenari
 
 ### Acceptance Criteria
 
-A unit test run passes when all test methods above (30 in `GifCodecTests.cs` plus 16 fixture-based
+A unit test run passes when all test methods above (34 in `GifCodecTests.cs` plus 16 fixture-based
 theory cases in `GifFixtureTests.cs`) pass without error or unexpected exception; any unexpected
 exception type or pixel-value mismatch constitutes a failure.

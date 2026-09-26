@@ -92,6 +92,24 @@ public static class GifCodec
     private const int Trailer = 0x3B;
 
     /// <summary>
+    ///     The maximum total number of sub-block data bytes <see cref="Load(Stream)"/> will
+    ///     accumulate across every extension and Image Descriptor sub-block chain in a single
+    ///     file, including chains whose contents are ultimately discarded (a Comment/Application/
+    ///     Plain Text extension, or a second-or-later frame's compressed image data). Without this
+    ///     bound, a GIF with tiny declared dimensions could still carry an effectively unlimited
+    ///     number of 255-byte sub-blocks - each individually valid - forcing unbounded buffering
+    ///     and risking an out-of-memory condition rather than a clean, prompt
+    ///     <see cref="InvalidDataException"/>. 64 MiB comfortably exceeds the compressed data size
+    ///     of any legitimate GIF frame at <see cref="Surface.MaxDimension"/>, so no well-formed
+    ///     file this codec is otherwise able to decode is rejected by this bound. Declared
+    ///     <see langword="internal"/> (rather than <see langword="private"/>), matching
+    ///     <see cref="JpegCodec.MaxProbeHeaderBytes"/>'s established precedent, so the test
+    ///     project (which the assembly already grants <c>InternalsVisibleTo</c>) can construct a
+    ///     just-over-budget fixture that exercises this limit without hard-coding its value.
+    /// </summary>
+    internal const long MaxTotalSubBlockBytes = 64 * 1024 * 1024;
+
+    /// <summary>
     ///     Loads a <see cref="Surface"/> from an open, readable stream containing a GIF87a or
     ///     GIF89a image.
     /// </summary>
@@ -155,6 +173,7 @@ public static class GifCodec
         var pendingTransparentIndex = (byte)0;
         Surface? result = null;
         var sawTrailer = false;
+        var remainingSubBlockBudget = MaxTotalSubBlockBytes;
 
         while (!sawTrailer)
         {
@@ -174,7 +193,7 @@ public static class GifCodec
                             throw new InvalidDataException("Unexpected end of stream while reading a GIF extension.");
                         }
 
-                        var data = ReadSubBlocks(stream);
+                        var data = ReadSubBlocks(stream, ref remainingSubBlockBudget);
                         if (labelByte == GraphicControlLabel)
                         {
                             if (data.Length != GraphicControlExtensionSize)
@@ -218,7 +237,7 @@ public static class GifCodec
                                 "Unexpected end of stream while reading a GIF LZW minimum code size.");
                         }
 
-                        var imageData = ReadSubBlocks(stream);
+                        var imageData = ReadSubBlocks(stream, ref remainingSubBlockBudget);
 
                         if (imgWidth <= 0 || imgHeight <= 0)
                         {
@@ -461,11 +480,18 @@ public static class GifCodec
     ///     needed to consume the bytes.
     /// </summary>
     /// <param name="stream">The stream to read the sub-block chain from.</param>
+    /// <param name="remainingBudget">
+    ///     The number of sub-block data bytes still permitted across the entire file, shared
+    ///     across every call for the same <see cref="Load(Stream)"/> invocation (see
+    ///     <see cref="MaxTotalSubBlockBytes"/>) - decremented as bytes are read, regardless of
+    ///     whether the caller ultimately uses or discards this chain's data.
+    /// </param>
     /// <returns>The concatenated bytes of every sub-block in the chain.</returns>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when the stream ends before the terminating zero-length sub-block is read.
+    ///     Thrown when the stream ends before the terminating zero-length sub-block is read, or
+    ///     when reading this chain would exceed <paramref name="remainingBudget"/>.
     /// </exception>
-    private static byte[] ReadSubBlocks(Stream stream)
+    private static byte[] ReadSubBlocks(Stream stream, ref long remainingBudget)
     {
         using var buffer = new MemoryStream();
         while (true)
@@ -480,6 +506,15 @@ public static class GifCodec
             {
                 break;
             }
+
+            if (size > remainingBudget)
+            {
+                throw new InvalidDataException(
+                    $"GIF sub-block data exceeds the maximum total permitted size of " +
+                    $"{MaxTotalSubBlockBytes} bytes across the whole file.");
+            }
+
+            remainingBudget -= size;
 
             var block = ReadExactly(stream, size, "GIF sub-block");
             buffer.Write(block, 0, block.Length);
@@ -542,9 +577,19 @@ public static class GifCodec
     /// <returns>An array of exactly <paramref name="expectedIndexCount"/> palette-index bytes.</returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="minCodeSize"/> is out of range, the stream does not start
-    ///     with a Clear code, an invalid or out-of-range code is encountered, or the stream ends
-    ///     before <paramref name="expectedIndexCount"/> bytes have been produced.
+    ///     with a Clear code, an invalid or out-of-range code is encountered, decoding would
+    ///     produce more than <paramref name="expectedIndexCount"/> bytes, or the stream ends
+    ///     before both exactly <paramref name="expectedIndexCount"/> bytes have been produced and
+    ///     an end-of-information code has been read.
     /// </exception>
+    /// <remarks>
+    ///     Decoding always continues until an end-of-information code is read - it never stops
+    ///     merely because <paramref name="expectedIndexCount"/> bytes have already been produced -
+    ///     and any code that would decode past exactly that many bytes is rejected immediately,
+    ///     rather than silently truncated. This ensures a compressed stream that omits the
+    ///     required end-of-information code, or that decodes to a different pixel count than the
+    ///     Image Descriptor declared, is always treated as malformed input.
+    /// </remarks>
     private static byte[] DecodeGifLzw(byte[] data, int minCodeSize, int expectedIndexCount)
     {
         if (minCodeSize is < 2 or > 8)
@@ -570,9 +615,14 @@ public static class GifCodec
             throw new InvalidDataException("GIF LZW stream does not start with a Clear code.");
         }
 
-        while (outputCount < expectedIndexCount)
+        while (true)
         {
             var code = reader.ReadCode(codeSize);
+            if (code == eoiCode)
+            {
+                break;
+            }
+
             if (code == clearCode)
             {
                 table.Clear();
@@ -581,16 +631,16 @@ public static class GifCodec
                 continue;
             }
 
-            if (code == eoiCode)
-            {
-                break;
-            }
-
             var entry = ResolveGifLzwEntry(code, clearCode, firstAvailableCode, table, previousEntry);
 
-            var copyLength = Math.Min(entry.Length, expectedIndexCount - outputCount);
-            Array.Copy(entry, 0, output, outputCount, copyLength);
-            outputCount += copyLength;
+            if (outputCount + entry.Length > expectedIndexCount)
+            {
+                throw new InvalidDataException(
+                    "GIF LZW stream decoded more palette-index bytes than the Image Descriptor declared.");
+            }
+
+            Array.Copy(entry, 0, output, outputCount, entry.Length);
+            outputCount += entry.Length;
 
             if (previousEntry is not null && firstAvailableCode + table.Count < 4096)
             {
@@ -609,7 +659,7 @@ public static class GifCodec
             previousEntry = entry;
         }
 
-        if (outputCount < expectedIndexCount)
+        if (outputCount != expectedIndexCount)
         {
             throw new InvalidDataException("Truncated GIF LZW stream (insufficient decoded pixel data).");
         }
