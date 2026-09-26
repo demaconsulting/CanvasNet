@@ -832,18 +832,47 @@ sections:
           - id: CanvasNet-Codecs-GifGetInfo
             title: >-
               The Codecs subsystem shall report a GIF's width, height, channel count, and
-              CanDecode via GetInfo, given a stream or a file path, without decoding pixel data
-              and without enforcing Surface.MaxDimension.
+              CanDecode via GetInfo, given a stream or a file path, validating the file's block
+              structure (Logical Screen Descriptor, color tables, extensions, and every Image
+              Descriptor) without ever decoding any frame's pixel data, and without enforcing
+              Surface.MaxDimension.
             justification: |
               Callers need to inspect a GIF's declared dimensions before choosing whether and how
-              to load it, without paying the cost of decoding the full pixel buffer.
+              to load it, without paying the cost of decoding the full pixel buffer. GetInfo must
+              still be able to report a genuinely malformed GIF as such, so it walks the same
+              block structure Load validates - it simply never invokes the LZW decoder for any
+              frame, so a first-frame pixel-data corruption that would make Load throw does not
+              make GetInfo throw. This same per-frame walk is what lets GetInfo also report
+              ImageInfo.FrameCount (see CanvasNet-Codecs-GifFrameCount).
             children:
               - CanvasNet-Codecs-GifCodec-GetInfo
             tests:
               - GifCodec_GetInfo_ReturnsExpectedDimensionsChannelsAndCanDecode
-              - GifCodec_GetInfo_NeverReadsPixelData
+              - GifCodec_GetInfo_NeverDecodesLzwPixelData_AcceptsCorruptFirstFrameCompressedData
               - GifCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows
               - GifCodec_GetInfo_Fixture_MatchesLoadDimensionsAndReportsDecodable
+
+          - id: CanvasNet-Codecs-GifFrameCount
+            title: >-
+              The Codecs subsystem shall report a well-formed GIF's total Image-Descriptor
+              (frame) count via ImageInfo.FrameCount from GetInfo, without decoding any frame's
+              LZW-compressed pixel data, and shall not weaken its rejection of a structurally
+              malformed frame merely because that frame's pixel data is never decoded.
+            justification: |
+              Callers triaging an untrusted or unknown-source GIF (for example, to warn a user
+              before rendering an animation, or to cap the number of frames a downstream process
+              will attempt to handle) need to know a file's true frame count without paying the
+              cost of decoding any frame's pixel data, and need that count to be trustworthy - a
+              frame count is worthless if it can be produced for a file GetInfo should have
+              rejected as malformed.
+            children:
+              - CanvasNet-Codecs-GifCodec-FrameCount
+              - CanvasNet-Codecs-GifCodec-GetInfoFrameValidation
+            tests:
+              - GifCodec_GetInfo_SingleFrame_ReportsFrameCountOne
+              - GifCodec_GetInfo_MultiFrame_ReportsCorrectFrameCount
+              - GifCodec_GetInfo_Fixture_MatchesLoadDimensionsAndReportsDecodable
+              - GifCodec_GetInfo_SecondFrameMissingColorTable_ThrowsInvalidDataException
 
           - id: CanvasNet-Codecs-GifGetInfoValidation
             title: >-

@@ -341,12 +341,12 @@ sections:
                   merely because GetInfo's frame-counting walk never decodes that frame's pixel
                   data.
                 justification: |
-                  A caller must be able to trust that a file GetInfo accepts is one Load would also
-                  accept; if frame counting silently tolerated a structurally malformed
-                  non-decoded frame (a frame Load itself would reject), GetInfo would report a
-                  frame count for - and implicitly vouch for the validity of - a file that is not
-                  actually well-formed, violating GetInfo's "never accept what Load would reject"
-                  contract.
+                  GetInfo's structural per-frame validation - region bounds and color-table
+                  resolution - must remain as strict as Load's, even though GetInfo never decodes
+                  pixel data; if frame counting silently tolerated a structurally malformed
+                  non-decoded frame (a frame Load itself would reject on structural grounds alone),
+                  GetInfo would report a frame count for, and implicitly vouch for the structural
+                  validity of, a file that is not actually well-formed.
                 tests:
                   - GifCodec_GetInfo_SecondFrameMissingColorTable_ThrowsInvalidDataException
 
