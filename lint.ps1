@@ -136,7 +136,7 @@ dotnet restore > $null
 if ($LASTEXITCODE -ne 0) { $lintError = $true; $skipDotnetFormat = $true }
 
 if (-not $skipDotnetFormat) {
-    dotnet format --verify-no-changes --no-restore
+    dotnet format --verify-no-changes --no-restore --verbosity diagnostic
     if ($LASTEXITCODE -ne 0) { $lintError = $true }
 }
 
