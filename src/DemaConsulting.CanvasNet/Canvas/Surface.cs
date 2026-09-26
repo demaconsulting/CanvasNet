@@ -768,7 +768,7 @@ public sealed class Surface : IDisposable
         using var fg = new RowChannelBuffers(count);
         using var work = new CompositeWorkBuffers(count);
 
-        CompositeOverSpanCore(y, x, coverage, color, bg, fg, work, count);
+        CompositeOverSpanCore(y, x, coverage, color, bg, fg, work);
     }
 
     /// <summary>
@@ -825,7 +825,7 @@ public sealed class Surface : IDisposable
                 nameof(coverage), coverage.Length, "Coverage length must not exceed the workspace's capacity.");
         }
 
-        CompositeOverSpanCore(y, x, coverage, color, workspace.Bg, workspace.Fg, workspace.Work, count);
+        CompositeOverSpanCore(y, x, coverage, color, workspace.Bg, workspace.Fg, workspace.Work);
     }
 
     /// <summary>
@@ -886,7 +886,7 @@ public sealed class Surface : IDisposable
         using var fg = new RowChannelBuffers(count);
         using var work = new CompositeWorkBuffers(count);
 
-        CompositeOverSpanCore(y, x, coverage, colors, bg, fg, work, count);
+        CompositeOverSpanCore(y, x, coverage, colors, bg, fg, work);
     }
 
     /// <summary>
@@ -945,7 +945,7 @@ public sealed class Surface : IDisposable
                 nameof(coverage), coverage.Length, "Coverage length must not exceed the workspace's capacity.");
         }
 
-        CompositeOverSpanCore(y, x, coverage, colors, workspace.Bg, workspace.Fg, workspace.Work, count);
+        CompositeOverSpanCore(y, x, coverage, colors, workspace.Bg, workspace.Fg, workspace.Work);
     }
 
     /// <summary>
@@ -988,8 +988,9 @@ public sealed class Surface : IDisposable
     /// </summary>
     private void CompositeOverSpanCore(
         int y, int x, ReadOnlySpan<float> coverage, Rgba32 color, RowChannelBuffers bg, RowChannelBuffers fg,
-        CompositeWorkBuffers work, int count)
+        CompositeWorkBuffers work)
     {
+        var count = coverage.Length;
         for (var i = 0; i < count; i++)
         {
             fg.RBytes[i] = color.R;
@@ -999,19 +1000,20 @@ public sealed class Surface : IDisposable
             fg.ABytes[i] = (byte)Math.Clamp(MathF.Round(scaledAlpha, MidpointRounding.AwayFromZero), 0f, 255f);
         }
 
-        CompositeOverSpanCoreShared(y, x, coverage, bg, fg, work, count);
+        CompositeOverSpanCoreShared(y, x, coverage, bg, fg, work);
     }
 
     /// <summary>
-    ///     Per-pixel-color counterpart of <see cref="CompositeOverSpanCore(int, int, ReadOnlySpan{float}, Rgba32, RowChannelBuffers, RowChannelBuffers, CompositeWorkBuffers, int)"/>:
+    ///     Per-pixel-color counterpart of <see cref="CompositeOverSpanCore(int, int, ReadOnlySpan{float}, Rgba32, RowChannelBuffers, RowChannelBuffers, CompositeWorkBuffers)"/>:
     ///     populates <paramref name="fg"/> from one <see cref="Rgba32"/> per pixel in
     ///     <paramref name="colors"/>, rather than broadcasting a single constant color, then
     ///     shares the exact same <see cref="CompositeOverSpanCoreShared"/> blend body.
     /// </summary>
     private void CompositeOverSpanCore(
         int y, int x, ReadOnlySpan<float> coverage, ReadOnlySpan<Rgba32> colors, RowChannelBuffers bg, RowChannelBuffers fg,
-        CompositeWorkBuffers work, int count)
+        CompositeWorkBuffers work)
     {
+        var count = coverage.Length;
         for (var i = 0; i < count; i++)
         {
             var color = colors[i];
@@ -1022,7 +1024,7 @@ public sealed class Surface : IDisposable
             fg.ABytes[i] = (byte)Math.Clamp(MathF.Round(scaledAlpha, MidpointRounding.AwayFromZero), 0f, 255f);
         }
 
-        CompositeOverSpanCoreShared(y, x, coverage, bg, fg, work, count);
+        CompositeOverSpanCoreShared(y, x, coverage, bg, fg, work);
     }
 
     /// <summary>
@@ -1032,12 +1034,16 @@ public sealed class Surface : IDisposable
     ///     <see cref="CompositeOverRow"/> pipeline, and writes the result back into the surface
     ///     via <see cref="ReinterleaveRow"/>. <paramref name="fg"/> must already be populated (its
     ///     byte channels only - this method widens it to float itself) by the caller before this
-    ///     method is invoked.
+    ///     method is invoked. <paramref name="coverage"/>'s length is always the row's active
+    ///     pixel count - it is not passed separately since every caller derives it from the very
+    ///     same <paramref name="coverage"/> span before renting <paramref name="bg"/>/<paramref name="fg"/>/
+    ///     <paramref name="work"/> to that exact size.
     /// </summary>
     private void CompositeOverSpanCoreShared(
         int y, int x, ReadOnlySpan<float> coverage, RowChannelBuffers bg, RowChannelBuffers fg,
-        CompositeWorkBuffers work, int count)
+        CompositeWorkBuffers work)
     {
+        var count = coverage.Length;
         var bgRow = GetRowSpanBytes(y).Slice(x * BytesPerPixel, count * BytesPerPixel);
 
         DeinterleaveRow(bgRow, bg, count);
@@ -1197,9 +1203,9 @@ public sealed class Surface : IDisposable
         TensorPrimitives.Multiply(bgAn, oneMinusFgAn, outAn);
         TensorPrimitives.Add(outAn, fgAn, outAn);
 
-        CompositeOverChannel(bg.RFloat, fg.RFloat, bgAn, fgAn, oneMinusFgAn, outAn, work.Term, work.OutR, count);
-        CompositeOverChannel(bg.GFloat, fg.GFloat, bgAn, fgAn, oneMinusFgAn, outAn, work.Term, work.OutG, count);
-        CompositeOverChannel(bg.BFloat, fg.BFloat, bgAn, fgAn, oneMinusFgAn, outAn, work.Term, work.OutB, count);
+        CompositeOverChannel(bg.RFloat, fg.RFloat, work, work.OutR, count);
+        CompositeOverChannel(bg.GFloat, fg.GFloat, work, work.OutG, count);
+        CompositeOverChannel(bg.BFloat, fg.BFloat, work, work.OutB, count);
 
         // Only now scale the normalized outA up to [0, 255] for narrowing - every channel above
         // divided by the still-normalized outAn.
@@ -1208,17 +1214,22 @@ public sealed class Surface : IDisposable
 
     /// <summary>
     ///     Computes <c>(fgC * fgA + bgC * bgA * (1 - fgA)) / outA</c> for one <c>[0, 255]</c>-
-    ///     scaled color channel of a whole row, where the alpha terms (<paramref name="fgAn"/>,
-    ///     <paramref name="oneMinusFgAn"/>, <paramref name="outAn"/>) are <c>[0, 1]</c>-scaled.
+    ///     scaled color channel of a whole row, reading the alpha terms (<c>BgAn</c>/<c>FgAn</c>/
+    ///     <c>OneMinusFgA</c>/<c>OutA</c>, all <c>[0, 1]</c>-scaled) and the <c>Term</c> scratch
+    ///     buffer directly from <paramref name="work"/> - the same
+    ///     <see cref="CompositeWorkBuffers"/> instance <see cref="CompositeOverRow"/> already
+    ///     populated them into, rather than re-passing each of its fields as its own parameter.
     /// </summary>
-    private static void CompositeOverChannel(
-        float[] bgC, float[] fgC, Span<float> bgAn, Span<float> fgAn, Span<float> oneMinusFgAn, Span<float> outAn,
-        float[] termScratch, float[] outC, int count)
+    private static void CompositeOverChannel(float[] bgC, float[] fgC, CompositeWorkBuffers work, float[] outC, int count)
     {
+        var bgAn = work.BgAn.AsSpan(0, count);
+        var fgAn = work.FgAn.AsSpan(0, count);
+        var oneMinusFgAn = work.OneMinusFgA.AsSpan(0, count);
+        var outAn = work.OutA.AsSpan(0, count);
         var bgCSpan = bgC.AsSpan(0, count);
         var fgCSpan = fgC.AsSpan(0, count);
         var outCSpan = outC.AsSpan(0, count);
-        var termSpan = termScratch.AsSpan(0, count);
+        var termSpan = work.Term.AsSpan(0, count);
 
         // outC = fgC * fgA
         TensorPrimitives.Multiply(fgCSpan, fgAn, outCSpan);

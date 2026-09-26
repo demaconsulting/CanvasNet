@@ -357,10 +357,7 @@ public static class PngCodec
 
         return DecodeScanlines(
             rawData,
-            header.Width,
-            header.Height,
-            header.ColorType,
-            header.BitDepth,
+            header,
             rowBytes,
             bpp,
             samplesPerPixel,
@@ -1293,30 +1290,25 @@ public static class PngCodec
     ///     Defilters and decodes every scanline of decompressed PNG raw data into a new
     ///     <see cref="Surface"/>, reconstructing each row from the previous row per the PNG
     ///     filtering specification, then mapping each row's samples to RGBA per
-    ///     <paramref name="colorType"/>.
+    ///     <paramref name="header"/>'s color type.
     /// </summary>
     /// <param name="rawData">The decompressed, filtered scanline bytes (one filter-type byte plus <paramref name="rowBytes"/> per row).</param>
-    /// <param name="width">The image width, in pixels.</param>
-    /// <param name="height">The image height, in pixels.</param>
-    /// <param name="colorType">The PNG color type.</param>
-    /// <param name="bitDepth">The PNG bit depth (1, 2, 4, 8, or 16).</param>
+    /// <param name="header">The parsed IHDR fields (width, height, color type, and bit depth).</param>
     /// <param name="rowBytes">The number of packed pixel bytes per row (excluding the filter-type byte).</param>
     /// <param name="bpp">The number of whole bytes per pixel, used by the defilter algorithms (at least 1).</param>
-    /// <param name="samplesPerPixel">The number of samples per pixel for <paramref name="colorType"/>.</param>
+    /// <param name="samplesPerPixel">The number of samples per pixel for <paramref name="header"/>'s color type.</param>
     /// <param name="palette">The raw PLTE chunk data (RGB triples), or null if absent.</param>
     /// <param name="trns">The validated tRNS chunk data for this color type, or null if absent/not applicable.</param>
     private static Surface DecodeScanlines(
         byte[] rawData,
-        int width,
-        int height,
-        int colorType,
-        int bitDepth,
+        PngHeader header,
         int rowBytes,
         int bpp,
         int samplesPerPixel,
         byte[]? palette,
         byte[]? trns)
     {
+        var (width, height, colorType, bitDepth, _) = header;
         var surface = new Surface(width, height);
         var previousRow = new byte[rowBytes];
         var currentRow = new byte[rowBytes];

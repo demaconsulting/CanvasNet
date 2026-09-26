@@ -506,7 +506,7 @@ internal sealed class GlyfLocaReader
                 dy = scaledDy;
             }
 
-            AppendTransformed(builder, componentPath, a, b, c, d, dx, dy, ref totalPoints);
+            AppendTransformed(builder, componentPath, new Matrix3x2(a, b, c, d, dx, dy), ref totalPoints);
 
             more = (flags & MoreComponents) != 0;
         }
@@ -605,18 +605,16 @@ internal sealed class GlyfLocaReader
 
     /// <summary>
     ///     Re-issues every subpath of <paramref name="source"/> into <paramref name="builder"/>,
-    ///     applying the given 2x2 matrix (<paramref name="a"/>/<paramref name="b"/>/<paramref name="c"/>/<paramref name="d"/>)
-    ///     and translation (<paramref name="dx"/>/<paramref name="dy"/>) to every point, charging
+    ///     applying the given affine <paramref name="transform"/> (2x2 matrix plus translation, as
+    ///     decoded from the composite glyph's component record) to every point, charging
     ///     the number of points/commands about to be copied against <paramref name="totalPoints"/>
     ///     before performing any copy - resolving a component's outline is cheap (it is already
     ///     built), but re-emitting it into the composite's builder is the step that actually
     ///     multiplies a large component's geometry by every reference to it, so the budget must be
     ///     checked here rather than only when the component was first decoded.
     /// </summary>
-    private static void AppendTransformed(PathBuilder builder, Path source, float a, float b, float c, float d, float dx, float dy, ref int totalPoints)
+    private static void AppendTransformed(PathBuilder builder, Path source, Matrix3x2 transform, ref int totalPoints)
     {
-        Vector2 Transform(Vector2 p) => new(a * p.X + c * p.Y + dx, b * p.X + d * p.Y + dy);
-
         // Count the points/commands (one MoveTo plus every command) this copy is about to
         // produce, and charge the budget before copying a single one of them.
         var pointsToCopy = 0;
@@ -633,17 +631,17 @@ internal sealed class GlyfLocaReader
 
         foreach (var subpath in source.Subpaths)
         {
-            builder.MoveTo(Transform(subpath.Start));
+            builder.MoveTo(Vector2.Transform(subpath.Start, transform));
             foreach (var command in subpath.Commands)
             {
                 switch (command.Type)
                 {
                     case PathCommandType.LineTo:
-                        builder.LineTo(Transform(command.EndPoint));
+                        builder.LineTo(Vector2.Transform(command.EndPoint, transform));
                         break;
 
                     case PathCommandType.QuadraticBezierTo:
-                        builder.QuadraticBezierTo(Transform(command.Control1), Transform(command.EndPoint));
+                        builder.QuadraticBezierTo(Vector2.Transform(command.Control1, transform), Vector2.Transform(command.EndPoint, transform));
                         break;
 
                     case PathCommandType.Close:
