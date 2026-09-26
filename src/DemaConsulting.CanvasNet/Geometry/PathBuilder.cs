@@ -199,11 +199,12 @@ public sealed class PathBuilder
         // that value was produced. len1/len2, however, are Length() results of computed vectors,
         // so a tolerance (rather than exact zero) catches a corner that is only near-coincident
         // with start/end - avoiding an ill-conditioned near-unit-vector normalization below. The
-        // tolerance is scaled to the magnitude of the three points rather than a fixed absolute
-        // cutoff, so a legitimately tiny (but non-coincident) corner in a small coordinate system
-        // is not mistaken for coincidence, while a corner that truly is coincident relative to
-        // its own coordinate scale still degrades to a straight line.
-        var coincidenceTolerance = MathF.Max(corner.Length(), MathF.Max(start.Length(), end.Length())) * 1e-6f;
+        // tolerance is scaled to the chord length between start and end (the one pairwise
+        // distance that is independent of len1/len2 themselves) rather than the points' distance
+        // from the origin, so the check is translation-invariant: an ordinary corner far from the
+        // origin is not mistaken for coincidence, while a corner that is genuinely coincident
+        // relative to its own local geometry still degrades to a straight line.
+        var coincidenceTolerance = Vector2.Distance(start, end) * 1e-6f;
         if (radius == 0f || len1 <= coincidenceTolerance || len2 <= coincidenceTolerance)
         {
             _currentCommands.Add(PathCommand.LineTo(corner));

@@ -403,14 +403,16 @@ internal static class StrokeOutliner
         // degenerate" check with a small tolerance rather than an exact-zero comparison - a
         // ring that is only nearly collinear could otherwise land at a tiny nonzero double
         // instead of exactly 0.0, and still needs to be treated as having no meaningful sign.
-        // The tolerance must scale with the rings' own coordinate magnitude rather than use a
-        // fixed absolute cutoff: shoelace-formula rounding error grows with the square of the
-        // coordinate magnitude, and a fixed absolute cutoff would either wrongly treat a tiny
-        // but legitimate stroke (e.g. a micron-scale closed path) as degenerate, or fail to
-        // catch genuine rounding noise on a very large one.
+        // The tolerance must scale with the rings' own extent rather than use a fixed absolute
+        // cutoff: shoelace-formula rounding error grows with the square of the coordinate
+        // magnitude, and a fixed absolute cutoff would either wrongly treat a tiny but
+        // legitimate stroke (e.g. a micron-scale closed path) as degenerate, or fail to catch
+        // genuine rounding noise on a very large one. Extent (bounding-box span) rather than raw
+        // coordinate magnitude is used so the tolerance is translation-invariant - a ring far
+        // from the origin is not penalized for its absolute position.
         const double relativeAreaTolerance = 1e-9;
-        var coordinateScale = Math.Max(MaxAbsCoordinate(outerRing), MaxAbsCoordinate(innerRing));
-        var areaNearZeroTolerance = coordinateScale * coordinateScale * relativeAreaTolerance;
+        var ringExtent = Math.Max(RingExtent(outerRing), RingExtent(innerRing));
+        var areaNearZeroTolerance = ringExtent * ringExtent * relativeAreaTolerance;
         if (Math.Abs(outerArea) > areaNearZeroTolerance
             && Math.Abs(innerArea) > areaNearZeroTolerance
             && Math.Sign(outerArea) == Math.Sign(innerArea))
@@ -1084,22 +1086,30 @@ internal static class StrokeOutliner
     }
 
     /// <summary>
-    ///     Computes the largest absolute coordinate value (X or Y) across a set of points.
+    ///     Computes the larger bounding-box span (width or height) of a set of points.
     /// </summary>
     /// <remarks>
-    ///     Used to derive a coordinate-scale-relative tolerance for near-zero area comparisons:
+    ///     Used to derive an extent-relative tolerance for near-zero area comparisons:
     ///     shoelace-formula rounding error grows with the square of the coordinate magnitude, so
     ///     a fixed absolute tolerance would misclassify degeneracy at both very small and very
-    ///     large scales.
+    ///     large scales. Bounding-box span (rather than raw coordinate magnitude) is used so the
+    ///     result is translation-invariant - a ring far from the origin is not penalized for its
+    ///     absolute position.
     /// </remarks>
-    private static double MaxAbsCoordinate(IReadOnlyList<Vector2> points)
+    private static double RingExtent(IReadOnlyList<Vector2> points)
     {
-        var max = 0.0;
+        var minX = double.PositiveInfinity;
+        var maxX = double.NegativeInfinity;
+        var minY = double.PositiveInfinity;
+        var maxY = double.NegativeInfinity;
         foreach (var point in points)
         {
-            max = Math.Max(max, Math.Max(Math.Abs((double)point.X), Math.Abs((double)point.Y)));
+            minX = Math.Min(minX, point.X);
+            maxX = Math.Max(maxX, point.X);
+            minY = Math.Min(minY, point.Y);
+            maxY = Math.Max(maxY, point.Y);
         }
 
-        return max;
+        return Math.Max(maxX - minX, maxY - minY);
     }
 }
