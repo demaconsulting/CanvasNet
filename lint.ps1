@@ -140,6 +140,19 @@ if (-not $skipDotnetFormat) {
     # bug (e.g. dotnet/sdk#41422) where it can report a non-zero exit code even when
     # zero files require formatting, inconsistently between operating systems. To get
     # a reliable check, format in place and use `git diff` as the source of truth.
+    #
+    # A plain `git diff` after formatting would also include any pre-existing
+    # uncommitted *.cs changes unrelated to formatting (e.g. a developer's
+    # in-progress edits), causing false failures. Stash those away first so the
+    # formatter runs against a clean tree and the diff reflects only its own
+    # changes, then restore the original working tree afterward regardless of
+    # outcome, leaving no side effects from running this check.
+    git diff --quiet --exit-code -- '*.cs'
+    $hasPreexistingCsChanges = $LASTEXITCODE -ne 0
+    if ($hasPreexistingCsChanges) {
+        git stash push --include-untracked --quiet --message "lint.ps1: pre-existing *.cs changes" -- '*.cs'
+    }
+
     dotnet format --no-restore
     if ($LASTEXITCODE -ne 0) {
         $lintError = $true
@@ -150,6 +163,14 @@ if (-not $skipDotnetFormat) {
             $lintError = $true
             Write-Host "dotnet format made changes; run fix.ps1 locally and commit the results."
         }
+    }
+
+    # Restore the working tree to its original state: discard any in-place
+    # formatting changes made purely for this check, then reapply the
+    # developer's original uncommitted *.cs changes (if any were stashed).
+    git checkout -- '*.cs' 2>$null
+    if ($hasPreexistingCsChanges) {
+        git stash pop --quiet
     }
 }
 
