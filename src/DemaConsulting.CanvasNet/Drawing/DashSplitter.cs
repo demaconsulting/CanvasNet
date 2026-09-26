@@ -251,13 +251,7 @@ internal static class DashSplitter
     {
         if (dashArray.Count % 2 == 0)
         {
-            var even = new float[dashArray.Count];
-            for (var i = 0; i < dashArray.Count; i++)
-            {
-                even[i] = dashArray[i];
-            }
-
-            return even;
+            return dashArray.ToArray();
         }
 
         var duplicated = new float[dashArray.Count * 2];

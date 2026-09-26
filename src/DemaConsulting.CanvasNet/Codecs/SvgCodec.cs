@@ -2784,21 +2784,8 @@ public static class SvgCodec
     /// <param name="dashArray">The local-space dash array, or <see langword="null"/> for a solid stroke.</param>
     /// <param name="scale">The local-to-pixel-space scale factor.</param>
     /// <returns>The scaled dash array, or <see langword="null"/> if <paramref name="dashArray"/> is <see langword="null"/>.</returns>
-    private static IReadOnlyList<float>? ScaleDashArray(IReadOnlyList<float>? dashArray, float scale)
-    {
-        if (dashArray == null)
-        {
-            return null;
-        }
-
-        var scaled = new float[dashArray.Count];
-        for (var i = 0; i < dashArray.Count; i++)
-        {
-            scaled[i] = dashArray[i] * scale;
-        }
-
-        return scaled;
-    }
+    private static IReadOnlyList<float>? ScaleDashArray(IReadOnlyList<float>? dashArray, float scale) =>
+        dashArray?.Select(value => value * scale).ToArray();
 
     // ================================================================================================
     // Paint and color resolution
@@ -3403,16 +3390,8 @@ public static class SvgCodec
     /// <param name="stops">The source stops.</param>
     /// <param name="multiplier">The multiplier to apply to each stop's existing alpha.</param>
     /// <returns>A new list of stops with their colors' alpha scaled.</returns>
-    private static List<GradientStop> ApplyAlphaToStops(List<GradientStop> stops, float multiplier)
-    {
-        var result = new List<GradientStop>(stops.Count);
-        foreach (var stop in stops)
-        {
-            result.Add(new GradientStop(stop.Offset, ApplyAlpha(stop.Color, multiplier)));
-        }
-
-        return result;
-    }
+    private static List<GradientStop> ApplyAlphaToStops(List<GradientStop> stops, float multiplier) =>
+        stops.Select(stop => new GradientStop(stop.Offset, ApplyAlpha(stop.Color, multiplier))).ToList();
 
     /// <summary>Parses a <c>spreadMethod</c> keyword.</summary>
     /// <param name="raw">The attribute's raw value, or <see langword="null"/> if absent.</param>

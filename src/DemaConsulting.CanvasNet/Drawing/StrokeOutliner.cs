@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Numerics;
 
 // cspell:ignore Outliner outliner underflows underflowed inradius
@@ -72,14 +73,20 @@ internal static class StrokeOutliner
     /// </summary>
     private static List<Vector2> SimplifyPoints(IReadOnlyList<Vector2> points, bool isClosed)
     {
-        var simplified = new List<Vector2>(points.Count);
-        foreach (var point in points)
+        // Tracks the last point that survived the filter below, so each candidate point is kept
+        // only when it differs from the previous KEPT point - not merely the previous SOURCE
+        // point - reproducing the original loop's "simplified[^1] != point" comparison exactly.
+        Vector2? lastKept = null;
+        var simplified = points.Where(point =>
         {
-            if (simplified.Count == 0 || simplified[^1] != point)
+            if (lastKept == point)
             {
-                simplified.Add(point);
+                return false;
             }
-        }
+
+            lastKept = point;
+            return true;
+        }).ToList();
 
         if (isClosed && simplified.Count > 1 && simplified[0] == simplified[^1])
         {
