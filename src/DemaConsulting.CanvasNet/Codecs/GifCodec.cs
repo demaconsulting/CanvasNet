@@ -30,9 +30,12 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///         corruption never affects <c>CanDecode</c>, since neither <c>Load</c> nor <c>GetInfo</c>
 ///         ever decodes that frame's pixels. The <em>first</em> frame is different:
 ///         <see cref="GetInfo(Stream)"/> does attempt the same LZW decode of the first frame's
-///         compressed data that <c>Load</c> performs, discarding the decoded palette indices
-///         instead of resolving and blitting them into a <see cref="Surface"/>, specifically so
-///         that a first-frame LZW corruption that would make <c>Load</c> throw is instead
+///         compressed data that <c>Load</c> performs, additionally checking every decoded index
+///         against the first frame's resolved color table length - the same out-of-range check
+///         <c>BlitIndexedFrame</c> performs when <c>Load</c> blits this same frame - and then
+///         discarding the decoded palette indices instead of resolving and blitting them into a
+///         <see cref="Surface"/>, specifically so that a first-frame LZW corruption or an
+///         out-of-range decoded index, either of which would make <c>Load</c> throw, is instead
 ///         reflected as <see cref="ImageInfo.CanDecode"/> equal to <see langword="false"/> - a
 ///         third well-formed-but-undecodable case, alongside <see cref="PngCodec"/>'s
 ///         Adam7-interlacing case; see <see cref="GetInfo(Stream)"/>'s own remarks for the full
@@ -110,7 +113,8 @@ public static class GifCodec
     ///     Descriptor sub-block chain in a single file, including chains whose contents are
     ///     ultimately discarded (a Comment/Application/Plain Text extension, a second-or-later
     ///     frame's compressed image data for either method - <c>GetInfo</c> attempts an LZW-decode
-    ///     validation of only the <em>first</em> frame's compressed data, discarding its decoded
+    ///     validation of only the <em>first</em> frame's compressed data, including checking every
+    ///     decoded index against that frame's resolved color table length, discarding its decoded
     ///     output rather than the sub-block bytes themselves; see <see cref="GetInfo(Stream)"/>'s
     ///     remarks). Without this bound, a GIF with tiny declared dimensions could still carry an
     ///     effectively unlimited number of 255-byte sub-blocks - each individually valid -
@@ -415,11 +419,15 @@ public static class GifCodec
     ///     with <see cref="ImageInfo.Channels"/> equal to 1 and <see cref="ImageInfo.HasAlpha"/>
     ///     equal to <see langword="false"/> (see this codec's type-level remarks and
     ///     <see cref="ImageInfo"/>'s remarks for why); <see cref="ImageInfo.CanDecode"/> is
-    ///     <see langword="false"/> only when the first Image Descriptor's compressed data fails
-    ///     the same LZW decode <see cref="Load(Stream)"/> itself performs for that frame -
-    ///     <see langword="true"/> for every other well-formed GIF file (see this codec's
-    ///     type-level remarks and this method's own remarks below); <see cref="ImageInfo.FrameCount"/>
-    ///     is the file's true total number of Image Descriptors (1 or more).
+    ///     <see langword="false"/> when the first Image Descriptor's compressed data either fails
+    ///     the same LZW decode <see cref="Load(Stream)"/> itself performs for that frame, or
+    ///     LZW-decodes successfully but yields an index with no corresponding entry in that
+    ///     frame's resolved color table - the same out-of-range condition
+    ///     <see cref="BlitIndexedFrame"/> itself rejects when <see cref="Load(Stream)"/> blits
+    ///     this same frame - and <see langword="true"/> for every other well-formed GIF file (see
+    ///     this codec's type-level remarks and this method's own remarks below);
+    ///     <see cref="ImageInfo.FrameCount"/> is the file's true total number of Image Descriptors
+    ///     (1 or more).
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
     /// <exception cref="System.IO.InvalidDataException">
@@ -462,16 +470,22 @@ public static class GifCodec
     ///         frames' pixels either, so this introduces no divergence. The <em>first</em> frame is
     ///         different: <c>GetInfo</c> does invoke <c>DecodeGifLzw</c> on the first frame's
     ///         compressed data, reusing the exact same decoder <see cref="Load(Stream)"/> calls,
-    ///         but discards the decoded palette-index bytes it returns instead of resolving them
-    ///         through a color table and blitting them into a <see cref="Surface"/> - so this
-    ///         still never materializes decoded pixels, only determines whether <c>Load</c>'s own
-    ///         first-frame decode attempt on the same bytes would succeed. When that decode
-    ///         attempt throws <see cref="InvalidDataException"/> (an invalid or out-of-range LZW
-    ///         code, a stream that never starts with a Clear code, a truncated compressed stream,
-    ///         or one that decodes to the wrong number of palette-index bytes - see
-    ///         <c>DecodeGifLzw</c>'s own exception conditions), <c>GetInfo</c> catches that
-    ///         exception and instead reports <see cref="ImageInfo.CanDecode"/> as
-    ///         <see langword="false"/>, rather than letting <c>GetInfo</c> itself throw: this is a
+    ///         and also checks every decoded index against the first frame's resolved color
+    ///         table length (reusing the color table <c>ValidateFrameRegionAndResolveColorTable</c>
+    ///         already resolved for that frame) - the same out-of-range check
+    ///         <see cref="BlitIndexedFrame"/> performs when <see cref="Load(Stream)"/> blits this
+    ///         frame - but discards the decoded palette-index bytes afterward instead of
+    ///         resolving them through the color table and blitting them into a
+    ///         <see cref="Surface"/> - so this still never materializes decoded pixels, only
+    ///         determines whether <c>Load</c>'s own first-frame decode-and-blit attempt on the
+    ///         same bytes would succeed. When the decode attempt throws
+    ///         <see cref="InvalidDataException"/> (an invalid or out-of-range LZW code, a stream
+    ///         that never starts with a Clear code, a truncated compressed stream, or one that
+    ///         decodes to the wrong number of palette-index bytes - see <c>DecodeGifLzw</c>'s own
+    ///         exception conditions), or when the decode succeeds but any decoded index has no
+    ///         corresponding entry in the resolved color table, <c>GetInfo</c> reports
+    ///         <see cref="ImageInfo.CanDecode"/> as <see langword="false"/>, rather than letting
+    ///         <c>GetInfo</c> itself throw or <c>Load</c> later throw for the same input: this is a
     ///         well-formed-but-undecodable-payload case - the file's block structure is entirely
     ///         valid, only its first frame's compressed pixel data is corrupt - precisely mirroring
     ///         how <see cref="PngCodec.GetInfo(Stream)"/> reports Adam7 interlacing via
@@ -896,7 +910,11 @@ public static class GifCodec
     ///     (<c>DecodeGifLzw</c>) <see cref="Load(Stream)"/> itself invokes for that frame, so that
     ///     a corrupt first-frame LZW payload can be detected and reported via the returned
     ///     <c>CanDecode</c> value rather than silently accepted; the decoded palette-index bytes
-    ///     that call produces are discarded immediately afterward - never resolved into a
+    ///     that call produces are then checked against the resolved color table's length - the
+    ///     same out-of-range check <see cref="BlitIndexedFrame"/> itself performs when
+    ///     <see cref="Load(Stream)"/> blits this same frame - so an out-of-range index is also
+    ///     reported via <c>CanDecode</c> instead of only surfacing when <c>Load</c> later throws;
+    ///     the decoded indices are discarded immediately after this check - never resolved into a
     ///     <see cref="Surface"/> - so this still performs no full pixel decode. Also rejects any
     ///     trailing data after the Trailer, exactly as <see cref="Load(Stream)"/> does, so
     ///     <c>GetInfo</c> never succeeds on a structurally malformed stream <c>Load</c> would
@@ -909,8 +927,10 @@ public static class GifCodec
     /// <returns>
     ///     The total number of Image Descriptors encountered before the Trailer (always at least
     ///     1), together with whether the first Image Descriptor's compressed data successfully
-    ///     LZW-decoded (<see langword="false"/> only when that decode attempt threw
-    ///     <see cref="InvalidDataException"/> - see this method's remarks).
+    ///     LZW-decoded <em>and</em> every decoded index was within range of its resolved color
+    ///     table (<see langword="false"/> when that decode attempt threw
+    ///     <see cref="InvalidDataException"/>, or when any decoded index had no corresponding
+    ///     entry in the resolved color table - see this method's remarks).
     /// </returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown for any of the same <em>structural</em> reasons <see cref="Load(Stream)"/>
@@ -991,7 +1011,7 @@ public static class GifCodec
                             SkipSubBlocks(stream, ref remainingSubBlockBudget);
                         }
 
-                        ValidateFrameRegionAndResolveColorTable(
+                        var activeColorTable = ValidateFrameRegionAndResolveColorTable(
                             header.Width,
                             header.Height,
                             header.Left,
@@ -1013,10 +1033,25 @@ public static class GifCodec
                             // (see DecodeGifLzw's own exception conditions); this is a
                             // well-formed-container-but-undecodable-payload case - like PngCodec's
                             // Adam7-interlacing case - so it is reported via CanDecode = false
-                            // rather than making GetInfo itself throw.
+                            // rather than making GetInfo itself throw. A structurally valid LZW
+                            // stream can still decode to an index with no corresponding entry in
+                            // the resolved color table - the same out-of-range condition
+                            // BlitIndexedFrame itself rejects when Load blits this same frame -
+                            // so every decoded index is also checked against
+                            // activeColorTable.Length here, without ever allocating a Surface or
+                            // blitting: only the index bytes are compared to the color table's
+                            // length.
                             try
                             {
-                                _ = DecodeGifLzw(imageData!, header.MinCodeSize, header.Width * header.Height);
+                                var indices = DecodeGifLzw(imageData!, header.MinCodeSize, header.Width * header.Height);
+                                foreach (var index in indices)
+                                {
+                                    if (index >= activeColorTable.Length)
+                                    {
+                                        canDecode = false;
+                                        break;
+                                    }
+                                }
                             }
                             catch (InvalidDataException)
                             {

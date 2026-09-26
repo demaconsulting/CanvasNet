@@ -85,7 +85,9 @@ using var reloadedJpeg = JpegCodec.Load("surface.jpg");
 // Decode-only: load the first frame of a GIF
 using var reloadedGif = GifCodec.Load("surface.gif");
 
-// GetInfo also reports a GIF's true total frame count, without decoding any frame's pixels
+// GetInfo also reports a GIF's true total frame count; it decodes the first frame's
+// LZW-compressed pixel data to validate CanDecode, but never resolves those pixels into a
+// rendered Surface
 var gifInfo = GifCodec.GetInfo("surface.gif");
 Console.WriteLine($"Frames: {gifInfo.FrameCount}");
 

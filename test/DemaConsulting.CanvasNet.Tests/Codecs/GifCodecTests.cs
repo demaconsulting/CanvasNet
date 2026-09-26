@@ -1134,6 +1134,42 @@ public class GifCodecTests
     }
 
     /// <summary>
+    ///     Test: GifCodec_GetInfo_FirstFrameIndexOutOfRangeForColorTable_ReportsCanDecodeFalse.
+    ///     A structurally valid LZW stream can still decode to a palette index with no
+    ///     corresponding entry in its resolved color table - the same out-of-range condition
+    ///     BlitIndexedFrame itself rejects when Load blits this frame - so GetInfo must check
+    ///     every decoded index against the resolved color table's length, not merely confirm the
+    ///     LZW decode itself succeeds, and report CanDecode = false for this case too.
+    /// </summary>
+    [Fact]
+    public void GifCodec_GetInfo_FirstFrameIndexOutOfRangeForColorTable_ReportsCanDecodeFalse()
+    {
+        // Arrange: a 2x1 GIF with a 2-entry Global Color Table (valid indices 0-1) whose single
+        // frame's LZW stream is structurally valid but decodes to indices [0, 2] - index 2 has no
+        // corresponding color table entry, even though the LZW decode itself succeeds.
+        using var stream = new MemoryStream();
+        var gct = BuildColorTable((254, 0, 0), (0, 0, 254));
+        WriteHeader(stream, 2, 1, gct);
+        WriteImageDescriptor(stream, 0, 0, 2, 1, false, null, 2, [0, 2]);
+        WriteTrailer(stream);
+        var bytes = stream.ToArray();
+
+        // Act: GetInfo on the out-of-range-index fixture, and Load on the identical bytes
+        using var infoStream = new MemoryStream(bytes);
+        var info = GifCodec.GetInfo(infoStream);
+
+        // Assert: GetInfo reports the correct declared dimensions and frame count but
+        // CanDecode = false, while Load on the same bytes throws InvalidDataException
+        Assert.Equal(2, info.Width);
+        Assert.Equal(1, info.Height);
+        Assert.Equal(1, info.FrameCount);
+        Assert.False(info.CanDecode);
+
+        using var loadStream = new MemoryStream(bytes);
+        Assert.Throws<InvalidDataException>(() => GifCodec.Load(loadStream));
+    }
+
+    /// <summary>
     ///     Test: GifCodec_GetInfo_CorruptLaterFrameLzwData_StillReportsCanDecodeTrue.
     ///     GetInfo only ever attempts to LZW-decode the first frame's compressed data - matching
     ///     Load's own decode-only-the-first-frame scope - so a second-or-later frame's corrupt

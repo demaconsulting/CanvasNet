@@ -24,8 +24,11 @@ multi-frame GIF is not, by itself, a `CanDecode == false` case (see *Codecs Subs
 `ImageInfo.FrameCount`, by walking every block in the file and structurally validating every
 frame exactly as `Load` does. `GetInfo` never invokes the LZW decoder for any frame after the
 first — matching `Load`'s own decode-only-the-first-frame scope — but it *does* attempt the same
-first-frame LZW decode `Load` performs, discarding the decoded palette-index output instead of
-resolving it into a `Surface`, so a corrupt first-frame LZW payload is reported via
+first-frame LZW decode `Load` performs, additionally checking every decoded index against the
+first frame's resolved color table length (the same out-of-range check `BlitIndexedFrame`
+performs when `Load` blits this same frame), then discarding the decoded palette-index output
+instead of resolving it into a `Surface`, so a corrupt first-frame LZW payload — or a
+structurally valid one that decodes to an out-of-range palette index — is reported via
 `ImageInfo.CanDecode == false` rather than `GetInfo` silently vouching for a subsequent `Load`
 call that would in fact throw (see *Codecs Subsystem Design*, `../codecs.md`, for the cross-codec
 `CanDecode`/`FrameCount` rationale).
@@ -189,11 +192,13 @@ compressed data successfully LZW-decoded — and returns
 returned, even when they exceed it, matching `ImageInfo`'s documented "bomb triage" contract (see
 *Codecs Subsystem Design*, `../codecs.md`). `Channels` is always 1 (the raw file's single
 palette-index-per-pixel encoding); `HasAlpha` is always `false` (see `ImageInfo`'s remarks for the
-full rationale). `CanDecode` is `false` only when the first Image Descriptor's compressed data
-fails the same LZW decode `Load` itself performs for that frame; `true` for every other
-well-formed GIF file — see this unit's *Purpose* section above, and the remarks below, for why a
-multi-frame GIF is not, by itself, a `CanDecode == false` case. `FrameCount` reports the file's
-true total Image Descriptor count.
+full rationale). `CanDecode` is `false` when the first Image Descriptor's compressed data either
+fails the same LZW decode `Load` itself performs for that frame, or LZW-decodes successfully but
+yields an index with no corresponding entry in that frame's resolved color table (the same
+out-of-range condition `BlitIndexedFrame` itself rejects when `Load` blits this same frame);
+`true` for every other well-formed GIF file — see this unit's *Purpose* section above, and the
+remarks below, for why a multi-frame GIF is not, by itself, a `CanDecode == false` case.
+`FrameCount` reports the file's true total Image Descriptor count.
 
 Counting a GIF's frames correctly requires walking every block in the file — not merely reading
 the Logical Screen Descriptor, as an earlier version of this method did — because an Image
@@ -205,12 +210,17 @@ reason is also an input `Load` would reject, upholding `ImageInfo`'s "never thro
 `Load` would accept" invariant. `GetInfo` never invokes the LZW decoder (`DecodeGifLzw`) for any
 frame after the first — `Load` itself never decodes those frames' pixels either, so this
 introduces no divergence. The *first* frame is different: `GetInfo` does invoke `DecodeGifLzw` on
-the first frame's compressed data, reusing the exact same decoder `Load` calls, but discards the
-decoded palette-index bytes it returns instead of resolving them through a color table and
+the first frame's compressed data, reusing the exact same decoder `Load` calls, and additionally
+checks every decoded index against the first frame's resolved color table length (reusing the
+color table `ValidateFrameRegionAndResolveColorTable` already resolved for that frame — the same
+out-of-range check `BlitIndexedFrame` performs when `Load` blits this frame), but discards the
+decoded palette-index bytes afterward instead of resolving them through the color table and
 blitting them into a `Surface` — so `GetInfo` still never materializes decoded pixels, only
-determines whether `Load`'s own first-frame decode attempt on the same bytes would succeed. When
-that decode attempt throws `InvalidDataException`, `GetInfo` catches it and instead reports
-`CanDecode == false`, rather than letting `GetInfo` itself throw: this is a
+determines whether `Load`'s own first-frame decode-and-blit attempt on the same bytes would
+succeed. When that decode attempt throws `InvalidDataException`, or when it succeeds but any
+decoded index has no corresponding entry in the resolved color table, `GetInfo` reports
+`CanDecode == false`, rather than letting `GetInfo` itself throw or `Load` later throw for the
+same input: this is a
 well-formed-but-undecodable-payload case — the file's block structure is entirely valid, only its
 first frame's compressed pixel data is corrupt — precisely mirroring how `PngCodec.GetInfo`
 reports Adam7 interlacing via `CanDecode` rather than throwing. This upholds both of `ImageInfo`'s
@@ -281,16 +291,19 @@ only one either method ever actually decodes or counts pixels for.
 
 Walks a GIF file's blocks, from the current stream position (immediately after any Global Color
 Table) through and including the Trailer, counting every Image Descriptor encountered, and
-returning both that count and whether the first frame's compressed data successfully LZW-decoded.
-For each block type it mirrors `Load`'s own block loop closely: every frame after the first has its
+returning both that count and whether the first frame's compressed data successfully LZW-decoded
+*and* every decoded index was within range of its resolved color table. For each block type it
+mirrors `Load`'s own block loop closely: every frame after the first has its
 compressed image data, and every other extension's sub-block data, read only far enough to be
 skipped via `SkipSubBlocks`, without buffering it and without ever invoking the LZW decoder for
 that data. The *first* frame is handled differently: its compressed image data is buffered via
 `ReadSubBlocks` and then fed through the same LZW decoder (`DecodeGifLzw`) `Load` itself invokes
-for that frame; the decoded palette-index bytes that call produces are discarded immediately
-afterward rather than resolved into a `Surface`, and an `InvalidDataException` thrown by that
-decode attempt is caught and reflected as a `false` `CanDecode` result instead of propagating —
-see `GetInfo(Stream)`'s remarks for the full design rationale. Throws `InvalidDataException` if the
+for that frame; the decoded palette-index bytes that call produces are then checked against the
+resolved color table's length (the same out-of-range check `BlitIndexedFrame` performs when
+`Load` blits this frame) before being discarded rather than resolved into a `Surface`. An
+`InvalidDataException` thrown by the decode attempt, or an out-of-range decoded index found by
+this check, is reflected as a `false` `CanDecode` result instead of propagating or being silently
+accepted — see `GetInfo(Stream)`'s remarks for the full design rationale. Throws `InvalidDataException` if the
 Trailer is reached having counted zero Image Descriptors, matching `Load`'s identical "GIF stream
 contains no Image Descriptor" rejection.
 

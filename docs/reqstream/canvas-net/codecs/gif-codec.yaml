@@ -308,13 +308,17 @@ sections:
                   dimensions that only Load's allocation path needs to guard against. GetInfo must
                   still be able to report a genuinely malformed GIF as such, so it walks the same
                   block structure Load validates. It also attempts the same first-frame LZW decode
-                  Load performs - discarding the decoded output instead of blitting it into a
-                  Surface - so that a first-frame pixel-data corruption that would make Load throw
-                  is instead reported via CanDecode = false; frames after the first are still never
-                  LZW-decoded by either method.
+                  Load performs - additionally checking every decoded index against the first
+                  frame's resolved color table length, the same out-of-range check BlitIndexedFrame
+                  performs when Load blits this frame - discarding the decoded output instead of
+                  blitting it into a Surface - so that a first-frame pixel-data corruption, or a
+                  structurally valid decode that yields an out-of-range palette index, either of
+                  which would make Load throw, is instead reported via CanDecode = false; frames
+                  after the first are still never LZW-decoded by either method.
                 tests:
                   - GifCodec_GetInfo_ReturnsExpectedDimensionsChannelsAndCanDecode
                   - GifCodec_GetInfo_CorruptFirstFrameLzwData_ReportsCanDecodeFalse
+                  - GifCodec_GetInfo_FirstFrameIndexOutOfRangeForColorTable_ReportsCanDecodeFalse
                   - GifCodec_GetInfo_CorruptLaterFrameLzwData_StillReportsCanDecodeTrue
                   - GifCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows
                   - GifCodec_GetInfo_Fixture_MatchesLoadDimensionsAndReportsDecodable

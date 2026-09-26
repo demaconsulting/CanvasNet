@@ -231,6 +231,7 @@ extension), consistent with `ReadSubBlocks`' enforcement for every other sub-blo
 
 **Tests**: `GifCodec_GetInfo_ReturnsExpectedDimensionsChannelsAndCanDecode`,
 `GifCodec_GetInfo_CorruptFirstFrameLzwData_ReportsCanDecodeFalse`,
+`GifCodec_GetInfo_FirstFrameIndexOutOfRangeForColorTable_ReportsCanDecodeFalse`,
 `GifCodec_GetInfo_CorruptLaterFrameLzwData_StillReportsCanDecodeTrue`,
 `GifCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows`,
 `GifCodec_GetInfo_Fixture_MatchesLoadDimensionsAndReportsDecodable`
@@ -242,7 +243,13 @@ decode `Load` performs - discarding the decoded output instead of resolving it i
 by building a full, valid, single-frame GIF whose Image Descriptor's compressed sub-block data is
 deliberately not a valid LZW stream (it does not start with a Clear code), asserting `GetInfo`
 still succeeds (reporting `FrameCount == 1`) but with `CanDecode == false`, while `Load` on the
-identical bytes throws `InvalidDataException`. A companion test proves this LZW-decode attempt is
+identical bytes throws `InvalidDataException`. A companion test proves `GetInfo` also validates
+the *decoded* indices, not merely that the LZW decode itself succeeds: it builds a full, valid,
+single-frame GIF whose LZW stream is structurally valid but decodes to a palette index with no
+corresponding entry in the frame's 2-entry Global Color Table - the same out-of-range condition
+`BlitIndexedFrame` itself rejects when `Load` blits this frame - asserting `GetInfo` reports
+`CanDecode == false` for this case too, while `Load` on the identical bytes throws
+`InvalidDataException`. A companion test proves this LZW-decode attempt is
 scoped to the first frame only, matching `Load`'s own decode-only-the-first-frame scope: building
 a two-frame GIF whose first frame's compressed data is entirely valid but whose second frame's
 compressed data is the same invalid-Clear-code stream, and asserting `GetInfo` still reports
