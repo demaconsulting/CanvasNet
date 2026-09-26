@@ -234,7 +234,17 @@ exact same `MaxTotalSubBlockBytes` cumulative budget `Load` enforces (see the *D
 *Error Handling* sections above), so it introduces no new unbounded-loop or resource-exhaustion
 risk: the walk performs no allocation proportional to the frame count beyond a single `int`
 counter and a `bool` flag, every per-frame allocation it does perform is itself capped by this
-same 64 MiB cumulative budget, and the walk is strictly bounded by the number of bytes actually
+same budget for every frame except the first. Because the first frame's declared width/height is
+not itself bounded by `Surface.MaxDimension` here (see above), this first-frame LZW-decode
+attempt computes their product with widened (`long`) arithmetic to avoid an `int` overflow, and
+skips the decode-validation attempt entirely — leaving `CanDecode` at its default of `true` for
+that file — whenever that product exceeds `Surface.MaxDimension` squared, the widest index count
+any frame `Load` could ever actually decode. This is a deliberate leniency carve-out, not an
+oversight: a pathologically large but otherwise well-formed first frame is not itself malformed,
+so `GetInfo` must not throw for it or risk an out-of-memory failure attempting to validate it —
+it is simply too large for this particular validation attempt to safely perform, echoing the same
+bounded-worst-case-over-exhaustive-validation trade-off `MaxTotalSubBlockBytes` itself accepts for
+a different resource; the walk is strictly bounded by the number of bytes actually
 present in the input stream.
 
 **Throws:**

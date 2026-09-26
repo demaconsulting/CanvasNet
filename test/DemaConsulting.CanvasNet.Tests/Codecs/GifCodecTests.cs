@@ -1134,6 +1134,53 @@ public class GifCodecTests
     }
 
     /// <summary>
+    ///     Test: GifCodec_GetInfo_PathologicallyLargeFirstFrame_SkipsValidationAndReportsCanDecodeTrue.
+    ///     GetInfo deliberately never bounds a frame's declared width/height by
+    ///     Surface.MaxDimension, so a first frame declaring a pathologically large size (here,
+    ///     60000x60000 - a product that both overflows plain int arithmetic and vastly exceeds
+    ///     Surface.MaxDimension squared) must not make GetInfo throw an unhandled overflow
+    ///     exception, run out of memory attempting to allocate a proportional index buffer, or
+    ///     otherwise fail: this first-frame LZW-decode-validation attempt must instead be safely
+    ///     skipped for such a frame, leaving CanDecode at its default of true.
+    /// </summary>
+    [Fact]
+    public void GifCodec_GetInfo_PathologicallyLargeFirstFrame_SkipsValidationAndReportsCanDecodeTrue()
+    {
+        using var stream = new MemoryStream();
+        var gct = BuildColorTable((254, 0, 0), (0, 0, 254));
+
+        // 60000 x 60000 = 3,600,000,000 - overflows a plain `int` product (max ~2.147 billion)
+        // and vastly exceeds Surface.MaxDimension squared (8192 x 8192 = 67,108,864), the bound
+        // beyond which GetInfo's first-frame decode-validation attempt is skipped.
+        const int hugeDimension = 60000;
+        WriteHeader(stream, hugeDimension, hugeDimension, gct);
+
+        // Manually write an Image Descriptor declaring this pathologically large first frame.
+        // Its compressed sub-block data is deliberately just one arbitrary byte followed by the
+        // sub-block terminator: GetInfo's first-frame LZW-decode-validation attempt must never
+        // actually be reached for a frame this large, so the content of this data is irrelevant,
+        // and building a real 3.6-billion-index LZW stream here would itself be infeasible.
+        stream.WriteByte(0x2C);
+        WriteU16(stream, 0);
+        WriteU16(stream, 0);
+        WriteU16(stream, hugeDimension);
+        WriteU16(stream, hugeDimension);
+        stream.WriteByte(0); // packed: no local color table, no interlace
+        stream.WriteByte(2); // LZW minimum code size
+        WriteSubBlocks(stream, [0xFF]);
+        WriteTrailer(stream);
+        var bytes = stream.ToArray();
+
+        using var infoStream = new MemoryStream(bytes);
+        var info = GifCodec.GetInfo(infoStream);
+
+        Assert.Equal(hugeDimension, info.Width);
+        Assert.Equal(hugeDimension, info.Height);
+        Assert.Equal(1, info.FrameCount);
+        Assert.True(info.CanDecode);
+    }
+
+    /// <summary>
     ///     Test: GifCodec_GetInfo_FirstFrameIndexOutOfRangeForColorTable_ReportsCanDecodeFalse.
     ///     A structurally valid LZW stream can still decode to a palette index with no
     ///     corresponding entry in its resolved color table - the same out-of-range condition

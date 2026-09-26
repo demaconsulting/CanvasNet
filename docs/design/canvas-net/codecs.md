@@ -92,7 +92,12 @@ pixel data that will only be thrown away. Deliberately, **`GetInfo` never enforc
 `Surface.MaxDimension` itself** — it always reports the raw header-declared (or, for `SvgCodec`,
 document-resolved) dimensions, even when they exceed the maximum a `Surface` can hold, so that
 callers can make exactly this before-you-allocate decision themselves; `Load` on the same bytes
-still enforces the limit as before, via `Surface`'s own constructor.
+still enforces the limit as before, via `Surface`'s own constructor. `GifCodec` is the one
+exception to the "without paying the cost of decoding pixel data" claim above: its `GetInfo`
+scans the entire file's block structure and, bounded conditions permitting, also LZW-decodes the
+first frame's compressed pixel data solely to validate `CanDecode` — see this section's `GifCodec`
+paragraph below for the exact scope and the bound that keeps this attempt from ever costing more
+than a well-formed, `Surface.MaxDimension`-sized frame would.
 
 Each of `BmpCodec`, `PngCodec`, `TiffCodec`, and `JpegCodec` shares a single internal
 header-parsing helper between `Load` and `GetInfo` (a `bool enforceMaxDimension` parameter selects
@@ -107,13 +112,19 @@ feature-based `Load` refusal that is independent of header well-formedness. `Gif
 per-frame structural-validation helpers (region bounds, minimum code size range, color table
 resolution) between `Load` and `GetInfo`'s frame-counting walk, but with no boolean flag at all:
 unlike the other four raster codecs, `GifCodec.GetInfo` never enforces `Surface.MaxDimension`
-under any circumstance and performs no arithmetic or allocation proportional to the reported
-width/height itself (only bounded, per-frame bounds-check arithmetic and a budget-capped sub-block
-buffer) — see _GifCodec Unit Design_ (`codecs/gif-codec.md`) for the exact rationale, including how
-`GetInfo` never invokes the LZW decoder for any frame after the first, but does attempt an LZW
-decode of the first frame's compressed data (reusing `Load`'s own decoder, discarding its decoded
-output) purely to determine `CanDecode`, so a first-frame compressed-data corruption that makes
-`Load` throw is reflected as `CanDecode == false` rather than making `GetInfo` throw. `SvgCodec`
+under any circumstance; every frame's own per-frame bounds-check arithmetic is bounded, and its
+budget-capped sub-block buffer (see `MaxTotalSubBlockBytes`) is its only allocation proportional
+to file size for every frame after the first — see _GifCodec Unit Design_ (`codecs/gif-codec.md`)
+for the exact rationale, including how `GetInfo` never invokes the LZW decoder for any frame after
+the first, but does attempt an LZW decode of the first frame's compressed data (reusing `Load`'s
+own decoder, discarding its decoded output) purely to determine `CanDecode`, so a first-frame
+compressed-data corruption that makes `Load` throw is reflected as `CanDecode == false` rather
+than making `GetInfo` throw. Because the first frame's declared width/height is not itself bounded
+by `Surface.MaxDimension` here, this first-frame decode attempt _does_ allocate an index buffer
+proportional to that declared size — but only when their product (computed with widened
+arithmetic to avoid overflow) does not exceed `Surface.MaxDimension` squared; a pathologically
+large declared first frame instead skips this validation attempt entirely, leaving `CanDecode` at
+its default of `true` rather than risking an overflow or an unbounded allocation. `SvgCodec`
 does not
 use this pattern, because
 its `Load` overloads take the requested output raster's width/height as ordinary caller-supplied

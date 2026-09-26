@@ -478,7 +478,18 @@ public static class GifCodec
     ///         resolving them through the color table and blitting them into a
     ///         <see cref="Surface"/> - so this still never materializes decoded pixels, only
     ///         determines whether <c>Load</c>'s own first-frame decode-and-blit attempt on the
-    ///         same bytes would succeed. When the decode attempt throws
+    ///         same bytes would succeed. Because the first frame's declared width and height
+    ///         are not themselves bounded by <see cref="Surface.MaxDimension"/> here (see
+    ///         above), this first-frame decode-validation attempt is only ever made when their
+    ///         product does not exceed <see cref="Surface.MaxDimension"/> squared - the widest
+    ///         index count any frame <c>Load</c> could ever actually decode; a pathologically
+    ///         large first frame beyond that bound is skipped entirely, leaving
+    ///         <see cref="ImageInfo.CanDecode"/> at its default of <see langword="true"/> for
+    ///         that file rather than risking an <see langword="int"/> overflow or an
+    ///         allocation proportional to an untrusted, unbounded declared size - a deliberate
+    ///         leniency carve-out, not an oversight: such a frame is not itself malformed, so
+    ///         <c>GetInfo</c> must not throw for it, it is merely too large for this
+    ///         particular validation attempt to safely perform. When the decode attempt throws
     ///         <see cref="InvalidDataException"/> (an invalid or out-of-range LZW code, a stream
     ///         that never starts with a Clear code, a truncated compressed stream, or one that
     ///         decodes to the wrong number of palette-index bytes - see <c>DecodeGifLzw</c>'s own
@@ -915,10 +926,17 @@ public static class GifCodec
     ///     <see cref="Load(Stream)"/> blits this same frame - so an out-of-range index is also
     ///     reported via <c>CanDecode</c> instead of only surfacing when <c>Load</c> later throws;
     ///     the decoded indices are discarded immediately after this check - never resolved into a
-    ///     <see cref="Surface"/> - so this still performs no full pixel decode. Also rejects any
-    ///     trailing data after the Trailer, exactly as <see cref="Load(Stream)"/> does, so
-    ///     <c>GetInfo</c> never succeeds on a structurally malformed stream <c>Load</c> would
-    ///     reject.
+    ///     <see cref="Surface"/> - so this still performs no full pixel decode. This first-frame
+    ///     LZW-decode-validation attempt is itself skipped - leaving the returned <c>CanDecode</c>
+    ///     at <see langword="true"/> - whenever the first frame's declared width times height
+    ///     (widened to <see langword="long"/> before multiplying, so the check itself cannot
+    ///     overflow) exceeds <see cref="Surface.MaxDimension"/> squared, because this method
+    ///     deliberately never bounds a frame's declared dimensions by
+    ///     <see cref="Surface.MaxDimension"/> and an unbounded declared size could otherwise force
+    ///     an allocation of proportional, attacker-influenced size inside <c>DecodeGifLzw</c>; see
+    ///     this method's call site for the full reasoning. Also rejects any trailing data after
+    ///     the Trailer, exactly as <see cref="Load(Stream)"/> does, so <c>GetInfo</c> never
+    ///     succeeds on a structurally malformed stream <c>Load</c> would reject.
     /// </summary>
     /// <param name="stream">The stream, positioned immediately after the Global Color Table (or Logical Screen Descriptor, if none).</param>
     /// <param name="canvasWidth">The logical screen's declared width, from the Logical Screen Descriptor.</param>
@@ -1041,21 +1059,46 @@ public static class GifCodec
                             // activeColorTable.Length here, without ever allocating a Surface or
                             // blitting: only the index bytes are compared to the color table's
                             // length.
-                            try
+                            //
+                            // header.Width and header.Height are each declared-header values that
+                            // GetInfo deliberately never bounds by Surface.MaxDimension (see this
+                            // method's and GetInfo's own remarks) - Load itself is not at risk
+                            // here because it rejects an over-large canvas via Surface.MaxDimension
+                            // long before this code path is ever reached. Multiplying two such
+                            // unbounded int values with plain int arithmetic could silently
+                            // overflow (e.g. 50,000 x 50,000), and even a non-overflowing but huge
+                            // product would force DecodeGifLzw to allocate a `new byte[...]`
+                            // proportional to that untrusted product. The product is therefore
+                            // widened to long first, and this first-frame decode-validation
+                            // attempt is skipped entirely - leaving canDecode at its default of
+                            // true - whenever that long product exceeds
+                            // Surface.MaxDimension * Surface.MaxDimension, the largest index count
+                            // any frame Load could ever actually decode would require. This is a
+                            // deliberate leniency, not an oversight: a pathologically large but
+                            // otherwise well-formed frame is not itself malformed, so GetInfo must
+                            // not throw for it; it is simply too large for this validation
+                            // attempt to safely perform, exactly as MaxTotalSubBlockBytes already
+                            // accepts a comparable asymmetry for a different resource (see that
+                            // constant's remarks).
+                            var expectedIndexCount = (long)header.Width * header.Height;
+                            if (expectedIndexCount <= (long)Surface.MaxDimension * Surface.MaxDimension)
                             {
-                                var indices = DecodeGifLzw(imageData!, header.MinCodeSize, header.Width * header.Height);
-                                foreach (var index in indices)
+                                try
                                 {
-                                    if (index >= activeColorTable.Length)
+                                    var indices = DecodeGifLzw(imageData!, header.MinCodeSize, (int)expectedIndexCount);
+                                    foreach (var index in indices)
                                     {
-                                        canDecode = false;
-                                        break;
+                                        if (index >= activeColorTable.Length)
+                                        {
+                                            canDecode = false;
+                                            break;
+                                        }
                                     }
                                 }
-                            }
-                            catch (InvalidDataException)
-                            {
-                                canDecode = false;
+                                catch (InvalidDataException)
+                                {
+                                    canDecode = false;
+                                }
                             }
                         }
 

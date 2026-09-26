@@ -32,7 +32,7 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 - 🗜️ **JPEG Codec** - Load baseline/progressive; save baseline JPEG
 - 🎞️ **GIF Codec** - Decode-only load of first GIF frame; `GetInfo` reports the true frame count
 - 📐 **SVG Codec** - Rasterize a common SVG subset to a surface
-- 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels
+- 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
 - 🌅 **Gradient Paint** - Linear or radial gradient fills with spread
