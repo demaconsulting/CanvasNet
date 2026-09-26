@@ -136,8 +136,11 @@ dotnet restore > $null
 if ($LASTEXITCODE -ne 0) { $lintError = $true; $skipDotnetFormat = $true }
 
 if (-not $skipDotnetFormat) {
-    dotnet format --verify-no-changes --no-restore --verbosity diagnostic
-    if ($LASTEXITCODE -ne 0) { $lintError = $true }
+    dotnet format --verify-no-changes --no-restore --verbosity diagnostic --report artifacts/format-report
+    if ($LASTEXITCODE -ne 0) {
+        $lintError = $true
+        Get-Content artifacts/format-report/format-report.json -ErrorAction SilentlyContinue | Write-Host
+    }
 }
 
 # [PROJECT-SPECIFIC] Add additional format verification checks here.
