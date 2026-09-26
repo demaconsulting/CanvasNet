@@ -1,7 +1,7 @@
 # Introduction
 
 <!-- cspell:ignore glyf sfnt codepoint -->
-<!-- cspell:ignore rasterizing unparseable SMIL -->
+<!-- cspell:ignore rasterizing unparseable SMIL renderable -->
 
 ## Purpose
 
@@ -891,13 +891,17 @@ It supports basic shapes (`rect`, `circle`, `ellipse`, `line`, `polyline`, `poly
 grouping (`g`) with cascading presentation attributes, `transform` functions, linear/radial
 gradients (including `xlink:href`/`href` template inheritance), `use` references, `marker`
 elements (referenced via `marker-start`/`marker-mid`/`marker-end`, with `markerWidth`/
-`markerHeight`, `refX`/`refY`, `markerUnits`, `orient`, and an optional `viewBox`), and
-best-effort `text` rendering against a caller-supplied dictionary of `TrueTypeFont` instances. The
-root `viewBox`/`width`/`height` are fit into the requested raster using a "meet, centered" policy
+`markerHeight`, `refX`/`refY`, `markerUnits`, `orient`, and an optional `viewBox`), `filter`
+elements (referenced via the `filter` presentation attribute on any directly renderable shape or
+`text` element, with `x`/`y`/`width`/`height` filter-region attributes and `feFlood`/
+`feGaussianBlur`/`feOffset`/`feComposite`/`feMerge` primitive children), and best-effort `text`
+rendering against a caller-supplied dictionary of `TrueTypeFont` instances. The root
+`viewBox`/`width`/`height` are fit into the requested raster using a "meet, centered" policy
 equivalent to CSS `object-fit: contain` (`preserveAspectRatio` itself is not read). Well-formed but
-out-of-scope constructs (`style`, `filter`, `mask`, `clipPath`, `animate`/SMIL, `image`,
-`foreignObject`, `pattern`, nested `svg`, CSS selectors) are silently skipped so the rest
-of the document still renders; malformed/unparseable input throws `InvalidDataException`.
+out-of-scope constructs (`style`, `mask`, `clipPath`, `animate`/SMIL, `image`,
+`foreignObject`, `pattern`, nested `svg`, CSS selectors, and every filter primitive other than
+the five listed above) are silently skipped/passed through so the rest of the document still
+renders; malformed/unparseable input throws `InvalidDataException`.
 
 #### SvgCodec Methods
 

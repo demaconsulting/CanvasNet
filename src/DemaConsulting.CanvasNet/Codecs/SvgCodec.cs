@@ -3,6 +3,7 @@
 // cspell:ignore evenodd nonzero viewbox gradientunits gradienttransform spreadmethod
 // cspell:ignore userspaceonuse objectboundingbox skewx skewy tspan
 // cspell:ignore rasterizing unparseable rrggbb sizeless bbox moveto multiplicatively pillarbox SMIL uncatchable formedness
+// cspell:ignore unblurred premult
 // cspell:ignore aliceblue antiquewhite blanchedalmond blueviolet burlywood cadetblue cornflowerblue
 // cspell:ignore cornsilk darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta
 // cspell:ignore darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen darkslateblue
@@ -67,14 +68,27 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     fitted with the same "meet, centered" policy described below; marker content renders with
 ///     its own fresh presentation-attribute cascade, never the referencing shape's fill/stroke -
 ///     see this class's <c>RenderMarkers</c>/<c>RenderOneMarker</c> remarks for the documented
-///     vertex-placement, orientation-averaging, and multi-subpath simplifications); and
+///     vertex-placement, orientation-averaging, and multi-subpath simplifications); a
+///     <c>rect</c>/<c>circle</c>/<c>ellipse</c>/<c>line</c>/<c>polyline</c>/<c>polygon</c>/
+///     <c>path</c>/<c>text</c> element's own <c>filter="url(#id)"</c> presentation attribute
+///     (resolved via the same <c>url(#id)</c> dangling-reference tolerance, per element only -
+///     never for a <c>g</c>/<c>symbol</c> group, and never for a shape's own marker content),
+///     referencing a <c>filter</c> element whose <c>fe*</c> primitive children
+///     (<c>feFlood</c>, <c>feGaussianBlur</c>, <c>feOffset</c>, <c>feComposite</c> with
+///     <c>operator</c> <c>over</c>/<c>in</c>/<c>out</c>/<c>atop</c>/<c>xor</c>, and <c>feMerge</c>/
+///     <c>feMergeNode</c>) are evaluated in document order against an offscreen buffer sized to
+///     the filter region, with the <c>SourceGraphic</c> and <c>SourceAlpha</c> implicit inputs
+///     supported; the filter region defaults to <c>objectBoundingBox</c>'s standard
+///     <c>-10% -10% 120% 120%</c> (each independently overridable via <c>x</c>/<c>y</c>/
+///     <c>width</c>/<c>height</c>) - see this class's <c>RenderFilteredShape</c>/
+///     <c>EvaluateFilterChain</c> remarks for the documented simplifications; and
 ///     <c>text</c> (with <c>font-family</c> best-effort
 ///     matching against a caller-supplied font dictionary, <c>font-size</c>, <c>fill</c>, and
 ///     <c>text-anchor</c>).
 ///     </para>
 ///     <para>
 ///     <b>Out of scope (silently ignored, per element).</b> <c>style</c> blocks and CSS
-///     class/id selectors, <c>filter</c>, <c>mask</c>, <c>clipPath</c>, <c>pattern</c>,
+///     class/id selectors, <c>mask</c>, <c>clipPath</c>, <c>pattern</c>,
 ///     SMIL animation (<c>animate</c>/<c>animateTransform</c>/<c>animateMotion</c>/
 ///     <c>animateColor</c>/<c>set</c>), <c>image</c>, <c>foreignObject</c>, nested <c>svg</c>, and
 ///     an inline <c>style="..."</c> presentation attribute are all well-formed-but-unsupported
@@ -85,6 +99,20 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     <c>markerContentUnits</c> (a rarely-used SVG 2 attribute) is not read, and a marker's
 ///     <c>overflow</c>/clipping-to-its-own-viewport behavior is not implemented (marker content is
 ///     never clipped to <c>markerWidth</c>/<c>markerHeight</c>) - both explicitly out of scope.
+///     Within the supported <c>filter</c> feature itself, an explicit
+///     <c>filterUnits="userSpaceOnUse"</c> is tolerantly ignored and always falls back to the
+///     <c>objectBoundingBox</c> default region computation; group-level (<c>g</c>/<c>symbol</c>)
+///     filtering and filtering a shape's own marker content are both not implemented (a
+///     <c>filter</c> only ever affects the single element it is set on directly); and every
+///     primitive type other than <c>feFlood</c>/<c>feGaussianBlur</c>/<c>feOffset</c>/
+///     <c>feComposite</c>/<c>feMerge</c> - <c>feColorMatrix</c>, <c>feTurbulence</c>,
+///     <c>feDisplacementMap</c>, <c>feImage</c>, <c>feTile</c>, <c>feDropShadow</c>,
+///     <c>feConvolveMatrix</c>, <c>feDiffuseLighting</c>, <c>feSpecularLighting</c>,
+///     <c>feComponentTransfer</c>, and <c>feMorphology</c> - is a tolerant no-op passthrough of its
+///     own input rather than actually implemented; <c>feImage</c> in particular is out of scope
+///     specifically because it is the only primitive that could otherwise reference another
+///     filtered element's own render output, and omitting it removes any need for an additional
+///     filter-specific recursion-depth guard.
 ///     </para>
 ///     <para>
 ///     <b>ViewBox fitting.</b> <see cref="Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont}?)"/>
@@ -182,6 +210,53 @@ public static class SvgCodec
     ///     affect how many marker references a separate part of the same document may chain).
     /// </summary>
     private const int MaxMarkerDepth = 32;
+
+    /// <summary>
+    ///     The maximum pixel-space effective <c>stdDeviation</c> a <c>feGaussianBlur</c> filter
+    ///     primitive (see <see cref="ApplyFeGaussianBlur"/>) may use, after scaling the raw
+    ///     local-space value by <see cref="EstimateUniformScale"/>. This codec's box-blur
+    ///     approximation (see <see cref="ApplyFeGaussianBlur"/>'s remarks) uses a box radius of
+    ///     roughly <c>1.88 * stdDeviation</c>, so <c>250</c> caps a single pass's radius at
+    ///     roughly 470 pixels - generous for any realistic halo/background blur effect, while
+    ///     bounding the box-blur's per-row/per-column sliding-window cost (which is proportional
+    ///     to the already-region-bounded buffer size, not the radius itself, but whose zero-padded
+    ///     edge handling still becomes wastefully expensive for an absurdly large radius) to a
+    ///     small, practical amount. Clamped rather than skipped/thrown, unlike an oversized filter
+    ///     region (see <see cref="ComputeFilterRegionPixelBounds"/>): a clamped blur still produces
+    ///     a visually reasonable, just-less-blurred result, whereas a clamped-but-still-rendered
+    ///     region would be silently mis-positioned.
+    /// </summary>
+    private const float MaxFilterBlurStdDeviationPixels = 250f;
+
+    /// <summary>
+    ///     The maximum number of <c>fe*</c> primitive children a single <c>filter</c> element's
+    ///     chain is evaluated with, before the whole filter is tolerantly skipped (see
+    ///     <see cref="RenderFilteredShape"/>'s remarks). Every primitive's output buffer is exactly
+    ///     the filter region's own pixel size (see <see cref="EvaluateFilterChain"/>'s remarks), so
+    ///     evaluating N primitives against a region of area A costs O(N * A) - a cost dimension
+    ///     neither <see cref="MaxTotalRenderedElements"/> (which counts each <c>fe*</c> child once,
+    ///     assuming O(1)/O(perimeter) per-element cost, not O(region-area)-per-primitive cost) nor
+    ///     <see cref="GeometryWorkBudget"/> (which only tracks path/points-list/text parsing work)
+    ///     actually bounds. 1,000 is far beyond the longest real filter chain observed across this
+    ///     repository's entire test/fixture corpus (10 primitives, in <c>InkscapeFilters.svg</c>'s
+    ///     <c>filter48</c>), while remaining small enough that even a pathologically tiny filter
+    ///     region (where <see cref="MaxFilterPrimitiveWorkUnits"/> alone would not reject quickly)
+    ///     cannot force an unbounded number of primitive evaluations.
+    /// </summary>
+    private const int MaxFilterPrimitivesPerFilter = 1_000;
+
+    /// <summary>
+    ///     The maximum combined "primitive count times filter-region pixel area" work a single
+    ///     <c>filter</c> element's chain may be charged for, before the whole filter is tolerantly
+    ///     skipped (see <see cref="RenderFilteredShape"/>'s remarks) - the region-weighted
+    ///     counterpart to <see cref="MaxFilterPrimitivesPerFilter"/>, bounding the complementary case
+    ///     of a chain that stays under that flat count cap but targets an unreasonably large region.
+    ///     5,000,000 is more than 100 times the largest single real charge (40,000: one primitive
+    ///     against a 200x200 region) observed across this repository's entire test/fixture corpus,
+    ///     while remaining far below the cost a pathological chain (for example 5,000 primitives
+    ///     against a modest ~180x180 region, charging 162,000,000) would otherwise incur.
+    /// </summary>
+    private const long MaxFilterPrimitiveWorkUnits = 5_000_000L;
 
     /// <summary>
     ///     The maximum <see cref="RenderElement"/> recursion depth this codec descends through
@@ -1003,7 +1078,7 @@ public static class SvgCodec
     /// </summary>
     private static readonly HashSet<string> NonRenderingElements = new(StringComparer.Ordinal)
     {
-        "defs", "clipPath", "mask", "pattern", "marker", "linearGradient", "radialGradient"
+        "defs", "clipPath", "mask", "pattern", "marker", "linearGradient", "radialGradient", "filter"
     };
 
     /// <summary>
@@ -1012,7 +1087,7 @@ public static class SvgCodec
     /// </summary>
     private static readonly HashSet<string> SkippedElements = new(StringComparer.Ordinal)
     {
-        "style", "filter", "animate", "animateTransform", "animateMotion", "animateColor", "set",
+        "style", "animate", "animateTransform", "animateMotion", "animateColor", "set",
         "image", "foreignObject", "svg", "metadata", "title", "desc", "script"
     };
 
@@ -1168,21 +1243,21 @@ public static class SvgCodec
                 break;
 
             case "rect":
-                RenderShape(BuildRectPath(element), state, transform, context);
+                RenderShapeWithFilter(element, BuildRectPath(element), state, transform, context);
                 break;
 
             case "circle":
-                RenderShape(BuildEllipsePath(element, isCircle: true), state, transform, context);
+                RenderShapeWithFilter(element, BuildEllipsePath(element, isCircle: true), state, transform, context);
                 break;
 
             case "ellipse":
-                RenderShape(BuildEllipsePath(element, isCircle: false), state, transform, context);
+                RenderShapeWithFilter(element, BuildEllipsePath(element, isCircle: false), state, transform, context);
                 break;
 
             case "line":
                 {
                     var linePath = BuildLinePath(element);
-                    RenderShape(linePath, state, transform, context);
+                    RenderShapeWithFilter(element, linePath, state, transform, context);
                     RenderMarkers(linePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
                     break;
                 }
@@ -1190,7 +1265,7 @@ public static class SvgCodec
             case "polyline":
                 {
                     var polylinePath = BuildPolyPath(element, closed: false, workBudget);
-                    RenderShape(polylinePath, state, transform, context);
+                    RenderShapeWithFilter(element, polylinePath, state, transform, context);
                     RenderMarkers(polylinePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
                     break;
                 }
@@ -1198,7 +1273,7 @@ public static class SvgCodec
             case "polygon":
                 {
                     var polygonPath = BuildPolyPath(element, closed: true, workBudget);
-                    RenderShape(polygonPath, state, transform, context);
+                    RenderShapeWithFilter(element, polygonPath, state, transform, context);
                     RenderMarkers(polygonPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
                     break;
                 }
@@ -1206,7 +1281,7 @@ public static class SvgCodec
             case "path":
                 {
                     var dataPath = BuildPathDataPath(element, workBudget);
-                    RenderShape(dataPath, state, transform, context);
+                    RenderShapeWithFilter(element, dataPath, state, transform, context);
                     RenderMarkers(dataPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
                     break;
                 }
@@ -2881,6 +2956,863 @@ public static class SvgCodec
         dashArray?.Select(value => value * scale).ToArray();
 
     // ================================================================================================
+    // Filter rendering
+    // ================================================================================================
+
+    /// <summary>
+    ///     Identifies the four <c>feComposite</c> Porter-Duff operators (other than the default
+    ///     <c>over</c>, which reuses <see cref="Surface.CompositeOver(Surface)"/> directly) that
+    ///     require the dedicated per-pixel blend helper <see cref="CompositeFeOperator"/>.
+    /// </summary>
+    private enum FeCompositeOperator
+    {
+        /// <summary>Keeps the foreground only where the background has coverage.</summary>
+        In,
+
+        /// <summary>Keeps the foreground only where the background has no coverage.</summary>
+        Out,
+
+        /// <summary>Keeps the foreground over the background, but only where the background has coverage.</summary>
+        Atop,
+
+        /// <summary>Keeps each input only where the other does not have coverage.</summary>
+        Xor
+    }
+
+    /// <summary>
+    ///     Renders <paramref name="localPath"/> through <paramref name="element"/>'s own <c>filter</c>
+    ///     presentation attribute, if any, otherwise through the ordinary unfiltered
+    ///     <see cref="RenderShape"/> pipeline.
+    /// </summary>
+    /// <param name="element">
+    ///     The originating element (a shape, or a <c>text</c> element whose already-laid-out
+    ///     glyph-run outline is passed as <paramref name="localPath"/>), whose own <c>filter</c>
+    ///     attribute is read directly - <c>filter</c> does not cascade through <see cref="RenderState"/>,
+    ///     unlike <c>fill</c>/<c>stroke</c>/marker specifications, per CSS/SVG semantics.
+    /// </param>
+    /// <param name="localPath">The shape's (or glyph run's) already-built local-space outline.</param>
+    /// <param name="state">The cascaded render state.</param>
+    /// <param name="transform">The accumulated transform from local space into pixel space.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <remarks>
+    ///     A <c>filter</c> value of <c>none</c>/absent/not <c>url(#id)</c> syntax, a dangling id,
+    ///     or an id resolving to an element not literally named <c>filter</c> are all tolerated by
+    ///     rendering <paramref name="localPath"/> normally through <see cref="RenderShape"/> - the
+    ///     same dangling-reference tolerance convention as <see cref="ResolvePaint"/> and
+    ///     <see cref="ResolveMarkerElement"/>. Filter support applies per-element only: it is never
+    ///     invoked for a <c>g</c>/<c>symbol</c> group (group-level filtering is out of scope) and
+    ///     never applied to a shape's own marker content (markers always render directly onto
+    ///     <paramref name="context"/>'s surface, unaffected by the referencing shape's own
+    ///     <c>filter</c>) - see <see cref="RenderFilteredShape"/>'s remarks for the full filter
+    ///     evaluation pipeline.
+    /// </remarks>
+    private static void RenderShapeWithFilter(XElement element, Path localPath, RenderState state, Matrix3x2 transform, RenderContext context)
+    {
+        var filterElement = ResolveFilterElement(element, context);
+        if (filterElement == null)
+        {
+            RenderShape(localPath, state, transform, context);
+            return;
+        }
+
+        RenderFilteredShape(filterElement, localPath, state, transform, context);
+    }
+
+    /// <summary>
+    ///     Resolves <paramref name="element"/>'s own <c>filter</c> presentation attribute
+    ///     (<c>url(#id)</c>) to its referenced <c>filter</c> element, reusing the exact same
+    ///     <c>url(#id)</c>-parsing and dangling-reference tolerance as <see cref="ResolvePaint"/>/
+    ///     <see cref="ResolveMarkerElement"/>.
+    /// </summary>
+    /// <param name="element">The element whose own <c>filter</c> attribute is read.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <returns>
+    ///     The referenced <c>filter</c> element, or <see langword="null"/> if the attribute is
+    ///     absent/blank, not <c>url(#id)</c> syntax, the id is dangling, or the resolved element is
+    ///     not literally a <c>filter</c>.
+    /// </returns>
+    private static XElement? ResolveFilterElement(XElement element, RenderContext context)
+    {
+        var spec = (string?)element.Attribute("filter");
+        if (string.IsNullOrWhiteSpace(spec))
+        {
+            return null;
+        }
+
+        var trimmed = spec.Trim();
+        if (!trimmed.StartsWith("url(", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var id = ExtractUrlId(trimmed);
+        if (id == null || !context.IdIndex.TryGetValue(id, out var candidate))
+        {
+            return null;
+        }
+
+        return candidate.Name.LocalName == "filter" ? candidate : null;
+    }
+
+    /// <summary>
+    ///     Renders <paramref name="localPath"/> into a temporary, filter-region-sized offscreen
+    ///     <see cref="Surface"/> (<c>SourceGraphic</c>), evaluates <paramref name="filterElement"/>'s
+    ///     own primitive chain against it, then composites the resulting buffer onto
+    ///     <paramref name="context"/>'s real surface at the filter region's pixel position.
+    /// </summary>
+    /// <param name="filterElement">The resolved <c>filter</c> element.</param>
+    /// <param name="localPath">The shape's (or glyph run's) already-built local-space outline.</param>
+    /// <param name="state">The cascaded render state.</param>
+    /// <param name="transform">The accumulated transform from local space into pixel space.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <remarks>
+    ///     If the filter region cannot be computed (an empty/degenerate local bounding box), or its
+    ///     pixel-space size is non-finite, non-positive, or exceeds <see cref="Surface.MaxDimension"/>
+    ///     on either axis, the whole filter effect is tolerantly skipped - <paramref name="localPath"/>
+    ///     renders exactly as if <c>filter</c> were absent - rather than attempting to clamp and
+    ///     still render at a smaller, silently mis-positioned region. See
+    ///     <see cref="ComputeFilterRegionPixelBounds"/> for the region computation itself.
+    ///     <para>
+    ///     The <c>SourceGraphic</c> buffer is produced by re-entering <see cref="RenderShape"/>
+    ///     against a temporary <see cref="RenderContext"/> (<c>context with { Surface = ... }</c>,
+    ///     correctly sharing <paramref name="context"/>'s own <see cref="RenderContext.GradientStopCache"/>)
+    ///     and a transform translated so the region's own pixel origin lands at the temporary
+    ///     surface's local <c>(0, 0)</c>. The final filtered buffer is composited back using
+    ///     <see cref="Surface.CompositeOverSpan(int, int, ReadOnlySpan{float}, ReadOnlySpan{Rgba32})"/>
+    ///     - the existing offset-aware compositing primitive - one row at a time, clipped to
+    ///     <paramref name="context"/>'s own surface bounds, rather than any new per-pixel blending
+    ///     math.
+    ///     </para>
+    ///     <para>
+    ///     A filter chain whose own <c>fe*</c> primitive count or primitive-count-times-region-area
+    ///     work exceeds <see cref="MaxFilterPrimitivesPerFilter"/>/<see cref="MaxFilterPrimitiveWorkUnits"/>
+    ///     (see <see cref="IsFilterPrimitiveWorkWithinBudget"/>) is tolerantly skipped identically -
+    ///     checked before <c>SourceGraphic</c> is even allocated, so no per-primitive work (buffer
+    ///     allocation, blur passes, compositing) ever begins for a rejected chain.
+    ///     </para>
+    /// </remarks>
+    private static void RenderFilteredShape(XElement filterElement, Path localPath, RenderState state, Matrix3x2 transform, RenderContext context)
+    {
+        var region = ComputeFilterRegionPixelBounds(filterElement, localPath, transform);
+        if (region == null)
+        {
+            RenderShape(localPath, state, transform, context);
+            return;
+        }
+
+        var (pixelX, pixelY, pixelWidth, pixelHeight) = region.Value;
+
+        var primitiveCount = filterElement.Elements().Count();
+        if (!IsFilterPrimitiveWorkWithinBudget(primitiveCount, pixelWidth, pixelHeight))
+        {
+            RenderShape(localPath, state, transform, context);
+            return;
+        }
+
+        var sourceGraphic = new Surface(pixelWidth, pixelHeight);
+        var localToTemp = transform * Matrix3x2.CreateTranslation(-pixelX, -pixelY);
+        var tempContext = context with { Surface = sourceGraphic };
+        RenderShape(localPath, state, localToTemp, tempContext);
+
+        var finalSurface = EvaluateFilterChain(filterElement, sourceGraphic, transform);
+
+        CompositeFilterResultOntoCanvas(finalSurface, pixelX, pixelY, context.Surface);
+    }
+
+    /// <summary>
+    ///     Computes <paramref name="filterElement"/>'s filter region - always as if
+    ///     <c>filterUnits="objectBoundingBox"</c>, the SVG default, regardless of what an explicit
+    ///     <c>filterUnits="userSpaceOnUse"</c> actually says (a documented, deliberate
+    ///     simplification, see this class's remarks) - and converts it to an integer pixel-space
+    ///     bounding box, rounded outward.
+    /// </summary>
+    /// <param name="filterElement">The resolved <c>filter</c> element.</param>
+    /// <param name="localPath">The referencing shape's local-space outline.</param>
+    /// <param name="transform">The accumulated transform from local space into pixel space.</param>
+    /// <returns>
+    ///     The pixel-space region as <c>(X, Y, Width, Height)</c>, or <see langword="null"/> if
+    ///     <paramref name="localPath"/>'s local bounds are empty/degenerate, the region resolves to
+    ///     a non-positive size, its pixel-space transform is non-finite or exceeds
+    ///     <see cref="MaxCoordinateMagnitude"/>, or its rounded pixel size exceeds
+    ///     <see cref="Surface.MaxDimension"/> on either axis.
+    /// </returns>
+    private static (int X, int Y, int Width, int Height)? ComputeFilterRegionPixelBounds(
+        XElement filterElement, Path localPath, Matrix3x2 transform)
+    {
+        var bounds = localPath.GetBounds();
+        if (bounds.IsEmpty || bounds.Width <= 0f || bounds.Height <= 0f)
+        {
+            return null;
+        }
+
+        // SVG default filter region: -10% -10% 120% 120% of the referencing element's own
+        // objectBoundingBox, each independently overridable via x/y/width/height
+        var xFraction = ParseFilterRegionFraction(filterElement, "x", -0.10f);
+        var yFraction = ParseFilterRegionFraction(filterElement, "y", -0.10f);
+        var widthFraction = ParseFilterRegionFraction(filterElement, "width", 1.20f);
+        var heightFraction = ParseFilterRegionFraction(filterElement, "height", 1.20f);
+
+        var localRegion = new Rect(
+            bounds.X + (xFraction * bounds.Width),
+            bounds.Y + (yFraction * bounds.Height),
+            widthFraction * bounds.Width,
+            heightFraction * bounds.Height);
+
+        if (localRegion.Width <= 0f || localRegion.Height <= 0f)
+        {
+            return null;
+        }
+
+        var pixelRegion = localRegion.Transform(transform);
+        if (!float.IsFinite(pixelRegion.X) || !float.IsFinite(pixelRegion.Y) ||
+            !float.IsFinite(pixelRegion.Width) || !float.IsFinite(pixelRegion.Height) ||
+            pixelRegion.Width <= 0f || pixelRegion.Height <= 0f ||
+            MathF.Abs(pixelRegion.X) > MaxCoordinateMagnitude || MathF.Abs(pixelRegion.Y) > MaxCoordinateMagnitude ||
+            pixelRegion.Width > MaxCoordinateMagnitude || pixelRegion.Height > MaxCoordinateMagnitude)
+        {
+            return null;
+        }
+
+        var minX = (int)MathF.Floor(pixelRegion.X);
+        var minY = (int)MathF.Floor(pixelRegion.Y);
+        var maxX = (int)MathF.Ceiling(pixelRegion.X + pixelRegion.Width);
+        var maxY = (int)MathF.Ceiling(pixelRegion.Y + pixelRegion.Height);
+
+        var width = maxX - minX;
+        var height = maxY - minY;
+        if (width <= 0 || height <= 0 || width > Surface.MaxDimension || height > Surface.MaxDimension)
+        {
+            return null;
+        }
+
+        return (minX, minY, width, height);
+    }
+
+    /// <summary>
+    ///     Reads one of a <c>filter</c> element's <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c>
+    ///     region attributes as an objectBoundingBox fraction, tolerantly falling back to
+    ///     <paramref name="defaultValue"/> when the attribute is absent or does not parse as a
+    ///     number/percentage - reusing the existing <see cref="ParsePercentOrNumber"/> helper
+    ///     already used identically for gradient objectBoundingBox-relative coordinates.
+    /// </summary>
+    private static float ParseFilterRegionFraction(XElement filterElement, string attributeName, float defaultValue)
+    {
+        var raw = (string?)filterElement.Attribute(attributeName);
+        return raw == null ? defaultValue : ParsePercentOrNumber(raw, 1f) ?? defaultValue;
+    }
+
+    /// <summary>
+    ///     Determines whether evaluating <paramref name="primitiveCount"/> <c>fe*</c> primitives
+    ///     against a <paramref name="width"/>x<paramref name="height"/> filter region stays within
+    ///     this class's two filter work bounds (see <see cref="MaxFilterPrimitivesPerFilter"/>/
+    ///     <see cref="MaxFilterPrimitiveWorkUnits"/>) - checked once, upfront, before any primitive
+    ///     is actually evaluated (a cheap child-element count plus one multiply/compare), so a
+    ///     pathological chain is rejected near-instantly rather than after partially evaluating it.
+    /// </summary>
+    /// <param name="primitiveCount">The <c>filter</c> element's own <c>fe*</c> child count.</param>
+    /// <param name="width">The filter region's pixel width.</param>
+    /// <param name="height">The filter region's pixel height.</param>
+    /// <returns><see langword="true"/> if the chain may be evaluated; otherwise <see langword="false"/>.</returns>
+    private static bool IsFilterPrimitiveWorkWithinBudget(int primitiveCount, int width, int height) =>
+        primitiveCount <= MaxFilterPrimitivesPerFilter &&
+        (long)primitiveCount * width * height <= MaxFilterPrimitiveWorkUnits;
+
+    /// <summary>
+    ///     Evaluates <paramref name="filterElement"/>'s <c>fe*</c> primitive children, in document
+    ///     order, against <paramref name="sourceGraphic"/>.
+    /// </summary>
+    /// <param name="filterElement">The resolved <c>filter</c> element.</param>
+    /// <param name="sourceGraphic">
+    ///     The already-rendered <c>SourceGraphic</c> buffer, sized to the filter region.
+    /// </param>
+    /// <param name="transform">
+    ///     The referencing shape's own accumulated transform, used only to estimate the pixel-space
+    ///     scale for <c>feGaussianBlur</c>/<c>feOffset</c> via <see cref="EstimateUniformScale"/>.
+    /// </param>
+    /// <returns>
+    ///     The last document-order primitive's own output buffer, or <paramref name="sourceGraphic"/>
+    ///     itself if <paramref name="filterElement"/> has no <c>fe*</c> children at all (a
+    ///     degenerate spec edge case tolerated as "no filter").
+    /// </returns>
+    /// <remarks>
+    ///     Every buffer produced by every primitive in this pipeline is exactly
+    ///     <paramref name="sourceGraphic"/>'s own size - this invariant is what lets
+    ///     <c>feComposite</c>/<c>feMerge</c> reuse <see cref="Surface.CompositeOver(Surface)"/>
+    ///     directly, since that method requires equal-size surfaces. <c>in</c>/<c>in2</c> name
+    ///     resolution follows this fixed precedence: <c>"SourceGraphic"</c> resolves to
+    ///     <paramref name="sourceGraphic"/> itself; <c>"SourceAlpha"</c> resolves to a lazily-built,
+    ///     alpha-only copy of it; a name matching an earlier primitive's own <c>result</c>
+    ///     resolves to that primitive's output; an absent/empty name resolves to the immediately
+    ///     preceding primitive's own output (or <paramref name="sourceGraphic"/> for the very first
+    ///     primitive); and any other (dangling/unrecognized) name tolerantly falls back to
+    ///     <paramref name="sourceGraphic"/> - a documented simplification. Any primitive type other
+    ///     than <c>feFlood</c>/<c>feGaussianBlur</c>/<c>feOffset</c>/<c>feComposite</c>/<c>feMerge</c>
+    ///     (for example <c>feColorMatrix</c>, <c>feTurbulence</c>, <c>feDisplacementMap</c>,
+    ///     <c>feImage</c>, <c>feTile</c>, <c>feDropShadow</c>, <c>feConvolveMatrix</c>,
+    ///     <c>feDiffuseLighting</c>, <c>feSpecularLighting</c>, <c>feComponentTransfer</c>, or
+    ///     <c>feMorphology</c>) is a tolerant no-op passthrough of its own resolved <c>in</c> input,
+    ///     registered under its own <c>result</c> name (if any) so later primitives in the chain
+    ///     still resolve correctly by name - <c>feImage</c> in particular is entirely out of scope,
+    ///     which also means a filter chain can never reference another filtered element's own
+    ///     render output, so no additional recursion-depth guard is needed here. This method itself
+    ///     needs no internal primitive-count/work-budget guard: its only caller,
+    ///     <see cref="RenderFilteredShape"/>, already guarantees both stay within
+    ///     <see cref="MaxFilterPrimitivesPerFilter"/>/<see cref="MaxFilterPrimitiveWorkUnits"/>
+    ///     before this method is ever invoked (see <see cref="IsFilterPrimitiveWorkWithinBudget"/>).
+    /// </remarks>
+    private static Surface EvaluateFilterChain(XElement filterElement, Surface sourceGraphic, Matrix3x2 transform)
+    {
+        var scale = EstimateUniformScale(transform);
+        var results = new Dictionary<string, Surface>(StringComparer.Ordinal);
+        Surface? previousResult = null;
+        Surface? sourceAlpha = null;
+
+        Surface ResolveInput(string? name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                return previousResult ?? sourceGraphic;
+            }
+
+            if (string.Equals(name, "SourceGraphic", StringComparison.Ordinal))
+            {
+                return sourceGraphic;
+            }
+
+            if (string.Equals(name, "SourceAlpha", StringComparison.Ordinal))
+            {
+                return sourceAlpha ??= BuildSourceAlpha(sourceGraphic);
+            }
+
+            return results.TryGetValue(name, out var namedResult) ? namedResult : sourceGraphic;
+        }
+
+        foreach (var primitive in filterElement.Elements())
+        {
+            var input = ResolveInput((string?)primitive.Attribute("in"));
+
+            Surface output;
+            switch (primitive.Name.LocalName)
+            {
+                case "feFlood":
+                    output = ApplyFeFlood(primitive, sourceGraphic.Width, sourceGraphic.Height);
+                    break;
+
+                case "feGaussianBlur":
+                    output = ApplyFeGaussianBlur(primitive, input, scale);
+                    break;
+
+                case "feOffset":
+                    output = ApplyFeOffset(primitive, input, scale);
+                    break;
+
+                case "feComposite":
+                    output = ApplyFeComposite(primitive, input, ResolveInput((string?)primitive.Attribute("in2")));
+                    break;
+
+                case "feMerge":
+                    output = ApplyFeMerge(primitive, sourceGraphic.Width, sourceGraphic.Height, ResolveInput);
+                    break;
+
+                default:
+                    // Tolerant no-op passthrough for every unsupported primitive type - see this
+                    // method's remarks for the full enumerated list
+                    output = input;
+                    break;
+            }
+
+            var resultName = (string?)primitive.Attribute("result");
+            if (!string.IsNullOrEmpty(resultName))
+            {
+                results[resultName] = output;
+            }
+
+            previousResult = output;
+        }
+
+        return previousResult ?? sourceGraphic;
+    }
+
+    /// <summary>Builds a same-size copy of <paramref name="source"/> with every pixel's color forced to black, alpha unchanged.</summary>
+    /// <param name="source">The buffer to derive the alpha-only copy from.</param>
+    /// <returns>The lazily-built <c>SourceAlpha</c> implicit filter input.</returns>
+    private static Surface BuildSourceAlpha(Surface source)
+    {
+        var output = new Surface(source.Width, source.Height);
+        for (var y = 0; y < source.Height; y++)
+        {
+            var sourceRow = source.GetRowSpan(y);
+            var outputRow = output.GetRowSpan(y);
+            for (var x = 0; x < source.Width; x++)
+            {
+                outputRow[x] = new Rgba32(0, 0, 0, sourceRow[x].A);
+            }
+        }
+
+        return output;
+    }
+
+    /// <summary>
+    ///     Evaluates a <c>feFlood</c> primitive: a new same-size buffer filled with a constant
+    ///     <c>flood-color</c>/<c>flood-opacity</c> color, via <see cref="Surface.Clear(Rgba32)"/> -
+    ///     no new blending math.
+    /// </summary>
+    /// <param name="element">The <c>feFlood</c> primitive element.</param>
+    /// <param name="width">The filter pipeline's fixed buffer width.</param>
+    /// <param name="height">The filter pipeline's fixed buffer height.</param>
+    /// <returns>The filled buffer.</returns>
+    /// <remarks>
+    ///     <c>flood-color</c> defaults to (and tolerantly falls back to, if absent or
+    ///     unrecognized) opaque black, matching the SVG initial value; <c>flood-opacity</c>
+    ///     defaults to (and tolerantly falls back to) <c>1</c>, clamped to <c>[0, 1]</c>.
+    /// </remarks>
+    private static Surface ApplyFeFlood(XElement element, int width, int height)
+    {
+        var rawColor = (string?)element.Attribute("flood-color");
+        var color = (rawColor != null ? ParseColor(rawColor.Trim()) : null) ?? new Rgba32(0, 0, 0, 255);
+
+        var rawOpacity = (string?)element.Attribute("flood-opacity");
+        var opacity = rawOpacity == null ? 1f : ParsePercentOrNumber(rawOpacity, 1f) ?? 1f;
+        opacity = Math.Clamp(opacity, 0f, 1f);
+
+        var surface = new Surface(width, height);
+        surface.Clear(ApplyAlpha(color, opacity));
+        return surface;
+    }
+
+    /// <summary>
+    ///     Evaluates a <c>feGaussianBlur</c> primitive using the SVG specification's own documented
+    ///     three-pass box-blur approximation of a true Gaussian blur.
+    /// </summary>
+    /// <param name="element">The <c>feGaussianBlur</c> primitive element.</param>
+    /// <param name="input">The already-resolved input buffer.</param>
+    /// <param name="scale">
+    ///     The pixel-space scale factor (see <see cref="EstimateUniformScale"/>) used to convert
+    ///     the local-space <c>stdDeviation</c> into an effective pixel-space value.
+    /// </param>
+    /// <returns>
+    ///     A new, independent, blurred buffer - or an independent unblurred copy of
+    ///     <paramref name="input"/> if the effective <c>stdDeviation</c> clamps to zero or below
+    ///     (an absent/zero/invalid value, or a non-finite scaled result).
+    /// </returns>
+    /// <remarks>
+    ///     Only the first whitespace/comma-separated token of <c>stdDeviation</c> is read (a
+    ///     separate x/y pair, a rarely-used form, is tolerated by treating the value as isotropic -
+    ///     a documented simplification). The effective pixel-space <c>stdDeviation</c> is clamped
+    ///     to <see cref="MaxFilterBlurStdDeviationPixels"/> (see that constant's remarks). The
+    ///     box radius is <c>floor(stdDeviation * 3 * sqrt(2*pi) / 4 + 0.5)</c>, applied as three
+    ///     successive horizontal-then-vertical box-blur passes (see <see cref="BoxBlurHorizontal"/>/
+    ///     <see cref="BoxBlurVertical"/>) over <paramref name="input"/>'s <see cref="Surface.PremultiplyAlpha"/>-converted
+    ///     copy, reusing that already-tested method (and its <see cref="Surface.UnpremultiplyAlpha"/>
+    ///     inverse) rather than re-deriving premultiplication.
+    /// </remarks>
+    private static Surface ApplyFeGaussianBlur(XElement element, Surface input, float scale)
+    {
+        var rawStdDeviation = ParseFirstNumberToken((string?)element.Attribute("stdDeviation")) ?? 0f;
+        var stdDeviation = rawStdDeviation * scale;
+        if (!float.IsFinite(stdDeviation))
+        {
+            stdDeviation = 0f;
+        }
+
+        stdDeviation = Math.Clamp(stdDeviation, 0f, MaxFilterBlurStdDeviationPixels);
+
+        var radius = stdDeviation > 0f
+            ? (int)MathF.Floor((stdDeviation * 3f * MathF.Sqrt(2f * MathF.PI) / 4f) + 0.5f)
+            : 0;
+
+        var working = input.Crop(0, 0, input.Width, input.Height);
+        if (radius <= 0)
+        {
+            return working;
+        }
+
+        working.PremultiplyAlpha();
+        for (var pass = 0; pass < 3; pass++)
+        {
+            BoxBlurHorizontal(working, radius);
+            BoxBlurVertical(working, radius);
+        }
+
+        working.UnpremultiplyAlpha();
+        return working;
+    }
+
+    /// <summary>
+    ///     Applies one horizontal box-blur pass, in place, to every row of <paramref name="surface"/>,
+    ///     using a running-sum sliding window (cost proportional to width/height, independent of
+    ///     <paramref name="radius"/>) with zero-padding beyond the surface's own edges.
+    /// </summary>
+    /// <param name="surface">The already-premultiplied-alpha buffer to blur in place.</param>
+    /// <param name="radius">The box-blur radius (window size is <c>2 * radius + 1</c>).</param>
+    private static void BoxBlurHorizontal(Surface surface, int radius)
+    {
+        var width = surface.Width;
+        var windowSize = (2 * radius) + 1;
+        var outR = new byte[width];
+        var outG = new byte[width];
+        var outB = new byte[width];
+        var outA = new byte[width];
+
+        for (var y = 0; y < surface.Height; y++)
+        {
+            var row = surface.GetRowSpan(y);
+
+            long sumR = 0, sumG = 0, sumB = 0, sumA = 0;
+            for (var k = 0; k <= radius && k < width; k++)
+            {
+                var p = row[k];
+                sumR += p.R;
+                sumG += p.G;
+                sumB += p.B;
+                sumA += p.A;
+            }
+
+            for (var x = 0; x < width; x++)
+            {
+                outR[x] = (byte)(sumR / windowSize);
+                outG[x] = (byte)(sumG / windowSize);
+                outB[x] = (byte)(sumB / windowSize);
+                outA[x] = (byte)(sumA / windowSize);
+
+                var addIndex = x + radius + 1;
+                if (addIndex < width)
+                {
+                    var p = row[addIndex];
+                    sumR += p.R;
+                    sumG += p.G;
+                    sumB += p.B;
+                    sumA += p.A;
+                }
+
+                var removeIndex = x - radius;
+                if (removeIndex >= 0)
+                {
+                    var p = row[removeIndex];
+                    sumR -= p.R;
+                    sumG -= p.G;
+                    sumB -= p.B;
+                    sumA -= p.A;
+                }
+            }
+
+            for (var x = 0; x < width; x++)
+            {
+                row[x] = new Rgba32(outR[x], outG[x], outB[x], outA[x]);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Applies one vertical box-blur pass, in place, to every column of <paramref name="surface"/> -
+    ///     the column-wise counterpart of <see cref="BoxBlurHorizontal"/>, using the identical
+    ///     running-sum sliding-window/zero-padding algorithm, via the surface's own pixel indexer
+    ///     (no column-span accessor exists on <see cref="Surface"/>).
+    /// </summary>
+    /// <param name="surface">The already-premultiplied-alpha buffer to blur in place.</param>
+    /// <param name="radius">The box-blur radius (window size is <c>2 * radius + 1</c>).</param>
+    private static void BoxBlurVertical(Surface surface, int radius)
+    {
+        var height = surface.Height;
+        var windowSize = (2 * radius) + 1;
+        var outR = new byte[height];
+        var outG = new byte[height];
+        var outB = new byte[height];
+        var outA = new byte[height];
+
+        for (var x = 0; x < surface.Width; x++)
+        {
+            long sumR = 0, sumG = 0, sumB = 0, sumA = 0;
+            for (var k = 0; k <= radius && k < height; k++)
+            {
+                var p = surface[x, k];
+                sumR += p.R;
+                sumG += p.G;
+                sumB += p.B;
+                sumA += p.A;
+            }
+
+            for (var y = 0; y < height; y++)
+            {
+                outR[y] = (byte)(sumR / windowSize);
+                outG[y] = (byte)(sumG / windowSize);
+                outB[y] = (byte)(sumB / windowSize);
+                outA[y] = (byte)(sumA / windowSize);
+
+                var addIndex = y + radius + 1;
+                if (addIndex < height)
+                {
+                    var p = surface[x, addIndex];
+                    sumR += p.R;
+                    sumG += p.G;
+                    sumB += p.B;
+                    sumA += p.A;
+                }
+
+                var removeIndex = y - radius;
+                if (removeIndex >= 0)
+                {
+                    var p = surface[x, removeIndex];
+                    sumR -= p.R;
+                    sumG -= p.G;
+                    sumB -= p.B;
+                    sumA -= p.A;
+                }
+            }
+
+            for (var y = 0; y < height; y++)
+            {
+                surface[x, y] = new Rgba32(outR[y], outG[y], outB[y], outA[y]);
+            }
+        }
+    }
+
+    /// <summary>Parses the first whitespace/comma-separated numeric token of a raw attribute value.</summary>
+    /// <param name="raw">The raw attribute text, or <see langword="null"/> if absent.</param>
+    /// <returns>The parsed value, or <see langword="null"/> if absent/blank/unparseable.</returns>
+    private static float? ParseFirstNumberToken(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        var tokens = raw.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries);
+        return tokens.Length == 0 ? null : ParsePercentOrNumber(tokens[0], 1f);
+    }
+
+    /// <summary>
+    ///     Evaluates a <c>feOffset</c> primitive: shifts <paramref name="input"/>'s pixel content
+    ///     by <c>dx</c>/<c>dy</c> (scaled to pixel space by <paramref name="scale"/>) via a clipped
+    ///     row-copy loop - a pure data copy, not blending math.
+    /// </summary>
+    /// <param name="element">The <c>feOffset</c> primitive element.</param>
+    /// <param name="input">The already-resolved input buffer.</param>
+    /// <param name="scale">The pixel-space scale factor (see <see cref="EstimateUniformScale"/>).</param>
+    /// <returns>A new, same-size buffer with <paramref name="input"/>'s content shifted; pixels shifted off the edge are lost, and newly exposed pixels are fully transparent.</returns>
+    private static Surface ApplyFeOffset(XElement element, Surface input, float scale)
+    {
+        var dx = ParsePercentOrNumber((string?)element.Attribute("dx") ?? string.Empty, 1f) ?? 0f;
+        var dy = ParsePercentOrNumber((string?)element.Attribute("dy") ?? string.Empty, 1f) ?? 0f;
+
+        var pixelDx = (int)MathF.Round(dx * scale);
+        var pixelDy = (int)MathF.Round(dy * scale);
+
+        var width = input.Width;
+        var height = input.Height;
+        var output = new Surface(width, height);
+
+        for (var destY = 0; destY < height; destY++)
+        {
+            var sourceY = destY - pixelDy;
+            if (sourceY < 0 || sourceY >= height)
+            {
+                continue;
+            }
+
+            var destStart = Math.Max(0, pixelDx);
+            var destEnd = Math.Min(width, width + pixelDx);
+            if (destEnd <= destStart)
+            {
+                continue;
+            }
+
+            var sourceRow = input.GetRowSpan(sourceY);
+            var destRow = output.GetRowSpan(destY);
+            var length = destEnd - destStart;
+            sourceRow.Slice(destStart - pixelDx, length).CopyTo(destRow.Slice(destStart, length));
+        }
+
+        return output;
+    }
+
+    /// <summary>
+    ///     Evaluates a <c>feComposite</c> primitive: <c>operator="over"</c> (the default, if
+    ///     absent) reuses <see cref="Surface.CompositeOver(Surface)"/> directly (its formula
+    ///     already <i>is</i> Porter-Duff "over"); <c>in</c>/<c>out</c>/<c>atop</c>/<c>xor</c> use
+    ///     the dedicated <see cref="CompositeFeOperator"/> per-pixel helper; any other/unrecognized
+    ///     operator value (for example <c>"arithmetic"</c>, seen in real-world documents) is a
+    ///     tolerant no-op passthrough of <paramref name="input"/>, ignoring <paramref name="input2"/>.
+    /// </summary>
+    /// <param name="element">The <c>feComposite</c> primitive element.</param>
+    /// <param name="input">The already-resolved <c>in</c> input buffer.</param>
+    /// <param name="input2">The already-resolved <c>in2</c> input buffer.</param>
+    /// <returns>A new, independent output buffer.</returns>
+    private static Surface ApplyFeComposite(XElement element, Surface input, Surface input2)
+    {
+        var op = ((string?)element.Attribute("operator"))?.Trim().ToLowerInvariant();
+        switch (op)
+        {
+            case null:
+            case "":
+            case "over":
+                var result = input2.Crop(0, 0, input2.Width, input2.Height);
+                result.CompositeOver(input);
+                return result;
+
+            case "in":
+                return CompositeFeOperator(input, input2, FeCompositeOperator.In);
+
+            case "out":
+                return CompositeFeOperator(input, input2, FeCompositeOperator.Out);
+
+            case "atop":
+                return CompositeFeOperator(input, input2, FeCompositeOperator.Atop);
+
+            case "xor":
+                return CompositeFeOperator(input, input2, FeCompositeOperator.Xor);
+
+            default:
+                // An unrecognized operator value (e.g. "arithmetic") is a tolerant no-op
+                // passthrough of the "in" input, ignoring in2/k1..k4
+                return input.Crop(0, 0, input.Width, input.Height);
+        }
+    }
+
+    /// <summary>
+    ///     Composites two same-size buffers using one of the four Porter-Duff operators with no
+    ///     existing <see cref="Surface"/> equivalent (<c>in</c>/<c>out</c>/<c>atop</c>/<c>xor</c> -
+    ///     <c>over</c> instead reuses <see cref="Surface.CompositeOver(Surface)"/> directly). This
+    ///     is the one place in this class's filter support genuinely new per-pixel blending math is
+    ///     unavoidable, kept small and isolated, working on straight (unassociated) alpha read via
+    ///     <see cref="Surface.GetRowSpan"/>.
+    /// </summary>
+    /// <param name="foreground">The <c>in</c> input buffer ("A" in the Porter-Duff formulas below).</param>
+    /// <param name="background">The <c>in2</c> input buffer ("B" in the Porter-Duff formulas below).</param>
+    /// <param name="op">Which of the four operators to apply.</param>
+    /// <returns>A new, independent output buffer, the same size as both inputs.</returns>
+    /// <remarks>
+    ///     For each pixel, using premultiplied per-channel products
+    ///     (<c>Ca * Aa</c>/<c>Cb * Ab</c>) and per-operator weights <c>(Fa, Fb)</c> -
+    ///     <c>in</c>: <c>(Ab, 0)</c>; <c>out</c>: <c>(1 - Ab, 0)</c>; <c>atop</c>: <c>(Ab, 1 - Aa)</c>;
+    ///     <c>xor</c>: <c>(1 - Ab, 1 - Aa)</c> - the standard Porter-Duff formulas apply:
+    ///     <c>outAlpha = Fa * Aa + Fb * Ab</c>, and each output channel is
+    ///     <c>(Fa * Ca * Aa + Fb * Cb * Ab) / outAlpha</c> (or <c>0</c> if <c>outAlpha</c> is zero).
+    /// </remarks>
+    private static Surface CompositeFeOperator(Surface foreground, Surface background, FeCompositeOperator op)
+    {
+        var width = foreground.Width;
+        var height = foreground.Height;
+        var output = new Surface(width, height);
+
+        for (var y = 0; y < height; y++)
+        {
+            var fgRow = foreground.GetRowSpan(y);
+            var bgRow = background.GetRowSpan(y);
+            var outRow = output.GetRowSpan(y);
+
+            for (var x = 0; x < width; x++)
+            {
+                var fg = fgRow[x];
+                var bg = bgRow[x];
+
+                var fgA = fg.A / 255f;
+                var bgA = bg.A / 255f;
+
+                var (weightFg, weightBg) = op switch
+                {
+                    FeCompositeOperator.In => (bgA, 0f),
+                    FeCompositeOperator.Out => (1f - bgA, 0f),
+                    FeCompositeOperator.Atop => (bgA, 1f - fgA),
+                    _ => (1f - bgA, 1f - fgA) // Xor
+                };
+
+                var outA = (weightFg * fgA) + (weightBg * bgA);
+                byte outR, outG, outB;
+                if (outA <= 0f)
+                {
+                    outR = outG = outB = 0;
+                }
+                else
+                {
+                    var premultR = (weightFg * fg.R * fgA) + (weightBg * bg.R * bgA);
+                    var premultG = (weightFg * fg.G * fgA) + (weightBg * bg.G * bgA);
+                    var premultB = (weightFg * fg.B * fgA) + (weightBg * bg.B * bgA);
+                    outR = (byte)Math.Clamp(MathF.Round(premultR / outA), 0f, 255f);
+                    outG = (byte)Math.Clamp(MathF.Round(premultG / outA), 0f, 255f);
+                    outB = (byte)Math.Clamp(MathF.Round(premultB / outA), 0f, 255f);
+                }
+
+                outRow[x] = new Rgba32(outR, outG, outB, (byte)Math.Clamp(MathF.Round(outA * 255f), 0f, 255f));
+            }
+        }
+
+        return output;
+    }
+
+    /// <summary>
+    ///     Evaluates a <c>feMerge</c> primitive: starts from a fresh, fully transparent buffer and
+    ///     composites each <c>feMergeNode</c> child's own resolved <c>in</c> input over it, in
+    ///     document order, via <see cref="Surface.CompositeOver(Surface)"/> - whose "foreground
+    ///     over background" semantics already are <c>feMerge</c>'s own "later nodes on top of
+    ///     earlier ones" semantics, so no new blending math is needed.
+    /// </summary>
+    /// <param name="feMergeElement">The <c>feMerge</c> primitive element.</param>
+    /// <param name="width">The filter pipeline's fixed buffer width.</param>
+    /// <param name="height">The filter pipeline's fixed buffer height.</param>
+    /// <param name="resolveInput">The enclosing filter chain's own <c>in</c>-name resolution function.</param>
+    /// <returns>The merged buffer.</returns>
+    /// <remarks>
+    ///     A <c>feMergeNode</c>'s own <c>in</c> follows the identical resolution rule as any other
+    ///     primitive's <c>in</c> - notably, an absent <c>in</c> resolves to the filter chain's own
+    ///     running <c>previousResult</c> (not reset between merge nodes), a documented
+    ///     simplification. Any non-<c>feMergeNode</c> child is tolerantly ignored.
+    /// </remarks>
+    private static Surface ApplyFeMerge(XElement feMergeElement, int width, int height, Func<string?, Surface> resolveInput)
+    {
+        var accumulator = new Surface(width, height);
+        foreach (var node in feMergeElement.Elements())
+        {
+            if (node.Name.LocalName != "feMergeNode")
+            {
+                continue;
+            }
+
+            var nodeInput = resolveInput((string?)node.Attribute("in"));
+            accumulator.CompositeOver(nodeInput);
+        }
+
+        return accumulator;
+    }
+
+    /// <summary>
+    ///     Composites <paramref name="result"/> - the filter chain's final output buffer - onto
+    ///     <paramref name="canvas"/> at pixel position <c>(</c><paramref name="pixelX"/><c>,</c>
+    ///     <paramref name="pixelY"/><c>)</c>, one row at a time via
+    ///     <see cref="Surface.CompositeOverSpan(int, int, ReadOnlySpan{float}, ReadOnlySpan{Rgba32})"/>,
+    ///     clipped to <paramref name="canvas"/>'s own bounds.
+    /// </summary>
+    /// <param name="result">The filter chain's final output buffer.</param>
+    /// <param name="pixelX">The filter region's pixel-space X origin, which can be negative or beyond <paramref name="canvas"/>'s own width.</param>
+    /// <param name="pixelY">The filter region's pixel-space Y origin, which can be negative or beyond <paramref name="canvas"/>'s own height.</param>
+    /// <param name="canvas">The real surface every other element also renders onto.</param>
+    private static void CompositeFilterResultOntoCanvas(Surface result, int pixelX, int pixelY, Surface canvas)
+    {
+        var coverage = new float[result.Width];
+        Array.Fill(coverage, 1f);
+
+        for (var row = 0; row < result.Height; row++)
+        {
+            var canvasY = pixelY + row;
+            if (canvasY < 0 || canvasY >= canvas.Height)
+            {
+                continue;
+            }
+
+            var startCol = Math.Max(0, -pixelX);
+            var endCol = Math.Min(result.Width, canvas.Width - pixelX);
+            if (endCol <= startCol)
+            {
+                continue;
+            }
+
+            var length = endCol - startCol;
+            var rowSpan = result.GetRowSpan(row);
+            canvas.CompositeOverSpan(canvasY, pixelX + startCol, coverage.AsSpan(0, length), rowSpan.Slice(startCol, length));
+        }
+    }
+
+    // ================================================================================================
     // Paint and color resolution
     // ================================================================================================
 
@@ -4197,7 +5129,7 @@ public static class SvgCodec
 
         var origin = new Vector2(GetFloatAttribute(element, "x"), GetFloatAttribute(element, "y"));
         var glyphRunPath = BuildGlyphRunPath(text, font, state, origin);
-        RenderShape(glyphRunPath, state, transform, context);
+        RenderShapeWithFilter(element, glyphRunPath, state, transform, context);
     }
 
     /// <summary>

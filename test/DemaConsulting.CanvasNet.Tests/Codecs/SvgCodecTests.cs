@@ -2,6 +2,7 @@
 // cspell:ignore Dasharray hhea Hhea hmtx Hmtx hrefs letterboxed Loca Maxp unstroked
 // cspell:ignore miterlimit
 // cspell:ignore unparseable overpainted bbox moveto lineto rects unrotated
+using System.Diagnostics;
 using System.Reflection;
 using System.Text;
 using System.Xml.Linq;
@@ -2144,6 +2145,518 @@ public class SvgCodecTests
     }
 
     // ================================================================================================
+    // <filter> element
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that a <c>filter</c> containing only a bare <c>feFlood</c> primitive replaces the
+    ///     referencing element's own content entirely: the flood color fills the whole (default,
+    ///     bounding-box-relative) filter region, including the area behind the element's own shape,
+    ///     since a lone <c>feFlood</c> never references <c>SourceGraphic</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeFloodFilter_RendersSolidColorBehindElement()
+    {
+        // Arrange: a 20x20 blue rect at (40,40); the filter's default region expands the rect's
+        // own bounding box by -10%/120%, i.e. (38,38)-(62,62)
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feFlood flood-color='red'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the flood fills the expanded region outside the rect's own bounds
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[39, 50]);
+
+        // Assert: the flood also fully replaces the rect's own blue fill at its center, since the
+        // filter's final output is the bare feFlood result, not a merge with SourceGraphic
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feMerge</c> layers named results in document order: a <c>feFlood</c>
+    ///     result placed first, then <c>SourceGraphic</c> placed second, renders the flood behind
+    ///     the element's own content (visible outside its bounds) while the element's own fill
+    ///     remains visible on top at its own location.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeFloodFeMergeFilter_RendersFloodBehindSourceGraphic()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feFlood flood-color='yellow' result='flood'/>
+                  <feMerge>
+                    <feMergeNode in='flood'/>
+                    <feMergeNode in='SourceGraphic'/>
+                  </feMerge>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the flood is visible in the expanded region outside the rect's own bounds
+        Assert.Equal(new Rgba32(255, 255, 0, 255), surface[39, 50]);
+
+        // Assert: the rect's own blue fill remains visible on top of the flood at its center
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>feFlood</c> → <c>feComposite</c> (<c>operator="out"</c>, clipping the
+    ///     flood to the area the element's own content does <i>not</i> cover) → <c>feGaussianBlur</c>
+    ///     → <c>feMerge</c> chain (a conventional halo/glow recipe) actually softens the flood's
+    ///     edge - proving the blur genuinely ran, rather than the filter being silently ignored -
+    ///     while leaving the element's own fill fully opaque and unaffected at its center.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeFloodFeGaussianBlurFeCompositeFilter_RendersBlurredHaloBehindContent()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feFlood flood-color='orange' result='flood'/>
+                  <feComposite in='flood' in2='SourceGraphic' operator='out' result='haloBase'/>
+                  <feGaussianBlur in='haloBase' stdDeviation='2' result='halo'/>
+                  <feMerge>
+                    <feMergeNode in='halo'/>
+                    <feMergeNode in='SourceGraphic'/>
+                  </feMerge>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the rect's own fill remains fully opaque and unaffected at its center
+        Assert.Equal(new Rgba32(0, 128, 0, 255), surface[50, 50]);
+
+        // Assert: just outside the rect's own edge, a softened (partially transparent, not
+        // hard-edged) orange halo is visible - proving the blur actually ran
+        Assert.Equal(new Rgba32(255, 161, 0, 19), surface[61, 50]);
+
+        // Assert: a couple of pixels further out, past the blur's influence, nothing remains
+        Assert.Equal(0, surface[62, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves <c>feComposite operator="in"</c> keeps the "in" input's own color, weighted by the
+    ///     "in2" input's own alpha, per the documented Porter-Duff "in" formula
+    ///     (<c>(Fa, Fb) = (Ab, 0)</c>) - two full-region, semi-transparent <c>feFlood</c> inputs
+    ///     isolate <c>CompositeFeOperator</c>'s own per-pixel math from any shape-geometry/filter-
+    ///     region overlap concern.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeCompositeOperatorIn_KeepsForegroundWeightedByBackgroundAlpha()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='#ff0000' flood-opacity='0.5' result='fg'/>
+                  <feFlood flood-color='#0000ff' flood-opacity='0.25' result='bg'/>
+                  <feComposite in='fg' in2='bg' operator='in'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 0, 0, 32), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <c>feComposite operator="atop"</c> blends both inputs' own colors, weighted by
+    ///     (<c>in2</c>'s alpha, <c>1 - in</c>'s alpha) respectively, per the documented Porter-Duff
+    ///     "atop" formula (<c>(Fa, Fb) = (Ab, 1 - Aa)</c>) - only incidentally covered previously via
+    ///     one pixel deep inside the third-party <c>InkscapeFilters.svg</c> fixture; this test
+    ///     isolates the operator's own formula deterministically.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeCompositeOperatorAtop_BlendsBothInputsWeightedByBothAlphas()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='#ff0000' flood-opacity='0.5' result='fg'/>
+                  <feFlood flood-color='#0000ff' flood-opacity='0.25' result='bg'/>
+                  <feComposite in='fg' in2='bg' operator='atop'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(128, 0, 127, 64), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <c>feComposite operator="xor"</c> keeps each input only where the other does not
+    ///     have coverage, per the documented Porter-Duff "xor" formula
+    ///     (<c>(Fa, Fb) = (1 - Ab, 1 - Aa)</c>) - never previously exercised anywhere in this test
+    ///     suite.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeCompositeOperatorXor_KeepsEachInputWhereTheOtherHasNoCoverage()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='#ff0000' flood-opacity='0.5' result='fg'/>
+                  <feFlood flood-color='#0000ff' flood-opacity='0.25' result='bg'/>
+                  <feComposite in='fg' in2='bg' operator='xor'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(191, 0, 64, 128), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>filter="url(#id)"</c> reference which does not resolve to any element
+    ///     (a dangling reference) renders the element normally, exactly as if no <c>filter</c>
+    ///     attribute had been present at all - matching the existing dangling-reference tolerance
+    ///     convention used elsewhere (e.g. <c>ResolvePaint</c>, <c>ResolveMarkerElement</c>).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterDanglingReference_RendersElementNormally()
+    {
+        // Arrange: two identical rects, one with a dangling filter reference and one without
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <rect x='10' y='10' width='20' height='20' fill='purple' filter='url(#missing)'/>
+              <rect x='50' y='10' width='20' height='20' fill='purple'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: both rects rendered identically, unaffected by the dangling filter reference
+        Assert.Equal(surface[60, 20], surface[20, 20]);
+        Assert.Equal(new Rgba32(128, 0, 128, 255), surface[20, 20]);
+    }
+
+    /// <summary>
+    ///     Proves that a filter primitive type this codec does not implement (here
+    ///     <c>feColorMatrix</c>, but the same tolerant handling applies to <c>feTurbulence</c>,
+    ///     <c>feDisplacementMap</c>, <c>feImage</c>, <c>feTile</c>, <c>feDropShadow</c>,
+    ///     <c>feConvolveMatrix</c>, <c>feDiffuseLighting</c>, <c>feSpecularLighting</c>,
+    ///     <c>feComponentTransfer</c>, and <c>feMorphology</c>) is treated as a no-op passthrough
+    ///     of its input, rather than throwing or being ignored at the filter level.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterUnsupportedPrimitive_PassesThroughSourceGraphicUnchanged()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feColorMatrix type='saturate' values='0'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='teal' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the rect's own fill passed through unchanged, proving no exception was thrown
+        // and the unsupported primitive did not alter (or blank out) the element's content
+        Assert.Equal(new Rgba32(0, 128, 128, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that a filter region which would require an unreasonably large temporary
+    ///     surface (here a <c>width</c>/<c>height</c> of <c>100000%</c> of the element's own
+    ///     bounding box) is tolerantly skipped - the element renders normally, without its
+    ///     filter effect - rather than attempting an unbounded allocation.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterPathologicallyLargeRegion_SkipsFilterRatherThanUnboundedAllocation()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f' width='100000%' height='100000%'>
+                  <feFlood flood-color='red'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act: must complete promptly, without throwing or attempting to allocate a surface
+        // exceeding Surface.MaxDimension
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the rect rendered its own normal blue fill, the (skipped) filter had no effect
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>filter</c> with a pathologically large number of <c>fe*</c> primitive
+    ///     children (5,000 chained <c>feGaussianBlur</c> primitives, mirroring a reported repro
+    ///     that took ~26 seconds to load prior to the <c>MaxFilterPrimitivesPerFilter</c>/
+    ///     <c>MaxFilterPrimitiveWorkUnits</c> bounds) is tolerantly skipped entirely rather than
+    ///     evaluated, completing quickly instead of performing 5,000 region-sized blur passes.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterExcessivePrimitiveCount_SkipsFilterRatherThanUnboundedWork()
+    {
+        // Arrange: 5,000 chained feGaussianBlur primitives in a single filter - far beyond any
+        // realistic chain length (the longest real chain in this repository's fixtures is 10) -
+        // against a modest, default-expanded region
+        var primitives = string.Concat(Enumerable.Repeat("<feGaussianBlur stdDeviation='1'/>", 5000));
+        var svg = $"""
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  {primitives}
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act: must complete quickly rather than performing 5,000 region-sized blur passes - the
+        // 5-second threshold sits far below the ~26-second pathological baseline this bound
+        // eliminates, while remaining comfortably above normal test-execution variance (a
+        // rejected chain here does no per-primitive work at all: just one cheap element count
+        // plus one multiply/compare, so a healthy run completes in well under a second)
+        var stopwatch = Stopwatch.StartNew();
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+        stopwatch.Stop();
+
+        // Assert: the rect rendered its own normal blue fill - the (skipped) filter had no
+        // effect, the same tolerant per-element fallback used for every other filter resource
+        // bound
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
+
+        // Assert: completed promptly, proving the filter was skipped rather than evaluated
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the excessive-primitive-count filter to be skipped promptly, but it took {stopwatch.Elapsed}.");
+    }
+
+    /// <summary>
+    ///     Proves that a pathologically large <c>feGaussianBlur</c> <c>stdDeviation</c> (many
+    ///     orders of magnitude larger than the fixed <c>MaxFilterBlurStdDeviationPixels</c> bound)
+    ///     is clamped rather than causing unbounded work: the blur completes promptly (the box-blur
+    ///     implementation's cost does not scale with the requested radius) and produces a heavily
+    ///     diluted, non-opaque result rather than crashing or hanging.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterPathologicallyLargeBlurStdDeviation_ClampsRatherThanUnboundedWork()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feGaussianBlur stdDeviation='1000000'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act: must complete promptly despite the requested blur radius vastly exceeding both the
+        // clamp and the (small) temporary surface it is applied to
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the clamped blur diluted the rect's own opaque fill down to fully transparent,
+        // rather than throwing, hanging, or leaving the fill unaffected
+        Assert.Equal(0, surface[50, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves the filter region's default computation: absent <c>x</c>/<c>y</c>/<c>width</c>/
+    ///     <c>height</c> attributes, the region expands the referencing element's own bounding box
+    ///     by -10%/-10%/120%/120% (objectBoundingBox units), per the SVG specification's own
+    ///     defaults.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterDefaultRegion_ExpandsBoundingBoxByTenAndTwentyPercent()
+    {
+        // Arrange: a 20x20 rect at (40,40); the default region is therefore exactly
+        // (40-2, 40-2)-(40-2+24, 40-2+24) = (38,38)-(62,62)
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feFlood flood-color='white'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: just outside the computed default region, nothing was rendered
+        Assert.Equal(0, surface[37, 50].A);
+
+        // Assert: just inside each edge of the computed default region, the flood is visible
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[38, 50]);
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[61, 50]);
+
+        // Assert: just outside the opposite edge of the computed default region, nothing rendered
+        Assert.Equal(0, surface[63, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves that explicit <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> attributes on the
+    ///     <c>filter</c> element override the default region computation, using the declared
+    ///     (objectBoundingBox-relative) values instead.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterExplicitRegion_UsesDeclaredXYWidthHeight()
+    {
+        // Arrange: an explicit region expanding the rect's own bounding box by 200% on every
+        // side, far beyond the -10%/120% default, reaching all the way to the canvas corner
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f' x='-200%' y='-200%' width='500%' height='500%'>
+                  <feFlood flood-color='white'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the flood reaches a point well outside the default region, proving the
+        // explicit region (not the default) was used
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[10, 10]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>filterUnits="userSpaceOnUse"</c> falls back tolerantly to the same
+    ///     objectBoundingBox-relative region computation as the default, rather than being
+    ///     interpreted as literal absolute user-space coordinates - a deliberate simplification
+    ///     documented on <see cref="SvgCodec"/>'s own class-level remarks.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterUserSpaceOnUse_FallsBackToObjectBoundingBoxDefault()
+    {
+        // Arrange: x/y/width/height of 0/0/10/10 would, if interpreted literally as
+        // "userSpaceOnUse" absolute coordinates, place the filter region at (0,0)-(10,10) - a
+        // tiny box near the origin, unrelated to the rect's own (40,40)-(60,60) position
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f' x='0' y='0' width='10' height='10' filterUnits='userSpaceOnUse'>
+                  <feFlood flood-color='lime'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the flood reaches far into the canvas, consistent only with the tolerant
+        // objectBoundingBox-fraction fallback (x/y/width/height=0/0/10/10 interpreted as
+        // fractions of the rect's own 20x20 bounding box), not with a literal (0,0)-(10,10)
+        // absolute user-space box
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[90, 90]);
+
+        // Assert: nothing rendered near the origin, proving the literal absolute-coordinate
+        // interpretation was NOT used
+        Assert.Equal(0, surface[5, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feOffset</c> shifts its input by <c>dx</c>/<c>dy</c> (in user-space
+    ///     units, scaled by the current transform) prior to compositing back onto the canvas.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeOffsetFilter_ShiftsSourceGraphicByDxDy()
+    {
+        // Arrange: a generously expanded filter region (200% on every side) so the offset shape
+        // remains fully within the temporary surface, avoiding incidental clipping at its edges
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f' x='-1' y='-1' width='3' height='3'>
+                  <feOffset dx='5' dy='0'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='10' height='10' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the rect's content reappears shifted 5 pixels to the right of its own bounds
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[47, 45]);
+
+        // Assert: nothing remains at the rect's own (pre-offset) position
+        Assert.Equal(0, surface[42, 45].A);
+    }
+
+    // ================================================================================================
     // Total geometry-parsing work budget (path data / point lists / text characters)
     // ================================================================================================
 
@@ -3603,9 +4116,11 @@ public class SvgCodecTests
 
     /// <summary>
     ///     Proves that well-formed-but-out-of-scope constructs (<c>&lt;style&gt;</c>,
-    ///     <c>&lt;filter&gt;</c>, <c>&lt;mask&gt;</c>, <c>&lt;clipPath&gt;</c>,
+    ///     <c>&lt;mask&gt;</c>, <c>&lt;clipPath&gt;</c>,
     ///     <c>&lt;pattern&gt;</c>, a nested <c>&lt;svg&gt;</c>) are silently
-    ///     skipped and do not prevent the rest of the document from rendering.
+    ///     skipped and do not prevent the rest of the document from rendering. (<c>filter</c> is
+    ///     no longer out-of-scope - see the dedicated filter tests above for its own
+    ///     dangling-reference/unsupported-primitive tolerance coverage.)
     /// </summary>
     [Fact]
     public void SvgCodec_Load_UnsupportedConstructs_StillRendersRestOfDocument()
@@ -3615,7 +4130,6 @@ public class SvgCodecTests
             <svg viewBox='0 0 100 100'>
               <style>rect { fill: red; }</style>
               <defs>
-                <filter id='f'><feGaussianBlur stdDeviation='2'/></filter>
                 <mask id='m'><rect width='100' height='100' fill='white'/></mask>
                 <clipPath id='c'><rect width='50' height='50'/></clipPath>
                 <pattern id='p' width='10' height='10'><rect width='5' height='5'/></pattern>

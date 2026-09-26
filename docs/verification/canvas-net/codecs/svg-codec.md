@@ -512,19 +512,88 @@ opacity-family attributes and gradient coordinates remain correctly unaffected b
 #### CanvasNet-Codecs-SvgCodec-UnsupportedConstructsIgnored: Out-of-Scope Constructs Tolerated
 
 **Tests**: `SvgCodec_Load_UnsupportedConstructs_StillRendersRestOfDocument`,
-`SvgCodec_Load_ToleratesUnsupportedConstructFixture_StillRendersRemainingContent`,
-`SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent`
+`SvgCodec_Load_ToleratesUnsupportedConstructFixture_StillRendersRemainingContent`
 
-Builds a document containing `style`, `filter`, `mask`, `clipPath`, `pattern`, and a
+Builds a document containing `style`, `mask`, `clipPath`, `pattern`, and a
 nested `svg` alongside an ordinary `rect`, and asserts the ordinary `rect` still renders — proving
-none of the out-of-scope elements abort the whole document. A real fixture file exercises the
-same property end-to-end.
-`SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent` corroborates this
-with a large, real, unmodified, third-party Wikimedia Commons fixture
-(`SvgFixtures/InkscapeFilters.svg`) containing dozens of `filter="url(#...)"` references to
-`feGaussianBlur`/`feComposite`/`feSpecularLighting`-based filter effects, proving the
-tolerant-ignore policy holds at real-world scale and complexity, not only for a small synthetic
-document.
+none of the out-of-scope elements abort the whole document. A real fixture file
+(`SvgFixtures/tolerant-unsupported.svg`, whose `filter` def is now genuinely supported but simply
+never referenced by any element) exercises the same property end-to-end. See
+`CanvasNet-Codecs-SvgCodec-FilterRendering`/`CanvasNet-Codecs-SvgCodec-FilterResourceSafety` below
+for `filter`'s own dedicated coverage - it is no longer an out-of-scope construct.
+
+#### CanvasNet-Codecs-SvgCodec-FilterRendering: Filter Primitive Chain Evaluation and Region Computation
+
+**Tests**: `SvgCodec_Load_FeFloodFilter_RendersSolidColorBehindElement`,
+`SvgCodec_Load_FeFloodFeMergeFilter_RendersFloodBehindSourceGraphic`,
+`SvgCodec_Load_FeFloodFeGaussianBlurFeCompositeFilter_RendersBlurredHaloBehindContent`,
+`SvgCodec_Load_FilterUnsupportedPrimitive_PassesThroughSourceGraphicUnchanged`,
+`SvgCodec_Load_FilterDefaultRegion_ExpandsBoundingBoxByTenAndTwentyPercent`,
+`SvgCodec_Load_FilterExplicitRegion_UsesDeclaredXYWidthHeight`,
+`SvgCodec_Load_FilterUserSpaceOnUse_FallsBackToObjectBoundingBoxDefault`,
+`SvgCodec_Load_FeOffsetFilter_ShiftsSourceGraphicByDxDy`,
+`SvgCodec_Load_LabelHaloFixture_RendersWhiteHaloBehindLineMidpointLabel`,
+`SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent`,
+`SvgCodec_Load_FeCompositeOperatorIn_KeepsForegroundWeightedByBackgroundAlpha`,
+`SvgCodec_Load_FeCompositeOperatorAtop_BlendsBothInputsWeightedByBothAlphas`,
+`SvgCodec_Load_FeCompositeOperatorXor_KeepsEachInputWhereTheOtherHasNoCoverage`
+
+Asserts a bare `feFlood` primitive's flood color entirely replaces the referencing element's own
+content, filling the (default, bounding-box-relative) filter region including the area behind the
+element's own shape, since a lone `feFlood` never references `SourceGraphic`; asserts `feMerge`
+layers a `feFlood` result behind a `SourceGraphic` layer in document order, so the flood is visible
+outside the element's own bounds while the element's own fill remains visible on top at its own
+location; asserts a conventional `feFlood` → `feComposite(operator="out")` → `feGaussianBlur` →
+`feMerge` halo/glow recipe produces a genuinely softened (partially transparent, not hard-edged)
+flood color just outside the element's own edge - proving the blur actually ran - while the
+element's own fill remains fully opaque and unaffected at its center; asserts a filter primitive
+type this codec does not implement (`feColorMatrix`) is treated as a no-op passthrough of its own
+input rather than throwing or blanking the element's content; asserts the filter region's default
+computation expands the referencing element's own bounding box by exactly -10%/-10%/120%/120%,
+verified at pixels just inside and just outside each computed edge; asserts an explicit `filter`
+`x`/`y`/`width`/`height` overrides the default region computation; asserts
+`filterUnits="userSpaceOnUse"` tolerantly falls back to the same objectBoundingBox-relative region
+computation as the default, rather than being interpreted as literal absolute user-space
+coordinates; and asserts `feOffset` shifts its input by `dx`/`dy` prior to compositing back onto
+the canvas. Two real fixture files corroborate this end to end:
+`SvgFixtures/label-halo.svg` mirrors the reported real-world bug (a `filter="url(#label-bg)"`
+white halo behind a line's own midpoint label, previously invisible while `filter` was ignored),
+and the large, real, third-party `SvgFixtures/InkscapeFilters.svg` (see
+`CanvasNet-Codecs-SvgCodec-UnsupportedConstructsIgnored`'s predecessor coverage of this same
+fixture) proves this genuinely-evaluated filter-chain support, including its tolerant-passthrough
+handling of several unsupported primitives mixed into the same chains
+(`feSpecularLighting`/`feDiffuseLighting`/arithmetic-mode `feComposite`), holds at real-world scale
+and complexity, not only for small synthetic documents. `feComposite`'s `in`, `atop`, and `xor`
+Porter-Duff operators (`over`/`out` were already covered above) are each additionally verified
+deterministically and synthetically, against two full-region, semi-transparent `feFlood` inputs
+that isolate the operator's own per-pixel formula from any shape-geometry/filter-region overlap
+concern: `in` keeps the "in" input's own color weighted by the "in2" input's own alpha; `atop`
+blends both inputs' own colors weighted by (`in2`'s alpha, `1 - in`'s alpha); and `xor` keeps each
+input only where the other has no coverage - each asserting the exact expected pixel value the
+documented formula produces.
+
+#### CanvasNet-Codecs-SvgCodec-FilterResourceSafety: Filter Dangling Reference and Resource-Bound Tolerance
+
+**Tests**: `SvgCodec_Load_FilterDanglingReference_RendersElementNormally`,
+`SvgCodec_Load_FilterPathologicallyLargeRegion_SkipsFilterRatherThanUnboundedAllocation`,
+`SvgCodec_Load_FilterPathologicallyLargeBlurStdDeviation_ClampsRatherThanUnboundedWork`,
+`SvgCodec_Load_FilterExcessivePrimitiveCount_SkipsFilterRatherThanUnboundedWork`
+
+Asserts a `filter="url(#id)"` reference to a nonexistent id renders the element normally, exactly
+as if no `filter` attribute were present, matching this codec's general dangling-reference
+convention (`ResolvePaint`/`ResolveMarkerElement`); asserts a filter region large enough to require
+an unreasonably large temporary surface (`width`/`height` of `100000%`) is tolerantly skipped
+entirely, rather than attempting an allocation exceeding `Surface.MaxDimension`, with the element
+still rendering its own normal content; asserts an `feGaussianBlur` `stdDeviation` many orders
+of magnitude larger than the fixed `MaxFilterBlurStdDeviationPixels` bound is clamped rather than
+causing unbounded work - the box-blur implementation's own cost does not scale with the requested
+radius, so this completes promptly and produces a heavily diluted (rather than crashing or
+hanging) result; and asserts a filter chain with an excessive number of primitives (5,000 chained
+`feGaussianBlur` primitives, mirroring a reported repro that took ~26 seconds prior to this bound)
+is tolerantly skipped entirely rather than evaluated, completing promptly instead of performing
+5,000 region-sized blur passes - bounding the primitive-count × region-area cost dimension that
+`MaxTotalRenderedElements`/`GeometryWorkBudget` do not cover, since neither tracks a single
+filter's own per-primitive, region-sized buffer cost.
 
 #### CanvasNet-Codecs-SvgCodec-ValidationNull: Null Stream/Path Rejected
 

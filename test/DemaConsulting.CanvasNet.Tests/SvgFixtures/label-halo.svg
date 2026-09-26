@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 40">
+  <defs>
+    <filter id="label-bg">
+      <feFlood flood-color="white" result="flood"/>
+      <feGaussianBlur in="flood" stdDeviation="1" result="blurredFlood"/>
+      <feComposite in="blurredFlood" in2="SourceGraphic" operator="over"/>
+    </filter>
+  </defs>
+  <line x1="5" y1="20" x2="95" y2="20" stroke="black" stroke-width="2"/>
+  <rect x="40" y="12" width="20" height="16" fill="white" filter="url(#label-bg)"/>
+  <text x="42" y="23" font-family="Sans" font-size="10" fill="black">50</text>
+</svg>

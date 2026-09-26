@@ -2,7 +2,7 @@
 
 ![Codecs Structure](CodecsView.svg)
 
-<!-- cspell:ignore rasterizing rrggbb sizeless SMIL unparseable Linq uncatchable Glyf Loca -->
+<!-- cspell:ignore rasterizing rrggbb sizeless SMIL unparseable Linq uncatchable Glyf Loca renderable -->
 
 The `SvgCodec` class is the fifth software unit in the `Codecs` subsystem, and the first codec
 unit whose dependencies extend beyond `Canvas.Surface`. It provides hand-rolled, decode/
@@ -44,12 +44,16 @@ same reason as the other codecs: rasterizing an SVG document has no instance sta
   `marker-mid`/`marker-end` presentation attributes (`url(#id)`), with `markerWidth`/
   `markerHeight`, `refX`/`refY`, `markerUnits` (`strokeWidth`/`userSpaceOnUse`), `orient`
   (`auto`/`auto-start-reverse`/a fixed angle in degrees), and an optional `viewBox`
+- `filter`, referenced from any renderable shape or `text` element via the `filter`
+  presentation attribute (`url(#id)`), with `x`/`y`/`width`/`height` filter-region attributes
+  (objectBoundingBox units) and `feFlood`, `feGaussianBlur`, `feOffset`, `feComposite`, and
+  `feMerge` primitive children
 - `text`, with `x`/`y`, `font-family`, `font-size`, `fill`, and `text-anchor`
   (`start`/`middle`/`end`), rendered through a caller-supplied font dictionary
 
 #### Out-of-scope subset (tolerated, silently skipped)
 
-`style`, `filter`, `mask`, `clipPath`, `pattern`, a nested `svg`, `animate`/other SMIL
+`style`, `mask`, `clipPath`, `pattern`, a nested `svg`, `animate`/other SMIL
 animation elements, `image`, `foreignObject`, and CSS class/id selectors are all well-formed SVG
 constructs this codec does not implement. Encountering one of these does not fail the whole
 document: `SvgCodec` silently skips just that element (and, for a container element, everything
@@ -58,7 +62,20 @@ tolerant-parsing policy distinct from the codec's malformed-input rejection poli
 _Error Handling_ below) — a document using an out-of-scope construct is not itself invalid SVG,
 only partially outside this codec's supported feature set. Within the supported `marker` feature
 itself, `markerContentUnits` (a rarely-used SVG 2 attribute) and clipping marker content to its
-own `markerWidth`/`markerHeight` viewport (`overflow`) are both explicitly out of scope.
+own `markerWidth`/`markerHeight` viewport (`overflow`) are both explicitly out of scope. Within
+the supported `filter` feature itself, `filterUnits="userSpaceOnUse"` (tolerantly falls back to
+the same objectBoundingBox-relative region computation as the default, rather than being
+interpreted as literal absolute user-space coordinates), group-level filtering (a `filter` on a
+`g`/`symbol`, or on a shape's own `marker` content, has no effect - filtering only ever applies
+per-element to a directly renderable shape/`text` element), and every filter primitive other than
+the five listed above (`feColorMatrix`, `feTurbulence`, `feDisplacementMap`, `feImage`, `feTile`,
+`feDropShadow`, `feConvolveMatrix`, `feDiffuseLighting`, `feSpecularLighting`,
+`feComponentTransfer`, and `feMorphology` - each tolerated as a no-op passthrough of its own input
+rather than rejected or skipped at the whole-filter level) are all explicitly out of scope.
+`feImage` in particular is deliberately never implemented, specifically because it is the only
+primitive that could reference another filtered element's own output - omitting it means
+filter-chain evaluation needs no additional recursion-depth guard of its own, unlike `use`/
+`marker` references.
 
 A percentage value on a shape/text geometry attribute (`x`, `y`, `width`, `height`, `rx`, `ry`,
 `cx`, `cy`, `r`, `x1`/`y1`/`x2`/`y2`, `font-size`, `stroke-width`, `stroke-miterlimit`,
@@ -292,6 +309,59 @@ separately, since a marker chain and a `use` chain are independent nesting conce
 `circle`/`ellipse` never receive markers (these shapes have no natural vertices to orient one
 along), and a `marker-start`/`marker-mid`/`marker-end` referencing a nonexistent id, or an id that
 does not resolve to a `marker` element, is tolerated as a silent no-op for that one vertex.
+
+**Filters.** A directly renderable shape or `text` element's own `filter` presentation attribute
+(`url(#id)`, resolved through the same id index and dangling-reference tolerance as a gradient
+`fill`/`stroke` reference above) identifies a `filter` element whose primitive children are
+evaluated against that one element's own rendered content - `filter` never cascades through
+`RenderState` (matching `transform`'s own non-cascading handling) and never applies at the
+group/`marker`-content level, only per-element. The filter region - the rectangular area, in the
+element's own local space, that the filter's temporary offscreen buffer covers - defaults to
+-10%/-10%/120%/120% (`x`/`y`/`width`/`height`, objectBoundingBox units) of the element's own
+local-space bounding box, or uses the filter element's own explicit `x`/`y`/`width`/`height`
+attributes when present (still always interpreted as objectBoundingBox-relative fractions, even
+when `filterUnits="userSpaceOnUse"` is declared - a deliberate, tolerant simplification). This
+local-space region is transformed by the element's own accumulated transform, then rounded
+outward to an integer pixel bounding box; if that box is degenerate, non-finite, or exceeds
+`Surface.MaxDimension` on either axis, the filter is tolerantly skipped entirely and the element
+renders normally, exactly as if it had no `filter` attribute - the same bounded-resource
+philosophy as `Surface`'s own dimension cap, applied here to prevent an attacker-controlled
+filter region from driving an unbounded temporary allocation. The filter's own `fe*` primitive
+chain is additionally bounded by a fixed primitive-count cap (`MaxFilterPrimitivesPerFilter`,
+1,000) and a primitive-count-times-region-area work budget (`MaxFilterPrimitiveWorkUnits`,
+5,000,000), checked once, upfront, before `SourceGraphic` is even allocated, and tolerantly
+skipped the same way once either is exceeded - because, unlike the per-element costs
+`MaxTotalRenderedElements` already bounds (which assumes O(1)/O(perimeter) cost per element, not
+O(region-area) cost per primitive), a single filter's own primitive-chain cost is
+O(primitive count × region area), a cost dimension no pre-existing guard actually covers. When the
+region is accepted and the chain's work stays within budget, the
+element's own content is rendered a second time - independently of its main render onto
+`context.Surface` - into a fresh, region-sized temporary `Surface` (this buffer is the filter's
+implicit `SourceGraphic` input; `SourceAlpha`, its alpha-only derivative, is built lazily only if
+some primitive actually references it). Each primitive in document order reads a named or
+default input (the previous primitive's own output, or `SourceGraphic` if it is first), and
+writes a named or default output, all buffers always exactly the temporary surface's own
+dimensions - this invariant is what lets `feComposite`'s `over` operator and `feMerge` both reuse
+`Surface.CompositeOver(Surface)` (which requires equal-size surfaces) unchanged, with no new
+per-pixel blending math. `feFlood` fills a buffer with a solid, alpha-scaled color
+(`flood-color`/`flood-opacity`). `feGaussianBlur` approximates a Gaussian blur with three passes
+of a sliding-window box blur (cost independent of the requested radius, unlike a naive
+per-pixel-kernel blur), reading only the first (isotropic) component of `stdDeviation` and
+clamping it to a fixed `MaxFilterBlurStdDeviationPixels` bound so a pathologically large
+requested radius cannot translate into unbounded per-pixel work. `feOffset` shifts a buffer's
+content by `dx`/`dy` (scaled by the element's own transform). `feComposite` implements Porter-Duff
+`over` by delegating to `Surface.CompositeOver`, and implements `in`/`out`/`atop`/`xor` via one
+small, dedicated per-pixel premultiplied-alpha helper - the only genuinely new blending math this
+feature introduces. `feMerge` layers each `feMergeNode` child's own resolved input over an
+initially transparent accumulator, in document order, via the same `CompositeOver`. Any other
+primitive type (`feColorMatrix`, `feTurbulence`, `feDisplacementMap`, `feImage`, `feTile`,
+`feDropShadow`, `feConvolveMatrix`, `feDiffuseLighting`, `feSpecularLighting`,
+`feComponentTransfer`, `feMorphology`) is a tolerant no-op passthrough of its own input, still
+registered under its own `result` name so later primitives can still resolve it by name. The
+final primitive's own output buffer is composited onto `context.Surface` at the region's own
+pixel position via `Surface.CompositeOverSpan`, clipped to the canvas's own bounds - reusing the
+same offset-aware compositing primitive used elsewhere in this codec, rather than inventing new
+canvas-writing logic for filters.
 
 #### Element/Group Nesting and Total-Element Bounds
 
