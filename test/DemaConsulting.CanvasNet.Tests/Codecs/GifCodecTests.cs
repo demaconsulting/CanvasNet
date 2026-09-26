@@ -647,6 +647,52 @@ public class GifCodecTests
         Assert.Throws<InvalidDataException>(() => GifCodec.Load(stream));
     }
 
+    /// <summary>
+    ///     Test: GifCodec_Load_GraphicControlExtensionExceedsRemainingSubBlockBudget_ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void GifCodec_Load_GraphicControlExtensionExceedsRemainingSubBlockBudget_ThrowsInvalidDataException()
+    {
+        using var stream = new MemoryStream();
+        WriteHeader(stream, 1, 1, null); // tiny declared dimensions
+
+        // A preceding Comment Extension consumes all but 2 bytes of the shared sub-block budget,
+        // leaving too little remaining for a subsequent Graphic Control Extension's required 4
+        // data bytes. This proves ReadGraphicControlExtensionData checks the shared budget before
+        // decrementing it - like ReadSubBlocks does - rather than letting the budget go negative
+        // and silently accepting the GCE (which would let repeated GCEs bypass the total
+        // sub-block bound entirely).
+        stream.WriteByte(0x21); // Extension Introducer
+        stream.WriteByte(0xFE); // Comment Extension label
+
+        var remaining = GifCodec.MaxTotalSubBlockBytes - 2;
+        var chunk = new byte[255];
+        while (remaining > 0)
+        {
+            var chunkSize = (int)Math.Min(255, remaining);
+            stream.WriteByte((byte)chunkSize);
+            stream.Write(chunk, 0, chunkSize);
+            remaining -= chunkSize;
+        }
+
+        stream.WriteByte(0); // Comment Extension block terminator
+
+        // A Graphic Control Extension declaring its (otherwise valid) 4-byte data sub-block -
+        // which now exceeds the 2 bytes remaining in the shared budget.
+        stream.WriteByte(0x21); // Extension Introducer
+        stream.WriteByte(0xF9); // Graphic Control Extension label
+        stream.WriteByte(4);
+        stream.WriteByte(0);
+        stream.WriteByte(0);
+        stream.WriteByte(0);
+        stream.WriteByte(0);
+        stream.WriteByte(0); // block terminator
+
+        stream.Position = 0;
+
+        Assert.Throws<InvalidDataException>(() => GifCodec.Load(stream));
+    }
+
     // ---------------------------------------------------------------------------------------
     // LZW validation
     // ---------------------------------------------------------------------------------------

@@ -504,8 +504,9 @@ public static class GifCodec
     /// <returns>The Graphic Control Extension's 4 data bytes.</returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when the stream ends unexpectedly, the first sub-block's declared size is not
-    ///     exactly <see cref="GraphicControlExtensionSize"/>, or a second, non-terminating
-    ///     sub-block follows the data sub-block.
+    ///     exactly <see cref="GraphicControlExtensionSize"/>, a second, non-terminating sub-block
+    ///     follows the data sub-block, or reading this sub-block would exceed
+    ///     <paramref name="remainingBudget"/>.
     /// </exception>
     private static byte[] ReadGraphicControlExtensionData(Stream stream, ref long remainingBudget)
     {
@@ -520,6 +521,13 @@ public static class GifCodec
         {
             throw new InvalidDataException(
                 $"Invalid Graphic Control Extension length {size}; expected {GraphicControlExtensionSize}.");
+        }
+
+        if (size > remainingBudget)
+        {
+            throw new InvalidDataException(
+                $"GIF sub-block data exceeds the maximum total permitted size of " +
+                $"{MaxTotalSubBlockBytes} bytes across the whole file.");
         }
 
         remainingBudget -= size;

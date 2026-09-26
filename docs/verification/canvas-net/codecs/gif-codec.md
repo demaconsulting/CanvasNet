@@ -202,12 +202,18 @@ truncating the excess output.
 
 #### CanvasNet-Codecs-GifCodec-SubBlockBudget: Load Rejects Excessive Total Sub-Block Data
 
-**Test**: `GifCodec_Load_ExcessiveSubBlockData_ThrowsInvalidDataException`
+**Tests**: `GifCodec_Load_ExcessiveSubBlockData_ThrowsInvalidDataException`,
+`GifCodec_Load_GraphicControlExtensionExceedsRemainingSubBlockBudget_ThrowsInvalidDataException`
 
 Builds a hand-crafted GIF with tiny (1x1) declared canvas dimensions containing a single Comment
 Extension whose sub-block chain's cumulative declared size is one byte more than
 `GifCodec.MaxTotalSubBlockBytes`, and asserts `Load` throws `InvalidDataException` rather than
-buffering an unbounded amount of sub-block data.
+buffering an unbounded amount of sub-block data. Separately, builds a GIF whose Comment Extension
+consumes all but 2 bytes of the shared sub-block budget, followed by an otherwise well-formed
+4-byte Graphic Control Extension, and asserts `Load` still throws `InvalidDataException` -
+proving the dedicated Graphic Control Extension reader also checks the shared remaining budget
+before decrementing it (rather than letting the budget go negative and silently accepting the
+extension), consistent with `ReadSubBlocks`' enforcement for every other sub-block chain.
 
 #### CanvasNet-Codecs-GifCodec-GetInfo: GetInfo Reports Dimensions/Channels/CanDecode Without Decoding Pixels
 
@@ -240,6 +246,6 @@ respectively — the same exception contract as the corresponding `Load` scenari
 
 ### Acceptance Criteria
 
-A unit test run passes when all test methods above (36 in `GifCodecTests.cs` plus 16 fixture-based
+A unit test run passes when all test methods above (37 in `GifCodecTests.cs` plus 16 fixture-based
 theory cases in `GifFixtureTests.cs`) pass without error or unexpected exception; any unexpected
 exception type or pixel-value mismatch constitutes a failure.

@@ -258,16 +258,22 @@ sections:
                 title: >-
                   The GifCodec class shall bound the total number of sub-block data bytes it
                   accumulates across every extension and Image Descriptor sub-block chain in a
-                  single file - including chains whose contents are ultimately discarded - and
-                  reject a file whose cumulative sub-block data would exceed that bound with
+                  single file - including chains whose contents are ultimately discarded, and
+                  including a Graphic Control Extension's fixed-size sub-block - and reject a file
+                  whose cumulative sub-block data would exceed that bound with
                   InvalidDataException.
                 justification: |
                   Without a total-file bound, a GIF with tiny declared canvas dimensions could
                   still carry an effectively unlimited number of valid 255-byte sub-blocks across
                   its extensions and frames, forcing unbounded buffering and risking an
-                  out-of-memory condition rather than a clean, prompt InvalidDataException.
+                  out-of-memory condition rather than a clean, prompt InvalidDataException. This
+                  bound must be enforced uniformly by every sub-block reader in the codec -
+                  including the Graphic Control Extension's dedicated, stricter reader - so that
+                  no sub-block chain, however small, can push the shared remaining budget negative
+                  and be silently accepted instead of rejected.
                 tests:
                   - GifCodec_Load_ExcessiveSubBlockData_ThrowsInvalidDataException
+                  - GifCodec_Load_GraphicControlExtensionExceedsRemainingSubBlockBudget_ThrowsInvalidDataException
 
               - id: CanvasNet-Codecs-GifCodec-GetInfo
                 title: >-
