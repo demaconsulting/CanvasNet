@@ -55,7 +55,15 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///         non-terminating marker segments) - so a pathological JPEG that exceeds either ceiling
 ///         is rejected consistently by both methods, upholding the invariant unconditionally
 ///         rather than through a documented exception: there is no JPEG input <c>GetInfo</c>
-///         rejects that <c>Load</c> would otherwise have accepted.
+///         rejects that <c>Load</c> would otherwise have accepted. GIF's Image Descriptors can
+///         legitimately number more than one (an animation), and <see cref="GifCodec.GetInfo(System.IO.Stream)"/>
+///         reports that true count via <see cref="FrameCount"/> by walking every block in the
+///         file - not merely the Logical Screen Descriptor - yet still upholds this invariant:
+///         it reuses the exact same per-frame structural-validation helpers
+///         <see cref="GifCodec.Load(System.IO.Stream)"/> itself uses, while never invoking the
+///         LZW decoder for any frame's pixel data, so it accepts every input <c>Load</c> accepts
+///         (and rejects every input <c>Load</c> rejects for a structural, non-pixel-data reason)
+///         without ever needing to actually decode a pixel.
 ///     </para>
 ///     <para>
 ///         This type is a plain, immutable data carrier with no behavior beyond its record-struct
@@ -111,9 +119,11 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///                 <see cref="HasAlpha"/> is always <see langword="false"/> - this is the raw
 ///                 file's single palette-index-per-pixel encoding, deliberately not the
 ///                 4-channel RGBA result a full <c>Load</c> produces after resolving the active
-///                 color table and any Graphic Control Extension transparency flag, since
-///                 <c>GetInfo</c> never scans for an optional Graphic Control Extension at all
-///                 (see <see cref="GifCodec.GetInfo(Stream)"/>'s remarks).
+///                 color table and any Graphic Control Extension transparency flag; although
+///                 <c>GetInfo</c> does read (and skip) any Graphic Control Extension while
+///                 walking the file's blocks to compute <see cref="FrameCount"/>, it never
+///                 resolves the transparency flag or transparent color index either extension
+///                 carries (see <see cref="GifCodec.GetInfo(Stream)"/>'s remarks).
 ///             </description>
 ///         </item>
 ///     </list>
@@ -173,4 +183,38 @@ public readonly record struct ImageInfo(int Width, int Height, int Channels, boo
     ///     </para>
     /// </remarks>
     public bool CanDecode { get; init; } = true;
+
+    /// <summary>
+    ///     The total number of Image Descriptors ("frames") a well-formed file declares. Defaults
+    ///     to <c>1</c> for every <see cref="ImageInfo"/> constructed via its primary constructor
+    ///     (which is how every codec's <c>GetInfo</c> constructs its result): BMP, PNG, TIFF, and
+    ///     JPEG have no concept of multiple frames at all, so their <c>GetInfo</c> methods never
+    ///     override this default. <see cref="GifCodec"/> is the sole exception - a GIF file may
+    ///     legitimately declare more than one Image Descriptor (an animation), and
+    ///     <see cref="GifCodec.GetInfo(System.IO.Stream)"/> reports the file's true count by
+    ///     walking its block structure (skipping, never decoding, each frame's LZW-compressed
+    ///     pixel data) - see that method's remarks for how this upholds both of this type's
+    ///     documented invariants: it never enforces <see cref="Surface.MaxDimension"/>, and it
+    ///     never throws for an input <see cref="GifCodec.Load(System.IO.Stream)"/> would
+    ///     otherwise accept, because it shares the same structural-validation helpers
+    ///     <c>Load</c> uses for every frame while never invoking the LZW decoder itself.
+    /// </summary>
+    /// <remarks>
+    ///     Deliberately declared here as an <see langword="init"/>-only member outside this
+    ///     record struct's primary constructor parameter list, rather than as a fifth positional
+    ///     parameter - for the same reason as <see cref="CanDecode"/> (see its remarks): doing so
+    ///     preserves the primary constructor's and <c>Deconstruct</c>'s emitted signature. A
+    ///     caller that wants to set this property uses object-initializer syntax:
+    ///     <c>new ImageInfo(width, height, channels, hasAlpha) { FrameCount = frameCount }</c>.
+    ///     <para>
+    ///         <b>Caveat: <c>default(ImageInfo)</c> (or an uninitialized array/field of type
+    ///         <see cref="ImageInfo"/>) has <c>FrameCount == 0</c>, not <c>1</c> as the property
+    ///         initializer above would otherwise suggest</b> - the same <see langword="struct"/>
+    ///         field-initializer caveat documented on <see cref="CanDecode"/>'s remarks applies
+    ///         identically here: a <see langword="struct"/>'s field initializers only run when
+    ///         one of its declared constructors runs, and <c>default(ImageInfo)</c> bypasses all
+    ///         of them. No codec's <c>GetInfo</c> ever produces a bare <c>default(ImageInfo)</c>.
+    ///     </para>
+    /// </remarks>
+    public int FrameCount { get; init; } = 1;
 }

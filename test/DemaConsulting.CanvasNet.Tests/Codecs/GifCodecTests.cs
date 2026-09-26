@@ -1,7 +1,6 @@
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
-using DemaConsulting.CanvasNet.Tests.TestSupport;
 
 namespace DemaConsulting.CanvasNet.Tests.Codecs;
 
@@ -414,13 +413,17 @@ public class GifCodecTests
     {
         var oversized = Surface.MaxDimension + 1;
         using var stream = new MemoryStream();
+        var lct = BuildColorTable((255, 0, 0), (0, 0, 255));
         WriteHeader(stream, oversized, oversized, null);
+        WriteImageDescriptor(stream, 0, 0, 1, 1, false, lct, 2, [0]);
+        WriteTrailer(stream);
         var bytes = stream.ToArray();
 
         using var infoStream = new MemoryStream(bytes);
         var info = GifCodec.GetInfo(infoStream);
         Assert.Equal(oversized, info.Width);
         Assert.Equal(oversized, info.Height);
+        Assert.Equal(1, info.FrameCount);
 
         using var loadStream = new MemoryStream(bytes);
         Assert.Throws<InvalidDataException>(() => GifCodec.Load(loadStream));
@@ -1071,7 +1074,10 @@ public class GifCodecTests
     public void GifCodec_GetInfo_ReturnsExpectedDimensionsChannelsAndCanDecode()
     {
         using var stream = new MemoryStream();
-        WriteHeader(stream, 12, 7, null);
+        var gct = BuildColorTable((254, 0, 0), (0, 0, 254));
+        WriteHeader(stream, 12, 7, gct);
+        WriteImageDescriptor(stream, 0, 0, 12, 7, false, null, 2, new byte[12 * 7]);
+        WriteTrailer(stream);
         stream.Position = 0;
 
         var info = GifCodec.GetInfo(stream);
@@ -1081,20 +1087,94 @@ public class GifCodecTests
         Assert.Equal(1, info.Channels);
         Assert.False(info.HasAlpha);
         Assert.True(info.CanDecode);
+        Assert.Equal(1, info.FrameCount);
     }
 
-    /// <summary>Test: GifCodec_GetInfo_NeverReadsPixelData.</summary>
+    /// <summary>Test: GifCodec_GetInfo_NeverDecodesLzwPixelData_AcceptsCorruptFirstFrameCompressedData.</summary>
     [Fact]
-    public void GifCodec_GetInfo_NeverReadsPixelData()
+    public void GifCodec_GetInfo_NeverDecodesLzwPixelData_AcceptsCorruptFirstFrameCompressedData()
     {
         using var stream = new MemoryStream();
-        WriteHeader(stream, 3, 3, null);
-        var headerBytes = stream.ToArray();
+        var gct = BuildColorTable((254, 0, 0), (0, 0, 254));
+        WriteHeader(stream, 2, 2, gct);
 
-        using var bounded = new BoundedReadStream(new MemoryStream(headerBytes), headerBytes.Length);
-        var info = GifCodec.GetInfo(bounded);
+        // Manually write an Image Descriptor whose compressed sub-block data is not a valid GIF
+        // LZW stream (it does not start with a Clear code) - Load's DecodeGifLzw rejects this
+        // when it decodes the first frame's pixels, but GetInfo never invokes the LZW decoder
+        // for any frame, so it must still succeed and report the correct frame count.
+        stream.WriteByte(0x2C);
+        WriteU16(stream, 0);
+        WriteU16(stream, 0);
+        WriteU16(stream, 2);
+        WriteU16(stream, 2);
+        stream.WriteByte(0); // packed: no local color table, no interlace
+        stream.WriteByte(2); // LZW minimum code size
+        WriteSubBlocks(stream, [0xFF, 0xFF, 0xFF, 0xFF]);
+        WriteTrailer(stream);
+        var bytes = stream.ToArray();
 
-        Assert.Equal(3, info.Width);
-        Assert.Equal(3, info.Height);
+        using var infoStream = new MemoryStream(bytes);
+        var info = GifCodec.GetInfo(infoStream);
+        Assert.Equal(2, info.Width);
+        Assert.Equal(2, info.Height);
+        Assert.Equal(1, info.FrameCount);
+
+        using var loadStream = new MemoryStream(bytes);
+        Assert.Throws<InvalidDataException>(() => GifCodec.Load(loadStream));
+    }
+
+    /// <summary>Test: GifCodec_GetInfo_SingleFrame_ReportsFrameCountOne.</summary>
+    [Fact]
+    public void GifCodec_GetInfo_SingleFrame_ReportsFrameCountOne()
+    {
+        using var stream = new MemoryStream();
+        var gct = BuildColorTable((254, 0, 0), (0, 0, 254));
+        WriteHeader(stream, 2, 2, gct);
+        WriteImageDescriptor(stream, 0, 0, 2, 2, false, null, 2, [0, 0, 0, 0]);
+        WriteTrailer(stream);
+        stream.Position = 0;
+
+        var info = GifCodec.GetInfo(stream);
+
+        Assert.Equal(1, info.FrameCount);
+    }
+
+    /// <summary>Test: GifCodec_GetInfo_MultiFrame_ReportsCorrectFrameCount.</summary>
+    [Fact]
+    public void GifCodec_GetInfo_MultiFrame_ReportsCorrectFrameCount()
+    {
+        using var stream = new MemoryStream();
+        var gct = BuildColorTable((254, 0, 0), (0, 0, 254));
+        WriteHeader(stream, 2, 2, gct);
+        WriteImageDescriptor(stream, 0, 0, 2, 2, false, null, 2, [0, 0, 0, 0]);
+        WriteImageDescriptor(stream, 0, 0, 2, 2, false, null, 2, [1, 1, 1, 1]);
+        WriteImageDescriptor(stream, 0, 0, 2, 2, false, null, 2, [0, 1, 0, 1]);
+        WriteTrailer(stream);
+        stream.Position = 0;
+
+        var info = GifCodec.GetInfo(stream);
+
+        Assert.Equal(3, info.FrameCount);
+    }
+
+    /// <summary>Test: GifCodec_GetInfo_SecondFrameMissingColorTable_ThrowsInvalidDataException.</summary>
+    [Fact]
+    public void GifCodec_GetInfo_SecondFrameMissingColorTable_ThrowsInvalidDataException()
+    {
+        using var stream = new MemoryStream();
+        var lct = BuildColorTable((255, 0, 0), (0, 0, 255));
+        WriteHeader(stream, 2, 2, null); // no Global Color Table at all
+
+        // First frame supplies its own Local Color Table, so it is structurally valid...
+        WriteImageDescriptor(stream, 0, 0, 2, 2, false, lct, 2, [0, 0, 0, 0]);
+
+        // ...but the second frame has neither a Local Color Table nor a Global Color Table to
+        // fall back on - structurally malformed, and frame counting must not weaken this
+        // rejection merely because it never decodes any frame's pixel data.
+        WriteImageDescriptor(stream, 0, 0, 2, 2, false, null, 2, [0, 0, 0, 0]);
+        WriteTrailer(stream);
+        stream.Position = 0;
+
+        Assert.Throws<InvalidDataException>(() => GifCodec.GetInfo(stream));
     }
 }

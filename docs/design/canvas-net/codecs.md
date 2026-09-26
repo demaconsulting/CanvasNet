@@ -34,7 +34,8 @@ in-memory pixel representation; `SvgCodec` additionally depends on the `Geometry
 - **JpegCodec** — hand-rolled loader/saver for a common real-world subset of JPEG files; see
   _JpegCodec Unit Design_ (`codecs/jpeg-codec.md`)
 - **GifCodec** — hand-rolled, decode-only loader for a common real-world subset of GIF files
-  (first frame only); see _GifCodec Unit Design_ (`codecs/gif-codec.md`)
+  (first frame only); `GetInfo` additionally reports the file's true total frame count; see
+  _GifCodec Unit Design_ (`codecs/gif-codec.md`)
 - **SvgCodec** — decode/rasterize-only loader for a common real-world subset of SVG documents; see
   _SvgCodec Unit Design_ (`codecs/svg-codec.md`)
 
@@ -48,21 +49,27 @@ in-memory pixel representation; `SvgCodec` additionally depends on the `Geometry
 public readonly record struct ImageInfo(int Width, int Height, int Channels, bool HasAlpha)
 {
     public bool CanDecode { get; init; } = true;
+    public int FrameCount { get; init; } = 1;
 }
 ```
 
 It reports a candidate image's declared width, height, channel count, and alpha presence without
 requiring the caller to decode (or even fully read) the file. It is the return type of every
 `{Codec}.GetInfo(Stream)` / `{Codec}.GetInfo(string)` method across `BmpCodec`, `PngCodec`,
-`TiffCodec`, `JpegCodec`, `GifCodec`, and `SvgCodec`. `CanDecode` is declared as an `init`-only property
-outside the primary constructor (rather than a fifth positional parameter) specifically to avoid
-changing the compiler-emitted constructor/`Deconstruct` signature — a binary-compatibility
-concern, since a fifth positional parameter would break any pre-compiled caller's IL even though
-source would still compile unchanged. It defaults to `true` and is set to `false` only by
-`PngCodec.GetInfo` when the probed file is well-formed per the PNG specification but declares
-Adam7 interlacing, the one case (see below) where a codec's `Load` refuses a file `GetInfo`
-otherwise accepts. Because `ImageInfo` is a record struct, `CanDecode` participates in its
-generated value equality like every other member.
+`TiffCodec`, `JpegCodec`, `GifCodec`, and `SvgCodec`. `CanDecode` and `FrameCount` are both
+declared as `init`-only properties outside the primary constructor (rather than positional
+parameters) specifically to avoid changing the compiler-emitted constructor/`Deconstruct`
+signature — a binary-compatibility concern, since an additional positional parameter would break
+any pre-compiled caller's IL even though source would still compile unchanged. `CanDecode`
+defaults to `true` and is set to `false` only by `PngCodec.GetInfo` when the probed file is
+well-formed per the PNG specification but declares Adam7 interlacing, the one case (see below)
+where a codec's `Load` refuses a file `GetInfo` otherwise accepts. `FrameCount` defaults to `1`
+and is overridden only by `GifCodec.GetInfo`, the only codec whose file format can legitimately
+declare more than one frame (an animation); it reports the file's true total Image Descriptor
+count by walking the file's block structure, never decoding any frame's LZW-compressed pixel
+data — see _GifCodec Unit Design_ (`codecs/gif-codec.md`) for the exact walk. Because `ImageInfo`
+is a record struct, `CanDecode` and `FrameCount` both participate in its generated value equality
+like every other member.
 
 ### Header-Only Probing (`GetInfo`)
 
@@ -94,12 +101,16 @@ Adam7-interlacing rejection (every other header-validity check is unconditional,
 decodable color-type/bit-depth space now spans the PNG specification's entire legal space) — see
 _PngCodec Unit Design_ (`codecs/png-codec.md`) for the exact rationale; the other three raster
 codecs still use only the single `enforceMaxDimension` flag, since none of them has a
-feature-based `Load` refusal that is independent of header well-formedness. `GifCodec` shares a
-similarly-purposed internal header-parsing helper (`ReadLogicalScreenDescriptor`), but with no
-boolean flag at all: unlike the other four raster codecs, `GifCodec.GetInfo` never enforces
-`Surface.MaxDimension` under any circumstance, since it performs no arithmetic or allocation based
-on the reported width/height beyond constructing the returned `ImageInfo` itself — see _GifCodec
-Unit Design_ (`codecs/gif-codec.md`) for the exact rationale. `SvgCodec` does not
+feature-based `Load` refusal that is independent of header well-formedness. `GifCodec` shares its
+per-frame structural-validation helpers (region bounds, minimum code size range, color table
+resolution) between `Load` and `GetInfo`'s frame-counting walk, but with no boolean flag at all:
+unlike the other four raster codecs, `GifCodec.GetInfo` never enforces `Surface.MaxDimension`
+under any circumstance and performs no arithmetic or allocation proportional to the reported
+width/height itself (only bounded, per-frame bounds-check arithmetic and a budget-capped sub-block
+buffer) — see _GifCodec Unit Design_ (`codecs/gif-codec.md`) for the exact rationale, including
+the deliberate asymmetry that `GetInfo` never invokes the LZW decoder for any frame (not even the
+first, which `Load` does decode), so a first-frame compressed-data corruption that makes `Load`
+throw does not make `GetInfo` throw. `SvgCodec` does not
 use this pattern, because
 its `Load` overloads take the requested output raster's width/height as ordinary caller-supplied
 parameters (not values decoded from the file) and delegate them directly to `Surface`'s own

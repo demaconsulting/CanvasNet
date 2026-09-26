@@ -63,19 +63,21 @@ public class GifFixtureTests
     };
 
     /// <summary>
-    ///     Every fixture file (solid-color and animated combined), for the single GetInfo parity
+    ///     Every fixture file (solid-color and animated combined), paired with its expected
+    ///     <see cref="ImageInfo.FrameCount"/> (confirmed via Pillow's <c>Image.n_frames</c>: 1 for
+    ///     every solid-color fixture, 3 for every animated fixture), for the single GetInfo parity
     ///     test that applies identically to both groups.
     /// </summary>
-    public static readonly TheoryData<string, int, int> AllFixtureFiles = new()
+    public static readonly TheoryData<string, int, int, int> AllFixtureFiles = new()
     {
-        { "sample-red-400x300.gif", 400, 300 },
-        { "sample-red-200x200.gif", 200, 200 },
-        { "sample-green-400x300.gif", 400, 300 },
-        { "sample-green-200x200.gif", 200, 200 },
-        { "sample-blue-400x300.gif", 400, 300 },
-        { "sample-animated-400x300.gif", 400, 300 },
-        { "sample-animated-200x200.gif", 200, 200 },
-        { "sample-animated-100x75.gif", 100, 75 }
+        { "sample-red-400x300.gif", 400, 300, 1 },
+        { "sample-red-200x200.gif", 200, 200, 1 },
+        { "sample-green-400x300.gif", 400, 300, 1 },
+        { "sample-green-200x200.gif", 200, 200, 1 },
+        { "sample-blue-400x300.gif", 400, 300, 1 },
+        { "sample-animated-400x300.gif", 400, 300, 3 },
+        { "sample-animated-200x200.gif", 200, 200, 3 },
+        { "sample-animated-100x75.gif", 100, 75, 3 }
     };
 
     /// <summary>
@@ -139,14 +141,17 @@ public class GifFixtureTests
 
     /// <summary>
     ///     Proves that GetInfo reports the same dimensions and <c>CanDecode == true</c> for every
-    ///     fixture (solid-color and animated) as Load actually produces.
+    ///     fixture (solid-color and animated) as Load actually produces, and reports the
+    ///     fixture's true <see cref="ImageInfo.FrameCount"/> (1 for a solid-color fixture, 3 for
+    ///     an animated fixture).
     /// </summary>
     [Theory]
     [MemberData(nameof(AllFixtureFiles))]
     public void GifCodec_GetInfo_Fixture_MatchesLoadDimensionsAndReportsDecodable(
         string fileName,
         int width,
-        int height)
+        int height,
+        int frameCount)
     {
         var path = ResolveFixturePath(fileName);
 
@@ -155,6 +160,7 @@ public class GifFixtureTests
         Assert.Equal(width, info.Width);
         Assert.Equal(height, info.Height);
         Assert.True(info.CanDecode);
+        Assert.Equal(frameCount, info.FrameCount);
     }
     /// <summary>
     ///     Proves that Load successfully decodes an animated (multi-frame) fixture without

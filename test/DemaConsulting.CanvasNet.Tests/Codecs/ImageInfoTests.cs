@@ -4,8 +4,8 @@ namespace DemaConsulting.CanvasNet.Tests.Codecs;
 
 /// <summary>
 ///     Unit tests for the <see cref="ImageInfo"/> record struct, focused on its
-///     <see cref="ImageInfo.CanDecode"/> member - every other member is exercised indirectly
-///     through each codec's own <c>GetInfo</c> tests.
+///     <see cref="ImageInfo.CanDecode"/> and <see cref="ImageInfo.FrameCount"/> members - every
+///     other member is exercised indirectly through each codec's own <c>GetInfo</c> tests.
 /// </summary>
 public class ImageInfoTests
 {
@@ -77,5 +77,43 @@ public class ImageInfoTests
         var info = default(ImageInfo);
 
         Assert.False(info.CanDecode);
+    }
+
+    /// <summary>
+    ///     Proves that constructing an <see cref="ImageInfo"/> via its primary constructor,
+    ///     without setting <see cref="ImageInfo.FrameCount"/>, defaults it to 1.
+    /// </summary>
+    [Fact]
+    public void ImageInfo_ConstructedWithoutFrameCount_DefaultsToOne()
+    {
+        var info = new ImageInfo(4, 3, 4, true);
+
+        Assert.Equal(1, info.FrameCount);
+    }
+
+    /// <summary>
+    ///     Proves that <see cref="ImageInfo.FrameCount"/> can be set to an explicit value via
+    ///     object-initializer syntax alongside the primary constructor.
+    /// </summary>
+    [Fact]
+    public void ImageInfo_ConstructedWithFrameCount_ReportsExplicitValue()
+    {
+        var info = new ImageInfo(4, 3, 4, true) { FrameCount = 3 };
+
+        Assert.Equal(3, info.FrameCount);
+    }
+
+    /// <summary>
+    ///     Proves that <c>default(ImageInfo)</c> has <see cref="ImageInfo.FrameCount"/> equal to
+    ///     0 - not 1, despite the property's <c>= 1</c> initializer - for the same struct
+    ///     field-initializer reason documented on <see cref="ImageInfo_DefaultValue_HasCanDecodeFalse"/>:
+    ///     no codec's <c>GetInfo</c> ever produces a bare <c>default(ImageInfo)</c>.
+    /// </summary>
+    [Fact]
+    public void ImageInfo_DefaultValue_HasFrameCountZero()
+    {
+        var info = default(ImageInfo);
+
+        Assert.Equal(0, info.FrameCount);
     }
 }

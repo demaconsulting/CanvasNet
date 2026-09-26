@@ -291,6 +291,14 @@ before calling `Load` to detect this case up front, instead of catching
 `UnsupportedImageFeatureException` from `Load` itself - see [Handling Unsupported
 Features](#handling-unsupported-features).
 
+`ImageInfo` also has a `FrameCount` property (`init`-only, defaulting to `1`), reporting the
+total number of frames a codec's `Load` would find in the file if it inspected every one.
+Every codec except `GifCodec` reports `FrameCount == 1` unconditionally, since none of them has a
+concept of multiple frames. `GifCodec.GetInfo` is the sole exception: a GIF file may legitimately
+declare more than one frame (an animation), and `GifCodec.GetInfo` reports the file's true count
+by walking its block structure - without ever decoding any frame's compressed pixel data - see
+[GifCodec](#gifcodec) below.
+
 ### BmpCodec
 
 The `BmpCodec` static class loads and saves `Surface` pixel buffers as uncompressed Windows BMP
@@ -829,16 +837,23 @@ Loads a `Surface` from a GIF file at the specified path.
 public static ImageInfo GetInfo(Stream stream)
 ```
 
-Reads only the GIF signature and Logical Screen Descriptor (the same shared, private step `Load`
-itself calls first) and returns an `ImageInfo` describing the image, without decoding any pixel
-data, color table, or block data, and without enforcing `Surface.MaxDimension`. `Channels` is
-always 1 and `CanDecode` is always `true`.
+Walks the GIF's Logical Screen Descriptor, color tables, and every subsequent block through and
+including the Trailer, and returns an `ImageInfo` describing the image - including the file's
+true total frame count in `FrameCount` - without ever decoding any frame's LZW-compressed pixel
+data, and without enforcing `Surface.MaxDimension`. `Channels` is always 1 and `CanDecode` is
+always `true`. `GetInfo` never invokes the LZW decoder for any frame, not even the first (which
+`Load` does decode), so a first-frame compressed-data corruption that makes `Load` throw does not
+make `GetInfo` throw - a deliberate, bounded asymmetry, not a violation of `GetInfo`'s "never
+throws for input `Load` would accept" contract.
 
 **Exceptions:**
 
 - `ArgumentNullException`: Thrown when `stream` is null.
 - `InvalidDataException`: Thrown when the stream does not begin with the "GIF87a"/"GIF89a"
-  signature, or ends before the Logical Screen Descriptor has been fully read.
+  signature, the declared width or height is non-positive, no color table (global or local) is
+  available for some Image Descriptor, an Image Descriptor's region lies outside the logical
+  screen, any Image Descriptor's LZW minimum code size is outside the 2-8 range, or the stream
+  ends before all header, color-table, or block data has been read.
 
 ##### GifCodec.GetInfo(string path)
 
@@ -846,8 +861,8 @@ always 1 and `CanDecode` is always `true`.
 public static ImageInfo GetInfo(string path)
 ```
 
-Reads the signature and Logical Screen Descriptor of a GIF file at the specified path and returns
-an `ImageInfo`.
+Reads the signature, Logical Screen Descriptor, and every block of a GIF file at the specified
+path and returns an `ImageInfo`.
 
 **Exceptions:**
 

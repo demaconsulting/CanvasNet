@@ -297,19 +297,58 @@ sections:
               - id: CanvasNet-Codecs-GifCodec-GetInfo
                 title: >-
                   The GifCodec class shall report a GIF's width, height, channel count, and
-                  CanDecode via GetInfo, given a stream or a file path, reading only the signature
-                  and Logical Screen Descriptor, without decoding pixel data and without enforcing
-                  Surface.MaxDimension.
+                  CanDecode via GetInfo, given a stream or a file path, validating the file's
+                  block structure (Logical Screen Descriptor, color tables, extensions, and every
+                  Image Descriptor) without ever decoding any frame's pixel data, and without
+                  enforcing Surface.MaxDimension.
                 justification: |
                   Callers need to inspect a GIF's declared dimensions (for example to reject
                   unreasonably large images before allocating a Surface) without paying the cost of
                   decoding the full pixel buffer, and without GetInfo itself preemptively rejecting
-                  dimensions that only Load's allocation path needs to guard against.
+                  dimensions that only Load's allocation path needs to guard against. GetInfo must
+                  still be able to report a genuinely malformed GIF as such, so it walks the same
+                  block structure Load validates - it simply never invokes the LZW decoder for any
+                  frame, so a first-frame pixel-data corruption that would make Load throw does not
+                  make GetInfo throw.
                 tests:
                   - GifCodec_GetInfo_ReturnsExpectedDimensionsChannelsAndCanDecode
-                  - GifCodec_GetInfo_NeverReadsPixelData
+                  - GifCodec_GetInfo_NeverDecodesLzwPixelData_AcceptsCorruptFirstFrameCompressedData
                   - GifCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows
                   - GifCodec_GetInfo_Fixture_MatchesLoadDimensionsAndReportsDecodable
+
+              - id: CanvasNet-Codecs-GifCodec-FrameCount
+                title: >-
+                  The GifCodec class shall report a well-formed GIF's total Image-Descriptor
+                  (frame) count via ImageInfo.FrameCount from GetInfo, without decoding any
+                  frame's LZW-compressed pixel data.
+                justification: |
+                  Callers triaging an untrusted or unknown-source GIF (for example, to warn a user
+                  before rendering an animation, or to cap the number of frames a downstream
+                  process will attempt to handle) need to know a file's true frame count without
+                  paying the cost of decoding any frame's pixel data - GetInfo already exists for
+                  exactly this "inspect before you commit" use case, so it is the natural place to
+                  expose this value rather than requiring a caller to call Load repeatedly or
+                  otherwise re-implement GIF block parsing themselves.
+                tests:
+                  - GifCodec_GetInfo_SingleFrame_ReportsFrameCountOne
+                  - GifCodec_GetInfo_MultiFrame_ReportsCorrectFrameCount
+                  - GifCodec_GetInfo_Fixture_MatchesLoadDimensionsAndReportsDecodable
+
+              - id: CanvasNet-Codecs-GifCodec-GetInfoFrameValidation
+                title: >-
+                  The GifCodec class shall not weaken its rejection of a structurally malformed
+                  GIF frame (for example, an Image Descriptor with no resolvable color table)
+                  merely because GetInfo's frame-counting walk never decodes that frame's pixel
+                  data.
+                justification: |
+                  A caller must be able to trust that a file GetInfo accepts is one Load would also
+                  accept; if frame counting silently tolerated a structurally malformed
+                  non-decoded frame (a frame Load itself would reject), GetInfo would report a
+                  frame count for - and implicitly vouch for the validity of - a file that is not
+                  actually well-formed, violating GetInfo's "never accept what Load would reject"
+                  contract.
+                tests:
+                  - GifCodec_GetInfo_SecondFrameMissingColorTable_ThrowsInvalidDataException
 
               - id: CanvasNet-Codecs-GifCodec-GetInfoValidation
                 title: >-

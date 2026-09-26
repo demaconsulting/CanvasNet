@@ -1546,6 +1546,7 @@ public class TiffCodecTests
         var info = TiffCodec.GetInfo(ms1520);
 
         Assert.Equal(new ImageInfo(3, 2, 3, false), info);
+        Assert.Equal(1, info.FrameCount);
     }
 
     /// <summary>
