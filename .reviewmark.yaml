@@ -230,6 +230,24 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/JpegCodecTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/JpegFixtureTests.cs"  # fixture conformance tests
 
+  # CanvasNet-Codecs-GifCodec Review (one per unit)
+  - id: CanvasNet-Codecs-GifCodec
+    title: Review that CanvasNet Codecs GifCodec Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/codecs.md"
+      - "docs/reqstream/canvas-net/codecs.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/codecs/gif-codec.yaml"      # unit requirements
+      - "docs/design/canvas-net/codecs/gif-codec.md"          # unit design
+      - "docs/verification/canvas-net/codecs/gif-codec.md"    # unit verification
+      - "src/DemaConsulting.CanvasNet/Codecs/GifCodec.cs"         # unit source
+      - "src/DemaConsulting.CanvasNet/Codecs/ImageInfo.cs"        # shared header-only probe result type
+      - "src/DemaConsulting.CanvasNet/Codecs/NamespaceDoc.cs"     # Codecs namespace documentation
+      - "test/DemaConsulting.CanvasNet.Tests/Codecs/GifCodecTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Codecs/GifFixtureTests.cs"  # fixture conformance tests
+
   # CanvasNet-Codecs-SvgCodec Review (one per unit)
   - id: CanvasNet-Codecs-SvgCodec
     title: Review that CanvasNet Codecs SvgCodec Implementation is Correct

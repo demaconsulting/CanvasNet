@@ -33,6 +33,8 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
   transparency); save 8-bit Truecolor (RGB) and Truecolor-with-alpha (RGBA) PNG files
 - 🖨️ **TIFF Codec** - Load and save 8-bit RGB/RGBA/Grayscale TIFF files with PackBits/LZW/Deflate
 - 🗜️ **JPEG Codec** - Load baseline/progressive JPEG and save baseline 4:2:0 JPEG with quality control
+- 🎞️ **GIF Codec** - Decode-only load of the first frame of a GIF87a/GIF89a file, including a
+  GIF-native LZW decoder, interlacing, and transparency
 - 📐 **SVG Codec** - Decode/rasterize a common real-world subset of SVG documents (shapes, paths,
   transforms, gradients, `<use>`, text) into a `Surface` of caller-chosen dimensions
 - 🔍 **Header-Only Probing** - `GetInfo` reads only image headers (dimensions/channels/alpha) without
@@ -87,6 +89,8 @@ using var reloadedTiff = TiffCodec.Load("surface.tiff"); // load it back
 
 JpegCodec.Save(surface, "surface.jpg", 90);        // save as a baseline JPEG file
 using var reloadedJpeg = JpegCodec.Load("surface.jpg"); // load it back
+
+using var reloadedGif = GifCodec.Load("surface.gif"); // decode-only: load the first frame of a GIF
 
 using var rasterized = SvgCodec.Load("icon.svg", 256, 256); // decode/rasterize an SVG into a 256x256 surface
 

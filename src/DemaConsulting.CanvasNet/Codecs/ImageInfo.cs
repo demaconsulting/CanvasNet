@@ -8,9 +8,10 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     <see cref="BmpCodec.GetInfo(Stream)"/>) without decoding any pixel data.
 /// </summary>
 /// <remarks>
-///     <c>ImageInfo</c> is a small, shared supporting data type used by all four codecs in this
-///     namespace (<see cref="BmpCodec"/>, <see cref="PngCodec"/>, <see cref="TiffCodec"/>, and
-///     <see cref="JpegCodec"/>) rather than being owned by any single one of them, mirroring how
+///     <c>ImageInfo</c> is a small, shared supporting data type used by all five raster codecs in
+///     this namespace (<see cref="BmpCodec"/>, <see cref="PngCodec"/>, <see cref="TiffCodec"/>,
+///     <see cref="JpegCodec"/>, and <see cref="GifCodec"/>) rather than being owned by any single
+///     one of them, mirroring how
 ///     <see cref="Rgba32"/> is a shared supporting type for <see cref="Surface"/>. It exists to
 ///     let a caller inspect a file's declared width and height - and therefore estimate the
 ///     memory a full decode would allocate - before committing to a full pixel decode via the
@@ -102,6 +103,17 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///                 JPEG: <see cref="Channels"/> is the number of components declared in the
 ///                 SOF0/SOF2 marker (1 for grayscale, 3 for YCbCr); <see cref="HasAlpha"/> is
 ///                 always <see langword="false"/>, since JPEG has no alpha channel.
+///             </description>
+///         </item>
+///         <item>
+///             <description>
+///                 GIF: <see cref="Channels"/> is always 1 (one palette-index byte per pixel);
+///                 <see cref="HasAlpha"/> is always <see langword="false"/> - this is the raw
+///                 file's single palette-index-per-pixel encoding, deliberately not the
+///                 4-channel RGBA result a full <c>Load</c> produces after resolving the active
+///                 color table and any Graphic Control Extension transparency flag, since
+///                 <c>GetInfo</c> never scans for an optional Graphic Control Extension at all
+///                 (see <see cref="GifCodec.GetInfo(Stream)"/>'s remarks).
 ///             </description>
 ///         </item>
 ///     </list>

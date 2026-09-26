@@ -27,6 +27,12 @@ words:
   - BITMAPFILEHEADER
   - BITMAPINFOHEADER
   - BITMAPV
+  - blit
+  - blits
+  - Blit
+  - Blits
+  - blitted
+  - blitting
   - bowtie
   - buildmark
   - Casteljau
@@ -42,6 +48,8 @@ words:
   - defiltered
   - defilters
   - deinterlacing
+  - Deinterlace
+  - Deinterlaces
   - Deinterleave
   - deinterleaved
   - desaturated
@@ -79,11 +87,13 @@ words:
   - misdecoded
   - nameof
   - nonzero
+  - NOTAGIF
   - Outliner
   - Plte
   - plte
   - PLTE
   - quantizer
+  - samplelib
   - subsampled
   - unstuffed
   - upsamples

@@ -29,8 +29,8 @@ software items, specifically:
 - **CanvasNet (System)** — The complete .NET library system
 - **Canvas (Subsystem)** — Pixel-buffer primitives: the `Surface` unit (mutable, in-memory
   32-bit RGBA pixel buffer with span-based row access) and the `Rgba32` unit
-- **Codecs (Subsystem)** — Image format codecs: `BmpCodec`, `PngCodec`, `TiffCodec`, and
-  `JpegCodec`, each converting to and from a `Surface` pixel buffer, plus `SvgCodec`, a
+- **Codecs (Subsystem)** — Image format codecs: `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`,
+  and `GifCodec`, each converting to and from a `Surface` pixel buffer, plus `SvgCodec`, a
   decode/rasterize-only unit that rasterizes a subset of SVG vector documents into a `Surface`
 - **Geometry (Subsystem)** — Vector-geometry primitives, distinct from the `Drawing`
   subsystem (which covers rasterization built on top of these primitives): the `Rect` unit
@@ -89,7 +89,8 @@ diagram or the prose below.
 
 CanvasNet is organized into six subsystems under the system level: the `Canvas` subsystem
 (the `Surface` and `Rgba32` units, namespace `DemaConsulting.CanvasNet.Canvas`), the `Codecs`
-subsystem (the `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, and `SvgCodec` units, namespace
+subsystem (the `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`, and `SvgCodec` units,
+namespace
 `DemaConsulting.CanvasNet.Codecs`, flat — no further nesting), the `Geometry` subsystem (the
 `Rect`, `Path`, `BezierFlattening`, and `SvgArcConverter` units, namespace
 `DemaConsulting.CanvasNet.Geometry`, flat — no further nesting), the `Drawing` subsystem (the
@@ -126,6 +127,7 @@ src/DemaConsulting.CanvasNet/
 │   │                                depth) and saver (8-bit Truecolor/Truecolor-with-alpha)
 │   ├── TiffCodec.cs              — 8-bit RGB/RGBA/Grayscale, strip-based TIFF loader/saver
 │   ├── JpegCodec.cs              — Baseline/progressive JPEG loader and baseline JPEG saver
+│   ├── GifCodec.cs               — Decode-only, first-frame-only GIF loader
 │   ├── SvgCodec.cs               — Decode/rasterize-only loader for a subset of SVG documents
 │   └── NamespaceDoc.cs           — Namespace-level XML documentation
 ├── Drawing/
