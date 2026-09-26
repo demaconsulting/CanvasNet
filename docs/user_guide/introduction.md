@@ -803,8 +803,11 @@ other decoded pixel is fully opaque (alpha 255).
 - `InvalidDataException`: Thrown when the stream does not contain a valid, supported GIF image
   (bad signature, dimensions exceeding `Surface.MaxDimension`, missing color table, a malformed
   Graphic Control Extension, an unexpected block introducer, trailing data after the Trailer, no
-  Image Descriptor found, an out-of-bounds Image Descriptor, an invalid LZW code, insufficient LZW
-  output, or a truncated stream).
+  Image Descriptor found, an out-of-bounds Image Descriptor, any Image Descriptor's LZW minimum
+  code size byte outside the valid 2-8 range, an invalid LZW code, the compressed data decoding to
+  a different pixel count than declared or omitting the required end-of-information code,
+  cumulative sub-block data across the whole file exceeding `MaxTotalSubBlockBytes`, or a
+  truncated stream).
 
 ##### GifCodec.Load(string path)
 

@@ -129,7 +129,9 @@ a time:
   `Rgba32` (alpha 0 if the index matches a pending Graphic Control Extension's transparent index
   and its transparency flag is set, else alpha 255), allocates a canvas-sized `Surface`
   (defaulting to fully transparent), and blits the frame into it at its declared offset. Every
-  subsequent Image Descriptor is fully parsed and validated but its pixel data is not decoded.
+  subsequent Image Descriptor is structurally validated (descriptor fields, color table, dimensions,
+  minimum code size, and sub-block framing) but its pixel data is not decoded, so its LZW codes and
+  palette indices are never semantically validated.
 - **Trailer (`0x3B`)** — ends the block loop.
 - Any other introducer byte — `InvalidDataException`.
 
@@ -145,7 +147,9 @@ was seen.
   2-8 range; a Graphic Control Extension whose data is not exactly 4 bytes;
   an Image Descriptor region lying outside the logical screen; an unexpected block introducer
   byte; bytes remaining after the Trailer; no Image Descriptor ever seen; an invalid/out-of-range
-  LZW code; insufficient LZW output before the stream ends; the stream ending before all header,
+  LZW code; insufficient LZW output before the stream ends; the cumulative sub-block data read
+  across every extension and image-data chain in the whole file exceeding
+  `MaxTotalSubBlockBytes` (a 64 MiB resource-safety ceiling); the stream ending before all header,
   color-table, or block data has been read
 
 #### Load(string path)
