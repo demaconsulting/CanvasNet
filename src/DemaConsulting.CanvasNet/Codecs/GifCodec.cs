@@ -510,6 +510,27 @@ public static class GifCodec
     ///         that constant's remarks for why this introduces no new unbounded-loop or
     ///         resource-exhaustion risk.
     ///     </para>
+    ///     <para>
+    ///         This first-frame decode-validation attempt is a deliberate, accepted cost -
+    ///         not an oversight - and is an explicit part of <c>GetInfo</c>'s documented
+    ///         contract for GIF specifically (see this type's and <see cref="ImageInfo"/>'s
+    ///         own remarks, <c>README.md</c>, and the user guide, all of which call out this
+    ///         same GIF exception to the other four codecs' pure header-only probing). A
+    ///         caller who only needs <see cref="ImageInfo.FrameCount"/> or the declared
+    ///         dimensions, and does not care whether <see cref="ImageInfo.CanDecode"/> is
+    ///         accurate, pays this cost regardless, because <c>GetInfo</c> returns a single
+    ///         <see cref="ImageInfo"/> value covering all of its properties at once - there is
+    ///         no lighter-weight overload that reports frame count without also attempting this
+    ///         validation. This was a considered trade-off, not an accidental regression:
+    ///         an earlier revision of this method never decoded the first frame at all and
+    ///         consequently reported <see cref="ImageInfo.CanDecode"/> as
+    ///         <see langword="true"/> even for a GIF whose first frame's compressed data was
+    ///         corrupt in a way that made <see cref="Load(Stream)"/> itself throw - directly
+    ///         contradicting <see cref="ImageInfo.CanDecode"/>'s documented contract. Between
+    ///         that contract violation and this bounded, documented decode cost (capped by the
+    ///         same <see cref="Surface.MaxDimension"/>-squared ceiling described above), this
+    ///         method deliberately accepts the cost.
+    ///     </para>
     /// </remarks>
     public static ImageInfo GetInfo(Stream stream)
     {
