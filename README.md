@@ -26,8 +26,8 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 - 🖼️ **Pixel Buffer** - Mutable 32-bit RGBA surface with span access
 - ✂️ **Cropping** - Independent-copy crop for load/crop/save workflows
 - 🌈 **Compositing** - Alpha premultiply and Porter-Duff "over" compositing
-- 📀 **BMP Codec** - Load/save 24-bit and 32-bit BMP files
-- 🎨 **PNG Codec** - Load spec-valid PNGs; save 8-bit RGB/RGBA
+- 📀 **BMP Codec** - Load/save 24-bit/32-bit uncompressed BMP files
+- 🎨 **PNG Codec** - Load non-interlaced PNGs; save 8-bit RGB/RGBA
 - 🖨️ **TIFF Codec** - Load/save 8-bit RGB/RGBA/Grayscale TIFF files
 - 🗜️ **JPEG Codec** - Load baseline/progressive; save baseline JPEG
 - 🎞️ **GIF Codec** - Decode-only load of first GIF frame
