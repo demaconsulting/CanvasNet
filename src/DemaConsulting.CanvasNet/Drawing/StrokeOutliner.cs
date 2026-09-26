@@ -371,7 +371,15 @@ internal static class StrokeOutliner
         // product to Infinity or (Infinity * 0) to NaN.
         var outerArea = ComputeSignedArea(outerRing);
         var innerArea = ComputeSignedArea(innerRing);
-        if (outerArea != 0.0 && innerArea != 0.0 && Math.Sign(outerArea) == Math.Sign(innerArea))
+
+        // Areas are computed (not caller-supplied literal) values, so guard the "is this ring
+        // degenerate" check with a small tolerance rather than an exact-zero comparison - a
+        // ring that is only nearly collinear could otherwise land at a tiny nonzero double
+        // instead of exactly 0.0, and still needs to be treated as having no meaningful sign.
+        const double areaNearZeroTolerance = 1e-9;
+        if (Math.Abs(outerArea) > areaNearZeroTolerance
+            && Math.Abs(innerArea) > areaNearZeroTolerance
+            && Math.Sign(outerArea) == Math.Sign(innerArea))
         {
             innerRing.Reverse();
         }

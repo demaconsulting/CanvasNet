@@ -539,7 +539,11 @@ public class SurfaceTests
     /// </summary>
     private static byte ComputeExpectedPremultiplied(byte color, byte alpha)
     {
-        var value = Math.Round(color * alpha / 255.0, MidpointRounding.AwayFromZero);
+        // Cast the first operand to double before multiplying (rather than casting the product
+        // afterward) so the multiplication itself is performed in double precision - this is
+        // harmless for today's byte-range operands, but avoids the integer-multiplication-then-
+        // widen pattern that would silently truncate for wider integer types.
+        var value = Math.Round((double)color * alpha / 255.0, MidpointRounding.AwayFromZero);
         return (byte)Math.Clamp(value, 0, 255);
     }
 
