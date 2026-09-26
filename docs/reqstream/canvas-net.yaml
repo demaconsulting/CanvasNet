@@ -835,7 +835,6 @@ sections:
         children:
           - CanvasNet-Codecs-GifValidationEmptyPath
         tests:
-          - CanvasNet_SystemIntegration_GifLoad_ReturnsExpectedPixel
           - GifCodec_Load_EmptyPath_ThrowsArgumentException
 
       - id: CanvasNet-Lib-GifUnsupportedFormatValidation
@@ -855,7 +854,27 @@ sections:
         children:
           - CanvasNet-Codecs-GifUnsupportedFormatValidation
         tests:
-          - CanvasNet_SystemIntegration_GifLoad_ReturnsExpectedPixel
+          - GifCodec_Load_BadSignature_ThrowsInvalidDataException
+          - GifCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException
+          - GifCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException
+          - GifCodec_Load_NoColorTable_ThrowsInvalidDataException
+          - GifCodec_Load_SecondFrameMissingColorTable_ThrowsInvalidDataException
+          - GifCodec_Load_SecondFrameOutOfRangeMinCodeSize_ThrowsInvalidDataException
+          - GifCodec_Load_SecondFrameZeroMinCodeSize_ThrowsInvalidDataException
+          - GifCodec_Load_MalformedGraphicControlExtension_ThrowsInvalidDataException
+          - GifCodec_Load_UnexpectedBlockIntroducer_ThrowsInvalidDataException
+          - GifCodec_Load_TrailingDataAfterTrailer_ThrowsInvalidDataException
+          - GifCodec_Load_NoImageDescriptor_ThrowsInvalidDataException
+          - GifCodec_Load_ImageDescriptorOutOfBounds_ThrowsInvalidDataException
+          - GifCodec_Load_TruncatedAtSignature_ThrowsInvalidDataException
+          - GifCodec_Load_TruncatedAtColorTable_ThrowsInvalidDataException
+          - GifCodec_Load_TruncatedAtSubBlock_ThrowsInvalidDataException
+          - GifCodec_Load_InvalidLzwCode_ThrowsInvalidDataException
+          - GifCodec_Load_InsufficientLzwOutput_ThrowsInvalidDataException
+          - GifCodec_Load_LzwStreamMissingEoi_ThrowsInvalidDataException
+          - GifCodec_Load_LzwStreamOverrunsExpectedCount_ThrowsInvalidDataException
+          - GifCodec_Load_ExcessiveSubBlockData_ThrowsInvalidDataException
+          - GifCodec_Load_GraphicControlExtensionExceedsRemainingSubBlockBudget_ThrowsInvalidDataException
 
       - id: CanvasNet-Lib-GifGetInfo
         title: >-
