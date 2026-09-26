@@ -1,0 +1,343 @@
+---
+# Software Unit Requirements for GifCodec
+#
+# These requirements describe the design-level behavior of the GifCodec unit.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Codecs Requirements
+        sections:
+          - title: GifCodec Requirements
+            requirements:
+              - id: CanvasNet-Codecs-GifCodec-Load
+                title: >-
+                  The GifCodec class shall load a Surface from a GIF stream or file path, decoding
+                  the Logical Screen Descriptor, Global Color Table, and first Image Descriptor's
+                  LZW-compressed pixel data into matching RGBA pixel values, with fully opaque
+                  alpha except for pixels using the active Graphic Control Extension's transparent
+                  color index.
+                justification: |
+                  Callers need to import existing GIF images as pixel buffers for further
+                  processing or display, matching the file's own declared color table exactly,
+                  whether that color table is the Global Color Table or, when a frame declares
+                  its own, a Local Color Table.
+                tests:
+                  - GifCodec_Load_FirstFrame_DecodesExpectedPixels
+                  - GifCodec_Load_FromFilePath_ReturnsExpectedPixels
+                  - GifCodec_Load_SolidColorFixture_MatchesOwnGlobalColorTable
+                  - GifCodec_Load_LocalColorTableOnly_DecodesExpectedPixels
+
+              - id: CanvasNet-Codecs-GifCodec-FirstFrameOnly
+                title: >-
+                  The GifCodec class shall decode only the first Image Descriptor of a multi-frame
+                  (animated) GIF, without throwing merely because further frames follow.
+                justification: |
+                  GifCodec is intentionally decode-only and single-frame; a multi-frame GIF is not
+                  malformed data, so callers that only need a static preview of an animated GIF
+                  must not be forced to handle an exception for ordinary, well-formed input.
+                tests:
+                  - GifCodec_Load_MultiFrame_DecodesFirstFrameOnlyWithoutThrowing
+                  - GifCodec_Load_AnimatedFixture_DecodesFirstFrameWithoutThrowing
+
+              - id: CanvasNet-Codecs-GifCodec-Interlacing
+                title: >-
+                  The GifCodec class shall de-interlace an Image Descriptor whose interlace flag is
+                  set, restoring the four-pass row order to normal top-to-bottom row order.
+                justification: |
+                  Interlaced GIF images store rows in a four-pass, non-sequential order for
+                  progressive rendering; decoding them without reversing this reordering would
+                  produce a visibly scrambled image.
+                tests:
+                  - GifCodec_Load_InterlacedImage_DeinterlacesCorrectly
+
+              - id: CanvasNet-Codecs-GifCodec-TransparentColorIndex
+                title: >-
+                  The GifCodec class shall read a Graphic Control Extension's transparent color
+                  index from its fourth data byte (byte offset 3), and set alpha to zero for
+                  pixels matching that color table index in the following Image Descriptor.
+                justification: |
+                  The Graphic Control Extension's transparency flag is byte 0's bit 0, the delay
+                  time occupies bytes 1-2, and only byte 3 holds the transparent color index;
+                  reading the wrong offset (for example byte 1, which is part of the delay time)
+                  would silently apply transparency to the wrong color, or fail to apply it at all.
+                tests:
+                  - GifCodec_Load_TransparentColorIndex_ProducesAlphaZero
+
+              - id: CanvasNet-Codecs-GifCodec-SubRegionBlit
+                title: >-
+                  The GifCodec class shall blit an Image Descriptor's pixel data at its declared
+                  left/top offset within the Logical Screen Descriptor's canvas, rather than
+                  assuming the image always covers the full canvas from (0, 0).
+                justification: |
+                  A GIF Image Descriptor may declare a sub-region of the logical screen; ignoring
+                  its left/top offset would place decoded pixels at the wrong canvas position.
+                tests:
+                  - GifCodec_Load_SubRegionImageDescriptor_BlitsAtCorrectOffset
+
+              - id: CanvasNet-Codecs-GifCodec-LoadNullStream
+                title: The GifCodec class shall reject a null stream argument to Load with ArgumentNullException.
+                justification: |
+                  A null stream has no data to read; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - GifCodec_Load_NullStream_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-GifCodec-LoadNullPath
+                title: The GifCodec class shall reject a null path argument to Load with ArgumentNullException.
+                justification: |
+                  A null path cannot identify a source file; rejecting it immediately prevents a
+                  NullReferenceException deeper in the call stack.
+                tests:
+                  - GifCodec_Load_NullPath_ThrowsArgumentNullException
+
+              - id: CanvasNet-Codecs-GifCodec-LoadEmptyPath
+                title: The GifCodec class shall reject an empty path argument to Load with ArgumentException.
+                justification: |
+                  An empty path cannot identify a source file; rejecting it immediately prevents an
+                  obscure file-system error.
+                tests:
+                  - GifCodec_Load_EmptyPath_ThrowsArgumentException
+
+              - id: CanvasNet-Codecs-GifCodec-LoadBadSignature
+                title: >-
+                  The GifCodec class shall reject a stream that does not begin with the "GIF87a" or
+                  "GIF89a" signature with InvalidDataException.
+                justification: |
+                  Data not beginning with a recognized GIF signature is not a GIF file; failing
+                  clearly here prevents attempting to interpret arbitrary data as pixel information.
+                tests:
+                  - GifCodec_Load_BadSignature_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-GifCodec-LoadExceedsMaxDimension
+                title: >-
+                  The GifCodec class shall reject a GIF whose Logical Screen Descriptor width or
+                  height exceeds Surface.MaxDimension with InvalidDataException.
+                justification: |
+                  A width or height beyond Surface's maximum permitted dimension would otherwise
+                  reach the Surface constructor unchecked and surface as an
+                  ArgumentOutOfRangeException; validating it against the same bound before any
+                  pixel-buffer allocation keeps the documented InvalidDataException contract for
+                  all malformed/unsupported GIF data.
+                tests:
+                  - GifCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException
+                  - GifCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-GifCodec-NoColorTable
+                title: >-
+                  The GifCodec class shall reject an Image Descriptor whose pixel data references a
+                  color table when no Global Color Table and no Local Color Table is present, with
+                  InvalidDataException - even when the Image Descriptor is a second-or-later frame
+                  whose pixel data this codec never actually decodes.
+                justification: |
+                  Indexed pixel data cannot be resolved to RGB values without a color table; failing
+                  clearly here prevents misinterpreting color table indices as pixel values. This
+                  structural validation applies to every Image Descriptor, not merely the first,
+                  since decoding only the first frame's pixel data is a deliberate scope choice, not
+                  license to silently accept a later frame that is otherwise malformed.
+                tests:
+                  - GifCodec_Load_NoColorTable_ThrowsInvalidDataException
+                  - GifCodec_Load_SecondFrameMissingColorTable_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-GifCodec-OutOfRangeMinCodeSize
+                title: >-
+                  The GifCodec class shall reject an Image Descriptor - first or later frame -
+                  whose LZW minimum code size byte is outside the valid 2-8 range, with
+                  InvalidDataException, even when the Image Descriptor is a second-or-later frame
+                  whose pixel data this codec never actually decodes.
+                justification: |
+                  A minimum code size outside 2-8 cannot be resolved to a valid Clear Code or
+                  End-of-Information code by a standards-conforming GIF LZW decoder. This
+                  structural validation must apply to every Image Descriptor, not merely the
+                  first, since decoding only the first frame's pixel data is a deliberate scope
+                  choice, not license to silently accept a later frame whose declared minimum
+                  code size is otherwise malformed.
+                tests:
+                  - GifCodec_Load_SecondFrameOutOfRangeMinCodeSize_ThrowsInvalidDataException
+                  - GifCodec_Load_SecondFrameZeroMinCodeSize_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-GifCodec-MalformedGraphicControlExtension
+                title: >-
+                  The GifCodec class shall reject a Graphic Control Extension whose data is not
+                  exactly one 4-byte sub-block immediately followed by the block terminator, with
+                  InvalidDataException.
+                justification: |
+                  A Graphic Control Extension always carries exactly 4 data bytes (packed fields,
+                  2-byte delay time, and transparent color index) as a single sub-block followed by
+                  the terminating zero-length sub-block; any other declared sub-block size, or any
+                  additional sub-block after the 4 data bytes (even one that would reassemble to a
+                  total of 4 bytes if naively concatenated), indicates a malformed or unrecognized
+                  extension that must not be parsed as if it had the standard layout.
+                tests:
+                  - GifCodec_Load_MalformedGraphicControlExtension_ThrowsInvalidDataException
+                  - GifCodec_Load_FragmentedGraphicControlExtension_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-GifCodec-UnexpectedBlockIntroducer
+                title: >-
+                  The GifCodec class shall reject a top-level block introducer byte that is none of
+                  Extension Introducer (0x21), Image Descriptor (0x2C), or Trailer (0x3B), with
+                  InvalidDataException.
+                justification: |
+                  These three values are the only block introducers defined by the GIF format;
+                  encountering any other byte indicates a malformed or corrupted stream that must
+                  not be silently skipped.
+                tests:
+                  - GifCodec_Load_UnexpectedBlockIntroducer_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-GifCodec-TrailingDataAfterTrailer
+                title: >-
+                  The GifCodec class shall reject a stream containing additional bytes after the
+                  Trailer (0x3B) block, with InvalidDataException.
+                justification: |
+                  Data following the Trailer is not part of any well-formed GIF file; rejecting it
+                  surfaces a truncated-then-concatenated or corrupted stream rather than silently
+                  ignoring the extra bytes.
+                tests:
+                  - GifCodec_Load_TrailingDataAfterTrailer_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-GifCodec-NoImageDescriptor
+                title: >-
+                  The GifCodec class shall reject a stream that reaches the Trailer without having
+                  encountered at least one Image Descriptor, with InvalidDataException.
+                justification: |
+                  A GIF with no Image Descriptor carries no pixel data at all; there is no frame to
+                  return as a Surface, so this must be treated as invalid input rather than
+                  returning an empty or default surface.
+                tests:
+                  - GifCodec_Load_NoImageDescriptor_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-GifCodec-ImageDescriptorOutOfBounds
+                title: >-
+                  The GifCodec class shall reject an Image Descriptor whose left/top offset plus
+                  its width/height exceeds the Logical Screen Descriptor's canvas dimensions, with
+                  InvalidDataException.
+                justification: |
+                  An Image Descriptor positioned or sized beyond the logical screen's canvas cannot
+                  be blitted onto the destination Surface without writing out of bounds; rejecting
+                  it clearly prevents an out-of-range pixel write.
+                tests:
+                  - GifCodec_Load_ImageDescriptorOutOfBounds_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-GifCodec-TruncatedStream
+                title: >-
+                  The GifCodec class shall reject a stream that ends before all declared signature,
+                  color table, or sub-block data has been read, with InvalidDataException.
+                justification: |
+                  A truncated stream cannot supply complete header or pixel data; failing clearly
+                  here prevents returning a surface with uninitialized or partially read data.
+                tests:
+                  - GifCodec_Load_TruncatedAtSignature_ThrowsInvalidDataException
+                  - GifCodec_Load_TruncatedAtColorTable_ThrowsInvalidDataException
+                  - GifCodec_Load_TruncatedAtSubBlock_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-GifCodec-InvalidLzwCode
+                title: >-
+                  The GifCodec class shall reject LZW-compressed pixel data containing a code that
+                  is neither Clear Code, End-of-Information, an already-defined table entry, nor the
+                  next code the decoder is permitted to define (KwKwK), with InvalidDataException.
+                justification: |
+                  Such a code cannot be resolved to a pixel sequence by a standards-conforming GIF
+                  LZW decoder; failing clearly here prevents fabricating incorrect pixel data from
+                  corrupted or non-GIF-LZW-compliant compressed data.
+                tests:
+                  - GifCodec_Load_InvalidLzwCode_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-GifCodec-InsufficientLzwOutput
+                title: >-
+                  The GifCodec class shall reject LZW-compressed pixel data that decodes to fewer
+                  index values than the Image Descriptor's declared width times height, with
+                  InvalidDataException.
+                justification: |
+                  Pixel data that ends before every pixel of the declared image region has been
+                  produced cannot fill the destination Surface; failing clearly here prevents
+                  returning a surface with uninitialized trailing pixels.
+                tests:
+                  - GifCodec_Load_InsufficientLzwOutput_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-GifCodec-LzwRequiresEoi
+                title: >-
+                  The GifCodec class shall continue decoding LZW-compressed pixel data until an
+                  End-of-Information code is read - never stopping merely because the Image
+                  Descriptor's declared width times height index values have already been
+                  produced - and shall reject with InvalidDataException both a stream that omits
+                  the End-of-Information code and a stream whose decoded output would exceed that
+                  declared count before an End-of-Information code is read.
+                justification: |
+                  A compressed stream that never emits the required End-of-Information code, or
+                  that decodes to a different pixel count than the Image Descriptor declared
+                  (whether via table-entry expansion or otherwise), is malformed; silently
+                  stopping early or truncating such a stream (rather than rejecting it) could
+                  mask corrupted or non-conformant compressed data behind an apparently
+                  successful decode.
+                tests:
+                  - GifCodec_Load_LzwStreamMissingEoi_ThrowsInvalidDataException
+                  - GifCodec_Load_LzwStreamOverrunsExpectedCount_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-GifCodec-SubBlockBudget
+                title: >-
+                  The GifCodec class shall bound the total number of sub-block data bytes it
+                  accumulates across every extension and Image Descriptor sub-block chain in a
+                  single file - including chains whose contents are ultimately discarded, and
+                  including a Graphic Control Extension's fixed-size sub-block - and reject a file
+                  whose cumulative sub-block data would exceed that bound with
+                  InvalidDataException.
+                justification: |
+                  Without a total-file bound, a GIF with tiny declared canvas dimensions could
+                  still carry an effectively unlimited number of valid 255-byte sub-blocks across
+                  its extensions and frames, forcing unbounded buffering and risking an
+                  out-of-memory condition rather than a clean, prompt InvalidDataException. This
+                  bound must be enforced uniformly by every sub-block reader in the codec -
+                  including the Graphic Control Extension's dedicated, stricter reader - so that
+                  no sub-block chain, however small, can push the shared remaining budget negative
+                  and be silently accepted instead of rejected.
+                tests:
+                  - GifCodec_Load_ExcessiveSubBlockData_ThrowsInvalidDataException
+                  - GifCodec_Load_GraphicControlExtensionExceedsRemainingSubBlockBudget_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-GifCodec-GetInfo
+                title: >-
+                  The GifCodec class shall report a GIF's width, height, channel count, and
+                  CanDecode via GetInfo, given a stream or a file path, reading only the signature
+                  and Logical Screen Descriptor, without decoding pixel data and without enforcing
+                  Surface.MaxDimension.
+                justification: |
+                  Callers need to inspect a GIF's declared dimensions (for example to reject
+                  unreasonably large images before allocating a Surface) without paying the cost of
+                  decoding the full pixel buffer, and without GetInfo itself preemptively rejecting
+                  dimensions that only Load's allocation path needs to guard against.
+                tests:
+                  - GifCodec_GetInfo_ReturnsExpectedDimensionsChannelsAndCanDecode
+                  - GifCodec_GetInfo_NeverReadsPixelData
+                  - GifCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows
+                  - GifCodec_GetInfo_Fixture_MatchesLoadDimensionsAndReportsDecodable
+
+              - id: CanvasNet-Codecs-GifCodec-GetInfoValidation
+                title: >-
+                  The GifCodec class shall reject null stream/path, empty path, and bad-signature
+                  arguments to GetInfo with the same exception contract as Load
+                  (ArgumentNullException, ArgumentException, or InvalidDataException respectively).
+                justification: |
+                  Callers need GetInfo's failure behavior to be exactly as predictable as Load's, so
+                  invalid arguments or unreadable GIF data are rejected the same way regardless of
+                  which entry point is used.
+                tests:
+                  - GifCodec_GetInfo_NullStream_ThrowsArgumentNullException
+                  - GifCodec_GetInfo_NullPath_ThrowsArgumentNullException
+                  - GifCodec_GetInfo_EmptyPath_ThrowsArgumentException
+                  - GifCodec_GetInfo_BadSignature_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-GifCodec-GetInfoZeroDimension
+                title: >-
+                  The GifCodec class shall reject a GIF whose Logical Screen Descriptor declares a
+                  non-positive width or height via GetInfo, with InvalidDataException, matching
+                  the identical check Load already performs for this exact condition.
+                justification: |
+                  A zero (or negative, were that representable) declared dimension can never be
+                  decoded regardless of the Surface.MaxDimension cap, so GetInfo reporting
+                  CanDecode as true for it - as it did before this check existed - would be a false
+                  promise rather than a decodable oversized image; Load already rejects the same
+                  condition, and GetInfo must not silently diverge from that contract merely
+                  because it never allocates a Surface.
+                tests:
+                  - GifCodec_GetInfo_ZeroWidth_ThrowsInvalidDataException
+                  - GifCodec_GetInfo_ZeroHeight_ThrowsInvalidDataException

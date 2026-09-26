@@ -100,4 +100,12 @@
     </None>
   </ItemGroup>
 
+  <!-- Real-world GIF test fixtures, sourced from samplelib.com (see GifFixtures\README.md for
+       provenance and licensing) -->
+  <ItemGroup>
+    <None Include="GifFixtures\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

@@ -769,6 +769,92 @@ Saves a `Surface` to a file as a JPEG image, overwriting any existing file at `p
 - `ArgumentException`: Thrown when `path` is an empty string.
 - `ArgumentOutOfRangeException`: Thrown when `quality` is less than 1 or greater than 100.
 
+### GifCodec
+
+The `GifCodec` static class loads `Surface` pixel buffers from GIF87a/GIF89a files. `GifCodec` is
+decode-only: there is no `Save`. A well-formed GIF file may contain multiple frames (an
+animation), but this codec decodes only the *first* Image Descriptor's pixel data - every
+subsequent frame is parsed only far enough to validate its structure and is then discarded. This
+is a deliberate, documented scope limitation, not a malformed-input condition, so a multi-frame
+GIF never causes `Load` to throw, and `GetInfo`'s `CanDecode` is always `true` for a well-formed
+GIF file. Supported features include a Global or Local Color Table, the Graphic Control
+Extension's transparent color index, interlaced Image Descriptors (de-interlaced back to normal
+row order), and Image Descriptors covering a sub-region of the logical screen. GIF's LZW
+compression uses a distinct bit-packing and code-value scheme from `TiffCodec`'s, so `GifCodec`
+implements its own private GIF-native LZW decoder rather than reusing `TiffCodec`'s.
+
+#### GifCodec Methods
+
+##### GifCodec.Load(Stream stream)
+
+```csharp
+public static Surface Load(Stream stream)
+```
+
+Loads a `Surface` from an open, readable stream containing a GIF87a or GIF89a image, decoding only
+the first Image Descriptor. The returned `Surface` is sized to the file's Logical Screen
+Descriptor dimensions. A pixel outside the first frame's region, or whose palette index matches an
+active Graphic Control Extension's transparent color index, is fully transparent (alpha 0); every
+other decoded pixel is fully opaque (alpha 255).
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `stream` is null.
+- `InvalidDataException`: Thrown when the stream does not contain a valid, supported GIF image
+  (bad signature, dimensions exceeding `Surface.MaxDimension`, missing color table, a malformed
+  Graphic Control Extension, an unexpected block introducer, trailing data after the Trailer, no
+  Image Descriptor found, an out-of-bounds Image Descriptor, any Image Descriptor's LZW minimum
+  code size byte outside the valid 2-8 range, an invalid LZW code, the compressed data decoding to
+  a different pixel count than declared or omitting the required end-of-information code,
+  cumulative sub-block data across the whole file exceeding `MaxTotalSubBlockBytes`, or a
+  truncated stream).
+
+##### GifCodec.Load(string path)
+
+```csharp
+public static Surface Load(string path)
+```
+
+Loads a `Surface` from a GIF file at the specified path.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `path` is null.
+- `ArgumentException`: Thrown when `path` is an empty string.
+- `InvalidDataException`: Thrown for the same conditions as `Load(Stream)`.
+
+##### GifCodec.GetInfo(Stream stream)
+
+```csharp
+public static ImageInfo GetInfo(Stream stream)
+```
+
+Reads only the GIF signature and Logical Screen Descriptor (the same shared, private step `Load`
+itself calls first) and returns an `ImageInfo` describing the image, without decoding any pixel
+data, color table, or block data, and without enforcing `Surface.MaxDimension`. `Channels` is
+always 1 and `CanDecode` is always `true`.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `stream` is null.
+- `InvalidDataException`: Thrown when the stream does not begin with the "GIF87a"/"GIF89a"
+  signature, or ends before the Logical Screen Descriptor has been fully read.
+
+##### GifCodec.GetInfo(string path)
+
+```csharp
+public static ImageInfo GetInfo(string path)
+```
+
+Reads the signature and Logical Screen Descriptor of a GIF file at the specified path and returns
+an `ImageInfo`.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `path` is null.
+- `ArgumentException`: Thrown when `path` is an empty string.
+- `InvalidDataException`: Thrown for the same conditions as `GetInfo(Stream)`.
+
 ### SvgCodec
 
 The `SvgCodec` static class decodes and rasterizes a common real-world subset of SVG documents

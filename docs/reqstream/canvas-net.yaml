@@ -789,6 +789,130 @@ sections:
           - JpegCodec_GetInfo_TruncatedBeforeSofFound_ThrowsInvalidDataException
           - JpegCodec_GetInfo_SosBeforeSof_ThrowsInvalidDataException
 
+  - title: GIF Codec API
+    requirements:
+      - id: CanvasNet-Lib-GifLoad
+        title: >-
+          The library shall load a Surface from the first frame of a supported GIF file, from
+          either a stream or a file path, including transparency, interlacing, and sub-region
+          image placement, without throwing merely because a multi-frame (animated) GIF's further
+          frames follow the first.
+        tags: [system]
+        justification: |
+          Callers need to import existing GIF images - including the overwhelmingly common
+          animated-GIF case - as pixel buffers for further processing or display, using just the
+          first frame as a static preview, without being forced to handle an exception for
+          ordinary, well-formed multi-frame input.
+        children:
+          - CanvasNet-Codecs-GifLoad
+        tests:
+          - CanvasNet_SystemIntegration_GifLoad_ReturnsExpectedPixel
+
+      - id: CanvasNet-Lib-GifValidationNull
+        title: >-
+          The library shall reject null stream or path arguments to GIF load operations with
+          ArgumentNullException.
+        tags: [system]
+        justification: |
+          Passing null to a GIF load operation is a programming error. Throwing
+          ArgumentNullException immediately surfaces the mistake and prevents obscure failures
+          deeper in the call stack.
+        children:
+          - CanvasNet-Codecs-GifValidationNull
+        tests:
+          - GifCodec_Load_NullStream_ThrowsArgumentNullException
+          - GifCodec_Load_NullPath_ThrowsArgumentNullException
+
+      - id: CanvasNet-Lib-GifValidationEmptyPath
+        title: >-
+          The library shall reject an empty path argument to GIF load operations with
+          ArgumentException.
+        tags: [system]
+        justification: |
+          Passing an empty path to a GIF load operation is a programming error. Throwing
+          ArgumentException immediately surfaces the mistake and prevents an obscure file-system
+          error.
+        children:
+          - CanvasNet-Codecs-GifValidationEmptyPath
+        tests:
+          - GifCodec_Load_EmptyPath_ThrowsArgumentException
+
+      - id: CanvasNet-Lib-GifUnsupportedFormatValidation
+        title: >-
+          The library shall reject malformed or unsupported GIF data (bad signature, an oversized
+          declared dimension, a missing color table, an out-of-range LZW minimum code size in any
+          frame, a malformed Graphic Control Extension, an unexpected block introducer, trailing
+          data after the Trailer, no Image Descriptor at all, an out-of-bounds Image Descriptor, a
+          truncated stream, an invalid LZW code, insufficient LZW output, an LZW stream missing its
+          End-of-Information code or overrunning the declared pixel count, or excessive total
+          sub-block data) with InvalidDataException.
+        tags: [system]
+        justification: |
+          Callers must be able to distinguish a genuinely malformed or unsupported GIF file from a
+          successful load, and receive a clear, actionable error rather than incorrect pixel data
+          or unbounded resource consumption.
+        children:
+          - CanvasNet-Codecs-GifUnsupportedFormatValidation
+        tests:
+          - GifCodec_Load_BadSignature_ThrowsInvalidDataException
+          - GifCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException
+          - GifCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException
+          - GifCodec_Load_NoColorTable_ThrowsInvalidDataException
+          - GifCodec_Load_SecondFrameMissingColorTable_ThrowsInvalidDataException
+          - GifCodec_Load_SecondFrameOutOfRangeMinCodeSize_ThrowsInvalidDataException
+          - GifCodec_Load_SecondFrameZeroMinCodeSize_ThrowsInvalidDataException
+          - GifCodec_Load_MalformedGraphicControlExtension_ThrowsInvalidDataException
+          - GifCodec_Load_UnexpectedBlockIntroducer_ThrowsInvalidDataException
+          - GifCodec_Load_TrailingDataAfterTrailer_ThrowsInvalidDataException
+          - GifCodec_Load_NoImageDescriptor_ThrowsInvalidDataException
+          - GifCodec_Load_ImageDescriptorOutOfBounds_ThrowsInvalidDataException
+          - GifCodec_Load_TruncatedAtSignature_ThrowsInvalidDataException
+          - GifCodec_Load_TruncatedAtColorTable_ThrowsInvalidDataException
+          - GifCodec_Load_TruncatedAtSubBlock_ThrowsInvalidDataException
+          - GifCodec_Load_InvalidLzwCode_ThrowsInvalidDataException
+          - GifCodec_Load_InsufficientLzwOutput_ThrowsInvalidDataException
+          - GifCodec_Load_LzwStreamMissingEoi_ThrowsInvalidDataException
+          - GifCodec_Load_LzwStreamOverrunsExpectedCount_ThrowsInvalidDataException
+          - GifCodec_Load_ExcessiveSubBlockData_ThrowsInvalidDataException
+          - GifCodec_Load_GraphicControlExtensionExceedsRemainingSubBlockBudget_ThrowsInvalidDataException
+
+      - id: CanvasNet-Lib-GifGetInfo
+        title: >-
+          The library shall report a GIF's width, height, channel count, and CanDecode via
+          GetInfo, given a stream or a file path, without decoding pixel data and without
+          enforcing the maximum permitted dimension.
+        tags: [system]
+        justification: |
+          Callers need to inspect a GIF's declared dimensions - for example to reject unreasonably
+          large images before allocating a Surface - without paying the cost of decoding the full
+          pixel buffer, and without GetInfo itself preemptively rejecting dimensions that only
+          Load's allocation path needs to guard against.
+        children:
+          - CanvasNet-Codecs-GifGetInfo
+        tests:
+          - GifCodec_GetInfo_ReturnsExpectedDimensionsChannelsAndCanDecode
+          - GifCodec_GetInfo_NeverReadsPixelData
+          - GifCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows
+          - GifCodec_GetInfo_Fixture_MatchesLoadDimensionsAndReportsDecodable
+
+      - id: CanvasNet-Lib-GifGetInfoValidation
+        title: >-
+          The library shall reject invalid arguments or malformed GIF data (including a
+          zero-dimensioned Logical Screen Descriptor) passed to GetInfo with the same exception
+          contract as Load.
+        tags: [system]
+        justification: |
+          Callers need GetInfo's failure behavior to be exactly as predictable as Load's.
+        children:
+          - CanvasNet-Codecs-GifGetInfoValidation
+        tests:
+          - GifCodec_GetInfo_NullStream_ThrowsArgumentNullException
+          - GifCodec_GetInfo_NullPath_ThrowsArgumentNullException
+          - GifCodec_GetInfo_EmptyPath_ThrowsArgumentException
+          - GifCodec_GetInfo_BadSignature_ThrowsInvalidDataException
+          - GifCodec_GetInfo_ZeroWidth_ThrowsInvalidDataException
+          - GifCodec_GetInfo_ZeroHeight_ThrowsInvalidDataException
+
   - title: SVG Codec API
     requirements:
       - id: CanvasNet-Lib-SvgLoad

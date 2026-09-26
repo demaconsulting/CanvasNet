@@ -4,20 +4,22 @@
 
 <!-- cspell:ignore rasterizing unparseable Linq -->
 
-The `Codecs` subsystem is the second software subsystem in CanvasNet. It groups five flat,
-hand-rolled image-format codecs — `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, and
-`SvgCodec`. The four raster codecs (`BmpCodec`, `PngCodec`, `TiffCodec`, and `JpegCodec`) each
-convert to and from a `DemaConsulting.CanvasNet.Canvas.Surface` pixel buffer; `SvgCodec` only
-decodes/rasterizes SVG vector artwork into a `Surface` — it has no encode/save direction.
+The `Codecs` subsystem is the second software subsystem in CanvasNet. It groups six flat,
+hand-rolled image-format codecs — `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`,
+and `SvgCodec`. Four raster codecs (`BmpCodec`, `PngCodec`, `TiffCodec`, and `JpegCodec`) each
+convert to and from a `DemaConsulting.CanvasNet.Canvas.Surface` pixel buffer; `GifCodec` is
+decode-only — it loads a `Surface` from the first frame of a GIF file but has no `Save` method;
+`SvgCodec` only decodes/rasterizes SVG vector artwork into a `Surface` — it has no encode/save
+direction either.
 
 ### Purpose
 
 The `Codecs` subsystem groups the software units responsible for reading and writing pixel data
 in standard image file formats, and, for `SvgCodec`, rasterizing vector artwork into pixel data.
-It is flat: none of its five units depend on one another. `BmpCodec`, `PngCodec`, `TiffCodec`,
-and `JpegCodec` depend only on the `Canvas` subsystem's `Surface` unit for their in-memory pixel
-representation; `SvgCodec` additionally depends on the `Geometry`, `Drawing`, and `Fonts`
-subsystems to build and rasterize vector paths and text — see _SvgCodec Unit Design_
+It is flat: none of its six units depend on one another. `BmpCodec`, `PngCodec`, `TiffCodec`,
+`JpegCodec`, and `GifCodec` depend only on the `Canvas` subsystem's `Surface` unit for their
+in-memory pixel representation; `SvgCodec` additionally depends on the `Geometry`, `Drawing`, and
+`Fonts` subsystems to build and rasterize vector paths and text — see _SvgCodec Unit Design_
 (`codecs/svg-codec.md`).
 
 ### Units
@@ -31,6 +33,8 @@ subsystems to build and rasterize vector paths and text — see _SvgCodec Unit D
   strip-based TIFF 6.0 files; see _TiffCodec Unit Design_ (`codecs/tiff-codec.md`)
 - **JpegCodec** — hand-rolled loader/saver for a common real-world subset of JPEG files; see
   _JpegCodec Unit Design_ (`codecs/jpeg-codec.md`)
+- **GifCodec** — hand-rolled, decode-only loader for a common real-world subset of GIF files
+  (first frame only); see _GifCodec Unit Design_ (`codecs/gif-codec.md`)
 - **SvgCodec** — decode/rasterize-only loader for a common real-world subset of SVG documents; see
   _SvgCodec Unit Design_ (`codecs/svg-codec.md`)
 
@@ -38,7 +42,7 @@ subsystems to build and rasterize vector paths and text — see _SvgCodec Unit D
 
 #### ImageInfo
 
-`ImageInfo` is a `public readonly record struct` shared by all five codecs' `GetInfo` methods:
+`ImageInfo` is a `public readonly record struct` shared by all six codecs' `GetInfo` methods:
 
 ```csharp
 public readonly record struct ImageInfo(int Width, int Height, int Channels, bool HasAlpha)
@@ -50,7 +54,7 @@ public readonly record struct ImageInfo(int Width, int Height, int Channels, boo
 It reports a candidate image's declared width, height, channel count, and alpha presence without
 requiring the caller to decode (or even fully read) the file. It is the return type of every
 `{Codec}.GetInfo(Stream)` / `{Codec}.GetInfo(string)` method across `BmpCodec`, `PngCodec`,
-`TiffCodec`, `JpegCodec`, and `SvgCodec`. `CanDecode` is declared as an `init`-only property
+`TiffCodec`, `JpegCodec`, `GifCodec`, and `SvgCodec`. `CanDecode` is declared as an `init`-only property
 outside the primary constructor (rather than a fifth positional parameter) specifically to avoid
 changing the compiler-emitted constructor/`Deconstruct` signature — a binary-compatibility
 concern, since a fifth positional parameter would break any pre-compiled caller's IL even though
@@ -62,8 +66,9 @@ generated value equality like every other member.
 
 ### Header-Only Probing (`GetInfo`)
 
-Each of the five codecs, in addition to its existing `Load` method (and, for the four raster
-codecs, `Save`), exposes a pair of `GetInfo` overloads:
+Each of the six codecs, in addition to its existing `Load` method (and, for four of the five
+raster codecs — all but the decode-only `GifCodec` — `Save`), exposes a pair of `GetInfo`
+overloads:
 
 ```csharp
 public static ImageInfo GetInfo(Stream stream);
@@ -89,7 +94,12 @@ Adam7-interlacing rejection (every other header-validity check is unconditional,
 decodable color-type/bit-depth space now spans the PNG specification's entire legal space) — see
 _PngCodec Unit Design_ (`codecs/png-codec.md`) for the exact rationale; the other three raster
 codecs still use only the single `enforceMaxDimension` flag, since none of them has a
-feature-based `Load` refusal that is independent of header well-formedness. `SvgCodec` does not
+feature-based `Load` refusal that is independent of header well-formedness. `GifCodec` shares a
+similarly-purposed internal header-parsing helper (`ReadLogicalScreenDescriptor`), but with no
+boolean flag at all: unlike the other four raster codecs, `GifCodec.GetInfo` never enforces
+`Surface.MaxDimension` under any circumstance, since it performs no arithmetic or allocation based
+on the reported width/height beyond constructing the returned `ImageInfo` itself — see _GifCodec
+Unit Design_ (`codecs/gif-codec.md`) for the exact rationale. `SvgCodec` does not
 use this pattern, because
 its `Load` overloads take the requested output raster's width/height as ordinary caller-supplied
 parameters (not values decoded from the file) and delegate them directly to `Surface`'s own
@@ -105,10 +115,14 @@ _ImageInfo_ section above for the cross-codec invariant these fallbacks exist to
 never throws for an input Load would successfully decode.
 
 **Well-formed but unsupported: `UnsupportedImageFeatureException`.** Investigation across all
-four raster codecs found exactly one case where a codec's `Load` refuses a file that is
+five raster codecs found exactly one case where a codec's `Load` refuses a file that is
 well-formed per its own format specification — PNG's Adam7 interlacing (the other codecs conflate
 "unsupported" and "malformed" at `GetInfo`-time already, so this exception type is not currently
-thrown by them). `PngCodec.Load` signals this specific case with `UnsupportedImageFeatureException`
+thrown by them). `GifCodec` is deliberately not a second such case: a multi-frame GIF is
+well-formed and `Load` never refuses it — it decodes only the first frame, by design, so
+`GifCodec.GetInfo` always reports `CanDecode == true` (see _GifCodec Unit Design_,
+`codecs/gif-codec.md`, for the rationale).
+`PngCodec.Load` signals this specific case with `UnsupportedImageFeatureException`
 rather than `InvalidDataException`, so a caller can distinguish "well-formed but unsupported" from
 "malformed" without string-matching `Exception.Message`. This type derives from `IOException`
 rather than `InvalidDataException`, because `System.IO.InvalidDataException` is `sealed` in .NET.
