@@ -1090,9 +1090,16 @@ public class GifCodecTests
         Assert.Equal(1, info.FrameCount);
     }
 
-    /// <summary>Test: GifCodec_GetInfo_NeverDecodesLzwPixelData_AcceptsCorruptFirstFrameCompressedData.</summary>
+    /// <summary>
+    ///     Test: GifCodec_GetInfo_CorruptFirstFrameLzwData_ReportsCanDecodeFalse.
+    ///     GetInfo attempts the same LZW decode of the first frame's compressed data that Load
+    ///     performs when it decodes that frame's pixels - discarding the decoded output rather
+    ///     than resolving it into a Surface - specifically so a corrupt first-frame LZW payload
+    ///     is reported via CanDecode = false instead of GetInfo silently claiming a subsequent
+    ///     Load call would succeed.
+    /// </summary>
     [Fact]
-    public void GifCodec_GetInfo_NeverDecodesLzwPixelData_AcceptsCorruptFirstFrameCompressedData()
+    public void GifCodec_GetInfo_CorruptFirstFrameLzwData_ReportsCanDecodeFalse()
     {
         using var stream = new MemoryStream();
         var gct = BuildColorTable((254, 0, 0), (0, 0, 254));
@@ -1100,8 +1107,10 @@ public class GifCodecTests
 
         // Manually write an Image Descriptor whose compressed sub-block data is not a valid GIF
         // LZW stream (it does not start with a Clear code) - Load's DecodeGifLzw rejects this
-        // when it decodes the first frame's pixels, but GetInfo never invokes the LZW decoder
-        // for any frame, so it must still succeed and report the correct frame count.
+        // when it decodes the first frame's pixels, and GetInfo now attempts that same decode
+        // (discarding its output) purely to detect this case, so it must report CanDecode = false
+        // rather than throwing, while still reporting the correct declared dimensions and frame
+        // count.
         stream.WriteByte(0x2C);
         WriteU16(stream, 0);
         WriteU16(stream, 0);
@@ -1118,9 +1127,47 @@ public class GifCodecTests
         Assert.Equal(2, info.Width);
         Assert.Equal(2, info.Height);
         Assert.Equal(1, info.FrameCount);
+        Assert.False(info.CanDecode);
 
         using var loadStream = new MemoryStream(bytes);
         Assert.Throws<InvalidDataException>(() => GifCodec.Load(loadStream));
+    }
+
+    /// <summary>
+    ///     Test: GifCodec_GetInfo_CorruptLaterFrameLzwData_StillReportsCanDecodeTrue.
+    ///     GetInfo only ever attempts to LZW-decode the first frame's compressed data - matching
+    ///     Load's own decode-only-the-first-frame scope - so a second-or-later frame's corrupt
+    ///     LZW payload (which Load itself never decodes either) must not affect CanDecode, and
+    ///     frame counting must still report every Image Descriptor encountered.
+    /// </summary>
+    [Fact]
+    public void GifCodec_GetInfo_CorruptLaterFrameLzwData_StillReportsCanDecodeTrue()
+    {
+        using var stream = new MemoryStream();
+        var gct = BuildColorTable((254, 0, 0), (0, 0, 254));
+        WriteHeader(stream, 2, 2, gct);
+
+        // First frame's compressed data is entirely valid...
+        WriteImageDescriptor(stream, 0, 0, 2, 2, false, null, 2, [0, 0, 0, 0]);
+
+        // ...but the second frame's compressed sub-block data is not a valid GIF LZW stream (it
+        // does not start with a Clear code) - structurally well-formed (a valid sub-block chain),
+        // but undecodable pixel data that neither Load nor GetInfo ever attempts to decode for a
+        // frame after the first.
+        stream.WriteByte(0x2C);
+        WriteU16(stream, 0);
+        WriteU16(stream, 0);
+        WriteU16(stream, 2);
+        WriteU16(stream, 2);
+        stream.WriteByte(0); // packed: no local color table, no interlace
+        stream.WriteByte(2); // LZW minimum code size
+        WriteSubBlocks(stream, [0xFF, 0xFF, 0xFF, 0xFF]);
+        WriteTrailer(stream);
+        stream.Position = 0;
+
+        var info = GifCodec.GetInfo(stream);
+        Assert.Equal(2, info.FrameCount);
+        Assert.True(info.CanDecode);
     }
 
     /// <summary>Test: GifCodec_GetInfo_SingleFrame_ReportsFrameCountOne.</summary>

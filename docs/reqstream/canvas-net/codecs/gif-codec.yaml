@@ -299,33 +299,36 @@ sections:
                   The GifCodec class shall report a GIF's width, height, channel count, and
                   CanDecode via GetInfo, given a stream or a file path, validating the file's
                   block structure (Logical Screen Descriptor, color tables, extensions, and every
-                  Image Descriptor) without ever decoding any frame's pixel data, and without
-                  enforcing Surface.MaxDimension.
+                  Image Descriptor) without ever resolving any frame's decoded pixels into a
+                  Surface, and without enforcing Surface.MaxDimension.
                 justification: |
                   Callers need to inspect a GIF's declared dimensions (for example to reject
                   unreasonably large images before allocating a Surface) without paying the cost of
                   decoding the full pixel buffer, and without GetInfo itself preemptively rejecting
                   dimensions that only Load's allocation path needs to guard against. GetInfo must
                   still be able to report a genuinely malformed GIF as such, so it walks the same
-                  block structure Load validates - it simply never invokes the LZW decoder for any
-                  frame, so a first-frame pixel-data corruption that would make Load throw does not
-                  make GetInfo throw.
+                  block structure Load validates. It also attempts the same first-frame LZW decode
+                  Load performs - discarding the decoded output instead of blitting it into a
+                  Surface - so that a first-frame pixel-data corruption that would make Load throw
+                  is instead reported via CanDecode = false; frames after the first are still never
+                  LZW-decoded by either method.
                 tests:
                   - GifCodec_GetInfo_ReturnsExpectedDimensionsChannelsAndCanDecode
-                  - GifCodec_GetInfo_NeverDecodesLzwPixelData_AcceptsCorruptFirstFrameCompressedData
+                  - GifCodec_GetInfo_CorruptFirstFrameLzwData_ReportsCanDecodeFalse
+                  - GifCodec_GetInfo_CorruptLaterFrameLzwData_StillReportsCanDecodeTrue
                   - GifCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows
                   - GifCodec_GetInfo_Fixture_MatchesLoadDimensionsAndReportsDecodable
 
               - id: CanvasNet-Codecs-GifCodec-FrameCount
                 title: >-
                   The GifCodec class shall report a well-formed GIF's total Image-Descriptor
-                  (frame) count via ImageInfo.FrameCount from GetInfo, without decoding any
-                  frame's LZW-compressed pixel data.
+                  (frame) count via ImageInfo.FrameCount from GetInfo, without resolving any
+                  frame's decoded pixels into a Surface.
                 justification: |
                   Callers triaging an untrusted or unknown-source GIF (for example, to warn a user
                   before rendering an animation, or to cap the number of frames a downstream
                   process will attempt to handle) need to know a file's true frame count without
-                  paying the cost of decoding any frame's pixel data - GetInfo already exists for
+                  paying the cost of decoding the full pixel buffer - GetInfo already exists for
                   exactly this "inspect before you commit" use case, so it is the natural place to
                   expose this value rather than requiring a caller to call Load repeatedly or
                   otherwise re-implement GIF block parsing themselves.

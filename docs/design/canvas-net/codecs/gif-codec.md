@@ -17,15 +17,18 @@ A well-formed GIF file may contain multiple frames (an animation), but `GifCodec
 the *first* Image Descriptor's pixel data — every subsequent frame is parsed only far enough to
 validate its structure (its color table, if any, and its compressed sub-block chain must still be
 well-formed) and is then discarded. This is a deliberate, documented scope limitation, not a
-malformed-input condition: a multi-frame GIF never causes `Load` to throw, and
-`ImageInfo.CanDecode` is always `true` for a well-formed GIF file, unlike PNG's Adam7-interlacing
-case (see *Codecs Subsystem Design*, `../codecs.md`, for the cross-codec `CanDecode` rationale).
+malformed-input condition: a multi-frame GIF never causes `Load` to throw, and a well-formed
+multi-frame GIF is not, by itself, a `CanDecode == false` case (see *Codecs Subsystem Design*,
+`../codecs.md`, for the cross-codec `CanDecode` rationale).
 `GifCodec.GetInfo` additionally reports the file's true total frame count via
 `ImageInfo.FrameCount`, by walking every block in the file and structurally validating every
-frame exactly as `Load` does. Unlike `Load` — which decodes the first frame's LZW data to
-produce pixels — `GetInfo` never decodes any frame's LZW-compressed pixel data; it only counts
-frames and validates structure (see *Codecs Subsystem Design*, `../codecs.md`, for the
-cross-codec `FrameCount` rationale).
+frame exactly as `Load` does. `GetInfo` never invokes the LZW decoder for any frame after the
+first — matching `Load`'s own decode-only-the-first-frame scope — but it *does* attempt the same
+first-frame LZW decode `Load` performs, discarding the decoded palette-index output instead of
+resolving it into a `Surface`, so a corrupt first-frame LZW payload is reported via
+`ImageInfo.CanDecode == false` rather than `GetInfo` silently vouching for a subsequent `Load`
+call that would in fact throw (see *Codecs Subsystem Design*, `../codecs.md`, for the cross-codec
+`CanDecode`/`FrameCount` rationale).
 
 `GifCodec` is a `static` class: GIF decoding has no instance state to carry, so a static utility
 shape was chosen over an object with nothing to construct or configure.
@@ -179,34 +182,50 @@ Calls the shared `ReadLogicalScreenDescriptor` helper, validates the declared wi
 positive (the identical non-positive check `Load` performs, but without `Load`'s additional
 `Surface.MaxDimension` upper bound), reads the Global Color Table if present (identically to
 `Load`), then calls the shared `CountFrames` helper (see below) to walk every remaining block
-through and including the Trailer, and returns
-`new ImageInfo(width, height, 1, false) { FrameCount = frameCount }`.
+through and including the Trailer — returning both the frame count and whether the first frame's
+compressed data successfully LZW-decoded — and returns
+`new ImageInfo(width, height, 1, false) { FrameCount = frameCount, CanDecode = canDecode }`.
 `Surface.MaxDimension` is never enforced — the raw header-declared width/height are always
 returned, even when they exceed it, matching `ImageInfo`'s documented "bomb triage" contract (see
 *Codecs Subsystem Design*, `../codecs.md`). `Channels` is always 1 (the raw file's single
 palette-index-per-pixel encoding); `HasAlpha` is always `false` (see `ImageInfo`'s remarks for the
-full rationale). `CanDecode` defaults to `true` and is never overridden — see this unit's
-*Purpose* section above for why a multi-frame GIF is not a `CanDecode == false` case.
-`FrameCount` reports the file's true total Image Descriptor count.
+full rationale). `CanDecode` is `false` only when the first Image Descriptor's compressed data
+fails the same LZW decode `Load` itself performs for that frame; `true` for every other
+well-formed GIF file — see this unit's *Purpose* section above, and the remarks below, for why a
+multi-frame GIF is not, by itself, a `CanDecode == false` case. `FrameCount` reports the file's
+true total Image Descriptor count.
 
 Counting a GIF's frames correctly requires walking every block in the file — not merely reading
 the Logical Screen Descriptor, as an earlier version of this method did — because an Image
 Descriptor's position in the file is not otherwise predictable (it is interleaved with an
 arbitrary number of extension blocks). `GetInfo` shares its per-frame structural validation with
 `Load` via the same private helpers (`ReadImageDescriptorHeader`,
-`ValidateFrameRegionAndResolveColorTable`), so any input `GetInfo` rejects for a structural reason
-is also an input `Load` would reject, upholding `ImageInfo`'s "never throws for input `Load` would
-accept" invariant. Crucially, `GetInfo` never invokes the LZW decoder (`DecodeGifLzw`) for *any*
-frame — not even the first, which `Load` does decode — so a first-frame compressed-data
-corruption that makes `Load` throw does not make `GetInfo` throw. This is a deliberate, bounded
-asymmetry, consistent with `GetInfo`'s existing `Surface.MaxDimension` leniency: `GetInfo` is
-only ever more lenient than `Load`, never less. The frame-counting walk reuses the exact same
-`MaxTotalSubBlockBytes` cumulative budget `Load` enforces (see the *Data Model* and
+`ValidateFrameRegionAndResolveColorTable`), so any input `GetInfo` rejects for a *structural*
+reason is also an input `Load` would reject, upholding `ImageInfo`'s "never throws for input
+`Load` would accept" invariant. `GetInfo` never invokes the LZW decoder (`DecodeGifLzw`) for any
+frame after the first — `Load` itself never decodes those frames' pixels either, so this
+introduces no divergence. The *first* frame is different: `GetInfo` does invoke `DecodeGifLzw` on
+the first frame's compressed data, reusing the exact same decoder `Load` calls, but discards the
+decoded palette-index bytes it returns instead of resolving them through a color table and
+blitting them into a `Surface` — so `GetInfo` still never materializes decoded pixels, only
+determines whether `Load`'s own first-frame decode attempt on the same bytes would succeed. When
+that decode attempt throws `InvalidDataException`, `GetInfo` catches it and instead reports
+`CanDecode == false`, rather than letting `GetInfo` itself throw: this is a
+well-formed-but-undecodable-payload case — the file's block structure is entirely valid, only its
+first frame's compressed pixel data is corrupt — precisely mirroring how `PngCodec.GetInfo`
+reports Adam7 interlacing via `CanDecode` rather than throwing. This upholds both of `ImageInfo`'s
+documented invariants at once: `GetInfo` never throws for an input `Load` would accept (a
+*structurally* malformed input still throws exactly as before), and `GetInfo` never silently
+claims a first-frame-undecodable input can be decoded. This is consistent with `GetInfo`'s
+existing `Surface.MaxDimension` leniency in spirit only — `GetInfo` is still only ever more
+lenient than `Load` about *structural* validity, never less, while `CanDecode` is the dedicated
+channel for reporting a well-formed-but-undecodable payload. The frame-counting walk reuses the
+exact same `MaxTotalSubBlockBytes` cumulative budget `Load` enforces (see the *Data Model* and
 *Error Handling* sections above), so it introduces no new unbounded-loop or resource-exhaustion
 risk: the walk performs no allocation proportional to the frame count beyond a single `int`
-counter, every per-frame allocation it does perform is itself capped by this same 64 MiB
-cumulative budget, and the walk is strictly bounded by the number of bytes actually present in
-the input stream.
+counter and a `bool` flag, every per-frame allocation it does perform is itself capped by this
+same 64 MiB cumulative budget, and the walk is strictly bounded by the number of bytes actually
+present in the input stream.
 
 **Throws:**
 
@@ -215,10 +234,12 @@ the input stream.
   height; no color table (Global or Local) available for some Image Descriptor; a Graphic Control
   Extension whose data is not exactly 4 bytes; an Image Descriptor's region lying outside the
   logical screen; any Image Descriptor's LZW minimum code size byte outside the 2-8 range; an
-  unexpected block introducer byte; no Image Descriptor ever seen before the Trailer; the
-  cumulative sub-block data read across every extension and image-data chain in the whole file
-  exceeding `MaxTotalSubBlockBytes`; the stream ending before all header, color-table, or block
-  data has been read
+  unexpected block introducer byte; no Image Descriptor ever seen before the Trailer; trailing
+  data remaining after the Trailer; the cumulative sub-block data read across every extension and
+  image-data chain in the whole file exceeding `MaxTotalSubBlockBytes`; the stream ending before
+  all header, color-table, or block data has been read. This is *structural* malformation only —
+  a well-formed container whose first frame's compressed data merely fails to LZW-decode is
+  reported via `CanDecode == false` instead of throwing (see the remarks above).
 
 #### GetInfo(string path)
 
@@ -259,12 +280,19 @@ only one either method ever actually decodes or counts pixels for.
 #### CountFrames(Stream stream, int canvasWidth, int canvasHeight, Rgba32[]? globalColorTable) — shared, private
 
 Walks a GIF file's blocks, from the current stream position (immediately after any Global Color
-Table) through and including the Trailer, counting every Image Descriptor encountered. For each
-block type it mirrors `Load`'s own block loop exactly, except that it never invokes the LZW
-decoder: an Image Descriptor's compressed image data is read only far enough to be skipped (via
-`ReadSubBlocks`, discarding the result) for *every* frame, not merely frames after the first.
-Throws `InvalidDataException` if the Trailer is reached having counted zero Image Descriptors,
-matching `Load`'s identical "GIF stream contains no Image Descriptor" rejection.
+Table) through and including the Trailer, counting every Image Descriptor encountered, and
+returning both that count and whether the first frame's compressed data successfully LZW-decoded.
+For each block type it mirrors `Load`'s own block loop closely: every frame after the first has its
+compressed image data, and every other extension's sub-block data, read only far enough to be
+skipped via `SkipSubBlocks`, without buffering it and without ever invoking the LZW decoder for
+that data. The *first* frame is handled differently: its compressed image data is buffered via
+`ReadSubBlocks` and then fed through the same LZW decoder (`DecodeGifLzw`) `Load` itself invokes
+for that frame; the decoded palette-index bytes that call produces are discarded immediately
+afterward rather than resolved into a `Surface`, and an `InvalidDataException` thrown by that
+decode attempt is caught and reflected as a `false` `CanDecode` result instead of propagating —
+see `GetInfo(Stream)`'s remarks for the full design rationale. Throws `InvalidDataException` if the
+Trailer is reached having counted zero Image Descriptors, matching `Load`'s identical "GIF stream
+contains no Image Descriptor" rejection.
 
 ### Error Handling
 

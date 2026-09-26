@@ -60,10 +60,19 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///         reports that true count via <see cref="FrameCount"/> by walking every block in the
 ///         file - not merely the Logical Screen Descriptor - yet still upholds this invariant:
 ///         it reuses the exact same per-frame structural-validation helpers
-///         <see cref="GifCodec.Load(System.IO.Stream)"/> itself uses, while never invoking the
-///         LZW decoder for any frame's pixel data, so it accepts every input <c>Load</c> accepts
-///         (and rejects every input <c>Load</c> rejects for a structural, non-pixel-data reason)
-///         without ever needing to actually decode a pixel.
+///         <see cref="GifCodec.Load(System.IO.Stream)"/> itself uses, and never invokes the LZW
+///         decoder for any frame after the first (matching <c>Load</c>'s own decode-only-the-
+///         first-frame scope), so it accepts every input <c>Load</c> accepts (and rejects every
+///         input <c>Load</c> rejects for a structural, non-pixel-data reason) without needing to
+///         decode any later frame's pixels. The first frame is handled differently: <c>GetInfo</c>
+///         does attempt an LZW-decode of the first frame's compressed data - reusing <c>Load</c>'s
+///         own decoder but discarding its decoded output instead of resolving it into a
+///         <see cref="Surface"/> - specifically so a corrupt first-frame LZW payload can be
+///         reported via <see cref="CanDecode"/> instead of silently accepted; see
+///         <see cref="GifCodec.GetInfo(System.IO.Stream)"/>'s remarks for the full design, and
+///         <see cref="CanDecode"/>'s own remarks for this as its third documented
+///         well-formed-but-undecodable case, alongside <see cref="PngCodec"/>'s Adam7-interlacing
+///         case.
 ///     </para>
 ///     <para>
 ///         This type is a plain, immutable data carrier with no behavior beyond its record-struct
@@ -148,16 +157,20 @@ public readonly record struct ImageInfo(int Width, int Height, int Channels, boo
     /// <summary>
     ///     <see langword="true"/> if a subsequent call to the corresponding codec's <c>Load</c>
     ///     method on the same bytes is expected to succeed; <see langword="false"/> if the file's
-    ///     header declares a well-formed feature that <c>Load</c> does not implement (a
-    ///     <em>well-formed-but-unsupported</em> file, as distinct from a malformed one - a
-    ///     malformed file makes <c>GetInfo</c> itself throw, rather than returning an
+    ///     header declares a well-formed feature that <c>Load</c> does not implement, or its
+    ///     pixel data is corrupt in a way only detectable by attempting to decode it (a
+    ///     <em>well-formed-but-unsupported/undecodable</em> file, as distinct from a malformed
+    ///     one - a malformed file makes <c>GetInfo</c> itself throw, rather than returning an
     ///     <see cref="ImageInfo"/> with this property set to <see langword="false"/>). Defaults
     ///     to <see langword="true"/> for every <see cref="ImageInfo"/> constructed via its primary
     ///     constructor (which is how every codec's <c>GetInfo</c> constructs its result), since
-    ///     every codec except <see cref="PngCodec"/> today has no
-    ///     well-formed-but-unsupported case at all - see
-    ///     <see cref="PngCodec.GetInfo(System.IO.Stream)"/>'s remarks for the one case (Adam7
-    ///     interlacing) where this is <see langword="false"/>.
+    ///     most codecs have no well-formed-but-unsupported/undecodable case at all - see
+    ///     <see cref="PngCodec.GetInfo(System.IO.Stream)"/>'s remarks for the case (Adam7
+    ///     interlacing) where this is <see langword="false"/> because <c>Load</c> does not
+    ///     implement a well-formed feature, and
+    ///     <see cref="GifCodec.GetInfo(System.IO.Stream)"/>'s remarks for the case where this is
+    ///     <see langword="false"/> because the first frame's compressed pixel data fails to
+    ///     LZW-decode even though the file's block structure is otherwise entirely well-formed.
     /// </summary>
     /// <remarks>
     ///     Deliberately declared here as an <see langword="init"/>-only member outside this
@@ -192,12 +205,15 @@ public readonly record struct ImageInfo(int Width, int Height, int Channels, boo
     ///     override this default. <see cref="GifCodec"/> is the sole exception - a GIF file may
     ///     legitimately declare more than one Image Descriptor (an animation), and
     ///     <see cref="GifCodec.GetInfo(System.IO.Stream)"/> reports the file's true count by
-    ///     walking its block structure (skipping, never decoding, each frame's LZW-compressed
-    ///     pixel data) - see that method's remarks for how this upholds both of this type's
-    ///     documented invariants: it never enforces <see cref="Surface.MaxDimension"/>, and it
-    ///     never throws for an input <see cref="GifCodec.Load(System.IO.Stream)"/> would
+    ///     walking its block structure (skipping, never decoding, each frame after the first's
+    ///     LZW-compressed pixel data - though it does attempt to LZW-decode the first frame's
+    ///     compressed data, discarding the decoded output, purely to determine
+    ///     <see cref="CanDecode"/>) - see that method's remarks for how this upholds both of this
+    ///     type's documented invariants: it never enforces <see cref="Surface.MaxDimension"/>,
+    ///     and it never throws for an input <see cref="GifCodec.Load(System.IO.Stream)"/> would
     ///     otherwise accept, because it shares the same structural-validation helpers
-    ///     <c>Load</c> uses for every frame while never invoking the LZW decoder itself.
+    ///     <c>Load</c> uses for every frame, reserving the LZW decoder for the one frame
+    ///     <c>Load</c> itself decodes.
     /// </summary>
     /// <remarks>
     ///     Deliberately declared here as an <see langword="init"/>-only member outside this

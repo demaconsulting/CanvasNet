@@ -227,28 +227,35 @@ proving the dedicated Graphic Control Extension reader also checks the shared re
 before decrementing it (rather than letting the budget go negative and silently accepting the
 extension), consistent with `ReadSubBlocks`' enforcement for every other sub-block chain.
 
-#### CanvasNet-Codecs-GifCodec-GetInfo: GetInfo Reports Dimensions/Channels/CanDecode Without Decoding Pixels
+#### CanvasNet-Codecs-GifCodec-GetInfo: GetInfo Reports Dimensions/Channels/CanDecode Without Decoding Pixels Into a Surface
 
 **Tests**: `GifCodec_GetInfo_ReturnsExpectedDimensionsChannelsAndCanDecode`,
-`GifCodec_GetInfo_NeverDecodesLzwPixelData_AcceptsCorruptFirstFrameCompressedData`,
+`GifCodec_GetInfo_CorruptFirstFrameLzwData_ReportsCanDecodeFalse`,
+`GifCodec_GetInfo_CorruptLaterFrameLzwData_StillReportsCanDecodeTrue`,
 `GifCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows`,
 `GifCodec_GetInfo_Fixture_MatchesLoadDimensionsAndReportsDecodable`
 
 Calls `GetInfo` on a valid hand-built GIF (a Global Color Table, a single well-formed frame, and a
 Trailer) and asserts the returned `ImageInfo` reports the correct width/height, `Channels == 1`,
-`CanDecode == true`, and `FrameCount == 1`. Proves `GetInfo` never invokes the LZW decoder for any
-frame's pixel data - not even the first - by building a full, valid, single-frame GIF whose Image
-Descriptor's compressed sub-block data is deliberately not a valid LZW stream (it does not start
-with a Clear code), asserting `GetInfo` succeeds (reporting `FrameCount == 1`) while `Load` on the
-identical bytes throws `InvalidDataException`. Proves `GetInfo` does not enforce
-`Surface.MaxDimension` by building a Logical Screen Descriptor declaring a width/height one
-greater than `Surface.MaxDimension`, followed by a full valid single frame and Trailer, asserting
-`GetInfo` returns those raw oversized values (and `FrameCount == 1`) without throwing, and then
-asserting `Load` on the exact same bytes still throws `InvalidDataException` (via its earlier,
-unaffected `Surface.MaxDimension` check). Also confirms, for all 8 real-world fixtures, that
-`GetInfo`'s reported dimensions match `Load`'s resulting surface dimensions, that `CanDecode` is
-`true`, and that `FrameCount` matches each fixture's true frame count (1 for a solid-color
-fixture, 3 for an animated fixture).
+`CanDecode == true`, and `FrameCount == 1`. Proves `GetInfo` attempts the same first-frame LZW
+decode `Load` performs - discarding the decoded output instead of resolving it into a `Surface` -
+by building a full, valid, single-frame GIF whose Image Descriptor's compressed sub-block data is
+deliberately not a valid LZW stream (it does not start with a Clear code), asserting `GetInfo`
+still succeeds (reporting `FrameCount == 1`) but with `CanDecode == false`, while `Load` on the
+identical bytes throws `InvalidDataException`. A companion test proves this LZW-decode attempt is
+scoped to the first frame only, matching `Load`'s own decode-only-the-first-frame scope: building
+a two-frame GIF whose first frame's compressed data is entirely valid but whose second frame's
+compressed data is the same invalid-Clear-code stream, and asserting `GetInfo` still reports
+`FrameCount == 2` and `CanDecode == true`, because neither `Load` nor `GetInfo` ever attempts to
+LZW-decode a frame after the first. Proves `GetInfo` does not enforce `Surface.MaxDimension` by
+building a Logical Screen Descriptor declaring a width/height one greater than
+`Surface.MaxDimension`, followed by a full valid single frame and Trailer, asserting `GetInfo`
+returns those raw oversized values (and `FrameCount == 1`) without throwing, and then asserting
+`Load` on the exact same bytes still throws `InvalidDataException` (via its earlier, unaffected
+`Surface.MaxDimension` check). Also confirms, for all 8 real-world fixtures, that `GetInfo`'s
+reported dimensions match `Load`'s resulting surface dimensions, that `CanDecode` is `true`, and
+that `FrameCount` matches each fixture's true frame count (1 for a solid-color fixture, 3 for an
+animated fixture).
 
 #### CanvasNet-Codecs-GifCodec-FrameCount: GetInfo Reports the True Frame Count
 
@@ -299,6 +306,6 @@ GIF that can never be decoded, while still not enforcing `Surface.MaxDimension` 
 
 ### Acceptance Criteria
 
-A unit test run passes when all test methods above (44 in `GifCodecTests.cs` plus 16 fixture-based
+A unit test run passes when all test methods above (47 in `GifCodecTests.cs` plus 16 fixture-based
 theory cases in `GifFixtureTests.cs`) pass without error or unexpected exception; any unexpected
 exception type or pixel-value mismatch constitutes a failure.

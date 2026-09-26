@@ -61,15 +61,17 @@ declared as `init`-only properties outside the primary constructor (rather than 
 parameters) specifically to avoid changing the compiler-emitted constructor/`Deconstruct`
 signature — a binary-compatibility concern, since an additional positional parameter would break
 any pre-compiled caller's IL even though source would still compile unchanged. `CanDecode`
-defaults to `true` and is set to `false` only by `PngCodec.GetInfo` when the probed file is
-well-formed per the PNG specification but declares Adam7 interlacing, the one case (see below)
-where a codec's `Load` refuses a file `GetInfo` otherwise accepts. `FrameCount` defaults to `1`
-and is overridden only by `GifCodec.GetInfo`, the only codec whose file format can legitimately
-declare more than one frame (an animation); it reports the file's true total Image Descriptor
-count by walking the file's block structure, never decoding any frame's LZW-compressed pixel
-data — see _GifCodec Unit Design_ (`codecs/gif-codec.md`) for the exact walk. Because `ImageInfo`
-is a record struct, `CanDecode` and `FrameCount` both participate in its generated value equality
-like every other member.
+defaults to `true` and is set to `false` by `PngCodec.GetInfo` when the probed file is well-formed
+per the PNG specification but declares Adam7 interlacing (the one well-formed-but-unsupported
+case), and by `GifCodec.GetInfo` when the first Image Descriptor's compressed data fails the same
+LZW decode `Load` itself performs for that frame (a well-formed container with an undecodable
+payload) — see below and _GifCodec Unit Design_ (`codecs/gif-codec.md`) for the exact rationale.
+`FrameCount` defaults to `1` and is overridden only by `GifCodec.GetInfo`, the only codec whose
+file format can legitimately declare more than one frame (an animation); it reports the file's
+true total Image Descriptor count by walking the file's block structure, never resolving any
+frame's decoded pixels into a `Surface` — see _GifCodec Unit Design_ (`codecs/gif-codec.md`) for
+the exact walk. Because `ImageInfo` is a record struct, `CanDecode` and `FrameCount` both
+participate in its generated value equality like every other member.
 
 ### Header-Only Probing (`GetInfo`)
 
@@ -107,10 +109,12 @@ resolution) between `Load` and `GetInfo`'s frame-counting walk, but with no bool
 unlike the other four raster codecs, `GifCodec.GetInfo` never enforces `Surface.MaxDimension`
 under any circumstance and performs no arithmetic or allocation proportional to the reported
 width/height itself (only bounded, per-frame bounds-check arithmetic and a budget-capped sub-block
-buffer) — see _GifCodec Unit Design_ (`codecs/gif-codec.md`) for the exact rationale, including
-the deliberate asymmetry that `GetInfo` never invokes the LZW decoder for any frame (not even the
-first, which `Load` does decode), so a first-frame compressed-data corruption that makes `Load`
-throw does not make `GetInfo` throw. `SvgCodec` does not
+buffer) — see _GifCodec Unit Design_ (`codecs/gif-codec.md`) for the exact rationale, including how
+`GetInfo` never invokes the LZW decoder for any frame after the first, but does attempt an LZW
+decode of the first frame's compressed data (reusing `Load`'s own decoder, discarding its decoded
+output) purely to determine `CanDecode`, so a first-frame compressed-data corruption that makes
+`Load` throw is reflected as `CanDecode == false` rather than making `GetInfo` throw. `SvgCodec`
+does not
 use this pattern, because
 its `Load` overloads take the requested output raster's width/height as ordinary caller-supplied
 parameters (not values decoded from the file) and delegate them directly to `Surface`'s own
@@ -125,15 +129,19 @@ rather than giving up) - see the
 _ImageInfo_ section above for the cross-codec invariant these fallbacks exist to uphold: GetInfo
 never throws for an input Load would successfully decode.
 
-**Well-formed but unsupported: `UnsupportedImageFeatureException`.** Investigation across all
-five raster codecs found exactly one case where a codec's `Load` refuses a file that is
-well-formed per its own format specification — PNG's Adam7 interlacing (the other codecs conflate
-"unsupported" and "malformed" at `GetInfo`-time already, so this exception type is not currently
-thrown by them). `GifCodec` is deliberately not a second such case: a multi-frame GIF is
-well-formed and `Load` never refuses it — it decodes only the first frame, by design, so
-`GifCodec.GetInfo` always reports `CanDecode == true` (see _GifCodec Unit Design_,
-`codecs/gif-codec.md`, for the rationale).
-`PngCodec.Load` signals this specific case with `UnsupportedImageFeatureException`
+**Well-formed but unsupported/undecodable: `UnsupportedImageFeatureException` and
+`ImageInfo.CanDecode == false`.** Investigation across all five raster codecs found exactly one
+case where a codec's `Load` refuses a file that is well-formed per its own format specification —
+PNG's Adam7 interlacing (the other codecs conflate "unsupported" and "malformed" at `GetInfo`-time
+already, so this exception type is not currently thrown by them). `GifCodec` is a related, but
+distinct, second case: a multi-frame GIF is well-formed and `Load` never refuses it — it decodes
+only the first frame, by design, so a well-formed multi-frame GIF is not, by itself, a
+`CanDecode == false` case. However, `GifCodec.GetInfo` does report `CanDecode == false` when the
+first frame's compressed data is corrupt enough that `Load`'s LZW decoder would reject it — a
+well-formed container with an undecodable payload, detected by `GetInfo` attempting (and
+discarding the result of) that same first-frame LZW decode — see _GifCodec Unit Design_,
+`codecs/gif-codec.md`, for the full rationale.
+`PngCodec.Load` signals its specific case with `UnsupportedImageFeatureException`
 rather than `InvalidDataException`, so a caller can distinguish "well-formed but unsupported" from
 "malformed" without string-matching `Exception.Message`. This type derives from `IOException`
 rather than `InvalidDataException`, because `System.IO.InvalidDataException` is `sealed` in .NET.
