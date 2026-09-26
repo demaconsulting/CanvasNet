@@ -811,6 +811,7 @@ sections:
               - GifCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException
               - GifCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException
               - GifCodec_Load_NoColorTable_ThrowsInvalidDataException
+              - GifCodec_Load_SecondFrameMissingColorTable_ThrowsInvalidDataException
               - GifCodec_Load_MalformedGraphicControlExtension_ThrowsInvalidDataException
               - GifCodec_Load_UnexpectedBlockIntroducer_ThrowsInvalidDataException
               - GifCodec_Load_TrailingDataAfterTrailer_ThrowsInvalidDataException

@@ -111,10 +111,16 @@ cases.
 
 #### CanvasNet-Codecs-GifCodec-NoColorTable: Load Rejects Missing Color Table
 
-**Test**: `GifCodec_Load_NoColorTable_ThrowsInvalidDataException`
+**Tests**: `GifCodec_Load_NoColorTable_ThrowsInvalidDataException`,
+`GifCodec_Load_SecondFrameMissingColorTable_ThrowsInvalidDataException`
 
 Builds a GIF with no Global Color Table and an Image Descriptor with no Local Color Table, and
-asserts `Load` throws `InvalidDataException`.
+asserts `Load` throws `InvalidDataException`. Separately, builds a multi-frame GIF with no Global
+Color Table whose first frame supplies its own Local Color Table (and so decodes successfully) but
+whose second frame has neither a Local Color Table nor a Global Color Table to fall back on, and
+asserts `Load` still throws `InvalidDataException` even though this codec never decodes the second
+frame's pixel data - proving every Image Descriptor's color table is validated, not merely the
+first.
 
 #### CanvasNet-Codecs-GifCodec-MalformedGraphicControlExtension: Load Rejects a Wrong-Length GCE
 
@@ -228,6 +234,6 @@ respectively — the same exception contract as the corresponding `Load` scenari
 
 ### Acceptance Criteria
 
-A unit test run passes when all test methods above (34 in `GifCodecTests.cs` plus 16 fixture-based
+A unit test run passes when all test methods above (35 in `GifCodecTests.cs` plus 16 fixture-based
 theory cases in `GifFixtureTests.cs`) pass without error or unexpected exception; any unexpected
 exception type or pixel-value mismatch constitutes a failure.

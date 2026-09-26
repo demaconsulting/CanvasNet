@@ -66,8 +66,9 @@ generated value equality like every other member.
 
 ### Header-Only Probing (`GetInfo`)
 
-Each of the six codecs, in addition to its existing `Load` method (and, for the five raster
-codecs, `Save`), exposes a pair of `GetInfo` overloads:
+Each of the six codecs, in addition to its existing `Load` method (and, for four of the five
+raster codecs — all but the decode-only `GifCodec` — `Save`), exposes a pair of `GetInfo`
+overloads:
 
 ```csharp
 public static ImageInfo GetInfo(Stream stream);

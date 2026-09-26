@@ -869,7 +869,10 @@ sections:
         children:
           - CanvasNet-Codecs-GifGetInfo
         tests:
-          - CanvasNet_SystemIntegration_GifLoad_ReturnsExpectedPixel
+          - GifCodec_GetInfo_ReturnsExpectedDimensionsChannelsAndCanDecode
+          - GifCodec_GetInfo_NeverReadsPixelData
+          - GifCodec_GetInfo_OversizedDimensions_ReturnsRawValue_ButLoadThrows
+          - GifCodec_GetInfo_Fixture_MatchesLoadDimensionsAndReportsDecodable
 
       - id: CanvasNet-Lib-GifGetInfoValidation
         title: >-
@@ -881,7 +884,10 @@ sections:
         children:
           - CanvasNet-Codecs-GifGetInfoValidation
         tests:
-          - CanvasNet_SystemIntegration_GifLoad_ReturnsExpectedPixel
+          - GifCodec_GetInfo_NullStream_ThrowsArgumentNullException
+          - GifCodec_GetInfo_NullPath_ThrowsArgumentNullException
+          - GifCodec_GetInfo_EmptyPath_ThrowsArgumentException
+          - GifCodec_GetInfo_BadSignature_ThrowsInvalidDataException
 
   - title: SVG Codec API
     requirements:

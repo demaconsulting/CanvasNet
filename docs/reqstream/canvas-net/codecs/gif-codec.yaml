@@ -125,12 +125,17 @@ sections:
                 title: >-
                   The GifCodec class shall reject an Image Descriptor whose pixel data references a
                   color table when no Global Color Table and no Local Color Table is present, with
-                  InvalidDataException.
+                  InvalidDataException - even when the Image Descriptor is a second-or-later frame
+                  whose pixel data this codec never actually decodes.
                 justification: |
                   Indexed pixel data cannot be resolved to RGB values without a color table; failing
-                  clearly here prevents misinterpreting color table indices as pixel values.
+                  clearly here prevents misinterpreting color table indices as pixel values. This
+                  structural validation applies to every Image Descriptor, not merely the first,
+                  since decoding only the first frame's pixel data is a deliberate scope choice, not
+                  license to silently accept a later frame that is otherwise malformed.
                 tests:
                   - GifCodec_Load_NoColorTable_ThrowsInvalidDataException
+                  - GifCodec_Load_SecondFrameMissingColorTable_ThrowsInvalidDataException
 
               - id: CanvasNet-Codecs-GifCodec-MalformedGraphicControlExtension
                 title: >-

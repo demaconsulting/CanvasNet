@@ -441,6 +441,27 @@ public class GifCodecTests
         Assert.Throws<InvalidDataException>(() => GifCodec.Load(stream));
     }
 
+    /// <summary>Test: GifCodec_Load_SecondFrameMissingColorTable_ThrowsInvalidDataException.</summary>
+    [Fact]
+    public void GifCodec_Load_SecondFrameMissingColorTable_ThrowsInvalidDataException()
+    {
+        using var stream = new MemoryStream();
+        var lct = BuildColorTable((255, 0, 0), (0, 0, 255));
+        WriteHeader(stream, 2, 2, null); // no Global Color Table at all
+
+        // First frame supplies its own Local Color Table, so it decodes successfully...
+        WriteImageDescriptor(stream, 0, 0, 2, 2, false, lct, 2, [0, 0, 0, 0]);
+
+        // ...but the second frame has neither a Local Color Table nor a Global Color Table to
+        // fall back on, which is structurally malformed even though this codec never decodes its
+        // pixel data (only the first frame is ever decoded).
+        WriteImageDescriptor(stream, 0, 0, 2, 2, false, null, 2, [0, 0, 0, 0]);
+        WriteTrailer(stream);
+        stream.Position = 0;
+
+        Assert.Throws<InvalidDataException>(() => GifCodec.Load(stream));
+    }
+
     /// <summary>Test: GifCodec_Load_MalformedGraphicControlExtension_ThrowsInvalidDataException.</summary>
     [Fact]
     public void GifCodec_Load_MalformedGraphicControlExtension_ThrowsInvalidDataException()

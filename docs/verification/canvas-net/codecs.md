@@ -9,12 +9,10 @@ The `Codecs` subsystem is verified through its six constituent units' tests (see
 _BmpCodec Unit Verification Design_, _PngCodec Unit Verification Design_,
 _TiffCodec Unit Verification Design_, _JpegCodec Unit Verification Design_,
 _GifCodec Unit Verification Design_, and _SvgCodec Unit Verification Design_ under `codecs/`),
-together with the system-level round-trip (or, for the decode-only `SvgCodec`, load-only)
-integration tests in `CanvasNetTests.cs` that exercise each codec end-to-end against a `Surface`.
-`GifCodec` is also decode-only and has no corresponding system-integration test; its subsystem-level
-requirements reuse only its own unit and fixture tests as verification evidence. No separate
-subsystem-level tests otherwise exist; the subsystem-level requirements reuse the corresponding
-unit and system-integration tests as verification evidence.
+together with the system-level round-trip (or, for the decode-only `SvgCodec` and `GifCodec`,
+load-only) integration tests in `CanvasNetTests.cs` that exercise each codec end-to-end against a
+`Surface`. No separate subsystem-level tests otherwise exist; the subsystem-level requirements
+reuse the corresponding unit and system-integration tests as verification evidence.
 
 ### Test Environment
 

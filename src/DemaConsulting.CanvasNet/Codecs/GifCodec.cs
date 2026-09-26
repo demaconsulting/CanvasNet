@@ -100,12 +100,22 @@ public static class GifCodec
     ///     number of 255-byte sub-blocks - each individually valid - forcing unbounded buffering
     ///     and risking an out-of-memory condition rather than a clean, prompt
     ///     <see cref="InvalidDataException"/>. 64 MiB comfortably exceeds the compressed data size
-    ///     of any legitimate GIF frame at <see cref="Surface.MaxDimension"/>, so no well-formed
-    ///     file this codec is otherwise able to decode is rejected by this bound. Declared
-    ///     <see langword="internal"/> (rather than <see langword="private"/>), matching
-    ///     <see cref="JpegCodec.MaxProbeHeaderBytes"/>'s established precedent, so the test
-    ///     project (which the assembly already grants <c>InternalsVisibleTo</c>) can construct a
-    ///     just-over-budget fixture that exercises this limit without hard-coding its value.
+    ///     any real-world GIF encoder produces for a legitimately-sized frame, including at
+    ///     <see cref="Surface.MaxDimension"/>. It is, however, a deliberate, documented
+    ///     resource-safety limit rather than a mathematical guarantee: GIF LZW compression has no
+    ///     enforced minimum compression ratio, so a pathological (not merely malicious) encoder
+    ///     could, in principle, emit more than 64 MiB of compressed data for a single frame whose
+    ///     declared dimensions are themselves well within <see cref="Surface.MaxDimension"/> -
+    ///     such a file would be rejected by this bound even though its declared dimensions alone
+    ///     would otherwise be decodable, and <see cref="GetInfo(Stream)"/> (which never reads
+    ///     sub-block data at all) would still report <see cref="ImageInfo.CanDecode"/> as
+    ///     <see langword="true"/> for it. This asymmetry is accepted: prioritizing a bounded,
+    ///     predictable worst-case memory footprint over the vanishingly rare legitimate file that
+    ///     would exceed it. Declared <see langword="internal"/> (rather than
+    ///     <see langword="private"/>), matching <see cref="JpegCodec.MaxProbeHeaderBytes"/>'s
+    ///     established precedent, so the test project (which the assembly already grants
+    ///     <c>InternalsVisibleTo</c>) can construct a just-over-budget fixture that exercises this
+    ///     limit without hard-coding its value.
     /// </summary>
     internal const long MaxTotalSubBlockBytes = 64 * 1024 * 1024;
 
@@ -250,12 +260,18 @@ public static class GifCodec
                                 "GIF Image Descriptor region lies outside the logical screen bounds.");
                         }
 
+                        // Every Image Descriptor - not merely the first - must have a resolvable
+                        // color table to be a structurally valid GIF frame, even though only the
+                        // first frame's pixel data is ever actually decoded below; validating this
+                        // unconditionally ensures a later frame's malformed pixel data (here, a
+                        // missing color table) is never silently accepted merely because this
+                        // codec has already decoded the frame it needed.
+                        var activeColorTable = localColorTable ?? globalColorTable ??
+                            throw new InvalidDataException(
+                                "GIF Image Descriptor has no local or global color table available.");
+
                         if (result is null)
                         {
-                            var activeColorTable = localColorTable ?? globalColorTable ??
-                                throw new InvalidDataException(
-                                    "GIF Image Descriptor has no local or global color table available.");
-
                             var indices = DecodeGifLzw(imageData, minCodeSizeByte, imgWidth * imgHeight);
                             if ((imgPacked & 0x40) != 0)
                             {
