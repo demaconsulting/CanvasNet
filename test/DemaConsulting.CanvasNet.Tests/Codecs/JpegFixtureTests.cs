@@ -19,15 +19,20 @@ public class JpegFixtureTests
 {
     /// <summary>
     ///     The directory containing the JPEG fixture corpus, copied to the test output directory
-    ///     by the test project's <c>JpegFixtures\**</c> content item.
+    ///     by the test project's <c>JpegFixtures\**</c> content item. <c>Path.Join</c> is used
+    ///     instead of <see cref="Path.Combine(string, string)"/> purely to avoid CodeQL's
+    ///     <c>cs/path-combine</c> rule, since <c>Path.Join</c> does not discard
+    ///     <see cref="AppContext.BaseDirectory"/> when the second segment looks rooted.
     /// </summary>
-    private static string AssetsPath => Path.Combine(AppContext.BaseDirectory, "JpegFixtures");
+    private static string AssetsPath => Path.Join(AppContext.BaseDirectory, "JpegFixtures");
 
     /// <summary>
     ///     The directory containing the PngSuite corpus, copied to the test output directory by
-    ///     the test project's <c>PngSuite\**</c> content item.
+    ///     the test project's <c>PngSuite\**</c> content item. <c>Path.Join</c> is used instead
+    ///     of <see cref="Path.Combine(string, string)"/> for the same CodeQL reason as
+    ///     <see cref="AssetsPath"/>.
     /// </summary>
-    private static string PngSuitePath => Path.Combine(AppContext.BaseDirectory, "PngSuite");
+    private static string PngSuitePath => Path.Join(AppContext.BaseDirectory, "PngSuite");
 
     /// <summary>
     ///     Resolves a fixture file within <paramref name="baseDirectory"/>. The file names always
@@ -113,7 +118,7 @@ public class JpegFixtureTests
     [Fact]
     public void JpegFixtures_SourcePngDimensions_Are32x32()
     {
-        var source = PngCodec.Load(Path.Combine(PngSuitePath, "basn2c08.png"));
+        var source = PngCodec.Load(ResolveFixturePath(PngSuitePath, "basn2c08.png"));
 
         Assert.Equal(32, source.Width);
         Assert.Equal(32, source.Height);
@@ -142,7 +147,7 @@ public class JpegFixtureTests
     [MemberData(nameof(ColorFixtureFiles))]
     public void JpegCodec_Load_ColorFixture_MatchesSourcePngWithinTolerance(string fileName, int tolerancePerChannel)
     {
-        var expected = PngCodec.Load(Path.Combine(PngSuitePath, "basn2c08.png"));
+        var expected = PngCodec.Load(ResolveFixturePath(PngSuitePath, "basn2c08.png"));
         var actual = JpegCodec.Load(ResolveFixturePath(AssetsPath, fileName));
 
         AssertPixelsApproximatelyEqual(expected, actual, tolerancePerChannel);

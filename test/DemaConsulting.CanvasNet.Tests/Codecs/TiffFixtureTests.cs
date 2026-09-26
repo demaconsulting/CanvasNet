@@ -21,15 +21,20 @@ public class TiffFixtureTests
 {
     /// <summary>
     ///     The directory containing the TIFF fixture corpus, copied to the test output directory
-    ///     by the test project's <c>TiffFixtures\**</c> content item.
+    ///     by the test project's <c>TiffFixtures\**</c> content item. <c>Path.Join</c> is used
+    ///     instead of <see cref="Path.Combine(string, string)"/> purely to avoid CodeQL's
+    ///     <c>cs/path-combine</c> rule, since <c>Path.Join</c> does not discard
+    ///     <see cref="AppContext.BaseDirectory"/> when the second segment looks rooted.
     /// </summary>
-    private static string AssetsPath => Path.Combine(AppContext.BaseDirectory, "TiffFixtures");
+    private static string AssetsPath => Path.Join(AppContext.BaseDirectory, "TiffFixtures");
 
     /// <summary>
     ///     The directory containing the PngSuite corpus, copied to the test output directory by
-    ///     the test project's <c>PngSuite\**</c> content item.
+    ///     the test project's <c>PngSuite\**</c> content item. <c>Path.Join</c> is used instead
+    ///     of <see cref="Path.Combine(string, string)"/> for the same CodeQL reason as
+    ///     <see cref="AssetsPath"/>.
     /// </summary>
-    private static string PngSuitePath => Path.Combine(AppContext.BaseDirectory, "PngSuite");
+    private static string PngSuitePath => Path.Join(AppContext.BaseDirectory, "PngSuite");
 
     /// <summary>
     ///     Resolves a fixture file within <paramref name="baseDirectory"/>. The file names always
@@ -100,8 +105,8 @@ public class TiffFixtureTests
     [Fact]
     public void TiffFixtures_SourcePngDimensions_Are32x32()
     {
-        var rgbSource = PngCodec.Load(Path.Combine(PngSuitePath, "basn2c08.png"));
-        var rgbaSource = PngCodec.Load(Path.Combine(PngSuitePath, "basn6a08.png"));
+        var rgbSource = PngCodec.Load(ResolveFixturePath(PngSuitePath, "basn2c08.png"));
+        var rgbaSource = PngCodec.Load(ResolveFixturePath(PngSuitePath, "basn6a08.png"));
 
         Assert.Equal(32, rgbSource.Width);
         Assert.Equal(32, rgbSource.Height);
@@ -131,7 +136,7 @@ public class TiffFixtureTests
     [MemberData(nameof(RgbFixtureFiles))]
     public void TiffCodec_Load_RgbFixture_MatchesSourcePngWithOpaqueAlpha(string fileName)
     {
-        var expected = PngCodec.Load(Path.Combine(PngSuitePath, "basn2c08.png"));
+        var expected = PngCodec.Load(ResolveFixturePath(PngSuitePath, "basn2c08.png"));
         var actual = TiffCodec.Load(ResolveFixturePath(AssetsPath, fileName));
 
         Assert.Equal(expected.Width, actual.Width);
@@ -158,7 +163,7 @@ public class TiffFixtureTests
     [MemberData(nameof(RgbaFixtureFiles))]
     public void TiffCodec_Load_RgbaFixture_MatchesSourcePngExactly(string fileName)
     {
-        var expected = PngCodec.Load(Path.Combine(PngSuitePath, "basn6a08.png"));
+        var expected = PngCodec.Load(ResolveFixturePath(PngSuitePath, "basn6a08.png"));
         var actual = TiffCodec.Load(ResolveFixturePath(AssetsPath, fileName));
 
         Assert.Equal(expected.Width, actual.Width);

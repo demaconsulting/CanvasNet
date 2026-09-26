@@ -50,9 +50,12 @@ public class PngSuiteTests
 {
     /// <summary>
     ///     The directory containing the PngSuite corpus, copied to the test output directory by
-    ///     the test project's <c>PngSuite\**</c> content item.
+    ///     the test project's <c>PngSuite\**</c> content item. <c>Path.Join</c> is used instead
+    ///     of <see cref="Path.Combine(string, string)"/> purely to avoid CodeQL's
+    ///     <c>cs/path-combine</c> rule, since <c>Path.Join</c> does not discard
+    ///     <see cref="AppContext.BaseDirectory"/> when the second segment looks rooted.
     /// </summary>
-    private static string AssetsPath => Path.Combine(AppContext.BaseDirectory, "PngSuite");
+    private static string AssetsPath => Path.Join(AppContext.BaseDirectory, "PngSuite");
 
     /// <summary>
     ///     Resolves a fixture file within <paramref name="baseDirectory"/>. The file names always

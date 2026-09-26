@@ -18,15 +18,31 @@ public class SvgFixtureTests
 {
     /// <summary>
     ///     The directory containing the SVG fixture corpus, copied to the test output directory
-    ///     by the test project's <c>SvgFixtures\**</c> content item.
+    ///     by the test project's <c>SvgFixtures\**</c> content item. <c>Path.Join</c> is used
+    ///     instead of <see cref="Path.Combine(string, string)"/> purely to avoid CodeQL's
+    ///     <c>cs/path-combine</c> rule, since <c>Path.Join</c> does not discard
+    ///     <see cref="AppContext.BaseDirectory"/> when the second segment looks rooted.
     /// </summary>
-    private static string AssetsPath => Path.Combine(AppContext.BaseDirectory, "SvgFixtures");
+    private static string AssetsPath => Path.Join(AppContext.BaseDirectory, "SvgFixtures");
 
     /// <summary>
     ///     The path to the real "Open Sans" TrueType font, copied to the test output directory by
-    ///     the test project's <c>FontFixtures\**</c> content item.
+    ///     the test project's <c>FontFixtures\**</c> content item. <c>Path.Join</c> is used
+    ///     instead of <see cref="Path.Combine(string, string, string)"/> for the same CodeQL
+    ///     reason as <see cref="AssetsPath"/>.
     /// </summary>
-    private static string FontPath => Path.Combine(AppContext.BaseDirectory, "FontFixtures", "OpenSans-Regular.ttf");
+    private static string FontPath => Path.Join(AppContext.BaseDirectory, "FontFixtures", "OpenSans-Regular.ttf");
+
+    /// <summary>
+    ///     Resolves a fixture file within <see cref="AssetsPath"/>. The file names always
+    ///     originate from this class's own literals rather than external input, so
+    ///     path-injection is not a concern here; <c>Path.Join</c> is used instead of
+    ///     <see cref="Path.Combine(string, string)"/> purely to avoid CodeQL's
+    ///     <c>cs/path-combine</c> rule, since <c>Path.Join</c> does not discard
+    ///     <see cref="AssetsPath"/> when <paramref name="fileName"/> looks rooted.
+    /// </summary>
+    private static string ResolveFixturePath(string fileName) =>
+        Path.Join(AssetsPath, fileName);
 
     /// <summary>
     ///     Proves that <c>shapes.svg</c>'s four basic shapes (rect/circle/ellipse/polygon) each
@@ -37,7 +53,7 @@ public class SvgFixtureTests
     public void SvgCodec_Load_ShapesFixture_RendersExpectedShapeColors()
     {
         // Arrange & Act: load the fixture at its native 1:1 viewBox-to-raster size
-        var surface = SvgCodec.Load(Path.Combine(AssetsPath, "shapes.svg"), 100, 100);
+        var surface = SvgCodec.Load(ResolveFixturePath("shapes.svg"), 100, 100);
 
         // Assert: each shape's expected solid color appears at a representative interior pixel
         Assert.Equal(new Rgba32(255, 0, 0, 255), surface[25, 25]); // rect (red)
@@ -60,7 +76,7 @@ public class SvgFixtureTests
     public void SvgCodec_Load_GroupsAndTransformsFixture_RendersAtTransformedPositions()
     {
         // Arrange & Act
-        var surface = SvgCodec.Load(Path.Combine(AssetsPath, "groups-and-transforms.svg"), 100, 100);
+        var surface = SvgCodec.Load(ResolveFixturePath("groups-and-transforms.svg"), 100, 100);
 
         // Assert: the first rect inherits its group's "orange" fill and renders at its
         // translate(50,0)-mapped position, not its pre-translation local (0,0)-(20,20) position
@@ -83,7 +99,7 @@ public class SvgFixtureTests
     public void SvgCodec_Load_GradientFixture_RendersVaryingGradientColors()
     {
         // Arrange & Act
-        var surface = SvgCodec.Load(Path.Combine(AssetsPath, "gradient.svg"), 100, 100);
+        var surface = SvgCodec.Load(ResolveFixturePath("gradient.svg"), 100, 100);
 
         // Assert: the red channel increases monotonically from left to right, and is fully
         // opaque throughout - proving a real gradient (not a flat fallback color) was rendered
@@ -106,7 +122,7 @@ public class SvgFixtureTests
     public void SvgCodec_Load_UseReferenceFixture_RendersAtOffsetPositionOnly()
     {
         // Arrange & Act
-        var surface = SvgCodec.Load(Path.Combine(AssetsPath, "use-reference.svg"), 100, 100);
+        var surface = SvgCodec.Load(ResolveFixturePath("use-reference.svg"), 100, 100);
 
         // Assert: the referenced 20x20 "teal" box renders at its use-offset (30,40) position
         Assert.Equal(new Rgba32(0, 128, 128, 255), surface[40, 50]);
@@ -125,7 +141,7 @@ public class SvgFixtureTests
     public void SvgCodec_Load_ToleratesUnsupportedConstructFixture_StillRendersRemainingContent()
     {
         // Arrange & Act
-        var surface = SvgCodec.Load(Path.Combine(AssetsPath, "tolerant-unsupported.svg"), 100, 100);
+        var surface = SvgCodec.Load(ResolveFixturePath("tolerant-unsupported.svg"), 100, 100);
 
         // Assert: the rect still renders its "lime" fill despite the sibling <filter> element
         Assert.Equal(new Rgba32(0, 255, 0, 255), surface[25, 25]);
@@ -148,7 +164,7 @@ public class SvgFixtureTests
         var fonts = new Dictionary<string, TrueTypeFont> { ["Open Sans"] = font };
 
         // Act: rasterize the fixture with the font dictionary supplied
-        var surface = SvgCodec.Load(Path.Combine(AssetsPath, "text.svg"), 200, 80, fonts);
+        var surface = SvgCodec.Load(ResolveFixturePath("text.svg"), 200, 80, fonts);
 
         // Assert: at least one pixel within the text's expected region (below and around the
         // baseline at x=10, y=55, font-size 40) was actually painted (non-transparent)
@@ -191,7 +207,7 @@ public class SvgFixtureTests
     public void SvgCodec_Load_SvgGradientFixture_RendersVaryingGradientAndPinkBackground()
     {
         // Arrange & Act: rasterize at the fixture's native 300x200 viewBox size
-        var surface = SvgCodec.Load(Path.Combine(AssetsPath, "SvgGradient.svg"), 300, 200);
+        var surface = SvgCodec.Load(ResolveFixturePath("SvgGradient.svg"), 300, 200);
 
         // Assert: the pink background rect is visible at a point clearly outside the "bar" use
         // shape (y in [80,100]) and every gradient rect (rows at y in [30,70] and [110,190])
@@ -231,7 +247,7 @@ public class SvgFixtureTests
         // Arrange & Act: rasterize at the fixture's native 600x1000 width/height - this must not
         // throw despite every flower (other than the very first) referencing an unsupported
         // <filter> element
-        var surface = SvgCodec.Load(Path.Combine(AssetsPath, "InkscapeFilters.svg"), 600, 1000);
+        var surface = SvgCodec.Load(ResolveFixturePath("InkscapeFilters.svg"), 600, 1000);
 
         // Assert: a petal of the second flower - translate(150,50), filter="url(#filter48)" -
         // still renders its own "#ff8010" (255,128,16) fill, proving the unsupported <filter>
