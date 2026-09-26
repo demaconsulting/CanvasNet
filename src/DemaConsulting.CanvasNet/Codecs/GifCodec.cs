@@ -203,22 +203,22 @@ public static class GifCodec
                             throw new InvalidDataException("Unexpected end of stream while reading a GIF extension.");
                         }
 
-                        var data = ReadSubBlocks(stream, ref remainingSubBlockBudget);
                         if (labelByte == GraphicControlLabel)
                         {
-                            if (data.Length != GraphicControlExtensionSize)
-                            {
-                                throw new InvalidDataException(
-                                    $"Invalid Graphic Control Extension length {data.Length}; expected " +
-                                    $"{GraphicControlExtensionSize}.");
-                            }
-
+                            var data = ReadGraphicControlExtensionData(stream, ref remainingSubBlockBudget);
                             pendingTransparencyFlag = (data[0] & 0x01) != 0;
 
                             // Byte 0 = packed fields (bit 0 = transparency flag, bits 1-3 = disposal
                             // method (ignored), bit 4 = user input flag (ignored)); bytes 1-2 = Delay
                             // Time, little-endian (ignored); byte 3 = Transparent Color Index.
                             pendingTransparentIndex = data[3];
+                        }
+                        else
+                        {
+                            // Discard any other extension's sub-block data (Application, Comment,
+                            // Plain Text, or an unrecognized label); this codec only interprets the
+                            // Graphic Control Extension.
+                            ReadSubBlocks(stream, ref remainingSubBlockBudget);
                         }
 
                         break;
@@ -488,12 +488,69 @@ public static class GifCodec
     }
 
     /// <summary>
+    ///     Reads a Graphic Control Extension's block data, enforcing the GIF89a specification's
+    ///     requirement that it consist of exactly one 4-byte data sub-block followed immediately
+    ///     by the block terminator (a zero-length sub-block) - rejecting any other declared
+    ///     sub-block size, and rejecting any additional data sub-block after the first, rather
+    ///     than tolerantly reassembling and accepting a total of 4 bytes reconstructed across
+    ///     multiple sub-blocks (which <see cref="ReadSubBlocks"/> would otherwise permit, since it
+    ///     exists to support legitimately-chained sub-blocks for image data and other extensions).
+    /// </summary>
+    /// <param name="stream">The stream, positioned immediately after the extension label byte.</param>
+    /// <param name="remainingBudget">
+    ///     The remaining total sub-block byte budget (see <see cref="MaxTotalSubBlockBytes"/>),
+    ///     decremented by the 4 bytes read.
+    /// </param>
+    /// <returns>The Graphic Control Extension's 4 data bytes.</returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the stream ends unexpectedly, the first sub-block's declared size is not
+    ///     exactly <see cref="GraphicControlExtensionSize"/>, or a second, non-terminating
+    ///     sub-block follows the data sub-block.
+    /// </exception>
+    private static byte[] ReadGraphicControlExtensionData(Stream stream, ref long remainingBudget)
+    {
+        var size = stream.ReadByte();
+        if (size < 0)
+        {
+            throw new InvalidDataException(
+                "Unexpected end of stream while reading a GIF Graphic Control Extension.");
+        }
+
+        if (size != GraphicControlExtensionSize)
+        {
+            throw new InvalidDataException(
+                $"Invalid Graphic Control Extension length {size}; expected {GraphicControlExtensionSize}.");
+        }
+
+        remainingBudget -= size;
+        var data = ReadExactly(stream, size, "GIF Graphic Control Extension");
+
+        var terminator = stream.ReadByte();
+        if (terminator < 0)
+        {
+            throw new InvalidDataException(
+                "Unexpected end of stream while reading a GIF Graphic Control Extension's block terminator.");
+        }
+
+        if (terminator != 0)
+        {
+            throw new InvalidDataException(
+                "GIF Graphic Control Extension has additional sub-block data after its required 4 data " +
+                "bytes; expected the block terminator.");
+        }
+
+        return data;
+    }
+
+    /// <summary>
     ///     Reads a GIF sub-block chain: a sequence of length-prefixed data blocks (each preceded
     ///     by a single size byte), terminated by a zero-length size byte, concatenating every
     ///     block's data into one buffer. This generic reader is spec-correct for every extension
-    ///     type (Graphic Control, Comment, Application, Plain Text, or any future/unknown label)
-    ///     and for an Image Descriptor's compressed image data, with no per-label special-casing
-    ///     needed to consume the bytes.
+    ///     type other than the Graphic Control Extension - Comment, Application, Plain Text, or
+    ///     any future/unknown label (see <see cref="ReadGraphicControlExtensionData"/> for the
+    ///     Graphic Control Extension's stricter single-sub-block requirement) - and for an Image
+    ///     Descriptor's compressed image data, with no per-label special-casing needed to consume
+    ///     the bytes.
     /// </summary>
     /// <param name="stream">The stream to read the sub-block chain from.</param>
     /// <param name="remainingBudget">

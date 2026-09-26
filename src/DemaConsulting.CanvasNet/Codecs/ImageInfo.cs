@@ -59,7 +59,7 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     </para>
 ///     <para>
 ///         This type is a plain, immutable data carrier with no behavior beyond its record-struct
-///         value equality; it deliberately has no new struct type per format, since all four
+///     value equality; it deliberately has no new struct type per format, since all five raster
 ///         codecs report the same four properties from their respective header formats:
 ///     </para>
 ///     <list type="bullet">

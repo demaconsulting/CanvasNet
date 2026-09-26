@@ -139,15 +139,19 @@ sections:
 
               - id: CanvasNet-Codecs-GifCodec-MalformedGraphicControlExtension
                 title: >-
-                  The GifCodec class shall reject a Graphic Control Extension whose declared
-                  sub-block data length is not exactly 4 bytes with InvalidDataException.
+                  The GifCodec class shall reject a Graphic Control Extension whose data is not
+                  exactly one 4-byte sub-block immediately followed by the block terminator, with
+                  InvalidDataException.
                 justification: |
                   A Graphic Control Extension always carries exactly 4 data bytes (packed fields,
-                  2-byte delay time, and transparent color index); any other declared length
-                  indicates a malformed or unrecognized extension that must not be parsed as if it
-                  had the standard layout.
+                  2-byte delay time, and transparent color index) as a single sub-block followed by
+                  the terminating zero-length sub-block; any other declared sub-block size, or any
+                  additional sub-block after the 4 data bytes (even one that would reassemble to a
+                  total of 4 bytes if naively concatenated), indicates a malformed or unrecognized
+                  extension that must not be parsed as if it had the standard layout.
                 tests:
                   - GifCodec_Load_MalformedGraphicControlExtension_ThrowsInvalidDataException
+                  - GifCodec_Load_FragmentedGraphicControlExtension_ThrowsInvalidDataException
 
               - id: CanvasNet-Codecs-GifCodec-UnexpectedBlockIntroducer
                 title: >-

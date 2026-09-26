@@ -482,6 +482,34 @@ public class GifCodecTests
         Assert.Throws<InvalidDataException>(() => GifCodec.Load(stream));
     }
 
+    /// <summary>
+    ///     Test: GifCodec_Load_FragmentedGraphicControlExtension_ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void GifCodec_Load_FragmentedGraphicControlExtension_ThrowsInvalidDataException()
+    {
+        using var stream = new MemoryStream();
+        WriteHeader(stream, 2, 2, BuildColorTable((255, 0, 0), (0, 0, 255)));
+
+        // A Graphic Control Extension split across two sub-blocks (2 bytes, then 2 more bytes)
+        // that together total the correct 4 bytes of data. The GIF89a specification requires the
+        // Graphic Control Extension's data to be exactly one 4-byte sub-block followed by the
+        // block terminator; this fragmentation - while it would reassemble to the right byte
+        // count under a naive concatenating reader - is not spec-compliant and must be rejected.
+        stream.WriteByte(0x21);
+        stream.WriteByte(0xF9);
+        stream.WriteByte(2); // first sub-block: 2 bytes
+        stream.WriteByte(0);
+        stream.WriteByte(0);
+        stream.WriteByte(2); // second sub-block: 2 more bytes
+        stream.WriteByte(0);
+        stream.WriteByte(0);
+        stream.WriteByte(0); // block terminator
+
+        stream.Position = 0;
+        Assert.Throws<InvalidDataException>(() => GifCodec.Load(stream));
+    }
+
     /// <summary>Test: GifCodec_Load_UnexpectedBlockIntroducer_ThrowsInvalidDataException.</summary>
     [Fact]
     public void GifCodec_Load_UnexpectedBlockIntroducer_ThrowsInvalidDataException()

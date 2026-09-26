@@ -124,10 +124,16 @@ first.
 
 #### CanvasNet-Codecs-GifCodec-MalformedGraphicControlExtension: Load Rejects a Wrong-Length GCE
 
-**Test**: `GifCodec_Load_MalformedGraphicControlExtension_ThrowsInvalidDataException`
+**Tests**: `GifCodec_Load_MalformedGraphicControlExtension_ThrowsInvalidDataException`,
+`GifCodec_Load_FragmentedGraphicControlExtension_ThrowsInvalidDataException`
 
 Builds a Graphic Control Extension sub-block declaring a data length of 3 bytes instead of the
-required 4, and asserts `Load` throws `InvalidDataException`.
+required 4, and asserts `Load` throws `InvalidDataException`. Separately, builds a Graphic Control
+Extension whose 4 bytes of data are split across two 2-byte sub-blocks (which would reassemble to
+the correct total byte count under a naive concatenating reader) and asserts `Load` still throws
+`InvalidDataException`, proving the Graphic Control Extension is parsed as exactly one 4-byte
+sub-block followed by the block terminator, per the GIF89a specification, rather than merely
+checking the reassembled total length.
 
 #### CanvasNet-Codecs-GifCodec-UnexpectedBlockIntroducer: Load Rejects an Unrecognized Block Byte
 
@@ -234,6 +240,6 @@ respectively — the same exception contract as the corresponding `Load` scenari
 
 ### Acceptance Criteria
 
-A unit test run passes when all test methods above (35 in `GifCodecTests.cs` plus 16 fixture-based
+A unit test run passes when all test methods above (36 in `GifCodecTests.cs` plus 16 fixture-based
 theory cases in `GifFixtureTests.cs`) pass without error or unexpected exception; any unexpected
 exception type or pixel-value mismatch constitutes a failure.
