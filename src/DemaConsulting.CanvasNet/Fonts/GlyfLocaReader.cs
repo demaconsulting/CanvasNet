@@ -488,45 +488,8 @@ internal sealed class GlyfLocaReader
                 throw new InvalidDataException("Point-matched composite glyph components are not supported.");
             }
 
-            float dx, dy;
-            if ((flags & ArgsAreWords) != 0)
-            {
-                EnsureAvailable(pos, 4, limit);
-                dx = SfntContainer.ReadInt16(_data, pos);
-                dy = SfntContainer.ReadInt16(_data, pos + 2);
-                pos += 4;
-            }
-            else
-            {
-                EnsureAvailable(pos, 2, limit);
-                dx = unchecked((sbyte)_data[pos]);
-                dy = unchecked((sbyte)_data[pos + 1]);
-                pos += 2;
-            }
-
-            float a = 1f, b = 0f, c = 0f, d = 1f;
-            if ((flags & WeHaveAScale) != 0)
-            {
-                EnsureAvailable(pos, 2, limit);
-                a = d = SfntContainer.ReadF2Dot14(_data, pos);
-                pos += 2;
-            }
-            else if ((flags & WeHaveAnXAndYScale) != 0)
-            {
-                EnsureAvailable(pos, 4, limit);
-                a = SfntContainer.ReadF2Dot14(_data, pos);
-                d = SfntContainer.ReadF2Dot14(_data, pos + 2);
-                pos += 4;
-            }
-            else if ((flags & WeHaveATwoByTwo) != 0)
-            {
-                EnsureAvailable(pos, 8, limit);
-                a = SfntContainer.ReadF2Dot14(_data, pos);
-                b = SfntContainer.ReadF2Dot14(_data, pos + 2);
-                c = SfntContainer.ReadF2Dot14(_data, pos + 4);
-                d = SfntContainer.ReadF2Dot14(_data, pos + 6);
-                pos += 8;
-            }
+            var (dx, dy) = ReadComponentOffset(flags, ref pos, limit);
+            var (a, b, c, d) = ReadComponentTransform(flags, ref pos, limit);
 
             var componentPath = DecodeGlyph(componentGlyphIndex, depth, ref totalComponents, ref totalPoints);
 
@@ -556,6 +519,88 @@ internal sealed class GlyfLocaReader
         // commands via AppendTransformed), so it produces the same result as an explicit
         // "had any component contributed content" flag would.
         return builder.Build();
+    }
+
+    /// <summary>
+    ///     Reads a composite glyph component's translation (<c>dx</c>/<c>dy</c>) arguments,
+    ///     advancing <paramref name="pos"/> past whatever byte width the flags declare.
+    /// </summary>
+    /// <remarks>
+    ///     Isolated from <see cref="DecodeCompositeGlyph"/> because reading a component's offset
+    ///     is a self-contained, independently testable parsing step - per the 'glyf' table spec,
+    ///     <see cref="ArgsAreWords"/> alone decides whether the two argument bytes are a pair of
+    ///     signed 16-bit words or a pair of signed 8-bit bytes.
+    /// </remarks>
+    /// <param name="flags">The component's flags word, previously validated to have <see cref="ArgsAreXyValues"/> set.</param>
+    /// <param name="pos">The current read position, advanced past the consumed argument bytes.</param>
+    /// <param name="limit">The exclusive upper bound within <see cref="_data"/> the read must stay within.</param>
+    /// <returns>The component's <c>(dx, dy)</c> translation.</returns>
+    private (float Dx, float Dy) ReadComponentOffset(int flags, ref int pos, int limit)
+    {
+        if ((flags & ArgsAreWords) != 0)
+        {
+            EnsureAvailable(pos, 4, limit);
+            var dx = SfntContainer.ReadInt16(_data, pos);
+            var dy = SfntContainer.ReadInt16(_data, pos + 2);
+            pos += 4;
+            return (dx, dy);
+        }
+
+        EnsureAvailable(pos, 2, limit);
+        var byteDx = unchecked((sbyte)_data[pos]);
+        var byteDy = unchecked((sbyte)_data[pos + 1]);
+        pos += 2;
+        return (byteDx, byteDy);
+    }
+
+    /// <summary>
+    ///     Reads a composite glyph component's optional 2x2 transform matrix
+    ///     (<c>a</c>/<c>b</c>/<c>c</c>/<c>d</c>), advancing <paramref name="pos"/> past whatever
+    ///     byte width the flags declare, defaulting to the identity matrix when none of the
+    ///     scale/2x2 flags are set.
+    /// </summary>
+    /// <remarks>
+    ///     Isolated from <see cref="DecodeCompositeGlyph"/> because parsing the transform is a
+    ///     self-contained, independently testable step - per the 'glyf' table spec, exactly one of
+    ///     <see cref="WeHaveAScale"/>, <see cref="WeHaveAnXAndYScale"/>, or <see cref="WeHaveATwoByTwo"/>
+    ///     may be set, in increasing order of generality (uniform scale, independent x/y scale, or
+    ///     a full 2x2 matrix).
+    /// </remarks>
+    /// <param name="flags">The component's flags word.</param>
+    /// <param name="pos">The current read position, advanced past the consumed transform bytes.</param>
+    /// <param name="limit">The exclusive upper bound within <see cref="_data"/> the read must stay within.</param>
+    /// <returns>The component's <c>(a, b, c, d)</c> 2x2 transform matrix.</returns>
+    private (float A, float B, float C, float D) ReadComponentTransform(int flags, ref int pos, int limit)
+    {
+        if ((flags & WeHaveAScale) != 0)
+        {
+            EnsureAvailable(pos, 2, limit);
+            var scale = SfntContainer.ReadF2Dot14(_data, pos);
+            pos += 2;
+            return (scale, 0f, 0f, scale);
+        }
+
+        if ((flags & WeHaveAnXAndYScale) != 0)
+        {
+            EnsureAvailable(pos, 4, limit);
+            var scaleX = SfntContainer.ReadF2Dot14(_data, pos);
+            var scaleY = SfntContainer.ReadF2Dot14(_data, pos + 2);
+            pos += 4;
+            return (scaleX, 0f, 0f, scaleY);
+        }
+
+        if ((flags & WeHaveATwoByTwo) != 0)
+        {
+            EnsureAvailable(pos, 8, limit);
+            var a = SfntContainer.ReadF2Dot14(_data, pos);
+            var b = SfntContainer.ReadF2Dot14(_data, pos + 2);
+            var c = SfntContainer.ReadF2Dot14(_data, pos + 4);
+            var d = SfntContainer.ReadF2Dot14(_data, pos + 6);
+            pos += 8;
+            return (a, b, c, d);
+        }
+
+        return (1f, 0f, 0f, 1f);
     }
 
     /// <summary>

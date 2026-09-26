@@ -1,3 +1,5 @@
+using System.Linq;
+using System.Numerics;
 using DemaConsulting.CanvasNet.Geometry;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
@@ -77,25 +79,42 @@ public static class PathStroker
                     style,
                     flattenTolerance);
 
-                foreach (var outline in outlines)
+                foreach (var outline in outlines.Where(outline => AppendOutlinePolygon(builder, outline)))
                 {
-                    if (outline.Count < 3)
-                    {
-                        continue;
-                    }
-
-                    builder.MoveTo(outline[0]);
-                    for (var i = 1; i < outline.Count; i++)
-                    {
-                        builder.LineTo(outline[i]);
-                    }
-
-                    builder.Close();
                     polygonCount++;
                 }
             }
         }
 
         return polygonCount == 0 ? Path.Empty : builder.Build();
+    }
+
+    /// <summary>
+    ///     Appends one stroke outliner polygon to <paramref name="builder"/> as a closed subpath,
+    ///     skipping any degenerate polygon with fewer than 3 vertices.
+    /// </summary>
+    /// <remarks>
+    ///     Isolated from <see cref="Stroke"/> as its own self-contained, independently testable
+    ///     step - turning one outline's vertex list into path commands is a distinct concept from
+    ///     the surrounding flatten/dash/outline pipeline that produces the outline.
+    /// </remarks>
+    /// <param name="builder">The path builder to append to.</param>
+    /// <param name="outline">The outline's vertices, in order.</param>
+    /// <returns><see langword="true"/> if a subpath was appended; <see langword="false"/> if <paramref name="outline"/> was degenerate.</returns>
+    private static bool AppendOutlinePolygon(PathBuilder builder, IReadOnlyList<Vector2> outline)
+    {
+        if (outline.Count < 3)
+        {
+            return false;
+        }
+
+        builder.MoveTo(outline[0]);
+        for (var i = 1; i < outline.Count; i++)
+        {
+            builder.LineTo(outline[i]);
+        }
+
+        builder.Close();
+        return true;
     }
 }

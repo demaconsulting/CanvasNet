@@ -541,31 +541,7 @@ internal static class DashSplitter
         budgetExceeded = false;
         var intervals = new List<(double Start, double End)>();
 
-        // Cheap, O(pattern.Count) pre-flight estimates: short-circuit straight to the
-        // cap-exceeded fallback for hopeless inputs (e.g. a huge-but-finite totalLength paired
-        // with a fine dash span, or a pattern whose "on" entries dominate its transitions) without
-        // ever entering the loop below - see this method's remarks for both cost models and their
-        // known, bounded slack.
-        var patternLength = GetPatternLength(pattern);
-        var positiveEntryCount = pattern.Count(entry => entry > 0f);
-        var estimatedIterations = 2d * positiveEntryCount * (totalLength / patternLength);
-        if (estimatedIterations > MaxOnIntervalIterations)
-        {
-            budgetExceeded = true;
-            return intervals;
-        }
-
-        var onEntryCount = 0;
-        for (var i = 0; i < pattern.Count; i += 2)
-        {
-            if (pattern[i] > 0f)
-            {
-                onEntryCount++;
-            }
-        }
-
-        var estimatedOnIntervalCount = onEntryCount * (totalLength / patternLength);
-        if (estimatedOnIntervalCount > MaxOnIntervalCount)
+        if (EstimatesExceedBudget(pattern, totalLength, out var patternLength))
         {
             budgetExceeded = true;
             return intervals;
@@ -634,6 +610,56 @@ internal static class DashSplitter
         }
 
         return intervals;
+    }
+
+    /// <summary>
+    ///     Cheap, <c>O(pattern.Count)</c> pre-flight cost estimate deciding whether
+    ///     <see cref="BuildOnIntervals"/>'s walking loop should even begin: short-circuits to the
+    ///     cap-exceeded fallback for hopeless inputs (e.g. a huge-but-finite <paramref name="totalLength"/>
+    ///     paired with a fine dash span, or a pattern whose "on" entries dominate its transitions)
+    ///     without ever entering the loop.
+    /// </summary>
+    /// <remarks>
+    ///     Isolated from <see cref="BuildOnIntervals"/> as its own self-contained, independently
+    ///     testable estimate - it is pure arithmetic over <paramref name="pattern"/> and
+    ///     <paramref name="totalLength"/>, with no dependency on the loop's own walking state.
+    ///     Combines two independent estimates against two independent caps
+    ///     (<see cref="MaxOnIntervalIterations"/> and <see cref="MaxOnIntervalCount"/>) - see
+    ///     <see cref="BuildOnIntervals"/>'s own remarks for why both are necessary and for their
+    ///     known, bounded slack. This is a heuristic estimate closely tracking the loop's real
+    ///     cost model, not an exact prediction or a strict mathematical upper bound; the loop's
+    ///     own running counters remain the authoritative backstop for any input either estimate
+    ///     under-counts.
+    /// </remarks>
+    /// <param name="pattern">The normalized dash pattern.</param>
+    /// <param name="totalLength">The polyline's total arc length.</param>
+    /// <param name="patternLength">Receives the pattern's total cycle length.</param>
+    /// <returns>
+    ///     <see langword="true"/> if either estimate exceeds its cap and the walking loop should
+    ///     be skipped entirely.
+    /// </returns>
+    private static bool EstimatesExceedBudget(IReadOnlyList<float> pattern, double totalLength, out double patternLength)
+    {
+        patternLength = GetPatternLength(pattern);
+
+        var positiveEntryCount = pattern.Count(entry => entry > 0f);
+        var estimatedIterations = 2d * positiveEntryCount * (totalLength / patternLength);
+        if (estimatedIterations > MaxOnIntervalIterations)
+        {
+            return true;
+        }
+
+        var onEntryCount = 0;
+        for (var i = 0; i < pattern.Count; i += 2)
+        {
+            if (pattern[i] > 0f)
+            {
+                onEntryCount++;
+            }
+        }
+
+        var estimatedOnIntervalCount = onEntryCount * (totalLength / patternLength);
+        return estimatedOnIntervalCount > MaxOnIntervalCount;
     }
 
     /// <summary>

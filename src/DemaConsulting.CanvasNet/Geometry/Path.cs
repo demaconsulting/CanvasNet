@@ -116,12 +116,7 @@ public sealed class Path
                 {
                     var points = new List<Vector2>();
                     BezierFlattening.FlattenQuadratic(current, command.Control1, command.EndPoint, flattenTolerance, points);
-                    foreach (var point in points)
-                    {
-                        bounds = bounds.Union(PointRect(point));
-                    }
-
-                    return bounds;
+                    return UnionPoints(bounds, points);
                 }
 
                 return bounds.Union(PointRect(command.Control1)).Union(PointRect(command.EndPoint));
@@ -131,12 +126,7 @@ public sealed class Path
                 {
                     var points = new List<Vector2>();
                     BezierFlattening.FlattenCubic(current, command.Control1, command.Control2, command.EndPoint, flattenTolerance, points);
-                    foreach (var point in points)
-                    {
-                        bounds = bounds.Union(PointRect(point));
-                    }
-
-                    return bounds;
+                    return UnionPoints(bounds, points);
                 }
 
                 return bounds.Union(PointRect(command.Control1)).Union(PointRect(command.Control2)).Union(PointRect(command.EndPoint));
@@ -155,10 +145,7 @@ public sealed class Path
                     {
                         var points = new List<Vector2>();
                         BezierFlattening.FlattenCubic(segmentStart, segment.Control1, segment.Control2, segment.End, flattenTolerance, points);
-                        foreach (var point in points)
-                        {
-                            bounds = bounds.Union(PointRect(point));
-                        }
+                        bounds = UnionPoints(bounds, points);
                     }
                     else
                     {
@@ -174,6 +161,25 @@ public sealed class Path
             default:
                 return bounds;
         }
+    }
+
+    /// <summary>
+    ///     Folds every point in <paramref name="points"/> into <paramref name="bounds"/> via
+    ///     <see cref="Rect.Union(Rect)"/>.
+    /// </summary>
+    /// <remarks>
+    ///     Isolated from <see cref="AccumulateCommandBounds"/> to eliminate the identical
+    ///     "flatten a curve, then union every flattened point" loop that would otherwise be
+    ///     repeated for the quadratic, cubic, and arc (per-segment) flattening branches.
+    /// </remarks>
+    private static Rect UnionPoints(Rect bounds, List<Vector2> points)
+    {
+        foreach (var point in points)
+        {
+            bounds = bounds.Union(PointRect(point));
+        }
+
+        return bounds;
     }
 
     /// <summary>

@@ -283,43 +283,65 @@ internal sealed class CmapTable
             return null;
         }
 
-        return codepoint =>
+        return codepoint => LookupFormat4(codepoint, segCount, endCodes, startCodes, idDeltas, idRangeOffsets, idRangeOffsetOffset, glyphIdArrayOffset, tableEnd, data);
+    }
+
+    /// <summary>
+    ///     Resolves one codepoint via a parsed format-4 subtable's segment arrays, performing the
+    ///     linear segment scan and indirect glyph-index array lookup the format defines.
+    /// </summary>
+    /// <remarks>
+    ///     Isolated from <see cref="TryParseFormat4"/> as its own self-contained lookup step -
+    ///     resolving a codepoint against already-validated segment arrays is independent of, and
+    ///     independently testable from, the parsing/validation that produced those arrays.
+    /// </remarks>
+    /// <returns>The resolved glyph index, or <c>0</c> (".notdef") if unmapped or malformed.</returns>
+    private static int LookupFormat4(
+        int codepoint,
+        int segCount,
+        int[] endCodes,
+        int[] startCodes,
+        short[] idDeltas,
+        ushort[] idRangeOffsets,
+        int idRangeOffsetOffset,
+        int glyphIdArrayOffset,
+        int tableEnd,
+        byte[] data)
+    {
+        if (codepoint is < 0 or > 0xFFFF)
         {
-            if (codepoint is < 0 or > 0xFFFF)
+            return 0;
+        }
+
+        for (var i = 0; i < segCount; i++)
+        {
+            if (codepoint > endCodes[i])
+            {
+                continue;
+            }
+
+            if (codepoint < startCodes[i])
             {
                 return 0;
             }
 
-            for (var i = 0; i < segCount; i++)
+            if (idRangeOffsets[i] == 0)
             {
-                if (codepoint > endCodes[i])
-                {
-                    continue;
-                }
-
-                if (codepoint < startCodes[i])
-                {
-                    return 0;
-                }
-
-                if (idRangeOffsets[i] == 0)
-                {
-                    return (codepoint + idDeltas[i]) & 0xFFFF;
-                }
-
-                var glyphIndexAddress = ComputeFormat4GlyphIndexAddress(
-                    idRangeOffsetOffset, i, idRangeOffsets[i], codepoint, startCodes[i], glyphIdArrayOffset, tableEnd);
-                if (glyphIndexAddress == null)
-                {
-                    return 0;
-                }
-
-                var glyphId = SfntContainer.ReadUInt16(data, (int)glyphIndexAddress.Value);
-                return glyphId == 0 ? 0 : (glyphId + idDeltas[i]) & 0xFFFF;
+                return (codepoint + idDeltas[i]) & 0xFFFF;
             }
 
-            return 0;
-        };
+            var glyphIndexAddress = ComputeFormat4GlyphIndexAddress(
+                idRangeOffsetOffset, i, idRangeOffsets[i], codepoint, startCodes[i], glyphIdArrayOffset, tableEnd);
+            if (glyphIndexAddress == null)
+            {
+                return 0;
+            }
+
+            var glyphId = SfntContainer.ReadUInt16(data, (int)glyphIndexAddress.Value);
+            return glyphId == 0 ? 0 : (glyphId + idDeltas[i]) & 0xFFFF;
+        }
+
+        return 0;
     }
 
     /// <summary>
@@ -466,42 +488,54 @@ internal sealed class CmapTable
             }
         }
 
-        return codepoint =>
+        return codepoint => LookupFormat12(codepoint, starts, ends, startGlyphIds);
+    }
+
+    /// <summary>
+    ///     Resolves one codepoint via a parsed format-12 subtable's group arrays, performing the
+    ///     binary search over charCode ranges the format defines.
+    /// </summary>
+    /// <remarks>
+    ///     Isolated from <see cref="TryParseFormat12"/> as its own self-contained lookup step -
+    ///     resolving a codepoint against already-validated group arrays is independent of, and
+    ///     independently testable from, the parsing/validation that produced those arrays.
+    /// </remarks>
+    /// <returns>The resolved glyph index, or <c>0</c> (".notdef") if unmapped or malformed.</returns>
+    private static int LookupFormat12(int codepoint, uint[] starts, uint[] ends, uint[] startGlyphIds)
+    {
+        if (codepoint < 0)
         {
-            if (codepoint < 0)
-            {
-                return 0;
-            }
-
-            var code = (uint)codepoint;
-            var lo = 0;
-            var hi = starts.Length - 1;
-            while (lo <= hi)
-            {
-                var mid = lo + (hi - lo) / 2;
-                if (code < starts[mid])
-                {
-                    hi = mid - 1;
-                }
-                else if (code > ends[mid])
-                {
-                    lo = mid + 1;
-                }
-                else
-                {
-                    // Compute the sum in `long` arithmetic rather than `uint` - `startGlyphIds[mid]`
-                    // combined with a large `code - starts[mid]` offset can otherwise wrap modulo
-                    // 2^32, silently producing a small, plausible-looking (but bogus) glyph index
-                    // instead of failing. Real fonts never have anywhere near `int.MaxValue`
-                    // glyphs, so any result that would not fit in a non-negative `int` (i.e. would
-                    // have wrapped, or would itself become negative when cast) is rejected
-                    // outright rather than truncated.
-                    var glyphId = (long)startGlyphIds[mid] + (code - starts[mid]);
-                    return glyphId > int.MaxValue ? 0 : (int)glyphId;
-                }
-            }
-
             return 0;
-        };
+        }
+
+        var code = (uint)codepoint;
+        var lo = 0;
+        var hi = starts.Length - 1;
+        while (lo <= hi)
+        {
+            var mid = lo + (hi - lo) / 2;
+            if (code < starts[mid])
+            {
+                hi = mid - 1;
+            }
+            else if (code > ends[mid])
+            {
+                lo = mid + 1;
+            }
+            else
+            {
+                // Compute the sum in `long` arithmetic rather than `uint` - `startGlyphIds[mid]`
+                // combined with a large `code - starts[mid]` offset can otherwise wrap modulo
+                // 2^32, silently producing a small, plausible-looking (but bogus) glyph index
+                // instead of failing. Real fonts never have anywhere near `int.MaxValue`
+                // glyphs, so any result that would not fit in a non-negative `int` (i.e. would
+                // have wrapped, or would itself become negative when cast) is rejected
+                // outright rather than truncated.
+                var glyphId = (long)startGlyphIds[mid] + (code - starts[mid]);
+                return glyphId > int.MaxValue ? 0 : (int)glyphId;
+            }
+        }
+
+        return 0;
     }
 }

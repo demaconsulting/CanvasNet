@@ -290,27 +290,16 @@ public static class GifCodec
                             }
 
                             result = new Surface(canvasWidth, canvasHeight);
-                            for (var row = 0; row < imgHeight; row++)
-                            {
-                                var rowSpan = result.GetRowSpan(top + row);
-                                var rowOffset = row * imgWidth;
-                                for (var col = 0; col < imgWidth; col++)
-                                {
-                                    var index = indices[rowOffset + col];
-                                    if (index >= activeColorTable.Length)
-                                    {
-                                        throw new InvalidDataException(
-                                            $"GIF pixel index {index} is out of range for its color table " +
-                                            $"({activeColorTable.Length} entries).");
-                                    }
-
-                                    var color = activeColorTable[index];
-                                    var alpha = (byte)(pendingTransparencyFlag && index == pendingTransparentIndex
-                                        ? 0
-                                        : 255);
-                                    rowSpan[left + col] = new Rgba32(color.R, color.G, color.B, alpha);
-                                }
-                            }
+                            BlitIndexedFrame(
+                                result,
+                                indices,
+                                activeColorTable,
+                                left,
+                                top,
+                                imgWidth,
+                                imgHeight,
+                                pendingTransparencyFlag,
+                                pendingTransparentIndex);
                         }
 
                         pendingTransparencyFlag = false;
@@ -363,6 +352,60 @@ public static class GifCodec
 
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
         return Load(stream);
+    }
+
+    /// <summary>
+    ///     Resolves one frame's decoded palette indices to RGBA pixels via
+    ///     <paramref name="colorTable"/>, writing them into <paramref name="destination"/> at the
+    ///     frame's declared placement, honoring the frame's transparent color index if any.
+    /// </summary>
+    /// <remarks>
+    ///     Isolated from <see cref="Load(Stream)"/> as its own self-contained blit step - resolving
+    ///     an indexed frame's pixels is a distinct, independently testable operation from the
+    ///     surrounding GIF block/stream parsing that produces its inputs.
+    /// </remarks>
+    /// <param name="destination">The surface to write pixels into. Must already be sized to contain the frame's placement.</param>
+    /// <param name="indices">The frame's decoded palette indices, one per pixel, in row-major order.</param>
+    /// <param name="colorTable">The color table (local or global) to resolve each index against.</param>
+    /// <param name="left">The frame's left placement offset within <paramref name="destination"/>.</param>
+    /// <param name="top">The frame's top placement offset within <paramref name="destination"/>.</param>
+    /// <param name="width">The frame's width, in pixels.</param>
+    /// <param name="height">The frame's height, in pixels.</param>
+    /// <param name="transparencyFlag">Whether <paramref name="transparentIndex"/> should be rendered fully transparent.</param>
+    /// <param name="transparentIndex">The palette index treated as transparent when <paramref name="transparencyFlag"/> is set.</param>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when a decoded index has no corresponding entry in <paramref name="colorTable"/>.
+    /// </exception>
+    private static void BlitIndexedFrame(
+        Surface destination,
+        byte[] indices,
+        Rgba32[] colorTable,
+        int left,
+        int top,
+        int width,
+        int height,
+        bool transparencyFlag,
+        byte transparentIndex)
+    {
+        for (var row = 0; row < height; row++)
+        {
+            var rowSpan = destination.GetRowSpan(top + row);
+            var rowOffset = row * width;
+            for (var col = 0; col < width; col++)
+            {
+                var index = indices[rowOffset + col];
+                if (index >= colorTable.Length)
+                {
+                    throw new InvalidDataException(
+                        $"GIF pixel index {index} is out of range for its color table " +
+                        $"({colorTable.Length} entries).");
+                }
+
+                var color = colorTable[index];
+                var alpha = (byte)(transparencyFlag && index == transparentIndex ? 0 : 255);
+                rowSpan[left + col] = new Rgba32(color.R, color.G, color.B, alpha);
+            }
+        }
     }
 
     /// <summary>

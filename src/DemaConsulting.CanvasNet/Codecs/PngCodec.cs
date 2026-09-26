@@ -660,92 +660,11 @@ public static class PngCodec
         }
         else if (ChunkTypeIs(typeBytes, "PLTE"))
         {
-            if (state.PlteSeen)
-            {
-                throw new InvalidDataException("Duplicate PLTE chunk.");
-            }
-
-            if (state.IdatSeen)
-            {
-                throw new InvalidDataException("PLTE chunk encountered after the first IDAT chunk.");
-            }
-
-            // The PNG specification requires PLTE to precede tRNS whenever both are present,
-            // regardless of color type: a tRNS chunk that has already been accepted means a PLTE
-            // chunk arriving afterward is out of order, even for color types (2 and 6) where
-            // PLTE is merely an optional suggested palette rather than mandatory
-            if (state.TrnsSeen)
-            {
-                throw new InvalidDataException("PLTE chunk must precede tRNS chunk.");
-            }
-
-            // ValidateChunkLengthBeforeAllocation already bounds the declared length to at most
-            // 256 entries (768 bytes), so only the multiple-of-3/non-empty shape remains to check
-            if (data.Length % 3 != 0 || data.Length == 0)
-            {
-                throw new InvalidDataException(
-                    $"Invalid PNG PLTE chunk length {data.Length}; expected a positive multiple of 3.");
-            }
-
-            // The PNG specification forbids a PLTE chunk for the two grayscale color types (0 and
-            // 4): grayscale samples are never resolved through a palette, so a PLTE chunk on such
-            // a file cannot represent anything a conforming decoder is permitted to use
-            if (state.ColorType is ColorTypeGrayscale or ColorTypeGrayscaleAlpha)
-            {
-                throw new InvalidDataException(
-                    $"PLTE chunk is not permitted for grayscale PNG color type {state.ColorType}.");
-            }
-
-            if (state.ColorType == ColorTypePalette)
-            {
-                var maxEntries = 1 << state.BitDepth;
-                var entryCount = data.Length / 3;
-                if (entryCount > maxEntries)
-                {
-                    throw new InvalidDataException(
-                        $"PNG PLTE chunk declares {entryCount} palette entries, which exceeds the maximum of " +
-                        $"{maxEntries} entries permitted for a palette (color type 3) image at bit depth " +
-                        $"{state.BitDepth}.");
-                }
-            }
-
-            state.PlteData = data;
-            state.PlteSeen = true;
+            ProcessPlteChunk(data, state);
         }
         else if (ChunkTypeIs(typeBytes, "tRNS"))
         {
-            if (state.TrnsSeen)
-            {
-                throw new InvalidDataException("Duplicate tRNS chunk.");
-            }
-
-            if (state.IdatSeen)
-            {
-                throw new InvalidDataException("tRNS chunk encountered after the first IDAT chunk.");
-            }
-
-            // The PNG specification forbids a tRNS chunk for the two color types that already
-            // carry a full per-pixel alpha channel (grayscale-with-alpha and Truecolor-with-alpha):
-            // there is nothing for a single-key-color transparency chunk to add for those formats,
-            // so its presence indicates a malformed, non-conforming file rather than a feature to
-            // silently ignore
-            if (state.ColorType is ColorTypeGrayscaleAlpha or ColorTypeTruecolorAlpha)
-            {
-                throw new InvalidDataException(
-                    $"tRNS chunk is not permitted for PNG color type {state.ColorType}, which already " +
-                    "carries a full per-pixel alpha channel.");
-            }
-
-            // For indexed-color (palette) images, tRNS's per-palette-entry alpha values are
-            // meaningless without the PLTE chunk they index into, so the specification requires
-            // tRNS to appear after PLTE, not merely after IHDR and before the first IDAT
-            if (state.ColorType == ColorTypePalette && !state.PlteSeen)
-            {
-                throw new InvalidDataException("tRNS chunk for indexed-color PNG must follow PLTE.");
-            }
-
-            state.TrnsData = data;
-            state.TrnsSeen = true;
+            ProcessTrnsChunk(data, state);
         }
         else if (ChunkTypeIs(typeBytes, "IDAT"))
         {
@@ -770,6 +689,132 @@ public static class PngCodec
         // preceding the mandatory first IHDR, so nothing reaching here can be either of those. Its
         // CRC-32 has already been validated by ReadChunkFrame and its data was never buffered at
         // all, so no further action is required.
+    }
+
+    /// <summary>
+    ///     Validates and records a <c>PLTE</c> chunk's payload into <paramref name="state"/>,
+    ///     enforcing every content-dependent PLTE rule that requires the chunk's actual payload
+    ///     (ordering relative to <c>tRNS</c>/<c>IDAT</c>, entry-count shape, and color-type/bit-depth
+    ///     compatibility).
+    /// </summary>
+    /// <remarks>
+    ///     Isolated from <see cref="ProcessChunk"/> as its own self-contained validation step,
+    ///     independently nameable and testable from the surrounding chunk-type dispatch and from
+    ///     <see cref="ProcessTrnsChunk"/>'s equivalent tRNS validation.
+    /// </remarks>
+    /// <param name="data">The chunk's payload bytes.</param>
+    /// <param name="state">The in-progress chunk-read state, updated with the accepted palette data.</param>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown for a duplicate PLTE chunk, a PLTE chunk following tRNS or the first IDAT, an
+    ///     invalid entry-count shape, a PLTE chunk on a grayscale color type, or a PLTE chunk
+    ///     declaring more entries than its bit depth permits.
+    /// </exception>
+    private static void ProcessPlteChunk(byte[] data, ChunkReadState state)
+    {
+        if (state.PlteSeen)
+        {
+            throw new InvalidDataException("Duplicate PLTE chunk.");
+        }
+
+        if (state.IdatSeen)
+        {
+            throw new InvalidDataException("PLTE chunk encountered after the first IDAT chunk.");
+        }
+
+        // The PNG specification requires PLTE to precede tRNS whenever both are present,
+        // regardless of color type: a tRNS chunk that has already been accepted means a PLTE
+        // chunk arriving afterward is out of order, even for color types (2 and 6) where
+        // PLTE is merely an optional suggested palette rather than mandatory
+        if (state.TrnsSeen)
+        {
+            throw new InvalidDataException("PLTE chunk must precede tRNS chunk.");
+        }
+
+        // ValidateChunkLengthBeforeAllocation already bounds the declared length to at most
+        // 256 entries (768 bytes), so only the multiple-of-3/non-empty shape remains to check
+        if (data.Length % 3 != 0 || data.Length == 0)
+        {
+            throw new InvalidDataException(
+                $"Invalid PNG PLTE chunk length {data.Length}; expected a positive multiple of 3.");
+        }
+
+        // The PNG specification forbids a PLTE chunk for the two grayscale color types (0 and
+        // 4): grayscale samples are never resolved through a palette, so a PLTE chunk on such
+        // a file cannot represent anything a conforming decoder is permitted to use
+        if (state.ColorType is ColorTypeGrayscale or ColorTypeGrayscaleAlpha)
+        {
+            throw new InvalidDataException(
+                $"PLTE chunk is not permitted for grayscale PNG color type {state.ColorType}.");
+        }
+
+        if (state.ColorType == ColorTypePalette)
+        {
+            var maxEntries = 1 << state.BitDepth;
+            var entryCount = data.Length / 3;
+            if (entryCount > maxEntries)
+            {
+                throw new InvalidDataException(
+                    $"PNG PLTE chunk declares {entryCount} palette entries, which exceeds the maximum of " +
+                    $"{maxEntries} entries permitted for a palette (color type 3) image at bit depth " +
+                    $"{state.BitDepth}.");
+            }
+        }
+
+        state.PlteData = data;
+        state.PlteSeen = true;
+    }
+
+    /// <summary>
+    ///     Validates and records a <c>tRNS</c> chunk's payload into <paramref name="state"/>,
+    ///     enforcing every content-dependent tRNS rule that requires the chunk's actual payload
+    ///     (ordering relative to <c>PLTE</c>/<c>IDAT</c> and color-type compatibility).
+    /// </summary>
+    /// <remarks>
+    ///     Isolated from <see cref="ProcessChunk"/> as its own self-contained validation step,
+    ///     independently nameable and testable from the surrounding chunk-type dispatch and from
+    ///     <see cref="ProcessPlteChunk"/>'s equivalent PLTE validation.
+    /// </remarks>
+    /// <param name="data">The chunk's payload bytes.</param>
+    /// <param name="state">The in-progress chunk-read state, updated with the accepted transparency data.</param>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown for a duplicate tRNS chunk, a tRNS chunk following the first IDAT, a tRNS chunk
+    ///     on a color type that already carries full per-pixel alpha, or an indexed-color tRNS
+    ///     chunk preceding PLTE.
+    /// </exception>
+    private static void ProcessTrnsChunk(byte[] data, ChunkReadState state)
+    {
+        if (state.TrnsSeen)
+        {
+            throw new InvalidDataException("Duplicate tRNS chunk.");
+        }
+
+        if (state.IdatSeen)
+        {
+            throw new InvalidDataException("tRNS chunk encountered after the first IDAT chunk.");
+        }
+
+        // The PNG specification forbids a tRNS chunk for the two color types that already
+        // carry a full per-pixel alpha channel (grayscale-with-alpha and Truecolor-with-alpha):
+        // there is nothing for a single-key-color transparency chunk to add for those formats,
+        // so its presence indicates a malformed, non-conforming file rather than a feature to
+        // silently ignore
+        if (state.ColorType is ColorTypeGrayscaleAlpha or ColorTypeTruecolorAlpha)
+        {
+            throw new InvalidDataException(
+                $"tRNS chunk is not permitted for PNG color type {state.ColorType}, which already " +
+                "carries a full per-pixel alpha channel.");
+        }
+
+        // For indexed-color (palette) images, tRNS's per-palette-entry alpha values are
+        // meaningless without the PLTE chunk they index into, so the specification requires
+        // tRNS to appear after PLTE, not merely after IHDR and before the first IDAT
+        if (state.ColorType == ColorTypePalette && !state.PlteSeen)
+        {
+            throw new InvalidDataException("tRNS chunk for indexed-color PNG must follow PLTE.");
+        }
+
+        state.TrnsData = data;
+        state.TrnsSeen = true;
     }
 
     /// <summary>
@@ -1374,106 +1419,160 @@ public static class PngCodec
         byte[]? trns,
         Span<byte> destination)
     {
-        var maxSample = (1 << bitDepth) - 1;
-
         switch (colorType)
         {
             case ColorTypeGrayscale:
-                {
-                    var trnsGray = trns != null ? ReadUInt16Be(trns, 0) : -1;
-                    for (var x = 0; x < width; x++)
-                    {
-                        var raw = samples[x];
-                        var isTransparent = raw == trnsGray;
-                        var gray = bitDepth == 16 ? (byte)(raw >> 8) : (byte)(raw * 255 / maxSample);
-                        var d = x * 4;
-                        destination[d] = gray;
-                        destination[d + 1] = gray;
-                        destination[d + 2] = gray;
-                        destination[d + 3] = (byte)(isTransparent ? 0 : 255);
-                    }
-
-                    break;
-                }
+                MapGrayscaleSamples(samples, width, bitDepth, trns, destination);
+                break;
 
             case ColorTypeTruecolor:
-                {
-                    var hasTrns = trns != null;
-                    var trnsR = hasTrns ? ReadUInt16Be(trns!, 0) : -1;
-                    var trnsG = hasTrns ? ReadUInt16Be(trns!, 2) : -1;
-                    var trnsB = hasTrns ? ReadUInt16Be(trns!, 4) : -1;
-                    for (var x = 0; x < width; x++)
-                    {
-                        var s = x * 3;
-                        var r = samples[s];
-                        var g = samples[s + 1];
-                        var b = samples[s + 2];
-                        var isTransparent = r == trnsR && g == trnsG && b == trnsB;
-                        var d = x * 4;
-                        destination[d] = bitDepth == 16 ? (byte)(r >> 8) : (byte)r;
-                        destination[d + 1] = bitDepth == 16 ? (byte)(g >> 8) : (byte)g;
-                        destination[d + 2] = bitDepth == 16 ? (byte)(b >> 8) : (byte)b;
-                        destination[d + 3] = (byte)(isTransparent ? 0 : 255);
-                    }
-
-                    break;
-                }
+                MapTruecolorSamples(samples, width, bitDepth, trns, destination);
+                break;
 
             case ColorTypePalette:
-                {
-                    var entries = palette!.Length / 3;
-                    for (var x = 0; x < width; x++)
-                    {
-                        var index = samples[x];
-                        if (index >= entries)
-                        {
-                            throw new InvalidDataException(
-                                $"PNG palette index {index} is out of range for a {entries}-entry PLTE chunk.");
-                        }
-
-                        var p = index * 3;
-                        var d = x * 4;
-                        destination[d] = palette[p];
-                        destination[d + 1] = palette[p + 1];
-                        destination[d + 2] = palette[p + 2];
-                        destination[d + 3] = trns != null && index < trns.Length ? trns[index] : (byte)255;
-                    }
-
-                    break;
-                }
+                MapPaletteSamples(samples, width, palette!, trns, destination);
+                break;
 
             case ColorTypeGrayscaleAlpha:
-                {
-                    for (var x = 0; x < width; x++)
-                    {
-                        var s = x * 2;
-                        var gray = samples[s];
-                        var alpha = samples[s + 1];
-                        var d = x * 4;
-                        var grayByte = bitDepth == 16 ? (byte)(gray >> 8) : (byte)gray;
-                        destination[d] = grayByte;
-                        destination[d + 1] = grayByte;
-                        destination[d + 2] = grayByte;
-                        destination[d + 3] = bitDepth == 16 ? (byte)(alpha >> 8) : (byte)alpha;
-                    }
-
-                    break;
-                }
+                MapGrayscaleAlphaSamples(samples, width, bitDepth, destination);
+                break;
 
             case ColorTypeTruecolorAlpha:
-                {
-                    for (var x = 0; x < width; x++)
-                    {
-                        var s = x * 4;
-                        var d = x * 4;
-                        destination[d] = bitDepth == 16 ? (byte)(samples[s] >> 8) : (byte)samples[s];
-                        destination[d + 1] = bitDepth == 16 ? (byte)(samples[s + 1] >> 8) : (byte)samples[s + 1];
-                        destination[d + 2] = bitDepth == 16 ? (byte)(samples[s + 2] >> 8) : (byte)samples[s + 2];
-                        destination[d + 3] = bitDepth == 16 ? (byte)(samples[s + 3] >> 8) : (byte)samples[s + 3];
-                    }
+                MapTruecolorAlphaSamples(samples, width, bitDepth, destination);
+                break;
+        }
+    }
 
-                    break;
-                }
+    /// <summary>
+    ///     Maps one row's grayscale samples (color type 0) to RGBA, resolving the single-key-color
+    ///     transparency <paramref name="trns"/> chunk (if any) against the raw, not-yet-downshifted
+    ///     sample value.
+    /// </summary>
+    /// <remarks>
+    ///     Isolated from <see cref="MapSamplesToRgba"/> as its own color-type-specific mapping
+    ///     step - each PNG color type maps its samples to RGBA via an independent, self-contained
+    ///     per-pixel formula, so extracting one per color type keeps every formula independently
+    ///     nameable and testable rather than folding all five into one large switch body.
+    /// </remarks>
+    private static void MapGrayscaleSamples(ReadOnlySpan<int> samples, int width, int bitDepth, byte[]? trns, Span<byte> destination)
+    {
+        var maxSample = (1 << bitDepth) - 1;
+        var trnsGray = trns != null ? ReadUInt16Be(trns, 0) : -1;
+        for (var x = 0; x < width; x++)
+        {
+            var raw = samples[x];
+            var isTransparent = raw == trnsGray;
+            var gray = bitDepth == 16 ? (byte)(raw >> 8) : (byte)(raw * 255 / maxSample);
+            var d = x * 4;
+            destination[d] = gray;
+            destination[d + 1] = gray;
+            destination[d + 2] = gray;
+            destination[d + 3] = (byte)(isTransparent ? 0 : 255);
+        }
+    }
+
+    /// <summary>
+    ///     Maps one row's Truecolor samples (color type 2) to RGBA, resolving the single-key-color
+    ///     transparency <paramref name="trns"/> chunk (if any) against the raw, not-yet-downshifted
+    ///     RGB sample triple.
+    /// </summary>
+    /// <remarks>
+    ///     See <see cref="MapGrayscaleSamples"/>'s remarks for why each color type has its own
+    ///     extracted mapping method.
+    /// </remarks>
+    private static void MapTruecolorSamples(ReadOnlySpan<int> samples, int width, int bitDepth, byte[]? trns, Span<byte> destination)
+    {
+        var hasTrns = trns != null;
+        var trnsR = hasTrns ? ReadUInt16Be(trns!, 0) : -1;
+        var trnsG = hasTrns ? ReadUInt16Be(trns!, 2) : -1;
+        var trnsB = hasTrns ? ReadUInt16Be(trns!, 4) : -1;
+        for (var x = 0; x < width; x++)
+        {
+            var s = x * 3;
+            var r = samples[s];
+            var g = samples[s + 1];
+            var b = samples[s + 2];
+            var isTransparent = r == trnsR && g == trnsG && b == trnsB;
+            var d = x * 4;
+            destination[d] = bitDepth == 16 ? (byte)(r >> 8) : (byte)r;
+            destination[d + 1] = bitDepth == 16 ? (byte)(g >> 8) : (byte)g;
+            destination[d + 2] = bitDepth == 16 ? (byte)(b >> 8) : (byte)b;
+            destination[d + 3] = (byte)(isTransparent ? 0 : 255);
+        }
+    }
+
+    /// <summary>
+    ///     Maps one row's palette indices (color type 3) to RGBA via <paramref name="palette"/>,
+    ///     resolving each index's per-entry alpha from <paramref name="trns"/> (if any).
+    /// </summary>
+    /// <remarks>
+    ///     See <see cref="MapGrayscaleSamples"/>'s remarks for why each color type has its own
+    ///     extracted mapping method.
+    /// </remarks>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown when a sample's palette index has no corresponding <paramref name="palette"/> entry.
+    /// </exception>
+    private static void MapPaletteSamples(ReadOnlySpan<int> samples, int width, byte[] palette, byte[]? trns, Span<byte> destination)
+    {
+        var entries = palette.Length / 3;
+        for (var x = 0; x < width; x++)
+        {
+            var index = samples[x];
+            if (index >= entries)
+            {
+                throw new InvalidDataException(
+                    $"PNG palette index {index} is out of range for a {entries}-entry PLTE chunk.");
+            }
+
+            var p = index * 3;
+            var d = x * 4;
+            destination[d] = palette[p];
+            destination[d + 1] = palette[p + 1];
+            destination[d + 2] = palette[p + 2];
+            destination[d + 3] = trns != null && index < trns.Length ? trns[index] : (byte)255;
+        }
+    }
+
+    /// <summary>
+    ///     Maps one row's grayscale-with-alpha samples (color type 4) to RGBA.
+    /// </summary>
+    /// <remarks>
+    ///     See <see cref="MapGrayscaleSamples"/>'s remarks for why each color type has its own
+    ///     extracted mapping method.
+    /// </remarks>
+    private static void MapGrayscaleAlphaSamples(ReadOnlySpan<int> samples, int width, int bitDepth, Span<byte> destination)
+    {
+        for (var x = 0; x < width; x++)
+        {
+            var s = x * 2;
+            var gray = samples[s];
+            var alpha = samples[s + 1];
+            var d = x * 4;
+            var grayByte = bitDepth == 16 ? (byte)(gray >> 8) : (byte)gray;
+            destination[d] = grayByte;
+            destination[d + 1] = grayByte;
+            destination[d + 2] = grayByte;
+            destination[d + 3] = bitDepth == 16 ? (byte)(alpha >> 8) : (byte)alpha;
+        }
+    }
+
+    /// <summary>
+    ///     Maps one row's Truecolor-with-alpha samples (color type 6) to RGBA.
+    /// </summary>
+    /// <remarks>
+    ///     See <see cref="MapGrayscaleSamples"/>'s remarks for why each color type has its own
+    ///     extracted mapping method.
+    /// </remarks>
+    private static void MapTruecolorAlphaSamples(ReadOnlySpan<int> samples, int width, int bitDepth, Span<byte> destination)
+    {
+        for (var x = 0; x < width; x++)
+        {
+            var s = x * 4;
+            var d = x * 4;
+            destination[d] = bitDepth == 16 ? (byte)(samples[s] >> 8) : (byte)samples[s];
+            destination[d + 1] = bitDepth == 16 ? (byte)(samples[s + 1] >> 8) : (byte)samples[s + 1];
+            destination[d + 2] = bitDepth == 16 ? (byte)(samples[s + 2] >> 8) : (byte)samples[s + 2];
+            destination[d + 3] = bitDepth == 16 ? (byte)(samples[s + 3] >> 8) : (byte)samples[s + 3];
         }
     }
 
