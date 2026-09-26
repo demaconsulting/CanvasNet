@@ -5,7 +5,10 @@ namespace DemaConsulting.CanvasNet.Codecs;
 /// <summary>
 ///     Represents the dimensions and pixel-format metadata declared by an image file's header,
 ///     as reported by a codec's <c>GetInfo</c> method (for example
-///     <see cref="BmpCodec.GetInfo(Stream)"/>) without decoding any pixel data.
+///     <see cref="BmpCodec.GetInfo(Stream)"/>) without decoding any pixel data - except
+///     <see cref="GifCodec.GetInfo(System.IO.Stream)"/>, which does decode the first frame's
+///     compressed pixel data (to determine <see cref="CanDecode"/>) without ever resolving it
+///     into a <see cref="Surface"/>; see this type's remarks for the full reasoning.
 /// </summary>
 /// <remarks>
 ///     <c>ImageInfo</c> is a small, shared supporting data type used by all five raster codecs in

@@ -279,8 +279,10 @@ public readonly record struct ImageInfo(int Width, int Height, int Channels, boo
 The `ImageInfo` record struct represents the result of a header-only probe of an image file via
 a codec's `GetInfo` method: the image's `Width` and `Height` in pixels, its `Channels` count (3
 for RGB, 4 for RGBA, 1 for grayscale where applicable), and whether it `HasAlpha`. `GetInfo`
-methods read only enough of the file to populate an `ImageInfo` - never decoding pixel data - so
-they are safe to call on untrusted or very large files before deciding whether to call `Load`.
+methods read only enough of the file to populate an `ImageInfo` - never decoding pixel data for
+every codec except `GifCodec`, whose `GetInfo` decodes the first frame's compressed pixel data (to
+determine `CanDecode`, without ever resolving that data into a rendered `Surface`) - so they are
+safe to call on untrusted or very large files before deciding whether to call `Load`.
 Unlike `Load`, `GetInfo` does not enforce `Surface.MaxDimension`, so callers should compare the
 returned dimensions against `Surface.MaxDimension` themselves when triaging untrusted input.
 
