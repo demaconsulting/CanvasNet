@@ -146,8 +146,9 @@ public static class GifCodec
     ///     (not merely the first) declares an LZW minimum code size outside the 2-8 range, an
     ///     unexpected block introducer byte is encountered, bytes remain in the stream after the
     ///     Trailer, no Image Descriptor is ever encountered before the Trailer, the compressed
-    ///     image data contains an invalid or out-of-range LZW code, or the stream ends before all
-    ///     header, color-table, or block data has been read.
+    ///     image data contains an invalid or out-of-range LZW code, the total sub-block data
+    ///     across the whole file exceeds <see cref="MaxTotalSubBlockBytes"/>, or the stream ends
+    ///     before all header, color-table, or block data has been read.
     /// </exception>
     /// <example>
     ///     <code>

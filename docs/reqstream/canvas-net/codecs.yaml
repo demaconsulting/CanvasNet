@@ -827,6 +827,7 @@ sections:
               - GifCodec_Load_LzwStreamMissingEoi_ThrowsInvalidDataException
               - GifCodec_Load_LzwStreamOverrunsExpectedCount_ThrowsInvalidDataException
               - GifCodec_Load_ExcessiveSubBlockData_ThrowsInvalidDataException
+              - GifCodec_Load_GraphicControlExtensionExceedsRemainingSubBlockBudget_ThrowsInvalidDataException
 
           - id: CanvasNet-Codecs-GifGetInfo
             title: >-

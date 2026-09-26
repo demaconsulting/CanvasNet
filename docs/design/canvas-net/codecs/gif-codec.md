@@ -111,11 +111,13 @@ Reads a GIF image from an open stream. Calls the shared `ReadLogicalScreenDescri
 `Surface.MaxDimension`, reads the Global Color Table if present, then loops reading one block at
 a time:
 
-- **Extension (`0x21`)** — reads the label byte and the extension's sub-block chain via the
-  shared `ReadSubBlocks` helper. A Graphic Control Extension (label `0xF9`) is validated to be
-  exactly 4 bytes and its transparency flag/transparent-color-index are recorded for the *next*
-  Image Descriptor only. Every other extension label's data is read and discarded (no special
-  casing needed, since `ReadSubBlocks` already fully consumes it).
+- **Extension (`0x21`)** — reads the label byte. A Graphic Control Extension (label `0xF9`) is
+  read via the dedicated `ReadGraphicControlExtensionData` helper, which enforces the stricter
+  fixed 4-byte-plus-terminator layout the GIF89a specification requires for this extension type
+  (rather than the general sub-block chain `ReadSubBlocks` would otherwise permit); its
+  transparency flag/transparent-color-index are recorded for the *next* Image Descriptor only.
+  Every other extension label's data is read and discarded via the shared `ReadSubBlocks` helper
+  (no special casing needed, since `ReadSubBlocks` already fully consumes it).
 - **Image Descriptor (`0x2C`)** — reads the 9-byte descriptor, any Local Color Table, and the
   LZW-minimum-code-size byte, validating it is in the range 2-8 for *every* frame (not merely the
   first, whose pixel data `DecodeGifLzw` separately range-checks as part of decoding); then reads
