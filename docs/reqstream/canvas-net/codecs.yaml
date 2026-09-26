@@ -750,20 +750,18 @@ sections:
 
           - id: CanvasNet-Codecs-GifValidationNull
             title: >-
-              The Codecs subsystem shall reject null stream or path arguments to GIF Load and
-              GetInfo operations with ArgumentNullException.
+              The Codecs subsystem shall reject null stream or path arguments to GIF Load
+              operations with ArgumentNullException.
             justification: |
-              Passing null to any GIF load or inspection operation is a programming error.
-              Throwing ArgumentNullException immediately surfaces the mistake and prevents
-              obscure failures deeper in the call stack.
+              Passing null to a GIF load operation is a programming error. Throwing
+              ArgumentNullException immediately surfaces the mistake and prevents obscure
+              failures deeper in the call stack.
             children:
               - CanvasNet-Codecs-GifCodec-LoadNullStream
               - CanvasNet-Codecs-GifCodec-LoadNullPath
             tests:
               - GifCodec_Load_NullStream_ThrowsArgumentNullException
               - GifCodec_Load_NullPath_ThrowsArgumentNullException
-              - GifCodec_GetInfo_NullStream_ThrowsArgumentNullException
-              - GifCodec_GetInfo_NullPath_ThrowsArgumentNullException
 
           - id: CanvasNet-Codecs-GifValidationEmptyPath
             title: >-

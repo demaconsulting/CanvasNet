@@ -835,6 +835,7 @@ sections:
           - CanvasNet-Codecs-GifValidationEmptyPath
         tests:
           - CanvasNet_SystemIntegration_GifLoad_ReturnsExpectedPixel
+          - GifCodec_Load_EmptyPath_ThrowsArgumentException
 
       - id: CanvasNet-Lib-GifUnsupportedFormatValidation
         title: >-

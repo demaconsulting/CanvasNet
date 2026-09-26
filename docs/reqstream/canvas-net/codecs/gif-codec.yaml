@@ -14,7 +14,9 @@ sections:
                 title: >-
                   The GifCodec class shall load a Surface from a GIF stream or file path, decoding
                   the Logical Screen Descriptor, Global Color Table, and first Image Descriptor's
-                  LZW-compressed pixel data into matching RGBA pixel values with fully opaque alpha.
+                  LZW-compressed pixel data into matching RGBA pixel values, with fully opaque
+                  alpha except for pixels using the active Graphic Control Extension's transparent
+                  color index.
                 justification: |
                   Callers need to import existing GIF images as pixel buffers for further
                   processing or display, matching the file's own declared color table exactly,
