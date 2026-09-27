@@ -966,6 +966,7 @@ sections:
             children:
               - CanvasNet-Codecs-SvgCodec-FilterRendering
               - CanvasNet-Codecs-SvgCodec-FilterResourceSafety
+              - CanvasNet-Codecs-SvgCodec-GroupFilterRendering
             tests:
               - SvgCodec_Load_FeFloodFilter_RendersSolidColorBehindElement
               - SvgCodec_Load_FeFloodFeGaussianBlurFeCompositeFilter_RendersBlurredHaloBehindContent
