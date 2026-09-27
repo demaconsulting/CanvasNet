@@ -60,6 +60,18 @@ same reason as the other codecs: rasterizing an SVG document has no instance sta
   `filter` presentation attribute (`url(#id)`), with `x`/`y`/`width`/`height` filter-region
   attributes (objectBoundingBox units) and `feFlood`, `feGaussianBlur`, `feOffset`,
   `feComposite`, and `feMerge` primitive children
+- `clipPath`, referenced from any renderable shape/text/`g`/`symbol`/`use` element via the
+  `clip-path` presentation attribute (`url(#id)`), hard-clipping that element's own content to
+  the union of the `clipPath` element's own direct `rect`/`circle`/`ellipse`/`polyline`/
+  `polygon`/`path`/`text` children, honoring `clipPathUnits`
+  (`userSpaceOnUse`/`objectBoundingBox`) and each child's own `clip-rule` - see _Clipping and
+  Masking_ below
+- `mask`, referenced from any renderable shape/text/`g`/`symbol`/`use` element via the `mask`
+  presentation attribute (`url(#id)`), attenuating that element's own alpha by the referenced
+  `mask` element's own rendered content, evaluated as a luminance mask (the SVG-specification
+  default), honoring `maskUnits`/`x`/`y`/`width`/`height` (the mask's own region box) and
+  `maskContentUnits` (the mask content's own coordinate system) as independent attributes - see
+  _Clipping and Masking_ below
 - `text`, with `x`/`y`, `font-family`, `font-size`, `fill`, `text-anchor`
   (`start`/`middle`/`end`), and `font-weight`/`font-style`, rendered through a caller-supplied
   dictionary of per-family `SvgFontFace` lists (or, via the legacy single-font-per-family
@@ -67,7 +79,7 @@ same reason as the other codecs: rasterizing an SVG document has no instance sta
 
 #### Out-of-scope subset (tolerated, silently skipped)
 
-`style`, `mask`, `clipPath`, `pattern`, a nested `svg`, `animate`/other SMIL
+`style`, `pattern`, a nested `svg`, `animate`/other SMIL
 animation elements, `image`, `foreignObject`, and CSS class/id selectors are all well-formed SVG
 constructs this codec does not implement. Encountering one of these does not fail the whole
 document: `SvgCodec` silently skips just that element (and, for a container element, everything
@@ -95,7 +107,19 @@ keywords `bolder`/`lighter` (which resolve to a value relative to the inherited 
 than an absolute one) are not implemented - encountering either keyword tolerantly falls back to
 the inherited weight - and the `font-style` keyword `oblique` is folded into the same
 `SvgFontStyle.Italic` value as `italic` rather than being distinguished as a third style (see
-`SvgFontStyle`'s remarks in the source for the rationale).
+`SvgFontStyle`'s remarks in the source for the rationale). Within the supported `clipPath`/`mask`
+features themselves, the following are explicitly out of scope (see _Clipping and Masking_ below
+for the full rationale behind each): a nested `clip-path`/`mask`/`filter` applied to a `clipPath`
+element's own children (clip children are rasterized directly, not walked through the ordinary
+element-rendering recursion that resolves those attributes elsewhere); a `clip-path`/`mask`/
+`filter` attribute placed on the `clipPath`/`mask` element itself (both are `NonRenderingElements`
+never reached by the top-down walk, so any such attribute is inert); `<use>`/`<g>`/`<line>`
+children of a `clipPath` (only `rect`/`circle`/`ellipse`/`polyline`/`polygon`/`path`/`text` clip
+children are supported - `<line>` is excluded because a zero-area centerline contributes nothing
+to a union clip, matching the SVG specification); `mask-type`/`mask-mode: alpha` (only luminance
+mask semantics are implemented; an alpha-mode request tolerantly falls back to luminance); and a
+`clipPath`/`mask` `href`/`xlink:href` template-inheritance chain (mirroring the gradient
+chain-walk pattern) - an empty `clipPath`/`mask` with only an `href` resolves to "no children."
 
 A percentage value on a shape/text geometry attribute (`x`, `y`, `width`, `height`, `rx`, `ry`,
 `cx`, `cy`, `r`, `x1`/`y1`/`x2`/`y2`, `font-size`, `stroke-width`, `stroke-dasharray`,
@@ -667,10 +691,99 @@ second time into the region-sized temporary surface (with the group's own `opaci
 `1.0`, mirroring the single-shape convention, so the filter chain evaluates against fully-opaque
 source content), the primitive chain evaluates identically to the single-shape case, and the
 filtered result is composited back onto the canvas with the group's own `opacity` applied at that
-final step - transform and (the codec's unimplemented) clip both apply to the group as a whole via
-the transform already baked into the region computation and the offscreen render, with no
-separate ordering to reconcile since `clipPath` is never read by this codec at all, filtered or
-not.
+final step - transform applies to the group as a whole via the transform already baked into the
+region computation and the offscreen render; `clip-path`/`mask`, when present on the same
+element, are applied to that offscreen content before the filter chain runs (see _Clipping and
+Masking_ below for the full clip/mask algorithm and how this ordering was generalized across both
+the single-shape and group entry points).
+
+**Clipping and masking.** A directly renderable shape/`text` element's, or a `g`/`symbol`
+reference/`use` element's, own `clip-path`/`mask` presentation attributes (each `url(#id)`,
+resolved through the same id index and dangling-reference tolerance as a gradient `fill`/`stroke`
+reference above, and each tolerant of a reference that resolves to a well-formed element which is
+not literally a `clipPath`/`mask`, mirroring `filter`'s own wrong-element-type tolerance) are
+resolved alongside `filter` at the same two entry points (`RenderShapeWithEffects`/
+`RenderGroupWithEffects`, generalized from the pre-existing per-shape/per-group filter-only
+pipeline) and applied, in document order, to that element's own pre-filter offscreen content:
+geometry → fill/stroke → clip → mask → filter → group opacity - the same ordering the SVG
+rendering model specifies, so an element combining `filter` with `clip-path`/`mask` has its
+filter chain evaluate against the already-clipped-and-masked result, not the raw, unclipped
+geometry.
+
+_Clip-path._ `ApplyClipPath` builds a fresh `coverage` `Surface` the same size as the element's
+own offscreen content, then rasterizes each direct child of the referenced `clipPath` element
+(`rect`/`circle`/`ellipse`/`polyline`/`polygon`/`path`/`text` only - see the out-of-scope list
+above for excluded child kinds) as opaque white directly onto that same buffer via
+`PathFiller.Fill`, honoring each child's own `clip-rule` (`nonzero`/`evenodd`). Painting every
+child directly over the same buffer, rather than computing an explicit path union, naturally
+realizes "union of children" with no separate union step: a pixel covered by any child ends up
+opaque regardless of how many children cover it. `ApplyCoverageClip` then multiplies the
+element's own content's alpha channel by the coverage buffer's own alpha per pixel (255 →
+unchanged, 0 → forced to zero, else linearly scaled) - a hard geometric clip realized as an
+alpha-buffer intersection, since no native clip-region primitive exists on `Canvas`/`Surface`
+(confirmed by inspection before implementation - only alpha-multiply compositing primitives are
+available) - functionally equivalent to a true geometric clip for this codec's purposes, since
+every subsequent compositing step in this codec already operates per-pixel on `Surface` alpha
+data rather than through a vector clip stack. `clipPathUnits` (default `userSpaceOnUse`) governs
+which coordinate system the `clipPath` element's own children are read in: `objectBoundingBox`
+prepends an object-bounding-box-to-local-space map (`ComputeObjectBoundingBoxMap`, the same
+helper gradients already use for `gradientUnits="objectBoundingBox"`, generalized here to accept a
+`Rect` directly rather than only a `Path`) ahead of the element's own transform; the default,
+`userSpaceOnUse`, resolves children directly in the referencing element's own local space with no
+such prepended map.
+
+_Mask._ `ApplyMask` renders the referenced `mask` element's own children through the _ordinary_
+`RenderElement` recursive walk (not direct rasterization, unlike clip-path) into a fresh
+`maskSource` `Surface`, then `ApplyLuminanceMask` multiplies the element's own content's alpha by
+each mask pixel's own computed luminance (the standard sRGB coefficients
+`0.2125*R + 0.7154*G + 0.0721*B`, itself scaled by that mask pixel's own alpha) - the
+SVG-specification-default mask mode; `mask-type`/`mask-mode: alpha` is not implemented (see the
+out-of-scope list above). Rendering mask content through the ordinary element walk, rather than a
+bespoke rasterizer, is a deliberate asymmetry with clip-path: it means mask content can itself
+freely use `clip-path`/`mask`/`filter` with no special-casing, and - just as importantly - it
+means a mask-reference cycle (an element's `mask` whose own content transitively re-references an
+ancestor element's `mask`) is already caught by the pre-existing `MaxElementDepth` guard
+`RenderElement` enforces on every recursive descent, needing no new, dedicated depth counter of
+its own. Clip-path children, rasterized directly rather than walked, have no equivalent
+protection and so instead rely on a flat `MaxClipPathShapesPerClipPath` (256) ceiling on a single
+`clipPath` element's own direct child count - and, since a `clipPath` element's own children are
+never themselves resolved for a further nested `clip-path`/`mask` reference (see the out-of-scope
+list above), a clip-path reference cannot cycle in the first place, so it needs no analogous
+cycle guard. `mask`'s region box (`maskUnits`/`x`/`y`/`width`/`height`, default
+`objectBoundingBox`) and its content's own coordinate system (`maskContentUnits`, default
+`userSpaceOnUse`) are two independent attributes, resolved independently
+(`ComputeMaskRegionLocalBounds` for the former, the same `clipPathUnits`-style
+object-bounding-box-map prepending for the latter) rather than one being conflated with or
+overriding the other - a distinction the SVG specification itself draws and this implementation
+preserves. A percentage value under `maskUnits="userSpaceOnUse"` still resolves against the
+reference bounds rather than the current viewport, a deliberate, documented simplification since
+viewport dimensions are not threaded to this call site; only a bare number literal under
+`userSpaceOnUse` is interpreted as a literal absolute local-space coordinate.
+
+_Resource safety._ Both clip and mask reuse `FilterWorkBudget` (not a separate budget class) for
+their own offscreen-buffer allocation charge - a deliberate judgment call rather than the
+originally-considered new `EffectWorkBudget` class, because clip/mask offscreen-buffer allocation
+is the exact same "region-area × content-count" cost shape `FilterWorkBudget` already bounds for
+filter application, and reusing one cumulative ceiling across all three effects (rather than
+three independent ceilings that could each individually permit a third of a document's total
+offscreen-allocation budget) keeps one resource dimension's ceiling from being exhausted by
+"legitimate reuse" spread across unrelated attributes. A mask region whose pixel-space dimensions
+would exceed `Surface.MaxDimension` is rejected the same way an oversized filter region is,
+tolerantly falling back to unmasked rendering rather than attempting an oversized allocation -
+inherited for free from the same `ConvertLocalRegionToPixelBounds`/region-computation
+generalization filter regions already used, now shared via `ResolveEffectsRegionPixelBounds` (see
+**Region precedence** immediately below).
+
+_Region precedence._ When more than one of `filter`/`clip-path`/`mask` are present on the same
+element, `ResolveEffectsRegionPixelBounds` decides whose region sizes the shared offscreen
+buffer(s): the filter's own region wins if a filter is present (unchanged pre-Phase-2 behavior -
+filter regions are always objectBoundingBox-relative, a pre-existing simplification); otherwise
+the mask's own region (`ComputeMaskRegionPixelBounds`, properly honoring `maskUnits`) if a mask is
+present; otherwise (clip-only, no mask or filter) the plain painted/stroke-expanded content
+bounds with no `-10%/120%` filter-style expansion. Extracting this precedence into one shared
+helper - rather than duplicating an equivalent three-way conditional at both the single-shape and
+group entry points - was also what resolved a `SonarAnalyzer` nested-ternary violation the
+straightforward inline version of this logic triggered at each call site.
 
 #### Element/Group Nesting and Total-Element Bounds
 

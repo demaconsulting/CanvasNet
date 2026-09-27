@@ -896,7 +896,15 @@ elements (referenced via `marker-start`/`marker-mid`/`marker-end`, with `markerW
 elements (referenced via the `filter` presentation attribute on any directly renderable shape or
 `text` element, or on a `g`/`symbol` reference/`use` element - applied to the whole referenced
 subtree as a single unit - with `x`/`y`/`width`/`height` filter-region attributes and `feFlood`/
-`feGaussianBlur`/`feOffset`/`feComposite`/`feMerge` primitive children), and best-effort,
+`feGaussianBlur`/`feOffset`/`feComposite`/`feMerge` primitive children), `clipPath` elements
+(referenced via the `clip-path` presentation attribute, hard-clipping to the union of the
+`clipPath` element's own rect/circle/ellipse/polyline/polygon/path/text children, honoring
+`clipPathUnits` and each child's own `clip-rule`), `mask` elements (referenced via the `mask`
+presentation attribute, attenuating alpha by the referenced content's own computed luminance,
+honoring `maskUnits`/`x`/`y`/`width`/`height` and `maskContentUnits` as independent attributes) -
+`clip-path`/`mask` apply to the same per-shape/per-group targets `filter` does, and, when
+combined with `filter` on the same element, are applied before that element's own filter chain
+runs - and best-effort,
 weight/style-aware `text` rendering against a caller-supplied dictionary of per-family font faces:
 either a single `TrueTypeFont` per family (the legacy shape), or a list of `SvgFontFace` values -
 each pairing a `TrueTypeFont` with the `font-weight`/`font-style` it represents - letting a caller
@@ -914,7 +922,7 @@ attribute (`x`/`y`/`width`/`height`/`rx`/`ry`/`cx`/`cy`/`r`/`x1`/`y1`/`x2`/`y2`/
 `x`/`y`) also accepts a trailing `%`, resolved against the current viewport (or, for `font-size`,
 the parent element's own `font-size`) - `stroke-miterlimit` is the sole exception, since it is a
 unitless ratio rather than a length. Well-formed but
-out-of-scope constructs (`style`, `mask`, `clipPath`, `animate`/SMIL, `image`,
+out-of-scope constructs (`style`, `animate`/SMIL, `image`,
 `foreignObject`, `pattern`, nested `svg`, CSS selectors, and every filter primitive other than
 the five listed above) are silently skipped/passed through so the rest of the document still
 renders; malformed/unparseable input throws `InvalidDataException`.

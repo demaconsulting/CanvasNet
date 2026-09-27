@@ -686,7 +686,13 @@ capability.
 
 Builds a document containing `style`, `mask`, `clipPath`, `pattern`, and a
 nested `svg` alongside an ordinary `rect`, and asserts the ordinary `rect` still renders — proving
-none of the out-of-scope elements abort the whole document. A real fixture file
+none of the out-of-scope elements abort the whole document. `mask`/`clipPath` are defined but
+never referenced by any element's own `mask`/`clip-path` attribute in this particular fixture, so
+this test only exercises their (unchanged) "non-rendering element, tolerated as a defs-only
+declaration" status - see `CanvasNet-Codecs-SvgCodec-ClipPathRendering`/
+`CanvasNet-Codecs-SvgCodec-MaskRendering` below for their own dedicated coverage once actually
+referenced; like `filter`, they are no longer an out-of-scope construct when referenced. A real
+fixture file
 (`SvgFixtures/tolerant-unsupported.svg`, whose `filter` def is now genuinely supported but simply
 never referenced by any element) exercises the same property end-to-end. See
 `CanvasNet-Codecs-SvgCodec-FilterRendering`/`CanvasNet-Codecs-SvgCodec-FilterResourceSafety` below
@@ -964,6 +970,120 @@ re-parses of that same path.
 is the companion non-regression test: 5 levels of nested filtered groups wrapping one small,
 ordinary path renders its fill color correctly, proving the new geometry-weighted ceiling is
 generous enough that ordinary real-world documents are never spuriously rejected.
+
+#### CanvasNet-Codecs-SvgCodec-ClipPathRendering: `clipPath` Union-of-Children Hard Clipping
+
+**Tests**: `SvgCodec_Load_ClipPathUserSpaceOnUse_ClipsToAbsoluteCircle`,
+`SvgCodec_Load_ClipPathObjectBoundingBox_ScalesClipContentToReferenceBounds`,
+`SvgCodec_Load_ClipPathMultipleChildren_ClipsToUnionOfAllShapes`,
+`SvgCodec_Load_DanglingClipPathReference_RendersUnclipped`,
+`SvgCodec_Load_ClipPathChildClipRuleEvenOdd_ProducesHoleAtOverlap`,
+`SvgCodec_Load_ClipPathOnGroup_ClipsCombinedGroupContent`,
+`SvgCodec_Load_ClipPathReferencesNonClipPathElement_RendersUnclipped`
+
+Asserts a `clip-path="url(#id)"` referencing a `clipPath` with the default (`userSpaceOnUse`)
+`clipPathUnits` clips a rect's own fill to a circle positioned in the referencing element's own
+local space, verified at points inside and outside the circle; asserts
+`clipPathUnits="objectBoundingBox"` instead resolves the clip child's own coordinates as
+fractions of the referencing element's own bounding box, verified by comparing against the
+same-shaped `userSpaceOnUse` case scaled to a different reference rect's own bounds; asserts a
+`clipPath` with two non-overlapping children (a rect and a circle) clips to their combined union
+rather than only the last child or their intersection, verified at a point inside each child
+individually; asserts a `clip-path` reference to a nonexistent id renders the element fully
+unclipped, matching this codec's general dangling-reference convention; asserts a `clipPath`
+child's own `clip-rule="evenodd"` produces a hole where two overlapping shapes coincide (an
+outer square minus an inner, evenodd-ruled square), distinguishing it from the `nonzero` default
+which would instead produce their union with no hole; asserts `clip-path` on a `<g>` clips the
+combined rendered content of all of its children as a single unit, the same
+"whole-subtree-as-one-unit" convention `CanvasNet-Codecs-SvgCodec-GroupFilterRendering` already
+establishes for group-level `filter`; and asserts a `clip-path` reference that resolves to a
+well-formed element which is not literally a `clipPath` (a plain `rect`) is tolerated as a no-op,
+rendering unclipped, mirroring this codec's existing `filter`/marker wrong-element-type tolerance.
+
+#### CanvasNet-Codecs-SvgCodec-MaskRendering: `mask` Luminance Semantics and Independent Unit Attributes
+
+**Tests**: `SvgCodec_Load_MaskDefaultLuminance_WhiteRevealsBlackHides`,
+`SvgCodec_Load_MaskGrayShape_AttenuatesAlphaProportionallyToLuminance`,
+`SvgCodec_Load_MaskUnitsUserSpaceOnUse_ReadsRegionAsAbsoluteCoordinates`,
+`SvgCodec_Load_MaskContentUnitsObjectBoundingBox_ScalesMaskContentToReferenceBounds`,
+`SvgCodec_Load_MaskOnUseElement_MasksResolvedTarget`
+
+Asserts a `mask="url(#id)"` referencing a `mask` element with a white rect over half the
+referencing element's own bounds and a black rect over the other half fully reveals the element
+under the white region and fully hides it under the black region, proving the default luminance
+mask semantics; asserts a mid-gray mask shape attenuates the referencing element's own alpha
+proportionally to that gray's own computed luminance (the standard sRGB coefficients
+`0.2125*R + 0.7154*G + 0.0721*B`), verified against the exact expected alpha value rather than
+merely "some partial value"; asserts `maskUnits="userSpaceOnUse"` reads the mask's own
+`x`/`y`/`width`/`height` region box as literal absolute local-space coordinates rather than
+fractions of the referencing element's own bounding box; asserts `maskContentUnits="objectBoundingBox"`
+independently scales the mask's own *content* coordinates as fractions of the referencing
+element's own bounding box while the mask's own region box (`maskUnits`, left at its default)
+is unaffected - proving the two attributes are resolved independently rather than one being
+mistakenly conflated with (or overriding) the other; and asserts `mask` on a `<use>` element
+masks the whole resolved target subtree as a single unit, the same convention
+`CanvasNet-Codecs-SvgCodec-GroupFilterRendering` already establishes for group-level `filter`
+and `CanvasNet-Codecs-SvgCodec-ClipPathRendering` establishes for group-level `clip-path`.
+
+#### CanvasNet-Codecs-SvgCodec-EffectOrdering: Clip/Mask-Before-Filter Ordering and Regression Coverage
+
+**Tests**: `SvgCodec_Load_ClipPathWithFilter_AppliesClipBeforeFilter`,
+`SvgCodec_Load_MaskWithFilter_AppliesMaskBeforeFilter`,
+`SvgCodec_Load_FilterOnlyNoClipOrMask_RendersUnaffected`,
+`SvgCodec_Load_PlainShapeNoEffects_RendersUnaffected`
+
+Asserts an element carrying both `clip-path` and `filter` clips the element's own content to the
+clip region *before* the filter's own primitive chain runs, by using a filter whose `feFlood`
+would otherwise flood the whole (unclipped) filter region: only the portion of that flooded
+region inside the clip shape is visible, proving the filter operated on already-clipped content
+rather than the clip being applied (or ignored) after the filter, or applied to the filter's own
+final output instead of its input. Asserts the analogous ordering for `mask` combined with
+`filter`: the mask's own white region reveals the filter's flood output while the mask's own
+black region (still within the filter's own, larger, expanded region) hides it entirely, proving
+the mask was applied to the filter's `SourceGraphic` input, not its output. Two regression tests
+close the loop on the shared effects-pipeline generalization these two features required:
+`SvgCodec_Load_FilterOnlyNoClipOrMask_RendersUnaffected` re-verifies a group-level, filter-only
+`<g>` (no `clip-path`/`mask` attribute anywhere) still renders identically to
+`CanvasNet-Codecs-SvgCodec-GroupFilterRendering`'s own pre-existing coverage, proving the
+generalized `RenderGroupWithEffects` entry point did not alter pre-existing filter-only
+behavior; and `SvgCodec_Load_PlainShapeNoEffects_RendersUnaffected` proves a plain shape with
+none of `filter`/`clip-path`/`mask` present still renders through the ordinary fast path (no
+offscreen buffer of any kind allocated) with its own plain fill color, unaffected by either
+generalization.
+
+#### CanvasNet-Codecs-SvgCodec-EffectResourceSafety: Clip/Mask Resource-Safety Bounds
+
+**Tests**: `SvgCodec_Load_MaskReferenceCycle_ThrowsInvalidDataException`,
+`SvgCodec_Load_ClipPathReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnclippedForExcessShapes`,
+`SvgCodec_Load_MaskReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnmaskedForExcessShapes`,
+`SvgCodec_Load_ClipPathExceedsMaxShapesPerClipPath_TruncatesToFirst256Shapes`,
+`SvgCodec_Load_MaskRegionExceedsMaxDimension_FallsBackToUnmaskedRendering`
+
+Asserts a `mask` whose own content transitively re-references an ancestor element's own `mask`
+(forming a reference cycle solely through `mask` attribute resolution, not plain element nesting
+or `use`/`marker` references) throws `InvalidDataException` rather than overflowing the call
+stack or hanging - caught for free by the pre-existing `MaxElementDepth` guard, since mask
+content is rendered through the ordinary `RenderElement` walk rather than a bespoke traversal (see
+the design doc's discussion of why clip-path, by contrast, needs no analogous cycle guard).
+Asserts the shared, cumulative `FilterWorkBudget` ceiling (the same budget class filter
+application already charges, reused rather than duplicated for clip/mask offscreen-buffer sizing
+
+- see the design doc's rationale) is genuinely exhausted by clip-path-only and mask-only
+offscreen-buffer charges, not merely approached: five giant, staggered shapes share one empty
+`clipPath` (respectively, one empty, explicitly-sized `mask`), each charging exactly
+`pixelWidth * pixelHeight` work units per application; the first four shapes' cumulative charge
+stays within the ceiling, so their (empty) clip/mask genuinely applies and hides them completely,
+while the fifth shape's charge would exceed the ceiling, so it tolerantly falls back to
+unclipped/unmasked rendering and remains fully visible in its own exclusive band. Asserts
+`MaxClipPathShapesPerClipPath` caps a single `clipPath` element to its first 256 recognized direct
+children - a 257th, distinctly positioned child is silently truncated (never rasterized onto the
+clip's coverage buffer), while the first 256 children's own union still clips correctly, proving
+truncation rather than an exception is the enforcement mechanism. Asserts a `mask` region whose
+explicit `maskUnits="userSpaceOnUse"` `x`/`y`/`width`/`height` spans a pathologically large
+local-space area - large enough that, once transformed to pixel space, it would exceed
+`Surface.MaxDimension` - is rejected by the same pixel-space magnitude/dimension guard already
+enforced for filter regions, tolerantly falling back to unmasked rendering rather than attempting
+an oversized offscreen buffer allocation.
 
 #### CanvasNet-Codecs-SvgCodec-ValidationNull: Null Stream/Path Rejected
 

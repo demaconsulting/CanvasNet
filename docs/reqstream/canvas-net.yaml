@@ -1015,6 +1015,36 @@ sections:
           - SvgCodec_Load_FilterPathologicallyLargeRegion_SkipsFilterRatherThanUnboundedAllocation
           - SvgCodec_Load_FilterPathologicallyLargeBlurStdDeviation_ClampsRatherThanUnboundedWork
 
+      - id: CanvasNet-Lib-SvgClipPathMaskRendering
+        title: >-
+          The library shall render clip-path and mask elements referenced from any directly
+          renderable shape, text, or g/symbol/use element's own clip-path/mask presentation
+          attribute, hard-clipping to the union of a clipPath element's own children and/or
+          attenuating alpha by mask-content luminance, applying both before that element's own
+          filter (per the ordering geometry -> fill/stroke -> clip -> mask -> filter -> group
+          opacity), and shall bound clip/mask-related resource use with the same
+          tolerant-fallback conventions already established for filter support.
+        tags: [system]
+        justification: |
+          clip-path and mask are common SVG authoring mechanisms for revealing only part of an
+          element's own content (a rounded-rectangle photo crop, a doughnut-hole cutout, a
+          gradient-driven fade or vignette) that this library previously discarded entirely as an
+          explicit out-of-scope simplification; callers relying on either common pattern need it
+          to actually apply, in the SVG-specification-defined order relative to filter, with the
+          same bounded, predictable resource-safety behavior already established for this
+          library's other reference-following and work-budget concerns.
+        children:
+          - CanvasNet-Codecs-SvgClipPathMaskRendering
+        tests:
+          - SvgCodec_Load_ClipPathUserSpaceOnUse_ClipsToAbsoluteCircle
+          - SvgCodec_Load_ClipPathObjectBoundingBox_ScalesClipContentToReferenceBounds
+          - SvgCodec_Load_MaskDefaultLuminance_WhiteRevealsBlackHides
+          - SvgCodec_Load_MaskUnitsUserSpaceOnUse_ReadsRegionAsAbsoluteCoordinates
+          - SvgCodec_Load_MaskContentUnitsObjectBoundingBox_ScalesMaskContentToReferenceBounds
+          - SvgCodec_Load_ClipPathWithFilter_AppliesClipBeforeFilter
+          - SvgCodec_Load_MaskWithFilter_AppliesMaskBeforeFilter
+          - SvgCodec_Load_MaskReferenceCycle_ThrowsInvalidDataException
+
       - id: CanvasNet-Lib-SvgViewBoxFitting
         title: >-
           The library shall fit an SVG document's intrinsic viewBox into the requested raster size

@@ -81,7 +81,7 @@ public static partial class SvgCodec
     /// <summary>
     ///     The maximum number of <c>fe*</c> primitive children a single <c>filter</c> element's
     ///     chain is evaluated with, before the whole filter is tolerantly skipped (see
-    ///     <see cref="RenderFilteredShape"/>'s remarks). Every primitive's output buffer is exactly
+    ///     <see cref="RenderShapeEffectsPipeline"/>'s remarks). Every primitive's output buffer is exactly
     ///     the filter region's own pixel size (see <see cref="EvaluateFilterChain"/>'s remarks), so
     ///     evaluating N primitives against a region of area A costs O(N * A) - a cost dimension
     ///     neither <see cref="MaxTotalRenderedElements"/> (which counts each <c>fe*</c> child once,
@@ -98,7 +98,7 @@ public static partial class SvgCodec
     /// <summary>
     ///     The maximum combined "primitive count times filter-region pixel area" work a single
     ///     <c>filter</c> element's chain may be charged for, before the whole filter is tolerantly
-    ///     skipped (see <see cref="RenderFilteredShape"/>'s remarks) - the region-weighted
+    ///     skipped (see <see cref="RenderShapeEffectsPipeline"/>'s remarks) - the region-weighted
     ///     counterpart to <see cref="MaxFilterPrimitivesPerFilter"/>, bounding the complementary case
     ///     of a chain that stays under that flat count cap but targets an unreasonably large region.
     ///     5,000,000 is more than 100 times the largest single real charge (40,000: one primitive
@@ -139,15 +139,15 @@ public static partial class SvgCodec
     ///     The maximum combined number of element visits <see cref="ComputeSubtreeLocalBounds"/>
     ///     (and, transitively, <see cref="ComputeMarkerContentLocalBounds"/>/
     ///     <see cref="ComputeOneMarkerLocalBounds"/>) may charge across every bounds-only
-    ///     pre-pass <see cref="RenderFilteredGroup"/> runs for a single <c>Load</c> call, tracked
+    ///     pre-pass <see cref="RenderGroupWithEffects"/> runs for a single <c>Load</c> call, tracked
     ///     by <see cref="BoundsPrePassWorkBudget"/> - the cumulative, cross-invocation counterpart
     ///     to the per-invocation <see cref="MaxTotalRenderedElements"/> ceiling
     ///     <see cref="ComputeSubtreeLocalBounds"/> already enforces against its own caller-supplied
-    ///     (deliberately local-scratch, per <see cref="RenderFilteredGroup"/> invocation) counter.
+    ///     (deliberately local-scratch, per <see cref="RenderGroupWithEffects"/> invocation) counter.
     ///     Bounds a resource-safety gap neither that per-invocation ceiling nor
     ///     <see cref="MaxTotalRenderedElements"/>/<see cref="GeometryWorkBudget"/> themselves cover:
     ///     a document with many levels of nested filtered <c>g</c>/<c>symbol</c>/<c>use</c>
-    ///     elements, each wrapping a large subtree, causes <see cref="RenderFilteredGroup"/> to
+    ///     elements, each wrapping a large subtree, causes <see cref="RenderGroupWithEffects"/> to
     ///     re-walk an overlapping portion of that subtree once per nesting level (see
     ///     <see cref="BoundsPrePassWorkBudget"/>'s remarks), so total pre-pass work grows with
     ///     <c>depth * subtree-size</c> even though every individual pre-pass invocation's own
@@ -168,7 +168,7 @@ public static partial class SvgCodec
     ///     attribute character count, or each visited <c>text</c> element's own character count -
     ///     that <see cref="ComputeSubtreeLocalBounds"/> may charge, in addition to (and using the
     ///     same units as) its own per-invocation, local-scratch <see cref="GeometryWorkBudget"/>
-    ///     charge, across every bounds-only pre-pass <see cref="RenderFilteredGroup"/> runs for a
+    ///     charge, across every bounds-only pre-pass <see cref="RenderGroupWithEffects"/> runs for a
     ///     single <c>Load</c> call, tracked by <see cref="BoundsPrePassWorkBudget"/>'s
     ///     <see cref="BoundsPrePassWorkBudget.ChargeGeometry"/>.
     /// </summary>
@@ -178,7 +178,7 @@ public static partial class SvgCodec
     ///     one unit per visit regardless of how expensive parsing that one element's own geometry
     ///     actually is. Each individual pre-pass invocation's own local-scratch
     ///     <see cref="GeometryWorkBudget"/> instance is deliberately fresh (see
-    ///     <see cref="RenderFilteredGroup"/>'s remarks on why it cannot share the real
+    ///     <see cref="RenderGroupWithEffects"/>'s remarks on why it cannot share the real
     ///     per-<c>Load</c>-call instance), so a document with a single element carrying an
     ///     enormous <c>d</c>/<c>points</c> attribute (large, but still comfortably under that
     ///     per-invocation <see cref="GeometryWorkBudget"/> ceiling on its own) nested under many
@@ -297,11 +297,12 @@ public static partial class SvgCodec
 
     /// <summary>
     ///     Tracks the cumulative "primitive count times filter-region pixel area" work charged
-    ///     across every filter actually evaluated (i.e. every <see cref="RenderFilteredShape"/>
-    ///     call that passes its own per-filter <see cref="MaxFilterPrimitiveWorkUnits"/> ceiling
-    ///     and is about to allocate a <c>SourceGraphic</c> buffer) within a single <c>Load</c>
-    ///     call, so a single filter definition referenced by many shapes cannot bypass the
-    ///     resource-safety bound that <see cref="MaxFilterPrimitiveWorkUnits"/> alone provides.
+    ///     across every filter actually evaluated (i.e. every <see cref="RenderShapeEffectsPipeline"/>/
+    ///     <see cref="RenderGroupWithEffects"/> call that passes its own per-filter
+    ///     <see cref="MaxFilterPrimitiveWorkUnits"/> ceiling and is about to allocate an offscreen
+    ///     buffer) within a single <c>Load</c> call, so a single filter definition referenced by
+    ///     many shapes cannot bypass the resource-safety bound that
+    ///     <see cref="MaxFilterPrimitiveWorkUnits"/> alone provides.
     /// </summary>
     /// <remarks>
     ///     <see cref="MaxFilterPrimitiveWorkUnits"/> bounds only a single filter evaluation's own
@@ -311,18 +312,33 @@ public static partial class SvgCodec
     ///     on the total number of references. <see cref="MaxTotalRenderedElements"/> bounds the
     ///     total number of rendered shapes, but not their filter work at all: it counts a filtered
     ///     shape identically to an unfiltered one, even though a filtered shape's own rendering
-    ///     cost (allocating and evaluating a fresh <c>SourceGraphic</c>/filter chain) can be
-    ///     orders of magnitude larger. This budget closes that gap by charging the same
-    ///     region-weighted work unit already computed for the per-filter check into one running,
-    ///     per-<c>Load</c>-call total, mirroring <see cref="GeometryWorkBudget"/>'s identical
-    ///     "mutable reference type shared across the whole render walk" pattern - a plain
-    ///     <c>ref long</c> parameter is not usable here because it must be threaded through the
-    ///     same deeply recursive <see cref="RenderElement"/>/<see cref="RenderUse"/>/
-    ///     <see cref="RenderMarkers"/>/<see cref="RenderOneMarker"/>/<see cref="RenderText"/> call
-    ///     chain <see cref="GeometryWorkBudget"/> already uses, and a separate object (rather than
+    ///     cost (allocating and evaluating a fresh offscreen buffer/filter chain) can be orders of
+    ///     magnitude larger. This budget closes that gap by charging the same region-weighted work
+    ///     unit already computed for the per-filter check into one running, per-<c>Load</c>-call
+    ///     total, mirroring <see cref="GeometryWorkBudget"/>'s identical "mutable reference type
+    ///     shared across the whole render walk" pattern - a plain <c>ref long</c> parameter is not
+    ///     usable here because it must be threaded through the same deeply recursive
+    ///     <see cref="RenderElement"/>/<see cref="RenderUse"/>/<see cref="RenderMarkers"/>/
+    ///     <see cref="RenderOneMarker"/>/<see cref="RenderText"/> call chain
+    ///     <see cref="GeometryWorkBudget"/> already uses, and a separate object (rather than
     ///     folding this counter into <see cref="GeometryWorkBudget"/> itself) keeps each budget's
-    ///     single responsibility - geometry-parsing work versus filter-evaluation work - distinct
+    ///     single responsibility - geometry-parsing work versus effect-evaluation work - distinct
     ///     and independently documented/testable.
+    ///     <para>
+    ///     As of Phase 2 (<c>clipPath</c>/<c>mask</c> support), this same instance is also charged
+    ///     a nominal <c>1 * region-area</c> for a <c>clip-path</c>/<c>mask</c> application that has
+    ///     no <c>filter</c> (or whose <c>filter</c> did not itself survive
+    ///     <see cref="IsFilterPrimitiveWorkWithinBudget"/>) - see
+    ///     <see cref="RenderShapeEffectsPipeline"/>'s remarks. A clip/mask offscreen buffer is the
+    ///     exact same resource dimension (a region-area-sized allocation) a filter application
+    ///     already charges against, so reusing this one budget class, rather than introducing a
+    ///     parallel <c>EffectWorkBudget</c> class charging an independent ceiling, bounds the
+    ///     combined cost of all three effects together and avoids doubling the parameter list
+    ///     every effects-capable call site already threads through
+    ///     <see cref="RenderElement"/>/<see cref="RenderUse"/>/<see cref="RenderText"/> - a
+    ///     deliberate, documented judgment call (see the Phase 2 design documentation) in favor of
+    ///     the simpler of two structurally valid options.
+    ///     </para>
     /// </remarks>
     private sealed class FilterWorkBudget
     {
@@ -346,7 +362,7 @@ public static partial class SvgCodec
         /// <summary>
         ///     Attempts to charge <paramref name="amount"/> units of filter-evaluation work
         ///     against the running total, reporting whether the cumulative budget still has room
-        ///     - called immediately before <see cref="RenderFilteredShape"/> allocates its
+        ///     - called immediately before <see cref="RenderShapeEffectsPipeline"/> allocates its
         ///     <c>SourceGraphic</c> buffer, so a filter application that would push the cumulative
         ///     total over budget is rejected before any of its own work (buffer allocation, blur
         ///     passes, compositing) begins.
@@ -363,7 +379,7 @@ public static partial class SvgCodec
         ///     caller can tolerantly fall back to unfiltered rendering rather than throwing -
         ///     a filter budget, unlike <see cref="GeometryWorkBudget"/>'s parsing-work budget, is
         ///     never treated as a hard document-rejection condition, consistent with every other
-        ///     per-filter tolerant-fallback case in <see cref="RenderFilteredShape"/>.
+        ///     per-filter tolerant-fallback case in <see cref="RenderShapeEffectsPipeline"/>.
         /// </returns>
         public bool TryCharge(long amount)
         {
@@ -387,15 +403,15 @@ public static partial class SvgCodec
     ///     Tracks the cumulative number of element visits charged across every bounds-only
     ///     pre-pass (<see cref="ComputeSubtreeLocalBounds"/>, and transitively
     ///     <see cref="ComputeMarkerContentLocalBounds"/>/<see cref="ComputeOneMarkerLocalBounds"/>)
-    ///     <see cref="RenderFilteredGroup"/> runs within a single <c>Load</c> call, throwing once
+    ///     <see cref="RenderGroupWithEffects"/> runs within a single <c>Load</c> call, throwing once
     ///     a fixed combined budget (<see cref="MaxCumulativeBoundsPrePassWork"/>) is exceeded.
     /// </summary>
     /// <remarks>
-    ///     <see cref="RenderFilteredGroup"/> deliberately passes a fresh, local scratch
+    ///     <see cref="RenderGroupWithEffects"/> deliberately passes a fresh, local scratch
     ///     <c>totalElements</c> counter/<see cref="GeometryWorkBudget"/> instance to its own
     ///     bounds-only pre-pass rather than the real per-<c>Load</c>-call
     ///     <see cref="MaxTotalRenderedElements"/> counter/<see cref="GeometryWorkBudget"/> the
-    ///     render pass that follows it also charges - see <see cref="RenderFilteredGroup"/>'s own
+    ///     render pass that follows it also charges - see <see cref="RenderGroupWithEffects"/>'s own
     ///     remarks for why: charging the same instance in both passes would double (or, combined
     ///     with a tolerant-fallback re-render, triple) count every element under a filtered group
     ///     against those ceilings, spuriously rejecting a document whose unfiltered rendering
@@ -406,7 +422,7 @@ public static partial class SvgCodec
     ///     level's own pre-pass to re-walk an overlapping portion of that same subtree (the real
     ///     render pass descends into nested filtered group N only after nested filtered group
     ///     N-1's own pre-pass has already walked N's entire subtree once, then group N's own
-    ///     <see cref="RenderFilteredGroup"/> call walks that same subtree, minus group N-1's own
+    ///     <see cref="RenderGroupWithEffects"/> call walks that same subtree, minus group N-1's own
     ///     wrapper, all over again), so total pre-pass work grows with <c>depth * subtree-size</c>
     ///     - unbounded by <see cref="MaxTotalRenderedElements"/>/<see cref="GeometryWorkBudget"/>,
     ///     since every nesting level "resets" those per-invocation limits.
@@ -414,7 +430,7 @@ public static partial class SvgCodec
     ///     This budget closes that gap the same way <see cref="FilterWorkBudget"/> closes the
     ///     analogous "one filter, many references" gap <see cref="MaxFilterPrimitiveWorkUnits"/>
     ///     alone leaves open: a single mutable reference type, shared by ordinary object
-    ///     reference across every <see cref="RenderFilteredGroup"/> invocation (nested or
+    ///     reference across every <see cref="RenderGroupWithEffects"/> invocation (nested or
     ///     sibling) for the whole <c>Load</c> call - deliberately a <em>separate</em> instance
     ///     from <see cref="GeometryWorkBudget"/>/the real <c>totalElements</c> counter, so this
     ///     new cumulative ceiling can never re-introduce the double-counting bug the local-scratch
@@ -487,7 +503,7 @@ public static partial class SvgCodec
         ///     <see cref="MaxCumulativeBoundsPrePassGeometryWork"/>'s remarks, for why a separate
         ///     cumulative charge is needed here: the per-invocation
         ///     <see cref="GeometryWorkBudget"/> is deliberately fresh for every
-        ///     <see cref="RenderFilteredGroup"/> invocation, so it alone cannot catch a single
+        ///     <see cref="RenderGroupWithEffects"/> invocation, so it alone cannot catch a single
         ///     large element being repeatedly re-parsed once per nesting level).
         /// </summary>
         /// <param name="amount">

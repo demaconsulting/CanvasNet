@@ -6493,4 +6493,743 @@ public class SvgCodecTests
             File.Delete(path);
         }
     }
+
+    // ================================================================================================
+    // <clipPath>/<mask> elements (Phase 2 of the SVG roadmap)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves the default <c>clipPathUnits="userSpaceOnUse"</c> mode: a <c>clipPath</c>
+    ///     containing a circle expressed in absolute local-space coordinates clips a larger
+    ///     referencing rect down to that circle's own shape.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipPathUserSpaceOnUse_ClipsToAbsoluteCircle()
+    {
+        // Arrange: a 60x60 red rect at (20,20)-(80,80), clipped by a circle centered at (50,50)
+        // with radius 20 (i.e. covering (30,30)-(70,70))
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'>
+                  <circle cx='50' cy='50' r='20'/>
+                </clipPath>
+              </defs>
+              <rect x='20' y='20' width='60' height='60' fill='red' clip-path='url(#c)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: inside the clip circle, the rect's own red fill is visible
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 50]);
+
+        // Assert: within the rect's own bounds but outside the clip circle, nothing is painted
+        Assert.Equal(0, surface[22, 22].A);
+        Assert.Equal(0, surface[78, 78].A);
+    }
+
+    /// <summary>
+    ///     Proves <c>clipPathUnits="objectBoundingBox"</c>: the clip content's own <c>[0, 1]</c>
+    ///     coordinate space is scaled/translated to exactly the referencing element's own bounding
+    ///     box, rather than being read as absolute local-space coordinates.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipPathObjectBoundingBox_ScalesClipContentToReferenceBounds()
+    {
+        // Arrange: a 40x40 red rect at (10,10)-(50,50); the clip circle, expressed in [0,1]
+        // objectBoundingBox space centered at (0.5,0.5) with radius 0.25, maps to a circle
+        // centered at (30,30) with radius 10 in the rect's own local space
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c' clipPathUnits='objectBoundingBox'>
+                  <circle cx='0.5' cy='0.5' r='0.25'/>
+                </clipPath>
+              </defs>
+              <rect x='10' y='10' width='40' height='40' fill='red' clip-path='url(#c)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: at the mapped circle's own center, the fill is visible
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[30, 30]);
+
+        // Assert: near a corner of the rect's own bounds (well outside the mapped circle),
+        // nothing is painted
+        Assert.Equal(0, surface[12, 12].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>clipPath</c> with more than one direct child shape clips to the union
+    ///     of every child's own coverage, not merely the first/last one.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipPathMultipleChildren_ClipsToUnionOfAllShapes()
+    {
+        // Arrange: two disjoint 20x20 clip rects (at (10,10) and (70,70)) inside a single
+        // clipPath, applied to a red rect spanning the whole 100x100 canvas
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'>
+                  <rect x='10' y='10' width='20' height='20'/>
+                  <rect x='70' y='70' width='20' height='20'/>
+                </clipPath>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='red' clip-path='url(#c)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: both clip rects' own regions show the red fill
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[15, 15]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[75, 75]);
+
+        // Assert: between the two clip rects, nothing is painted
+        Assert.Equal(0, surface[50, 50].A);
+    }
+
+    /// <summary>
+    ///     Resource-safety regression test: <c>MaxClipPathShapesPerClipPath</c> caps a single
+    ///     <c>clipPath</c> element to its first 256 recognized direct children - the 257th and
+    ///     later children are silently truncated (never rasterized onto the clip's coverage
+    ///     buffer at all), not rejected via an exception.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipPathExceedsMaxShapesPerClipPath_TruncatesToFirst256Shapes()
+    {
+        // Arrange: 256 identical circles (each independently counts toward the 256-shape cap
+        // regardless of overlapping an earlier one) plus a 257th, distinctly positioned rect that
+        // would visibly extend the clip region if (incorrectly) honored
+        var circles = string.Concat(Enumerable.Repeat("<circle cx='20' cy='20' r='15'/>", 256));
+        var svg = $"""
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'>
+                  {circles}
+                  <rect x='60' y='60' width='30' height='30'/>
+                </clipPath>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='red' clip-path='url(#c)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: inside the first 256 honored circles' own union, the clip still applies
+        // correctly - the reference shape's fill remains visible
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[20, 20]);
+
+        // Assert: inside the 257th shape's own, exclusive area (never covered by any of the 256
+        // circles), nothing is painted - the 257th+ child was truncated, never rasterized
+        Assert.Equal(0, surface[70, 70].A);
+
+        // Assert: a point covered by neither region remains fully transparent too, confirming
+        // the clip is still a hard, non-degenerate clip rather than a trivial "everything passes"
+        Assert.Equal(0, surface[50, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves the default luminance mask semantics: a white mask shape fully reveals the
+    ///     referencing element (luminance 1.0), while the area outside every mask shape (fully
+    ///     transparent black, per a freshly allocated mask buffer) fully hides it.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MaskDefaultLuminance_WhiteRevealsBlackHides()
+    {
+        // Arrange: a 60x60 blue rect at (20,20), masked by a white 20x20 rect at (30,30) - only
+        // the overlap between the mask's own white shape and the referencing rect's own bounds is
+        // revealed
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <mask id='m'>
+                  <rect x='30' y='30' width='20' height='20' fill='white'/>
+                </mask>
+              </defs>
+              <rect x='20' y='20' width='60' height='60' fill='blue' mask='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: inside the white mask shape, the blue fill is fully visible
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[40, 40]);
+
+        // Assert: within the referencing rect's own bounds but outside the mask's white shape
+        // (default mask background is fully transparent black - zero luminance), nothing is
+        // visible
+        Assert.Equal(0, surface[22, 22].A);
+    }
+
+    /// <summary>
+    ///     Proves that a gray mask shape attenuates the referencing element's alpha proportionally
+    ///     to its own luminance, rather than behaving as an all-or-nothing clip.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MaskGrayShape_AttenuatesAlphaProportionallyToLuminance()
+    {
+        // Arrange: a 50% gray (#808080) mask rect over the whole referencing rect - its
+        // luminance is roughly 0.5, so the resulting alpha should be roughly half of 255
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <mask id='m'>
+                  <rect x='0' y='0' width='100' height='100' fill='#808080'/>
+                </mask>
+              </defs>
+              <rect x='20' y='20' width='60' height='60' fill='blue' mask='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the fill's own color channels are untouched, only alpha is attenuated
+        var pixel = surface[50, 50];
+        Assert.Equal(0, pixel.R);
+        Assert.Equal(0, pixel.G);
+        Assert.Equal(255, pixel.B);
+        Assert.InRange((int)pixel.A, 110, 145);
+    }
+
+    /// <summary>
+    ///     Proves that <c>maskUnits="userSpaceOnUse"</c> (overriding the SVG default
+    ///     <c>objectBoundingBox</c>) reads the mask's own <c>x</c>/<c>y</c>/<c>width</c>/
+    ///     <c>height</c> region attributes as absolute local-space coordinates, independently of
+    ///     <c>maskContentUnits</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MaskUnitsUserSpaceOnUse_ReadsRegionAsAbsoluteCoordinates()
+    {
+        // Arrange: the mask's own region is explicitly restricted to (40,40)-(60,60) in absolute
+        // local-space coordinates; its content (a full-canvas white rect) would otherwise reveal
+        // the whole referencing shape, so only the intersection with the explicit region matters
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <mask id='m' maskUnits='userSpaceOnUse' x='40' y='40' width='20' height='20'>
+                  <rect x='0' y='0' width='100' height='100' fill='white'/>
+                </mask>
+              </defs>
+              <rect x='20' y='20' width='60' height='60' fill='blue' mask='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: inside the explicit (40,40)-(60,60) mask region, the fill is visible
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
+
+        // Assert: outside that explicit region (but still within the referencing rect's own
+        // bounds), the mask's offscreen buffer never covered this pixel at all, so nothing is
+        // painted
+        Assert.Equal(0, surface[22, 22].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>maskContentUnits="objectBoundingBox"</c> (overriding the SVG default
+    ///     <c>userSpaceOnUse</c>) maps the mask's own children through the referencing element's
+    ///     <c>[0, 1]</c> bounding-box space, independently of <c>maskUnits</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MaskContentUnitsObjectBoundingBox_ScalesMaskContentToReferenceBounds()
+    {
+        // Arrange: a 40x40 red rect at (10,10)-(50,50); the mask's own white content rect, given
+        // in [0,1] objectBoundingBox space as (0.25,0.25)-(0.75,0.75), maps to (20,20)-(40,40) in
+        // the referencing rect's own local space
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <mask id='m' maskContentUnits='objectBoundingBox'>
+                  <rect x='0.25' y='0.25' width='0.5' height='0.5' fill='white'/>
+                </mask>
+              </defs>
+              <rect x='10' y='10' width='40' height='40' fill='red' mask='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: inside the mapped mask content region, the fill is visible
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[30, 30]);
+
+        // Assert: outside the mapped mask content region (a corner of the rect's own bounds),
+        // nothing is visible
+        Assert.Equal(0, surface[12, 12].A);
+    }
+
+    /// <summary>
+    ///     Proves the spec-defined per-element ordering when both <c>clip-path</c> and
+    ///     <c>filter</c> are present on the same element: clip is applied to the pre-filter
+    ///     content, so a filter that paints far outside the clip shape (a bare <c>feFlood</c>,
+    ///     which fills its whole region) is still confined to the clip shape's own coverage.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipPathWithFilter_AppliesClipBeforeFilter()
+    {
+        // Arrange: a feFlood filter that would otherwise fill the whole (expanded) filter region
+        // red; a clip-path restricts visible output to a small circle well inside that region
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'>
+                  <circle cx='50' cy='50' r='10'/>
+                </clipPath>
+                <filter id='f'>
+                  <feFlood flood-color='red'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' clip-path='url(#c)' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: inside the clip circle, the flood is visible
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 50]);
+
+        // Assert: just outside the clip circle but still well within the filter's own expanded
+        // region (where an unclipped flood would have painted), nothing is visible - proving the
+        // clip was applied to the filter's own output, not bypassed
+        Assert.Equal(0, surface[50, 25].A);
+    }
+
+    /// <summary>
+    ///     Proves the spec-defined per-element ordering when both <c>mask</c> and <c>filter</c>
+    ///     are present on the same element: the mask is applied to the pre-filter content, so a
+    ///     filter's own flood output is itself attenuated by the mask, not left unmasked.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MaskWithFilter_AppliesMaskBeforeFilter()
+    {
+        // Arrange: a feFlood filter that fills its whole region red; a mask whose white content is
+        // restricted to a small rect confines the visible flood output to that same small rect
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <mask id='m'>
+                  <rect x='45' y='45' width='10' height='10' fill='white'/>
+                </mask>
+                <filter id='f'>
+                  <feFlood flood-color='red'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' mask='url(#m)' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: inside the mask's own white region, the flood is visible
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 50]);
+
+        // Assert: outside the mask's own white region but still within the filter's own expanded
+        // region, nothing is visible - proving the mask was applied to the filter's own output
+        Assert.Equal(0, surface[25, 25].A);
+    }
+
+    /// <summary>
+    ///     Regression test proving pre-existing group-level filter-only rendering (a <c>filter</c>
+    ///     on a <c>g</c> element, with no <c>clip-path</c>/<c>mask</c> present at all) is unaffected
+    ///     by the Phase 2 clip/mask generalization of <c>RenderGroupWithEffects</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterOnlyNoClipOrMask_RendersUnaffected()
+    {
+        // Arrange: a filtered group wrapping two rects; the filter's own feFlood output entirely
+        // replaces the group's combined content, exactly as it did before this phase's changes
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feFlood flood-color='red'/>
+                </filter>
+              </defs>
+              <g filter='url(#f)'>
+                <rect x='10' y='10' width='20' height='20' fill='blue'/>
+                <rect x='70' y='70' width='20' height='20' fill='green'/>
+              </g>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the flood fills the group's own combined default filter region, entirely
+        // replacing both rects' own fills
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[20, 20]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[80, 80]);
+
+        // Assert: well outside the group's own combined filter region, nothing was painted
+        Assert.Equal(0, surface[1, 1].A);
+    }
+
+    /// <summary>
+    ///     Regression test proving a plain shape with no <c>filter</c>/<c>clip-path</c>/<c>mask</c>
+    ///     attribute at all still renders through the ordinary fast path (no offscreen buffer
+    ///     allocation), unaffected by this phase's generalized effects dispatch.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PlainShapeNoEffects_RendersUnaffected()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 10 10'><rect x='0' y='0' width='10' height='10' fill='blue'/></svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>mask</c>-reference cycle (an element's own mask content contains
+    ///     another element whose own mask references back to the very first <c>mask</c>) is caught
+    ///     by the pre-existing <c>MaxElementDepth</c> recursion guard, rather than recursing
+    ///     indefinitely into a <see cref="StackOverflowException"/>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MaskReferenceCycle_ThrowsInvalidDataException()
+    {
+        // Arrange: mask "a" contains a rect masked by "b", and mask "b" contains a rect masked by
+        // "a" - an unbounded mutual-recursion cycle through mask content rendering
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <mask id='a'>
+                  <rect x='0' y='0' width='10' height='10' fill='white' mask='url(#b)'/>
+                </mask>
+                <mask id='b'>
+                  <rect x='0' y='0' width='10' height='10' fill='white' mask='url(#a)'/>
+                </mask>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='blue' mask='url(#a)'/>
+            </svg>
+            """;
+
+        // Act & Assert
+        using var stream = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves that a dangling <c>clip-path</c> reference (a <c>url(#id)</c> naming a
+    ///     non-existent element) is a tolerant no-op: the referencing element renders exactly as
+    ///     if the attribute were absent, consistent with this codec's general dangling-reference
+    ///     handling.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_DanglingClipPathReference_RendersUnclipped()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 10 10'><rect x='0' y='0' width='10' height='10' fill='blue' clip-path='url(#missing)'/></svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the rect renders fully, unaffected by the dangling reference
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[5, 5]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[1, 1]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>clip-rule="evenodd"</c> on a <c>clipPath</c>'s own child overrides the
+    ///     default <c>nonzero</c> clip rule, producing a "doughnut" hole where two nested,
+    ///     identically wound rectangles overlap.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipPathChildClipRuleEvenOdd_ProducesHoleAtOverlap()
+    {
+        // Arrange: a single <path> clip child describing two identically wound, nested rects
+        // (outer 10,10-90,90 and inner 30,30-70,70, both drawn clockwise) - under "evenodd" the
+        // inner rect punches a hole; under the default "nonzero" it would not
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'>
+                  <path clip-rule='evenodd' d='M10,10 L90,10 L90,90 L10,90 Z M30,30 L70,30 L70,70 L30,70 Z'/>
+                </clipPath>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='red' clip-path='url(#c)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: within the outer ring (between the two rects), the fill is visible
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[20, 50]);
+
+        // Assert: inside the inner "hole", nothing is painted
+        Assert.Equal(0, surface[50, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>clip-path</c> attribute on a <c>g</c> element clips the whole group's
+    ///     combined rendered content as a single unit, not each child independently.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipPathOnGroup_ClipsCombinedGroupContent()
+    {
+        // Arrange: two rects inside a group clipped by a single circle spanning both of them
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'>
+                  <circle cx='50' cy='50' r='30'/>
+                </clipPath>
+              </defs>
+              <g clip-path='url(#c)'>
+                <rect x='10' y='40' width='30' height='20' fill='red'/>
+                <rect x='60' y='40' width='30' height='20' fill='green'/>
+              </g>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the portions of both rects inside the clip circle are visible
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[35, 50]);
+        Assert.Equal(new Rgba32(0, 128, 0, 255), surface[65, 50]);
+
+        // Assert: the portions of both rects outside the clip circle are clipped away
+        Assert.Equal(0, surface[12, 50].A);
+        Assert.Equal(0, surface[88, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>mask</c> attribute on a <c>use</c> element's own referencing element
+    ///     applies to the resolved target's combined rendered content, mirroring the identical
+    ///     pre-existing <c>filter</c>-on-<c>use</c> behavior.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MaskOnUseElement_MasksResolvedTarget()
+    {
+        // Arrange: a "use" element referencing a plain rect template, masked by a white rect
+        // covering only the left half of the referenced rect's own bounds
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <rect id='r' x='20' y='20' width='60' height='60' fill='blue'/>
+                <mask id='m'>
+                  <rect x='0' y='0' width='50' height='100' fill='white'/>
+                </mask>
+              </defs>
+              <use href='#r' mask='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the left half (inside the mask's own white region) is visible
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[30, 50]);
+
+        // Assert: the right half (outside the mask's own white region) is masked away
+        Assert.Equal(0, surface[70, 50].A);
+    }
+
+    /// <summary>
+    ///     Resource-safety regression test: an empty <c>clip-path</c> is charged against the same
+    ///     shared cumulative <c>FilterWorkBudget</c> ceiling a pathologically large filter region
+    ///     already trips, since Phase 2 deliberately reuses that one budget for clip/mask-only
+    ///     offscreen-buffer work too. Five giant, mutually-overlapping-in-local-space rects (each
+    ///     charging exactly <c>3535 * 3535 = 12,499,225</c> work units - precisely
+    ///     <c>pixelWidth * pixelHeight</c>, since none of them has a <c>filter</c> attribute) share
+    ///     one empty <c>clipPath</c>, each retaining its own exclusive, staggered "band" of the
+    ///     100-wide canvas, since later shapes paint over earlier ones in document order. The
+    ///     first four shapes' cumulative
+    ///     charge (49,996,900) stays within the 50,000,000 ceiling, so their (empty) clip
+    ///     genuinely applies - hiding them completely - while the fifth shape's charge would push
+    ///     the running total to 62,496,125, so <c>TryCharge</c> fails and the codec tolerantly
+    ///     falls back to unclipped rendering, leaving the fifth shape's own band fully visible.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipPathReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnclippedForExcessShapes()
+    {
+        // Arrange: 5 giant 3535x3535 rects sharing one empty clipPath, staggered so each retains
+        // an exclusive visible band on the 100x100 canvas; x is chosen so each shape's visible
+        // right edge (x + 3535) is a distinct, strictly decreasing value in document order
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'></clipPath>
+              </defs>
+              <rect x='-3445' y='0' width='3535' height='3535' fill='rgb(255,0,0)' clip-path='url(#c)'/>
+              <rect x='-3465' y='0' width='3535' height='3535' fill='rgb(0,255,0)' clip-path='url(#c)'/>
+              <rect x='-3485' y='0' width='3535' height='3535' fill='rgb(0,0,255)' clip-path='url(#c)'/>
+              <rect x='-3505' y='0' width='3535' height='3535' fill='rgb(255,255,0)' clip-path='url(#c)'/>
+              <rect x='-3525' y='0' width='3535' height='3535' fill='rgb(255,0,255)' clip-path='url(#c)'/>
+            </svg>
+            """;
+
+        // Act: must complete quickly rather than allocating unbounded offscreen buffers
+        var stopwatch = Stopwatch.StartNew();
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+        stopwatch.Stop();
+
+        // Assert: shapes 0-3's cumulative charge stayed within the 50,000,000 ceiling, so their
+        // (empty) clip genuinely applied - each is fully invisible in its own exclusive band
+        Assert.Equal(0, surface[80, 50].A);
+        Assert.Equal(0, surface[60, 50].A);
+        Assert.Equal(0, surface[40, 50].A);
+        Assert.Equal(0, surface[20, 50].A);
+
+        // Assert: shape 4's charge would have exceeded the ceiling - the budget genuinely
+        // exhausted - so it tolerantly fell back to unclipped rendering, fully visible in its own
+        // exclusive band
+        Assert.Equal(new Rgba32(255, 0, 255, 255), surface[5, 50]);
+
+        // Assert: completed promptly, proving the excess shape's clip was skipped rather than
+        // evaluated
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the budget-exhausted clip-path shape to be skipped promptly, but it took {stopwatch.Elapsed}.");
+    }
+
+    /// <summary>
+    ///     Resource-safety regression test: proves the shared cumulative <c>FilterWorkBudget</c>
+    ///     ceiling exercised by
+    ///     <see cref="SvgCodec_Load_ClipPathReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnclippedForExcessShapes"/>
+    ///     is exhausted by mask-only charges too, not just clip-path-only charges. Identical
+    ///     five-shape/five-band structure and cumulative arithmetic, but each shape references an
+    ///     empty <c>mask</c> (with explicit, literal <c>maskUnits="userSpaceOnUse"</c>
+    ///     <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> of exactly 3535x3535, reproducing the
+    ///     identical 12,499,225-per-application charge) instead of a <c>clip-path</c>. An empty
+    ///     mask renders zero content, leaving its offscreen buffer fully transparent black
+    ///     everywhere (luminance 0), so a successfully-charged, successfully-applied empty mask
+    ///     also reliably hides its referencing shape completely - the same "charged &lt;=&gt;
+    ///     invisible" equivalence as the empty-clip-path design.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MaskReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnmaskedForExcessShapes()
+    {
+        // Arrange: 5 giant 3535x3535 rects sharing one empty, explicitly-sized mask, staggered so
+        // each retains an exclusive visible band on the 100x100 canvas
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <mask id='m' maskUnits='userSpaceOnUse' x='0' y='0' width='3535' height='3535'></mask>
+              </defs>
+              <rect x='-3445' y='0' width='3535' height='3535' fill='rgb(255,0,0)' mask='url(#m)'/>
+              <rect x='-3465' y='0' width='3535' height='3535' fill='rgb(0,255,0)' mask='url(#m)'/>
+              <rect x='-3485' y='0' width='3535' height='3535' fill='rgb(0,0,255)' mask='url(#m)'/>
+              <rect x='-3505' y='0' width='3535' height='3535' fill='rgb(255,255,0)' mask='url(#m)'/>
+              <rect x='-3525' y='0' width='3535' height='3535' fill='rgb(255,0,255)' mask='url(#m)'/>
+            </svg>
+            """;
+
+        // Act: must complete quickly rather than allocating unbounded offscreen buffers
+        var stopwatch = Stopwatch.StartNew();
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+        stopwatch.Stop();
+
+        // Assert: shapes 0-3's cumulative charge stayed within the 50,000,000 ceiling, so their
+        // (empty) mask genuinely applied - each is fully invisible in its own exclusive band
+        Assert.Equal(0, surface[80, 50].A);
+        Assert.Equal(0, surface[60, 50].A);
+        Assert.Equal(0, surface[40, 50].A);
+        Assert.Equal(0, surface[20, 50].A);
+
+        // Assert: shape 4's charge would have exceeded the ceiling - the same shared budget
+        // genuinely exhausted by mask-only charges - so it tolerantly fell back to unmasked
+        // rendering, fully visible in its own exclusive band
+        Assert.Equal(new Rgba32(255, 0, 255, 255), surface[5, 50]);
+
+        // Assert: completed promptly, proving the excess shape's mask was skipped rather than
+        // evaluated
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the budget-exhausted mask shape to be skipped promptly, but it took {stopwatch.Elapsed}.");
+    }
+
+    /// <summary>
+    ///     Resource-safety regression test: a single pathologically large <c>mask</c>
+    ///     region (via explicit <c>maskUnits="userSpaceOnUse"</c> absolute coordinates spanning a
+    ///     huge local-space area) is rejected by the same pixel-space magnitude/dimension guards
+    ///     this codec's filter-region computation already enforces, rather than attempting to
+    ///     allocate an oversized offscreen buffer.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MaskRegionExceedsMaxDimension_FallsBackToUnmaskedRendering()
+    {
+        // Arrange: a mask region spanning 50,000 local-space units - once transformed to pixel
+        // space (a 1:1 viewBox-to-pixel mapping here) it exceeds Surface.MaxDimension (8192) on
+        // both axes, so ComputeMaskRegionPixelBounds must reject it and the pipeline must fall
+        // back to plain unmasked rendering rather than throwing or hanging
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <mask id='m' maskUnits='userSpaceOnUse' x='-25000' y='-25000' width='50000' height='50000'>
+                  <rect x='-25000' y='-25000' width='50000' height='50000' fill='white'/>
+                </mask>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' mask='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the rect still renders (fallen back to plain, unmasked rendering) rather than
+        // disappearing entirely or throwing
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>clip-path</c> attribute whose <c>url(#id)</c> resolves to an element
+    ///     that is not literally a <c>clipPath</c> (here, a plain <c>rect</c>) is tolerantly
+    ///     ignored, identical to this codec's equivalent <c>filter</c> wrong-element-type
+    ///     tolerance.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipPathReferencesNonClipPathElement_RendersUnclipped()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <rect id='notAClipPath' x='0' y='0' width='1' height='1'/>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='blue' clip-path='url(#notAClipPath)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the rect renders fully, unaffected by the wrong-element-type reference
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[5, 5]);
+    }
 }
+

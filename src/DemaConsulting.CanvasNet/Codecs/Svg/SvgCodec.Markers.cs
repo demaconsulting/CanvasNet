@@ -40,7 +40,7 @@ public static partial class SvgCodec
     ///     Renders a <c>use</c> element by re-rendering its referenced element in place, offset by
     ///     the <c>use</c> element's own <c>x</c>/<c>y</c> translation and cascaded state/transform -
     ///     or, when the <c>use</c> element itself carries its own <c>filter</c> attribute, renders
-    ///     the resolved target as one filtered unit (see <see cref="RenderFilteredGroup"/>).
+    ///     the resolved target as one filtered unit (see <see cref="RenderGroupWithEffects"/>).
     /// </summary>
     /// <param name="element">The <c>use</c> element.</param>
     /// <param name="state">The cascaded render state at the <c>use</c> element itself.</param>
@@ -81,10 +81,10 @@ public static partial class SvgCodec
     ///     element's own content - per the documented "filters on marker content have no effect"
     ///     scope decision shared with shape/text filtering. When resolved, the referenced target
     ///     (an internal-only variable named for the element resolved from <c>href</c>) is
-    ///     rendered as one filtered unit via <see cref="RenderFilteredGroup"/>
+    ///     rendered as one filtered unit via <see cref="RenderGroupWithEffects"/>
     ///     instead of the plain unfiltered re-entry into <see cref="RenderElement"/> - the
     ///     algorithm is otherwise identical for both dispatch points (see
-    ///     <see cref="RenderFilteredGroup"/>'s own remarks).
+    ///     <see cref="RenderGroupWithEffects"/>'s own remarks).
     ///     </para>
     /// </remarks>
     private static void RenderUse(XElement element, RenderState state, Matrix3x2 transform, RenderContext context, int useDepth, int elementDepth, int markerDepth, ref int totalElements, GeometryWorkBudget workBudget, FilterWorkBudget filterWorkBudget, BoundsPrePassWorkBudget boundsPrePassBudget)
@@ -119,20 +119,30 @@ public static partial class SvgCodec
 
         // A "use" element's own "filter" attribute (suppressed identically to shape/text
         // filtering whenever this call is itself part of a marker's own content) renders its
-        // resolved target as one filtered unit via RenderFilteredGroup, instead of the plain
-        // unfiltered re-entry into RenderElement - see RenderFilteredGroup's remarks for the full
+        // resolved target as one filtered unit via RenderGroupWithEffects, instead of the plain
+        // unfiltered re-entry into RenderElement - see RenderGroupWithEffects's remarks for the full
         // group-filter algorithm. A "use" element is not itself rendered as part of any marker's
         // content (only RenderOneMarker increments markerDepth), so markerDepth > 0 here means the
         // *referenced* target is being rendered as part of a marker's own content instead.
-        var suppressFilter = markerDepth > 0;
-        var useFilterElement = suppressFilter ? null : ResolveFilterElement(element, context);
-        if (useFilterElement == null)
+        // A "use" element's own "filter"/"clip-path"/"mask" attributes (suppressed identically to
+        // shape/text effects whenever this call is itself part of a marker's own content) render
+        // its resolved target as one combined unit via RenderGroupWithEffects whenever any of the
+        // three is present, instead of the plain unaffected re-entry into RenderElement - see
+        // RenderGroupWithEffects's remarks for the full group-effects algorithm. A "use" element
+        // is not itself rendered as part of any marker's content (only RenderOneMarker increments
+        // markerDepth), so markerDepth > 0 here means the *referenced* target is being rendered as
+        // part of a marker's own content instead.
+        var suppressEffects = markerDepth > 0;
+        var useFilterElement = suppressEffects ? null : ResolveFilterElement(element, context);
+        var useClipPathElement = suppressEffects ? null : ResolveClipPathElement(element, context);
+        var useMaskElement = suppressEffects ? null : ResolveMaskElement(element, context);
+        if (useFilterElement == null && useClipPathElement == null && useMaskElement == null)
         {
             RenderElement(target, targetState, useTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
         }
         else
         {
-            RenderFilteredGroup(useFilterElement, [target], targetState, useTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+            RenderGroupWithEffects(useFilterElement, useClipPathElement, useMaskElement, [target], targetState, useTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
         }
     }
 
@@ -851,7 +861,7 @@ public static partial class SvgCodec
     /// </param>
     /// <param name="totalElements">
     ///     The running total-rendered-elements count - the caller-supplied instance, which for
-    ///     <see cref="RenderFilteredGroup"/>'s own bounds pre-pass is a local, independently
+    ///     <see cref="RenderGroupWithEffects"/>'s own bounds pre-pass is a local, independently
     ///     bounded scratch counter, never the real per-<c>Load</c>-call counter (see
     ///     <see cref="ComputeSubtreeLocalBounds"/>'s remarks).
     /// </param>

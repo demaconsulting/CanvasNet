@@ -759,6 +759,127 @@ sections:
                   - SvgCodec_Load_DeeplyNestedFilteredGroupsWithEnormousInnerPath_ThrowsInvalidDataException
                   - SvgCodec_Load_ModestlyNestedFilteredGroupsWithNormalPath_RenderCorrectlyWithoutFalsePositiveFallback
 
+              - id: CanvasNet-Codecs-SvgCodec-ClipPathRendering
+                title: >-
+                  The SvgCodec class shall render a clip-path="url(#id)" attribute on any
+                  directly renderable shape, text, or g/symbol/use element by hard-clipping that
+                  element's own content to the union of a referenced clipPath element's own
+                  direct rect/circle/ellipse/polyline/polygon/path/text children, honoring
+                  clipPathUnits (userSpaceOnUse, the default, resolving children in the
+                  referencing element's own local space; objectBoundingBox, resolving children as
+                  fractions of the referencing element's own bounding box) and each clip child's
+                  own clip-rule (nonzero, the default, or evenodd), while tolerating a dangling or
+                  wrong-element-type clip-path reference as a no-op (rendering unclipped).
+                justification: |
+                  clip-path is a common SVG authoring mechanism for revealing only part of an
+                  element's own content (a rounded-rectangle photo crop, a doughnut-hole cutout
+                  via evenodd, a decorative shape mask) without altering the underlying geometry;
+                  callers relying on this common pattern need it to actually clip rather than
+                  silently render the whole, unclipped shape. Tolerating a dangling or
+                  wrong-element-type reference as a no-op matches this codec's general
+                  dangling-reference convention (already applied to filter/marker/gradient
+                  references), so one bad clip-path attribute cannot abort rendering of an
+                  otherwise-valid document.
+                tests:
+                  - SvgCodec_Load_ClipPathUserSpaceOnUse_ClipsToAbsoluteCircle
+                  - SvgCodec_Load_ClipPathObjectBoundingBox_ScalesClipContentToReferenceBounds
+                  - SvgCodec_Load_ClipPathMultipleChildren_ClipsToUnionOfAllShapes
+                  - SvgCodec_Load_DanglingClipPathReference_RendersUnclipped
+                  - SvgCodec_Load_ClipPathChildClipRuleEvenOdd_ProducesHoleAtOverlap
+                  - SvgCodec_Load_ClipPathOnGroup_ClipsCombinedGroupContent
+                  - SvgCodec_Load_ClipPathReferencesNonClipPathElement_RendersUnclipped
+
+              - id: CanvasNet-Codecs-SvgCodec-MaskRendering
+                title: >-
+                  The SvgCodec class shall render a mask="url(#id)" attribute on any directly
+                  renderable shape, text, or g/symbol/use element by rendering a referenced mask
+                  element's own children (via the ordinary element-rendering walk, so mask
+                  content may itself use clip-path/mask/filter) into an offscreen buffer and
+                  attenuating the referencing element's own alpha channel by each pixel's
+                  computed luminance (0.2125*R + 0.7154*G + 0.0721*B, scaled by that pixel's own
+                  alpha), honoring maskUnits (the mask's own x/y/width/height region box,
+                  defaulting to objectBoundingBox) independently from maskContentUnits (the mask
+                  content's own coordinate system, defaulting to userSpaceOnUse), while tolerating
+                  a dangling or wrong-element-type mask reference as a no-op (rendering
+                  unmasked).
+                justification: |
+                  mask is SVG's standard mechanism for a soft, gradient-capable reveal/hide effect
+                  (vignettes, fades, gradient-driven cutouts) that clip-path's hard-edged
+                  geometric model cannot express; luminance is the SVG-specification-default mask
+                  semantics, so implementing it (rather than only an alpha-only variant) covers
+                  the common case real-world documents actually author. maskUnits and
+                  maskContentUnits are deliberately independent attributes governing distinct
+                  concerns (the mask's own region box vs. its content's own coordinate system)
+                  and are resolved as such rather than conflated, matching the SVG specification's
+                  own separation of the two.
+                tests:
+                  - SvgCodec_Load_MaskDefaultLuminance_WhiteRevealsBlackHides
+                  - SvgCodec_Load_MaskGrayShape_AttenuatesAlphaProportionallyToLuminance
+                  - SvgCodec_Load_MaskUnitsUserSpaceOnUse_ReadsRegionAsAbsoluteCoordinates
+                  - SvgCodec_Load_MaskContentUnitsObjectBoundingBox_ScalesMaskContentToReferenceBounds
+                  - SvgCodec_Load_MaskOnUseElement_MasksResolvedTarget
+
+              - id: CanvasNet-Codecs-SvgCodec-EffectOrdering
+                title: >-
+                  The SvgCodec class shall apply clip-path and mask, when both are present
+                  together with filter on the same element, to that element's own pre-filter
+                  content, evaluating the filter's own primitive chain against the already
+                  clipped-and-masked result, per the ordering geometry -> fill/stroke -> clip ->
+                  mask -> filter -> group opacity, while leaving pre-existing filter-only and
+                  plain-shape (no filter/clip-path/mask at all) rendering byte-for-byte unaffected
+                  by this generalization.
+                justification: |
+                  SVG's own rendering model specifies clip-path and mask as applying before an
+                  element's own filter effect (the filter operates on the already-clipped-and-
+                  masked SourceGraphic, not the raw geometry), so an element combining filter with
+                  clip-path/mask that instead applied them in the opposite order (or ignored
+                  clip/mask when a filter is also present) would produce visibly incorrect output
+                  for a common real-world combination (for example, a soft-glow filter applied
+                  only within a clipped/masked region rather than across the whole unclipped
+                  shape). Explicitly regression-testing the pre-existing filter-only and
+                  plain-shape code paths guards against this generalization silently changing
+                  already-correct, already-shipped rendering behavior.
+                tests:
+                  - SvgCodec_Load_ClipPathWithFilter_AppliesClipBeforeFilter
+                  - SvgCodec_Load_MaskWithFilter_AppliesMaskBeforeFilter
+                  - SvgCodec_Load_FilterOnlyNoClipOrMask_RendersUnaffected
+                  - SvgCodec_Load_PlainShapeNoEffects_RendersUnaffected
+
+              - id: CanvasNet-Codecs-SvgCodec-EffectResourceSafety
+                title: >-
+                  The SvgCodec class shall bound clip-path/mask-related resource use by charging
+                  each offscreen clip/mask buffer allocation against the same cumulative
+                  region-area work budget already used for filter application, by capping the
+                  number of direct children a single clipPath element may rasterize, by rejecting
+                  a mask region whose pixel-space dimensions would exceed the same maximum surface
+                  dimension already enforced for filter regions (falling back to unmasked
+                  rendering), and by detecting a mask-reference cycle (a mask whose own content
+                  transitively references an ancestor element's mask) via the pre-existing
+                  element-nesting depth limit, raising InvalidDataException rather than
+                  overflowing the call stack or hanging.
+                justification: |
+                  Clip/mask offscreen-buffer allocation has the same "region-area x
+                  content-count" cost shape as filter application and untrusted document data
+                  drives both region size and content count, so it must be bounded the same way
+                  this codec already bounds filter-related resource use, rather than introducing
+                  an unbounded second allocation path alongside an already-bounded first one.
+                  Because mask content is rendered through the ordinary element-rendering walk
+                  (deliberately, so mask content can itself use clip-path/mask/filter), a
+                  mask-reference cycle recurses through that same walk and is therefore already
+                  caught by its pre-existing element-nesting depth limit without any new,
+                  dedicated cycle-detection mechanism; clip-path children, by contrast, are
+                  rasterized directly rather than walked, so they instead need a flat per-clipPath
+                  child-count ceiling (clip-path cannot itself cycle, since a clipPath element's
+                  own children are never resolved for a further nested clip-path/mask reference -
+                  a deliberately scoped-out edge case, documented alongside the other scoped-out
+                  clip-path/mask edge cases).
+                tests:
+                  - SvgCodec_Load_MaskReferenceCycle_ThrowsInvalidDataException
+                  - SvgCodec_Load_ClipPathReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnclippedForExcessShapes
+                  - SvgCodec_Load_MaskReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnmaskedForExcessShapes
+                  - SvgCodec_Load_ClipPathExceedsMaxShapesPerClipPath_TruncatesToFirst256Shapes
+                  - SvgCodec_Load_MaskRegionExceedsMaxDimension_FallsBackToUnmaskedRendering
+
               - id: CanvasNet-Codecs-SvgCodec-ValidationNull
                 title: >-
                   The SvgCodec class shall reject null stream/path arguments to Load and GetInfo

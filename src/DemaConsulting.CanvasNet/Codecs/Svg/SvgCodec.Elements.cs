@@ -312,7 +312,7 @@ public static partial class SvgCodec
     /// <param name="boundsPrePassBudget">
     ///     The shared cumulative bounds-pre-pass work budget (see
     ///     <see cref="BoundsPrePassWorkBudget"/>), threaded down to every <c>g</c>/<c>symbol</c>/
-    ///     <c>use</c> dispatch below so <see cref="RenderFilteredGroup"/>'s own bounds-only
+    ///     <c>use</c> dispatch below so <see cref="RenderGroupWithEffects"/>'s own bounds-only
     ///     pre-pass is bounded in aggregate across every nested filtered group, independent of
     ///     each individual pre-pass invocation's own <see cref="MaxTotalRenderedElements"/> ceiling.
     /// </param>
@@ -395,7 +395,7 @@ public static partial class SvgCodec
         // remarks) - so every shape/text dispatch below is told to suppress filter evaluation
         // whenever this call is itself part of a marker's content subtree (markerDepth > 0,
         // incremented only by RenderOneMarker, never by plain "g"/"symbol" nesting or "use")
-        var suppressFilter = markerDepth > 0;
+        var suppressEffects = markerDepth > 0;
 
         // A non-finite composed transform (see this method's remarks) cannot meaningfully
         // position this element or any descendant - skip the whole subtree as defense-in-depth,
@@ -416,13 +416,16 @@ public static partial class SvgCodec
                 // group in both situations (renders in place if encountered directly, and also
                 // renders when referenced via <use>)
                 //
-                // A "g"/"symbol" element's own "filter" attribute (suppressed identically to
-                // shape/text filtering whenever this call is itself part of a marker's own
-                // content, see suppressFilter above) renders the whole subtree below as one
-                // filtered unit via RenderFilteredGroup, instead of the plain unfiltered child
-                // loop - see RenderFilteredGroup's remarks for the full group-filter algorithm
-                var groupFilterElement = suppressFilter ? null : ResolveFilterElement(element, context);
-                if (groupFilterElement == null)
+                // A "g"/"symbol" element's own "filter"/"clip-path"/"mask" attributes (suppressed
+                // identically to shape/text effects whenever this call is itself part of a
+                // marker's own content, see suppressEffects above) render the whole subtree below
+                // as one combined unit via RenderGroupWithEffects whenever any of the three is
+                // present, instead of the plain unaffected child loop - see
+                // RenderGroupWithEffects's remarks for the full group-effects algorithm
+                var groupFilterElement = suppressEffects ? null : ResolveFilterElement(element, context);
+                var groupClipPathElement = suppressEffects ? null : ResolveClipPathElement(element, context);
+                var groupMaskElement = suppressEffects ? null : ResolveMaskElement(element, context);
+                if (groupFilterElement == null && groupClipPathElement == null && groupMaskElement == null)
                 {
                     foreach (var child in element.Elements())
                     {
@@ -431,27 +434,27 @@ public static partial class SvgCodec
                 }
                 else
                 {
-                    RenderFilteredGroup(groupFilterElement, element.Elements().ToList(), state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+                    RenderGroupWithEffects(groupFilterElement, groupClipPathElement, groupMaskElement, element.Elements().ToList(), state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
                 }
 
                 break;
 
             case "rect":
-                RenderShapeWithFilter(element, BuildRectPath(element, state), state, transform, context, filterWorkBudget, suppressFilter);
+                RenderShapeWithEffects(element, BuildRectPath(element, state), state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
                 break;
 
             case "circle":
-                RenderShapeWithFilter(element, BuildEllipsePath(element, isCircle: true, state), state, transform, context, filterWorkBudget, suppressFilter);
+                RenderShapeWithEffects(element, BuildEllipsePath(element, isCircle: true, state), state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
                 break;
 
             case "ellipse":
-                RenderShapeWithFilter(element, BuildEllipsePath(element, isCircle: false, state), state, transform, context, filterWorkBudget, suppressFilter);
+                RenderShapeWithEffects(element, BuildEllipsePath(element, isCircle: false, state), state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
                 break;
 
             case "line":
                 {
                     var linePath = BuildLinePath(element, state);
-                    RenderShapeWithFilter(element, linePath, state, transform, context, filterWorkBudget, suppressFilter);
+                    RenderShapeWithEffects(element, linePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
                     RenderMarkers(linePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
                     break;
                 }
@@ -459,7 +462,7 @@ public static partial class SvgCodec
             case "polyline":
                 {
                     var polylinePath = BuildPolyPath(element, closed: false, workBudget);
-                    RenderShapeWithFilter(element, polylinePath, state, transform, context, filterWorkBudget, suppressFilter);
+                    RenderShapeWithEffects(element, polylinePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
                     RenderMarkers(polylinePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
                     break;
                 }
@@ -467,7 +470,7 @@ public static partial class SvgCodec
             case "polygon":
                 {
                     var polygonPath = BuildPolyPath(element, closed: true, workBudget);
-                    RenderShapeWithFilter(element, polygonPath, state, transform, context, filterWorkBudget, suppressFilter);
+                    RenderShapeWithEffects(element, polygonPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
                     RenderMarkers(polygonPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
                     break;
                 }
@@ -475,7 +478,7 @@ public static partial class SvgCodec
             case "path":
                 {
                     var dataPath = BuildPathDataPath(element, workBudget);
-                    RenderShapeWithFilter(element, dataPath, state, transform, context, filterWorkBudget, suppressFilter);
+                    RenderShapeWithEffects(element, dataPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
                     RenderMarkers(dataPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
                     break;
                 }
@@ -485,7 +488,7 @@ public static partial class SvgCodec
                 break;
 
             case "text":
-                RenderText(element, state, transform, context, workBudget, filterWorkBudget, suppressFilter);
+                RenderText(element, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
                 break;
 
             default:

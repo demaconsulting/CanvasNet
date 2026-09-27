@@ -114,7 +114,25 @@ public static partial class SvgCodec
     /// </returns>
     private static Matrix3x2 ComputeObjectBoundingBoxMap(Path localPath)
     {
-        var bounds = localPath.GetBounds();
+        return ComputeObjectBoundingBoxMap(localPath.GetBounds());
+    }
+
+    /// <summary>
+    ///     Computes the transform mapping the <c>[0, 1]</c> object-bounding-box fraction space
+    ///     onto <paramref name="bounds"/> directly - the bounds-only counterpart of
+    ///     <see cref="ComputeObjectBoundingBoxMap(Path)"/> (which simply forwards to this overload
+    ///     after computing its own path's bounds), also used by <c>clipPathUnits</c>/
+    ///     <c>maskContentUnits</c> resolution (see <see cref="ApplyClipPath"/>/<see cref="ApplyMask"/>)
+    ///     where the reference bounds are already known and no <see cref="Path"/> is available.
+    /// </summary>
+    /// <param name="bounds">The reference local-space bounds.</param>
+    /// <returns>
+    ///     The bounding-box mapping transform, or <see cref="Matrix3x2.Identity"/> if
+    ///     <paramref name="bounds"/> is empty or has zero extent on either axis (a degenerate case
+    ///     tolerated rather than producing a non-invertible/zero-scale mapping).
+    /// </returns>
+    private static Matrix3x2 ComputeObjectBoundingBoxMap(Rect bounds)
+    {
         if (bounds.IsEmpty || bounds.Width <= 0f || bounds.Height <= 0f)
         {
             return Matrix3x2.Identity;
