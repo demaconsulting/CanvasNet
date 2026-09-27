@@ -487,8 +487,22 @@ the marker's own pixels. A bare `marker` element encountered directly by the ord
 is still excluded, unchanged: `marker` remains a `NonRenderingElements` member, and this pre-pass
 only ever recurses into a `marker` element's own content when a shape's own
 `marker-start`/`marker-mid`/`marker-end` attribute resolves to it, exactly mirroring
-`RenderMarkers`/`RenderOneMarker`'s own recursion trigger. The resulting combined local-space
-bounds are then fed through the same `ComputeFilterRegionPixelBounds` used for single shapes
+`RenderMarkers`/`RenderOneMarker`'s own recursion trigger. A descendant that itself carries a
+resolvable `filter` attribute (a shape/`text` element, or a nested `g`/`symbol`/`use` rendered as
+its own filtered unit via a nested `RenderFilteredGroup` call) contributes its own filter's
+expanded output region (`ApplyOwnFilterToLocalBounds`/`ComputeFilterRegionLocalBounds`, a
+pixel-rounding-free local-space variant of `ComputeFilterRegionPixelBounds`'s own region
+computation) instead of its raw geometry bounds, mirroring the exact same "would this filter
+actually apply, or tolerantly fall back to unfiltered rendering instead" decision
+`RenderFilteredShape`/`RenderFilteredGroup` themselves make - a zero-primitive filter, or a filter
+region that cannot be computed, falls back to that descendant's own raw bounds instead, so the
+pre-pass and the real render pass that follows it never disagree about whether a given
+descendant's filter will actually apply. Without this, an outer filtered group's own offscreen
+buffer would be sized only from its descendants' raw geometry, silently clipping any nested
+filtered descendant's own filter output that extends beyond its raw geometry (for example a
+`feFlood` or an enlarged filter region) before the outer filter chain or final composite ever saw
+it. The resulting combined local-space bounds are then fed through the same
+`ComputeFilterRegionPixelBounds` used for single shapes
 (refactored to accept a `Rect` directly, so both call sites share one region-computation core),
 and the same per-filter/cumulative work-budget guards apply identically - a group's filter region
 can be pathologically large or its combined primitive-count × region-area cost excessive in

@@ -645,6 +645,7 @@ sections:
                   - SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent
                   - SvgCodec_Load_FilteredGroupNearTotalElementBudget_RendersWithoutThrowing
                   - SvgCodec_Load_FilteredGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveFilter
+                  - SvgCodec_Load_GroupFilterWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput
 
               - id: CanvasNet-Codecs-SvgCodec-ValidationNull
                 title: >-

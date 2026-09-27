@@ -395,32 +395,56 @@ public static partial class SvgCodec
             case "g":
             case "symbol":
                 {
+                    // Mirrors RenderElement's identical suppressFilter/ResolveFilterElement
+                    // derivation - a "g"/"symbol" element's own "filter" attribute never applies
+                    // (to its own content, as one filtered unit) when this call is itself part of
+                    // a marker's own content subtree
+                    var ownFilterElement = markerDepth > 0 ? null : ResolveFilterElement(element, context);
+
+                    // When this element carries its own filter, its children must be visited
+                    // relative to this element's own pre-transform local space
+                    // (Matrix3x2.Identity), exactly mirroring RenderFilteredGroup's own bounds
+                    // pre-pass (relativeTransform starting at Identity for a filtered group's own
+                    // direct children) - so the filter's objectBoundingBox-relative region
+                    // fractions (see ApplyOwnFilterToLocalBounds) are computed against the right
+                    // frame, before "transform" is applied exactly once, below. Without an own
+                    // filter, children are visited directly relative to this element's own
+                    // already-composed "transform" (this method's original behavior), so their
+                    // returned bounds are already in the caller's own reference frame and no
+                    // further Transform call is needed
+                    var childRelativeTransform = ownFilterElement == null ? transform : Matrix3x2.Identity;
+
                     var bounds = Rect.Empty;
                     foreach (var child in element.Elements())
                     {
-                        var childBounds = ComputeSubtreeLocalBounds(child, state, transform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget);
+                        var childBounds = ComputeSubtreeLocalBounds(child, state, childRelativeTransform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget);
                         if (childBounds != null)
                         {
                             bounds = bounds.Union(childBounds.Value);
                         }
                     }
 
-                    return bounds.IsEmpty ? null : bounds;
+                    if (bounds.IsEmpty)
+                    {
+                        return null;
+                    }
+
+                    return ownFilterElement == null ? bounds : ApplyOwnFilterToLocalBounds(ownFilterElement, bounds, transform);
                 }
 
             case "rect":
-                return TransformedShapeBounds(BuildRectPath(element), state, transform);
+                return ShapeBoundsRespectingOwnFilter(element, BuildRectPath(element), state, transform, context, markerDepth);
 
             case "circle":
-                return TransformedShapeBounds(BuildEllipsePath(element, isCircle: true), state, transform);
+                return ShapeBoundsRespectingOwnFilter(element, BuildEllipsePath(element, isCircle: true), state, transform, context, markerDepth);
 
             case "ellipse":
-                return TransformedShapeBounds(BuildEllipsePath(element, isCircle: false), state, transform);
+                return ShapeBoundsRespectingOwnFilter(element, BuildEllipsePath(element, isCircle: false), state, transform, context, markerDepth);
 
             case "line":
                 {
                     var linePath = BuildLinePath(element);
-                    var shapeBounds = TransformedShapeBounds(linePath, state, transform);
+                    var shapeBounds = ShapeBoundsRespectingOwnFilter(element, linePath, state, transform, context, markerDepth);
                     var markerBounds = ComputeMarkerContentLocalBounds(linePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
                     return UnionNullableBounds(shapeBounds, markerBounds);
                 }
@@ -428,7 +452,7 @@ public static partial class SvgCodec
             case "polyline":
                 {
                     var polylinePath = BuildPolyPath(element, closed: false, workBudget);
-                    var shapeBounds = TransformedShapeBounds(polylinePath, state, transform);
+                    var shapeBounds = ShapeBoundsRespectingOwnFilter(element, polylinePath, state, transform, context, markerDepth);
                     var markerBounds = ComputeMarkerContentLocalBounds(polylinePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
                     return UnionNullableBounds(shapeBounds, markerBounds);
                 }
@@ -436,7 +460,7 @@ public static partial class SvgCodec
             case "polygon":
                 {
                     var polygonPath = BuildPolyPath(element, closed: true, workBudget);
-                    var shapeBounds = TransformedShapeBounds(polygonPath, state, transform);
+                    var shapeBounds = ShapeBoundsRespectingOwnFilter(element, polygonPath, state, transform, context, markerDepth);
                     var markerBounds = ComputeMarkerContentLocalBounds(polygonPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
                     return UnionNullableBounds(shapeBounds, markerBounds);
                 }
@@ -444,7 +468,7 @@ public static partial class SvgCodec
             case "path":
                 {
                     var dataPath = BuildPathDataPath(element, workBudget);
-                    var shapeBounds = TransformedShapeBounds(dataPath, state, transform);
+                    var shapeBounds = ShapeBoundsRespectingOwnFilter(element, dataPath, state, transform, context, markerDepth);
                     var markerBounds = ComputeMarkerContentLocalBounds(dataPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
                     return UnionNullableBounds(shapeBounds, markerBounds);
                 }
@@ -464,7 +488,22 @@ public static partial class SvgCodec
 
                     var offset = new Vector2(GetFloatAttribute(element, "x"), GetFloatAttribute(element, "y"));
                     var useTransform = Matrix3x2.CreateTranslation(offset) * transform;
-                    return ComputeSubtreeLocalBounds(target, state, useTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget);
+
+                    // Mirrors RenderUse's identical suppressFilter/ResolveFilterElement
+                    // derivation - a "use" element's own "filter" attribute (never the referenced
+                    // target's own attributes, which this same recursive call already handles
+                    // identically to any other descendant) applies to its resolved target as one
+                    // filtered unit; see the "g"/"symbol" case above for why the target must then
+                    // be visited relative to Matrix3x2.Identity instead of useTransform
+                    var ownFilterElement = markerDepth > 0 ? null : ResolveFilterElement(element, context);
+                    var targetRelativeTransform = ownFilterElement == null ? useTransform : Matrix3x2.Identity;
+                    var targetBounds = ComputeSubtreeLocalBounds(target, state, targetRelativeTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget);
+                    if (targetBounds == null)
+                    {
+                        return null;
+                    }
+
+                    return ownFilterElement == null ? targetBounds : ApplyOwnFilterToLocalBounds(ownFilterElement, targetBounds.Value, useTransform);
                 }
 
             case "text":
@@ -493,7 +532,7 @@ public static partial class SvgCodec
 
                     var origin = new Vector2(GetFloatAttribute(element, "x"), GetFloatAttribute(element, "y"));
                     var glyphRunPath = BuildGlyphRunPath(text, font, state, origin);
-                    return TransformedShapeBounds(glyphRunPath, state, transform);
+                    return ShapeBoundsRespectingOwnFilter(element, glyphRunPath, state, transform, context, markerDepth);
                 }
 
             default:
@@ -533,19 +572,128 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Computes <paramref name="localPath"/>'s stroke-expanded local bounds and maps them
-    ///     through <paramref name="transform"/>, returning <see langword="null"/> instead of an
-    ///     empty/degenerate <see cref="Rect"/> so <see cref="ComputeSubtreeLocalBounds"/>'s callers
-    ///     can fold results with simple null-coalescing rather than re-checking <see cref="Rect.IsEmpty"/>.
+    ///     Computes one shape (or glyph run)'s own painted-content bounds for
+    ///     <see cref="ComputeSubtreeLocalBounds"/>, additionally accounting for <paramref name="element"/>'s
+    ///     own <c>filter</c> presentation attribute (if any) - the bounds-only counterpart of
+    ///     <see cref="RenderShapeWithFilter"/>, sharing its exact <see cref="ResolveFilterElement"/>/
+    ///     <paramref name="markerDepth"/>-suppression decision, so a filtered ancestor group's own
+    ///     offscreen buffer is sized large enough to contain this shape's own filtered output too
+    ///     (see this class's remarks on nested group filtering), not just its raw stroke-expanded
+    ///     outline.
     /// </summary>
+    /// <param name="element">
+    ///     The originating element, whose own <c>filter</c> attribute is read directly - identical
+    ///     to <see cref="RenderShapeWithFilter"/>'s own <paramref name="element"/> parameter.
+    /// </param>
     /// <param name="localPath">The shape's (or glyph run's) already-built local-space outline.</param>
-    /// <param name="state">The cascaded render state, used to expand the bounds for a stroke.</param>
-    /// <param name="transform">The transform from <paramref name="localPath"/>'s own local space into the caller's reference frame.</param>
-    /// <returns>The transformed, stroke-expanded bounds, or <see langword="null"/> if degenerate/empty.</returns>
-    private static Rect? TransformedShapeBounds(Path localPath, RenderState state, Matrix3x2 transform)
+    /// <param name="state">The cascaded render state.</param>
+    /// <param name="transform">The accumulated transform from local space into the caller's reference frame.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="markerDepth">
+    ///     The current <c>marker</c>-reference nesting depth - when greater than zero (this call is
+    ///     itself part of a marker's own content subtree), <paramref name="element"/>'s own
+    ///     <c>filter</c> attribute is never resolved, identical to <see cref="RenderShapeWithFilter"/>'s
+    ///     own <c>suppressFilter</c> derivation in <see cref="RenderElement"/>/<see cref="RenderText"/>.
+    /// </param>
+    /// <returns>
+    ///     <paramref name="element"/>'s own filter-expanded bounds (see
+    ///     <see cref="ApplyOwnFilterToLocalBounds"/>) when it carries a resolvable <c>filter</c>
+    ///     attribute; otherwise <paramref name="localPath"/>'s raw, stroke-expanded, transformed
+    ///     bounds, or <see langword="null"/> if either is empty/degenerate.
+    /// </returns>
+    private static Rect? ShapeBoundsRespectingOwnFilter(
+        XElement element,
+        Path localPath,
+        RenderState state,
+        Matrix3x2 transform,
+        RenderContext context,
+        int markerDepth)
     {
-        var bounds = ExpandBoundsForStroke(localPath.GetBounds(), state).Transform(transform);
-        return bounds.IsEmpty ? null : bounds;
+        var rawLocalBounds = ExpandBoundsForStroke(localPath.GetBounds(), state);
+        var ownFilterElement = markerDepth > 0 ? null : ResolveFilterElement(element, context);
+        if (ownFilterElement == null)
+        {
+            var bounds = rawLocalBounds.Transform(transform);
+            return bounds.IsEmpty ? null : bounds;
+        }
+
+        return ApplyOwnFilterToLocalBounds(ownFilterElement, rawLocalBounds, transform);
+    }
+
+    /// <summary>
+    ///     Applies <paramref name="filterElement"/>'s own filter-region expansion to
+    ///     <paramref name="rawLocalBounds"/> - the local-space (pre-<paramref name="transform"/>)
+    ///     union of an element's (or a filtered <c>g</c>/<c>symbol</c>/<c>use</c> target subtree's)
+    ///     own raw geometry bounds - mirroring the exact same "would this filter actually apply, or
+    ///     tolerantly fall back to the raw, unfiltered bounds instead" decision
+    ///     <see cref="RenderFilteredShape"/>/<see cref="RenderFilteredGroup"/> themselves make at
+    ///     render time (a zero-primitive filter, or a filter region that cannot be computed from
+    ///     <paramref name="rawLocalBounds"/>, falls back to <paramref name="rawLocalBounds"/>
+    ///     unchanged), so <see cref="ComputeSubtreeLocalBounds"/>'s bounds pre-pass and the real
+    ///     render pass that follows it never disagree about whether a given element's filter will
+    ///     actually apply. Used by <see cref="ComputeSubtreeLocalBounds"/> (directly for a
+    ///     <c>g</c>/<c>symbol</c>/<c>use</c> element carrying its own <c>filter</c>, and via
+    ///     <see cref="ShapeBoundsRespectingOwnFilter"/> for a shape/<c>text</c> element carrying its
+    ///     own <c>filter</c>) so an ancestor filtered group's own offscreen buffer is sized large
+    ///     enough to contain that descendant's own (possibly larger-than-its-raw-geometry) filtered
+    ///     output too.
+    /// </summary>
+    /// <param name="filterElement">The element's own resolved <c>filter</c> element.</param>
+    /// <param name="rawLocalBounds">
+    ///     The element's (or, for a group/<c>use</c> target, its subtree's) own raw, stroke-expanded
+    ///     geometry bounds, in the local space <paramref name="transform"/> maps into the caller's
+    ///     reference frame - i.e. excluding the element's own <c>transform</c> attribute and every
+    ///     ancestor transform, exactly mirroring <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2)"/>'s
+    ///     own <c>bounds</c> parameter.
+    /// </param>
+    /// <param name="transform">
+    ///     The accumulated transform from <paramref name="rawLocalBounds"/>'s own local space into
+    ///     the caller's chosen reference frame - the same <c>transform</c> local variable
+    ///     <see cref="ComputeSubtreeLocalBounds"/> already computes for the visited element itself.
+    /// </param>
+    /// <returns>
+    ///     The expanded (or, on fallback, raw) bounds mapped through <paramref name="transform"/>,
+    ///     or <see langword="null"/> if <paramref name="rawLocalBounds"/> is itself empty/
+    ///     degenerate, or the transformed result is empty.
+    /// </returns>
+    /// <remarks>
+    ///     Deliberately does not reproduce <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2)"/>'s
+    ///     pixel-space-only checks (<see cref="MaxCoordinateMagnitude"/>, <see cref="Surface.MaxDimension"/>,
+    ///     outward pixel rounding) or <see cref="IsFilterPrimitiveWorkWithinBudget"/>'s
+    ///     region-area-weighted work check, nor does it charge <see cref="FilterWorkBudget"/>'s
+    ///     cumulative ceiling: this bounds pre-pass necessarily runs before the ancestor filtered
+    ///     group's own final pixel-space transform is known (it composes only as far up as that
+    ///     ancestor's own local space, see <see cref="ComputeSubtreeLocalBounds"/>'s remarks on
+    ///     <c>relativeTransform</c>), so a true pixel-area budget check made here cannot be
+    ///     guaranteed to agree with the real render pass's own check regardless. Treating the
+    ///     descendant's filter as applying whenever it structurally could (a non-empty region, at
+    ///     least one primitive) is therefore a deliberately safe approximation in the direction
+    ///     that matters: at worst it sizes the ancestor's offscreen buffer somewhat larger than
+    ///     strictly necessary for a descendant filter that later falls back to unfiltered rendering
+    ///     at real pixel scale (never smaller, so this can never re-introduce the clipping bug this
+    ///     method exists to fix), and the descendant's own real render-time
+    ///     <see cref="RenderFilteredShape"/>/<see cref="RenderFilteredGroup"/> call remains the only
+    ///     site that ever charges <see cref="FilterWorkBudget"/>, so this pre-pass cannot
+    ///     double-charge it.
+    /// </remarks>
+    private static Rect? ApplyOwnFilterToLocalBounds(XElement filterElement, Rect rawLocalBounds, Matrix3x2 transform)
+    {
+        if (rawLocalBounds.IsEmpty)
+        {
+            return null;
+        }
+
+        // A zero-primitive filter can never change the rendered output (see RenderFilteredShape's
+        // identical guard) and therefore always falls back to unfiltered rendering at real time -
+        // this pre-pass must fall back to the same raw bounds in that case too, rather than
+        // diverging from the real render decision
+        var filterLocalRegion = CountFilterPrimitiveWorkUnits(filterElement) == 0
+            ? null
+            : ComputeFilterRegionLocalBounds(filterElement, rawLocalBounds);
+
+        var effectiveLocalBounds = filterLocalRegion ?? rawLocalBounds;
+        var transformed = effectiveLocalBounds.Transform(transform);
+        return transformed.IsEmpty ? null : transformed;
     }
 
     /// <summary>
@@ -796,30 +944,13 @@ public static partial class SvgCodec
     private static (int X, int Y, int Width, int Height)? ComputeFilterRegionPixelBounds(
         XElement filterElement, Rect bounds, Matrix3x2 transform)
     {
-        if (bounds.IsEmpty || bounds.Width <= 0f || bounds.Height <= 0f)
+        var localRegion = ComputeFilterRegionLocalBounds(filterElement, bounds);
+        if (localRegion == null)
         {
             return null;
         }
 
-        // SVG default filter region: -10% -10% 120% 120% of the referencing element's own
-        // objectBoundingBox, each independently overridable via x/y/width/height
-        var xFraction = ParseFilterRegionFraction(filterElement, "x", -0.10f);
-        var yFraction = ParseFilterRegionFraction(filterElement, "y", -0.10f);
-        var widthFraction = ParseFilterRegionFraction(filterElement, "width", 1.20f);
-        var heightFraction = ParseFilterRegionFraction(filterElement, "height", 1.20f);
-
-        var localRegion = new Rect(
-            bounds.X + (xFraction * bounds.Width),
-            bounds.Y + (yFraction * bounds.Height),
-            widthFraction * bounds.Width,
-            heightFraction * bounds.Height);
-
-        if (localRegion.Width <= 0f || localRegion.Height <= 0f)
-        {
-            return null;
-        }
-
-        var pixelRegion = localRegion.Transform(transform);
+        var pixelRegion = localRegion.Value.Transform(transform);
         if (!float.IsFinite(pixelRegion.X) || !float.IsFinite(pixelRegion.Y) ||
             !float.IsFinite(pixelRegion.Width) || !float.IsFinite(pixelRegion.Height) ||
             pixelRegion.Width <= 0f || pixelRegion.Height <= 0f ||
@@ -842,6 +973,48 @@ public static partial class SvgCodec
         }
 
         return (minX, minY, width, height);
+    }
+
+    /// <summary>
+    ///     Computes <paramref name="filterElement"/>'s filter region purely in the local space
+    ///     <paramref name="bounds"/> is expressed in - always as if <c>filterUnits="objectBoundingBox"</c>,
+    ///     the SVG default (the same documented simplification <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2)"/>
+    ///     itself makes) - the shared local-space core factored out of that method, stopping short
+    ///     of its own pixel-space transform/rounding/<see cref="MaxCoordinateMagnitude"/>/
+    ///     <see cref="Surface.MaxDimension"/> checks. Used both by
+    ///     <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2)"/> itself and by
+    ///     <see cref="ApplyOwnFilterToLocalBounds"/>, so <see cref="ComputeSubtreeLocalBounds"/>'s
+    ///     bounds pre-pass can fold a nested filtered descendant's own expanded region into the
+    ///     rest of its purely local-space bounds unioning without an awkward pixel-rounding
+    ///     round-trip.
+    /// </summary>
+    /// <param name="filterElement">The resolved <c>filter</c> element.</param>
+    /// <param name="bounds">The referencing element's already stroke-expanded local-space painted-content bounds.</param>
+    /// <returns>
+    ///     The local-space filter region, or <see langword="null"/> if <paramref name="bounds"/> is
+    ///     empty/degenerate or the region resolves to a non-positive size.
+    /// </returns>
+    private static Rect? ComputeFilterRegionLocalBounds(XElement filterElement, Rect bounds)
+    {
+        if (bounds.IsEmpty || bounds.Width <= 0f || bounds.Height <= 0f)
+        {
+            return null;
+        }
+
+        // SVG default filter region: -10% -10% 120% 120% of the referencing element's own
+        // objectBoundingBox, each independently overridable via x/y/width/height
+        var xFraction = ParseFilterRegionFraction(filterElement, "x", -0.10f);
+        var yFraction = ParseFilterRegionFraction(filterElement, "y", -0.10f);
+        var widthFraction = ParseFilterRegionFraction(filterElement, "width", 1.20f);
+        var heightFraction = ParseFilterRegionFraction(filterElement, "height", 1.20f);
+
+        var localRegion = new Rect(
+            bounds.X + (xFraction * bounds.Width),
+            bounds.Y + (yFraction * bounds.Height),
+            widthFraction * bounds.Width,
+            heightFraction * bounds.Height);
+
+        return localRegion.Width <= 0f || localRegion.Height <= 0f ? null : localRegion;
     }
 
     /// <summary>

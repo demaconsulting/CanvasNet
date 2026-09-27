@@ -740,7 +740,8 @@ total filter-evaluation work across the whole document, a dimension neither
 `SvgCodec_Load_GroupFilterReferencedByManyUsesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessUses`,
 `SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent`,
 `SvgCodec_Load_FilteredGroupNearTotalElementBudget_RendersWithoutThrowing`,
-`SvgCodec_Load_FilteredGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveFilter`
+`SvgCodec_Load_FilteredGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveFilter`,
+`SvgCodec_Load_GroupFilterWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput`
 
 Asserts a `filter` on a `<g>` wrapping two non-overlapping `rect` elements is evaluated once
 against the group's own *combined* subtree bounds, not per-child: a bare `feFlood` fills its
@@ -802,6 +803,20 @@ line's own tiny stroke-expanded outline, and a point deep inside the marker's ow
 (`feOffset dx="0" dy="0"`) group filter - proving the offscreen `SourceGraphic` buffer was sized
 large enough to avoid silently clipping the marker's pixels before the filter/composite step ever
 saw them.
+
+A third regression test closes a further code-review finding in the same bounds pre-pass: a
+descendant that itself carries its own `filter` attribute whose own filter region extends beyond
+its raw geometry (an `feFlood` combined with a deliberately enlarged filter
+`x`/`y`/`width`/`height` region, in `SvgCodec_Load_GroupFilterWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput`)
+used to have only its raw geometry bounds folded into the pre-pass, not its own filter's actual
+(larger) output extent. A tiny 4x4 rect carries an `innerFlood` filter whose region is expanded to
+roughly cover the whole 100x100 canvas, wrapped in an outer `<g>` with an identity
+(`feOffset dx="0" dy="0"`) pass-through filter; points far outside the rect's own raw bounds but
+inside the inner filter's actual expanded region now show the inner `feFlood`'s red output
+surviving the outer group's own offscreen round-trip, proving the outer group's buffer is sized
+from the inner filter's own expanded output rather than merely the inner shape's raw geometry -
+while a point outside even that generously-expanded region remains untouched, confirming the fix
+is a genuine bounds correction rather than an unconditional expand-to-fill-the-canvas regression.
 
 #### CanvasNet-Codecs-SvgCodec-ValidationNull: Null Stream/Path Rejected
 

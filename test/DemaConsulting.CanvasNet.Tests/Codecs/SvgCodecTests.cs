@@ -3669,6 +3669,67 @@ public class SvgCodecTests
         Assert.Equal(new Rgba32(0, 255, 0, 255), surface[50, 45]);
     }
 
+    /// <summary>
+    ///     Regression test for a code-review finding: <c>ComputeSubtreeLocalBounds</c> (the
+    ///     bounds-only pre-pass <c>RenderFilteredGroup</c> uses to size a filtered group's own
+    ///     offscreen <c>SourceGraphic</c> buffer) used to union each descendant's own <em>raw</em>
+    ///     geometry bounds only, even when a descendant carried its own <c>filter</c> attribute
+    ///     whose own filter region extends well beyond that descendant's raw geometry (for
+    ///     example an enlarged filter <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> region, as this
+    ///     test deliberately uses). Because the outer group's offscreen buffer was sized purely
+    ///     from that too-small pre-pass return value, the real render pass then painted the inner
+    ///     filtered descendant's actual (larger) output into the outer buffer, silently clipping
+    ///     every pixel outside the too-small outer bounds before the outer filter chain (here, an
+    ///     identity <c>feOffset</c> pass-through) or the final composite ever saw them. Proves the
+    ///     outer filtered composite now contains the inner filter's full expanded output, not just
+    ///     the portion that happened to fall within the (undersized) region around the inner
+    ///     shape's own tiny raw bounding box.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GroupFilterWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput()
+    {
+        // Arrange: a tiny 4x4 blue rect (raw bounds (48,48)-(52,52)) carries its own "innerFlood"
+        // filter whose x/y/width/height region attributes are deliberately set far beyond its own
+        // objectBoundingBox (-1000%/-1000%/2100%/2100% of the rect's own 4x4 bbox expands the
+        // inner filter's own region to roughly (8,8)-(92,92) - nearly the whole 100x100 canvas).
+        // The rect is wrapped in an outer <g filter="url(#outerPassThrough)"> whose own filter is
+        // a dx=0/dy=0 feOffset - an identity pass-through that changes nothing, so any pixel
+        // missing from the final result can only be explained by the outer group's own offscreen
+        // buffer having clipped it away before the pass-through filter ever ran
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='innerFlood' x='-1000%' y='-1000%' width='2100%' height='2100%'>
+                  <feFlood flood-color='red'/>
+                </filter>
+                <filter id='outerPassThrough'>
+                  <feOffset dx='0' dy='0'/>
+                </filter>
+              </defs>
+              <g filter='url(#outerPassThrough)'>
+                <rect x='48' y='48' width='4' height='4' fill='blue' filter='url(#innerFlood)'/>
+              </g>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: a point far outside the inner rect's own tiny raw bounding box (and far outside
+        // the too-small margin a bounds pre-pass ignoring the inner filter's own expanded region
+        // would have produced around it), but well inside the inner filter's actual expanded
+        // region, shows the inner feFlood's red output surviving all the way through the outer
+        // group's own filter and final composite
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[10, 10]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[90, 90]);
+
+        // Assert: well outside even the inner filter's own (already very generous) expanded
+        // region, nothing was painted - proving this is a genuine bounds fix, not merely an
+        // unconditional expand-to-fill-the-canvas regression
+        Assert.Equal(0, surface[1, 1].A);
+    }
+
     // ================================================================================================
     // Total geometry-parsing work budget (path data / point lists / text characters)
     // ================================================================================================
