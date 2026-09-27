@@ -88,13 +88,33 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     <c>text-anchor</c>, and, for a caller that registers more than one <see cref="SvgFontFace"/>
 ///     per family via the <see cref="LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>
 ///     overload, <c>font-weight</c>/<c>font-style</c>-aware closest-face matching - see this
-///     class's <c>SelectClosestFace</c> remarks for the matching algorithm).
+///     class's <c>SelectClosestFace</c> remarks for the matching algorithm); a shape/text
+///     element's own <c>clip-path="url(#id)"</c> and <c>mask="url(#id)"</c> presentation
+///     attributes (resolved with the same dangling-reference tolerance as <c>filter</c>, and
+///     combinable with <c>filter</c> and with each other on the same element, applied in the
+///     SVG-defined <c>clip-path</c> &#8594; <c>mask</c> &#8594; <c>filter</c> order - see
+///     <c>SvgCodec.ClippingAndMasking.cs</c>'s remarks for the <c>clipPathUnits</c>/
+///     <c>maskUnits</c>/<c>maskContentUnits</c> unit-space handling and documented per-feature
+///     simplifications); a <c>fill</c>/<c>stroke</c> <c>url(#id)</c> reference to a <c>pattern</c>
+///     paint server (with <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c>, <c>patternUnits</c>/
+///     <c>patternContentUnits</c>, <c>patternTransform</c>, an <c>href</c>/<c>xlink:href</c>
+///     content-inheritance chain, and an optional <c>viewBox</c>/<c>preserveAspectRatio</c> - see
+///     <c>SvgCodec.Patterns.cs</c>'s remarks for the documented per-feature simplifications); and
+///     an <c>image</c> element (with <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> placement,
+///     <c>preserveAspectRatio</c> fitting, and a base64-encoded <c>data:</c> URI <c>href</c>/
+///     <c>xlink:href</c> decoded via this codec's own sibling raster codecs - <see cref="PngCodec"/>,
+///     <see cref="JpegCodec"/>, <see cref="BmpCodec"/>, <see cref="TiffCodec"/>, and
+///     <see cref="GifCodec"/> - fully integrated with the same <c>filter</c>/<c>clip-path</c>/
+///     <c>mask</c>/<c>opacity</c> pipeline every other shape/text element uses; a non-<c>data:</c>
+///     href (a file path or URL) and any nested SVG reference (<c>data:image/svg+xml</c> or an
+///     external <c>.svg</c> file) are both a deliberate, documented, security-conscious no-op -
+///     see <c>SvgCodec.Image.cs</c>'s remarks for the full rationale).
 ///     </para>
 ///     <para>
 ///     <b>Out of scope (silently ignored, per element).</b> <c>style</c> blocks and CSS
-///     class/id selectors, <c>mask</c>, <c>clipPath</c>, <c>pattern</c>,
+///     class/id selectors,
 ///     SMIL animation (<c>animate</c>/<c>animateTransform</c>/<c>animateMotion</c>/
-///     <c>animateColor</c>/<c>set</c>), <c>image</c>, <c>foreignObject</c>, nested <c>svg</c>, and
+///     <c>animateColor</c>/<c>set</c>), <c>foreignObject</c>, nested <c>svg</c>, and
 ///     an inline <c>style="..."</c> presentation attribute are all well-formed-but-unsupported
 ///     constructs: encountering one never aborts the document, it is simply skipped, and every
 ///     other element continues to render normally. Within the supported <c>marker</c> feature itself,
@@ -131,8 +151,10 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     fits the document's intrinsic user-space size into the caller-requested raster size per the
 ///     root <c>svg</c> element's own <c>preserveAspectRatio</c> attribute (parsed as
 ///     <c>[defer] &lt;align&gt; [meet|slice]</c>, with <c>defer</c> parsed and ignored - it is only
-///     meaningful for an <c>&lt;image&gt;</c>-referenced external SVG, which this codec does not
-///     implement); when absent, the SVG-defined default is <c>xMidYMid meet</c>, equivalent to CSS
+///     meaningful for an <c>&lt;image&gt;</c>-referenced external resource's own load ordering, and
+///     has no observable effect either way even for a supported <c>data:</c> URI <c>&lt;image&gt;</c>,
+///     since this codec decodes it synchronously in place with no separate load-ordering concept
+///     at all); when absent, the SVG-defined default is <c>xMidYMid meet</c>, equivalent to CSS
 ///     <c>object-fit: contain</c>: the content is uniformly scaled as large as possible while
 ///     remaining fully visible, then centered, leaving transparent letterbox/pillarbox bars on the
 ///     raster's shorter axis. All ten <c>align</c> values (<c>none</c>, or a cross product of
@@ -210,7 +232,14 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     <c>T</c> smooth-curve reflection, overflows an individually-finite pair of literals to a
 ///     non-finite value is likewise tolerant: the whole <c>path</c> element is skipped (rendered
 ///     as an empty path) rather than reaching <see cref="Drawing.DashSplitter"/>'s dash-interval
-///     walk, which would otherwise stall indefinitely on a non-finite path length.
+///     walk, which would otherwise stall indefinitely on a non-finite path length. An <c>image</c>
+///     element's own malformed base64 payload, or a malformed/truncated/oversized decoded raster
+///     payload (each rejected by the matching sibling raster codec's own <c>Load</c>, already
+///     enforcing <see cref="Surface.MaxDimension"/> internally), is likewise tolerant: the whole
+///     <c>image</c> element is skipped (rendered as if absent) rather than the exception
+///     propagating past it - see <c>SvgCodec.Image.cs</c>'s remarks for the full catalogue of
+///     tolerant <c>image</c>-specific no-op conditions, including its own href-scope security
+///     decisions.
 ///     </para>
 ///     <para>
 ///     <b>Caller-supplied raster dimensions.</b> The <c>width</c>/<c>height</c>

@@ -5,7 +5,7 @@
 # from the perspective of its consumers, without specifying implementation details.
 # cspell:ignore glyf sfnt cmap loca hmtx hhea maxp notdef
 # cspell:ignore codepoint codepoints subtable subtables subsetted renderable formedness
-# cspell:ignore rasterizing letterboxing Dasharray
+# cspell:ignore rasterizing letterboxing Dasharray xlink Pillarboxes
 
 sections:
   - title: Canvas API
@@ -1082,6 +1082,46 @@ sections:
           - SvgCodec_Load_PatternSelfReferencingContent_ThrowsInvalidDataException
           - SvgCodec_Load_PatternTileExceedsMaxDimension_FallsBackToUnfilledRendering
           - SvgCodec_Load_PatternReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilledForExcessShapes
+
+      - id: CanvasNet-Lib-SvgImageRendering
+        title: >-
+          The library shall rasterize an image element whose href/xlink:href is a base64-encoded
+          data URI with a supported raster MIME type by decoding it through that format's own
+          existing codec and drawing the decoded raster into the element's own placement rect per
+          preserveAspectRatio, integrated with the same clip-path/mask/filter/opacity effects
+          pipeline every other renderable element already uses, while treating an external
+          (non-data:) href or a nested data:image/svg+xml document as a documented,
+          security-conscious no-op, and bounding image-related resource use with the same
+          tolerant-fallback, work-budget conventions already established for filter/clip-path/
+          mask/pattern support.
+        tags: [system]
+        justification: |
+          image is a common SVG authoring mechanism for embedding a raster asset (an icon, a
+          photo, a texture) directly inside a vector document that this library previously
+          discarded entirely as an explicit out-of-scope simplification; callers relying on this
+          common element need its base64-embedded raster payload actually decoded and drawn, with
+          the same effects-pipeline integration and work-budget resource-safety behavior already
+          established for this library's other paint-server and effect support, while
+          external-href resolution and nested-SVG recursion remain deliberately out of scope
+          rather than introducing an unbounded or security-sensitive capability.
+        children:
+          - CanvasNet-Codecs-SvgImageRendering
+        tests:
+          - SvgCodec_Load_ImageDataUriPng_RendersDecodedPixelsAtPlacementRect
+          - SvgCodec_Load_ImageDataUriJpeg_RendersDecodedPixelsAtPlacementRect
+          - SvgCodec_Load_ImagePreserveAspectRatioMeet_LettersOrPillarboxesNonMatchingAspect
+          - SvgCodec_Load_ImagePreserveAspectRatioNone_StretchesNonUniformly
+          - SvgCodec_Load_ImageWithClipPath_ClipsToClipPathShape
+          - SvgCodec_Load_ImageWithMask_AttenuatesByMaskLuminance
+          - SvgCodec_Load_ImageWithFilter_AppliesFilterToDecodedPixels
+          - SvgCodec_Load_ImageWithOpacity_AppliesUniformAlphaToCompositedResult
+          - SvgCodec_Load_ImageZeroWidthOrHeight_RendersNothingWithoutThrowing
+          - SvgCodec_Load_ImageNoWidthOrHeightAttribute_RendersNothingWithoutThrowing
+          - SvgCodec_Load_ImageExternalFileHref_RendersNothingWithoutFileAccess
+          - SvgCodec_Load_ImageNestedSvgDataUri_RendersNothingWithoutRecursion
+          - SvgCodec_Load_ImageMalformedBase64_SkipsElementWithoutThrowing
+          - SvgCodec_Load_ImageTruncatedPngData_SkipsElementWithoutThrowing
+          - SvgCodec_Load_ImageOversizedDeclaredDimensionsExceedingBudget_FallsBackToUnrenderedWithoutThrowing
 
       - id: CanvasNet-Lib-SvgViewBoxFitting
         title: >-

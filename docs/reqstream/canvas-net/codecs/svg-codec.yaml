@@ -2,7 +2,7 @@
 # Software Unit Requirements for SvgCodec
 #
 # cspell:ignore moveto lineto closepath dasharray letterboxing renderable xlink SMIL uncatchable
-# cspell:ignore miterlimit dashoffset unitless
+# cspell:ignore miterlimit dashoffset unitless Pillarboxes
 #
 # These requirements describe the design-level behavior of the SvgCodec unit.
 
@@ -966,6 +966,88 @@ sections:
                   - SvgCodec_Load_PatternSelfReferencingContent_ThrowsInvalidDataException
                   - SvgCodec_Load_PatternTileExceedsMaxDimension_FallsBackToUnfilledRendering
                   - SvgCodec_Load_PatternReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilledForExcessShapes
+
+              - id: CanvasNet-Codecs-SvgCodec-ImageRendering
+                title: >-
+                  The SvgCodec class shall rasterize an image element whose href/xlink:href is a
+                  base64-encoded data URI with a supported MIME type (image/png, image/jpeg,
+                  image/bmp, image/tiff, or image/gif) by decoding it through that format's own
+                  existing codec and drawing the decoded raster into the element's own x/y/width/
+                  height placement rect, fitted per preserveAspectRatio (reusing the same fit
+                  computation already used for pattern viewBox fitting), and shall integrate this
+                  rendering with the same clip-path/mask/filter/opacity effects pipeline every
+                  other renderable element already uses, rather than special-casing image outside
+                  of it.
+                justification: |
+                  image is a common SVG authoring mechanism for embedding a raster asset (an icon,
+                  a photo, a texture) directly inside a vector document; callers relying on this
+                  common element need its base64-embedded raster payload actually decoded and
+                  drawn, with the same preserveAspectRatio fit semantics and the same clip-path/
+                  mask/filter/opacity effects support already available to every other renderable
+                  element, rather than being silently discarded as this codec's previous
+                  SkippedElements entry did.
+                tests:
+                  - SvgCodec_Load_ImageDataUriPng_RendersDecodedPixelsAtPlacementRect
+                  - SvgCodec_Load_ImageDataUriJpeg_RendersDecodedPixelsAtPlacementRect
+                  - SvgCodec_Load_ImagePreserveAspectRatioMeet_LettersOrPillarboxesNonMatchingAspect
+                  - SvgCodec_Load_ImagePreserveAspectRatioNone_StretchesNonUniformly
+                  - SvgCodec_Load_ImageWithClipPath_ClipsToClipPathShape
+                  - SvgCodec_Load_ImageWithMask_AttenuatesByMaskLuminance
+                  - SvgCodec_Load_ImageWithFilter_AppliesFilterToDecodedPixels
+                  - SvgCodec_Load_ImageWithOpacity_AppliesUniformAlphaToCompositedResult
+                  - SvgCodec_Load_ImageZeroWidthOrHeight_RendersNothingWithoutThrowing
+                  - SvgCodec_Load_ImageNoWidthOrHeightAttribute_RendersNothingWithoutThrowing
+
+              - id: CanvasNet-Codecs-SvgCodec-ImageExternalHrefScope
+                title: >-
+                  The SvgCodec class shall treat an image element's non-data: href (an external
+                  file path or URL) and a data:image/svg+xml data URI (a nested SVG document,
+                  whether base64-encoded or not) as a tolerant no-op - rendering nothing for that
+                  element, without opening any file, making any network request, or attempting to
+                  recursively parse a second SVG document - and shall likewise tolerate a
+                  malformed or truncated base64 payload, or a raster payload that its own decoder
+                  rejects, as the same kind of tolerant per-element no-op.
+                justification: |
+                  Resolving an external href would require introducing a base-path/resolver
+                  mechanism that does not otherwise exist anywhere in SvgCodec.Load, and doing so
+                  without one would mean either silently failing in a less predictable way or
+                  opening arbitrary caller-influenced file paths/URLs from untrusted document
+                  data - a security-sensitive capability this codec deliberately does not
+                  introduce for this phase. Recursively parsing a nested SVG document is likewise
+                  out of scope, for the same recursive-parsing-complexity reasoning that already
+                  excludes feImage's own referenced-element case. Both are documented, deliberate
+                  scope boundaries rather than oversights, and a malformed/truncated/undecodable
+                  raster payload must fail the same tolerant, per-element way every other
+                  dangling-reference case in this codec already does, rather than aborting the
+                  whole document's rendering.
+                tests:
+                  - SvgCodec_Load_ImageExternalFileHref_RendersNothingWithoutFileAccess
+                  - SvgCodec_Load_ImageNestedSvgDataUri_RendersNothingWithoutRecursion
+                  - SvgCodec_Load_ImageMalformedBase64_SkipsElementWithoutThrowing
+                  - SvgCodec_Load_ImageTruncatedPngData_SkipsElementWithoutThrowing
+
+              - id: CanvasNet-Codecs-SvgCodec-ImageResourceSafety
+                title: >-
+                  The SvgCodec class shall bound image-related resource use by charging each
+                  rendered image element's own base64 payload length plus its own placement
+                  region's pixel area against the same cumulative filter-evaluation work budget
+                  already used for filter/clip-path/mask/pattern application (falling back to
+                  rendering nothing on decline), before performing the base64 decode and raster
+                  decode, and shall rely on the same maximum surface dimension already enforced by
+                  each raster codec's own Load method to bound the decoded image's own pixel
+                  dimensions.
+                justification: |
+                  An image element's own base64 payload length and declared width/height are both
+                  entirely untrusted document data, and either one - a maliciously huge embedded
+                  payload, or a declared placement region far larger than the decoded content -
+                  could otherwise drive unbounded decode or sampling work; charging both up front,
+                  before doing any decode work, and before allocating any per-pixel sampling
+                  buffer, mirrors this codec's existing "charge before allocate" convention already
+                  established for pattern tile-buffer allocation, so a single hostile image
+                  element cannot exhaust resources any differently than every other offscreen-
+                  buffer-allocating effect this codec already bounds.
+                tests:
+                  - SvgCodec_Load_ImageOversizedDeclaredDimensionsExceedingBudget_FallsBackToUnrenderedWithoutThrowing
 
               - id: CanvasNet-Codecs-SvgCodec-ValidationNull
                 title: >-

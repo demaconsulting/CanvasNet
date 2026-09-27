@@ -1,7 +1,7 @@
 ## SvgCodec Unit Verification Design
 
 <!-- cspell:ignore unstroked Letterboxing uncatchable Glyf Loca unparseable Cmap -->
-<!-- cspell:ignore unitless -->
+<!-- cspell:ignore unitless Pillarboxes letterboxed renderable -->
 
 This document describes the unit-level verification strategy for the `SvgCodec` class.
 
@@ -1195,6 +1195,79 @@ the ceiling, so each is genuinely pattern-filled, while the fourth shape's charg
 ceiling, so it tolerantly falls back to rendering fully unfilled, verified via each shape's own
 exclusive assertion pixel (deterministic pixel/behavioral assertions only - no wall-clock timing
 of any kind).
+
+#### CanvasNet-Codecs-SvgCodec-ImageRendering: `image` Data-URI Decode, Placement, and Effects-Pipeline Integration
+
+**Tests**: `SvgCodec_Load_ImageDataUriPng_RendersDecodedPixelsAtPlacementRect`,
+`SvgCodec_Load_ImageDataUriJpeg_RendersDecodedPixelsAtPlacementRect`,
+`SvgCodec_Load_ImagePreserveAspectRatioMeet_LettersOrPillarboxesNonMatchingAspect`,
+`SvgCodec_Load_ImagePreserveAspectRatioNone_StretchesNonUniformly`,
+`SvgCodec_Load_ImageWithClipPath_ClipsToClipPathShape`,
+`SvgCodec_Load_ImageWithMask_AttenuatesByMaskLuminance`,
+`SvgCodec_Load_ImageWithFilter_AppliesFilterToDecodedPixels`,
+`SvgCodec_Load_ImageWithOpacity_AppliesUniformAlphaToCompositedResult`,
+`SvgCodec_Load_ImageZeroWidthOrHeight_RendersNothingWithoutThrowing`,
+`SvgCodec_Load_ImageNoWidthOrHeightAttribute_RendersNothingWithoutThrowing`
+
+Asserts a `data:image/png;base64,...` href decodes through the existing `PngCodec` and draws the
+decoded pixels into the element's own `x`/`y`/`width`/`height` placement rect (verified inside and
+outside that rect), and asserts a `data:image/jpeg;base64,...` href likewise decodes through the
+existing `JpegCodec`, with a color-tolerance assertion accounting for JPEG's own lossy
+compression; asserts the default `xMidYMid meet` `preserveAspectRatio` fit uniformly scales a
+non-matching-aspect source image and centers it, leaving a transparent letterboxed remainder
+outside the fitted content, and asserts `preserveAspectRatio="none"` instead stretches the same
+source non-uniformly to exactly fill the placement rect with no letterbox remainder; asserts
+`clip-path` still hard-clips an `image` element's own decoded content to the referenced
+`clipPath` shape, asserts `mask` still attenuates it by the referenced `mask` element's own
+luminance, and asserts `filter` still evaluates against it (a bare `feFlood` filter's own output
+fully replaces the decoded raster, exactly as it would for any other filtered element) - each
+proving `image` is integrated through the same effects pipeline every other renderable element
+uses, with no special-casing; asserts an `image` element's own cascaded `opacity` attenuates the
+final composited alpha exactly once, mirroring every other effects-capable element's identical
+semantics; and asserts a zero-width/zero-height placement rect, and an `image` element with
+neither `width` nor `height` present at all (both default to `0`, per this codec's documented
+"no auto-sizing from intrinsic raster dimensions" simplification), each tolerantly render nothing
+rather than throwing or dividing by zero.
+
+#### CanvasNet-Codecs-SvgCodec-ImageExternalHrefScope: `image` External-Href and Nested-SVG Scope Boundaries
+
+**Tests**: `SvgCodec_Load_ImageExternalFileHref_RendersNothingWithoutFileAccess`,
+`SvgCodec_Load_ImageNestedSvgDataUri_RendersNothingWithoutRecursion`,
+`SvgCodec_Load_ImageMalformedBase64_SkipsElementWithoutThrowing`,
+`SvgCodec_Load_ImageTruncatedPngData_SkipsElementWithoutThrowing`
+
+Asserts an `image` element whose `href` is a relative file path (never a `data:` URI) renders
+nothing at all, and - since this codec never constructs a `File`/`FileStream` for anything but a
+`data:` URI's own in-memory payload - throws no exception even though the referenced path does
+not exist on disk, directly proving the external-href-as-no-op security decision (no
+base-path/resolver mechanism is introduced); asserts an `image` element whose `href` is a
+well-formed nested SVG document embedded as a `data:image/svg+xml;base64,...` URI likewise renders
+nothing, proving the nested-SVG-out-of-scope decision (this codec never attempts to re-parse it
+as a second document, mirroring the same recursive-parsing-complexity reasoning that already
+excludes `feImage`); asserts a malformed base64 payload (containing characters that are never
+valid base64) is a tolerant per-element no-op - `Load` completes normally and the rest of the
+document still renders - rather than an uncaught `FormatException` propagating out of `Load`; and
+asserts a well-formed base64 payload encoding a truncated/corrupt PNG (valid base64, but an
+undecodable raster payload - a distinct failure path from malformed base64 itself) is likewise a
+tolerant per-element no-op.
+
+#### CanvasNet-Codecs-SvgCodec-ImageResourceSafety: Image Resource-Safety Bounds
+
+**Tests**: `SvgCodec_Load_ImageOversizedDeclaredDimensionsExceedingBudget_FallsBackToUnrenderedWithoutThrowing`
+
+Asserts the shared, cumulative `FilterWorkBudget` ceiling (the same budget class filter/
+clip-path/mask/`pattern` application already charges, reused rather than duplicated for image
+placement-region sizing) is genuinely exhausted, not merely approached, mirroring
+`CanvasNet-Codecs-SvgCodec-PatternResourceSafety`'s own identical cumulative-budget-exhaustion
+structure and deterministic, non-wall-clock-timing assertion style: four non-overlapping,
+equally-sized `image` placements (arranged in a 2x2 grid, each stretching the same tiny
+solid-color PNG across its own placement rect) each charge their own placement-region pixel-area
+cost (plus a negligible base64-length term) against the shared budget; the first three
+placements' cumulative charge stays within the ceiling, so each genuinely renders its decoded
+raster, while the fourth placement's charge would exceed the ceiling, so it tolerantly falls back
+to rendering nothing at all, verified via each placement's own exclusive assertion pixel
+(deterministic pixel assertions only - no wall-clock timing of any kind, per the anti-flaky-test
+finding from this codec's own filter-support formal review).
 
 #### CanvasNet-Codecs-SvgCodec-ValidationNull: Null Stream/Path Rejected
 

@@ -93,9 +93,13 @@ public static partial class SvgCodec
     /// <summary>
     ///     Parses a <c>preserveAspectRatio</c> attribute's raw value: an optional leading
     ///     <c>defer</c> token (parsed and discarded - meaningful only for an <c>&lt;image&gt;</c>
-    ///     element's external resource loading order, which this codec does not implement, so it
-    ///     has no observable effect either way), one of the 10 <c>&lt;align&gt;</c> keywords, and
-    ///     an optional trailing <c>meet</c>/<c>slice</c> keyword (defaulting to <c>meet</c>).
+    ///     element's own external-resource load ordering, which still has no observable effect
+    ///     here even for this codec's now-supported <c>data:</c> URI <c>&lt;image&gt;</c> decode
+    ///     (see <c>SvgCodec.Image.cs</c>), since that decode happens synchronously in place with
+    ///     no separate load-ordering concept at all - and this codec still never resolves an
+    ///     external, non-<c>data:</c> reference, for which <c>defer</c> would otherwise matter),
+    ///     one of the 10 <c>&lt;align&gt;</c> keywords, and an optional trailing <c>meet</c>/
+    ///     <c>slice</c> keyword (defaulting to <c>meet</c>).
     /// </summary>
     /// <param name="raw">The attribute's raw value, or <see langword="null"/> if absent.</param>
     /// <returns>
@@ -117,8 +121,9 @@ public static partial class SvgCodec
         var index = 0;
 
         // "defer" only ever affects external-resource load ordering for <image>, which this
-        // codec does not implement - parsed here only so its presence does not shift the
-        // following <align>/meetOrSlice tokens out of position
+        // codec does not implement (and, even for a supported data: URI <image>, has no
+        // observable effect since decode happens synchronously in place) - parsed here only so
+        // its presence does not shift the following <align>/meetOrSlice tokens out of position
         if (index < tokens.Length && string.Equals(tokens[index], "defer", StringComparison.OrdinalIgnoreCase))
         {
             index++;

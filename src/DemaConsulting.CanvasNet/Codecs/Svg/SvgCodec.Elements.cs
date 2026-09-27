@@ -251,7 +251,7 @@ public static partial class SvgCodec
     private static readonly HashSet<string> SkippedElements = new(StringComparer.Ordinal)
     {
         "style", "animate", "animateTransform", "animateMotion", "animateColor", "set",
-        "image", "foreignObject", "svg", "metadata", "title", "desc", "script"
+        "foreignObject", "svg", "metadata", "title", "desc", "script"
     };
 
     /// <summary>
@@ -505,6 +505,10 @@ public static partial class SvgCodec
 
             case "text":
                 RenderText(element, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
+                break;
+
+            case "image":
+                RenderImageWithEffects(element, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
                 break;
 
             default:

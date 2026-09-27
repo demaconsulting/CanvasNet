@@ -2,7 +2,7 @@
 // cspell:ignore Dasharray hhea Hhea hmtx Hmtx hrefs letterboxed Loca Maxp unstroked
 // cspell:ignore miterlimit
 // cspell:ignore unparseable overpainted bbox moveto lineto rects unrotated unclipped
-// cspell:ignore pillarbox
+// cspell:ignore pillarbox Pillarboxes sizeless
 using System.Diagnostics;
 using System.Reflection;
 using System.Text;
@@ -7926,5 +7926,531 @@ public class SvgCodecTests
         // recursive walk
         Assert.True(surface[10, 50].R < surface[90, 50].R);
     }
+
+    // ================================================================================================
+    // <image> element (Phase 4 of the SVG roadmap)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Builds a small, solid-color <see cref="Surface"/> for use as a raster test payload -
+    ///     small enough to keep the base64-encoded "data:" URI fixtures below readable, while still
+    ///     giving each pixel an unambiguous, distinguishable expected color.
+    /// </summary>
+    private static Surface BuildSolidSurface(int width, int height, Rgba32 color)
+    {
+        var surface = new Surface(width, height);
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                surface[x, y] = color;
+            }
+        }
+
+        return surface;
+    }
+
+    /// <summary>
+    ///     Encodes <paramref name="surface"/> via <see cref="PngCodec"/>'s own existing
+    ///     <c>Save</c> method and wraps the result as a base64-encoded
+    ///     <c>data:image/png;base64,...</c> URI, so an <c>&lt;image&gt;</c> href fixture below can
+    ///     be constructed entirely in-memory, without a binary fixture file under
+    ///     <c>SvgFixtures/</c> and without hand-rolling any binary PNG bytes.
+    /// </summary>
+    private static string BuildPngDataUri(Surface surface)
+    {
+        using var pngStream = new MemoryStream();
+        PngCodec.Save(surface, pngStream);
+        return "data:image/png;base64," + Convert.ToBase64String(pngStream.ToArray());
+    }
+
+    /// <summary>
+    ///     Same as <see cref="BuildPngDataUri"/>, but encoded via <see cref="JpegCodec"/>'s own
+    ///     existing <c>Save</c> method as a <c>data:image/jpeg;base64,...</c> URI. JPEG's own lossy
+    ///     compression means a test using this helper should assert with a reasonable color
+    ///     tolerance rather than exact equality (see <see cref="JpegCodecTests"/>'s own identical
+    ///     convention for round-tripped JPEG pixels).
+    /// </summary>
+    private static string BuildJpegDataUri(Surface surface)
+    {
+        using var jpegStream = new MemoryStream();
+        JpegCodec.Save(surface, jpegStream);
+        return "data:image/jpeg;base64," + Convert.ToBase64String(jpegStream.ToArray());
+    }
+
+    /// <summary>
+    ///     Proves the basic <c>data:image/png;base64,...</c> decode-and-place path: a small solid
+    ///     blue PNG is decoded and stretched (<c>preserveAspectRatio="none"</c>, so no letterbox
+    ///     complicates the assertion) across its own <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c>
+    ///     placement rect.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageDataUriPng_RendersDecodedPixelsAtPlacementRect()
+    {
+        // Arrange: a 2x2 solid blue PNG, placed at (20,20) with a 60x60 placement rect
+        using var source = BuildSolidSurface(2, 2, new Rgba32(0, 0, 255, 255));
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 100 100'>
+              <image href='{dataUri}' x='20' y='20' width='60' height='60' preserveAspectRatio='none'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the decoded blue pixel is visible inside the placement rect
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
+
+        // Assert: outside the placement rect, nothing was painted
+        Assert.Equal(0, surface[10, 10].A);
+    }
+
+    /// <summary>
+    ///     Proves the <c>data:image/jpeg;base64,...</c> decode path - the same placement behavior
+    ///     as the PNG test above, but dispatched through <see cref="JpegCodec"/> instead, and
+    ///     asserted with a color tolerance to account for JPEG's own lossy compression.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageDataUriJpeg_RendersDecodedPixelsAtPlacementRect()
+    {
+        // Arrange: a small solid green JPEG, stretched across its own placement rect
+        using var source = BuildSolidSurface(4, 4, new Rgba32(0, 200, 0, 255));
+        var dataUri = BuildJpegDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 100 100'>
+              <image href='{dataUri}' x='20' y='20' width='60' height='60' preserveAspectRatio='none'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the decoded pixel is fully opaque and close to the encoded green, allowing for
+        // JPEG's own lossy round-trip color drift
+        var pixel = surface[50, 50];
+        Assert.Equal(255, (int)pixel.A);
+        Assert.InRange((int)pixel.R, 0, 40);
+        Assert.InRange((int)pixel.G, 170, 255);
+        Assert.InRange((int)pixel.B, 0, 40);
+    }
+
+    /// <summary>
+    ///     Proves the default <c>xMidYMid meet</c> <c>preserveAspectRatio</c> fit: a wide 2x1
+    ///     source image is uniformly scaled to fit entirely within a square placement rect,
+    ///     leaving a transparent letterbox bar above/below rather than stretching non-uniformly.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImagePreserveAspectRatioMeet_LettersOrPillarboxesNonMatchingAspect()
+    {
+        // Arrange: a 2x1 solid green source, placed into a 100x100 square placement rect with no
+        // explicit preserveAspectRatio (defaults to "xMidYMid meet")
+        using var source = BuildSolidSurface(2, 1, new Rgba32(0, 255, 0, 255));
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 100 100'>
+              <image href='{dataUri}' x='0' y='0' width='100' height='100'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the 2:1 image is uniformly scaled to 100x50 and vertically centered, so a top
+        // corner point falls in the letterboxed, unpainted area
+        Assert.Equal(0, surface[50, 10].A);
+
+        // Assert: the vertical center shows the decoded green pixel
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves <c>preserveAspectRatio="none"</c>: the same non-matching-aspect source image
+    ///     used by the "meet" test above instead stretches non-uniformly to exactly fill the
+    ///     placement rect, with no letterbox remainder.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImagePreserveAspectRatioNone_StretchesNonUniformly()
+    {
+        // Arrange: identical source/placement to the "meet" test above, only differing by
+        // preserveAspectRatio="none"
+        using var source = BuildSolidSurface(2, 1, new Rgba32(0, 255, 0, 255));
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 100 100'>
+              <image href='{dataUri}' x='0' y='0' width='100' height='100' preserveAspectRatio='none'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the same top-corner point that was letterboxed (transparent) under the default
+        // "meet" fit now shows the decoded image - "none" filled the whole placement rect
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[50, 10]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>clip-path</c> still applies to an <c>image</c> element, reusing the same
+    ///     <c>ApplyClipPath</c> building block every shape/text element's own effects pipeline uses
+    ///     - mirrors <see cref="SvgCodec_Load_ClipPathUserSpaceOnUse_ClipsToAbsoluteCircle"/>'s own
+    ///     structure.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageWithClipPath_ClipsToClipPathShape()
+    {
+        // Arrange: a solid red image stretched across (20,20)-(80,80), clipped by a circle
+        // centered at (50,50) with radius 20
+        using var source = BuildSolidSurface(2, 2, new Rgba32(255, 0, 0, 255));
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'>
+                  <circle cx='50' cy='50' r='20'/>
+                </clipPath>
+              </defs>
+              <image href='{dataUri}' x='20' y='20' width='60' height='60' preserveAspectRatio='none' clip-path='url(#c)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: inside the clip circle, the decoded red pixel is visible
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 50]);
+
+        // Assert: within the image's own placement rect but outside the clip circle, nothing is
+        // painted
+        Assert.Equal(0, surface[22, 22].A);
+        Assert.Equal(0, surface[78, 78].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>mask</c> still applies to an <c>image</c> element, reusing the same
+    ///     <c>ApplyMask</c> luminance-attenuation building block every shape/text element's own
+    ///     effects pipeline uses - mirrors <see cref="SvgCodec_Load_MaskDefaultLuminance_WhiteRevealsBlackHides"/>'s
+    ///     own structure.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageWithMask_AttenuatesByMaskLuminance()
+    {
+        // Arrange: a solid blue image stretched across (20,20)-(80,80), masked by a white 20x20
+        // rect at (30,30) - only that overlap is revealed
+        using var source = BuildSolidSurface(2, 2, new Rgba32(0, 0, 255, 255));
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <mask id='m'>
+                  <rect x='30' y='30' width='20' height='20' fill='white'/>
+                </mask>
+              </defs>
+              <image href='{dataUri}' x='20' y='20' width='60' height='60' preserveAspectRatio='none' mask='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: inside the white mask shape, the decoded blue fill is fully visible
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[40, 40]);
+
+        // Assert: within the image's own placement rect but outside the mask's white shape,
+        // nothing is visible (default mask background is fully transparent black)
+        Assert.Equal(0, surface[22, 22].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>filter</c> still applies to an <c>image</c> element, reusing the same
+    ///     <c>EvaluateFilterChain</c> building block every shape/text element's own effects
+    ///     pipeline uses - mirrors <see cref="SvgCodec_Load_FeFloodFilter_RendersSolidColorBehindElement"/>'s
+    ///     own structure.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageWithFilter_AppliesFilterToDecodedPixels()
+    {
+        // Arrange: a solid blue image at (40,40)-(60,60); the filter's default region expands the
+        // image's own placement rect by -10%/120%, i.e. (38,38)-(62,62)
+        using var source = BuildSolidSurface(2, 2, new Rgba32(0, 0, 255, 255));
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feFlood flood-color='red'/>
+                </filter>
+              </defs>
+              <image href='{dataUri}' x='40' y='40' width='20' height='20' preserveAspectRatio='none' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the flood fills the expanded region outside the image's own placement rect
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[39, 50]);
+
+        // Assert: the flood also fully replaces the decoded blue pixel at the image's own center,
+        // since the filter's final output is the bare feFlood result, not a merge with the
+        // decoded raster
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that an <c>image</c> element's own cascaded <c>opacity</c> is applied exactly
+    ///     once to the final composited result, mirroring every other effects-capable element's
+    ///     identical semantics.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageWithOpacity_AppliesUniformAlphaToCompositedResult()
+    {
+        // Arrange: a fully-opaque solid red image with opacity="0.5"
+        using var source = BuildSolidSurface(2, 2, new Rgba32(255, 0, 0, 255));
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 100 100'>
+              <image href='{dataUri}' x='0' y='0' width='100' height='100' preserveAspectRatio='none' opacity='0.5'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the decoded color channels are untouched, only alpha is attenuated to roughly
+        // half of fully opaque (0.5 * 255 = 127.5)
+        var pixel = surface[50, 50];
+        Assert.Equal(255, pixel.R);
+        Assert.Equal(0, pixel.G);
+        Assert.Equal(0, pixel.B);
+        Assert.InRange((int)pixel.A, 110, 145);
+    }
+
+    /// <summary>
+    ///     Proves that a malformed (invalid-character) base64 payload is a tolerant per-element
+    ///     no-op: <c>Load</c> completes normally and the rest of the document still renders,
+    ///     rather than an uncaught <see cref="FormatException"/> propagating out of <c>Load</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageMalformedBase64_SkipsElementWithoutThrowing()
+    {
+        // Arrange: a background rect, then an image whose base64 payload contains characters
+        // that are never valid base64
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(255,0,0)'/>
+              <image href='data:image/png;base64,!!!not-valid-base64!!!' x='0' y='0' width='10' height='10'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the malformed image painted nothing at all - the background rect remains
+        // visible - and no exception was thrown
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that well-formed base64 encoding a truncated/corrupt PNG payload is also a
+    ///     tolerant per-element no-op - a distinct failure path from malformed base64 itself
+    ///     (base64 decoding succeeds here; <see cref="PngCodec.Load(Stream)"/>'s own raster
+    ///     decode is what fails).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageTruncatedPngData_SkipsElementWithoutThrowing()
+    {
+        // Arrange: a real PNG encoding, truncated to its first 16 bytes (past the 8-byte
+        // signature but well short of a complete IHDR chunk) - still valid base64, but not a
+        // decodable PNG
+        using var source = BuildSolidSurface(4, 4, new Rgba32(0, 0, 255, 255));
+        using var pngStream = new MemoryStream();
+        PngCodec.Save(source, pngStream);
+        var truncatedBytes = pngStream.ToArray().AsSpan(0, 16).ToArray();
+        var dataUri = "data:image/png;base64," + Convert.ToBase64String(truncatedBytes);
+
+        var svg = $"""
+            <svg viewBox='0 0 10 10'>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(255,0,0)'/>
+              <image href='{dataUri}' x='0' y='0' width='10' height='10'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the truncated image painted nothing at all - the background rect remains
+        // visible - and no exception was thrown
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Resource-safety regression test: <c>FilterWorkBudget</c> is a single shared cumulative
+    ///     ceiling, charged by every rendered <c>image</c> element's own placement-region pixel
+    ///     area (plus its own base64 payload length) - mirroring
+    ///     <see cref="SvgCodec_Load_PatternReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilledForExcessShapes"/>'s
+    ///     identical cumulative-budget-exhaustion structure and its deliberately deterministic,
+    ///     non-wall-clock-timing assertion style: four non-overlapping 4000x3750 (15,000,000-
+    ///     pixel-area) placements each charge just over 15,000,000 work units, so the first three
+    ///     placements' cumulative charge (45,000,000 plus a negligible base64-length term) stays
+    ///     within the 50,000,000 ceiling and each genuinely renders its decoded raster, but the
+    ///     fourth placement's charge would exceed the ceiling, so it tolerantly falls back to
+    ///     rendering nothing at all.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageOversizedDeclaredDimensionsExceedingBudget_FallsBackToUnrenderedWithoutThrowing()
+    {
+        // Arrange: a background rect, then four non-overlapping 4000x3750 <image> placements,
+        // each stretching the same tiny solid-green PNG across its own placement rect
+        using var source = BuildSolidSurface(2, 2, new Rgba32(0, 255, 0, 255));
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 8000 7500'>
+              <rect x='0' y='0' width='8000' height='7500' fill='rgb(255,0,0)'/>
+              <image href='{dataUri}' x='0' y='0' width='4000' height='3750' preserveAspectRatio='none'/>
+              <image href='{dataUri}' x='4000' y='0' width='4000' height='3750' preserveAspectRatio='none'/>
+              <image href='{dataUri}' x='0' y='3750' width='4000' height='3750' preserveAspectRatio='none'/>
+              <image href='{dataUri}' x='4000' y='3750' width='4000' height='3750' preserveAspectRatio='none'/>
+            </svg>
+            """;
+
+        // Act: must complete without allocating unbounded offscreen buffers
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 8000, 7500);
+
+        // Assert: the first three grid cells (document order) stayed within the cumulative
+        // budget, so each genuinely rendered its decoded green pixel
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[2000, 1875]);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[6000, 1875]);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[2000, 5625]);
+
+        // Assert: the fourth (and only the fourth) grid cell's charge exhausted the shared
+        // cumulative budget, so it tolerantly fell back to painting nothing, leaving the
+        // background visible through it - deterministic proof the excess image was skipped
+        // rather than decoded, with no Stopwatch/timing assertion anywhere
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[6000, 5625]);
+    }
+
+    /// <summary>
+    ///     Proves the external-href-as-no-op security decision directly: a relative file-path
+    ///     <c>href</c> (never a <c>data:</c> URI) renders nothing, and - since this codec never
+    ///     constructs a <see cref="File.Exists(string?)"/>/<see cref="FileStream"/> for anything
+    ///     but a <c>data:</c> URI's own in-memory payload - no exception is thrown even though the
+    ///     referenced path does not exist on disk.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageExternalFileHref_RendersNothingWithoutFileAccess()
+    {
+        // Arrange: a relative file href pointing at a file that does not exist on disk
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(255,0,0)'/>
+              <image href='./this-file-does-not-exist-on-disk.png' x='0' y='0' width='10' height='10'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the external-href image painted nothing at all - the background rect remains
+        // visible - and no exception was thrown attempting to open the non-existent file
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves the nested-SVG-out-of-scope decision directly: a well-formed nested SVG document
+    ///     embedded as a <c>data:image/svg+xml;base64,...</c> URI renders nothing, without this
+    ///     codec ever attempting to re-parse it as a second document.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageNestedSvgDataUri_RendersNothingWithoutRecursion()
+    {
+        // Arrange: a small, valid nested SVG document, base64-encoded as its own data: URI
+        const string nestedSvg =
+            "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><rect width='10' height='10' fill='blue'/></svg>";
+        var nestedDataUri = "data:image/svg+xml;base64," + Convert.ToBase64String(Encoding.UTF8.GetBytes(nestedSvg));
+
+        var svg = $"""
+            <svg viewBox='0 0 10 10'>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(255,0,0)'/>
+              <image href='{nestedDataUri}' x='0' y='0' width='10' height='10'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the nested-SVG image painted nothing at all - the background rect remains
+        // visible - proving the nested document was never rendered
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that a zero-width or zero-height <c>image</c> placement rect is tolerantly
+    ///     rejected - painting nothing at all - rather than throwing or dividing by zero, mirroring
+    ///     <see cref="SvgCodec_Load_PatternZeroWidthOrHeight_RendersUnfilledWithoutThrowing"/>'s
+    ///     own structure.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageZeroWidthOrHeight_RendersNothingWithoutThrowing()
+    {
+        // Arrange
+        using var source = BuildSolidSurface(2, 2, new Rgba32(0, 255, 0, 255));
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 10 10'>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(255,0,0)'/>
+              <image href='{dataUri}' x='0' y='0' width='0' height='0'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the degenerate image painted nothing at all - the background rect remains
+        // visible - and no exception was thrown
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Confirms the documented "absent width/height defaults to 0, not 'auto'" simplification:
+    ///     an <c>image</c> element with neither attribute present renders nothing, rather than
+    ///     inferring a size from the decoded raster's own intrinsic dimensions.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageNoWidthOrHeightAttribute_RendersNothingWithoutThrowing()
+    {
+        // Arrange
+        using var source = BuildSolidSurface(2, 2, new Rgba32(0, 255, 0, 255));
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 10 10'>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(255,0,0)'/>
+              <image href='{dataUri}' x='0' y='0'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the sizeless image painted nothing at all - the background rect remains
+        // visible - and no exception was thrown
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
+    }
 }
+
 
