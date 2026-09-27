@@ -1,5 +1,4 @@
-// cspell:ignore huerotate luminancetoalpha
-using System.Numerics;
+// cspell:ignore huerotate luminancetoalpha rodrigues
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 
@@ -149,32 +148,35 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Builds a hue-rotation matrix around the shared luminance axis.
+    ///     Builds the hue-rotation matrix using the closed-form formula from the SVG/CSS Filter
+    ///     Effects specification.
     /// </summary>
+    /// <remarks>
+    ///     The spec's <c>hueRotate</c> matrix is NOT a geometric axis-rotation of the RGB cube
+    ///     around the luminance vector; it is a fixed formula built from the shared luma
+    ///     coefficients <c>lumR=0.2125</c>, <c>lumG=0.7154</c>, <c>lumB=0.0721</c> plus three
+    ///     additional published constants (<c>0.143</c>, <c>0.140</c>, <c>0.283</c>) that only
+    ///     appear in the green/blue rows. A Rodrigues rotation around the normalized luminance
+    ///     axis produces a different, spec-noncompliant matrix, so the coefficients below are
+    ///     transcribed directly from the specification rather than derived geometrically.
+    /// </remarks>
     /// <param name="degrees">The rotation angle, in degrees.</param>
     /// <returns>The row-major 4x5 matrix.</returns>
     private static float[] BuildHueRotateColorMatrix(float degrees)
     {
-        var axis = new Vector3(
-            ComputeLuminance(255, 0, 0),
-            ComputeLuminance(0, 255, 0),
-            ComputeLuminance(0, 0, 255));
-        axis = Vector3.Normalize(axis);
+        const float lumR = 0.2125f;
+        const float lumG = 0.7154f;
+        const float lumB = 0.0721f;
 
         var radians = degrees * (MathF.PI / 180f);
         var cos = MathF.Cos(radians);
         var sin = MathF.Sin(radians);
-        var oneMinusCos = 1f - cos;
-
-        var ux = axis.X;
-        var uy = axis.Y;
-        var uz = axis.Z;
 
         return
         [
-            cos + (ux * ux * oneMinusCos), (ux * uy * oneMinusCos) - (uz * sin), (ux * uz * oneMinusCos) + (uy * sin), 0f, 0f,
-            (uy * ux * oneMinusCos) + (uz * sin), cos + (uy * uy * oneMinusCos), (uy * uz * oneMinusCos) - (ux * sin), 0f, 0f,
-            (uz * ux * oneMinusCos) - (uy * sin), (uz * uy * oneMinusCos) + (ux * sin), cos + (uz * uz * oneMinusCos), 0f, 0f,
+            lumR + (cos * (1f - lumR)) - (sin * lumR), lumG - (cos * lumG) - (sin * lumG), lumB - (cos * lumB) + (sin * (1f - lumB)), 0f, 0f,
+            lumR - (cos * lumR) + (sin * 0.143f), lumG + (cos * (1f - lumG)) + (sin * 0.140f), lumB - (cos * lumB) - (sin * 0.283f), 0f, 0f,
+            lumR - (cos * lumR) - (sin * (1f - lumR)), lumG - (cos * lumG) + (sin * lumG), lumB + (cos * (1f - lumB)) + (sin * lumB), 0f, 0f,
             0f, 0f, 0f, 1f, 0f
         ];
     }

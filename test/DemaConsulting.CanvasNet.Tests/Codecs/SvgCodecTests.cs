@@ -2826,8 +2826,11 @@ public class SvgCodecTests
     }
 
     /// <summary>
-    ///     Proves that <c>feColorMatrix type="hueRotate"</c> rotates hue while preserving full
-    ///     alpha coverage.
+    ///     Proves that <c>feColorMatrix type="hueRotate"</c> rotates hue by exactly the spec's
+    ///     closed-form formula (not a geometric axis-rotation, which yields different, incorrect
+    ///     coefficients). At 120 degrees on pure red (1,0,0), the spec formula evaluates to
+    ///     approximately (-0.36528, 0.44259, -0.36325), which clamps to (0, 0.44259, 0) and rounds
+    ///     to the byte triple (0, 113, 0).
     /// </summary>
     [Fact]
     public void SvgCodec_Load_FeColorMatrixTypeHueRotate_RotatesHueByAngle()
@@ -2851,7 +2854,9 @@ public class SvgCodecTests
         // Assert
         var pixel = surface[5, 5];
         Assert.Equal(255, pixel.A);
-        Assert.True(pixel.G > pixel.R && pixel.G > pixel.B, $"Expected hue-rotated red to become green-dominant, got {pixel}.");
+        Assert.Equal(0, pixel.R);
+        Assert.InRange(pixel.G, 111, 115);
+        Assert.Equal(0, pixel.B);
     }
 
     /// <summary>
