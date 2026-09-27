@@ -364,6 +364,56 @@ Asserts `text-anchor="middle"` centers the glyph run on the given `x` (checked a
 correctly-centered position and the position a start-anchored run would have used instead), and
 `text-anchor="end"` right-aligns the run so it ends at the given `x` (checked the same way).
 
+#### CanvasNet-Codecs-SvgCodec-FontWeightStyleCascade: Font-Weight/Font-Style Attribute Parsing and Cascade
+
+**Tests**: `SvgCodec_Load_GroupFontWeightInheritance_AppliesToChildTextWithoutOwnFontWeight`,
+`SvgCodec_Load_GroupFontStyleInheritance_AppliesToChildTextWithoutOwnFontStyle`
+
+Uses two new synthetic test fonts (`BuildBoldTestFont`, an 80-wide square glyph; and
+`BuildItalicTestFont`, a 50-wide square glyph shifted right by 20 units), each distinguishable
+from `BuildTestFont`'s original 50-wide square by which canvas pixels are/are not filled, so a
+test can prove *which* registered face actually rendered. Asserts a `g` element's own
+`font-weight="bold"` cascades to a child `text` element with no own `font-weight` (the child
+selects the bold face), and likewise for a `g` element's own `font-style="italic"` cascading to a
+child `text` element with no own `font-style` (the child selects the italic face) - mirroring
+`SvgCodec_Load_GroupFillInheritance_AppliesToChildWithoutOwnFill`'s inheritance pattern for
+`font-family`/`font-size`'s other presentation-attribute siblings.
+
+#### CanvasNet-Codecs-SvgCodec-FontFaceMatching: Closest-Face Selection Algorithm
+
+**Tests**: `SvgCodec_Load_TextFontWeightBold_SelectsBoldFaceOverNormalFace`,
+`SvgCodec_Load_TextFontStyleItalic_SelectsItalicFaceOverNormalFace`,
+`SvgCodec_Load_TextFontWeightNumeric_SelectsClosestRegisteredFaceByDistance`,
+`SvgCodec_Load_TextFontWeightTie_PrefersMatchingBoldnessSide`,
+`SvgCodec_Load_TextFontStyleNoItalicRegistered_FallsBackToOnlyAvailableFace`,
+`SvgCodec_Load_TextFontWeightAndStyleCombined_SelectsExactMatchAmongThreeFaces`
+
+Exercises every branch of `SelectClosestFace`'s three-part priority order using the richer
+`Load(..., IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>?)` overload: a two-face family
+(400/Normal narrow, 700/Normal wide) selects the bold face for `font-weight="bold"` and the
+normal face for a sibling with no own `font-weight`; a two-face family (400/Normal narrow,
+400/Italic shifted) selects the italic face for `font-style="italic"`; faces registered at 400
+and 900 with a requested weight of 600 select the closer 400 face (distance 200 versus 300); faces
+registered at 300 and 500 with a requested weight of 400 (an equidistant tie) select the 500 face,
+proving the boldness-side tie-break; a family with only a 400/Normal face still renders it when
+`font-style="italic"` is requested (graceful fallback, not silent skipping); and three faces
+(400/Normal, 700/Normal, 700/Italic) with a combined `font-weight="bold" font-style="italic"`
+request select the 700/Italic face specifically - proven by asserting both a pixel unique to the
+italic face's glyph (proving it is not the normal face) and a pixel unique to the wide/bold face's
+glyph is *not* filled (proving it is not merely the weight-matched bold/normal face).
+
+#### CanvasNet-Codecs-SvgCodec-LegacySingleFontCompatibility: Legacy Single-Font-Per-Family Overload Regression
+
+**Tests**: `SvgCodec_Load_TextLegacySingleFontOverload_IgnoresRequestedWeightAndStyle`
+
+Proves the pre-existing `Load(..., IReadOnlyDictionary<string, TrueTypeFont>?)` overload's
+behavior is unchanged by the additive `SvgFontFace`-based overload: with only one plain
+`TrueTypeFont` registered for a family, a `text` element requesting both `font-weight="bold"` and
+`font-style="italic"` still renders that single registered font at its known pixel position,
+proving the legacy overload's internal `ToFontFaces` wrapping (one normal-weight/normal-style
+face per family) makes weight/style irrelevant to face selection, exactly as before this feature
+existed.
+
 #### CanvasNet-Codecs-SvgCodec-ViewBoxFitting: ViewBox "Meet, Centered" Fitting and Letterboxing
 
 **Tests**: `SvgCodec_Load_WideViewBoxIntoSquareRaster_LetterboxesTopAndBottom`,

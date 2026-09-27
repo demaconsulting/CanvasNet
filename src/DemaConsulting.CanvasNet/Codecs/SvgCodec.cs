@@ -83,8 +83,11 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     <c>width</c>/<c>height</c>) - see this class's <c>RenderFilteredShape</c>/
 ///     <c>EvaluateFilterChain</c> remarks for the documented simplifications; and
 ///     <c>text</c> (with <c>font-family</c> best-effort
-///     matching against a caller-supplied font dictionary, <c>font-size</c>, <c>fill</c>, and
-///     <c>text-anchor</c>).
+///     matching against a caller-supplied font dictionary, <c>font-size</c>, <c>fill</c>,
+///     <c>text-anchor</c>, and, for a caller that registers more than one <see cref="SvgFontFace"/>
+///     per family via the richer <see cref="Load(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>
+///     overload, <c>font-weight</c>/<c>font-style</c>-aware closest-face matching - see this
+///     class's <c>SelectClosestFace</c> remarks for the matching algorithm).
 ///     </para>
 ///     <para>
 ///     <b>Out of scope (silently ignored, per element).</b> <c>style</c> blocks and CSS
@@ -113,6 +116,16 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     specifically because it is the only primitive that could otherwise reference another
 ///     filtered element's own render output, and omitting it removes any need for an additional
 ///     filter-specific recursion-depth guard.
+///     </para>
+///     <para>
+///     Within the supported <c>text</c> feature itself, the <c>font-weight</c> relative
+///     keywords <c>bolder</c>/<c>lighter</c> (which resolve to a value relative to the
+///     inherited weight rather than an absolute one) are not implemented - encountering either
+///     keyword is tolerantly treated the same as an absent/unparseable <c>font-weight</c>,
+///     falling back to the inherited value rather than throwing or guessing a relative
+///     adjustment - and the <c>font-style</c> keyword <c>oblique</c> is not distinguished from
+///     <c>italic</c>: both map onto the same <see cref="SvgFontStyle.Italic"/> value (see
+///     <see cref="SvgFontStyle"/>'s remarks for the rationale).
 ///     </para>
 ///     <para>
 ///     <b>ViewBox fitting.</b> <see cref="Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont}?)"/>
@@ -386,7 +399,9 @@ public static class SvgCodec
 
     /// <summary>
     ///     Rasterizes an SVG document read from an open, readable stream onto a new
-    ///     <see cref="Surface"/> of the requested size.
+    ///     <see cref="Surface"/> of the requested size, matching each <c>text</c> element's
+    ///     cascaded <c>font-family</c>/<c>font-weight</c>/<c>font-style</c> against a
+    ///     caller-supplied dictionary of per-family <see cref="SvgFontFace"/> lists.
     /// </summary>
     /// <param name="stream">
     ///     The stream to read the SVG document from. Reading begins at the stream's current
@@ -395,11 +410,15 @@ public static class SvgCodec
     /// <param name="width">The width, in pixels, of the returned surface.</param>
     /// <param name="height">The height, in pixels, of the returned surface.</param>
     /// <param name="fonts">
-    ///     An optional dictionary mapping font-family names to loaded <see cref="TrueTypeFont"/>
-    ///     instances, used to render <c>text</c> elements. A <see langword="null"/> value (the
-    ///     default) or a dictionary with no entry matching a given <c>text</c> element's
-    ///     <c>font-family</c> causes that element to be silently skipped rather than throwing -
-    ///     see this class's remarks.
+    ///     An optional dictionary mapping font-family names to the list of <see cref="SvgFontFace"/>
+    ///     instances registered for that family, used to render <c>text</c> elements. A
+    ///     <see langword="null"/> value, a dictionary with no entry matching a given <c>text</c>
+    ///     element's <c>font-family</c>, or a matching entry whose face list is empty, causes that
+    ///     element to be silently skipped rather than throwing - see this class's remarks. When a
+    ///     family has more than one registered face, the face whose <see cref="SvgFontFace.Weight"/>/
+    ///     <see cref="SvgFontFace.Style"/> most closely matches the element's own cascaded
+    ///     <c>font-weight</c>/<c>font-style</c> is selected - see <c>SelectClosestFace</c>'s remarks
+    ///     for the matching algorithm.
     /// </param>
     /// <returns>
     ///     A new <see cref="Surface"/> of the requested size containing the rasterized document,
@@ -417,16 +436,20 @@ public static class SvgCodec
     /// </exception>
     /// <example>
     ///     <code>
-    ///     const string svg = "&lt;svg viewBox='0 0 100 100'&gt;&lt;circle cx='50' cy='50' r='40' fill='red'/&gt;&lt;/svg&gt;";
+    ///     const string svg = "&lt;svg viewBox='0 0 100 100'&gt;&lt;text font-family='Sans' font-weight='bold'&gt;Hi&lt;/text&gt;&lt;/svg&gt;";
     ///     using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(svg));
-    ///     var surface = SvgCodec.Load(stream, 200, 200);
+    ///     var faces = new Dictionary&lt;string, IReadOnlyList&lt;SvgFontFace&gt;&gt;
+    ///     {
+    ///         ["Sans"] = [new SvgFontFace(regularFont), new SvgFontFace(boldFont, Weight: 700)]
+    ///     };
+    ///     var surface = SvgCodec.Load(stream, 200, 200, faces);
     ///     </code>
     /// </example>
     public static Surface Load(
         Stream stream,
         int width,
         int height,
-        IReadOnlyDictionary<string, TrueTypeFont>? fonts = null)
+        IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>? fonts)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
@@ -466,7 +489,111 @@ public static class SvgCodec
 
     /// <summary>
     ///     Rasterizes an SVG document loaded from a file path onto a new <see cref="Surface"/> of
-    ///     the requested size. See <see cref="Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont}?)"/>
+    ///     the requested size. See <see cref="Load(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>
+    ///     for the full contract.
+    /// </summary>
+    /// <param name="path">The path of the SVG file to load. Must not be null, empty, or whitespace.</param>
+    /// <param name="width">The width, in pixels, of the returned surface.</param>
+    /// <param name="height">The height, in pixels, of the returned surface.</param>
+    /// <param name="fonts">
+    ///     An optional dictionary mapping font-family names to the list of <see cref="SvgFontFace"/>
+    ///     instances registered for that family. See the stream overload's remarks.
+    /// </param>
+    /// <returns>A new <see cref="Surface"/> containing the rasterized document.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when <paramref name="path"/> is empty or consists only of whitespace.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <paramref name="width"/> or <paramref name="height"/> is not a valid
+    ///     <see cref="Surface"/> dimension.
+    /// </exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the file does not contain a well-formed, supported SVG document.
+    /// </exception>
+    public static Surface Load(
+        string path,
+        int width,
+        int height,
+        IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>? fonts)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            throw new ArgumentException("Path must not be empty or whitespace.", nameof(path));
+        }
+
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
+        return Load(stream, width, height, fonts);
+    }
+
+    /// <summary>
+    ///     Rasterizes an SVG document read from an open, readable stream onto a new
+    ///     <see cref="Surface"/> of the requested size, using at most one <see cref="TrueTypeFont"/>
+    ///     per font-family.
+    /// </summary>
+    /// <param name="stream">
+    ///     The stream to read the SVG document from. Reading begins at the stream's current
+    ///     position and consumes the remainder of the stream.
+    /// </param>
+    /// <param name="width">The width, in pixels, of the returned surface.</param>
+    /// <param name="height">The height, in pixels, of the returned surface.</param>
+    /// <param name="fonts">
+    ///     An optional dictionary mapping font-family names to loaded <see cref="TrueTypeFont"/>
+    ///     instances, used to render <c>text</c> elements. A <see langword="null"/> value (the
+    ///     default) or a dictionary with no entry matching a given <c>text</c> element's
+    ///     <c>font-family</c> causes that element to be silently skipped rather than throwing -
+    ///     see this class's remarks.
+    /// </param>
+    /// <returns>
+    ///     A new <see cref="Surface"/> of the requested size containing the rasterized document,
+    ///     fitted per this class's viewBox-fitting policy.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <paramref name="width"/> or <paramref name="height"/> is not a valid
+    ///     <see cref="Surface"/> dimension - see this class's remarks on caller-supplied raster
+    ///     dimensions.
+    /// </exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the stream does not contain a well-formed, supported SVG document - see
+    ///     this class's error-handling policy remarks.
+    /// </exception>
+    /// <remarks>
+    ///     A thin wrapper delegating to
+    ///     <see cref="Load(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>,
+    ///     via <c>ToFontFaces</c> wrapping each entry as a single normal-weight/normal-style
+    ///     <see cref="SvgFontFace"/> - so every <c>text</c> element always resolves to that single
+    ///     registered font, regardless of its own <c>font-weight</c>/<c>font-style</c>, exactly as
+    ///     before this overload existed. A caller registering more than one face per family (bold/
+    ///     italic variants) should call the richer overload directly instead.
+    ///     <para>
+    ///     Do not pass an explicit untyped <see langword="null"/> literal as the 4th positional
+    ///     argument to either this method or its richer sibling: since neither generic
+    ///     <see cref="IReadOnlyDictionary{TKey,TValue}"/> instantiation is more specific than the
+    ///     other, doing so is ambiguous between the two overloads (a compile-time error). Either
+    ///     omit the argument entirely (uses this overload's default), or cast the <see langword="null"/>
+    ///     to the specific dictionary type you intend.
+    ///     </para>
+    /// </remarks>
+    /// <example>
+    ///     <code>
+    ///     const string svg = "&lt;svg viewBox='0 0 100 100'&gt;&lt;circle cx='50' cy='50' r='40' fill='red'/&gt;&lt;/svg&gt;";
+    ///     using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(svg));
+    ///     var surface = SvgCodec.Load(stream, 200, 200);
+    ///     </code>
+    /// </example>
+    public static Surface Load(
+        Stream stream,
+        int width,
+        int height,
+        IReadOnlyDictionary<string, TrueTypeFont>? fonts = null)
+        => Load(stream, width, height, ToFontFaces(fonts));
+
+    /// <summary>
+    ///     Rasterizes an SVG document loaded from a file path onto a new <see cref="Surface"/> of
+    ///     the requested size, using at most one <see cref="TrueTypeFont"/> per font-family. See
+    ///     <see cref="Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont}?)"/>
     ///     for the full contract.
     /// </summary>
     /// <param name="path">The path of the SVG file to load. Must not be null, empty, or whitespace.</param>
@@ -488,20 +615,43 @@ public static class SvgCodec
     /// <exception cref="InvalidDataException">
     ///     Thrown when the file does not contain a well-formed, supported SVG document.
     /// </exception>
+    /// <remarks>
+    ///     A thin wrapper delegating to
+    ///     <see cref="Load(string, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>,
+    ///     via <c>ToFontFaces</c> - see the <see cref="Stream"/> overload's remarks.
+    /// </remarks>
     public static Surface Load(
         string path,
         int width,
         int height,
         IReadOnlyDictionary<string, TrueTypeFont>? fonts = null)
+        => Load(path, width, height, ToFontFaces(fonts));
+
+    /// <summary>
+    ///     Wraps a legacy single-font-per-family dictionary as the richer per-family
+    ///     <see cref="SvgFontFace"/>-list shape, each entry becoming a single normal-weight
+    ///     (<c>400</c>)/normal-style (<see cref="SvgFontStyle.Normal"/>) face - see the legacy
+    ///     <c>Load</c> overloads' remarks.
+    /// </summary>
+    /// <param name="fonts">The legacy single-font-per-family dictionary, or <see langword="null"/>.</param>
+    /// <returns>
+    ///     <see langword="null"/> if <paramref name="fonts"/> is <see langword="null"/>; otherwise
+    ///     a new dictionary with the same family-name keys, each mapped to a single-element face list.
+    /// </returns>
+    private static IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>? ToFontFaces(IReadOnlyDictionary<string, TrueTypeFont>? fonts)
     {
-        ArgumentNullException.ThrowIfNull(path);
-        if (string.IsNullOrWhiteSpace(path))
+        if (fonts == null)
         {
-            throw new ArgumentException("Path must not be empty or whitespace.", nameof(path));
+            return null;
         }
 
-        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
-        return Load(stream, width, height, fonts);
+        var result = new Dictionary<string, IReadOnlyList<SvgFontFace>>(fonts.Count);
+        foreach (var (familyName, font) in fonts)
+        {
+            result[familyName] = new SvgFontFace[] { new(font) };
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -978,6 +1128,15 @@ public static class SvgCodec
     /// <param name="StrokeDashOffset">The <c>stroke-dashoffset</c> value, in local user-space units.</param>
     /// <param name="FontFamily">The <c>font-family</c> value, or <see langword="null"/> if never set.</param>
     /// <param name="FontSize">The <c>font-size</c> value, in local user-space units.</param>
+    /// <param name="FontWeight">
+    ///     The CSS-numeric <c>font-weight</c> value (see <see cref="ParseFontWeight"/>), used to
+    ///     pick the closest-matching <see cref="SvgFontFace"/> among those registered for
+    ///     <paramref name="FontFamily"/> - see <see cref="SelectClosestFace"/>.
+    /// </param>
+    /// <param name="FontStyle">
+    ///     The <c>font-style</c> value (see <see cref="ParseFontStyle"/>), likewise used by
+    ///     <see cref="SelectClosestFace"/>.
+    /// </param>
     /// <param name="TextAnchor">The <c>text-anchor</c> value.</param>
     /// <param name="MarkerStart">
     ///     The raw <c>marker-start</c> paint-like specification (<c>none</c> or <c>url(#id)</c>),
@@ -1007,6 +1166,8 @@ public static class SvgCodec
         float StrokeDashOffset,
         string? FontFamily,
         float FontSize,
+        int FontWeight,
+        SvgFontStyle FontStyle,
         TextAnchor TextAnchor,
         string MarkerStart,
         string MarkerMid,
@@ -1031,6 +1192,8 @@ public static class SvgCodec
             StrokeDashOffset: 0f,
             FontFamily: null,
             FontSize: 16f,
+            FontWeight: 400,
+            FontStyle: SvgFontStyle.Normal,
             TextAnchor: TextAnchor.Start,
             MarkerStart: "none",
             MarkerMid: "none",
@@ -1044,11 +1207,17 @@ public static class SvgCodec
     /// </summary>
     /// <param name="Surface">The pixel target every shape is rendered onto.</param>
     /// <param name="IdIndex">The whole-document id-to-element index built once up front.</param>
-    /// <param name="Fonts">The caller-supplied font dictionary, or <see langword="null"/> if none was supplied.</param>
+    /// <param name="Fonts">
+    ///     The caller-supplied font-family-to-face-list dictionary, or <see langword="null"/> if
+    ///     none was supplied. Populated either directly by the richer
+    ///     <see cref="Load(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>
+    ///     overload, or via <see cref="ToFontFaces"/> when the legacy single-font-per-family
+    ///     overload is used.
+    /// </param>
     private sealed record RenderContext(
         Surface Surface,
         Dictionary<string, XElement> IdIndex,
-        IReadOnlyDictionary<string, TrueTypeFont>? Fonts)
+        IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>? Fonts)
     {
         /// <summary>
         ///     Caches each gradient element's own resolved (pre-alpha) color stops, keyed by the
@@ -1335,6 +1504,8 @@ public static class SvgCodec
             StrokeDashOffset = GetOptionalFloat(element, "stroke-dashoffset") ?? parent.StrokeDashOffset,
             FontFamily = (string?)element.Attribute("font-family") ?? parent.FontFamily,
             FontSize = GetOptionalFloat(element, "font-size") ?? parent.FontSize,
+            FontWeight = ParseFontWeight((string?)element.Attribute("font-weight")) ?? parent.FontWeight,
+            FontStyle = ParseFontStyle((string?)element.Attribute("font-style")) ?? parent.FontStyle,
             TextAnchor = ParseTextAnchor((string?)element.Attribute("text-anchor")) ?? parent.TextAnchor,
             MarkerStart = (string?)element.Attribute("marker-start") ?? parent.MarkerStart,
             MarkerMid = (string?)element.Attribute("marker-mid") ?? parent.MarkerMid,
@@ -1384,6 +1555,62 @@ public static class SvgCodec
         "end" => TextAnchor.End,
         _ => null
     };
+
+    /// <summary>
+    ///     Parses a <c>font-weight</c> value: the keywords <c>normal</c> (<c>400</c>) and
+    ///     <c>bold</c> (<c>700</c>), or a literal integer.
+    /// </summary>
+    /// <param name="raw">The attribute's raw value, or <see langword="null"/> if absent.</param>
+    /// <returns>
+    ///     The resolved numeric weight, or <see langword="null"/> if <paramref name="raw"/> is
+    ///     absent, blank, the relative keywords <c>bolder</c>/<c>lighter</c> (not implemented -
+    ///     see this class's remarks), or any other unparseable value - each tolerantly falling
+    ///     back to the inherited weight, matching this codec's established tolerant-fallback
+    ///     policy for a malformed presentation attribute (for example <c>stroke-miterlimit</c>).
+    /// </returns>
+    private static int? ParseFontWeight(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        var trimmed = raw.Trim();
+        return trimmed switch
+        {
+            "normal" => 400,
+            "bold" => 700,
+            _ => int.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : null
+        };
+    }
+
+    /// <summary>
+    ///     Parses a <c>font-style</c> value: <c>normal</c>, <c>italic</c>, or <c>oblique</c> (the
+    ///     latter two both resolving to <see cref="SvgFontStyle.Italic"/> - see
+    ///     <see cref="SvgFontStyle"/>'s remarks). Only the first whitespace-delimited token is
+    ///     considered, tolerating a full <c>oblique &lt;angle&gt;</c> value without parsing the
+    ///     angle itself.
+    /// </summary>
+    /// <param name="raw">The attribute's raw value, or <see langword="null"/> if absent.</param>
+    /// <returns>
+    ///     The matching <see cref="SvgFontStyle"/>, or <see langword="null"/> if absent, blank, or
+    ///     unrecognized (falling back to the inherited style).
+    /// </returns>
+    private static SvgFontStyle? ParseFontStyle(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        var firstToken = raw.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
+        return firstToken switch
+        {
+            "normal" => SvgFontStyle.Normal,
+            "italic" or "oblique" => SvgFontStyle.Italic,
+            _ => null
+        };
+    }
 
     /// <summary>
     ///     Parses an opacity-like attribute (<c>fill-opacity</c>/<c>stroke-opacity</c>/<c>opacity</c>/
@@ -5111,7 +5338,7 @@ public static class SvgCodec
             return;
         }
 
-        var font = MatchFont(state.FontFamily, context.Fonts);
+        var font = MatchFont(state.FontFamily, state.FontWeight, state.FontStyle, context.Fonts);
         if (font == null)
         {
             return;
@@ -5134,12 +5361,23 @@ public static class SvgCodec
 
     /// <summary>
     ///     Finds the first font-family name in <paramref name="fontFamily"/>'s comma-separated
-    ///     list with a case-insensitive match in <paramref name="fonts"/>.
+    ///     list with a case-insensitive match in <paramref name="fonts"/>, then selects the
+    ///     closest-matching registered face for that family via <see cref="SelectClosestFace"/>.
     /// </summary>
     /// <param name="fontFamily">The raw, possibly comma-separated, possibly quoted <c>font-family</c> value.</param>
-    /// <param name="fonts">The caller-supplied font dictionary.</param>
-    /// <returns>The matching font, or <see langword="null"/> if none match (or <paramref name="fontFamily"/> is absent/blank).</returns>
-    private static TrueTypeFont? MatchFont(string? fontFamily, IReadOnlyDictionary<string, TrueTypeFont> fonts)
+    /// <param name="requestedWeight">The cascaded <c>font-weight</c> to match against.</param>
+    /// <param name="requestedStyle">The cascaded <c>font-style</c> to match against.</param>
+    /// <param name="fonts">The caller-supplied font-family-to-face-list dictionary.</param>
+    /// <returns>
+    ///     The selected font, or <see langword="null"/> if no family name matches (or
+    ///     <paramref name="fontFamily"/> is absent/blank), or the matching family's face list is
+    ///     empty.
+    /// </returns>
+    private static TrueTypeFont? MatchFont(
+        string? fontFamily,
+        int requestedWeight,
+        SvgFontStyle requestedStyle,
+        IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>> fonts)
     {
         if (string.IsNullOrWhiteSpace(fontFamily))
         {
@@ -5149,16 +5387,107 @@ public static class SvgCodec
         foreach (var candidate in fontFamily.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
         {
             var name = candidate.Trim('\'', '"');
-            foreach (var (familyName, font) in fonts)
+            foreach (var (familyName, faces) in fonts)
             {
                 if (string.Equals(familyName, name, StringComparison.OrdinalIgnoreCase))
                 {
-                    return font;
+                    return SelectClosestFace(faces, requestedWeight, requestedStyle)?.Font;
                 }
             }
         }
 
         return null;
+    }
+
+    /// <summary>
+    ///     Selects the face in <paramref name="faces"/> that best matches
+    ///     <paramref name="requestedWeight"/>/<paramref name="requestedStyle"/>.
+    /// </summary>
+    /// <param name="faces">One font-family's registered faces (never empty when called from <see cref="MatchFont"/> with a non-empty list).</param>
+    /// <param name="requestedWeight">The requested numeric <c>font-weight</c>.</param>
+    /// <param name="requestedStyle">The requested <c>font-style</c>.</param>
+    /// <returns>The best-matching face, or <see langword="null"/> if <paramref name="faces"/> is empty.</returns>
+    /// <remarks>
+    ///     A deliberately simple approximation of the CSS Fonts Module Level 4 font-weight
+    ///     fallback cascade - not a byte-for-byte clone of it - matching the task's explicit
+    ///     "do not over-engineer" guidance. Each candidate face is scored, in priority order, by:
+    ///     <list type="number">
+    ///         <item>
+    ///             <description>
+    ///                 <b>Style match.</b> A face whose <see cref="SvgFontFace.Style"/> exactly
+    ///                 equals <paramref name="requestedStyle"/> always beats one that does not,
+    ///                 regardless of how close its weight is.
+    ///             </description>
+    ///         </item>
+    ///         <item>
+    ///             <description>
+    ///                 <b>Weight distance.</b> Among faces tied on style match, the face whose
+    ///                 <see cref="SvgFontFace.Weight"/> has the smallest absolute difference from
+    ///                 <paramref name="requestedWeight"/> wins.
+    ///             </description>
+    ///         </item>
+    ///         <item>
+    ///             <description>
+    ///                 <b>Boldness-side tie-break.</b> Among faces tied on both style match and
+    ///                 weight distance, the face on the same "boldness side" as the request (both
+    ///                 its own weight and <paramref name="requestedWeight"/> are either <c>&gt;=
+    ///                 400</c> or <c>&lt; 400</c>) wins over one on the opposite side.
+    ///             </description>
+    ///         </item>
+    ///     </list>
+    ///     The first-registered face wins any remaining tie, since the running best is only
+    ///     replaced by a strictly better-scoring candidate.
+    /// </remarks>
+    private static SvgFontFace? SelectClosestFace(IReadOnlyList<SvgFontFace> faces, int requestedWeight, SvgFontStyle requestedStyle)
+    {
+        SvgFontFace? best = null;
+        var bestStyleMismatch = true;
+        var bestWeightDistance = int.MaxValue;
+        var bestBoldnessMismatch = true;
+
+        foreach (var face in faces)
+        {
+            var styleMismatch = face.Style != requestedStyle;
+            var weightDistance = Math.Abs(face.Weight - requestedWeight);
+            var boldnessMismatch = (face.Weight >= 400) != (requestedWeight >= 400);
+
+            if (best == null
+                || IsBetterFace(styleMismatch, weightDistance, boldnessMismatch, bestStyleMismatch, bestWeightDistance, bestBoldnessMismatch))
+            {
+                best = face;
+                bestStyleMismatch = styleMismatch;
+                bestWeightDistance = weightDistance;
+                bestBoldnessMismatch = boldnessMismatch;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    ///     Compares a candidate face's match quality against the running-best face's, per the
+    ///     three-part priority order documented on <see cref="SelectClosestFace"/>.
+    /// </summary>
+    /// <returns><see langword="true"/> if the candidate strictly beats the running best.</returns>
+    private static bool IsBetterFace(
+        bool candidateStyleMismatch,
+        int candidateWeightDistance,
+        bool candidateBoldnessMismatch,
+        bool bestStyleMismatch,
+        int bestWeightDistance,
+        bool bestBoldnessMismatch)
+    {
+        if (candidateStyleMismatch != bestStyleMismatch)
+        {
+            return bestStyleMismatch && !candidateStyleMismatch;
+        }
+
+        if (candidateWeightDistance != bestWeightDistance)
+        {
+            return candidateWeightDistance < bestWeightDistance;
+        }
+
+        return bestBoldnessMismatch && !candidateBoldnessMismatch;
     }
 
     /// <summary>

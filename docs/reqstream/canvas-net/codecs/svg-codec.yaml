@@ -339,6 +339,53 @@ sections:
                   - SvgCodec_Load_TextAnchorMiddle_CentersTextHorizontally
                   - SvgCodec_Load_TextAnchorEnd_RightAlignsText
 
+              - id: CanvasNet-Codecs-SvgCodec-FontWeightStyleCascade
+                title: >-
+                  The SvgCodec class shall parse a text element's font-weight (normal/bold
+                  keywords or a numeric value) and font-style (normal/italic/oblique) presentation
+                  attributes and cascade each down to descendant elements exactly as font-family
+                  and font-size already do.
+                justification: |
+                  Callers need bold titles and italic keywords - a common real-world diagram
+                  labeling pattern - to inherit through group nesting the same way every other
+                  presentation attribute already does, rather than requiring every leaf text
+                  element to repeat its own font-weight/font-style.
+                tests:
+                  - SvgCodec_Load_GroupFontWeightInheritance_AppliesToChildTextWithoutOwnFontWeight
+                  - SvgCodec_Load_GroupFontStyleInheritance_AppliesToChildTextWithoutOwnFontStyle
+
+              - id: CanvasNet-Codecs-SvgCodec-FontFaceMatching
+                title: >-
+                  The SvgCodec class shall, given a font-family with more than one registered
+                  SvgFontFace, select the face whose weight/style most closely matches a text
+                  element's cascaded font-weight/font-style (exact style match preferred, then
+                  closest weight distance, then matching boldness side), never throwing when no
+                  exact match is registered.
+                justification: |
+                  Callers registering a bold and/or italic variant of a family need the correct
+                  variant actually selected per element, and a family lacking an exact
+                  weight/style match must still render its closest available face rather than
+                  rendering nothing.
+                tests:
+                  - SvgCodec_Load_TextFontWeightBold_SelectsBoldFaceOverNormalFace
+                  - SvgCodec_Load_TextFontStyleItalic_SelectsItalicFaceOverNormalFace
+                  - SvgCodec_Load_TextFontWeightNumeric_SelectsClosestRegisteredFaceByDistance
+                  - SvgCodec_Load_TextFontWeightTie_PrefersMatchingBoldnessSide
+                  - SvgCodec_Load_TextFontStyleNoItalicRegistered_FallsBackToOnlyAvailableFace
+                  - SvgCodec_Load_TextFontWeightAndStyleCombined_SelectsExactMatchAmongThreeFaces
+
+              - id: CanvasNet-Codecs-SvgCodec-LegacySingleFontCompatibility
+                title: >-
+                  The SvgCodec class shall preserve the pre-existing single-font-per-family Load
+                  overload's behavior unchanged: a text element always resolves to that overload's
+                  one registered font per family, regardless of any requested
+                  font-weight/font-style.
+                justification: |
+                  Existing callers of the single-font-per-family Load overload must not observe
+                  any behavior change from the addition of weight/style-aware face matching.
+                tests:
+                  - SvgCodec_Load_TextLegacySingleFontOverload_IgnoresRequestedWeightAndStyle
+
               - id: CanvasNet-Codecs-SvgCodec-ViewBoxFitting
                 title: >-
                   The SvgCodec class shall fit the document's intrinsic viewBox into the

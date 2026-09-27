@@ -55,6 +55,71 @@ public class SvgCodecTests
         return TrueTypeFont.Load(stream);
     }
 
+    /// <summary>
+    ///     Builds a synthetic font identical in structure to <see cref="BuildTestFont"/> except
+    ///     the 'A' glyph is a wider 80x50-unit square (x equals 0 to 80, rather than 0 to 50),
+    ///     giving font-weight/font-style face-selection tests a distinguishable "which face
+    ///     actually rendered" pixel signature (a wide-glyph-only region between local x equals 50
+    ///     and 80) representing a registered "bold" face.
+    /// </summary>
+    private static TrueTypeFont BuildBoldTestFont()
+    {
+        var square = SyntheticFontBuilder.SimpleGlyph(
+        [
+            [(0, 0, true), (80, 0, true), (80, 50, true), (0, 50, true)]
+        ]);
+
+        var cmap = SyntheticFontBuilder.CmapFormat4(3, 1, [(65, 1), (66, 2)]);
+        var kern = SyntheticFontBuilder.KernFormat0([(1, 2, -10)]);
+
+        var data = new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(100, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(3))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(100, 0, 0, 3))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([0, 100, 100]))
+            .AddTable("loca", SyntheticFontBuilder.Loca([0, square.Length, square.Length], longFormat: false))
+            .AddTable("glyf", [.. square, .. square])
+            .AddTable("cmap", cmap)
+            .AddTable("kern", kern)
+            .Build();
+
+        using var stream = new MemoryStream(data);
+        return TrueTypeFont.Load(stream);
+    }
+
+    /// <summary>
+    ///     Builds a synthetic font identical in structure to <see cref="BuildTestFont"/> except
+    ///     the 'A' glyph is a 50x50-unit square shifted right by 20 units (x equals 20 to 70,
+    ///     rather than 0 to 50), giving font-weight/font-style face-selection tests a
+    ///     distinguishable "which face actually rendered" pixel signature (filled at local x
+    ///     equals 60 but not at local x equals 10, the opposite of <see cref="BuildTestFont"/>'s
+    ///     square) representing a registered "italic" face.
+    /// </summary>
+    private static TrueTypeFont BuildItalicTestFont()
+    {
+        var square = SyntheticFontBuilder.SimpleGlyph(
+        [
+            [(20, 0, true), (70, 0, true), (70, 50, true), (20, 50, true)]
+        ]);
+
+        var cmap = SyntheticFontBuilder.CmapFormat4(3, 1, [(65, 1), (66, 2)]);
+        var kern = SyntheticFontBuilder.KernFormat0([(1, 2, -10)]);
+
+        var data = new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(100, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(3))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(100, 0, 0, 3))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([0, 100, 100]))
+            .AddTable("loca", SyntheticFontBuilder.Loca([0, square.Length, square.Length], longFormat: false))
+            .AddTable("glyf", [.. square, .. square])
+            .AddTable("cmap", cmap)
+            .AddTable("kern", kern)
+            .Build();
+
+        using var stream = new MemoryStream(data);
+        return TrueTypeFont.Load(stream);
+    }
+
     // ================================================================================================
     // Basic shapes
     // ================================================================================================
@@ -3061,6 +3126,305 @@ public class SvgCodecTests
         var surface = SvgCodec.Load(stream1968, 100, 100, fonts);
 
         // Assert: the glyph rendered, proving the fallback list was walked to "TestFont"
+        Assert.Equal(255, surface[35, 35].A);
+    }
+
+    // ================================================================================================
+    // font-weight / font-style-aware face matching (SvgFontFace / SelectClosestFace)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that a family with two registered faces (400/Normal, using
+    ///     <see cref="BuildTestFont"/>'s narrow 50-wide glyph, and 700/Normal, using
+    ///     <see cref="BuildBoldTestFont"/>'s wide 80-wide glyph) selects the bold face for a
+    ///     <c>font-weight="bold"</c> text element, while a sibling element with no own
+    ///     <c>font-weight</c> still selects the normal (narrow) face.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextFontWeightBold_SelectsBoldFaceOverNormalFace()
+    {
+        // Arrange: font-size equals the shared 100-unit em-square, so scale is 1:1. The narrow
+        // face fills canvas x equals 10 to 60; the wide face fills canvas x equals 10 to 90 - x
+        // equals 75 is filled only by the wide (bold) face.
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <text x='10' y='60' font-family='TestFont' font-size='100' font-weight='bold' fill='black'>A</text>
+              <text x='10' y='95' font-family='TestFont' font-size='100' fill='black'>A</text>
+            </svg>
+            """;
+        var faces = new Dictionary<string, IReadOnlyList<SvgFontFace>>
+        {
+            ["TestFont"] =
+            [
+                new SvgFontFace(BuildTestFont(), Weight: 400),
+                new SvgFontFace(BuildBoldTestFont(), Weight: 700)
+            ]
+        };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100, faces);
+
+        // Assert: the font-weight="bold" text selected the wide face
+        Assert.Equal(255, surface[75, 35].A);
+        // Assert: the sibling text with no font-weight still selected the narrow face
+        Assert.Equal(0, surface[75, 70].A);
+    }
+
+    /// <summary>
+    ///     Proves that a family with two registered faces (400/Normal, using
+    ///     <see cref="BuildTestFont"/>'s glyph at local x equals 0-50, and 400/Italic, using
+    ///     <see cref="BuildItalicTestFont"/>'s glyph shifted to local x equals 20-70) selects the
+    ///     italic face for a <c>font-style="italic"</c> text element.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextFontStyleItalic_SelectsItalicFaceOverNormalFace()
+    {
+        // Arrange: the normal face fills canvas x equals 10 to 60; the italic face fills canvas x
+        // equals 30 to 80 - x equals 75 is filled only by the italic face, and x equals 15 is
+        // filled only by the normal face.
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <text x='10' y='60' font-family='TestFont' font-size='100' font-style='italic' fill='black'>A</text>
+            </svg>
+            """;
+        var faces = new Dictionary<string, IReadOnlyList<SvgFontFace>>
+        {
+            ["TestFont"] =
+            [
+                new SvgFontFace(BuildTestFont()),
+                new SvgFontFace(BuildItalicTestFont(), Style: SvgFontStyle.Italic)
+            ]
+        };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100, faces);
+
+        // Assert: filled where only the italic face's glyph reaches
+        Assert.Equal(255, surface[75, 35].A);
+        // Assert: NOT filled where only the normal face's glyph would have reached
+        Assert.Equal(0, surface[15, 35].A);
+    }
+
+    /// <summary>
+    ///     Proves the closest-weight-distance rule: with faces registered at 400 (narrow) and 900
+    ///     (wide), a request of <c>font-weight="600"</c> selects the 400 face (distance 200)
+    ///     rather than the 900 face (distance 300).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextFontWeightNumeric_SelectsClosestRegisteredFaceByDistance()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <text x='10' y='60' font-family='TestFont' font-size='100' font-weight='600' fill='black'>A</text>
+            </svg>
+            """;
+        var faces = new Dictionary<string, IReadOnlyList<SvgFontFace>>
+        {
+            ["TestFont"] =
+            [
+                new SvgFontFace(BuildTestFont(), Weight: 400),
+                new SvgFontFace(BuildBoldTestFont(), Weight: 900)
+            ]
+        };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100, faces);
+
+        // Assert: the 900 (wide) face's exclusive region was NOT selected
+        Assert.Equal(0, surface[75, 35].A);
+        // Assert: sanity check the 400 (narrow) face did render
+        Assert.Equal(255, surface[35, 35].A);
+    }
+
+    /// <summary>
+    ///     Proves the boldness-side tie-break rule: with faces registered at 300 (narrow) and 500
+    ///     (wide) - both equidistant (100) from a requested <c>font-weight="400"</c> - the 500
+    ///     face wins, because it is on the same "boldness side" (weight &gt;= 400) as the request,
+    ///     while the 300 face is not.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextFontWeightTie_PrefersMatchingBoldnessSide()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <text x='10' y='60' font-family='TestFont' font-size='100' font-weight='400' fill='black'>A</text>
+            </svg>
+            """;
+        var faces = new Dictionary<string, IReadOnlyList<SvgFontFace>>
+        {
+            ["TestFont"] =
+            [
+                new SvgFontFace(BuildTestFont(), Weight: 300),
+                new SvgFontFace(BuildBoldTestFont(), Weight: 500)
+            ]
+        };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100, faces);
+
+        // Assert: the 500 (wide) face was selected, per the boldness-side tie-break
+        Assert.Equal(255, surface[75, 35].A);
+    }
+
+    /// <summary>
+    ///     Proves that a family with only a 400/Normal face registered still renders that face
+    ///     when <c>font-style="italic"</c> is requested (graceful fallback to the sole available
+    ///     face, rather than rendering nothing).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextFontStyleNoItalicRegistered_FallsBackToOnlyAvailableFace()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <text x='10' y='60' font-family='TestFont' font-size='100' font-style='italic' fill='black'>A</text>
+            </svg>
+            """;
+        var faces = new Dictionary<string, IReadOnlyList<SvgFontFace>>
+        {
+            ["TestFont"] = [new SvgFontFace(BuildTestFont())]
+        };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100, faces);
+
+        // Assert: the sole registered (normal) face still rendered
+        Assert.Equal(255, surface[35, 35].A);
+    }
+
+    /// <summary>
+    ///     Proves that, among three registered faces (400/Normal narrow, 700/Normal wide, and
+    ///     700/Italic shifted), a request of <c>font-weight="bold" font-style="italic"</c>
+    ///     selects the 700/Italic face specifically - not merely a weight- or style-only match.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextFontWeightAndStyleCombined_SelectsExactMatchAmongThreeFaces()
+    {
+        // Arrange: the italic face's glyph (canvas x equals 30-80) is a strict subset of the
+        // bold/wide face's glyph (canvas x equals 10-90) - x equals 75 alone cannot distinguish
+        // them, so this also asserts x equals 85 (filled only by the wide face) is NOT filled,
+        // proving the wide (bold/normal) face was not selected instead.
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <text x='10' y='60' font-family='TestFont' font-size='100' font-weight='bold' font-style='italic' fill='black'>A</text>
+            </svg>
+            """;
+        var faces = new Dictionary<string, IReadOnlyList<SvgFontFace>>
+        {
+            ["TestFont"] =
+            [
+                new SvgFontFace(BuildTestFont(), Weight: 400),
+                new SvgFontFace(BuildBoldTestFont(), Weight: 700),
+                new SvgFontFace(BuildItalicTestFont(), Weight: 700, Style: SvgFontStyle.Italic)
+            ]
+        };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100, faces);
+
+        // Assert: filled where only the italic face's glyph reaches
+        Assert.Equal(255, surface[75, 35].A);
+        // Assert: NOT filled where only the wide (bold/normal) face's glyph would have reached
+        Assert.Equal(0, surface[85, 35].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>g</c> element's <c>font-weight="bold"</c> cascades down to a child
+    ///     <c>text</c> element that does not set its own <c>font-weight</c>, mirroring
+    ///     <see cref="SvgCodec_Load_GroupFillInheritance_AppliesToChildWithoutOwnFill"/>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GroupFontWeightInheritance_AppliesToChildTextWithoutOwnFontWeight()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <g font-weight='bold'>
+                <text x='10' y='60' font-family='TestFont' font-size='100' fill='black'>A</text>
+              </g>
+            </svg>
+            """;
+        var faces = new Dictionary<string, IReadOnlyList<SvgFontFace>>
+        {
+            ["TestFont"] =
+            [
+                new SvgFontFace(BuildTestFont(), Weight: 400),
+                new SvgFontFace(BuildBoldTestFont(), Weight: 700)
+            ]
+        };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100, faces);
+
+        // Assert: the child text inherited font-weight="bold" and selected the wide face
+        Assert.Equal(255, surface[75, 35].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>g</c> element's <c>font-style="italic"</c> cascades down to a child
+    ///     <c>text</c> element that does not set its own <c>font-style</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GroupFontStyleInheritance_AppliesToChildTextWithoutOwnFontStyle()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <g font-style='italic'>
+                <text x='10' y='60' font-family='TestFont' font-size='100' fill='black'>A</text>
+              </g>
+            </svg>
+            """;
+        var faces = new Dictionary<string, IReadOnlyList<SvgFontFace>>
+        {
+            ["TestFont"] =
+            [
+                new SvgFontFace(BuildTestFont()),
+                new SvgFontFace(BuildItalicTestFont(), Style: SvgFontStyle.Italic)
+            ]
+        };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100, faces);
+
+        // Assert: the child text inherited font-style="italic" and selected the italic face
+        Assert.Equal(255, surface[75, 35].A);
+        Assert.Equal(0, surface[15, 35].A);
+    }
+
+    /// <summary>
+    ///     Regression test: proves the legacy single-font-per-family <c>Load</c> overload (taking
+    ///     <c>IReadOnlyDictionary&lt;string, TrueTypeFont&gt;</c>) always selects its one
+    ///     registered font, ignoring any requested <c>font-weight</c>/<c>font-style</c> entirely -
+    ///     proving the additive <see cref="SvgFontFace"/>-based overload never changed this
+    ///     overload's own established behavior.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextLegacySingleFontOverload_IgnoresRequestedWeightAndStyle()
+    {
+        // Arrange: bold and italic are both requested, but only one plain font is registered
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <text x='10' y='60' font-family='TestFont' font-size='100' font-weight='bold' font-style='italic' fill='black'>A</text>
+            </svg>
+            """;
+        var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100, fonts);
+
+        // Assert: the sole registered font still rendered at its known position
         Assert.Equal(255, surface[35, 35].A);
     }
 

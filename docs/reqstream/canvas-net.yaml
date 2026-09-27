@@ -1066,6 +1066,28 @@ sections:
           - SvgCodec_Load_TextFontFamilyNoMatch_SkipsSilentlyWithoutThrowing
           - SvgCodec_Load_TextFontFamilyCommaSeparatedList_MatchesFirstAvailableFont
 
+      - id: CanvasNet-Lib-SvgFontWeightStyleMatching
+        title: >-
+          The library shall register more than one font face (varying in font-weight/font-style)
+          per SVG text font-family and select the closest-matching registered face for each text
+          element's own cascaded font-weight/font-style, while preserving the pre-existing
+          single-font-per-family Load overload's behavior unchanged.
+        tags: [system]
+        justification: |
+          Callers commonly need bold titles and italic keywords rendered with the correct
+          distinct font face, rather than every element in a family always resolving to the
+          same single font regardless of its requested weight/style; existing callers of the
+          single-font-per-family overload must observe no behavior change.
+        children:
+          - CanvasNet-Codecs-SvgFontWeightStyleMatching
+        tests:
+          - SvgCodec_Load_TextFontWeightBold_SelectsBoldFaceOverNormalFace
+          - SvgCodec_Load_TextFontStyleItalic_SelectsItalicFaceOverNormalFace
+          - SvgCodec_Load_TextFontWeightAndStyleCombined_SelectsExactMatchAmongThreeFaces
+          - SvgCodec_Load_GroupFontWeightInheritance_AppliesToChildTextWithoutOwnFontWeight
+          - SvgCodec_Load_GroupFontStyleInheritance_AppliesToChildTextWithoutOwnFontStyle
+          - SvgCodec_Load_TextLegacySingleFontOverload_IgnoresRequestedWeightAndStyle
+
       - id: CanvasNet-Lib-SvgValidationNull
         title: >-
           The library shall reject null stream/path arguments to SVG Load and GetInfo operations
