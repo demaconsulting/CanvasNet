@@ -25,6 +25,25 @@ public class SvgCodecTests
     private static MemoryStream ToStream(string svg) => new(Encoding.UTF8.GetBytes(svg));
 
     /// <summary>
+    ///     Asserts that two same-size <see cref="Surface"/> instances contain identical pixels.
+    /// </summary>
+    /// <param name="expected">The expected surface.</param>
+    /// <param name="actual">The actual surface.</param>
+    private static void AssertSurfacesEqual(Surface expected, Surface actual)
+    {
+        Assert.Equal(expected.Width, actual.Width);
+        Assert.Equal(expected.Height, actual.Height);
+
+        for (var y = 0; y < expected.Height; y++)
+        {
+            for (var x = 0; x < expected.Width; x++)
+            {
+                Assert.Equal(expected[x, y], actual[x, y]);
+            }
+        }
+    }
+
+    /// <summary>
     ///     Builds a minimal, well-formed synthetic font with two mapped 50x50-unit square glyphs
     ///     ('A' at codepoint 65, glyph index 1; 'B' at codepoint 66, glyph index 2), a 100-unit
     ///     advance width on each, a 100-unit em-square, and a single kerning pair between them, for
@@ -2574,7 +2593,7 @@ public class SvgCodecTests
         const string svg = """
             <svg viewBox='0 0 10 10'>
               <defs>
-                <filter id='f' x='0' y='0' width='1' height='1'>
+                <filter id='f' x='-1' y='-1' width='3' height='3'>
                   <feFlood flood-color='#ff0000' flood-opacity='0.5' result='fg'/>
                   <feFlood flood-color='#0000ff' flood-opacity='0.25' result='bg'/>
                   <feComposite in='fg' in2='bg' operator='in'/>
@@ -2723,12 +2742,10 @@ public class SvgCodecTests
     }
 
     /// <summary>
-    ///     Proves that a filter primitive type this codec does not implement (here
-    ///     <c>feColorMatrix</c>, but the same tolerant handling applies to <c>feTurbulence</c>,
-    ///     <c>feDisplacementMap</c>, <c>feImage</c>, <c>feTile</c>, <c>feDropShadow</c>,
-    ///     <c>feConvolveMatrix</c>, <c>feDiffuseLighting</c>, <c>feSpecularLighting</c>,
-    ///     <c>feComponentTransfer</c>, and <c>feMorphology</c>) is treated as a no-op passthrough
-    ///     of its input, rather than throwing or being ignored at the filter level.
+    ///     Proves that a filter primitive type this codec still does not implement (here
+    ///     <c>feBlend</c>, alongside <c>feTurbulence</c>, <c>feDiffuseLighting</c>, and
+    ///     <c>feSpecularLighting</c>) is treated as a no-op passthrough of its input, rather than
+    ///     throwing or being ignored at the filter level.
     /// </summary>
     [Fact]
     public void SvgCodec_Load_FilterUnsupportedPrimitive_PassesThroughSourceGraphicUnchanged()
@@ -2738,7 +2755,7 @@ public class SvgCodecTests
             <svg viewBox='0 0 100 100'>
               <defs>
                 <filter id='f'>
-                  <feColorMatrix type='saturate' values='0'/>
+                  <feBlend mode='multiply'/>
                 </filter>
               </defs>
               <rect x='40' y='40' width='20' height='20' fill='teal' filter='url(#f)'/>
@@ -2752,6 +2769,812 @@ public class SvgCodecTests
         // Assert: the rect's own fill passed through unchanged, proving no exception was thrown
         // and the unsupported primitive did not alter (or blank out) the element's content
         Assert.Equal(new Rgba32(0, 128, 128, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feColorMatrix type="matrix"</c> applies all 20 affine coefficients in
+    ///     row-major order.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeColorMatrixTypeMatrix_AppliesFullAffineTransform()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feColorMatrix values='0 0 1 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0 1 0'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(64,128,192)' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(192, 64, 128, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feColorMatrix type="saturate" values="0"</c> desaturates toward the
+    ///     shared luminance gray value.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeColorMatrixTypeSaturate_DesaturatesTowardGray()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feColorMatrix type='saturate' values='0'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='red' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(54, 54, 54, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feColorMatrix type="hueRotate"</c> rotates hue while preserving full
+    ///     alpha coverage.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeColorMatrixTypeHueRotate_RotatesHueByAngle()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feColorMatrix type='hueRotate' values='120'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='red' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        var pixel = surface[5, 5];
+        Assert.Equal(255, pixel.A);
+        Assert.True(pixel.G > pixel.R && pixel.G > pixel.B, $"Expected hue-rotated red to become green-dominant, got {pixel}.");
+    }
+
+    /// <summary>
+    ///     Proves that <c>feColorMatrix type="luminanceToAlpha"</c> moves luminance into alpha
+    ///     while clearing color to black.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeColorMatrixTypeLuminanceToAlpha_ConvertsLuminanceToAlphaChannel()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feColorMatrix type='luminanceToAlpha'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(100,150,200)' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 0, 143), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that a missing <c>values</c> attribute falls back to the selected type's SVG
+    ///     default, here <c>saturate=1</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeColorMatrixMissingValuesAttribute_FallsBackToTypeDefault()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feColorMatrix type='saturate'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='teal' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 128, 128, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feComponentTransfer</c> with <c>feFuncR type="table"</c> remaps the red
+    ///     channel through the supplied table values.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeFuncRTypeTable_RemapsRedChannel()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feComponentTransfer>
+                    <feFuncR type='table' tableValues='1 0'/>
+                  </feComponentTransfer>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='red' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feFuncG type="discrete"</c> selects the stepped entry for the source
+    ///     green channel.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeFuncGTypeDiscrete_StepsGreenChannel()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feComponentTransfer>
+                    <feFuncG type='discrete' tableValues='0 1'/>
+                  </feComponentTransfer>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(0,128,0)' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feFuncB type="linear"</c> applies slope and intercept to the blue
+    ///     channel.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeFuncBTypeLinear_ScalesAndOffsetsBlueChannel()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feComponentTransfer>
+                    <feFuncB type='linear' slope='0.5' intercept='0.25'/>
+                  </feComponentTransfer>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(0,0,128)' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 128, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feFuncA type="gamma"</c> applies the gamma curve to alpha.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeFuncATypeGamma_AppliesGammaCurveToAlpha()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feComponentTransfer>
+                    <feFuncA type='gamma' amplitude='1' exponent='2' offset='0'/>
+                  </feComponentTransfer>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='red' fill-opacity='0.5' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 0, 0, 64), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that a missing <c>feFunc*</c> child leaves that channel unchanged.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MissingFeFuncChild_ChannelUnchanged()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feComponentTransfer>
+                    <feFuncR type='linear' slope='0.5' intercept='0'/>
+                  </feComponentTransfer>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(200,50,100)' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(100, 50, 100, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feMorphology operator="erode"</c> shrinks the opaque region.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeMorphologyOperatorErode_ShrinksOpaqueRegion()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 7 7'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feMorphology operator='erode' radius='1'/>
+                </filter>
+              </defs>
+              <rect x='2' y='2' width='3' height='3' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 7, 7);
+
+        // Assert
+        Assert.Equal(255, surface[3, 3].A);
+        Assert.Equal(0, surface[2, 3].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feMorphology operator="dilate"</c> grows the opaque region.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeMorphologyOperatorDilate_GrowsOpaqueRegion()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 7 7'>
+              <defs>
+                <filter id='f' x='-1' y='-1' width='3' height='3'>
+                  <feMorphology operator='dilate' radius='1'/>
+                </filter>
+              </defs>
+              <rect x='2' y='2' width='3' height='3' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 7, 7);
+
+        // Assert
+        Assert.Equal(255, surface[1, 3].A);
+        Assert.Equal(255, surface[3, 3].A);
+    }
+
+    /// <summary>
+    ///     Proves that an excessive resolved <c>feMorphology</c> radius is rejected.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeMorphologyRadiusExceedingCap_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feMorphology operator='dilate' radius='300'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act / Assert
+        using var stream = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves that a non-positive <c>feMorphology</c> radius is treated as identity.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeMorphologyNegativeRadius_TreatedAsIdentity()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 7 7'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feMorphology operator='dilate' radius='-1'/>
+                </filter>
+              </defs>
+              <rect x='3' y='3' width='1' height='1' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 7, 7);
+
+        // Assert
+        Assert.Equal(255, surface[3, 3].A);
+        Assert.Equal(0, surface[2, 3].A);
+    }
+
+    /// <summary>
+    ///     Proves that an identity <c>feConvolveMatrix</c> kernel leaves the input unchanged.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeConvolveMatrixIdentityKernel_LeavesInputUnchanged()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feConvolveMatrix order='1' kernelMatrix='1'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(40,80,120)' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(40, 80, 120, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that a simple edge-detect-style kernel produces the expected response.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeConvolveMatrixEdgeDetectKernel_ProducesExpectedEdgeResponse()
+    {
+        // Arrange
+        using var source = new Surface(3, 1);
+        source[0, 0] = new Rgba32(0, 0, 0, 255);
+        source[1, 0] = new Rgba32(255, 255, 255, 255);
+        source[2, 0] = new Rgba32(255, 255, 255, 255);
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 3 1'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feConvolveMatrix order='3 1' kernelMatrix='-1 1 0' targetX='1' edgeMode='none' preserveAlpha='true'/>
+                </filter>
+              </defs>
+              <image href='{dataUri}' x='0' y='0' width='3' height='1' preserveAspectRatio='none' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 3, 1);
+
+        // Assert
+        var edgePixel = surface[1, 0];
+        Assert.Equal(255, edgePixel.A);
+        Assert.True(
+            edgePixel.R > 200 && edgePixel.G > 200 && edgePixel.B > 200,
+            $"Expected a strong white edge response at (1, 0), got {edgePixel}.");
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[2, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>edgeMode="wrap"</c> samples across the opposite edge.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeConvolveMatrixEdgeModeWrap_SamplesAcrossOppositeEdge()
+    {
+        // Arrange
+        using var source = new Surface(3, 1);
+        source[0, 0] = new Rgba32(255, 0, 0, 255);
+        source[1, 0] = new Rgba32(0, 0, 0, 0);
+        source[2, 0] = new Rgba32(0, 0, 255, 255);
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 3 1'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feConvolveMatrix order='3 1' kernelMatrix='1 0 0' targetX='1' edgeMode='wrap'/>
+                </filter>
+              </defs>
+              <image href='{dataUri}' x='0' y='0' width='3' height='1' preserveAspectRatio='none' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 3, 1);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>preserveAlpha="true"</c> leaves the input alpha channel unchanged.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeConvolveMatrixPreserveAlphaTrue_LeavesAlphaChannelUnchanged()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feConvolveMatrix order='1' kernelMatrix='2' divisor='2' preserveAlpha='true'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='red' fill-opacity='0.5' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 0, 0, 128), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that an excessive <c>feConvolveMatrix</c> order is rejected before any kernel
+    ///     work runs.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeConvolveMatrixOrderExceedingCap_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feConvolveMatrix order='26' kernelMatrix='1'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act / Assert
+        using var stream = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves that a <c>kernelMatrix</c> count mismatch tolerantly falls back to passthrough.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeConvolveMatrixKernelMatrixCountMismatchOrder_TolerantlyPassesThrough()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feConvolveMatrix order='3' kernelMatrix='1 0 0'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 128, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feDisplacementMap</c> with a positive scale and the red-channel selector
+    ///     displaces source pixels.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDisplacementMapPositiveScaleWithRedChannelSelector_DisplacesSourcePixels()
+    {
+        // Arrange
+        using var source = new Surface(5, 1);
+        source[0, 0] = new Rgba32(255, 0, 0, 255);
+        source[1, 0] = new Rgba32(0, 128, 0, 255);
+        source[2, 0] = new Rgba32(0, 0, 255, 255);
+        source[3, 0] = new Rgba32(255, 255, 0, 255);
+        source[4, 0] = new Rgba32(0, 0, 0, 255);
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 5 1'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(255,128,0)' result='map'/>
+                  <feDisplacementMap in='SourceGraphic' in2='map' scale='2' xChannelSelector='R' yChannelSelector='G'/>
+                </filter>
+              </defs>
+              <image href='{dataUri}' x='0' y='0' width='5' height='1' preserveAspectRatio='none' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 5, 1);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[1, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feDisplacementMap scale="0"</c> is identity.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDisplacementMapZeroScale_LeavesInputUnchanged()
+    {
+        // Arrange
+        using var source = new Surface(5, 1);
+        source[0, 0] = new Rgba32(255, 0, 0, 255);
+        source[1, 0] = new Rgba32(0, 128, 0, 255);
+        source[2, 0] = new Rgba32(0, 0, 255, 255);
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 5 1'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='red' result='map'/>
+                  <feDisplacementMap in='SourceGraphic' in2='map' scale='0' xChannelSelector='R' yChannelSelector='A'/>
+                </filter>
+              </defs>
+              <image href='{dataUri}' x='0' y='0' width='5' height='1' preserveAspectRatio='none' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 5, 1);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 128, 0, 255), surface[1, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feTile</c> repeats the upstream primitive's declared subregion across the
+    ///     whole filter region.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeTileTilesUpstreamPrimitiveSubregionAcrossFilterRegion()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 4 4'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='red' x='0' y='0' width='0.5' height='0.5' result='seed'/>
+                  <feTile in='seed'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='4' height='4' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 4, 4);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[3, 3]);
+    }
+
+    /// <summary>
+    ///     Proves that, without an upstream primitive subregion, <c>feTile</c> is identity.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeTileNoUpstreamSubregion_TilesWholeRegionAsIdentity()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 4 4'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTile in='SourceGraphic'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='2' height='4' fill='blue' filter='url(#f)'/>
+              <rect x='2' y='0' width='2' height='4' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 4, 4);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[1, 2]);
+        Assert.Equal(new Rgba32(0, 128, 0, 255), surface[3, 2]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feDropShadow</c> matches the specification's equivalent manual primitive
+    ///     chain.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDropShadow_MatchesManualBlurOffsetFloodCompositeChainEquivalent()
+    {
+        // Arrange
+        const string dropShadowSvg = """
+            <svg viewBox='0 0 12 12'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feDropShadow dx='1' dy='1' stdDeviation='0' flood-color='red' flood-opacity='0.5'/>
+                </filter>
+              </defs>
+              <rect x='4' y='4' width='2' height='2' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+        const string manualSvg = """
+            <svg viewBox='0 0 12 12'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feGaussianBlur in='SourceAlpha' stdDeviation='0' result='blur'/>
+                  <feOffset in='blur' dx='1' dy='1' result='offset'/>
+                  <feFlood flood-color='red' flood-opacity='0.5' result='flood'/>
+                  <feComposite in='flood' in2='offset' operator='in' result='shadow'/>
+                  <feMerge>
+                    <feMergeNode in='shadow'/>
+                    <feMergeNode in='SourceGraphic'/>
+                  </feMerge>
+                </filter>
+              </defs>
+              <rect x='4' y='4' width='2' height='2' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var dropShadowStream = ToStream(dropShadowSvg);
+        using var manualStream = ToStream(manualSvg);
+        var dropShadowSurface = SvgCodec.Load(dropShadowStream, 12, 12);
+        var manualSurface = SvgCodec.Load(manualStream, 12, 12);
+
+        // Assert
+        AssertSurfacesEqual(manualSurface, dropShadowSurface);
+    }
+
+    /// <summary>
+    ///     Proves that a defaulted <c>feDropShadow</c> still paints visible shadow coverage offset
+    ///     away from the source content.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDropShadowDefaultDxDyStdDeviation_OffsetsShadowBy2Pixels()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 12 12'>
+              <defs>
+                <filter id='f' x='-2' y='-2' width='5' height='5'>
+                  <feDropShadow flood-color='red'/>
+                </filter>
+              </defs>
+              <rect x='3' y='3' width='2' height='2' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 12, 12);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[3, 3]);
+        Assert.True(surface[6, 6].A > 0, $"Expected default drop-shadow coverage at (6, 6), got {surface[6, 6]}.");
+    }
+
+    /// <summary>
+    ///     Proves that a primitive-level subregion clips the primitive output to the declared
+    ///     rectangle.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FePrimitiveWithSubregion_ClipsOutputToDeclaredXYWidthHeight()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='red' x='0.5' y='0' width='0.5' height='1'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(0, surface[2, 5].A);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[7, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that a primitive without its own subregion remains unaffected by the new
+    ///     clipping mechanism.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FePrimitiveWithoutSubregion_UnaffectedByNewMechanism()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='red'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[2, 5]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[7, 5]);
     }
 
     /// <summary>
@@ -8205,6 +9028,119 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that <c>feImage</c> reuses the Phase-4 raster image helpers to decode a
+    ///     base64-encoded raster and place it into the primitive's own declared subregion.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeImageDataUriRasterHref_RendersDecodedRasterIntoSubregion()
+    {
+        // Arrange
+        using var source = BuildSolidSurface(2, 2, new Rgba32(0, 0, 255, 255));
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feImage href='{dataUri}' x='0.5' y='0' width='0.5' height='1' preserveAspectRatio='none'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(0, surface[2, 5].A);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[7, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feImage href="#id"</c> renders the referenced element into the filter's
+    ///     offscreen surface using the ordinary element-rendering pipeline.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeImageElementReferenceHref_RendersReferencedElementOffscreen()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feImage href='#ref'/>
+                </filter>
+                <rect id='ref' x='2' y='2' width='4' height='4' fill='red'/>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[3, 3]);
+        Assert.Equal(0, surface[0, 0].A);
+    }
+
+    /// <summary>
+    ///     Proves that a self-referential <c>feImage href="#id"</c> chain hitting the codec's
+    ///     maximum nested reference depth tolerantly renders nothing rather than throwing.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeImageElementReferenceHrefExceedingMaxUseDepth_TolerantlyRendersEmpty()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feImage href='#self'/>
+                </filter>
+              </defs>
+              <rect id='self' x='0' y='0' width='10' height='10' fill='red' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(0, surface[5, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that a dangling <c>feImage href="#id"</c> reference renders nothing without
+    ///     throwing.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeImageDanglingElementReference_RendersEmptyWithoutThrowing()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feImage href='#missing'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(0, surface[5, 5].A);
+    }
+
+    /// <summary>
     ///     Proves that an <c>image</c> element's own cascaded <c>opacity</c> is applied exactly
     ///     once to the final composited result, mirroring every other effects-capable element's
     ///     identical semantics.
@@ -8500,5 +9436,3 @@ public class SvgCodecTests
         Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
     }
 }
-
-

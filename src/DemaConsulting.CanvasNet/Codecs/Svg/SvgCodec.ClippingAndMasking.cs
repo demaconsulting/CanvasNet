@@ -452,12 +452,9 @@ public static partial class SvgCodec
     /// <param name="content">The buffer being masked, mutated in place.</param>
     /// <param name="maskSource">The already fully rendered mask content buffer.</param>
     /// <remarks>
-    ///     Luminance is computed via the standard sRGB luma coefficients
-    ///     <c>0.2125*R + 0.7154*G + 0.0721*B</c> (each channel normalized to <c>[0, 1]</c> first),
-    ///     per this phase's explicit design requirement - there is no pre-existing luminance/
-    ///     color-matrix convention elsewhere in this codec's filter implementation
-    ///     (<c>SvgCodec.Filters.cs</c> has no <c>feColorMatrix type="luminanceToAlpha"</c> support)
-    ///     to match instead. An unpainted mask pixel (alpha zero, and so - since a freshly
+    ///     Luminance is computed via the shared <see cref="ComputeLuminance(byte, byte, byte)"/>
+    ///     helper so this mask path and <c>feColorMatrix type="luminanceToAlpha"</c> use the
+    ///     exact same coefficients. An unpainted mask pixel (alpha zero, and so - since a freshly
     ///     allocated <see cref="Surface"/> is all-zero - also black) contributes zero mask value,
     ///     identical to a mask pixel explicitly painted fully transparent, matching the SVG
     ///     specification's own defined mask algorithm (both are "no coverage").
@@ -471,7 +468,7 @@ public static partial class SvgCodec
             for (var x = 0; x < content.Width; x++)
             {
                 var maskPixel = maskRow[x];
-                var luminance = ((0.2125f * maskPixel.R) + (0.7154f * maskPixel.G) + (0.0721f * maskPixel.B)) / 255f;
+                var luminance = ComputeLuminance(maskPixel.R, maskPixel.G, maskPixel.B);
                 var maskValue = luminance * (maskPixel.A / 255f);
 
                 var contentPixel = contentRow[x];

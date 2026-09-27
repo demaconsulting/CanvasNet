@@ -79,6 +79,26 @@ public static partial class SvgCodec
     private const float MaxFilterBlurStdDeviationPixels = 250f;
 
     /// <summary>
+    ///     The maximum integer <c>order</c> component a <c>feConvolveMatrix</c> primitive accepts
+    ///     on either axis before rejecting the document with <see cref="InvalidDataException"/>.
+    ///     A 25x25 kernel is already five times larger, on each axis, than the largest
+    ///     real-world kernel observed anywhere in this repository's SVG fixture corpus (5x5),
+    ///     leaving generous room for legitimate documents while bounding the primitive's
+    ///     inherently O(order<sup>2</sup> &#215; area) work to a small, practical maximum.
+    /// </summary>
+    private const int MaxConvolveMatrixOrder = 25;
+
+    /// <summary>
+    ///     The maximum pixel-space radius a <c>feMorphology</c> primitive accepts on either axis,
+    ///     after scaling its local-space <c>radius</c> by <see cref="EstimateUniformScale"/>,
+    ///     before rejecting the document with <see cref="InvalidDataException"/>. Mirrors
+    ///     <see cref="MaxFilterBlurStdDeviationPixels"/>'s value and rationale: both are
+    ///     neighborhood-size controls for per-pixel spatial filters, so the same generous-but-
+    ///     bounded 250-pixel ceiling applies to both.
+    /// </summary>
+    private const float MaxMorphologyRadiusPixels = 250f;
+
+    /// <summary>
     ///     The maximum number of <c>fe*</c> primitive children a single <c>filter</c> element's
     ///     chain is evaluated with, before the whole filter is tolerantly skipped (see
     ///     <see cref="RenderShapeEffectsPipeline"/>'s remarks). Every primitive's output buffer is exactly
@@ -226,6 +246,20 @@ public static partial class SvgCodec
     ///     unbounded "raw document size" dimension.
     /// </remarks>
     private const int MaxDocumentCharacters = 5_000_000;
+
+    /// <summary>
+    ///     Computes the shared SVG luminance value used anywhere this codec needs the standard
+    ///     sRGB luma coefficients <c>0.2125</c>, <c>0.7154</c>, and <c>0.0721</c>.
+    /// </summary>
+    /// <param name="r">The red channel byte.</param>
+    /// <param name="g">The green channel byte.</param>
+    /// <param name="b">The blue channel byte.</param>
+    /// <returns>
+    ///     The normalized luminance in <c>[0, 1]</c>, computed as
+    ///     <c>(0.2125 * r + 0.7154 * g + 0.0721 * b) / 255</c>.
+    /// </returns>
+    private static float ComputeLuminance(byte r, byte g, byte b) =>
+        ((0.2125f * r) + (0.7154f * g) + (0.0721f * b)) / 255f;
 
     /// <summary>
     ///     Tracks the cumulative "geometry parsing work" - path <c>d</c> data commands,

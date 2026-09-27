@@ -333,7 +333,11 @@ public static partial class SvgCodec
                 useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
         }
 
-        var finalSurface = filterApplies ? EvaluateFilterChain(filterElement!, content, transform) : content;
+        var finalSurface = filterApplies
+            ? EvaluateFilterChain(
+                filterElement!, content, transform, pixelX, pixelY, state, context, useDepth, elementDepth, markerDepth,
+                ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget)
+            : content;
 
         CompositeFilterResultOntoCanvas(finalSurface, pixelX, pixelY, context.Surface, state.Opacity);
     }
@@ -1103,7 +1107,11 @@ public static partial class SvgCodec
                 useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
         }
 
-        var finalSurface = filterApplies ? EvaluateFilterChain(filterElement!, content, childrenTransform) : content;
+        var finalSurface = filterApplies
+            ? EvaluateFilterChain(
+                filterElement!, content, childrenTransform, pixelX, pixelY, state, context, useDepth, elementDepth + 1, markerDepth,
+                ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget)
+            : content;
 
         CompositeFilterResultOntoCanvas(finalSurface, pixelX, pixelY, context.Surface, state.Opacity);
     }
@@ -1402,94 +1410,281 @@ public static partial class SvgCodec
     }
 
     /// <summary>
+    ///     Records a filter-primitive output rectangle in filter-buffer-local pixel coordinates.
+    /// </summary>
+    /// <param name="X">The local X origin.</param>
+    /// <param name="Y">The local Y origin.</param>
+    /// <param name="Width">The local width.</param>
+    /// <param name="Height">The local height.</param>
+    private readonly record struct PixelRect(int X, int Y, int Width, int Height)
+    {
+        /// <summary>Gets a value indicating whether this rectangle has no positive area.</summary>
+        public bool IsEmpty => Width <= 0 || Height <= 0;
+    }
+
+    /// <summary>
+    ///     Converts a float-valued channel back into a clamped byte using this codec's standard
+    ///     round-half-away-from-zero convention.
+    /// </summary>
+    /// <param name="value">The channel value to convert.</param>
+    /// <returns>The clamped byte result.</returns>
+    private static byte ToByte(float value) =>
+        (byte)Math.Clamp(MathF.Round(value, MidpointRounding.AwayFromZero), 0f, 255f);
+
+    /// <summary>
+    ///     Determines whether <paramref name="primitive"/> declares any explicit primitive
+    ///     subregion attribute.
+    /// </summary>
+    /// <param name="primitive">The primitive to inspect.</param>
+    /// <returns><see langword="true"/> when any of <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> is present.</returns>
+    private static bool PrimitiveDeclaresSubregion(XElement primitive) =>
+        primitive.Attribute("x") != null ||
+        primitive.Attribute("y") != null ||
+        primitive.Attribute("width") != null ||
+        primitive.Attribute("height") != null;
+
+    /// <summary>
+    ///     Resolves one primitive's own <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> rectangle into
+    ///     filter-buffer-local pixel coordinates, clamped to the enclosing filter region.
+    /// </summary>
+    /// <param name="primitive">The primitive whose own subregion is being resolved.</param>
+    /// <param name="filterRegionPixelBounds">The enclosing filter region in absolute pixel coordinates.</param>
+    /// <param name="regionPixelX">The enclosing filter region's absolute pixel-space X origin.</param>
+    /// <param name="regionPixelY">The enclosing filter region's absolute pixel-space Y origin.</param>
+    /// <param name="transform">
+    ///     The accumulated transform from the referencing element's local space into pixel space.
+    ///     Present for parity with the effects-pipeline call sites; primitive subregions reuse the
+    ///     filter region's own objectBoundingBox-relative convention and therefore need only the
+    ///     already-resolved pixel-space filter region itself.
+    /// </param>
+    /// <returns>The clamped, filter-buffer-local primitive rectangle.</returns>
+    private static PixelRect ResolvePrimitiveSubregionPixelBounds(
+        XElement primitive,
+        (int X, int Y, int Width, int Height) filterRegionPixelBounds,
+        int regionPixelX,
+        int regionPixelY,
+        Matrix3x2 transform)
+    {
+        _ = transform;
+
+        var xFraction = ParseFilterRegionFraction(primitive, "x", 0f);
+        var yFraction = ParseFilterRegionFraction(primitive, "y", 0f);
+        var widthFraction = ParseFilterRegionFraction(primitive, "width", 1f);
+        var heightFraction = ParseFilterRegionFraction(primitive, "height", 1f);
+
+        var absoluteX = filterRegionPixelBounds.X + (xFraction * filterRegionPixelBounds.Width);
+        var absoluteY = filterRegionPixelBounds.Y + (yFraction * filterRegionPixelBounds.Height);
+        var absoluteWidth = widthFraction * filterRegionPixelBounds.Width;
+        var absoluteHeight = heightFraction * filterRegionPixelBounds.Height;
+
+        var unclampedMinX = (int)MathF.Floor(absoluteX) - regionPixelX;
+        var unclampedMinY = (int)MathF.Floor(absoluteY) - regionPixelY;
+        var unclampedMaxX = (int)MathF.Ceiling(absoluteX + absoluteWidth) - regionPixelX;
+        var unclampedMaxY = (int)MathF.Ceiling(absoluteY + absoluteHeight) - regionPixelY;
+
+        var minX = Math.Clamp(unclampedMinX, 0, filterRegionPixelBounds.Width);
+        var minY = Math.Clamp(unclampedMinY, 0, filterRegionPixelBounds.Height);
+        var maxX = Math.Clamp(unclampedMaxX, 0, filterRegionPixelBounds.Width);
+        var maxY = Math.Clamp(unclampedMaxY, 0, filterRegionPixelBounds.Height);
+
+        return new PixelRect(minX, minY, Math.Max(0, maxX - minX), Math.Max(0, maxY - minY));
+    }
+
+    /// <summary>
+    ///     Clips one primitive output to <paramref name="subregion"/>, clearing every pixel
+    ///     outside that rectangle.
+    /// </summary>
+    /// <param name="source">The already-evaluated primitive output.</param>
+    /// <param name="subregion">The primitive's resolved, filter-buffer-local subregion.</param>
+    /// <returns>A new, clipped surface.</returns>
+    private static Surface ClipPrimitiveOutputToSubregion(Surface source, PixelRect subregion)
+    {
+        var clipped = new Surface(source.Width, source.Height);
+        if (subregion.IsEmpty)
+        {
+            return clipped;
+        }
+
+        for (var row = 0; row < subregion.Height; row++)
+        {
+            var sourceRow = source.GetRowSpan(subregion.Y + row).Slice(subregion.X, subregion.Width);
+            var destinationRow = clipped.GetRowSpan(subregion.Y + row).Slice(subregion.X, subregion.Width);
+            sourceRow.CopyTo(destinationRow);
+        }
+
+        return clipped;
+    }
+
+    /// <summary>
+    ///     Copies <paramref name="source"/> into <paramref name="destination"/> at the supplied
+    ///     destination origin, clipping to the destination bounds.
+    /// </summary>
+    /// <param name="source">The surface to copy from.</param>
+    /// <param name="destination">The surface to copy into.</param>
+    /// <param name="destinationX">The destination X origin.</param>
+    /// <param name="destinationY">The destination Y origin.</param>
+    private static void CopySurfaceInto(Surface source, Surface destination, int destinationX, int destinationY)
+    {
+        for (var row = 0; row < source.Height; row++)
+        {
+            var destRow = destinationY + row;
+            if (destRow < 0 || destRow >= destination.Height)
+            {
+                continue;
+            }
+
+            var startX = Math.Max(0, -destinationX);
+            var endX = Math.Min(source.Width, destination.Width - destinationX);
+            if (endX <= startX)
+            {
+                continue;
+            }
+
+            var length = endX - startX;
+            var sourceRow = source.GetRowSpan(row).Slice(startX, length);
+            var destinationRow = destination.GetRowSpan(destRow).Slice(destinationX + startX, length);
+            sourceRow.CopyTo(destinationRow);
+        }
+    }
+
+    /// <summary>
+    ///     Computes the union of two primitive subregions.
+    /// </summary>
+    /// <param name="first">The first subregion.</param>
+    /// <param name="second">The second subregion.</param>
+    /// <returns>The bounding union, or the non-empty operand when only one has area.</returns>
+    private static PixelRect UnionPrimitiveSubregions(PixelRect first, PixelRect second)
+    {
+        if (first.IsEmpty)
+        {
+            return second;
+        }
+
+        if (second.IsEmpty)
+        {
+            return first;
+        }
+
+        var minX = Math.Min(first.X, second.X);
+        var minY = Math.Min(first.Y, second.Y);
+        var maxX = Math.Max(first.X + first.Width, second.X + second.Width);
+        var maxY = Math.Max(first.Y + first.Height, second.Y + second.Height);
+        return new PixelRect(minX, minY, maxX - minX, maxY - minY);
+    }
+
+    /// <summary>
     ///     Counts <paramref name="filterElement"/>'s upfront primitive-equivalent work-unit charge
-    ///     for <see cref="IsFilterPrimitiveWorkWithinBudget"/>: each direct child counts as 1, except
-    ///     a <c>feMerge</c> child, which counts as its own <c>feMergeNode</c> child count (at least
-    ///     1) instead - because <see cref="ApplyFeMerge"/> performs one full-surface
-    ///     <see cref="Surface.CompositeOver(Surface)"/> per <c>feMergeNode</c>, so a flat charge of 1
-    ///     would let a <c>feMerge</c> with a huge number of merge nodes bypass the budget while still
-    ///     doing O(node-count &#215; region-area) work.
+    ///     for <see cref="IsFilterPrimitiveWorkWithinBudget"/>: most direct children count as 1;
+    ///     a <c>feMerge</c> child counts as its own <c>feMergeNode</c> count (at least 1); and a
+    ///     <c>feConvolveMatrix</c> child counts as <c>orderX * orderY</c> (at least 1), reflecting
+    ///     its O(order<sup>2</sup> &#215; region-area) per-primitive cost.
     /// </summary>
     /// <param name="filterElement">The resolved <c>filter</c> element.</param>
     /// <returns>The total primitive-equivalent work-unit count.</returns>
     private static int CountFilterPrimitiveWorkUnits(XElement filterElement) =>
-        filterElement.Elements().Sum(primitive => primitive.Name.LocalName == "feMerge"
-            ? Math.Max(1, primitive.Elements().Count(node => node.Name.LocalName == "feMergeNode"))
-            : 1);
+        filterElement.Elements().Sum(primitive => primitive.Name.LocalName switch
+        {
+            "feMerge" => Math.Max(1, primitive.Elements().Count(node => node.Name.LocalName == "feMergeNode")),
+            "feConvolveMatrix" => Math.Max(1, GetConvolveMatrixOrder(primitive).X * GetConvolveMatrixOrder(primitive).Y),
+            _ => 1
+        });
 
     /// <summary>
     ///     Evaluates <paramref name="filterElement"/>'s <c>fe*</c> primitive children, in document
     ///     order, against <paramref name="sourceGraphic"/>.
     /// </summary>
     /// <param name="filterElement">The resolved <c>filter</c> element.</param>
-    /// <param name="sourceGraphic">
-    ///     The already-rendered <c>SourceGraphic</c> buffer, sized to the filter region.
-    /// </param>
-    /// <param name="transform">
-    ///     The referencing shape's own accumulated transform, used only to estimate the pixel-space
-    ///     scale for <c>feGaussianBlur</c>/<c>feOffset</c> via <see cref="EstimateUniformScale"/>.
-    /// </param>
+    /// <param name="sourceGraphic">The already-rendered <c>SourceGraphic</c> buffer, sized to the filter region.</param>
+    /// <param name="transform">The referencing element's own accumulated transform.</param>
+    /// <param name="regionPixelX">The filter region's absolute pixel-space X origin.</param>
+    /// <param name="regionPixelY">The filter region's absolute pixel-space Y origin.</param>
+    /// <param name="state">The referencing element's own cascaded render state.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="useDepth">The current <c>use</c>-reference nesting depth.</param>
+    /// <param name="elementDepth">The current element-recursion depth at the referencing element itself.</param>
+    /// <param name="markerDepth">The current marker-recursion depth.</param>
+    /// <param name="totalElements">The running total-rendered-elements count.</param>
+    /// <param name="workBudget">The shared geometry work budget.</param>
+    /// <param name="filterWorkBudget">The shared cumulative filter work budget.</param>
+    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget.</param>
     /// <returns>
     ///     The last document-order primitive's own output buffer, or <paramref name="sourceGraphic"/>
-    ///     itself if <paramref name="filterElement"/> has no <c>fe*</c> children at all (a
-    ///     degenerate spec edge case tolerated as "no filter").
+    ///     itself if <paramref name="filterElement"/> has no <c>fe*</c> children at all.
     /// </returns>
     /// <remarks>
     ///     Every buffer produced by every primitive in this pipeline is exactly
-    ///     <paramref name="sourceGraphic"/>'s own size - this invariant is what lets
-    ///     <c>feComposite</c>/<c>feMerge</c> reuse <see cref="Surface.CompositeOver(Surface)"/>
-    ///     directly, since that method requires equal-size surfaces. <c>in</c>/<c>in2</c> name
-    ///     resolution follows this fixed precedence: <c>"SourceGraphic"</c> resolves to
-    ///     <paramref name="sourceGraphic"/> itself; <c>"SourceAlpha"</c> resolves to a lazily-built,
-    ///     alpha-only copy of it; a name matching an earlier primitive's own <c>result</c>
-    ///     resolves to that primitive's output; an absent/empty name resolves to the immediately
-    ///     preceding primitive's own output (or <paramref name="sourceGraphic"/> for the very first
-    ///     primitive); and any other (dangling/unrecognized) name tolerantly falls back to
-    ///     <paramref name="sourceGraphic"/> - a documented simplification. Any primitive type other
-    ///     than <c>feFlood</c>/<c>feGaussianBlur</c>/<c>feOffset</c>/<c>feComposite</c>/<c>feMerge</c>
-    ///     (for example <c>feColorMatrix</c>, <c>feTurbulence</c>, <c>feDisplacementMap</c>,
-    ///     <c>feImage</c>, <c>feTile</c>, <c>feDropShadow</c>, <c>feConvolveMatrix</c>,
-    ///     <c>feDiffuseLighting</c>, <c>feSpecularLighting</c>, <c>feComponentTransfer</c>, or
-    ///     <c>feMorphology</c>) is a tolerant no-op passthrough of its own resolved <c>in</c> input,
-    ///     registered under its own <c>result</c> name (if any) so later primitives in the chain
-    ///     still resolve correctly by name - <c>feImage</c> in particular is entirely out of scope,
-    ///     which also means a filter chain can never reference another filtered element's own
-    ///     render output, so no additional recursion-depth guard is needed here. This method itself
-    ///     needs no internal primitive-count/work-budget guard: its only caller,
-    ///     <see cref="RenderShapeEffectsPipeline"/>, already guarantees both stay within
-    ///     <see cref="MaxFilterPrimitivesPerFilter"/>/<see cref="MaxFilterPrimitiveWorkUnits"/>
-    ///     before this method is ever invoked (see <see cref="IsFilterPrimitiveWorkWithinBudget"/>).
+    ///     <paramref name="sourceGraphic"/>'s own size. <c>in</c>/<c>in2</c> name resolution
+    ///     follows this fixed precedence: <c>"SourceGraphic"</c>; <c>"SourceAlpha"</c>; an
+    ///     earlier named <c>result</c>; the immediately preceding primitive; and, for any other
+    ///     dangling/unrecognized name, tolerant fallback to <paramref name="sourceGraphic"/>.
+    ///     Unsupported primitives remain tolerant no-op pass-through operations of their own resolved
+    ///     <c>in</c> input - notably <c>feBlend</c>, <c>feDiffuseLighting</c>,
+    ///     <c>feSpecularLighting</c>, and <c>feTurbulence</c>.
     /// </remarks>
-    private static Surface EvaluateFilterChain(XElement filterElement, Surface sourceGraphic, Matrix3x2 transform)
+    private static Surface EvaluateFilterChain(
+        XElement filterElement,
+        Surface sourceGraphic,
+        Matrix3x2 transform,
+        int regionPixelX,
+        int regionPixelY,
+        RenderState state,
+        RenderContext context,
+        int useDepth,
+        int elementDepth,
+        int markerDepth,
+        ref int totalElements,
+        GeometryWorkBudget workBudget,
+        FilterWorkBudget filterWorkBudget,
+        BoundsPrePassWorkBudget boundsPrePassBudget)
     {
         var scale = EstimateUniformScale(transform);
         var results = new Dictionary<string, Surface>(StringComparer.Ordinal);
+        var resultSubregions = new Dictionary<string, PixelRect>(StringComparer.Ordinal);
+        var filterRegionPixelBounds = (X: regionPixelX, Y: regionPixelY, Width: sourceGraphic.Width, Height: sourceGraphic.Height);
+        var fullRegion = new PixelRect(0, 0, sourceGraphic.Width, sourceGraphic.Height);
+        PixelRect previousSubregion = fullRegion;
         Surface? previousResult = null;
         Surface? sourceAlpha = null;
 
-        Surface ResolveInput(string? name)
+        Surface ResolveInput(string? name, out PixelRect subregion)
         {
             if (string.IsNullOrEmpty(name))
             {
+                subregion = previousResult == null ? fullRegion : previousSubregion;
                 return previousResult ?? sourceGraphic;
             }
 
             if (string.Equals(name, "SourceGraphic", StringComparison.Ordinal))
             {
+                subregion = fullRegion;
                 return sourceGraphic;
             }
 
             if (string.Equals(name, "SourceAlpha", StringComparison.Ordinal))
             {
+                subregion = fullRegion;
                 return sourceAlpha ??= BuildSourceAlpha(sourceGraphic);
             }
 
-            return results.TryGetValue(name, out var namedResult) ? namedResult : sourceGraphic;
+            if (results.TryGetValue(name, out var namedResult))
+            {
+                subregion = resultSubregions.TryGetValue(name, out var namedSubregion) ? namedSubregion : fullRegion;
+                return namedResult;
+            }
+
+            subregion = fullRegion;
+            return sourceGraphic;
         }
 
         foreach (var primitive in filterElement.Elements())
         {
-            var input = ResolveInput((string?)primitive.Attribute("in"));
+            var primitiveHasSubregion = PrimitiveDeclaresSubregion(primitive);
+            var primitiveSubregion = primitiveHasSubregion
+                ? ResolvePrimitiveSubregionPixelBounds(primitive, filterRegionPixelBounds, regionPixelX, regionPixelY, transform)
+                : fullRegion;
+
+            var input = ResolveInput((string?)primitive.Attribute("in"), out var inputSubregion);
+            var outputSubregion = fullRegion;
 
             Surface output;
             switch (primitive.Name.LocalName)
@@ -1507,27 +1702,87 @@ public static partial class SvgCodec
                     break;
 
                 case "feComposite":
-                    output = ApplyFeComposite(primitive, input, ResolveInput((string?)primitive.Attribute("in2")));
+                    var input2 = ResolveInput((string?)primitive.Attribute("in2"), out var input2Subregion);
+                    output = ApplyFeComposite(primitive, input, input2);
+                    outputSubregion = UnionPrimitiveSubregions(inputSubregion, input2Subregion);
                     break;
 
                 case "feMerge":
-                    output = ApplyFeMerge(primitive, sourceGraphic.Width, sourceGraphic.Height, ResolveInput);
+                    output = ApplyFeMerge(primitive, sourceGraphic.Width, sourceGraphic.Height, name => ResolveInput(name, out _));
+                    break;
+
+                case "feColorMatrix":
+                    output = ApplyFeColorMatrix(primitive, input);
+                    outputSubregion = inputSubregion;
+                    break;
+
+                case "feComponentTransfer":
+                    output = ApplyFeComponentTransfer(primitive, input);
+                    outputSubregion = inputSubregion;
+                    break;
+
+                case "feMorphology":
+                    output = ApplyFeMorphology(primitive, input, scale);
+                    break;
+
+                case "feConvolveMatrix":
+                    output = ApplyFeConvolveMatrix(primitive, input);
+                    break;
+
+                case "feDisplacementMap":
+                    output = ApplyFeDisplacementMap(primitive, input, ResolveInput((string?)primitive.Attribute("in2"), out _), scale);
+                    break;
+
+                case "feTile":
+                    output = ApplyFeTile(input, inputSubregion);
+                    break;
+
+                case "feDropShadow":
+                    output = ApplyFeDropShadow(primitive, input, scale);
+                    break;
+
+                case "feImage":
+                    output = ApplyFeImage(
+                        primitive,
+                        sourceGraphic.Width,
+                        sourceGraphic.Height,
+                        primitiveSubregion,
+                        transform,
+                        regionPixelX,
+                        regionPixelY,
+                        state,
+                        context,
+                        useDepth,
+                        elementDepth,
+                        markerDepth,
+                        ref totalElements,
+                        workBudget,
+                        filterWorkBudget,
+                        boundsPrePassBudget);
+                    outputSubregion = primitiveSubregion;
                     break;
 
                 default:
-                    // Tolerant no-op passthrough for every unsupported primitive type - see this
-                    // method's remarks for the full enumerated list
                     output = input;
+                    outputSubregion = inputSubregion;
                     break;
+            }
+
+            if (primitiveHasSubregion)
+            {
+                output = ClipPrimitiveOutputToSubregion(output, primitiveSubregion);
+                outputSubregion = primitiveSubregion;
             }
 
             var resultName = (string?)primitive.Attribute("result");
             if (!string.IsNullOrEmpty(resultName))
             {
                 results[resultName] = output;
+                resultSubregions[resultName] = outputSubregion;
             }
 
             previousResult = output;
+            previousSubregion = outputSubregion;
         }
 
         return previousResult ?? sourceGraphic;

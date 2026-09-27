@@ -108,20 +108,19 @@ the supported `filter` feature itself, `filterUnits="userSpaceOnUse"` (tolerantl
 the same objectBoundingBox-relative region computation as the default, rather than being
 interpreted as literal absolute user-space coordinates), a `filter` on a shape's own `marker`
 content (has no effect - `marker` content is never recursed into by the ordinary element walk, so
-a group-level filter on a `<g>` inside a `marker` is never reached), and every filter primitive
-other than
-the five listed above (`feColorMatrix`, `feTurbulence`, `feDisplacementMap`, `feImage`, `feTile`,
-`feDropShadow`, `feConvolveMatrix`, `feDiffuseLighting`, `feSpecularLighting`,
-`feComponentTransfer`, and `feMorphology` - each tolerated as a no-op passthrough of its own input
-rather than rejected or skipped at the whole-filter level) are all explicitly out of scope.
-`feImage` in particular is deliberately never implemented, specifically because it is the only
-primitive that could reference another filtered element's own output - omitting it means
-filter-chain evaluation needs no additional recursion-depth guard of its own, unlike `use`/
-`marker` references. Within the supported `text` feature itself, the `font-weight` relative
-keywords `bolder`/`lighter` (which resolve to a value relative to the inherited weight rather
-than an absolute one) are not implemented - encountering either keyword tolerantly falls back to
-the inherited weight - and the `font-style` keyword `oblique` is folded into the same
-`SvgFontStyle.Italic` value as `italic` rather than being distinguished as a third style (see
+a group-level filter on a `<g>` inside a `marker` is never reached), and the remaining
+unsupported primitive types (`feBlend`, `feTurbulence`, `feDiffuseLighting`, and
+`feSpecularLighting`) are all explicitly out of scope. Encountering one of those remaining
+unsupported primitive types tolerantly passes through its resolved input rather than rejecting or
+skipping the whole filter. `feImage` is now supported in both its raster-href and
+element-reference forms; because the element-reference form can recurse back into the ordinary
+element walk, filter evaluation now reuses the existing `MaxUseDepth` guard that already bounds
+`use`/marker reference depth, declining the nested render once that limit is reached. Within the
+supported `text` feature itself, the `font-weight` relative keywords `bolder`/`lighter` (which
+resolve to a value relative to the inherited weight rather than an absolute one) are not
+implemented - encountering either keyword tolerantly falls back to the inherited weight - and the
+`font-style` keyword `oblique` is folded into the same `SvgFontStyle.Italic` value as `italic`
+rather than being distinguished as a third style (see
 `SvgFontStyle`'s remarks in the source for the rationale). Within the supported `clipPath`/`mask`
 features themselves, the following are explicitly out of scope (see *Clipping and Masking* below
 for the full rationale behind each): a nested `clip-path`/`mask`/`filter` applied to a `clipPath`
@@ -608,10 +607,9 @@ content by `dx`/`dy` (scaled by the element's own transform). `feComposite` impl
 small, dedicated per-pixel premultiplied-alpha helper - the only genuinely new blending math this
 feature introduces. `feMerge` layers each `feMergeNode` child's own resolved input over an
 initially transparent accumulator, in document order, via the same `CompositeOver`. Any other
-primitive type (`feColorMatrix`, `feTurbulence`, `feDisplacementMap`, `feImage`, `feTile`,
-`feDropShadow`, `feConvolveMatrix`, `feDiffuseLighting`, `feSpecularLighting`,
-`feComponentTransfer`, `feMorphology`) is a tolerant no-op passthrough of its own input, still
-registered under its own `result` name so later primitives can still resolve it by name. The
+primitive type (`feBlend`, `feTurbulence`, `feDiffuseLighting`, `feSpecularLighting`) is a
+tolerant no-op passthrough of its own input, still registered under its own `result` name so
+later primitives can still resolve it by name. The
 final primitive's own output buffer is composited onto `context.Surface` at the region's own
 pixel position via `Surface.CompositeOverSpan`, clipped to the canvas's own bounds - reusing the
 same offset-aware compositing primitive used elsewhere in this codec, rather than inventing new
@@ -620,6 +618,59 @@ canvas-writing logic for filters. The element's own cascaded `opacity` (forced t
 source) is applied at this same final compositing step, as a uniform per-pixel coverage
 multiplier passed to `CompositeOverSpan` - per SVG semantics, `opacity` applies to the filtered
 result as a whole, exactly once, not to the pre-filter source paint.
+
+Beyond that initial subset, `feColorMatrix` now implements SVG's `matrix`, `saturate`,
+`hueRotate`, and `luminanceToAlpha` modes. The `matrix` form applies the full 4x5 affine color
+transform against straight-alpha RGBA samples; `saturate` and `hueRotate` use their standard
+SVG-derived matrices; and `luminanceToAlpha` zeroes the color channels while computing alpha from
+the same shared luminance coefficients this codec already uses for luminance masks. Missing or
+malformed `values` fall back to each type's own SVG default rather than rejecting the whole
+filter.
+
+`feComponentTransfer` remaps each channel independently through its matching `feFuncR`/`feFuncG`/
+`feFuncB`/`feFuncA` child, supporting the SVG `identity`, `table`, `discrete`, `linear`, and
+`gamma` transfer types with the same tolerant defaulting the rest of this codec uses: a missing
+function element leaves that channel unchanged, a malformed table is treated as identity, and
+every lookup ultimately clamps back to the codec's byte color range. `feMorphology` implements
+`erode` and `dilate` as separable sliding-window extrema passes over a transform-scaled pixel
+radius, so its cost stays linear in filter-region area rather than quadratic in neighborhood
+size; a resolved radius less than or equal to zero is treated as an identity operation per SVG
+semantics. `feConvolveMatrix` implements bounded 2-D convolution with parsed `order`,
+`kernelMatrix`, optional `divisor`/`bias`, `targetX`/`targetY`, `preserveAlpha`, and the
+supported edge modes (`duplicate`, `wrap`, otherwise transparent outside the source extent);
+malformed kernel sizes tolerate by passing the input through unchanged, while an oversized
+`order` is rejected as malformed input.
+
+`feDisplacementMap` samples the displaced `in` source through the requested
+`xChannelSelector`/`yChannelSelector`, scaling displacement by the primitive's `scale` and the
+current transform just as `feOffset` and `feMorphology` already convert authored SVG lengths to
+pixels. `feTile` now has meaningful behavior because filter evaluation records each primitive's
+own declared `x`/`y`/`width`/`height` subregion: when a primitive declares at least one of those
+attributes, its computed output is clipped to that subregion once, generically, after the
+primitive-specific work finishes, and `feTile` repeats exactly that clipped upstream subregion
+across the full filter region. Because every pre-existing primitive in this repository's fixtures
+omitted primitive subregion attributes entirely, the default path remains the full filter region
+and therefore preserves all prior behavior unchanged. `feDropShadow` is expressed in terms of the
+existing primitives' own semantics - blur the alpha-only source, offset it, flood it with the
+requested color/opacity, then composite the source graphic over that shadow - so it reuses the
+same blur, offset, flood, and compositing behavior the simpler primitives had already
+established.
+
+`feImage` supports both forms SVG uses in practice. A raster/data-URI `href` reuses the same
+image-decoding helpers already introduced for Phase 4's standalone `<image>` element support: the
+payload is decoded through the existing raster codec resolution path, sampled into the
+primitive's own subregion, and fitted with the same `preserveAspectRatio` handling this codec
+already applies to `<image>`. An element-reference `href="#id"` instead renders the resolved SVG
+element into an offscreen surface covering the primitive's own subregion, reusing the existing
+`RenderElement` traversal rather than introducing a second element-rendering path. Because this
+form can recurse back into normal SVG rendering, it reuses the existing `MaxUseDepth` guard
+before descending, and it also charges the shared `FilterWorkBudget` before allocating the nested
+offscreen surface. Two new attribute-value sanity caps round out this phase's resource-safety
+work: `feConvolveMatrix` rejects `order` values above `MaxConvolveMatrixOrder` (25) and
+`feMorphology` rejects a resolved pixel radius above `MaxMorphologyRadiusPixels` (250) with
+`InvalidDataException`, matching the codec's existing malformed-input policy for absurd
+single-attribute values, while the aggregate per-filter and cumulative filter work budgets remain
+tolerant fallback paths that simply render unfiltered once the requested total work is too high.
 
 **Group-level filters.** A `filter` attribute on a `g`/`symbol` reference or `use` element
 (`RenderFilteredGroup`) reuses the same per-shape pipeline above - offscreen render, primitive

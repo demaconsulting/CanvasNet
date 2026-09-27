@@ -260,7 +260,11 @@ public static partial class SvgCodec
                 useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
         }
 
-        var finalSurface = filterApplies ? EvaluateFilterChain(filterElement!, content, transform) : content;
+        var finalSurface = filterApplies
+            ? EvaluateFilterChain(
+                filterElement!, content, transform, pixelX, pixelY, state, context, useDepth, elementDepth, markerDepth,
+                ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget)
+            : content;
 
         CompositeFilterResultOntoCanvas(finalSurface, pixelX, pixelY, context.Surface, state.Opacity);
     }

@@ -971,6 +971,120 @@ is the companion non-regression test: 5 levels of nested filtered groups wrappin
 ordinary path renders its fill color correctly, proving the new geometry-weighted ceiling is
 generous enough that ordinary real-world documents are never spuriously rejected.
 
+#### CanvasNet-Codecs-SvgCodec-FeColorMatrix: `feColorMatrix` Type Evaluation
+
+**Tests**: `SvgCodec_Load_FeColorMatrixTypeMatrix_AppliesFullAffineTransform`,
+`SvgCodec_Load_FeColorMatrixTypeSaturate_DesaturatesTowardGray`,
+`SvgCodec_Load_FeColorMatrixTypeHueRotate_RotatesHueByAngle`,
+`SvgCodec_Load_FeColorMatrixTypeLuminanceToAlpha_ConvertsLuminanceToAlphaChannel`,
+`SvgCodec_Load_FeColorMatrixMissingValuesAttribute_FallsBackToTypeDefault`
+
+Asserts the `matrix` form applies a full 4x5 affine color transform to the input pixel values;
+asserts `saturate` moves a colored source toward gray without changing its coverage; asserts
+`hueRotate` rotates a known source hue into the expected target channel ordering; asserts
+`luminanceToAlpha` zeros color while deriving alpha from luminance; and asserts omitted `values`
+fall back to the SVG-defined default for the chosen type instead of rejecting the filter.
+
+#### CanvasNet-Codecs-SvgCodec-FeComponentTransfer: `feComponentTransfer` Per-Channel Remapping
+
+**Tests**: `SvgCodec_Load_FeFuncRTypeTable_RemapsRedChannel`,
+`SvgCodec_Load_FeFuncGTypeDiscrete_StepsGreenChannel`,
+`SvgCodec_Load_FeFuncBTypeLinear_ScalesAndOffsetsBlueChannel`,
+`SvgCodec_Load_FeFuncATypeGamma_AppliesGammaCurveToAlpha`,
+`SvgCodec_Load_MissingFeFuncChild_ChannelUnchanged`
+
+Asserts each supported transfer-function form is evaluated on its matching channel: table lookup
+interpolates red from an authored table, discrete transfer steps green into authored buckets,
+linear transfer scales and offsets blue, and gamma transfer reshapes alpha through amplitude,
+exponent, and offset. The missing-child regression test proves an omitted `feFunc*` element
+leaves that channel unchanged rather than clearing or corrupting it.
+
+#### CanvasNet-Codecs-SvgCodec-FeMorphology: `feMorphology` Erode/Dilate Support
+
+**Tests**: `SvgCodec_Load_FeMorphologyOperatorErode_ShrinksOpaqueRegion`,
+`SvgCodec_Load_FeMorphologyOperatorDilate_GrowsOpaqueRegion`,
+`SvgCodec_Load_FeMorphologyRadiusExceedingCap_ThrowsInvalidDataException`,
+`SvgCodec_Load_FeMorphologyNegativeRadius_TreatedAsIdentity`
+
+Asserts `operator="erode"` contracts an opaque source region, `operator="dilate"` expands it,
+negative radii are treated as identity rather than malformed input, and a radius that resolves
+above the fixed pixel cap is rejected with `InvalidDataException` before any large-neighborhood
+processing is attempted.
+
+#### CanvasNet-Codecs-SvgCodec-FeConvolveMatrix: `feConvolveMatrix` Kernel Evaluation
+
+**Tests**: `SvgCodec_Load_FeConvolveMatrixIdentityKernel_LeavesInputUnchanged`,
+`SvgCodec_Load_FeConvolveMatrixEdgeDetectKernel_ProducesExpectedEdgeResponse`,
+`SvgCodec_Load_FeConvolveMatrixEdgeModeWrap_SamplesAcrossOppositeEdge`,
+`SvgCodec_Load_FeConvolveMatrixPreserveAlphaTrue_LeavesAlphaChannelUnchanged`,
+`SvgCodec_Load_FeConvolveMatrixOrderExceedingCap_ThrowsInvalidDataException`,
+`SvgCodec_Load_FeConvolveMatrixKernelMatrixCountMismatchOrder_TolerantlyPassesThrough`
+
+Asserts an identity kernel preserves the source exactly, a hand-authored edge-detect kernel
+produces the expected response at known pixels, `edgeMode="wrap"` samples from the opposite edge,
+`preserveAlpha="true"` keeps the original alpha channel unchanged while still filtering color, an
+oversized `order` is rejected with `InvalidDataException`, and a malformed `kernelMatrix` count
+falls back to a tolerant passthrough instead of throwing or corrupting later primitive inputs.
+
+#### CanvasNet-Codecs-SvgCodec-FeDisplacementMap: `feDisplacementMap` Channel-Based Sampling
+
+**Tests**: `SvgCodec_Load_FeDisplacementMapPositiveScaleWithRedChannelSelector_DisplacesSourcePixels`,
+`SvgCodec_Load_FeDisplacementMapZeroScale_LeavesInputUnchanged`
+
+Asserts a positive `scale` together with a red-channel selector actually displaces the sampled
+source pixel into a new location, proving the primitive consults the second input and moves the
+first input accordingly; and asserts a zero scale leaves the source unchanged, proving the effect
+reduces cleanly to identity when authored to do so.
+
+#### CanvasNet-Codecs-SvgCodec-FeTile: Primitive Subregion Tiling
+
+**Tests**: `SvgCodec_Load_FeTileTilesUpstreamPrimitiveSubregionAcrossFilterRegion`,
+`SvgCodec_Load_FeTileNoUpstreamSubregion_TilesWholeRegionAsIdentity`,
+`SvgCodec_Load_FePrimitiveWithSubregion_ClipsOutputToDeclaredXYWidthHeight`,
+`SvgCodec_Load_FePrimitiveWithoutSubregion_UnaffectedByNewMechanism`
+
+Asserts a primitive that declares its own `x`/`y`/`width`/`height` is clipped to that subregion
+and that a downstream `feTile` repeats exactly that clipped tile across the broader filter
+region. The companion regressions prove the new subregion mechanism remains opt-in: when no
+primitive subregion is declared, existing whole-region behavior remains unchanged and `feTile`
+degenerates to an identity repeat of the full input.
+
+#### CanvasNet-Codecs-SvgCodec-FeDropShadow: `feDropShadow` Expansion of Existing Primitives
+
+**Tests**: `SvgCodec_Load_FeDropShadow_MatchesManualBlurOffsetFloodCompositeChainEquivalent`,
+`SvgCodec_Load_FeDropShadowDefaultDxDyStdDeviation_OffsetsShadowBy2Pixels`
+
+Asserts `feDropShadow` renders byte-identically to the hand-authored blur/offset/flood/composite
+chain SVG defines as its semantic equivalent, proving it reuses the existing primitive behavior
+correctly; and asserts omitted `dx`, `dy`, and `stdDeviation` fall back to SVG's default 2-pixel
+shadow offset behavior rather than leaving the shadow without that shift.
+
+#### CanvasNet-Codecs-SvgCodec-FeImage: `feImage` Raster and Element Reference Inputs
+
+**Tests**: `SvgCodec_Load_FeImageDataUriRasterHref_RendersDecodedRasterIntoSubregion`,
+`SvgCodec_Load_FeImageElementReferenceHref_RendersReferencedElementOffscreen`,
+`SvgCodec_Load_FeImageElementReferenceHrefExceedingMaxUseDepth_TolerantlyRendersEmpty`,
+`SvgCodec_Load_FeImageDanglingElementReference_RendersEmptyWithoutThrowing`
+
+Asserts a raster/data-URI `href` is decoded and sampled into the primitive subregion with the
+expected fitted output; asserts an `href="#id"` reference renders the resolved SVG element into an
+offscreen primitive surface and exposes that result to later primitives; asserts the reused
+`MaxUseDepth` recursion guard tolerantly produces no nested output once reached; and asserts a
+reference to a missing id is ignored without throwing.
+
+#### CanvasNet-Codecs-SvgCodec-FilterPrimitiveResourceSafety: Primitive-Specific Filter Caps
+
+**Tests**: `SvgCodec_Load_FeConvolveMatrixOrderExceedingCap_ThrowsInvalidDataException`,
+`SvgCodec_Load_FeMorphologyRadiusExceedingCap_ThrowsInvalidDataException`,
+`SvgCodec_Load_FilterExcessivePrimitiveCount_SkipsFilterRatherThanUnboundedWork`,
+`SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes`
+
+Asserts the two new primitive-specific attribute sanity caps reject absurd convolution order and
+morphology radius values with `InvalidDataException`, distinguishing malformed single-attribute
+input from the codec's tolerant aggregate-work fallback path. The existing filter-budget
+regressions remain listed here as supporting evidence that these primitive-specific checks plug
+into the same broader bounded-work model rather than bypassing it.
+
 #### CanvasNet-Codecs-SvgCodec-ClipPathRendering: `clipPath` Union-of-Children Hard Clipping
 
 **Tests**: `SvgCodec_Load_ClipPathUserSpaceOnUse_ClipsToAbsoluteCircle`,

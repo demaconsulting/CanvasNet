@@ -991,29 +991,37 @@ sections:
       - id: CanvasNet-Lib-SvgFilterRendering
         title: >-
           The library shall rasterize filter elements referenced from any directly renderable
-          shape or text element's filter presentation attribute, evaluating a
-          feFlood/feGaussianBlur/feOffset/feComposite/feMerge primitive chain against that
-          element's own content within a bounded-size temporary offscreen surface, and shall
-          tolerate a dangling filter reference, an unsupported primitive type, and a
-          pathologically large filter region or blur radius without failing or hanging.
+          shape or text element's filter presentation attribute, evaluating a bounded
+          feFlood/feGaussianBlur/feOffset/feComposite/feMerge/feColorMatrix/
+          feComponentTransfer/feMorphology/feConvolveMatrix/feDisplacementMap/feTile/
+          feDropShadow/feImage primitive chain against that element's own content within a
+          bounded-size temporary offscreen surface, and shall tolerate a dangling filter
+          reference, a still-unsupported primitive type, and pathological filter-region,
+          convolution-order, or morphology-radius inputs without failing or hanging.
         tags: [system]
         justification: |
-          Solid-color halo/glow backgrounds behind text labels, built via SVG's filter
-          mechanism, are common in real-world diagrams (the reported real-world bug this feature
-          fixes: SvgRenderer's own midpoint line labels use exactly this pattern, and previously
-          lost their halo entirely, causing label text to overlap the line beneath it); callers
-          need this common pattern to render rather than silently vanish, with the same bounded,
-          predictable resource-safety behavior already established for this codec's other
-          reference-following and work-budget concerns.
+          Real-world SVG documents use much more than the initial flood/blur/offset/composite
+          subset: authored icons, diagrams, and illustration exports commonly add color-matrix
+          stages, component-transfer ramps, morphology/convolution kernels, displacement, tiled
+          subregions, drop shadows, and image-based filter inputs. The library therefore needs
+          this broader primitive subset to reproduce common authored filter effects while
+          keeping the same bounded, predictable resource-safety behavior already established for
+          the codec's other reference-following and work-budget concerns.
         children:
           - CanvasNet-Codecs-SvgFilterRendering
         tests:
-          - SvgCodec_Load_FeFloodFilter_RendersSolidColorBehindElement
           - SvgCodec_Load_FeFloodFeGaussianBlurFeCompositeFilter_RendersBlurredHaloBehindContent
-          - SvgCodec_Load_LabelHaloFixture_RendersWhiteHaloBehindLineMidpointLabel
-          - SvgCodec_Load_FilterDanglingReference_RendersElementNormally
-          - SvgCodec_Load_FilterPathologicallyLargeRegion_SkipsFilterRatherThanUnboundedAllocation
-          - SvgCodec_Load_FilterPathologicallyLargeBlurStdDeviation_ClampsRatherThanUnboundedWork
+          - SvgCodec_Load_FeColorMatrixTypeHueRotate_RotatesHueByAngle
+          - SvgCodec_Load_FeFuncATypeGamma_AppliesGammaCurveToAlpha
+          - SvgCodec_Load_FeMorphologyOperatorDilate_GrowsOpaqueRegion
+          - SvgCodec_Load_FeConvolveMatrixEdgeDetectKernel_ProducesExpectedEdgeResponse
+          - SvgCodec_Load_FeDisplacementMapPositiveScaleWithRedChannelSelector_DisplacesSourcePixels
+          - SvgCodec_Load_FeTileTilesUpstreamPrimitiveSubregionAcrossFilterRegion
+          - SvgCodec_Load_FeDropShadow_MatchesManualBlurOffsetFloodCompositeChainEquivalent
+          - SvgCodec_Load_FeImageElementReferenceHref_RendersReferencedElementOffscreen
+          - SvgCodec_Load_FeConvolveMatrixOrderExceedingCap_ThrowsInvalidDataException
+          - SvgCodec_Load_FeMorphologyRadiusExceedingCap_ThrowsInvalidDataException
+          - SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent
 
       - id: CanvasNet-Lib-SvgClipPathMaskRendering
         title: >-

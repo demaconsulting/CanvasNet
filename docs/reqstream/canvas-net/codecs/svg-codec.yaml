@@ -759,6 +759,158 @@ sections:
                   - SvgCodec_Load_DeeplyNestedFilteredGroupsWithEnormousInnerPath_ThrowsInvalidDataException
                   - SvgCodec_Load_ModestlyNestedFilteredGroupsWithNormalPath_RenderCorrectlyWithoutFalsePositiveFallback
 
+              - id: CanvasNet-Codecs-SvgCodec-FeColorMatrix
+                title: >-
+                  The SvgCodec class shall evaluate feColorMatrix primitives for the matrix,
+                  saturate, hueRotate, and luminanceToAlpha types, defaulting missing values per
+                  SVG semantics and applying the resolved transform to the named or implicit
+                  filter input.
+                justification: |
+                  Real-world SVG filters frequently adjust color channels, saturation, hue, or
+                  luminance-derived alpha without introducing new geometry. Supporting these modes
+                  closes the largest remaining gap between the codec's bounded filter pipeline and
+                  common authored filter recipes.
+                tests:
+                  - SvgCodec_Load_FeColorMatrixTypeMatrix_AppliesFullAffineTransform
+                  - SvgCodec_Load_FeColorMatrixTypeSaturate_DesaturatesTowardGray
+                  - SvgCodec_Load_FeColorMatrixTypeHueRotate_RotatesHueByAngle
+                  - SvgCodec_Load_FeColorMatrixTypeLuminanceToAlpha_ConvertsLuminanceToAlphaChannel
+                  - SvgCodec_Load_FeColorMatrixMissingValuesAttribute_FallsBackToTypeDefault
+
+              - id: CanvasNet-Codecs-SvgCodec-FeComponentTransfer
+                title: >-
+                  The SvgCodec class shall evaluate feComponentTransfer primitives, remapping
+                  each channel independently through identity, table, discrete, linear, and gamma
+                  transfer functions while leaving channels with no matching feFunc child
+                  unchanged.
+                justification: |
+                  Component-transfer stages are a common way authored SVG filters tune contrast,
+                  threshold behavior, alpha ramps, and per-channel response after blur or color-matrix
+                  stages. Supporting the standard transfer-function set lets the existing filter
+                  pipeline reproduce these authored adjustments directly.
+                tests:
+                  - SvgCodec_Load_FeFuncRTypeTable_RemapsRedChannel
+                  - SvgCodec_Load_FeFuncGTypeDiscrete_StepsGreenChannel
+                  - SvgCodec_Load_FeFuncBTypeLinear_ScalesAndOffsetsBlueChannel
+                  - SvgCodec_Load_FeFuncATypeGamma_AppliesGammaCurveToAlpha
+                  - SvgCodec_Load_MissingFeFuncChild_ChannelUnchanged
+
+              - id: CanvasNet-Codecs-SvgCodec-FeMorphology
+                title: >-
+                  The SvgCodec class shall evaluate feMorphology primitives for both erode and
+                  dilate operators, scaling authored radius values into pixels from the current
+                  transform and treating non-positive radii as an identity operation.
+                justification: |
+                  Morphological expansion and erosion are standard SVG building blocks for growing
+                  silhouettes, shrinking masks, and shaping alpha before later composite steps.
+                  Implementing both operators closes another common authored-filter gap without
+                  requiring any second rendering pipeline.
+                tests:
+                  - SvgCodec_Load_FeMorphologyOperatorErode_ShrinksOpaqueRegion
+                  - SvgCodec_Load_FeMorphologyOperatorDilate_GrowsOpaqueRegion
+                  - SvgCodec_Load_FeMorphologyRadiusExceedingCap_ThrowsInvalidDataException
+                  - SvgCodec_Load_FeMorphologyNegativeRadius_TreatedAsIdentity
+
+              - id: CanvasNet-Codecs-SvgCodec-FeConvolveMatrix
+                title: >-
+                  The SvgCodec class shall evaluate feConvolveMatrix primitives using the
+                  declared order and kernelMatrix, honoring divisor, bias, target position,
+                  preserveAlpha, and supported edge modes while tolerating malformed kernel counts
+                  as an identity passthrough.
+                justification: |
+                  Convolution kernels cover sharpening, edge detection, embossing, and other
+                  authored image-processing effects that cannot be reproduced with blur/offset/
+                  composite alone. Supporting bounded convolution expands the filter subset to a
+                  much wider class of real authored SVG effects.
+                tests:
+                  - SvgCodec_Load_FeConvolveMatrixIdentityKernel_LeavesInputUnchanged
+                  - SvgCodec_Load_FeConvolveMatrixEdgeDetectKernel_ProducesExpectedEdgeResponse
+                  - SvgCodec_Load_FeConvolveMatrixEdgeModeWrap_SamplesAcrossOppositeEdge
+                  - SvgCodec_Load_FeConvolveMatrixPreserveAlphaTrue_LeavesAlphaChannelUnchanged
+                  - SvgCodec_Load_FeConvolveMatrixOrderExceedingCap_ThrowsInvalidDataException
+                  - SvgCodec_Load_FeConvolveMatrixKernelMatrixCountMismatchOrder_TolerantlyPassesThrough
+
+              - id: CanvasNet-Codecs-SvgCodec-FeDisplacementMap
+                title: >-
+                  The SvgCodec class shall evaluate feDisplacementMap primitives by displacing
+                  the input image according to the selected channel values from the second input,
+                  scaled into pixels from the current transform.
+                justification: |
+                  Displacement maps are a common authored way to perturb geometry-free filtered
+                  imagery, especially for ripples, refraction, and noise-driven distortion.
+                  Supporting bounded channel-based displacement lets those authored effects render
+                  without inventing a separate effect pipeline.
+                tests:
+                  - SvgCodec_Load_FeDisplacementMapPositiveScaleWithRedChannelSelector_DisplacesSourcePixels
+                  - SvgCodec_Load_FeDisplacementMapZeroScale_LeavesInputUnchanged
+
+              - id: CanvasNet-Codecs-SvgCodec-FeTile
+                title: >-
+                  The SvgCodec class shall evaluate feTile primitives by repeating the resolved
+                  upstream primitive subregion across the filter region, while leaving primitives
+                  with no declared subregion unaffected by the new subregion mechanism.
+                justification: |
+                  Tiling a prior primitive's own subregion is the core purpose of feTile and is
+                  required by authored patterns that intentionally generate one small filtered
+                  tile and then repeat it. Recording primitive subregions once, generically, lets
+                  the existing filter pipeline support feTile without changing prior whole-region
+                  primitive behavior.
+                tests:
+                  - SvgCodec_Load_FeTileTilesUpstreamPrimitiveSubregionAcrossFilterRegion
+                  - SvgCodec_Load_FeTileNoUpstreamSubregion_TilesWholeRegionAsIdentity
+                  - SvgCodec_Load_FePrimitiveWithSubregion_ClipsOutputToDeclaredXYWidthHeight
+                  - SvgCodec_Load_FePrimitiveWithoutSubregion_UnaffectedByNewMechanism
+
+              - id: CanvasNet-Codecs-SvgCodec-FeDropShadow
+                title: >-
+                  The SvgCodec class shall evaluate feDropShadow primitives by constructing the
+                  equivalent blurred, offset, flood-colored shadow from SourceAlpha and
+                  compositing SourceGraphic over it, with SVG-default dx, dy, and stdDeviation
+                  values when omitted.
+                justification: |
+                  Drop shadows are one of the most common authored SVG filter effects. Supporting
+                  the primitive directly, while reusing the existing blur/offset/flood/composite
+                  implementation, keeps common authored documents readable without introducing a
+                  second shadow-specific pipeline.
+                tests:
+                  - SvgCodec_Load_FeDropShadow_MatchesManualBlurOffsetFloodCompositeChainEquivalent
+                  - SvgCodec_Load_FeDropShadowDefaultDxDyStdDeviation_OffsetsShadowBy2Pixels
+
+              - id: CanvasNet-Codecs-SvgCodec-FeImage
+                title: >-
+                  The SvgCodec class shall evaluate feImage primitives for both raster/data-URI
+                  href values and element-reference href values, fitting raster content with
+                  preserveAspectRatio semantics and rendering referenced SVG elements into an
+                  offscreen primitive surface.
+                justification: |
+                  Authored SVG filters commonly bring in external raster content or reuse an
+                  existing SVG element as an intermediate filtered input. Supporting both forms
+                  of feImage closes the final filter primitive in this phase that can introduce
+                  new imagery into the filter graph.
+                tests:
+                  - SvgCodec_Load_FeImageDataUriRasterHref_RendersDecodedRasterIntoSubregion
+                  - SvgCodec_Load_FeImageElementReferenceHref_RendersReferencedElementOffscreen
+                  - SvgCodec_Load_FeImageElementReferenceHrefExceedingMaxUseDepth_TolerantlyRendersEmpty
+                  - SvgCodec_Load_FeImageDanglingElementReference_RendersEmptyWithoutThrowing
+
+              - id: CanvasNet-Codecs-SvgCodec-FilterPrimitiveResourceSafety
+                title: >-
+                  The SvgCodec class shall reject feConvolveMatrix order values above a fixed
+                  maximum and feMorphology radii that resolve above a fixed pixel maximum with
+                  InvalidDataException, and shall account for feConvolveMatrix kernel area in the
+                  filter primitive work-unit budget before evaluating the chain.
+                justification: |
+                  These two primitives introduce attacker-controlled neighborhood sizes whose cost
+                  would otherwise grow with kernel area or radius. Bounding absurd
+                  single-attribute values at parse time and charging convolution kernels
+                  proportionally to their actual per-pixel work keeps the existing filter
+                  pipeline's resource-safety model intact.
+                tests:
+                  - SvgCodec_Load_FeConvolveMatrixOrderExceedingCap_ThrowsInvalidDataException
+                  - SvgCodec_Load_FeMorphologyRadiusExceedingCap_ThrowsInvalidDataException
+                  - SvgCodec_Load_FilterExcessivePrimitiveCount_SkipsFilterRatherThanUnboundedWork
+                  - SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes
+
               - id: CanvasNet-Codecs-SvgCodec-ClipPathRendering
                 title: >-
                   The SvgCodec class shall render a clip-path="url(#id)" attribute on any
