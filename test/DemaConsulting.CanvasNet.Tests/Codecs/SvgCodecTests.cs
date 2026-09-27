@@ -2,6 +2,7 @@
 // cspell:ignore Dasharray hhea Hhea hmtx Hmtx hrefs letterboxed Loca Maxp unstroked
 // cspell:ignore miterlimit
 // cspell:ignore unparseable overpainted bbox moveto lineto rects unrotated unclipped
+// cspell:ignore pillarbox
 using System.Diagnostics;
 using System.Reflection;
 using System.Text;
@@ -3348,6 +3349,124 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that a <c>symbol</c> referenced via <c>use</c> establishes a new nested viewport,
+    ///     fitting the symbol's own <c>viewBox</c> content into the resolved <c>width</c>/
+    ///     <c>height</c> (falling back from the <c>use</c> element's own <c>width</c>/<c>height</c>)
+    ///     per the symbol's own <c>preserveAspectRatio</c> - new capability, via the same shared
+    ///     <c>ComputePreserveAspectRatioFit</c> helper the root <c>svg</c> element uses.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_UseReferencingSymbolWithViewBox_FitsContentToResolvedWidthHeight()
+    {
+        // Arrange: a symbol with a 10x10 viewBox containing a full-viewBox blue rect, referenced
+        // via a <use> that resolves a 20x20 box (its own width/height) - the symbol's content
+        // should be scaled up 2x to fill that 20x20 box, then translated by the use's own x=5,y=5
+        // offset, landing at (5,5)-(25,25) in the root's own coordinate space
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <symbol id='sym' viewBox='0 0 10 10'>
+                  <rect x='0' y='0' width='10' height='10' fill='blue'/>
+                </symbol>
+              </defs>
+              <use href='#sym' x='5' y='5' width='20' height='20'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the fitted, scaled-up content fills its resolved 20x20 box, sampled well inside
+        // the expected (5,5)-(25,25) region
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[15, 15]);
+
+        // Assert: outside the resolved 20x20 box, nothing was painted
+        Assert.Equal(0, surface[40, 40].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>symbol</c>'s own <c>preserveAspectRatio</c> attribute is honored when
+    ///     fitting its <c>viewBox</c> content into its resolved <c>width</c>/<c>height</c> - new
+    ///     capability, exercising a non-default align (<c>xMinYMin</c>) so the fitted content is
+    ///     pinned to the resolved box's own top-left corner rather than centered.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_UseReferencingSymbolWithPreserveAspectRatio_HonorsAlign()
+    {
+        // Arrange: a symbol with a 10x20 (portrait) viewBox fitted "meet" into a 20x20 (square)
+        // resolved box - under the default xMidYMid, the fitted 10x20 content (scaled to 10x20,
+        // scale=1) would be horizontally centered (offset x=5); under "xMinYMin", it is pinned to
+        // the left edge (offset x=0) instead. A blue marker rect fills the whole viewBox
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <symbol id='sym' viewBox='0 0 10 20' preserveAspectRatio='xMinYMin meet'>
+                  <rect x='0' y='0' width='10' height='20' fill='blue'/>
+                </symbol>
+              </defs>
+              <use href='#sym' x='0' y='0' width='20' height='20'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: content is pinned to the left edge (visible at x=2, well within the fitted
+        // 0-10 band) rather than centered (which would leave x=2 transparent, since centered
+        // content would occupy x=5-15)
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[2, 10]);
+
+        // Assert: the right-hand slack area (which the centered default would fill, but the
+        // left-pinned align leaves empty) is transparent
+        Assert.Equal(0, surface[17, 10].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>marker</c> element's own explicit <c>preserveAspectRatio</c> attribute
+    ///     is honored - new capability, routing the marker's <c>viewBox</c> fit through the same
+    ///     shared <c>ComputePreserveAspectRatioFit</c> helper as the root <c>svg</c>/a <c>symbol</c>
+    ///     - distinct from a marker with no explicit attribute at all, which always uses a "meet"
+    ///     -equivalent scale (see <see cref="SvgCodec_Load_MarkerWithViewBox_FitsContentToMarkerWidthHeight"/>).
+    ///     Exercises <c>slice</c> specifically: because a marker's content is always anchored by
+    ///     its own <c>refX</c>/<c>refY</c> (never clipped to <c>markerWidth</c>/<c>markerHeight</c>
+    ///     - see this class's remarks), an <c>&lt;align&gt;</c>'s Min/Mid/Max offset has no visible
+    ///     effect on an unclipped marker (the offset is a rigid translation that always cancels
+    ///     out relative to the anchor point), so <c>meet</c> versus <c>slice</c>'s different
+    ///     uniform scale factor is the one part of an explicit <c>preserveAspectRatio</c> that
+    ///     <i>is</i> visibly distinguishable here.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerWithExplicitPreserveAspectRatioSlice_UsesLargerUniformScale()
+    {
+        // Arrange: a marker with a 16x8 viewBox fitted into a 8x8 markerWidth/markerHeight -
+        // "meet" (min(8/16, 8/8) = 0.5, this marker's own pre-existing default-path scale) versus
+        // "slice" (max(8/16, 8/8) = 1, twice as large) - anchored via refX=8,refY=4 (the viewBox's
+        // own center) at the line's end vertex (10,10). Under "slice", the scaled-up content spans
+        // canvas (2,6)-(18,14); under the marker's pre-existing "meet"-equivalent default it would
+        // only span the narrower (6,8)-(14,12) - so canvas point (3,10) is covered only by the
+        // wider "slice" fit
+        const string svg = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <marker id='sl' markerWidth='8' markerHeight='8' refX='8' refY='4' viewBox='0 0 16 8' preserveAspectRatio='xMidYMid slice' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='16' height='8' fill='green'/>
+                </marker>
+              </defs>
+              <line x1='2' y1='10' x2='10' y2='10' stroke='black' stroke-width='1' marker-end='url(#sl)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert: the wider "slice" fit covers a point the narrower default "meet" fit would not
+        Assert.Equal(new Rgba32(0, 128, 0, 255), surface[3, 10]);
+    }
+
+    /// <summary>
     ///     Proves that a group's own <c>opacity</c> attenuates the *filtered* result exactly once,
     ///     the same convention already established for single filtered shapes (see
     ///     <see cref="SvgCodec_Load_OpacityWithFeFloodFilter_AppliesOpacityToFilteredResultNotSource"/>).
@@ -4860,6 +4979,176 @@ public class SvgCodecTests
     }
 
     // ================================================================================================
+    // preserveAspectRatio - explicit align/meetOrSlice values (new capability)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Data-driven matrix covering all 9 non-<c>none</c> <c>&lt;align&gt;</c> values crossed
+    ///     with both <c>meetOrSlice</c> values, via <see cref="SvgCodec_Load_RootPreserveAspectRatio_AppliesAlignAndMeetOrSlice"/>.
+    ///     A single 200x100 <c>viewBox</c> rendered into a mismatched-both-axes 100x200 (portrait)
+    ///     raster makes the horizontal axis the exact-fit axis under <c>meet</c> (scale
+    ///     <c>min(100/200, 200/100) = 0.5</c>, fitted width exactly 100 = the raster width, so the
+    ///     <c>align</c>'s x-component has no visible effect and only its y-component does) and the
+    ///     horizontal axis the overflowing axis under <c>slice</c> (scale
+    ///     <c>max(100/200, 200/100) = 2</c>, fitted height exactly 200 = the raster height, so only
+    ///     the x-component has any visible effect) - see the test method's own remarks for the full
+    ///     geometry derivation. Each row's four trailing values are two independently-verified
+    ///     sample points (<c>x, y, expectedColor</c>) into the resulting raster.
+    /// </summary>
+    [Theory]
+    [InlineData("xMinYMin", "meet", 50, 5, "red", 50, 45, "blue")]
+    [InlineData("xMidYMin", "meet", 50, 5, "red", 50, 45, "blue")]
+    [InlineData("xMaxYMin", "meet", 50, 5, "red", 50, 45, "blue")]
+    [InlineData("xMinYMid", "meet", 50, 80, "red", 50, 120, "blue")]
+    [InlineData("xMidYMid", "meet", 50, 80, "red", 50, 120, "blue")]
+    [InlineData("xMaxYMid", "meet", 50, 80, "red", 50, 120, "blue")]
+    [InlineData("xMinYMax", "meet", 50, 155, "red", 50, 195, "blue")]
+    [InlineData("xMidYMax", "meet", 50, 155, "red", 50, 195, "blue")]
+    [InlineData("xMaxYMax", "meet", 50, 155, "red", 50, 195, "blue")]
+    [InlineData("xMinYMin", "slice", 10, 100, "red", 90, 100, "none")]
+    [InlineData("xMidYMin", "slice", 10, 100, "none", 90, 100, "none")]
+    [InlineData("xMaxYMin", "slice", 10, 100, "none", 90, 100, "blue")]
+    [InlineData("xMinYMid", "slice", 10, 100, "red", 90, 100, "none")]
+    [InlineData("xMidYMid", "slice", 10, 100, "none", 90, 100, "none")]
+    [InlineData("xMaxYMid", "slice", 10, 100, "none", 90, 100, "blue")]
+    [InlineData("xMinYMax", "slice", 10, 100, "red", 90, 100, "none")]
+    [InlineData("xMidYMax", "slice", 10, 100, "none", 90, 100, "none")]
+    [InlineData("xMaxYMax", "slice", 10, 100, "none", 90, 100, "blue")]
+    public void SvgCodec_Load_RootPreserveAspectRatio_AppliesAlignAndMeetOrSlice(
+        string align, string meetOrSlice, int x1, int y1, string color1, int x2, int y2, string color2)
+    {
+        // Arrange: a 200x100 viewBox with a red vertical stripe at its left edge (x 0-30, full
+        // height), a blue vertical stripe at its right edge (x 170-200, full height), a red
+        // horizontal stripe at its top edge (y 0-20, full width), and a blue horizontal stripe at
+        // its bottom edge (y 80-100, full width) - rendered into a 100x200 raster (see this
+        // Theory's own remarks for the resulting geometry). The "meet" rows sample a fixed
+        // x = 50 column (outside both vertical stripes' mapped position under "meet", regardless
+        // of align) at a y computed from the expected y-offset for the row's y-component; the
+        // "slice" rows sample a fixed y = 100 row (outside both horizontal stripes' mapped
+        // position under "slice", regardless of align) at the fixed x = 10/x = 90 columns.
+        var svg = $"""
+            <svg viewBox='0 0 200 100' preserveAspectRatio='{align} {meetOrSlice}'>
+              <rect x='0' y='0' width='30' height='100' fill='red'/>
+              <rect x='170' y='0' width='30' height='100' fill='blue'/>
+              <rect x='0' y='0' width='200' height='20' fill='red'/>
+              <rect x='0' y='80' width='200' height='20' fill='blue'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 200);
+
+        // Assert
+        AssertSampleColor(surface, x1, y1, color1);
+        AssertSampleColor(surface, x2, y2, color2);
+    }
+
+    /// <summary>Asserts one raster pixel is opaque red, opaque blue, or fully transparent ("none").</summary>
+    /// <param name="surface">The rasterized surface to sample.</param>
+    /// <param name="x">The pixel's x coordinate.</param>
+    /// <param name="y">The pixel's y coordinate.</param>
+    /// <param name="expected"><c>"red"</c>, <c>"blue"</c>, or <c>"none"</c> (fully transparent).</param>
+    private static void AssertSampleColor(Surface surface, int x, int y, string expected)
+    {
+        switch (expected)
+        {
+            case "red":
+                Assert.Equal(new Rgba32(255, 0, 0, 255), surface[x, y]);
+                break;
+            case "blue":
+                Assert.Equal(new Rgba32(0, 0, 255, 255), surface[x, y]);
+                break;
+            case "none":
+                Assert.Equal(0, surface[x, y].A);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(expected), expected, "Unrecognized expected color token.");
+        }
+    }
+
+    /// <summary>
+    ///     Proves that an explicit <c>preserveAspectRatio="none"</c> stretches content
+    ///     non-uniformly to exactly fill the viewport on both axes independently - no uniform
+    ///     scale, no letterbox/pillarbox remainder, and no centering - new capability, distinct
+    ///     from every other <c>align</c> value (all of which scale uniformly).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_RootPreserveAspectRatioNone_StretchesNonUniformly()
+    {
+        // Arrange: a 200x100 viewBox into a 100x200 raster stretches by scaleX = 100/200 = 0.5 and
+        // scaleY = 200/100 = 2 independently; a 10x10 marker centered in the viewBox (at (95,45)
+        // to (105,55)) lands at exactly (47.5,90) to (52.5,110) in raster space - sampling its
+        // center (50,100) proves both the non-uniform scale and the lack of any centering offset,
+        // and the background rect's own opaque corners prove there is no letterbox/pillarbox
+        const string svg = """
+            <svg viewBox='0 0 200 100' preserveAspectRatio='none'>
+              <rect x='0' y='0' width='200' height='100' fill='blue'/>
+              <rect x='95' y='45' width='10' height='10' fill='red'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 200);
+
+        // Assert: the centered marker landed at its exact non-uniformly-scaled position
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 100]);
+
+        // Assert: every corner of the raster is fully opaque - no letterbox/pillarbox bars
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[0, 0]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[99, 0]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[0, 199]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[99, 199]);
+    }
+
+    /// <summary>
+    ///     Regression test proving that an <b>absent</b> <c>preserveAspectRatio</c> attribute -
+    ///     today's pre-existing implicit default - still produces byte-for-byte identical output
+    ///     to an explicit <c>preserveAspectRatio="xMidYMid meet"</c> attribute (the SVG/CSS
+    ///     specification's own default value), confirming that adding explicit
+    ///     <c>preserveAspectRatio</c> support did not change the implicit-default behavior this
+    ///     codec already had (see this class's <c>ComputePreserveAspectRatioFit</c> remarks - the
+    ///     pre-existing "meet, centered" root fit was already spec-conformant <c>xMidYMid meet</c>,
+    ///     not a non-uniform stretch).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_NoPreserveAspectRatioAttribute_MatchesExplicitXMidYMidMeet()
+    {
+        // Arrange: a 200x100 viewBox into a mismatched 100x100 square raster, so the implicit
+        // "meet, centered" fit actually letterboxes (a non-trivial fit, not a no-op identity)
+        const string implicitSvg = """
+            <svg viewBox='0 0 200 100'>
+              <rect x='0' y='0' width='200' height='100' fill='blue'/>
+              <rect x='90' y='40' width='20' height='20' fill='red'/>
+            </svg>
+            """;
+        const string explicitSvg = """
+            <svg viewBox='0 0 200 100' preserveAspectRatio='xMidYMid meet'>
+              <rect x='0' y='0' width='200' height='100' fill='blue'/>
+              <rect x='90' y='40' width='20' height='20' fill='red'/>
+            </svg>
+            """;
+
+        // Act
+        using var implicitStream = ToStream(implicitSvg);
+        using var explicitStream = ToStream(explicitSvg);
+        var implicitSurface = SvgCodec.Load(implicitStream, 100, 100);
+        var explicitSurface = SvgCodec.Load(explicitStream, 100, 100);
+
+        // Assert: every pixel matches exactly between the two documents
+        Assert.Equal(implicitSurface.Width, explicitSurface.Width);
+        Assert.Equal(implicitSurface.Height, explicitSurface.Height);
+        for (var y = 0; y < implicitSurface.Height; y++)
+        {
+            for (var x = 0; x < implicitSurface.Width; x++)
+            {
+                Assert.Equal(implicitSurface[x, y], explicitSurface[x, y]);
+            }
+        }
+    }
+
+    // ================================================================================================
     // GetInfo and its three-tier fallback policy
     // ================================================================================================
 
@@ -5647,38 +5936,246 @@ public class SvgCodecTests
     }
 
     /// <summary>
-    ///     Proves that a percentage value on a shape geometry attribute (<c>x</c>) is rejected
-    ///     with <see cref="InvalidDataException"/>, because this codec has no defined
-    ///     viewport-relative basis to resolve it against - unlike the opacity percentage exercised
-    ///     by <see cref="SvgCodec_Load_NegativeScientificAndPercentageValues_RendersWithoutThrowing"/>
-    ///     above, which continues to work correctly and is unaffected by this rejection.
+    ///     Proves that a percentage value on a shape geometry attribute (<c>x</c>) resolves
+    ///     against the current viewport width - repurposed from this codec's original
+    ///     percentage-<i>rejection</i> behavior on this exact attribute/markup (percentages on
+    ///     shape geometry are now a supported new capability; see this class's percentage-geometry
+    ///     region below for the fuller per-attribute-family matrix). Unlike the opacity percentage
+    ///     exercised by <see cref="SvgCodec_Load_NegativeScientificAndPercentageValues_RendersWithoutThrowing"/>
+    ///     above (always a basis-1 fraction, unaffected by this change), <c>x</c> resolves its
+    ///     <c>%</c> against the SVG document's current viewport width.
     /// </summary>
     [Fact]
-    public void SvgCodec_Load_RectXPercentage_ThrowsInvalidDataException()
+    public void SvgCodec_Load_RectXPercentage_ResolvesAgainstViewportWidth()
     {
-        // Arrange
-        const string svg = "<svg viewBox='0 0 100 100'><rect x='50%' y='0' width='10' height='10'/></svg>";
+        // Arrange: x="50%" of a 100-wide viewBox resolves to x=50; a 10x10 rect at x=50 covers
+        // (55,5) but not (5,5)
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='50%' y='0' width='10' height='10' fill='red'/></svg>";
 
-        // Act & Assert
+        // Act
         using var stream2788 = ToStream(svg);
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2788, 100, 100));
+        var surface = SvgCodec.Load(stream2788, 100, 100);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[55, 5]);
+        Assert.Equal(0, surface[5, 5].A);
     }
 
     /// <summary>
-    ///     Proves that a percentage value on a shape geometry attribute (<c>width</c>) is
-    ///     rejected with <see cref="InvalidDataException"/>, for the same reason as the <c>x</c>
-    ///     attribute test above - exercising a different attribute through the same
-    ///     <c>GetFloatAttribute</c>/<c>ParseGeometryCoordinate</c> code path.
+    ///     Proves that a percentage value on a shape geometry attribute (<c>width</c>) resolves
+    ///     against the current viewport width - repurposed from this codec's original
+    ///     percentage-<i>rejection</i> behavior on this exact attribute/markup, for the same
+    ///     reason as the <c>x</c> attribute test above - exercising a different attribute through
+    ///     the same <c>GetFloatAttribute</c>/<c>ParseGeometryCoordinate</c> code path.
     /// </summary>
     [Fact]
-    public void SvgCodec_Load_RectWidthPercentage_ThrowsInvalidDataException()
+    public void SvgCodec_Load_RectWidthPercentage_ResolvesAgainstViewportWidth()
     {
-        // Arrange
-        const string svg = "<svg viewBox='0 0 100 100'><rect x='0' y='0' width='50%' height='10'/></svg>";
+        // Arrange: width="50%" of a 100-wide viewBox resolves to width=50; the rect spans x=[0,50)
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='0' y='0' width='50%' height='10' fill='red'/></svg>";
 
-        // Act & Assert
+        // Act
         using var stream2804 = ToStream(svg);
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2804, 100, 100));
+        var surface = SvgCodec.Load(stream2804, 100, 100);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[25, 5]);
+        Assert.Equal(0, surface[75, 5].A);
+    }
+
+    // ================================================================================================
+    // Percentage-based geometry - per-attribute-family basis matrix (new capability)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that a <c>rect</c>'s <c>y</c>/<c>height</c> percentages resolve against the
+    ///     current viewport height (the vertical basis), distinct from <c>x</c>/<c>width</c>'s
+    ///     horizontal basis exercised above.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_RectYHeightPercentage_ResolvesAgainstViewportHeight()
+    {
+        // Arrange: a 100x50 viewBox (non-square, so horizontal/vertical bases differ); y="40%" of
+        // 50 resolves to 20, height="20%" of 50 resolves to 10 - the rect spans y=[20,30)
+        const string svg = "<svg viewBox='0 0 100 50'><rect x='0' y='40%' width='10' height='20%' fill='red'/></svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 50);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 25]);
+        Assert.Equal(0, surface[5, 15].A);
+        Assert.Equal(0, surface[5, 35].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>circle</c>'s <c>cx</c>/<c>cy</c> percentages resolve against their own
+    ///     horizontal/vertical viewport bases, and its <c>r</c> percentage resolves against the
+    ///     diagonal basis (<c>sqrt(w^2 + h^2) / sqrt(2)</c>) - an axis-agnostic length, per the SVG
+    ///     specification.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CircleCxCyRPercentage_ResolvesAgainstHorizontalVerticalAndDiagonalBases()
+    {
+        // Arrange: a 300x400 viewBox; cx="50%" -> 150, cy="50%" -> 200; diagonal basis =
+        // sqrt(300^2+400^2)/sqrt(2) = 500/sqrt(2) ~ 353.55, so r="10%" -> ~35.355
+        const string svg = "<svg viewBox='0 0 300 400'><circle cx='50%' cy='50%' r='10%' fill='red'/></svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 300, 400);
+
+        // Assert: the circle's center (150,200) is filled, and a point ~35 units away (well
+        // within a ~35.355 radius) is filled, but a point 50 units away (well beyond it) is not
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[150, 200]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[150 + 30, 200]);
+        Assert.Equal(0, surface[150 + 50, 200].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>line</c>'s <c>x1</c>/<c>x2</c> and <c>y1</c>/<c>y2</c> percentages
+    ///     resolve against the horizontal/vertical viewport bases respectively.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_LineCoordinatePercentage_ResolvesAgainstViewport()
+    {
+        // Arrange: a 100x50 viewBox; the line's x1/x2/y1/y2 are percentages of the viewport,
+        // resolving to a horizontal line from (10,25) to (90,25)
+        const string svg =
+            "<svg viewBox='0 0 100 50'><line x1='10%' y1='50%' x2='90%' y2='50%' stroke='red' stroke-width='4'/></svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 50);
+
+        // Assert: the line spans x=[10,90] at y=25 - opaque within its span, transparent well
+        // outside it
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[15, 25]);
+        Assert.Equal(0, surface[5, 25].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>linearGradient</c>'s own <c>x1</c>/<c>x2</c> coordinates (a distinct,
+    ///     gradient-specific code path - see <c>GetGradientCoordinateOrDefault</c>) are unaffected
+    ///     by this phase's new viewport-relative percentage resolution, continuing to resolve
+    ///     <c>"0%"</c>/<c>"100%"</c> as basis-1 fractions of the gradient's own
+    ///     <c>objectBoundingBox</c> coordinate space rather than as viewport-relative lengths -
+    ///     the documented, out-of-scope-for-this-phase <c>userSpaceOnUse</c> simplification (see
+    ///     this class's remarks). Uses a <c>rect</c> fill (a non-degenerate, two-dimensional
+    ///     bounding box) rather than a <c>line</c> stroke, because a horizontal/vertical
+    ///     <c>line</c>'s own fill-geometry bounding box is degenerate on one axis and always
+    ///     falls back to an identity object-bounding-box map regardless of this change.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GradientCoordinatePercentage_UnaffectedByViewportPercentageResolution()
+    {
+        // Arrange: a 100x50 viewBox; the rect's own x/y/width/height are plain numbers (not
+        // percentages, to isolate this test to the gradient's own coordinate space), and the
+        // gradient's x1="0%"/x2="100%" span its object-bounding-box fraction space left-to-right
+        const string svg = """
+            <svg viewBox='0 0 100 50'>
+              <defs>
+                <linearGradient id='g' x1='0%' y1='0%' x2='100%' y2='0%'>
+                  <stop offset='0' stop-color='black'/>
+                  <stop offset='1' stop-color='white'/>
+                </linearGradient>
+              </defs>
+              <rect x='10' y='10' width='80' height='30' fill='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 50);
+
+        // Assert: the rect's own left edge (near gradient fraction 0) is darker than its own
+        // right edge (near gradient fraction 1) - proving the gradient's "0%"/"100%" still span
+        // its own 80-wide bounding box, not this phase's new 100-wide viewport basis (which would
+        // instead place fraction 1 far beyond the rect's own right edge, painting it a uniform
+        // color throughout)
+        Assert.True(surface[12, 25].R < surface[88, 25].R);
+    }
+
+    /// <summary>
+    ///     Proves that <c>stroke-width</c>'s percentage resolves against the diagonal basis
+    ///     (an axis-agnostic length, per the SVG specification), distinct from the horizontal/
+    ///     vertical bases exercised by <c>x</c>/<c>y</c>-family attributes above.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_StrokeWidthPercentage_ResolvesAgainstDiagonalBasis()
+    {
+        // Arrange: a 300x400 viewBox; diagonal basis = sqrt(300^2+400^2)/sqrt(2) = 500/sqrt(2) ~
+        // 353.55, so stroke-width="10%" -> ~35.355 - a visibly thick horizontal line
+        const string svg = "<svg viewBox='0 0 300 400'><line x1='50' y1='200' x2='250' y2='200' stroke='black' stroke-width='10%'/></svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 300, 400);
+
+        // Assert: a point 15 units above/below the line's own y=200 centerline (well within a
+        // ~17.7 half-width) is covered by the stroke
+        Assert.Equal(255, surface[150, 185].A);
+        Assert.Equal(255, surface[150, 215].A);
+
+        // Assert: a point 30 units away (beyond the ~17.7 half-width) is not covered
+        Assert.Equal(0, surface[150, 170].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>font-size</c>'s percentage resolves against the parent element's own
+    ///     already-cascaded <c>font-size</c> (the CSS/SVG-defined basis), not any viewport
+    ///     dimension - a distinct basis from every other percentage-eligible attribute above.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FontSizePercentage_ResolvesAgainstParentFontSize()
+    {
+        // Arrange: the outer <g> establishes a 20-unit font-size; the inner <text> sets
+        // font-size="200%", which should resolve to 40 (double its parent's 20), rendering a
+        // visibly taller glyph than the parent's own 20-unit size would
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <g font-size='20'>
+                <text x='10' y='60' font-family='TestFont' font-size='200%'>A</text>
+              </g>
+            </svg>
+            """;
+
+        var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100, fonts);
+
+        // Assert: BuildTestFont's 'A' glyph is a 50x50-unit square in a 100-unit em - at
+        // font-size=40, it renders as a 20x20-unit square; its baseline is at y=60, so its top
+        // edge is at y=40 - a point at y=45 (within the glyph) is opaque
+        Assert.Equal(255, surface[15, 45].A);
+    }
+
+    /// <summary>
+    ///     Proves that each <c>stroke-dasharray</c> entry's percentage resolves against the
+    ///     diagonal basis, exactly like <c>stroke-width</c> above - per this phase's judgment
+    ///     call to include <c>stroke-dasharray</c> percentages alongside <c>stroke-width</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_StrokeDasharrayPercentage_ResolvesAgainstDiagonalBasis()
+    {
+        // Arrange: a 300x400 viewBox; diagonal basis ~353.55, so a dash-array of "10%,10%"
+        // resolves to roughly 35.355 on, 35.355 off - a horizontal line from x=0 to x=300 at
+        // y=200 should show its first dash covering x in [0,~35] and a gap starting immediately after
+        const string svg = "<svg viewBox='0 0 300 400'><line x1='0' y1='200' x2='300' y2='200' stroke='black' stroke-width='2' stroke-dasharray='10%,10%'/></svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 300, 400);
+
+        // Assert: near the very start of the line, within the first dash, the stroke is painted
+        Assert.Equal(255, surface[5, 200].A);
+
+        // Assert: well into the gap after the first ~35-unit dash (at x=60, comfortably inside
+        // the ~[35.355, 70.71] gap), nothing is painted
+        Assert.Equal(0, surface[60, 200].A);
     }
 
     /// <summary>

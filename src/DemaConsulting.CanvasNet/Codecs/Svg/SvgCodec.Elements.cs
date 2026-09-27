@@ -103,6 +103,19 @@ public static partial class SvgCodec
     ///     The raw <c>marker-end</c> specification, in the same form as <paramref name="MarkerStart"/>,
     ///     applied to the last vertex.
     /// </param>
+    /// <param name="ViewportWidth">
+    ///     The current viewport's width, in user-space units - the basis a
+    ///     <see cref="PercentageAxis.Horizontal"/> percentage resolves against. Established by the
+    ///     root <c>svg</c> element's own resolved viewBox/size (see <c>RenderDocument</c>) and
+    ///     re-established whenever a <c>symbol</c> is rendered via a <c>use</c> reference (see
+    ///     <c>RenderUse</c>'s remarks) - no other element establishes a new viewport, matching this
+    ///     codec's documented, bounded <c>symbol</c>/nested-<c>svg</c> scope.
+    /// </param>
+    /// <param name="ViewportHeight">
+    ///     The current viewport's height, in user-space units - the basis a
+    ///     <see cref="PercentageAxis.Vertical"/> percentage resolves against. See
+    ///     <paramref name="ViewportWidth"/>'s remarks.
+    /// </param>
     private sealed record RenderState(
         string Fill,
         string Stroke,
@@ -123,12 +136,23 @@ public static partial class SvgCodec
         TextAnchor TextAnchor,
         string MarkerStart,
         string MarkerMid,
-        string MarkerEnd)
+        string MarkerEnd,
+        float ViewportWidth,
+        float ViewportHeight)
     {
         /// <summary>
         ///     The default render state every document starts with, matching the SVG/CSS initial
         ///     values for every cascaded presentation property this codec supports.
         /// </summary>
+        /// <remarks>
+        ///     <see cref="ViewportWidth"/>/<see cref="ViewportHeight"/> are seeded here with the
+        ///     CSS/UA replaced-element default (300x150, matching <c>ResolveViewBoxOrSize</c>'s own
+        ///     sizeless fallback) purely so this record always has a well-defined, finite,
+        ///     positive percentage basis even before <c>RenderDocument</c> overrides it with the
+        ///     document's own resolved viewBox/size - every real render path immediately overrides
+        ///     both fields (see <c>RenderDocument</c>'s remarks), so this default value is never
+        ///     itself observed by a percentage resolved against a real document.
+        /// </remarks>
         public static readonly RenderState Initial = new(
             Fill: "black",
             Stroke: "none",
@@ -149,7 +173,9 @@ public static partial class SvgCodec
             TextAnchor: TextAnchor.Start,
             MarkerStart: "none",
             MarkerMid: "none",
-            MarkerEnd: "none");
+            MarkerEnd: "none",
+            ViewportWidth: 300f,
+            ViewportHeight: 150f);
     }
 
     /// <summary>
@@ -218,10 +244,17 @@ public static partial class SvgCodec
     /// </summary>
     /// <param name="root">The document's root element.</param>
     /// <param name="fitTransform">The viewBox-fit transform computed for this render.</param>
+    /// <param name="viewportSize">
+    ///     The document's own resolved viewBox/size (see <c>ResolveViewBoxOrSize</c>), seeded as
+    ///     the root render state's <see cref="RenderState.ViewportWidth"/>/
+    ///     <see cref="RenderState.ViewportHeight"/> - the initial percentage-resolution basis every
+    ///     descendant inherits until a <c>symbol</c> referenced via <c>use</c> establishes a new one.
+    /// </param>
     /// <param name="context">The fixed per-document render context.</param>
-    private static void RenderDocument(XElement root, Matrix3x2 fitTransform, RenderContext context)
+    private static void RenderDocument(XElement root, Matrix3x2 fitTransform, Vector2 viewportSize, RenderContext context)
     {
-        var rootState = ApplyPresentationAttributes(RenderState.Initial, root);
+        var initialState = RenderState.Initial with { ViewportWidth = viewportSize.X, ViewportHeight = viewportSize.Y };
+        var rootState = ApplyPresentationAttributes(initialState, root);
         var totalElements = 0;
         var workBudget = new GeometryWorkBudget();
         var filterWorkBudget = new FilterWorkBudget();
@@ -404,20 +437,20 @@ public static partial class SvgCodec
                 break;
 
             case "rect":
-                RenderShapeWithFilter(element, BuildRectPath(element), state, transform, context, filterWorkBudget, suppressFilter);
+                RenderShapeWithFilter(element, BuildRectPath(element, state), state, transform, context, filterWorkBudget, suppressFilter);
                 break;
 
             case "circle":
-                RenderShapeWithFilter(element, BuildEllipsePath(element, isCircle: true), state, transform, context, filterWorkBudget, suppressFilter);
+                RenderShapeWithFilter(element, BuildEllipsePath(element, isCircle: true, state), state, transform, context, filterWorkBudget, suppressFilter);
                 break;
 
             case "ellipse":
-                RenderShapeWithFilter(element, BuildEllipsePath(element, isCircle: false), state, transform, context, filterWorkBudget, suppressFilter);
+                RenderShapeWithFilter(element, BuildEllipsePath(element, isCircle: false, state), state, transform, context, filterWorkBudget, suppressFilter);
                 break;
 
             case "line":
                 {
-                    var linePath = BuildLinePath(element);
+                    var linePath = BuildLinePath(element, state);
                     RenderShapeWithFilter(element, linePath, state, transform, context, filterWorkBudget, suppressFilter);
                     RenderMarkers(linePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
                     break;
@@ -477,7 +510,7 @@ public static partial class SvgCodec
         {
             null => parent.StrokeDashArray,
             _ when string.Equals(dashArrayAttr.Trim(), "none", StringComparison.OrdinalIgnoreCase) => null,
-            _ => ParseDashArray(dashArrayAttr)
+            _ => ParseDashArray(dashArrayAttr, parent)
         };
 
         return parent with
@@ -488,14 +521,14 @@ public static partial class SvgCodec
             StrokeOpacity = ParseOptionalOpacity(element, "stroke-opacity") ?? parent.StrokeOpacity,
             Opacity = parent.Opacity * (ParseOptionalOpacity(element, "opacity") ?? 1f),
             FillRule = ParseFillRule((string?)element.Attribute("fill-rule")) ?? parent.FillRule,
-            StrokeWidth = GetOptionalFloat(element, "stroke-width") ?? parent.StrokeWidth,
+            StrokeWidth = GetOptionalFloat(element, "stroke-width", parent, PercentageAxis.Diagonal) ?? parent.StrokeWidth,
             StrokeLineCap = ParseLineCap((string?)element.Attribute("stroke-linecap")) ?? parent.StrokeLineCap,
             StrokeLineJoin = ParseLineJoin((string?)element.Attribute("stroke-linejoin")) ?? parent.StrokeLineJoin,
             StrokeMiterLimit = ParseValidMiterLimit(element) ?? parent.StrokeMiterLimit,
             StrokeDashArray = strokeDashArray,
-            StrokeDashOffset = GetOptionalFloat(element, "stroke-dashoffset") ?? parent.StrokeDashOffset,
+            StrokeDashOffset = GetOptionalFloat(element, "stroke-dashoffset", parent, PercentageAxis.Diagonal) ?? parent.StrokeDashOffset,
             FontFamily = (string?)element.Attribute("font-family") ?? parent.FontFamily,
-            FontSize = GetOptionalFloat(element, "font-size") ?? parent.FontSize,
+            FontSize = GetOptionalFloat(element, "font-size", parent, PercentageAxis.FontSize) ?? parent.FontSize,
             FontWeight = ParseFontWeight((string?)element.Attribute("font-weight")) ?? parent.FontWeight,
             FontStyle = ParseFontStyle((string?)element.Attribute("font-style")) ?? parent.FontStyle,
             TextAnchor = ParseTextAnchor((string?)element.Attribute("text-anchor")) ?? parent.TextAnchor,
@@ -634,15 +667,22 @@ public static partial class SvgCodec
     private static float ParseOpacityValue(string raw) => Math.Clamp(ParseCoordinate(raw, 1f), 0f, 1f);
 
     /// <summary>
-    ///     Parses a <c>stroke-dasharray</c> attribute's number list, tolerantly treating a
-    ///     negative-containing or all-zero list as "no dashing" (solid stroke) rather than an
-    ///     error, matching how an unparseable value is treated elsewhere in this codec.
+    ///     Parses a <c>stroke-dasharray</c> attribute's number list, resolving a trailing <c>%</c>
+    ///     on any entry against the diagonal percentage basis (see
+    ///     <see cref="PercentageAxis.Diagonal"/> and <see cref="ParseDashArrayNumberList"/>) and
+    ///     tolerantly treating a negative-containing or all-zero list as "no dashing" (solid
+    ///     stroke) rather than an error, matching how an unparseable value is treated elsewhere in
+    ///     this codec.
     /// </summary>
     /// <param name="raw">The attribute's raw, non-<c>"none"</c> value.</param>
+    /// <param name="state">
+    ///     The cascaded render state supplying the current viewport, used to resolve the diagonal
+    ///     percentage basis for any percentage-suffixed entry.
+    /// </param>
     /// <returns>The parsed dash array, or <see langword="null"/> for an effectively-solid stroke.</returns>
-    private static List<float>? ParseDashArray(string raw)
+    private static List<float>? ParseDashArray(string raw, RenderState state)
     {
-        var numbers = ParseNumberList(raw);
+        var numbers = ParseDashArrayNumberList(raw, ResolvePercentageBasis(state, PercentageAxis.Diagonal));
         return numbers.Count == 0 || numbers.Exists(v => v < 0f) || numbers.TrueForAll(v => v == 0f)
             ? null
             : numbers;

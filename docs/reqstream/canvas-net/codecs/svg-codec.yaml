@@ -2,7 +2,7 @@
 # Software Unit Requirements for SvgCodec
 #
 # cspell:ignore moveto lineto closepath dasharray letterboxing renderable xlink SMIL uncatchable
-# cspell:ignore miterlimit dashoffset
+# cspell:ignore miterlimit dashoffset unitless
 #
 # These requirements describe the design-level behavior of the SvgCodec unit.
 
@@ -396,16 +396,27 @@ sections:
               - id: CanvasNet-Codecs-SvgCodec-ViewBoxFitting
                 title: >-
                   The SvgCodec class shall fit the document's intrinsic viewBox into the
-                  requested raster size using a "meet, centered" (CSS object-fit: contain
-                  equivalent) transform, letterboxing with transparent bars along whichever axis
-                  the intrinsic aspect ratio does not fill.
+                  requested raster size via the root svg element's own preserveAspectRatio
+                  attribute ("[defer] <align> [<meetOrSlice>]" - defer parsed and ignored, align
+                  is "none" or one of the 9 xMin/xMid/xMax x YMin/YMid/YMax combinations,
+                  meetOrSlice is "meet" (default) or "slice"), defaulting to "xMidYMid meet" (a
+                  "meet, centered", CSS object-fit: contain equivalent, transform) when the
+                  attribute is absent, letterboxing with transparent bars along whichever axis
+                  the intrinsic aspect ratio does not fill under "meet", overflowing the raster
+                  under "slice", and stretching non-uniformly with no letterboxing under
+                  align="none".
                 justification: |
                   Callers request a specific raster size that may not share the document's
-                  intrinsic aspect ratio; centered letterboxing avoids distorting or clipping
-                  the document's content.
+                  intrinsic aspect ratio; preserveAspectRatio is the SVG-specification-defined
+                  mechanism for a document to control how that mismatch is resolved, and the
+                  default "xMidYMid meet" behavior preserves this codec's pre-existing centered
+                  letterboxing for every document that omits the attribute.
                 tests:
                   - SvgCodec_Load_WideViewBoxIntoSquareRaster_LetterboxesTopAndBottom
                   - SvgCodec_Load_TallViewBoxIntoSquareRaster_LetterboxesLeftAndRight
+                  - SvgCodec_Load_RootPreserveAspectRatio_AppliesAlignAndMeetOrSlice
+                  - SvgCodec_Load_RootPreserveAspectRatioNone_StretchesNonUniformly
+                  - SvgCodec_Load_NoPreserveAspectRatioAttribute_MatchesExplicitXMidYMidMeet
 
               - id: CanvasNet-Codecs-SvgCodec-GetInfo
                 title: >-
@@ -485,24 +496,69 @@ sections:
                   - SvgCodec_Load_MalformedPathDataUnknownCommand_ThrowsInvalidDataException
                   - SvgCodec_Load_MalformedPathDataMissingArguments_ThrowsInvalidDataException
 
-              - id: CanvasNet-Codecs-SvgCodec-PercentageGeometryRejected
+              - id: CanvasNet-Codecs-SvgCodec-PercentageGeometryResolved
                 title: >-
-                  The SvgCodec class shall reject a percentage value on a shape/text geometry
+                  The SvgCodec class shall resolve a percentage value on a shape/text geometry
                   attribute (x, y, width, height, rx, ry, cx, cy, r, x1/y1/x2/y2, font-size,
-                  stroke-width, stroke-miterlimit, stroke-dashoffset, use's x/y, and text's x/y),
-                  with InvalidDataException, rather than silently resolving it against an
-                  undefined basis.
+                  stroke-width, stroke-dasharray, stroke-dashoffset, use's x/y/width/height, and
+                  text's x/y) against the current viewport (horizontal attributes against
+                  viewport width, vertical attributes against viewport height, axis-agnostic
+                  attributes against the diagonal basis sqrt(width^2 + height^2) / sqrt(2), and
+                  font-size against the parent element's own font-size), rather than rejecting it
+                  with InvalidDataException. stroke-miterlimit remains the sole exception, since
+                  it is a unitless ratio rather than a length.
                 justification: |
-                  SvgCodec has no defined viewport-relative basis to resolve a percentage against
-                  for these attributes (unlike opacity-family attributes and gradient
-                  coordinates/stop offset, which correctly treat a percentage as a [0, 1] fraction
-                  of their own well-defined basis); silently resolving one anyway (for example
-                  treating "50%" as the bare number 0.5) would render visibly wrong geometry
-                  without any indication of error, so a clear, explicit rejection is preferable to
-                  a silently incorrect result.
+                  Real-world SVG documents commonly size geometry as a percentage of their
+                  containing viewport; resolving these against a well-defined, spec-aligned basis
+                  lets this codec render such documents correctly instead of rejecting them
+                  outright.
                 tests:
-                  - SvgCodec_Load_RectXPercentage_ThrowsInvalidDataException
-                  - SvgCodec_Load_RectWidthPercentage_ThrowsInvalidDataException
+                  - SvgCodec_Load_RectXPercentage_ResolvesAgainstViewportWidth
+                  - SvgCodec_Load_RectWidthPercentage_ResolvesAgainstViewportWidth
+                  - SvgCodec_Load_RectYHeightPercentage_ResolvesAgainstViewportHeight
+                  - SvgCodec_Load_CircleCxCyRPercentage_ResolvesAgainstHorizontalVerticalAndDiagonalBases
+                  - SvgCodec_Load_LineCoordinatePercentage_ResolvesAgainstViewport
+                  - SvgCodec_Load_GradientCoordinatePercentage_UnaffectedByViewportPercentageResolution
+                  - SvgCodec_Load_StrokeWidthPercentage_ResolvesAgainstDiagonalBasis
+                  - SvgCodec_Load_FontSizePercentage_ResolvesAgainstParentFontSize
+                  - SvgCodec_Load_StrokeDasharrayPercentage_ResolvesAgainstDiagonalBasis
+
+              - id: CanvasNet-Codecs-SvgCodec-MarkerPreserveAspectRatio
+                title: >-
+                  The SvgCodec class shall honor a marker element's own explicit
+                  preserveAspectRatio attribute, fitting its viewBox into its own
+                  markerWidth/markerHeight through the shared preserveAspectRatio fit algorithm
+                  (honoring the viewBox's own origin and the requested align/meetOrSlice), while
+                  leaving a marker with a viewBox but no explicit preserveAspectRatio attribute
+                  fit exactly as before (an unchanged, simpler uniform "meet"-equivalent
+                  scale-down with no additional centering step).
+                justification: |
+                  A marker author may need finer control over how its own viewBox content fits
+                  its markerWidth/markerHeight than the pre-existing default fit provides,
+                  particularly a non-uniform "slice" fit; the pre-existing default fit is
+                  preserved unchanged for every marker that does not opt into this new capability,
+                  so no existing document's rendered output changes.
+                tests:
+                  - SvgCodec_Load_MarkerWithViewBox_FitsContentToMarkerWidthHeight
+                  - SvgCodec_Load_MarkerWithExplicitPreserveAspectRatioSlice_UsesLargerUniformScale
+
+              - id: CanvasNet-Codecs-SvgCodec-SymbolViewBoxFitting
+                title: >-
+                  The SvgCodec class shall, when a use element references a symbol element with
+                  its own viewBox, fit the symbol's viewBox content into the use/symbol element's
+                  resolved width/height (falling back, in order, to the use element's own
+                  width/height, then the symbol's own width/height, then the current viewport's
+                  own size) via the shared preserveAspectRatio fit algorithm, honoring the
+                  symbol's own preserveAspectRatio attribute, and establish that viewBox as the
+                  current viewport for the symbol's own content's percentage-geometry resolution.
+                justification: |
+                  symbol/use viewBox-fit is the standard SVG mechanism for reusable, self-
+                  contained graphics that need to be resized to fit a caller-chosen box (an "SVG
+                  sprite"); without it, a use referencing a symbol with a viewBox would render at
+                  the wrong scale or position.
+                tests:
+                  - SvgCodec_Load_UseReferencingSymbolWithViewBox_FitsContentToResolvedWidthHeight
+                  - SvgCodec_Load_UseReferencingSymbolWithPreserveAspectRatio_HonorsAlign
 
               - id: CanvasNet-Codecs-SvgCodec-UnsupportedConstructsIgnored
                 title: >-

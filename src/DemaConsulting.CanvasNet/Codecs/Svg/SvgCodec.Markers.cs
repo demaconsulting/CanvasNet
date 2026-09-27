@@ -100,8 +100,22 @@ public static partial class SvgCodec
             return;
         }
 
-        var offset = new Vector2(GetFloatAttribute(element, "x"), GetFloatAttribute(element, "y"));
-        var useTransform = Matrix3x2.CreateTranslation(offset) * transform;
+        var offset = new Vector2(
+            GetFloatAttribute(element, "x", state, PercentageAxis.Horizontal),
+            GetFloatAttribute(element, "y", state, PercentageAxis.Vertical));
+
+        // A "symbol" target establishes a new nested viewport (per its own resolved
+        // width/height, falling back to this "use" element's own width/height, falling back to
+        // the current viewport) fitted via preserveAspectRatio against the symbol's own
+        // viewBox - new capability, see TryResolveUseTarget's remarks. A non-"symbol" target
+        // (or a degenerate/non-finite fit) returns Matrix3x2.Identity/the unchanged state,
+        // reproducing this method's original translate-only behavior exactly.
+        if (!TryResolveUseTarget(element, target, state, out var viewportFit, out var targetState))
+        {
+            return;
+        }
+
+        var useTransform = viewportFit * Matrix3x2.CreateTranslation(offset) * transform;
 
         // A "use" element's own "filter" attribute (suppressed identically to shape/text
         // filtering whenever this call is itself part of a marker's own content) renders its
@@ -114,12 +128,87 @@ public static partial class SvgCodec
         var useFilterElement = suppressFilter ? null : ResolveFilterElement(element, context);
         if (useFilterElement == null)
         {
-            RenderElement(target, state, useTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+            RenderElement(target, targetState, useTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
         }
         else
         {
-            RenderFilteredGroup(useFilterElement, [target], state, useTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+            RenderFilteredGroup(useFilterElement, [target], targetState, useTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
         }
+    }
+
+    /// <summary>
+    ///     Resolves a <c>use</c> element's own nested-viewport establishment when its referenced
+    ///     <paramref name="target"/> is a <c>symbol</c> - new capability, since neither
+    ///     <see cref="RenderElement"/>'s <c>"g"</c>/<c>"symbol"</c> case nor this method itself
+    ///     previously read a <c>symbol</c>'s own <c>width</c>/<c>height</c>/<c>viewBox</c> at all
+    ///     (a <c>symbol</c> was, and when encountered directly still is, treated identically to a
+    ///     plain <c>g</c> - see <see cref="RenderElement"/>'s remarks). A non-<c>symbol</c> target
+    ///     is untouched: <paramref name="viewportFit"/> is <see cref="Matrix3x2.Identity"/> and
+    ///     <paramref name="targetState"/> is <paramref name="state"/> unchanged, reproducing
+    ///     <see cref="RenderUse"/>'s original translate-only behavior exactly for every other
+    ///     reference target.
+    /// </summary>
+    /// <param name="useElement">The referencing <c>use</c> element.</param>
+    /// <param name="target">The resolved reference target (any element; only a literal <c>symbol</c> is special-cased).</param>
+    /// <param name="state">The <c>use</c> element's own cascaded render state, supplying the current viewport.</param>
+    /// <param name="viewportFit">
+    ///     The resulting transform fitting the symbol's own <c>viewBox</c> content into its
+    ///     resolved <c>width</c>/<c>height</c> box, via the shared
+    ///     <see cref="ComputePreserveAspectRatioFit"/> helper (honoring the symbol's own
+    ///     <c>preserveAspectRatio</c> attribute) - or <see cref="Matrix3x2.Identity"/> for a
+    ///     non-<c>symbol</c> target, a <c>symbol</c> with no <c>viewBox</c> (its own children
+    ///     render directly in the new viewport's coordinate space, matching the existing
+    ///     "no-viewBox g" simplification), or when this method returns <see langword="false"/>.
+    /// </param>
+    /// <param name="targetState">
+    ///     <paramref name="state"/> with <see cref="RenderState.ViewportWidth"/>/
+    ///     <see cref="RenderState.ViewportHeight"/> replaced by the symbol's own resolved
+    ///     width/height, for a <c>symbol</c> target - the new percentage-resolution basis every
+    ///     descendant of the symbol's content inherits; otherwise <paramref name="state"/> unchanged.
+    /// </param>
+    /// <returns>
+    ///     <see langword="false"/> - a tolerant per-reference skip, mirroring
+    ///     <see cref="TryComputeMarkerContentTransform"/>'s identical degenerate-sizing contract -
+    ///     when <paramref name="target"/> is a <c>symbol</c> whose resolved width/height is
+    ///     non-finite or not positive, or whose resolved <paramref name="viewportFit"/> is
+    ///     non-finite; otherwise <see langword="true"/>.
+    /// </returns>
+    private static bool TryResolveUseTarget(XElement useElement, XElement target, RenderState state, out Matrix3x2 viewportFit, out RenderState targetState)
+    {
+        viewportFit = Matrix3x2.Identity;
+        targetState = state;
+
+        if (target.Name.LocalName != "symbol")
+        {
+            return true;
+        }
+
+        // The "use" element's own width/height take priority over the symbol's own, per the SVG
+        // specification; either falls back to the current viewport if neither is present
+        var width = GetOptionalFloat(useElement, "width", state, PercentageAxis.Horizontal)
+            ?? GetOptionalFloat(target, "width", state, PercentageAxis.Horizontal)
+            ?? state.ViewportWidth;
+        var height = GetOptionalFloat(useElement, "height", state, PercentageAxis.Vertical)
+            ?? GetOptionalFloat(target, "height", state, PercentageAxis.Vertical)
+            ?? state.ViewportHeight;
+
+        if (!float.IsFinite(width) || !float.IsFinite(height) || width <= 0f || height <= 0f)
+        {
+            return false;
+        }
+
+        var viewBox = ParseViewBox((string?)target.Attribute("viewBox"));
+        if (viewBox.HasValue)
+        {
+            viewportFit = ComputePreserveAspectRatioFit(viewBox.Value.Origin, viewBox.Value.Size, width, height, GetPreserveAspectRatio(target));
+            if (!IsFiniteTransform(viewportFit))
+            {
+                return false;
+            }
+        }
+
+        targetState = state with { ViewportWidth = width, ViewportHeight = height };
+        return true;
     }
 
     // ================================================================================================
@@ -446,6 +535,7 @@ public static partial class SvgCodec
                 angleDegrees,
                 isStartVertex: role == MarkerVertexRole.Start,
                 state.StrokeWidth,
+                state,
                 transform,
                 context,
                 useDepth,
@@ -515,6 +605,12 @@ public static partial class SvgCodec
     ///     the pixel scale is applied, so composing an already-pixel-scaled width here would apply
     ///     that scale twice.
     /// </param>
+    /// <param name="viewportState">
+    ///     The referencing shape's own cascaded render state, supplying the current viewport/
+    ///     font-size basis for the marker's own percentage-eligible attributes, and inherited
+    ///     unchanged into the marker's own fresh content cascade (a <c>marker</c> element
+    ///     establishes no new viewport of its own).
+    /// </param>
     /// <param name="shapeTransform">The referencing shape's own accumulated transform.</param>
     /// <param name="context">The fixed per-document render context.</param>
     /// <param name="useDepth">The current <c>use</c>-reference nesting depth, propagated unchanged to the marker's content.</param>
@@ -551,6 +647,7 @@ public static partial class SvgCodec
         float vertexAngleDegrees,
         bool isStartVertex,
         float localStrokeWidth,
+        RenderState viewportState,
         Matrix3x2 shapeTransform,
         RenderContext context,
         int useDepth,
@@ -566,7 +663,7 @@ public static partial class SvgCodec
             throw new InvalidDataException("Exceeded the maximum <marker> reference nesting depth.");
         }
 
-        if (!TryComputeMarkerContentTransform(markerElement, vertexPosition, vertexAngleDegrees, isStartVertex, localStrokeWidth, shapeTransform, out var contentTransform))
+        if (!TryComputeMarkerContentTransform(markerElement, vertexPosition, vertexAngleDegrees, isStartVertex, localStrokeWidth, viewportState, shapeTransform, out var contentTransform))
         {
             return;
         }
@@ -574,8 +671,15 @@ public static partial class SvgCodec
         // A marker's content cascade starts fresh from RenderState.Initial (seeded by the marker
         // element's own presentation attributes, if any) - never inherited from the referencing
         // shape's own state, per the SVG specification's marker-content-is-independent model and
-        // this class's explicit task contract
-        var markerState = ApplyPresentationAttributes(RenderState.Initial, markerElement);
+        // this class's explicit task contract. The current viewport is the one exception:
+        // percentage geometry within the marker's own content still resolves against the
+        // referencing shape's own cascaded viewport, not a marker-local one (a "marker" element
+        // establishes no new viewport of its own)
+        var markerState = ApplyPresentationAttributes(RenderState.Initial, markerElement) with
+        {
+            ViewportWidth = viewportState.ViewportWidth,
+            ViewportHeight = viewportState.ViewportHeight
+        };
         foreach (var child in markerElement.Elements())
         {
             RenderElement(child, markerState, contentTransform, context, useDepth, elementDepth + 1, markerDepth + 1, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
@@ -608,6 +712,12 @@ public static partial class SvgCodec
     ///     user-space units - see <see cref="RenderOneMarker"/>'s identical parameter for the full
     ///     rationale.
     /// </param>
+    /// <param name="viewportState">
+    ///     The referencing shape's own cascaded render state, supplying the current viewport/
+    ///     font-size basis for the marker's own percentage-eligible <c>markerWidth</c>/
+    ///     <c>markerHeight</c>/<c>refX</c>/<c>refY</c> - a <c>marker</c> element establishes no new
+    ///     viewport of its own.
+    /// </param>
     /// <param name="shapeTransform">The referencing shape's own accumulated transform.</param>
     /// <param name="contentTransform">
     ///     The resulting composed transform from the marker's own local content space into
@@ -622,26 +732,40 @@ public static partial class SvgCodec
     ///     per-marker-instance skip conditions (see <see cref="RenderOneMarker"/>'s remarks);
     ///     otherwise <see langword="true"/>.
     /// </returns>
+    /// <remarks>
+    ///     When <paramref name="markerElement"/> carries no explicit <c>preserveAspectRatio</c>
+    ///     attribute, this method reproduces the exact pre-existing fit math - a plain uniform
+    ///     <c>Min(markerWidth/viewBoxWidth, markerHeight/viewBoxHeight)</c> scale about the origin,
+    ///     silently dropping the viewBox's own <c>Origin</c> and applying no centering offset - so
+    ///     that behavior is byte-for-byte unchanged (per this phase's marker judgment call: changing
+    ///     it would double-count <c>refX</c>/<c>refY</c> anchoring against a centering offset that
+    ///     never existed before). Only an <b>explicit</b> <c>preserveAspectRatio</c> attribute routes
+    ///     through the shared <see cref="ComputePreserveAspectRatioFit"/> helper, which does honor the
+    ///     viewBox's own origin and the requested align/meetOrSlice, mapping <c>refX</c>/<c>refY</c>
+    ///     through that same fit before anchoring - new capability, scoped to this explicit-attribute
+    ///     path only.
+    /// </remarks>
     private static bool TryComputeMarkerContentTransform(
         XElement markerElement,
         Vector2 vertexPosition,
         float vertexAngleDegrees,
         bool isStartVertex,
         float localStrokeWidth,
+        RenderState viewportState,
         Matrix3x2 shapeTransform,
         out Matrix3x2 contentTransform)
     {
         contentTransform = Matrix3x2.Identity;
 
-        var markerWidth = GetFloatAttribute(markerElement, "markerWidth", 3f);
-        var markerHeight = GetFloatAttribute(markerElement, "markerHeight", 3f);
+        var markerWidth = GetFloatAttribute(markerElement, "markerWidth", viewportState, PercentageAxis.Horizontal, 3f);
+        var markerHeight = GetFloatAttribute(markerElement, "markerHeight", viewportState, PercentageAxis.Vertical, 3f);
         if (!float.IsFinite(markerWidth) || !float.IsFinite(markerHeight) || markerWidth <= 0f || markerHeight <= 0f)
         {
             return false;
         }
 
-        var refX = GetFloatAttribute(markerElement, "refX");
-        var refY = GetFloatAttribute(markerElement, "refY");
+        var refX = GetFloatAttribute(markerElement, "refX", viewportState, PercentageAxis.Horizontal);
+        var refY = GetFloatAttribute(markerElement, "refY", viewportState, PercentageAxis.Vertical);
 
         var isUserSpaceOnUse = string.Equals(
             (string?)markerElement.Attribute("markerUnits"), "userSpaceOnUse", StringComparison.OrdinalIgnoreCase);
@@ -654,19 +778,38 @@ public static partial class SvgCodec
         var angleDegrees = ParseMarkerOrient((string?)markerElement.Attribute("orient"), vertexAngleDegrees, isStartVertex);
 
         var viewBox = ParseViewBox((string?)markerElement.Attribute("viewBox"));
-        var contentScale = viewBox.HasValue
-            ? MathF.Min(markerWidth / viewBox.Value.Size.X, markerHeight / viewBox.Value.Size.Y)
-            : 1f;
+        var explicitParRaw = (string?)markerElement.Attribute("preserveAspectRatio");
 
-        // Composition order (see RenderOneMarker's remarks): recenter the marker's own content on
-        // its refX/refY anchor, scale by the viewBox-fit factor (if any) and then by the
-        // markerUnits-derived units scale, rotate by the resolved orientation angle, translate to
-        // the shape-local vertex position, then finally compose with the shape's own accumulated
-        // transform - row-vector convention, matching every other transform composition in this
-        // class (Vector2.Transform(p, A * B) applies A first, then B)
+        Matrix3x2 fitTransform;
+        Vector2 refInFitSpace;
+        if (explicitParRaw != null && viewBox.HasValue)
+        {
+            // Explicit-preserveAspectRatio path - new capability, see this method's remarks
+            var par = ParsePreserveAspectRatio(explicitParRaw);
+            fitTransform = ComputePreserveAspectRatioFit(viewBox.Value.Origin, viewBox.Value.Size, markerWidth, markerHeight, par);
+            refInFitSpace = Vector2.Transform(new Vector2(refX, refY), fitTransform);
+        }
+        else
+        {
+            // Default path - deliberately NOT routed through ComputePreserveAspectRatioFit, to
+            // guarantee bit-for-bit unchanged output versus this method's pre-existing behavior (see
+            // this method's remarks)
+            var contentScale = viewBox.HasValue
+                ? MathF.Min(markerWidth / viewBox.Value.Size.X, markerHeight / viewBox.Value.Size.Y)
+                : 1f;
+            fitTransform = Matrix3x2.CreateScale(contentScale);
+            refInFitSpace = new Vector2(refX * contentScale, refY * contentScale);
+        }
+
+        // Composition order (see RenderOneMarker's remarks): fit the marker's own viewBox content
+        // into its markerWidth/markerHeight box, recenter on its refX/refY anchor (mapped through
+        // that same fit), scale by the markerUnits-derived units scale, rotate by the resolved
+        // orientation angle, translate to the shape-local vertex position, then finally compose with
+        // the shape's own accumulated transform - row-vector convention, matching every other
+        // transform composition in this class (Vector2.Transform(p, A * B) applies A first, then B)
         contentTransform =
-            Matrix3x2.CreateTranslation(-refX, -refY)
-            * Matrix3x2.CreateScale(contentScale)
+            fitTransform
+            * Matrix3x2.CreateTranslation(-refInFitSpace)
             * Matrix3x2.CreateScale(unitsScale)
             * Matrix3x2.CreateRotation(DegreesToRadians(angleDegrees))
             * Matrix3x2.CreateTranslation(vertexPosition)
@@ -694,6 +837,7 @@ public static partial class SvgCodec
     /// <param name="vertexAngleDegrees">The vertex's own computed tangent angle.</param>
     /// <param name="isStartVertex">Whether this vertex is the referencing shape's very first vertex.</param>
     /// <param name="localStrokeWidth">The referencing shape's own <c>stroke-width</c>, in local units.</param>
+    /// <param name="viewportState">The referencing shape's own cascaded render state, supplying the current viewport/font-size basis for the marker's own percentage-eligible attributes.</param>
     /// <param name="shapeTransform">The referencing shape's own accumulated transform.</param>
     /// <param name="context">The fixed per-document render context.</param>
     /// <param name="useDepth">The current <c>use</c>-reference nesting depth.</param>
@@ -735,6 +879,7 @@ public static partial class SvgCodec
         float vertexAngleDegrees,
         bool isStartVertex,
         float localStrokeWidth,
+        RenderState viewportState,
         Matrix3x2 shapeTransform,
         RenderContext context,
         int useDepth,
@@ -749,12 +894,16 @@ public static partial class SvgCodec
             throw new InvalidDataException("Exceeded the maximum <marker> reference nesting depth.");
         }
 
-        if (!TryComputeMarkerContentTransform(markerElement, vertexPosition, vertexAngleDegrees, isStartVertex, localStrokeWidth, shapeTransform, out var contentTransform))
+        if (!TryComputeMarkerContentTransform(markerElement, vertexPosition, vertexAngleDegrees, isStartVertex, localStrokeWidth, viewportState, shapeTransform, out var contentTransform))
         {
             return null;
         }
 
-        var markerState = ApplyPresentationAttributes(RenderState.Initial, markerElement);
+        var markerState = ApplyPresentationAttributes(RenderState.Initial, markerElement) with
+        {
+            ViewportWidth = viewportState.ViewportWidth,
+            ViewportHeight = viewportState.ViewportHeight
+        };
         var bounds = Rect.Empty;
         foreach (var child in markerElement.Elements())
         {
@@ -862,6 +1011,7 @@ public static partial class SvgCodec
                 angleDegrees,
                 isStartVertex: role == MarkerVertexRole.Start,
                 state.StrokeWidth,
+                state,
                 transform,
                 context,
                 useDepth,

@@ -2,6 +2,7 @@
 
 <!-- cspell:ignore glyf sfnt codepoint -->
 <!-- cspell:ignore rasterizing unparseable SMIL renderable -->
+<!-- cspell:ignore unitless -->
 
 ## Purpose
 
@@ -901,8 +902,18 @@ either a single `TrueTypeFont` per family (the legacy shape), or a list of `SvgF
 each pairing a `TrueTypeFont` with the `font-weight`/`font-style` it represents - letting a caller
 register distinct bold/italic variants of a family and have `SvgCodec` pick the closest-matching
 face for each `text` element's own cascaded `font-weight`/`font-style`. The root
-`viewBox`/`width`/`height` are fit into the requested raster using a "meet, centered" policy
-equivalent to CSS `object-fit: contain` (`preserveAspectRatio` itself is not read). Well-formed but
+`viewBox`/`width`/`height` are fit into the requested raster via the root `svg` element's own
+`preserveAspectRatio` attribute (`[defer] <align> [<meetOrSlice>]` - all 10 aligns and both
+`meet`/`slice`), defaulting to "xMidYMid meet" (equivalent to CSS `object-fit: contain`) when the
+attribute is absent - the same pre-existing centered-letterbox default every document without an
+explicit `preserveAspectRatio` attribute already rendered with. This same fit algorithm also
+applies to a `use` element referencing a `symbol` element with its own `viewBox`, and to a
+`marker` element's own explicit `preserveAspectRatio` attribute. Every shape/text geometry
+attribute (`x`/`y`/`width`/`height`/`rx`/`ry`/`cx`/`cy`/`r`/`x1`/`y1`/`x2`/`y2`/`font-size`/
+`stroke-width`/`stroke-dasharray`/`stroke-dashoffset`/`use`'s `x`/`y`/`width`/`height`/`text`'s
+`x`/`y`) also accepts a trailing `%`, resolved against the current viewport (or, for `font-size`,
+the parent element's own `font-size`) - `stroke-miterlimit` is the sole exception, since it is a
+unitless ratio rather than a length. Well-formed but
 out-of-scope constructs (`style`, `mask`, `clipPath`, `animate`/SMIL, `image`,
 `foreignObject`, `pattern`, nested `svg`, CSS selectors, and every filter primitive other than
 the five listed above) are silently skipped/passed through so the rest of the document still

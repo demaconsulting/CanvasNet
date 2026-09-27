@@ -3,6 +3,7 @@
 ![Codecs Structure](CodecsView.svg)
 
 <!-- cspell:ignore rasterizing rrggbb sizeless SMIL unparseable Linq uncatchable Glyf Loca renderable -->
+<!-- cspell:ignore unitless letterboxing -->
 
 The `SvgCodec` class is the fifth software unit in the `Codecs` subsystem, and the first codec
 unit whose dependencies extend beyond `Canvas.Surface`. It provides hand-rolled, decode/
@@ -23,6 +24,11 @@ same reason as the other codecs: rasterizing an SVG document has no instance sta
 
 #### In-scope subset
 
+- Root `svg` sizing: `viewBox`/`width`/`height` resolve the document's intrinsic user-space
+  origin/size, fit into the caller-requested raster via an optional `preserveAspectRatio`
+  (`[defer] <align> [<meetOrSlice>]` - all 10 aligns and both `meet`/`slice`; `defer` is parsed
+  and ignored, since this codec has no `<image>` element to defer to) - see _ViewBox Fitting
+  Policy_ below
 - Shapes: `rect` (including `rx`/`ry` rounded corners), `circle`, `ellipse`, `line`, `polyline`,
   `polygon`, and `path` (the full `d` mini-language: `M`/`m`, `L`/`l`, `H`/`h`, `V`/`v`, `C`/`c`,
   `S`/`s`, `Q`/`q`, `T`/`t`, `A`/`a`, `Z`/`z`, in both absolute and relative forms)
@@ -39,11 +45,16 @@ same reason as the other codecs: rasterizing an SVG document has no instance sta
   `gradientUnits` (`objectBoundingBox`/`userSpaceOnUse`), `gradientTransform`, `spreadMethod`
   (`pad`/`reflect`/`repeat`), and a bounded, cycle-checked `href`/`xlink:href` template
   inheritance chain for color stops
-- `use`, referencing any element by id via `href`/`xlink:href`, with `x`/`y` translation
+- `use`, referencing any element by id via `href`/`xlink:href`, with `x`/`y` translation (each
+  accepting a trailing `%`, resolved against the current viewport - see _Percentage-Based
+  Geometry Resolution_ below), and, when the referenced element is a `symbol` with its own
+  `viewBox`, a `preserveAspectRatio`-driven fit of that `viewBox` into the `use`/`symbol`
+  element's resolved `width`/`height` (see _ViewBox Fitting Policy_ below)
 - `marker`, referenced from `line`/`polyline`/`polygon`/`path` via the `marker-start`/
   `marker-mid`/`marker-end` presentation attributes (`url(#id)`), with `markerWidth`/
   `markerHeight`, `refX`/`refY`, `markerUnits` (`strokeWidth`/`userSpaceOnUse`), `orient`
-  (`auto`/`auto-start-reverse`/a fixed angle in degrees), and an optional `viewBox`
+  (`auto`/`auto-start-reverse`/a fixed angle in degrees), an optional `viewBox`, and an optional
+  explicit `preserveAspectRatio` (see _ViewBox Fitting Policy_ below)
 - `filter`, referenced from any renderable shape or `text` element, or from a `g`/`symbol`
   reference/`use` element (applied to the whole referenced subtree as a single unit), via the
   `filter` presentation attribute (`url(#id)`), with `x`/`y`/`width`/`height` filter-region
@@ -87,13 +98,54 @@ the inherited weight - and the `font-style` keyword `oblique` is folded into the
 `SvgFontStyle`'s remarks in the source for the rationale).
 
 A percentage value on a shape/text geometry attribute (`x`, `y`, `width`, `height`, `rx`, `ry`,
-`cx`, `cy`, `r`, `x1`/`y1`/`x2`/`y2`, `font-size`, `stroke-width`, `stroke-miterlimit`,
-`stroke-dashoffset`, `use`'s `x`/`y`, and `text`'s `x`/`y`) is also out of scope, but is handled
-differently from the constructs above: `SvgCodec` has no defined viewport-relative basis to
-resolve such a percentage against, so rather than being tolerated/silently skipped, it is
-explicitly **rejected** with `InvalidDataException` (see _Error Handling_ below) — opacity-family
-attributes and gradient coordinates/`stop` `offset` are unaffected, since both have a well-defined
-`[0, 1]`-fraction basis this codec already resolves correctly.
+`cx`, `cy`, `r`, `x1`/`y1`/`x2`/`y2`, `font-size`, `stroke-width`, `stroke-dasharray`,
+`stroke-dashoffset`, `use`'s `x`/`y`/`width`/`height`, and `text`'s `x`/`y`) is now a supported
+new capability, resolved against the current viewport (see _Percentage-Based Geometry
+Resolution_ below) rather than rejected. `stroke-miterlimit` is the sole documented exception -
+a unitless ratio, not a length, so a trailing `%` there continues to be treated as an
+unparseable/unrecognized value and tolerantly falls back to the inherited miter limit (see
+_Error Handling_ below), matching this codec's existing tolerant handling of a malformed
+`stroke-miterlimit`.
+
+### Percentage-Based Geometry Resolution
+
+Every geometry attribute listed above resolves a trailing `%` through one shared,
+centralized choke point (`ParseGeometryCoordinate`, reached via `GetFloatAttribute`/
+`GetOptionalFloat`) rather than each call site parsing percentages independently, so the
+existing finite/magnitude guards each of those methods already apply still run **after**
+percentage resolution rather than being bypassed for the percentage case. Percentage resolution
+uses one of three bases, chosen per attribute by its own geometric axis:
+
+- **Horizontal** (`x`, `width`, `cx`, `x1`/`x2`, `use`'s `x`/`width`, `text`'s `x`) - the current
+  viewport's width
+- **Vertical** (`y`, `height`, `cy`, `y1`/`y2`, `use`'s `y`/`height`, `text`'s `y`) - the current
+  viewport's height
+- **Diagonal/axis-agnostic** (`r`, `stroke-width`, `stroke-dasharray`, `font-size`'s basis is a
+  further special case below) - `sqrt(viewportWidth^2 + viewportHeight^2) / sqrt(2)`, the SVG
+  specification's defined basis for a length with no natural single axis
+
+`font-size`'s percentage is a further special case, resolving against the **parent element's own
+already-cascaded `font-size`** (the CSS/SVG-defined basis for a font-relative percentage), not
+any viewport dimension. The "current viewport" a horizontal/vertical/diagonal percentage resolves
+against is the nearest enclosing element that establishes one (the root `svg`, or a `symbol`
+referenced via `use` with its own `viewBox`) - threaded through the existing per-element cascading
+`RenderState` record (as two new `ViewportWidth`/`ViewportHeight` fields) rather than a second,
+parallel mechanism. A `marker` element establishes no viewport of its own for this purpose: its
+content cascade inherits `ViewportWidth`/`ViewportHeight` from the shape it decorates, so a
+percentage inside marker content resolves against the referencing shape's own viewport.
+
+**Accepted, documented simplification: gradient `userSpaceOnUse` coordinates.** A
+`linearGradient`/`radialGradient`'s own `x1`/`y1`/`x2`/`y2`/`cx`/`cy`/`r`/`fx`/`fy`/`fr`
+coordinates are resolved through a separate, gradient-specific code path
+(`GetGradientCoordinateOrDefault`) that always treats a percentage as a `[0, 1]`-fraction of the
+gradient's own coordinate space, regardless of `gradientUnits`. This is spec-correct for the
+default `objectBoundingBox` mode, but under `gradientUnits="userSpaceOnUse"` the SVG
+specification instead defines a percentage there as resolving against the current viewport,
+exactly like the shape/text geometry attributes above. Threading a viewport basis through
+`ResolvePaint`/`BuildGradient`/`GetGradientCoordinateOrDefault` for this one `userSpaceOnUse`
+case was evaluated for this phase and intentionally deferred to a follow-up phase as a bounded,
+documented simplification (not a defect) - it is unaffected by, and independent of, every other
+percentage capability described above.
 
 ### Data Model
 
@@ -144,8 +196,8 @@ SVG document from an open stream and rasterizes it into a new `width`x`height`
 `Surface`. Parses the document with `XDocument.Load`, builds an id→`XElement` index over the
 whole tree up front (so `use`/`href`/gradient-template references resolve correctly regardless of
 document order), resolves the root `viewBox`/`width`/`height` into an intrinsic size, computes
-the "meet, centered" fit transform into the requested raster (see _ViewBox Fitting Policy_
-below), then recursively walks the tree, baking every transform (the root fit transform composed
+the `preserveAspectRatio`-driven fit transform into the requested raster (see _ViewBox Fitting
+Policy_ below), then recursively walks the tree, baking every transform (the root fit transform composed
 with every nested `g`/element `transform`) directly into the `Vector2` points fed into
 `Geometry.PathBuilder` before calling `Drawing.PathFiller.Fill`/`Drawing.PathStroker.Stroke` —
 neither of which has a transform parameter; they treat `Geometry.Path` coordinates as final
@@ -257,13 +309,51 @@ Opens `path` as a read-only `FileStream` and delegates to `GetInfo(Stream)`.
 attribute when present; otherwise from its `width`/`height` attributes when both are present and
 positive; otherwise it falls back to the CSS/UA default replaced-element intrinsic size of
 300x150 (see _GetInfo Fallback Policy_ below — `Load` and `GetInfo` share this resolution logic).
-That intrinsic size is then fit into the caller-requested raster using a "meet, centered"
-transform — the equivalent of CSS `object-fit: contain` or SVG `preserveAspectRatio="xMidYMid
-meet"` — scaling uniformly by the smaller of the width and height ratios and centering the result
-in the raster, leaving transparent letterbox bars along whichever axis the intrinsic aspect ratio
-does not fill. This is the **only** fitting behavior `SvgCodec` implements; the
-`preserveAspectRatio` attribute itself is never parsed or read, so a document that requests a
-different alignment or a non-uniform ("slice"/"none") fit is still fit as "meet, centered."
+That intrinsic size is then fit into the caller-requested raster via the root `svg` element's own
+`preserveAspectRatio` attribute, parsed as `[defer] <align> [<meetOrSlice>]`: `defer` is parsed
+and ignored (it only matters when an `<image>` element also declares its own
+`preserveAspectRatio`, which this codec does not implement); `<align>` is `none`, or one of the
+9 combinations of `xMin`/`xMid`/`xMax` and `YMin`/`YMid`/`YMax`; `<meetOrSlice>` is `meet`
+(default) or `slice`. An absent `preserveAspectRatio` attribute defaults to `xMidYMid meet` — the
+equivalent of CSS `object-fit: contain` — scaling uniformly by the smaller of the width and
+height ratios and centering the result in the raster, leaving transparent letterbox bars along
+whichever axis the intrinsic aspect ratio does not fill: **this default behavior is unchanged
+from before this codec parsed `preserveAspectRatio` at all**, since "meet, centered" already _is_
+`xMidYMid meet`. An explicit `align="none"` instead stretches the intrinsic size independently on
+each axis to exactly fill the raster (no letterboxing, no uniform-scale constraint); every other
+explicit `<align>` scales uniformly (by the smaller ratio for `meet`, matching CSS
+`object-fit: contain`, or the larger ratio for `slice`, matching CSS `object-fit: cover` and
+overflowing the raster instead of letterboxing it) and positions the result along each axis per
+its `Min`/`Mid`/`Max` component (flush to the start, centered, or flush to the end, respectively).
+
+This same fit computation (`ComputePreserveAspectRatioFit`) is shared by two further reuse sites,
+both new capabilities:
+
+- **`symbol`/`use` viewBox-fit.** When a `use` element references a `symbol` element that has its
+  own `viewBox`, the `symbol`'s intrinsic viewBox content is fit into the `use`/`symbol`
+  element's own resolved `width`/`height` (falling back, in order, to the `use` element's own
+  `width`/`height`, then the `symbol`'s own `width`/`height`, then the current viewport's own
+  size), honoring the `symbol`'s own `preserveAspectRatio` attribute exactly like the root `svg`
+  case above. The `symbol`'s own viewBox becomes the current viewport for its content's own
+  percentage-geometry resolution (see _Percentage-Based Geometry Resolution_ above).
+- **`marker`'s own explicit `preserveAspectRatio`.** A `marker` element with both a `viewBox` and
+  an _explicit_ `preserveAspectRatio` attribute fits its `viewBox` into its own
+  `markerWidth`/`markerHeight` through this same shared helper, honoring the viewBox's own origin
+  and the requested `<align>`/`<meetOrSlice>`. A marker with a `viewBox` but **no** explicit
+  `preserveAspectRatio` attribute instead keeps its original, simpler fit (a plain "meet"-
+  equivalent uniform scale-down with no centering step) completely unchanged, for two reasons:
+  first, to guarantee this default path's pre-existing pixel output never regresses; second,
+  because a marker's content is always anchored by its own `refX`/`refY` (never clipped to
+  `markerWidth`/`markerHeight` - see _Out-of-scope subset_ above), so once that anchoring is
+  applied, a viewBox's own origin and an `<align>`'s `Min`/`Mid`/`Max` offset both algebraically
+  cancel out of the final rendered position regardless of their value - only the uniform scale
+  factor itself (`meet`'s smaller ratio versus `slice`'s larger one) is ever visibly different
+  between the default path and an explicit `preserveAspectRatio`. Routing the default (no
+  attribute) case through the same origin/align-honoring formula would therefore be a purely
+  internal correctness improvement, not a visible behavior change - reserved for if marker-content
+  clipping is ever implemented - so it is deliberately kept as a distinct code path instead of
+  being unified, to avoid any incidental floating-point (ULP) difference in the default path's
+  output.
 
 An intrinsic size that is positive and finite (passing the checks above) can still be small
 enough — a subnormal float, for example — that dividing the requested raster dimensions by it
@@ -272,7 +362,11 @@ with the same finiteness check used for composed element transforms immediately 
 it, and rejects it with `InvalidDataException` rather than silently proceeding: an unchecked
 non-finite fit transform would otherwise cause every element in the document to fail that same
 per-element finiteness check and render a blank, fully-transparent surface with no exception at
-all — a worse "quiet" failure than the sibling non-positive-size case already throws for.
+all — a worse "quiet" failure than the sibling non-positive-size case already throws for. The
+`symbol`/`use` and `marker` reuse sites above apply the same non-finite-fit tolerance: a
+non-finite fit at either site is treated as "no paint" for that `use`/marker instance (skipped
+rather than propagating a non-finite value into the rasterizer), matching this codec's existing
+tolerant-skip convention for other overflow cases (see _Error Handling_ below).
 
 ### GetInfo Fallback Policy
 
@@ -332,12 +426,19 @@ this codec implements no scripting/animation support that could redefine them mi
 
 **Use.** A `use` element referencing any element by id via `href`/`xlink:href` renders a copy of
 the referenced element (translated by the `use` element's own `x`/`y`), resolved through the
-document-order-independent id index described above. A `use` referencing a nonexistent id is
-tolerated as a silent no-op. Because `use` can reference another `use` (directly or through
-intervening groups), rendering guards against unbounded mutual recursion with a fixed maximum
-recursion depth, raising `InvalidDataException` if it is exceeded rather than recursing
-indefinitely - see **Element/Group Nesting and Total-Element Bounds** below for why this depth
-cap, on its own, does not bound every form of unbounded rendering work.
+document-order-independent id index described above. When the referenced element is a `symbol`
+with its own `viewBox`, the `symbol`'s content is additionally fit into the `use`/`symbol`
+element's resolved `width`/`height` via the shared `preserveAspectRatio` fit helper - see
+_ViewBox Fitting Policy_'s "`symbol`/`use` viewBox-fit" bullet above - composed as
+`viewportFit * Translate(x, y) * transform`, so the `use` element's own `x`/`y` translation is
+applied in the _outer_, already-fitted coordinate space, exactly as the SVG specification
+describes. A `use` referencing a nonexistent id, or a resolved `width`/`height`/fit that is
+non-positive, non-finite, or otherwise degenerate, is tolerated as a silent no-op. Because `use`
+can reference another `use` (directly or through intervening groups), rendering guards against
+unbounded mutual recursion with a fixed maximum recursion depth, raising `InvalidDataException`
+if it is exceeded rather than recursing indefinitely - see **Element/Group Nesting and
+Total-Element Bounds** below for why this depth cap, on its own, does not bound every form of
+unbounded rendering work.
 
 **Markers.** A `line`/`polyline`/`polygon`/`path` element's own `marker-start`/`marker-mid`/
 `marker-end` presentation attributes (each `url(#id)`, resolved through the same id index and
@@ -356,10 +457,10 @@ vertex only. Per the SVG specification, an absent/blank `orient` attribute uses 
 0-degree default (no rotation) rather than following the vertex tangent - only the explicit
 `auto`/`auto-start-reverse` keywords opt into tangent-following behavior; an unparseable explicit
 value also tolerantly falls back to this same 0-degree default. Each marker instance is scaled by
-`markerWidth`/`markerHeight` (further fitted by the
-marker's own optional `viewBox`, using the same "meet" scale-down as the top-level document's
-own viewBox-fitting policy, but without that policy's additional centering step - a deliberate
-simplification since a marker's `refX`/`refY` already provide an equivalent anchor point), then
+`markerWidth`/`markerHeight` (further fitted by the marker's own optional `viewBox` - see
+_ViewBox Fitting Policy_'s "marker's own explicit `preserveAspectRatio`" bullet above for the two
+distinct code paths this fitting takes depending on whether the marker declares an explicit
+`preserveAspectRatio` attribute), then
 by the referencing shape's own effective stroke width when `markerUnits` is `strokeWidth` (the
 default) or left at 1:1 for `userSpaceOnUse`, then rotated and translated to the vertex position,
 and finally composed with the shape's own accumulated transform - so a marker is transformed
@@ -778,19 +879,13 @@ differently:
   throws the same exception type from its bounded, root-start-tag-only `System.Xml.XmlReader`
   read), or a value the codec must be able to parse to render anything at all is invalid (a
   `viewBox`/`transform` attribute with the wrong number of components or a non-numeric or
-  non-finite (`NaN`/`Infinity`) component, a percentage value on a shape/text geometry attribute
-  (`x`, `y`, `width`, `height`, `rx`, `ry`, `cx`, `cy`, `r`, `x1`/`y1`/`x2`/`y2`, `font-size`,
-  `stroke-width`, `stroke-miterlimit`, `stroke-dashoffset`, `use`'s `x`/`y`, and `text`'s `x`/`y`),
+  non-finite (`NaN`/`Infinity`) component,
   `path` `d` data with an unrecognized command letter or missing required arguments, or a
   combined total of path-data commands/points-list coordinates/text characters exceeding the
   fixed geometry-parsing work budget described above). Every one of these is caught (or detected)
   and re-thrown/thrown as `System.IO.InvalidDataException` with a descriptive message naming what
   was invalid, exactly the same contract every other codec in this system uses for malformed
-  source data. A shape/text geometry attribute's percentage is rejected rather than resolved,
-  because `SvgCodec` has no defined viewport-relative basis to resolve it against - unlike
-  opacity-family attributes and gradient coordinates/`stop` `offset`, which correctly treat a
-  percentage as a `[0, 1]` fraction of their own well-defined basis and are unaffected by this
-  rejection. This throwing behavior is deliberately narrow: a non-finite gradient stop
+  source data. This throwing behavior is deliberately narrow: a non-finite gradient stop
   `offset`/coordinate, an
   `rgb()`/`rgba()` channel or alpha, or the root `<svg>` element's `width`/`height` fallback tier
   is instead tolerated — treated as absent/unrecognized and resolved via each attribute's own

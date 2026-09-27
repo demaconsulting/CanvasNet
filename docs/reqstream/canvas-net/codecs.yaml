@@ -1,7 +1,7 @@
 ---
 # Software Subsystem Requirements for Codecs
 #
-# cspell:ignore rasterizing letterboxing renderable
+# cspell:ignore rasterizing letterboxing renderable Dasharray
 #
 # These requirements decompose the CanvasNet system's image format support into the Codecs
 # subsystem's own responsibility: providing loaders and savers for BMP, PNG, TIFF, and JPEG,
@@ -929,9 +929,11 @@ sections:
             title: >-
               The Codecs subsystem shall rasterize marker elements referenced from a line,
               polyline, polygon, or path element's marker-start/marker-mid/marker-end
-              presentation attributes, at the correct vertex, orientation, and scale, and shall
-              reject an unbounded marker-referencing-marker reference cycle the same way an
-              unbounded use reference cycle is already rejected.
+              presentation attributes, at the correct vertex, orientation, and scale (honoring an
+              explicit preserveAspectRatio attribute on the marker itself, when present, and
+              otherwise preserving the pre-existing default fit unchanged), and shall reject an
+              unbounded marker-referencing-marker reference cycle the same way an unbounded use
+              reference cycle is already rejected.
             justification: |
               Connector arrowheads and other per-vertex line decorations built via SVG's marker
               mechanism are common in real-world diagrams and flowcharts; callers need these to
@@ -940,12 +942,15 @@ sections:
             children:
               - CanvasNet-Codecs-SvgCodec-MarkerRendering
               - CanvasNet-Codecs-SvgCodec-MarkerReferenceCycle
+              - CanvasNet-Codecs-SvgCodec-MarkerPreserveAspectRatio
             tests:
               - SvgCodec_Load_MarkerEndOnLine_RendersArrowheadPastLineEnd
               - SvgCodec_Load_MarkerStartMidEndOnPolyline_RendersDistinctMarkersAtEachVertex
               - SvgCodec_Load_ArrowMarkersFixture_RendersArrowheadPastLineEnd
               - SvgCodec_Load_MarkerSelfReferenceCycle_ThrowsInvalidDataException
               - SvgCodec_Load_MarkerTwoElementReferenceCycle_ThrowsInvalidDataException
+              - SvgCodec_Load_MarkerWithViewBox_FitsContentToMarkerWidthHeight
+              - SvgCodec_Load_MarkerWithExplicitPreserveAspectRatioSlice_UsesLargerUniformScale
 
           - id: CanvasNet-Codecs-SvgFilterRendering
             title: >-
@@ -978,17 +983,26 @@ sections:
           - id: CanvasNet-Codecs-SvgViewBoxFitting
             title: >-
               The Codecs subsystem shall fit an SVG document's intrinsic viewBox into the
-              requested raster size using a "meet, centered" (CSS object-fit: contain
-              equivalent) transform.
+              requested raster size via preserveAspectRatio (defaulting to "xMidYMid meet", a
+              "meet, centered", CSS object-fit: contain equivalent, transform, when absent), and
+              shall apply the same fit algorithm to a use element referencing a symbol element
+              with its own viewBox.
             justification: |
               Callers request a specific raster size that may not share the document's
-              intrinsic aspect ratio; centered letterboxing avoids distorting or clipping the
-              document's content.
+              intrinsic aspect ratio; preserveAspectRatio is the SVG-specification-defined
+              mechanism for controlling that mismatch, and reusing the same fit algorithm for
+              symbol/use content keeps both reuse sites consistent and correct.
             children:
               - CanvasNet-Codecs-SvgCodec-ViewBoxFitting
+              - CanvasNet-Codecs-SvgCodec-SymbolViewBoxFitting
             tests:
               - SvgCodec_Load_WideViewBoxIntoSquareRaster_LetterboxesTopAndBottom
               - SvgCodec_Load_TallViewBoxIntoSquareRaster_LetterboxesLeftAndRight
+              - SvgCodec_Load_RootPreserveAspectRatio_AppliesAlignAndMeetOrSlice
+              - SvgCodec_Load_RootPreserveAspectRatioNone_StretchesNonUniformly
+              - SvgCodec_Load_NoPreserveAspectRatioAttribute_MatchesExplicitXMidYMidMeet
+              - SvgCodec_Load_UseReferencingSymbolWithViewBox_FitsContentToResolvedWidthHeight
+              - SvgCodec_Load_UseReferencingSymbolWithPreserveAspectRatio_HonorsAlign
 
           - id: CanvasNet-Codecs-SvgGetInfo
             title: >-
@@ -1099,7 +1113,6 @@ sections:
             children:
               - CanvasNet-Codecs-SvgCodec-MalformedXmlRejected
               - CanvasNet-Codecs-SvgCodec-MalformedPathDataRejected
-              - CanvasNet-Codecs-SvgCodec-PercentageGeometryRejected
             tests:
               - SvgCodec_Load_MalformedXml_ThrowsInvalidDataException
               - SvgCodec_Load_MalformedViewBoxWrongNumberCount_ThrowsInvalidDataException
@@ -1107,6 +1120,29 @@ sections:
               - SvgCodec_Load_MalformedTransformUnrecognizedFunction_ThrowsInvalidDataException
               - SvgCodec_Load_MalformedPathDataUnknownCommand_ThrowsInvalidDataException
               - SvgCodec_Load_MalformedPathDataMissingArguments_ThrowsInvalidDataException
+
+          - id: CanvasNet-Codecs-SvgPercentageGeometryResolution
+            title: >-
+              The Codecs subsystem shall resolve a percentage value on a shape/text geometry
+              attribute against the current SVG viewport (or, for font-size, the parent
+              element's own font-size), rather than rejecting it.
+            justification: |
+              Real-world SVG documents commonly size geometry as a percentage of their
+              containing viewport; resolving these against a well-defined, spec-aligned basis
+              lets this codec render such documents correctly instead of rejecting them
+              outright.
+            children:
+              - CanvasNet-Codecs-SvgCodec-PercentageGeometryResolved
+            tests:
+              - SvgCodec_Load_RectXPercentage_ResolvesAgainstViewportWidth
+              - SvgCodec_Load_RectWidthPercentage_ResolvesAgainstViewportWidth
+              - SvgCodec_Load_RectYHeightPercentage_ResolvesAgainstViewportHeight
+              - SvgCodec_Load_CircleCxCyRPercentage_ResolvesAgainstHorizontalVerticalAndDiagonalBases
+              - SvgCodec_Load_LineCoordinatePercentage_ResolvesAgainstViewport
+              - SvgCodec_Load_GradientCoordinatePercentage_UnaffectedByViewportPercentageResolution
+              - SvgCodec_Load_StrokeWidthPercentage_ResolvesAgainstDiagonalBasis
+              - SvgCodec_Load_FontSizePercentage_ResolvesAgainstParentFontSize
+              - SvgCodec_Load_StrokeDasharrayPercentage_ResolvesAgainstDiagonalBasis
 
           - id: CanvasNet-Codecs-SvgXxeHardening
             title: >-

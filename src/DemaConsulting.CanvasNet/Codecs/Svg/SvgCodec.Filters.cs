@@ -459,17 +459,17 @@ public static partial class SvgCodec
                 }
 
             case "rect":
-                return ShapeBoundsRespectingOwnFilter(element, BuildRectPath(element), state, transform, context, markerDepth);
+                return ShapeBoundsRespectingOwnFilter(element, BuildRectPath(element, state), state, transform, context, markerDepth);
 
             case "circle":
-                return ShapeBoundsRespectingOwnFilter(element, BuildEllipsePath(element, isCircle: true), state, transform, context, markerDepth);
+                return ShapeBoundsRespectingOwnFilter(element, BuildEllipsePath(element, isCircle: true, state), state, transform, context, markerDepth);
 
             case "ellipse":
-                return ShapeBoundsRespectingOwnFilter(element, BuildEllipsePath(element, isCircle: false), state, transform, context, markerDepth);
+                return ShapeBoundsRespectingOwnFilter(element, BuildEllipsePath(element, isCircle: false, state), state, transform, context, markerDepth);
 
             case "line":
                 {
-                    var linePath = BuildLinePath(element);
+                    var linePath = BuildLinePath(element, state);
                     var shapeBounds = ShapeBoundsRespectingOwnFilter(element, linePath, state, transform, context, markerDepth);
                     var markerBounds = ComputeMarkerContentLocalBounds(linePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, boundsPrePassBudget);
                     return UnionNullableBounds(shapeBounds, markerBounds);
@@ -526,8 +526,21 @@ public static partial class SvgCodec
                         return null;
                     }
 
-                    var offset = new Vector2(GetFloatAttribute(element, "x"), GetFloatAttribute(element, "y"));
-                    var useTransform = Matrix3x2.CreateTranslation(offset) * transform;
+                    var offset = new Vector2(
+                        GetFloatAttribute(element, "x", state, PercentageAxis.Horizontal),
+                        GetFloatAttribute(element, "y", state, PercentageAxis.Vertical));
+
+                    // Mirrors RenderUse's identical TryResolveUseTarget derivation - a "symbol"
+                    // target establishes a new nested viewport fitted via preserveAspectRatio
+                    // against its own viewBox (see TryResolveUseTarget's remarks); a non-"symbol"
+                    // target (or a degenerate/non-finite fit) reproduces the original
+                    // translate-only behavior exactly
+                    if (!TryResolveUseTarget(element, target, state, out var viewportFit, out var targetState))
+                    {
+                        return null;
+                    }
+
+                    var useTransform = viewportFit * Matrix3x2.CreateTranslation(offset) * transform;
 
                     // Mirrors RenderUse's identical suppressFilter/ResolveFilterElement
                     // derivation - a "use" element's own "filter" attribute (never the referenced
@@ -537,7 +550,7 @@ public static partial class SvgCodec
                     // be visited relative to Matrix3x2.Identity instead of useTransform
                     var ownFilterElement = markerDepth > 0 ? null : ResolveFilterElement(element, context);
                     var targetRelativeTransform = ownFilterElement == null ? useTransform : Matrix3x2.Identity;
-                    var targetBounds = ComputeSubtreeLocalBounds(target, state, targetRelativeTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, boundsPrePassBudget);
+                    var targetBounds = ComputeSubtreeLocalBounds(target, targetState, targetRelativeTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, boundsPrePassBudget);
                     if (targetBounds == null)
                     {
                         return null;
@@ -578,7 +591,9 @@ public static partial class SvgCodec
                     // data would be
                     boundsPrePassBudget.ChargeGeometry(text.Length);
 
-                    var origin = new Vector2(GetFloatAttribute(element, "x"), GetFloatAttribute(element, "y"));
+                    var origin = new Vector2(
+                        GetFloatAttribute(element, "x", state, PercentageAxis.Horizontal),
+                        GetFloatAttribute(element, "y", state, PercentageAxis.Vertical));
                     var glyphRunPath = BuildGlyphRunPath(text, font, state, origin);
                     return ShapeBoundsRespectingOwnFilter(element, glyphRunPath, state, transform, context, markerDepth);
                 }

@@ -1,6 +1,7 @@
 ## SvgCodec Unit Verification Design
 
 <!-- cspell:ignore unstroked Letterboxing uncatchable Glyf Loca unparseable Cmap -->
+<!-- cspell:ignore unitless -->
 
 This document describes the unit-level verification strategy for the `SvgCodec` class.
 
@@ -191,7 +192,8 @@ rejected with `InvalidDataException` once the bounded recursion guard is exceede
 `SvgCodec_Load_ArrowMarkersFixture_RendersArrowheadPastLineEnd`,
 `SvgCodec_Load_MarkerEndOnClosedPolygon_OrientsUsingClosingEdgeTangent`,
 `SvgCodec_Load_MarkerStrokeWidthUnitsOnScaledDocument_ScalesOnceNotTwice`,
-`SvgCodec_Load_MarkerContentWithFilterAttribute_FilterHasNoEffect`
+`SvgCodec_Load_MarkerContentWithFilterAttribute_FilterHasNoEffect`,
+`SvgCodec_Load_MarkerWithExplicitPreserveAspectRatioSlice_UsesLargerUniformScale`
 
 Asserts a `marker-end` reference renders its `marker` element's content past a `line`'s own end
 point, sized in user-space units; asserts `marker-start`/`marker-mid`/`marker-end` each
@@ -232,6 +234,18 @@ fill color, not the flood's - a regression test for a defect where marker-conten
 re-entered the same shape/text dispatch used everywhere else, which unconditionally resolved and
 evaluated a shape's own `filter` attribute, contradicting this codec's documented "filters on
 marker content have no effect" scope decision.
+`SvgCodec_Load_MarkerWithExplicitPreserveAspectRatioSlice_UsesLargerUniformScale` is a new-
+capability test proving an explicit `preserveAspectRatio="... slice"` attribute on a marker with
+its own `viewBox` selects `slice`'s larger uniform scale (`max(...)`) rather than the pre-existing
+default path's `meet`-equivalent (`min(...)`) scale, exercised via a canvas point covered only by
+the wider `slice` fit. It deliberately does not exercise `<align>`/origin variation: because a
+marker's content is always anchored by its own `refX`/`refY` (never clipped to
+`markerWidth`/`markerHeight`), an `<align>`'s `Min`/`Mid`/`Max` offset and the viewBox's own
+origin both algebraically cancel out of the final rendered position once that ref-anchoring is
+applied, regardless of their value - only the uniform scale factor itself is ever visibly
+different between the default (no attribute) path and an explicit `preserveAspectRatio`, making
+`meet` versus `slice` the only genuinely pixel-distinguishable part of this new capability given
+this codec's marker content is never clipped.
 
 #### CanvasNet-Codecs-SvgCodec-MarkerReferenceCycle: Marker Reference Dangling and Cycle Rejection
 
@@ -449,15 +463,51 @@ legacy `IReadOnlyDictionary<string, TrueTypeFont>?` overload and the richer over
 well; now that the richer overload has its own distinct name, this call is unambiguous and falls
 back to this legacy overload's own documented "no font registered" behavior.
 
-#### CanvasNet-Codecs-SvgCodec-ViewBoxFitting: ViewBox "Meet, Centered" Fitting and Letterboxing
+#### CanvasNet-Codecs-SvgCodec-ViewBoxFitting: ViewBox `preserveAspectRatio` Fitting
 
 **Tests**: `SvgCodec_Load_WideViewBoxIntoSquareRaster_LetterboxesTopAndBottom`,
-`SvgCodec_Load_TallViewBoxIntoSquareRaster_LetterboxesLeftAndRight`
+`SvgCodec_Load_TallViewBoxIntoSquareRaster_LetterboxesLeftAndRight`,
+`SvgCodec_Load_RootPreserveAspectRatio_AppliesAlignAndMeetOrSlice`,
+`SvgCodec_Load_RootPreserveAspectRatioNone_StretchesNonUniformly`,
+`SvgCodec_Load_NoPreserveAspectRatioAttribute_MatchesExplicitXMidYMidMeet`
 
 Asserts a wide (landscape) viewBox fit into a square raster is centered with transparent
 letterbox bars above and below its content, and a tall (portrait) viewBox fit into a square
 raster is centered with transparent letterbox bars to the left and right, in each case also
-asserting the content band itself is filled.
+asserting the content band itself is filled - these two pre-existing tests continue to prove the
+default (no explicit `preserveAspectRatio` attribute) "xMidYMid meet" fit is unchanged.
+`SvgCodec_Load_RootPreserveAspectRatio_AppliesAlignAndMeetOrSlice` is a data-driven `[Theory]`
+covering all 9 non-`none` `<align>` values combined with both `meet` and `slice` (18 rows total),
+rendering a single 200x100 viewBox with 4 marker stripes into a mismatched 100x200 raster and
+sampling pixels whose expected color was independently hand-verified via matrix composition, to
+prove every align/meetOrSlice combination is honored.
+`SvgCodec_Load_RootPreserveAspectRatioNone_StretchesNonUniformly` proves the new `align="none"`
+capability stretches the intrinsic viewBox independently on each axis with no uniform-scale
+constraint and no letterboxing, filling the raster completely.
+`SvgCodec_Load_NoPreserveAspectRatioAttribute_MatchesExplicitXMidYMidMeet` is a dedicated,
+explicitly-named regression test (not merely relying on other tests happening to still pass)
+that loops over every pixel of a document with no `preserveAspectRatio` attribute at all and
+asserts it is pixel-for-pixel identical to the same document with an explicit
+`preserveAspectRatio="xMidYMid meet"` attribute added - proving Finding #1 from this phase's
+planning report (the pre-existing default was already spec-conformant "meet, centered", not the
+non-uniform stretch a naive reading of the original feature request might assume) holds, and that
+adding `preserveAspectRatio` parsing introduced no default-behavior regression.
+
+#### CanvasNet-Codecs-SvgCodec-SymbolViewBoxFitting: `symbol`/`use` ViewBox Fitting
+
+**Tests**: `SvgCodec_Load_UseReferencingSymbolWithViewBox_FitsContentToResolvedWidthHeight`,
+`SvgCodec_Load_UseReferencingSymbolWithPreserveAspectRatio_HonorsAlign`
+
+Asserts a `use` element referencing a `symbol` element with its own `viewBox` fits that viewBox's
+content into the `use`/`symbol` element's resolved `width`/`height`, positioned by the `use`
+element's own `x`/`y` translation applied in the outer, already-fitted coordinate space.
+`SvgCodec_Load_UseReferencingSymbolWithPreserveAspectRatio_HonorsAlign` further asserts a
+`symbol`'s own `preserveAspectRatio` attribute (a portrait viewBox fitted into a square box,
+`xMinYMin` align) is honored, positioning content flush to the top-left rather than centered, and
+that the slack area a centered default would otherwise fill is left transparent - unlike a
+marker's ref-anchored content (see `CanvasNet-Codecs-SvgCodec-MarkerRendering` below), a
+`symbol`/`use`'s align offset is a plain, non-anchored translation, so it remains visibly
+distinguishable in rendered output.
 
 #### CanvasNet-Codecs-SvgCodec-GetInfo: GetInfo Reports Resolved Intrinsic Size
 
@@ -579,20 +629,55 @@ original input (`1e20`) likewise now exceeds `MaxCoordinateMagnitude` and is rej
 `DashSplitter` is ever reached - retained under its original name, repurposed identically to the
 two tests above.
 
-#### CanvasNet-Codecs-SvgCodec-PercentageGeometryRejected: Percentage Rejected on Geometry Attributes
+#### CanvasNet-Codecs-SvgCodec-PercentageGeometryResolved: Percentage Geometry Resolved Against Viewport
 
-**Tests**: `SvgCodec_Load_RectXPercentage_ThrowsInvalidDataException`,
-`SvgCodec_Load_RectWidthPercentage_ThrowsInvalidDataException`
+**Tests**: `SvgCodec_Load_RectXPercentage_ResolvesAgainstViewportWidth`,
+`SvgCodec_Load_RectWidthPercentage_ResolvesAgainstViewportWidth`,
+`SvgCodec_Load_RectYHeightPercentage_ResolvesAgainstViewportHeight`,
+`SvgCodec_Load_CircleCxCyRPercentage_ResolvesAgainstHorizontalVerticalAndDiagonalBases`,
+`SvgCodec_Load_LineCoordinatePercentage_ResolvesAgainstViewport`,
+`SvgCodec_Load_GradientCoordinatePercentage_UnaffectedByViewportPercentageResolution`,
+`SvgCodec_Load_StrokeWidthPercentage_ResolvesAgainstDiagonalBasis`,
+`SvgCodec_Load_FontSizePercentage_ResolvesAgainstParentFontSize`,
+`SvgCodec_Load_StrokeDasharrayPercentage_ResolvesAgainstDiagonalBasis`
 
-Asserts `Load` throws `InvalidDataException` for a `rect`'s `x` attribute expressed as a
-percentage and, separately, for its `width` attribute expressed as a percentage, proving a
-shape/text geometry attribute's percentage value is explicitly rejected rather than silently
-resolved against an undefined basis. Separately confirms (no dedicated regression test needed,
-since both already exist and are unaffected) that
+Asserts a `rect`'s `x`/`width` percentages resolve against the current viewport's width (
+`SvgCodec_Load_RectXPercentage_ResolvesAgainstViewportWidth`/
+`SvgCodec_Load_RectWidthPercentage_ResolvesAgainstViewportWidth` - repurposed, rather than
+silently deleted, from this codec's original percentage-*rejection* `Fact`s covering this exact
+attribute/markup, now proving successful resolution instead of `InvalidDataException`), and its
+`y`/`height` percentages resolve against the current viewport's height on a non-square viewBox
+(`SvgCodec_Load_RectYHeightPercentage_ResolvesAgainstViewportHeight`). Asserts a `circle`'s
+`cx`/`cy` percentages resolve against the horizontal/vertical bases respectively, and its `r`
+percentage resolves against the diagonal basis `sqrt(w^2 + h^2) / sqrt(2)` - an axis-agnostic
+length per the SVG specification
+(`SvgCodec_Load_CircleCxCyRPercentage_ResolvesAgainstHorizontalVerticalAndDiagonalBases`). Asserts
+a `line`'s `x1`/`y1`/`x2`/`y2` percentages resolve against the viewport
+(`SvgCodec_Load_LineCoordinatePercentage_ResolvesAgainstViewport`), and separately, that a
+`linearGradient`'s own `x1`/`x2` coordinates continue to resolve as basis-1 fractions of the
+gradient's own `objectBoundingBox` coordinate space, unaffected by this phase's new viewport-
+relative percentage resolution
+(`SvgCodec_Load_GradientCoordinatePercentage_UnaffectedByViewportPercentageResolution` - uses a
+`rect` fill rather than a `line` stroke, since a horizontal/vertical `line`'s own fill-geometry
+bounding box is degenerate on one axis and always falls back to an identity object-bounding-box
+map regardless of this change). Asserts `stroke-width`'s and each `stroke-dasharray` entry's
+percentage resolves against the diagonal basis, exactly like `r` above
+(`SvgCodec_Load_StrokeWidthPercentage_ResolvesAgainstDiagonalBasis`,
+`SvgCodec_Load_StrokeDasharrayPercentage_ResolvesAgainstDiagonalBasis`). Asserts `font-size`'s
+percentage resolves against the parent element's own already-cascaded `font-size` (the CSS/SVG-
+defined basis), not any viewport dimension
+(`SvgCodec_Load_FontSizePercentage_ResolvesAgainstParentFontSize`). Percentage resolution happens
+inside the existing `ParseGeometryCoordinate`/`ParseCoordinate` choke point, so the existing
+finite/magnitude guards those methods already apply still run *after* percentage resolution
+rather than being bypassed - `stroke-miterlimit` remains the sole documented exception (a
+unitless ratio, not a length), continuing to tolerantly fall back to the inherited value for a
+percentage there, unchanged. Separately confirms (no dedicated regression test needed, since both
+already exist and are unaffected) that
 `SvgCodec_Load_NegativeScientificAndPercentageValues_RendersWithoutThrowing` (which only exercises
 `opacity="50%"`) and `SvgCodec_Load_GradientStopOffsetPercentage_RendersGradientCorrectly` (which
 exercises gradient `stop` `offset` percentages) continue to pass unmodified, proving
-opacity-family attributes and gradient coordinates remain correctly unaffected by this rejection.
+opacity-family attributes and gradient `stop` `offset` remain correctly unaffected by this
+capability.
 
 #### CanvasNet-Codecs-SvgCodec-UnsupportedConstructsIgnored: Out-of-Scope Constructs Tolerated
 

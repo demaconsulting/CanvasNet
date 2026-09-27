@@ -5,7 +5,7 @@
 # from the perspective of its consumers, without specifying implementation details.
 # cspell:ignore glyf sfnt cmap loca hmtx hhea maxp notdef
 # cspell:ignore codepoint codepoints subtable subtables subsetted renderable formedness
-# cspell:ignore rasterizing letterboxing
+# cspell:ignore rasterizing letterboxing Dasharray
 
 sections:
   - title: Canvas API
@@ -967,9 +967,10 @@ sections:
         title: >-
           The library shall rasterize marker elements referenced from a line, polyline, polygon,
           or path element's marker-start/marker-mid/marker-end presentation attributes, at the
-          correct vertex, orientation, and scale, and shall reject an unbounded
-          marker-referencing-marker reference cycle the same way an unbounded use reference cycle
-          is already rejected.
+          correct vertex, orientation, and scale (honoring an explicit preserveAspectRatio
+          attribute on the marker itself, when present, and otherwise preserving the pre-existing
+          default fit unchanged), and shall reject an unbounded marker-referencing-marker
+          reference cycle the same way an unbounded use reference cycle is already rejected.
         tags: [system]
         justification: |
           Connector arrowheads and other per-vertex line decorations built via SVG's marker
@@ -984,6 +985,8 @@ sections:
           - SvgCodec_Load_ArrowMarkersFixture_RendersArrowheadPastLineEnd
           - SvgCodec_Load_MarkerSelfReferenceCycle_ThrowsInvalidDataException
           - SvgCodec_Load_MarkerTwoElementReferenceCycle_ThrowsInvalidDataException
+          - SvgCodec_Load_MarkerWithViewBox_FitsContentToMarkerWidthHeight
+          - SvgCodec_Load_MarkerWithExplicitPreserveAspectRatioSlice_UsesLargerUniformScale
 
       - id: CanvasNet-Lib-SvgFilterRendering
         title: >-
@@ -1015,17 +1018,48 @@ sections:
       - id: CanvasNet-Lib-SvgViewBoxFitting
         title: >-
           The library shall fit an SVG document's intrinsic viewBox into the requested raster size
-          using a "meet, centered" (CSS object-fit: contain equivalent) transform.
+          via preserveAspectRatio (defaulting to "xMidYMid meet", a "meet, centered", CSS
+          object-fit: contain equivalent, transform, when absent), and shall apply the same fit
+          algorithm to a use element referencing a symbol element with its own viewBox.
         tags: [system]
         justification: |
           Callers request a specific raster size that may not share the document's intrinsic
-          aspect ratio; centered letterboxing avoids distorting or clipping the document's
-          content.
+          aspect ratio; preserveAspectRatio is the SVG-specification-defined mechanism for
+          controlling that mismatch, and reusing the same fit algorithm for symbol/use content
+          keeps both reuse sites consistent and correct.
         children:
           - CanvasNet-Codecs-SvgViewBoxFitting
         tests:
           - SvgCodec_Load_WideViewBoxIntoSquareRaster_LetterboxesTopAndBottom
           - SvgCodec_Load_TallViewBoxIntoSquareRaster_LetterboxesLeftAndRight
+          - SvgCodec_Load_RootPreserveAspectRatio_AppliesAlignAndMeetOrSlice
+          - SvgCodec_Load_RootPreserveAspectRatioNone_StretchesNonUniformly
+          - SvgCodec_Load_NoPreserveAspectRatioAttribute_MatchesExplicitXMidYMidMeet
+          - SvgCodec_Load_UseReferencingSymbolWithViewBox_FitsContentToResolvedWidthHeight
+          - SvgCodec_Load_UseReferencingSymbolWithPreserveAspectRatio_HonorsAlign
+
+      - id: CanvasNet-Lib-SvgPercentageGeometryResolution
+        title: >-
+          The library shall resolve a percentage value on a shape/text geometry attribute against
+          the current SVG viewport (or, for font-size, the parent element's own font-size),
+          rather than rejecting it.
+        tags: [system]
+        justification: |
+          Real-world SVG documents commonly size geometry as a percentage of their containing
+          viewport; resolving these against a well-defined, spec-aligned basis lets this codec
+          render such documents correctly instead of rejecting them outright.
+        children:
+          - CanvasNet-Codecs-SvgPercentageGeometryResolution
+        tests:
+          - SvgCodec_Load_RectXPercentage_ResolvesAgainstViewportWidth
+          - SvgCodec_Load_RectWidthPercentage_ResolvesAgainstViewportWidth
+          - SvgCodec_Load_RectYHeightPercentage_ResolvesAgainstViewportHeight
+          - SvgCodec_Load_CircleCxCyRPercentage_ResolvesAgainstHorizontalVerticalAndDiagonalBases
+          - SvgCodec_Load_LineCoordinatePercentage_ResolvesAgainstViewport
+          - SvgCodec_Load_GradientCoordinatePercentage_UnaffectedByViewportPercentageResolution
+          - SvgCodec_Load_StrokeWidthPercentage_ResolvesAgainstDiagonalBasis
+          - SvgCodec_Load_FontSizePercentage_ResolvesAgainstParentFontSize
+          - SvgCodec_Load_StrokeDasharrayPercentage_ResolvesAgainstDiagonalBasis
 
       - id: CanvasNet-Lib-SvgGetInfo
         title: >-

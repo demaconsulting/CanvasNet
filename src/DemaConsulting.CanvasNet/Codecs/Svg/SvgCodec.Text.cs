@@ -90,7 +90,9 @@ public static partial class SvgCodec
         // loop begins, so a pathologically long run throws before that work is spent
         workBudget.Charge(text.Length);
 
-        var origin = new Vector2(GetFloatAttribute(element, "x"), GetFloatAttribute(element, "y"));
+        var origin = new Vector2(
+            GetFloatAttribute(element, "x", state, PercentageAxis.Horizontal),
+            GetFloatAttribute(element, "y", state, PercentageAxis.Vertical));
         var glyphRunPath = BuildGlyphRunPath(text, font, state, origin);
         RenderShapeWithFilter(element, glyphRunPath, state, transform, context, filterWorkBudget, suppressFilter);
     }
