@@ -7745,7 +7745,8 @@ public class SvgCodecTests
         Assert.Equal(0, surface[75, 50].R);
     }
 
-    /// <summary>    ///     Proves malformed-CSS graceful degradation: one syntactically-broken rule in a
+    /// <summary>
+    ///     Proves malformed-CSS graceful degradation: one syntactically-broken rule in a
     ///     stylesheet is skipped, the rest of the stylesheet's well-formed rules still apply, and
     ///     the document still loads rather than aborting entirely.
     /// </summary>
