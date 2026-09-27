@@ -1084,8 +1084,8 @@ produces the exact hand-computable `diffuseConstant * lighting-color` result; as
 alpha channel is always fully opaque regardless of the computed color, per the Lambertian
 formula's own specification; asserts `diffuseConstant` scales the output linearly; and asserts a
 `fePointLight` positioned directly above a bump's center lights that center more brightly than a
-point near the bump's tilted rim, proving the light's own position - not just a constant direction
-- genuinely drives the per-pixel light vector.
+point near the bump's tilted rim, proving the light's own position (not just a constant direction)
+genuinely drives the per-pixel light vector.
 
 #### CanvasNet-Codecs-SvgCodec-FeSpecularLighting: `feSpecularLighting` Blinn-Phong Surface Lighting
 
