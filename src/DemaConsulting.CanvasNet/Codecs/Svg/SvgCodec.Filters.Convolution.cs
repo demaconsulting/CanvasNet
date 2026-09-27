@@ -145,7 +145,14 @@ public static partial class SvgCodec
                         var sampleX = x + kernelX - targetX;
                         var sampleY = y + kernelY - targetY;
                         var sample = ReadConvolveSample(working, sampleX, sampleY, edgeMode);
-                        var coefficient = kernelMatrix[(kernelY * order.X) + kernelX];
+
+                        // The kernel index is deliberately mirrored (180-degree flip) per the
+                        // SVG Filter Effects spec's convolution formula, which multiplies
+                        // SOURCE(X-targetX+J, Y-targetY+I) by kernelMatrix(orderX-J-1, orderY-I-1).
+                        // Do not "simplify" this back to a plain (kernelY * order.X) + kernelX
+                        // index -- that would silently regress to correlation instead of
+                        // true convolution for any non-point-symmetric kernel.
+                        var coefficient = kernelMatrix[((order.Y - kernelY - 1) * order.X) + (order.X - kernelX - 1)];
                         sumRed += coefficient * sample.R;
                         sumGreen += coefficient * sample.G;
                         sumBlue += coefficient * sample.B;
@@ -202,7 +209,14 @@ public static partial class SvgCodec
                         var sampleX = x + kernelX - targetX;
                         var sampleY = y + kernelY - targetY;
                         var sample = ReadConvolveSample(input, sampleX, sampleY, edgeMode);
-                        var coefficient = kernelMatrix[(kernelY * order.X) + kernelX];
+
+                        // The kernel index is deliberately mirrored (180-degree flip) per the
+                        // SVG Filter Effects spec's convolution formula, which multiplies
+                        // SOURCE(X-targetX+J, Y-targetY+I) by kernelMatrix(orderX-J-1, orderY-I-1).
+                        // Do not "simplify" this back to a plain (kernelY * order.X) + kernelX
+                        // index -- that would silently regress to correlation instead of
+                        // true convolution for any non-point-symmetric kernel.
+                        var coefficient = kernelMatrix[((order.Y - kernelY - 1) * order.X) + (order.X - kernelX - 1)];
                         sumRed += coefficient * sample.R;
                         sumGreen += coefficient * sample.G;
                         sumBlue += coefficient * sample.B;

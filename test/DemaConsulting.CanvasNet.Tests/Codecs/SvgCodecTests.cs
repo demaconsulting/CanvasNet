@@ -3208,13 +3208,15 @@ public class SvgCodecTests
         using var stream = ToStream(svg);
         var surface = SvgCodec.Load(stream, 3, 1);
 
-        // Assert
+        // Assert: per the SVG spec's flipped-kernel convolution formula
+        // (RESULT(X) = sum_J kernelMatrix(orderX-J-1) * SOURCE(X-targetX+J) / divisor),
+        // pixel (1, 0) sums the flat black/white/white taps to a black (no-edge) response,
+        // while pixel (2, 0)'s flipped "-1" tap looks past the source's right boundary
+        // (transparent black under edgeMode="none"), producing a white edge response.
         var edgePixel = surface[1, 0];
         Assert.Equal(255, edgePixel.A);
-        Assert.True(
-            edgePixel.R > 200 && edgePixel.G > 200 && edgePixel.B > 200,
-            $"Expected a strong white edge response at (1, 0), got {edgePixel}.");
-        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[2, 0]);
+        Assert.Equal(new Rgba32(0, 0, 0, 255), edgePixel);
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[2, 0]);
     }
 
     /// <summary>
@@ -3244,8 +3246,11 @@ public class SvgCodecTests
         using var stream = ToStream(svg);
         var surface = SvgCodec.Load(stream, 3, 1);
 
-        // Assert
-        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[0, 0]);
+        // Assert: per the SVG spec's flipped-kernel convolution formula, the wrap-relevant
+        // pixel is (2, 0), whose only non-zero-weighted tap requests SOURCE(3) -- one past
+        // the right edge -- which edgeMode="wrap" resolves to SOURCE(0) (the opposite/left
+        // edge), i.e. the red pixel.
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[2, 0]);
     }
 
     /// <summary>
