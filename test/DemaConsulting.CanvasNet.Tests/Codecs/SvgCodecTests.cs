@@ -2,7 +2,7 @@
 // cspell:ignore Dasharray hhea Hhea hmtx Hmtx hrefs letterboxed Loca Maxp unstroked
 // cspell:ignore miterlimit
 // cspell:ignore unparseable overpainted bbox moveto lineto rects unrotated unclipped
-// cspell:ignore pillarbox Pillarboxes sizeless
+// cspell:ignore pillarbox Pillarboxes sizeless basi
 using System.Diagnostics;
 using System.Reflection;
 using System.Text;
@@ -8292,6 +8292,54 @@ public class SvgCodecTests
         // Assert: the truncated image painted nothing at all - the background rect remains
         // visible - and no exception was thrown
         Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Regression test for a High-severity bug: an Adam7-interlaced PNG is well-formed per
+    ///     the PNG specification - its base64 payload decodes cleanly - but
+    ///     <see cref="PngCodec.Load(Stream)"/> itself refuses to decode it, throwing
+    ///     <see cref="UnsupportedImageFeatureException"/> (see
+    ///     <see cref="PngSuiteTests.UnsupportedFiles"/> and that test class's own coverage of this
+    ///     exact fixture). <see cref="UnsupportedImageFeatureException"/> derives from
+    ///     <see cref="IOException"/>, not from any of <see cref="FormatException"/>,
+    ///     <see cref="InvalidDataException"/>, or <see cref="ArgumentOutOfRangeException"/> - see
+    ///     that type's own remarks explaining why an existing <c>catch (InvalidDataException)</c>
+    ///     does not catch it - so before this fix it propagated straight out of
+    ///     <c>RenderImageWithEffects</c>'s catch filter and out of <c>Load</c> entirely, aborting
+    ///     the whole document's render rather than tolerantly skipping just the one problematic
+    ///     <c>&lt;image&gt;</c> element (the same "tolerant per-element no-op" contract already
+    ///     proven by <see cref="SvgCodec_Load_ImageMalformedBase64_SkipsElementWithoutThrowing"/>
+    ///     and <see cref="SvgCodec_Load_ImageTruncatedPngData_SkipsElementWithoutThrowing"/>
+    ///     above). This test embeds PngSuite's own <c>basi0g01.png</c> fixture (see
+    ///     <c>PngSuite\PngSuite.README</c>) as a <c>data:image/png;base64,...</c> href between two
+    ///     sibling rects, so it proves not merely that <c>Load</c> completes without throwing, but
+    ///     that both the preceding and following sibling elements still render correctly around
+    ///     the skipped <c>&lt;image&gt;</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageInterlacedPngData_SkipsElementWithoutThrowing()
+    {
+        // Arrange: a red top-half rect, an interlaced-PNG <image> spanning the whole canvas
+        // (well-formed base64, but a raster feature PngCodec.Load refuses), then a blue
+        // bottom-half rect painted after it
+        var interlacedPngBytes = File.ReadAllBytes(Path.Join(AppContext.BaseDirectory, "PngSuite", "basi0g01.png"));
+        var dataUri = "data:image/png;base64," + Convert.ToBase64String(interlacedPngBytes);
+        var svg = $"""
+            <svg viewBox='0 0 10 10'>
+              <rect x='0' y='0' width='10' height='5' fill='rgb(255,0,0)'/>
+              <image href='{dataUri}' x='0' y='0' width='10' height='10'/>
+              <rect x='0' y='5' width='10' height='5' fill='rgb(0,0,255)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the interlaced image painted nothing at all - both the preceding red rect and
+        // the following blue rect remain visible around it - and no exception was thrown
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 2]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[5, 7]);
     }
 
     /// <summary>

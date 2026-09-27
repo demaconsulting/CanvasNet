@@ -207,9 +207,15 @@ public static partial class SvgCodec
         }
 
         // Decode the base64 payload and dispatch to the matching sibling raster codec's own
-        // Load(Stream) - any failure (malformed base64, or malformed/truncated/oversized raster
-        // bytes) is a tolerant per-element no-op, matching this codec's existing dangling-
-        // reference tolerance policy, never propagating past this one element
+        // Load(Stream) - any failure (malformed base64, malformed/truncated/oversized raster
+        // bytes, or a well-formed-but-unsupported raster feature such as PNG Adam7 interlacing -
+        // see UnsupportedImageFeatureException's own remarks on why that type is not an
+        // InvalidDataException and would otherwise slip past this filter) is a tolerant
+        // per-element no-op, matching this codec's existing dangling-reference tolerance policy,
+        // never propagating past this one element. IOException is caught alongside the sealed
+        // UnsupportedImageFeatureException so any other sibling raster codec's own recognized-
+        // but-unsupported-feature exception (should one ever be introduced) is skipped just as
+        // tolerantly, without requiring this filter to be revisited.
         Surface decodedSurface;
         try
         {
@@ -217,7 +223,8 @@ public static partial class SvgCodec
             using var payloadStream = new MemoryStream(bytes);
             decodedSurface = decodeRaster(payloadStream);
         }
-        catch (Exception ex) when (ex is FormatException or InvalidDataException or ArgumentOutOfRangeException)
+        catch (Exception ex) when (ex is FormatException or InvalidDataException or ArgumentOutOfRangeException
+            or IOException)
         {
             return;
         }
