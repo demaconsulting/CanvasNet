@@ -877,6 +877,7 @@ sections:
                   - SvgCodec_Load_MaskReferenceCycle_ThrowsInvalidDataException
                   - SvgCodec_Load_ClipPathReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnclippedForExcessShapes
                   - SvgCodec_Load_MaskReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnmaskedForExcessShapes
+                  - SvgCodec_Load_ClipPathAndMaskCombinedExceedingCumulativeBudget_FallsBackToUnclippedUnmaskedForExcessShape
                   - SvgCodec_Load_ClipPathExceedsMaxShapesPerClipPath_TruncatesToFirst256Shapes
                   - SvgCodec_Load_MaskRegionExceedsMaxDimension_FallsBackToUnmaskedRendering
 

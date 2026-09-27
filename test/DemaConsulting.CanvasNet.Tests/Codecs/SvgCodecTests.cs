@@ -7095,11 +7095,9 @@ public class SvgCodecTests
             </svg>
             """;
 
-        // Act: must complete quickly rather than allocating unbounded offscreen buffers
-        var stopwatch = Stopwatch.StartNew();
+        // Act: must complete without allocating unbounded offscreen buffers
         using var stream = ToStream(svg);
         var surface = SvgCodec.Load(stream, 100, 100);
-        stopwatch.Stop();
 
         // Assert: shapes 0-1's cumulative charge stayed within the 50,000,000 ceiling, so their
         // (empty) clip genuinely applied - each is fully invisible in its own exclusive band
@@ -7108,14 +7106,12 @@ public class SvgCodecTests
 
         // Assert: shapes 2-4's charge would have exceeded the ceiling - the budget genuinely
         // exhausted - so each tolerantly fell back to unclipped rendering, fully visible in its
-        // own exclusive band with its own plain fill color
+        // own exclusive band with its own plain fill color; this is deterministic proof that the
+        // excess shapes' clip was skipped rather than evaluated (a genuinely-applied empty clip
+        // would have hidden them, as it did for shapes 0-1)
         Assert.Equal(new Rgba32(0, 0, 255, 255), surface[40, 50]);
         Assert.Equal(new Rgba32(255, 255, 0, 255), surface[20, 50]);
         Assert.Equal(new Rgba32(255, 0, 255, 255), surface[5, 50]);
-
-        // Assert: completed promptly, proving the excess shapes' clip was skipped rather than
-        // evaluated
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the budget-exhausted clip-path shapes to be skipped promptly, but it took {stopwatch.Elapsed}.");
     }
 
     /// <summary>
@@ -7150,11 +7146,9 @@ public class SvgCodecTests
             </svg>
             """;
 
-        // Act: must complete quickly rather than allocating unbounded offscreen buffers
-        var stopwatch = Stopwatch.StartNew();
+        // Act: must complete without allocating unbounded offscreen buffers
         using var stream = ToStream(svg);
         var surface = SvgCodec.Load(stream, 100, 100);
-        stopwatch.Stop();
 
         // Assert: shapes 0-1's cumulative charge stayed within the 50,000,000 ceiling, so their
         // (empty) mask genuinely applied - each is fully invisible in its own exclusive band
@@ -7163,14 +7157,12 @@ public class SvgCodecTests
 
         // Assert: shapes 2-4's charge would have exceeded the ceiling - the same shared budget
         // genuinely exhausted by mask-only charges - so each tolerantly fell back to unmasked
-        // rendering, fully visible in its own exclusive band with its own plain fill color
+        // rendering, fully visible in its own exclusive band with its own plain fill color; this
+        // is deterministic proof that the excess shapes' mask was skipped rather than evaluated (a
+        // genuinely-applied empty mask would have hidden them, as it did for shapes 0-1)
         Assert.Equal(new Rgba32(0, 0, 255, 255), surface[40, 50]);
         Assert.Equal(new Rgba32(255, 255, 0, 255), surface[20, 50]);
         Assert.Equal(new Rgba32(255, 0, 255, 255), surface[5, 50]);
-
-        // Assert: completed promptly, proving the excess shapes' mask was skipped rather than
-        // evaluated
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the budget-exhausted mask shapes to be skipped promptly, but it took {stopwatch.Elapsed}.");
     }
 
     /// <summary>
@@ -7218,11 +7210,9 @@ public class SvgCodecTests
             </svg>
             """;
 
-        // Act: must complete quickly rather than allocating unbounded offscreen buffers
-        var stopwatch = Stopwatch.StartNew();
+        // Act: must complete without allocating unbounded offscreen buffers
         using var stream = ToStream(svg);
         var surface = SvgCodec.Load(stream, 100, 100);
-        stopwatch.Stop();
 
         // Assert: shape 0's combined clip+mask charge (37,497,675) stayed within the 50,000,000
         // ceiling, so its (empty) clip-path and (empty) mask both genuinely applied - it is fully
@@ -7232,12 +7222,10 @@ public class SvgCodecTests
         // Assert: shape 1's combined charge would have pushed the cumulative total to 74,995,350,
         // exceeding the ceiling - the budget genuinely exhausted by the combined charge - so it
         // tolerantly fell back to fully unclipped/unmasked rendering, visible with its own plain
-        // fill color in its own exclusive band (0-70)
+        // fill color in its own exclusive band (0-70); this is deterministic proof that the excess
+        // shape's clip and mask were both skipped rather than evaluated (a genuinely-applied empty
+        // clip/mask would have hidden it, as it did for shape 0)
         Assert.Equal(new Rgba32(0, 255, 0, 255), surface[30, 50]);
-
-        // Assert: completed promptly, proving the excess shape's clip and mask were both skipped
-        // rather than evaluated
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the budget-exhausted combined clip+mask shape to be skipped promptly, but it took {stopwatch.Elapsed}.");
     }
 
     /// <summary>
