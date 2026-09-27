@@ -563,10 +563,15 @@ sections:
                   surface is allocated regardless of region size) and by clamping
                   feGaussianBlur's stdDeviation to a fixed maximum, so that neither a pathological
                   filter region nor a pathological blur radius can cause unbounded allocation or
-                  unbounded per-pixel work; and shall bound the total primitive-count/region-area
+                  unbounded per-pixel work; shall bound the total primitive-count/region-area
                   work a single
                   filter's own primitive chain may perform, tolerantly skipping the filter once
-                  exceeded.
+                  exceeded; and shall additionally bound the cumulative primitive-count/region-area
+                  work charged across every filter application for a single Load call, tolerantly
+                  falling back to unfiltered rendering for any further filter application once that
+                  cumulative total is exceeded, so a single filter definition referenced by many
+                  shapes cannot bypass the per-application bound by being evaluated an unbounded
+                  number of times.
                 justification: |
                   A dangling filter reference is a common authoring mistake that must not abort
                   rendering of the rest of the document, matching this codec's general
@@ -583,7 +588,19 @@ sections:
                   guard anticipates, so a dedicated primitive-count/region-area work budget was
                   added, tolerantly skipping the whole filter (rendering the element normally)
                   once exceeded, the same tolerant-fallback policy used for an oversized region or
-                  dangling reference.
+                  dangling reference. That per-filter budget alone is enforced independently for
+                  every shape that references a filter, so a single filter definition referenced by
+                  many shapes could be charged the same per-filter ceiling once per reference with
+                  no bound on the total number of references, letting total filter-evaluation work
+                  grow arbitrarily with shape count even though every individual reference stayed
+                  within budget - a gap neither this per-filter budget nor the pre-existing
+                  total-rendered-element bound (which counts a filtered shape identically to an
+                  unfiltered one) closes. A second, cumulative, per-Load-call work budget was
+                  therefore added, charging every filter application's own region-weighted work
+                  unit into one running total and tolerantly falling back to unfiltered rendering
+                  for any application that would push that total over a fixed ceiling, bounding
+                  worst-case total filter-evaluation CPU/memory for a single document regardless of
+                  how many shapes reference the same (or different) filters.
                 tests:
                   - SvgCodec_Load_FilterDanglingReference_RendersElementNormally
                   - SvgCodec_Load_FilterPathologicallyLargeRegion_SkipsFilterRatherThanUnboundedAllocation
@@ -591,6 +608,7 @@ sections:
                   - SvgCodec_Load_FilterPathologicallyLargeBlurStdDeviation_ClampsRatherThanUnboundedWork
                   - SvgCodec_Load_FilterExcessivePrimitiveCount_SkipsFilterRatherThanUnboundedWork
                   - SvgCodec_Load_FeMergeExcessiveNodeCount_SkipsFilterRatherThanUnboundedWork
+                  - SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes
 
               - id: CanvasNet-Codecs-SvgCodec-ValidationNull
                 title: >-

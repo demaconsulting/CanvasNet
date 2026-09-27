@@ -685,7 +685,8 @@ result as a whole" semantics.
 `SvgCodec_Load_FilterWithZeroPrimitivesAndHugeRegion_SkipsFilterRatherThanAllocatingSurface`,
 `SvgCodec_Load_FilterPathologicallyLargeBlurStdDeviation_ClampsRatherThanUnboundedWork`,
 `SvgCodec_Load_FilterExcessivePrimitiveCount_SkipsFilterRatherThanUnboundedWork`,
-`SvgCodec_Load_FeMergeExcessiveNodeCount_SkipsFilterRatherThanUnboundedWork`
+`SvgCodec_Load_FeMergeExcessiveNodeCount_SkipsFilterRatherThanUnboundedWork`,
+`SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes`
 
 Asserts a `filter="url(#id)"` reference to a nonexistent id renders the element normally, exactly
 as if no `filter` attribute were present, matching this codec's general dangling-reference
@@ -711,7 +712,20 @@ excessive number (5,000) of `feMergeNode` children is likewise tolerantly skippe
 bypassing the primitive-count work budget - a regression test for a defect where the budget check
 counted a `feMerge` as a single primitive regardless of its own `feMergeNode` child count, even
 though `ApplyFeMerge` performs one full-surface composite per child, letting a pathological
-`feMerge` node count bypass the budget while still performing unbounded work.
+`feMerge` node count bypass the budget while still performing unbounded work. Finally, asserts a
+regression test for a code-review finding that the per-filter `MaxFilterPrimitiveWorkUnits`
+ceiling is enforced independently for every individual filtered element, so a single `filter`
+definition referenced by many shapes could be charged that same ceiling once per reference with no
+bound on the total number of references: 13 shapes reference one filter chain that individually
+charges exactly the per-filter ceiling (500 primitives against a 100×100 region) every time - the
+first 10 references' cumulative total stays within the new `FilterWorkBudget`'s
+`MaxCumulativeFilterWorkUnits` ceiling (50,000,000) and are genuinely filtered (rendering the
+chain's trailing `feFlood` solid color), while the 11th through 13th references would push the
+cumulative total over that ceiling and tolerantly fall back to unfiltered rendering (their own
+plain fill color) instead of throwing - proving the new cumulative, per-`Load`-call budget bounds
+total filter-evaluation work across the whole document, a dimension neither
+`MaxFilterPrimitiveWorkUnits` (per-filter-application only) nor `MaxTotalRenderedElements`
+(counts a filtered shape identically to an unfiltered one) previously covered.
 
 #### CanvasNet-Codecs-SvgCodec-ValidationNull: Null Stream/Path Rejected
 

@@ -399,12 +399,26 @@ chain is additionally bounded by a fixed primitive-count cap (`MaxFilterPrimitiv
 skipped the same way once either is exceeded - because, unlike the per-element costs
 `MaxTotalRenderedElements` already bounds (which assumes O(1)/O(perimeter) cost per element, not
 O(region-area) cost per primitive), a single filter's own primitive-chain cost is
-O(primitive count × region area), a cost dimension no pre-existing guard actually covers. A
+O(primitive count × region area), a cost dimension no pre-existing guard actually covers. That
+per-filter ceiling alone is enforced independently for every shape that references a filter, so a
+single `filter` definition referenced by many shapes could otherwise be charged the same ceiling
+once per reference with no bound on the total number of references - a document with enough
+shapes could drive total filter-evaluation work arbitrarily high even though every individual
+reference stayed within budget. A second, cumulative, per-`Load`-call `FilterWorkBudget` closes
+that gap: it charges each filter application's own region-weighted work unit into one running
+total across the whole document, and once that running total would exceed a fixed
+`MaxCumulativeFilterWorkUnits` ceiling (50,000,000 - ten times `MaxFilterPrimitiveWorkUnits`,
+generous enough that a real document reusing one filter across a modest number of shapes is never
+rejected, while still keeping worst-case total filter-evaluation work bounded to a small, fixed
+multiple of a single filter's own bound), every further filter application for the remainder of
+that `Load` call tolerantly falls back to unfiltered rendering instead - the same fallback
+behavior as every other filter resource bound, never a thrown exception. A
 `filter` element with zero primitive children is likewise tolerantly skipped, identically to an
 out-of-budget chain and checked in the same guard, before `SourceGraphic` is allocated - because
 a filter with no primitives to evaluate can never change the rendered output, regardless of how
 large its filter region is. When the
-region is accepted and the chain's work stays within budget, the
+region is accepted and the chain's work stays within both the per-filter and cumulative budgets,
+the
 element's own content is rendered a second time - independently of its main render onto
 `context.Surface` - into a fresh, region-sized temporary `Surface` (this buffer is the filter's
 implicit `SourceGraphic` input; `SourceAlpha`, its alpha-only derivative, is built lazily only if
@@ -463,7 +477,7 @@ total number of elements rendered/visited across the whole document walk - charg
 element is processed further, and raises `InvalidDataException` once it exceeds a fixed budget far
 beyond any real-world document's element count but small enough to keep worst-case rendering
 CPU/memory bounded to a small, practical amount. Every fixed counter/budget in this class
-(`GeometryWorkBudget.Charge`, the total-rendered-element counter above, and `BuildIdIndex`'s own
+(`GeometryWorkBudget.Charge`, the total-rendered-element counter above, `BuildIdIndex`'s own
 whole-document-walk counter described below) checks the new amount against the remaining budget
 _before_ adding it to the running total, rather than adding first and checking afterward - a
 single call charging an amount large enough to make the addition itself overflow `int` cannot
@@ -471,7 +485,12 @@ therefore bypass the budget by wrapping past a small, still-under-budget-looking
 defense-in-depth: given today's fixed constants, no call site can charge an amount anywhere close
 to large enough to threaten an `int` overflow before the very next charge past the real budget
 already throws, but the check-before-add ordering remains correct regardless of whether these
-constants are ever raised in the future.
+constants are ever raised in the future. The cumulative filter-work budget described in
+**Filters** above (`FilterWorkBudget.TryCharge`) follows the identical check-before-add pattern,
+but - because a filter's own resource cost is always tolerated with a fallback rather than treated
+as a hard document-rejection condition, per the existing convention for every other filter
+resource bound - reports failure by returning `false` (letting the caller fall back to unfiltered
+rendering) rather than throwing.
 
 Even the total-rendered-element budget above does not bound the size of a single element's own
 content: it counts how many elements are visited, so one `path`/`polyline`/`polygon`/`text`

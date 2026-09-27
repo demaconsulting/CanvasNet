@@ -393,6 +393,94 @@ public static class SvgCodec
         }
     }
 
+    /// <summary>
+    ///     Tracks the cumulative "primitive count times filter-region pixel area" work charged
+    ///     across every filter actually evaluated (i.e. every <see cref="RenderFilteredShape"/>
+    ///     call that passes its own per-filter <see cref="MaxFilterPrimitiveWorkUnits"/> ceiling
+    ///     and is about to allocate a <c>SourceGraphic</c> buffer) within a single <c>Load</c>
+    ///     call, so a single filter definition referenced by many shapes cannot bypass the
+    ///     resource-safety bound that <see cref="MaxFilterPrimitiveWorkUnits"/> alone provides.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="MaxFilterPrimitiveWorkUnits"/> bounds only a single filter evaluation's own
+    ///     cost - it is checked independently for every shape that references a <c>filter</c>, so
+    ///     a document defining one filter once and referencing it (via <c>filter="url(#f)"</c>)
+    ///     from many shapes charges that same per-filter ceiling once per reference, with no bound
+    ///     on the total number of references. <see cref="MaxTotalRenderedElements"/> bounds the
+    ///     total number of rendered shapes, but not their filter work at all: it counts a filtered
+    ///     shape identically to an unfiltered one, even though a filtered shape's own rendering
+    ///     cost (allocating and evaluating a fresh <c>SourceGraphic</c>/filter chain) can be
+    ///     orders of magnitude larger. This budget closes that gap by charging the same
+    ///     region-weighted work unit already computed for the per-filter check into one running,
+    ///     per-<c>Load</c>-call total, mirroring <see cref="GeometryWorkBudget"/>'s identical
+    ///     "mutable reference type shared across the whole render walk" pattern - a plain
+    ///     <c>ref long</c> parameter is not usable here because it must be threaded through the
+    ///     same deeply recursive <see cref="RenderElement"/>/<see cref="RenderUse"/>/
+    ///     <see cref="RenderMarkers"/>/<see cref="RenderOneMarker"/>/<see cref="RenderText"/> call
+    ///     chain <see cref="GeometryWorkBudget"/> already uses, and a separate object (rather than
+    ///     folding this counter into <see cref="GeometryWorkBudget"/> itself) keeps each budget's
+    ///     single responsibility - geometry-parsing work versus filter-evaluation work - distinct
+    ///     and independently documented/testable.
+    /// </remarks>
+    private sealed class FilterWorkBudget
+    {
+        /// <summary>
+        ///     The maximum combined "primitive count times filter-region pixel area" work this
+        ///     codec will evaluate, across every filter application, for a single <c>Load</c>
+        ///     call. 50,000,000 is exactly 10 times <see cref="MaxFilterPrimitiveWorkUnits"/> (the
+        ///     ceiling for a single filter application) - generous enough that a real-world
+        ///     document legitimately reusing one filter across a modest number of shapes (for
+        ///     example 10 shapes, each individually well within the per-filter ceiling) is never
+        ///     rejected, while still keeping the worst-case total filter-evaluation CPU/memory for
+        ///     a single document bounded to a small, fixed multiple of a single filter's own
+        ///     bound, regardless of how many shapes a pathological document references the same
+        ///     (or different) filters from.
+        /// </summary>
+        private const long MaxCumulativeFilterWorkUnits = 50_000_000L;
+
+        /// <summary>The running total of filter-evaluation work charged so far.</summary>
+        private long _total;
+
+        /// <summary>
+        ///     Attempts to charge <paramref name="amount"/> units of filter-evaluation work
+        ///     against the running total, reporting whether the cumulative budget still has room
+        ///     - called immediately before <see cref="RenderFilteredShape"/> allocates its
+        ///     <c>SourceGraphic</c> buffer, so a filter application that would push the cumulative
+        ///     total over budget is rejected before any of its own work (buffer allocation, blur
+        ///     passes, compositing) begins.
+        /// </summary>
+        /// <param name="amount">
+        ///     The region-weighted work unit for this one filter application - identical to the
+        ///     value already computed for <see cref="IsFilterPrimitiveWorkWithinBudget"/>'s own
+        ///     per-filter check.
+        /// </param>
+        /// <returns>
+        ///     <see langword="true"/> if <paramref name="amount"/> was charged because the
+        ///     cumulative total remains within <see cref="MaxCumulativeFilterWorkUnits"/>;
+        ///     <see langword="false"/> (charging nothing) if it would exceed the budget, so the
+        ///     caller can tolerantly fall back to unfiltered rendering rather than throwing -
+        ///     a filter budget, unlike <see cref="GeometryWorkBudget"/>'s parsing-work budget, is
+        ///     never treated as a hard document-rejection condition, consistent with every other
+        ///     per-filter tolerant-fallback case in <see cref="RenderFilteredShape"/>.
+        /// </returns>
+        public bool TryCharge(long amount)
+        {
+            // Check before adding (rather than adding then checking) so that a single amount
+            // large enough to make the addition itself overflow cannot bypass the budget - mirrors
+            // GeometryWorkBudget.Charge's identical check-before-add reasoning. Both operands here
+            // are already bounded well below long.MaxValue by MaxFilterPrimitiveWorkUnits/
+            // MaxCumulativeFilterWorkUnits themselves, but the ordering remains strictly more
+            // correct regardless.
+            if (amount > MaxCumulativeFilterWorkUnits - _total)
+            {
+                return false;
+            }
+
+            _total += amount;
+            return true;
+        }
+    }
+
     // ================================================================================================
     // Public API
     // ================================================================================================
@@ -1277,9 +1365,10 @@ public static class SvgCodec
         var rootState = ApplyPresentationAttributes(RenderState.Initial, root);
         var totalElements = 0;
         var workBudget = new GeometryWorkBudget();
+        var filterWorkBudget = new FilterWorkBudget();
         foreach (var child in root.Elements())
         {
-            RenderElement(child, rootState, fitTransform, context, useDepth: 0, elementDepth: 0, markerDepth: 0, ref totalElements, workBudget);
+            RenderElement(child, rootState, fitTransform, context, useDepth: 0, elementDepth: 0, markerDepth: 0, ref totalElements, workBudget, filterWorkBudget);
         }
     }
 
@@ -1321,6 +1410,12 @@ public static class SvgCodec
     ///     pathologically large element's own content is also bounded, independent of
     ///     <paramref name="totalElements"/>.
     /// </param>
+    /// <param name="filterWorkBudget">
+    ///     The shared cumulative filter-evaluation work budget (see <see cref="FilterWorkBudget"/>),
+    ///     threaded down to every shape/text dispatch below so a filter reused across many shapes
+    ///     is bounded in aggregate, independent of each individual filter's own
+    ///     <see cref="MaxFilterPrimitiveWorkUnits"/> ceiling.
+    /// </param>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="element"/> or a descendant contains malformed presentation
     ///     data, a <c>use</c> reference cycle/excessive nesting is detected, the element tree
@@ -1361,7 +1456,8 @@ public static class SvgCodec
         int elementDepth,
         int markerDepth,
         ref int totalElements,
-        GeometryWorkBudget workBudget)
+        GeometryWorkBudget workBudget,
+        FilterWorkBudget filterWorkBudget)
     {
         // Fail fast before recursing any further - an unbounded element tree walk would otherwise
         // eventually drive the call stack into an uncatchable StackOverflowException
@@ -1418,61 +1514,61 @@ public static class SvgCodec
                 // renders when referenced via <use>)
                 foreach (var child in element.Elements())
                 {
-                    RenderElement(child, state, transform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget);
+                    RenderElement(child, state, transform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget);
                 }
 
                 break;
 
             case "rect":
-                RenderShapeWithFilter(element, BuildRectPath(element), state, transform, context, suppressFilter);
+                RenderShapeWithFilter(element, BuildRectPath(element), state, transform, context, filterWorkBudget, suppressFilter);
                 break;
 
             case "circle":
-                RenderShapeWithFilter(element, BuildEllipsePath(element, isCircle: true), state, transform, context, suppressFilter);
+                RenderShapeWithFilter(element, BuildEllipsePath(element, isCircle: true), state, transform, context, filterWorkBudget, suppressFilter);
                 break;
 
             case "ellipse":
-                RenderShapeWithFilter(element, BuildEllipsePath(element, isCircle: false), state, transform, context, suppressFilter);
+                RenderShapeWithFilter(element, BuildEllipsePath(element, isCircle: false), state, transform, context, filterWorkBudget, suppressFilter);
                 break;
 
             case "line":
                 {
                     var linePath = BuildLinePath(element);
-                    RenderShapeWithFilter(element, linePath, state, transform, context, suppressFilter);
-                    RenderMarkers(linePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
+                    RenderShapeWithFilter(element, linePath, state, transform, context, filterWorkBudget, suppressFilter);
+                    RenderMarkers(linePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget);
                     break;
                 }
 
             case "polyline":
                 {
                     var polylinePath = BuildPolyPath(element, closed: false, workBudget);
-                    RenderShapeWithFilter(element, polylinePath, state, transform, context, suppressFilter);
-                    RenderMarkers(polylinePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
+                    RenderShapeWithFilter(element, polylinePath, state, transform, context, filterWorkBudget, suppressFilter);
+                    RenderMarkers(polylinePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget);
                     break;
                 }
 
             case "polygon":
                 {
                     var polygonPath = BuildPolyPath(element, closed: true, workBudget);
-                    RenderShapeWithFilter(element, polygonPath, state, transform, context, suppressFilter);
-                    RenderMarkers(polygonPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
+                    RenderShapeWithFilter(element, polygonPath, state, transform, context, filterWorkBudget, suppressFilter);
+                    RenderMarkers(polygonPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget);
                     break;
                 }
 
             case "path":
                 {
                     var dataPath = BuildPathDataPath(element, workBudget);
-                    RenderShapeWithFilter(element, dataPath, state, transform, context, suppressFilter);
-                    RenderMarkers(dataPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
+                    RenderShapeWithFilter(element, dataPath, state, transform, context, filterWorkBudget, suppressFilter);
+                    RenderMarkers(dataPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget);
                     break;
                 }
 
             case "use":
-                RenderUse(element, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
+                RenderUse(element, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget);
                 break;
 
             case "text":
-                RenderText(element, state, transform, context, workBudget, suppressFilter);
+                RenderText(element, state, transform, context, workBudget, filterWorkBudget, suppressFilter);
                 break;
 
             default:
@@ -3233,6 +3329,10 @@ public static class SvgCodec
     /// <param name="state">The cascaded render state.</param>
     /// <param name="transform">The accumulated transform from local space into pixel space.</param>
     /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="filterWorkBudget">
+    ///     The shared cumulative filter-evaluation work budget, forwarded to
+    ///     <see cref="RenderFilteredShape"/>.
+    /// </param>
     /// <param name="suppressFilter">
     ///     <see langword="true"/> when <paramref name="element"/> is being rendered as part of a
     ///     <c>marker</c> element's own content (propagated from <c>RenderElement</c>'s
@@ -3253,7 +3353,7 @@ public static class SvgCodec
     ///     <c>filter</c>) - see <see cref="RenderFilteredShape"/>'s remarks for the full filter
     ///     evaluation pipeline.
     /// </remarks>
-    private static void RenderShapeWithFilter(XElement element, Path localPath, RenderState state, Matrix3x2 transform, RenderContext context, bool suppressFilter = false)
+    private static void RenderShapeWithFilter(XElement element, Path localPath, RenderState state, Matrix3x2 transform, RenderContext context, FilterWorkBudget filterWorkBudget, bool suppressFilter = false)
     {
         var filterElement = suppressFilter ? null : ResolveFilterElement(element, context);
         if (filterElement == null)
@@ -3262,7 +3362,7 @@ public static class SvgCodec
             return;
         }
 
-        RenderFilteredShape(filterElement, localPath, state, transform, context);
+        RenderFilteredShape(filterElement, localPath, state, transform, context, filterWorkBudget);
     }
 
     /// <summary>
@@ -3312,6 +3412,13 @@ public static class SvgCodec
     /// <param name="state">The cascaded render state.</param>
     /// <param name="transform">The accumulated transform from local space into pixel space.</param>
     /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="filterWorkBudget">
+    ///     The shared cumulative filter-evaluation work budget (see <see cref="FilterWorkBudget"/>),
+    ///     charged with this filter application's own region-weighted work unit immediately before
+    ///     <c>SourceGraphic</c> is allocated, so a filter reused across many shapes cannot bypass
+    ///     the resource-safety bound <see cref="MaxFilterPrimitiveWorkUnits"/> alone provides for a
+    ///     single filter application.
+    /// </param>
     /// <remarks>
     ///     If the filter region cannot be computed (an empty/degenerate local bounding box), or its
     ///     pixel-space size is non-finite, non-positive, or exceeds <see cref="Surface.MaxDimension"/>
@@ -3351,6 +3458,17 @@ public static class SvgCodec
     ///     potentially enormous temporary surface just to hand it back unchanged.
     ///     </para>
     ///     <para>
+    ///     Once this filter application's own region-weighted work unit (identical to the value
+    ///     checked against <see cref="MaxFilterPrimitiveWorkUnits"/> above) would push
+    ///     <paramref name="filterWorkBudget"/>'s running cumulative total past
+    ///     <see cref="FilterWorkBudget"/>'s own fixed ceiling, this filter application is
+    ///     tolerantly skipped identically to every other case above - the same unfiltered-fallback
+    ///     pattern, never a thrown exception, so a document that legitimately reuses one filter
+    ///     across more shapes than the cumulative budget allows still finishes rendering, simply
+    ///     with the excess shapes rendered unfiltered rather than the whole <c>Load</c> call
+    ///     aborting.
+    ///     </para>
+    ///     <para>
     ///     Per SVG semantics, an element's own <c>opacity</c> applies to the filtered result as a
     ///     whole, not to the pre-filter source paint: <c>SourceGraphic</c> is rendered with a copy
     ///     of <paramref name="state"/> whose <see cref="RenderState.Opacity"/> is forced to
@@ -3362,7 +3480,7 @@ public static class SvgCodec
     ///     already uses everywhere else in this codec.
     ///     </para>
     /// </remarks>
-    private static void RenderFilteredShape(XElement filterElement, Path localPath, RenderState state, Matrix3x2 transform, RenderContext context)
+    private static void RenderFilteredShape(XElement filterElement, Path localPath, RenderState state, Matrix3x2 transform, RenderContext context, FilterWorkBudget filterWorkBudget)
     {
         var region = ComputeFilterRegionPixelBounds(filterElement, localPath, state, transform);
         if (region == null)
@@ -3379,6 +3497,17 @@ public static class SvgCodec
         // potentially enormous SourceGraphic surface just to hand it back unchanged
         var primitiveCount = CountFilterPrimitiveWorkUnits(filterElement);
         if (primitiveCount == 0 || !IsFilterPrimitiveWorkWithinBudget(primitiveCount, pixelWidth, pixelHeight))
+        {
+            RenderShape(localPath, state, transform, context);
+            return;
+        }
+
+        // Charge this filter application's own region-weighted work unit against the cumulative,
+        // per-Load-call budget (see FilterWorkBudget's remarks) before allocating SourceGraphic -
+        // this is the guard that bounds a single filter definition referenced by many shapes,
+        // complementing IsFilterPrimitiveWorkWithinBudget's per-application-only ceiling above
+        var filterWorkUnits = (long)primitiveCount * pixelWidth * pixelHeight;
+        if (!filterWorkBudget.TryCharge(filterWorkUnits))
         {
             RenderShape(localPath, state, transform, context);
             return;
@@ -4915,6 +5044,7 @@ public static class SvgCodec
     ///     also contributes toward <see cref="MaxTotalRenderedElements"/>.
     /// </param>
     /// <param name="workBudget">The shared geometry-parsing work budget, propagated to the re-rendered target.</param>
+    /// <param name="filterWorkBudget">The shared cumulative filter-evaluation work budget, propagated to the re-rendered target.</param>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="useDepth"/> has already reached <see cref="MaxUseDepth"/>,
     ///     guarding against a reference cycle that would otherwise recurse indefinitely.
@@ -4924,7 +5054,7 @@ public static class SvgCodec
     ///     no-op (nothing is rendered), consistent with this class's general dangling-reference
     ///     handling elsewhere.
     /// </remarks>
-    private static void RenderUse(XElement element, RenderState state, Matrix3x2 transform, RenderContext context, int useDepth, int elementDepth, int markerDepth, ref int totalElements, GeometryWorkBudget workBudget)
+    private static void RenderUse(XElement element, RenderState state, Matrix3x2 transform, RenderContext context, int useDepth, int elementDepth, int markerDepth, ref int totalElements, GeometryWorkBudget workBudget, FilterWorkBudget filterWorkBudget)
     {
         if (useDepth >= MaxUseDepth)
         {
@@ -4939,7 +5069,7 @@ public static class SvgCodec
 
         var offset = new Vector2(GetFloatAttribute(element, "x"), GetFloatAttribute(element, "y"));
         var useTransform = Matrix3x2.CreateTranslation(offset) * transform;
-        RenderElement(target, state, useTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget);
+        RenderElement(target, state, useTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget);
     }
 
     // ================================================================================================
@@ -5187,6 +5317,7 @@ public static class SvgCodec
     /// <param name="markerDepth">The current <c>marker</c>-reference nesting depth, propagated to each marker's content.</param>
     /// <param name="totalElements">The running total-rendered-elements count.</param>
     /// <param name="workBudget">The shared geometry-parsing work budget.</param>
+    /// <param name="filterWorkBudget">The shared cumulative filter-evaluation work budget.</param>
     /// <remarks>
     ///     Never called for <c>rect</c>/<c>circle</c>/<c>ellipse</c> - those shapes have no
     ///     natural vertices to orient a marker along, per the SVG specification, and this class's
@@ -5205,7 +5336,8 @@ public static class SvgCodec
         int elementDepth,
         int markerDepth,
         ref int totalElements,
-        GeometryWorkBudget workBudget)
+        GeometryWorkBudget workBudget,
+        FilterWorkBudget filterWorkBudget)
     {
         if (state.MarkerStart == "none" && state.MarkerMid == "none" && state.MarkerEnd == "none")
         {
@@ -5268,7 +5400,8 @@ public static class SvgCodec
                 elementDepth,
                 markerDepth,
                 ref totalElements,
-                workBudget);
+                workBudget,
+                filterWorkBudget);
         }
     }
 
@@ -5340,6 +5473,7 @@ public static class SvgCodec
     /// </param>
     /// <param name="totalElements">The running total-rendered-elements count.</param>
     /// <param name="workBudget">The shared geometry-parsing work budget.</param>
+    /// <param name="filterWorkBudget">The shared cumulative filter-evaluation work budget.</param>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="markerDepth"/> has already reached
     ///     <see cref="MaxMarkerDepth"/>, guarding against a marker-referencing-marker reference
@@ -5369,7 +5503,8 @@ public static class SvgCodec
         int elementDepth,
         int markerDepth,
         ref int totalElements,
-        GeometryWorkBudget workBudget)
+        GeometryWorkBudget workBudget,
+        FilterWorkBudget filterWorkBudget)
     {
         if (markerDepth >= MaxMarkerDepth)
         {
@@ -5427,7 +5562,7 @@ public static class SvgCodec
         var markerState = ApplyPresentationAttributes(RenderState.Initial, markerElement);
         foreach (var child in markerElement.Elements())
         {
-            RenderElement(child, markerState, contentTransform, context, useDepth, elementDepth + 1, markerDepth + 1, ref totalElements, workBudget);
+            RenderElement(child, markerState, contentTransform, context, useDepth, elementDepth + 1, markerDepth + 1, ref totalElements, workBudget, filterWorkBudget);
         }
     }
 
@@ -5493,6 +5628,10 @@ public static class SvgCodec
     ///     with the text's character count before glyph layout begins so a pathologically long
     ///     run's per-rune outline/kerning work never starts once the budget is exceeded.
     /// </param>
+    /// <param name="filterWorkBudget">
+    ///     The shared cumulative filter-evaluation work budget, forwarded to
+    ///     <see cref="RenderShapeWithFilter"/>.
+    /// </param>
     /// <param name="suppressFilter">
     ///     Forwarded to <see cref="RenderShapeWithFilter"/> - <see langword="true"/> when
     ///     <paramref name="element"/> is part of a <c>marker</c> element's own content, so its own
@@ -5507,7 +5646,7 @@ public static class SvgCodec
     ///     descendant text node's content is concatenated and laid out as one flat run, a
     ///     documented simplification.
     /// </remarks>
-    private static void RenderText(XElement element, RenderState state, Matrix3x2 transform, RenderContext context, GeometryWorkBudget workBudget, bool suppressFilter = false)
+    private static void RenderText(XElement element, RenderState state, Matrix3x2 transform, RenderContext context, GeometryWorkBudget workBudget, FilterWorkBudget filterWorkBudget, bool suppressFilter = false)
     {
         if (context.Fonts == null)
         {
@@ -5532,7 +5671,7 @@ public static class SvgCodec
 
         var origin = new Vector2(GetFloatAttribute(element, "x"), GetFloatAttribute(element, "y"));
         var glyphRunPath = BuildGlyphRunPath(text, font, state, origin);
-        RenderShapeWithFilter(element, glyphRunPath, state, transform, context, suppressFilter);
+        RenderShapeWithFilter(element, glyphRunPath, state, transform, context, filterWorkBudget, suppressFilter);
     }
 
     /// <summary>

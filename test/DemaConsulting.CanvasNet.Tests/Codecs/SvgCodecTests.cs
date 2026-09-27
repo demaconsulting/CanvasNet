@@ -2826,6 +2826,88 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Regression test for a code-review finding: <c>IsFilterPrimitiveWorkWithinBudget</c>'s
+    ///     <c>MaxFilterPrimitiveWorkUnits</c> ceiling is enforced independently for each
+    ///     individual filtered element, so a single <c>filter</c> definition referenced by many
+    ///     shapes could previously be charged the same per-filter ceiling once per reference, with
+    ///     no bound on the total number of references - a document with enough shapes could drive
+    ///     total filter-evaluation work arbitrarily high even though every single reference stayed
+    ///     within budget. Proves a new cumulative, per-<c>Load</c>-call
+    ///     <c>FilterWorkBudget</c>/<c>MaxCumulativeFilterWorkUnits</c> bound now caps the total: 13
+    ///     shapes reference the same filter, each individually charging exactly
+    ///     <c>MaxFilterPrimitiveWorkUnits</c> (5,000,000) work units (500 primitives against a
+    ///     100x100 region) - within the per-filter ceiling every time - but the 11th and later
+    ///     references exceed the new 50,000,000 cumulative ceiling and tolerantly fall back to
+    ///     unfiltered rendering instead.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes()
+    {
+        // Arrange: a filter chain of 499 no-op (unrecognized primitive name) children plus one
+        // trailing feFlood - 500 primitive-equivalent work units total - evaluated against a
+        // filter region sized (via explicit 250% width/height overrides on a 40x40 rect) to
+        // exactly 100x100 pixels, so each individual application charges exactly
+        // 500 * 100 * 100 = 5,000,000 work units, precisely at (never over) the per-filter
+        // MaxFilterPrimitiveWorkUnits ceiling. The unknown primitives are cheap no-op passthrough steps
+        // (no per-pixel work at all - see EvaluateFilterChain's remarks), and feFlood's own cost
+        // is a single cheap fill over the small 100x100 region, so evaluating this filter even
+        // many times remains fast; only the cumulative work-unit total, not actual per-primitive
+        // cost, is what this test exercises. 13 identical, non-overlapping rects (spaced 150 units
+        // apart so neighboring filter regions never overlap) reference the same filter: the first
+        // 10 charge a running cumulative total of exactly 50,000,000 (still within the new
+        // ceiling), while the 11th through 13th would push the cumulative total over budget and
+        // must tolerantly fall back to unfiltered rendering instead of throwing.
+        const int shapeCount = 13;
+        const int filteredShapeCount = 10;
+        var noOpPrimitives = string.Concat(Enumerable.Repeat("<feUnsupportedNoOp/>", 499));
+        var rects = string.Concat(Enumerable.Range(0, shapeCount).Select(i =>
+            $"<rect x='{10 + (i * 150)}' y='10' width='40' height='40' fill='blue' filter='url(#f)'/>"));
+        var svg = $"""
+            <svg viewBox='0 0 2000 120'>
+              <defs>
+                <filter id='f' width='250%' height='250%'>
+                  {noOpPrimitives}
+                  <feFlood flood-color='red'/>
+                </filter>
+              </defs>
+              {rects}
+            </svg>
+            """;
+
+        // Act: render the whole document - must complete promptly, and must not throw despite the
+        // cumulative filter work total across all 13 shapes (65,000,000) far exceeding the new
+        // cumulative ceiling (50,000,000)
+        var stopwatch = Stopwatch.StartNew();
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 2000, 120);
+        stopwatch.Stop();
+
+        // Assert: the first 10 shapes (cumulative total staying within the new 50,000,000
+        // ceiling) were actually filtered - each rendered as the feFlood's solid red, not its own
+        // blue fill
+        for (var i = 0; i < filteredShapeCount; i++)
+        {
+            var sampleX = 30 + (i * 150);
+            Assert.Equal(new Rgba32(255, 0, 0, 255), surface[sampleX, 30]);
+        }
+
+        // Assert: the remaining shapes (11th through 13th), which would have pushed the
+        // cumulative total over the new ceiling, tolerantly fell back to unfiltered rendering -
+        // each still shows its own normal blue fill, exactly as the pre-existing per-filter
+        // tolerant-fallback cases already behave
+        for (var i = filteredShapeCount; i < shapeCount; i++)
+        {
+            var sampleX = 30 + (i * 150);
+            Assert.Equal(new Rgba32(0, 0, 255, 255), surface[sampleX, 30]);
+        }
+
+        // Assert: completed promptly - the cumulative budget rejects excess filter applications
+        // before any of their own SourceGraphic/filter-chain work begins, so this document's total
+        // work stays proportional to only the 10 shapes actually filtered
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(1), $"Expected the cumulative-filter-work-budget document to render promptly, but it took {stopwatch.Elapsed}.");
+    }
+
+    /// <summary>
     ///     Regression test for a code-review finding: the upfront filter work-budget check used to
     ///     count only direct <c>fe*</c> children (a single <c>feMerge</c> always counted as 1),
     ///     even though <c>ApplyFeMerge</c> performs one full-surface <c>CompositeOver</c> per
