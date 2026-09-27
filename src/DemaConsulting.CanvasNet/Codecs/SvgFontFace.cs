@@ -5,7 +5,7 @@ namespace DemaConsulting.CanvasNet.Codecs;
 /// <summary>
 ///     Represents one registered font face - a loaded <see cref="Fonts.TrueTypeFont"/> paired
 ///     with the <c>font-weight</c>/<c>font-style</c> it was authored to represent - within a
-///     single font-family's list of faces supplied to <see cref="SvgCodec.Load(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>.
+///     single font-family's list of faces supplied to <see cref="SvgCodec.LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>.
 /// </summary>
 /// <remarks>
 ///     A small, immutable data carrier with no behavior beyond its record-struct value equality,

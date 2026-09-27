@@ -1940,6 +1940,47 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that a closed <c>&lt;polygon&gt;</c>'s implicit closing segment (back to its
+    ///     first vertex) contributes to the <c>orient="auto"</c> tangent computed for the last
+    ///     vertex's <c>marker-end</c>, rather than only the incoming open-path edge.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerEndOnClosedPolygon_OrientsUsingClosingEdgeTangent()
+    {
+        // Arrange: a right-triangle polygon (10,10)-(90,10)-(90,90) whose final vertex (90,90) is
+        // reached via a straight-down incoming edge (direction (0,1)) but whose implicit closing
+        // edge back to (10,10) travels up-and-left (direction (-1,-1) normalized) - averaging
+        // both tangents orients the marker along ~157.5 degrees, landing its content near
+        // (87,91); ignoring the closing edge (the pre-fix behavior) would orient it purely along
+        // the incoming edge's 90 degrees (straight down), landing its content near (90,93) instead
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse'>
+                  <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
+                </marker>
+              </defs>
+              <polygon points='10,10 90,10 90,90' fill='none' stroke='none' marker-end='url(#bar)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the marker is oriented along the averaged incoming/closing tangent (landing
+        // near (87,91)), not purely along the incoming edge as if the closing edge were ignored
+        // (which would land it near (90,93) instead) - a lower alpha threshold (rather than full
+        // opacity) tolerates this rasterizer's edge anti-aliasing on a thin, diagonally rotated
+        // shape, per this file's other diagonal-marker tests
+        var actual = surface[87, 91];
+        Assert.True(
+            actual.R == 255 && actual.G == 0 && actual.B == 0 && actual.A > 100,
+            $"Expected a strongly red-tinted pixel at (87,91), got R={actual.R} G={actual.G} B={actual.B} A={actual.A}.");
+        Assert.Equal(0, surface[90, 93].A);
+    }
+
+    /// <summary>
     ///     Proves that <c>markerUnits="userSpaceOnUse"</c> keeps a marker's size independent of
     ///     the referencing shape's effective stroke width, while the default
     ///     <c>markerUnits="strokeWidth"</c> scales the marker proportionally to it.
@@ -1977,6 +2018,43 @@ public class SvgCodecTests
         // Assert: the default "strokeWidth" marker did grow - a point 3 units beyond its (25,5)
         // vertex is still within its 8x8 (half-width 4) footprint
         Assert.Equal(new Rgba32(0, 0, 255, 255), surface[28, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that a default <c>markerUnits="strokeWidth"</c> marker on a document with a
+    ///     non-identity root <c>viewBox</c> fit (a uniform 2x scale from local units to pixels)
+    ///     scales by exactly <c>stroke-width * root-scale</c> once, not twice - the local
+    ///     <c>stroke-width</c> is applied once (for the marker's own <c>strokeWidth</c>-units
+    ///     sizing) and the root scale is applied once (via the shared <c>shapeTransform</c>
+    ///     composed last), rather than the root scale being folded into both.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerStrokeWidthUnitsOnScaledDocument_ScalesOnceNotTwice()
+    {
+        // Arrange: a 50x25 viewBox rendered onto a 100x50 canvas is a uniform 2x root scale; the
+        // line's local stroke-width is 1, so the "bar" marker's content (local x in [2,4], offset
+        // from refX=0) should land at pixel-offset dx*strokeWidth(1)*rootScale(2) = 2*dx from the
+        // transformed vertex - e.g. dx=3 lands 6 pixels away (26,25), not double-scaled dx*1*2*2 =
+        // 4*dx = 12 pixels away (32,25), which is what the pre-fix double-scaling bug would produce
+        const string svg = """
+            <svg viewBox='0 0 50 25'>
+              <defs>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' markerUnits='strokeWidth'>
+                  <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
+                </marker>
+              </defs>
+              <line x1='2' y1='12.5' x2='10' y2='12.5' stroke='black' stroke-width='1' marker-end='url(#bar)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 50);
+
+        // Assert: the marker landed at the correctly-single-scaled offset (26,25), not the
+        // double-scaled offset (32,25) that the pre-fix bug would have produced
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[26, 25]);
+        Assert.NotEqual(new Rgba32(255, 0, 0, 255), surface[32, 25]);
     }
 
     /// <summary>
@@ -2551,6 +2629,82 @@ public class SvgCodecTests
 
         // Assert: completed promptly, proving the filter was skipped rather than evaluated
         Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the excessive-primitive-count filter to be skipped promptly, but it took {stopwatch.Elapsed}.");
+    }
+
+    /// <summary>
+    ///     Regression test for a code-review finding: the upfront filter work-budget check used to
+    ///     count only direct <c>fe*</c> children (a single <c>feMerge</c> always counted as 1),
+    ///     even though <c>ApplyFeMerge</c> performs one full-surface <c>CompositeOver</c> per
+    ///     <c>feMergeNode</c> child - so a <c>feMerge</c> with a pathologically large number of
+    ///     merge nodes (5,000 here, mirroring the sibling primitive-count test) used to bypass the
+    ///     budget entirely while still doing O(node-count &#215; region-area) work. Proves it is
+    ///     now charged per merge-node and tolerantly skipped just as promptly as the equivalent
+    ///     flat primitive-count case.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeMergeExcessiveNodeCount_SkipsFilterRatherThanUnboundedWork()
+    {
+        // Arrange: a single feMerge with 5,000 feMergeNode children - one direct filter-primitive
+        // child by the old (buggy) counting, but 5,000 CompositeOver-worth of actual work
+        var mergeNodes = string.Concat(Enumerable.Repeat("<feMergeNode/>", 5000));
+        var svg = $"""
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feMerge>
+                    {mergeNodes}
+                  </feMerge>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act: must complete quickly rather than performing 5,000 region-sized composite passes
+        var stopwatch = Stopwatch.StartNew();
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+        stopwatch.Stop();
+
+        // Assert: the rect rendered its own normal blue fill - the (skipped) filter had no effect
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
+
+        // Assert: completed promptly, proving the feMerge was skipped rather than evaluated
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the excessive-feMergeNode-count filter to be skipped promptly, but it took {stopwatch.Elapsed}.");
+    }
+
+    /// <summary>
+    ///     Regression test for a code-review finding: the filter-region degeneracy guard used to
+    ///     test the bare fill/centerline bounds (<c>localPath.GetBounds()</c>), which is zero-
+    ///     height for a horizontal <c>line</c> - incorrectly treating a valid filter on a stroked
+    ///     horizontal line as degenerate and silently skipping it. Proves the guard now uses the
+    ///     stroke-inflated ("actually-painted") bounds instead, so the filter is actually evaluated.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterOnStrokedHorizontalLine_UsesStrokeAwareBoundsNotDegenerate()
+    {
+        // Arrange: a horizontal line's centerline bounds have zero height; only the stroke-
+        // inflated bounds (centerline +/- half the 10-unit stroke width) are non-degenerate
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feFlood flood-color='red'/>
+                </filter>
+              </defs>
+              <line x1='20' y1='50' x2='80' y2='50' stroke='blue' stroke-width='10' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: a point just above the raw stroke's own painted extent (stroke-width 10 with
+        // butt caps covers y in [45,55]) but within the stroke-aware expanded filter region is
+        // filled with the flood color - proving the filter was actually evaluated rather than
+        // degenerately skipped (an unfixed, skipped filter would leave this point transparent)
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 44]);
     }
 
     /// <summary>
@@ -3163,7 +3317,7 @@ public class SvgCodecTests
 
         // Act
         using var stream = ToStream(svg);
-        var surface = SvgCodec.Load(stream, 100, 100, faces);
+        var surface = SvgCodec.LoadWithFontFaces(stream, 100, 100, faces);
 
         // Assert: the font-weight="bold" text selected the wide face
         Assert.Equal(255, surface[75, 35].A);
@@ -3199,7 +3353,7 @@ public class SvgCodecTests
 
         // Act
         using var stream = ToStream(svg);
-        var surface = SvgCodec.Load(stream, 100, 100, faces);
+        var surface = SvgCodec.LoadWithFontFaces(stream, 100, 100, faces);
 
         // Assert: filled where only the italic face's glyph reaches
         Assert.Equal(255, surface[75, 35].A);
@@ -3232,11 +3386,54 @@ public class SvgCodecTests
 
         // Act
         using var stream = ToStream(svg);
-        var surface = SvgCodec.Load(stream, 100, 100, faces);
+        var surface = SvgCodec.LoadWithFontFaces(stream, 100, 100, faces);
 
         // Assert: the 900 (wide) face's exclusive region was NOT selected
         Assert.Equal(0, surface[75, 35].A);
         // Assert: sanity check the 400 (narrow) face did render
+        Assert.Equal(255, surface[35, 35].A);
+    }
+
+    /// <summary>
+    ///     Proves that an extreme, out-of-range <c>font-weight</c> value (still parsed, not
+    ///     rejected, by <c>ParseFontWeight</c>) does not throw an <see cref="OverflowException"/>
+    ///     from <c>SelectClosestFace</c>'s weight-distance computation, and still deterministically
+    ///     selects the closer-by-magnitude registered face rather than silently wrapping to a
+    ///     wrong distance.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextFontWeightExtremeValue_DoesNotOverflowAndSelectsClosestFace()
+    {
+        // Arrange: requesting int.MinValue puts both registered faces' weight distances far
+        // outside int range (int.MinValue - 0 and int.MinValue - 2000000000 both overflow a
+        // checked/unchecked int subtraction), but the 0-weight (narrow) face is unambiguously
+        // closer in magnitude than the 2000000000-weight (wide) face
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <text x='10' y='60' font-family='TestFont' font-size='100' font-weight='-2147483648' fill='black'>A</text>
+            </svg>
+            """;
+        var faces = new Dictionary<string, IReadOnlyList<SvgFontFace>>
+        {
+            ["TestFont"] =
+            [
+                new SvgFontFace(BuildTestFont(), Weight: 0),
+                new SvgFontFace(BuildBoldTestFont(), Weight: 2_000_000_000)
+            ]
+        };
+
+        // Act
+        using var stream = ToStream(svg);
+        var exception = Record.Exception(() => SvgCodec.LoadWithFontFaces(stream, 100, 100, faces));
+
+        // Assert: no OverflowException (or any other exception) was thrown
+        Assert.Null(exception);
+
+        // Assert: the far-closer 0-weight (narrow) face was selected, not the 2000000000-weight
+        // (wide) face
+        using var stream2 = ToStream(svg);
+        var surface = SvgCodec.LoadWithFontFaces(stream2, 100, 100, faces);
+        Assert.Equal(0, surface[75, 35].A);
         Assert.Equal(255, surface[35, 35].A);
     }
 
@@ -3266,7 +3463,7 @@ public class SvgCodecTests
 
         // Act
         using var stream = ToStream(svg);
-        var surface = SvgCodec.Load(stream, 100, 100, faces);
+        var surface = SvgCodec.LoadWithFontFaces(stream, 100, 100, faces);
 
         // Assert: the 500 (wide) face was selected, per the boldness-side tie-break
         Assert.Equal(255, surface[75, 35].A);
@@ -3293,7 +3490,7 @@ public class SvgCodecTests
 
         // Act
         using var stream = ToStream(svg);
-        var surface = SvgCodec.Load(stream, 100, 100, faces);
+        var surface = SvgCodec.LoadWithFontFaces(stream, 100, 100, faces);
 
         // Assert: the sole registered (normal) face still rendered
         Assert.Equal(255, surface[35, 35].A);
@@ -3328,7 +3525,7 @@ public class SvgCodecTests
 
         // Act
         using var stream = ToStream(svg);
-        var surface = SvgCodec.Load(stream, 100, 100, faces);
+        var surface = SvgCodec.LoadWithFontFaces(stream, 100, 100, faces);
 
         // Assert: filled where only the italic face's glyph reaches
         Assert.Equal(255, surface[75, 35].A);
@@ -3363,7 +3560,7 @@ public class SvgCodecTests
 
         // Act
         using var stream = ToStream(svg);
-        var surface = SvgCodec.Load(stream, 100, 100, faces);
+        var surface = SvgCodec.LoadWithFontFaces(stream, 100, 100, faces);
 
         // Assert: the child text inherited font-weight="bold" and selected the wide face
         Assert.Equal(255, surface[75, 35].A);
@@ -3395,7 +3592,7 @@ public class SvgCodecTests
 
         // Act
         using var stream = ToStream(svg);
-        var surface = SvgCodec.Load(stream, 100, 100, faces);
+        var surface = SvgCodec.LoadWithFontFaces(stream, 100, 100, faces);
 
         // Assert: the child text inherited font-style="italic" and selected the italic face
         Assert.Equal(255, surface[75, 35].A);
@@ -3426,6 +3623,40 @@ public class SvgCodecTests
 
         // Assert: the sole registered font still rendered at its known position
         Assert.Equal(255, surface[35, 35].A);
+    }
+
+    /// <summary>
+    ///     Regression test for a source-breaking ambiguous-overload defect: prior to the
+    ///     <see cref="SvgCodec.LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>
+    ///     rename, a caller passing an explicit <see langword="null"/> literal (rather than
+    ///     omitting the argument) to <c>SvgCodec.Load(stream, width, height, null)</c> failed to
+    ///     compile with "the call is ambiguous", because <c>null</c> matched both the legacy
+    ///     <c>IReadOnlyDictionary&lt;string, TrueTypeFont&gt;?</c> overload and the newer,
+    ///     since-renamed <c>IReadOnlyDictionary&lt;string, IReadOnlyList&lt;SvgFontFace&gt;&gt;?</c>
+    ///     overload equally well. Now that the richer overload has its own distinct
+    ///     <see cref="SvgCodec.LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>
+    ///     name, only the single-font <c>Load</c> overload remains a candidate, so this call is
+    ///     unambiguous - the mere fact that this test file compiles (and this call resolves to the
+    ///     legacy overload's own documented "no font registered" behavior) is itself the
+    ///     regression check.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ExplicitNullFontsLiteral_CompilesUnambiguouslyAndFallsBackToBuiltInFont()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <text x='10' y='60' font-family='TestFont' font-size='100' fill='black'>A</text>
+            </svg>
+            """;
+
+        // Act: an explicit `null` literal - this is the exact call shape that used to be rejected
+        // by the compiler as ambiguous before the richer overload was renamed
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100, null);
+
+        // Assert: no font was registered for "TestFont", so nothing was rasterized for the glyph
+        Assert.Equal(0, surface[35, 35].A);
     }
 
     // ================================================================================================

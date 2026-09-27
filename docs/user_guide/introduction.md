@@ -909,10 +909,10 @@ renders; malformed/unparseable input throws `InvalidDataException`.
 
 #### SvgCodec Methods
 
-##### SvgCodec.Load(Stream stream, ..., IReadOnlyDictionary&lt;string, IReadOnlyList&lt;SvgFontFace&gt;&gt;? fonts)
+##### SvgCodec.LoadWithFontFaces(Stream, ..., IReadOnlyDictionary&lt;string, IReadOnlyList&lt;SvgFontFace&gt;&gt;?)
 
 ```csharp
-public static Surface Load(
+public static Surface LoadWithFontFaces(
     Stream stream,
     int width,
     int height,
@@ -937,10 +937,10 @@ element to be silently skipped rather than throwing.
   pre-validated by `SvgCodec`; propagates from `new Surface(width, height)`).
 - `InvalidDataException`: Thrown when the stream does not contain valid, supported SVG content.
 
-##### SvgCodec.Load(string path, ..., IReadOnlyDictionary&lt;string, IReadOnlyList&lt;SvgFontFace&gt;&gt;? fonts)
+##### SvgCodec.LoadWithFontFaces(string, ..., IReadOnlyDictionary&lt;string, IReadOnlyList&lt;SvgFontFace&gt;&gt;?)
 
 ```csharp
-public static Surface Load(
+public static Surface LoadWithFontFaces(
     string path,
     int width,
     int height,
@@ -948,7 +948,7 @@ public static Surface Load(
 ```
 
 Decodes and rasterizes an SVG file at the specified path, as
-`Load(Stream, int, int, IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>?)`.
+`LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>?)`.
 
 **Exceptions:**
 

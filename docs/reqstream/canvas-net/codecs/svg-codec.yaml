@@ -185,6 +185,8 @@ sections:
                   - SvgCodec_Load_MarkerOnRectCircleEllipse_NeverRendersMarker
                   - SvgCodec_Load_MarkerContent_DoesNotInheritReferencingShapeFillOrStroke
                   - SvgCodec_Load_ArrowMarkersFixture_RendersArrowheadPastLineEnd
+                  - SvgCodec_Load_MarkerEndOnClosedPolygon_OrientsUsingClosingEdgeTangent
+                  - SvgCodec_Load_MarkerStrokeWidthUnitsOnScaledDocument_ScalesOnceNotTwice
 
               - id: CanvasNet-Codecs-SvgCodec-MarkerReferenceCycle
                 title: >-
@@ -373,6 +375,7 @@ sections:
                   - SvgCodec_Load_TextFontWeightTie_PrefersMatchingBoldnessSide
                   - SvgCodec_Load_TextFontStyleNoItalicRegistered_FallsBackToOnlyAvailableFace
                   - SvgCodec_Load_TextFontWeightAndStyleCombined_SelectsExactMatchAmongThreeFaces
+                  - SvgCodec_Load_TextFontWeightExtremeValue_DoesNotOverflowAndSelectsClosestFace
 
               - id: CanvasNet-Codecs-SvgCodec-LegacySingleFontCompatibility
                 title: >-
@@ -385,6 +388,7 @@ sections:
                   any behavior change from the addition of weight/style-aware face matching.
                 tests:
                   - SvgCodec_Load_TextLegacySingleFontOverload_IgnoresRequestedWeightAndStyle
+                  - SvgCodec_Load_ExplicitNullFontsLiteral_CompilesUnambiguouslyAndFallsBackToBuiltInFont
 
               - id: CanvasNet-Codecs-SvgCodec-ViewBoxFitting
                 title: >-
@@ -541,6 +545,7 @@ sections:
                   - SvgCodec_Load_FeCompositeOperatorIn_KeepsForegroundWeightedByBackgroundAlpha
                   - SvgCodec_Load_FeCompositeOperatorAtop_BlendsBothInputsWeightedByBothAlphas
                   - SvgCodec_Load_FeCompositeOperatorXor_KeepsEachInputWhereTheOtherHasNoCoverage
+                  - SvgCodec_Load_FilterOnStrokedHorizontalLine_UsesStrokeAwareBoundsNotDegenerate
 
               - id: CanvasNet-Codecs-SvgCodec-FilterResourceSafety
                 title: >-
@@ -575,6 +580,7 @@ sections:
                   - SvgCodec_Load_FilterPathologicallyLargeRegion_SkipsFilterRatherThanUnboundedAllocation
                   - SvgCodec_Load_FilterPathologicallyLargeBlurStdDeviation_ClampsRatherThanUnboundedWork
                   - SvgCodec_Load_FilterExcessivePrimitiveCount_SkipsFilterRatherThanUnboundedWork
+                  - SvgCodec_Load_FeMergeExcessiveNodeCount_SkipsFilterRatherThanUnboundedWork
 
               - id: CanvasNet-Codecs-SvgCodec-ValidationNull
                 title: >-

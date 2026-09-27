@@ -85,7 +85,7 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     <c>text</c> (with <c>font-family</c> best-effort
 ///     matching against a caller-supplied font dictionary, <c>font-size</c>, <c>fill</c>,
 ///     <c>text-anchor</c>, and, for a caller that registers more than one <see cref="SvgFontFace"/>
-///     per family via the richer <see cref="Load(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>
+///     per family via the <see cref="LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>
 ///     overload, <c>font-weight</c>/<c>font-style</c>-aware closest-face matching - see this
 ///     class's <c>SelectClosestFace</c> remarks for the matching algorithm).
 ///     </para>
@@ -403,6 +403,14 @@ public static class SvgCodec
     ///     cascaded <c>font-family</c>/<c>font-weight</c>/<c>font-style</c> against a
     ///     caller-supplied dictionary of per-family <see cref="SvgFontFace"/> lists.
     /// </summary>
+    /// <remarks>
+    ///     Named distinctly from the single-font-per-family <see cref="Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont}?)"/>
+    ///     overload (rather than sharing the <c>Load</c> name) because both dictionary value types
+    ///     would otherwise have identical arity and neither generic instantiation is more specific
+    ///     than the other - an explicit <see langword="null"/> literal passed as the 4th positional
+    ///     argument would be ambiguous between the two overloads, breaking existing callers who use
+    ///     that pattern. Using a distinct name eliminates the ambiguity entirely.
+    /// </remarks>
     /// <param name="stream">
     ///     The stream to read the SVG document from. Reading begins at the stream's current
     ///     position and consumes the remainder of the stream.
@@ -442,10 +450,10 @@ public static class SvgCodec
     ///     {
     ///         ["Sans"] = [new SvgFontFace(regularFont), new SvgFontFace(boldFont, Weight: 700)]
     ///     };
-    ///     var surface = SvgCodec.Load(stream, 200, 200, faces);
+    ///     var surface = SvgCodec.LoadWithFontFaces(stream, 200, 200, faces);
     ///     </code>
     /// </example>
-    public static Surface Load(
+    public static Surface LoadWithFontFaces(
         Stream stream,
         int width,
         int height,
@@ -489,7 +497,7 @@ public static class SvgCodec
 
     /// <summary>
     ///     Rasterizes an SVG document loaded from a file path onto a new <see cref="Surface"/> of
-    ///     the requested size. See <see cref="Load(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>
+    ///     the requested size. See <see cref="LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>
     ///     for the full contract.
     /// </summary>
     /// <param name="path">The path of the SVG file to load. Must not be null, empty, or whitespace.</param>
@@ -511,7 +519,7 @@ public static class SvgCodec
     /// <exception cref="InvalidDataException">
     ///     Thrown when the file does not contain a well-formed, supported SVG document.
     /// </exception>
-    public static Surface Load(
+    public static Surface LoadWithFontFaces(
         string path,
         int width,
         int height,
@@ -524,7 +532,7 @@ public static class SvgCodec
         }
 
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
-        return Load(stream, width, height, fonts);
+        return LoadWithFontFaces(stream, width, height, fonts);
     }
 
     /// <summary>
@@ -561,20 +569,17 @@ public static class SvgCodec
     /// </exception>
     /// <remarks>
     ///     A thin wrapper delegating to
-    ///     <see cref="Load(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>,
+    ///     <see cref="LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>,
     ///     via <c>ToFontFaces</c> wrapping each entry as a single normal-weight/normal-style
     ///     <see cref="SvgFontFace"/> - so every <c>text</c> element always resolves to that single
     ///     registered font, regardless of its own <c>font-weight</c>/<c>font-style</c>, exactly as
     ///     before this overload existed. A caller registering more than one face per family (bold/
-    ///     italic variants) should call the richer overload directly instead.
-    ///     <para>
-    ///     Do not pass an explicit untyped <see langword="null"/> literal as the 4th positional
-    ///     argument to either this method or its richer sibling: since neither generic
-    ///     <see cref="IReadOnlyDictionary{TKey,TValue}"/> instantiation is more specific than the
-    ///     other, doing so is ambiguous between the two overloads (a compile-time error). Either
-    ///     omit the argument entirely (uses this overload's default), or cast the <see langword="null"/>
-    ///     to the specific dictionary type you intend.
-    ///     </para>
+    ///     italic variants) should call <see cref="LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>
+    ///     directly instead. That richer overload is deliberately named differently (rather than
+    ///     overloading <c>Load</c> itself) because both dictionary value types have identical
+    ///     arity, so an overload sharing this name would make an explicit untyped
+    ///     <see langword="null"/> literal passed as the 4th positional argument ambiguous between
+    ///     the two - a source-breaking change for existing callers using that pattern.
     /// </remarks>
     /// <example>
     ///     <code>
@@ -588,7 +593,7 @@ public static class SvgCodec
         int width,
         int height,
         IReadOnlyDictionary<string, TrueTypeFont>? fonts = null)
-        => Load(stream, width, height, ToFontFaces(fonts));
+        => LoadWithFontFaces(stream, width, height, ToFontFaces(fonts));
 
     /// <summary>
     ///     Rasterizes an SVG document loaded from a file path onto a new <see cref="Surface"/> of
@@ -617,7 +622,7 @@ public static class SvgCodec
     /// </exception>
     /// <remarks>
     ///     A thin wrapper delegating to
-    ///     <see cref="Load(string, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>,
+    ///     <see cref="LoadWithFontFaces(string, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>,
     ///     via <c>ToFontFaces</c> - see the <see cref="Stream"/> overload's remarks.
     /// </remarks>
     public static Surface Load(
@@ -625,7 +630,7 @@ public static class SvgCodec
         int width,
         int height,
         IReadOnlyDictionary<string, TrueTypeFont>? fonts = null)
-        => Load(path, width, height, ToFontFaces(fonts));
+        => LoadWithFontFaces(path, width, height, ToFontFaces(fonts));
 
     /// <summary>
     ///     Wraps a legacy single-font-per-family dictionary as the richer per-family
@@ -1209,8 +1214,8 @@ public static class SvgCodec
     /// <param name="IdIndex">The whole-document id-to-element index built once up front.</param>
     /// <param name="Fonts">
     ///     The caller-supplied font-family-to-face-list dictionary, or <see langword="null"/> if
-    ///     none was supplied. Populated either directly by the richer
-    ///     <see cref="Load(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>
+    ///     none was supplied. Populated either directly by the
+    ///     <see cref="LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>
     ///     overload, or via <see cref="ToFontFaces"/> when the legacy single-font-per-family
     ///     overload is used.
     /// </param>
@@ -3315,12 +3320,17 @@ public static class SvgCodec
     ///     work exceeds <see cref="MaxFilterPrimitivesPerFilter"/>/<see cref="MaxFilterPrimitiveWorkUnits"/>
     ///     (see <see cref="IsFilterPrimitiveWorkWithinBudget"/>) is tolerantly skipped identically -
     ///     checked before <c>SourceGraphic</c> is even allocated, so no per-primitive work (buffer
-    ///     allocation, blur passes, compositing) ever begins for a rejected chain.
+    ///     allocation, blur passes, compositing) ever begins for a rejected chain. A <c>feMerge</c>
+    ///     primitive is charged as its own <c>feMergeNode</c> child count (at least 1) rather than a
+    ///     flat 1, because <see cref="ApplyFeMerge"/> performs one full-surface
+    ///     <see cref="Surface.CompositeOver(Surface)"/> per <c>feMergeNode</c> - a flat charge would
+    ///     let a pathologically large <c>feMerge</c> bypass this budget while still doing
+    ///     O(node-count &#215; region-area) work.
     ///     </para>
     /// </remarks>
     private static void RenderFilteredShape(XElement filterElement, Path localPath, RenderState state, Matrix3x2 transform, RenderContext context)
     {
-        var region = ComputeFilterRegionPixelBounds(filterElement, localPath, transform);
+        var region = ComputeFilterRegionPixelBounds(filterElement, localPath, state, transform);
         if (region == null)
         {
             RenderShape(localPath, state, transform, context);
@@ -3329,7 +3339,7 @@ public static class SvgCodec
 
         var (pixelX, pixelY, pixelWidth, pixelHeight) = region.Value;
 
-        var primitiveCount = filterElement.Elements().Count();
+        var primitiveCount = CountFilterPrimitiveWorkUnits(filterElement);
         if (!IsFilterPrimitiveWorkWithinBudget(primitiveCount, pixelWidth, pixelHeight))
         {
             RenderShape(localPath, state, transform, context);
@@ -3355,18 +3365,28 @@ public static class SvgCodec
     /// </summary>
     /// <param name="filterElement">The resolved <c>filter</c> element.</param>
     /// <param name="localPath">The referencing shape's local-space outline.</param>
+    /// <param name="state">The cascaded render state, used to expand the degeneracy check for a stroke.</param>
     /// <param name="transform">The accumulated transform from local space into pixel space.</param>
     /// <returns>
     ///     The pixel-space region as <c>(X, Y, Width, Height)</c>, or <see langword="null"/> if
-    ///     <paramref name="localPath"/>'s local bounds are empty/degenerate, the region resolves to
-    ///     a non-positive size, its pixel-space transform is non-finite or exceeds
-    ///     <see cref="MaxCoordinateMagnitude"/>, or its rounded pixel size exceeds
+    ///     <paramref name="localPath"/>'s stroke-inflated local bounds are empty/degenerate, the
+    ///     region resolves to a non-positive size, its pixel-space transform is non-finite or
+    ///     exceeds <see cref="MaxCoordinateMagnitude"/>, or its rounded pixel size exceeds
     ///     <see cref="Surface.MaxDimension"/> on either axis.
     /// </returns>
+    /// <remarks>
+    ///     The degeneracy/zero-extent check below is performed against the actually-painted bounds
+    ///     (<paramref name="localPath"/>'s fill/centerline bounds, inflated by half the effective
+    ///     stroke width on each side when <paramref name="state"/> has a stroke - see
+    ///     <see cref="ExpandBoundsForStroke"/>) rather than the bare centerline bounds: a
+    ///     horizontal or vertical <c>line</c> has zero height or width in centerline space, so
+    ///     using the bare bounds would incorrectly treat a valid filter on a stroked axis-aligned
+    ///     line as degenerate and silently fall back to unfiltered rendering.
+    /// </remarks>
     private static (int X, int Y, int Width, int Height)? ComputeFilterRegionPixelBounds(
-        XElement filterElement, Path localPath, Matrix3x2 transform)
+        XElement filterElement, Path localPath, RenderState state, Matrix3x2 transform)
     {
-        var bounds = localPath.GetBounds();
+        var bounds = ExpandBoundsForStroke(localPath.GetBounds(), state);
         if (bounds.IsEmpty || bounds.Width <= 0f || bounds.Height <= 0f)
         {
             return null;
@@ -3416,6 +3436,47 @@ public static class SvgCodec
     }
 
     /// <summary>
+    ///     Inflates <paramref name="bounds"/> by half of <paramref name="state"/>'s effective
+    ///     <c>stroke-width</c> on every side when a stroke is actually painted, so bounds-derived
+    ///     calculations reflect the shape's actually-painted extent rather than its bare fill/
+    ///     centerline geometry - notably, a horizontal or vertical <c>line</c> has zero height or
+    ///     width in centerline space, so a check that ignored the stroke would treat a valid
+    ///     stroked line as degenerate.
+    /// </summary>
+    /// <param name="bounds">The local-space fill/centerline bounds to inflate.</param>
+    /// <param name="state">The cascaded render state supplying <c>stroke</c>/<c>stroke-width</c>.</param>
+    /// <returns>
+    ///     <paramref name="bounds"/> unchanged if <paramref name="bounds"/> is empty, <c>stroke</c>
+    ///     resolves to <c>none</c>/empty, or <c>stroke-width</c> is not finite/positive; otherwise
+    ///     <paramref name="bounds"/> inflated by half the stroke width on each side.
+    /// </returns>
+    private static Rect ExpandBoundsForStroke(Rect bounds, RenderState state)
+    {
+        if (bounds.IsEmpty)
+        {
+            return bounds;
+        }
+
+        var trimmedStroke = state.Stroke.Trim();
+        if (trimmedStroke.Length == 0 || string.Equals(trimmedStroke, "none", StringComparison.OrdinalIgnoreCase))
+        {
+            return bounds;
+        }
+
+        if (!float.IsFinite(state.StrokeWidth) || state.StrokeWidth <= 0f)
+        {
+            return bounds;
+        }
+
+        var halfStrokeWidth = state.StrokeWidth / 2f;
+        return new Rect(
+            bounds.X - halfStrokeWidth,
+            bounds.Y - halfStrokeWidth,
+            bounds.Width + (2f * halfStrokeWidth),
+            bounds.Height + (2f * halfStrokeWidth));
+    }
+
+    /// <summary>
     ///     Reads one of a <c>filter</c> element's <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c>
     ///     region attributes as an objectBoundingBox fraction, tolerantly falling back to
     ///     <paramref name="defaultValue"/> when the attribute is absent or does not parse as a
@@ -3436,13 +3497,32 @@ public static class SvgCodec
     ///     is actually evaluated (a cheap child-element count plus one multiply/compare), so a
     ///     pathological chain is rejected near-instantly rather than after partially evaluating it.
     /// </summary>
-    /// <param name="primitiveCount">The <c>filter</c> element's own <c>fe*</c> child count.</param>
+    /// <param name="primitiveCount">
+    ///     The <c>filter</c> element's own primitive-equivalent work-unit count - see
+    ///     <see cref="CountFilterPrimitiveWorkUnits"/>.
+    /// </param>
     /// <param name="width">The filter region's pixel width.</param>
     /// <param name="height">The filter region's pixel height.</param>
     /// <returns><see langword="true"/> if the chain may be evaluated; otherwise <see langword="false"/>.</returns>
     private static bool IsFilterPrimitiveWorkWithinBudget(int primitiveCount, int width, int height) =>
         primitiveCount <= MaxFilterPrimitivesPerFilter &&
         (long)primitiveCount * width * height <= MaxFilterPrimitiveWorkUnits;
+
+    /// <summary>
+    ///     Counts <paramref name="filterElement"/>'s upfront primitive-equivalent work-unit charge
+    ///     for <see cref="IsFilterPrimitiveWorkWithinBudget"/>: each direct child counts as 1, except
+    ///     a <c>feMerge</c> child, which counts as its own <c>feMergeNode</c> child count (at least
+    ///     1) instead - because <see cref="ApplyFeMerge"/> performs one full-surface
+    ///     <see cref="Surface.CompositeOver(Surface)"/> per <c>feMergeNode</c>, so a flat charge of 1
+    ///     would let a <c>feMerge</c> with a huge number of merge nodes bypass the budget while still
+    ///     doing O(node-count &#215; region-area) work.
+    /// </summary>
+    /// <param name="filterElement">The resolved <c>filter</c> element.</param>
+    /// <returns>The total primitive-equivalent work-unit count.</returns>
+    private static int CountFilterPrimitiveWorkUnits(XElement filterElement) =>
+        filterElement.Elements().Sum(primitive => primitive.Name.LocalName == "feMerge"
+            ? Math.Max(1, primitive.Elements().Count(node => node.Name.LocalName == "feMergeNode"))
+            : 1);
 
     /// <summary>
     ///     Evaluates <paramref name="filterElement"/>'s <c>fe*</c> primitive children, in document
@@ -4842,6 +4922,10 @@ public static class SvgCodec
         /// <summary>Returns a copy of this vertex with <see cref="OutgoingTangent"/> replaced.</summary>
         /// <param name="outgoingTangent">The new outgoing tangent.</param>
         public MarkerVertex WithOutgoingTangent(Vector2? outgoingTangent) => new(Position, IncomingTangent, outgoingTangent);
+
+        /// <summary>Returns a copy of this vertex with <see cref="IncomingTangent"/> replaced.</summary>
+        /// <param name="incomingTangent">The new incoming tangent.</param>
+        public MarkerVertex WithIncomingTangent(Vector2? incomingTangent) => new(Position, incomingTangent, OutgoingTangent);
     }
 
     /// <summary>
@@ -4880,23 +4964,31 @@ public static class SvgCodec
     ///     (matches at least one common browser's behavior; the SVG specification's own wording
     ///     on this point is not unambiguous across implementations) rather than a stricter
     ///     per-subpath interpretation. A <c>Close</c> command contributes no new vertex (it always
-    ///     returns to the subpath's own <see cref="Subpath.Start"/>, already recorded) and, as a
-    ///     further documented simplification, no orientation tangent of its own either.
+    ///     returns to the subpath's own <see cref="Subpath.Start"/>, already recorded), but its
+    ///     implicit closing segment's tangent - computed identically to an equivalent
+    ///     <see cref="PathCommandType.LineTo"/> back to <see cref="Subpath.Start"/> - is still
+    ///     folded into both the subpath's last vertex's outgoing tangent and its first vertex's
+    ///     incoming tangent, so a closed subpath's <c>orient="auto"</c> orientation at either end
+    ///     reflects the closing edge too, not only the open-path edge that happens to meet it.
     /// </returns>
     private static List<MarkerVertex> BuildMarkerVertices(Path localPath)
     {
         var vertices = new List<MarkerVertex>();
         foreach (var subpath in localPath.Subpaths)
         {
+            var subpathStartIndex = vertices.Count;
             vertices.Add(new MarkerVertex(subpath.Start, incomingTangent: null, outgoingTangent: null));
             var current = subpath.Start;
+            var closed = false;
 
             foreach (var command in subpath.Commands)
             {
                 if (command.Type == PathCommandType.Close)
                 {
                     // Returns to Start (already recorded above) without introducing a new vertex
-                    // or a tangent of its own - see this method's documented simplification
+                    // of its own - the closing segment's own tangent is folded in below, once the
+                    // subpath's last real vertex is known
+                    closed = true;
                     current = subpath.Start;
                     continue;
                 }
@@ -4911,6 +5003,19 @@ public static class SvgCodec
 
                 vertices.Add(new MarkerVertex(command.EndPoint, incoming, outgoingTangent: null));
                 current = command.EndPoint;
+            }
+
+            // A closed subpath with at least one real segment beyond its own Start has an
+            // implicit closing edge back to Start - fold its tangent into the last vertex's
+            // outgoing tangent and the first vertex's incoming tangent, exactly as any other
+            // segment's tangent is folded into its two endpoints above
+            var lastIndex = vertices.Count - 1;
+            if (closed && lastIndex != subpathStartIndex)
+            {
+                var (closingOutgoing, closingIncoming) = ComputeCommandTangents(
+                    PathCommand.LineTo(subpath.Start), vertices[lastIndex].Position);
+                vertices[lastIndex] = vertices[lastIndex].WithOutgoingTangent(closingOutgoing);
+                vertices[subpathStartIndex] = vertices[subpathStartIndex].WithIncomingTangent(closingIncoming);
             }
         }
 
@@ -5023,7 +5128,7 @@ public static class SvgCodec
     ///     resolves to an actual <c>marker</c> element.
     /// </summary>
     /// <param name="localPath">The shape's local-space outline (see <see cref="BuildMarkerVertices"/>).</param>
-    /// <param name="state">The shape's own cascaded render state, supplying the three marker specs and effective stroke width.</param>
+    /// <param name="state">The shape's own cascaded render state, supplying the three marker specs and local <c>stroke-width</c>.</param>
     /// <param name="transform">The shape's own accumulated transform - every marker instance is transformed through this same transform.</param>
     /// <param name="context">The fixed per-document render context.</param>
     /// <param name="useDepth">The current <c>use</c>-reference nesting depth, propagated unchanged to each marker's content.</param>
@@ -5063,8 +5168,6 @@ public static class SvgCodec
             // start, mid, or end marker applies, per the SVG specification
             return;
         }
-
-        var effectiveStrokeWidth = EstimateEffectiveStrokeWidth(state.StrokeWidth, EstimateUniformScale(transform));
 
         for (var i = 0; i < vertices.Count; i++)
         {
@@ -5107,7 +5210,7 @@ public static class SvgCodec
                 vertex.Position,
                 angleDegrees,
                 isStartVertex: role == MarkerVertexRole.Start,
-                effectiveStrokeWidth,
+                state.StrokeWidth,
                 transform,
                 context,
                 useDepth,
@@ -5167,9 +5270,13 @@ public static class SvgCodec
     ///     resolve <c>orient="auto-start-reverse"</c>, which reverses by 180 degrees at the start
     ///     vertex only.
     /// </param>
-    /// <param name="effectiveStrokeWidth">
-    ///     The referencing shape's own effective (pixel-space) stroke width, used to scale this
-    ///     marker instance when <c>markerUnits</c> is <c>strokeWidth</c> (the SVG default).
+    /// <param name="localStrokeWidth">
+    ///     The referencing shape's own <c>stroke-width</c>, in local (pre-<paramref name="shapeTransform"/>)
+    ///     user-space units - not the pixel-scaled effective width - used to scale this marker
+    ///     instance when <c>markerUnits</c> is <c>strokeWidth</c> (the SVG default). Deliberately
+    ///     left unscaled: <paramref name="shapeTransform"/>, composed last below, is the only place
+    ///     the pixel scale is applied, so composing an already-pixel-scaled width here would apply
+    ///     that scale twice.
     /// </param>
     /// <param name="shapeTransform">The referencing shape's own accumulated transform.</param>
     /// <param name="context">The fixed per-document render context.</param>
@@ -5204,7 +5311,7 @@ public static class SvgCodec
         Vector2 vertexPosition,
         float vertexAngleDegrees,
         bool isStartVertex,
-        float effectiveStrokeWidth,
+        float localStrokeWidth,
         Matrix3x2 shapeTransform,
         RenderContext context,
         int useDepth,
@@ -5230,7 +5337,7 @@ public static class SvgCodec
 
         var isUserSpaceOnUse = string.Equals(
             (string?)markerElement.Attribute("markerUnits"), "userSpaceOnUse", StringComparison.OrdinalIgnoreCase);
-        var unitsScale = isUserSpaceOnUse ? 1f : effectiveStrokeWidth;
+        var unitsScale = isUserSpaceOnUse ? 1f : localStrokeWidth;
         if (!float.IsFinite(unitsScale) || unitsScale <= 0f || unitsScale > MaxCoordinateMagnitude)
         {
             return;
@@ -5442,13 +5549,21 @@ public static class SvgCodec
     {
         SvgFontFace? best = null;
         var bestStyleMismatch = true;
-        var bestWeightDistance = int.MaxValue;
+        var bestWeightDistance = long.MaxValue;
         var bestBoldnessMismatch = true;
 
         foreach (var face in faces)
         {
             var styleMismatch = face.Style != requestedStyle;
-            var weightDistance = Math.Abs(face.Weight - requestedWeight);
+
+            // Widen to long before subtracting: face.Weight and requestedWeight are caller-
+            // supplied int values that can each independently be as extreme as int.MinValue/
+            // int.MaxValue (an out-of-range font-weight="-2147483648" is still parsed, not
+            // rejected), and int subtraction/Math.Abs can overflow (throwing OverflowException in
+            // a checked context, or silently wrapping to a wrong distance in an unchecked one) for
+            // such extreme pairs - long arithmetic makes the difference (and its absolute value)
+            // always representable.
+            var weightDistance = Math.Abs((long)face.Weight - requestedWeight);
             var boldnessMismatch = (face.Weight >= 400) != (requestedWeight >= 400);
 
             if (best == null
@@ -5471,10 +5586,10 @@ public static class SvgCodec
     /// <returns><see langword="true"/> if the candidate strictly beats the running best.</returns>
     private static bool IsBetterFace(
         bool candidateStyleMismatch,
-        int candidateWeightDistance,
+        long candidateWeightDistance,
         bool candidateBoldnessMismatch,
         bool bestStyleMismatch,
-        int bestWeightDistance,
+        long bestWeightDistance,
         bool bestBoldnessMismatch)
     {
         if (candidateStyleMismatch != bestStyleMismatch)

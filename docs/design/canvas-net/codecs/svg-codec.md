@@ -132,9 +132,13 @@ an external or parameter entity - is rejected with `InvalidDataException` via bo
 
 ### Key Methods
 
-#### Load(Stream stream, int width, int height, IReadOnlyDictionary\<string, IReadOnlyList\<SvgFontFace\>\>? fonts)
+#### LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary\<string, IReadOnlyList\<SvgFontFace\>\>?)
 
-Reads an SVG document from an open stream and rasterizes it into a new `width`x`height`
+Named distinctly from `Load` (rather than overloaded onto it) because both `fonts` dictionary
+value types share the same parameter arity, so an overload sharing the `Load` name would make an
+explicit untyped `null` literal passed as the 4th positional argument ambiguous between the two
+overloads — a source-breaking compile error for existing callers using that pattern. Reads an
+SVG document from an open stream and rasterizes it into a new `width`x`height`
 `Surface`. Parses the document with `XDocument.Load`, builds an id→`XElement` index over the
 whole tree up front (so `use`/`href`/gradient-template references resolve correctly regardless of
 document order), resolves the root `viewBox`/`width`/`height` into an intrinsic size, computes
@@ -162,10 +166,10 @@ family overload below delegates to this one.
 element(s) to be silently skipped rather than throwing — see _Gradient, Use, and Text Support and
 Limits_ below.
 
-#### Load(string path, int width, int height, IReadOnlyDictionary\<string, IReadOnlyList\<SvgFontFace\>\>? fonts)
+#### LoadWithFontFaces(string, int, int, IReadOnlyDictionary\<string, IReadOnlyList\<SvgFontFace\>\>?)
 
 Opens `path` as a read-only `FileStream` and delegates to
-`Load(Stream, int, int, IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>?)`.
+`LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>?)`.
 
 **Throws:**
 
@@ -177,7 +181,7 @@ Opens `path` as a read-only `FileStream` and delegates to
 #### Load(Stream stream, int width, int height, IReadOnlyDictionary\<string, TrueTypeFont\>? fonts = null)
 
 The legacy, pre-existing overload: accepts at most one `TrueTypeFont` per font-family. A thin
-wrapper that delegates to the richer overload above via a private `ToFontFaces` helper, which
+wrapper that delegates to `LoadWithFontFaces` above via a private `ToFontFaces` helper, which
 wraps each dictionary entry as a single normal-weight (`400`)/normal-style `SvgFontFace` — so
 every `text` element resolves to that single registered font regardless of its own
 `font-weight`/`font-style`, preserving this overload's behavior exactly as it was before
