@@ -1072,18 +1072,75 @@ offscreen primitive surface and exposes that result to later primitives; asserts
 `MaxUseDepth` recursion guard tolerantly produces no nested output once reached; and asserts a
 reference to a missing id is ignored without throwing.
 
+#### CanvasNet-Codecs-SvgCodec-FeDiffuseLighting: `feDiffuseLighting` Lambertian Surface Lighting
+
+**Tests**: `SvgCodec_Load_FeDiffuseLightingFlatAlphaDistantLightAt90DegreesElevation_ProducesUniformLitColor`,
+`SvgCodec_Load_FeDiffuseLightingOutputAlpha_IsAlwaysFullyOpaque`,
+`SvgCodec_Load_FeDiffuseLightingDiffuseConstant_ScalesOutputLinearly`,
+`SvgCodec_Load_FeDiffuseLightingPointLightDirectlyAbove_ProducesBrighterCenterThanEdge`
+
+Asserts a flat-alpha surface lit by a `feDistantLight` at 90-degree elevation (`N=L=(0,0,1)`)
+produces the exact hand-computable `diffuseConstant * lighting-color` result; asserts the output
+alpha channel is always fully opaque regardless of the computed color, per the Lambertian
+formula's own specification; asserts `diffuseConstant` scales the output linearly; and asserts a
+`fePointLight` positioned directly above a bump's center lights that center more brightly than a
+point near the bump's tilted rim, proving the light's own position - not just a constant direction
+- genuinely drives the per-pixel light vector.
+
+#### CanvasNet-Codecs-SvgCodec-FeSpecularLighting: `feSpecularLighting` Blinn-Phong Surface Lighting
+
+**Tests**: `SvgCodec_Load_FeSpecularLightingSpotLightOutsideLimitingConeAngle_ProducesNoLight`,
+`SvgCodec_Load_FeSpecularLightingFlatAlphaDistantLightAt90DegreesElevation_ProducesUniformSpecularHighlight`,
+`SvgCodec_Load_FeSpecularLightingOutputAlpha_EqualsMaxOfRgbNotOne`,
+`SvgCodec_Load_FeSpecularLightingSpecularExponent_IncreasesFocusOfHighlight`
+
+Asserts a point well outside a `feSpotLight`'s own `limitingConeAngle` receives exactly zero
+light, even though the un-cutoff spot attenuation formula alone would otherwise still contribute a
+small positive amount there; asserts a flat-alpha surface lit by a `feDistantLight` at 90-degree
+elevation produces the exact hand-computable Blinn-Phong result (`N.H = 1` regardless of
+`specularExponent`); asserts the output alpha channel equals the maximum of its own computed
+R/G/B channels - deliberately proven against a color whose largest channel is green, not red, to
+rule out either channel being hard-coded or alpha being forced to `255`; and asserts increasing
+`specularExponent` at a fixed off-axis angle reduces the specular contribution, the mathematical
+basis for a sharper, more focused highlight.
+
+#### CanvasNet-Codecs-SvgCodec-FeTurbulence: `feTurbulence` Reference Perlin Noise
+
+**Tests**: `SvgTurbulencePrng_10000thValueFromSeedOne_MatchesSpecPublishedTestVector`,
+`SvgCodec_Load_FeTurbulenceSameSeedTwoLoadCalls_ProducesIdenticalOutput`,
+`SvgCodec_Load_FeTurbulenceDifferentSeeds_ProducesDifferentOutput`,
+`SvgCodec_Load_FeTurbulenceTypeTurbulenceVsFractalNoise_ProduceDifferentRemapping`,
+`SvgCodec_Load_FeTurbulenceNumOctavesVariation_ProducesDifferentOutputThanSingleOctave`,
+`SvgCodec_Load_FeTurbulenceOutput_ValuesSpanNonDegenerateRangeAcrossPixels`,
+`SvgCodec_Load_FeTurbulenceStitchTilesStitch_TolerantlyFallsBackToNoStitchBehavior`
+
+Asserts the specification's own published Park-Miller PRNG conformance test vector (the
+10,000th value generated from seed `1` equals exactly `1043618065`) via reflection against the
+private permutation-table PRNG helper directly - the strongest available spec-fidelity proof for
+this primitive's reference-algorithm transcription. Asserts two independent `Load` calls against
+an identical document produce byte-for-byte identical output (determinism); asserts different
+`seed` values produce different output, proving `seed` genuinely feeds the permutation-table
+initialization rather than being tolerantly ignored; asserts `type="turbulence"` and
+`type="fractalNoise"` apply distinct color-conversion formulas against the same underlying noise
+field; asserts varying `numOctaves` changes the output, proving each additional octave's
+contribution is genuinely summed rather than the parameter being ignored; asserts the generated
+noise field spans a non-degenerate range of values across pixels rather than collapsing to a
+constant; and asserts `stitchTiles="stitch"` tolerantly falls back to `noStitch` behavior rather
+than throwing.
+
 #### CanvasNet-Codecs-SvgCodec-FilterPrimitiveResourceSafety: Primitive-Specific Filter Caps
 
 **Tests**: `SvgCodec_Load_FeConvolveMatrixOrderExceedingCap_ThrowsInvalidDataException`,
 `SvgCodec_Load_FeMorphologyRadiusExceedingCap_ThrowsInvalidDataException`,
+`SvgCodec_Load_FeTurbulenceNumOctavesExceedingCap_ThrowsInvalidDataException`,
 `SvgCodec_Load_FilterExcessivePrimitiveCount_SkipsFilterRatherThanUnboundedWork`,
 `SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes`
 
-Asserts the two new primitive-specific attribute sanity caps reject absurd convolution order and
-morphology radius values with `InvalidDataException`, distinguishing malformed single-attribute
-input from the codec's tolerant aggregate-work fallback path. The existing filter-budget
-regressions remain listed here as supporting evidence that these primitive-specific checks plug
-into the same broader bounded-work model rather than bypassing it.
+Asserts the three primitive-specific attribute sanity caps reject absurd convolution order,
+morphology radius, and turbulence octave-count values with `InvalidDataException`, distinguishing
+malformed single-attribute input from the codec's tolerant aggregate-work fallback path. The
+existing filter-budget regressions remain listed here as supporting evidence that these
+primitive-specific checks plug into the same broader bounded-work model rather than bypassing it.
 
 #### CanvasNet-Codecs-SvgCodec-ClipPathRendering: `clipPath` Union-of-Children Hard Clipping
 

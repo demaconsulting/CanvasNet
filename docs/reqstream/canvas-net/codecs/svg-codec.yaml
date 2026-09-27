@@ -893,21 +893,85 @@ sections:
                   - SvgCodec_Load_FeImageElementReferenceHrefExceedingMaxUseDepth_TolerantlyRendersEmpty
                   - SvgCodec_Load_FeImageDanglingElementReference_RendersEmptyWithoutThrowing
 
+              - id: CanvasNet-Codecs-SvgCodec-FeDiffuseLighting
+                title: >-
+                  The SvgCodec class shall evaluate feDiffuseLighting primitives using the SVG
+                  surface-normal Sobel estimation and Lambertian (N.L) diffuse lighting formula
+                  against a feDistantLight, fePointLight, or feSpotLight child light source,
+                  producing a fully opaque result.
+                justification: |
+                  feDiffuseLighting is a standard SVG bump-mapping primitive used to relight
+                  a surface described by SourceAlpha (or another primitive's alpha channel) as if
+                  it were a physical bump map; supporting it against all three SVG light source
+                  types with the specification's own Lambertian formula is required for authored
+                  documents using embossing, engraving, or paper-texture style effects to render
+                  correctly rather than as an inert passthrough.
+                tests:
+                  - SvgCodec_Load_FeDiffuseLightingFlatAlphaDistantLightAt90DegreesElevation_ProducesUniformLitColor
+                  - SvgCodec_Load_FeDiffuseLightingOutputAlpha_IsAlwaysFullyOpaque
+                  - SvgCodec_Load_FeDiffuseLightingDiffuseConstant_ScalesOutputLinearly
+                  - SvgCodec_Load_FeDiffuseLightingPointLightDirectlyAbove_ProducesBrighterCenterThanEdge
+
+              - id: CanvasNet-Codecs-SvgCodec-FeSpecularLighting
+                title: >-
+                  The SvgCodec class shall evaluate feSpecularLighting primitives using the shared
+                  surface-normal estimation and Blinn-Phong (N.H) specular lighting formula
+                  against a feDistantLight, fePointLight, or feSpotLight child light source
+                  (honoring feSpotLight's limitingConeAngle cutoff), producing a result whose
+                  alpha channel is the maximum of its own color channels rather than fully opaque.
+                justification: |
+                  feSpecularLighting is the companion SVG bump-mapping primitive used to add
+                  physically-motivated highlights to a relit surface; its alpha-from-max(R,G,B)
+                  behavior is a specification-mandated subtlety (distinct from every other filter
+                  primitive in this codec, which either preserve or fully replace alpha) that must
+                  be implemented precisely so composited highlight layers blend correctly.
+                tests:
+                  - SvgCodec_Load_FeSpecularLightingSpotLightOutsideLimitingConeAngle_ProducesNoLight
+                  - SvgCodec_Load_FeSpecularLightingFlatAlphaDistantLightAt90DegreesElevation_ProducesUniformSpecularHighlight
+                  - SvgCodec_Load_FeSpecularLightingOutputAlpha_EqualsMaxOfRgbNotOne
+                  - SvgCodec_Load_FeSpecularLightingSpecularExponent_IncreasesFocusOfHighlight
+
+              - id: CanvasNet-Codecs-SvgCodec-FeTurbulence
+                title: >-
+                  The SvgCodec class shall evaluate feTurbulence primitives using the SVG
+                  specification's own published Perlin-noise reference algorithm and
+                  permutation-table initialization, honoring type, baseFrequency, numOctaves, and
+                  seed, and shall deterministically reproduce identical output for identical
+                  inputs.
+                justification: |
+                  feTurbulence is SVG's procedural noise-generation primitive, commonly used for
+                  authored texture, cloud, marble, and turbulence effects; because no independent
+                  golden pixel reference exists for it, the specification's own reference
+                  algorithm (down to its permutation-table initialization and published PRNG
+                  conformance test vector) is the only available fidelity anchor and must be
+                  transcribed exactly rather than approximated with a different noise function.
+                tests:
+                  - SvgTurbulencePrng_10000thValueFromSeedOne_MatchesSpecPublishedTestVector
+                  - SvgCodec_Load_FeTurbulenceSameSeedTwoLoadCalls_ProducesIdenticalOutput
+                  - SvgCodec_Load_FeTurbulenceDifferentSeeds_ProducesDifferentOutput
+                  - SvgCodec_Load_FeTurbulenceTypeTurbulenceVsFractalNoise_ProduceDifferentRemapping
+                  - SvgCodec_Load_FeTurbulenceNumOctavesVariation_ProducesDifferentOutputThanSingleOctave
+                  - SvgCodec_Load_FeTurbulenceOutput_ValuesSpanNonDegenerateRangeAcrossPixels
+                  - SvgCodec_Load_FeTurbulenceStitchTilesStitch_TolerantlyFallsBackToNoStitchBehavior
+
               - id: CanvasNet-Codecs-SvgCodec-FilterPrimitiveResourceSafety
                 title: >-
                   The SvgCodec class shall reject feConvolveMatrix order values above a fixed
-                  maximum and feMorphology radii that resolve above a fixed pixel maximum with
-                  InvalidDataException, and shall account for feConvolveMatrix kernel area in the
-                  filter primitive work-unit budget before evaluating the chain.
+                  maximum, feMorphology radii that resolve above a fixed pixel maximum, and
+                  feTurbulence numOctaves values above a fixed maximum with InvalidDataException,
+                  and shall account for feConvolveMatrix kernel area and feTurbulence numOctaves
+                  in the filter primitive work-unit budget before evaluating the chain.
                 justification: |
-                  These two primitives introduce attacker-controlled neighborhood sizes whose cost
-                  would otherwise grow with kernel area or radius. Bounding absurd
-                  single-attribute values at parse time and charging convolution kernels
-                  proportionally to their actual per-pixel work keeps the existing filter
-                  pipeline's resource-safety model intact.
+                  These primitives introduce attacker-controlled neighborhood sizes or per-pixel
+                  octave counts whose cost would otherwise grow with kernel area, radius, or
+                  octave count. Bounding absurd single-attribute values at parse time and charging
+                  convolution kernels and turbulence octaves proportionally to their actual
+                  per-pixel work keeps the existing filter pipeline's resource-safety model
+                  intact.
                 tests:
                   - SvgCodec_Load_FeConvolveMatrixOrderExceedingCap_ThrowsInvalidDataException
                   - SvgCodec_Load_FeMorphologyRadiusExceedingCap_ThrowsInvalidDataException
+                  - SvgCodec_Load_FeTurbulenceNumOctavesExceedingCap_ThrowsInvalidDataException
                   - SvgCodec_Load_FilterExcessivePrimitiveCount_SkipsFilterRatherThanUnboundedWork
                   - SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes
 

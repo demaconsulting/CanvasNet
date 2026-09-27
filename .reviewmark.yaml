@@ -275,6 +275,8 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.Tile.cs"  # phase 5 filter partial
       - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.DropShadow.cs"  # phase 5 filter partial
       - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.FeImage.cs"  # phase 5 filter partial
+      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.Lighting.cs"  # phase 6 filter partial
+      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.Turbulence.cs"  # phase 6 filter partial
       - "src/DemaConsulting.CanvasNet/Codecs/NamespaceDoc.cs"     # Codecs namespace documentation
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/SvgCodecTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/SvgFixtureTests.cs"  # fixture conformance tests

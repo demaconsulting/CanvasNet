@@ -607,7 +607,7 @@ content by `dx`/`dy` (scaled by the element's own transform). `feComposite` impl
 small, dedicated per-pixel premultiplied-alpha helper - the only genuinely new blending math this
 feature introduces. `feMerge` layers each `feMergeNode` child's own resolved input over an
 initially transparent accumulator, in document order, via the same `CompositeOver`. Any other
-primitive type (`feBlend`, `feTurbulence`, `feDiffuseLighting`, `feSpecularLighting`) is a
+primitive type (`feBlend`) is a
 tolerant no-op passthrough of its own input, still registered under its own `result` name so
 later primitives can still resolve it by name. The
 final primitive's own output buffer is composited onto `context.Surface` at the region's own
@@ -671,6 +671,40 @@ work: `feConvolveMatrix` rejects `order` values above `MaxConvolveMatrixOrder` (
 `InvalidDataException`, matching the codec's existing malformed-input policy for absurd
 single-attribute values, while the aggregate per-filter and cumulative filter work budgets remain
 tolerant fallback paths that simply render unfiltered once the requested total work is too high.
+
+`feDiffuseLighting` and `feSpecularLighting` relight a surface described by SourceAlpha (or
+another primitive's own alpha channel) as if it were a bump map. Both share a single surface-normal
+estimation helper that approximates the local surface gradient with the SVG specification's own
+3x3 Sobel kernels, selecting one of nine literal kernel-pair variants (the interior case, each of
+the four edges, and each of the four corners) by pixel position so no branch needs to
+special-case out-of-bounds neighbor reads. A shared light-source resolver produces a per-pixel
+light vector `L` and color from whichever of `feDistantLight`, `fePointLight`, or `feSpotLight`
+child element is present; `feSpotLight` additionally attenuates by its `pointsAt`-derived cone
+direction, cutting off entirely past its own `limitingConeAngle` and otherwise raising `-L.S` to
+its own `specularExponent`. `feDiffuseLighting` computes SVG's Lambertian formula,
+`output = kd * (N.L) * lightColor`, clamped to non-negative `N.L`, and always emits a fully opaque
+result (`alpha = 1.0`) per specification. `feSpecularLighting` computes SVG's Blinn-Phong formula,
+`output = ks * pow(N.H, specularExponent) * lightColor` where `H = normalize(L + E)` and
+`E = (0, 0, 1)`, but - unlike every other primitive in this codec, which either preserves or fully
+replaces alpha - its own output alpha is the maximum of its own computed R/G/B channels rather
+than a constant, matching the specification's own definition of specular alpha.
+
+`feTurbulence` implements the SVG specification's own reference Perlin-noise algorithm verbatim,
+rather than substituting a different noise function, because no independent golden-pixel
+reference exists for this primitive - the specification's own permutation-table initialization
+(seeded by the Park-Miller minimal-standard PRNG) and `noise2`/`turbulence` functions are the only
+available fidelity anchor. `type="turbulence"` uses the raw signed noise sum directly, while
+`type="fractalNoise"` remaps it to `(noise + 1) / 2`; both honor `baseFrequency` (independent x/y
+components), `numOctaves` (defaulting to `1`, capped by `MaxTurbulenceOctaves`), and `seed`,
+computing an independent noise field per output channel via the specification's own per-channel
+gradient-table offset. `stitchTiles="stitch"` is parsed but not implemented: this codec tolerantly
+falls back to `noStitch` behavior in that case (documented in the source's own XML doc comments)
+rather than throwing, consistent with this codec's general policy of degrading gracefully on
+unsupported attribute values instead of rejecting an otherwise-renderable document. A third
+attribute-value sanity cap, `MaxTurbulenceOctaves` (32), rejects excessive `numOctaves` values
+with `InvalidDataException` and charges `feTurbulence`'s resolved octave count through the same
+`FilterWorkBudget` mechanism used by `feConvolveMatrix`'s kernel area, alongside the existing
+`MaxConvolveMatrixOrder` and `MaxMorphologyRadiusPixels` caps.
 
 **Group-level filters.** A `filter` attribute on a `g`/`symbol` reference or `use` element
 (`RenderFilteredGroup`) reuses the same per-shape pipeline above - offscreen render, primitive
