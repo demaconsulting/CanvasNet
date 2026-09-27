@@ -9602,7 +9602,7 @@ public class SvgCodecTests
     ///     <see cref="SvgCodec_ResolveGradientStops_SameGradientElementResolvedTwice_ReturnsCachedListInstance"/>).
     /// </summary>
     [Fact]
-    public void SvgTurbulencePrng_10000thValueFromSeedOne_MatchesSpecPublishedTestVector()
+    public void SvgCodec_TurbulenceTablesRandom_10000thValueFromSeedOne_MatchesSpecPublishedTestVector()
     {
         // Arrange: reflect the private nested TurbulenceTables type and its private static Random method
         var tablesType = typeof(SvgCodec).GetNestedType("TurbulenceTables", BindingFlags.NonPublic);

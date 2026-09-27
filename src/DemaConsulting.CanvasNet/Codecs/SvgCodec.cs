@@ -125,16 +125,16 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     <c>filterUnits="userSpaceOnUse"</c> is tolerantly ignored and always falls back to the
 ///     <c>objectBoundingBox</c> default region computation; group-level (<c>g</c>/<c>symbol</c>)
 ///     filtering and filtering a shape's own marker content are both not implemented (a
-///     <c>filter</c> only ever affects the single element it is set on directly); and every
+///     <c>filter</c> only ever affects the single element it is set on directly); and any
 ///     primitive type other than <c>feFlood</c>/<c>feGaussianBlur</c>/<c>feOffset</c>/
-///     <c>feComposite</c>/<c>feMerge</c> - <c>feColorMatrix</c>, <c>feTurbulence</c>,
-///     <c>feDisplacementMap</c>, <c>feImage</c>, <c>feTile</c>, <c>feDropShadow</c>,
-///     <c>feConvolveMatrix</c>, <c>feDiffuseLighting</c>, <c>feSpecularLighting</c>,
-///     <c>feComponentTransfer</c>, and <c>feMorphology</c> - is a tolerant no-op passthrough of its
-///     own input rather than actually implemented; <c>feImage</c> in particular is out of scope
-///     specifically because it is the only primitive that could otherwise reference another
-///     filtered element's own render output, and omitting it removes any need for an additional
-///     filter-specific recursion-depth guard.
+///     <c>feComposite</c>/<c>feMerge</c>/<c>feColorMatrix</c>/<c>feComponentTransfer</c>/
+///     <c>feMorphology</c>/<c>feConvolveMatrix</c>/<c>feDisplacementMap</c>/<c>feTile</c>/
+///     <c>feDropShadow</c>/<c>feImage</c>/<c>feDiffuseLighting</c>/<c>feSpecularLighting</c>/
+///     <c>feTurbulence</c> - notably <c>feBlend</c> - is a tolerant no-op passthrough of its own
+///     input rather than actually implemented. <c>feImage</c>'s element-reference form can
+///     recurse back into the ordinary element walk, so filter evaluation reuses the existing
+///     <c>MaxUseDepth</c> guard that already bounds <c>use</c>/marker reference depth, declining
+///     the nested render once that limit is reached.
 ///     </para>
 ///     <para>
 ///     Within the supported <c>text</c> feature itself, the <c>font-weight</c> relative

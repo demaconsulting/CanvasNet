@@ -946,7 +946,7 @@ sections:
                   conformance test vector) is the only available fidelity anchor and must be
                   transcribed exactly rather than approximated with a different noise function.
                 tests:
-                  - SvgTurbulencePrng_10000thValueFromSeedOne_MatchesSpecPublishedTestVector
+                  - SvgCodec_TurbulenceTablesRandom_10000thValueFromSeedOne_MatchesSpecPublishedTestVector
                   - SvgCodec_Load_FeTurbulenceSameSeedTwoLoadCalls_ProducesIdenticalOutput
                   - SvgCodec_Load_FeTurbulenceDifferentSeeds_ProducesDifferentOutput
                   - SvgCodec_Load_FeTurbulenceTypeTurbulenceVsFractalNoise_ProduceDifferentRemapping

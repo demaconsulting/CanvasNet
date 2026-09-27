@@ -1106,7 +1106,7 @@ basis for a sharper, more focused highlight.
 
 #### CanvasNet-Codecs-SvgCodec-FeTurbulence: `feTurbulence` Reference Perlin Noise
 
-**Tests**: `SvgTurbulencePrng_10000thValueFromSeedOne_MatchesSpecPublishedTestVector`,
+**Tests**: `SvgCodec_TurbulenceTablesRandom_10000thValueFromSeedOne_MatchesSpecPublishedTestVector`,
 `SvgCodec_Load_FeTurbulenceSameSeedTwoLoadCalls_ProducesIdenticalOutput`,
 `SvgCodec_Load_FeTurbulenceDifferentSeeds_ProducesDifferentOutput`,
 `SvgCodec_Load_FeTurbulenceTypeTurbulenceVsFractalNoise_ProduceDifferentRemapping`,

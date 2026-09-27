@@ -999,7 +999,7 @@ sections:
               - SvgCodec_Load_FeDropShadow_MatchesManualBlurOffsetFloodCompositeChainEquivalent
               - SvgCodec_Load_FeImageElementReferenceHref_RendersReferencedElementOffscreen
               - SvgCodec_Load_FeSpecularLightingFlatAlphaDistantLightAt90DegreesElevation_ProducesUniformSpecularHighlight
-              - SvgTurbulencePrng_10000thValueFromSeedOne_MatchesSpecPublishedTestVector
+              - SvgCodec_TurbulenceTablesRandom_10000thValueFromSeedOne_MatchesSpecPublishedTestVector
               - SvgCodec_Load_FeConvolveMatrixOrderExceedingCap_ThrowsInvalidDataException
               - SvgCodec_Load_FeMorphologyRadiusExceedingCap_ThrowsInvalidDataException
               - SvgCodec_Load_FeTurbulenceNumOctavesExceedingCap_ThrowsInvalidDataException
