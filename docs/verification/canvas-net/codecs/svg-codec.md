@@ -743,7 +743,10 @@ total filter-evaluation work across the whole document, a dimension neither
 `SvgCodec_Load_FilteredGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveFilter`,
 `SvgCodec_Load_GroupFilterWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput`,
 `SvgCodec_Load_DeeplyNestedFilteredGroupsExceedingCumulativeBoundsPrePassBudget_ThrowsInvalidDataException`,
-`SvgCodec_Load_ModestlyNestedFilteredGroups_RenderCorrectlyWithoutFalsePositiveFallback`
+`SvgCodec_Load_ModestlyNestedFilteredGroups_RenderCorrectlyWithoutFalsePositiveFallback`,
+`SvgCodec_Load_OuterGroupFilterWithPathologicallyOversizedDescendantFilter_StillAppliesOuterFilter`,
+`SvgCodec_Load_DeeplyNestedFilteredGroupsWithEnormousInnerPath_ThrowsInvalidDataException`,
+`SvgCodec_Load_ModestlyNestedFilteredGroupsWithNormalPath_RenderCorrectlyWithoutFalsePositiveFallback`
 
 Asserts a `filter` on a `<g>` wrapping two non-overlapping `rect` elements is evaluated once
 against the group's own *combined* subtree bounds, not per-child: a bare `feFlood` fills its
@@ -840,6 +843,42 @@ companion non-regression test: a modest, realistic few levels of nested filtered
 wrapping a small number of shapes) renders its innermost filter's effect correctly, proving the
 new cumulative ceiling is generous enough that ordinary real-world nested-filtered-group
 documents are never spuriously rejected.
+
+A fifth regression test closes a further code-review finding in `ApplyOwnFilterToLocalBounds`: it
+used to always substitute a descendant's filter-expanded local region for its raw geometry bounds
+whenever that descendant's filter had at least one primitive, even when the descendant's own
+filter region was so pathologically oversized that the real render pass would later reject it via
+`ComputeFilterRegionPixelBounds`'s `MaxCoordinateMagnitude` check and fall back to unfiltered
+rendering at the descendant's own raw bounds - by which point the pre-pass had already used the
+doomed, much larger expanded region to compute the *ancestor's* own combined bounds, which could
+itself then trip the ancestor's own real pixel-space rejection checks, incorrectly skipping a
+perfectly reasonable outer filter.
+`SvgCodec_Load_OuterGroupFilterWithPathologicallyOversizedDescendantFilter_StillAppliesOuterFilter`
+wraps a tiny rect - whose own `innerHuge` filter's region is deliberately expanded to roughly
+4,000,000 local-space units square, far beyond `MaxCoordinateMagnitude`'s 1,000,000, guaranteeing
+real-render-time rejection - inside an outer `<g>` with its own plain `feFlood` filter, and asserts
+the outer `feFlood`'s own color still paints its own (correctly, modestly sized) filter region:
+proving the new local-space "is this descendant filter obviously doomed" check keeps the doomed
+inner filter's region from poisoning the outer filter's own bounds and causing it to be
+tolerantly skipped, while a point outside the outer filter's own region remains untouched,
+confirming the fix does not merely disable region expansion altogether.
+
+A sixth pair of regression tests closes a final code-review finding in this same bounds pre-pass:
+the cumulative `BoundsPrePassWorkBudget` added above only charged once per element visit, never
+accounting for the actual geometry-parsing work each visit performs, so a single element with an
+enormous `d`/`points`/text value, nested under many levels of filtered groups, would still have
+that same enormous geometry fully re-parsed once per nesting level - a `depth * geometry-size` CPU
+cost neither that per-visit charge nor any individual invocation's own fresh `GeometryWorkBudget`
+bounds. `SvgCodec_Load_DeeplyNestedFilteredGroupsWithEnormousInnerPath_ThrowsInvalidDataException`
+constructs 20 nested filtered `<g>` levels wrapping a single `<path>` whose `d` attribute has
+30,000 commands - comfortably under the 200,000-command per-invocation `GeometryWorkBudget`
+ceiling on its own, isolating the assertion to the new geometry-weighted cumulative charge
+specifically - and asserts `Load` throws `InvalidDataException` rather than performing 20 full
+re-parses of that same path.
+`SvgCodec_Load_ModestlyNestedFilteredGroupsWithNormalPath_RenderCorrectlyWithoutFalsePositiveFallback`
+is the companion non-regression test: 5 levels of nested filtered groups wrapping one small,
+ordinary path renders its fill color correctly, proving the new geometry-weighted ceiling is
+generous enough that ordinary real-world documents are never spuriously rejected.
 
 #### CanvasNet-Codecs-SvgCodec-ValidationNull: Null Stream/Path Rejected
 

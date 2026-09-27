@@ -163,6 +163,44 @@ public static partial class SvgCodec
     private const int MaxCumulativeBoundsPrePassWork = 1_000_000;
 
     /// <summary>
+    ///     The maximum combined "geometry-parsing work" - approximated by each visited
+    ///     <c>path</c>/<c>polyline</c>/<c>polygon</c> element's own <c>d</c>/<c>points</c>
+    ///     attribute character count, or each visited <c>text</c> element's own character count -
+    ///     that <see cref="ComputeSubtreeLocalBounds"/> may charge, in addition to (and using the
+    ///     same units as) its own per-invocation, local-scratch <see cref="GeometryWorkBudget"/>
+    ///     charge, across every bounds-only pre-pass <see cref="RenderFilteredGroup"/> runs for a
+    ///     single <c>Load</c> call, tracked by <see cref="BoundsPrePassWorkBudget"/>'s
+    ///     <see cref="BoundsPrePassWorkBudget.ChargeGeometry"/>.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="MaxCumulativeBoundsPrePassWork"/> bounds only how many <em>elements</em> the
+    ///     combined nested-filtered-group pre-pass work may visit in total - it charges exactly
+    ///     one unit per visit regardless of how expensive parsing that one element's own geometry
+    ///     actually is. Each individual pre-pass invocation's own local-scratch
+    ///     <see cref="GeometryWorkBudget"/> instance is deliberately fresh (see
+    ///     <see cref="RenderFilteredGroup"/>'s remarks on why it cannot share the real
+    ///     per-<c>Load</c>-call instance), so a document with a single element carrying an
+    ///     enormous <c>d</c>/<c>points</c> attribute (large, but still comfortably under that
+    ///     per-invocation <see cref="GeometryWorkBudget"/> ceiling on its own) nested under many
+    ///     levels of filtered groups causes each nesting level's own pre-pass to fully re-parse
+    ///     that same enormous geometry from scratch - real CPU cost proportional to
+    ///     <c>depth * geometry-size</c> that neither <see cref="MaxCumulativeBoundsPrePassWork"/>
+    ///     (which only counts the visit, not its cost) nor any individual invocation's own fresh
+    ///     <see cref="GeometryWorkBudget"/> (which never accumulates across invocations) can catch.
+    ///     2,000,000 is 10 times <see cref="GeometryWorkBudget.MaxTotalGeometryWork"/> - the same
+    ///     "10x a single operation's own per-invocation ceiling" precedent
+    ///     <see cref="MaxCumulativeBoundsPrePassWork"/> itself already uses relative to
+    ///     <see cref="MaxTotalRenderedElements"/>, and <see cref="FilterWorkBudget"/>'s own
+    ///     cumulative bound uses relative to <see cref="MaxFilterPrimitiveWorkUnits"/> - generous
+    ///     enough that a real-world document with a modest few levels of nested filtered groups
+    ///     wrapping ordinary geometry is never rejected, while keeping the worst-case total
+    ///     re-parsing CPU cost for a single document bounded to a small, fixed multiple of one
+    ///     element's own largest permitted geometry, regardless of how deeply a pathological
+    ///     document nests filtered containers around it.
+    /// </remarks>
+    private const int MaxCumulativeBoundsPrePassGeometryWork = 2_000_000;
+
+    /// <summary>
     ///     The maximum total number of characters <see cref="LoadRootElement"/>'s
     ///     <see cref="XDocument.Load(XmlReader, LoadOptions)"/> call will read before giving up,
     ///     bounding how large a single in-memory <see cref="XDocument"/> this codec will ever
@@ -403,6 +441,15 @@ public static partial class SvgCodec
         private int _total;
 
         /// <summary>
+        ///     The running total of pre-pass geometry-parsing work (see
+        ///     <see cref="MaxCumulativeBoundsPrePassGeometryWork"/>) charged so far - a separate
+        ///     running total from <see cref="_total"/>, since the two are charged in different
+        ///     units (element visits versus approximate geometry-parsing cost) against two
+        ///     independent ceilings.
+        /// </summary>
+        private int _geometryTotal;
+
+        /// <summary>
         ///     Charges one element visit against the running total, throwing once the combined
         ///     budget is exceeded - called once per <see cref="ComputeSubtreeLocalBounds"/> call,
         ///     alongside (but never instead of) that method's own local-scratch
@@ -425,6 +472,48 @@ public static partial class SvgCodec
             }
 
             _total++;
+        }
+
+        /// <summary>
+        ///     Charges <paramref name="amount"/> units of approximate geometry-parsing work (a
+        ///     visited <c>path</c>/<c>polyline</c>/<c>polygon</c> element's own <c>d</c>/
+        ///     <c>points</c> attribute character count, or a visited <c>text</c> element's own
+        ///     character count) against the running cumulative total, throwing once
+        ///     <see cref="MaxCumulativeBoundsPrePassGeometryWork"/> is exceeded - called from
+        ///     <see cref="ComputeSubtreeLocalBounds"/>'s <c>path</c>/<c>polyline</c>/<c>polygon</c>/
+        ///     <c>text</c> cases, in addition to (never instead of) that method's own
+        ///     per-invocation, local-scratch <see cref="GeometryWorkBudget"/> charge for the same
+        ///     element (see this budget class's own remarks, and
+        ///     <see cref="MaxCumulativeBoundsPrePassGeometryWork"/>'s remarks, for why a separate
+        ///     cumulative charge is needed here: the per-invocation
+        ///     <see cref="GeometryWorkBudget"/> is deliberately fresh for every
+        ///     <see cref="RenderFilteredGroup"/> invocation, so it alone cannot catch a single
+        ///     large element being repeatedly re-parsed once per nesting level).
+        /// </summary>
+        /// <param name="amount">
+        ///     The approximate geometry-parsing cost just accounted for, in the same units
+        ///     <see cref="MaxCumulativeBoundsPrePassGeometryWork"/>'s own remarks describe. Charged
+        ///     upfront (before the corresponding <c>Build*Path</c> call actually re-parses the
+        ///     element's geometry), unlike <see cref="GeometryWorkBudget.Charge"/>'s own
+        ///     incremental-during-parsing convention, so a single element whose own re-parse would
+        ///     itself already push this cumulative total over budget throws before that re-parse
+        ///     is even attempted, rather than only after it completes.
+        /// </param>
+        /// <exception cref="InvalidDataException">
+        ///     Thrown once the cumulative total exceeds
+        ///     <see cref="MaxCumulativeBoundsPrePassGeometryWork"/>.
+        /// </exception>
+        public void ChargeGeometry(int amount)
+        {
+            // Check before adding for the same check-before-add reasoning as Charge()/
+            // GeometryWorkBudget.Charge/FilterWorkBudget.TryCharge above.
+            if (amount > MaxCumulativeBoundsPrePassGeometryWork - _geometryTotal)
+            {
+                throw new InvalidDataException(
+                    "SVG document resolves to too much total nested-filtered-group bounds pre-pass geometry-parsing work.");
+            }
+
+            _geometryTotal += amount;
         }
     }
 }

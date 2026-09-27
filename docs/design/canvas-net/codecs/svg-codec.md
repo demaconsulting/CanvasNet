@@ -495,7 +495,25 @@ nested filtered groups is never rejected), `ComputeSubtreeLocalBounds` throws
 `MaxElementDepth`/`MaxTotalRenderedElements` per-invocation guards, rather than the tolerant
 per-filter fallback `FilterWorkBudget`/`MaxFilterPrimitiveWorkUnits` themselves use, since this
 budget bounds the same kind of "this pre-pass walk is too expensive" condition those per-invocation
-guards already treat as a hard rejection. A `line`/`polyline`/`polygon`/`path` descendant's
+guards already treat as a hard rejection. That per-visit charge alone, however, only counts how
+many elements a bounds pre-pass visits, never how expensive parsing any one of those elements'
+own geometry actually is: a single `path`/`polyline`/`polygon`/`text` element with an enormous
+`d`/`points`/text value, nested under many levels of filtered groups, would otherwise have that
+same enormous geometry fully re-parsed once per nesting level (each level's own
+`RenderFilteredGroup` pre-pass re-visits it, and each individual invocation's own fresh
+`GeometryWorkBudget` never accumulates across invocations to catch the repetition) - real CPU cost
+proportional to `depth * geometry-size` that neither `MaxCumulativeBoundsPrePassWork` nor any
+per-invocation `GeometryWorkBudget` bounds. `BoundsPrePassWorkBudget` therefore also exposes a
+second, geometry-weighted charge (`ChargeGeometry`), called from `ComputeSubtreeLocalBounds`'s
+`path`/`polyline`/`polygon`/`text` cases using each element's own `d`/`points` attribute character
+count (or text character count) as a cheap proxy for its re-parse cost - charged upfront, before
+the corresponding `Build*Path` call actually re-parses that geometry, in addition to (never
+instead of) the existing per-invocation `GeometryWorkBudget` charge for the same element. Once the
+running geometry-weighted total would exceed a fixed `MaxCumulativeBoundsPrePassGeometryWork`
+ceiling (2,000,000 - ten times `GeometryWorkBudget`'s own 200,000-unit per-invocation ceiling,
+mirroring the same "10x a single operation's own ceiling" precedent used elsewhere in this class),
+`ComputeSubtreeLocalBounds` throws `InvalidDataException` identically to its element-visit
+counterpart above. A `line`/`polyline`/`polygon`/`path` descendant's
 own placed marker content (`marker-start`/`marker-mid`/`marker-end`) is folded into this pre-pass
 too (`ComputeMarkerContentLocalBounds`/`ComputeOneMarkerLocalBounds`, sharing
 `TryComputeMarkerContentTransform` with `RenderOneMarker`'s own placement math so the two can
@@ -521,7 +539,20 @@ descendant's filter will actually apply. Without this, an outer filtered group's
 buffer would be sized only from its descendants' raw geometry, silently clipping any nested
 filtered descendant's own filter output that extends beyond its raw geometry (for example a
 `feFlood` or an enlarged filter region) before the outer filter chain or final composite ever saw
-it. The resulting combined local-space bounds are then fed through the same
+it. `ApplyOwnFilterToLocalBounds` also falls back to that descendant's own raw bounds - rather
+than its filter-expanded region - whenever the expanded region's own pre-transform local-space
+size is already so large (compared directly against `MaxCoordinateMagnitude`) that it is virtually
+certain to still be rejected by `ComputeFilterRegionPixelBounds`'s own pixel-space
+`MaxCoordinateMagnitude` check once the real render pass eventually transforms it into actual
+pixel space: without this, a descendant filter that is pathologically oversized and therefore
+guaranteed to fall back to unfiltered rendering at real render time could still inflate this
+pre-pass's own combined bounds enough to trip an _outer_ ancestor filter's own real pixel-space
+rejection checks, incorrectly skipping a perfectly reasonable outer filter purely because of an
+inner descendant filter that was never actually going to apply. This is a deliberately
+conservative approximation, not a precise predictor (the ancestor's own further transform, not
+yet known at this point in the pre-pass, is never composed into the comparison), erring toward
+never rejecting a borderline-reasonable region so a filter that would genuinely survive the real
+check is never under-sized here. The resulting combined local-space bounds are then fed through the same
 `ComputeFilterRegionPixelBounds` used for single shapes
 (refactored to accept a `Rect` directly, so both call sites share one region-computation core),
 and the same per-filter/cumulative work-budget guards apply identically - a group's filter region

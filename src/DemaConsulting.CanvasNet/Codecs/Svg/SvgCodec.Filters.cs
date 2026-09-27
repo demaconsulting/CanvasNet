@@ -335,7 +335,12 @@ public static partial class SvgCodec
     ///     every <see cref="RenderFilteredGroup"/> invocation (nested or sibling) across the whole
     ///     document shares this one instance, so the combined pre-pass work performed by many
     ///     nested filtered groups is bounded in aggregate, independent of how many times each
-    ///     individual invocation "resets" its own local-scratch ceilings above.
+    ///     individual invocation "resets" its own local-scratch ceilings above. Charged both per
+    ///     element visit (<see cref="BoundsPrePassWorkBudget.Charge"/>) and, for the <c>path</c>/
+    ///     <c>polyline</c>/<c>polygon</c>/<c>text</c> cases, per approximate geometry-parsing cost
+    ///     (<see cref="BoundsPrePassWorkBudget.ChargeGeometry"/>) - the latter bounds a single
+    ///     element with enormous geometry being fully re-parsed once per nesting level, a gap the
+    ///     former (which only counts the visit, not its cost) cannot catch on its own.
     /// </param>
     /// <returns>
     ///     The union of every descendant shape/text element's stroke-expanded, transformed local
@@ -472,6 +477,14 @@ public static partial class SvgCodec
 
             case "polyline":
                 {
+                    // Charge the shared, cumulative bounds-pre-pass geometry budget for this
+                    // element's own re-parse cost too, upfront and in addition to (never instead
+                    // of) BuildPolyPath's own per-invocation, local-scratch workBudget charge
+                    // below - see BoundsPrePassWorkBudget.ChargeGeometry's remarks for why a
+                    // single element's own geometry-parsing cost must also be bounded across
+                    // every nested filtered-group level that re-visits it, not just once per
+                    // element visit
+                    boundsPrePassBudget.ChargeGeometry(((string?)element.Attribute("points"))?.Length ?? 0);
                     var polylinePath = BuildPolyPath(element, closed: false, workBudget);
                     var shapeBounds = ShapeBoundsRespectingOwnFilter(element, polylinePath, state, transform, context, markerDepth);
                     var markerBounds = ComputeMarkerContentLocalBounds(polylinePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, boundsPrePassBudget);
@@ -480,6 +493,8 @@ public static partial class SvgCodec
 
             case "polygon":
                 {
+                    // See the "polyline" case above for why this charge is made here.
+                    boundsPrePassBudget.ChargeGeometry(((string?)element.Attribute("points"))?.Length ?? 0);
                     var polygonPath = BuildPolyPath(element, closed: true, workBudget);
                     var shapeBounds = ShapeBoundsRespectingOwnFilter(element, polygonPath, state, transform, context, markerDepth);
                     var markerBounds = ComputeMarkerContentLocalBounds(polygonPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, boundsPrePassBudget);
@@ -488,6 +503,10 @@ public static partial class SvgCodec
 
             case "path":
                 {
+                    // See the "polyline" case above for why this charge is made here (using the
+                    // "d" attribute's own character count as the same kind of simple, cheap
+                    // geometry-size proxy).
+                    boundsPrePassBudget.ChargeGeometry(((string?)element.Attribute("d"))?.Length ?? 0);
                     var dataPath = BuildPathDataPath(element, workBudget);
                     var shapeBounds = ShapeBoundsRespectingOwnFilter(element, dataPath, state, transform, context, markerDepth);
                     var markerBounds = ComputeMarkerContentLocalBounds(dataPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, boundsPrePassBudget);
@@ -550,6 +569,14 @@ public static partial class SvgCodec
                     // charge site - subject to the same caller-supplied counter/budget scoping as
                     // this method's own totalElements/workBudget parameters
                     workBudget.Charge(text.Length);
+
+                    // Also charge the shared, cumulative bounds-pre-pass geometry budget (see the
+                    // "polyline"/"polygon"/"path" cases above, and BoundsPrePassWorkBudget.
+                    // ChargeGeometry's remarks) - a text element's own glyph-run layout cost below
+                    // is likewise proportional to its character count, and re-parsed once per
+                    // nesting level under many nested filtered groups exactly like path/points
+                    // data would be
+                    boundsPrePassBudget.ChargeGeometry(text.Length);
 
                     var origin = new Vector2(GetFloatAttribute(element, "x"), GetFloatAttribute(element, "y"));
                     var glyphRunPath = BuildGlyphRunPath(text, font, state, origin);
@@ -679,9 +706,8 @@ public static partial class SvgCodec
     /// </returns>
     /// <remarks>
     ///     Deliberately does not reproduce <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2)"/>'s
-    ///     pixel-space-only checks (<see cref="MaxCoordinateMagnitude"/>, <see cref="Surface.MaxDimension"/>,
-    ///     outward pixel rounding) or <see cref="IsFilterPrimitiveWorkWithinBudget"/>'s
-    ///     region-area-weighted work check, nor does it charge <see cref="FilterWorkBudget"/>'s
+    ///     full pixel-space checks (outward pixel rounding, or <see cref="IsFilterPrimitiveWorkWithinBudget"/>'s
+    ///     region-area-weighted work check), nor does it charge <see cref="FilterWorkBudget"/>'s
     ///     cumulative ceiling: this bounds pre-pass necessarily runs before the ancestor filtered
     ///     group's own final pixel-space transform is known (it composes only as far up as that
     ///     ancestor's own local space, see <see cref="ComputeSubtreeLocalBounds"/>'s remarks on
@@ -696,6 +722,29 @@ public static partial class SvgCodec
     ///     <see cref="RenderFilteredShape"/>/<see cref="RenderFilteredGroup"/> call remains the only
     ///     site that ever charges <see cref="FilterWorkBudget"/>, so this pre-pass cannot
     ///     double-charge it.
+    ///     <para>
+    ///     One pixel-space-only check IS deliberately, partially approximated here, though: a
+    ///     region already so large in its own pre-transform LOCAL space that it is virtually
+    ///     certain to still exceed <see cref="MaxCoordinateMagnitude"/> (and therefore be rejected
+    ///     by <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2)"/>) once the
+    ///     real render pass eventually transforms it all the way into actual pixel space. Without
+    ///     this check, a descendant filter that is pathologically oversized and therefore
+    ///     guaranteed to be rejected at real render time (falling back to the descendant's own
+    ///     raw, unexpanded bounds) would still have already inflated this pre-pass's returned
+    ///     bounds with its doomed expanded region - and that inflated value can itself then push
+    ///     an OUTER ancestor filter's own region past ITS OWN real pixel-space rejection checks,
+    ///     incorrectly skipping a perfectly reasonable outer filter purely because of an inner
+    ///     filter that was never actually going to apply. Comparing the region's raw local-space
+    ///     size directly against <see cref="MaxCoordinateMagnitude"/> - without composing
+    ///     <paramref name="transform"/> (or any further, not-yet-known ancestor transform) into
+    ///     the comparison at all - is a deliberately conservative, "never worse than before"
+    ///     heuristic, not a precise predictor: it catches only the unambiguous, already-oversized-
+    ///     before-any-transform case (the common pathological shape this class's regression tests
+    ///     cover), erring toward NOT rejecting borderline-reasonable regions whenever there is any
+    ///     doubt, since under-sizing an ancestor's own offscreen buffer for a filter that DOES
+    ///     survive the real check would clip real content - the one outcome this whole pre-pass
+    ///     exists to avoid, and a strictly worse failure mode than merely over-sizing it.
+    ///     </para>
     /// </remarks>
     private static Rect? ApplyOwnFilterToLocalBounds(XElement filterElement, Rect rawLocalBounds, Matrix3x2 transform)
     {
@@ -712,7 +761,26 @@ public static partial class SvgCodec
             ? null
             : ComputeFilterRegionLocalBounds(filterElement, rawLocalBounds);
 
-        var effectiveLocalBounds = filterLocalRegion ?? rawLocalBounds;
+        // A filter region that is already, in its own pre-transform local space, grossly larger
+        // than MaxCoordinateMagnitude is virtually certain to still exceed MaxCoordinateMagnitude
+        // (or Surface.MaxDimension) once ComputeFilterRegionPixelBounds transforms it all the way
+        // into real pixel space at real render time - and therefore virtually certain to be
+        // rejected there, falling back to unfiltered rendering at this descendant's own raw
+        // bounds. Falling back to rawLocalBounds here too (rather than this pathologically large
+        // expanded region) prevents that doomed descendant filter from inflating an ancestor's own
+        // combined local bounds enough to itself trip the ancestor's OWN real render-time
+        // pixel-space rejection checks, purely because of an inner filter that was never going to
+        // apply in the first place - see this method's remarks for why this comparison
+        // deliberately never composes "transform" (or any further, not-yet-known ancestor
+        // transform) into the check, and is therefore only a conservative approximation, not a
+        // precise predictor, of the real render-time rejection.
+        var isObviouslyDoomed = filterLocalRegion is { } candidateRegion &&
+            (MathF.Abs(candidateRegion.X) > MaxCoordinateMagnitude ||
+             MathF.Abs(candidateRegion.Y) > MaxCoordinateMagnitude ||
+             candidateRegion.Width > MaxCoordinateMagnitude ||
+             candidateRegion.Height > MaxCoordinateMagnitude);
+
+        var effectiveLocalBounds = filterLocalRegion == null || isObviouslyDoomed ? rawLocalBounds : filterLocalRegion.Value;
         var transformed = effectiveLocalBounds.Transform(transform);
         return transformed.IsEmpty ? null : transformed;
     }

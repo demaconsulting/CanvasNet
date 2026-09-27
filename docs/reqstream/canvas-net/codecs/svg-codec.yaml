@@ -618,12 +618,18 @@ sections:
                   unit, honoring the same filter-region computation, opacity-applies-to-filtered-
                   result-once ordering, and resource-safety budgets already used for a single
                   filtered shape, while continuing to have no effect on a filter attribute placed
-                  on marker content; and shall bound the total bounds-only pre-pass work performed
-                  across every nested/sibling filtered group for a single Load call, throwing
-                  InvalidDataException once a fixed cumulative ceiling is exceeded, so a document
-                  with many levels of nested filtered groups cannot force unbounded pre-pass work
-                  merely because each nesting level's own pre-pass uses a fresh, independently
-                  bounded local counter/budget.
+                  on marker content; shall bound the total bounds-only pre-pass work performed
+                  across every nested/sibling filtered group for a single Load call - both by
+                  element-visit count and by approximate geometry-parsing cost - throwing
+                  InvalidDataException once either fixed cumulative ceiling is exceeded, so a
+                  document with many levels of nested filtered groups cannot force unbounded
+                  pre-pass work merely because each nesting level's own pre-pass uses a fresh,
+                  independently bounded local counter/budget, nor by repeatedly re-parsing the
+                  same oversized element's own geometry once per nesting level; and shall never let
+                  a descendant's own filter region inflate an ancestor filtered group's own
+                  combined bounds when that descendant's filter is already so pathologically
+                  oversized, in its own local space, that it is virtually certain to be rejected by
+                  the real render pass's own pixel-space resource-safety checks.
                 justification: |
                   SVG's own filter effects specification applies filter identically to any
                   element, including container elements such as g/symbol/use - real-world SVG
@@ -654,7 +660,29 @@ sections:
                   visited by any bounds pre-pass across the whole document, throwing
                   InvalidDataException - the same convention this pre-pass's own existing
                   per-invocation depth/element-count guards already use at the same call site -
-                  once a fixed cumulative ceiling is exceeded.
+                  once a fixed cumulative ceiling is exceeded. That per-visit charge alone still
+                  only counts how many elements are visited, never how expensive parsing any one
+                  element's own geometry actually is, so a single element with an enormous
+                  d/points/text value, nested under many levels of filtered groups, would still
+                  have its enormous geometry fully re-parsed once per nesting level - real CPU
+                  cost proportional to depth times geometry-size that neither the per-visit
+                  cumulative charge nor any per-invocation GeometryWorkBudget bounds; a second,
+                  geometry-weighted cumulative charge on the same shared budget instance closes
+                  this gap identically. Finally, the bounds pre-pass folds a descendant's own
+                  filter-expanded region into an ancestor's combined bounds so a nested filtered
+                  descendant's actual (possibly larger) output is never clipped - but doing so
+                  unconditionally meant a descendant filter that is pathologically oversized, and
+                  therefore guaranteed to be rejected by the real render pass's own pixel-space
+                  resource-safety checks (falling back to unfiltered rendering at that
+                  descendant's own raw bounds), could still inflate the ancestor's own combined
+                  bounds enough to trip the ancestor's own real pixel-space rejection checks,
+                  incorrectly skipping a perfectly reasonable outer filter purely because of an
+                  inner filter that was never actually going to apply; comparing the descendant's
+                  own pre-transform local-space region size directly against the same
+                  resource-safety constant used by the real pixel-space check, and falling back to
+                  the descendant's raw bounds when it is already obviously oversized, closes this
+                  gap with a deliberately conservative approximation that never under-sizes a
+                  filter that would genuinely survive the real check.
                 tests:
                   - SvgCodec_Load_GroupFilter_FeFloodOnGWithTwoChildren_FillsCombinedBoundsIncludingGap
                   - SvgCodec_Load_GroupFilter_UseReferencingSymbolWithFilter_FillsCombinedBounds
@@ -671,6 +699,9 @@ sections:
                   - SvgCodec_Load_GroupFilterWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput
                   - SvgCodec_Load_DeeplyNestedFilteredGroupsExceedingCumulativeBoundsPrePassBudget_ThrowsInvalidDataException
                   - SvgCodec_Load_ModestlyNestedFilteredGroups_RenderCorrectlyWithoutFalsePositiveFallback
+                  - SvgCodec_Load_OuterGroupFilterWithPathologicallyOversizedDescendantFilter_StillAppliesOuterFilter
+                  - SvgCodec_Load_DeeplyNestedFilteredGroupsWithEnormousInnerPath_ThrowsInvalidDataException
+                  - SvgCodec_Load_ModestlyNestedFilteredGroupsWithNormalPath_RenderCorrectlyWithoutFalsePositiveFallback
 
               - id: CanvasNet-Codecs-SvgCodec-ValidationNull
                 title: >-
