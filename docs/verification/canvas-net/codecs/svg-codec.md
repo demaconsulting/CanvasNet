@@ -738,7 +738,9 @@ total filter-evaluation work across the whole document, a dimension neither
 `SvgCodec_Load_GroupFilterOnEmptyGroup_RendersNothingWithoutThrowing`,
 `SvgCodec_Load_GroupFilterInsideMarkerContent_FilterHasNoEffect`,
 `SvgCodec_Load_GroupFilterReferencedByManyUsesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessUses`,
-`SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent`
+`SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent`,
+`SvgCodec_Load_FilteredGroupNearTotalElementBudget_RendersWithoutThrowing`,
+`SvgCodec_Load_FilteredGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveFilter`
 
 Asserts a `filter` on a `<g>` wrapping two non-overlapping `rect` elements is evaluated once
 against the group's own *combined* subtree bounds, not per-child: a bare `feFlood` fills its
@@ -781,6 +783,25 @@ color at a previously-asserted interior pixel (proving the filter chain, includi
 pixel pair - one offset position relative to a filtered flower shows nonzero alpha from blur
 spread, while the identical offset relative to the one unfiltered flower remains exactly zero -
 directly proving the filter is genuinely evaluated rather than merely tolerated without error.
+
+Two further regression tests close a code-review finding pair in this same bounds pre-pass
+(`ComputeSubtreeLocalBounds`). First,
+`SvgCodec_Load_FilteredGroupNearTotalElementBudget_RendersWithoutThrowing` proves the pre-pass no
+longer double-charges the real, per-`Load`-call `MaxTotalRenderedElements` counter/
+`GeometryWorkBudget`: a filtered `<g>` containing 60,000 elements - comfortably under the fixed
+100,000-element ceiling for a single charge, but enough to have exceeded it under the old
+double-charge (once from the bounds pre-pass, once again from the real render pass that follows
+it) - now renders successfully (its `feFlood` fills the whole canvas red) instead of throwing
+`InvalidDataException`, matching what an equivalent *unfiltered* document of the same size would
+have done all along. Second,
+`SvgCodec_Load_FilteredGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveFilter`
+proves the pre-pass now folds a `line`'s own placed marker content into the group's combined
+bounds: a 20x20 arrowhead-style marker centered on the line's end vertex extends far beyond the
+line's own tiny stroke-expanded outline, and a point deep inside the marker's own painted square
+(but well outside the line's own bounds) shows the marker's fill color surviving an identity
+(`feOffset dx="0" dy="0"`) group filter - proving the offscreen `SourceGraphic` buffer was sized
+large enough to avoid silently clipping the marker's pixels before the filter/composite step ever
+saw them.
 
 #### CanvasNet-Codecs-SvgCodec-ValidationNull: Null Stream/Path Rejected
 

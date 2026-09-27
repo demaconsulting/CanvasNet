@@ -467,30 +467,44 @@ determines the temporary buffer's own size), and a group has no single `Path` to
 `RenderElement`'s own dispatch switch - recursing into the same element kinds
 (`g`/`symbol`/shapes/`text`/`use`), honoring the same `MaxElementDepth`/
 `MaxTotalRenderedElements`/`MaxUseDepth` guards - but only accumulates each descendant's own
-transformed bounding box (via `Rect.Union`) rather than painting anything. `marker` content is
-excluded from this pre-pass with no special-casing at all: `marker` is already skipped by the
-ordinary element walk's `NonRenderingElements` set, and `ComputeSubtreeLocalBounds` reuses that
-same set. The resulting combined local-space bounds are then fed through the same
-`ComputeFilterRegionPixelBounds` used for single shapes (refactored to accept a `Rect` directly,
-so both call sites share one region-computation core), and the same per-filter/cumulative
-work-budget guards apply identically - a group's filter region can be pathologically large or
-its combined primitive-count × region-area cost excessive in exactly the same ways a single
-shape's can, so no separate resource-safety mechanism was needed. If the bounds pre-pass finds no
-renderable content at all (an empty group), or the filter reference is missing/invalid, or any
-resource-safety guard rejects the filter, the group falls back to rendering its children directly
-and unfiltered - the same tolerant fallback convention as every other filter resource bound. When
-the filter is accepted, the group's subtree is rendered a second time into the region-sized
-temporary surface (with the group's own `opacity` forced to `1.0`, mirroring the single-shape
-convention, so the filter chain evaluates against fully-opaque source content), the primitive
-chain evaluates identically to the single-shape case, and the filtered result is composited back
-onto the canvas with the group's own `opacity` applied at that final step - transform and (the
-codec's unimplemented) clip both apply to the group as a whole via the transform already baked
-into the region computation and the offscreen render, with no separate ordering to reconcile
-since `clipPath` is never read by this codec at all, filtered or not. One accepted simplification:
-the bounds pre-pass and the real render pass both walk (and charge the relevant work budgets for)
-the same subtree, once each - a document's total filter-evaluation work for a filtered group is
-therefore double what an equivalent unfiltered group would cost, a deliberate trade-off against
-the complexity of caching geometry between the two passes.
+transformed bounding box (via `Rect.Union`) rather than painting anything. Because this pre-pass
+necessarily re-visits the same subtree the real render pass below visits again immediately
+afterward, `RenderFilteredGroup` always runs it against a fresh, local, independently bounded
+scratch `totalElements` counter and `GeometryWorkBudget` instance - never the real
+per-`Load`-call counter/budget `RenderElement` itself threads through - so this bounds-only
+pre-pass can never permanently consume any of the real resource ceiling the render pass (and
+every other filtered shape/group in the document) also needs; the same fixed ceiling constants
+still bound the pre-pass's own work against a pathologically large subtree, just via a
+call-scoped instance rather than the shared one. A `line`/`polyline`/`polygon`/`path` descendant's
+own placed marker content (`marker-start`/`marker-mid`/`marker-end`) is folded into this pre-pass
+too (`ComputeMarkerContentLocalBounds`/`ComputeOneMarkerLocalBounds`, sharing
+`TryComputeMarkerContentTransform` with `RenderOneMarker`'s own placement math so the two can
+never diverge): the real render pass paints marker pixels onto whatever surface is current, which
+for a filtered group is the offscreen `SourceGraphic` buffer this pre-pass sizes, and a marker
+commonly extends beyond its host shape's own stroke-expanded outline (arrowheads being the
+canonical example), so omitting that geometry would size the buffer too small and silently clip
+the marker's own pixels. A bare `marker` element encountered directly by the ordinary element walk
+is still excluded, unchanged: `marker` remains a `NonRenderingElements` member, and this pre-pass
+only ever recurses into a `marker` element's own content when a shape's own
+`marker-start`/`marker-mid`/`marker-end` attribute resolves to it, exactly mirroring
+`RenderMarkers`/`RenderOneMarker`'s own recursion trigger. The resulting combined local-space
+bounds are then fed through the same `ComputeFilterRegionPixelBounds` used for single shapes
+(refactored to accept a `Rect` directly, so both call sites share one region-computation core),
+and the same per-filter/cumulative work-budget guards apply identically - a group's filter region
+can be pathologically large or its combined primitive-count × region-area cost excessive in
+exactly the same ways a single shape's can, so no separate resource-safety mechanism was needed.
+If the bounds pre-pass finds no renderable content at all (an empty group), or the filter
+reference is missing/invalid, or any resource-safety guard rejects the filter, the group falls
+back to rendering its children directly and unfiltered - the same tolerant fallback convention as
+every other filter resource bound. When the filter is accepted, the group's subtree is rendered a
+second time into the region-sized temporary surface (with the group's own `opacity` forced to
+`1.0`, mirroring the single-shape convention, so the filter chain evaluates against fully-opaque
+source content), the primitive chain evaluates identically to the single-shape case, and the
+filtered result is composited back onto the canvas with the group's own `opacity` applied at that
+final step - transform and (the codec's unimplemented) clip both apply to the group as a whole via
+the transform already baked into the region computation and the offscreen render, with no
+separate ordering to reconcile since `clipPath` is never read by this codec at all, filtered or
+not.
 
 #### Element/Group Nesting and Total-Element Bounds
 

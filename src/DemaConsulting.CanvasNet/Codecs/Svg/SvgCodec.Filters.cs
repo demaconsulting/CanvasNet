@@ -302,31 +302,54 @@ public static partial class SvgCodec
     ///     <see cref="RenderElement"/> itself enforces - this bounds pre-pass necessarily visits
     ///     the same subtree depth the real render pass will visit again immediately afterward.
     /// </param>
+    /// <param name="markerDepth">
+    ///     The current <c>marker</c>-reference nesting depth, forwarded unchanged through
+    ///     ordinary subtree recursion and incremented only when this method itself recurses into
+    ///     a resolved marker's own content (see this method's remarks on marker bounds inclusion),
+    ///     mirroring <see cref="RenderOneMarker"/>'s identical <see cref="MaxMarkerDepth"/> guard.
+    /// </param>
     /// <param name="totalElements">
-    ///     The running total-rendered-elements count, sharing <see cref="RenderElement"/>'s own
-    ///     counter and <see cref="MaxTotalRenderedElements"/> ceiling. This bounds pre-pass
-    ///     deliberately double-charges this counter (once here, once again during the real render
-    ///     pass) rather than caching per-element bounds to avoid the double-visit - a documented,
-    ///     bounded simplification (see <see cref="RenderFilteredGroup"/>'s remarks) that keeps the
-    ///     existing ceiling a hard limit, just reached sooner for content wrapped in a filtered
-    ///     group.
+    ///     The running total-rendered-elements count. <see cref="RenderFilteredGroup"/> always
+    ///     passes a local, independently bounded scratch counter here (never the real
+    ///     per-<c>Load</c>-call counter <see cref="RenderElement"/> itself threads through), so
+    ///     this bounds-only pre-pass cannot charge the same ceiling the real render pass that
+    ///     follows it will also charge - see <see cref="RenderFilteredGroup"/>'s remarks for the
+    ///     full rationale. The same <see cref="MaxTotalRenderedElements"/> ceiling is still
+    ///     enforced against whatever counter is supplied, purely to keep this pre-pass's own work
+    ///     bounded for a pathologically large subtree.
     /// </param>
     /// <param name="workBudget">
-    ///     The shared geometry-parsing work budget, charged here (via the same
-    ///     <c>Build*Path</c>/text-length call sites <see cref="RenderElement"/>/<see cref="RenderText"/>
-    ///     already use) as well as again during the real render pass, for the same documented
-    ///     double-charge reason as <paramref name="totalElements"/> above.
+    ///     The geometry-parsing work budget, charged here (via the same <c>Build*Path</c>/
+    ///     text-length call sites <see cref="RenderElement"/>/<see cref="RenderText"/> already
+    ///     use) - subject to the same caller-supplied local-scratch-instance scoping as
+    ///     <paramref name="totalElements"/> above.
     /// </param>
     /// <returns>
     ///     The union of every descendant shape/text element's stroke-expanded, transformed local
-    ///     bounds, or <see langword="null"/> if <paramref name="element"/> and its subtree paint
-    ///     nothing at all - a non-rendering/skipped/unrecognized element (including <c>marker</c>,
-    ///     which is already a <see cref="NonRenderingElements"/> member and therefore never
-    ///     recursed into here, so a group's own painted-content bounds - like a single shape's
-    ///     filter region - never include any marker's own content), an element with a non-finite
-    ///     composed transform, an empty container, a dangling <c>use</c> reference, a <c>text</c>
-    ///     element with no matching font/empty content, or a degenerate/zero-extent shape.
+    ///     bounds - including, for a <c>line</c>/<c>polyline</c>/<c>polygon</c>/<c>path</c> with a
+    ///     <c>marker-start</c>/<c>marker-mid</c>/<c>marker-end</c> presentation attribute
+    ///     referencing a valid <c>marker</c>, the union of every placed marker instance's own
+    ///     content bounds too (see <see cref="ComputeMarkerContentLocalBounds"/>) - or
+    ///     <see langword="null"/> if <paramref name="element"/> and its subtree paint nothing at
+    ///     all: a non-rendering/skipped/unrecognized element (a bare <c>marker</c> element
+    ///     encountered directly, rather than referenced via <c>marker-start</c>/<c>marker-mid</c>/
+    ///     <c>marker-end</c>, is still a <see cref="NonRenderingElements"/> member and therefore
+    ///     never recursed into here on its own), an element with a non-finite composed transform,
+    ///     an empty container, a dangling <c>use</c> reference, a <c>text</c> element with no
+    ///     matching font/empty content, or a degenerate/zero-extent shape.
     /// </returns>
+    /// <remarks>
+    ///     A group's own painted-content bounds must include any marker geometry a
+    ///     <c>line</c>/<c>polyline</c>/<c>polygon</c>/<c>path</c> descendant places, because the
+    ///     real render pass that follows this pre-pass (<see cref="RenderElement"/>'s shape cases,
+    ///     via <see cref="RenderMarkers"/>) paints marker pixels (arrowheads, etc.) directly onto
+    ///     whatever surface is current - for a filtered group, that is the offscreen
+    ///     <c>SourceGraphic</c> buffer <see cref="RenderFilteredGroup"/> sizes from this method's
+    ///     own return value. A marker commonly extends beyond its host shape's own stroke-expanded
+    ///     outline (for example an arrowhead marker on a thin line); omitting that marker geometry
+    ///     here would size the offscreen buffer too small, silently clipping the marker's pixels
+    ///     before the filter chain (or the final composite) ever sees them.
+    /// </remarks>
     private static Rect? ComputeSubtreeLocalBounds(
         XElement element,
         RenderState parentState,
@@ -334,12 +357,14 @@ public static partial class SvgCodec
         RenderContext context,
         int useDepth,
         int elementDepth,
+        int markerDepth,
         ref int totalElements,
         GeometryWorkBudget workBudget)
     {
         // Mirror RenderElement's own depth/total-element guards exactly - this pre-pass walks the
         // same subtree the real render pass will walk again immediately afterward, so it must be
-        // bounded by the same ceilings (see this method's remarks on the deliberate double-charge)
+        // bounded by the same ceilings, just against the caller-supplied (possibly local-scratch)
+        // counter/budget instances - see this method's remarks on totalElements/workBudget scoping
         if (elementDepth >= MaxElementDepth)
         {
             throw new InvalidDataException("SVG element nesting exceeds the supported depth.");
@@ -373,7 +398,7 @@ public static partial class SvgCodec
                     var bounds = Rect.Empty;
                     foreach (var child in element.Elements())
                     {
-                        var childBounds = ComputeSubtreeLocalBounds(child, state, transform, context, useDepth, elementDepth + 1, ref totalElements, workBudget);
+                        var childBounds = ComputeSubtreeLocalBounds(child, state, transform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget);
                         if (childBounds != null)
                         {
                             bounds = bounds.Union(childBounds.Value);
@@ -393,16 +418,36 @@ public static partial class SvgCodec
                 return TransformedShapeBounds(BuildEllipsePath(element, isCircle: false), state, transform);
 
             case "line":
-                return TransformedShapeBounds(BuildLinePath(element), state, transform);
+                {
+                    var linePath = BuildLinePath(element);
+                    var shapeBounds = TransformedShapeBounds(linePath, state, transform);
+                    var markerBounds = ComputeMarkerContentLocalBounds(linePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
+                    return UnionNullableBounds(shapeBounds, markerBounds);
+                }
 
             case "polyline":
-                return TransformedShapeBounds(BuildPolyPath(element, closed: false, workBudget), state, transform);
+                {
+                    var polylinePath = BuildPolyPath(element, closed: false, workBudget);
+                    var shapeBounds = TransformedShapeBounds(polylinePath, state, transform);
+                    var markerBounds = ComputeMarkerContentLocalBounds(polylinePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
+                    return UnionNullableBounds(shapeBounds, markerBounds);
+                }
 
             case "polygon":
-                return TransformedShapeBounds(BuildPolyPath(element, closed: true, workBudget), state, transform);
+                {
+                    var polygonPath = BuildPolyPath(element, closed: true, workBudget);
+                    var shapeBounds = TransformedShapeBounds(polygonPath, state, transform);
+                    var markerBounds = ComputeMarkerContentLocalBounds(polygonPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
+                    return UnionNullableBounds(shapeBounds, markerBounds);
+                }
 
             case "path":
-                return TransformedShapeBounds(BuildPathDataPath(element, workBudget), state, transform);
+                {
+                    var dataPath = BuildPathDataPath(element, workBudget);
+                    var shapeBounds = TransformedShapeBounds(dataPath, state, transform);
+                    var markerBounds = ComputeMarkerContentLocalBounds(dataPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
+                    return UnionNullableBounds(shapeBounds, markerBounds);
+                }
 
             case "use":
                 {
@@ -419,7 +464,7 @@ public static partial class SvgCodec
 
                     var offset = new Vector2(GetFloatAttribute(element, "x"), GetFloatAttribute(element, "y"));
                     var useTransform = Matrix3x2.CreateTranslation(offset) * transform;
-                    return ComputeSubtreeLocalBounds(target, state, useTransform, context, useDepth + 1, elementDepth + 1, ref totalElements, workBudget);
+                    return ComputeSubtreeLocalBounds(target, state, useTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget);
                 }
 
             case "text":
@@ -442,7 +487,8 @@ public static partial class SvgCodec
                     }
 
                     // Charge the text's character count here too, mirroring RenderText's own
-                    // charge site - see this method's remarks on the deliberate double-charge
+                    // charge site - subject to the same caller-supplied counter/budget scoping as
+                    // this method's own totalElements/workBudget parameters
                     workBudget.Charge(text.Length);
 
                     var origin = new Vector2(GetFloatAttribute(element, "x"), GetFloatAttribute(element, "y"));
@@ -455,6 +501,35 @@ public static partial class SvgCodec
                 // consistent with RenderElement's own out-of-scope-construct policy
                 return null;
         }
+    }
+
+    /// <summary>
+    ///     Unions two optional <see cref="Rect"/> bounds, tolerating either (or both) being
+    ///     <see langword="null"/> - a small helper so <see cref="ComputeSubtreeLocalBounds"/>'s
+    ///     shape cases can fold a shape's own bounds with its marker content's bounds (see
+    ///     <see cref="ComputeMarkerContentLocalBounds"/>) without repeating null-checking at
+    ///     every call site.
+    /// </summary>
+    /// <param name="first">The first optional bounds.</param>
+    /// <param name="second">The second optional bounds.</param>
+    /// <returns>
+    ///     <see langword="null"/> if both <paramref name="first"/> and <paramref name="second"/>
+    ///     are <see langword="null"/>; otherwise the other one if exactly one is
+    ///     <see langword="null"/>; otherwise their union.
+    /// </returns>
+    private static Rect? UnionNullableBounds(Rect? first, Rect? second)
+    {
+        if (first == null)
+        {
+            return second;
+        }
+
+        if (second == null)
+        {
+            return first;
+        }
+
+        return first.Value.Union(second.Value);
     }
 
     /// <summary>
@@ -563,11 +638,29 @@ public static partial class SvgCodec
         // Bounds pre-pass: union every child's own subtree bounds, computed purely in the
         // group's own local space (relativeTransform starts at Identity) - mirrors a single
         // shape's own localPath.GetBounds() call, just folded over an entire subtree instead of
-        // one already-built Path
+        // one already-built Path.
+        //
+        // Deliberately uses fresh, local scratch counter/budget instances here rather than the
+        // real "ref int totalElements"/"workBudget" parameters threaded through the rest of this
+        // method: this pre-pass necessarily re-visits the same subtree the real render pass below
+        // visits again immediately afterward, so charging the *same* counter/budget instance in
+        // both passes would double (or, combined with the tolerant-fallback re-render further
+        // below, triple) charge every element under a filtered group against
+        // MaxTotalRenderedElements/GeometryWorkBudget's fixed ceilings - a document whose
+        // unfiltered rendering would legitimately stay under those ceilings could then throw
+        // InvalidDataException purely because some of its content happens to sit inside a
+        // filtered group, breaking this method's own documented tolerant-fallback contract. The
+        // local instances below still enforce the exact same MaxTotalRenderedElements/
+        // GeometryWorkBudget ceilings (see ComputeSubtreeLocalBounds's remarks), so this pre-pass
+        // itself still cannot run away on a pathologically large subtree - it simply never
+        // permanently consumes any of the real, per-Load-call budget the render pass below (and
+        // every other filtered shape/group in this document) also needs.
+        var preRenderElementCount = 0;
+        var preRenderWorkBudget = new GeometryWorkBudget();
         var localBounds = Rect.Empty;
         foreach (var child in children)
         {
-            var childBounds = ComputeSubtreeLocalBounds(child, state, Matrix3x2.Identity, context, useDepth, elementDepth + 1, ref totalElements, workBudget);
+            var childBounds = ComputeSubtreeLocalBounds(child, state, Matrix3x2.Identity, context, useDepth, elementDepth + 1, markerDepth, ref preRenderElementCount, preRenderWorkBudget);
             if (childBounds != null)
             {
                 localBounds = localBounds.Union(childBounds.Value);

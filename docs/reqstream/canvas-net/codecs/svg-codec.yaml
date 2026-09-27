@@ -643,6 +643,8 @@ sections:
                   - SvgCodec_Load_GroupFilterInsideMarkerContent_FilterHasNoEffect
                   - SvgCodec_Load_GroupFilterReferencedByManyUsesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessUses
                   - SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent
+                  - SvgCodec_Load_FilteredGroupNearTotalElementBudget_RendersWithoutThrowing
+                  - SvgCodec_Load_FilteredGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveFilter
 
               - id: CanvasNet-Codecs-SvgCodec-ValidationNull
                 title: >-

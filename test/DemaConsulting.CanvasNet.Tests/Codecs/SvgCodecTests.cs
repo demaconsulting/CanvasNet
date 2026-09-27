@@ -1,7 +1,7 @@
 // cspell:ignore Sfnt sfnt glyf cmap notdef codepoint
 // cspell:ignore Dasharray hhea Hhea hmtx Hmtx hrefs letterboxed Loca Maxp unstroked
 // cspell:ignore miterlimit
-// cspell:ignore unparseable overpainted bbox moveto lineto rects unrotated
+// cspell:ignore unparseable overpainted bbox moveto lineto rects unrotated unclipped
 using System.Diagnostics;
 using System.Reflection;
 using System.Text;
@@ -3574,6 +3574,99 @@ public class SvgCodecTests
         // Assert: completed promptly, proving the excess filters were skipped rather than
         // evaluated
         Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the excessive cumulative group-filter work to be skipped promptly, but it took {stopwatch.Elapsed}.");
+    }
+
+    /// <summary>
+    ///     Regression test for a code-review finding: <c>RenderFilteredGroup</c>'s bounds-only
+    ///     pre-pass (<c>ComputeSubtreeLocalBounds</c>) used to charge the exact same
+    ///     <c>totalElements</c> counter/<c>GeometryWorkBudget</c> instance the real render pass
+    ///     charges again immediately afterward, double-counting every element under a filtered
+    ///     group against the codec's fixed <c>MaxTotalRenderedElements</c> ceiling. Proves a
+    ///     filtered group whose total (single-charge) element count sits comfortably under that
+    ///     ceiling - but would have exceeded it under the old double-charge - now renders
+    ///     successfully instead of throwing <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilteredGroupNearTotalElementBudget_RendersWithoutThrowing()
+    {
+        // Arrange: a filtered <g> containing 60,000 full-canvas <rect> elements - each one real
+        // element, so the whole document's single-charge total (a little over 60,000) stays well
+        // under the codec's fixed 100,000-element MaxTotalRenderedElements ceiling. Under the old
+        // bounds-pre-pass double-charge, this same subtree would have been counted twice (once by
+        // the bounds-only pre-pass, once again by the real render pass), pushing the running total
+        // past 100,000 and throwing partway through - even though this document's *unfiltered*
+        // rendering would have stayed comfortably within budget
+        const int rectCount = 60_000;
+        var rects = string.Concat(Enumerable.Repeat(
+            "<rect x='0' y='0' width='10' height='10' fill='blue'/>", rectCount));
+        var svg = $"""
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f'>
+                  <feFlood flood-color='red'/>
+                </filter>
+              </defs>
+              <g filter='url(#f)'>
+                {rects}
+              </g>
+            </svg>
+            """;
+
+        // Act: must complete without throwing
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the group's filter (a solid red feFlood) was actually applied across the whole
+        // canvas, proving the entire 60,000-element subtree was walked and rendered successfully
+        // - not merely that the call happened not to throw
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Regression test for a code-review finding: <c>ComputeSubtreeLocalBounds</c> (the
+    ///     bounds-only pre-pass <c>RenderFilteredGroup</c> uses to size a filtered group's own
+    ///     offscreen <c>SourceGraphic</c> buffer) used to exclude marker geometry entirely from a
+    ///     group's own painted-content bounds, even though the real render pass that follows it
+    ///     (<c>RenderMarkers</c>, re-entered from inside the group's offscreen render) does paint
+    ///     marker pixels. A marker commonly extends beyond its host shape's own stroke-expanded
+    ///     outline (as this test's arrowhead-style marker deliberately does), so the too-small
+    ///     offscreen buffer silently clipped those marker pixels before the filter chain (or the
+    ///     final composite) ever saw them. Proves the marker's own content now survives a
+    ///     group-level filter unclipped.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilteredGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveFilter()
+    {
+        // Arrange: a 20x20 marker (a solid lime square, centered on its refX/refY anchor) placed
+        // at a tiny 5-unit-long line's own end vertex (55, 50) - the marker's own painted content
+        // (45,40)-(65,60) extends far beyond the line's own stroke-expanded bounds (roughly
+        // 50-55 x, 49.5-50.5 y). The group's filter is a single identity feOffset (dx=0/dy=0,
+        // a pure data copy of SourceGraphic) so a passing test proves the marker pixels survived
+        // the filter round-trip unclipped, without the filter itself changing anything else
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <marker id='arrow' markerWidth='20' markerHeight='20' refX='0' refY='0' orient='0' markerUnits='userSpaceOnUse'>
+                  <rect x='-10' y='-10' width='20' height='20' fill='lime'/>
+                </marker>
+                <filter id='f'>
+                  <feOffset dx='0' dy='0'/>
+                </filter>
+              </defs>
+              <g filter='url(#f)'>
+                <line x1='50' y1='50' x2='55' y2='50' stroke='black' stroke-width='1' marker-end='url(#arrow)'/>
+              </g>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: a point well inside the marker's own painted square, but well outside the
+        // line's own stroke-expanded bounds, shows the marker's lime fill - proving its pixels
+        // were not clipped by an offscreen buffer sized only from the line's own tiny bounds
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[50, 45]);
     }
 
     // ================================================================================================

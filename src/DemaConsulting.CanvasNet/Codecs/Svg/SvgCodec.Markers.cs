@@ -560,46 +560,7 @@ public static partial class SvgCodec
             throw new InvalidDataException("Exceeded the maximum <marker> reference nesting depth.");
         }
 
-        var markerWidth = GetFloatAttribute(markerElement, "markerWidth", 3f);
-        var markerHeight = GetFloatAttribute(markerElement, "markerHeight", 3f);
-        if (!float.IsFinite(markerWidth) || !float.IsFinite(markerHeight) || markerWidth <= 0f || markerHeight <= 0f)
-        {
-            return;
-        }
-
-        var refX = GetFloatAttribute(markerElement, "refX");
-        var refY = GetFloatAttribute(markerElement, "refY");
-
-        var isUserSpaceOnUse = string.Equals(
-            (string?)markerElement.Attribute("markerUnits"), "userSpaceOnUse", StringComparison.OrdinalIgnoreCase);
-        var unitsScale = isUserSpaceOnUse ? 1f : localStrokeWidth;
-        if (!float.IsFinite(unitsScale) || unitsScale <= 0f || unitsScale > MaxCoordinateMagnitude)
-        {
-            return;
-        }
-
-        var angleDegrees = ParseMarkerOrient((string?)markerElement.Attribute("orient"), vertexAngleDegrees, isStartVertex);
-
-        var viewBox = ParseViewBox((string?)markerElement.Attribute("viewBox"));
-        var contentScale = viewBox.HasValue
-            ? MathF.Min(markerWidth / viewBox.Value.Size.X, markerHeight / viewBox.Value.Size.Y)
-            : 1f;
-
-        // Composition order (see this method's remarks): recenter the marker's own content on its
-        // refX/refY anchor, scale by the viewBox-fit factor (if any) and then by the
-        // markerUnits-derived units scale, rotate by the resolved orientation angle, translate to
-        // the shape-local vertex position, then finally compose with the shape's own accumulated
-        // transform - row-vector convention, matching every other transform composition in this
-        // class (Vector2.Transform(p, A * B) applies A first, then B)
-        var contentTransform =
-            Matrix3x2.CreateTranslation(-refX, -refY)
-            * Matrix3x2.CreateScale(contentScale)
-            * Matrix3x2.CreateScale(unitsScale)
-            * Matrix3x2.CreateRotation(DegreesToRadians(angleDegrees))
-            * Matrix3x2.CreateTranslation(vertexPosition)
-            * shapeTransform;
-
-        if (!IsFiniteTransform(contentTransform))
+        if (!TryComputeMarkerContentTransform(markerElement, vertexPosition, vertexAngleDegrees, isStartVertex, localStrokeWidth, shapeTransform, out var contentTransform))
         {
             return;
         }
@@ -613,6 +574,293 @@ public static partial class SvgCodec
         {
             RenderElement(child, markerState, contentTransform, context, useDepth, elementDepth + 1, markerDepth + 1, ref totalElements, workBudget, filterWorkBudget);
         }
+    }
+
+    /// <summary>
+    ///     Computes one <c>marker</c> element instance's own content transform - the marker's
+    ///     <c>refX</c>/<c>refY</c>/<c>markerWidth</c>/<c>markerHeight</c>/<c>markerUnits</c>/
+    ///     <c>orient</c>/<c>viewBox</c> composed with the placement vertex and the referencing
+    ///     shape's own accumulated transform - shared identically by <see cref="RenderOneMarker"/>
+    ///     (which then re-enters <see cref="RenderElement"/> to actually paint the marker's
+    ///     content) and <see cref="ComputeOneMarkerLocalBounds"/> (which instead unions the
+    ///     marker's content bounds into a filtered group's own pre-render bounds pass), so both
+    ///     call sites can never silently diverge on how a marker instance is placed/scaled/oriented.
+    /// </summary>
+    /// <param name="markerElement">The resolved <c>marker</c> element.</param>
+    /// <param name="vertexPosition">The vertex's position, in the referencing shape's own local space.</param>
+    /// <param name="vertexAngleDegrees">
+    ///     The vertex's own computed tangent angle (see <see cref="ComputeVertexAngleDegrees"/>),
+    ///     used when <c>orient</c> is <c>auto</c>/<c>auto-start-reverse</c>/absent.
+    /// </param>
+    /// <param name="isStartVertex">
+    ///     Whether this vertex is the referencing shape's very first vertex - needed only to
+    ///     resolve <c>orient="auto-start-reverse"</c>, which reverses by 180 degrees at the start
+    ///     vertex only.
+    /// </param>
+    /// <param name="localStrokeWidth">
+    ///     The referencing shape's own <c>stroke-width</c>, in local (pre-<paramref name="shapeTransform"/>)
+    ///     user-space units - see <see cref="RenderOneMarker"/>'s identical parameter for the full
+    ///     rationale.
+    /// </param>
+    /// <param name="shapeTransform">The referencing shape's own accumulated transform.</param>
+    /// <param name="contentTransform">
+    ///     The resulting composed transform from the marker's own local content space into
+    ///     <paramref name="shapeTransform"/>'s reference frame, or <see cref="Matrix3x2.Identity"/>
+    ///     if this method returns <see langword="false"/>.
+    /// </param>
+    /// <returns>
+    ///     <see langword="false"/> if <paramref name="markerElement"/>'s own <c>markerWidth</c>/
+    ///     <c>markerHeight</c> is non-finite/non-positive, its resolved <c>markerUnits</c> scale is
+    ///     non-finite/non-positive/beyond <see cref="MaxCoordinateMagnitude"/>, or the final
+    ///     composed <paramref name="contentTransform"/> is non-finite - all tolerant
+    ///     per-marker-instance skip conditions (see <see cref="RenderOneMarker"/>'s remarks);
+    ///     otherwise <see langword="true"/>.
+    /// </returns>
+    private static bool TryComputeMarkerContentTransform(
+        XElement markerElement,
+        Vector2 vertexPosition,
+        float vertexAngleDegrees,
+        bool isStartVertex,
+        float localStrokeWidth,
+        Matrix3x2 shapeTransform,
+        out Matrix3x2 contentTransform)
+    {
+        contentTransform = Matrix3x2.Identity;
+
+        var markerWidth = GetFloatAttribute(markerElement, "markerWidth", 3f);
+        var markerHeight = GetFloatAttribute(markerElement, "markerHeight", 3f);
+        if (!float.IsFinite(markerWidth) || !float.IsFinite(markerHeight) || markerWidth <= 0f || markerHeight <= 0f)
+        {
+            return false;
+        }
+
+        var refX = GetFloatAttribute(markerElement, "refX");
+        var refY = GetFloatAttribute(markerElement, "refY");
+
+        var isUserSpaceOnUse = string.Equals(
+            (string?)markerElement.Attribute("markerUnits"), "userSpaceOnUse", StringComparison.OrdinalIgnoreCase);
+        var unitsScale = isUserSpaceOnUse ? 1f : localStrokeWidth;
+        if (!float.IsFinite(unitsScale) || unitsScale <= 0f || unitsScale > MaxCoordinateMagnitude)
+        {
+            return false;
+        }
+
+        var angleDegrees = ParseMarkerOrient((string?)markerElement.Attribute("orient"), vertexAngleDegrees, isStartVertex);
+
+        var viewBox = ParseViewBox((string?)markerElement.Attribute("viewBox"));
+        var contentScale = viewBox.HasValue
+            ? MathF.Min(markerWidth / viewBox.Value.Size.X, markerHeight / viewBox.Value.Size.Y)
+            : 1f;
+
+        // Composition order (see RenderOneMarker's remarks): recenter the marker's own content on
+        // its refX/refY anchor, scale by the viewBox-fit factor (if any) and then by the
+        // markerUnits-derived units scale, rotate by the resolved orientation angle, translate to
+        // the shape-local vertex position, then finally compose with the shape's own accumulated
+        // transform - row-vector convention, matching every other transform composition in this
+        // class (Vector2.Transform(p, A * B) applies A first, then B)
+        contentTransform =
+            Matrix3x2.CreateTranslation(-refX, -refY)
+            * Matrix3x2.CreateScale(contentScale)
+            * Matrix3x2.CreateScale(unitsScale)
+            * Matrix3x2.CreateRotation(DegreesToRadians(angleDegrees))
+            * Matrix3x2.CreateTranslation(vertexPosition)
+            * shapeTransform;
+
+        return IsFiniteTransform(contentTransform);
+    }
+
+    /// <summary>
+    ///     Computes one <c>marker</c> element instance's own content bounds at one shape vertex -
+    ///     the bounds-only counterpart of <see cref="RenderOneMarker"/>, sharing its exact
+    ///     placement/scale/orientation transform (via <see cref="TryComputeMarkerContentTransform"/>)
+    ///     and <see cref="MaxMarkerDepth"/> cycle guard, but unioning
+    ///     <see cref="ComputeSubtreeLocalBounds"/>'s bounds over the marker's own children instead
+    ///     of re-entering <see cref="RenderElement"/> to actually paint them. Used exclusively by
+    ///     <see cref="ComputeMarkerContentLocalBounds"/>, itself used exclusively by
+    ///     <see cref="ComputeSubtreeLocalBounds"/>'s <c>line</c>/<c>polyline</c>/<c>polygon</c>/
+    ///     <c>path</c> cases, so a filtered group's own offscreen buffer is always sized large
+    ///     enough to contain any marker pixels the real render pass paints for it (see this
+    ///     method's remarks and <see cref="ComputeSubtreeLocalBounds"/>'s remarks for the full
+    ///     rationale).
+    /// </summary>
+    /// <param name="markerElement">The resolved <c>marker</c> element.</param>
+    /// <param name="vertexPosition">The vertex's position, in the referencing shape's own local space.</param>
+    /// <param name="vertexAngleDegrees">The vertex's own computed tangent angle.</param>
+    /// <param name="isStartVertex">Whether this vertex is the referencing shape's very first vertex.</param>
+    /// <param name="localStrokeWidth">The referencing shape's own <c>stroke-width</c>, in local units.</param>
+    /// <param name="shapeTransform">The referencing shape's own accumulated transform.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="useDepth">The current <c>use</c>-reference nesting depth.</param>
+    /// <param name="elementDepth">The current recursion depth, propagated (incremented by one) to the marker's content.</param>
+    /// <param name="markerDepth">
+    ///     The current <c>marker</c>-reference nesting depth, checked against
+    ///     <see cref="MaxMarkerDepth"/> before any other work - identical to
+    ///     <see cref="RenderOneMarker"/>'s own guard, so a marker-referencing-marker reference
+    ///     cycle throws during this bounds pre-pass exactly as it would during the real render
+    ///     pass that follows it, rather than only being caught later.
+    /// </param>
+    /// <param name="totalElements">
+    ///     The running total-rendered-elements count - the caller-supplied instance, which for
+    ///     <see cref="RenderFilteredGroup"/>'s own bounds pre-pass is a local, independently
+    ///     bounded scratch counter, never the real per-<c>Load</c>-call counter (see
+    ///     <see cref="ComputeSubtreeLocalBounds"/>'s remarks).
+    /// </param>
+    /// <param name="workBudget">The caller-supplied geometry-parsing work budget, subject to the same scoping as <paramref name="totalElements"/>.</param>
+    /// <returns>
+    ///     The union of every descendant shape/text element's stroke-expanded, transformed local
+    ///     bounds within the marker's own content, mapped through the composed marker-instance
+    ///     transform - or <see langword="null"/> if the marker instance itself is degenerate/
+    ///     skipped (see <see cref="TryComputeMarkerContentTransform"/>) or its own content paints
+    ///     nothing.
+    /// </returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="markerDepth"/> has already reached <see cref="MaxMarkerDepth"/>.
+    /// </exception>
+    private static Rect? ComputeOneMarkerLocalBounds(
+        XElement markerElement,
+        Vector2 vertexPosition,
+        float vertexAngleDegrees,
+        bool isStartVertex,
+        float localStrokeWidth,
+        Matrix3x2 shapeTransform,
+        RenderContext context,
+        int useDepth,
+        int elementDepth,
+        int markerDepth,
+        ref int totalElements,
+        GeometryWorkBudget workBudget)
+    {
+        if (markerDepth >= MaxMarkerDepth)
+        {
+            throw new InvalidDataException("Exceeded the maximum <marker> reference nesting depth.");
+        }
+
+        if (!TryComputeMarkerContentTransform(markerElement, vertexPosition, vertexAngleDegrees, isStartVertex, localStrokeWidth, shapeTransform, out var contentTransform))
+        {
+            return null;
+        }
+
+        var markerState = ApplyPresentationAttributes(RenderState.Initial, markerElement);
+        var bounds = Rect.Empty;
+        foreach (var child in markerElement.Elements())
+        {
+            var childBounds = ComputeSubtreeLocalBounds(child, markerState, contentTransform, context, useDepth, elementDepth + 1, markerDepth + 1, ref totalElements, workBudget);
+            if (childBounds != null)
+            {
+                bounds = bounds.Union(childBounds.Value);
+            }
+        }
+
+        return bounds.IsEmpty ? null : bounds;
+    }
+
+    /// <summary>
+    ///     Computes the union of every marker instance's own content bounds a
+    ///     <c>line</c>/<c>polyline</c>/<c>polygon</c>/<c>path</c>'s <c>marker-start</c>/
+    ///     <c>marker-mid</c>/<c>marker-end</c> presentation attributes would place along
+    ///     <paramref name="localPath"/> - the bounds-only counterpart of <see cref="RenderMarkers"/>,
+    ///     sharing its exact vertex-eligibility/role-selection logic, used exclusively by
+    ///     <see cref="ComputeSubtreeLocalBounds"/> so a filtered group's own offscreen buffer is
+    ///     sized large enough to contain marker pixels that extend beyond the host shape's own
+    ///     stroke-expanded outline (a real-world-common case for arrowhead markers) - without this,
+    ///     those marker pixels would be silently clipped by a too-small offscreen buffer during the
+    ///     real render pass (see <see cref="ComputeSubtreeLocalBounds"/>'s remarks).
+    /// </summary>
+    /// <param name="localPath">The shape's already-built local-space outline.</param>
+    /// <param name="state">The cascaded render state.</param>
+    /// <param name="transform">The accumulated transform from local space into the caller's reference frame.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="useDepth">The current <c>use</c>-reference nesting depth.</param>
+    /// <param name="elementDepth">The current recursion depth at the host shape element itself.</param>
+    /// <param name="markerDepth">The current <c>marker</c>-reference nesting depth.</param>
+    /// <param name="totalElements">The running total-rendered-elements count (see <see cref="ComputeOneMarkerLocalBounds"/>'s remarks on scoping).</param>
+    /// <param name="workBudget">The shared geometry-parsing work budget (see <see cref="ComputeOneMarkerLocalBounds"/>'s remarks on scoping).</param>
+    /// <returns>
+    ///     The union of every placed marker instance's own content bounds, or <see langword="null"/>
+    ///     if <paramref name="state"/> specifies no markers at all, <paramref name="localPath"/> has
+    ///     fewer than two marker-eligible vertices, every referenced marker id is dangling/invalid,
+    ///     or every placed marker instance's own content paints nothing.
+    /// </returns>
+    private static Rect? ComputeMarkerContentLocalBounds(
+        Path localPath,
+        RenderState state,
+        Matrix3x2 transform,
+        RenderContext context,
+        int useDepth,
+        int elementDepth,
+        int markerDepth,
+        ref int totalElements,
+        GeometryWorkBudget workBudget)
+    {
+        if (state.MarkerStart == "none" && state.MarkerMid == "none" && state.MarkerEnd == "none")
+        {
+            return null;
+        }
+
+        var vertices = BuildMarkerVertices(localPath);
+        if (vertices.Count < 2)
+        {
+            return null;
+        }
+
+        var bounds = Rect.Empty;
+        for (var i = 0; i < vertices.Count; i++)
+        {
+            MarkerVertexRole role;
+            if (i == 0)
+            {
+                role = MarkerVertexRole.Start;
+            }
+            else if (i == vertices.Count - 1)
+            {
+                role = MarkerVertexRole.End;
+            }
+            else
+            {
+                role = MarkerVertexRole.Mid;
+            }
+
+            var spec = role switch
+            {
+                MarkerVertexRole.Start => state.MarkerStart,
+                MarkerVertexRole.End => state.MarkerEnd,
+                _ => state.MarkerMid
+            };
+
+            if (string.Equals(spec.Trim(), "none", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var markerElement = ResolveMarkerElement(spec, context);
+            if (markerElement == null)
+            {
+                continue;
+            }
+
+            var vertex = vertices[i];
+            var angleDegrees = ComputeVertexAngleDegrees(vertex);
+            var markerBounds = ComputeOneMarkerLocalBounds(
+                markerElement,
+                vertex.Position,
+                angleDegrees,
+                isStartVertex: role == MarkerVertexRole.Start,
+                state.StrokeWidth,
+                transform,
+                context,
+                useDepth,
+                elementDepth,
+                markerDepth,
+                ref totalElements,
+                workBudget);
+
+            if (markerBounds != null)
+            {
+                bounds = bounds.Union(markerBounds.Value);
+            }
+        }
+
+        return bounds.IsEmpty ? null : bounds;
     }
 
     /// <summary>
