@@ -261,7 +261,8 @@ reviews:
       - "docs/design/canvas-net/codecs/svg-codec.md"         # unit design
       - "docs/verification/canvas-net/codecs/svg-codec.md"   # unit verification
       - "docs/sysml2/model/canvas-net/codecs/svg-codec.sysml"    # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet/Codecs/SvgCodec.cs"         # unit source
+      - "src/DemaConsulting.CanvasNet/Codecs/SvgCodec.cs"         # unit source (public API entry point)
+      - "src/DemaConsulting.CanvasNet/Codecs/Svg/**/*.cs"         # unit source (partial-class implementation files)
       - "src/DemaConsulting.CanvasNet/Codecs/NamespaceDoc.cs"     # Codecs namespace documentation
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/SvgCodecTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/SvgFixtureTests.cs"  # fixture conformance tests
