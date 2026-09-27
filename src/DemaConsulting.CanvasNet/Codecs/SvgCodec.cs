@@ -1711,7 +1711,7 @@ public static class SvgCodec
             return null;
         }
 
-        var firstToken = raw.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
+        var firstToken = raw.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)[0];
         return firstToken switch
         {
             "normal" => SvgFontStyle.Normal,
@@ -4057,7 +4057,7 @@ public static class SvgCodec
             return null;
         }
 
-        var tokens = raw.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries);
+        var tokens = raw.Split([' ', '\t', '\n', '\r', ','], StringSplitOptions.RemoveEmptyEntries);
         return tokens.Length == 0 ? null : ParsePercentOrNumber(tokens[0], 1f);
     }
 

@@ -2517,6 +2517,49 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Regression test: <c>stdDeviation="2&#x9;3"</c> (tab-separated x/y radii) must still
+    ///     tokenize on the tab and parse the first radius as <c>2</c>, producing the same softened
+    ///     halo as the equivalent space-separated <c>stdDeviation="2"</c> case above - rather than
+    ///     treating the whole value as one unparseable token (which would silently fall back to a
+    ///     zero radius, disabling the blur).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeGaussianBlurStdDeviationTabSeparated_RendersBlurredHaloBehindContent()
+    {
+        // Arrange: identical to the space-separated halo recipe above, except stdDeviation uses a
+        // tab between the x and y radii instead of a space.
+        const string svg = "<svg viewBox='0 0 100 100'>\n" +
+                            "  <defs>\n" +
+                            "    <filter id='f'>\n" +
+                            "      <feFlood flood-color='orange' result='flood'/>\n" +
+                            "      <feComposite in='flood' in2='SourceGraphic' operator='out' result='haloBase'/>\n" +
+                            "      <feGaussianBlur in='haloBase' stdDeviation='2\t3' result='halo'/>\n" +
+                            "      <feMerge>\n" +
+                            "        <feMergeNode in='halo'/>\n" +
+                            "        <feMergeNode in='SourceGraphic'/>\n" +
+                            "      </feMerge>\n" +
+                            "    </filter>\n" +
+                            "  </defs>\n" +
+                            "  <rect x='40' y='40' width='20' height='20' fill='green' filter='url(#f)'/>\n" +
+                            "</svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the rect's own fill remains fully opaque and unaffected at its center
+        Assert.Equal(new Rgba32(0, 128, 0, 255), surface[50, 50]);
+
+        // Assert: just outside the rect's own edge, a softened (partially transparent, not
+        // hard-edged) orange halo is visible - proving the first token ("2") was actually parsed
+        // and used as the blur radius, rather than falling back to zero
+        Assert.Equal(new Rgba32(255, 161, 0, 19), surface[61, 50]);
+
+        // Assert: a couple of pixels further out, past the blur's influence, nothing remains
+        Assert.Equal(0, surface[62, 50].A);
+    }
+
+    /// <summary>
     ///     Proves <c>feComposite operator="in"</c> keeps the "in" input's own color, weighted by the
     ///     "in2" input's own alpha, per the documented Porter-Duff "in" formula
     ///     (<c>(Fa, Fb) = (Ab, 0)</c>) - two full-region, semi-transparent <c>feFlood</c> inputs
@@ -3657,6 +3700,39 @@ public class SvgCodecTests
               <text x='10' y='60' font-family='TestFont' font-size='100' font-style='italic' fill='black'>A</text>
             </svg>
             """;
+        var faces = new Dictionary<string, IReadOnlyList<SvgFontFace>>
+        {
+            ["TestFont"] =
+            [
+                new SvgFontFace(BuildTestFont()),
+                new SvgFontFace(BuildItalicTestFont(), Style: SvgFontStyle.Italic)
+            ]
+        };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.LoadWithFontFaces(stream, 100, 100, faces);
+
+        // Assert: filled where only the italic face's glyph reaches
+        Assert.Equal(255, surface[75, 35].A);
+        // Assert: NOT filled where only the normal face's glyph would have reached
+        Assert.Equal(0, surface[15, 35].A);
+    }
+
+    /// <summary>
+    ///     Regression test: <c>font-style="oblique&#x9;10deg"</c> (tab-separated, per the CSS
+    ///     <c>font-style: oblique &lt;angle&gt;</c> grammar) must still tokenize on the tab and
+    ///     resolve to <see cref="SvgFontStyle.Italic"/>, rather than treating the whole value as one
+    ///     unparseable token (which would silently fall back to the inherited/normal style).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextFontStyleObliqueWithTabSeparatedAngle_SelectsItalicFaceOverNormalFace()
+    {
+        // Arrange: same glyph layout as the plain "italic" case above - x equals 75 is filled only
+        // by the italic face, and x equals 15 is filled only by the normal face.
+        const string svg = "<svg viewBox='0 0 100 100'>\n" +
+                            "  <text x='10' y='60' font-family='TestFont' font-size='100' font-style='oblique\t10deg' fill='black'>A</text>\n" +
+                            "</svg>";
         var faces = new Dictionary<string, IReadOnlyList<SvgFontFace>>
         {
             ["TestFont"] =
