@@ -3402,6 +3402,155 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that <c>feDisplacementMap</c> with a positive scale and the blue-channel selector
+    ///     displaces source pixels.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDisplacementMapPositiveScaleWithBlueChannelSelector_DisplacesSourcePixels()
+    {
+        // Arrange
+        using var source = new Surface(5, 1);
+        source[0, 0] = new Rgba32(255, 0, 0, 255);
+        source[1, 0] = new Rgba32(0, 128, 0, 255);
+        source[2, 0] = new Rgba32(0, 0, 255, 255);
+        source[3, 0] = new Rgba32(255, 255, 0, 255);
+        source[4, 0] = new Rgba32(0, 0, 0, 255);
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 5 1'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(0,128,255)' result='map'/>
+                  <feDisplacementMap in='SourceGraphic' in2='map' scale='2' xChannelSelector='B' yChannelSelector='G'/>
+                </filter>
+              </defs>
+              <image href='{dataUri}' x='0' y='0' width='5' height='1' preserveAspectRatio='none' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 5, 1);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[1, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feDisplacementMap</c> with a positive scale and the alpha-channel selector
+    ///     displaces source pixels.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDisplacementMapPositiveScaleWithAlphaChannelSelector_DisplacesSourcePixels()
+    {
+        // Arrange
+        using var source = new Surface(5, 1);
+        source[0, 0] = new Rgba32(255, 0, 0, 255);
+        source[1, 0] = new Rgba32(0, 128, 0, 255);
+        source[2, 0] = new Rgba32(0, 0, 255, 255);
+        source[3, 0] = new Rgba32(255, 255, 0, 255);
+        source[4, 0] = new Rgba32(0, 0, 0, 255);
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 5 1'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(0,128,0)' result='map'/>
+                  <feDisplacementMap in='SourceGraphic' in2='map' scale='2' xChannelSelector='A' yChannelSelector='G'/>
+                </filter>
+              </defs>
+              <image href='{dataUri}' x='0' y='0' width='5' height='1' preserveAspectRatio='none' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 5, 1);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[1, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feDisplacementMap</c> with a negative scale displaces source pixels in
+    ///     the opposite direction of the equivalent positive scale.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDisplacementMapNegativeScale_DisplacesSourcePixelsInOppositeDirection()
+    {
+        // Arrange: a two-row source (rows are identical) so that the negative-scale vertical
+        // displacement - which lands on row 1 rather than staying within row 0 - still samples a
+        // known pixel value
+        using var source = new Surface(5, 2);
+        for (var row = 0; row < 2; row++)
+        {
+            source[0, row] = new Rgba32(255, 0, 0, 255);
+            source[1, row] = new Rgba32(0, 128, 0, 255);
+            source[2, row] = new Rgba32(0, 0, 255, 255);
+            source[3, row] = new Rgba32(255, 255, 0, 255);
+            source[4, row] = new Rgba32(0, 0, 0, 255);
+        }
+
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 5 2'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(255,128,0)' result='map'/>
+                  <feDisplacementMap in='SourceGraphic' in2='map' scale='-2' xChannelSelector='R' yChannelSelector='B'/>
+                </filter>
+              </defs>
+              <image href='{dataUri}' x='0' y='0' width='5' height='2' preserveAspectRatio='none' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 5, 2);
+
+        // Assert: pixel at (3, 0) pulls from (2, 1) - a -1 horizontal displacement, the mirror
+        // image of the +1 displacement produced by the equivalent positive-scale test
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[3, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feDisplacementMap</c> with a larger-magnitude scale produces a
+    ///     proportionally larger displacement than the equivalent smaller-scale case.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDisplacementMapLargerMagnitudeScale_ProducesProportionallyLargerDisplacement()
+    {
+        // Arrange
+        using var source = new Surface(5, 1);
+        source[0, 0] = new Rgba32(255, 0, 0, 255);
+        source[1, 0] = new Rgba32(0, 128, 0, 255);
+        source[2, 0] = new Rgba32(0, 0, 255, 255);
+        source[3, 0] = new Rgba32(255, 255, 0, 255);
+        source[4, 0] = new Rgba32(0, 0, 0, 255);
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 5 1'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(255,128,0)' result='map'/>
+                  <feDisplacementMap in='SourceGraphic' in2='map' scale='4' xChannelSelector='R' yChannelSelector='G'/>
+                </filter>
+              </defs>
+              <image href='{dataUri}' x='0' y='0' width='5' height='1' preserveAspectRatio='none' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 5, 1);
+
+        // Assert: a scale of 4 (double the scale='2' case) doubles the +1 displacement to +2, so
+        // pixel 0 pulls from pixel 2 and pixel 2 pulls from pixel 4
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[0, 0]);
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[2, 0]);
+    }
+
+    /// <summary>
     ///     Proves that <c>feTile</c> repeats the upstream primitive's declared subregion across the
     ///     whole filter region.
     /// </summary>
