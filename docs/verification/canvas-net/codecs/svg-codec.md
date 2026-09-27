@@ -1234,7 +1234,8 @@ rather than throwing or dividing by zero.
 **Tests**: `SvgCodec_Load_ImageExternalFileHref_RendersNothingWithoutFileAccess`,
 `SvgCodec_Load_ImageNestedSvgDataUri_RendersNothingWithoutRecursion`,
 `SvgCodec_Load_ImageMalformedBase64_SkipsElementWithoutThrowing`,
-`SvgCodec_Load_ImageTruncatedPngData_SkipsElementWithoutThrowing`
+`SvgCodec_Load_ImageTruncatedPngData_SkipsElementWithoutThrowing`,
+`SvgCodec_Load_ImageInterlacedPngData_SkipsElementWithoutThrowing`
 
 Asserts an `image` element whose `href` is a relative file path (never a `data:` URI) renders
 nothing at all, and - since this codec never constructs a `File`/`FileStream` for anything but a
@@ -1246,10 +1247,15 @@ nothing, proving the nested-SVG-out-of-scope decision (this codec never attempts
 as a second document, mirroring the same recursive-parsing-complexity reasoning that already
 excludes `feImage`); asserts a malformed base64 payload (containing characters that are never
 valid base64) is a tolerant per-element no-op - `Load` completes normally and the rest of the
-document still renders - rather than an uncaught `FormatException` propagating out of `Load`; and
+document still renders - rather than an uncaught `FormatException` propagating out of `Load`;
 asserts a well-formed base64 payload encoding a truncated/corrupt PNG (valid base64, but an
 undecodable raster payload - a distinct failure path from malformed base64 itself) is likewise a
-tolerant per-element no-op.
+tolerant per-element no-op; and asserts a well-formed base64 payload encoding PngSuite's own
+Adam7-interlaced fixture - a well-formed PNG that `PngCodec.Load` deliberately rejects with
+`UnsupportedImageFeatureException` rather than `InvalidDataException` - is likewise a
+tolerant per-element no-op, with sibling elements before and after the skipped `image` still
+rendering correctly, directly proving the well-formed-but-unsupported-raster-feature failure path
+is caught alongside the malformed-payload cases above rather than propagating out of `Load`.
 
 #### CanvasNet-Codecs-SvgCodec-ImageResourceSafety: Image Resource-Safety Bounds
 

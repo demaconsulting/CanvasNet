@@ -923,9 +923,15 @@ specifically to document the nested-SVG scope decision at the dispatch site itse
 leaving it to fall through an default case indistinguishably from a genuinely unsupported format.
 A malformed base64 payload (`FormatException`), a raster payload the target codec's own `Load`
 rejects (`InvalidDataException` - every one of the five codecs already documents this as its own
-malformed/oversized-data exception), or an out-of-range decoded dimension
+malformed/oversized-data exception), an out-of-range decoded dimension
 (`ArgumentOutOfRangeException` - defense-in-depth for `Surface`'s own constructor, normally
-preempted by each codec's own `Surface.MaxDimension` check) are all caught at the same single
+preempted by each codec's own `Surface.MaxDimension` check), or a well-formed but unsupported
+raster feature (`IOException`, which also catches the sealed `UnsupportedImageFeatureException` -
+for example `PngCodec.Load`'s own Adam7-interlaced-PNG rejection; `UnsupportedImageFeatureException`'s
+own remarks explain why this case is not already covered by the `InvalidDataException` clause
+above: it deliberately derives from `IOException` rather than `InvalidDataException`, so a caller
+can distinguish "well-formed but unsupported" from "malformed" without string-matching
+`Exception.Message`) are all caught at the same single
 call site and treated as a tolerant per-element no-op, mirroring this codec's general
 dangling/malformed-reference convention rather than aborting the whole document's rendering.
 
