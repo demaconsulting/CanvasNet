@@ -132,7 +132,7 @@ public static partial class SvgCodec
         var maskElement = suppressEffects ? null : ResolveMaskElement(element, context);
         if (filterElement == null && clipPathElement == null && maskElement == null)
         {
-            RenderShape(localPath, state, transform, context);
+            RenderShape(localPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
             return;
         }
 
@@ -270,7 +270,7 @@ public static partial class SvgCodec
         var region = ResolveEffectsRegionPixelBounds(filterElement, clipPathElement, maskElement, rawBounds, transform);
         if (region == null)
         {
-            RenderShape(localPath, state, transform, context);
+            RenderShape(localPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
             return;
         }
 
@@ -290,7 +290,7 @@ public static partial class SvgCodec
         // side effects, preserving that regression byte-for-byte
         if (!filterApplies && clipPathElement == null && maskElement == null)
         {
-            RenderShape(localPath, state, transform, context);
+            RenderShape(localPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
             return;
         }
 
@@ -305,7 +305,7 @@ public static partial class SvgCodec
             filterApplies, primitiveCount, clipPathElement != null, maskElement != null, pixelWidth, pixelHeight);
         if (!filterWorkBudget.TryCharge(workUnits))
         {
-            RenderShape(localPath, state, transform, context);
+            RenderShape(localPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
             return;
         }
 
@@ -318,7 +318,7 @@ public static partial class SvgCodec
         // unmodified source, and the element's opacity is instead applied exactly once, afterward
         // (see this method's remarks)
         var opaqueState = state with { Opacity = 1f };
-        RenderShape(localPath, opaqueState, localToTemp, tempContext);
+        RenderShape(localPath, opaqueState, localToTemp, tempContext, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
 
         // Per SVG's defined ordering, clip-path is applied before mask, and both before filter
         if (clipPathElement != null)

@@ -7288,5 +7288,643 @@ public class SvgCodecTests
         // Assert: the rect renders fully, unaffected by the wrong-element-type reference
         Assert.Equal(new Rgba32(0, 0, 255, 255), surface[5, 5]);
     }
+
+    // ================================================================================================
+    // <pattern> paint-server tests (Phase 3 of the SVG roadmap)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves the default <c>patternUnits="objectBoundingBox"</c>/<c>patternContentUnits="userSpaceOnUse"</c>
+    ///     combination: a <c>pattern</c> with explicit <c>width="1" height="1"</c> (per SVG,
+    ///     <c>width</c>/<c>height</c> themselves default to <c>0</c>, so they must be specified
+    ///     for any tile to render at all) but otherwise default units tiles exactly once across
+    ///     the referencing shape's own bounding box, so its content's own literal (absolute,
+    ///     <c>userSpaceOnUse</c>) coordinates paint only the tile's own centered sub-region,
+    ///     leaving the bounding box's own edges unpainted.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternDefaultUnits_TilesOnceAcrossShapeBoundingBox()
+    {
+        // Arrange: a 60x60 bounding box (20,20)-(80,80); the pattern's own width/height (1,1)
+        // are objectBoundingBox-interpreted (the default patternUnits), so exactly one tile
+        // spans the whole bounding box; its content is a literal absolute (44,44)-(56,56)
+        // square - patternContentUnits' own default "userSpaceOnUse" means these coordinates are
+        // plain document units, entirely unrelated to the tile's own [0,1) fractional grid space,
+        // so they must be authored near the bounding box's own real coordinate range to land
+        // inside the rendered tile at all
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='p' width='1' height='1'>
+                  <rect x='44' y='44' width='12' height='12' fill='rgb(0,255,0)'/>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='rgb(255,0,0)'/>
+              <rect x='20' y='20' width='60' height='60' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the bounding box's own center (44-56 on each axis) is painted green
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[50, 50]);
+
+        // Assert: a point near the bounding box's own edge - still inside the box, but outside
+        // the single tile's centered content - shows the background through, unpainted
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[22, 22]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>patternUnits="userSpaceOnUse"</c> reads <c>x</c>/<c>y</c>/<c>width</c>/
+    ///     <c>height</c> as literal user-space units, entirely independent of the referencing
+    ///     shape's own bounding box - repeating a small, literal 20-unit tile many times across
+    ///     the whole plane, rather than fitting one tile to the whole bounding box the way
+    ///     <c>objectBoundingBox</c> does.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternUserSpaceOnUseUnits_TilesRepeatedlyAcrossUserSpace()
+    {
+        // Arrange: a literal 20x20-unit tile (patternUnits=userSpaceOnUse, so x/y/width/height are
+        // plain document units, not bounding-box fractions), repeating every 20 units across the
+        // whole plane; its content is a small 2x2 square at each tile's own (1,1) corner
+        // (patternContentUnits' own default userSpaceOnUse means this literal coordinate is
+        // relative to that same repeating 20-unit grid, not the referencing shape's own bounding
+        // box)
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='p' patternUnits='userSpaceOnUse' x='0' y='0' width='20' height='20'>
+                  <rect x='1' y='1' width='2' height='2' fill='rgb(0,255,0)'/>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='rgb(255,0,0)'/>
+              <rect x='20' y='20' width='60' height='60' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: (22, 22) sits inside the repeated tile starting at (20, 20) - local offset
+        // (2, 2), inside the tile's own (1,1)-(3,3) content square - so it is green, proving the
+        // tile genuinely repeats using literal user-space units, independent of the bounding box
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[22, 22]);
+
+        // Assert: (50, 50) - the bounding box's own center, which was green under the
+        // objectBoundingBox single-tile combination (see
+        // SvgCodec_Load_PatternDefaultUnits_TilesOnceAcrossShapeBoundingBox) - sits at local
+        // offset (10, 10) within its own repeated tile, outside the (1,1)-(3,3) content square,
+        // so it is background here instead
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>patternContentUnits="objectBoundingBox"</c> maps a content child's own
+    ///     literal coordinates through the referencing shape's own bounding box, entirely
+    ///     independently of whatever <c>patternUnits</c>/tile size is in effect - the two
+    ///     attributes are genuinely independent coordinate systems, not one a special case of the
+    ///     other.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternContentUnitsObjectBoundingBox_MapsContentThroughShapeBoundingBox()
+    {
+        // Arrange: patternUnits stays userSpaceOnUse with a single tile spanning the whole
+        // 100x100 viewport (so grid space is just plain absolute local space, with no repetition
+        // to reason about); patternContentUnits is objectBoundingBox, so the content child's own
+        // 0.4-0.6 fractional coordinates map through the 60x60 (20,20)-(80,80) bounding box,
+        // landing at absolute (44,44)-(50,50) - nowhere near the pattern's own coordinate-space
+        // origin the same literal numbers would occupy under userSpaceOnUse content
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='p' patternUnits='userSpaceOnUse' patternContentUnits='objectBoundingBox' x='0' y='0' width='100' height='100'>
+                  <rect x='0.4' y='0.4' width='0.1' height='0.1' fill='rgb(0,255,0)'/>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='rgb(255,0,0)'/>
+              <rect x='20' y='20' width='60' height='60' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: (47, 47) - inside the bounding-box-mapped content region (44-50 on each axis) -
+        // is green
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[47, 47]);
+
+        // Assert: (5, 5) - where the same literal 0.4-0.6 numbers would land if interpreted as
+        // literal absolute units instead - is background, proving content truly used the bounding
+        // box, not literal user-space units
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves the fourth unit combination - <c>patternUnits="objectBoundingBox"</c> combined
+    ///     with <c>patternContentUnits="objectBoundingBox"</c> - composes correctly:
+    ///     <c>patternContentUnits="objectBoundingBox"</c> always maps a content coordinate through
+    ///     the whole referencing shape's own bounding box (never re-normalized to each repeated
+    ///     tile's own smaller sub-division), so the exact same rendered tile - containing a small
+    ///     bounding-box-relative square near its own origin - is what repeats twice across each
+    ///     axis, producing the same small square at two different absolute positions rather than
+    ///     one square rescaled per tile.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternObjectBoundingBoxUnitsAndContentUnits_TilesAndContentBothScaleToBoundingBox()
+    {
+        // Arrange: a 0.5x0.5 (half-bounding-box) tile repeats twice across each axis of the
+        // 60x60 (20,20)-(80,80) bounding box; the content is a small bounding-box-fraction square
+        // (0.05,0.05)-(0.15,0.15), which - because patternContentUnits=objectBoundingBox always
+        // maps through the WHOLE bounding box, not the tile's own smaller sub-range - lands at
+        // absolute (23,23)-(29,29) within the tile's own rendered buffer, and that same rendered
+        // square then repeats at the second tile's own position too
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='p' patternContentUnits='objectBoundingBox' x='0' y='0' width='0.5' height='0.5'>
+                  <rect x='0.05' y='0.05' width='0.1' height='0.1' fill='rgb(0,255,0)'/>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='rgb(255,0,0)'/>
+              <rect x='20' y='20' width='60' height='60' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: (26, 26) - inside the first tile's own rendered content square (23,23)-(29,29)
+        // - is green
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[26, 26]);
+
+        // Assert: (56, 56) - the identically-positioned point within the second (repeated) tile,
+        // 30 units on from the first (the tile's own 30-unit real-space period) - is also green,
+        // proving the same rendered tile content genuinely repeats
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[56, 56]);
+
+        // Assert: (40, 40) - between the two tiles' own content squares, still inside the
+        // bounding box - is background, unpainted
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[40, 40]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>patternTransform</c> is composed into the tile's own grid-to-pixel
+    ///     transform, rotating the tiled content's own visible placement.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternTransformRotate180_RotatesTiledContentPlacement()
+    {
+        // Arrange: a single tile spanning the whole 100x100 viewport, whose own content paints
+        // only its top-right quadrant; a 180-degree patternTransform (about the origin) swaps
+        // that visible quadrant to the diagonally-opposite corner
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='p' patternUnits='userSpaceOnUse' x='0' y='0' width='100' height='100' patternTransform='rotate(180)'>
+                  <rect x='50' y='0' width='50' height='50' fill='rgb(0,255,0)'/>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='rgb(255,0,0)'/>
+              <rect x='0' y='0' width='100' height='100' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the un-rotated top-right quadrant position is now background
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[75, 25]);
+
+        // Assert: the diagonally-opposite (bottom-left) position is now green
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[25, 75]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>viewBox</c> on a <c>pattern</c> takes precedence over
+    ///     <c>patternContentUnits</c>, fitting the content's own coordinate system into the tile
+    ///     buffer via the same preserve-aspect-ratio fitting logic used for
+    ///     <c>&lt;svg&gt;</c>/<c>&lt;symbol&gt;</c>/<c>&lt;marker&gt;</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternViewBox_FitsContentIntoTileBuffer()
+    {
+        // Arrange: a single tile spanning the whole 100x100 viewport, with its own 10x10 viewBox
+        // - default preserveAspectRatio (xMidYMid meet) scales it up 10x with no letterboxing
+        // (matching aspect ratios); content paints only the viewBox's own top-left quadrant
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='p' patternUnits='userSpaceOnUse' x='0' y='0' width='100' height='100' viewBox='0 0 10 10'>
+                  <rect x='0' y='0' width='5' height='5' fill='rgb(0,255,0)'/>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='rgb(255,0,0)'/>
+              <rect x='0' y='0' width='100' height='100' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the viewBox-fitted top-left quadrant is green
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[25, 25]);
+
+        // Assert: the diagonally-opposite quadrant is background
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[75, 75]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>pattern</c> with no <c>stop</c>-like content of its own inherits its
+    ///     rendered content (not its own geometry attributes) from the <c>pattern</c> it
+    ///     references via <c>href</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternHrefInheritance_InheritsContentFromTemplate()
+    {
+        // Arrange: "base" carries only content, no geometry attributes of its own (its own
+        // width/height would default to 0, which would tolerantly paint nothing if ever read
+        // directly); "derived" carries its own valid geometry (patternUnits=userSpaceOnUse
+        // spanning the whole 100x100 viewport as a single tile) and inherits only base's content
+        // (a literal absolute (0,0)-(100,100) fill, matching that same single-tile span)
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='base'>
+                  <rect x='0' y='0' width='100' height='100' fill='rgb(0,255,0)'/>
+                </pattern>
+                <pattern id='derived' href='#base' patternUnits='userSpaceOnUse' x='0' y='0' width='100' height='100'/>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='rgb(255,0,0)'/>
+              <rect x='10' y='10' width='80' height='80' fill='url(#derived)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the referenced bounding box is fully green - proving "derived" successfully
+        // used its own valid geometry (not "base"'s defaulted-to-zero geometry, which would have
+        // tolerantly painted nothing, leaving the background visible instead) together with
+        // "base"'s own inherited content
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[50, 50]);
+
+        // Assert: outside the referencing shape's own (10,10)-(90,90) bounds, the background
+        // still shows through unpainted
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>pattern</c> <c>href</c> chain of more than one hop still resolves
+    ///     (walking through an intermediate content-less link) to the eventual content-bearing
+    ///     template.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternHrefChainOfTwoHops_ResolvesToEventualContent()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='base'>
+                  <rect x='0' y='0' width='100' height='100' fill='rgb(0,255,0)'/>
+                </pattern>
+                <pattern id='middle' href='#base'/>
+                <pattern id='derived' href='#middle' patternUnits='userSpaceOnUse' x='0' y='0' width='100' height='100'/>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='rgb(255,0,0)'/>
+              <rect x='10' y='10' width='80' height='80' fill='url(#derived)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that a cyclical <c>pattern</c> <c>href</c> chain is rejected as malformed input
+    ///     rather than looping indefinitely.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternHrefCycle_ThrowsInvalidDataException()
+    {
+        // Arrange: "a" hrefs "b", which hrefs back to "a"
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='a' href='#b'/>
+                <pattern id='b' href='#a'/>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='url(#a)'/>
+            </svg>
+            """;
+
+        // Act & Assert
+        using var stream = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves that a <c>pattern</c> reference on a <c>stroke</c> paints the stroke outline
+    ///     itself with the tiled pattern content, exactly like a <c>fill</c> reference does for
+    ///     fill geometry.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternStroke_PaintsStrokeOutlineWithTiledContent()
+    {
+        // Arrange: a horizontal line, stroked 10 units wide with a pattern whose content fills
+        // the whole tile solid green
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='p' patternUnits='userSpaceOnUse' x='0' y='0' width='10' height='10'>
+                  <rect x='0' y='0' width='10' height='10' fill='rgb(0,255,0)'/>
+                </pattern>
+              </defs>
+              <line x1='10' y1='50' x2='90' y2='50' stroke='url(#p)' stroke-width='10'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: a point on the stroke itself is green
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[50, 50]);
+
+        // Assert: a point well outside the stroke's own width is left untouched (transparent)
+        Assert.Equal(0, surface[50, 10].A);
+    }
+
+    /// <summary>
+    ///     Proves that a shape's own <c>fill</c> and <c>stroke</c> can each independently
+    ///     reference a different <c>pattern</c>, with the stroke's own tiled content painted over
+    ///     the fill's own tiled content along the shared outline, exactly like a solid-color
+    ///     fill/stroke pair.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternFillAndStroke_RenderIndependentPatterns()
+    {
+        // Arrange: a 60x60 rect, filled with one solid-green pattern and stroked (10 units wide)
+        // with a different solid-blue pattern
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='pFill' patternUnits='userSpaceOnUse' x='0' y='0' width='10' height='10'>
+                  <rect x='0' y='0' width='10' height='10' fill='rgb(0,255,0)'/>
+                </pattern>
+                <pattern id='pStroke' patternUnits='userSpaceOnUse' x='0' y='0' width='10' height='10'>
+                  <rect x='0' y='0' width='10' height='10' fill='rgb(0,0,255)'/>
+                </pattern>
+              </defs>
+              <rect x='20' y='20' width='60' height='60' fill='url(#pFill)' stroke='url(#pStroke)' stroke-width='10'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: well inside the rect, away from the stroke, shows the fill pattern
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[50, 50]);
+
+        // Assert: on the rect's own left edge (within the stroke's own width), the stroke
+        // pattern is painted on top of the fill pattern
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[20, 50]);
+    }
+
+    /// <summary>
+    ///     Regression test proving a dangling pattern-shaped <c>url(#id)</c> fill reference (an
+    ///     id that does not exist at all) is a tolerant no-op, byte-identical to this codec's
+    ///     pre-existing dangling-gradient-reference fallback: the referencing element renders
+    ///     exactly as if <c>fill</c> were absent.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_DanglingPatternReference_RendersUnfilled()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 10 10'><rect x='0' y='0' width='10' height='10' fill='url(#missing)'/></svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: nothing is painted at all - no paint, no throw
+        Assert.Equal(0, surface[5, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>fill</c> attribute whose <c>url(#id)</c> resolves to an element that
+    ///     is not literally a <c>pattern</c> (here, a plain <c>rect</c>) is tolerantly treated the
+    ///     same as a dangling reference - unfilled, not an error - identical to this codec's
+    ///     equivalent <c>clip-path</c>/<c>mask</c> wrong-element-type tolerance.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FillReferencesNonPatternElement_RendersUnfilled()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <rect id='notAPattern' x='0' y='0' width='1' height='1'/>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='url(#notAPattern)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: nothing is painted at all
+        Assert.Equal(0, surface[5, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that a pattern whose own content references itself (directly, on one of its own
+    ///     children's <c>fill</c>) is rejected by the pre-existing <c>MaxElementDepth</c>
+    ///     recursion guard, exactly like a self-referencing <c>mask</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternSelfReferencingContent_ThrowsInvalidDataException()
+    {
+        // Arrange: "p"'s own content contains a shape that itself references "p"
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='p' patternUnits='userSpaceOnUse' x='0' y='0' width='10' height='10'>
+                  <rect x='0' y='0' width='10' height='10' fill='url(#p)'/>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act & Assert
+        using var stream = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 100, 100));
+    }
+
+    /// <summary>
+    ///     Resource-safety regression test: a pattern tile whose own pixel size would exceed
+    ///     <see cref="Surface.MaxDimension"/> is rejected the same way an oversized filter/mask
+    ///     region already is, falling back to painting nothing rather than attempting to allocate
+    ///     an oversized offscreen buffer.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternTileExceedsMaxDimension_FallsBackToUnfilledRendering()
+    {
+        // Arrange: a 10,000x10,000 literal (userSpaceOnUse) tile - well beyond Surface.MaxDimension
+        // (8192) once mapped to pixel space under this document's 1:1 viewBox-to-pixel mapping
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <pattern id='p' patternUnits='userSpaceOnUse' x='0' y='0' width='10000' height='10000'>
+                  <rect x='0' y='0' width='10000' height='10000' fill='rgb(0,255,0)'/>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(255,0,0)'/>
+              <rect x='0' y='0' width='10' height='10' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the pattern fill painted nothing at all - the background rect remains visible -
+        // and no exception was thrown
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Resource-safety regression test: <c>FilterWorkBudget</c> is a single shared cumulative
+    ///     ceiling, charged by every pattern-filled shape's own tile-plus-region buffer
+    ///     allocation cost. Four non-overlapping 4000x3750 (15,000,000-pixel-area) rects each
+    ///     charge just over 15,000,000 work units (the tile's own negligible 1-pixel area, plus
+    ///     the region's own 15,000,000-pixel area); the first three shapes' cumulative charge
+    ///     (45,000,003) stays within the 50,000,000 ceiling, so each is genuinely pattern-filled -
+    ///     but the fourth shape's charge would push the running total to 60,000,004, exceeding the
+    ///     ceiling, so it tolerantly falls back to painting nothing at all (unlike a <c>clip-path</c>/
+    ///     <c>mask</c> budget decline, a pattern has no secondary "paint anyway" fallback).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilledForExcessShapes()
+    {
+        // Arrange: a background rect, then four rects arranged as a non-overlapping 2x2 grid (so
+        // each shape's own assertion pixel is never covered by any other shape, regardless of
+        // document/paint order) - each 4000 x 3750 units, giving a 15,000,000-pixel painted
+        // region under this document's 1:1 viewBox-to-pixel mapping
+        const string svg = """
+            <svg viewBox='0 0 8000 7500'>
+              <defs>
+                <pattern id='p' patternUnits='userSpaceOnUse' x='0' y='0' width='1' height='1'>
+                  <rect x='0' y='0' width='1' height='1' fill='rgb(0,255,0)'/>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='8000' height='7500' fill='rgb(255,0,0)'/>
+              <rect x='0' y='0' width='4000' height='3750' fill='url(#p)'/>
+              <rect x='4000' y='0' width='4000' height='3750' fill='url(#p)'/>
+              <rect x='0' y='3750' width='4000' height='3750' fill='url(#p)'/>
+              <rect x='4000' y='3750' width='4000' height='3750' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act: must complete without allocating unbounded offscreen buffers
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 8000, 7500);
+
+        // Assert: the first three grid cells (document order) stayed within the cumulative
+        // budget, so each is genuinely pattern-filled green
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[2000, 1875]);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[6000, 1875]);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[2000, 5625]);
+
+        // Assert: the fourth (and only the fourth) grid cell's charge exhausted the shared
+        // cumulative budget, so it tolerantly fell back to painting nothing, leaving the
+        // background visible through it - deterministic proof the excess shape's pattern was
+        // skipped rather than evaluated
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[6000, 5625]);
+    }
+
+    /// <summary>
+    ///     Proves that a zero-width or zero-height <c>pattern</c> tile is tolerantly rejected -
+    ///     painting nothing at all - rather than throwing or dividing by zero.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternZeroWidthOrHeight_RendersUnfilledWithoutThrowing()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <pattern id='p' patternUnits='userSpaceOnUse' x='0' y='0' width='0' height='0'>
+                  <rect x='0' y='0' width='1' height='1' fill='rgb(0,255,0)'/>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(255,0,0)'/>
+              <rect x='0' y='0' width='10' height='10' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the pattern fill painted nothing at all - the background rect remains visible -
+        // and no exception was thrown
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>pattern</c>'s own content is rendered through the ordinary recursive
+    ///     <c>RenderElement</c> walk - not some special-cased shallow copy - by nesting a
+    ///     <c>g</c> group containing a <c>linearGradient</c>-filled shape inside the tile content,
+    ///     and confirming the gradient itself renders correctly.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternContentWithGroupAndGradient_RendersViaRecursiveElementWalk()
+    {
+        // Arrange: a single tile spanning the whole 100x100 viewport, whose content is a <g>
+        // wrapping a rect filled with a left-to-right black-to-white linear gradient
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='p' patternUnits='userSpaceOnUse' x='0' y='0' width='100' height='100'>
+                  <defs>
+                    <linearGradient id='g' x1='0' y1='0' x2='1' y2='0'>
+                      <stop offset='0' stop-color='black'/>
+                      <stop offset='1' stop-color='white'/>
+                    </linearGradient>
+                  </defs>
+                  <g>
+                    <rect x='0' y='0' width='100' height='100' fill='url(#g)'/>
+                  </g>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the left-to-right brightness ramp from the nested group's own gradient-filled
+        // rect is visible, proving the group and gradient both rendered through the ordinary
+        // recursive walk
+        Assert.True(surface[10, 50].R < surface[90, 50].R);
+    }
 }
 

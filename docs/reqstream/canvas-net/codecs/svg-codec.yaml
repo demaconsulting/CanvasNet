@@ -881,6 +881,92 @@ sections:
                   - SvgCodec_Load_ClipPathExceedsMaxShapesPerClipPath_TruncatesToFirst256Shapes
                   - SvgCodec_Load_MaskRegionExceedsMaxDimension_FallsBackToUnmaskedRendering
 
+              - id: CanvasNet-Codecs-SvgCodec-PatternRendering
+                title: >-
+                  The SvgCodec class shall paint a fill or stroke referencing a pattern element by
+                  tiling that pattern's own resolved content across the painted shape, honoring
+                  patternUnits (objectBoundingBox, the default, resolving the tile's own x/y/
+                  width/height as fractions of the referencing element's own bounding box;
+                  userSpaceOnUse, resolving them as absolute user-space coordinates) independently
+                  from patternContentUnits (the tile content's own coordinate system, defaulting
+                  to userSpaceOnUse, always mapped through the whole referencing element's own
+                  bounding box rather than any individual repeated tile's own sub-range),
+                  patternTransform, and a viewBox/preserveAspectRatio pair on the pattern element
+                  itself (taking precedence over patternContentUnits when present), while
+                  tolerating a dangling or wrong-element-type pattern reference as a no-op
+                  (rendering unfilled/unstroked).
+                justification: |
+                  pattern is a common SVG authoring mechanism for a repeating tiled fill (a
+                  hatching, a texture, a repeated icon) that neither a solid color nor a gradient
+                  can express; callers relying on this common pattern need it actually tiled
+                  rather than silently rendered as an unfilled or flat-colored shape. Tolerating a
+                  dangling or wrong-element-type reference as a no-op matches this codec's general
+                  dangling-reference convention (already applied to filter/marker/gradient/
+                  clip-path/mask references), so one bad pattern attribute cannot abort rendering
+                  of an otherwise-valid document.
+                tests:
+                  - SvgCodec_Load_PatternDefaultUnits_TilesOnceAcrossShapeBoundingBox
+                  - SvgCodec_Load_PatternUserSpaceOnUseUnits_TilesRepeatedlyAcrossUserSpace
+                  - SvgCodec_Load_PatternContentUnitsObjectBoundingBox_MapsContentThroughShapeBoundingBox
+                  - SvgCodec_Load_PatternObjectBoundingBoxUnitsAndContentUnits_TilesAndContentBothScaleToBoundingBox
+                  - SvgCodec_Load_PatternTransformRotate180_RotatesTiledContentPlacement
+                  - SvgCodec_Load_PatternViewBox_FitsContentIntoTileBuffer
+                  - SvgCodec_Load_PatternStroke_PaintsStrokeOutlineWithTiledContent
+                  - SvgCodec_Load_PatternFillAndStroke_RenderIndependentPatterns
+                  - SvgCodec_Load_DanglingPatternReference_RendersUnfilled
+                  - SvgCodec_Load_FillReferencesNonPatternElement_RendersUnfilled
+                  - SvgCodec_Load_PatternZeroWidthOrHeight_RendersUnfilledWithoutThrowing
+                  - SvgCodec_Load_PatternContentWithGroupAndGradient_RendersViaRecursiveElementWalk
+
+              - id: CanvasNet-Codecs-SvgCodec-PatternHrefInheritance
+                title: >-
+                  The SvgCodec class shall resolve a pattern element with no children of its own
+                  by inheriting content from the pattern it references via href/xlink:href,
+                  following a chain of such references (each link's own x/y/width/height/
+                  patternUnits/patternContentUnits/patternTransform/viewBox/preserveAspectRatio
+                  always read from the originally referenced pattern element, never inherited
+                  through the chain), and shall reject a cyclical reference chain with
+                  InvalidDataException rather than looping indefinitely.
+                justification: |
+                  Real-world SVG documents commonly define one pattern's tile content once and
+                  reuse it from other patterns with different geometry, exactly mirroring the
+                  gradient href/xlink:href precedent this codec already implements; callers need
+                  this template inheritance resolved correctly, and a malformed cyclical reference
+                  must fail predictably rather than hang.
+                tests:
+                  - SvgCodec_Load_PatternHrefInheritance_InheritsContentFromTemplate
+                  - SvgCodec_Load_PatternHrefChainOfTwoHops_ResolvesToEventualContent
+                  - SvgCodec_Load_PatternHrefCycle_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-SvgCodec-PatternResourceSafety
+                title: >-
+                  The SvgCodec class shall bound pattern-related resource use by charging each
+                  rendered tile-buffer-plus-painted-region offscreen buffer allocation against the
+                  same cumulative filter-evaluation work budget already used for filter/clip-path/
+                  mask application (falling back to unfilled/unstroked rendering on decline), by
+                  rejecting a tile whose pixel-space dimensions would exceed the same maximum
+                  surface dimension already enforced for filter regions (likewise falling back to
+                  unfilled/unstroked rendering), and by detecting a pattern-reference cycle (a
+                  pattern whose own content transitively references an ancestor element's
+                  pattern) via the pre-existing element-nesting depth limit, raising
+                  InvalidDataException rather than overflowing the call stack or hanging.
+                justification: |
+                  Pattern tile-buffer allocation has the same "region-area x tile-area" cost
+                  shape as filter/clip-path/mask application, and untrusted document data drives
+                  both a tile's own pixel size and the painted region's own pixel size, so it must
+                  be bounded the same way this codec already bounds every other offscreen-buffer-
+                  allocating effect, rather than introducing an unbounded parallel allocation path.
+                  Because pattern content is rendered through the ordinary element-rendering walk
+                  (deliberately, so pattern content can itself use clip-path/mask/filter/nested
+                  patterns), a pattern-reference cycle recurses through that same walk and is
+                  therefore already caught by its pre-existing element-nesting depth limit without
+                  any new, dedicated cycle-detection mechanism - exactly mirroring the mask-
+                  reference-cycle precedent.
+                tests:
+                  - SvgCodec_Load_PatternSelfReferencingContent_ThrowsInvalidDataException
+                  - SvgCodec_Load_PatternTileExceedsMaxDimension_FallsBackToUnfilledRendering
+                  - SvgCodec_Load_PatternReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilledForExcessShapes
+
               - id: CanvasNet-Codecs-SvgCodec-ValidationNull
                 title: >-
                   The SvgCodec class shall reject null stream/path arguments to Load and GetInfo

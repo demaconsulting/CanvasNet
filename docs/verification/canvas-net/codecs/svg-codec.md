@@ -1095,6 +1095,107 @@ local-space area - large enough that, once transformed to pixel space, it would 
 enforced for filter regions, tolerantly falling back to unmasked rendering rather than attempting
 an oversized offscreen buffer allocation.
 
+#### CanvasNet-Codecs-SvgCodec-PatternRendering: `pattern` Tiled Paint-Server Fill/Stroke
+
+**Tests**: `SvgCodec_Load_PatternDefaultUnits_TilesOnceAcrossShapeBoundingBox`,
+`SvgCodec_Load_PatternUserSpaceOnUseUnits_TilesRepeatedlyAcrossUserSpace`,
+`SvgCodec_Load_PatternContentUnitsObjectBoundingBox_MapsContentThroughShapeBoundingBox`,
+`SvgCodec_Load_PatternObjectBoundingBoxUnitsAndContentUnits_TilesAndContentBothScaleToBoundingBox`,
+`SvgCodec_Load_PatternTransformRotate180_RotatesTiledContentPlacement`,
+`SvgCodec_Load_PatternViewBox_FitsContentIntoTileBuffer`,
+`SvgCodec_Load_PatternStroke_PaintsStrokeOutlineWithTiledContent`,
+`SvgCodec_Load_PatternFillAndStroke_RenderIndependentPatterns`,
+`SvgCodec_Load_DanglingPatternReference_RendersUnfilled`,
+`SvgCodec_Load_FillReferencesNonPatternElement_RendersUnfilled`,
+`SvgCodec_Load_PatternZeroWidthOrHeight_RendersUnfilledWithoutThrowing`,
+`SvgCodec_Load_PatternContentWithGroupAndGradient_RendersViaRecursiveElementWalk`
+
+Asserts a `fill="url(#id)"` referencing a `pattern` with the default `patternUnits`
+(`objectBoundingBox`) and an explicit `width="1" height="1"` (per SVG, `width`/`height`
+themselves default to `0`, so a tile only ever renders once they are specified) tiles exactly
+once across the referencing shape's own bounding box, with the tile's own content - a literal
+absolute (`patternContentUnits`'s own default `userSpaceOnUse`) rect - painting only that single
+tile's own centered sub-region; asserts `patternUnits="userSpaceOnUse"` instead reads the tile's
+own `x`/`y`/`width`/`height` as literal, small user-space units, repeating the same tile many
+times across the whole plane, verified at a point inside one repeated tile's own content and a
+point (the bounding box's own center) that lands outside any tile's content; asserts
+`patternContentUnits="objectBoundingBox"` maps a content child's own literal coordinates through
+the referencing shape's own bounding box independently of whatever `patternUnits`/tile size is in
+effect, verified against a point where the same literal numbers would land if instead interpreted
+as absolute user-space units; asserts the fourth unit combination -
+`patternUnits="objectBoundingBox"` combined with `patternContentUnits="objectBoundingBox"` -
+composes correctly: because `patternContentUnits="objectBoundingBox"` always maps a content
+coordinate through the *whole* referencing shape's own bounding box (never re-normalized to a
+smaller repeated tile's own sub-division), the same rendered tile content genuinely repeats at
+each tile's own absolute position, verified at two repeated tiles' own content positions and a
+point between them that remains unpainted; asserts a `patternTransform="rotate(180)"` rotates the
+tiled content's own visible placement, verified against the un-rotated baseline position; asserts
+a `viewBox`/`preserveAspectRatio` pair on the `pattern` element itself fits its content into the
+tile buffer via the same `preserveAspectRatio` fitting logic already used for
+`<svg>`/`<symbol>`/`<marker>`, taking precedence over `patternContentUnits` when both are present;
+asserts a pattern referenced from a `stroke` attribute paints the stroke's own generated outline
+with tiled content, independent of the shape's own fill; asserts a shape with independent
+`fill="url(#a)"` and `stroke="url(#b)"` references renders each pattern into its own respective
+region without either interfering with the other; asserts `fill="url(#nonexistent)"` referencing
+a dangling id renders the shape unfilled (fully transparent, matching this codec's general
+dangling-reference convention, and byte-identical to this codec's pre-existing dangling-gradient-
+reference behavior); asserts a `fill` reference that resolves to a well-formed element which is
+not literally a `pattern` (a plain `rect`) is tolerated as a no-op, rendering unfilled, mirroring
+this codec's existing `clipPath`/`mask`/`filter`/marker wrong-element-type tolerance; asserts a
+`pattern` with a zero `width` or `height` renders the referencing shape unfilled without throwing,
+per SVG's own "a pattern with no positive tile area applies no paint" semantics; and asserts a
+`pattern`'s own content containing a nested `<g>` wrapping a `linearGradient`-filled shape renders
+correctly via the ordinary recursive `RenderElement` walk (not a bespoke, feature-limited content
+renderer), proving tile content may freely use this codec's other rendering features.
+
+#### CanvasNet-Codecs-SvgCodec-PatternHrefInheritance: `pattern` Href Template Inheritance and Cycle Rejection
+
+**Tests**: `SvgCodec_Load_PatternHrefInheritance_InheritsContentFromTemplate`,
+`SvgCodec_Load_PatternHrefChainOfTwoHops_ResolvesToEventualContent`,
+`SvgCodec_Load_PatternHrefCycle_ThrowsInvalidDataException`
+
+Asserts a `pattern` element with no children of its own (carrying only its own
+`x`/`y`/`width`/`height`/`patternUnits` geometry) inherits its rendered content from the `pattern`
+it references via `href`, proving content is inherited while geometry is always read from the
+originally-referenced element itself, exactly mirroring
+`CanvasNet-Codecs-SvgCodec-GradientHrefInheritance`'s identical "geometry attributes are never
+inherited, only content is" simplification for gradients; asserts an `href` chain of more than one
+hop (an intermediate, content-less link between the originally-referenced pattern and the
+eventual content-bearing template) still resolves to that eventual content; and asserts a
+cyclical `href` chain (a pattern that, directly or through intermediate links, references itself)
+throws `InvalidDataException` rather than looping indefinitely, mirroring
+`CanvasNet-Codecs-SvgCodec-GradientHrefInheritance`'s identical cycle-rejection test.
+
+#### CanvasNet-Codecs-SvgCodec-PatternResourceSafety: Pattern Resource-Safety Bounds
+
+**Tests**: `SvgCodec_Load_PatternSelfReferencingContent_ThrowsInvalidDataException`,
+`SvgCodec_Load_PatternTileExceedsMaxDimension_FallsBackToUnfilledRendering`,
+`SvgCodec_Load_PatternReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilledForExcessShapes`
+
+Asserts a `pattern` whose own content transitively contains a shape referencing that same pattern
+again (a reference cycle formed solely through pattern-content resolution, rendered through the
+ordinary `RenderElement` walk with `elementDepth + 1`) throws `InvalidDataException` rather than
+overflowing the call stack or hanging - caught for free by the pre-existing `MaxElementDepth`
+guard, exactly mirroring `CanvasNet-Codecs-SvgCodec-EffectResourceSafety`'s identical reliance for
+a mask-reference cycle, with no new, pattern-specific depth constant introduced. Asserts a tile
+whose pixel-space dimensions would exceed `Surface.MaxDimension` on either axis is rejected by
+the same pixel-space magnitude/dimension guard already enforced for filter/mask regions,
+tolerantly falling back to unfilled rendering rather than attempting an oversized tile-buffer
+allocation. Asserts the shared, cumulative `FilterWorkBudget` ceiling (the same budget class
+filter/clip-path/mask application already charges, reused rather than duplicated for pattern
+tile-buffer-plus-region-buffer sizing) is genuinely exhausted, not merely approached: four
+non-overlapping, equally-sized pattern-filled rects (arranged in a 2x2 grid, rather than the
+staggered/overlapping geometry `CanvasNet-Codecs-SvgCodec-EffectResourceSafety`'s own budget
+tests use, since a pattern's own budget-decline fallback is fully transparent/no-paint rather
+than clip-path/mask's "paint normally, ignoring the effect" fallback - overlapping shapes would
+let an earlier, successfully tiled shape's own paint remain visible underneath a later, declined
+shape, making success and failure indistinguishable) each charge their own tile-plus-region
+allocation cost against the shared budget; the first three shapes' cumulative charge stays within
+the ceiling, so each is genuinely pattern-filled, while the fourth shape's charge would exceed the
+ceiling, so it tolerantly falls back to rendering fully unfilled, verified via each shape's own
+exclusive assertion pixel (deterministic pixel/behavioral assertions only - no wall-clock timing
+of any kind).
+
 #### CanvasNet-Codecs-SvgCodec-ValidationNull: Null Stream/Path Rejected
 
 **Tests**: `SvgCodec_Load_NullStream_ThrowsArgumentNullException`,

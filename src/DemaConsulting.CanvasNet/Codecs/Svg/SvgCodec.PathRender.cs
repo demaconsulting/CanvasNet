@@ -122,7 +122,25 @@ public static partial class SvgCodec
     /// <param name="state">The cascaded render state supplying fill/stroke paint and style.</param>
     /// <param name="transform">The accumulated transform mapping local space to pixel space.</param>
     /// <param name="context">The fixed per-document render context.</param>
-    private static void RenderShape(Path localPath, RenderState state, Matrix3x2 transform, RenderContext context)
+    /// <param name="useDepth">The current <c>use</c>-reference nesting depth, forwarded to a <c>pattern</c> fill/stroke's own tile content walk (see <see cref="RenderFill"/>/<see cref="RenderStroke"/>).</param>
+    /// <param name="elementDepth">The current recursion depth, forwarded (incremented by one further) to a <c>pattern</c> fill/stroke's own tile content walk - the sole guard against a pattern-reference cycle.</param>
+    /// <param name="markerDepth">The current <c>marker</c>-reference nesting depth, forwarded unchanged.</param>
+    /// <param name="totalElements">The running total-rendered-elements count, forwarded to a <c>pattern</c> fill/stroke's own tile content walk.</param>
+    /// <param name="workBudget">The shared geometry-parsing work budget, forwarded to a <c>pattern</c> fill/stroke's own tile content walk.</param>
+    /// <param name="filterWorkBudget">The shared cumulative filter-evaluation work budget, charged by a <c>pattern</c> fill/stroke's own offscreen-buffer allocations (see <see cref="RenderPatternFill"/>).</param>
+    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget, forwarded to a <c>pattern</c> fill/stroke's own tile content walk.</param>
+    private static void RenderShape(
+        Path localPath,
+        RenderState state,
+        Matrix3x2 transform,
+        RenderContext context,
+        int useDepth,
+        int elementDepth,
+        int markerDepth,
+        ref int totalElements,
+        GeometryWorkBudget workBudget,
+        FilterWorkBudget filterWorkBudget,
+        BoundsPrePassWorkBudget boundsPrePassBudget)
     {
         if (localPath.Subpaths.Count == 0)
         {
@@ -152,8 +170,12 @@ public static partial class SvgCodec
             return;
         }
 
-        RenderFill(localPath, pixelPath, state, transform, context);
-        RenderStroke(localPath, pixelPath, state, transform, context);
+        RenderFill(
+            localPath, pixelPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements,
+            workBudget, filterWorkBudget, boundsPrePassBudget);
+        RenderStroke(
+            localPath, pixelPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements,
+            workBudget, filterWorkBudget, boundsPrePassBudget);
     }
 
     /// <summary>
@@ -230,13 +252,51 @@ public static partial class SvgCodec
 
 
     /// <summary>Fills <paramref name="pixelPath"/> per <paramref name="state"/>'s <c>fill</c> paint.</summary>
-    /// <param name="localPath">The shape's local-space outline, used as a gradient's object-bounding-box basis.</param>
+    /// <param name="localPath">The shape's local-space outline, used as a gradient's or pattern's object-bounding-box basis.</param>
     /// <param name="pixelPath">The shape's already pixel-space-transformed outline.</param>
     /// <param name="state">The cascaded render state.</param>
-    /// <param name="transform">The accumulated transform, used to resolve a gradient's own transform.</param>
+    /// <param name="transform">The accumulated transform, used to resolve a gradient's or pattern's own transform.</param>
     /// <param name="context">The fixed per-document render context.</param>
-    private static void RenderFill(Path localPath, Path pixelPath, RenderState state, Matrix3x2 transform, RenderContext context)
+    /// <param name="useDepth">The current <c>use</c>-reference nesting depth, forwarded to a <c>pattern</c> fill's own tile content walk (see <see cref="RenderPatternFill"/>).</param>
+    /// <param name="elementDepth">The current recursion depth, forwarded (incremented by one further) to a <c>pattern</c> fill's own tile content walk.</param>
+    /// <param name="markerDepth">The current <c>marker</c>-reference nesting depth, forwarded unchanged.</param>
+    /// <param name="totalElements">The running total-rendered-elements count, forwarded to a <c>pattern</c> fill's own tile content walk.</param>
+    /// <param name="workBudget">The shared geometry-parsing work budget, forwarded to a <c>pattern</c> fill's own tile content walk.</param>
+    /// <param name="filterWorkBudget">The shared cumulative filter-evaluation work budget, charged by a <c>pattern</c> fill's own offscreen-buffer allocations.</param>
+    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget, forwarded to a <c>pattern</c> fill's own tile content walk.</param>
+    /// <remarks>
+    ///     When <paramref name="state"/>'s <c>fill</c> resolves to a <c>url(#id)</c> reference to a
+    ///     <c>pattern</c> element (see <see cref="ResolvePatternElement"/>), rendering is dispatched
+    ///     entirely to <see cref="RenderPatternFill"/> instead - a purely additive branch: every
+    ///     other <c>fill</c> value (a solid color, a gradient reference, <c>none</c>, or a
+    ///     dangling/wrong-type <c>url(#id)</c> reference) falls through this check unaffected, and
+    ///     reaches the exact same <see cref="ResolvePaint"/>/<see cref="FillWithPaint"/> call this
+    ///     method has always made.
+    /// </remarks>
+    private static void RenderFill(
+        Path localPath,
+        Path pixelPath,
+        RenderState state,
+        Matrix3x2 transform,
+        RenderContext context,
+        int useDepth,
+        int elementDepth,
+        int markerDepth,
+        ref int totalElements,
+        GeometryWorkBudget workBudget,
+        FilterWorkBudget filterWorkBudget,
+        BoundsPrePassWorkBudget boundsPrePassBudget)
     {
+        var patternElement = ResolvePatternElement(state.Fill, context);
+        if (patternElement != null)
+        {
+            RenderPatternFill(
+                patternElement, localPath, pixelPath, state.FillRule, state.FillOpacity * state.Opacity, transform,
+                state, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget,
+                boundsPrePassBudget);
+            return;
+        }
+
         var paint = ResolvePaint(state.Fill, state.FillOpacity * state.Opacity, localPath, transform, context);
         FillWithPaint(context.Surface, pixelPath, paint, state.FillRule);
     }
@@ -246,12 +306,28 @@ public static partial class SvgCodec
     ///     and stroke-style attributes, converting the stroke to fillable outline geometry first
     ///     via <see cref="Drawing.PathStroker"/>.
     /// </summary>
-    /// <param name="localPath">The shape's local-space outline, used as a gradient's object-bounding-box basis.</param>
+    /// <param name="localPath">The shape's local-space outline, used as a gradient's or pattern's object-bounding-box basis.</param>
     /// <param name="pixelPath">The shape's already pixel-space-transformed outline.</param>
     /// <param name="state">The cascaded render state.</param>
-    /// <param name="transform">The accumulated transform, used to estimate the pixel-space stroke-width scale.</param>
+    /// <param name="transform">The accumulated transform, used to estimate the pixel-space stroke-width scale, and to resolve a pattern's own transform.</param>
     /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="useDepth">The current <c>use</c>-reference nesting depth, forwarded to a <c>pattern</c> stroke's own tile content walk (see <see cref="RenderPatternFill"/>).</param>
+    /// <param name="elementDepth">The current recursion depth, forwarded (incremented by one further) to a <c>pattern</c> stroke's own tile content walk.</param>
+    /// <param name="markerDepth">The current <c>marker</c>-reference nesting depth, forwarded unchanged.</param>
+    /// <param name="totalElements">The running total-rendered-elements count, forwarded to a <c>pattern</c> stroke's own tile content walk.</param>
+    /// <param name="workBudget">The shared geometry-parsing work budget, forwarded to a <c>pattern</c> stroke's own tile content walk.</param>
+    /// <param name="filterWorkBudget">The shared cumulative filter-evaluation work budget, charged by a <c>pattern</c> stroke's own offscreen-buffer allocations.</param>
+    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget, forwarded to a <c>pattern</c> stroke's own tile content walk.</param>
     /// <remarks>
+    ///     <para>
+    ///     When <paramref name="state"/>'s <c>stroke</c> resolves to a <c>url(#id)</c> reference to
+    ///     a <c>pattern</c> element (see <see cref="ResolvePatternElement"/>), the stroke outline
+    ///     is still built and magnitude-checked exactly as usual below, but rendering is then
+    ///     dispatched entirely to <see cref="RenderPatternFill"/> instead of
+    ///     <see cref="ResolvePaint"/>/<see cref="FillWithPaint"/> - every other <c>stroke</c> value
+    ///     (a solid color, a gradient reference, <c>none</c>, or a dangling/wrong-type
+    ///     <c>url(#id)</c> reference) is completely unaffected by this additional check.
+    ///     </para>
     ///     A no-op stroke (<c>stroke="none"</c>, a dangling gradient reference, or a non-positive
     ///     effective stroke width) never constructs a <see cref="Drawing.StrokeStyle"/> at all,
     ///     avoiding its constructor's own <see cref="ArgumentOutOfRangeException"/> for a
@@ -291,7 +367,19 @@ public static partial class SvgCodec
     ///     same way, immediately after <see cref="Drawing.PathStroker.Stroke"/> runs below.
     ///     </para>
     /// </remarks>
-    private static void RenderStroke(Path localPath, Path pixelPath, RenderState state, Matrix3x2 transform, RenderContext context)
+    private static void RenderStroke(
+        Path localPath,
+        Path pixelPath,
+        RenderState state,
+        Matrix3x2 transform,
+        RenderContext context,
+        int useDepth,
+        int elementDepth,
+        int markerDepth,
+        ref int totalElements,
+        GeometryWorkBudget workBudget,
+        FilterWorkBudget filterWorkBudget,
+        BoundsPrePassWorkBudget boundsPrePassBudget)
     {
         var scale = EstimateUniformScale(transform);
         var strokeWidth = EstimateEffectiveStrokeWidth(state.StrokeWidth, scale);
@@ -300,10 +388,21 @@ public static partial class SvgCodec
             return;
         }
 
-        var paint = ResolvePaint(state.Stroke, state.StrokeOpacity * state.Opacity, localPath, transform, context);
-        if (paint == null)
+        // A pattern-referencing stroke must be checked before ResolvePaint's own dangling-
+        // reference-tolerant null-return: unlike a solid color/gradient/none stroke - none of
+        // which need the stroke outline built at all when there is no paint to fill it with - a
+        // pattern paint is resolved from state.Stroke directly (see ResolvePatternElement), so
+        // this check must run first and, when it matches, skip ResolvePaint's own null-paint
+        // early-return entirely and instead build the stroke outline unconditionally below
+        var patternElement = ResolvePatternElement(state.Stroke, context);
+        object? paint = null;
+        if (patternElement == null)
         {
-            return;
+            paint = ResolvePaint(state.Stroke, state.StrokeOpacity * state.Opacity, localPath, transform, context);
+            if (paint == null)
+            {
+                return;
+            }
         }
 
         // The scaled dasharray/dashoffset - not just their raw, already-finite parsed values -
@@ -351,6 +450,15 @@ public static partial class SvgCodec
         // rendering this stroke entirely, mirroring RenderShape's own tolerant-skip convention.
         if (!IsWithinCoordinateMagnitudeBudget(outline))
         {
+            return;
+        }
+
+        if (patternElement != null)
+        {
+            RenderPatternFill(
+                patternElement, localPath, outline, FillRule.NonZero, state.StrokeOpacity * state.Opacity, transform,
+                state, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget,
+                boundsPrePassBudget);
             return;
         }
 

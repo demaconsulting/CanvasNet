@@ -212,6 +212,22 @@ public static partial class SvgCodec
         ///     stops mid-render.
         /// </summary>
         public Dictionary<XElement, List<GradientStop>> GradientStopCache { get; } = [];
+
+        /// <summary>
+        ///     Caches each <c>pattern</c> element's own resolved content element (the element whose
+        ///     children are actually rendered into each tile - see
+        ///     <see cref="ResolvePatternContentElement"/>), keyed by the referenced <c>pattern</c>
+        ///     <see cref="XElement"/>'s own reference identity, mirroring
+        ///     <see cref="GradientStopCache"/>'s identical "populated once, read many times, safe
+        ///     because the parsed <see cref="XDocument"/> is never mutated mid-<c>Load</c>" lifetime
+        ///     and rationale. A pattern referenced by many shapes therefore has its own <c>href</c>
+        ///     chain walked only once per <c>Load</c> call, rather than once per reference - unlike a
+        ///     rendered tile buffer itself (deliberately never cached; see
+        ///     <see cref="RenderPatternFill"/>'s remarks for why), the resolved content
+        ///     <em>element</em> is purely structural and does not depend on the referencing shape's
+        ///     own bounding box, so it is always safe to share across every reference.
+        /// </summary>
+        public Dictionary<XElement, XElement?> PatternContentCache { get; } = [];
     }
 
     // ================================================================================================

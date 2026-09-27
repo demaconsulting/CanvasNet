@@ -72,6 +72,12 @@ same reason as the other codecs: rasterizing an SVG document has no instance sta
   default), honoring `maskUnits`/`x`/`y`/`width`/`height` (the mask's own region box) and
   `maskContentUnits` (the mask content's own coordinate system) as independent attributes - see
   _Clipping and Masking_ below
+- `pattern`, referenced from any renderable shape/text element's own `fill`/`stroke`
+  presentation attribute (`url(#id)`) as a tiled paint server, honoring `patternUnits`/
+  `patternContentUnits` (`objectBoundingBox`/`userSpaceOnUse`, resolved as two independent
+  attributes exactly as `clipPathUnits`/`maskContentUnits` already are), `patternTransform`, an
+  optional `viewBox`/`preserveAspectRatio` pair, and a bounded, cycle-checked `href`/
+  `xlink:href` template-inheritance chain for tile content - see _Pattern Paint-Server_ below
 - `text`, with `x`/`y`, `font-family`, `font-size`, `fill`, `text-anchor`
   (`start`/`middle`/`end`), and `font-weight`/`font-style`, rendered through a caller-supplied
   dictionary of per-family `SvgFontFace` lists (or, via the legacy single-font-per-family
@@ -79,7 +85,7 @@ same reason as the other codecs: rasterizing an SVG document has no instance sta
 
 #### Out-of-scope subset (tolerated, silently skipped)
 
-`style`, `pattern`, a nested `svg`, `animate`/other SMIL
+`style`, a nested `svg`, `animate`/other SMIL
 animation elements, `image`, `foreignObject`, and CSS class/id selectors are all well-formed SVG
 constructs this codec does not implement. Encountering one of these does not fail the whole
 document: `SvgCodec` silently skips just that element (and, for a container element, everything
@@ -120,6 +126,18 @@ to a union clip, matching the SVG specification); `mask-type`/`mask-mode: alpha`
 mask semantics are implemented; an alpha-mode request tolerantly falls back to luminance); and a
 `clipPath`/`mask` `href`/`xlink:href` template-inheritance chain (mirroring the gradient
 chain-walk pattern) - an empty `clipPath`/`mask` with only an `href` resolves to "no children."
+Within the supported `pattern` feature itself, the following are explicitly out of scope (see
+_Pattern Paint-Server_ below for the full rationale behind each): `href`/`xlink:href` inheritance
+of a pattern's own `x`/`y`/`width`/`height`/`patternUnits`/`patternContentUnits`/
+`patternTransform`/`viewBox`/`preserveAspectRatio` geometry attributes (only tile _content_ is
+inherited through the chain, mirroring the gradient `href` chain's identical "geometry is never
+inherited, only stops/content are" simplification); a rendered tile-buffer cache (every pattern
+fill/stroke re-renders its own tile from scratch, since a tile's own pixel size depends on the
+referencing shape's own bounding box, not only the `pattern` element itself); a dedicated
+pattern-reference cycle-depth counter (a pattern-content cycle is instead caught for free by the
+pre-existing `MaxElementDepth` guard, mirroring `mask`'s identical reliance); and bilinear/other
+non-nearest-neighbor tile resampling (matching this codec's existing "no resampling filter
+anywhere" convention).
 
 A percentage value on a shape/text geometry attribute (`x`, `y`, `width`, `height`, `rx`, `ry`,
 `cx`, `cy`, `r`, `x1`/`y1`/`x2`/`y2`, `font-size`, `stroke-width`, `stroke-dasharray`,
@@ -791,6 +809,76 @@ bounds with no `-10%/120%` filter-style expansion. Extracting this precedence in
 helper - rather than duplicating an equivalent three-way conditional at both the single-shape and
 group entry points - was also what resolved a `SonarAnalyzer` nested-ternary violation the
 straightforward inline version of this logic triggered at each call site.
+
+**Pattern paint-server.** A `fill`/`stroke` of `url(#id)` referencing a `pattern` element (resolved
+through the same id index and dangling-reference/wrong-element-type tolerance as a gradient
+`fill`/`stroke` reference above) is painted as a repeating tiled fill, entirely within
+`SvgCodec.Patterns.cs`, dispatched from `RenderFill`/`RenderStroke` _before_ their existing
+`ResolvePaint` call - a purely additive branch that leaves every pre-existing solid-color/
+gradient/`none`/dangling-reference code path byte-identical. A `pattern` paint is deliberately
+_not_ modeled as a `Drawing.Gradient` subtype: `Gradient`'s own constructor is `private protected`,
+closing that hierarchy to exactly `LinearGradient`/`RadialGradient` by design, because
+`GradientEvaluator`/`ScanlineRasterizer`'s own `Fill(Surface, Path, Gradient, ...)` entry point
+pattern-matches exhaustively on those two subtypes alone; extending that closed hierarchy for
+`pattern` would also require threading `RenderContext`/recursion state (the id index, fonts,
+work budgets, element depth) into the `Drawing` namespace, which today has zero dependency on
+`Codecs.Svg` concepts. `Drawing` remains untouched by pattern support - `pattern` is instead its
+own, entirely manual, `SvgCodec`-layer per-pixel tile-sampling loop, the same architectural choice
+Phase 2's `clipPath`/`mask` support already made for its own manual `Surface` operations rather
+than extending `Drawing`.
+
+Rendering proceeds in four stages. First, `RenderPatternFill` resolves the pattern's own tile
+rectangle (`x`/`y`/`width`/`height`, `patternUnits` default `objectBoundingBox` reusing the same
+`ComputeObjectBoundingBoxMap`/`GetGradientCoordinateOrDefault` helpers gradients already use) and
+composes the grid-to-pixel transform as `patternTransform * bboxMap * elementTransform`, tolerant
+of a non-invertible/non-finite result (mirrors `BuildGradient`'s own `IsFiniteTransform` check) or
+a non-positive tile size, in either of which cases the fill/stroke tolerantly paints nothing.
+Second, the tile's own pixel size is computed by reusing `ConvertLocalRegionToPixelBounds` (the
+same helper filter/mask regions already use for their own pixel-space sizing/`Surface.MaxDimension`
+enforcement - see `MaxPatternTileDimension`'s remarks), and a fresh tile-sized `Surface` is
+rendered by walking the resolved content element's own children through the _ordinary_
+`RenderElement` recursion (not a bespoke, feature-limited renderer) with `elementDepth + 1` -
+exactly the deliberate asymmetry Phase 2's `mask` support already established over `clipPath`'s
+direct rasterization, letting tile content freely use `clipPath`/`mask`/`filter`/nested `pattern`s
+with no special-casing, and meaning a pattern-content reference cycle is already caught by the
+pre-existing `MaxElementDepth` guard with no new, pattern-specific depth constant. `viewBox`/
+`preserveAspectRatio` on the `pattern` element itself, when present, fits content into that tile
+buffer via `ComputePreserveAspectRatioFit` (verbatim reuse of the same helper already used for
+`<svg>`/`<symbol>`/`<marker>`), taking precedence over `patternContentUnits` when both are
+present; otherwise, `patternContentUnits` (default `userSpaceOnUse`) is resolved independently of
+`patternUnits` - a content coordinate is mapped through `ComputeObjectBoundingBoxMap` (for
+`objectBoundingBox`) or left as-is (for `userSpaceOnUse`) against the referencing element's own
+_whole_ bounding box, then back through the tile placement transform's own inverse into the tile
+buffer's pixel space - so `patternContentUnits="objectBoundingBox"` always maps relative to the
+whole referencing shape, never re-normalized to an individual repeated tile's own smaller
+sub-range, exactly mirroring how `maskContentUnits` and `patternUnits` are each resolved as
+genuinely independent attributes elsewhere in this codec. Third, `SampleTileIntoRegion` samples
+the rendered tile buffer into a region-sized destination, one destination pixel at a time: each
+pixel's own center is inverse-transformed back into grid space, wrapped (modulo) into the tile's
+own `[0, width) x [0, height)` extent via `WrapCoordinate`, rescaled into the tile buffer's own
+pixel coordinates, and sampled nearest-neighbor (matching this codec's existing "no bilinear
+resampling anywhere" convention) - new, isolated, well-commented arithmetic with no existing
+precedent to reuse, since this is a pure C# rasterizer with no native tiled/bitmap-shader
+primitive of any kind. That sample's own alpha is then multiplied by a freshly rasterized
+antialiased fill/stroke coverage buffer (`PathFiller.Fill` into a fresh `Surface`, the same
+approach `ApplyCoverageClip` already uses, generalized here to a fractional, not merely binary,
+coverage-multiply since this buffer also carries the sampled tile's own color). Fourth, the
+result is composited onto the real canvas via `CompositeFilterResultOntoCanvas` (verbatim reuse,
+applying the combined `fill-opacity`/`stroke-opacity`/cascaded-`opacity` multiplier uniformly).
+
+_Resource safety._ Because no rendered-tile cache exists (a tile's own pixel size and content
+mapping both depend on the _referencing_ shape's own bounding box, so a naive per-pattern-element
+cache would be incorrect across differently sized referencing shapes), every pattern fill/stroke
+re-renders its own tile from scratch - bounded, not by a cache, but by reusing `FilterWorkBudget`
+(the same cumulative budget class filter/clip-path/mask application already charges, rather than
+a new, parallel budget class) for `1 * (tileArea + regionArea)` work units, charged before either
+offscreen buffer (the tile buffer, the region-sized coverage/result buffers) is allocated. A
+decline tolerantly falls back to painting nothing - matching `ResolvePaint`'s own
+dangling-reference tolerance - never a hard exception, since a pattern is a paint-server, not a
+required effect: an over-budget pattern fill degrading to "no paint" is analogous to a
+dangling/unsupported paint reference, whereas clip-path/mask's own budget decline instead falls
+back to "paint normally, ignoring the effect" (there being no equivalent "ignore the paint
+entirely" fallback available for a required fill/stroke color).
 
 #### Element/Group Nesting and Total-Element Bounds
 
