@@ -99,6 +99,17 @@ public static partial class SvgCodec
     private const float MaxMorphologyRadiusPixels = 250f;
 
     /// <summary>
+    ///     The maximum <c>numOctaves</c> value a <c>feTurbulence</c> primitive accepts before
+    ///     rejecting the document with <see cref="InvalidDataException"/>. More than 3x the largest
+    ///     <c>numOctaves</c> (<c>10</c>) observed anywhere in this repository's fixture corpus
+    ///     (<c>InkscapeFilters.svg</c>), while bounding <c>feTurbulence</c>'s inherently
+    ///     <c>O(numOctaves)</c>-per-pixel-per-channel cost (see <see cref="TurbulenceTables.Turbulence"/>)
+    ///     to a small, practical maximum - mirroring <see cref="MaxConvolveMatrixOrder"/>'s
+    ///     "generous multiple of the largest real-world observed value" precedent.
+    /// </summary>
+    private const int MaxTurbulenceOctaves = 32;
+
+    /// <summary>
     ///     The maximum number of <c>fe*</c> primitive children a single <c>filter</c> element's
     ///     chain is evaluated with, before the whole filter is tolerantly skipped (see
     ///     <see cref="RenderShapeEffectsPipeline"/>'s remarks). Every primitive's output buffer is exactly

@@ -2743,8 +2743,7 @@ public class SvgCodecTests
 
     /// <summary>
     ///     Proves that a filter primitive type this codec still does not implement (here
-    ///     <c>feBlend</c>, alongside <c>feTurbulence</c>, <c>feDiffuseLighting</c>, and
-    ///     <c>feSpecularLighting</c>) is treated as a no-op passthrough of its input, rather than
+    ///     <c>feBlend</c>) is treated as a no-op passthrough of its input, rather than
     ///     throwing or being ignored at the filter level.
     /// </summary>
     [Fact]
@@ -9297,6 +9296,603 @@ public class SvgCodecTests
 
         // Assert
         Assert.Equal(0, surface[5, 5].A);
+    }
+
+    // ================================================================================================
+    // feDiffuseLighting / feSpecularLighting / feTurbulence
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that against a perfectly flat (uniform-alpha) bump map, a <c>feDistantLight
+    ///     elevation="90"</c> (straight down the Z axis, <c>L=(0,0,1)</c>) produces an exact,
+    ///     hand-computable <c>N.L=1</c> - so the output color is exactly <c>diffuseConstant *
+    ///     lighting-color</c>, with no dependence on <c>azimuth</c> (which only rotates <c>L</c>
+    ///     within the X/Y plane, irrelevant once <c>elevation=90</c> makes <c>L</c> purely vertical).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDiffuseLightingFlatAlphaDistantLightAt90DegreesElevation_ProducesUniformLitColor()
+    {
+        // Arrange: a fully opaque, flat rect (uniform alpha => flat bump map => N=(0,0,1) exactly,
+        // including at every edge/corner kernel variant, since a constant input's Sobel gradient is
+        // always exactly zero) lit from straight overhead
+        const string svg = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feDiffuseLighting lighting-color='rgb(200,100,50)' surfaceScale='5'>
+                    <feDistantLight azimuth='30' elevation='90'/>
+                  </feDiffuseLighting>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='20' height='20' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert: D = kd(=1) * N.L(=1) * lighting-color, exactly
+        Assert.Equal(new Rgba32(200, 100, 50, 255), surface[10, 10]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feDiffuseLighting</c>'s output alpha is always fully opaque (<c>255</c>)
+    ///     per spec, even when the computed lit color is fully black (here, a light direction
+    ///     perpendicular to the flat surface normal, giving <c>N.L=0</c>).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDiffuseLightingOutputAlpha_IsAlwaysFullyOpaque()
+    {
+        // Arrange: elevation="0" keeps L entirely within the X/Y plane, so against a flat surface's
+        // N=(0,0,1), N.L=0 exactly - the lit color is black, but alpha must still be 255
+        const string svg = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feDiffuseLighting lighting-color='rgb(200,100,50)' surfaceScale='5'>
+                    <feDistantLight azimuth='0' elevation='0'/>
+                  </feDiffuseLighting>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='20' height='20' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[10, 10]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>diffuseConstant</c> scales <c>feDiffuseLighting</c>'s output linearly,
+    ///     using the same hand-computable flat-plane/90-degree-elevation setup as
+    ///     <see cref="SvgCodec_Load_FeDiffuseLightingFlatAlphaDistantLightAt90DegreesElevation_ProducesUniformLitColor"/>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDiffuseLightingDiffuseConstant_ScalesOutputLinearly()
+    {
+        // Arrange: identical filters except diffuseConstant="1" vs "0.5"
+        const string svgFull = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feDiffuseLighting lighting-color='rgb(200,100,50)' diffuseConstant='1' surfaceScale='5'>
+                    <feDistantLight azimuth='30' elevation='90'/>
+                  </feDiffuseLighting>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='20' height='20' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+        const string svgHalf = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feDiffuseLighting lighting-color='rgb(200,100,50)' diffuseConstant='0.5' surfaceScale='5'>
+                    <feDistantLight azimuth='30' elevation='90'/>
+                  </feDiffuseLighting>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='20' height='20' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var streamFull = ToStream(svgFull);
+        using var streamHalf = ToStream(svgHalf);
+        var surfaceFull = SvgCodec.Load(streamFull, 20, 20);
+        var surfaceHalf = SvgCodec.Load(streamHalf, 20, 20);
+
+        // Assert: exactly proportional, since 200/100/50 all halve to exact integers
+        Assert.Equal(new Rgba32(200, 100, 50, 255), surfaceFull[10, 10]);
+        Assert.Equal(new Rgba32(100, 50, 25, 255), surfaceHalf[10, 10]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>fePointLight</c> positioned directly above a bump's center lights that
+    ///     center more brightly than a point closer to the bump's tilted edge - proving the light's
+    ///     position (not just a constant direction) genuinely drives the per-pixel <c>L</c> vector.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDiffuseLightingPointLightDirectlyAbove_ProducesBrighterCenterThanEdge()
+    {
+        // Arrange: an opaque disc (flat interior normal, tilted normal near its rim) lit by a point
+        // light close above its center - a large radius keeps the anti-aliased rim's own per-pixel
+        // gradient noise well away from the two sampled points
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feDiffuseLighting lighting-color='white' surfaceScale='5'>
+                    <fePointLight x='50' y='50' z='60'/>
+                  </feDiffuseLighting>
+                </filter>
+              </defs>
+              <circle cx='50' cy='50' r='40' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the flat-normal center, facing the close-overhead light almost directly, is
+        // brighter than a point near the disc's rim, whose tilted normal faces partly away from it
+        Assert.True(
+            surface[50, 50].R > surface[50, 85].R,
+            $"Expected center (R={surface[50, 50].R}) to be brighter than the near-rim point (R={surface[50, 85].R}).");
+    }
+
+    /// <summary>
+    ///     Proves that <c>feSpotLight</c>'s <c>limitingConeAngle</c> cutoff is enforced: a point well
+    ///     outside the narrow cone receives exactly zero light (not merely dim light), even though
+    ///     the un-cutoff spot attenuation formula alone (<c>-L.S &gt; 0</c>) would otherwise still
+    ///     contribute a small positive amount there.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeSpecularLightingSpotLightOutsideLimitingConeAngle_ProducesNoLight()
+    {
+        // Arrange: a spotlight above (10,10), pointing straight down, with only a 5-degree cone -
+        // hand-computed below, (90,90) lies at roughly a 66-degree angle off the spot axis
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feSpecularLighting specularConstant='1' specularExponent='1'>
+                    <feSpotLight x='10' y='10' z='50' pointsAtX='10' pointsAtY='10' pointsAtZ='0' limitingConeAngle='5'/>
+                  </feSpecularLighting>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: -L.S at (90,90) is 50/sqrt(80^2+80^2+50^2) ~= 0.404, well below cos(5deg) ~= 0.996,
+        // so the cone cutoff forces exactly zero light regardless of the surface normal
+        Assert.Equal(new Rgba32(0, 0, 0, 0), surface[90, 90]);
+    }
+
+    /// <summary>
+    ///     Proves that against a perfectly flat bump map, a <c>feDistantLight elevation="90"</c>
+    ///     gives <c>L=(0,0,1)=E</c>, so <c>H=(0,0,1)=N</c> and <c>N.H=1</c> exactly (regardless of
+    ///     <c>specularExponent</c>, since <c>1^n=1</c>) - so the output color is exactly
+    ///     <c>specularConstant * lighting-color</c>, an exact, hand-computable value.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeSpecularLightingFlatAlphaDistantLightAt90DegreesElevation_ProducesUniformSpecularHighlight()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feSpecularLighting lighting-color='rgb(200,100,50)' specularConstant='1.2' specularExponent='10'>
+                    <feDistantLight azimuth='45' elevation='90'/>
+                  </feSpecularLighting>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='20' height='20' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert: S = ks(=1.2) * 1 * lighting-color = (240, 120, 60); alpha = max(240,120,60) = 240
+        Assert.Equal(new Rgba32(240, 120, 60, 240), surface[10, 10]);
+    }
+
+    /// <summary>
+    ///     Proves the specific subtlety the task calls out: <c>feSpecularLighting</c>'s output alpha
+    ///     is <c>max(R, G, B)</c> of its own computed color - here, deliberately the <b>green</b>
+    ///     channel's value, proving alpha is not merely copied from red or forced to <c>255</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeSpecularLightingOutputAlpha_EqualsMaxOfRgbNotOne()
+    {
+        // Arrange: same flat-plane/90-degree-elevation setup, but with a lighting-color whose
+        // largest channel is green, not red
+        const string svg = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feSpecularLighting lighting-color='rgb(50,200,100)' specularConstant='1' specularExponent='3'>
+                    <feDistantLight azimuth='45' elevation='90'/>
+                  </feSpecularLighting>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='20' height='20' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert: S = (50, 200, 100) exactly (N.H=1 regardless of specularExponent); alpha = 200,
+        // the green channel's value - not 255, and not the red channel's value either
+        Assert.Equal(new Rgba32(50, 200, 100, 200), surface[10, 10]);
+    }
+
+    /// <summary>
+    ///     Proves that increasing <c>specularExponent</c> reduces the specular contribution at a
+    ///     fixed off-axis angle (<c>N.H &lt; 1</c>) - the mathematical basis for a larger exponent
+    ///     producing a narrower, more sharply focused highlight.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeSpecularLightingSpecularExponent_IncreasesFocusOfHighlight()
+    {
+        // Arrange: elevation="45" (not 90) against a flat plane keeps N.H fixed at a constant,
+        // off-axis value (Hz = (sin(45)+1)/|L+E)| ~= 0.924) strictly less than 1 everywhere,
+        // isolating the exponent's own effect
+        const string svgLowExponent = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feSpecularLighting lighting-color='white' specularConstant='1' specularExponent='1'>
+                    <feDistantLight azimuth='0' elevation='45'/>
+                  </feSpecularLighting>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='20' height='20' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+        const string svgHighExponent = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feSpecularLighting lighting-color='white' specularConstant='1' specularExponent='50'>
+                    <feDistantLight azimuth='0' elevation='45'/>
+                  </feSpecularLighting>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='20' height='20' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var streamLow = ToStream(svgLowExponent);
+        using var streamHigh = ToStream(svgHighExponent);
+        var surfaceLow = SvgCodec.Load(streamLow, 20, 20);
+        var surfaceHigh = SvgCodec.Load(streamHigh, 20, 20);
+
+        // Assert: pow(0.924, 50) << pow(0.924, 1), so the higher-exponent highlight is far dimmer
+        // at this fixed off-axis angle
+        Assert.True(
+            surfaceLow[10, 10].R > surfaceHigh[10, 10].R,
+            $"Expected specularExponent=1 (R={surfaceLow[10, 10].R}) to exceed specularExponent=50 (R={surfaceHigh[10, 10].R}).");
+    }
+
+    /// <summary>
+    ///     Proves the SVG specification's own published Park &amp; Miller minimal-standard PRNG
+    ///     conformance test vector: the 10,000th value generated from seed <c>1</c> must equal
+    ///     exactly <c>1043618065</c>. This is the strongest available spec-fidelity proof for
+    ///     <c>feTurbulence</c>'s reference algorithm transcription, verified here via reflection
+    ///     against the private <c>SvgCodec.TurbulenceTables.Random</c> helper directly (matching the
+    ///     existing <c>BindingFlags.NonPublic</c> idiom used by
+    ///     <see cref="SvgCodec_ResolveGradientStops_SameGradientElementResolvedTwice_ReturnsCachedListInstance"/>).
+    /// </summary>
+    [Fact]
+    public void SvgTurbulencePrng_10000thValueFromSeedOne_MatchesSpecPublishedTestVector()
+    {
+        // Arrange: reflect the private nested TurbulenceTables type and its private static Random method
+        var tablesType = typeof(SvgCodec).GetNestedType("TurbulenceTables", BindingFlags.NonPublic);
+        Assert.NotNull(tablesType);
+        var randomMethod = tablesType.GetMethod("Random", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(randomMethod);
+
+        // Act: apply Random() 10,000 times starting from seed 1
+        object seed = 1L;
+        for (var i = 0; i < 10_000; i++)
+        {
+            seed = randomMethod.Invoke(null, [seed])!;
+        }
+
+        // Assert: matches the spec's own published test vector exactly
+        Assert.Equal(1043618065L, (long)seed);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feTurbulence</c> is fully deterministic: two independent <c>Load</c> calls
+    ///     against the identical document produce byte-for-byte identical output.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeTurbulenceSameSeedTwoLoadCalls_ProducesIdenticalOutput()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTurbulence type='fractalNoise' baseFrequency='0.2' numOctaves='3' seed='42'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act: two independent Load calls against the same document text
+        using var streamFirst = ToStream(svg);
+        using var streamSecond = ToStream(svg);
+        var surfaceFirst = SvgCodec.Load(streamFirst, 10, 10);
+        var surfaceSecond = SvgCodec.Load(streamSecond, 10, 10);
+
+        // Assert
+        AssertSurfacesEqual(surfaceFirst, surfaceSecond);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feTurbulence</c>'s <c>seed</c> attribute genuinely feeds the permutation-
+    ///     table initialization, rather than being tolerantly ignored: two otherwise-identical
+    ///     primitives with different seeds produce different output.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeTurbulenceDifferentSeeds_ProducesDifferentOutput()
+    {
+        // Arrange
+        const string svgSeedOne = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTurbulence type='fractalNoise' baseFrequency='0.2' numOctaves='3' seed='1'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+        const string svgSeedTwo = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTurbulence type='fractalNoise' baseFrequency='0.2' numOctaves='3' seed='2'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var streamOne = ToStream(svgSeedOne);
+        using var streamTwo = ToStream(svgSeedTwo);
+        var surfaceOne = SvgCodec.Load(streamOne, 10, 10);
+        var surfaceTwo = SvgCodec.Load(streamTwo, 10, 10);
+
+        // Assert: at least one pixel differs between the two seeds
+        Assert.True(SurfacesDiffer(surfaceOne, surfaceTwo), "Expected different seeds to produce different turbulence output.");
+    }
+
+    /// <summary>
+    ///     Proves that <c>type="turbulence"</c> and <c>type="fractalNoise"</c> apply distinct
+    ///     color-conversion formulas against the same underlying noise field, rather than one being
+    ///     silently ignored.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeTurbulenceTypeTurbulenceVsFractalNoise_ProduceDifferentRemapping()
+    {
+        // Arrange: identical seed/frequency/octaves, differing only by type
+        const string svgTurbulence = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTurbulence type='turbulence' baseFrequency='0.2' numOctaves='3' seed='7'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+        const string svgFractalNoise = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTurbulence type='fractalNoise' baseFrequency='0.2' numOctaves='3' seed='7'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var streamTurbulence = ToStream(svgTurbulence);
+        using var streamFractalNoise = ToStream(svgFractalNoise);
+        var surfaceTurbulence = SvgCodec.Load(streamTurbulence, 10, 10);
+        var surfaceFractalNoise = SvgCodec.Load(streamFractalNoise, 10, 10);
+
+        // Assert
+        Assert.True(SurfacesDiffer(surfaceTurbulence, surfaceFractalNoise), "Expected type=\"turbulence\" and type=\"fractalNoise\" to produce different output.");
+    }
+
+    /// <summary>
+    ///     Proves that <c>numOctaves</c> genuinely drives the octave-accumulation loop, rather than
+    ///     being hard-coded to a single pass: <c>numOctaves="1"</c> vs <c>numOctaves="4"</c> (same
+    ///     seed/frequency) produce different output.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeTurbulenceNumOctavesVariation_ProducesDifferentOutputThanSingleOctave()
+    {
+        // Arrange
+        const string svgOneOctave = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTurbulence type='fractalNoise' baseFrequency='0.2' numOctaves='1' seed='7'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+        const string svgFourOctaves = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTurbulence type='fractalNoise' baseFrequency='0.2' numOctaves='4' seed='7'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var streamOne = ToStream(svgOneOctave);
+        using var streamFour = ToStream(svgFourOctaves);
+        var surfaceOne = SvgCodec.Load(streamOne, 10, 10);
+        var surfaceFour = SvgCodec.Load(streamFour, 10, 10);
+
+        // Assert
+        Assert.True(SurfacesDiffer(surfaceOne, surfaceFour), "Expected numOctaves=\"1\" and numOctaves=\"4\" to produce different output.");
+    }
+
+    /// <summary>
+    ///     Proves that <c>feTurbulence</c> produces genuine per-pixel noise (not a flat fill) across
+    ///     a reasonably sized region, and that every produced channel value falls within this
+    ///     codec's own byte-clamped <c>[0, 255]</c> range end-to-end.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeTurbulenceOutput_ValuesSpanNonDegenerateRangeAcrossPixels()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTurbulence type='turbulence' baseFrequency='0.15' numOctaves='3' seed='9'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='20' height='20' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert: every sampled red-channel value is a valid byte (trivially guaranteed by ToByte,
+        // but asserted end-to-end), and not every pixel shares the same value
+        var redValues = new HashSet<byte>();
+        for (var y = 0; y < 20; y++)
+        {
+            for (var x = 0; x < 20; x++)
+            {
+                var pixel = surface[x, y];
+                Assert.InRange(pixel.R, (byte)0, (byte)255);
+                redValues.Add(pixel.R);
+            }
+        }
+
+        Assert.True(redValues.Count > 1, "Expected feTurbulence output to vary across pixels, not remain a flat fill.");
+    }
+
+    /// <summary>
+    ///     Proves that an excessive <c>feTurbulence</c> <c>numOctaves</c> is rejected before any
+    ///     per-pixel noise work runs.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeTurbulenceNumOctavesExceedingCap_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTurbulence numOctaves='33'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act / Assert
+        using var stream = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves the documented <c>stitchTiles</c> scope decision: <c>stitchTiles="stitch"</c>
+    ///     does not throw and tolerantly falls back to producing the exact same output as
+    ///     <c>stitchTiles="noStitch"</c> for otherwise-identical attributes.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeTurbulenceStitchTilesStitch_TolerantlyFallsBackToNoStitchBehavior()
+    {
+        // Arrange
+        const string svgStitch = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTurbulence type='fractalNoise' baseFrequency='0.2' numOctaves='3' seed='11' stitchTiles='stitch'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+        const string svgNoStitch = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTurbulence type='fractalNoise' baseFrequency='0.2' numOctaves='3' seed='11' stitchTiles='noStitch'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act / Assert: "stitch" must not throw, and its behavior must be indistinguishable from
+        // the explicitly-requested "noStitch"
+        using var streamStitch = ToStream(svgStitch);
+        using var streamNoStitch = ToStream(svgNoStitch);
+        var surfaceStitch = SvgCodec.Load(streamStitch, 10, 10);
+        var surfaceNoStitch = SvgCodec.Load(streamNoStitch, 10, 10);
+        AssertSurfacesEqual(surfaceStitch, surfaceNoStitch);
+    }
+
+    /// <summary>
+    ///     Returns <see langword="true"/> if any pixel differs between two same-size surfaces.
+    /// </summary>
+    /// <param name="first">The first surface.</param>
+    /// <param name="second">The second surface.</param>
+    /// <returns><see langword="true"/> if at least one pixel differs.</returns>
+    private static bool SurfacesDiffer(Surface first, Surface second)
+    {
+        for (var y = 0; y < first.Height; y++)
+        {
+            for (var x = 0; x < first.Width; x++)
+            {
+                if (!first[x, y].Equals(second[x, y]))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

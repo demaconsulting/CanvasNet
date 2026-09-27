@@ -1575,9 +1575,11 @@ public static partial class SvgCodec
     /// <summary>
     ///     Counts <paramref name="filterElement"/>'s upfront primitive-equivalent work-unit charge
     ///     for <see cref="IsFilterPrimitiveWorkWithinBudget"/>: most direct children count as 1;
-    ///     a <c>feMerge</c> child counts as its own <c>feMergeNode</c> count (at least 1); and a
+    ///     a <c>feMerge</c> child counts as its own <c>feMergeNode</c> count (at least 1); a
     ///     <c>feConvolveMatrix</c> child counts as <c>orderX * orderY</c> (at least 1), reflecting
-    ///     its O(order<sup>2</sup> &#215; region-area) per-primitive cost.
+    ///     its O(order<sup>2</sup> &#215; region-area) per-primitive cost; and a <c>feTurbulence</c>
+    ///     child counts as its own resolved <c>numOctaves</c> (at least 1), reflecting its
+    ///     O(numOctaves &#215; region-area) per-primitive cost.
     /// </summary>
     /// <param name="filterElement">The resolved <c>filter</c> element.</param>
     /// <returns>The total primitive-equivalent work-unit count.</returns>
@@ -1586,6 +1588,7 @@ public static partial class SvgCodec
         {
             "feMerge" => Math.Max(1, primitive.Elements().Count(node => node.Name.LocalName == "feMergeNode")),
             "feConvolveMatrix" => Math.Max(1, GetConvolveMatrixOrder(primitive).X * GetConvolveMatrixOrder(primitive).Y),
+            "feTurbulence" => Math.Max(1, ResolveTurbulenceNumOctaves(primitive)),
             _ => 1
         });
 
@@ -1618,8 +1621,7 @@ public static partial class SvgCodec
     ///     earlier named <c>result</c>; the immediately preceding primitive; and, for any other
     ///     dangling/unrecognized name, tolerant fallback to <paramref name="sourceGraphic"/>.
     ///     Unsupported primitives remain tolerant no-op pass-through operations of their own resolved
-    ///     <c>in</c> input - notably <c>feBlend</c>, <c>feDiffuseLighting</c>,
-    ///     <c>feSpecularLighting</c>, and <c>feTurbulence</c>.
+    ///     <c>in</c> input - notably <c>feBlend</c>.
     /// </remarks>
     private static Surface EvaluateFilterChain(
         XElement filterElement,
@@ -1760,6 +1762,20 @@ public static partial class SvgCodec
                         filterWorkBudget,
                         boundsPrePassBudget);
                     outputSubregion = primitiveSubregion;
+                    break;
+
+                case "feDiffuseLighting":
+                    output = ApplyFeDiffuseLighting(primitive, input, scale, transform, regionPixelX, regionPixelY);
+                    outputSubregion = inputSubregion;
+                    break;
+
+                case "feSpecularLighting":
+                    output = ApplyFeSpecularLighting(primitive, input, scale, transform, regionPixelX, regionPixelY);
+                    outputSubregion = inputSubregion;
+                    break;
+
+                case "feTurbulence":
+                    output = ApplyFeTurbulence(primitive, sourceGraphic.Width, sourceGraphic.Height, scale, regionPixelX, regionPixelY);
                     break;
 
                 default:
