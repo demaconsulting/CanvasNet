@@ -19,6 +19,7 @@
 // cspell:ignore saddlebrown sandybrown seagreen skyblue slateblue slategray slategrey springgreen
 // cspell:ignore steelblue whitesmoke yellowgreen
 using System.Globalization;
+using System.Linq;
 using System.Numerics;
 using System.Xml;
 using System.Xml.Linq;
@@ -370,9 +371,23 @@ public static partial class SvgCodec
                 // so, as a documented simplification, it is instead treated identically to a plain
                 // group in both situations (renders in place if encountered directly, and also
                 // renders when referenced via <use>)
-                foreach (var child in element.Elements())
+                //
+                // A "g"/"symbol" element's own "filter" attribute (suppressed identically to
+                // shape/text filtering whenever this call is itself part of a marker's own
+                // content, see suppressFilter above) renders the whole subtree below as one
+                // filtered unit via RenderFilteredGroup, instead of the plain unfiltered child
+                // loop - see RenderFilteredGroup's remarks for the full group-filter algorithm
+                var groupFilterElement = suppressFilter ? null : ResolveFilterElement(element, context);
+                if (groupFilterElement == null)
                 {
-                    RenderElement(child, state, transform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+                    foreach (var child in element.Elements())
+                    {
+                        RenderElement(child, state, transform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+                    }
+                }
+                else
+                {
+                    RenderFilteredGroup(groupFilterElement, element.Elements().ToList(), state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget);
                 }
 
                 break;

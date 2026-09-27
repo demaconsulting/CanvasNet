@@ -72,7 +72,7 @@ public static partial class SvgCodec
     ///     to the already-region-bounded buffer size, not the radius itself, but whose zero-padded
     ///     edge handling still becomes wastefully expensive for an absurdly large radius) to a
     ///     small, practical amount. Clamped rather than skipped/thrown, unlike an oversized filter
-    ///     region (see <see cref="ComputeFilterRegionPixelBounds"/>): a clamped blur still produces
+    ///     region (see <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2)"/>): a clamped blur still produces
     ///     a visually reasonable, just-less-blurred result, whereas a clamped-but-still-rendered
     ///     region would be silently mis-positioned.
     /// </summary>

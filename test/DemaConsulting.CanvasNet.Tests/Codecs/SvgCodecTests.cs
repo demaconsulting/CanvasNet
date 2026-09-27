@@ -3234,6 +3234,349 @@ public class SvgCodecTests
     }
 
     // ================================================================================================
+    // Group-level filtering (<g>/<symbol>/<use> filter attribute)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that a <c>filter</c> attribute on a <c>&lt;g&gt;</c> element is evaluated once
+    ///     against the whole subtree's combined bounds, rather than having no effect (the group's
+    ///     previous behavior) or being applied independently to each child. Two non-overlapping
+    ///     rects leave a gap between them; a bare <c>feFlood</c> filter fills its entire region
+    ///     solid red, so the gap being red proves the filter region spans the group's *combined*
+    ///     bounds rather than being evaluated per-child (which would leave the gap untouched).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GroupFilter_FeFloodOnGWithTwoChildren_FillsCombinedBoundsIncludingGap()
+    {
+        // Arrange: two 20x20 blue rects with a 20-unit gap between them (x in 30..50), both
+        // wrapped in a single filtered <g>; the filter's default region (-10%/-10%/120%/120%)
+        // around their combined bounds (10,10)-(70,30) comfortably covers the gap
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feFlood flood-color='red'/>
+                </filter>
+              </defs>
+              <g filter='url(#f)'>
+                <rect x='10' y='10' width='20' height='20' fill='blue'/>
+                <rect x='50' y='10' width='20' height='20' fill='blue'/>
+              </g>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the gap between the two rects, which no single child's own bounds cover, is
+        // filled by the flood - proving the filter region was computed from the group's combined
+        // subtree bounds
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[40, 20]);
+
+        // Assert: outside the filter region entirely, nothing was painted
+        Assert.Equal(0, surface[90, 90].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>filter</c> attribute on a <c>&lt;use&gt;</c> element referencing a
+    ///     <c>&lt;symbol&gt;</c> renders the symbol's entire resolved subtree offscreen and applies
+    ///     the filter to the combined result, exactly as for a <c>&lt;g&gt;</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GroupFilter_UseReferencingSymbolWithFilter_FillsCombinedBounds()
+    {
+        // Arrange: a symbol containing two 10x10 blue rects with a 10-unit gap between them; a
+        // <use filter="url(#f)"> references the symbol and translates it by (10,10)
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'><feFlood flood-color='red'/></filter>
+                <symbol id='sym'>
+                  <rect x='0' y='0' width='10' height='10' fill='blue'/>
+                  <rect x='20' y='0' width='10' height='10' fill='blue'/>
+                </symbol>
+              </defs>
+              <use x='10' y='10' filter='url(#f)' href='#sym'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the gap between the symbol's two rects (translated by the use's x/y offset) is
+        // filled by the flood, proving the filter was evaluated against the resolved symbol
+        // subtree's combined bounds, not "no effect" (the group's previous behavior)
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[25, 15]);
+
+        // Assert: outside the filter region entirely, nothing was painted
+        Assert.Equal(0, surface[90, 90].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>filter</c> attribute placed directly on a <c>&lt;use&gt;</c> element
+    ///     itself (as distinct from a filter on the referenced <c>&lt;symbol&gt;</c>/<c>&lt;g&gt;</c>
+    ///     covered by the previous test) applies to the whole resolved target, even when that
+    ///     target is a plain <c>&lt;g&gt;</c> rather than a <c>&lt;symbol&gt;</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GroupFilter_FilterOnUseTargetingPlainG_FillsCombinedBounds()
+    {
+        // Arrange: same geometry as the symbol case above, but the use's href target is a plain
+        // <g> defined inside <defs> rather than a <symbol>
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'><feFlood flood-color='red'/></filter>
+                <g id='grp'>
+                  <rect x='0' y='0' width='10' height='10' fill='blue'/>
+                  <rect x='20' y='0' width='10' height='10' fill='blue'/>
+                </g>
+              </defs>
+              <use x='10' y='10' filter='url(#f)' href='#grp'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the gap between the two rects is filled by the flood, proving the use's own
+        // filter attribute applies to the resolved <g> target's combined subtree bounds
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[25, 15]);
+    }
+
+    /// <summary>
+    ///     Proves that a group's own <c>opacity</c> attenuates the *filtered* result exactly once,
+    ///     the same convention already established for single filtered shapes (see
+    ///     <see cref="SvgCodec_Load_OpacityWithFeFloodFilter_AppliesOpacityToFilteredResultNotSource"/>).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GroupFilterWithOpacity_AppliesOpacityToFilteredResultNotChildren()
+    {
+        // Arrange: a fully-opaque red feFlood is the filter's entire output; the group's own
+        // opacity of 0.5 must still visibly attenuate that flood's alpha
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'><feFlood flood-color='red' flood-opacity='1'/></filter>
+              </defs>
+              <g opacity='0.5' filter='url(#f)'>
+                <rect x='40' y='40' width='20' height='20' fill='blue'/>
+              </g>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the flood's own color is still fully red, but its alpha reflects the group's own
+        // 50% opacity (0.5 * 255 = 127.5), not the fully-opaque 255 a pre-filter opacity fold
+        // would incorrectly produce
+        var pixel = surface[50, 50];
+        Assert.Equal(255, pixel.R);
+        Assert.Equal(0, pixel.G);
+        Assert.Equal(0, pixel.B);
+        Assert.InRange((int)pixel.A, 110, 145);
+    }
+
+    /// <summary>
+    ///     Proves that a group's own <c>transform</c> establishes the coordinate space the filter
+    ///     region and filter primitives (here, <c>feOffset</c>) are computed and evaluated in -
+    ///     mirroring <see cref="SvgCodec_Load_FeOffsetFilter_ShiftsSourceGraphicByDxDy"/>'s
+    ///     single-shape assertions, but with the child rect expressed in the group's own local
+    ///     space and a separate <c>transform</c> on the group carrying it to the same final
+    ///     on-canvas position.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GroupFilterWithTransform_EvaluatesFilterInGroupsLocalSpace()
+    {
+        // Arrange: the group's transform='translate(10,10)' plus the child rect's own local
+        // position (30,30) combine to the same on-canvas rect (40,40)-(50,50) used by the
+        // single-shape feOffset test; the same dx='5' shift is therefore expected to move the
+        // rendered content by the same 5 pixels
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f' x='-1' y='-1' width='3' height='3'>
+                  <feOffset dx='5' dy='0'/>
+                </filter>
+              </defs>
+              <g transform='translate(10,10)' filter='url(#f)'>
+                <rect x='30' y='30' width='10' height='10' fill='blue'/>
+              </g>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the rect's content reappears shifted 5 pixels to the right of its own bounds
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[47, 45]);
+
+        // Assert: nothing remains at the rect's own (pre-offset) position
+        Assert.Equal(0, surface[42, 45].A);
+    }
+
+    /// <summary>
+    ///     Proves that a group's <c>filter</c> attribute referencing a nonexistent id is tolerated
+    ///     as a silent no-op, matching this codec's general dangling-reference convention: the
+    ///     group's children still render normally, exactly as if the <c>filter</c> attribute had
+    ///     been absent.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GroupFilterWithDanglingReference_RendersChildrenNormally()
+    {
+        // Arrange: the group's filter references an id that does not exist anywhere in the
+        // document
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <g filter='url(#missing)'>
+                <rect x='10' y='10' width='20' height='20' fill='purple'/>
+              </g>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the rect rendered its own normal fill - the dangling filter reference had no
+        // effect
+        Assert.Equal(new Rgba32(128, 0, 128, 255), surface[20, 20]);
+    }
+
+    /// <summary>
+    ///     Proves that an empty, filtered <c>&lt;g&gt;</c> (no children at all) is tolerated as a
+    ///     no-op rather than throwing: with no children, the subtree has no bounds to compute a
+    ///     filter region from, so the group falls back to its (empty) unfiltered child render -
+    ///     the same tolerant convention used for every other filter resource-safety fallback.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GroupFilterOnEmptyGroup_RendersNothingWithoutThrowing()
+    {
+        // Arrange: a filtered <g> with no children
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs><filter id='f'><feFlood flood-color='red'/></filter></defs>
+              <g filter='url(#f)'></g>
+            </svg>
+            """;
+
+        // Act: must not throw
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: nothing was painted anywhere - the empty group's filter had no bounds to work
+        // with, so nothing was flooded
+        Assert.Equal(0, surface[50, 50].A);
+    }
+
+    /// <summary>
+    ///     Regression test for the group-level counterpart of
+    ///     <see cref="SvgCodec_Load_MarkerContentWithFilterAttribute_FilterHasNoEffect"/>: a
+    ///     <c>filter</c> attribute on a <c>&lt;g&gt;</c> *inside* a <c>&lt;marker&gt;</c>'s content
+    ///     must still have no effect, preserving this codec's documented "filters on marker
+    ///     content have no effect" contract even now that group-level filtering is otherwise
+    ///     evaluated.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GroupFilterInsideMarkerContent_FilterHasNoEffect()
+    {
+        // Arrange: the marker's content is a <g filter="url(#f)"> wrapping a lime rect; the
+        // filter would fill its region red if it were (incorrectly) evaluated
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f'><feFlood flood-color='red'/></filter>
+                <marker id='m' markerWidth='2' markerHeight='2' refX='1' refY='1' markerUnits='userSpaceOnUse'>
+                  <g filter='url(#f)'>
+                    <rect x='0' y='0' width='2' height='2' fill='lime'/>
+                  </g>
+                </marker>
+              </defs>
+              <line x1='1' y1='5.5' x2='7' y2='5.5' stroke='black' stroke-width='1' marker-end='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the marker's own "lime" fill rendered - the group's filter was never applied
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[7, 5]);
+    }
+
+    /// <summary>
+    ///     Group-level counterpart of
+    ///     <see cref="SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes"/>:
+    ///     proves the same cumulative, per-<c>Load</c>-call <c>FilterWorkBudget</c> also caps
+    ///     group-level filter work, using <c>&lt;use&gt;</c> elements referencing a shared
+    ///     <c>&lt;g&gt;</c> target instead of directly-filtered <c>&lt;rect&gt;</c> elements.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GroupFilterReferencedByManyUsesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessUses()
+    {
+        // Arrange: identical filter-cost shape (a 40x40 rect, wrapped in a shared <g> target) and
+        // filter chain (499 no-op primitives + a trailing feFlood, region forced to exactly
+        // 100x100 pixels) as the single-shape cumulative-budget test, but each of the 13
+        // non-overlapping placements is a <use filter="url(#f)"> referencing the shared <g>
+        // rather than a directly-filtered rect. The first 10 charge a running cumulative total of
+        // exactly 50,000,000 (still within the ceiling), while the 11th through 13th would push
+        // the total over budget and must tolerantly fall back to unfiltered rendering
+        const int shapeCount = 13;
+        const int filteredShapeCount = 10;
+        var noOpPrimitives = string.Concat(Enumerable.Repeat("<feUnsupportedNoOp/>", 499));
+        var uses = string.Concat(Enumerable.Range(0, shapeCount).Select(i =>
+            $"<use x='{10 + (i * 150)}' y='10' filter='url(#f)' href='#grp'/>"));
+        var svg = $"""
+            <svg viewBox='0 0 2000 120'>
+              <defs>
+                <filter id='f' width='250%' height='250%'>
+                  {noOpPrimitives}
+                  <feFlood flood-color='red'/>
+                </filter>
+                <g id='grp'>
+                  <rect x='0' y='0' width='40' height='40' fill='blue'/>
+                </g>
+              </defs>
+              {uses}
+            </svg>
+            """;
+
+        // Act: render the whole document - must complete promptly, and must not throw
+        var stopwatch = Stopwatch.StartNew();
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 2000, 120);
+        stopwatch.Stop();
+
+        // Assert: the first 10 uses (cumulative total staying within the ceiling) were actually
+        // filtered - each rendered as the feFlood's solid red, not the referenced rect's own blue
+        // fill
+        for (var i = 0; i < filteredShapeCount; i++)
+        {
+            var sampleX = 30 + (i * 150);
+            Assert.Equal(new Rgba32(255, 0, 0, 255), surface[sampleX, 30]);
+        }
+
+        // Assert: the remaining uses (11th through 13th), which would have pushed the cumulative
+        // total over the ceiling, tolerantly fell back to unfiltered rendering - each still shows
+        // the referenced rect's own normal blue fill
+        for (var i = filteredShapeCount; i < shapeCount; i++)
+        {
+            var sampleX = 30 + (i * 150);
+            Assert.Equal(new Rgba32(0, 0, 255, 255), surface[sampleX, 30]);
+        }
+
+        // Assert: completed promptly, proving the excess filters were skipped rather than
+        // evaluated
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the excessive cumulative group-filter work to be skipped promptly, but it took {stopwatch.Elapsed}.");
+    }
+
+    // ================================================================================================
     // Total geometry-parsing work budget (path data / point lists / text characters)
     // ================================================================================================
 

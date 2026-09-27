@@ -237,42 +237,67 @@ public class SvgFixtureTests
     ///     <c>InkscapeFilters.svg</c> (see <c>SvgFixtures\WikimediaCommons.LICENSE</c> for
     ///     provenance) - a large, complex document built entirely from <c>defs</c>/<c>use</c>
     ///     templating, composed <c>transform</c> functions, and dozens of <c>filter="url(#...)"</c>
-    ///     references, whose primitive chains combine supported primitives
-    ///     (<c>feGaussianBlur</c>/<c>feComposite</c>) with several unsupported ones
-    ///     (<c>feSpecularLighting</c>/<c>feDiffuseLighting</c>/arithmetic-mode
+    ///     references placed on <c>use</c> elements referencing a shared <c>g</c> template (the
+    ///     group-level filtering this feature adds support for) - whose primitive chains combine
+    ///     supported primitives (<c>feGaussianBlur</c>/<c>feComposite</c>) with several unsupported
+    ///     ones (<c>feSpecularLighting</c>/<c>feDiffuseLighting</c>/arithmetic-mode
     ///     <c>feComposite</c>, each a tolerant no-op passthrough of its input) - loads without
-    ///     throwing despite this genuinely deep, mixed-support filter evaluation (proving the
-    ///     tolerant-passthrough policy for unsupported primitives holds within a real,
-    ///     unmodified, complex third-party document, not only a small synthetic one), that a
-    ///     flower shape rendered behind one such <c>filter</c> reference still paints its genuine
-    ///     fill color (proving real content rendered, not just "didn't crash"), and that a point
-    ///     in the gap between flowers remains transparent (proving the render is not a degenerate
-    ///     whole-canvas fill that would make the previous assertion vacuous). At this deep-interior
-    ///     pixel, the asserted color happens to exactly match the shape's own original fill: every
-    ///     unsupported primitive in the chain passes its input through unchanged, and the chain's
-    ///     final primitive is an <c>feComposite operator="atop"</c> against <c>SourceGraphic</c>,
-    ///     which by definition adopts <c>SourceGraphic</c>'s own alpha (fully opaque here, far
-    ///     from any shape edge) - so this is not evidence that the filter was skipped or ignored.
+    ///     throwing despite this genuinely deep, mixed-support filter evaluation now actually being
+    ///     performed for every one of these group-level filter references (proving the
+    ///     tolerant-passthrough policy for unsupported primitives, and the resource-safety guards
+    ///     shared with per-shape filtering, both hold within a real, unmodified, complex
+    ///     third-party document, not only a small synthetic one), that a flower shape rendered
+    ///     behind one such group-level <c>filter</c> reference still paints recognizably-related,
+    ///     fully-opaque content at a deep-interior pixel (proving real content rendered, not just
+    ///     "didn't crash", and that the final <c>feComposite operator="atop"</c> against
+    ///     <c>SourceGraphic</c> - which by definition adopts <c>SourceGraphic</c>'s own alpha -
+    ///     still reconstructs full opacity far from any shape edge, even though the chain's
+    ///     <c>feSpecularLighting</c>/<c>feGaussianBlur</c> primitives now genuinely alter the
+    ///     evaluated color), that points in the gap between flowers remain transparent (proving
+    ///     the render is not a degenerate whole-canvas fill that would make the previous
+    ///     assertions vacuous), and - the assertion this feature specifically adds - that the
+    ///     filtered flower's own <c>feGaussianBlur</c> genuinely bleeds non-zero alpha into a
+    ///     point just outside the flower's own unfiltered silhouette, where the equivalent point
+    ///     under the first, unfiltered flower (<c>translate(50,50)</c>, no <c>filter</c>
+    ///     attribute) remains exactly, fully transparent - proving group-level filtering now
+    ///     genuinely changes the rendered pixels at real-world fixture scale, not merely tolerating
+    ///     the attribute without effect.
     /// </summary>
     [Fact]
     public void SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent()
     {
         // Arrange & Act: rasterize at the fixture's native 600x1000 width/height - this must not
-        // throw despite every flower (other than the very first) referencing a <filter> whose
-        // chain mixes supported and unsupported (tolerantly passed-through) primitives
+        // throw despite every flower (other than the very first) referencing a group-level
+        // <filter> whose chain mixes supported and unsupported (tolerantly passed-through)
+        // primitives
         var surface = SvgCodec.Load(ResolveFixturePath("InkscapeFilters.svg"), 600, 1000);
 
-        // Assert: a petal of the second flower - translate(150,50), filter="url(#filter48)" -
-        // still renders its own "#ff8010" (255,128,16) fill, proving the filter's evaluated
-        // chain (see the remarks above) reconstructs the original color at this deep-interior
-        // pixel rather than suppressing or corrupting the shape it decorates
-        Assert.Equal(new Rgba32(255, 128, 16, 255), surface[135, 30]);
+        // Assert: a petal of the second flower - translate(150,50), filter="url(#filter48)"
+        // applied to the referencing <use> element itself - renders fully opaque at this
+        // deep-interior pixel, and its color, while altered from the original "#ff8010"
+        // (255,128,16) fill by the chain's feSpecularLighting/feGaussianBlur primitives now being
+        // genuinely evaluated against the group's own combined rendered content, still exactly
+        // matches this filter's own deterministic evaluation - proving real, filtered content
+        // rendered, not a blank/degenerate result
+        Assert.Equal(new Rgba32(247, 111, 24, 255), surface[135, 30]);
 
-        // Assert: the gap between flowers (the grid spacing is 100 units, and each flower's
-        // petals only reach roughly 36 units from its own center) remains fully transparent -
+        // Assert: the gaps between flowers (the grid spacing is 100 units, and each flower's
+        // petals only reach roughly 36 units from its own center) remain fully transparent -
         // proving the render did not degenerate into filling the whole canvas with one color
         Assert.Equal(0, surface[100, 50].A);
-        Assert.Equal(0, surface[50, 100].A);
+        Assert.Equal(0, surface[100, 100].A);
+
+        // Assert: the second flower's own group-level filter (feGaussianBlur stdDeviation="8")
+        // genuinely bleeds non-zero alpha to a point just outside its unfiltered silhouette -
+        // the equivalent point relative to the first, unfiltered flower (translate(50,50), no
+        // filter attribute) remains exactly, fully transparent, proving this bleed is a real
+        // effect of the group-level filter chain now being evaluated, not pre-existing
+        // antialiasing or an unrelated coincidence
+        Assert.Equal(0, surface[98, 29].A);
+        var bleedPixel = surface[198, 29];
+        Assert.True(
+            bleedPixel.A > 0,
+            $"Expected the second flower's group-level filter to blur-bleed non-zero alpha at (198, 29), got A={bleedPixel.A}.");
     }
 
     /// <summary>

@@ -38,7 +38,9 @@ public static partial class SvgCodec
 
     /// <summary>
     ///     Renders a <c>use</c> element by re-rendering its referenced element in place, offset by
-    ///     the <c>use</c> element's own <c>x</c>/<c>y</c> translation and cascaded state/transform.
+    ///     the <c>use</c> element's own <c>x</c>/<c>y</c> translation and cascaded state/transform -
+    ///     or, when the <c>use</c> element itself carries its own <c>filter</c> attribute, renders
+    ///     the resolved target as one filtered unit (see <see cref="RenderFilteredGroup"/>).
     /// </summary>
     /// <param name="element">The <c>use</c> element.</param>
     /// <param name="state">The cascaded render state at the <c>use</c> element itself.</param>
@@ -54,7 +56,8 @@ public static partial class SvgCodec
     ///     The current <c>marker</c>-reference nesting depth, propagated unchanged to the
     ///     re-rendered target - a <c>use</c> reference is not itself a marker reference, but a
     ///     <c>marker</c> reference reached inside the re-rendered target must still contribute
-    ///     toward <see cref="MaxMarkerDepth"/>.
+    ///     toward <see cref="MaxMarkerDepth"/>. Also determines whether this <c>use</c> element's
+    ///     own <c>filter</c> attribute is resolved at all (see this method's remarks).
     /// </param>
     /// <param name="totalElements">
     ///     The running total-rendered-elements count, propagated to the re-rendered target so it
@@ -70,6 +73,18 @@ public static partial class SvgCodec
     ///     A dangling, absent, or malformed <c>href</c>/<c>xlink:href"</c> reference is a tolerant
     ///     no-op (nothing is rendered), consistent with this class's general dangling-reference
     ///     handling elsewhere.
+    ///     <para>
+    ///     This <c>use</c> element's own <c>filter</c> presentation attribute is resolved (via
+    ///     <see cref="ResolveFilterElement"/>) unless <paramref name="markerDepth"/> is greater
+    ///     than zero - i.e. unless this very <c>use</c> element is itself part of a <c>marker</c>
+    ///     element's own content - per the documented "filters on marker content have no effect"
+    ///     scope decision shared with shape/text filtering. When resolved, the referenced target
+    ///     (an internal-only variable named for the element resolved from <c>href</c>) is
+    ///     rendered as one filtered unit via <see cref="RenderFilteredGroup"/>
+    ///     instead of the plain unfiltered re-entry into <see cref="RenderElement"/> - the
+    ///     algorithm is otherwise identical for both dispatch points (see
+    ///     <see cref="RenderFilteredGroup"/>'s own remarks).
+    ///     </para>
     /// </remarks>
     private static void RenderUse(XElement element, RenderState state, Matrix3x2 transform, RenderContext context, int useDepth, int elementDepth, int markerDepth, ref int totalElements, GeometryWorkBudget workBudget, FilterWorkBudget filterWorkBudget)
     {
@@ -86,7 +101,24 @@ public static partial class SvgCodec
 
         var offset = new Vector2(GetFloatAttribute(element, "x"), GetFloatAttribute(element, "y"));
         var useTransform = Matrix3x2.CreateTranslation(offset) * transform;
-        RenderElement(target, state, useTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+
+        // A "use" element's own "filter" attribute (suppressed identically to shape/text
+        // filtering whenever this call is itself part of a marker's own content) renders its
+        // resolved target as one filtered unit via RenderFilteredGroup, instead of the plain
+        // unfiltered re-entry into RenderElement - see RenderFilteredGroup's remarks for the full
+        // group-filter algorithm. A "use" element is not itself rendered as part of any marker's
+        // content (only RenderOneMarker increments markerDepth), so markerDepth > 0 here means the
+        // *referenced* target is being rendered as part of a marker's own content instead.
+        var suppressFilter = markerDepth > 0;
+        var useFilterElement = suppressFilter ? null : ResolveFilterElement(element, context);
+        if (useFilterElement == null)
+        {
+            RenderElement(target, state, useTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+        }
+        else
+        {
+            RenderFilteredGroup(useFilterElement, [target], state, useTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+        }
     }
 
     // ================================================================================================

@@ -893,7 +893,8 @@ gradients (including `xlink:href`/`href` template inheritance), `use` references
 elements (referenced via `marker-start`/`marker-mid`/`marker-end`, with `markerWidth`/
 `markerHeight`, `refX`/`refY`, `markerUnits`, `orient`, and an optional `viewBox`), `filter`
 elements (referenced via the `filter` presentation attribute on any directly renderable shape or
-`text` element, with `x`/`y`/`width`/`height` filter-region attributes and `feFlood`/
+`text` element, or on a `g`/`symbol` reference/`use` element - applied to the whole referenced
+subtree as a single unit - with `x`/`y`/`width`/`height` filter-region attributes and `feFlood`/
 `feGaussianBlur`/`feOffset`/`feComposite`/`feMerge` primitive children), and best-effort,
 weight/style-aware `text` rendering against a caller-supplied dictionary of per-family font faces:
 either a single `TrueTypeFont` per family (the legacy shape), or a list of `SvgFontFace` values -

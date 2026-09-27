@@ -727,6 +727,61 @@ total filter-evaluation work across the whole document, a dimension neither
 `MaxFilterPrimitiveWorkUnits` (per-filter-application only) nor `MaxTotalRenderedElements`
 (counts a filtered shape identically to an unfiltered one) previously covered.
 
+#### CanvasNet-Codecs-SvgCodec-GroupFilterRendering: Group-Level Filter Rendering on g/symbol/use
+
+**Tests**: `SvgCodec_Load_GroupFilter_FeFloodOnGWithTwoChildren_FillsCombinedBoundsIncludingGap`,
+`SvgCodec_Load_GroupFilter_UseReferencingSymbolWithFilter_FillsCombinedBounds`,
+`SvgCodec_Load_GroupFilter_FilterOnUseTargetingPlainG_FillsCombinedBounds`,
+`SvgCodec_Load_GroupFilterWithOpacity_AppliesOpacityToFilteredResultNotChildren`,
+`SvgCodec_Load_GroupFilterWithTransform_EvaluatesFilterInGroupsLocalSpace`,
+`SvgCodec_Load_GroupFilterWithDanglingReference_RendersChildrenNormally`,
+`SvgCodec_Load_GroupFilterOnEmptyGroup_RendersNothingWithoutThrowing`,
+`SvgCodec_Load_GroupFilterInsideMarkerContent_FilterHasNoEffect`,
+`SvgCodec_Load_GroupFilterReferencedByManyUsesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessUses`,
+`SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent`
+
+Asserts a `filter` on a `<g>` wrapping two non-overlapping `rect` elements is evaluated once
+against the group's own *combined* subtree bounds, not per-child: a bare `feFlood` fills its
+whole region solid, so the gap between the two `rect`s - which neither child's own individual
+bounds cover - being filled proves the filter region was computed from the group's combined
+bounds. Asserts a
+`filter` on a `<use>` element referencing a `<symbol>` renders the resolved subtree offscreen and
+filters the combined result the same way, and a further test proves the same holds when the
+`<use>`'s referenced target is a plain `<g>` rather than a `<symbol>`, since those two target
+kinds are dispatched through separate code paths (`RenderElement`'s `"g"`/`"symbol"` case versus
+`RenderUse`). Asserts a group's own `opacity` attenuates the filtered result exactly once, the
+same convention already established for single filtered shapes
+(`CanvasNet-Codecs-SvgCodec-FilterRendering`'s own
+`SvgCodec_Load_OpacityWithFeFloodFilter_AppliesOpacityToFilteredResultNotSource`). Asserts a
+group's own `transform` establishes the coordinate space both the filter region and an
+`feOffset` primitive's `dx`/`dy` shift are computed in, by reproducing the same on-canvas
+geometry as `SvgCodec_Load_FeOffsetFilter_ShiftsSourceGraphicByDxDy`'s single-shape case through a
+combination of the group's own `transform` and the child rect's own local position. Asserts a
+group `filter` attribute referencing a nonexistent id is tolerated as a silent no-op, mirroring
+this codec's general dangling-reference convention, and that an empty, filtered `<g>` (no
+children at all, so the bounds pre-pass has nothing to compute a region from) is likewise
+tolerated without throwing rather than requiring special-case handling. Asserts a `filter`
+attribute on a `<g>` nested *inside* a `<marker>`'s own content continues to have no effect - the
+group-level counterpart of
+`CanvasNet-Codecs-SvgCodec-FilterRendering`'s predecessor marker-content coverage - since
+`marker` content is never recursed into by the ordinary element walk regardless of any nested
+`filter` attribute. Asserts the same cumulative, per-`Load`-call `FilterWorkBudget` also caps
+group-level filter work: the group-level counterpart of
+`SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes`
+above, using 13 `<use>` elements referencing a shared filtered `<g>` target instead of 13
+directly-filtered `rect` elements, with the same first-10-filtered/last-3-fallback split. Finally,
+the large, real, third-party `SvgFixtures/InkscapeFilters.svg` fixture (already exercised by
+`CanvasNet-Codecs-SvgCodec-FilterRendering` above) corroborates group-level filtering at real-world
+scale: its flower template places most flower instances via `<use filter="url(#...)"
+xlink:href="#b"/>`, where `#b` is itself a `<g>` containing several petal `<use>` references - a
+filter on the outermost `<use>` therefore now genuinely evaluates against the whole resolved
+flower subtree, rather than having no effect. The fixture test asserts a genuinely altered pixel
+color at a previously-asserted interior pixel (proving the filter chain, including its
+`feGaussianBlur`/`feSpecularLighting` steps, now actually runs), and asserts a "blur bleed"
+pixel pair - one offset position relative to a filtered flower shows nonzero alpha from blur
+spread, while the identical offset relative to the one unfiltered flower remains exactly zero -
+directly proving the filter is genuinely evaluated rather than merely tolerated without error.
+
 #### CanvasNet-Codecs-SvgCodec-ValidationNull: Null Stream/Path Rejected
 
 **Tests**: `SvgCodec_Load_NullStream_ThrowsArgumentNullException`,

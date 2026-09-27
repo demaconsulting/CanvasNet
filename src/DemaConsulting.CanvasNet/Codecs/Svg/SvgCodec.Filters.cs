@@ -167,7 +167,7 @@ public static partial class SvgCodec
     ///     on either axis, the whole filter effect is tolerantly skipped - <paramref name="localPath"/>
     ///     renders exactly as if <c>filter</c> were absent - rather than attempting to clamp and
     ///     still render at a smaller, silently mis-positioned region. See
-    ///     <see cref="ComputeFilterRegionPixelBounds"/> for the region computation itself.
+    ///     <see cref="ComputeFilterRegionPixelBounds(XElement, Path, RenderState, Matrix3x2)"/> for the region computation itself.
     ///     <para>
     ///     The <c>SourceGraphic</c> buffer is produced by re-entering <see cref="RenderShape"/>
     ///     against a temporary <see cref="RenderContext"/> (<c>context with { Surface = ... }</c>,
@@ -272,6 +272,379 @@ public static partial class SvgCodec
     }
 
     /// <summary>
+    ///     Computes the union of <paramref name="element"/>'s own subtree painted-content bounds,
+    ///     expressed in the local space that <paramref name="relativeTransform"/> maps <em>from</em>
+    ///     (i.e. the caller's chosen reference frame, not necessarily pixel space) - a bounds-only
+    ///     mirror of <see cref="RenderElement"/>'s dispatch switch, reusing the same
+    ///     <c>Build*Path</c>/<see cref="BuildGlyphRunPath"/> helpers and <see cref="ExpandBoundsForStroke"/>
+    ///     instead of actually rendering anything. Used exclusively by
+    ///     <see cref="RenderFilteredGroup"/> to size a filtered group's own <c>SourceGraphic</c>
+    ///     buffer before any of its content is rendered.
+    /// </summary>
+    /// <param name="element">The element whose own subtree bounds are computed.</param>
+    /// <param name="parentState">The inherited render state from the parent element.</param>
+    /// <param name="relativeTransform">
+    ///     The accumulated transform from <paramref name="element"/>'s parent's own reference
+    ///     frame into the caller's chosen reference frame. <see cref="RenderFilteredGroup"/> always
+    ///     starts this at <see cref="Matrix3x2.Identity"/> for a filtered group's own direct
+    ///     children, so the bounds this method returns stay in the filtered group's own local
+    ///     space - deliberately <em>not</em> composed with any ancestor's accumulated pixel-space
+    ///     transform - exactly mirroring how a single shape's own <c>localPath.GetBounds()</c>
+    ///     excludes every ancestor transform up to and including its own.
+    /// </param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="useDepth">
+    ///     The current <c>use</c>-reference nesting depth, enforcing the same
+    ///     <see cref="MaxUseDepth"/> ceiling <see cref="RenderUse"/> itself enforces.
+    /// </param>
+    /// <param name="elementDepth">
+    ///     The current recursion depth, sharing the same <see cref="MaxElementDepth"/> ceiling
+    ///     <see cref="RenderElement"/> itself enforces - this bounds pre-pass necessarily visits
+    ///     the same subtree depth the real render pass will visit again immediately afterward.
+    /// </param>
+    /// <param name="totalElements">
+    ///     The running total-rendered-elements count, sharing <see cref="RenderElement"/>'s own
+    ///     counter and <see cref="MaxTotalRenderedElements"/> ceiling. This bounds pre-pass
+    ///     deliberately double-charges this counter (once here, once again during the real render
+    ///     pass) rather than caching per-element bounds to avoid the double-visit - a documented,
+    ///     bounded simplification (see <see cref="RenderFilteredGroup"/>'s remarks) that keeps the
+    ///     existing ceiling a hard limit, just reached sooner for content wrapped in a filtered
+    ///     group.
+    /// </param>
+    /// <param name="workBudget">
+    ///     The shared geometry-parsing work budget, charged here (via the same
+    ///     <c>Build*Path</c>/text-length call sites <see cref="RenderElement"/>/<see cref="RenderText"/>
+    ///     already use) as well as again during the real render pass, for the same documented
+    ///     double-charge reason as <paramref name="totalElements"/> above.
+    /// </param>
+    /// <returns>
+    ///     The union of every descendant shape/text element's stroke-expanded, transformed local
+    ///     bounds, or <see langword="null"/> if <paramref name="element"/> and its subtree paint
+    ///     nothing at all - a non-rendering/skipped/unrecognized element (including <c>marker</c>,
+    ///     which is already a <see cref="NonRenderingElements"/> member and therefore never
+    ///     recursed into here, so a group's own painted-content bounds - like a single shape's
+    ///     filter region - never include any marker's own content), an element with a non-finite
+    ///     composed transform, an empty container, a dangling <c>use</c> reference, a <c>text</c>
+    ///     element with no matching font/empty content, or a degenerate/zero-extent shape.
+    /// </returns>
+    private static Rect? ComputeSubtreeLocalBounds(
+        XElement element,
+        RenderState parentState,
+        Matrix3x2 relativeTransform,
+        RenderContext context,
+        int useDepth,
+        int elementDepth,
+        ref int totalElements,
+        GeometryWorkBudget workBudget)
+    {
+        // Mirror RenderElement's own depth/total-element guards exactly - this pre-pass walks the
+        // same subtree the real render pass will walk again immediately afterward, so it must be
+        // bounded by the same ceilings (see this method's remarks on the deliberate double-charge)
+        if (elementDepth >= MaxElementDepth)
+        {
+            throw new InvalidDataException("SVG element nesting exceeds the supported depth.");
+        }
+
+        if (totalElements >= MaxTotalRenderedElements)
+        {
+            throw new InvalidDataException("SVG document resolves to too many total rendered elements.");
+        }
+
+        totalElements++;
+
+        var name = element.Name.LocalName;
+        if (NonRenderingElements.Contains(name) || SkippedElements.Contains(name))
+        {
+            return null;
+        }
+
+        var state = ApplyPresentationAttributes(parentState, element);
+        var transform = ParseTransformAttribute(element) * relativeTransform;
+        if (!IsFiniteTransform(transform))
+        {
+            return null;
+        }
+
+        switch (name)
+        {
+            case "g":
+            case "symbol":
+                {
+                    var bounds = Rect.Empty;
+                    foreach (var child in element.Elements())
+                    {
+                        var childBounds = ComputeSubtreeLocalBounds(child, state, transform, context, useDepth, elementDepth + 1, ref totalElements, workBudget);
+                        if (childBounds != null)
+                        {
+                            bounds = bounds.Union(childBounds.Value);
+                        }
+                    }
+
+                    return bounds.IsEmpty ? null : bounds;
+                }
+
+            case "rect":
+                return TransformedShapeBounds(BuildRectPath(element), state, transform);
+
+            case "circle":
+                return TransformedShapeBounds(BuildEllipsePath(element, isCircle: true), state, transform);
+
+            case "ellipse":
+                return TransformedShapeBounds(BuildEllipsePath(element, isCircle: false), state, transform);
+
+            case "line":
+                return TransformedShapeBounds(BuildLinePath(element), state, transform);
+
+            case "polyline":
+                return TransformedShapeBounds(BuildPolyPath(element, closed: false, workBudget), state, transform);
+
+            case "polygon":
+                return TransformedShapeBounds(BuildPolyPath(element, closed: true, workBudget), state, transform);
+
+            case "path":
+                return TransformedShapeBounds(BuildPathDataPath(element, workBudget), state, transform);
+
+            case "use":
+                {
+                    if (useDepth >= MaxUseDepth)
+                    {
+                        throw new InvalidDataException("Exceeded the maximum <use> reference nesting depth.");
+                    }
+
+                    var hrefId = GetHrefAttribute(element) is { } href ? ExtractFragmentId(href) : null;
+                    if (hrefId == null || !context.IdIndex.TryGetValue(hrefId, out var target))
+                    {
+                        return null;
+                    }
+
+                    var offset = new Vector2(GetFloatAttribute(element, "x"), GetFloatAttribute(element, "y"));
+                    var useTransform = Matrix3x2.CreateTranslation(offset) * transform;
+                    return ComputeSubtreeLocalBounds(target, state, useTransform, context, useDepth + 1, elementDepth + 1, ref totalElements, workBudget);
+                }
+
+            case "text":
+                {
+                    if (context.Fonts == null)
+                    {
+                        return null;
+                    }
+
+                    var font = MatchFont(state.FontFamily, state.FontWeight, state.FontStyle, context.Fonts);
+                    if (font == null)
+                    {
+                        return null;
+                    }
+
+                    var text = element.Value;
+                    if (string.IsNullOrEmpty(text))
+                    {
+                        return null;
+                    }
+
+                    // Charge the text's character count here too, mirroring RenderText's own
+                    // charge site - see this method's remarks on the deliberate double-charge
+                    workBudget.Charge(text.Length);
+
+                    var origin = new Vector2(GetFloatAttribute(element, "x"), GetFloatAttribute(element, "y"));
+                    var glyphRunPath = BuildGlyphRunPath(text, font, state, origin);
+                    return TransformedShapeBounds(glyphRunPath, state, transform);
+                }
+
+            default:
+                // Any other element name (including future/unknown elements) paints nothing,
+                // consistent with RenderElement's own out-of-scope-construct policy
+                return null;
+        }
+    }
+
+    /// <summary>
+    ///     Computes <paramref name="localPath"/>'s stroke-expanded local bounds and maps them
+    ///     through <paramref name="transform"/>, returning <see langword="null"/> instead of an
+    ///     empty/degenerate <see cref="Rect"/> so <see cref="ComputeSubtreeLocalBounds"/>'s callers
+    ///     can fold results with simple null-coalescing rather than re-checking <see cref="Rect.IsEmpty"/>.
+    /// </summary>
+    /// <param name="localPath">The shape's (or glyph run's) already-built local-space outline.</param>
+    /// <param name="state">The cascaded render state, used to expand the bounds for a stroke.</param>
+    /// <param name="transform">The transform from <paramref name="localPath"/>'s own local space into the caller's reference frame.</param>
+    /// <returns>The transformed, stroke-expanded bounds, or <see langword="null"/> if degenerate/empty.</returns>
+    private static Rect? TransformedShapeBounds(Path localPath, RenderState state, Matrix3x2 transform)
+    {
+        var bounds = ExpandBoundsForStroke(localPath.GetBounds(), state).Transform(transform);
+        return bounds.IsEmpty ? null : bounds;
+    }
+
+    /// <summary>
+    ///     Renders every element in <paramref name="children"/> as one combined unit through
+    ///     <paramref name="filterElement"/>'s own primitive chain - the group-level counterpart of
+    ///     <see cref="RenderFilteredShape"/>, sharing its exact offscreen-render/filter/composite
+    ///     algorithm and every one of its resource-safety guards, but sized from the union of
+    ///     <paramref name="children"/>'s own subtree bounds (via <see cref="ComputeSubtreeLocalBounds"/>)
+    ///     instead of a single shape's own outline.
+    /// </summary>
+    /// <param name="filterElement">The resolved <c>filter</c> element.</param>
+    /// <param name="children">
+    ///     The elements to render as one filtered unit - a <c>g</c>/<c>symbol</c> element's own
+    ///     direct children (see <see cref="RenderElement"/>'s <c>"g"</c>/<c>"symbol"</c> case), or
+    ///     a single-element list containing a <c>use</c> element's resolved target (see
+    ///     <see cref="RenderUse"/>).
+    /// </param>
+    /// <param name="state">The cascaded render state at the filtered group/use element itself.</param>
+    /// <param name="childrenTransform">
+    ///     The accumulated transform from <paramref name="children"/>'s own shared local space
+    ///     (the space <see cref="ComputeSubtreeLocalBounds"/> computes bounds in, starting from
+    ///     <see cref="Matrix3x2.Identity"/>) into pixel space - for the <c>g</c>/<c>symbol</c>
+    ///     case, this is the group's own already-composed transform; for the <c>use</c> case, this
+    ///     is <c>translate(x,y) * (the use element's own already-composed transform)</c>.
+    /// </param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="useDepth">The current <c>use</c>-reference nesting depth.</param>
+    /// <param name="elementDepth">
+    ///     The current recursion depth at the filtered group/use element itself - <paramref name="children"/>
+    ///     are always rendered/bounds-computed one level deeper (<c>elementDepth + 1</c>), mirroring
+    ///     the unfiltered <c>g</c> loop and unfiltered <c>use</c> re-entry this method replaces.
+    /// </param>
+    /// <param name="markerDepth">
+    ///     The current <c>marker</c>-reference nesting depth, forwarded unchanged to every child
+    ///     render.
+    /// </param>
+    /// <param name="totalElements">The running total-rendered-elements count.</param>
+    /// <param name="workBudget">The shared geometry-parsing work budget.</param>
+    /// <param name="filterWorkBudget">
+    ///     The shared cumulative filter-evaluation work budget - charged identically (same
+    ///     region-weighted work-unit formula, same <see cref="FilterWorkBudget.TryCharge"/> call)
+    ///     to <see cref="RenderFilteredShape"/>'s own charge, so group filters and shape filters
+    ///     share one running cumulative ceiling per <c>Load</c> call.
+    /// </param>
+    /// <remarks>
+    ///     If <paramref name="children"/>'s combined subtree paints nothing (an empty group, or a
+    ///     group/subtree consisting entirely of non-rendering/skipped/dangling content), the filter
+    ///     region cannot be computed, the filter chain has zero primitives or exceeds
+    ///     <see cref="MaxFilterPrimitivesPerFilter"/>/<see cref="MaxFilterPrimitiveWorkUnits"/>, or
+    ///     this application would push <paramref name="filterWorkBudget"/>'s cumulative total past
+    ///     its ceiling, the whole filter effect is tolerantly skipped and every element in
+    ///     <paramref name="children"/> is instead rendered directly (unfiltered), exactly as if the
+    ///     referencing <c>g</c>/<c>symbol</c>/<c>use</c> element had no <c>filter</c> attribute at
+    ///     all - mirroring <see cref="RenderFilteredShape"/>'s identical unfiltered-fallback
+    ///     convention.
+    ///     <para>
+    ///     <paramref name="state"/>'s own (possibly cascaded) <see cref="RenderState.Opacity"/> is
+    ///     applied exactly once, after the filter chain evaluates, via
+    ///     <see cref="CompositeFilterResultOntoCanvas"/> - <paramref name="children"/> are rendered
+    ///     into <c>SourceGraphic</c> with a copy of <paramref name="state"/> whose
+    ///     <see cref="RenderState.Opacity"/> is forced to <c>1.0</c>, identical in shape to
+    ///     <see cref="RenderFilteredShape"/>'s own opacity handling. Because
+    ///     <see cref="ApplyPresentationAttributes"/> already multiplicatively folds an element's
+    ///     own <c>opacity</c> attribute into <paramref name="state"/>'s <see cref="RenderState.Opacity"/>
+    ///     before <see cref="RenderElement"/> ever dispatches into the <c>"g"</c>/<c>"use"</c> case,
+    ///     this reproduces "group opacity applies once, after the filter" with no further
+    ///     special-casing - each child's own <c>opacity</c> attribute still folds multiplicatively
+    ///     underneath, per pixel, exactly as it does today.
+    ///     </para>
+    ///     <para>
+    ///     This codec implements no <c>clipPath</c> support at all (an existing, independently
+    ///     documented out-of-scope decision) - there is therefore nothing for this method to
+    ///     "respect" for clip ordering; a filtered group's clip-path attribute, like every other
+    ///     element's, is simply never read.
+    ///     </para>
+    /// </remarks>
+    private static void RenderFilteredGroup(
+        XElement filterElement,
+        IReadOnlyList<XElement> children,
+        RenderState state,
+        Matrix3x2 childrenTransform,
+        RenderContext context,
+        int useDepth,
+        int elementDepth,
+        int markerDepth,
+        ref int totalElements,
+        GeometryWorkBudget workBudget,
+        FilterWorkBudget filterWorkBudget)
+    {
+        // Bounds pre-pass: union every child's own subtree bounds, computed purely in the
+        // group's own local space (relativeTransform starts at Identity) - mirrors a single
+        // shape's own localPath.GetBounds() call, just folded over an entire subtree instead of
+        // one already-built Path
+        var localBounds = Rect.Empty;
+        foreach (var child in children)
+        {
+            var childBounds = ComputeSubtreeLocalBounds(child, state, Matrix3x2.Identity, context, useDepth, elementDepth + 1, ref totalElements, workBudget);
+            if (childBounds != null)
+            {
+                localBounds = localBounds.Union(childBounds.Value);
+            }
+        }
+
+        // Every tolerant-fallback guard below renders each child directly and unfiltered,
+        // exactly as if the referencing element had no "filter" attribute at all - inlined at
+        // each guard (rather than a shared local function) because a local function cannot
+        // capture the "ref int totalElements" parameter threaded through this whole call chain
+        if (localBounds.IsEmpty)
+        {
+            foreach (var child in children)
+            {
+                RenderElement(child, state, childrenTransform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+            }
+
+            return;
+        }
+
+        var region = ComputeFilterRegionPixelBounds(filterElement, localBounds, childrenTransform);
+        if (region == null)
+        {
+            foreach (var child in children)
+            {
+                RenderElement(child, state, childrenTransform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+            }
+
+            return;
+        }
+
+        var (pixelX, pixelY, pixelWidth, pixelHeight) = region.Value;
+
+        // Identical zero-primitive/per-application-budget guard as RenderFilteredShape - see its
+        // remarks for the full rationale
+        var primitiveCount = CountFilterPrimitiveWorkUnits(filterElement);
+        if (primitiveCount == 0 || !IsFilterPrimitiveWorkWithinBudget(primitiveCount, pixelWidth, pixelHeight))
+        {
+            foreach (var child in children)
+            {
+                RenderElement(child, state, childrenTransform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+            }
+
+            return;
+        }
+
+        // Identical cumulative-budget guard as RenderFilteredShape - group filters and shape
+        // filters share one running total per Load call
+        var filterWorkUnits = (long)primitiveCount * pixelWidth * pixelHeight;
+        if (!filterWorkBudget.TryCharge(filterWorkUnits))
+        {
+            foreach (var child in children)
+            {
+                RenderElement(child, state, childrenTransform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+            }
+
+            return;
+        }
+
+        var sourceGraphic = new Surface(pixelWidth, pixelHeight);
+        var localToTemp = childrenTransform * Matrix3x2.CreateTranslation(-pixelX, -pixelY);
+        var tempContext = context with { Surface = sourceGraphic };
+
+        // Render every child fully opaque (Opacity forced to 1.0), identical in shape to
+        // RenderFilteredShape's own SourceGraphic rendering - see this method's remarks
+        var opaqueState = state with { Opacity = 1f };
+        foreach (var child in children)
+        {
+            RenderElement(child, opaqueState, localToTemp, tempContext, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+        }
+
+        var finalSurface = EvaluateFilterChain(filterElement, sourceGraphic, childrenTransform);
+
+        CompositeFilterResultOntoCanvas(finalSurface, pixelX, pixelY, context.Surface, state.Opacity);
+    }
+
+    /// <summary>
     ///     Computes <paramref name="filterElement"/>'s filter region - always as if
     ///     <c>filterUnits="objectBoundingBox"</c>, the SVG default, regardless of what an explicit
     ///     <c>filterUnits="userSpaceOnUse"</c> actually says (a documented, deliberate
@@ -299,9 +672,37 @@ public static partial class SvgCodec
     ///     line as degenerate and silently fall back to unfiltered rendering.
     /// </remarks>
     private static (int X, int Y, int Width, int Height)? ComputeFilterRegionPixelBounds(
-        XElement filterElement, Path localPath, RenderState state, Matrix3x2 transform)
+        XElement filterElement, Path localPath, RenderState state, Matrix3x2 transform) =>
+        ComputeFilterRegionPixelBounds(filterElement, ExpandBoundsForStroke(localPath.GetBounds(), state), transform);
+
+    /// <summary>
+    ///     Computes <paramref name="filterElement"/>'s filter region from an already-computed
+    ///     local-space painted-content bounding box - the shared core shared by the single-shape
+    ///     overload above (which derives <paramref name="bounds"/> from one shape's own
+    ///     stroke-expanded outline) and <see cref="RenderFilteredGroup"/> (which derives
+    ///     <paramref name="bounds"/> from the union of an entire group subtree's own painted
+    ///     content via <see cref="ComputeSubtreeLocalBounds"/>) - always as if
+    ///     <c>filterUnits="objectBoundingBox"</c>, the SVG default, regardless of what an explicit
+    ///     <c>filterUnits="userSpaceOnUse"</c> actually says (a documented, deliberate
+    ///     simplification, see this class's remarks), converting the result to an integer
+    ///     pixel-space bounding box, rounded outward.
+    /// </summary>
+    /// <param name="filterElement">The resolved <c>filter</c> element.</param>
+    /// <param name="bounds">
+    ///     The referencing element's (or group subtree's) already stroke-expanded local-space
+    ///     painted-content bounds.
+    /// </param>
+    /// <param name="transform">The accumulated transform from local space into pixel space.</param>
+    /// <returns>
+    ///     The pixel-space region as <c>(X, Y, Width, Height)</c>, or <see langword="null"/> if
+    ///     <paramref name="bounds"/> is empty/degenerate, the region resolves to a non-positive
+    ///     size, its pixel-space transform is non-finite or exceeds
+    ///     <see cref="MaxCoordinateMagnitude"/>, or its rounded pixel size exceeds
+    ///     <see cref="Surface.MaxDimension"/> on either axis.
+    /// </returns>
+    private static (int X, int Y, int Width, int Height)? ComputeFilterRegionPixelBounds(
+        XElement filterElement, Rect bounds, Matrix3x2 transform)
     {
-        var bounds = ExpandBoundsForStroke(localPath.GetBounds(), state);
         if (bounds.IsEmpty || bounds.Width <= 0f || bounds.Height <= 0f)
         {
             return null;
