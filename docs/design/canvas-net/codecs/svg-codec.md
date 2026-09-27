@@ -767,7 +767,14 @@ is the exact same "region-area × content-count" cost shape `FilterWorkBudget` a
 filter application, and reusing one cumulative ceiling across all three effects (rather than
 three independent ceilings that could each individually permit a third of a document's total
 offscreen-allocation budget) keeps one resource dimension's ceiling from being exhausted by
-"legitimate reuse" spread across unrelated attributes. A mask region whose pixel-space dimensions
+"legitimate reuse" spread across unrelated attributes. The single `TryCharge` call each of
+`RenderShapeEffectsPipeline`/`RenderGroupWithEffects` makes before allocating its own "content"
+buffer (via the shared `ComputeEffectsPipelineWorkUnits` helper) charges one region-area unit for
+every offscreen buffer this element will actually allocate - the "content"/`SourceGraphic` buffer
+always, plus one additional region-area unit each for `ApplyClipPath`'s own `coverage` buffer and
+`ApplyMask`'s own `maskSource` buffer when a clip-path/mask respectively applies - so an element
+combining clip-path and mask (or either with a filter) is charged for every buffer it allocates,
+not just one. A mask region whose pixel-space dimensions
 would exceed `Surface.MaxDimension` is rejected the same way an oversized filter region is,
 tolerantly falling back to unmasked rendering rather than attempting an oversized allocation -
 inherited for free from the same `ConvertLocalRegionToPixelBounds`/region-computation

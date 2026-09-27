@@ -1056,6 +1056,7 @@ generalization.
 **Tests**: `SvgCodec_Load_MaskReferenceCycle_ThrowsInvalidDataException`,
 `SvgCodec_Load_ClipPathReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnclippedForExcessShapes`,
 `SvgCodec_Load_MaskReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnmaskedForExcessShapes`,
+`SvgCodec_Load_ClipPathAndMaskCombinedExceedingCumulativeBudget_FallsBackToUnclippedUnmaskedForExcessShape`,
 `SvgCodec_Load_ClipPathExceedsMaxShapesPerClipPath_TruncatesToFirst256Shapes`,
 `SvgCodec_Load_MaskRegionExceedsMaxDimension_FallsBackToUnmaskedRendering`
 
@@ -1074,7 +1075,16 @@ offscreen-buffer charges, not merely approached: five giant, staggered shapes sh
 `pixelWidth * pixelHeight` work units per application; the first four shapes' cumulative charge
 stays within the ceiling, so their (empty) clip/mask genuinely applies and hides them completely,
 while the fifth shape's charge would exceed the ceiling, so it tolerantly falls back to
-unclipped/unmasked rendering and remains fully visible in its own exclusive band. Asserts
+unclipped/unmasked rendering and remains fully visible in its own exclusive band. Regression test
+for a code-review finding that combining `clip-path` *and* `mask` on the same element previously
+charged only one region-area unit total (rather than one per offscreen buffer actually allocated):
+two giant, staggered shapes each combine an empty `clip-path` and an empty, explicitly-sized
+`mask`, so each application now correctly charges three region-area units (content + clip coverage
+- mask source); the first shape's combined charge stays within the ceiling and both its clip-path
+and mask genuinely apply (fully invisible), while the second shape's combined charge exceeds the
+ceiling and falls back to fully unclipped/unmasked rendering (visible in its own plain fill
+color) - proving the combined charge, not merely one of the two effects' own charge, is what
+correctly exhausts the shared budget. Asserts
 `MaxClipPathShapesPerClipPath` caps a single `clipPath` element to its first 256 recognized direct
 children - a 257th, distinctly positioned child is silently truncated (never rasterized onto the
 clip's coverage buffer), while the first 256 children's own union still clips correctly, proving

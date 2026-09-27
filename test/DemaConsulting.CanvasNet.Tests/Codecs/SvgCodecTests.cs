@@ -7063,16 +7063,18 @@ public class SvgCodecTests
     ///     Resource-safety regression test: an empty <c>clip-path</c> is charged against the same
     ///     shared cumulative <c>FilterWorkBudget</c> ceiling a pathologically large filter region
     ///     already trips, since Phase 2 deliberately reuses that one budget for clip/mask-only
-    ///     offscreen-buffer work too. Five giant, mutually-overlapping-in-local-space rects (each
-    ///     charging exactly <c>3535 * 3535 = 12,499,225</c> work units - precisely
-    ///     <c>pixelWidth * pixelHeight</c>, since none of them has a <c>filter</c> attribute) share
+    ///     offscreen-buffer work too. Five giant, mutually-overlapping-in-local-space rects share
     ///     one empty <c>clipPath</c>, each retaining its own exclusive, staggered "band" of the
-    ///     100-wide canvas, since later shapes paint over earlier ones in document order. The
-    ///     first four shapes' cumulative
-    ///     charge (49,996,900) stays within the 50,000,000 ceiling, so their (empty) clip
-    ///     genuinely applies - hiding them completely - while the fifth shape's charge would push
-    ///     the running total to 62,496,125, so <c>TryCharge</c> fails and the codec tolerantly
-    ///     falls back to unclipped rendering, leaving the fifth shape's own band fully visible.
+    ///     100-wide canvas, since later shapes paint over earlier ones in document order. Each
+    ///     application charges exactly <c>2 * 3535 * 3535 = 24,998,450</c> work units - one region
+    ///     -area unit for the "content" buffer plus one more for <c>ApplyClipPath</c>'s own
+    ///     additional <c>coverage</c> buffer (see <c>ComputeEffectsPipelineWorkUnits</c>'s remarks
+    ///     for why a single-effect application charges more than one buffer's worth of work). The
+    ///     first two shapes' cumulative charge (49,996,900) stays within the 50,000,000 ceiling, so
+    ///     their (empty) clip genuinely applies - hiding them completely - while the third shape's
+    ///     charge would push the running total to 74,995,350, so <c>TryCharge</c> fails from that
+    ///     point on and the codec tolerantly falls back to unclipped rendering for the third,
+    ///     fourth, and fifth shapes, leaving each fully visible in its own band.
     /// </summary>
     [Fact]
     public void SvgCodec_Load_ClipPathReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnclippedForExcessShapes()
@@ -7099,21 +7101,21 @@ public class SvgCodecTests
         var surface = SvgCodec.Load(stream, 100, 100);
         stopwatch.Stop();
 
-        // Assert: shapes 0-3's cumulative charge stayed within the 50,000,000 ceiling, so their
+        // Assert: shapes 0-1's cumulative charge stayed within the 50,000,000 ceiling, so their
         // (empty) clip genuinely applied - each is fully invisible in its own exclusive band
         Assert.Equal(0, surface[80, 50].A);
         Assert.Equal(0, surface[60, 50].A);
-        Assert.Equal(0, surface[40, 50].A);
-        Assert.Equal(0, surface[20, 50].A);
 
-        // Assert: shape 4's charge would have exceeded the ceiling - the budget genuinely
-        // exhausted - so it tolerantly fell back to unclipped rendering, fully visible in its own
-        // exclusive band
+        // Assert: shapes 2-4's charge would have exceeded the ceiling - the budget genuinely
+        // exhausted - so each tolerantly fell back to unclipped rendering, fully visible in its
+        // own exclusive band with its own plain fill color
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[40, 50]);
+        Assert.Equal(new Rgba32(255, 255, 0, 255), surface[20, 50]);
         Assert.Equal(new Rgba32(255, 0, 255, 255), surface[5, 50]);
 
-        // Assert: completed promptly, proving the excess shape's clip was skipped rather than
+        // Assert: completed promptly, proving the excess shapes' clip was skipped rather than
         // evaluated
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the budget-exhausted clip-path shape to be skipped promptly, but it took {stopwatch.Elapsed}.");
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the budget-exhausted clip-path shapes to be skipped promptly, but it took {stopwatch.Elapsed}.");
     }
 
     /// <summary>
@@ -7124,7 +7126,7 @@ public class SvgCodecTests
     ///     five-shape/five-band structure and cumulative arithmetic, but each shape references an
     ///     empty <c>mask</c> (with explicit, literal <c>maskUnits="userSpaceOnUse"</c>
     ///     <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> of exactly 3535x3535, reproducing the
-    ///     identical 12,499,225-per-application charge) instead of a <c>clip-path</c>. An empty
+    ///     identical 24,998,450-per-application charge) instead of a <c>clip-path</c>. An empty
     ///     mask renders zero content, leaving its offscreen buffer fully transparent black
     ///     everywhere (luminance 0), so a successfully-charged, successfully-applied empty mask
     ///     also reliably hides its referencing shape completely - the same "charged &lt;=&gt;
@@ -7154,21 +7156,88 @@ public class SvgCodecTests
         var surface = SvgCodec.Load(stream, 100, 100);
         stopwatch.Stop();
 
-        // Assert: shapes 0-3's cumulative charge stayed within the 50,000,000 ceiling, so their
+        // Assert: shapes 0-1's cumulative charge stayed within the 50,000,000 ceiling, so their
         // (empty) mask genuinely applied - each is fully invisible in its own exclusive band
         Assert.Equal(0, surface[80, 50].A);
         Assert.Equal(0, surface[60, 50].A);
-        Assert.Equal(0, surface[40, 50].A);
-        Assert.Equal(0, surface[20, 50].A);
 
-        // Assert: shape 4's charge would have exceeded the ceiling - the same shared budget
-        // genuinely exhausted by mask-only charges - so it tolerantly fell back to unmasked
-        // rendering, fully visible in its own exclusive band
+        // Assert: shapes 2-4's charge would have exceeded the ceiling - the same shared budget
+        // genuinely exhausted by mask-only charges - so each tolerantly fell back to unmasked
+        // rendering, fully visible in its own exclusive band with its own plain fill color
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[40, 50]);
+        Assert.Equal(new Rgba32(255, 255, 0, 255), surface[20, 50]);
         Assert.Equal(new Rgba32(255, 0, 255, 255), surface[5, 50]);
 
-        // Assert: completed promptly, proving the excess shape's mask was skipped rather than
+        // Assert: completed promptly, proving the excess shapes' mask was skipped rather than
         // evaluated
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the budget-exhausted mask shape to be skipped promptly, but it took {stopwatch.Elapsed}.");
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the budget-exhausted mask shapes to be skipped promptly, but it took {stopwatch.Elapsed}.");
+    }
+
+    /// <summary>
+    ///     Regression test for a code-review finding: <c>RenderShapeEffectsPipeline</c>/
+    ///     <c>RenderGroupWithEffects</c> each charged exactly one region-area unit against the
+    ///     shared cumulative <c>FilterWorkBudget</c> before allocating their own "content" buffer,
+    ///     regardless of how many of <c>clip-path</c>/<c>mask</c>/<c>filter</c> actually applied to
+    ///     that element - so an element combining <c>clip-path</c> <em>and</em> <c>mask</c> (each
+    ///     of which independently allocates its own additional full-size offscreen buffer, in
+    ///     <c>ApplyClipPath</c> and <c>ApplyMask</c> respectively)
+    ///     under-charged the shared budget by up to 3x relative to the memory it actually
+    ///     allocated. Proves the fix: two giant, staggered 3535x3535 rects (identical region size to
+    ///     <see cref="SvgCodec_Load_ClipPathReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnclippedForExcessShapes"/>/
+    ///     <see cref="SvgCodec_Load_MaskReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnmaskedForExcessShapes"/>
+    ///     above) each combine an empty <c>clip-path</c> <em>and</em> an empty, explicitly-sized
+    ///     <c>mask</c> - so each application now correctly charges three region-area units
+    ///     (content + clip coverage + mask source = <c>3 * 3535 * 3535 = 37,497,675</c> work units)
+    ///     rather than the pre-fix single unit (<c>12,499,225</c>). The first shape's combined
+    ///     charge (37,497,675) stays within the 50,000,000 cumulative ceiling, so its (empty)
+    ///     clip-path and (empty) mask both genuinely apply - hiding it completely - while the
+    ///     second shape's combined charge would push the running total to 74,995,350, so
+    ///     <c>TryCharge</c> fails and the codec tolerantly falls back to fully unclipped/unmasked
+    ///     rendering, leaving the second shape's own band fully visible in its own plain fill
+    ///     color. Under the pre-fix single-unit charge, two such shapes would only total
+    ///     24,998,450 - comfortably within budget - so both would have been (incorrectly)
+    ///     clipped/masked away, and this test would have failed to observe the second shape's
+    ///     fallback at all.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipPathAndMaskCombinedExceedingCumulativeBudget_FallsBackToUnclippedUnmaskedForExcessShape()
+    {
+        // Arrange: 2 giant 3535x3535 rects sharing one empty clipPath and one empty,
+        // explicitly-sized mask, staggered so each retains an exclusive visible band on the
+        // 100x100 canvas; x is chosen so each shape's visible right edge (x + 3535) is a distinct,
+        // strictly decreasing value in document order, exactly as the clip-only/mask-only
+        // sibling tests above
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'></clipPath>
+                <mask id='m' maskUnits='userSpaceOnUse' x='0' y='0' width='3535' height='3535'></mask>
+              </defs>
+              <rect x='-3445' y='0' width='3535' height='3535' fill='rgb(255,0,0)' clip-path='url(#c)' mask='url(#m)'/>
+              <rect x='-3465' y='0' width='3535' height='3535' fill='rgb(0,255,0)' clip-path='url(#c)' mask='url(#m)'/>
+            </svg>
+            """;
+
+        // Act: must complete quickly rather than allocating unbounded offscreen buffers
+        var stopwatch = Stopwatch.StartNew();
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+        stopwatch.Stop();
+
+        // Assert: shape 0's combined clip+mask charge (37,497,675) stayed within the 50,000,000
+        // ceiling, so its (empty) clip-path and (empty) mask both genuinely applied - it is fully
+        // invisible in its own exclusive band (70-90)
+        Assert.Equal(0, surface[80, 50].A);
+
+        // Assert: shape 1's combined charge would have pushed the cumulative total to 74,995,350,
+        // exceeding the ceiling - the budget genuinely exhausted by the combined charge - so it
+        // tolerantly fell back to fully unclipped/unmasked rendering, visible with its own plain
+        // fill color in its own exclusive band (0-70)
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[30, 50]);
+
+        // Assert: completed promptly, proving the excess shape's clip and mask were both skipped
+        // rather than evaluated
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the budget-exhausted combined clip+mask shape to be skipped promptly, but it took {stopwatch.Elapsed}.");
     }
 
     /// <summary>

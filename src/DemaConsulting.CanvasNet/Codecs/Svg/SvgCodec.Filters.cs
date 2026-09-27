@@ -296,8 +296,13 @@ public static partial class SvgCodec
 
         // Charge this application's own region-weighted work unit against the shared cumulative
         // budget before allocating the offscreen "content" buffer - see this method's remarks on
-        // why FilterWorkBudget is deliberately reused for clip/mask-only work too
-        var workUnits = filterApplies ? (long)primitiveCount * pixelWidth * pixelHeight : (long)pixelWidth * pixelHeight;
+        // why FilterWorkBudget is deliberately reused for clip/mask-only work too. The charge
+        // covers every offscreen buffer this application will actually allocate (content, plus
+        // clip-path's own coverage buffer, plus mask's own maskSource buffer) - see
+        // ComputeEffectsPipelineWorkUnits's remarks for why a single one-buffer charge previously
+        // under-charged a combined clip+mask (or clip/mask+filter) element.
+        var workUnits = ComputeEffectsPipelineWorkUnits(
+            filterApplies, primitiveCount, clipPathElement != null, maskElement != null, pixelWidth, pixelHeight);
         if (!filterWorkBudget.TryCharge(workUnits))
         {
             RenderShape(localPath, state, transform, context);
@@ -1059,8 +1064,10 @@ public static partial class SvgCodec
 
         // Identical cumulative-budget guard as RenderShapeEffectsPipeline - every effects
         // application (shape or group; filter, clip-path, or mask) shares one running total per
-        // Load call
-        var workUnits = filterApplies ? (long)primitiveCount * pixelWidth * pixelHeight : (long)pixelWidth * pixelHeight;
+        // Load call, and the charge covers every offscreen buffer this application will actually
+        // allocate - see ComputeEffectsPipelineWorkUnits's remarks
+        var workUnits = ComputeEffectsPipelineWorkUnits(
+            filterApplies, primitiveCount, clipPathElement != null, maskElement != null, pixelWidth, pixelHeight);
         if (!filterWorkBudget.TryCharge(workUnits))
         {
             foreach (var child in children)
@@ -1328,6 +1335,71 @@ public static partial class SvgCodec
     private static bool IsFilterPrimitiveWorkWithinBudget(int primitiveCount, int width, int height) =>
         primitiveCount <= MaxFilterPrimitivesPerFilter &&
         (long)primitiveCount * width * height <= MaxFilterPrimitiveWorkUnits;
+
+    /// <summary>
+    ///     Computes the total <see cref="FilterWorkBudget"/> charge for one effects-pipeline
+    ///     application (a single shape in <see cref="RenderShapeEffectsPipeline"/>, or a whole
+    ///     group in <see cref="RenderGroupWithEffects"/>), shared by both so the two call sites
+    ///     cannot drift apart. A region-area-sized offscreen <see cref="Surface"/> is allocated for
+    ///     every one of the (up to three) effects that actually applies to this element - the
+    ///     pipeline's own opaque "content"/<c>SourceGraphic</c> buffer always, plus
+    ///     <see cref="ApplyClipPath"/>'s own <c>coverage</c> buffer when a <c>clip-path</c>
+    ///     applies, plus <see cref="ApplyMask"/>'s own <c>maskSource</c> buffer when a
+    ///     <c>mask</c> applies - so charging for only one of these (the pre-Phase-2 formula, which
+    ///     predates clip-path/mask ever being combined with each other or with a filter) let a
+    ///     combined clip+mask, or clip/mask+filter, element allocate up to 3x the memory actually
+    ///     charged against the shared cumulative budget. The filter's own primitive-count
+    ///     multiplier applies only to the "content" buffer's own portion of the charge (mirroring
+    ///     <see cref="IsFilterPrimitiveWorkWithinBudget"/>'s identical per-filter formula) - the
+    ///     additional clip-path/mask buffers are always a flat one region-area unit each,
+    ///     regardless of whether a filter is also present, since neither buffer's own cost scales
+    ///     with the filter's primitive count.
+    /// </summary>
+    /// <param name="filterApplies">
+    ///     Whether a <c>filter</c> survives its own per-filter <see cref="IsFilterPrimitiveWorkWithinBudget"/>
+    ///     guard and will therefore be evaluated against the "content" buffer.
+    /// </param>
+    /// <param name="primitiveCount">
+    ///     The filter's own primitive-equivalent work-unit count from
+    ///     <see cref="CountFilterPrimitiveWorkUnits"/>; ignored when <paramref name="filterApplies"/>
+    ///     is <see langword="false"/>.
+    /// </param>
+    /// <param name="clipPathApplies">
+    ///     Whether a <c>clip-path</c> element is present and will therefore cause
+    ///     <see cref="ApplyClipPath"/> to allocate its own additional region-area-sized <c>coverage</c>
+    ///     buffer.
+    /// </param>
+    /// <param name="maskApplies">
+    ///     Whether a <c>mask</c> element is present and will therefore cause <see cref="ApplyMask"/>
+    ///     to allocate its own additional region-area-sized <c>maskSource</c> buffer.
+    /// </param>
+    /// <param name="pixelWidth">The effects region's pixel width.</param>
+    /// <param name="pixelHeight">The effects region's pixel height.</param>
+    /// <returns>
+    ///     The total work-unit charge to pass to <see cref="FilterWorkBudget.TryCharge"/>, covering
+    ///     every offscreen buffer this application will actually allocate.
+    /// </returns>
+    private static long ComputeEffectsPipelineWorkUnits(
+        bool filterApplies,
+        int primitiveCount,
+        bool clipPathApplies,
+        bool maskApplies,
+        int pixelWidth,
+        int pixelHeight)
+    {
+        var regionArea = (long)pixelWidth * pixelHeight;
+
+        // The "content"/SourceGraphic buffer's own portion - scaled by the filter's own primitive
+        // count when a filter applies, exactly as this codec charged before Phase 2 introduced
+        // combinable clip-path/mask
+        var contentWorkUnits = filterApplies ? (long)primitiveCount * regionArea : regionArea;
+
+        // One additional flat region-area unit for each of clip-path/mask's own separate
+        // offscreen buffer, since neither buffer's cost scales with the filter's primitive count
+        var additionalBufferCount = (clipPathApplies ? 1 : 0) + (maskApplies ? 1 : 0);
+
+        return contentWorkUnits + (regionArea * additionalBufferCount);
+    }
 
     /// <summary>
     ///     Counts <paramref name="filterElement"/>'s upfront primitive-equivalent work-unit charge
