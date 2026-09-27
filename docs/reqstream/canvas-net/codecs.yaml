@@ -1330,3 +1330,34 @@ sections:
               - SvgCodec_GetInfo_NullStream_ThrowsArgumentNullException
               - SvgCodec_GetInfo_NullPath_ThrowsArgumentNullException
               - SvgCodec_GetInfo_EmptyPath_ThrowsArgumentException
+
+          - id: CanvasNet-Codecs-SvgCssStyling
+            title: >-
+              The Codecs subsystem shall render a style element's CSS rules against every
+              element's type, class, id, universal, and compound selectors (including
+              comma-separated lists and descendant/child combinators), resolving each cascaded
+              presentation property through standard CSS specificity/cascade-order rules and a
+              3-tier presentation-attribute/stylesheet/inline-style precedence, with the same
+              resource-safety and malformed-input tolerance already established for this
+              subsystem's other document-wide pre-passes.
+            justification: |
+              A style element with class/id/type selectors is a common, standard way real-world
+              SVG documents centralize presentation; this subsystem previously discarded style
+              elements entirely as an explicit out-of-scope simplification, so callers relying on
+              CSS-driven styling need it to actually apply, with the same document-order,
+              resource-safety, and tolerant-malformed-input conventions already established for
+              this subsystem's other whole-document pre-passes (for example its id index) and
+              reference-following features (gradients, patterns, filters).
+            children:
+              - CanvasNet-Codecs-SvgCodec-CssStyleElementParsing
+              - CanvasNet-Codecs-SvgCodec-CssSelectorMatching
+              - CanvasNet-Codecs-SvgCodec-CssCombinators
+              - CanvasNet-Codecs-SvgCodec-CssSpecificityCascade
+              - CanvasNet-Codecs-SvgCodec-CssThreeTierPrecedence
+              - CanvasNet-Codecs-SvgCodec-CssResourceSafety
+            tests:
+              - SvgCodec_Load_CssTypeSelector_AppliesToMatchingElementType
+              - SvgCodec_Load_CssSpecificity_HigherSpecificityWinsEvenIfEarlierInStylesheet
+              - SvgCodec_Load_CssPrecedenceTier3_InlineStyleOverridesStylesheet
+              - SvgCodec_Load_CssMalformedRule_SkipsOnlyThatRuleAndStillLoads
+              - SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier

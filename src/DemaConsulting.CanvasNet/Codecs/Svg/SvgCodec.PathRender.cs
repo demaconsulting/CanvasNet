@@ -356,7 +356,7 @@ public static partial class SvgCodec
     ///     <para>
     ///     A third, independent gap exists even when both <paramref name="pixelPath"/>'s
     ///     coordinates and the effective <c>strokeWidth</c> are individually in-bound:
-    ///     <c>stroke-miterlimit</c> (see <see cref="ParseValidMiterLimit"/>) is only bounded below
+    ///     <c>stroke-miterlimit</c> (see <see cref="ParseValidMiterLimit(string?)"/>) is only bounded below
     ///     (finite, <c>&gt;= 1</c>), never above, so an in-bound-but-large <c>strokeWidth</c>
     ///     combined with an in-bound-but-extreme <c>miterlimit</c> and a near-straight ("spike")
     ///     vertex can drive <see cref="Drawing.StrokeOutliner"/>'s miter-join synthesis

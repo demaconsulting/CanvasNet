@@ -240,7 +240,8 @@ public static partial class SvgCodec
         // within the clip content (e.g. a clip <rect>'s own x="10%") still resolves sensibly
         var clipBaseState = ApplyPresentationAttributes(
             RenderState.Initial with { ViewportWidth = state.ViewportWidth, ViewportHeight = state.ViewportHeight },
-            clipPathElement);
+            clipPathElement,
+            context);
 
         var shapeCount = 0;
         foreach (var child in clipPathElement.Elements())
@@ -250,7 +251,7 @@ public static partial class SvgCodec
                 break;
             }
 
-            var childState = ApplyPresentationAttributes(clipBaseState, child);
+            var childState = ApplyPresentationAttributes(clipBaseState, child, context);
             var childPath = BuildClipChildPath(child, childState, context, workBudget);
             if (childPath == null)
             {

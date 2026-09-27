@@ -685,7 +685,7 @@ public static partial class SvgCodec
         // percentage geometry within the marker's own content still resolves against the
         // referencing shape's own cascaded viewport, not a marker-local one (a "marker" element
         // establishes no new viewport of its own)
-        var markerState = ApplyPresentationAttributes(RenderState.Initial, markerElement) with
+        var markerState = ApplyPresentationAttributes(RenderState.Initial, markerElement, context) with
         {
             ViewportWidth = viewportState.ViewportWidth,
             ViewportHeight = viewportState.ViewportHeight
@@ -909,7 +909,7 @@ public static partial class SvgCodec
             return null;
         }
 
-        var markerState = ApplyPresentationAttributes(RenderState.Initial, markerElement) with
+        var markerState = ApplyPresentationAttributes(RenderState.Initial, markerElement, context) with
         {
             ViewportWidth = viewportState.ViewportWidth,
             ViewportHeight = viewportState.ViewportHeight

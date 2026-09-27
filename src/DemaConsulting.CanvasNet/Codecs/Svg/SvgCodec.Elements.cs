@@ -179,9 +179,9 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     The fixed, per-document context (pixel target, id index, and optional font dictionary)
-    ///     threaded through the recursive tree walk, kept as its own type so every walk/render
-    ///     method needs only one extra parameter rather than three.
+    ///     The fixed, per-document context (pixel target, id index, stylesheet, and optional font
+    ///     dictionary) threaded through the recursive tree walk, kept as its own type so every
+    ///     walk/render method needs only one extra parameter rather than several.
     /// </summary>
     /// <param name="Surface">The pixel target every shape is rendered onto.</param>
     /// <param name="IdIndex">The whole-document id-to-element index built once up front.</param>
@@ -192,11 +192,25 @@ public static partial class SvgCodec
     ///     overload, or via <see cref="ToFontFaces"/> when the legacy single-font-per-family
     ///     overload is used.
     /// </param>
+    /// <param name="Stylesheet">
+    ///     The whole-document CSS stylesheet built once up front by <c>BuildStylesheet</c> (see
+    ///     <c>SvgCodec.Css.Cascade.cs</c>), mirroring <paramref name="IdIndex"/>'s identical
+    ///     "built once, read many times" lifetime. <see cref="CssStylesheet.Empty"/> for a document
+    ///     with no <c>&lt;style&gt;</c> element (or none containing any retainable rule).
+    /// </param>
     private sealed record RenderContext(
         Surface Surface,
         Dictionary<string, XElement> IdIndex,
-        IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>? Fonts)
+        IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>? Fonts,
+        CssStylesheet Stylesheet)
     {
+        /// <summary>
+        ///     The shared cumulative CSS selector-matching work budget (see
+        ///     <see cref="CssMatchWorkBudget"/>) for this <c>Load</c> call, charged once per
+        ///     element that has any stylesheet rule to match against.
+        /// </summary>
+        public CssMatchWorkBudget CssBudget { get; } = new();
+
         /// <summary>
         ///     Caches each gradient element's own resolved (pre-alpha) color stops, keyed by the
         ///     gradient <see cref="XElement"/>'s reference identity (matching the existing
@@ -270,7 +284,7 @@ public static partial class SvgCodec
     private static void RenderDocument(XElement root, Matrix3x2 fitTransform, Vector2 viewportSize, RenderContext context)
     {
         var initialState = RenderState.Initial with { ViewportWidth = viewportSize.X, ViewportHeight = viewportSize.Y };
-        var rootState = ApplyPresentationAttributes(initialState, root);
+        var rootState = ApplyPresentationAttributes(initialState, root, context);
         var totalElements = 0;
         var workBudget = new GeometryWorkBudget();
         var filterWorkBudget = new FilterWorkBudget();
@@ -403,7 +417,7 @@ public static partial class SvgCodec
             return;
         }
 
-        var state = ApplyPresentationAttributes(parentState, element);
+        var state = ApplyPresentationAttributes(parentState, element, context);
         var transform = ParseTransformAttribute(element) * parentTransform;
 
         // A marker's own content never applies its own descendants' "filter" attribute - per the
@@ -521,14 +535,32 @@ public static partial class SvgCodec
     /// <summary>
     ///     Applies every presentation attribute directly set on <paramref name="element"/> on top
     ///     of <paramref name="parent"/>'s cascaded state, leaving any attribute not present on
-    ///     <paramref name="element"/> inherited unchanged from <paramref name="parent"/>.
+    ///     <paramref name="element"/> inherited unchanged from <paramref name="parent"/>. Each
+    ///     cascaded property is first resolved through this codec's 3-tier CSS precedence chokepoint
+    ///     (<c>ResolveStyledValue</c> - inline <c>style="..."</c> beats any matching stylesheet rule
+    ///     beats the plain presentation attribute, see <c>SvgCodec.Css.Cascade.cs</c>'s remarks),
+    ///     falling back to reading the plain presentation attribute directly whenever neither CSS
+    ///     tier has a value for that property - the overwhelmingly common, fully
+    ///     backward-compatible case for a document with no <c>&lt;style&gt;</c> element and no
+    ///     inline <c>style</c> attributes. Every property's raw value - whichever tier it came from -
+    ///     flows through the exact same value parser (for example <see cref="ParseGeometryCoordinate"/>,
+    ///     <see cref="ParseOpacityValue"/>) that a plain presentation attribute already used before
+    ///     this phase, so the CSS engine never duplicates any SVG-specific value-parsing logic.
     /// </summary>
     /// <param name="parent">The inherited render state from the parent element.</param>
     /// <param name="element">The element whose own presentation attributes are applied.</param>
+    /// <param name="context">
+    ///     The fixed per-document render context, supplying this element's stylesheet-matching
+    ///     inputs (<see cref="RenderContext.Stylesheet"/>/<see cref="RenderContext.CssBudget"/>).
+    /// </param>
     /// <returns>The new, cascaded render state for <paramref name="element"/>.</returns>
-    private static RenderState ApplyPresentationAttributes(RenderState parent, XElement element)
+    private static RenderState ApplyPresentationAttributes(RenderState parent, XElement element, RenderContext context)
     {
-        var dashArrayAttr = (string?)element.Attribute("stroke-dasharray");
+        var styleContext = context.Stylesheet.BuildElementContext(element, context.CssBudget);
+
+        string? Styled(string property) => ResolveStyledValue(styleContext, property) ?? (string?)element.Attribute(property);
+
+        var dashArrayAttr = Styled("stroke-dasharray");
         var strokeDashArray = dashArrayAttr switch
         {
             null => parent.StrokeDashArray,
@@ -538,28 +570,43 @@ public static partial class SvgCodec
 
         return parent with
         {
-            Fill = (string?)element.Attribute("fill") ?? parent.Fill,
-            Stroke = (string?)element.Attribute("stroke") ?? parent.Stroke,
-            FillOpacity = ParseOptionalOpacity(element, "fill-opacity") ?? parent.FillOpacity,
-            StrokeOpacity = ParseOptionalOpacity(element, "stroke-opacity") ?? parent.StrokeOpacity,
-            Opacity = parent.Opacity * (ParseOptionalOpacity(element, "opacity") ?? 1f),
-            FillRule = ParseFillRule((string?)element.Attribute("fill-rule")) ?? parent.FillRule,
-            StrokeWidth = GetOptionalFloat(element, "stroke-width", parent, PercentageAxis.Diagonal) ?? parent.StrokeWidth,
-            StrokeLineCap = ParseLineCap((string?)element.Attribute("stroke-linecap")) ?? parent.StrokeLineCap,
-            StrokeLineJoin = ParseLineJoin((string?)element.Attribute("stroke-linejoin")) ?? parent.StrokeLineJoin,
-            StrokeMiterLimit = ParseValidMiterLimit(element) ?? parent.StrokeMiterLimit,
+            Fill = Styled("fill") ?? parent.Fill,
+            Stroke = Styled("stroke") ?? parent.Stroke,
+            FillOpacity = ParseStyledOptionalOpacity(Styled("fill-opacity")) ?? parent.FillOpacity,
+            StrokeOpacity = ParseStyledOptionalOpacity(Styled("stroke-opacity")) ?? parent.StrokeOpacity,
+            Opacity = parent.Opacity * (ParseStyledOptionalOpacity(Styled("opacity")) ?? 1f),
+            FillRule = ParseFillRule(Styled("fill-rule")) ?? parent.FillRule,
+            StrokeWidth = GetOptionalFloat(Styled("stroke-width"), "stroke-width", parent, PercentageAxis.Diagonal) ?? parent.StrokeWidth,
+            StrokeLineCap = ParseLineCap(Styled("stroke-linecap")) ?? parent.StrokeLineCap,
+            StrokeLineJoin = ParseLineJoin(Styled("stroke-linejoin")) ?? parent.StrokeLineJoin,
+            StrokeMiterLimit = ParseValidMiterLimit(Styled("stroke-miterlimit")) ?? parent.StrokeMiterLimit,
             StrokeDashArray = strokeDashArray,
-            StrokeDashOffset = GetOptionalFloat(element, "stroke-dashoffset", parent, PercentageAxis.Diagonal) ?? parent.StrokeDashOffset,
-            FontFamily = (string?)element.Attribute("font-family") ?? parent.FontFamily,
-            FontSize = GetOptionalFloat(element, "font-size", parent, PercentageAxis.FontSize) ?? parent.FontSize,
-            FontWeight = ParseFontWeight((string?)element.Attribute("font-weight")) ?? parent.FontWeight,
-            FontStyle = ParseFontStyle((string?)element.Attribute("font-style")) ?? parent.FontStyle,
-            TextAnchor = ParseTextAnchor((string?)element.Attribute("text-anchor")) ?? parent.TextAnchor,
-            MarkerStart = (string?)element.Attribute("marker-start") ?? parent.MarkerStart,
-            MarkerMid = (string?)element.Attribute("marker-mid") ?? parent.MarkerMid,
-            MarkerEnd = (string?)element.Attribute("marker-end") ?? parent.MarkerEnd
+            StrokeDashOffset = GetOptionalFloat(Styled("stroke-dashoffset"), "stroke-dashoffset", parent, PercentageAxis.Diagonal) ?? parent.StrokeDashOffset,
+            FontFamily = Styled("font-family") ?? parent.FontFamily,
+            FontSize = GetOptionalFloat(Styled("font-size"), "font-size", parent, PercentageAxis.FontSize) ?? parent.FontSize,
+            FontWeight = ParseFontWeight(Styled("font-weight")) ?? parent.FontWeight,
+            FontStyle = ParseFontStyle(Styled("font-style")) ?? parent.FontStyle,
+            TextAnchor = ParseTextAnchor(Styled("text-anchor")) ?? parent.TextAnchor,
+            MarkerStart = Styled("marker-start") ?? parent.MarkerStart,
+            MarkerMid = Styled("marker-mid") ?? parent.MarkerMid,
+            MarkerEnd = Styled("marker-end") ?? parent.MarkerEnd
         };
     }
+
+    /// <summary>
+    ///     Parses an opacity-like value (<c>fill-opacity</c>/<c>stroke-opacity</c>/<c>opacity</c>) -
+    ///     already resolved by the caller from either the plain presentation attribute or the CSS
+    ///     cascade (see <c>ResolveStyledValue</c>) - accepting either a bare <c>[0, 1]</c> number
+    ///     or a percentage, and clamping the result to <c>[0, 1]</c>.
+    /// </summary>
+    /// <param name="raw">The already-resolved raw value, or <see langword="null"/> if absent from every tier.</param>
+    /// <returns>The clamped opacity value, or <see langword="null"/> if <paramref name="raw"/> is <see langword="null"/>.</returns>
+    /// <exception cref="FormatException">Thrown when <paramref name="raw"/> is present but not a valid number.</exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="raw"/> is present but parses to a non-finite value - see
+    ///     <see cref="ParseCoordinate"/>.
+    /// </exception>
+    private static float? ParseStyledOptionalOpacity(string? raw) => raw == null ? null : ParseOpacityValue(raw);
 
     /// <summary>Parses a <c>fill-rule</c>/<c>clip-rule</c>-style keyword.</summary>
     /// <param name="raw">The attribute's raw value, or <see langword="null"/> if absent.</param>
@@ -660,26 +707,7 @@ public static partial class SvgCodec
         };
     }
 
-    /// <summary>
-    ///     Parses an opacity-like attribute (<c>fill-opacity</c>/<c>stroke-opacity</c>/<c>opacity</c>/
-    ///     <c>stop-opacity</c>), accepting either a bare <c>[0, 1]</c> number or a percentage, and
-    ///     clamping the result to <c>[0, 1]</c>.
-    /// </summary>
-    /// <param name="element">The element to inspect.</param>
-    /// <param name="name">The attribute name to read.</param>
-    /// <returns>The clamped opacity value, or <see langword="null"/> if the attribute is absent.</returns>
-    /// <exception cref="FormatException">Thrown when the attribute is present but not a valid number.</exception>
-    /// <exception cref="InvalidDataException">
-    ///     Thrown when the attribute is present but parses to a non-finite value - see
-    ///     <see cref="ParseCoordinate"/>.
-    /// </exception>
-    private static float? ParseOptionalOpacity(XElement element, string name)
-    {
-        var raw = (string?)element.Attribute(name);
-        return raw == null ? null : ParseOpacityValue(raw);
-    }
-
-    /// <summary>Parses and clamps a raw opacity string to <c>[0, 1]</c>. See <see cref="ParseOptionalOpacity"/>.</summary>
+    /// <summary>Parses and clamps a raw opacity string to <c>[0, 1]</c>. See <see cref="ParseStyledOptionalOpacity"/>.</summary>
     /// <param name="raw">The raw opacity string.</param>
     /// <returns>The clamped opacity value.</returns>
     /// <exception cref="FormatException">Thrown when <paramref name="raw"/> is not a valid number.</exception>
@@ -712,47 +740,48 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Parses and validates the <c>stroke-miterlimit</c> attribute against
-    ///     <see cref="Drawing.StrokeStyle"/>'s documented contract (finite and at least <c>1</c>),
-    ///     so an invalid value falls back to the inherited value here rather than escaping later
-    ///     as an undocumented <see cref="ArgumentOutOfRangeException"/> from
-    ///     <see cref="Drawing.StrokeStyle"/>'s constructor - mirroring this class's existing
-    ///     tolerant handling of a malformed <c>stroke-dasharray</c> (see
-    ///     <see cref="ParseDashArray"/>), rather than aborting the whole document over one
-    ///     presentation-attribute value.
+    ///     Parses and validates the already-resolved raw <c>stroke-miterlimit</c> value (from
+    ///     either the plain presentation attribute or the CSS cascade - see
+    ///     <c>ResolveStyledValue</c>) against <see cref="Drawing.StrokeStyle"/>'s documented
+    ///     contract (finite and at least <c>1</c>), so an invalid value falls back to the
+    ///     inherited value here rather than escaping later as an undocumented
+    ///     <see cref="ArgumentOutOfRangeException"/> from <see cref="Drawing.StrokeStyle"/>'s
+    ///     constructor - mirroring this class's existing tolerant handling of a malformed
+    ///     <c>stroke-dasharray</c> (see <see cref="ParseDashArray"/>), rather than aborting the
+    ///     whole document over one presentation-attribute value.
     /// </summary>
     /// <remarks>
-    ///     This deliberately does not delegate to <see cref="GetOptionalFloat"/>/
+    ///     This deliberately does not delegate to
+    ///     <see cref="GetOptionalFloat(string?, string, RenderState, PercentageAxis)"/>/
     ///     <see cref="ParseGeometryCoordinate"/>: <see cref="ParseCoordinate"/> already throws
     ///     <see cref="InvalidDataException"/> for a non-finite parsed value (added for
     ///     coordinates/lengths generally), which would preempt this method's own finiteness
     ///     check below and make it dead code - a non-finite <c>stroke-miterlimit</c> would then
     ///     abort the whole document instead of falling back to the inherited value, contradicting
-    ///     this method's documented contract above. Reading and parsing the raw attribute directly
-    ///     keeps the non-finite-falls-back path reachable for this attribute specifically, without
-    ///     changing that shared, correct-for-every-other-attribute behavior. The percentage-suffix
+    ///     this method's documented contract above. Parsing the raw value directly keeps the
+    ///     non-finite-falls-back path reachable for this attribute specifically, without changing
+    ///     that shared, correct-for-every-other-attribute behavior. The percentage-suffix
     ///     rejection below is intentionally duplicated (not delegated) for the same reason - see
     ///     <see cref="ParseGeometryCoordinate"/> for the identical check applied to other
     ///     shape/text geometry attributes.
     /// </remarks>
-    /// <param name="element">The element to inspect.</param>
+    /// <param name="raw">The already-resolved raw value, or <see langword="null"/> if absent from every tier.</param>
     /// <returns>The valid parsed value, or <see langword="null"/> if absent or out of contract.</returns>
     /// <exception cref="FormatException">
-    ///     Thrown when the attribute is present but not a valid number - propagates uncaught to
-    ///     this class's top-level <c>Load</c>/<c>GetInfo</c> boundary, which rewraps it as
-    ///     <see cref="InvalidDataException"/>.
+    ///     Thrown when <paramref name="raw"/> is present but not a valid number - propagates
+    ///     uncaught to this class's top-level <c>Load</c>/<c>GetInfo</c> boundary, which rewraps it
+    ///     as <see cref="InvalidDataException"/>.
     /// </exception>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when the attribute carries a percentage suffix - this codec has no defined
-    ///     viewport-relative basis for it, matching <see cref="ParseGeometryCoordinate"/>'s
+    ///     Thrown when <paramref name="raw"/> carries a percentage suffix - this codec has no
+    ///     defined viewport-relative basis for it, matching <see cref="ParseGeometryCoordinate"/>'s
     ///     rejection of a percentage on every other shape/text geometry attribute. Not thrown for
     ///     a non-finite parsed value (<c>NaN</c>, <c>Infinity</c>, <c>-Infinity</c>) - unlike
     ///     <see cref="ParseCoordinate"/>, such a value falls back to <see langword="null"/> here
     ///     instead, per this method's documented contract above.
     /// </exception>
-    private static float? ParseValidMiterLimit(XElement element)
+    private static float? ParseValidMiterLimit(string? raw)
     {
-        var raw = (string?)element.Attribute("stroke-miterlimit");
         if (raw == null)
         {
             return null;

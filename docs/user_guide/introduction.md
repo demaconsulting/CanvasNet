@@ -921,9 +921,13 @@ attribute (`x`/`y`/`width`/`height`/`rx`/`ry`/`cx`/`cy`/`r`/`x1`/`y1`/`x2`/`y2`/
 `stroke-width`/`stroke-dasharray`/`stroke-dashoffset`/`use`'s `x`/`y`/`width`/`height`/`text`'s
 `x`/`y`) also accepts a trailing `%`, resolved against the current viewport (or, for `font-size`,
 the parent element's own `font-size`) - `stroke-miterlimit` is the sole exception, since it is a
-unitless ratio rather than a length. Well-formed but
-out-of-scope constructs (`style`, `animate`/SMIL, `image`,
-`foreignObject`, `pattern`, nested `svg`, CSS selectors, and every filter primitive other than
+unitless ratio rather than a length. A `style` element's text content is parsed as CSS, matching
+type/class/id/universal/compound selectors (including comma-separated lists and
+descendant/child combinators) against elements, with standard CSS specificity/cascade-order
+resolution and a 3-tier precedence (presentation attribute, then any matching stylesheet rule,
+then an inline `style="..."` attribute, which always wins). Well-formed but
+out-of-scope constructs (`animate`/SMIL, `image`,
+`foreignObject`, `pattern`, nested `svg`, and every filter primitive other than
 the five listed above) are silently skipped/passed through so the rest of the document still
 renders; malformed/unparseable input throws `InvalidDataException`.
 

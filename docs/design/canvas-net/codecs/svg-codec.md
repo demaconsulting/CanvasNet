@@ -94,17 +94,20 @@ nor cacheable) - see *ViewBox Fitting Policy* below
 
 #### Out-of-scope subset (tolerated, silently skipped)
 
-`style`, a nested `svg`, `animate`/other SMIL
-animation elements, `foreignObject`, and CSS class/id selectors are all well-formed SVG
+A nested `svg`, `animate`/other SMIL
+animation elements, and `foreignObject` are all well-formed SVG
 constructs this codec does not implement. Encountering one of these does not fail the whole
 document: `SvgCodec` silently skips just that element (and, for a container element, everything
 nested inside it) and continues walking the rest of the tree. This is a deliberate,
 tolerant-parsing policy distinct from the codec's malformed-input rejection policy (see
 *Error Handling* below) — a document using an out-of-scope construct is not itself invalid SVG,
-only partially outside this codec's supported feature set. Within the supported `marker` feature
-itself, `markerContentUnits` (a rarely-used SVG 2 attribute) and clipping marker content to its
-own `markerWidth`/`markerHeight` viewport (`overflow`) are both explicitly out of scope. Within
-the supported `filter` feature itself, `filterUnits="userSpaceOnUse"` (tolerantly falls back to
+only partially outside this codec's supported feature set. Within a `style` element's own CSS
+engine (see *CSS `<style>` Element and Selector-Based Styling* below), sibling (`+`/`~`)
+combinators, pseudo-classes, `@media`/other at-rules, and `!important` are explicitly out of
+scope - see that section for the per-construct rationale and failure-mode. Within the supported
+`marker` feature itself, `markerContentUnits` (a rarely-used SVG 2 attribute) and clipping marker
+content to its own `markerWidth`/`markerHeight` viewport (`overflow`) are both explicitly out of
+scope. Within the supported `filter` feature itself, `filterUnits="userSpaceOnUse"` (tolerantly falls back to
 the same objectBoundingBox-relative region computation as the default, rather than being
 interpreted as literal absolute user-space coordinates), a `filter` on a shape's own `marker`
 content (has no effect - `marker` content is never recursed into by the ordinary element walk, so
@@ -464,6 +467,79 @@ exception to this per-pixel fold: because `opacity` applies to the filtered resu
 not to the pre-filter source paint, its `SourceGraphic` is instead rendered fully opaque, and the
 element's own `opacity` is applied exactly once, afterward, as a uniform coverage multiplier when
 the filtered result is composited onto the canvas.
+
+### CSS `<style>` Element and Selector-Based Styling
+
+`SvgCodec` implements a small, purpose-built CSS engine for a `style` element's text content -
+not a general-purpose CSS parser, only the subset needed to resolve the presentation properties
+this codec already understands (see *In-scope subset* above). The engine is split across three
+source files by concern, mirroring this codec's existing partial-class-per-concern convention:
+`SvgCodec.Css.Parser.cs` (tokenizing/parsing a stylesheet's raw text into rules and declarations),
+`SvgCodec.Css.Selectors.cs` (selector types, parsing, ancestor-walk matching, and specificity),
+and `SvgCodec.Css.Cascade.cs` (the stylesheet/element-context types and the single cascade
+chokepoint described below).
+
+**Selector support.** Type (`rect`), class (`.foo`, including a space-separated multi-class
+`class` attribute), id (`#foo`), universal (`*`), and compound (`rect.foo`) selectors are all
+supported, as are comma-separated selector lists and the descendant (whitespace) and child
+(`>`) combinators, matched via a backward walk from the selector's rightmost compound against the
+target element through `XElement.Parent`/`Ancestors()` for each preceding compound/combinator
+pair - `Child` requires an exact `.Parent` match, `Descendant` searches any ancestor. Sibling
+combinators (`+`/`~`) and pseudo-classes (for example `:hover`) are explicitly out of scope: SVG
+rendering is a single static snapshot with no notion of interactive state, so a pseudo-class has
+no meaningful target state to render, and a sibling combinator would require tracking
+document-order sibling position/adjacency data this codec does not otherwise retain for its
+existing ancestor-only cascade. Rather than discarding a whole rule over one unsupported
+selector, only the individual offending selector is dropped from its comma-separated list -
+every other, supported selector in the same rule still applies. `@media` and other at-rules, and
+a trailing `!important` on a declaration, are likewise out of scope: `!important` is tolerantly
+stripped so its value still applies at ordinary (non-`!important`) precedence, rather than being
+rejected outright, since a document author's intent for that declaration to "win" is still best
+honored by applying it at normal precedence instead of discarding it entirely.
+
+**Cascade and specificity.** Multiple matching stylesheet rules for the same property are
+resolved via the standard CSS specificity tuple (id count, class count, type count; the universal
+selector contributes zero to every component), with document order as the tie-breaker at equal
+specificity. A `style` element's `type` attribute gates whether its text content is parsed at
+all: absent or `text/css` is parsed, any other non-blank value is treated as an opaque,
+entirely-skipped block, matching the CSS specification's own rule for a non-CSS style block (for
+example a template or scripting language reusing the element name). Multiple `style` elements in
+one document merge into a single cascade sharing one strictly-increasing `SourceOrder` counter
+assigned in document order across every `style` element combined - this is what makes "a rule in
+a later `style` element outranks an equal-specificity rule in an earlier one" fall out of the
+existing document-order tie-break with no special-case code.
+
+**Three-tier precedence.** Every cascaded property resolves across exactly three precedence
+tiers: a plain presentation attribute (lowest), any matching stylesheet rule (next), and an
+inline `style="..."` attribute (highest, unconditionally overriding a matching stylesheet rule
+regardless of that rule's own specificity). This resolution happens through a single chokepoint,
+`ResolveStyledValue`, called once per cascaded property from `ApplyPresentationAttributes` (see
+*Presentation-Attribute Inheritance Model* above): it returns the winning inline or stylesheet
+declaration's raw value, or `null` if neither tier has one, in which case the caller falls
+through to reading the plain presentation attribute directly - preserving exactly the
+pre-existing, backward-compatible behavior for a document with no `style` element and no inline
+`style` attributes anywhere. Critically, every tier's raw value - whichever origin it came from -
+is handed to the *exact same* value parser (`ParseFillRule`, `ParseGeometryCoordinate`,
+`ParseOpacityValue`, and so on) a plain presentation attribute already used before this feature
+existed: the CSS engine itself never understands SVG paint/numeric/keyword syntax, only
+property/value token boundaries, so no SVG-specific value-parsing logic is duplicated between a
+presentation attribute and a CSS declaration carrying the same property.
+
+**Malformed input and resource safety.** A syntactically malformed individual rule or
+declaration is skipped (the parser resynchronizes at the next `}`/`;`) without discarding the
+rest of the stylesheet or aborting the document, matching this codec's established
+tolerant-parsing policy for other out-of-scope or malformed constructs. A whole-document
+`BuildStylesheet` pre-pass (mirroring the existing `BuildIdIndex` pre-pass) bounds the number of
+retained stylesheet rules, selectors per rule, combinator segments per selector, and declarations
+per rule with fixed constants, each documented with the same "generous but bounded" rationale
+style as `MaxFilterPrimitivesPerFilter`/`MaxConvolveMatrixOrder`; a document exceeding one of
+these is not rejected outright, it simply stops retaining further rules/selectors/declarations
+past the cap. Separately, a mutable `CssMatchWorkBudget` - following the exact
+`GeometryWorkBudget`/`FilterWorkBudget` pattern (`Charge`, throwing `InvalidDataException` once a
+fixed cumulative ceiling is exceeded) - bounds the *cumulative* selector-matching work performed
+across the whole document (charged once per element that has any stylesheet rule to match
+against), so a document that legitimately needs more total rule-times-element matching work than
+this budget allows is rejected the same way an oversized `path` `d` attribute already is.
 
 ### Gradient, Use, and Text Support and Limits
 

@@ -1301,3 +1301,121 @@ sections:
                   origin.
                 tests:
                   - SvgCodec_Load_NonPositiveWidth_PropagatesSurfaceArgumentOutOfRangeException
+
+              - id: CanvasNet-Codecs-SvgCodec-CssStyleElementParsing
+                title: >-
+                  The SvgCodec class shall parse a style element's text content as CSS, honoring
+                  its type attribute (parsed when absent or "text/css", otherwise treated as an
+                  opaque, entirely skipped block), and shall merge multiple style elements into
+                  one cascade in document order.
+                justification: |
+                  Real-world SVG documents commonly centralize presentation in a style element
+                  rather than repeating presentation attributes on every element; parsing it
+                  (rather than silently ignoring it, as before this requirement) is necessary to
+                  render such documents with their intended appearance. Honoring the type
+                  attribute avoids misinterpreting a non-CSS style block (for example a template
+                  or scripting language reusing the element name) as CSS.
+                tests:
+                  - SvgCodec_Load_CssTypeSelector_AppliesToMatchingElementType
+                  - SvgCodec_Load_CssMultipleStyleElements_MergeIntoOneCascadeInDocumentOrder
+                  - SvgCodec_Load_CssStyleElementNonCssType_TreatedAsOpaqueAndSkipped
+                  - SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier
+
+              - id: CanvasNet-Codecs-SvgCodec-CssSelectorMatching
+                title: >-
+                  The SvgCodec class shall match type, class (including space-separated
+                  multi-class class attributes), id, universal, and compound selectors, and
+                  comma-separated selector lists, against each element.
+                justification: |
+                  These selector kinds cover the overwhelming majority of real-world CSS used in
+                  SVG documents; supporting them lets a document target styling by tag name,
+                  semantic class, or unique id, matching ordinary CSS authoring practice.
+                tests:
+                  - SvgCodec_Load_CssTypeSelector_AppliesToMatchingElementType
+                  - SvgCodec_Load_CssClassSelector_AppliesOnlyToMatchingClass
+                  - SvgCodec_Load_CssIdSelector_AppliesOnlyToMatchingId
+                  - SvgCodec_Load_CssUniversalSelector_AppliesToEveryElement
+                  - SvgCodec_Load_CssCompoundSelector_RequiresEveryConditionToMatch
+                  - SvgCodec_Load_CssCommaSeparatedSelectorList_AppliesToEverySelector
+                  - SvgCodec_Load_CssMultiClassAttribute_MatchesEachClassToken
+                  - SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier
+
+              - id: CanvasNet-Codecs-SvgCodec-CssCombinators
+                title: >-
+                  The SvgCodec class shall match descendant (whitespace) and child (">")
+                  combinators against the live document ancestor chain; sibling ("+"/"~")
+                  combinators are explicitly out of scope, and a selector using one is dropped
+                  from its comma-separated list rather than discarding the whole rule.
+                justification: |
+                  Descendant and child combinators are the two combinators most commonly used to
+                  scope styling to a structural region of a document (for example "a group's
+                  shapes"). Sibling combinators are comparatively rare in real-world SVG styling
+                  and would otherwise require tracking sibling position/order data this codec
+                  does not currently retain; dropping only the offending selector (not the whole
+                  rule) preserves every other, supported selector in the same comma-separated
+                  list.
+                tests:
+                  - SvgCodec_Load_CssDescendantCombinator_MatchesNestedElementOnly
+                  - SvgCodec_Load_CssChildCombinator_MatchesDirectChildOnly
+                  - SvgCodec_Load_CssSiblingCombinator_DropsOnlyThatSelectorFromList
+                  - SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier
+
+              - id: CanvasNet-Codecs-SvgCodec-CssSpecificityCascade
+                title: >-
+                  The SvgCodec class shall resolve multiple matching stylesheet rules for the
+                  same property via standard CSS specificity-tuple (id, class, type)
+                  comparison, using document order (later wins) as the tie-breaker at equal
+                  specificity.
+                justification: |
+                  Standard CSS specificity/cascade-order rules are the behavior real-world SVG
+                  authors already expect from any style element; implementing anything else
+                  (for example first-match-wins) would silently mis-render documents relying on
+                  ordinary CSS semantics.
+                tests:
+                  - SvgCodec_Load_CssSpecificity_HigherSpecificityWinsEvenIfEarlierInStylesheet
+                  - SvgCodec_Load_CssCascadeTiebreak_EqualSpecificityLaterRuleWins
+                  - SvgCodec_Load_CssMultipleStyleElements_MergeIntoOneCascadeInDocumentOrder
+                  - SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier
+
+              - id: CanvasNet-Codecs-SvgCodec-CssThreeTierPrecedence
+                title: >-
+                  The SvgCodec class shall resolve each cascaded property's effective value
+                  across three precedence tiers: a plain presentation attribute (lowest), any
+                  matching stylesheet rule (next), and an inline style attribute (highest,
+                  unconditionally overriding a matching stylesheet rule regardless of that
+                  rule's own specificity).
+                justification: |
+                  This is the standard CSS/SVG2 cascade order for these three origins; every
+                  cascaded property's raw value - whichever tier it came from - is handed to the
+                  exact same value parser a plain presentation attribute already used, so this
+                  requirement adds no duplicated SVG-value-parsing logic while remaining fully
+                  backward compatible with a document containing no style element or style
+                  attribute at all.
+                tests:
+                  - SvgCodec_Load_CssPrecedenceTier1_PresentationAttributeOnlyStillApplies
+                  - SvgCodec_Load_CssPrecedenceTier2_StylesheetOverridesPresentationAttribute
+                  - SvgCodec_Load_CssPrecedenceTier3_InlineStyleOverridesStylesheet
+                  - SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier
+                  - CanvasNet_SystemIntegration_SvgLoadWithCssStyleElement_ReturnsExpectedPixel
+
+              - id: CanvasNet-Codecs-SvgCodec-CssResourceSafety
+                title: >-
+                  The SvgCodec class shall bound stylesheet rule count, selector complexity,
+                  declarations per rule, and cumulative selector-matching work, consistent with
+                  this codec's existing budget philosophy, and shall tolerate a malformed
+                  individual rule or declaration by skipping only that rule/declaration rather
+                  than the whole stylesheet or aborting the document.
+                justification: |
+                  Without a bound, a hostile or degenerate stylesheet (for example an enormous
+                  rule count, or a selector/rule engineered to maximize matching work against a
+                  large document) could consume disproportionate memory or CPU relative to the
+                  rendered document's size, mirroring the risk this codec's existing
+                  GeometryWorkBudget/FilterWorkBudget budgets already guard against for path
+                  and filter complexity. Tolerating one malformed rule/declaration (rather than
+                  aborting the whole document) matches this codec's established policy of
+                  rendering as much of a document as possible rather than failing it outright
+                  over one unsupported or malformed construct.
+                tests:
+                  - SvgCodec_Load_CssMalformedRule_SkipsOnlyThatRuleAndStillLoads
+                  - SvgCodec_Load_CssMalformedDeclaration_SkipsOnlyThatDeclaration
+                  - SvgCodec_Load_CssSiblingCombinator_DropsOnlyThatSelectorFromList

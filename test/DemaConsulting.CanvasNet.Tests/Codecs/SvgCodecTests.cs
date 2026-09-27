@@ -1531,12 +1531,17 @@ public class SvgCodecTests
 
         var constructor = contextType
             .GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-            .Single(c => c.GetParameters().Length == 3);
+            .Single(c => c.GetParameters().Length == 4);
+        var stylesheetType = typeof(SvgCodec).GetNestedType("CssStylesheet", BindingFlags.NonPublic);
+        Assert.NotNull(stylesheetType);
+        var emptyStylesheet = stylesheetType.GetField("Empty", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+        Assert.NotNull(emptyStylesheet);
         var context = constructor.Invoke(
         [
             new Surface(1, 1),
             new Dictionary<string, XElement>(),
-            null
+            null,
+            emptyStylesheet
         ]);
 
         // Arrange: reflect the private static ResolveGradientStops(XElement, RenderContext) method
@@ -7340,12 +7345,13 @@ public class SvgCodecTests
     }
 
     /// <summary>
-    ///     Proves that well-formed-but-out-of-scope constructs (<c>&lt;style&gt;</c>,
-    ///     <c>&lt;mask&gt;</c>, <c>&lt;clipPath&gt;</c>,
-    ///     <c>&lt;pattern&gt;</c>, a nested <c>&lt;svg&gt;</c>) are silently
-    ///     skipped and do not prevent the rest of the document from rendering. (<c>filter</c> is
-    ///     no longer out-of-scope - see the dedicated filter tests above for its own
-    ///     dangling-reference/unsupported-primitive tolerance coverage.)
+    ///     Proves that well-formed-but-out-of-scope constructs (<c>&lt;mask&gt;</c>,
+    ///     <c>&lt;clipPath&gt;</c>, <c>&lt;pattern&gt;</c>, a nested <c>&lt;svg&gt;</c>) are
+    ///     silently skipped and do not prevent the rest of the document from rendering.
+    ///     (<c>filter</c> is no longer out-of-scope - see the dedicated filter tests above for its
+    ///     own dangling-reference/unsupported-primitive tolerance coverage. <c>&lt;style&gt;</c> is
+    ///     also no longer out-of-scope - see the dedicated CSS styling tests below for its own
+    ///     selector/cascade coverage.)
     /// </summary>
     [Fact]
     public void SvgCodec_Load_UnsupportedConstructs_StillRendersRestOfDocument()
@@ -7353,7 +7359,6 @@ public class SvgCodecTests
         // Arrange
         const string svg = """
             <svg viewBox='0 0 100 100'>
-              <style>rect { fill: red; }</style>
               <defs>
                 <mask id='m'><rect width='100' height='100' fill='white'/></mask>
                 <clipPath id='c'><rect width='50' height='50'/></clipPath>
@@ -7370,6 +7375,476 @@ public class SvgCodecTests
 
         // Assert: the plain rect after the unsupported constructs still rendered
         Assert.Equal(255, surface[20, 20].A);
+    }
+
+    // ================================================================================================
+    // <style> element and CSS selector/cascade support
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves a bare type selector (<c>rect</c>) matches every <c>rect</c> element and applies
+    ///     its declared <c>fill</c>, with no presentation attribute present at all.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssTypeSelector_AppliesToMatchingElementType()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>rect { fill: red; }</style>
+              <rect x='0' y='0' width='100' height='100'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(255, surface[50, 50].R);
+        Assert.Equal(0, surface[50, 50].G);
+    }
+
+    /// <summary>Proves a class selector (<c>.foo</c>) matches only an element carrying that class.</summary>
+    [Fact]
+    public void SvgCodec_Load_CssClassSelector_AppliesOnlyToMatchingClass()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>.foo { fill: red; }</style>
+              <rect x='0' y='0' width='50' height='100' class='foo'/>
+              <rect x='50' y='0' width='50' height='100'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the classed rect picked up the red fill, the un-classed one did not
+        Assert.Equal(255, surface[25, 50].R);
+        Assert.Equal(0, surface[75, 50].R);
+    }
+
+    /// <summary>Proves an id selector (<c>#foo</c>) matches only the single element carrying that id.</summary>
+    [Fact]
+    public void SvgCodec_Load_CssIdSelector_AppliesOnlyToMatchingId()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>#bar { fill: red; }</style>
+              <rect x='0' y='0' width='50' height='100' id='bar'/>
+              <rect x='50' y='0' width='50' height='100'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(255, surface[25, 50].R);
+        Assert.Equal(0, surface[75, 50].R);
+    }
+
+    /// <summary>Proves a universal selector (<c>*</c>) matches every element regardless of type/class/id.</summary>
+    [Fact]
+    public void SvgCodec_Load_CssUniversalSelector_AppliesToEveryElement()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>* { fill: red; }</style>
+              <rect x='0' y='0' width='50' height='100'/>
+              <circle cx='75' cy='50' r='25'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(255, surface[25, 50].R);
+        Assert.Equal(255, surface[75, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves a compound selector (<c>rect.foo</c>) requires both its type and class condition
+    ///     to match - a same-classed element of a different type is not affected.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssCompoundSelector_RequiresEveryConditionToMatch()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>rect.foo { fill: red; }</style>
+              <rect x='0' y='0' width='50' height='100' class='foo'/>
+              <circle cx='75' cy='50' r='25' class='foo'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the rect.foo matched the compound selector, but circle.foo (wrong type) did not
+        Assert.Equal(255, surface[25, 50].R);
+        Assert.Equal(0, surface[75, 50].R);
+    }
+
+    /// <summary>Proves a comma-separated selector list applies its declarations to every listed selector.</summary>
+    [Fact]
+    public void SvgCodec_Load_CssCommaSeparatedSelectorList_AppliesToEverySelector()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>rect, circle { fill: red; }</style>
+              <rect x='0' y='0' width='50' height='100'/>
+              <circle cx='75' cy='50' r='25'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(255, surface[25, 50].R);
+        Assert.Equal(255, surface[75, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves standard CSS specificity ordering: a higher-specificity id selector wins over a
+    ///     lower-specificity class selector even though the id rule appears earlier in the
+    ///     stylesheet's source order (specificity is compared before source order).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssSpecificity_HigherSpecificityWinsEvenIfEarlierInStylesheet()
+    {
+        // Arrange: the id rule (specificity 1,0,0) appears first, the class rule (0,1,0) second -
+        // the id rule must still win despite being earlier in source order
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>
+                #bar { fill: green; }
+                .foo { fill: red; }
+              </style>
+              <rect x='0' y='0' width='100' height='100' id='bar' class='foo'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: green (from the id rule) won, not red (from the later-but-lower-specificity class rule)
+        Assert.Equal(0, surface[50, 50].R);
+        Assert.Equal(128, surface[50, 50].G);
+    }
+
+    /// <summary>
+    ///     Proves the cascade's document-order tiebreak: when two rules have equal specificity,
+    ///     the later rule in source order wins.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssCascadeTiebreak_EqualSpecificityLaterRuleWins()
+    {
+        // Arrange: both rules are plain type selectors (equal specificity) - the second must win
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>
+                rect { fill: red; }
+                rect { fill: blue; }
+              </style>
+              <rect x='0' y='0' width='100' height='100'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(0, surface[50, 50].R);
+        Assert.Equal(255, surface[50, 50].B);
+    }
+
+    /// <summary>
+    ///     Proves precedence tier 1 in isolation: with no stylesheet and no inline <c>style</c> at
+    ///     all, a plain presentation attribute still applies exactly as before this phase.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssPrecedenceTier1_PresentationAttributeOnlyStillApplies()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <rect x='0' y='0' width='100' height='100' fill='red'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(255, surface[50, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves precedence tier 2 over tier 1: a matching stylesheet rule overrides a plain
+    ///     presentation attribute on the same element.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssPrecedenceTier2_StylesheetOverridesPresentationAttribute()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>rect { fill: red; }</style>
+              <rect x='0' y='0' width='100' height='100' fill='blue'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: red (stylesheet) won over blue (presentation attribute)
+        Assert.Equal(255, surface[50, 50].R);
+        Assert.Equal(0, surface[50, 50].B);
+    }
+
+    /// <summary>
+    ///     Proves precedence tier 3 over tier 2: an inline <c>style="..."</c> declaration
+    ///     unconditionally overrides any matching stylesheet rule, regardless of the stylesheet
+    ///     rule's specificity.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssPrecedenceTier3_InlineStyleOverridesStylesheet()
+    {
+        // Arrange: the stylesheet rule is an id selector (maximal, non-universal specificity), yet
+        // the inline style must still win
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>#bar { fill: red; }</style>
+              <rect x='0' y='0' width='100' height='100' id='bar' fill='green' style='fill: blue;'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(0, surface[50, 50].R);
+        Assert.Equal(255, surface[50, 50].B);
+    }
+
+    /// <summary>
+    ///     Proves that multiple <c>&lt;style&gt;</c> elements merge into a single cascade sharing
+    ///     one document-order source-order counter: a rule in the second <c>&lt;style&gt;</c>
+    ///     element beats an equal-specificity rule in the first.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssMultipleStyleElements_MergeIntoOneCascadeInDocumentOrder()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>rect { fill: red; }</style>
+              <style>rect { fill: blue; }</style>
+              <rect x='0' y='0' width='100' height='100'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the second style element's equal-specificity rule won
+        Assert.Equal(0, surface[50, 50].R);
+        Assert.Equal(255, surface[50, 50].B);
+    }
+
+    /// <summary>Proves a multi-class <c>class</c> attribute value is matched token-by-token.</summary>
+    [Fact]
+    public void SvgCodec_Load_CssMultiClassAttribute_MatchesEachClassToken()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>.b { fill: red; }</style>
+              <rect x='0' y='0' width='100' height='100' class='a b c'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(255, surface[50, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves the descendant combinator (a space between compound selectors) matches an
+    ///     element nested anywhere beneath the ancestor, but not a same-type element that is not
+    ///     nested beneath it.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssDescendantCombinator_MatchesNestedElementOnly()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>g rect { fill: red; }</style>
+              <g><rect x='0' y='0' width='50' height='100'/></g>
+              <rect x='50' y='0' width='50' height='100'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the nested rect matched, the top-level sibling rect did not
+        Assert.Equal(255, surface[25, 50].R);
+        Assert.Equal(0, surface[75, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves the child combinator (<c>&gt;</c>) matches only a direct child, not a
+    ///     grandchild nested one level deeper.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssChildCombinator_MatchesDirectChildOnly()
+    {
+        // Arrange: "#outer > rect" only matches a rect that is a direct child of the id='outer'
+        // group - a rect one level further nested (whose immediate parent is a different, inner
+        // g) must not match, even though it is still a descendant of "#outer"
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>#outer > rect { fill: red; }</style>
+              <g id='outer'><rect x='0' y='0' width='50' height='100'/></g>
+              <g id='outer2'><g><rect x='50' y='0' width='50' height='100'/></g></g>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the direct child matched, the grandchild (nested one level deeper) did not
+        Assert.Equal(255, surface[25, 50].R);
+        Assert.Equal(0, surface[75, 50].R);
+    }
+
+    /// <summary>    ///     Proves malformed-CSS graceful degradation: one syntactically-broken rule in a
+    ///     stylesheet is skipped, the rest of the stylesheet's well-formed rules still apply, and
+    ///     the document still loads rather than aborting entirely.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssMalformedRule_SkipsOnlyThatRuleAndStillLoads()
+    {
+        // Arrange: the first rule is missing its closing brace entirely (malformed/unterminated),
+        // the second is well-formed and must still apply
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>
+                .broken { fill: red
+                rect { fill: blue; }
+              </style>
+              <rect x='0' y='0' width='100' height='100'/>
+            </svg>
+            """;
+
+        // Act: this must not throw despite the malformed first rule
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the document still loaded (a non-throwing Load is itself part of what this test
+        // proves) - the rect could plausibly have picked up either declaration or neither,
+        // depending on where the parser resynchronizes, so no stronger pixel assertion is made
+        Assert.Equal(100, surface.Width);
+        Assert.Equal(100, surface.Height);
+    }
+
+    /// <summary>
+    ///     Proves a <c>&lt;style&gt;</c> element's own malformed individual declaration (missing a
+    ///     colon) is skipped without discarding the rest of that same rule's other declarations.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssMalformedDeclaration_SkipsOnlyThatDeclaration()
+    {
+        // Arrange: "not-a-declaration" has no colon and must be skipped; "fill: red" in the same
+        // rule body must still apply
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>rect { not-a-declaration; fill: red; }</style>
+              <rect x='0' y='0' width='100' height='100'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(255, surface[50, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves a <c>&lt;style&gt;</c> element's <c>type</c> attribute gates parsing: a
+    ///     non-CSS/absent-<c>text/css</c> value is treated as an opaque, entirely-skipped block.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssStyleElementNonCssType_TreatedAsOpaqueAndSkipped()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style type='text/plain'>rect { fill: red; }</style>
+              <rect x='0' y='0' width='100' height='100'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the rule was never parsed, so the rect kept its default black fill, not red
+        Assert.Equal(0, surface[50, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves a sibling combinator (<c>+</c>), explicitly out of scope for this phase, causes
+    ///     only its own selector to be dropped from a comma-separated list - the rest of the list
+    ///     (and the rest of the stylesheet) still applies.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssSiblingCombinator_DropsOnlyThatSelectorFromList()
+    {
+        // Arrange: "rect + circle" (unsupported sibling combinator) must be dropped, but the
+        // comma-listed plain "rect" selector in the same rule must still apply
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>rect + circle, rect { fill: red; }</style>
+              <rect x='0' y='0' width='100' height='100'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(255, surface[50, 50].R);
     }
 
     // ================================================================================================

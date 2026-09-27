@@ -111,11 +111,10 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     see <c>SvgCodec.Image.cs</c>'s remarks for the full rationale).
 ///     </para>
 ///     <para>
-///     <b>Out of scope (silently ignored, per element).</b> <c>style</c> blocks and CSS
-///     class/id selectors,
+///     <b>Out of scope (silently ignored, per element).</b>
 ///     SMIL animation (<c>animate</c>/<c>animateTransform</c>/<c>animateMotion</c>/
-///     <c>animateColor</c>/<c>set</c>), <c>foreignObject</c>, nested <c>svg</c>, and
-///     an inline <c>style="..."</c> presentation attribute are all well-formed-but-unsupported
+///     <c>animateColor</c>/<c>set</c>), <c>foreignObject</c>, and nested <c>svg</c> are all
+///     well-formed-but-unsupported
 ///     constructs: encountering one never aborts the document, it is simply skipped, and every
 ///     other element continues to render normally. Within the supported <c>marker</c> feature itself,
 ///     <c>markerContentUnits</c> (a rarely-used SVG 2 attribute) is not read, and a marker's
@@ -145,6 +144,37 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     adjustment - and the <c>font-style</c> keyword <c>oblique</c> is not distinguished from
 ///     <c>italic</c>: both map onto the same <see cref="SvgFontStyle.Italic"/> value (see
 ///     <see cref="SvgFontStyle"/>'s remarks for the rationale).
+///     </para>
+///     <para>
+///     <b>CSS <c>style</c> element and selector-based styling.</b> A <c>style</c> element's text
+///     content is parsed as CSS (honoring its <c>type</c> attribute - only absent or
+///     <c>text/css</c> is parsed, any other value is opaque and skipped), matching type
+///     (<c>rect</c>), class (<c>.foo</c>, including a space-separated multi-class <c>class</c>
+///     attribute), id (<c>#foo</c>), universal (<c>*</c>), and compound (<c>rect.foo</c>)
+///     selectors, comma-separated selector lists, and the descendant (whitespace) and child
+///     (<c>&gt;</c>) combinators. Sibling (<c>+</c>/<c>~</c>) combinators and pseudo-classes
+///     (for example <c>:hover</c>) are not implemented - SVG rendering has no interactive state
+///     for a pseudo-class to target, and this codec does not otherwise track the sibling-position
+///     data a sibling combinator would need; only the individual unsupported selector is dropped
+///     from its comma-separated list, not the whole rule. <c>@media</c>/other at-rules are not
+///     implemented, and a trailing <c>!important</c> is tolerantly stripped, applying that
+///     declaration's value at ordinary (non-<c>!important</c>) precedence rather than rejecting
+///     it. Multiple matching rules for the same property resolve via standard CSS specificity
+///     (id/class/type tuple comparison, universal contributing zero), with document order as the
+///     tie-breaker at equal specificity; multiple <c>style</c> elements merge into one cascade
+///     sharing a single document-order source-order counter, so a later <c>style</c> element's
+///     equal-specificity rule outranks an earlier one. Every cascaded property resolves across
+///     exactly 3 precedence tiers - a plain presentation attribute (lowest), any matching
+///     stylesheet rule (next), and an inline <c>style="..."</c> attribute (highest,
+///     unconditionally overriding a matching stylesheet rule regardless of its own specificity) -
+///     with every tier's raw value handed to the exact same value parser a plain presentation
+///     attribute already used, so no SVG-value-parsing logic is duplicated by the CSS engine. A
+///     malformed individual rule or declaration is skipped (resynchronizing at the next
+///     <c>}</c>/<c>;</c>) rather than aborting the whole stylesheet or document, and both the
+///     number of retained stylesheet rules/selectors/declarations and the cumulative
+///     selector-matching work performed against the document are bounded, mirroring this
+///     codec's existing <c>GeometryWorkBudget</c>/<c>FilterWorkBudget</c> resource-safety
+///     conventions.
 ///     </para>
 ///     <para>
 ///     <b>ViewBox fitting and <c>preserveAspectRatio</c>.</b> <see cref="Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont}?)"/>
@@ -342,7 +372,8 @@ public static partial class SvgCodec
             }
 
             var idIndex = BuildIdIndex(root);
-            var context = new RenderContext(surface, idIndex, fonts);
+            var stylesheet = BuildStylesheet(root);
+            var context = new RenderContext(surface, idIndex, fonts, stylesheet);
             RenderDocument(root, fitTransform, size, context);
         }
         catch (FormatException ex)

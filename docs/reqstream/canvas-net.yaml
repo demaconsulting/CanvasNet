@@ -1318,9 +1318,8 @@ sections:
         tags: [system]
         justification: |
           Real-world SVG documents commonly include constructs outside this codec's supported
-          subset (such as filters, masks, or CSS styling); rejecting the entire document because
-          of one such element would be needlessly strict when the rest of the document is
-          renderable.
+          subset (such as filters or masks); rejecting the entire document because of one such
+          element would be needlessly strict when the rest of the document is renderable.
         children:
           - CanvasNet-Codecs-SvgTolerateUnsupportedConstructs
         tests:
@@ -1340,6 +1339,24 @@ sections:
           - SvgCodec_GetInfo_NullStream_ThrowsArgumentNullException
           - SvgCodec_GetInfo_NullPath_ThrowsArgumentNullException
           - SvgCodec_GetInfo_EmptyPath_ThrowsArgumentException
+
+      - id: CanvasNet-Lib-SvgCssStyling
+        title: >-
+          The library shall render an SVG style element's CSS rules against every element's
+          type, class, id, universal, and compound selectors (including comma-separated lists
+          and descendant/child combinators), resolving each cascaded presentation property
+          through standard CSS specificity/cascade-order rules and a 3-tier
+          presentation-attribute/stylesheet/inline-style precedence.
+        tags: [system]
+        justification: |
+          A style element with class/id/type selectors is a common, standard way real-world SVG
+          documents centralize presentation; callers relying on CSS-driven styling need it to
+          actually apply with standard CSS cascade/precedence semantics, rather than the style
+          element being silently discarded as an out-of-scope construct.
+        children:
+          - CanvasNet-Codecs-SvgCssStyling
+        tests:
+          - CanvasNet_SystemIntegration_SvgLoadWithCssStyleElement_ReturnsExpectedPixel
 
   - title: Geometry API
     requirements:

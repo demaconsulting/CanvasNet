@@ -1475,6 +1475,121 @@ asserts `Surface`'s own `ArgumentOutOfRangeException` propagates unwrapped (not 
 design decision that caller-supplied raster dimensions are ordinary API parameters rather than
 untrusted input.
 
+#### CanvasNet-Codecs-SvgCodec-CssStyleElementParsing: Style Element Parsing, Type Gating, and Multi-Element Merge
+
+**Tests**: `SvgCodec_Load_CssTypeSelector_AppliesToMatchingElementType`,
+`SvgCodec_Load_CssMultipleStyleElements_MergeIntoOneCascadeInDocumentOrder`,
+`SvgCodec_Load_CssStyleElementNonCssType_TreatedAsOpaqueAndSkipped`,
+`SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier`
+
+Loads a document with a single `style` element containing a type-selector rule and asserts the
+rule's declared fill applies to a matching `rect` with no other source of color. Separately,
+loads a document with two `style` elements each declaring an equal-specificity rule for the same
+property against the same element, and asserts the second (later, document-order) element's
+declaration wins - proving multiple `style` elements merge into a single cascade sharing one
+document-order source-order counter. Separately, loads a document whose single `style` element
+carries `type="text/plain"` and asserts its rule never applies at all (the element keeps its
+default fill), proving the `type` attribute gates parsing rather than being ignored. The
+fixture-integration test exercises `type`-absent style-element parsing end to end via a real file
+on disk alongside every other selector kind.
+
+#### CanvasNet-Codecs-SvgCodec-CssSelectorMatching: Type/Class/Id/Universal/Compound Selectors and Comma Lists
+
+**Tests**: `SvgCodec_Load_CssTypeSelector_AppliesToMatchingElementType`,
+`SvgCodec_Load_CssClassSelector_AppliesOnlyToMatchingClass`,
+`SvgCodec_Load_CssIdSelector_AppliesOnlyToMatchingId`,
+`SvgCodec_Load_CssUniversalSelector_AppliesToEveryElement`,
+`SvgCodec_Load_CssCompoundSelector_RequiresEveryConditionToMatch`,
+`SvgCodec_Load_CssCommaSeparatedSelectorList_AppliesToEverySelector`,
+`SvgCodec_Load_CssMultiClassAttribute_MatchesEachClassToken`,
+`SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier`
+
+For each selector kind, loads a document with a stylesheet rule using that selector kind and
+asserts it applies to a matching element and (where a natural negative case exists in the same
+document) does not apply to a non-matching one: a type selector against every `rect`; a class
+selector against only the classed rect, not an un-classed sibling; an id selector against only
+the identified rect, not an un-identified sibling; a universal selector against every element
+regardless of type; a compound selector (`rect.foo`) against only an element satisfying both its
+type and class condition, not a same-classed element of a different type; a comma-separated
+selector list applying its shared declaration to every listed selector; and a multi-class
+`class` attribute value (`class="a b c"`) matched by any one of its space-separated tokens. The
+fixture-integration test exercises every selector kind together, end to end, via a real file on
+disk.
+
+#### CanvasNet-Codecs-SvgCodec-CssCombinators: Descendant/Child Combinators and Sibling-Combinator Scope-Out
+
+**Tests**: `SvgCodec_Load_CssDescendantCombinator_MatchesNestedElementOnly`,
+`SvgCodec_Load_CssChildCombinator_MatchesDirectChildOnly`,
+`SvgCodec_Load_CssSiblingCombinator_DropsOnlyThatSelectorFromList`,
+`SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier`
+
+Loads a document with a descendant-combinator rule (`g rect`) and asserts it matches a `rect`
+nested inside a `g` at any depth, but not a sibling `rect` that is not nested inside that `g` at
+all. Loads a document with a child-combinator rule (`#id > .class`) and asserts it matches only
+an element that is a *direct* child of the identified ancestor, not one nested one level further
+(whose immediate parent is a different element), proving the child combinator is stricter than
+the descendant combinator rather than a synonym for it. Loads a document whose stylesheet
+contains a comma-separated list with one sibling-combinator selector (`rect + circle`) alongside
+one plain, supported selector (`rect`) in the same rule, and asserts the plain selector's
+declaration still applies - proving only the unsupported sibling-combinator selector is dropped
+from its list, not the whole rule.
+
+#### CanvasNet-Codecs-SvgCodec-CssSpecificityCascade: Specificity Ordering and Document-Order Tiebreak
+
+**Tests**: `SvgCodec_Load_CssSpecificity_HigherSpecificityWinsEvenIfEarlierInStylesheet`,
+`SvgCodec_Load_CssCascadeTiebreak_EqualSpecificityLaterRuleWins`,
+`SvgCodec_Load_CssMultipleStyleElements_MergeIntoOneCascadeInDocumentOrder`,
+`SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier`
+
+Loads a document whose stylesheet declares a higher-specificity id-selector rule *before* a
+lower-specificity class-selector rule targeting the same element/property, and asserts the id
+rule's declaration wins - proving specificity is compared before document order, not simply
+"last rule wins" regardless of specificity. Separately, loads a document with two
+equal-specificity type-selector rules for the same property, and asserts the later (in document
+order) rule's declaration wins, confirming the document-order tie-break applies only once
+specificity is already equal.
+
+#### CanvasNet-Codecs-SvgCodec-CssThreeTierPrecedence: Presentation Attribute, Stylesheet, and Inline Style Tiers
+
+**Tests**: `SvgCodec_Load_CssPrecedenceTier1_PresentationAttributeOnlyStillApplies`,
+`SvgCodec_Load_CssPrecedenceTier2_StylesheetOverridesPresentationAttribute`,
+`SvgCodec_Load_CssPrecedenceTier3_InlineStyleOverridesStylesheet`,
+`SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier`,
+`CanvasNet_SystemIntegration_SvgLoadWithCssStyleElement_ReturnsExpectedPixel`
+
+Verifies each precedence tier individually and in combination. With no stylesheet and no inline
+`style` attribute at all, a plain presentation attribute applies exactly as it did before this
+feature existed (tier 1 in isolation). With a matching stylesheet rule and a conflicting plain
+presentation attribute on the same element, the stylesheet rule's declaration wins (tier 2 over
+tier 1). With a matching stylesheet id-selector rule (the highest selector specificity) and a
+conflicting inline `style="..."` declaration on the same element, the inline declaration wins
+regardless of the stylesheet rule's own specificity (tier 3 over tier 2, unconditionally). The
+system-integration test proves the same tier-2-over-tier-1 resolution end to end through the
+public `SvgCodec.Load` API as part of the whole rendering pipeline, and the fixture-integration
+test exercises all 3 tiers together via a real file on disk.
+
+#### CanvasNet-Codecs-SvgCodec-CssResourceSafety: Malformed-Rule Tolerance and Bounded Resource Use
+
+**Tests**: `SvgCodec_Load_CssMalformedRule_SkipsOnlyThatRuleAndStillLoads`,
+`SvgCodec_Load_CssMalformedDeclaration_SkipsOnlyThatDeclaration`,
+`SvgCodec_Load_CssSiblingCombinator_DropsOnlyThatSelectorFromList`
+
+Loads a document whose stylesheet contains one syntactically malformed rule (an unterminated
+declaration body missing its closing brace) immediately followed by a well-formed rule, and
+asserts `Load` does not throw and the document still renders - proving the malformed rule is
+skipped and parsing resynchronizes rather than aborting the whole stylesheet or document.
+Separately, loads a document whose single rule body contains one malformed individual
+declaration (missing its `:` separator) alongside one well-formed declaration, and asserts the
+well-formed declaration's value still applies - proving a malformed declaration is skipped
+without discarding the rest of that same rule's other declarations. The resource-bounding
+constants themselves (`MaxCssRules`, `MaxCssSelectorsPerRule`,
+`MaxCssCombinatorSegmentsPerSelector`, `MaxCssDeclarationsPerRule`, and the cumulative
+`CssMatchWorkBudget` ceiling) are exercised only indirectly by every CSS test above staying well
+within them - consistent with this codec's existing `GeometryWorkBudget`/`FilterWorkBudget`
+precedent, where the budget ceilings themselves are sized generously enough that no realistic
+test fixture is expected to approach them, and are documented via XML-doc rationale at their
+declaration site rather than a dedicated ceiling-triggering regression test.
+
 ### Additional Regression Test Scenarios (Unlinked)
 
 The tests below are defensive/regression tests added for a bug fix, not new observable features;

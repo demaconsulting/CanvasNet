@@ -352,4 +352,55 @@ public class SvgFixtureTests
         Assert.Equal(new Rgba32(0, 0, 0, 255), surface[10, 20]);
         Assert.Equal(new Rgba32(0, 0, 0, 255), surface[90, 20]);
     }
+
+    /// <summary>
+    ///     Proves that <c>css-styling.svg</c>'s <c>&lt;style&gt;</c> element and every selector
+    ///     kind/combinator it exercises (universal, class, id, compound, comma-separated list,
+    ///     descendant combinator, child combinator, cascade tiebreak) each apply their expected
+    ///     fill color end to end through a real file on disk, and that all 3 precedence tiers
+    ///     resolve as documented (presentation attribute only, stylesheet overrides presentation
+    ///     attribute, inline style overrides even a higher-specificity stylesheet id rule).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier()
+    {
+        // Arrange & Act
+        var surface = SvgCodec.Load(ResolveFixturePath("css-styling.svg"), 200, 80);
+
+        // Assert: presentation-attribute-only tier (no stylesheet rule targets this element)
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[10, 10]);
+
+        // Assert: class selector
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[30, 10]);
+
+        // Assert: id selector wins over a same-element, lower-specificity class selector
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 10]);
+
+        // Assert: compound selector - the rect (correct type+class) matched, the circle
+        // (correct class, wrong type) kept its default black fill
+        Assert.Equal(new Rgba32(255, 165, 0, 255), surface[70, 10]);
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[70, 50]);
+
+        // Assert: comma-separated selector list - both listed classes applied the same declaration
+        Assert.Equal(new Rgba32(165, 42, 42, 255), surface[90, 10]);
+        Assert.Equal(new Rgba32(165, 42, 42, 255), surface[90, 50]);
+
+        // Assert: descendant combinator - matches any depth of nesting inside a g
+        Assert.Equal(new Rgba32(128, 0, 128, 255), surface[110, 10]);
+
+        // Assert: child combinator - only a direct child of #direct-parent matched; the same
+        // class one level further nested (whose immediate parent is a different g) did not
+        Assert.Equal(new Rgba32(0, 128, 128, 255), surface[130, 10]);
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[130, 50]);
+
+        // Assert: cascade tiebreak - the later, equal-specificity rule (magenta) won
+        Assert.Equal(new Rgba32(255, 0, 255, 255), surface[150, 10]);
+
+        // Assert: a matching stylesheet rule overrides a plain presentation attribute
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[170, 10]);
+
+        // Assert: an inline style unconditionally overrides even a higher-specificity stylesheet
+        // id rule
+        Assert.Equal(new Rgba32(0, 255, 255, 255), surface[190, 10]);
+    }
 }

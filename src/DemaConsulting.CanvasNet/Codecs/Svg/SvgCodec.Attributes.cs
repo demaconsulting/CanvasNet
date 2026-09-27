@@ -130,6 +130,27 @@ public static partial class SvgCodec
     }
 
     /// <summary>
+    ///     Parses an already-resolved raw value (from either a plain presentation attribute or the
+    ///     CSS cascade - see <c>ResolveStyledValue</c>), rather than reading
+    ///     <paramref name="name"/> directly off an <see cref="XElement"/> - the CSS-aware
+    ///     counterpart to <see cref="GetOptionalFloat(XElement, string, RenderState, PercentageAxis)"/>,
+    ///     used wherever a cascaded property's raw string is resolved once by the caller before
+    ///     being handed to this identical, unduplicated value parser.
+    /// </summary>
+    /// <param name="raw">The already-resolved raw value, or <see langword="null"/> if absent from every tier.</param>
+    /// <param name="name">The attribute name, forwarded only for call-site clarity/future diagnostics.</param>
+    /// <param name="state">The cascaded render state, supplying <paramref name="axis"/>'s resolution basis.</param>
+    /// <param name="axis">Which viewport-relative basis a trailing <c>%</c> resolves against.</param>
+    /// <returns>The parsed value, or <see langword="null"/> if <paramref name="raw"/> is <see langword="null"/>.</returns>
+    /// <exception cref="FormatException">Thrown when <paramref name="raw"/> is present but not a valid number/percentage.</exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="raw"/> is present but parses to a non-finite value - see
+    ///     <see cref="ParseGeometryCoordinate"/>.
+    /// </exception>
+    private static float? GetOptionalFloat(string? raw, string name, RenderState state, PercentageAxis axis) =>
+        raw == null ? null : ParseGeometryCoordinate(raw, name, state, axis);
+
+    /// <summary>
     ///     Parses a shape/text geometry attribute's numeric value, resolving a trailing <c>%</c>
     ///     suffix against <paramref name="axis"/>'s current basis (see
     ///     <see cref="ResolvePercentageBasis"/>) - unlike opacity-family attributes (see

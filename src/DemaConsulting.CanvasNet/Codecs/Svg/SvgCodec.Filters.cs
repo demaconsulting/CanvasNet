@@ -476,7 +476,7 @@ public static partial class SvgCodec
             return null;
         }
 
-        var state = ApplyPresentationAttributes(parentState, element);
+        var state = ApplyPresentationAttributes(parentState, element, context);
         var transform = ParseTransformAttribute(element) * relativeTransform;
         if (!IsFiniteTransform(transform))
         {
