@@ -44,10 +44,11 @@ same reason as the other codecs: rasterizing an SVG document has no instance sta
   `marker-mid`/`marker-end` presentation attributes (`url(#id)`), with `markerWidth`/
   `markerHeight`, `refX`/`refY`, `markerUnits` (`strokeWidth`/`userSpaceOnUse`), `orient`
   (`auto`/`auto-start-reverse`/a fixed angle in degrees), and an optional `viewBox`
-- `filter`, referenced from any renderable shape or `text` element via the `filter`
-  presentation attribute (`url(#id)`), with `x`/`y`/`width`/`height` filter-region attributes
-  (objectBoundingBox units) and `feFlood`, `feGaussianBlur`, `feOffset`, `feComposite`, and
-  `feMerge` primitive children
+- `filter`, referenced from any renderable shape or `text` element, or from a `g`/`symbol`
+  reference/`use` element (applied to the whole referenced subtree as a single unit), via the
+  `filter` presentation attribute (`url(#id)`), with `x`/`y`/`width`/`height` filter-region
+  attributes (objectBoundingBox units) and `feFlood`, `feGaussianBlur`, `feOffset`,
+  `feComposite`, and `feMerge` primitive children
 - `text`, with `x`/`y`, `font-family`, `font-size`, `fill`, `text-anchor`
   (`start`/`middle`/`end`), and `font-weight`/`font-style`, rendered through a caller-supplied
   dictionary of per-family `SvgFontFace` lists (or, via the legacy single-font-per-family
@@ -67,9 +68,10 @@ itself, `markerContentUnits` (a rarely-used SVG 2 attribute) and clipping marker
 own `markerWidth`/`markerHeight` viewport (`overflow`) are both explicitly out of scope. Within
 the supported `filter` feature itself, `filterUnits="userSpaceOnUse"` (tolerantly falls back to
 the same objectBoundingBox-relative region computation as the default, rather than being
-interpreted as literal absolute user-space coordinates), group-level filtering (a `filter` on a
-`g`/`symbol`, or on a shape's own `marker` content, has no effect - filtering only ever applies
-per-element to a directly renderable shape/`text` element), and every filter primitive other than
+interpreted as literal absolute user-space coordinates), a `filter` on a shape's own `marker`
+content (has no effect - `marker` content is never recursed into by the ordinary element walk, so
+a group-level filter on a `<g>` inside a `marker` is never reached), and every filter primitive
+other than
 the five listed above (`feColorMatrix`, `feTurbulence`, `feDisplacementMap`, `feImage`, `feTile`,
 `feDropShadow`, `feConvolveMatrix`, `feDiffuseLighting`, `feSpecularLighting`,
 `feComponentTransfer`, and `feMorphology` - each tolerated as a no-op passthrough of its own input
@@ -380,8 +382,13 @@ does not resolve to a `marker` element, is tolerated as a silent no-op for that 
 (`url(#id)`, resolved through the same id index and dangling-reference tolerance as a gradient
 `fill`/`stroke` reference above) identifies a `filter` element whose primitive children are
 evaluated against that one element's own rendered content - `filter` never cascades through
-`RenderState` (matching `transform`'s own non-cascading handling) and never applies at the
-group/`marker`-content level, only per-element. The filter region - the rectangular area, in the
+`RenderState` (matching `transform`'s own non-cascading handling), so a filter on an ancestor
+element has no effect on its descendants' own, independent `filter` attributes. A `g`/`symbol`
+reference or `use` element's own `filter` attribute is resolved the same way but is instead
+evaluated against the _whole resolved subtree_'s combined rendered content, as one unit (see
+**Group-level filters** below); `marker` content is never recursed into by the ordinary element
+walk regardless of any `filter` attribute present there, so filters on marker content continue to
+have no effect. The filter region - the rectangular area, in the
 element's own local space, that the filter's temporary offscreen buffer covers - defaults to
 -10%/-10%/120%/120% (`x`/`y`/`width`/`height`, objectBoundingBox units) of the element's own
 local-space bounding box, or uses the filter element's own explicit `x`/`y`/`width`/`height`
@@ -450,6 +457,119 @@ canvas-writing logic for filters. The element's own cascaded `opacity` (forced t
 source) is applied at this same final compositing step, as a uniform per-pixel coverage
 multiplier passed to `CompositeOverSpan` - per SVG semantics, `opacity` applies to the filtered
 result as a whole, exactly once, not to the pre-filter source paint.
+
+**Group-level filters.** A `filter` attribute on a `g`/`symbol` reference or `use` element
+(`RenderFilteredGroup`) reuses the same per-shape pipeline above - offscreen render, primitive
+chain, final composite - applied to the group's _combined_ subtree instead of a single element's
+own content. Because the filter region must be computed before anything is rendered (the region
+determines the temporary buffer's own size), and a group has no single `Path` to call
+`GetBounds()` on, a dedicated bounds-only pre-pass (`ComputeSubtreeLocalBounds`) mirrors
+`RenderElement`'s own dispatch switch - recursing into the same element kinds
+(`g`/`symbol`/shapes/`text`/`use`), honoring the same `MaxElementDepth`/
+`MaxTotalRenderedElements`/`MaxUseDepth` guards - but only accumulates each descendant's own
+transformed bounding box (via `Rect.Union`) rather than painting anything. Because this pre-pass
+necessarily re-visits the same subtree the real render pass below visits again immediately
+afterward, `RenderFilteredGroup` always runs it against a fresh, local, independently bounded
+scratch `totalElements` counter and `GeometryWorkBudget` instance - never the real
+per-`Load`-call counter/budget `RenderElement` itself threads through - so this bounds-only
+pre-pass can never permanently consume any of the real resource ceiling the render pass (and
+every other filtered shape/group in the document) also needs; the same fixed ceiling constants
+still bound the pre-pass's own work against a pathologically large subtree, just via a
+call-scoped instance rather than the shared one. Resetting those local-scratch ceilings on every
+invocation, however, leaves a distinct resource-safety gap open: a document with many levels of
+nested filtered `g`/`symbol`/`use` elements, each wrapping a large subtree, causes each nesting
+level's own `RenderFilteredGroup` call to re-walk an overlapping portion of that same subtree
+(the real render pass only descends into a nested filtered group's own content after that
+group's _own_ pre-pass has already walked it once more), so total pre-pass work grows with
+`depth * subtree-size` even though every individual invocation's own element count stays
+comfortably under `MaxTotalRenderedElements`. A third, cumulative, per-`Load`-call
+`BoundsPrePassWorkBudget` closes this gap the same way `FilterWorkBudget` closes the analogous
+"one filter, many references" gap: a single shared instance (never one of the fresh local-scratch
+instances above) is threaded down to every `RenderFilteredGroup`/`ComputeSubtreeLocalBounds`/
+`ComputeMarkerContentLocalBounds`/`ComputeOneMarkerLocalBounds` call for the whole document,
+charged once per element visited by any bounds pre-pass, and once its running total would exceed
+a fixed `MaxCumulativeBoundsPrePassWork` ceiling (1,000,000 - ten times
+`MaxTotalRenderedElements`, generous enough that a real document with a modest few levels of
+nested filtered groups is never rejected), `ComputeSubtreeLocalBounds` throws
+`InvalidDataException` - the same throwing convention (and the same call site) as its own existing
+`MaxElementDepth`/`MaxTotalRenderedElements` per-invocation guards, rather than the tolerant
+per-filter fallback `FilterWorkBudget`/`MaxFilterPrimitiveWorkUnits` themselves use, since this
+budget bounds the same kind of "this pre-pass walk is too expensive" condition those per-invocation
+guards already treat as a hard rejection. That per-visit charge alone, however, only counts how
+many elements a bounds pre-pass visits, never how expensive parsing any one of those elements'
+own geometry actually is: a single `path`/`polyline`/`polygon`/`text` element with an enormous
+`d`/`points`/text value, nested under many levels of filtered groups, would otherwise have that
+same enormous geometry fully re-parsed once per nesting level (each level's own
+`RenderFilteredGroup` pre-pass re-visits it, and each individual invocation's own fresh
+`GeometryWorkBudget` never accumulates across invocations to catch the repetition) - real CPU cost
+proportional to `depth * geometry-size` that neither `MaxCumulativeBoundsPrePassWork` nor any
+per-invocation `GeometryWorkBudget` bounds. `BoundsPrePassWorkBudget` therefore also exposes a
+second, geometry-weighted charge (`ChargeGeometry`), called from `ComputeSubtreeLocalBounds`'s
+`path`/`polyline`/`polygon`/`text` cases using each element's own `d`/`points` attribute character
+count (or text character count) as a cheap proxy for its re-parse cost - charged upfront, before
+the corresponding `Build*Path` call actually re-parses that geometry, in addition to (never
+instead of) the existing per-invocation `GeometryWorkBudget` charge for the same element. Once the
+running geometry-weighted total would exceed a fixed `MaxCumulativeBoundsPrePassGeometryWork`
+ceiling (2,000,000 - ten times `GeometryWorkBudget`'s own 200,000-unit per-invocation ceiling,
+mirroring the same "10x a single operation's own ceiling" precedent used elsewhere in this class),
+`ComputeSubtreeLocalBounds` throws `InvalidDataException` identically to its element-visit
+counterpart above. A `line`/`polyline`/`polygon`/`path` descendant's
+own placed marker content (`marker-start`/`marker-mid`/`marker-end`) is folded into this pre-pass
+too (`ComputeMarkerContentLocalBounds`/`ComputeOneMarkerLocalBounds`, sharing
+`TryComputeMarkerContentTransform` with `RenderOneMarker`'s own placement math so the two can
+never diverge): the real render pass paints marker pixels onto whatever surface is current, which
+for a filtered group is the offscreen `SourceGraphic` buffer this pre-pass sizes, and a marker
+commonly extends beyond its host shape's own stroke-expanded outline (arrowheads being the
+canonical example), so omitting that geometry would size the buffer too small and silently clip
+the marker's own pixels. A bare `marker` element encountered directly by the ordinary element walk
+is still excluded, unchanged: `marker` remains a `NonRenderingElements` member, and this pre-pass
+only ever recurses into a `marker` element's own content when a shape's own
+`marker-start`/`marker-mid`/`marker-end` attribute resolves to it, exactly mirroring
+`RenderMarkers`/`RenderOneMarker`'s own recursion trigger. A descendant that itself carries a
+resolvable `filter` attribute (a shape/`text` element, or a nested `g`/`symbol`/`use` rendered as
+its own filtered unit via a nested `RenderFilteredGroup` call) contributes its own filter's
+expanded output region (`ApplyOwnFilterToLocalBounds`/`ComputeFilterRegionLocalBounds`, a
+pixel-rounding-free local-space variant of `ComputeFilterRegionPixelBounds`'s own region
+computation) instead of its raw geometry bounds, mirroring the exact same "would this filter
+actually apply, or tolerantly fall back to unfiltered rendering instead" decision
+`RenderFilteredShape`/`RenderFilteredGroup` themselves make - a zero-primitive filter, or a filter
+region that cannot be computed, falls back to that descendant's own raw bounds instead, so the
+pre-pass and the real render pass that follows it never disagree about whether a given
+descendant's filter will actually apply. Without this, an outer filtered group's own offscreen
+buffer would be sized only from its descendants' raw geometry, silently clipping any nested
+filtered descendant's own filter output that extends beyond its raw geometry (for example a
+`feFlood` or an enlarged filter region) before the outer filter chain or final composite ever saw
+it. `ApplyOwnFilterToLocalBounds` also falls back to that descendant's own raw bounds - rather
+than its filter-expanded region - whenever the expanded region's own pre-transform local-space
+size is already so large (compared directly against `MaxCoordinateMagnitude`) that it is virtually
+certain to still be rejected by `ComputeFilterRegionPixelBounds`'s own pixel-space
+`MaxCoordinateMagnitude` check once the real render pass eventually transforms it into actual
+pixel space: without this, a descendant filter that is pathologically oversized and therefore
+guaranteed to fall back to unfiltered rendering at real render time could still inflate this
+pre-pass's own combined bounds enough to trip an _outer_ ancestor filter's own real pixel-space
+rejection checks, incorrectly skipping a perfectly reasonable outer filter purely because of an
+inner descendant filter that was never actually going to apply. This is a deliberately
+conservative approximation, not a precise predictor (the ancestor's own further transform, not
+yet known at this point in the pre-pass, is never composed into the comparison), erring toward
+never rejecting a borderline-reasonable region so a filter that would genuinely survive the real
+check is never under-sized here. The resulting combined local-space bounds are then fed through the same
+`ComputeFilterRegionPixelBounds` used for single shapes
+(refactored to accept a `Rect` directly, so both call sites share one region-computation core),
+and the same per-filter/cumulative work-budget guards apply identically - a group's filter region
+can be pathologically large or its combined primitive-count × region-area cost excessive in
+exactly the same ways a single shape's can, so no separate resource-safety mechanism was needed.
+If the bounds pre-pass finds no renderable content at all (an empty group), or the filter
+reference is missing/invalid, or any resource-safety guard rejects the filter, the group falls
+back to rendering its children directly and unfiltered - the same tolerant fallback convention as
+every other filter resource bound. When the filter is accepted, the group's subtree is rendered a
+second time into the region-sized temporary surface (with the group's own `opacity` forced to
+`1.0`, mirroring the single-shape convention, so the filter chain evaluates against fully-opaque
+source content), the primitive chain evaluates identically to the single-shape case, and the
+filtered result is composited back onto the canvas with the group's own `opacity` applied at that
+final step - transform and (the codec's unimplemented) clip both apply to the group as a whole via
+the transform already baked into the region computation and the offscreen render, with no
+separate ordering to reconcile since `clipPath` is never read by this codec at all, filtered or
+not.
 
 #### Element/Group Nesting and Total-Element Bounds
 

@@ -19,6 +19,7 @@
 // cspell:ignore saddlebrown sandybrown seagreen skyblue slateblue slategray slategrey springgreen
 // cspell:ignore steelblue whitesmoke yellowgreen
 using System.Globalization;
+using System.Linq;
 using System.Numerics;
 using System.Xml;
 using System.Xml.Linq;
@@ -224,9 +225,10 @@ public static partial class SvgCodec
         var totalElements = 0;
         var workBudget = new GeometryWorkBudget();
         var filterWorkBudget = new FilterWorkBudget();
+        var boundsPrePassBudget = new BoundsPrePassWorkBudget();
         foreach (var child in root.Elements())
         {
-            RenderElement(child, rootState, fitTransform, context, useDepth: 0, elementDepth: 0, markerDepth: 0, ref totalElements, workBudget, filterWorkBudget);
+            RenderElement(child, rootState, fitTransform, context, useDepth: 0, elementDepth: 0, markerDepth: 0, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
         }
     }
 
@@ -274,13 +276,22 @@ public static partial class SvgCodec
     ///     is bounded in aggregate, independent of each individual filter's own
     ///     <see cref="MaxFilterPrimitiveWorkUnits"/> ceiling.
     /// </param>
+    /// <param name="boundsPrePassBudget">
+    ///     The shared cumulative bounds-pre-pass work budget (see
+    ///     <see cref="BoundsPrePassWorkBudget"/>), threaded down to every <c>g</c>/<c>symbol</c>/
+    ///     <c>use</c> dispatch below so <see cref="RenderFilteredGroup"/>'s own bounds-only
+    ///     pre-pass is bounded in aggregate across every nested filtered group, independent of
+    ///     each individual pre-pass invocation's own <see cref="MaxTotalRenderedElements"/> ceiling.
+    /// </param>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="element"/> or a descendant contains malformed presentation
     ///     data, a <c>use</c> reference cycle/excessive nesting is detected, the element tree
     ///     nests deeper than <see cref="MaxElementDepth"/>, the document resolves to more than
-    ///     <see cref="MaxTotalRenderedElements"/> total rendered elements, or the combined total
+    ///     <see cref="MaxTotalRenderedElements"/> total rendered elements, the combined total
     ///     of path-data commands, points-list coordinates, and text characters parsed exceeds
-    ///     <see cref="GeometryWorkBudget"/>'s fixed budget.
+    ///     <see cref="GeometryWorkBudget"/>'s fixed budget, or the combined total of nested
+    ///     filtered-group bounds-pre-pass element visits exceeds
+    ///     <see cref="BoundsPrePassWorkBudget"/>'s fixed budget.
     /// </exception>
     /// <remarks>
     ///     A composed <paramref name="parentTransform"/> and <paramref name="element"/>'s own
@@ -315,7 +326,8 @@ public static partial class SvgCodec
         int markerDepth,
         ref int totalElements,
         GeometryWorkBudget workBudget,
-        FilterWorkBudget filterWorkBudget)
+        FilterWorkBudget filterWorkBudget,
+        BoundsPrePassWorkBudget boundsPrePassBudget)
     {
         // Fail fast before recursing any further - an unbounded element tree walk would otherwise
         // eventually drive the call stack into an uncatchable StackOverflowException
@@ -370,9 +382,23 @@ public static partial class SvgCodec
                 // so, as a documented simplification, it is instead treated identically to a plain
                 // group in both situations (renders in place if encountered directly, and also
                 // renders when referenced via <use>)
-                foreach (var child in element.Elements())
+                //
+                // A "g"/"symbol" element's own "filter" attribute (suppressed identically to
+                // shape/text filtering whenever this call is itself part of a marker's own
+                // content, see suppressFilter above) renders the whole subtree below as one
+                // filtered unit via RenderFilteredGroup, instead of the plain unfiltered child
+                // loop - see RenderFilteredGroup's remarks for the full group-filter algorithm
+                var groupFilterElement = suppressFilter ? null : ResolveFilterElement(element, context);
+                if (groupFilterElement == null)
                 {
-                    RenderElement(child, state, transform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+                    foreach (var child in element.Elements())
+                    {
+                        RenderElement(child, state, transform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+                    }
+                }
+                else
+                {
+                    RenderFilteredGroup(groupFilterElement, element.Elements().ToList(), state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
                 }
 
                 break;
@@ -393,7 +419,7 @@ public static partial class SvgCodec
                 {
                     var linePath = BuildLinePath(element);
                     RenderShapeWithFilter(element, linePath, state, transform, context, filterWorkBudget, suppressFilter);
-                    RenderMarkers(linePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+                    RenderMarkers(linePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
                     break;
                 }
 
@@ -401,7 +427,7 @@ public static partial class SvgCodec
                 {
                     var polylinePath = BuildPolyPath(element, closed: false, workBudget);
                     RenderShapeWithFilter(element, polylinePath, state, transform, context, filterWorkBudget, suppressFilter);
-                    RenderMarkers(polylinePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+                    RenderMarkers(polylinePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
                     break;
                 }
 
@@ -409,7 +435,7 @@ public static partial class SvgCodec
                 {
                     var polygonPath = BuildPolyPath(element, closed: true, workBudget);
                     RenderShapeWithFilter(element, polygonPath, state, transform, context, filterWorkBudget, suppressFilter);
-                    RenderMarkers(polygonPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+                    RenderMarkers(polygonPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
                     break;
                 }
 
@@ -417,12 +443,12 @@ public static partial class SvgCodec
                 {
                     var dataPath = BuildPathDataPath(element, workBudget);
                     RenderShapeWithFilter(element, dataPath, state, transform, context, filterWorkBudget, suppressFilter);
-                    RenderMarkers(dataPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+                    RenderMarkers(dataPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
                     break;
                 }
 
             case "use":
-                RenderUse(element, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+                RenderUse(element, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
                 break;
 
             case "text":
