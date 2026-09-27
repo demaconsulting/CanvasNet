@@ -125,10 +125,24 @@ src/DemaConsulting.CanvasNet/
 ├── Codecs/
 │   ├── BmpCodec.cs               — Uncompressed 24-bit/32-bit Windows BMP loader/saver
 │   ├── PngCodec.cs               — PNG loader (any spec-valid, non-interlaced color type/bit
-│   │                                depth) and saver (8-bit Truecolor/Truecolor-with-alpha)
-│   ├── TiffCodec.cs              — 8-bit RGB/RGBA/Grayscale, strip-based TIFF loader/saver
-│   ├── JpegCodec.cs              — Baseline/progressive JPEG loader and baseline JPEG saver
-│   ├── GifCodec.cs               — Decode-only, first-frame-only GIF loader
+│   │                                depth) and saver (8-bit Truecolor/Truecolor-with-alpha);
+│   │                                public API entry point, partial-class implementation
+│   │                                continues under `Png/`
+│   ├── Png/                      — `PngCodec` partial-class implementation files (chunk
+│   │                                parsing, decode, filtering, zlib)
+│   ├── TiffCodec.cs              — 8-bit RGB/RGBA/Grayscale, strip-based TIFF loader/saver;
+│   │                                public API entry point, partial-class implementation
+│   │                                continues under `Tiff/`
+│   ├── Tiff/                     — `TiffCodec` partial-class implementation files (IFD, data
+│   │                                source, decode, compression, utilities)
+│   ├── JpegCodec.cs              — Baseline/progressive JPEG loader and baseline JPEG saver;
+│   │                                public API entry point, partial-class implementation
+│   │                                continues under `Jpeg/`
+│   ├── Jpeg/                     — `JpegCodec` partial-class implementation files (decoder,
+│   │                                scan decoding, encoder, Huffman, DCT)
+│   ├── GifCodec.cs               — Decode-only, first-frame-only GIF loader; public API entry
+│   │                                point, partial-class implementation continues under `Gif/`
+│   ├── Gif/                      — `GifCodec` partial-class implementation files (decode, LZW)
 │   ├── SvgCodec.cs               — Decode/rasterize-only loader for a subset of SVG documents
 │   └── NamespaceDoc.cs           — Namespace-level XML documentation
 ├── Drawing/

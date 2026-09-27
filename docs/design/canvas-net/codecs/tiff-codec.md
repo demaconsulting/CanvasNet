@@ -127,8 +127,8 @@ is applied strictly after decompression (on load) or strictly before compression
 | Adler-32 trailer | 4 bytes (BE) | Checksum of the decompressed strip bytes, hand-computed           |
 
 This is structurally identical to `PngCodec`'s own `IDAT` zlib wrapper, but reimplemented
-privately within `TiffCodec.cs` rather than shared, since no unit in CanvasNet currently shares
-internal helper code between codecs.
+privately within `TiffCodec` (in `Tiff/TiffCodec.Utils.cs`) rather than shared, since no unit in
+CanvasNet currently shares internal helper code between codecs.
 
 ### Key Methods
 
