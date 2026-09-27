@@ -1,7 +1,7 @@
 # Introduction
 
 <!-- cspell:ignore glyf sfnt codepoint -->
-<!-- cspell:ignore rasterizing unparseable SMIL -->
+<!-- cspell:ignore rasterizing unparseable SMIL renderable -->
 
 ## Purpose
 
@@ -889,15 +889,73 @@ The `SvgCodec` static class decodes and rasterizes a common real-world subset of
 into a `Surface` of caller-chosen pixel dimensions. `SvgCodec` is decode-only: there is no `Save`.
 It supports basic shapes (`rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `path`),
 grouping (`g`) with cascading presentation attributes, `transform` functions, linear/radial
-gradients (including `xlink:href`/`href` template inheritance), `use` references, and best-effort
-`text` rendering against a caller-supplied dictionary of `TrueTypeFont` instances. The root
+gradients (including `xlink:href`/`href` template inheritance), `use` references, `marker`
+elements (referenced via `marker-start`/`marker-mid`/`marker-end`, with `markerWidth`/
+`markerHeight`, `refX`/`refY`, `markerUnits`, `orient`, and an optional `viewBox`), `filter`
+elements (referenced via the `filter` presentation attribute on any directly renderable shape or
+`text` element, with `x`/`y`/`width`/`height` filter-region attributes and `feFlood`/
+`feGaussianBlur`/`feOffset`/`feComposite`/`feMerge` primitive children), and best-effort,
+weight/style-aware `text` rendering against a caller-supplied dictionary of per-family font faces:
+either a single `TrueTypeFont` per family (the legacy shape), or a list of `SvgFontFace` values -
+each pairing a `TrueTypeFont` with the `font-weight`/`font-style` it represents - letting a caller
+register distinct bold/italic variants of a family and have `SvgCodec` pick the closest-matching
+face for each `text` element's own cascaded `font-weight`/`font-style`. The root
 `viewBox`/`width`/`height` are fit into the requested raster using a "meet, centered" policy
 equivalent to CSS `object-fit: contain` (`preserveAspectRatio` itself is not read). Well-formed but
-out-of-scope constructs (`style`, `filter`, `mask`, `clipPath`, `animate`/SMIL, `image`,
-`foreignObject`, `pattern`, `marker`, nested `svg`, CSS selectors) are silently skipped so the rest
-of the document still renders; malformed/unparseable input throws `InvalidDataException`.
+out-of-scope constructs (`style`, `mask`, `clipPath`, `animate`/SMIL, `image`,
+`foreignObject`, `pattern`, nested `svg`, CSS selectors, and every filter primitive other than
+the five listed above) are silently skipped/passed through so the rest of the document still
+renders; malformed/unparseable input throws `InvalidDataException`.
 
 #### SvgCodec Methods
+
+##### SvgCodec.LoadWithFontFaces(Stream, ..., IReadOnlyDictionary&lt;string, IReadOnlyList&lt;SvgFontFace&gt;&gt;?)
+
+```csharp
+public static Surface LoadWithFontFaces(
+    Stream stream,
+    int width,
+    int height,
+    IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>? fonts)
+```
+
+Decodes and rasterizes an SVG document from an open, readable stream into a new `width` x
+`height` `Surface`, matching each `text` element's cascaded `font-family`/`font-weight`/
+`font-style` against `fonts` - a dictionary mapping family names to the list of `SvgFontFace`
+instances registered for that family. When a family has more than one registered face, the face
+whose `Weight`/`Style` most closely matches the element's own cascaded `font-weight`/`font-style`
+is selected: an exact style match always beats a style mismatch; among faces tied on style, the
+smallest weight distance wins; among faces tied on both, the face on the same "boldness side"
+(`>= 400` or `< 400`) as the request wins. A `null` value, a dictionary with no entry matching a
+given `text` element's `font-family`, or a matching entry whose face list is empty, causes that
+element to be silently skipped rather than throwing.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `stream` is null.
+- `ArgumentOutOfRangeException`: Thrown when `width` or `height` is not a valid `Surface` size (not
+  pre-validated by `SvgCodec`; propagates from `new Surface(width, height)`).
+- `InvalidDataException`: Thrown when the stream does not contain valid, supported SVG content.
+
+##### SvgCodec.LoadWithFontFaces(string, ..., IReadOnlyDictionary&lt;string, IReadOnlyList&lt;SvgFontFace&gt;&gt;?)
+
+```csharp
+public static Surface LoadWithFontFaces(
+    string path,
+    int width,
+    int height,
+    IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>? fonts)
+```
+
+Decodes and rasterizes an SVG file at the specified path, as
+`LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>?)`.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `path` is null.
+- `ArgumentException`: Thrown when `path` is an empty string.
+- `ArgumentOutOfRangeException`: Thrown for the same reason as the stream overload above.
+- `InvalidDataException`: Thrown for the same conditions as the stream overload above.
 
 ##### SvgCodec.Load(Stream stream, int width, int height, IReadOnlyDictionary&lt;string, TrueTypeFont&gt;? fonts = null)
 
@@ -910,9 +968,19 @@ public static Surface Load(
 ```
 
 Decodes and rasterizes an SVG document from an open, readable stream into a new `width` x
-`height` `Surface`. If `fonts` is supplied, `text` elements are rendered using the matching
+`height` `Surface`, using at most one `TrueTypeFont` per font-family. A thin wrapper over the
+richer `SvgFontFace`-list overload above: each registered font is wrapped as a single
+normal-weight (`400`)/normal-style face, so every `text` element always resolves to that single
+registered font, regardless of its own `font-weight`/`font-style` - exactly as before the richer
+overload existed. If `fonts` is supplied, `text` elements are rendered using the matching
 `TrueTypeFont` keyed by family name; unmatched or missing fonts cause that `text` element to be
-silently skipped rather than throwing.
+silently skipped rather than throwing. Callers registering more than one face per family (bold/
+italic variants) should call the richer overload directly instead. Because the richer overload is
+named `LoadWithFontFaces` rather than sharing the `Load` name, there is no ambiguity between the
+two: `Load(stream, width, height, null)` always resolves to this legacy single-font-per-family
+overload with no fonts registered, and `LoadWithFontFaces(stream, width, height, null)` always
+resolves to the richer per-face overload with no fonts registered - each call is unambiguous
+regardless of which overload the caller intends.
 
 **Exceptions:**
 

@@ -154,6 +154,61 @@ sections:
                   - SvgCodec_Load_UseElementMutualRecursionCycle_ThrowsInvalidDataException
                   - SvgCodec_Load_UseReferenceFixture_RendersAtOffsetPositionOnly
 
+              - id: CanvasNet-Codecs-SvgCodec-MarkerRendering
+                title: >-
+                  The SvgCodec class shall render a marker element referenced via a line,
+                  polyline, polygon, or path element's marker-start/marker-mid/marker-end
+                  presentation attributes at that shape's first/interior/last vertex
+                  respectively, honoring markerWidth/markerHeight, refX/refY, markerUnits
+                  (strokeWidth or userSpaceOnUse), orient (auto, auto-start-reverse, a fixed
+                  angle in degrees, or the fixed 0-degree default when omitted/blank), and an
+                  optional viewBox, while never rendering a marker for
+                  rect/circle/ellipse and never inheriting the referencing shape's own
+                  fill/stroke into the marker's own content.
+                justification: |
+                  Markers are the standard SVG mechanism for arrowheads and other per-vertex
+                  decorations on connector lines and paths; callers building diagrams,
+                  flowcharts, or annotated line art need these to render rather than silently
+                  vanish, with correct per-vertex placement, orientation, sizing, and an
+                  independent presentation-attribute cascade matching the SVG specification's
+                  marker-content model.
+                tests:
+                  - SvgCodec_Load_MarkerEndOnLine_RendersArrowheadPastLineEnd
+                  - SvgCodec_Load_MarkerStartMidEndOnPolyline_RendersDistinctMarkersAtEachVertex
+                  - SvgCodec_Load_MarkerOrientAutoOnHorizontalLine_OrientsAlongPositiveX
+                  - SvgCodec_Load_MarkerOrientAutoOnVerticalLine_OrientsAlongPositiveY
+                  - SvgCodec_Load_MarkerOrientAutoOnDiagonalLine_OrientsAlong45Degrees
+                  - SvgCodec_Load_MarkerOrientOmittedOnDiagonalLine_UsesFixedZeroDegreeDefaultNotTangent
+                  - SvgCodec_Load_MarkerStartOrientAuto_PointsIntoLine
+                  - SvgCodec_Load_MarkerStartOrientAutoStartReverse_PointsAwayFromLine
+                  - SvgCodec_Load_MarkerUnitsUserSpaceOnUseVsStrokeWidthDefault_ScalesDifferently
+                  - SvgCodec_Load_MarkerWithViewBox_FitsContentToMarkerWidthHeight
+                  - SvgCodec_Load_MarkerOnMultiSubpathPath_AppliesStartEndOnlyAtWholePathEnds
+                  - SvgCodec_Load_MarkerOnRectCircleEllipse_NeverRendersMarker
+                  - SvgCodec_Load_MarkerContent_DoesNotInheritReferencingShapeFillOrStroke
+                  - SvgCodec_Load_ArrowMarkersFixture_RendersArrowheadPastLineEnd
+                  - SvgCodec_Load_MarkerEndOnClosedPolygon_OrientsUsingClosingEdgeTangent
+                  - SvgCodec_Load_MarkerStrokeWidthUnitsOnScaledDocument_ScalesOnceNotTwice
+                  - SvgCodec_Load_MarkerContentWithFilterAttribute_FilterHasNoEffect
+
+              - id: CanvasNet-Codecs-SvgCodec-MarkerReferenceCycle
+                title: >-
+                  The SvgCodec class shall tolerate a marker-start/marker-mid/marker-end
+                  reference to a nonexistent id as a silent no-op, and shall reject an unbounded
+                  marker-referencing-marker reference cycle (directly, or through a chain) with
+                  InvalidDataException, mirroring the use element's own recursion-guard
+                  behavior via an independent recursion-depth counter.
+                justification: |
+                  A marker's own content can itself contain shapes with further marker
+                  references, so an unbounded or cyclic marker reference chain must be rejected
+                  the same way an unbounded use reference chain already is, rather than
+                  recursing indefinitely; a dangling reference (a common authoring mistake) must
+                  not abort rendering of the rest of the document.
+                tests:
+                  - SvgCodec_Load_MarkerDanglingReference_IsSilentNoOp
+                  - SvgCodec_Load_MarkerSelfReferenceCycle_ThrowsInvalidDataException
+                  - SvgCodec_Load_MarkerTwoElementReferenceCycle_ThrowsInvalidDataException
+
               - id: CanvasNet-Codecs-SvgCodec-ElementNestingDepthLimit
                 title: >-
                   The SvgCodec class shall reject an SVG document whose element tree - including
@@ -289,6 +344,55 @@ sections:
                   - SvgCodec_Load_TextAnchorMiddle_CentersTextHorizontally
                   - SvgCodec_Load_TextAnchorEnd_RightAlignsText
 
+              - id: CanvasNet-Codecs-SvgCodec-FontWeightStyleCascade
+                title: >-
+                  The SvgCodec class shall parse a text element's font-weight (normal/bold
+                  keywords or a numeric value) and font-style (normal/italic/oblique) presentation
+                  attributes and cascade each down to descendant elements exactly as font-family
+                  and font-size already do.
+                justification: |
+                  Callers need bold titles and italic keywords - a common real-world diagram
+                  labeling pattern - to inherit through group nesting the same way every other
+                  presentation attribute already does, rather than requiring every leaf text
+                  element to repeat its own font-weight/font-style.
+                tests:
+                  - SvgCodec_Load_GroupFontWeightInheritance_AppliesToChildTextWithoutOwnFontWeight
+                  - SvgCodec_Load_GroupFontStyleInheritance_AppliesToChildTextWithoutOwnFontStyle
+
+              - id: CanvasNet-Codecs-SvgCodec-FontFaceMatching
+                title: >-
+                  The SvgCodec class shall, given a font-family with more than one registered
+                  SvgFontFace, select the face whose weight/style most closely matches a text
+                  element's cascaded font-weight/font-style (exact style match preferred, then
+                  closest weight distance, then matching boldness side), never throwing when no
+                  exact match is registered.
+                justification: |
+                  Callers registering a bold and/or italic variant of a family need the correct
+                  variant actually selected per element, and a family lacking an exact
+                  weight/style match must still render its closest available face rather than
+                  rendering nothing.
+                tests:
+                  - SvgCodec_Load_TextFontWeightBold_SelectsBoldFaceOverNormalFace
+                  - SvgCodec_Load_TextFontStyleItalic_SelectsItalicFaceOverNormalFace
+                  - SvgCodec_Load_TextFontWeightNumeric_SelectsClosestRegisteredFaceByDistance
+                  - SvgCodec_Load_TextFontWeightTie_PrefersMatchingBoldnessSide
+                  - SvgCodec_Load_TextFontStyleNoItalicRegistered_FallsBackToOnlyAvailableFace
+                  - SvgCodec_Load_TextFontWeightAndStyleCombined_SelectsExactMatchAmongThreeFaces
+                  - SvgCodec_Load_TextFontWeightExtremeValue_DoesNotOverflowAndSelectsClosestFace
+
+              - id: CanvasNet-Codecs-SvgCodec-LegacySingleFontCompatibility
+                title: >-
+                  The SvgCodec class shall preserve the pre-existing single-font-per-family Load
+                  overload's behavior unchanged: a text element always resolves to that overload's
+                  one registered font per family, regardless of any requested
+                  font-weight/font-style.
+                justification: |
+                  Existing callers of the single-font-per-family Load overload must not observe
+                  any behavior change from the addition of weight/style-aware face matching.
+                tests:
+                  - SvgCodec_Load_TextLegacySingleFontOverload_IgnoresRequestedWeightAndStyle
+                  - SvgCodec_Load_ExplicitNullFontsLiteral_CompilesUnambiguouslyAndFallsBackToBuiltInFont
+
               - id: CanvasNet-Codecs-SvgCodec-ViewBoxFitting
                 title: >-
                   The SvgCodec class shall fit the document's intrinsic viewBox into the
@@ -403,7 +507,7 @@ sections:
               - id: CanvasNet-Codecs-SvgCodec-UnsupportedConstructsIgnored
                 title: >-
                   The SvgCodec class shall silently skip well-formed but out-of-scope elements
-                  (including style, filter, mask, clipPath, pattern, marker, a nested svg,
+                  (including style, mask, clipPath, pattern, a nested svg,
                   animate/SMIL, image, and foreignObject), continuing to render the rest of the
                   document.
                 justification: |
@@ -413,7 +517,98 @@ sections:
                 tests:
                   - SvgCodec_Load_UnsupportedConstructs_StillRendersRestOfDocument
                   - SvgCodec_Load_ToleratesUnsupportedConstructFixture_StillRendersRemainingContent
+
+              - id: CanvasNet-Codecs-SvgCodec-FilterRendering
+                title: >-
+                  The SvgCodec class shall render a filter element referenced via any directly
+                  renderable shape or text element's filter presentation attribute, evaluating
+                  its feFlood/feGaussianBlur/feOffset/feComposite/feMerge primitive children in
+                  document order against that element's own SourceGraphic content, honoring the
+                  filter region's default (-10%/-10%/120%/120% of the element's own bounding box)
+                  or explicit x/y/width/height, and tolerating any other primitive type as a
+                  no-op passthrough of its own input.
+                justification: |
+                  Real-world SVG documents commonly use filter="url(#id)" for common effects
+                  such as a solid-color halo/background behind text labels (the reported
+                  real-world bug this feature fixes: SvgRenderer's own midpoint line labels use
+                  exactly this pattern, and previously lost their halo entirely, causing label
+                  text to overlap the line beneath it); callers relying on this common pattern
+                  need it to actually render rather than silently vanish.
+                tests:
+                  - SvgCodec_Load_FeFloodFilter_RendersSolidColorBehindElement
+                  - SvgCodec_Load_FeFloodFeMergeFilter_RendersFloodBehindSourceGraphic
+                  - SvgCodec_Load_FeFloodFeGaussianBlurFeCompositeFilter_RendersBlurredHaloBehindContent
+                  - SvgCodec_Load_FilterUnsupportedPrimitive_PassesThroughSourceGraphicUnchanged
+                  - SvgCodec_Load_FilterDefaultRegion_ExpandsBoundingBoxByTenAndTwentyPercent
+                  - SvgCodec_Load_FilterExplicitRegion_UsesDeclaredXYWidthHeight
+                  - SvgCodec_Load_FilterUserSpaceOnUse_FallsBackToObjectBoundingBoxDefault
+                  - SvgCodec_Load_FeOffsetFilter_ShiftsSourceGraphicByDxDy
+                  - SvgCodec_Load_FeOffsetFilterWithHalfPixelDx_RoundsAwayFromZeroNotToEven
+                  - SvgCodec_Load_LabelHaloFixture_RendersWhiteHaloBehindLineMidpointLabel
                   - SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent
+                  - SvgCodec_Load_FeCompositeOperatorIn_KeepsForegroundWeightedByBackgroundAlpha
+                  - SvgCodec_Load_FeCompositeOperatorAtop_BlendsBothInputsWeightedByBothAlphas
+                  - SvgCodec_Load_FeCompositeOperatorXor_KeepsEachInputWhereTheOtherHasNoCoverage
+                  - SvgCodec_Load_FeCompositeOperatorXorWithHalfChannelValue_RoundsAwayFromZeroNotToEven
+                  - SvgCodec_Load_FilterOnStrokedHorizontalLine_UsesStrokeAwareBoundsNotDegenerate
+                  - SvgCodec_Load_OpacityWithFeFloodFilter_AppliesOpacityToFilteredResultNotSource
+
+              - id: CanvasNet-Codecs-SvgCodec-FilterResourceSafety
+                title: >-
+                  The SvgCodec class shall tolerate a filter="url(#id)" reference to a
+                  nonexistent id as a silent no-op, and shall bound filter-related resource use by
+                  tolerantly skipping a filter whose region would require a temporary surface
+                  exceeding Surface.MaxDimension (including a filter with zero primitive children,
+                  which can never change the rendered output and is skipped before any temporary
+                  surface is allocated regardless of region size) and by clamping
+                  feGaussianBlur's stdDeviation to a fixed maximum, so that neither a pathological
+                  filter region nor a pathological blur radius can cause unbounded allocation or
+                  unbounded per-pixel work; shall bound the total primitive-count/region-area
+                  work a single
+                  filter's own primitive chain may perform, tolerantly skipping the filter once
+                  exceeded; and shall additionally bound the cumulative primitive-count/region-area
+                  work charged across every filter application for a single Load call, tolerantly
+                  falling back to unfiltered rendering for any further filter application once that
+                  cumulative total is exceeded, so a single filter definition referenced by many
+                  shapes cannot bypass the per-application bound by being evaluated an unbounded
+                  number of times.
+                justification: |
+                  A dangling filter reference is a common authoring mistake that must not abort
+                  rendering of the rest of the document, matching this codec's general
+                  dangling-reference convention; and since filter region size and blur radius are
+                  both untrusted, attacker-controllable document data, they must be bounded the
+                  same way this codec already bounds other bounded/attacker-controllable
+                  resources (element-tree depth, total rendered elements, geometry-parsing work),
+                  rather than allowing unbounded temporary-surface allocation or unbounded blur
+                  work. A single filter's own primitive-chain cost (primitive count times filter
+                  region pixel area, since every primitive's output buffer is exactly the
+                  region's own size) is a distinct cost dimension none of those pre-existing
+                  guards actually bounds - a filter with thousands of primitive children against
+                  even a modest region can cost orders of magnitude more than any pre-existing
+                  guard anticipates, so a dedicated primitive-count/region-area work budget was
+                  added, tolerantly skipping the whole filter (rendering the element normally)
+                  once exceeded, the same tolerant-fallback policy used for an oversized region or
+                  dangling reference. That per-filter budget alone is enforced independently for
+                  every shape that references a filter, so a single filter definition referenced by
+                  many shapes could be charged the same per-filter ceiling once per reference with
+                  no bound on the total number of references, letting total filter-evaluation work
+                  grow arbitrarily with shape count even though every individual reference stayed
+                  within budget - a gap neither this per-filter budget nor the pre-existing
+                  total-rendered-element bound (which counts a filtered shape identically to an
+                  unfiltered one) closes. A second, cumulative, per-Load-call work budget was
+                  therefore added, charging every filter application's own region-weighted work
+                  unit into one running total and tolerantly falling back to unfiltered rendering
+                  for any application that would push that total over a fixed ceiling, bounding
+                  worst-case total filter-evaluation CPU/memory for a single document regardless of
+                  how many shapes reference the same (or different) filters.
+                tests:
+                  - SvgCodec_Load_FilterDanglingReference_RendersElementNormally
+                  - SvgCodec_Load_FilterPathologicallyLargeRegion_SkipsFilterRatherThanUnboundedAllocation
+                  - SvgCodec_Load_FilterWithZeroPrimitivesAndHugeRegion_SkipsFilterRatherThanAllocatingSurface
+                  - SvgCodec_Load_FilterPathologicallyLargeBlurStdDeviation_ClampsRatherThanUnboundedWork
+                  - SvgCodec_Load_FilterExcessivePrimitiveCount_SkipsFilterRatherThanUnboundedWork
+                  - SvgCodec_Load_FeMergeExcessiveNodeCount_SkipsFilterRatherThanUnboundedWork
+                  - SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes
 
               - id: CanvasNet-Codecs-SvgCodec-ValidationNull
                 title: >-

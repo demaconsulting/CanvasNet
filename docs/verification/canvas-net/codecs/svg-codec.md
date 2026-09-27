@@ -173,6 +173,82 @@ does not throw; a `use` referencing a `g` group renders every one of the group's
 mutually-recursive `use`/`use` reference chain that would otherwise recurse indefinitely is
 rejected with `InvalidDataException` once the bounded recursion guard is exceeded.
 
+#### CanvasNet-Codecs-SvgCodec-MarkerRendering: Marker Vertex Placement, Orientation, and Units
+
+**Tests**: `SvgCodec_Load_MarkerEndOnLine_RendersArrowheadPastLineEnd`,
+`SvgCodec_Load_MarkerStartMidEndOnPolyline_RendersDistinctMarkersAtEachVertex`,
+`SvgCodec_Load_MarkerOrientAutoOnHorizontalLine_OrientsAlongPositiveX`,
+`SvgCodec_Load_MarkerOrientAutoOnVerticalLine_OrientsAlongPositiveY`,
+`SvgCodec_Load_MarkerOrientAutoOnDiagonalLine_OrientsAlong45Degrees`,
+`SvgCodec_Load_MarkerOrientOmittedOnDiagonalLine_UsesFixedZeroDegreeDefaultNotTangent`,
+`SvgCodec_Load_MarkerStartOrientAuto_PointsIntoLine`,
+`SvgCodec_Load_MarkerStartOrientAutoStartReverse_PointsAwayFromLine`,
+`SvgCodec_Load_MarkerUnitsUserSpaceOnUseVsStrokeWidthDefault_ScalesDifferently`,
+`SvgCodec_Load_MarkerWithViewBox_FitsContentToMarkerWidthHeight`,
+`SvgCodec_Load_MarkerOnMultiSubpathPath_AppliesStartEndOnlyAtWholePathEnds`,
+`SvgCodec_Load_MarkerOnRectCircleEllipse_NeverRendersMarker`,
+`SvgCodec_Load_MarkerContent_DoesNotInheritReferencingShapeFillOrStroke`,
+`SvgCodec_Load_ArrowMarkersFixture_RendersArrowheadPastLineEnd`,
+`SvgCodec_Load_MarkerEndOnClosedPolygon_OrientsUsingClosingEdgeTangent`,
+`SvgCodec_Load_MarkerStrokeWidthUnitsOnScaledDocument_ScalesOnceNotTwice`,
+`SvgCodec_Load_MarkerContentWithFilterAttribute_FilterHasNoEffect`
+
+Asserts a `marker-end` reference renders its `marker` element's content past a `line`'s own end
+point, sized in user-space units; asserts `marker-start`/`marker-mid`/`marker-end` each
+independently resolve and render their own distinct marker at the correct vertex of a
+multi-vertex `polyline`, with each marker's own reference point (`refX`/`refY`) landing exactly on
+its vertex regardless of rotation; asserts `orient="auto"` orients a marker along a horizontal,
+vertical, and 45-degree diagonal segment's own direction of travel (the diagonal case uses an
+alpha threshold rather than exact full opacity, tolerating this rasterizer's edge anti-aliasing on
+a thin, diagonally rotated shape); asserts an omitted `orient` attribute uses the fixed 0-degree
+default rather than following the vertex tangent like an explicit `orient="auto"` (a regression
+test for a defect where an absent/blank `orient` was incorrectly routed into the same tangent-
+following branch as an explicit `auto`); asserts a plain `orient="auto"` `marker-start` points into the
+line's own body while `orient="auto-start-reverse"` reverses it by 180 degrees to point away from
+the line instead; asserts `markerUnits="userSpaceOnUse"` keeps a marker's size independent of the
+referencing shape's effective stroke width while the default `markerUnits="strokeWidth"` scales it
+proportionally; asserts a marker's own `viewBox` is fitted ("meet" scale-down) into
+`markerWidth`/`markerHeight` rather than rendering at its raw, unfitted size; asserts a
+multi-subpath `path`'s `marker-start`/`marker-end` apply only to the very first/last vertex of the
+whole path, not to each subpath's own start/end, with the interior subpath-boundary vertices
+correctly classified as "mid" instead; asserts `rect`/`circle`/`ellipse` never render a marker
+even when a `marker-end` attribute is present, since these shapes have no natural vertices to
+orient one along; and asserts a marker's own content renders with a fresh presentation-attribute
+cascade from the SVG/CSS initial defaults, not inheriting the referencing shape's own
+`fill`/`stroke`. A real fixture file (`SvgFixtures/arrow-markers.svg`) exercises the common
+`marker-end` arrowhead scenario end-to-end. Asserts a closed `polygon`'s implicit closing segment
+(back to its first vertex) contributes to the `orient="auto"` tangent computed for the last
+vertex's `marker-end` - averaged with the incoming open-path edge's own tangent - rather than the
+closing edge being silently ignored (a regression test for a defect where a closed shape's final
+vertex was oriented using only its incoming edge). Asserts a default `markerUnits="strokeWidth"`
+marker on a document with a non-identity root `viewBox` fit (a uniform 2x scale from local units
+to pixels) scales by exactly `stroke-width * root-scale` once, not twice (a regression test for a
+defect where the already-pixel-scaled effective stroke width was passed into the marker's own
+`strokeWidth`-units sizing, and then the root scale was re-applied a second time via the shared
+`shapeTransform`, making the marker four times too large instead of two times). Asserts a shape
+inside a `marker` element's own content with a `filter="url(#id)"` attribute referencing a real
+(`feFlood`) filter renders exactly as if that `filter` attribute were absent - the marker's own
+fill color, not the flood's - a regression test for a defect where marker-content rendering
+re-entered the same shape/text dispatch used everywhere else, which unconditionally resolved and
+evaluated a shape's own `filter` attribute, contradicting this codec's documented "filters on
+marker content have no effect" scope decision.
+
+#### CanvasNet-Codecs-SvgCodec-MarkerReferenceCycle: Marker Reference Dangling and Cycle Rejection
+
+**Tests**: `SvgCodec_Load_MarkerDanglingReference_IsSilentNoOp`,
+`SvgCodec_Load_MarkerSelfReferenceCycle_ThrowsInvalidDataException`,
+`SvgCodec_Load_MarkerTwoElementReferenceCycle_ThrowsInvalidDataException`
+
+Asserts a `marker-end` reference to a nonexistent id is tolerated as a silent no-op (the
+referencing shape still renders normally, and no marker content appears), matching this codec's
+general dangling-reference convention; asserts a `marker` element whose own content directly
+references itself (via `marker-start` on a child shape) is rejected with `InvalidDataException`
+once the bounded `marker`-reference recursion depth guard is exceeded, rather than recursing
+indefinitely; and asserts a two-marker reference chain (`m1` referencing `m2` referencing `m1`) is
+likewise rejected, not only a direct self-reference. This mirrors
+`CanvasNet-Codecs-SvgCodec-UseElement`'s identical `InvalidDataException` cycle-rejection
+behavior for `use`, applied to `marker`'s own independent recursion-depth counter.
+
 #### CanvasNet-Codecs-SvgCodec-ElementNestingDepthLimit: Element/Group Nesting Depth Limit
 
 **Tests**: `SvgCodec_Load_DeeplyNestedGroups_ThrowsInvalidDataException`
@@ -309,6 +385,69 @@ considered.
 Asserts `text-anchor="middle"` centers the glyph run on the given `x` (checked against both the
 correctly-centered position and the position a start-anchored run would have used instead), and
 `text-anchor="end"` right-aligns the run so it ends at the given `x` (checked the same way).
+
+#### CanvasNet-Codecs-SvgCodec-FontWeightStyleCascade: Font-Weight/Font-Style Attribute Parsing and Cascade
+
+**Tests**: `SvgCodec_Load_GroupFontWeightInheritance_AppliesToChildTextWithoutOwnFontWeight`,
+`SvgCodec_Load_GroupFontStyleInheritance_AppliesToChildTextWithoutOwnFontStyle`
+
+Uses two new synthetic test fonts (`BuildBoldTestFont`, an 80-wide square glyph; and
+`BuildItalicTestFont`, a 50-wide square glyph shifted right by 20 units), each distinguishable
+from `BuildTestFont`'s original 50-wide square by which canvas pixels are/are not filled, so a
+test can prove *which* registered face actually rendered. Asserts a `g` element's own
+`font-weight="bold"` cascades to a child `text` element with no own `font-weight` (the child
+selects the bold face), and likewise for a `g` element's own `font-style="italic"` cascading to a
+child `text` element with no own `font-style` (the child selects the italic face) - mirroring
+`SvgCodec_Load_GroupFillInheritance_AppliesToChildWithoutOwnFill`'s inheritance pattern for
+`font-family`/`font-size`'s other presentation-attribute siblings.
+
+#### CanvasNet-Codecs-SvgCodec-FontFaceMatching: Closest-Face Selection Algorithm
+
+**Tests**: `SvgCodec_Load_TextFontWeightBold_SelectsBoldFaceOverNormalFace`,
+`SvgCodec_Load_TextFontStyleItalic_SelectsItalicFaceOverNormalFace`,
+`SvgCodec_Load_TextFontWeightNumeric_SelectsClosestRegisteredFaceByDistance`,
+`SvgCodec_Load_TextFontWeightTie_PrefersMatchingBoldnessSide`,
+`SvgCodec_Load_TextFontStyleNoItalicRegistered_FallsBackToOnlyAvailableFace`,
+`SvgCodec_Load_TextFontWeightAndStyleCombined_SelectsExactMatchAmongThreeFaces`,
+`SvgCodec_Load_TextFontWeightExtremeValue_DoesNotOverflowAndSelectsClosestFace`
+
+Exercises every branch of `SelectClosestFace`'s three-part priority order using the
+`LoadWithFontFaces(..., IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>?)` overload: a two-face family
+(400/Normal narrow, 700/Normal wide) selects the bold face for `font-weight="bold"` and the
+normal face for a sibling with no own `font-weight`; a two-face family (400/Normal narrow,
+400/Italic shifted) selects the italic face for `font-style="italic"`; faces registered at 400
+and 900 with a requested weight of 600 select the closer 400 face (distance 200 versus 300); faces
+registered at 300 and 500 with a requested weight of 400 (an equidistant tie) select the 500 face,
+proving the boldness-side tie-break; a family with only a 400/Normal face still renders it when
+`font-style="italic"` is requested (graceful fallback, not silent skipping); and three faces
+(400/Normal, 700/Normal, 700/Italic) with a combined `font-weight="bold" font-style="italic"`
+request select the 700/Italic face specifically - proven by asserting both a pixel unique to the
+italic face's glyph (proving it is not the normal face) and a pixel unique to the wide/bold face's
+glyph is *not* filled (proving it is not merely the weight-matched bold/normal face). Asserts an
+extreme, out-of-range `font-weight="-2147483648"` request (still parsed, not rejected, by
+`ParseFontWeight`) does not throw an `OverflowException` from `SelectClosestFace`'s
+weight-distance computation and still deterministically selects the closer-by-magnitude
+registered face - a regression test for a defect where the weight-distance computation used `int`
+arithmetic, which can overflow for such extreme caller-supplied weight values.
+
+#### CanvasNet-Codecs-SvgCodec-LegacySingleFontCompatibility: Legacy Single-Font-Per-Family Overload Regression
+
+**Tests**: `SvgCodec_Load_TextLegacySingleFontOverload_IgnoresRequestedWeightAndStyle`,
+`SvgCodec_Load_ExplicitNullFontsLiteral_CompilesUnambiguouslyAndFallsBackToBuiltInFont`
+
+Proves the pre-existing `Load(..., IReadOnlyDictionary<string, TrueTypeFont>?)` overload's
+behavior is unchanged by the additive `SvgFontFace`-based overload: with only one plain
+`TrueTypeFont` registered for a family, a `text` element requesting both `font-weight="bold"` and
+`font-style="italic"` still renders that single registered font at its known pixel position,
+proving the legacy overload's internal `ToFontFaces` wrapping (one normal-weight/normal-style
+face per family) makes weight/style irrelevant to face selection, exactly as before this feature
+existed. Also proves a regression for a source-breaking ambiguous-overload defect: prior to the
+richer, `SvgFontFace`-based overload being renamed to `LoadWithFontFaces`, a caller passing an
+explicit `null` literal (rather than omitting the argument) to `SvgCodec.Load(stream, width,
+height, null)` failed to compile with "the call is ambiguous", because `null` matched both the
+legacy `IReadOnlyDictionary<string, TrueTypeFont>?` overload and the richer overload equally
+well; now that the richer overload has its own distinct name, this call is unambiguous and falls
+back to this legacy overload's own documented "no font registered" behavior.
 
 #### CanvasNet-Codecs-SvgCodec-ViewBoxFitting: ViewBox "Meet, Centered" Fitting and Letterboxing
 
@@ -458,19 +597,135 @@ opacity-family attributes and gradient coordinates remain correctly unaffected b
 #### CanvasNet-Codecs-SvgCodec-UnsupportedConstructsIgnored: Out-of-Scope Constructs Tolerated
 
 **Tests**: `SvgCodec_Load_UnsupportedConstructs_StillRendersRestOfDocument`,
-`SvgCodec_Load_ToleratesUnsupportedConstructFixture_StillRendersRemainingContent`,
-`SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent`
+`SvgCodec_Load_ToleratesUnsupportedConstructFixture_StillRendersRemainingContent`
 
-Builds a document containing `style`, `filter`, `mask`, `clipPath`, `pattern`, `marker`, and a
+Builds a document containing `style`, `mask`, `clipPath`, `pattern`, and a
 nested `svg` alongside an ordinary `rect`, and asserts the ordinary `rect` still renders — proving
-none of the out-of-scope elements abort the whole document. A real fixture file exercises the
-same property end-to-end.
-`SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent` corroborates this
-with a large, real, unmodified, third-party Wikimedia Commons fixture
-(`SvgFixtures/InkscapeFilters.svg`) containing dozens of `filter="url(#...)"` references to
-`feGaussianBlur`/`feComposite`/`feSpecularLighting`-based filter effects, proving the
-tolerant-ignore policy holds at real-world scale and complexity, not only for a small synthetic
-document.
+none of the out-of-scope elements abort the whole document. A real fixture file
+(`SvgFixtures/tolerant-unsupported.svg`, whose `filter` def is now genuinely supported but simply
+never referenced by any element) exercises the same property end-to-end. See
+`CanvasNet-Codecs-SvgCodec-FilterRendering`/`CanvasNet-Codecs-SvgCodec-FilterResourceSafety` below
+for `filter`'s own dedicated coverage - it is no longer an out-of-scope construct.
+
+#### CanvasNet-Codecs-SvgCodec-FilterRendering: Filter Primitive Chain Evaluation and Region Computation
+
+**Tests**: `SvgCodec_Load_FeFloodFilter_RendersSolidColorBehindElement`,
+`SvgCodec_Load_FeFloodFeMergeFilter_RendersFloodBehindSourceGraphic`,
+`SvgCodec_Load_FeFloodFeGaussianBlurFeCompositeFilter_RendersBlurredHaloBehindContent`,
+`SvgCodec_Load_FilterUnsupportedPrimitive_PassesThroughSourceGraphicUnchanged`,
+`SvgCodec_Load_FilterDefaultRegion_ExpandsBoundingBoxByTenAndTwentyPercent`,
+`SvgCodec_Load_FilterExplicitRegion_UsesDeclaredXYWidthHeight`,
+`SvgCodec_Load_FilterUserSpaceOnUse_FallsBackToObjectBoundingBoxDefault`,
+`SvgCodec_Load_FeOffsetFilter_ShiftsSourceGraphicByDxDy`,
+`SvgCodec_Load_FeOffsetFilterWithHalfPixelDx_RoundsAwayFromZeroNotToEven`,
+`SvgCodec_Load_LabelHaloFixture_RendersWhiteHaloBehindLineMidpointLabel`,
+`SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent`,
+`SvgCodec_Load_FeCompositeOperatorIn_KeepsForegroundWeightedByBackgroundAlpha`,
+`SvgCodec_Load_FeCompositeOperatorAtop_BlendsBothInputsWeightedByBothAlphas`,
+`SvgCodec_Load_FeCompositeOperatorXor_KeepsEachInputWhereTheOtherHasNoCoverage`,
+`SvgCodec_Load_FeCompositeOperatorXorWithHalfChannelValue_RoundsAwayFromZeroNotToEven`,
+`SvgCodec_Load_FilterOnStrokedHorizontalLine_UsesStrokeAwareBoundsNotDegenerate`,
+`SvgCodec_Load_OpacityWithFeFloodFilter_AppliesOpacityToFilteredResultNotSource`
+
+Asserts a bare `feFlood` primitive's flood color entirely replaces the referencing element's own
+content, filling the (default, bounding-box-relative) filter region including the area behind the
+element's own shape, since a lone `feFlood` never references `SourceGraphic`; asserts `feMerge`
+layers a `feFlood` result behind a `SourceGraphic` layer in document order, so the flood is visible
+outside the element's own bounds while the element's own fill remains visible on top at its own
+location; asserts a conventional `feFlood` → `feComposite(operator="out")` → `feGaussianBlur` →
+`feMerge` halo/glow recipe produces a genuinely softened (partially transparent, not hard-edged)
+flood color just outside the element's own edge - proving the blur actually ran - while the
+element's own fill remains fully opaque and unaffected at its center; asserts a filter primitive
+type this codec does not implement (`feColorMatrix`) is treated as a no-op passthrough of its own
+input rather than throwing or blanking the element's content; asserts the filter region's default
+computation expands the referencing element's own bounding box by exactly -10%/-10%/120%/120%,
+verified at pixels just inside and just outside each computed edge; asserts an explicit `filter`
+`x`/`y`/`width`/`height` overrides the default region computation; asserts
+`filterUnits="userSpaceOnUse"` tolerantly falls back to the same objectBoundingBox-relative region
+computation as the default, rather than being interpreted as literal absolute user-space
+coordinates; and asserts `feOffset` shifts its input by `dx`/`dy` prior to compositing back onto
+the canvas. Two real fixture files corroborate this end to end:
+`SvgFixtures/label-halo.svg` mirrors the reported real-world bug (a `filter="url(#label-bg)"`
+white halo behind a line's own midpoint label, previously invisible while `filter` was ignored),
+and the large, real, third-party `SvgFixtures/InkscapeFilters.svg` (see
+`CanvasNet-Codecs-SvgCodec-UnsupportedConstructsIgnored`'s predecessor coverage of this same
+fixture) proves this genuinely-evaluated filter-chain support, including its tolerant-passthrough
+handling of several unsupported primitives mixed into the same chains
+(`feSpecularLighting`/`feDiffuseLighting`/arithmetic-mode `feComposite`), holds at real-world scale
+and complexity, not only for small synthetic documents. `feComposite`'s `in`, `atop`, and `xor`
+Porter-Duff operators (`over`/`out` were already covered above) are each additionally verified
+deterministically and synthetically, against two full-region, semi-transparent `feFlood` inputs
+that isolate the operator's own per-pixel formula from any shape-geometry/filter-region overlap
+concern: `in` keeps the "in" input's own color weighted by the "in2" input's own alpha; `atop`
+blends both inputs' own colors weighted by (`in2`'s alpha, `1 - in`'s alpha); and `xor` keeps each
+input only where the other has no coverage - each asserting the exact expected pixel value the
+documented formula produces. `feOffset`'s own `dx`/`dy`-to-pixel conversion and
+`feComposite`'s own per-channel output are each additionally verified to round
+away-from-zero (matching `Surface.CompositeOverSpanCore`'s established convention), not the
+`MathF.Round` default of banker's/round-to-even rounding: a `dx` that scales to exactly 0.5
+pixels rounds up to a full 1-pixel shift, and an `xor` composite chosen to produce a computed
+channel value of exactly 126.5 rounds up to 127, not down to 126. Asserts a horizontal, stroked
+`line` with a `feFlood` filter is
+evaluated (not skipped as degenerate) despite its zero-height centerline/fill bounds - a
+regression test for a defect where the filter-region degeneracy guard used the bare
+centerline/fill bounds instead of the actually-painted (stroke-expanded) bounds, incorrectly
+treating a valid stroked line's filter as degenerate and silently falling back to unfiltered
+rendering. Asserts a `rect` with `opacity="0.5"` and a filter whose entire chain is a single,
+fully-opaque `feFlood` renders the flood at approximately 50% alpha, not fully opaque - a
+regression test for a defect where `opacity` was applied while painting the pre-filter
+`SourceGraphic` (so the filter chain, and the final compositing step, both then operated on
+already-attenuated content with no further opacity ever applied) instead of being applied exactly
+once, afterward, to the filter's own final output, per SVG's "opacity applies to the filtered
+result as a whole" semantics.
+
+#### CanvasNet-Codecs-SvgCodec-FilterResourceSafety: Filter Dangling Reference and Resource-Bound Tolerance
+
+**Tests**: `SvgCodec_Load_FilterDanglingReference_RendersElementNormally`,
+`SvgCodec_Load_FilterPathologicallyLargeRegion_SkipsFilterRatherThanUnboundedAllocation`,
+`SvgCodec_Load_FilterWithZeroPrimitivesAndHugeRegion_SkipsFilterRatherThanAllocatingSurface`,
+`SvgCodec_Load_FilterPathologicallyLargeBlurStdDeviation_ClampsRatherThanUnboundedWork`,
+`SvgCodec_Load_FilterExcessivePrimitiveCount_SkipsFilterRatherThanUnboundedWork`,
+`SvgCodec_Load_FeMergeExcessiveNodeCount_SkipsFilterRatherThanUnboundedWork`,
+`SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes`
+
+Asserts a `filter="url(#id)"` reference to a nonexistent id renders the element normally, exactly
+as if no `filter` attribute were present, matching this codec's general dangling-reference
+convention (`ResolvePaint`/`ResolveMarkerElement`); asserts a filter region large enough to require
+an unreasonably large temporary surface (`width`/`height` of `100000%`) is tolerantly skipped
+entirely, rather than attempting an allocation exceeding `Surface.MaxDimension`, with the element
+still rendering its own normal content; asserts a `filter` element with zero primitive children,
+paired with that same pathologically large region, is likewise tolerantly skipped before any
+temporary surface is allocated - a regression test for a defect where a zero primitive/work-unit
+count trivially passed the upfront work-budget check, letting the code allocate a potentially
+enormous `SourceGraphic` surface for a filter that, having no primitives, could never change the
+rendered output; asserts an `feGaussianBlur` `stdDeviation` many orders
+of magnitude larger than the fixed `MaxFilterBlurStdDeviationPixels` bound is clamped rather than
+causing unbounded work - the box-blur implementation's own cost does not scale with the requested
+radius, so this completes promptly and produces a heavily diluted (rather than crashing or
+hanging) result; and asserts a filter chain with an excessive number of primitives (5,000 chained
+`feGaussianBlur` primitives, mirroring a reported repro that took ~26 seconds prior to this bound)
+is tolerantly skipped entirely rather than evaluated, completing promptly instead of performing
+5,000 region-sized blur passes - bounding the primitive-count × region-area cost dimension that
+`MaxTotalRenderedElements`/`GeometryWorkBudget` do not cover, since neither tracks a single
+filter's own per-primitive, region-sized buffer cost. Also asserts a `feMerge` primitive with an
+excessive number (5,000) of `feMergeNode` children is likewise tolerantly skipped, rather than
+bypassing the primitive-count work budget - a regression test for a defect where the budget check
+counted a `feMerge` as a single primitive regardless of its own `feMergeNode` child count, even
+though `ApplyFeMerge` performs one full-surface composite per child, letting a pathological
+`feMerge` node count bypass the budget while still performing unbounded work. Finally, asserts a
+regression test for a code-review finding that the per-filter `MaxFilterPrimitiveWorkUnits`
+ceiling is enforced independently for every individual filtered element, so a single `filter`
+definition referenced by many shapes could be charged that same ceiling once per reference with no
+bound on the total number of references: 13 shapes reference one filter chain that individually
+charges exactly the per-filter ceiling (500 primitives against a 100×100 region) every time - the
+first 10 references' cumulative total stays within the new `FilterWorkBudget`'s
+`MaxCumulativeFilterWorkUnits` ceiling (50,000,000) and are genuinely filtered (rendering the
+chain's trailing `feFlood` solid color), while the 11th through 13th references would push the
+cumulative total over that ceiling and tolerantly fall back to unfiltered rendering (their own
+plain fill color) instead of throwing - proving the new cumulative, per-`Load`-call budget bounds
+total filter-evaluation work across the whole document, a dimension neither
+`MaxFilterPrimitiveWorkUnits` (per-filter-application only) nor `MaxTotalRenderedElements`
+(counts a filtered shape identically to an unfiltered one) previously covered.
 
 #### CanvasNet-Codecs-SvgCodec-ValidationNull: Null Stream/Path Rejected
 

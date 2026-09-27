@@ -133,9 +133,13 @@ public class SvgFixtureTests
     }
 
     /// <summary>
-    ///     Proves that <c>tolerant-unsupported.svg</c>'s well-formed but out-of-scope
-    ///     <c>filter</c> element definition does not prevent the rest of the document (an
-    ///     ordinary <c>rect</c>) from rendering normally.
+    ///     Proves that <c>tolerant-unsupported.svg</c>'s <c>filter</c> element definition -
+    ///     unreferenced by any <c>filter="url(#id)"</c> attribute - does not prevent the rest of
+    ///     the document (an ordinary <c>rect</c>) from rendering normally. Now that <c>filter</c>
+    ///     defs are genuinely parsed and evaluated, this fixture instead exercises the case of a
+    ///     <c>filter</c> def that is simply never referenced, rather than an unsupported
+    ///     construct; see the dedicated dangling-reference and unsupported-primitive tests in
+    ///     <c>SvgCodecTests</c> for filter-specific tolerance coverage.
     /// </summary>
     [Fact]
     public void SvgCodec_Load_ToleratesUnsupportedConstructFixture_StillRendersRemainingContent()
@@ -143,7 +147,8 @@ public class SvgFixtureTests
         // Arrange & Act
         var surface = SvgCodec.Load(ResolveFixturePath("tolerant-unsupported.svg"), 100, 100);
 
-        // Assert: the rect still renders its "lime" fill despite the sibling <filter> element
+        // Assert: the rect still renders its "lime" fill despite the sibling, unreferenced
+        // <filter> element
         Assert.Equal(new Rgba32(0, 255, 0, 255), surface[25, 25]);
     }
 
@@ -232,26 +237,35 @@ public class SvgFixtureTests
     ///     <c>InkscapeFilters.svg</c> (see <c>SvgFixtures\WikimediaCommons.LICENSE</c> for
     ///     provenance) - a large, complex document built entirely from <c>defs</c>/<c>use</c>
     ///     templating, composed <c>transform</c> functions, and dozens of <c>filter="url(#...)"</c>
-    ///     references, all of which reference out-of-scope <c>feGaussianBlur</c>/
-    ///     <c>feComposite</c>/<c>feSpecularLighting</c> effects - loads without throwing despite
-    ///     the numerous unsupported filter references (proving the tolerant-ignore policy holds
-    ///     for a real, unmodified, complex third-party document, not only a small synthetic one),
-    ///     that a flower shape rendered behind one such <c>filter</c> reference still paints its
-    ///     genuine fill color (proving real content rendered, not just "didn't crash"), and that
-    ///     a point in the gap between flowers remains transparent (proving the render is not a
-    ///     degenerate whole-canvas fill that would make the previous assertion vacuous).
+    ///     references, whose primitive chains combine supported primitives
+    ///     (<c>feGaussianBlur</c>/<c>feComposite</c>) with several unsupported ones
+    ///     (<c>feSpecularLighting</c>/<c>feDiffuseLighting</c>/arithmetic-mode
+    ///     <c>feComposite</c>, each a tolerant no-op passthrough of its input) - loads without
+    ///     throwing despite this genuinely deep, mixed-support filter evaluation (proving the
+    ///     tolerant-passthrough policy for unsupported primitives holds within a real,
+    ///     unmodified, complex third-party document, not only a small synthetic one), that a
+    ///     flower shape rendered behind one such <c>filter</c> reference still paints its genuine
+    ///     fill color (proving real content rendered, not just "didn't crash"), and that a point
+    ///     in the gap between flowers remains transparent (proving the render is not a degenerate
+    ///     whole-canvas fill that would make the previous assertion vacuous). At this deep-interior
+    ///     pixel, the asserted color happens to exactly match the shape's own original fill: every
+    ///     unsupported primitive in the chain passes its input through unchanged, and the chain's
+    ///     final primitive is an <c>feComposite operator="atop"</c> against <c>SourceGraphic</c>,
+    ///     which by definition adopts <c>SourceGraphic</c>'s own alpha (fully opaque here, far
+    ///     from any shape edge) - so this is not evidence that the filter was skipped or ignored.
     /// </summary>
     [Fact]
     public void SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent()
     {
         // Arrange & Act: rasterize at the fixture's native 600x1000 width/height - this must not
-        // throw despite every flower (other than the very first) referencing an unsupported
-        // <filter> element
+        // throw despite every flower (other than the very first) referencing a <filter> whose
+        // chain mixes supported and unsupported (tolerantly passed-through) primitives
         var surface = SvgCodec.Load(ResolveFixturePath("InkscapeFilters.svg"), 600, 1000);
 
         // Assert: a petal of the second flower - translate(150,50), filter="url(#filter48)" -
-        // still renders its own "#ff8010" (255,128,16) fill, proving the unsupported <filter>
-        // reference was tolerantly ignored rather than suppressing the shape it decorates
+        // still renders its own "#ff8010" (255,128,16) fill, proving the filter's evaluated
+        // chain (see the remarks above) reconstructs the original color at this deep-interior
+        // pixel rather than suppressing or corrupting the shape it decorates
         Assert.Equal(new Rgba32(255, 128, 16, 255), surface[135, 30]);
 
         // Assert: the gap between flowers (the grid spacing is 100 units, and each flower's
@@ -259,5 +273,58 @@ public class SvgFixtureTests
         // proving the render did not degenerate into filling the whole canvas with one color
         Assert.Equal(0, surface[100, 50].A);
         Assert.Equal(0, surface[50, 100].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>arrow-markers.svg</c>'s <c>marker-end</c>-referenced arrowhead
+    ///     (<c>orient="auto"</c>, <c>markerUnits="userSpaceOnUse"</c>) renders its own "navy"
+    ///     triangle content past the line's own end point, and that a point clearly outside both
+    ///     the line and the arrowhead remains transparent.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ArrowMarkersFixture_RendersArrowheadPastLineEnd()
+    {
+        // Arrange & Act
+        var surface = SvgCodec.Load(ResolveFixturePath("arrow-markers.svg"), 100, 100);
+
+        // Assert: the arrowhead's own "navy" fill is visible past the line's own x2=80 end point
+        // (the triangle's tip reaches x=82 at y=50, per its refX=8/refY=5 anchor and
+        // markerWidth=markerHeight=10)
+        Assert.Equal(new Rgba32(0, 0, 128, 255), surface[78, 50]);
+
+        // Assert: a point clearly outside both the line and the arrowhead remains transparent
+        Assert.Equal(0, surface[10, 90].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>label-halo.svg</c>'s <c>filter="url(#label-bg)"</c> reference - a
+    ///     conventional <c>feFlood</c> → <c>feGaussianBlur</c> → <c>feComposite</c> label-background
+    ///     recipe, mirroring the reported real-world bug where <c>SvgRenderer</c> uses this exact
+    ///     pattern for a white halo behind midpoint line labels - actually renders the white halo
+    ///     (rather than the halo silently disappearing, as it did while <c>filter</c> was ignored):
+    ///     the halo's flood extends beyond its own <c>rect</c>'s bounds, softened by the blur, and
+    ///     the sibling <c>line</c> remains fully visible outside the halo's own bounds.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_LabelHaloFixture_RendersWhiteHaloBehindLineMidpointLabel()
+    {
+        // Arrange & Act
+        var surface = SvgCodec.Load(ResolveFixturePath("label-halo.svg"), 100, 40);
+
+        // Assert: the halo rect's own center renders fully opaque white
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[50, 20]);
+
+        // Assert: just outside the halo rect's own left edge, the blurred flood blends partially
+        // (not fully opaquely) with the line passing beneath it - proving the halo actually
+        // extends past the rect's own bounds with a softened, not hard, edge
+        Assert.Equal(new Rgba32(152, 152, 152, 255), surface[39, 20]);
+
+        // Assert: just outside the filter's own (default, bounding-box-relative) region, the
+        // line renders its plain, unaffected black stroke
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[37, 20]);
+
+        // Assert: the line remains fully visible, unaffected, far from the halo on either side
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[10, 20]);
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[90, 20]);
     }
 }

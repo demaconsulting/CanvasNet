@@ -1,7 +1,8 @@
 // cspell:ignore Sfnt sfnt glyf cmap notdef codepoint
 // cspell:ignore Dasharray hhea Hhea hmtx Hmtx hrefs letterboxed Loca Maxp unstroked
 // cspell:ignore miterlimit
-// cspell:ignore unparseable overpainted bbox moveto lineto rects
+// cspell:ignore unparseable overpainted bbox moveto lineto rects unrotated
+using System.Diagnostics;
 using System.Reflection;
 using System.Text;
 using System.Xml.Linq;
@@ -34,6 +35,71 @@ public class SvgCodecTests
         var square = SyntheticFontBuilder.SimpleGlyph(
         [
             [(0, 0, true), (50, 0, true), (50, 50, true), (0, 50, true)]
+        ]);
+
+        var cmap = SyntheticFontBuilder.CmapFormat4(3, 1, [(65, 1), (66, 2)]);
+        var kern = SyntheticFontBuilder.KernFormat0([(1, 2, -10)]);
+
+        var data = new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(100, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(3))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(100, 0, 0, 3))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([0, 100, 100]))
+            .AddTable("loca", SyntheticFontBuilder.Loca([0, square.Length, square.Length], longFormat: false))
+            .AddTable("glyf", [.. square, .. square])
+            .AddTable("cmap", cmap)
+            .AddTable("kern", kern)
+            .Build();
+
+        using var stream = new MemoryStream(data);
+        return TrueTypeFont.Load(stream);
+    }
+
+    /// <summary>
+    ///     Builds a synthetic font identical in structure to <see cref="BuildTestFont"/> except
+    ///     the 'A' glyph is a wider 80x50-unit square (x equals 0 to 80, rather than 0 to 50),
+    ///     giving font-weight/font-style face-selection tests a distinguishable "which face
+    ///     actually rendered" pixel signature (a wide-glyph-only region between local x equals 50
+    ///     and 80) representing a registered "bold" face.
+    /// </summary>
+    private static TrueTypeFont BuildBoldTestFont()
+    {
+        var square = SyntheticFontBuilder.SimpleGlyph(
+        [
+            [(0, 0, true), (80, 0, true), (80, 50, true), (0, 50, true)]
+        ]);
+
+        var cmap = SyntheticFontBuilder.CmapFormat4(3, 1, [(65, 1), (66, 2)]);
+        var kern = SyntheticFontBuilder.KernFormat0([(1, 2, -10)]);
+
+        var data = new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(100, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(3))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(100, 0, 0, 3))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([0, 100, 100]))
+            .AddTable("loca", SyntheticFontBuilder.Loca([0, square.Length, square.Length], longFormat: false))
+            .AddTable("glyf", [.. square, .. square])
+            .AddTable("cmap", cmap)
+            .AddTable("kern", kern)
+            .Build();
+
+        using var stream = new MemoryStream(data);
+        return TrueTypeFont.Load(stream);
+    }
+
+    /// <summary>
+    ///     Builds a synthetic font identical in structure to <see cref="BuildTestFont"/> except
+    ///     the 'A' glyph is a 50x50-unit square shifted right by 20 units (x equals 20 to 70,
+    ///     rather than 0 to 50), giving font-weight/font-style face-selection tests a
+    ///     distinguishable "which face actually rendered" pixel signature (filled at local x
+    ///     equals 60 but not at local x equals 10, the opposite of <see cref="BuildTestFont"/>'s
+    ///     square) representing a registered "italic" face.
+    /// </summary>
+    private static TrueTypeFont BuildItalicTestFont()
+    {
+        var square = SyntheticFontBuilder.SimpleGlyph(
+        [
+            [(20, 0, true), (70, 0, true), (70, 50, true), (20, 50, true)]
         ]);
 
         var cmap = SyntheticFontBuilder.CmapFormat4(3, 1, [(65, 1), (66, 2)]);
@@ -1637,6 +1703,1537 @@ public class SvgCodecTests
     }
 
     // ================================================================================================
+    // <marker> element
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that a <c>marker-end</c> reference renders its <c>marker</c> element's content
+    ///     at the shape's final vertex, sized in user-space units (<c>markerUnits="userSpaceOnUse"</c>).
+    ///     No <c>orient</c> attribute is set, so per the fixed 0-degree default (see
+    ///     <see cref="SvgCodec_Load_MarkerOrientOmittedOnDiagonalLine_UsesFixedZeroDegreeDefaultNotTangent"/>)
+    ///     the marker is unrotated - which happens to coincide with the horizontal segment's own
+    ///     0-degree tangent, so this test alone cannot distinguish the two behaviors.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerEndOnLine_RendersArrowheadPastLineEnd()
+    {
+        // Arrange: a horizontal line from (0,5) to (8,5); its marker-end places a 4x4
+        // "userSpaceOnUse" red square anchored at (2,2) (refX/refY), so at the (8,5) end vertex
+        // (tangent (1,0), angle 0) the square occupies (6,3)-(10,7)
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <marker id='m' markerWidth='4' markerHeight='4' refX='2' refY='2' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='4' height='4' fill='red'/>
+                </marker>
+              </defs>
+              <line x1='0' y1='5' x2='8' y2='5' stroke='black' stroke-width='1' marker-end='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the marker's red square is visible past the line's own x2=8 end point, outside
+        // the line's own stroke band (y in roughly [4.5,5.5])
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[7, 4]);
+
+        // Assert: no marker content appears at the line's start vertex (no marker-start was set)
+        Assert.Equal(0, surface[1, 3].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>marker-start</c>/<c>marker-mid</c>/<c>marker-end</c> each independently
+    ///     resolve and render their own distinct marker at the correct vertex of a
+    ///     <c>polyline</c>, and that each marker's own reference point (<c>refX</c>/<c>refY</c>)
+    ///     lands exactly on its vertex regardless of that vertex's orientation angle.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerStartMidEndOnPolyline_RendersDistinctMarkersAtEachVertex()
+    {
+        // Arrange: an L-shaped polyline with three vertices - (2.4,2.4) start, (10.4,2.4) mid,
+        // (10.4,10.4) end - each marker is a 2x2 square centered on its own refX/refY=1, so its
+        // center always lands exactly on the vertex position regardless of rotation
+        const string svg = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <marker id='ms' markerWidth='2' markerHeight='2' refX='1' refY='1' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='2' height='2' fill='red'/>
+                </marker>
+                <marker id='mm' markerWidth='2' markerHeight='2' refX='1' refY='1' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='2' height='2' fill='green'/>
+                </marker>
+                <marker id='me' markerWidth='2' markerHeight='2' refX='1' refY='1' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='2' height='2' fill='blue'/>
+                </marker>
+              </defs>
+              <polyline points='2.4,2.4 10.4,2.4 10.4,10.4' fill='none' stroke='black' stroke-width='1'
+                        marker-start='url(#ms)' marker-mid='url(#mm)' marker-end='url(#me)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert: each vertex shows its own marker's own color
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[2, 2]);
+        Assert.Equal(new Rgba32(0, 128, 0, 255), surface[10, 2]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[10, 10]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>orient="auto"</c> orients a marker along a purely horizontal segment's
+    ///     own direction of travel.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerOrientAutoOnHorizontalLine_OrientsAlongPositiveX()
+    {
+        // Arrange: a marker whose content is a bar offset 2-4 units away from its refX/refY=0
+        // anchor, along local +x - when unrotated (angle 0), it extends further in +x from the
+        // vertex it is placed at
+        const string svg = """
+            <svg viewBox='0 0 16 8'>
+              <defs>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse'>
+                  <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
+                </marker>
+              </defs>
+              <line x1='1' y1='6.5' x2='7' y2='6.5' stroke='black' stroke-width='1' marker-end='url(#bar)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 16, 8);
+
+        // Assert: the bar extends to the right of the (7,6.5) end vertex - a point beyond the
+        // line's own x2=7 extent, in the bar's expected x[9,11]/y[6,7] footprint
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[9, 6]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>orient="auto"</c> orients a marker along a purely vertical segment's own
+    ///     direction of travel (rotated 90 degrees relative to the horizontal case).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerOrientAutoOnVerticalLine_OrientsAlongPositiveY()
+    {
+        // Arrange: the same "bar" marker as the horizontal test, but the line now travels
+        // straight down, so the bar should extend further downward (+y) from its end vertex
+        // rather than to the right
+        const string svg = """
+            <svg viewBox='0 0 12 12'>
+              <defs>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse'>
+                  <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
+                </marker>
+              </defs>
+              <line x1='6.5' y1='1' x2='6.5' y2='7' stroke='black' stroke-width='1' marker-end='url(#bar)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 12, 12);
+
+        // Assert: the bar extends below the (6.5,7) end vertex - a point beyond the line's own
+        // y2=7 extent, in the bar's expected x[6,7]/y[9,11] footprint
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[6, 9]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>orient="auto"</c> orients a marker along a diagonal segment's own
+    ///     direction of travel (a 45-degree angle between the horizontal and vertical cases).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerOrientAutoOnDiagonalLine_OrientsAlong45Degrees()
+    {
+        // Arrange: the same "bar" marker, on a line traveling diagonally (equal x and y
+        // displacement) - the bar should extend further along that same 45-degree diagonal
+        const string svg = """
+            <svg viewBox='0 0 12 12'>
+              <defs>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse'>
+                  <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
+                </marker>
+              </defs>
+              <line x1='1' y1='1' x2='7' y2='7' stroke='black' stroke-width='1' marker-end='url(#bar)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 12, 12);
+
+        // Assert: the bar's centerline, roughly 3 units further along the 45-degree diagonal
+        // from the (7,7) end vertex, lands close to (9,9) - a lower alpha threshold (rather than
+        // full opacity) tolerates this rasterizer's edge anti-aliasing on a thin, diagonally
+        // rotated shape, whose straight edges rarely align exactly with pixel boundaries
+        var actual = surface[9, 9];
+        Assert.True(
+            actual.R == 255 && actual.G == 0 && actual.B == 0 && actual.A > 150,
+            $"Expected a strongly red-tinted pixel at (9,9), got R={actual.R} G={actual.G} B={actual.B} A={actual.A}.");
+    }
+
+    /// <summary>
+    ///     Regression test: proves that an omitted <c>orient</c> attribute uses the SVG
+    ///     specification's fixed 0-degree default rather than following the vertex tangent like an
+    ///     explicit <c>orient="auto"</c> - a defect where an absent/blank <c>orient</c> was
+    ///     incorrectly routed into the same tangent-following branch as an explicit <c>auto</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerOrientOmittedOnDiagonalLine_UsesFixedZeroDegreeDefaultNotTangent()
+    {
+        // Arrange: a 45-degree diagonal line ending at (7,6.5) with no orient attribute set on its
+        // marker - if the (pre-fix, buggy) tangent-following "auto" behavior applied, the bar would
+        // rotate 45 degrees and land far from the vertex (roughly (9.1,8.6)); the correct fixed
+        // 0-degree default instead leaves the bar unrotated, landing at exactly the same world
+        // position (9,6) as the purely-horizontal-line case (see
+        // SvgCodec_Load_MarkerOrientAutoOnHorizontalLine_OrientsAlongPositiveX), since a fixed
+        // 0-degree rotation is independent of the segment's own direction of travel
+        const string svg = """
+            <svg viewBox='0 0 12 12'>
+              <defs>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' markerUnits='userSpaceOnUse'>
+                  <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
+                </marker>
+              </defs>
+              <line x1='1' y1='0.5' x2='7' y2='6.5' stroke='black' stroke-width='1' marker-end='url(#bar)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 12, 12);
+
+        // Assert: the bar is unrotated, landing at (9,6) exactly as the horizontal-line case does
+        // - not rotated 45 degrees along the diagonal tangent, which would leave this pixel
+        // transparent instead
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[9, 6]);
+    }
+
+    /// <summary>
+    ///     Proves that a plain <c>orient="auto"</c> <c>marker-start</c> is oriented the same way
+    ///     as the outgoing segment's own direction (pointing into the line), contrasted by
+    ///     <see cref="SvgCodec_Load_MarkerStartOrientAutoStartReverse_PointsAwayFromLine"/>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerStartOrientAuto_PointsIntoLine()
+    {
+        // Arrange: the same "bar" marker, referenced as marker-start with plain orient="auto" -
+        // the bar should extend toward +x, i.e. into the line's own body
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse'>
+                  <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
+                </marker>
+              </defs>
+              <line x1='5' y1='5.5' x2='9' y2='5.5' stroke='black' stroke-width='1' marker-start='url(#bar)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the bar occupies x[7,9] (toward the line body), not x[1,3] (away from it)
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[7, 5]);
+        Assert.Equal(0, surface[2, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>orient="auto-start-reverse"</c> reverses a <c>marker-start</c> marker's
+    ///     orientation by 180 degrees relative to plain <c>orient="auto"</c>, placing it away from
+    ///     the line's own body rather than into it - the conventional orientation for an arrowhead
+    ///     at the tail of a line.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerStartOrientAutoStartReverse_PointsAwayFromLine()
+    {
+        // Arrange: the same scenario as the plain orient="auto" test, but with
+        // orient="auto-start-reverse" - the bar should now extend toward -x, away from the line
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto-start-reverse' markerUnits='userSpaceOnUse'>
+                  <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
+                </marker>
+              </defs>
+              <line x1='5' y1='5.5' x2='9' y2='5.5' stroke='black' stroke-width='1' marker-start='url(#bar)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the bar occupies x[1,3] (away from the line body), not x[7,9] (into it) - the
+        // line's own black stroke also covers x[7,9] at this y, so a not-equal-to-red check (not
+        // an alpha-zero check) is what actually distinguishes "no marker content here" from "the
+        // line's own stroke happens to cover this pixel too"
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[2, 5]);
+        Assert.NotEqual(new Rgba32(255, 0, 0, 255), surface[7, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that a closed <c>&lt;polygon&gt;</c>'s implicit closing segment (back to its
+    ///     first vertex) contributes to the <c>orient="auto"</c> tangent computed for the last
+    ///     vertex's <c>marker-end</c>, rather than only the incoming open-path edge.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerEndOnClosedPolygon_OrientsUsingClosingEdgeTangent()
+    {
+        // Arrange: a right-triangle polygon (10,10)-(90,10)-(90,90) whose final vertex (90,90) is
+        // reached via a straight-down incoming edge (direction (0,1)) but whose implicit closing
+        // edge back to (10,10) travels up-and-left (direction (-1,-1) normalized) - averaging
+        // both tangents orients the marker along ~157.5 degrees, landing its content near
+        // (87,91); ignoring the closing edge (the pre-fix behavior) would orient it purely along
+        // the incoming edge's 90 degrees (straight down), landing its content near (90,93) instead
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse'>
+                  <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
+                </marker>
+              </defs>
+              <polygon points='10,10 90,10 90,90' fill='none' stroke='none' marker-end='url(#bar)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the marker is oriented along the averaged incoming/closing tangent (landing
+        // near (87,91)), not purely along the incoming edge as if the closing edge were ignored
+        // (which would land it near (90,93) instead) - a lower alpha threshold (rather than full
+        // opacity) tolerates this rasterizer's edge anti-aliasing on a thin, diagonally rotated
+        // shape, per this file's other diagonal-marker tests
+        var actual = surface[87, 91];
+        Assert.True(
+            actual.R == 255 && actual.G == 0 && actual.B == 0 && actual.A > 100,
+            $"Expected a strongly red-tinted pixel at (87,91), got R={actual.R} G={actual.G} B={actual.B} A={actual.A}.");
+        Assert.Equal(0, surface[90, 93].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>markerUnits="userSpaceOnUse"</c> keeps a marker's size independent of
+    ///     the referencing shape's effective stroke width, while the default
+    ///     <c>markerUnits="strokeWidth"</c> scales the marker proportionally to it.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerUnitsUserSpaceOnUseVsStrokeWidthDefault_ScalesDifferently()
+    {
+        // Arrange: two identical 2x2 marker definitions (refX/refY=1, so each marker's ref point
+        // is its own center), one explicitly "userSpaceOnUse" and one left at the default
+        // "strokeWidth" - both lines use stroke-width="4", so the default-units marker should
+        // scale up to 8x8 (half-width 4) while the userSpaceOnUse marker stays 2x2 (half-width 1)
+        const string svg = """
+            <svg viewBox='0 0 30 15'>
+              <defs>
+                <marker id='sqSmall' markerWidth='2' markerHeight='2' refX='1' refY='1' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='2' height='2' fill='blue'/>
+                </marker>
+                <marker id='sqBig' markerWidth='2' markerHeight='2' refX='1' refY='1'>
+                  <rect x='0' y='0' width='2' height='2' fill='blue'/>
+                </marker>
+              </defs>
+              <line x1='2' y1='5' x2='7' y2='5' stroke='black' stroke-width='4' marker-end='url(#sqSmall)'/>
+              <line x1='20' y1='5' x2='25' y2='5' stroke='black' stroke-width='4' marker-end='url(#sqBig)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 30, 15);
+
+        // Assert: the "userSpaceOnUse" marker did not grow with stroke-width - a point 3 units
+        // beyond its (7,5) vertex is outside its 2x2 footprint
+        Assert.Equal(0, surface[10, 5].A);
+
+        // Assert: the default "strokeWidth" marker did grow - a point 3 units beyond its (25,5)
+        // vertex is still within its 8x8 (half-width 4) footprint
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[28, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that a default <c>markerUnits="strokeWidth"</c> marker on a document with a
+    ///     non-identity root <c>viewBox</c> fit (a uniform 2x scale from local units to pixels)
+    ///     scales by exactly <c>stroke-width * root-scale</c> once, not twice - the local
+    ///     <c>stroke-width</c> is applied once (for the marker's own <c>strokeWidth</c>-units
+    ///     sizing) and the root scale is applied once (via the shared <c>shapeTransform</c>
+    ///     composed last), rather than the root scale being folded into both.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerStrokeWidthUnitsOnScaledDocument_ScalesOnceNotTwice()
+    {
+        // Arrange: a 50x25 viewBox rendered onto a 100x50 canvas is a uniform 2x root scale; the
+        // line's local stroke-width is 1, so the "bar" marker's content (local x in [2,4], offset
+        // from refX=0) should land at pixel-offset dx*strokeWidth(1)*rootScale(2) = 2*dx from the
+        // transformed vertex - e.g. dx=3 lands 6 pixels away (26,25), not double-scaled dx*1*2*2 =
+        // 4*dx = 12 pixels away (32,25), which is what the pre-fix double-scaling bug would produce
+        const string svg = """
+            <svg viewBox='0 0 50 25'>
+              <defs>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' markerUnits='strokeWidth'>
+                  <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
+                </marker>
+              </defs>
+              <line x1='2' y1='12.5' x2='10' y2='12.5' stroke='black' stroke-width='1' marker-end='url(#bar)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 50);
+
+        // Assert: the marker landed at the correctly-single-scaled offset (26,25), not the
+        // double-scaled offset (32,25) that the pre-fix bug would have produced
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[26, 25]);
+        Assert.NotEqual(new Rgba32(255, 0, 0, 255), surface[32, 25]);
+    }
+
+    /// <summary>
+    ///     Proves that a marker element's own <c>viewBox</c> is fitted into
+    ///     <c>markerWidth</c>/<c>markerHeight</c> (a uniform "meet" scale-down), rather than the
+    ///     marker's content rendering at its raw, unfitted local-coordinate size.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerWithViewBox_FitsContentToMarkerWidthHeight()
+    {
+        // Arrange: a marker with a 10x10 viewBox but only a 2x2 markerWidth/markerHeight - its
+        // 10x10 content rect should be scaled down by 0.2, landing within (5,5)-(7,7) of its
+        // (5,5) vertex rather than the unfitted (5,5)-(15,15)
+        const string svg = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <marker id='vb' markerWidth='2' markerHeight='2' refX='0' refY='0' viewBox='0 0 10 10' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='10' height='10' fill='green'/>
+                </marker>
+              </defs>
+              <line x1='1' y1='5' x2='5' y2='5' stroke='black' stroke-width='1' marker-end='url(#vb)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert: the fitted, scaled-down content is visible close to the vertex
+        Assert.Equal(new Rgba32(0, 128, 0, 255), surface[6, 6]);
+
+        // Assert: a point that would only be covered by the unfitted, raw 10x10 content remains
+        // transparent - proving the viewBox fit actually scaled the content down
+        Assert.Equal(0, surface[9, 9].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>marker-end</c> reference to a nonexistent id is tolerated as a silent
+    ///     no-op, matching this codec's general dangling-reference convention, rather than
+    ///     throwing or aborting the rest of the document.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerDanglingReference_IsSilentNoOp()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <line x1='1' y1='5.5' x2='7' y2='5.5' stroke='black' stroke-width='1' marker-end='url(#missing)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the line itself still rendered
+        Assert.Equal(255, surface[4, 5].A);
+
+        // Assert: no exception, and no marker content appeared past the line's own end point
+        Assert.Equal(0, surface[9, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>marker</c> element whose own content directly references itself (via
+    ///     <c>marker-start</c> on a child shape) is rejected once the bounded
+    ///     <c>marker</c>-reference nesting depth guard is reached, rather than recursing
+    ///     indefinitely, mirroring <see cref="SvgCodec_Load_UseElementMutualRecursionCycle_ThrowsInvalidDataException"/>'s
+    ///     identical <see cref="InvalidDataException"/> behavior for <c>use</c> cycles.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerSelfReferenceCycle_ThrowsInvalidDataException()
+    {
+        // Arrange: marker "m" contains a line whose own marker-start references "m" again
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <marker id='m'>
+                  <line x1='0' y1='0' x2='1' y2='0' marker-start='url(#m)'/>
+                </marker>
+              </defs>
+              <line x1='0' y1='0' x2='5' y2='5' marker-start='url(#m)'/>
+            </svg>
+            """;
+
+        // Act & Assert
+        using var stream = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves that a two-marker reference chain (<c>m1</c> referencing <c>m2</c> referencing
+    ///     <c>m1</c>) is likewise rejected, not only a direct self-reference.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerTwoElementReferenceCycle_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <marker id='m1'>
+                  <line x1='0' y1='0' x2='1' y2='0' marker-start='url(#m2)'/>
+                </marker>
+                <marker id='m2'>
+                  <line x1='0' y1='0' x2='1' y2='0' marker-start='url(#m1)'/>
+                </marker>
+              </defs>
+              <line x1='0' y1='0' x2='5' y2='5' marker-start='url(#m1)'/>
+            </svg>
+            """;
+
+        // Act & Assert
+        using var stream = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves that, for a multi-subpath <c>path</c>, <c>marker-start</c>/<c>marker-end</c>
+    ///     apply only to the very first/last vertex of the whole path - not to each subpath's own
+    ///     start/end - a deliberate, documented simplification (matches at least one common
+    ///     browser's behavior).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerOnMultiSubpathPath_AppliesStartEndOnlyAtWholePathEnds()
+    {
+        // Arrange: two separate horizontal subpaths at y=2 - vertices in whole-path order are
+        // (0,2) start, (4,2) mid, (6,2) mid, (10,2) end. marker-mid is "none", so the two
+        // interior subpath boundary vertices should show nothing
+        const string svg = """
+            <svg viewBox='0 0 12 4'>
+              <defs>
+                <marker id='s' markerWidth='2' markerHeight='2' refX='1' refY='1' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='2' height='2' fill='red'/>
+                </marker>
+                <marker id='e' markerWidth='2' markerHeight='2' refX='1' refY='1' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='2' height='2' fill='blue'/>
+                </marker>
+              </defs>
+              <path d='M0,2 L4,2 M6,2 L10,2' fill='none' stroke='none'
+                    marker-start='url(#s)' marker-mid='none' marker-end='url(#e)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 12, 4);
+
+        // Assert: the whole path's very first vertex (0,2) shows the "start" marker
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[0, 2]);
+
+        // Assert: the whole path's very last vertex (10,2) shows the "end" marker
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[10, 2]);
+
+        // Assert: the two interior subpath-boundary vertices (4,2) and (6,2) show nothing, since
+        // they are classified as "mid" vertices (marker-mid="none") rather than per-subpath
+        // start/end vertices
+        Assert.Equal(0, surface[4, 2].A);
+        Assert.Equal(0, surface[6, 2].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>rect</c>, <c>circle</c>, and <c>ellipse</c> never receive markers, even
+    ///     when a <c>marker-end</c> attribute referencing a valid marker is present - these shapes
+    ///     have no natural vertices to orient a marker along, per the SVG specification.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerOnRectCircleEllipse_NeverRendersMarker()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 30 10'>
+              <defs>
+                <marker id='m' markerWidth='2' markerHeight='2' refX='1' refY='1' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='2' height='2' fill='red'/>
+                </marker>
+              </defs>
+              <rect x='1' y='1' width='4' height='4' fill='black' marker-end='url(#m)'/>
+              <circle cx='15' cy='5' r='2' fill='black' marker-end='url(#m)'/>
+              <ellipse cx='25' cy='5' rx='3' ry='2' fill='black' marker-end='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 30, 10);
+
+        // Assert: no exception, each shape still renders its own black fill
+        Assert.Equal(255, surface[2, 2].A);
+        Assert.Equal(255, surface[15, 5].A);
+        Assert.Equal(255, surface[25, 5].A);
+
+        // Assert: no red marker content appears anywhere in the canvas
+        for (var y = 0; y < 10; y++)
+        {
+            for (var x = 0; x < 30; x++)
+            {
+                Assert.NotEqual(new Rgba32(255, 0, 0, 255), surface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves that a marker's own content renders with a fresh presentation-attribute cascade
+    ///     starting from the SVG/CSS initial values, rather than inheriting the referencing
+    ///     shape's own <c>fill</c>/<c>stroke</c> - per the SVG specification's independent marker
+    ///     content model.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerContent_DoesNotInheritReferencingShapeFillOrStroke()
+    {
+        // Arrange: the line sets a bright "red" fill/stroke, but the marker's own <rect> has no
+        // fill attribute of its own, so it should fall back to the initial default ("black"),
+        // not inherit the line's "red"
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <marker id='m' markerWidth='2' markerHeight='2' refX='1' refY='1' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='2' height='2'/>
+                </marker>
+              </defs>
+              <line x1='1' y1='5.5' x2='7' y2='5.5' fill='red' stroke='red' stroke-width='1' marker-end='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the marker's rect rendered its own initial-default "black" fill, not "red"
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[7, 5]);
+    }
+
+    /// <summary>
+    ///     Regression test for a defect where a <c>filter</c> attribute on a marker's own content
+    ///     was still resolved and evaluated, even though this codec's documented scope states that
+    ///     filters on marker content have no effect. Asserts a <c>rect</c> inside a <c>marker</c>
+    ///     with a <c>filter="url(#f)"</c> referencing a real <c>feFlood</c> filter renders exactly
+    ///     as if it had no <c>filter</c> attribute at all - the marker's own fill, not the flood
+    ///     color, since the filter must never be evaluated for marker content.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerContentWithFilterAttribute_FilterHasNoEffect()
+    {
+        // Arrange: the marker's own rect has a filter referencing a feFlood that would fill its
+        // region with red if evaluated; the marker's rect itself is "lime"
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f'>
+                  <feFlood flood-color='red'/>
+                </filter>
+                <marker id='m' markerWidth='2' markerHeight='2' refX='1' refY='1' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='2' height='2' fill='lime' filter='url(#f)'/>
+                </marker>
+              </defs>
+              <line x1='1' y1='5.5' x2='7' y2='5.5' stroke='black' stroke-width='1' marker-end='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the marker's own "lime" fill rendered - the feFlood filter was never applied
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[7, 5]);
+    }
+
+    // ================================================================================================
+    // <filter> element
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that a <c>filter</c> containing only a bare <c>feFlood</c> primitive replaces the
+    ///     referencing element's own content entirely: the flood color fills the whole (default,
+    ///     bounding-box-relative) filter region, including the area behind the element's own shape,
+    ///     since a lone <c>feFlood</c> never references <c>SourceGraphic</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeFloodFilter_RendersSolidColorBehindElement()
+    {
+        // Arrange: a 20x20 blue rect at (40,40); the filter's default region expands the rect's
+        // own bounding box by -10%/120%, i.e. (38,38)-(62,62)
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feFlood flood-color='red'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the flood fills the expanded region outside the rect's own bounds
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[39, 50]);
+
+        // Assert: the flood also fully replaces the rect's own blue fill at its center, since the
+        // filter's final output is the bare feFlood result, not a merge with SourceGraphic
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Regression test for a defect where an element's own <c>opacity</c> was applied while
+    ///     painting the pre-filter <c>SourceGraphic</c> instead of the final filtered result: per
+    ///     SVG semantics, <c>opacity</c> applies to the filter's whole output, exactly once, so a
+    ///     <c>rect</c> with <c>opacity="0.5"</c> and a filter containing only a fully-opaque
+    ///     <c>feFlood</c> must render the flood at ~50% alpha, not fully opaque.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_OpacityWithFeFloodFilter_AppliesOpacityToFilteredResultNotSource()
+    {
+        // Arrange: a fully-opaque red feFlood is the filter's entire output; the referencing
+        // rect's own opacity of 0.5 must still visibly attenuate that flood's alpha
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feFlood flood-color='red' flood-opacity='1'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' opacity='0.5' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the flood's own color is still fully red, but its alpha reflects the rect's own
+        // 50% opacity (0.5 * 255 = 127.5), not the fully-opaque 255 a pre-filter opacity fold
+        // would incorrectly produce - mirrors SvgCodec_Load_Opacity_MultipliesIntoFillAlpha's own
+        // InRange tolerance for floating-point alpha compositing
+        var pixel = surface[50, 50];
+        Assert.Equal(255, pixel.R);
+        Assert.Equal(0, pixel.G);
+        Assert.Equal(0, pixel.B);
+        Assert.InRange((int)pixel.A, 110, 145);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feMerge</c> layers named results in document order: a <c>feFlood</c>
+    ///     result placed first, then <c>SourceGraphic</c> placed second, renders the flood behind
+    ///     the element's own content (visible outside its bounds) while the element's own fill
+    ///     remains visible on top at its own location.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeFloodFeMergeFilter_RendersFloodBehindSourceGraphic()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feFlood flood-color='yellow' result='flood'/>
+                  <feMerge>
+                    <feMergeNode in='flood'/>
+                    <feMergeNode in='SourceGraphic'/>
+                  </feMerge>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the flood is visible in the expanded region outside the rect's own bounds
+        Assert.Equal(new Rgba32(255, 255, 0, 255), surface[39, 50]);
+
+        // Assert: the rect's own blue fill remains visible on top of the flood at its center
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>feFlood</c> → <c>feComposite</c> (<c>operator="out"</c>, clipping the
+    ///     flood to the area the element's own content does <i>not</i> cover) → <c>feGaussianBlur</c>
+    ///     → <c>feMerge</c> chain (a conventional halo/glow recipe) actually softens the flood's
+    ///     edge - proving the blur genuinely ran, rather than the filter being silently ignored -
+    ///     while leaving the element's own fill fully opaque and unaffected at its center.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeFloodFeGaussianBlurFeCompositeFilter_RendersBlurredHaloBehindContent()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feFlood flood-color='orange' result='flood'/>
+                  <feComposite in='flood' in2='SourceGraphic' operator='out' result='haloBase'/>
+                  <feGaussianBlur in='haloBase' stdDeviation='2' result='halo'/>
+                  <feMerge>
+                    <feMergeNode in='halo'/>
+                    <feMergeNode in='SourceGraphic'/>
+                  </feMerge>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the rect's own fill remains fully opaque and unaffected at its center
+        Assert.Equal(new Rgba32(0, 128, 0, 255), surface[50, 50]);
+
+        // Assert: just outside the rect's own edge, a softened (partially transparent, not
+        // hard-edged) orange halo is visible - proving the blur actually ran
+        Assert.Equal(new Rgba32(255, 161, 0, 19), surface[61, 50]);
+
+        // Assert: a couple of pixels further out, past the blur's influence, nothing remains
+        Assert.Equal(0, surface[62, 50].A);
+    }
+
+    /// <summary>
+    ///     Regression test: <c>stdDeviation="2&#x9;3"</c> (tab-separated x/y radii) must still
+    ///     tokenize on the tab and parse the first radius as <c>2</c>, producing the same softened
+    ///     halo as the equivalent space-separated <c>stdDeviation="2"</c> case above - rather than
+    ///     treating the whole value as one unparseable token (which would silently fall back to a
+    ///     zero radius, disabling the blur).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeGaussianBlurStdDeviationTabSeparated_RendersBlurredHaloBehindContent()
+    {
+        // Arrange: identical to the space-separated halo recipe above, except stdDeviation uses a
+        // tab between the x and y radii instead of a space.
+        const string svg = "<svg viewBox='0 0 100 100'>\n" +
+                            "  <defs>\n" +
+                            "    <filter id='f'>\n" +
+                            "      <feFlood flood-color='orange' result='flood'/>\n" +
+                            "      <feComposite in='flood' in2='SourceGraphic' operator='out' result='haloBase'/>\n" +
+                            "      <feGaussianBlur in='haloBase' stdDeviation='2\t3' result='halo'/>\n" +
+                            "      <feMerge>\n" +
+                            "        <feMergeNode in='halo'/>\n" +
+                            "        <feMergeNode in='SourceGraphic'/>\n" +
+                            "      </feMerge>\n" +
+                            "    </filter>\n" +
+                            "  </defs>\n" +
+                            "  <rect x='40' y='40' width='20' height='20' fill='green' filter='url(#f)'/>\n" +
+                            "</svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the rect's own fill remains fully opaque and unaffected at its center
+        Assert.Equal(new Rgba32(0, 128, 0, 255), surface[50, 50]);
+
+        // Assert: just outside the rect's own edge, a softened (partially transparent, not
+        // hard-edged) orange halo is visible - proving the first token ("2") was actually parsed
+        // and used as the blur radius, rather than falling back to zero
+        Assert.Equal(new Rgba32(255, 161, 0, 19), surface[61, 50]);
+
+        // Assert: a couple of pixels further out, past the blur's influence, nothing remains
+        Assert.Equal(0, surface[62, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves <c>feComposite operator="in"</c> keeps the "in" input's own color, weighted by the
+    ///     "in2" input's own alpha, per the documented Porter-Duff "in" formula
+    ///     (<c>(Fa, Fb) = (Ab, 0)</c>) - two full-region, semi-transparent <c>feFlood</c> inputs
+    ///     isolate <c>CompositeFeOperator</c>'s own per-pixel math from any shape-geometry/filter-
+    ///     region overlap concern.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeCompositeOperatorIn_KeepsForegroundWeightedByBackgroundAlpha()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='#ff0000' flood-opacity='0.5' result='fg'/>
+                  <feFlood flood-color='#0000ff' flood-opacity='0.25' result='bg'/>
+                  <feComposite in='fg' in2='bg' operator='in'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 0, 0, 32), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <c>feComposite operator="atop"</c> blends both inputs' own colors, weighted by
+    ///     (<c>in2</c>'s alpha, <c>1 - in</c>'s alpha) respectively, per the documented Porter-Duff
+    ///     "atop" formula (<c>(Fa, Fb) = (Ab, 1 - Aa)</c>) - only incidentally covered previously via
+    ///     one pixel deep inside the third-party <c>InkscapeFilters.svg</c> fixture; this test
+    ///     isolates the operator's own formula deterministically.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeCompositeOperatorAtop_BlendsBothInputsWeightedByBothAlphas()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='#ff0000' flood-opacity='0.5' result='fg'/>
+                  <feFlood flood-color='#0000ff' flood-opacity='0.25' result='bg'/>
+                  <feComposite in='fg' in2='bg' operator='atop'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(128, 0, 127, 64), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <c>feComposite operator="xor"</c> keeps each input only where the other does not
+    ///     have coverage, per the documented Porter-Duff "xor" formula
+    ///     (<c>(Fa, Fb) = (1 - Ab, 1 - Aa)</c>) - never previously exercised anywhere in this test
+    ///     suite.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeCompositeOperatorXor_KeepsEachInputWhereTheOtherHasNoCoverage()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='#ff0000' flood-opacity='0.5' result='fg'/>
+                  <feFlood flood-color='#0000ff' flood-opacity='0.25' result='bg'/>
+                  <feComposite in='fg' in2='bg' operator='xor'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(191, 0, 64, 128), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Regression test for a code-review finding: <c>CompositeFeOperator</c>'s own per-channel
+    ///     rounding used <see cref="MathF.Round(float)"/>'s default banker's (round-to-even)
+    ///     rounding, which differs from the rest of this codebase's compositing pipeline (see
+    ///     <c>Surface.CompositeOverSpanCore</c>) - it consistently uses
+    ///     <see cref="MidpointRounding.AwayFromZero"/>. This <c>xor</c> combination of a near-
+    ///     transparent black flood (<c>flood-opacity</c> exactly <c>2/255</c>) over a 40%-opaque
+    ///     gray flood produces a computed channel value of exactly <c>126.5</c> - away-from-zero
+    ///     rounds this up to <c>127</c>, while round-to-even rounds it down to <c>126</c> (the
+    ///     nearest even integer). Proves the away-from-zero convention is now used.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeCompositeOperatorXorWithHalfChannelValue_RoundsAwayFromZeroNotToEven()
+    {
+        // Arrange: a black flood at alpha exactly 2/255 composited "xor" over a 40%-opaque gray
+        // flood - chosen (see this test's own remarks) so every output channel computes to
+        // exactly 126.5, isolating the rounding-mode difference deterministically
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='#000000' flood-opacity='0.00784313725490196' result='fg'/>
+                  <feFlood flood-color='#808080' flood-opacity='0.4' result='bg'/>
+                  <feComposite in='fg' in2='bg' operator='xor'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: every channel rounded up to 127 (away-from-zero), not down to 126 (round-to-even)
+        var actual = surface[5, 5];
+        Assert.Equal(127, actual.R);
+        Assert.Equal(127, actual.G);
+        Assert.Equal(127, actual.B);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>filter="url(#id)"</c> reference which does not resolve to any element
+    ///     (a dangling reference) renders the element normally, exactly as if no <c>filter</c>
+    ///     attribute had been present at all - matching the existing dangling-reference tolerance
+    ///     convention used elsewhere (e.g. <c>ResolvePaint</c>, <c>ResolveMarkerElement</c>).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterDanglingReference_RendersElementNormally()
+    {
+        // Arrange: two identical rects, one with a dangling filter reference and one without
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <rect x='10' y='10' width='20' height='20' fill='purple' filter='url(#missing)'/>
+              <rect x='50' y='10' width='20' height='20' fill='purple'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: both rects rendered identically, unaffected by the dangling filter reference
+        Assert.Equal(surface[60, 20], surface[20, 20]);
+        Assert.Equal(new Rgba32(128, 0, 128, 255), surface[20, 20]);
+    }
+
+    /// <summary>
+    ///     Proves that a filter primitive type this codec does not implement (here
+    ///     <c>feColorMatrix</c>, but the same tolerant handling applies to <c>feTurbulence</c>,
+    ///     <c>feDisplacementMap</c>, <c>feImage</c>, <c>feTile</c>, <c>feDropShadow</c>,
+    ///     <c>feConvolveMatrix</c>, <c>feDiffuseLighting</c>, <c>feSpecularLighting</c>,
+    ///     <c>feComponentTransfer</c>, and <c>feMorphology</c>) is treated as a no-op passthrough
+    ///     of its input, rather than throwing or being ignored at the filter level.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterUnsupportedPrimitive_PassesThroughSourceGraphicUnchanged()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feColorMatrix type='saturate' values='0'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='teal' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the rect's own fill passed through unchanged, proving no exception was thrown
+        // and the unsupported primitive did not alter (or blank out) the element's content
+        Assert.Equal(new Rgba32(0, 128, 128, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that a filter region which would require an unreasonably large temporary
+    ///     surface (here a <c>width</c>/<c>height</c> of <c>100000%</c> of the element's own
+    ///     bounding box) is tolerantly skipped - the element renders normally, without its
+    ///     filter effect - rather than attempting an unbounded allocation.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterPathologicallyLargeRegion_SkipsFilterRatherThanUnboundedAllocation()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f' width='100000%' height='100000%'>
+                  <feFlood flood-color='red'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act: must complete promptly, without throwing or attempting to allocate a surface
+        // exceeding Surface.MaxDimension
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the rect rendered its own normal blue fill, the (skipped) filter had no effect
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Regression test for a code-review finding: a <c>filter</c> element with zero primitive
+    ///     children has a zero primitive-count/work-unit charge, so it used to trivially pass the
+    ///     upfront work-budget check even when paired with a pathologically large filter region
+    ///     (here <c>100000%</c> of the element's own bounding box, matching
+    ///     <see cref="SvgCodec_Load_FilterPathologicallyLargeRegion_SkipsFilterRatherThanUnboundedAllocation"/>'s
+    ///     region) - the budget-OK verdict then let the code allocate a huge temporary
+    ///     <c>SourceGraphic</c> surface for a filter that, having no primitives, could not possibly
+    ///     change the rendered output. Proves the empty filter is now tolerantly skipped before any
+    ///     surface is allocated, completing promptly and leaving the element rendered normally.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterWithZeroPrimitivesAndHugeRegion_SkipsFilterRatherThanAllocatingSurface()
+    {
+        // Arrange: a filter element with no fe* primitive children at all, paired with the same
+        // pathologically large region used by the sibling huge-region test
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f' width='100000%' height='100000%'>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act: must complete promptly, without attempting to allocate a huge SourceGraphic
+        // surface for a filter that has no primitives to evaluate
+        var stopwatch = Stopwatch.StartNew();
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+        stopwatch.Stop();
+
+        // Assert: the rect rendered its own normal blue fill - the (skipped) empty filter had no
+        // effect, the same tolerant per-element fallback used for every other filter resource bound
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
+
+        // Assert: completed promptly, proving no huge temporary surface was ever allocated
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the zero-primitive huge-region filter to be skipped promptly, but it took {stopwatch.Elapsed}.");
+    }
+
+    /// <summary>
+    ///     Proves that a filter with a pathologically large number of <c>fe*</c> primitive
+    ///     children (5,000 chained <c>feGaussianBlur</c> primitives, mirroring a reported repro
+    ///     that took ~26 seconds to load prior to the <c>MaxFilterPrimitivesPerFilter</c>/
+    ///     <c>MaxFilterPrimitiveWorkUnits</c> bounds) is tolerantly skipped entirely rather than
+    ///     evaluated, completing quickly instead of performing 5,000 region-sized blur passes.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterExcessivePrimitiveCount_SkipsFilterRatherThanUnboundedWork()
+    {
+        // Arrange: 5,000 chained feGaussianBlur primitives in a single filter - far beyond any
+        // realistic chain length (the longest real chain in this repository's fixtures is 10) -
+        // against a modest, default-expanded region
+        var primitives = string.Concat(Enumerable.Repeat("<feGaussianBlur stdDeviation='1'/>", 5000));
+        var svg = $"""
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  {primitives}
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act: must complete quickly rather than performing 5,000 region-sized blur passes - the
+        // 5-second threshold sits far below the ~26-second pathological baseline this bound
+        // eliminates, while remaining comfortably above normal test-execution variance (a
+        // rejected chain here does no per-primitive work at all: just one cheap element count
+        // plus one multiply/compare, so a healthy run completes in well under a second)
+        var stopwatch = Stopwatch.StartNew();
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+        stopwatch.Stop();
+
+        // Assert: the rect rendered its own normal blue fill - the (skipped) filter had no
+        // effect, the same tolerant per-element fallback used for every other filter resource
+        // bound
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
+
+        // Assert: completed promptly, proving the filter was skipped rather than evaluated
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the excessive-primitive-count filter to be skipped promptly, but it took {stopwatch.Elapsed}.");
+    }
+
+    /// <summary>
+    ///     Regression test for a code-review finding: <c>IsFilterPrimitiveWorkWithinBudget</c>'s
+    ///     <c>MaxFilterPrimitiveWorkUnits</c> ceiling is enforced independently for each
+    ///     individual filtered element, so a single <c>filter</c> definition referenced by many
+    ///     shapes could previously be charged the same per-filter ceiling once per reference, with
+    ///     no bound on the total number of references - a document with enough shapes could drive
+    ///     total filter-evaluation work arbitrarily high even though every single reference stayed
+    ///     within budget. Proves a new cumulative, per-<c>Load</c>-call
+    ///     <c>FilterWorkBudget</c>/<c>MaxCumulativeFilterWorkUnits</c> bound now caps the total: 13
+    ///     shapes reference the same filter, each individually charging exactly
+    ///     <c>MaxFilterPrimitiveWorkUnits</c> (5,000,000) work units (500 primitives against a
+    ///     100x100 region) - within the per-filter ceiling every time - but the 11th and later
+    ///     references exceed the new 50,000,000 cumulative ceiling and tolerantly fall back to
+    ///     unfiltered rendering instead.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes()
+    {
+        // Arrange: a filter chain of 499 no-op (unrecognized primitive name) children plus one
+        // trailing feFlood - 500 primitive-equivalent work units total - evaluated against a
+        // filter region sized (via explicit 250% width/height overrides on a 40x40 rect) to
+        // exactly 100x100 pixels, so each individual application charges exactly
+        // 500 * 100 * 100 = 5,000,000 work units, precisely at (never over) the per-filter
+        // MaxFilterPrimitiveWorkUnits ceiling. The unknown primitives are cheap no-op passthrough steps
+        // (no per-pixel work at all - see EvaluateFilterChain's remarks), and feFlood's own cost
+        // is a single cheap fill over the small 100x100 region, so evaluating this filter even
+        // many times remains fast; only the cumulative work-unit total, not actual per-primitive
+        // cost, is what this test exercises. 13 identical, non-overlapping rects (spaced 150 units
+        // apart so neighboring filter regions never overlap) reference the same filter: the first
+        // 10 charge a running cumulative total of exactly 50,000,000 (still within the new
+        // ceiling), while the 11th through 13th would push the cumulative total over budget and
+        // must tolerantly fall back to unfiltered rendering instead of throwing.
+        const int shapeCount = 13;
+        const int filteredShapeCount = 10;
+        var noOpPrimitives = string.Concat(Enumerable.Repeat("<feUnsupportedNoOp/>", 499));
+        var rects = string.Concat(Enumerable.Range(0, shapeCount).Select(i =>
+            $"<rect x='{10 + (i * 150)}' y='10' width='40' height='40' fill='blue' filter='url(#f)'/>"));
+        var svg = $"""
+            <svg viewBox='0 0 2000 120'>
+              <defs>
+                <filter id='f' width='250%' height='250%'>
+                  {noOpPrimitives}
+                  <feFlood flood-color='red'/>
+                </filter>
+              </defs>
+              {rects}
+            </svg>
+            """;
+
+        // Act: render the whole document - must complete promptly, and must not throw despite the
+        // cumulative filter work total across all 13 shapes (65,000,000) far exceeding the new
+        // cumulative ceiling (50,000,000)
+        var stopwatch = Stopwatch.StartNew();
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 2000, 120);
+        stopwatch.Stop();
+
+        // Assert: the first 10 shapes (cumulative total staying within the new 50,000,000
+        // ceiling) were actually filtered - each rendered as the feFlood's solid red, not its own
+        // blue fill
+        for (var i = 0; i < filteredShapeCount; i++)
+        {
+            var sampleX = 30 + (i * 150);
+            Assert.Equal(new Rgba32(255, 0, 0, 255), surface[sampleX, 30]);
+        }
+
+        // Assert: the remaining shapes (11th through 13th), which would have pushed the
+        // cumulative total over the new ceiling, tolerantly fell back to unfiltered rendering -
+        // each still shows its own normal blue fill, exactly as the pre-existing per-filter
+        // tolerant-fallback cases already behave
+        for (var i = filteredShapeCount; i < shapeCount; i++)
+        {
+            var sampleX = 30 + (i * 150);
+            Assert.Equal(new Rgba32(0, 0, 255, 255), surface[sampleX, 30]);
+        }
+
+        // Assert: completed promptly - the cumulative budget rejects excess filter applications
+        // before any of their own SourceGraphic/filter-chain work begins, so this document's total
+        // work stays proportional to only the 10 shapes actually filtered
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(1), $"Expected the cumulative-filter-work-budget document to render promptly, but it took {stopwatch.Elapsed}.");
+    }
+
+    /// <summary>
+    ///     Regression test for a code-review finding: the upfront filter work-budget check used to
+    ///     count only direct <c>fe*</c> children (a single <c>feMerge</c> always counted as 1),
+    ///     even though <c>ApplyFeMerge</c> performs one full-surface <c>CompositeOver</c> per
+    ///     <c>feMergeNode</c> child - so a <c>feMerge</c> with a pathologically large number of
+    ///     merge nodes (5,000 here, mirroring the sibling primitive-count test) used to bypass the
+    ///     budget entirely while still doing O(node-count &#215; region-area) work. Proves it is
+    ///     now charged per merge-node and tolerantly skipped just as promptly as the equivalent
+    ///     flat primitive-count case.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeMergeExcessiveNodeCount_SkipsFilterRatherThanUnboundedWork()
+    {
+        // Arrange: a single feMerge with 5,000 feMergeNode children - one direct filter-primitive
+        // child by the old (buggy) counting, but 5,000 CompositeOver-worth of actual work
+        var mergeNodes = string.Concat(Enumerable.Repeat("<feMergeNode/>", 5000));
+        var svg = $"""
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feMerge>
+                    {mergeNodes}
+                  </feMerge>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act: must complete quickly rather than performing 5,000 region-sized composite passes
+        var stopwatch = Stopwatch.StartNew();
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+        stopwatch.Stop();
+
+        // Assert: the rect rendered its own normal blue fill - the (skipped) filter had no effect
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
+
+        // Assert: completed promptly, proving the feMerge was skipped rather than evaluated
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the excessive-feMergeNode-count filter to be skipped promptly, but it took {stopwatch.Elapsed}.");
+    }
+
+    /// <summary>
+    ///     Regression test for a code-review finding: the filter-region degeneracy guard used to
+    ///     test the bare fill/centerline bounds (<c>localPath.GetBounds()</c>), which is zero-
+    ///     height for a horizontal <c>line</c> - incorrectly treating a valid filter on a stroked
+    ///     horizontal line as degenerate and silently skipping it. Proves the guard now uses the
+    ///     stroke-inflated ("actually-painted") bounds instead, so the filter is actually evaluated.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterOnStrokedHorizontalLine_UsesStrokeAwareBoundsNotDegenerate()
+    {
+        // Arrange: a horizontal line's centerline bounds have zero height; only the stroke-
+        // inflated bounds (centerline +/- half the 10-unit stroke width) are non-degenerate
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feFlood flood-color='red'/>
+                </filter>
+              </defs>
+              <line x1='20' y1='50' x2='80' y2='50' stroke='blue' stroke-width='10' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: a point just above the raw stroke's own painted extent (stroke-width 10 with
+        // butt caps covers y in [45,55]) but within the stroke-aware expanded filter region is
+        // filled with the flood color - proving the filter was actually evaluated rather than
+        // degenerately skipped (an unfixed, skipped filter would leave this point transparent)
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 44]);
+    }
+
+    /// <summary>
+    ///     Proves that a pathologically large <c>feGaussianBlur</c> <c>stdDeviation</c> (many
+    ///     orders of magnitude larger than the fixed <c>MaxFilterBlurStdDeviationPixels</c> bound)
+    ///     is clamped rather than causing unbounded work: the blur completes promptly (the box-blur
+    ///     implementation's cost does not scale with the requested radius) and produces a heavily
+    ///     diluted, non-opaque result rather than crashing or hanging.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterPathologicallyLargeBlurStdDeviation_ClampsRatherThanUnboundedWork()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feGaussianBlur stdDeviation='1000000'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act: must complete promptly despite the requested blur radius vastly exceeding both the
+        // clamp and the (small) temporary surface it is applied to
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the clamped blur diluted the rect's own opaque fill down to fully transparent,
+        // rather than throwing, hanging, or leaving the fill unaffected
+        Assert.Equal(0, surface[50, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves the filter region's default computation: absent <c>x</c>/<c>y</c>/<c>width</c>/
+    ///     <c>height</c> attributes, the region expands the referencing element's own bounding box
+    ///     by -10%/-10%/120%/120% (objectBoundingBox units), per the SVG specification's own
+    ///     defaults.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterDefaultRegion_ExpandsBoundingBoxByTenAndTwentyPercent()
+    {
+        // Arrange: a 20x20 rect at (40,40); the default region is therefore exactly
+        // (40-2, 40-2)-(40-2+24, 40-2+24) = (38,38)-(62,62)
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feFlood flood-color='white'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: just outside the computed default region, nothing was rendered
+        Assert.Equal(0, surface[37, 50].A);
+
+        // Assert: just inside each edge of the computed default region, the flood is visible
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[38, 50]);
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[61, 50]);
+
+        // Assert: just outside the opposite edge of the computed default region, nothing rendered
+        Assert.Equal(0, surface[63, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves that explicit <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> attributes on the
+    ///     <c>filter</c> element override the default region computation, using the declared
+    ///     (objectBoundingBox-relative) values instead.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterExplicitRegion_UsesDeclaredXYWidthHeight()
+    {
+        // Arrange: an explicit region expanding the rect's own bounding box by 200% on every
+        // side, far beyond the -10%/120% default, reaching all the way to the canvas corner
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f' x='-200%' y='-200%' width='500%' height='500%'>
+                  <feFlood flood-color='white'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the flood reaches a point well outside the default region, proving the
+        // explicit region (not the default) was used
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[10, 10]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>filterUnits="userSpaceOnUse"</c> falls back tolerantly to the same
+    ///     objectBoundingBox-relative region computation as the default, rather than being
+    ///     interpreted as literal absolute user-space coordinates - a deliberate simplification
+    ///     documented on <see cref="SvgCodec"/>'s own class-level remarks.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterUserSpaceOnUse_FallsBackToObjectBoundingBoxDefault()
+    {
+        // Arrange: x/y/width/height of 0/0/10/10 would, if interpreted literally as
+        // "userSpaceOnUse" absolute coordinates, place the filter region at (0,0)-(10,10) - a
+        // tiny box near the origin, unrelated to the rect's own (40,40)-(60,60) position
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f' x='0' y='0' width='10' height='10' filterUnits='userSpaceOnUse'>
+                  <feFlood flood-color='lime'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the flood reaches far into the canvas, consistent only with the tolerant
+        // objectBoundingBox-fraction fallback (x/y/width/height=0/0/10/10 interpreted as
+        // fractions of the rect's own 20x20 bounding box), not with a literal (0,0)-(10,10)
+        // absolute user-space box
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[90, 90]);
+
+        // Assert: nothing rendered near the origin, proving the literal absolute-coordinate
+        // interpretation was NOT used
+        Assert.Equal(0, surface[5, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feOffset</c> shifts its input by <c>dx</c>/<c>dy</c> (in user-space
+    ///     units, scaled by the current transform) prior to compositing back onto the canvas.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeOffsetFilter_ShiftsSourceGraphicByDxDy()
+    {
+        // Arrange: a generously expanded filter region (200% on every side) so the offset shape
+        // remains fully within the temporary surface, avoiding incidental clipping at its edges
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f' x='-1' y='-1' width='3' height='3'>
+                  <feOffset dx='5' dy='0'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='10' height='10' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the rect's content reappears shifted 5 pixels to the right of its own bounds
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[47, 45]);
+
+        // Assert: nothing remains at the rect's own (pre-offset) position
+        Assert.Equal(0, surface[42, 45].A);
+    }
+
+    /// <summary>
+    ///     Regression test for a code-review finding: <c>feOffset</c>'s own <c>dx</c>/<c>dy</c>-
+    ///     to-pixel conversion used <see cref="MathF.Round(float)"/>'s default banker's
+    ///     (round-to-even) rounding, which differs from the rest of this codebase's compositing
+    ///     pipeline (see <c>Surface.CompositeOverSpanCore</c>) - it consistently uses
+    ///     <see cref="MidpointRounding.AwayFromZero"/>. A <c>dx</c> that scales to exactly
+    ///     <c>0.5</c> pixels is the smallest case that distinguishes the two: away-from-zero rounds
+    ///     it up to a 1-pixel shift, while round-to-even rounds it down to 0 (since 0 is the
+    ///     nearest even integer). Proves the away-from-zero convention is now used.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeOffsetFilterWithHalfPixelDx_RoundsAwayFromZeroNotToEven()
+    {
+        // Arrange: a 1:1 user-space-to-pixel scale (100x100 viewBox onto a 100x100 canvas), so
+        // dx='0.5' scales to exactly 0.5 pixels - round-to-even would round this down to 0 (no
+        // shift), while away-from-zero rounds it up to a full 1-pixel shift
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f' x='-1' y='-1' width='3' height='3'>
+                  <feOffset dx='0.5' dy='0'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='10' height='10' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the rect's own original left column (x=40) is no longer covered - it shifted
+        // right by 1 whole pixel rather than staying at 0 shift
+        Assert.Equal(0, surface[40, 45].A);
+
+        // Assert: the shifted content now starts at x=41, one pixel to the right
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[41, 45]);
+    }
+
+    // ================================================================================================
     // Total geometry-parsing work budget (path data / point lists / text characters)
     // ================================================================================================
 
@@ -2042,6 +3639,415 @@ public class SvgCodecTests
 
         // Assert: the glyph rendered, proving the fallback list was walked to "TestFont"
         Assert.Equal(255, surface[35, 35].A);
+    }
+
+    // ================================================================================================
+    // font-weight / font-style-aware face matching (SvgFontFace / SelectClosestFace)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that a family with two registered faces (400/Normal, using
+    ///     <see cref="BuildTestFont"/>'s narrow 50-wide glyph, and 700/Normal, using
+    ///     <see cref="BuildBoldTestFont"/>'s wide 80-wide glyph) selects the bold face for a
+    ///     <c>font-weight="bold"</c> text element, while a sibling element with no own
+    ///     <c>font-weight</c> still selects the normal (narrow) face.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextFontWeightBold_SelectsBoldFaceOverNormalFace()
+    {
+        // Arrange: font-size equals the shared 100-unit em-square, so scale is 1:1. The narrow
+        // face fills canvas x equals 10 to 60; the wide face fills canvas x equals 10 to 90 - x
+        // equals 75 is filled only by the wide (bold) face.
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <text x='10' y='60' font-family='TestFont' font-size='100' font-weight='bold' fill='black'>A</text>
+              <text x='10' y='95' font-family='TestFont' font-size='100' fill='black'>A</text>
+            </svg>
+            """;
+        var faces = new Dictionary<string, IReadOnlyList<SvgFontFace>>
+        {
+            ["TestFont"] =
+            [
+                new SvgFontFace(BuildTestFont(), Weight: 400),
+                new SvgFontFace(BuildBoldTestFont(), Weight: 700)
+            ]
+        };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.LoadWithFontFaces(stream, 100, 100, faces);
+
+        // Assert: the font-weight="bold" text selected the wide face
+        Assert.Equal(255, surface[75, 35].A);
+        // Assert: the sibling text with no font-weight still selected the narrow face
+        Assert.Equal(0, surface[75, 70].A);
+    }
+
+    /// <summary>
+    ///     Proves that a family with two registered faces (400/Normal, using
+    ///     <see cref="BuildTestFont"/>'s glyph at local x equals 0-50, and 400/Italic, using
+    ///     <see cref="BuildItalicTestFont"/>'s glyph shifted to local x equals 20-70) selects the
+    ///     italic face for a <c>font-style="italic"</c> text element.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextFontStyleItalic_SelectsItalicFaceOverNormalFace()
+    {
+        // Arrange: the normal face fills canvas x equals 10 to 60; the italic face fills canvas x
+        // equals 30 to 80 - x equals 75 is filled only by the italic face, and x equals 15 is
+        // filled only by the normal face.
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <text x='10' y='60' font-family='TestFont' font-size='100' font-style='italic' fill='black'>A</text>
+            </svg>
+            """;
+        var faces = new Dictionary<string, IReadOnlyList<SvgFontFace>>
+        {
+            ["TestFont"] =
+            [
+                new SvgFontFace(BuildTestFont()),
+                new SvgFontFace(BuildItalicTestFont(), Style: SvgFontStyle.Italic)
+            ]
+        };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.LoadWithFontFaces(stream, 100, 100, faces);
+
+        // Assert: filled where only the italic face's glyph reaches
+        Assert.Equal(255, surface[75, 35].A);
+        // Assert: NOT filled where only the normal face's glyph would have reached
+        Assert.Equal(0, surface[15, 35].A);
+    }
+
+    /// <summary>
+    ///     Regression test: <c>font-style="oblique&#x9;10deg"</c> (tab-separated, per the CSS
+    ///     <c>font-style: oblique &lt;angle&gt;</c> grammar) must still tokenize on the tab and
+    ///     resolve to <see cref="SvgFontStyle.Italic"/>, rather than treating the whole value as one
+    ///     unparseable token (which would silently fall back to the inherited/normal style).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextFontStyleObliqueWithTabSeparatedAngle_SelectsItalicFaceOverNormalFace()
+    {
+        // Arrange: same glyph layout as the plain "italic" case above - x equals 75 is filled only
+        // by the italic face, and x equals 15 is filled only by the normal face.
+        const string svg = "<svg viewBox='0 0 100 100'>\n" +
+                            "  <text x='10' y='60' font-family='TestFont' font-size='100' font-style='oblique\t10deg' fill='black'>A</text>\n" +
+                            "</svg>";
+        var faces = new Dictionary<string, IReadOnlyList<SvgFontFace>>
+        {
+            ["TestFont"] =
+            [
+                new SvgFontFace(BuildTestFont()),
+                new SvgFontFace(BuildItalicTestFont(), Style: SvgFontStyle.Italic)
+            ]
+        };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.LoadWithFontFaces(stream, 100, 100, faces);
+
+        // Assert: filled where only the italic face's glyph reaches
+        Assert.Equal(255, surface[75, 35].A);
+        // Assert: NOT filled where only the normal face's glyph would have reached
+        Assert.Equal(0, surface[15, 35].A);
+    }
+
+    /// <summary>
+    ///     Proves the closest-weight-distance rule: with faces registered at 400 (narrow) and 900
+    ///     (wide), a request of <c>font-weight="600"</c> selects the 400 face (distance 200)
+    ///     rather than the 900 face (distance 300).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextFontWeightNumeric_SelectsClosestRegisteredFaceByDistance()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <text x='10' y='60' font-family='TestFont' font-size='100' font-weight='600' fill='black'>A</text>
+            </svg>
+            """;
+        var faces = new Dictionary<string, IReadOnlyList<SvgFontFace>>
+        {
+            ["TestFont"] =
+            [
+                new SvgFontFace(BuildTestFont(), Weight: 400),
+                new SvgFontFace(BuildBoldTestFont(), Weight: 900)
+            ]
+        };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.LoadWithFontFaces(stream, 100, 100, faces);
+
+        // Assert: the 900 (wide) face's exclusive region was NOT selected
+        Assert.Equal(0, surface[75, 35].A);
+        // Assert: sanity check the 400 (narrow) face did render
+        Assert.Equal(255, surface[35, 35].A);
+    }
+
+    /// <summary>
+    ///     Proves that an extreme, out-of-range <c>font-weight</c> value (still parsed, not
+    ///     rejected, by <c>ParseFontWeight</c>) does not throw an <see cref="OverflowException"/>
+    ///     from <c>SelectClosestFace</c>'s weight-distance computation, and still deterministically
+    ///     selects the closer-by-magnitude registered face rather than silently wrapping to a
+    ///     wrong distance.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextFontWeightExtremeValue_DoesNotOverflowAndSelectsClosestFace()
+    {
+        // Arrange: requesting int.MinValue puts both registered faces' weight distances far
+        // outside int range (int.MinValue - 0 and int.MinValue - 2000000000 both overflow a
+        // checked/unchecked int subtraction), but the 0-weight (narrow) face is unambiguously
+        // closer in magnitude than the 2000000000-weight (wide) face
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <text x='10' y='60' font-family='TestFont' font-size='100' font-weight='-2147483648' fill='black'>A</text>
+            </svg>
+            """;
+        var faces = new Dictionary<string, IReadOnlyList<SvgFontFace>>
+        {
+            ["TestFont"] =
+            [
+                new SvgFontFace(BuildTestFont(), Weight: 0),
+                new SvgFontFace(BuildBoldTestFont(), Weight: 2_000_000_000)
+            ]
+        };
+
+        // Act
+        using var stream = ToStream(svg);
+        var exception = Record.Exception(() => SvgCodec.LoadWithFontFaces(stream, 100, 100, faces));
+
+        // Assert: no OverflowException (or any other exception) was thrown
+        Assert.Null(exception);
+
+        // Assert: the far-closer 0-weight (narrow) face was selected, not the 2000000000-weight
+        // (wide) face
+        using var stream2 = ToStream(svg);
+        var surface = SvgCodec.LoadWithFontFaces(stream2, 100, 100, faces);
+        Assert.Equal(0, surface[75, 35].A);
+        Assert.Equal(255, surface[35, 35].A);
+    }
+
+    /// <summary>
+    ///     Proves the boldness-side tie-break rule: with faces registered at 300 (narrow) and 500
+    ///     (wide) - both equidistant (100) from a requested <c>font-weight="400"</c> - the 500
+    ///     face wins, because it is on the same "boldness side" (weight &gt;= 400) as the request,
+    ///     while the 300 face is not.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextFontWeightTie_PrefersMatchingBoldnessSide()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <text x='10' y='60' font-family='TestFont' font-size='100' font-weight='400' fill='black'>A</text>
+            </svg>
+            """;
+        var faces = new Dictionary<string, IReadOnlyList<SvgFontFace>>
+        {
+            ["TestFont"] =
+            [
+                new SvgFontFace(BuildTestFont(), Weight: 300),
+                new SvgFontFace(BuildBoldTestFont(), Weight: 500)
+            ]
+        };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.LoadWithFontFaces(stream, 100, 100, faces);
+
+        // Assert: the 500 (wide) face was selected, per the boldness-side tie-break
+        Assert.Equal(255, surface[75, 35].A);
+    }
+
+    /// <summary>
+    ///     Proves that a family with only a 400/Normal face registered still renders that face
+    ///     when <c>font-style="italic"</c> is requested (graceful fallback to the sole available
+    ///     face, rather than rendering nothing).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextFontStyleNoItalicRegistered_FallsBackToOnlyAvailableFace()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <text x='10' y='60' font-family='TestFont' font-size='100' font-style='italic' fill='black'>A</text>
+            </svg>
+            """;
+        var faces = new Dictionary<string, IReadOnlyList<SvgFontFace>>
+        {
+            ["TestFont"] = [new SvgFontFace(BuildTestFont())]
+        };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.LoadWithFontFaces(stream, 100, 100, faces);
+
+        // Assert: the sole registered (normal) face still rendered
+        Assert.Equal(255, surface[35, 35].A);
+    }
+
+    /// <summary>
+    ///     Proves that, among three registered faces (400/Normal narrow, 700/Normal wide, and
+    ///     700/Italic shifted), a request of <c>font-weight="bold" font-style="italic"</c>
+    ///     selects the 700/Italic face specifically - not merely a weight- or style-only match.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextFontWeightAndStyleCombined_SelectsExactMatchAmongThreeFaces()
+    {
+        // Arrange: the italic face's glyph (canvas x equals 30-80) is a strict subset of the
+        // bold/wide face's glyph (canvas x equals 10-90) - x equals 75 alone cannot distinguish
+        // them, so this also asserts x equals 85 (filled only by the wide face) is NOT filled,
+        // proving the wide (bold/normal) face was not selected instead.
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <text x='10' y='60' font-family='TestFont' font-size='100' font-weight='bold' font-style='italic' fill='black'>A</text>
+            </svg>
+            """;
+        var faces = new Dictionary<string, IReadOnlyList<SvgFontFace>>
+        {
+            ["TestFont"] =
+            [
+                new SvgFontFace(BuildTestFont(), Weight: 400),
+                new SvgFontFace(BuildBoldTestFont(), Weight: 700),
+                new SvgFontFace(BuildItalicTestFont(), Weight: 700, Style: SvgFontStyle.Italic)
+            ]
+        };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.LoadWithFontFaces(stream, 100, 100, faces);
+
+        // Assert: filled where only the italic face's glyph reaches
+        Assert.Equal(255, surface[75, 35].A);
+        // Assert: NOT filled where only the wide (bold/normal) face's glyph would have reached
+        Assert.Equal(0, surface[85, 35].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>g</c> element's <c>font-weight="bold"</c> cascades down to a child
+    ///     <c>text</c> element that does not set its own <c>font-weight</c>, mirroring
+    ///     <see cref="SvgCodec_Load_GroupFillInheritance_AppliesToChildWithoutOwnFill"/>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GroupFontWeightInheritance_AppliesToChildTextWithoutOwnFontWeight()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <g font-weight='bold'>
+                <text x='10' y='60' font-family='TestFont' font-size='100' fill='black'>A</text>
+              </g>
+            </svg>
+            """;
+        var faces = new Dictionary<string, IReadOnlyList<SvgFontFace>>
+        {
+            ["TestFont"] =
+            [
+                new SvgFontFace(BuildTestFont(), Weight: 400),
+                new SvgFontFace(BuildBoldTestFont(), Weight: 700)
+            ]
+        };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.LoadWithFontFaces(stream, 100, 100, faces);
+
+        // Assert: the child text inherited font-weight="bold" and selected the wide face
+        Assert.Equal(255, surface[75, 35].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>g</c> element's <c>font-style="italic"</c> cascades down to a child
+    ///     <c>text</c> element that does not set its own <c>font-style</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GroupFontStyleInheritance_AppliesToChildTextWithoutOwnFontStyle()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <g font-style='italic'>
+                <text x='10' y='60' font-family='TestFont' font-size='100' fill='black'>A</text>
+              </g>
+            </svg>
+            """;
+        var faces = new Dictionary<string, IReadOnlyList<SvgFontFace>>
+        {
+            ["TestFont"] =
+            [
+                new SvgFontFace(BuildTestFont()),
+                new SvgFontFace(BuildItalicTestFont(), Style: SvgFontStyle.Italic)
+            ]
+        };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.LoadWithFontFaces(stream, 100, 100, faces);
+
+        // Assert: the child text inherited font-style="italic" and selected the italic face
+        Assert.Equal(255, surface[75, 35].A);
+        Assert.Equal(0, surface[15, 35].A);
+    }
+
+    /// <summary>
+    ///     Regression test: proves the legacy single-font-per-family <c>Load</c> overload (taking
+    ///     <c>IReadOnlyDictionary&lt;string, TrueTypeFont&gt;</c>) always selects its one
+    ///     registered font, ignoring any requested <c>font-weight</c>/<c>font-style</c> entirely -
+    ///     proving the additive <see cref="SvgFontFace"/>-based overload never changed this
+    ///     overload's own established behavior.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextLegacySingleFontOverload_IgnoresRequestedWeightAndStyle()
+    {
+        // Arrange: bold and italic are both requested, but only one plain font is registered
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <text x='10' y='60' font-family='TestFont' font-size='100' font-weight='bold' font-style='italic' fill='black'>A</text>
+            </svg>
+            """;
+        var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100, fonts);
+
+        // Assert: the sole registered font still rendered at its known position
+        Assert.Equal(255, surface[35, 35].A);
+    }
+
+    /// <summary>
+    ///     Regression test for a source-breaking ambiguous-overload defect: prior to the
+    ///     <see cref="SvgCodec.LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>
+    ///     rename, a caller passing an explicit <see langword="null"/> literal (rather than
+    ///     omitting the argument) to <c>SvgCodec.Load(stream, width, height, null)</c> failed to
+    ///     compile with "the call is ambiguous", because <c>null</c> matched both the legacy
+    ///     <c>IReadOnlyDictionary&lt;string, TrueTypeFont&gt;?</c> overload and the newer,
+    ///     since-renamed <c>IReadOnlyDictionary&lt;string, IReadOnlyList&lt;SvgFontFace&gt;&gt;?</c>
+    ///     overload equally well. Now that the richer overload has its own distinct
+    ///     <see cref="SvgCodec.LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>
+    ///     name, only the single-font <c>Load</c> overload remains a candidate, so this call is
+    ///     unambiguous - the mere fact that this test file compiles (and this call resolves to the
+    ///     legacy overload's own documented "no font registered" behavior) is itself the
+    ///     regression check.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ExplicitNullFontsLiteral_CompilesUnambiguouslyAndFallsBackToBuiltInFont()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <text x='10' y='60' font-family='TestFont' font-size='100' fill='black'>A</text>
+            </svg>
+            """;
+
+        // Act: an explicit `null` literal - this is the exact call shape that used to be rejected
+        // by the compiler as ambiguous before the richer overload was renamed
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100, null);
+
+        // Assert: no font was registered for "TestFont", so nothing was rasterized for the glyph
+        Assert.Equal(0, surface[35, 35].A);
     }
 
     // ================================================================================================
@@ -3096,9 +5102,11 @@ public class SvgCodecTests
 
     /// <summary>
     ///     Proves that well-formed-but-out-of-scope constructs (<c>&lt;style&gt;</c>,
-    ///     <c>&lt;filter&gt;</c>, <c>&lt;mask&gt;</c>, <c>&lt;clipPath&gt;</c>,
-    ///     <c>&lt;pattern&gt;</c>, <c>&lt;marker&gt;</c>, a nested <c>&lt;svg&gt;</c>) are silently
-    ///     skipped and do not prevent the rest of the document from rendering.
+    ///     <c>&lt;mask&gt;</c>, <c>&lt;clipPath&gt;</c>,
+    ///     <c>&lt;pattern&gt;</c>, a nested <c>&lt;svg&gt;</c>) are silently
+    ///     skipped and do not prevent the rest of the document from rendering. (<c>filter</c> is
+    ///     no longer out-of-scope - see the dedicated filter tests above for its own
+    ///     dangling-reference/unsupported-primitive tolerance coverage.)
     /// </summary>
     [Fact]
     public void SvgCodec_Load_UnsupportedConstructs_StillRendersRestOfDocument()
@@ -3108,11 +5116,9 @@ public class SvgCodecTests
             <svg viewBox='0 0 100 100'>
               <style>rect { fill: red; }</style>
               <defs>
-                <filter id='f'><feGaussianBlur stdDeviation='2'/></filter>
                 <mask id='m'><rect width='100' height='100' fill='white'/></mask>
                 <clipPath id='c'><rect width='50' height='50'/></clipPath>
                 <pattern id='p' width='10' height='10'><rect width='5' height='5'/></pattern>
-                <marker id='mk'><circle r='2'/></marker>
               </defs>
               <svg x='0' y='0' width='10' height='10'><rect width='10' height='10' fill='yellow'/></svg>
               <rect x='10' y='10' width='30' height='30' fill='black'/>

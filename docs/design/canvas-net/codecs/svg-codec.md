@@ -2,7 +2,7 @@
 
 ![Codecs Structure](CodecsView.svg)
 
-<!-- cspell:ignore rasterizing rrggbb sizeless SMIL unparseable Linq uncatchable Glyf Loca -->
+<!-- cspell:ignore rasterizing rrggbb sizeless SMIL unparseable Linq uncatchable Glyf Loca renderable -->
 
 The `SvgCodec` class is the fifth software unit in the `Codecs` subsystem, and the first codec
 unit whose dependencies extend beyond `Canvas.Surface`. It provides hand-rolled, decode/
@@ -40,19 +40,49 @@ same reason as the other codecs: rasterizing an SVG document has no instance sta
   (`pad`/`reflect`/`repeat`), and a bounded, cycle-checked `href`/`xlink:href` template
   inheritance chain for color stops
 - `use`, referencing any element by id via `href`/`xlink:href`, with `x`/`y` translation
-- `text`, with `x`/`y`, `font-family`, `font-size`, `fill`, and `text-anchor`
-  (`start`/`middle`/`end`), rendered through a caller-supplied font dictionary
+- `marker`, referenced from `line`/`polyline`/`polygon`/`path` via the `marker-start`/
+  `marker-mid`/`marker-end` presentation attributes (`url(#id)`), with `markerWidth`/
+  `markerHeight`, `refX`/`refY`, `markerUnits` (`strokeWidth`/`userSpaceOnUse`), `orient`
+  (`auto`/`auto-start-reverse`/a fixed angle in degrees), and an optional `viewBox`
+- `filter`, referenced from any renderable shape or `text` element via the `filter`
+  presentation attribute (`url(#id)`), with `x`/`y`/`width`/`height` filter-region attributes
+  (objectBoundingBox units) and `feFlood`, `feGaussianBlur`, `feOffset`, `feComposite`, and
+  `feMerge` primitive children
+- `text`, with `x`/`y`, `font-family`, `font-size`, `fill`, `text-anchor`
+  (`start`/`middle`/`end`), and `font-weight`/`font-style`, rendered through a caller-supplied
+  dictionary of per-family `SvgFontFace` lists (or, via the legacy single-font-per-family
+  overload, a plain `TrueTypeFont` dictionary)
 
 #### Out-of-scope subset (tolerated, silently skipped)
 
-`style`, `filter`, `mask`, `clipPath`, `pattern`, `marker`, a nested `svg`, `animate`/other SMIL
+`style`, `mask`, `clipPath`, `pattern`, a nested `svg`, `animate`/other SMIL
 animation elements, `image`, `foreignObject`, and CSS class/id selectors are all well-formed SVG
 constructs this codec does not implement. Encountering one of these does not fail the whole
 document: `SvgCodec` silently skips just that element (and, for a container element, everything
 nested inside it) and continues walking the rest of the tree. This is a deliberate,
 tolerant-parsing policy distinct from the codec's malformed-input rejection policy (see
 _Error Handling_ below) — a document using an out-of-scope construct is not itself invalid SVG,
-only partially outside this codec's supported feature set.
+only partially outside this codec's supported feature set. Within the supported `marker` feature
+itself, `markerContentUnits` (a rarely-used SVG 2 attribute) and clipping marker content to its
+own `markerWidth`/`markerHeight` viewport (`overflow`) are both explicitly out of scope. Within
+the supported `filter` feature itself, `filterUnits="userSpaceOnUse"` (tolerantly falls back to
+the same objectBoundingBox-relative region computation as the default, rather than being
+interpreted as literal absolute user-space coordinates), group-level filtering (a `filter` on a
+`g`/`symbol`, or on a shape's own `marker` content, has no effect - filtering only ever applies
+per-element to a directly renderable shape/`text` element), and every filter primitive other than
+the five listed above (`feColorMatrix`, `feTurbulence`, `feDisplacementMap`, `feImage`, `feTile`,
+`feDropShadow`, `feConvolveMatrix`, `feDiffuseLighting`, `feSpecularLighting`,
+`feComponentTransfer`, and `feMorphology` - each tolerated as a no-op passthrough of its own input
+rather than rejected or skipped at the whole-filter level) are all explicitly out of scope.
+`feImage` in particular is deliberately never implemented, specifically because it is the only
+primitive that could reference another filtered element's own output - omitting it means
+filter-chain evaluation needs no additional recursion-depth guard of its own, unlike `use`/
+`marker` references. Within the supported `text` feature itself, the `font-weight` relative
+keywords `bolder`/`lighter` (which resolve to a value relative to the inherited weight rather
+than an absolute one) are not implemented - encountering either keyword tolerantly falls back to
+the inherited weight - and the `font-style` keyword `oblique` is folded into the same
+`SvgFontStyle.Italic` value as `italic` rather than being distinguished as a third style (see
+`SvgFontStyle`'s remarks in the source for the rationale).
 
 A percentage value on a shape/text geometry attribute (`x`, `y`, `width`, `height`, `rx`, `ry`,
 `cx`, `cy`, `r`, `x1`/`y1`/`x2`/`y2`, `font-size`, `stroke-width`, `stroke-miterlimit`,
@@ -65,14 +95,22 @@ attributes and gradient coordinates/`stop` `offset` are unaffected, since both h
 
 ### Data Model
 
-`SvgCodec` has no public data types of its own beyond the shared `Codecs.ImageInfo` record struct
-(see _Codecs Subsystem Design_, `../codecs.md`). Internally, it defines a private `RenderState`
-record capturing the cascading presentation state (fill, stroke, fill-opacity, stroke-opacity,
-opacity, fill-rule, stroke-width, stroke-linecap, stroke-linejoin, stroke-miterlimit,
-stroke-dasharray, stroke-dashoffset, font-family, font-size, text-anchor) that is threaded down
-through the element tree alongside an accumulated `System.Numerics.Matrix3x2` transform, plus a
-private `RenderContext` capturing fixed per-document state (the id→`XElement` index, the caller's
-font dictionary, and the resolved fit transform).
+`SvgCodec` now has two small public data types of its own, alongside the shared
+`Codecs.ImageInfo` record struct (see _Codecs Subsystem Design_, `../codecs.md`): `SvgFontFace`
+(a `readonly record struct` pairing a `Fonts.TrueTypeFont` with the `Weight`/`Style` face it
+represents, modeled directly on `ImageInfo`'s "plain immutable data carrier" style) and
+`SvgFontStyle` (a public two-value enum, `Normal`/`Italic`, deliberately narrowed from CSS's
+three-way `normal`/`italic`/`oblique` keyword set — the reported use case, "bold titles and
+italic keywords", never needs to distinguish a true italic face from a mechanically-slanted
+`oblique` one, so `SvgCodec`'s `font-style` parser maps both keywords onto `Italic`). Internally,
+it defines a private `RenderState` record capturing the cascading presentation state (fill,
+stroke, fill-opacity, stroke-opacity, opacity, fill-rule, stroke-width, stroke-linecap,
+stroke-linejoin, stroke-miterlimit, stroke-dasharray, stroke-dashoffset, font-family, font-size,
+font-weight, font-style, text-anchor, and the three marker-start/marker-mid/marker-end
+specifications) that is threaded down through the element tree alongside an accumulated
+`System.Numerics.Matrix3x2` transform, plus a private `RenderContext` capturing fixed per-document
+state (the id→`XElement` index, the caller's font-family-to-`SvgFontFace`-list dictionary, and
+the resolved fit transform).
 
 ### XML Parsing Hardening (XXE)
 
@@ -94,9 +132,13 @@ an external or parameter entity - is rejected with `InvalidDataException` via bo
 
 ### Key Methods
 
-#### Load(Stream stream, int width, int height, IReadOnlyDictionary\<string, TrueTypeFont\>? fonts = null)
+#### LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary\<string, IReadOnlyList\<SvgFontFace\>\>?)
 
-Reads an SVG document from an open stream and rasterizes it into a new `width`x`height`
+Named distinctly from `Load` (rather than overloaded onto it) because both `fonts` dictionary
+value types share the same parameter arity, so an overload sharing the `Load` name would make an
+explicit untyped `null` literal passed as the 4th positional argument ambiguous between the two
+overloads — a source-breaking compile error for existing callers using that pattern. Reads an
+SVG document from an open stream and rasterizes it into a new `width`x`height`
 `Surface`. Parses the document with `XDocument.Load`, builds an id→`XElement` index over the
 whole tree up front (so `use`/`href`/gradient-template references resolve correctly regardless of
 document order), resolves the root `viewBox`/`width`/`height` into an intrinsic size, computes
@@ -105,8 +147,47 @@ below), then recursively walks the tree, baking every transform (the root fit tr
 with every nested `g`/element `transform`) directly into the `Vector2` points fed into
 `Geometry.PathBuilder` before calling `Drawing.PathFiller.Fill`/`Drawing.PathStroker.Stroke` —
 neither of which has a transform parameter; they treat `Geometry.Path` coordinates as final
-pixel-space. `fonts` is optional; when supplied, `text` elements are matched against it by
-family name (see _Text Rendering and Font Lookup_ below).
+pixel-space. `fonts` is optional; when supplied, `text` elements are matched against it by family
+name, then, when a family has more than one registered `SvgFontFace`, by closest
+`font-weight`/`font-style` match (see _Text_ under _Gradient, Use, and Text Support and Limits_
+below). This is the richer of the two `fonts`-accepting overloads — the legacy single-font-per-
+family overload below delegates to this one.
+
+**Throws:**
+
+- `ArgumentNullException` — `stream` is null
+- `InvalidDataException` — the stream is not well-formed XML, or the document's `viewBox`,
+  `transform`, gradient, or path `d` data is malformed (see _Error Handling_ below)
+- `ArgumentOutOfRangeException` — `width` or `height` is not positive (propagated, unwrapped,
+  from `Surface`'s own constructor — see _Error Handling_ below)
+
+`fonts` is optional; a `null` dictionary, a dictionary with no entry matching a requested
+`font-family`, or a matching entry whose face list is empty, all cause the affected `text`
+element(s) to be silently skipped rather than throwing — see _Gradient, Use, and Text Support and
+Limits_ below.
+
+#### LoadWithFontFaces(string, int, int, IReadOnlyDictionary\<string, IReadOnlyList\<SvgFontFace\>\>?)
+
+Opens `path` as a read-only `FileStream` and delegates to
+`LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>?)`.
+
+**Throws:**
+
+- `ArgumentNullException` — `path` is null
+- `ArgumentException` — `path` is empty or consists only of whitespace
+- `InvalidDataException` / `ArgumentOutOfRangeException` — see the stream overload above
+- Underlying file-system exceptions propagate uncaught
+
+#### Load(Stream stream, int width, int height, IReadOnlyDictionary\<string, TrueTypeFont\>? fonts = null)
+
+The legacy, pre-existing overload: accepts at most one `TrueTypeFont` per font-family. A thin
+wrapper that delegates to `LoadWithFontFaces` above via a private `ToFontFaces` helper, which
+wraps each dictionary entry as a single normal-weight (`400`)/normal-style `SvgFontFace` — so
+every `text` element resolves to that single registered font regardless of its own
+`font-weight`/`font-style`, preserving this overload's behavior exactly as it was before
+`SvgFontFace` existed. Reads an SVG document from an open stream and rasterizes it into a new
+`width`x`height` `Surface`. `fonts` is optional; when supplied, `text` elements are matched
+against it by family name (see _Text_ below).
 
 **Throws:**
 
@@ -123,7 +204,8 @@ Support and Limits_ below.
 
 #### Load(string path, int width, int height, IReadOnlyDictionary\<string, TrueTypeFont\>? fonts = null)
 
-Opens `path` as a read-only `FileStream` and delegates to `Load(Stream, int, int, ...)`.
+Opens `path` as a read-only `FileStream` and delegates to `Load(Stream, int, int, ...)`, the
+legacy single-font-per-family overload directly above.
 
 **Throws:**
 
@@ -220,7 +302,11 @@ gradient stop) it resolves to at the leaf, rather than modeling isolated group c
 documented simplification: it produces visually identical results for the common case of
 non-overlapping shapes within a semi-transparent group, but does not reproduce the subtly
 different result SVG's isolated-group compositing model would produce for overlapping shapes
-within the same semi-transparent group.
+within the same semi-transparent group. A filtered element (see **Filters** below) is the one
+exception to this per-pixel fold: because `opacity` applies to the filtered result as a whole,
+not to the pre-filter source paint, its `SourceGraphic` is instead rendered fully opaque, and the
+element's own `opacity` is applied exactly once, afterward, as a uniform coverage multiplier when
+the filtered result is composited onto the canvas.
 
 ### Gradient, Use, and Text Support and Limits
 
@@ -251,6 +337,120 @@ recursion depth, raising `InvalidDataException` if it is exceeded rather than re
 indefinitely - see **Element/Group Nesting and Total-Element Bounds** below for why this depth
 cap, on its own, does not bound every form of unbounded rendering work.
 
+**Markers.** A `line`/`polyline`/`polygon`/`path` element's own `marker-start`/`marker-mid`/
+`marker-end` presentation attributes (each `url(#id)`, resolved through the same id index and
+dangling-reference tolerance as a gradient `fill`/`stroke` reference above) each identify a
+`marker` element rendered once per eligible vertex of that shape's already-built local-space
+outline (never re-parsed from the shape's own raw attribute text): the first vertex uses
+`marker-start`, the last uses `marker-end`, and every vertex between uses `marker-mid` - a
+2-vertex shape therefore has a start and an end but no mid. For a multi-subpath `path`, this
+whole-shape first/last classification is a deliberate, documented simplification: `marker-start`/
+`marker-end` apply only to the very first/last vertex of the _whole_ path, not to each subpath's
+own start/end (matches at least one common browser's behavior, rather than a spec clause verified
+directly). A vertex's `orient="auto"` rotation angle is the average of its incoming and outgoing
+segment tangents (falling back to whichever one is present at an open subpath's own start/end),
+except that `orient="auto-start-reverse"` adds a further 180 degrees at the shape's very first
+vertex only. Per the SVG specification, an absent/blank `orient` attribute uses the fixed
+0-degree default (no rotation) rather than following the vertex tangent - only the explicit
+`auto`/`auto-start-reverse` keywords opt into tangent-following behavior; an unparseable explicit
+value also tolerantly falls back to this same 0-degree default. Each marker instance is scaled by
+`markerWidth`/`markerHeight` (further fitted by the
+marker's own optional `viewBox`, using the same "meet" scale-down as the top-level document's
+own viewBox-fitting policy, but without that policy's additional centering step - a deliberate
+simplification since a marker's `refX`/`refY` already provide an equivalent anchor point), then
+by the referencing shape's own effective stroke width when `markerUnits` is `strokeWidth` (the
+default) or left at 1:1 for `userSpaceOnUse`, then rotated and translated to the vertex position,
+and finally composed with the shape's own accumulated transform - so a marker is transformed
+through exactly the same pipeline as the shape it decorates. A marker's content renders through a
+fresh `RenderState` cascade seeded from the marker element's own presentation attributes (or the
+SVG/CSS initial defaults if it sets none), never inheriting the referencing shape's own fill/
+stroke - per the SVG specification's independent marker-content model. Marker content renders
+through the same `RenderElement` recursion used for every other element (including `use`), so the
+existing element-tree-depth and total-rendered-element bounds described below apply to it
+automatically; because a `marker` can reference another `marker` (directly, or through a chain,
+via a child shape's own `marker-start`/`marker-mid`/`marker-end`), rendering additionally tracks
+its own independent `marker`-reference recursion depth, mirroring `use`'s cycle guard exactly
+(same fixed-depth-cap pattern, same `InvalidDataException` on exceeding it) but counted
+separately, since a marker chain and a `use` chain are independent nesting concerns. `rect`/
+`circle`/`ellipse` never receive markers (these shapes have no natural vertices to orient one
+along), and a `marker-start`/`marker-mid`/`marker-end` referencing a nonexistent id, or an id that
+does not resolve to a `marker` element, is tolerated as a silent no-op for that one vertex.
+
+**Filters.** A directly renderable shape or `text` element's own `filter` presentation attribute
+(`url(#id)`, resolved through the same id index and dangling-reference tolerance as a gradient
+`fill`/`stroke` reference above) identifies a `filter` element whose primitive children are
+evaluated against that one element's own rendered content - `filter` never cascades through
+`RenderState` (matching `transform`'s own non-cascading handling) and never applies at the
+group/`marker`-content level, only per-element. The filter region - the rectangular area, in the
+element's own local space, that the filter's temporary offscreen buffer covers - defaults to
+-10%/-10%/120%/120% (`x`/`y`/`width`/`height`, objectBoundingBox units) of the element's own
+local-space bounding box, or uses the filter element's own explicit `x`/`y`/`width`/`height`
+attributes when present (still always interpreted as objectBoundingBox-relative fractions, even
+when `filterUnits="userSpaceOnUse"` is declared - a deliberate, tolerant simplification). This
+local-space region is transformed by the element's own accumulated transform, then rounded
+outward to an integer pixel bounding box; if that box is degenerate, non-finite, or exceeds
+`Surface.MaxDimension` on either axis, the filter is tolerantly skipped entirely and the element
+renders normally, exactly as if it had no `filter` attribute - the same bounded-resource
+philosophy as `Surface`'s own dimension cap, applied here to prevent an attacker-controlled
+filter region from driving an unbounded temporary allocation. The filter's own `fe*` primitive
+chain is additionally bounded by a fixed primitive-count cap (`MaxFilterPrimitivesPerFilter`,
+1,000) and a primitive-count-times-region-area work budget (`MaxFilterPrimitiveWorkUnits`,
+5,000,000), checked once, upfront, before `SourceGraphic` is even allocated, and tolerantly
+skipped the same way once either is exceeded - because, unlike the per-element costs
+`MaxTotalRenderedElements` already bounds (which assumes O(1)/O(perimeter) cost per element, not
+O(region-area) cost per primitive), a single filter's own primitive-chain cost is
+O(primitive count × region area), a cost dimension no pre-existing guard actually covers. That
+per-filter ceiling alone is enforced independently for every shape that references a filter, so a
+single `filter` definition referenced by many shapes could otherwise be charged the same ceiling
+once per reference with no bound on the total number of references - a document with enough
+shapes could drive total filter-evaluation work arbitrarily high even though every individual
+reference stayed within budget. A second, cumulative, per-`Load`-call `FilterWorkBudget` closes
+that gap: it charges each filter application's own region-weighted work unit into one running
+total across the whole document, and once that running total would exceed a fixed
+`MaxCumulativeFilterWorkUnits` ceiling (50,000,000 - ten times `MaxFilterPrimitiveWorkUnits`,
+generous enough that a real document reusing one filter across a modest number of shapes is never
+rejected, while still keeping worst-case total filter-evaluation work bounded to a small, fixed
+multiple of a single filter's own bound), every further filter application for the remainder of
+that `Load` call tolerantly falls back to unfiltered rendering instead - the same fallback
+behavior as every other filter resource bound, never a thrown exception. A
+`filter` element with zero primitive children is likewise tolerantly skipped, identically to an
+out-of-budget chain and checked in the same guard, before `SourceGraphic` is allocated - because
+a filter with no primitives to evaluate can never change the rendered output, regardless of how
+large its filter region is. When the
+region is accepted and the chain's work stays within both the per-filter and cumulative budgets,
+the
+element's own content is rendered a second time - independently of its main render onto
+`context.Surface` - into a fresh, region-sized temporary `Surface` (this buffer is the filter's
+implicit `SourceGraphic` input; `SourceAlpha`, its alpha-only derivative, is built lazily only if
+some primitive actually references it). Each primitive in document order reads a named or
+default input (the previous primitive's own output, or `SourceGraphic` if it is first), and
+writes a named or default output, all buffers always exactly the temporary surface's own
+dimensions - this invariant is what lets `feComposite`'s `over` operator and `feMerge` both reuse
+`Surface.CompositeOver(Surface)` (which requires equal-size surfaces) unchanged, with no new
+per-pixel blending math. `feFlood` fills a buffer with a solid, alpha-scaled color
+(`flood-color`/`flood-opacity`). `feGaussianBlur` approximates a Gaussian blur with three passes
+of a sliding-window box blur (cost independent of the requested radius, unlike a naive
+per-pixel-kernel blur), reading only the first (isotropic) component of `stdDeviation` and
+clamping it to a fixed `MaxFilterBlurStdDeviationPixels` bound so a pathologically large
+requested radius cannot translate into unbounded per-pixel work. `feOffset` shifts a buffer's
+content by `dx`/`dy` (scaled by the element's own transform). `feComposite` implements Porter-Duff
+`over` by delegating to `Surface.CompositeOver`, and implements `in`/`out`/`atop`/`xor` via one
+small, dedicated per-pixel premultiplied-alpha helper - the only genuinely new blending math this
+feature introduces. `feMerge` layers each `feMergeNode` child's own resolved input over an
+initially transparent accumulator, in document order, via the same `CompositeOver`. Any other
+primitive type (`feColorMatrix`, `feTurbulence`, `feDisplacementMap`, `feImage`, `feTile`,
+`feDropShadow`, `feConvolveMatrix`, `feDiffuseLighting`, `feSpecularLighting`,
+`feComponentTransfer`, `feMorphology`) is a tolerant no-op passthrough of its own input, still
+registered under its own `result` name so later primitives can still resolve it by name. The
+final primitive's own output buffer is composited onto `context.Surface` at the region's own
+pixel position via `Surface.CompositeOverSpan`, clipped to the canvas's own bounds - reusing the
+same offset-aware compositing primitive used elsewhere in this codec, rather than inventing new
+canvas-writing logic for filters. The element's own cascaded `opacity` (forced to `1.0` while
+`SourceGraphic` itself is rendered, so the filter chain always evaluates against a fully-opaque
+source) is applied at this same final compositing step, as a uniform per-pixel coverage
+multiplier passed to `CompositeOverSpan` - per SVG semantics, `opacity` applies to the filtered
+result as a whole, exactly once, not to the pre-filter source paint.
+
 #### Element/Group Nesting and Total-Element Bounds
 
 The `use`-cycle guard above only bounds recursion that passes back through a `use` element - it
@@ -277,7 +477,7 @@ total number of elements rendered/visited across the whole document walk - charg
 element is processed further, and raises `InvalidDataException` once it exceeds a fixed budget far
 beyond any real-world document's element count but small enough to keep worst-case rendering
 CPU/memory bounded to a small, practical amount. Every fixed counter/budget in this class
-(`GeometryWorkBudget.Charge`, the total-rendered-element counter above, and `BuildIdIndex`'s own
+(`GeometryWorkBudget.Charge`, the total-rendered-element counter above, `BuildIdIndex`'s own
 whole-document-walk counter described below) checks the new amount against the remaining budget
 _before_ adding it to the running total, rather than adding first and checking afterward - a
 single call charging an amount large enough to make the addition itself overflow `int` cannot
@@ -285,7 +485,12 @@ therefore bypass the budget by wrapping past a small, still-under-budget-looking
 defense-in-depth: given today's fixed constants, no call site can charge an amount anywhere close
 to large enough to threaten an `int` overflow before the very next charge past the real budget
 already throws, but the check-before-add ordering remains correct regardless of whether these
-constants are ever raised in the future.
+constants are ever raised in the future. The cumulative filter-work budget described in
+**Filters** above (`FilterWorkBudget.TryCharge`) follows the identical check-before-add pattern,
+but - because a filter's own resource cost is always tolerated with a fallback rather than treated
+as a hard document-rejection condition, per the existing convention for every other filter
+resource bound - reports failure by returning `false` (letting the caller fall back to unfiltered
+rendering) rather than throwing.
 
 Even the total-rendered-element budget above does not bound the size of a single element's own
 content: it counts how many elements are visited, so one `path`/`polyline`/`polygon`/`text`
@@ -407,12 +612,35 @@ transitively bounds `ParseStops`'s later, otherwise-unbounded `<stop>` enumerati
 
 **Text.** A `text` element's `font-family` is matched, case-insensitively, against a
 caller-supplied `fonts` dictionary keyed by family name, walking a comma-separated fallback list
-of families exactly as CSS `font-family` does. Each mapped character's glyph outline, advance
+of families exactly as CSS `font-family` does. Once a family name matches, the matching family's
+registered `SvgFontFace` list is narrowed to a single face via a private `SelectClosestFace`
+helper, scoring each candidate face against the element's own cascaded `font-weight`/
+`font-style` (parsed by private `ParseFontWeight`/`ParseFontStyle` helpers alongside every other
+presentation attribute in `ApplyPresentationAttributes` - `font-weight` accepts the keywords
+`normal`(`400`)/`bold`(`700`) or a literal integer, tolerantly falling back to the inherited value
+for the unimplemented relative keywords `bolder`/`lighter` or any other unparseable value;
+`font-style` accepts `normal`/`italic`/`oblique`, the latter two both resolving to
+`SvgFontStyle.Italic`) in priority order: (1) an exact style match always beats a style mismatch,
+regardless of weight; (2) among faces tied on style match, the smallest absolute
+`font-weight` distance wins; (3) among faces tied on both, the face on the same "boldness side"
+as the request (its own weight and the requested weight are both `>= 400` or both `< 400`) wins
+over one on the opposite side. This is a deliberately simple approximation of the CSS Fonts
+Module Level 4 font-weight fallback cascade - not a byte-for-byte clone of it - matching a
+documented "do not over-engineer" design choice; the first-registered face wins any remaining
+tie, since the running best is only replaced by a strictly better-scoring candidate. A caller
+registering exactly one `SvgFontFace` per family (including every family registered via the
+legacy single-font-per-family `Load` overload, which always wraps its entries as a single
+normal-weight/normal-style face) is therefore unaffected by this algorithm: with only one
+candidate, it is always selected regardless of the requested `font-weight`/`font-style`,
+preserving that overload's pre-existing behavior exactly.
+
+Each mapped character's glyph outline, advance
 width, and kerning (against the previous glyph) are looked up via
 `Fonts.TrueTypeFont.GetGlyphIndex`/`GetGlyphOutline`/`GetAdvanceWidth`/`GetKerning`, and the
 resulting glyph run is offset horizontally according to `text-anchor` before each glyph's outline
-is transformed into pixel space and filled. If no `fonts` dictionary is supplied at all, or none
-of its entries match the requested family (including every entry in a fallback list), that `text`
+is transformed into pixel space and filled. If no `fonts` dictionary is supplied at all, none of
+its entries match the requested family (including every entry in a fallback list), or a matching
+family's face list is empty, that `text`
 element is **silently skipped** — not rendered, and not reported as an error. This is a
 deliberate tolerant-parsing policy: font availability is entirely up to the caller, and a
 document referencing a family the caller did not supply is not malformed input.

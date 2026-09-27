@@ -16,7 +16,9 @@ for their provenance and licensing.
 | `gradient.svg` | `linearGradient` with `stop` children, referenced via `fill="url(#id)"` |
 | `use-reference.svg` | `defs` (non-rendering template storage) and `use` (reference + `x`/`y` offset) |
 | `text.svg` | `text` rendering, paired in tests with the real `FontFixtures/OpenSans-Regular.ttf` font |
-| `tolerant-unsupported.svg` | A well-formed but out-of-scope `filter`, alongside a `rect` that still renders |
+| `tolerant-unsupported.svg` | An unreferenced `filter` def (never resolved), plus a `rect` that still renders |
+| `arrow-markers.svg` | `marker` referenced via `marker-end`, `orient="auto"`, `markerUnits="userSpaceOnUse"` |
+| `label-halo.svg` | `filter` referenced via `filter="url(#id)"`: `feFlood`/`feGaussianBlur`/`feComposite` halo |
 
 ## Real-world third-party fixtures
 
