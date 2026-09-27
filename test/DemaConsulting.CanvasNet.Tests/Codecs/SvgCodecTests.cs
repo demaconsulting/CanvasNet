@@ -1708,9 +1708,11 @@ public class SvgCodecTests
 
     /// <summary>
     ///     Proves that a <c>marker-end</c> reference renders its <c>marker</c> element's content
-    ///     at the shape's final vertex, oriented along the segment's own direction
-    ///     (<c>orient="auto"</c>, the default) and sized in user-space units
-    ///     (<c>markerUnits="userSpaceOnUse"</c>).
+    ///     at the shape's final vertex, sized in user-space units (<c>markerUnits="userSpaceOnUse"</c>).
+    ///     No <c>orient</c> attribute is set, so per the fixed 0-degree default (see
+    ///     <see cref="SvgCodec_Load_MarkerOrientOmittedOnDiagonalLine_UsesFixedZeroDegreeDefaultNotTangent"/>)
+    ///     the marker is unrotated - which happens to coincide with the horizontal segment's own
+    ///     0-degree tangent, so this test alone cannot distinguish the two behaviors.
     /// </summary>
     [Fact]
     public void SvgCodec_Load_MarkerEndOnLine_RendersArrowheadPastLineEnd()
@@ -1794,7 +1796,7 @@ public class SvgCodecTests
         const string svg = """
             <svg viewBox='0 0 16 8'>
               <defs>
-                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' markerUnits='userSpaceOnUse'>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse'>
                   <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
                 </marker>
               </defs>
@@ -1824,7 +1826,7 @@ public class SvgCodecTests
         const string svg = """
             <svg viewBox='0 0 12 12'>
               <defs>
-                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' markerUnits='userSpaceOnUse'>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse'>
                   <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
                 </marker>
               </defs>
@@ -1853,7 +1855,7 @@ public class SvgCodecTests
         const string svg = """
             <svg viewBox='0 0 12 12'>
               <defs>
-                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' markerUnits='userSpaceOnUse'>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse'>
                   <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
                 </marker>
               </defs>
@@ -1873,6 +1875,43 @@ public class SvgCodecTests
         Assert.True(
             actual.R == 255 && actual.G == 0 && actual.B == 0 && actual.A > 150,
             $"Expected a strongly red-tinted pixel at (9,9), got R={actual.R} G={actual.G} B={actual.B} A={actual.A}.");
+    }
+
+    /// <summary>
+    ///     Regression test: proves that an omitted <c>orient</c> attribute uses the SVG
+    ///     specification's fixed 0-degree default rather than following the vertex tangent like an
+    ///     explicit <c>orient="auto"</c> - a defect where an absent/blank <c>orient</c> was
+    ///     incorrectly routed into the same tangent-following branch as an explicit <c>auto</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerOrientOmittedOnDiagonalLine_UsesFixedZeroDegreeDefaultNotTangent()
+    {
+        // Arrange: a 45-degree diagonal line ending at (7,6.5) with no orient attribute set on its
+        // marker - if the (pre-fix, buggy) tangent-following "auto" behavior applied, the bar would
+        // rotate 45 degrees and land far from the vertex (roughly (9.1,8.6)); the correct fixed
+        // 0-degree default instead leaves the bar unrotated, landing at exactly the same world
+        // position (9,6) as the purely-horizontal-line case (see
+        // SvgCodec_Load_MarkerOrientAutoOnHorizontalLine_OrientsAlongPositiveX), since a fixed
+        // 0-degree rotation is independent of the segment's own direction of travel
+        const string svg = """
+            <svg viewBox='0 0 12 12'>
+              <defs>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' markerUnits='userSpaceOnUse'>
+                  <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
+                </marker>
+              </defs>
+              <line x1='1' y1='0.5' x2='7' y2='6.5' stroke='black' stroke-width='1' marker-end='url(#bar)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 12, 12);
+
+        // Assert: the bar is unrotated, landing at (9,6) exactly as the horizontal-line case does
+        // - not rotated 45 degrees along the diagonal tangent, which would leave this pixel
+        // transparent instead
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[9, 6]);
     }
 
     /// <summary>
@@ -2500,6 +2539,47 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Regression test for a code-review finding: <c>CompositeFeOperator</c>'s own per-channel
+    ///     rounding used <see cref="MathF.Round(float)"/>'s default banker's (round-to-even)
+    ///     rounding, which differs from the rest of this codebase's compositing pipeline (see
+    ///     <c>Surface.CompositeOverSpanCore</c>) - it consistently uses
+    ///     <see cref="MidpointRounding.AwayFromZero"/>. This <c>xor</c> combination of a near-
+    ///     transparent black flood (<c>flood-opacity</c> exactly <c>2/255</c>) over a 40%-opaque
+    ///     gray flood produces a computed channel value of exactly <c>126.5</c> - away-from-zero
+    ///     rounds this up to <c>127</c>, while round-to-even rounds it down to <c>126</c> (the
+    ///     nearest even integer). Proves the away-from-zero convention is now used.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeCompositeOperatorXorWithHalfChannelValue_RoundsAwayFromZeroNotToEven()
+    {
+        // Arrange: a black flood at alpha exactly 2/255 composited "xor" over a 40%-opaque gray
+        // flood - chosen (see this test's own remarks) so every output channel computes to
+        // exactly 126.5, isolating the rounding-mode difference deterministically
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='#000000' flood-opacity='0.00784313725490196' result='fg'/>
+                  <feFlood flood-color='#808080' flood-opacity='0.4' result='bg'/>
+                  <feComposite in='fg' in2='bg' operator='xor'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: every channel rounded up to 127 (away-from-zero), not down to 126 (round-to-even)
+        var actual = surface[5, 5];
+        Assert.Equal(127, actual.R);
+        Assert.Equal(127, actual.G);
+        Assert.Equal(127, actual.B);
+    }
+
+    /// <summary>
     ///     Proves that a <c>filter="url(#id)"</c> reference which does not resolve to any element
     ///     (a dangling reference) renders the element normally, exactly as if no <c>filter</c>
     ///     attribute had been present at all - matching the existing dangling-reference tolerance
@@ -2588,7 +2668,48 @@ public class SvgCodecTests
     }
 
     /// <summary>
-    ///     Proves that a <c>filter</c> with a pathologically large number of <c>fe*</c> primitive
+    ///     Regression test for a code-review finding: a <c>filter</c> element with zero primitive
+    ///     children has a zero primitive-count/work-unit charge, so it used to trivially pass the
+    ///     upfront work-budget check even when paired with a pathologically large filter region
+    ///     (here <c>100000%</c> of the element's own bounding box, matching
+    ///     <see cref="SvgCodec_Load_FilterPathologicallyLargeRegion_SkipsFilterRatherThanUnboundedAllocation"/>'s
+    ///     region) - the budget-OK verdict then let the code allocate a huge temporary
+    ///     <c>SourceGraphic</c> surface for a filter that, having no primitives, could not possibly
+    ///     change the rendered output. Proves the empty filter is now tolerantly skipped before any
+    ///     surface is allocated, completing promptly and leaving the element rendered normally.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterWithZeroPrimitivesAndHugeRegion_SkipsFilterRatherThanAllocatingSurface()
+    {
+        // Arrange: a filter element with no fe* primitive children at all, paired with the same
+        // pathologically large region used by the sibling huge-region test
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f' width='100000%' height='100000%'>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act: must complete promptly, without attempting to allocate a huge SourceGraphic
+        // surface for a filter that has no primitives to evaluate
+        var stopwatch = Stopwatch.StartNew();
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+        stopwatch.Stop();
+
+        // Assert: the rect rendered its own normal blue fill - the (skipped) empty filter had no
+        // effect, the same tolerant per-element fallback used for every other filter resource bound
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
+
+        // Assert: completed promptly, proving no huge temporary surface was ever allocated
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Expected the zero-primitive huge-region filter to be skipped promptly, but it took {stopwatch.Elapsed}.");
+    }
+
+    /// <summary>
+    ///     Proves that a filter with a pathologically large number of <c>fe*</c> primitive
     ///     children (5,000 chained <c>feGaussianBlur</c> primitives, mirroring a reported repro
     ///     that took ~26 seconds to load prior to the <c>MaxFilterPrimitivesPerFilter</c>/
     ///     <c>MaxFilterPrimitiveWorkUnits</c> bounds) is tolerantly skipped entirely rather than
@@ -2873,6 +2994,45 @@ public class SvgCodecTests
 
         // Assert: nothing remains at the rect's own (pre-offset) position
         Assert.Equal(0, surface[42, 45].A);
+    }
+
+    /// <summary>
+    ///     Regression test for a code-review finding: <c>feOffset</c>'s own <c>dx</c>/<c>dy</c>-
+    ///     to-pixel conversion used <see cref="MathF.Round(float)"/>'s default banker's
+    ///     (round-to-even) rounding, which differs from the rest of this codebase's compositing
+    ///     pipeline (see <c>Surface.CompositeOverSpanCore</c>) - it consistently uses
+    ///     <see cref="MidpointRounding.AwayFromZero"/>. A <c>dx</c> that scales to exactly
+    ///     <c>0.5</c> pixels is the smallest case that distinguishes the two: away-from-zero rounds
+    ///     it up to a 1-pixel shift, while round-to-even rounds it down to 0 (since 0 is the
+    ///     nearest even integer). Proves the away-from-zero convention is now used.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeOffsetFilterWithHalfPixelDx_RoundsAwayFromZeroNotToEven()
+    {
+        // Arrange: a 1:1 user-space-to-pixel scale (100x100 viewBox onto a 100x100 canvas), so
+        // dx='0.5' scales to exactly 0.5 pixels - round-to-even would round this down to 0 (no
+        // shift), while away-from-zero rounds it up to a full 1-pixel shift
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f' x='-1' y='-1' width='3' height='3'>
+                  <feOffset dx='0.5' dy='0'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='10' height='10' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the rect's own original left column (x=40) is no longer covered - it shifted
+        // right by 1 whole pixel rather than staying at 0 shift
+        Assert.Equal(0, surface[40, 45].A);
+
+        // Assert: the shifted content now starts at x=41, one pixel to the right
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[41, 45]);
     }
 
     // ================================================================================================

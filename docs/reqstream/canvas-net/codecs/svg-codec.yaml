@@ -160,8 +160,9 @@ sections:
                   polyline, polygon, or path element's marker-start/marker-mid/marker-end
                   presentation attributes at that shape's first/interior/last vertex
                   respectively, honoring markerWidth/markerHeight, refX/refY, markerUnits
-                  (strokeWidth or userSpaceOnUse), orient (auto, auto-start-reverse, or a fixed
-                  angle in degrees), and an optional viewBox, while never rendering a marker for
+                  (strokeWidth or userSpaceOnUse), orient (auto, auto-start-reverse, a fixed
+                  angle in degrees, or the fixed 0-degree default when omitted/blank), and an
+                  optional viewBox, while never rendering a marker for
                   rect/circle/ellipse and never inheriting the referencing shape's own
                   fill/stroke into the marker's own content.
                 justification: |
@@ -177,6 +178,7 @@ sections:
                   - SvgCodec_Load_MarkerOrientAutoOnHorizontalLine_OrientsAlongPositiveX
                   - SvgCodec_Load_MarkerOrientAutoOnVerticalLine_OrientsAlongPositiveY
                   - SvgCodec_Load_MarkerOrientAutoOnDiagonalLine_OrientsAlong45Degrees
+                  - SvgCodec_Load_MarkerOrientOmittedOnDiagonalLine_UsesFixedZeroDegreeDefaultNotTangent
                   - SvgCodec_Load_MarkerStartOrientAuto_PointsIntoLine
                   - SvgCodec_Load_MarkerStartOrientAutoStartReverse_PointsAwayFromLine
                   - SvgCodec_Load_MarkerUnitsUserSpaceOnUseVsStrokeWidthDefault_ScalesDifferently
@@ -540,11 +542,13 @@ sections:
                   - SvgCodec_Load_FilterExplicitRegion_UsesDeclaredXYWidthHeight
                   - SvgCodec_Load_FilterUserSpaceOnUse_FallsBackToObjectBoundingBoxDefault
                   - SvgCodec_Load_FeOffsetFilter_ShiftsSourceGraphicByDxDy
+                  - SvgCodec_Load_FeOffsetFilterWithHalfPixelDx_RoundsAwayFromZeroNotToEven
                   - SvgCodec_Load_LabelHaloFixture_RendersWhiteHaloBehindLineMidpointLabel
                   - SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent
                   - SvgCodec_Load_FeCompositeOperatorIn_KeepsForegroundWeightedByBackgroundAlpha
                   - SvgCodec_Load_FeCompositeOperatorAtop_BlendsBothInputsWeightedByBothAlphas
                   - SvgCodec_Load_FeCompositeOperatorXor_KeepsEachInputWhereTheOtherHasNoCoverage
+                  - SvgCodec_Load_FeCompositeOperatorXorWithHalfChannelValue_RoundsAwayFromZeroNotToEven
                   - SvgCodec_Load_FilterOnStrokedHorizontalLine_UsesStrokeAwareBoundsNotDegenerate
 
               - id: CanvasNet-Codecs-SvgCodec-FilterResourceSafety
@@ -552,10 +556,13 @@ sections:
                   The SvgCodec class shall tolerate a filter="url(#id)" reference to a
                   nonexistent id as a silent no-op, and shall bound filter-related resource use by
                   tolerantly skipping a filter whose region would require a temporary surface
-                  exceeding Surface.MaxDimension and by clamping feGaussianBlur's stdDeviation to
-                  a fixed maximum, so that neither a pathological filter region nor a
-                  pathological blur radius can cause unbounded allocation or unbounded per-pixel
-                  work; and shall bound the total primitive-count/region-area work a single
+                  exceeding Surface.MaxDimension (including a filter with zero primitive children,
+                  which can never change the rendered output and is skipped before any temporary
+                  surface is allocated regardless of region size) and by clamping
+                  feGaussianBlur's stdDeviation to a fixed maximum, so that neither a pathological
+                  filter region nor a pathological blur radius can cause unbounded allocation or
+                  unbounded per-pixel work; and shall bound the total primitive-count/region-area
+                  work a single
                   filter's own primitive chain may perform, tolerantly skipping the filter once
                   exceeded.
                 justification: |
@@ -578,6 +585,7 @@ sections:
                 tests:
                   - SvgCodec_Load_FilterDanglingReference_RendersElementNormally
                   - SvgCodec_Load_FilterPathologicallyLargeRegion_SkipsFilterRatherThanUnboundedAllocation
+                  - SvgCodec_Load_FilterWithZeroPrimitivesAndHugeRegion_SkipsFilterRatherThanAllocatingSurface
                   - SvgCodec_Load_FilterPathologicallyLargeBlurStdDeviation_ClampsRatherThanUnboundedWork
                   - SvgCodec_Load_FilterExcessivePrimitiveCount_SkipsFilterRatherThanUnboundedWork
                   - SvgCodec_Load_FeMergeExcessiveNodeCount_SkipsFilterRatherThanUnboundedWork

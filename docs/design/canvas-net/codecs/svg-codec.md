@@ -346,7 +346,11 @@ own start/end (matches at least one common browser's behavior, rather than a spe
 directly). A vertex's `orient="auto"` rotation angle is the average of its incoming and outgoing
 segment tangents (falling back to whichever one is present at an open subpath's own start/end),
 except that `orient="auto-start-reverse"` adds a further 180 degrees at the shape's very first
-vertex only. Each marker instance is scaled by `markerWidth`/`markerHeight` (further fitted by the
+vertex only. Per the SVG specification, an absent/blank `orient` attribute uses the fixed
+0-degree default (no rotation) rather than following the vertex tangent - only the explicit
+`auto`/`auto-start-reverse` keywords opt into tangent-following behavior; an unparseable explicit
+value also tolerantly falls back to this same 0-degree default. Each marker instance is scaled by
+`markerWidth`/`markerHeight` (further fitted by the
 marker's own optional `viewBox`, using the same "meet" scale-down as the top-level document's
 own viewBox-fitting policy, but without that policy's additional centering step - a deliberate
 simplification since a marker's `refX`/`refY` already provide an equivalent anchor point), then
@@ -391,7 +395,11 @@ chain is additionally bounded by a fixed primitive-count cap (`MaxFilterPrimitiv
 skipped the same way once either is exceeded - because, unlike the per-element costs
 `MaxTotalRenderedElements` already bounds (which assumes O(1)/O(perimeter) cost per element, not
 O(region-area) cost per primitive), a single filter's own primitive-chain cost is
-O(primitive count × region area), a cost dimension no pre-existing guard actually covers. When the
+O(primitive count × region area), a cost dimension no pre-existing guard actually covers. A
+`filter` element with zero primitive children is likewise tolerantly skipped, identically to an
+out-of-budget chain and checked in the same guard, before `SourceGraphic` is allocated - because
+a filter with no primitives to evaluate can never change the rendered output, regardless of how
+large its filter region is. When the
 region is accepted and the chain's work stays within budget, the
 element's own content is rendered a second time - independently of its main render onto
 `context.Surface` - into a fresh, region-sized temporary `Surface` (this buffer is the filter's

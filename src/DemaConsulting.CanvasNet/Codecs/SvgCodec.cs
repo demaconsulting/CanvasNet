@@ -3327,6 +3327,14 @@ public static class SvgCodec
     ///     let a pathologically large <c>feMerge</c> bypass this budget while still doing
     ///     O(node-count &#215; region-area) work.
     ///     </para>
+    ///     <para>
+    ///     A <c>filter</c> element with zero primitive children (a zero work-unit count from
+    ///     <see cref="CountFilterPrimitiveWorkUnits"/>) is skipped identically to an out-of-budget
+    ///     chain - checked in the same guard, before <c>SourceGraphic</c> is allocated - because a
+    ///     filter with no primitives to evaluate can never change the rendered output, regardless of
+    ///     how large its filter region is; treating it as "budget OK" would still allocate a
+    ///     potentially enormous temporary surface just to hand it back unchanged.
+    ///     </para>
     /// </remarks>
     private static void RenderFilteredShape(XElement filterElement, Path localPath, RenderState state, Matrix3x2 transform, RenderContext context)
     {
@@ -3339,8 +3347,12 @@ public static class SvgCodec
 
         var (pixelX, pixelY, pixelWidth, pixelHeight) = region.Value;
 
+        // A filter with zero primitive children can never change the rendered output - it has
+        // nothing to evaluate - so it is tolerantly treated exactly like an already-degenerate/
+        // out-of-budget filter (unfiltered fallback) rather than falling through to allocate a
+        // potentially enormous SourceGraphic surface just to hand it back unchanged
         var primitiveCount = CountFilterPrimitiveWorkUnits(filterElement);
-        if (!IsFilterPrimitiveWorkWithinBudget(primitiveCount, pixelWidth, pixelHeight))
+        if (primitiveCount == 0 || !IsFilterPrimitiveWorkWithinBudget(primitiveCount, pixelWidth, pixelHeight))
         {
             RenderShape(localPath, state, transform, context);
             return;
@@ -3902,8 +3914,8 @@ public static class SvgCodec
         var dx = ParsePercentOrNumber((string?)element.Attribute("dx") ?? string.Empty, 1f) ?? 0f;
         var dy = ParsePercentOrNumber((string?)element.Attribute("dy") ?? string.Empty, 1f) ?? 0f;
 
-        var pixelDx = (int)MathF.Round(dx * scale);
-        var pixelDy = (int)MathF.Round(dy * scale);
+        var pixelDx = (int)MathF.Round(dx * scale, MidpointRounding.AwayFromZero);
+        var pixelDy = (int)MathF.Round(dy * scale, MidpointRounding.AwayFromZero);
 
         var width = input.Width;
         var height = input.Height;
@@ -4035,12 +4047,12 @@ public static class SvgCodec
                     var premultR = (weightFg * fg.R * fgA) + (weightBg * bg.R * bgA);
                     var premultG = (weightFg * fg.G * fgA) + (weightBg * bg.G * bgA);
                     var premultB = (weightFg * fg.B * fgA) + (weightBg * bg.B * bgA);
-                    outR = (byte)Math.Clamp(MathF.Round(premultR / outA), 0f, 255f);
-                    outG = (byte)Math.Clamp(MathF.Round(premultG / outA), 0f, 255f);
-                    outB = (byte)Math.Clamp(MathF.Round(premultB / outA), 0f, 255f);
+                    outR = (byte)Math.Clamp(MathF.Round(premultR / outA, MidpointRounding.AwayFromZero), 0f, 255f);
+                    outG = (byte)Math.Clamp(MathF.Round(premultG / outA, MidpointRounding.AwayFromZero), 0f, 255f);
+                    outB = (byte)Math.Clamp(MathF.Round(premultB / outA, MidpointRounding.AwayFromZero), 0f, 255f);
                 }
 
-                outRow[x] = new Rgba32(outR, outG, outB, (byte)Math.Clamp(MathF.Round(outA * 255f), 0f, 255f));
+                outRow[x] = new Rgba32(outR, outG, outB, (byte)Math.Clamp(MathF.Round(outA * 255f, MidpointRounding.AwayFromZero), 0f, 255f));
             }
         }
 
@@ -5387,28 +5399,40 @@ public static class SvgCodec
     /// <param name="autoAngleDegrees">The vertex's own computed tangent angle (see <see cref="ComputeVertexAngleDegrees"/>).</param>
     /// <param name="isStartVertex">Whether this vertex is the referencing shape's very first vertex.</param>
     /// <returns>
-    ///     <paramref name="autoAngleDegrees"/> when <paramref name="raw"/> is absent or
-    ///     <c>"auto"</c> (the common case); <paramref name="autoAngleDegrees"/> plus 180 degrees
-    ///     when <paramref name="raw"/> is <c>"auto-start-reverse"</c> and <paramref name="isStartVertex"/>
+    ///     <paramref name="autoAngleDegrees"/> when <paramref name="raw"/> is exactly the keyword
+    ///     <c>"auto"</c>; <paramref name="autoAngleDegrees"/> plus 180 degrees when
+    ///     <paramref name="raw"/> is <c>"auto-start-reverse"</c> and <paramref name="isStartVertex"/>
     ///     is <see langword="true"/> (unchanged at any other vertex); otherwise an attempted fixed
-    ///     degrees value, tolerantly falling back to <c>0</c> if <paramref name="raw"/> is not a
-    ///     valid/finite number - a cosmetic-only concern parallel to this class's existing tolerant
-    ///     handling of an invalid <c>stroke-miterlimit"</c>/<c>stroke-dasharray</c>, not a
-    ///     document-abort concern.
+    ///     degrees value, tolerantly falling back to <c>0</c> if <paramref name="raw"/> is absent,
+    ///     blank, or not a valid/finite number. Per the SVG specification, an absent/blank
+    ///     <c>orient</c> uses this fixed 0-degree default rather than following the vertex tangent -
+    ///     only the explicit <c>auto</c>/<c>auto-start-reverse</c> keywords opt into tangent-following
+    ///     behavior. The fallback-to-<c>0</c> parse failure path is a cosmetic-only concern parallel
+    ///     to this class's existing tolerant handling of an invalid
+    ///     <c>stroke-miterlimit</c>/<c>stroke-dasharray</c>, not a document-abort concern.
     /// </returns>
     private static float ParseMarkerOrient(string? raw, float autoAngleDegrees, bool isStartVertex)
     {
-        if (string.IsNullOrWhiteSpace(raw) || string.Equals(raw.Trim(), "auto", StringComparison.OrdinalIgnoreCase))
+        // An absent/blank orient is NOT the same as an explicit "auto": the SVG spec's fixed
+        // 0-degree default only falls through to the parse-failure branch below, which returns 0 -
+        // it must never be routed into the tangent-following "auto" branch
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return 0f;
+        }
+
+        var trimmed = raw.Trim();
+        if (string.Equals(trimmed, "auto", StringComparison.OrdinalIgnoreCase))
         {
             return autoAngleDegrees;
         }
 
-        if (string.Equals(raw.Trim(), "auto-start-reverse", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(trimmed, "auto-start-reverse", StringComparison.OrdinalIgnoreCase))
         {
             return isStartVertex ? autoAngleDegrees + 180f : autoAngleDegrees;
         }
 
-        return float.TryParse(raw.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var fixedAngle) && float.IsFinite(fixedAngle)
+        return float.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var fixedAngle) && float.IsFinite(fixedAngle)
             ? fixedAngle
             : 0f;
     }

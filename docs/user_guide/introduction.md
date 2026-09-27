@@ -975,10 +975,12 @@ registered font, regardless of its own `font-weight`/`font-style` - exactly as b
 overload existed. If `fonts` is supplied, `text` elements are rendered using the matching
 `TrueTypeFont` keyed by family name; unmatched or missing fonts cause that `text` element to be
 silently skipped rather than throwing. Callers registering more than one face per family (bold/
-italic variants) should call the richer overload directly instead. Passing an explicit untyped
-`null` literal as the 4th positional argument to either this overload or its richer sibling is
-ambiguous between the two (a compile-time error); omit the argument, or cast the `null` to the
-specific dictionary type intended.
+italic variants) should call the richer overload directly instead. Because the richer overload is
+named `LoadWithFontFaces` rather than sharing the `Load` name, there is no ambiguity between the
+two: `Load(stream, width, height, null)` always resolves to this legacy single-font-per-family
+overload with no fonts registered, and `LoadWithFontFaces(stream, width, height, null)` always
+resolves to the richer per-face overload with no fonts registered - each call is unambiguous
+regardless of which overload the caller intends.
 
 **Exceptions:**
 

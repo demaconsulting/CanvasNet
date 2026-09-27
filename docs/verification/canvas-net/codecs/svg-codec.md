@@ -180,6 +180,7 @@ rejected with `InvalidDataException` once the bounded recursion guard is exceede
 `SvgCodec_Load_MarkerOrientAutoOnHorizontalLine_OrientsAlongPositiveX`,
 `SvgCodec_Load_MarkerOrientAutoOnVerticalLine_OrientsAlongPositiveY`,
 `SvgCodec_Load_MarkerOrientAutoOnDiagonalLine_OrientsAlong45Degrees`,
+`SvgCodec_Load_MarkerOrientOmittedOnDiagonalLine_UsesFixedZeroDegreeDefaultNotTangent`,
 `SvgCodec_Load_MarkerStartOrientAuto_PointsIntoLine`,
 `SvgCodec_Load_MarkerStartOrientAutoStartReverse_PointsAwayFromLine`,
 `SvgCodec_Load_MarkerUnitsUserSpaceOnUseVsStrokeWidthDefault_ScalesDifferently`,
@@ -198,7 +199,10 @@ multi-vertex `polyline`, with each marker's own reference point (`refX`/`refY`) 
 its vertex regardless of rotation; asserts `orient="auto"` orients a marker along a horizontal,
 vertical, and 45-degree diagonal segment's own direction of travel (the diagonal case uses an
 alpha threshold rather than exact full opacity, tolerating this rasterizer's edge anti-aliasing on
-a thin, diagonally rotated shape); asserts a plain `orient="auto"` `marker-start` points into the
+a thin, diagonally rotated shape); asserts an omitted `orient` attribute uses the fixed 0-degree
+default rather than following the vertex tangent like an explicit `orient="auto"` (a regression
+test for a defect where an absent/blank `orient` was incorrectly routed into the same tangent-
+following branch as an explicit `auto`); asserts a plain `orient="auto"` `marker-start` points into the
 line's own body while `orient="auto-start-reverse"` reverses it by 180 degrees to point away from
 the line instead; asserts `markerUnits="userSpaceOnUse"` keeps a marker's size independent of the
 referencing shape's effective stroke width while the default `markerUnits="strokeWidth"` scales it
@@ -606,11 +610,13 @@ for `filter`'s own dedicated coverage - it is no longer an out-of-scope construc
 `SvgCodec_Load_FilterExplicitRegion_UsesDeclaredXYWidthHeight`,
 `SvgCodec_Load_FilterUserSpaceOnUse_FallsBackToObjectBoundingBoxDefault`,
 `SvgCodec_Load_FeOffsetFilter_ShiftsSourceGraphicByDxDy`,
+`SvgCodec_Load_FeOffsetFilterWithHalfPixelDx_RoundsAwayFromZeroNotToEven`,
 `SvgCodec_Load_LabelHaloFixture_RendersWhiteHaloBehindLineMidpointLabel`,
 `SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent`,
 `SvgCodec_Load_FeCompositeOperatorIn_KeepsForegroundWeightedByBackgroundAlpha`,
 `SvgCodec_Load_FeCompositeOperatorAtop_BlendsBothInputsWeightedByBothAlphas`,
 `SvgCodec_Load_FeCompositeOperatorXor_KeepsEachInputWhereTheOtherHasNoCoverage`,
+`SvgCodec_Load_FeCompositeOperatorXorWithHalfChannelValue_RoundsAwayFromZeroNotToEven`,
 `SvgCodec_Load_FilterOnStrokedHorizontalLine_UsesStrokeAwareBoundsNotDegenerate`
 
 Asserts a bare `feFlood` primitive's flood color entirely replaces the referencing element's own
@@ -645,7 +651,13 @@ that isolate the operator's own per-pixel formula from any shape-geometry/filter
 concern: `in` keeps the "in" input's own color weighted by the "in2" input's own alpha; `atop`
 blends both inputs' own colors weighted by (`in2`'s alpha, `1 - in`'s alpha); and `xor` keeps each
 input only where the other has no coverage - each asserting the exact expected pixel value the
-documented formula produces. Asserts a horizontal, stroked `line` with a `feFlood` filter is
+documented formula produces. `feOffset`'s own `dx`/`dy`-to-pixel conversion and
+`feComposite`'s own per-channel output are each additionally verified to round
+away-from-zero (matching `Surface.CompositeOverSpanCore`'s established convention), not the
+`MathF.Round` default of banker's/round-to-even rounding: a `dx` that scales to exactly 0.5
+pixels rounds up to a full 1-pixel shift, and an `xor` composite chosen to produce a computed
+channel value of exactly 126.5 rounds up to 127, not down to 126. Asserts a horizontal, stroked
+`line` with a `feFlood` filter is
 evaluated (not skipped as degenerate) despite its zero-height centerline/fill bounds - a
 regression test for a defect where the filter-region degeneracy guard used the bare
 centerline/fill bounds instead of the actually-painted (stroke-expanded) bounds, incorrectly
@@ -656,6 +668,7 @@ rendering.
 
 **Tests**: `SvgCodec_Load_FilterDanglingReference_RendersElementNormally`,
 `SvgCodec_Load_FilterPathologicallyLargeRegion_SkipsFilterRatherThanUnboundedAllocation`,
+`SvgCodec_Load_FilterWithZeroPrimitivesAndHugeRegion_SkipsFilterRatherThanAllocatingSurface`,
 `SvgCodec_Load_FilterPathologicallyLargeBlurStdDeviation_ClampsRatherThanUnboundedWork`,
 `SvgCodec_Load_FilterExcessivePrimitiveCount_SkipsFilterRatherThanUnboundedWork`,
 `SvgCodec_Load_FeMergeExcessiveNodeCount_SkipsFilterRatherThanUnboundedWork`
@@ -665,7 +678,12 @@ as if no `filter` attribute were present, matching this codec's general dangling
 convention (`ResolvePaint`/`ResolveMarkerElement`); asserts a filter region large enough to require
 an unreasonably large temporary surface (`width`/`height` of `100000%`) is tolerantly skipped
 entirely, rather than attempting an allocation exceeding `Surface.MaxDimension`, with the element
-still rendering its own normal content; asserts an `feGaussianBlur` `stdDeviation` many orders
+still rendering its own normal content; asserts a `filter` element with zero primitive children,
+paired with that same pathologically large region, is likewise tolerantly skipped before any
+temporary surface is allocated - a regression test for a defect where a zero primitive/work-unit
+count trivially passed the upfront work-budget check, letting the code allocate a potentially
+enormous `SourceGraphic` surface for a filter that, having no primitives, could never change the
+rendered output; asserts an `feGaussianBlur` `stdDeviation` many orders
 of magnitude larger than the fixed `MaxFilterBlurStdDeviationPixels` bound is clamped rather than
 causing unbounded work - the box-blur implementation's own cost does not scale with the requested
 radius, so this completes promptly and produces a heavily diluted (rather than crashing or
