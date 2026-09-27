@@ -618,7 +618,12 @@ sections:
                   unit, honoring the same filter-region computation, opacity-applies-to-filtered-
                   result-once ordering, and resource-safety budgets already used for a single
                   filtered shape, while continuing to have no effect on a filter attribute placed
-                  on marker content.
+                  on marker content; and shall bound the total bounds-only pre-pass work performed
+                  across every nested/sibling filtered group for a single Load call, throwing
+                  InvalidDataException once a fixed cumulative ceiling is exceeded, so a document
+                  with many levels of nested filtered groups cannot force unbounded pre-pass work
+                  merely because each nesting level's own pre-pass uses a fresh, independently
+                  bounded local counter/budget.
                 justification: |
                   SVG's own filter effects specification applies filter identically to any
                   element, including container elements such as g/symbol/use - real-world SVG
@@ -631,7 +636,25 @@ sections:
                   existing per-shape filter pipeline (region computation, primitive evaluation,
                   final compositing, resource-safety budgets) for a group's own combined subtree
                   bounds closes this gap without introducing any new blending math or a second,
-                  divergent resource-safety mechanism.
+                  divergent resource-safety mechanism. Sizing that offscreen buffer requires a
+                  bounds-only pre-pass (ComputeSubtreeLocalBounds) that necessarily re-visits the
+                  same subtree the real render pass visits again immediately afterward; charging
+                  the real per-Load-call MaxTotalRenderedElements counter/GeometryWorkBudget
+                  instance in both passes would double-count every element under a filtered group
+                  against those fixed ceilings, so each pre-pass invocation instead uses a fresh,
+                  local, independently bounded scratch counter/budget. That fix, however, means
+                  each nesting level of a chain of nested filtered groups "resets" its own
+                  local-scratch ceiling, so a document with many such nesting levels, each
+                  wrapping a large subtree, can force total pre-pass work proportional to
+                  depth times subtree-size - a CPU-amplification resource-safety gap distinct from
+                  (and left open by) the double-counting fix above. A third, cumulative,
+                  per-Load-call bounds-pre-pass work budget closes this remaining gap the same way
+                  the cumulative filter-evaluation work budget above closes the analogous "one
+                  filter, many references" gap: one shared instance, charged once per element
+                  visited by any bounds pre-pass across the whole document, throwing
+                  InvalidDataException - the same convention this pre-pass's own existing
+                  per-invocation depth/element-count guards already use at the same call site -
+                  once a fixed cumulative ceiling is exceeded.
                 tests:
                   - SvgCodec_Load_GroupFilter_FeFloodOnGWithTwoChildren_FillsCombinedBoundsIncludingGap
                   - SvgCodec_Load_GroupFilter_UseReferencingSymbolWithFilter_FillsCombinedBounds
@@ -646,6 +669,8 @@ sections:
                   - SvgCodec_Load_FilteredGroupNearTotalElementBudget_RendersWithoutThrowing
                   - SvgCodec_Load_FilteredGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveFilter
                   - SvgCodec_Load_GroupFilterWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput
+                  - SvgCodec_Load_DeeplyNestedFilteredGroupsExceedingCumulativeBoundsPrePassBudget_ThrowsInvalidDataException
+                  - SvgCodec_Load_ModestlyNestedFilteredGroups_RenderCorrectlyWithoutFalsePositiveFallback
 
               - id: CanvasNet-Codecs-SvgCodec-ValidationNull
                 title: >-

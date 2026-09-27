@@ -475,7 +475,27 @@ per-`Load`-call counter/budget `RenderElement` itself threads through - so this 
 pre-pass can never permanently consume any of the real resource ceiling the render pass (and
 every other filtered shape/group in the document) also needs; the same fixed ceiling constants
 still bound the pre-pass's own work against a pathologically large subtree, just via a
-call-scoped instance rather than the shared one. A `line`/`polyline`/`polygon`/`path` descendant's
+call-scoped instance rather than the shared one. Resetting those local-scratch ceilings on every
+invocation, however, leaves a distinct resource-safety gap open: a document with many levels of
+nested filtered `g`/`symbol`/`use` elements, each wrapping a large subtree, causes each nesting
+level's own `RenderFilteredGroup` call to re-walk an overlapping portion of that same subtree
+(the real render pass only descends into a nested filtered group's own content after that
+group's _own_ pre-pass has already walked it once more), so total pre-pass work grows with
+`depth * subtree-size` even though every individual invocation's own element count stays
+comfortably under `MaxTotalRenderedElements`. A third, cumulative, per-`Load`-call
+`BoundsPrePassWorkBudget` closes this gap the same way `FilterWorkBudget` closes the analogous
+"one filter, many references" gap: a single shared instance (never one of the fresh local-scratch
+instances above) is threaded down to every `RenderFilteredGroup`/`ComputeSubtreeLocalBounds`/
+`ComputeMarkerContentLocalBounds`/`ComputeOneMarkerLocalBounds` call for the whole document,
+charged once per element visited by any bounds pre-pass, and once its running total would exceed
+a fixed `MaxCumulativeBoundsPrePassWork` ceiling (1,000,000 - ten times
+`MaxTotalRenderedElements`, generous enough that a real document with a modest few levels of
+nested filtered groups is never rejected), `ComputeSubtreeLocalBounds` throws
+`InvalidDataException` - the same throwing convention (and the same call site) as its own existing
+`MaxElementDepth`/`MaxTotalRenderedElements` per-invocation guards, rather than the tolerant
+per-filter fallback `FilterWorkBudget`/`MaxFilterPrimitiveWorkUnits` themselves use, since this
+budget bounds the same kind of "this pre-pass walk is too expensive" condition those per-invocation
+guards already treat as a hard rejection. A `line`/`polyline`/`polygon`/`path` descendant's
 own placed marker content (`marker-start`/`marker-mid`/`marker-end`) is folded into this pre-pass
 too (`ComputeMarkerContentLocalBounds`/`ComputeOneMarkerLocalBounds`, sharing
 `TryComputeMarkerContentTransform` with `RenderOneMarker`'s own placement math so the two can

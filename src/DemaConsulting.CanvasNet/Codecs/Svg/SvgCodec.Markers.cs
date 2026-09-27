@@ -65,6 +65,7 @@ public static partial class SvgCodec
     /// </param>
     /// <param name="workBudget">The shared geometry-parsing work budget, propagated to the re-rendered target.</param>
     /// <param name="filterWorkBudget">The shared cumulative filter-evaluation work budget, propagated to the re-rendered target.</param>
+    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget, propagated to the re-rendered target.</param>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="useDepth"/> has already reached <see cref="MaxUseDepth"/>,
     ///     guarding against a reference cycle that would otherwise recurse indefinitely.
@@ -86,7 +87,7 @@ public static partial class SvgCodec
     ///     <see cref="RenderFilteredGroup"/>'s own remarks).
     ///     </para>
     /// </remarks>
-    private static void RenderUse(XElement element, RenderState state, Matrix3x2 transform, RenderContext context, int useDepth, int elementDepth, int markerDepth, ref int totalElements, GeometryWorkBudget workBudget, FilterWorkBudget filterWorkBudget)
+    private static void RenderUse(XElement element, RenderState state, Matrix3x2 transform, RenderContext context, int useDepth, int elementDepth, int markerDepth, ref int totalElements, GeometryWorkBudget workBudget, FilterWorkBudget filterWorkBudget, BoundsPrePassWorkBudget boundsPrePassBudget)
     {
         if (useDepth >= MaxUseDepth)
         {
@@ -113,11 +114,11 @@ public static partial class SvgCodec
         var useFilterElement = suppressFilter ? null : ResolveFilterElement(element, context);
         if (useFilterElement == null)
         {
-            RenderElement(target, state, useTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+            RenderElement(target, state, useTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
         }
         else
         {
-            RenderFilteredGroup(useFilterElement, [target], state, useTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+            RenderFilteredGroup(useFilterElement, [target], state, useTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
         }
     }
 
@@ -367,6 +368,7 @@ public static partial class SvgCodec
     /// <param name="totalElements">The running total-rendered-elements count.</param>
     /// <param name="workBudget">The shared geometry-parsing work budget.</param>
     /// <param name="filterWorkBudget">The shared cumulative filter-evaluation work budget.</param>
+    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget.</param>
     /// <remarks>
     ///     Never called for <c>rect</c>/<c>circle</c>/<c>ellipse</c> - those shapes have no
     ///     natural vertices to orient a marker along, per the SVG specification, and this class's
@@ -386,7 +388,8 @@ public static partial class SvgCodec
         int markerDepth,
         ref int totalElements,
         GeometryWorkBudget workBudget,
-        FilterWorkBudget filterWorkBudget)
+        FilterWorkBudget filterWorkBudget,
+        BoundsPrePassWorkBudget boundsPrePassBudget)
     {
         if (state.MarkerStart == "none" && state.MarkerMid == "none" && state.MarkerEnd == "none")
         {
@@ -450,7 +453,8 @@ public static partial class SvgCodec
                 markerDepth,
                 ref totalElements,
                 workBudget,
-                filterWorkBudget);
+                filterWorkBudget,
+                boundsPrePassBudget);
         }
     }
 
@@ -523,6 +527,7 @@ public static partial class SvgCodec
     /// <param name="totalElements">The running total-rendered-elements count.</param>
     /// <param name="workBudget">The shared geometry-parsing work budget.</param>
     /// <param name="filterWorkBudget">The shared cumulative filter-evaluation work budget.</param>
+    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget.</param>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="markerDepth"/> has already reached
     ///     <see cref="MaxMarkerDepth"/>, guarding against a marker-referencing-marker reference
@@ -553,7 +558,8 @@ public static partial class SvgCodec
         int markerDepth,
         ref int totalElements,
         GeometryWorkBudget workBudget,
-        FilterWorkBudget filterWorkBudget)
+        FilterWorkBudget filterWorkBudget,
+        BoundsPrePassWorkBudget boundsPrePassBudget)
     {
         if (markerDepth >= MaxMarkerDepth)
         {
@@ -572,7 +578,7 @@ public static partial class SvgCodec
         var markerState = ApplyPresentationAttributes(RenderState.Initial, markerElement);
         foreach (var child in markerElement.Elements())
         {
-            RenderElement(child, markerState, contentTransform, context, useDepth, elementDepth + 1, markerDepth + 1, ref totalElements, workBudget, filterWorkBudget);
+            RenderElement(child, markerState, contentTransform, context, useDepth, elementDepth + 1, markerDepth + 1, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
         }
     }
 
@@ -706,6 +712,13 @@ public static partial class SvgCodec
     ///     <see cref="ComputeSubtreeLocalBounds"/>'s remarks).
     /// </param>
     /// <param name="workBudget">The caller-supplied geometry-parsing work budget, subject to the same scoping as <paramref name="totalElements"/>.</param>
+    /// <param name="boundsPrePassBudget">
+    ///     The shared, per-<c>Load</c>-call cumulative bounds-pre-pass work budget (see
+    ///     <see cref="BoundsPrePassWorkBudget"/>) - deliberately not local-scratch-scoped like
+    ///     <paramref name="totalElements"/>/<paramref name="workBudget"/> above, so this method's
+    ///     own <see cref="ComputeSubtreeLocalBounds"/> recursion still contributes toward the one
+    ///     cumulative ceiling shared by every nested filtered group in the whole document.
+    /// </param>
     /// <returns>
     ///     The union of every descendant shape/text element's stroke-expanded, transformed local
     ///     bounds within the marker's own content, mapped through the composed marker-instance
@@ -728,7 +741,8 @@ public static partial class SvgCodec
         int elementDepth,
         int markerDepth,
         ref int totalElements,
-        GeometryWorkBudget workBudget)
+        GeometryWorkBudget workBudget,
+        BoundsPrePassWorkBudget boundsPrePassBudget)
     {
         if (markerDepth >= MaxMarkerDepth)
         {
@@ -744,7 +758,7 @@ public static partial class SvgCodec
         var bounds = Rect.Empty;
         foreach (var child in markerElement.Elements())
         {
-            var childBounds = ComputeSubtreeLocalBounds(child, markerState, contentTransform, context, useDepth, elementDepth + 1, markerDepth + 1, ref totalElements, workBudget);
+            var childBounds = ComputeSubtreeLocalBounds(child, markerState, contentTransform, context, useDepth, elementDepth + 1, markerDepth + 1, ref totalElements, workBudget, boundsPrePassBudget);
             if (childBounds != null)
             {
                 bounds = bounds.Union(childBounds.Value);
@@ -775,6 +789,7 @@ public static partial class SvgCodec
     /// <param name="markerDepth">The current <c>marker</c>-reference nesting depth.</param>
     /// <param name="totalElements">The running total-rendered-elements count (see <see cref="ComputeOneMarkerLocalBounds"/>'s remarks on scoping).</param>
     /// <param name="workBudget">The shared geometry-parsing work budget (see <see cref="ComputeOneMarkerLocalBounds"/>'s remarks on scoping).</param>
+    /// <param name="boundsPrePassBudget">The shared, per-<c>Load</c>-call cumulative bounds-pre-pass work budget (see <see cref="ComputeOneMarkerLocalBounds"/>'s remarks on scoping).</param>
     /// <returns>
     ///     The union of every placed marker instance's own content bounds, or <see langword="null"/>
     ///     if <paramref name="state"/> specifies no markers at all, <paramref name="localPath"/> has
@@ -790,7 +805,8 @@ public static partial class SvgCodec
         int elementDepth,
         int markerDepth,
         ref int totalElements,
-        GeometryWorkBudget workBudget)
+        GeometryWorkBudget workBudget,
+        BoundsPrePassWorkBudget boundsPrePassBudget)
     {
         if (state.MarkerStart == "none" && state.MarkerMid == "none" && state.MarkerEnd == "none")
         {
@@ -852,7 +868,8 @@ public static partial class SvgCodec
                 elementDepth,
                 markerDepth,
                 ref totalElements,
-                workBudget);
+                workBudget,
+                boundsPrePassBudget);
 
             if (markerBounds != null)
             {

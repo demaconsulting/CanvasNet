@@ -88,12 +88,16 @@ public static partial class SvgCodec
     ///     or an id resolving to an element not literally named <c>filter</c> are all tolerated by
     ///     rendering <paramref name="localPath"/> normally through <see cref="RenderShape"/> - the
     ///     same dangling-reference tolerance convention as <see cref="ResolvePaint"/> and
-    ///     <see cref="ResolveMarkerElement"/>. Filter support applies per-element only: it is never
-    ///     invoked for a <c>g</c>/<c>symbol</c> group (group-level filtering is out of scope) and
-    ///     never applied to a shape's own marker content (markers always render directly onto
-    ///     <paramref name="context"/>'s surface, unaffected by the referencing shape's own
-    ///     <c>filter</c>) - see <see cref="RenderFilteredShape"/>'s remarks for the full filter
-    ///     evaluation pipeline.
+    ///     <see cref="ResolveMarkerElement"/>. This method itself handles only one shape (or glyph
+    ///     run)'s own <c>filter</c> attribute; a <c>g</c>/<c>symbol</c>/<c>use</c> element's own
+    ///     <c>filter</c> attribute (applying to its whole subtree as one filtered unit) is instead
+    ///     handled by <see cref="RenderFilteredGroup"/>, dispatched directly from
+    ///     <see cref="RenderElement"/>'s <c>"g"</c>/<c>"symbol"</c> case and from
+    ///     <see cref="RenderUse"/> - this method is never itself invoked for those container
+    ///     elements. A <c>filter</c> attribute is never applied to a shape's own marker content
+    ///     either way (markers always render directly onto <paramref name="context"/>'s surface,
+    ///     unaffected by the referencing shape's own <c>filter</c>) - see
+    ///     <see cref="RenderFilteredShape"/>'s remarks for the full filter evaluation pipeline.
     /// </remarks>
     private static void RenderShapeWithFilter(XElement element, Path localPath, RenderState state, Matrix3x2 transform, RenderContext context, FilterWorkBudget filterWorkBudget, bool suppressFilter = false)
     {
@@ -324,6 +328,15 @@ public static partial class SvgCodec
     ///     use) - subject to the same caller-supplied local-scratch-instance scoping as
     ///     <paramref name="totalElements"/> above.
     /// </param>
+    /// <param name="boundsPrePassBudget">
+    ///     The shared, per-<c>Load</c>-call cumulative bounds-pre-pass work budget (see
+    ///     <see cref="BoundsPrePassWorkBudget"/>) - deliberately <em>not</em> a fresh local-scratch
+    ///     instance like <paramref name="totalElements"/>/<paramref name="workBudget"/> above:
+    ///     every <see cref="RenderFilteredGroup"/> invocation (nested or sibling) across the whole
+    ///     document shares this one instance, so the combined pre-pass work performed by many
+    ///     nested filtered groups is bounded in aggregate, independent of how many times each
+    ///     individual invocation "resets" its own local-scratch ceilings above.
+    /// </param>
     /// <returns>
     ///     The union of every descendant shape/text element's stroke-expanded, transformed local
     ///     bounds - including, for a <c>line</c>/<c>polyline</c>/<c>polygon</c>/<c>path</c> with a
@@ -359,7 +372,8 @@ public static partial class SvgCodec
         int elementDepth,
         int markerDepth,
         ref int totalElements,
-        GeometryWorkBudget workBudget)
+        GeometryWorkBudget workBudget,
+        BoundsPrePassWorkBudget boundsPrePassBudget)
     {
         // Mirror RenderElement's own depth/total-element guards exactly - this pre-pass walks the
         // same subtree the real render pass will walk again immediately afterward, so it must be
@@ -376,6 +390,13 @@ public static partial class SvgCodec
         }
 
         totalElements++;
+
+        // Charge the shared, per-Load-call cumulative pre-pass budget too - unlike
+        // totalElements/workBudget above, this is never a fresh local-scratch instance, so it
+        // still accumulates across every nested RenderFilteredGroup invocation's own pre-pass,
+        // bounding the total "depth * subtree-size" work a document with many levels of nested
+        // filtered groups could otherwise force (see BoundsPrePassWorkBudget's remarks)
+        boundsPrePassBudget.Charge();
 
         var name = element.Name.LocalName;
         if (NonRenderingElements.Contains(name) || SkippedElements.Contains(name))
@@ -417,7 +438,7 @@ public static partial class SvgCodec
                     var bounds = Rect.Empty;
                     foreach (var child in element.Elements())
                     {
-                        var childBounds = ComputeSubtreeLocalBounds(child, state, childRelativeTransform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget);
+                        var childBounds = ComputeSubtreeLocalBounds(child, state, childRelativeTransform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, boundsPrePassBudget);
                         if (childBounds != null)
                         {
                             bounds = bounds.Union(childBounds.Value);
@@ -445,7 +466,7 @@ public static partial class SvgCodec
                 {
                     var linePath = BuildLinePath(element);
                     var shapeBounds = ShapeBoundsRespectingOwnFilter(element, linePath, state, transform, context, markerDepth);
-                    var markerBounds = ComputeMarkerContentLocalBounds(linePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
+                    var markerBounds = ComputeMarkerContentLocalBounds(linePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, boundsPrePassBudget);
                     return UnionNullableBounds(shapeBounds, markerBounds);
                 }
 
@@ -453,7 +474,7 @@ public static partial class SvgCodec
                 {
                     var polylinePath = BuildPolyPath(element, closed: false, workBudget);
                     var shapeBounds = ShapeBoundsRespectingOwnFilter(element, polylinePath, state, transform, context, markerDepth);
-                    var markerBounds = ComputeMarkerContentLocalBounds(polylinePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
+                    var markerBounds = ComputeMarkerContentLocalBounds(polylinePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, boundsPrePassBudget);
                     return UnionNullableBounds(shapeBounds, markerBounds);
                 }
 
@@ -461,7 +482,7 @@ public static partial class SvgCodec
                 {
                     var polygonPath = BuildPolyPath(element, closed: true, workBudget);
                     var shapeBounds = ShapeBoundsRespectingOwnFilter(element, polygonPath, state, transform, context, markerDepth);
-                    var markerBounds = ComputeMarkerContentLocalBounds(polygonPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
+                    var markerBounds = ComputeMarkerContentLocalBounds(polygonPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, boundsPrePassBudget);
                     return UnionNullableBounds(shapeBounds, markerBounds);
                 }
 
@@ -469,7 +490,7 @@ public static partial class SvgCodec
                 {
                     var dataPath = BuildPathDataPath(element, workBudget);
                     var shapeBounds = ShapeBoundsRespectingOwnFilter(element, dataPath, state, transform, context, markerDepth);
-                    var markerBounds = ComputeMarkerContentLocalBounds(dataPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
+                    var markerBounds = ComputeMarkerContentLocalBounds(dataPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, boundsPrePassBudget);
                     return UnionNullableBounds(shapeBounds, markerBounds);
                 }
 
@@ -497,7 +518,7 @@ public static partial class SvgCodec
                     // be visited relative to Matrix3x2.Identity instead of useTransform
                     var ownFilterElement = markerDepth > 0 ? null : ResolveFilterElement(element, context);
                     var targetRelativeTransform = ownFilterElement == null ? useTransform : Matrix3x2.Identity;
-                    var targetBounds = ComputeSubtreeLocalBounds(target, state, targetRelativeTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget);
+                    var targetBounds = ComputeSubtreeLocalBounds(target, state, targetRelativeTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, boundsPrePassBudget);
                     if (targetBounds == null)
                     {
                         return null;
@@ -738,6 +759,16 @@ public static partial class SvgCodec
     ///     to <see cref="RenderFilteredShape"/>'s own charge, so group filters and shape filters
     ///     share one running cumulative ceiling per <c>Load</c> call.
     /// </param>
+    /// <param name="boundsPrePassBudget">
+    ///     The shared, per-<c>Load</c>-call cumulative bounds-pre-pass work budget (see
+    ///     <see cref="BoundsPrePassWorkBudget"/>), charged by this method's own bounds pre-pass
+    ///     below - unlike the fresh local-scratch <c>totalElements</c> counter/
+    ///     <see cref="GeometryWorkBudget"/> instance the pre-pass otherwise uses (see this
+    ///     method's remarks), this ONE instance is shared by every <see cref="RenderFilteredGroup"/>
+    ///     invocation (nested or sibling) for the whole document, so a document with many levels
+    ///     of nested filtered groups cannot force unbounded total pre-pass work merely because
+    ///     each nesting level's own pre-pass otherwise "resets" its own local-scratch ceilings.
+    /// </param>
     /// <remarks>
     ///     If <paramref name="children"/>'s combined subtree paints nothing (an empty group, or a
     ///     group/subtree consisting entirely of non-rendering/skipped/dangling content), the filter
@@ -781,7 +812,8 @@ public static partial class SvgCodec
         int markerDepth,
         ref int totalElements,
         GeometryWorkBudget workBudget,
-        FilterWorkBudget filterWorkBudget)
+        FilterWorkBudget filterWorkBudget,
+        BoundsPrePassWorkBudget boundsPrePassBudget)
     {
         // Bounds pre-pass: union every child's own subtree bounds, computed purely in the
         // group's own local space (relativeTransform starts at Identity) - mirrors a single
@@ -803,12 +835,20 @@ public static partial class SvgCodec
         // itself still cannot run away on a pathologically large subtree - it simply never
         // permanently consumes any of the real, per-Load-call budget the render pass below (and
         // every other filtered shape/group in this document) also needs.
+        //
+        // boundsPrePassBudget is deliberately NOT one of these fresh local-scratch instances -
+        // it is the one shared, per-Load-call instance threaded down from RenderDocument, so
+        // every nested/sibling RenderFilteredGroup invocation's own pre-pass below still
+        // contributes toward ONE cumulative ceiling, bounding the "depth * subtree-size" total
+        // pre-pass work a document with many levels of nested filtered groups would otherwise be
+        // able to force by having each nesting level "reset" the local-scratch ceilings above
+        // (see BoundsPrePassWorkBudget's remarks for the full rationale).
         var preRenderElementCount = 0;
         var preRenderWorkBudget = new GeometryWorkBudget();
         var localBounds = Rect.Empty;
         foreach (var child in children)
         {
-            var childBounds = ComputeSubtreeLocalBounds(child, state, Matrix3x2.Identity, context, useDepth, elementDepth + 1, markerDepth, ref preRenderElementCount, preRenderWorkBudget);
+            var childBounds = ComputeSubtreeLocalBounds(child, state, Matrix3x2.Identity, context, useDepth, elementDepth + 1, markerDepth, ref preRenderElementCount, preRenderWorkBudget, boundsPrePassBudget);
             if (childBounds != null)
             {
                 localBounds = localBounds.Union(childBounds.Value);
@@ -823,7 +863,7 @@ public static partial class SvgCodec
         {
             foreach (var child in children)
             {
-                RenderElement(child, state, childrenTransform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+                RenderElement(child, state, childrenTransform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
             }
 
             return;
@@ -834,7 +874,7 @@ public static partial class SvgCodec
         {
             foreach (var child in children)
             {
-                RenderElement(child, state, childrenTransform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+                RenderElement(child, state, childrenTransform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
             }
 
             return;
@@ -849,7 +889,7 @@ public static partial class SvgCodec
         {
             foreach (var child in children)
             {
-                RenderElement(child, state, childrenTransform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+                RenderElement(child, state, childrenTransform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
             }
 
             return;
@@ -862,7 +902,7 @@ public static partial class SvgCodec
         {
             foreach (var child in children)
             {
-                RenderElement(child, state, childrenTransform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+                RenderElement(child, state, childrenTransform, context, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
             }
 
             return;
@@ -877,7 +917,7 @@ public static partial class SvgCodec
         var opaqueState = state with { Opacity = 1f };
         foreach (var child in children)
         {
-            RenderElement(child, opaqueState, localToTemp, tempContext, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget);
+            RenderElement(child, opaqueState, localToTemp, tempContext, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
         }
 
         var finalSurface = EvaluateFilterChain(filterElement, sourceGraphic, childrenTransform);

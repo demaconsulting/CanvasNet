@@ -3730,6 +3730,109 @@ public class SvgCodecTests
         Assert.Equal(0, surface[1, 1].A);
     }
 
+    /// <summary>
+    ///     Regression test for a code-review finding: <c>RenderFilteredGroup</c>'s bounds-only
+    ///     pre-pass (<c>ComputeSubtreeLocalBounds</c>) deliberately uses a fresh, local scratch
+    ///     <c>totalElements</c> counter/<c>GeometryWorkBudget</c> instance on every invocation
+    ///     (see the double-charge fix proven by
+    ///     <see cref="SvgCodec_Load_FilteredGroupNearTotalElementBudget_RendersWithoutThrowing"/>),
+    ///     so each nesting level of a chain of nested filtered groups "resets" its own
+    ///     per-invocation ceiling - a document with many such nesting levels, each wrapping a
+    ///     large subtree, could therefore force total bounds-pre-pass work proportional to
+    ///     <c>depth * subtree-size</c>, unbounded by <c>MaxTotalRenderedElements</c>/
+    ///     <c>GeometryWorkBudget</c> themselves. Proves the new, separate, cumulative
+    ///     per-<c>Load</c>-call <c>BoundsPrePassWorkBudget</c> now bounds that total: a chain of
+    ///     95 nested filtered <c>&lt;g&gt;</c> elements (comfortably within the fixed 100-level
+    ///     <c>MaxElementDepth</c> ceiling) wrapping 15,000 leaf <c>rect</c> elements has a real
+    ///     total rendered-element count of roughly 15,095 - comfortably under the separate
+    ///     100,000-element <c>MaxTotalRenderedElements</c> ceiling, so this test cannot pass
+    ///     merely by incidentally tripping that pre-existing guard instead - but each of the 95
+    ///     nesting levels' own bounds pre-pass re-walks a large portion of that same 15,000-rect
+    ///     subtree, so the combined pre-pass work across all 95 levels comfortably exceeds the
+    ///     fixed cumulative ceiling.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_DeeplyNestedFilteredGroupsExceedingCumulativeBoundsPrePassBudget_ThrowsInvalidDataException()
+    {
+        // Arrange: 95 nested filtered <g> elements wrapping 15,000 leaf rects. Each nesting
+        // level's own RenderFilteredGroup call re-walks the (still-large) remaining subtree
+        // beneath it via its own bounds-only pre-pass, so the combined pre-pass work across all
+        // 95 levels (roughly depth * subtree-size) comfortably exceeds the fixed cumulative
+        // bounds-pre-pass ceiling, even though every individual pre-pass invocation's own
+        // element count, and the document's own real total rendered-element count, both stay far
+        // under the separate MaxTotalRenderedElements ceiling
+        const int nestingDepth = 95;
+        const int rectCount = 15_000;
+        var rects = string.Concat(Enumerable.Repeat(
+            "<rect x='0' y='0' width='10' height='10' fill='blue'/>", rectCount));
+
+        var svg = new StringBuilder();
+        svg.Append("<svg viewBox='0 0 10 10'><defs><filter id='f'><feOffset dx='0' dy='0'/></filter></defs>");
+        for (var i = 0; i < nestingDepth; i++)
+        {
+            svg.Append("<g filter='url(#f)'>");
+        }
+
+        svg.Append(rects);
+        for (var i = 0; i < nestingDepth; i++)
+        {
+            svg.Append("</g>");
+        }
+
+        svg.Append("</svg>");
+
+        // Act & Assert: must throw InvalidDataException rather than perform unbounded pre-pass
+        // work - the same convention this bounds pre-pass's own existing per-invocation
+        // MaxElementDepth/MaxTotalRenderedElements guards already use
+        using var stream = ToStream(svg.ToString());
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 10, 10));
+    }
+
+    /// <summary>
+    ///     Companion non-regression test for
+    ///     <see cref="SvgCodec_Load_DeeplyNestedFilteredGroupsExceedingCumulativeBoundsPrePassBudget_ThrowsInvalidDataException"/>:
+    ///     proves the new cumulative bounds-pre-pass budget's fixed ceiling is generous enough
+    ///     that an ordinary, realistic document with only a modest few levels of nested filtered
+    ///     groups is never spuriously rejected - a false-positive fallback this new resource-safety
+    ///     mechanism must not introduce for legitimate real-world content.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ModestlyNestedFilteredGroups_RenderCorrectlyWithoutFalsePositiveFallback()
+    {
+        // Arrange: 5 levels of nested filtered <g> elements (a modest, realistic nesting depth),
+        // each with an identity (dx="0"/dy="0") feOffset filter, wrapping 50 leaf rects - the
+        // combined bounds-pre-pass work across all 5 levels is trivially small relative to the
+        // new cumulative ceiling
+        const int nestingDepth = 5;
+        const int rectCount = 50;
+        var rects = string.Concat(Enumerable.Repeat(
+            "<rect x='0' y='0' width='10' height='10' fill='blue'/>", rectCount));
+
+        var svg = new StringBuilder();
+        svg.Append("<svg viewBox='0 0 10 10'><defs><filter id='f'><feOffset dx='0' dy='0'/></filter></defs>");
+        for (var i = 0; i < nestingDepth; i++)
+        {
+            svg.Append("<g filter='url(#f)'>");
+        }
+
+        svg.Append(rects);
+        for (var i = 0; i < nestingDepth; i++)
+        {
+            svg.Append("</g>");
+        }
+
+        svg.Append("</svg>");
+
+        // Act: must complete without throwing
+        using var stream = ToStream(svg.ToString());
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the innermost rects' own blue fill survives every nested identity filter,
+        // proving the document rendered correctly rather than being rejected by the new
+        // cumulative bounds-pre-pass budget
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[5, 5]);
+    }
+
     // ================================================================================================
     // Total geometry-parsing work budget (path data / point lists / text characters)
     // ================================================================================================

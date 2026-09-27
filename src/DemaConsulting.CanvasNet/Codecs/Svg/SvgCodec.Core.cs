@@ -136,6 +136,33 @@ public static partial class SvgCodec
     private const int MaxTotalRenderedElements = 100_000;
 
     /// <summary>
+    ///     The maximum combined number of element visits <see cref="ComputeSubtreeLocalBounds"/>
+    ///     (and, transitively, <see cref="ComputeMarkerContentLocalBounds"/>/
+    ///     <see cref="ComputeOneMarkerLocalBounds"/>) may charge across every bounds-only
+    ///     pre-pass <see cref="RenderFilteredGroup"/> runs for a single <c>Load</c> call, tracked
+    ///     by <see cref="BoundsPrePassWorkBudget"/> - the cumulative, cross-invocation counterpart
+    ///     to the per-invocation <see cref="MaxTotalRenderedElements"/> ceiling
+    ///     <see cref="ComputeSubtreeLocalBounds"/> already enforces against its own caller-supplied
+    ///     (deliberately local-scratch, per <see cref="RenderFilteredGroup"/> invocation) counter.
+    ///     Bounds a resource-safety gap neither that per-invocation ceiling nor
+    ///     <see cref="MaxTotalRenderedElements"/>/<see cref="GeometryWorkBudget"/> themselves cover:
+    ///     a document with many levels of nested filtered <c>g</c>/<c>symbol</c>/<c>use</c>
+    ///     elements, each wrapping a large subtree, causes <see cref="RenderFilteredGroup"/> to
+    ///     re-walk an overlapping portion of that subtree once per nesting level (see
+    ///     <see cref="BoundsPrePassWorkBudget"/>'s remarks), so total pre-pass work grows with
+    ///     <c>depth * subtree-size</c> even though every individual pre-pass invocation's own
+    ///     element count stays comfortably under <see cref="MaxTotalRenderedElements"/>. 1,000,000
+    ///     is 10 times that per-invocation ceiling - the same order-of-magnitude "10x a single
+    ///     operation's own ceiling" precedent <see cref="FilterWorkBudget"/>'s own cumulative bound
+    ///     already uses relative to <see cref="MaxFilterPrimitiveWorkUnits"/> - generous enough
+    ///     that a real-world document with a modest few levels of nested filtered groups is never
+    ///     rejected, while keeping the worst-case total pre-pass CPU cost for a single document
+    ///     bounded to a small, fixed multiple of one filtered group's own subtree-walk cost,
+    ///     regardless of how deeply a pathological document nests filtered containers.
+    /// </summary>
+    private const int MaxCumulativeBoundsPrePassWork = 1_000_000;
+
+    /// <summary>
     ///     The maximum total number of characters <see cref="LoadRootElement"/>'s
     ///     <see cref="XDocument.Load(XmlReader, LoadOptions)"/> call will read before giving up,
     ///     bounding how large a single in-memory <see cref="XDocument"/> this codec will ever
@@ -315,6 +342,89 @@ public static partial class SvgCodec
 
             _total += amount;
             return true;
+        }
+    }
+
+    /// <summary>
+    ///     Tracks the cumulative number of element visits charged across every bounds-only
+    ///     pre-pass (<see cref="ComputeSubtreeLocalBounds"/>, and transitively
+    ///     <see cref="ComputeMarkerContentLocalBounds"/>/<see cref="ComputeOneMarkerLocalBounds"/>)
+    ///     <see cref="RenderFilteredGroup"/> runs within a single <c>Load</c> call, throwing once
+    ///     a fixed combined budget (<see cref="MaxCumulativeBoundsPrePassWork"/>) is exceeded.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="RenderFilteredGroup"/> deliberately passes a fresh, local scratch
+    ///     <c>totalElements</c> counter/<see cref="GeometryWorkBudget"/> instance to its own
+    ///     bounds-only pre-pass rather than the real per-<c>Load</c>-call
+    ///     <see cref="MaxTotalRenderedElements"/> counter/<see cref="GeometryWorkBudget"/> the
+    ///     render pass that follows it also charges - see <see cref="RenderFilteredGroup"/>'s own
+    ///     remarks for why: charging the same instance in both passes would double (or, combined
+    ///     with a tolerant-fallback re-render, triple) count every element under a filtered group
+    ///     against those ceilings, spuriously rejecting a document whose unfiltered rendering
+    ///     would legitimately stay within budget. That fix, however, means every individual
+    ///     pre-pass invocation gets its own fresh <see cref="MaxTotalRenderedElements"/>-sized
+    ///     ceiling "reset" - so a document with many levels of nested filtered <c>g</c>/
+    ///     <c>symbol</c>/<c>use</c> elements, each wrapping a large subtree, causes each nesting
+    ///     level's own pre-pass to re-walk an overlapping portion of that same subtree (the real
+    ///     render pass descends into nested filtered group N only after nested filtered group
+    ///     N-1's own pre-pass has already walked N's entire subtree once, then group N's own
+    ///     <see cref="RenderFilteredGroup"/> call walks that same subtree, minus group N-1's own
+    ///     wrapper, all over again), so total pre-pass work grows with <c>depth * subtree-size</c>
+    ///     - unbounded by <see cref="MaxTotalRenderedElements"/>/<see cref="GeometryWorkBudget"/>,
+    ///     since every nesting level "resets" those per-invocation limits.
+    ///     <para>
+    ///     This budget closes that gap the same way <see cref="FilterWorkBudget"/> closes the
+    ///     analogous "one filter, many references" gap <see cref="MaxFilterPrimitiveWorkUnits"/>
+    ///     alone leaves open: a single mutable reference type, shared by ordinary object
+    ///     reference across every <see cref="RenderFilteredGroup"/> invocation (nested or
+    ///     sibling) for the whole <c>Load</c> call - deliberately a <em>separate</em> instance
+    ///     from <see cref="GeometryWorkBudget"/>/the real <c>totalElements</c> counter, so this
+    ///     new cumulative ceiling can never re-introduce the double-counting bug the local-scratch
+    ///     fix above already fixes.
+    ///     </para>
+    ///     <para>
+    ///     Unlike <see cref="FilterWorkBudget"/>'s <see cref="FilterWorkBudget.TryCharge"/> (which
+    ///     tolerantly declines to charge so its caller can fall back to unfiltered rendering),
+    ///     this budget throws <see cref="InvalidDataException"/> once exceeded, mirroring
+    ///     <see cref="GeometryWorkBudget.Charge"/>'s identical throwing convention - the same
+    ///     convention <see cref="ComputeSubtreeLocalBounds"/>'s own existing per-invocation
+    ///     <see cref="MaxElementDepth"/>/<see cref="MaxTotalRenderedElements"/> guards already use
+    ///     at the exact same call site this budget is charged from, so a document whose combined
+    ///     nested-filtered-group pre-pass work is pathologically large fails the same way (and at
+    ///     the same call site) a single pathologically large pre-pass invocation already does,
+    ///     rather than introducing a second, differently-shaped failure mode for what is
+    ///     ultimately the same kind of "this pre-pass walk is too expensive" resource-safety
+    ///     rejection.
+    ///     </para>
+    /// </remarks>
+    private sealed class BoundsPrePassWorkBudget
+    {
+        /// <summary>The running total of pre-pass element visits charged so far.</summary>
+        private int _total;
+
+        /// <summary>
+        ///     Charges one element visit against the running total, throwing once the combined
+        ///     budget is exceeded - called once per <see cref="ComputeSubtreeLocalBounds"/> call,
+        ///     alongside (but never instead of) that method's own local-scratch
+        ///     <c>totalElements</c> charge.
+        /// </summary>
+        /// <exception cref="InvalidDataException">
+        ///     Thrown once the cumulative total exceeds <see cref="MaxCumulativeBoundsPrePassWork"/>.
+        /// </exception>
+        public void Charge()
+        {
+            // Check before incrementing (rather than incrementing then checking) for the same
+            // check-before-add reasoning as GeometryWorkBudget.Charge/FilterWorkBudget.TryCharge -
+            // _total can never legitimately approach int.MaxValue via repeated single-unit
+            // increments before the very next charge past MaxCumulativeBoundsPrePassWork already
+            // throws, but the ordering remains strictly more correct regardless.
+            if (_total >= MaxCumulativeBoundsPrePassWork)
+            {
+                throw new InvalidDataException(
+                    "SVG document resolves to too much total nested-filtered-group bounds pre-pass work.");
+            }
+
+            _total++;
         }
     }
 }

@@ -741,7 +741,9 @@ total filter-evaluation work across the whole document, a dimension neither
 `SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent`,
 `SvgCodec_Load_FilteredGroupNearTotalElementBudget_RendersWithoutThrowing`,
 `SvgCodec_Load_FilteredGroupWithLineMarkerExtendingBeyondLineBounds_MarkerPixelsSurviveFilter`,
-`SvgCodec_Load_GroupFilterWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput`
+`SvgCodec_Load_GroupFilterWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput`,
+`SvgCodec_Load_DeeplyNestedFilteredGroupsExceedingCumulativeBoundsPrePassBudget_ThrowsInvalidDataException`,
+`SvgCodec_Load_ModestlyNestedFilteredGroups_RenderCorrectlyWithoutFalsePositiveFallback`
 
 Asserts a `filter` on a `<g>` wrapping two non-overlapping `rect` elements is evaluated once
 against the group's own *combined* subtree bounds, not per-child: a bare `feFlood` fills its
@@ -817,6 +819,27 @@ surviving the outer group's own offscreen round-trip, proving the outer group's 
 from the inner filter's own expanded output rather than merely the inner shape's raw geometry -
 while a point outside even that generously-expanded region remains untouched, confirming the fix
 is a genuine bounds correction rather than an unconditional expand-to-fill-the-canvas regression.
+
+A fourth pair of regression tests closes a further code-review finding in this same bounds
+pre-pass: the local-scratch counter/budget fix above means each individual
+`RenderFilteredGroup` invocation's own pre-pass gets a fresh, full-sized ceiling every time, so a
+document with many levels of nested filtered groups, each wrapping a large subtree, could force
+total pre-pass work proportional to `depth * subtree-size` - unbounded by
+`MaxTotalRenderedElements`/`GeometryWorkBudget`, since every nesting level "resets" those
+per-invocation limits.
+`SvgCodec_Load_DeeplyNestedFilteredGroupsExceedingCumulativeBoundsPrePassBudget_ThrowsInvalidDataException`
+constructs a chain of nested filtered `<g>` elements deep enough (comfortably within
+`MaxElementDepth`) wrapping a leaf `<rect>` count chosen so their combined, per-nesting-level
+bounds pre-pass work exceeds the new cumulative `BoundsPrePassWorkBudget` ceiling, while the
+document's own *real* total rendered-element count stays comfortably under the separate
+`MaxTotalRenderedElements` ceiling - isolating the assertion to the new cumulative pre-pass
+budget specifically, rather than incidentally tripping a pre-existing guard - and asserts `Load`
+throws `InvalidDataException` rather than performing unbounded pre-pass work.
+`SvgCodec_Load_ModestlyNestedFilteredGroups_RenderCorrectlyWithoutFalsePositiveFallback` is the
+companion non-regression test: a modest, realistic few levels of nested filtered groups (each
+wrapping a small number of shapes) renders its innermost filter's effect correctly, proving the
+new cumulative ceiling is generous enough that ordinary real-world nested-filtered-group
+documents are never spuriously rejected.
 
 #### CanvasNet-Codecs-SvgCodec-ValidationNull: Null Stream/Path Rejected
 
