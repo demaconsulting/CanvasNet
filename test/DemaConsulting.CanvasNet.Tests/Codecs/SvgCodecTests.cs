@@ -2326,6 +2326,41 @@ public class SvgCodecTests
         Assert.Equal(new Rgba32(0, 0, 0, 255), surface[7, 5]);
     }
 
+    /// <summary>
+    ///     Regression test for a defect where a <c>filter</c> attribute on a marker's own content
+    ///     was still resolved and evaluated, even though this codec's documented scope states that
+    ///     filters on marker content have no effect. Asserts a <c>rect</c> inside a <c>marker</c>
+    ///     with a <c>filter="url(#f)"</c> referencing a real <c>feFlood</c> filter renders exactly
+    ///     as if it had no <c>filter</c> attribute at all - the marker's own fill, not the flood
+    ///     color, since the filter must never be evaluated for marker content.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerContentWithFilterAttribute_FilterHasNoEffect()
+    {
+        // Arrange: the marker's own rect has a filter referencing a feFlood that would fill its
+        // region with red if evaluated; the marker's rect itself is "lime"
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f'>
+                  <feFlood flood-color='red'/>
+                </filter>
+                <marker id='m' markerWidth='2' markerHeight='2' refX='1' refY='1' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='2' height='2' fill='lime' filter='url(#f)'/>
+                </marker>
+              </defs>
+              <line x1='1' y1='5.5' x2='7' y2='5.5' stroke='black' stroke-width='1' marker-end='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the marker's own "lime" fill rendered - the feFlood filter was never applied
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[7, 5]);
+    }
+
     // ================================================================================================
     // <filter> element
     // ================================================================================================
@@ -2362,6 +2397,44 @@ public class SvgCodecTests
         // Assert: the flood also fully replaces the rect's own blue fill at its center, since the
         // filter's final output is the bare feFlood result, not a merge with SourceGraphic
         Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Regression test for a defect where an element's own <c>opacity</c> was applied while
+    ///     painting the pre-filter <c>SourceGraphic</c> instead of the final filtered result: per
+    ///     SVG semantics, <c>opacity</c> applies to the filter's whole output, exactly once, so a
+    ///     <c>rect</c> with <c>opacity="0.5"</c> and a filter containing only a fully-opaque
+    ///     <c>feFlood</c> must render the flood at ~50% alpha, not fully opaque.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_OpacityWithFeFloodFilter_AppliesOpacityToFilteredResultNotSource()
+    {
+        // Arrange: a fully-opaque red feFlood is the filter's entire output; the referencing
+        // rect's own opacity of 0.5 must still visibly attenuate that flood's alpha
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feFlood flood-color='red' flood-opacity='1'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' opacity='0.5' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the flood's own color is still fully red, but its alpha reflects the rect's own
+        // 50% opacity (0.5 * 255 = 127.5), not the fully-opaque 255 a pre-filter opacity fold
+        // would incorrectly produce - mirrors SvgCodec_Load_Opacity_MultipliesIntoFillAlpha's own
+        // InRange tolerance for floating-point alpha compositing
+        var pixel = surface[50, 50];
+        Assert.Equal(255, pixel.R);
+        Assert.Equal(0, pixel.G);
+        Assert.Equal(0, pixel.B);
+        Assert.InRange((int)pixel.A, 110, 145);
     }
 
     /// <summary>

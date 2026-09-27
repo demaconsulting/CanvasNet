@@ -190,7 +190,8 @@ rejected with `InvalidDataException` once the bounded recursion guard is exceede
 `SvgCodec_Load_MarkerContent_DoesNotInheritReferencingShapeFillOrStroke`,
 `SvgCodec_Load_ArrowMarkersFixture_RendersArrowheadPastLineEnd`,
 `SvgCodec_Load_MarkerEndOnClosedPolygon_OrientsUsingClosingEdgeTangent`,
-`SvgCodec_Load_MarkerStrokeWidthUnitsOnScaledDocument_ScalesOnceNotTwice`
+`SvgCodec_Load_MarkerStrokeWidthUnitsOnScaledDocument_ScalesOnceNotTwice`,
+`SvgCodec_Load_MarkerContentWithFilterAttribute_FilterHasNoEffect`
 
 Asserts a `marker-end` reference renders its `marker` element's content past a `line`'s own end
 point, sized in user-space units; asserts `marker-start`/`marker-mid`/`marker-end` each
@@ -224,7 +225,13 @@ marker on a document with a non-identity root `viewBox` fit (a uniform 2x scale 
 to pixels) scales by exactly `stroke-width * root-scale` once, not twice (a regression test for a
 defect where the already-pixel-scaled effective stroke width was passed into the marker's own
 `strokeWidth`-units sizing, and then the root scale was re-applied a second time via the shared
-`shapeTransform`, making the marker four times too large instead of two times).
+`shapeTransform`, making the marker four times too large instead of two times). Asserts a shape
+inside a `marker` element's own content with a `filter="url(#id)"` attribute referencing a real
+(`feFlood`) filter renders exactly as if that `filter` attribute were absent - the marker's own
+fill color, not the flood's - a regression test for a defect where marker-content rendering
+re-entered the same shape/text dispatch used everywhere else, which unconditionally resolved and
+evaluated a shape's own `filter` attribute, contradicting this codec's documented "filters on
+marker content have no effect" scope decision.
 
 #### CanvasNet-Codecs-SvgCodec-MarkerReferenceCycle: Marker Reference Dangling and Cycle Rejection
 
@@ -617,7 +624,8 @@ for `filter`'s own dedicated coverage - it is no longer an out-of-scope construc
 `SvgCodec_Load_FeCompositeOperatorAtop_BlendsBothInputsWeightedByBothAlphas`,
 `SvgCodec_Load_FeCompositeOperatorXor_KeepsEachInputWhereTheOtherHasNoCoverage`,
 `SvgCodec_Load_FeCompositeOperatorXorWithHalfChannelValue_RoundsAwayFromZeroNotToEven`,
-`SvgCodec_Load_FilterOnStrokedHorizontalLine_UsesStrokeAwareBoundsNotDegenerate`
+`SvgCodec_Load_FilterOnStrokedHorizontalLine_UsesStrokeAwareBoundsNotDegenerate`,
+`SvgCodec_Load_OpacityWithFeFloodFilter_AppliesOpacityToFilteredResultNotSource`
 
 Asserts a bare `feFlood` primitive's flood color entirely replaces the referencing element's own
 content, filling the (default, bounding-box-relative) filter region including the area behind the
@@ -662,7 +670,13 @@ evaluated (not skipped as degenerate) despite its zero-height centerline/fill bo
 regression test for a defect where the filter-region degeneracy guard used the bare
 centerline/fill bounds instead of the actually-painted (stroke-expanded) bounds, incorrectly
 treating a valid stroked line's filter as degenerate and silently falling back to unfiltered
-rendering.
+rendering. Asserts a `rect` with `opacity="0.5"` and a filter whose entire chain is a single,
+fully-opaque `feFlood` renders the flood at approximately 50% alpha, not fully opaque - a
+regression test for a defect where `opacity` was applied while painting the pre-filter
+`SourceGraphic` (so the filter chain, and the final compositing step, both then operated on
+already-attenuated content with no further opacity ever applied) instead of being applied exactly
+once, afterward, to the filter's own final output, per SVG's "opacity applies to the filtered
+result as a whole" semantics.
 
 #### CanvasNet-Codecs-SvgCodec-FilterResourceSafety: Filter Dangling Reference and Resource-Bound Tolerance
 

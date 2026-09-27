@@ -1391,6 +1391,13 @@ public static class SvgCodec
         var state = ApplyPresentationAttributes(parentState, element);
         var transform = ParseTransformAttribute(element) * parentTransform;
 
+        // A marker's own content never applies its own descendants' "filter" attribute - per the
+        // documented "filters on marker content have no effect" scope decision (see this class's
+        // remarks) - so every shape/text dispatch below is told to suppress filter evaluation
+        // whenever this call is itself part of a marker's content subtree (markerDepth > 0,
+        // incremented only by RenderOneMarker, never by plain "g"/"symbol" nesting or "use")
+        var suppressFilter = markerDepth > 0;
+
         // A non-finite composed transform (see this method's remarks) cannot meaningfully
         // position this element or any descendant - skip the whole subtree as defense-in-depth,
         // even though every currently-known throwing downstream path is already independently
@@ -1417,21 +1424,21 @@ public static class SvgCodec
                 break;
 
             case "rect":
-                RenderShapeWithFilter(element, BuildRectPath(element), state, transform, context);
+                RenderShapeWithFilter(element, BuildRectPath(element), state, transform, context, suppressFilter);
                 break;
 
             case "circle":
-                RenderShapeWithFilter(element, BuildEllipsePath(element, isCircle: true), state, transform, context);
+                RenderShapeWithFilter(element, BuildEllipsePath(element, isCircle: true), state, transform, context, suppressFilter);
                 break;
 
             case "ellipse":
-                RenderShapeWithFilter(element, BuildEllipsePath(element, isCircle: false), state, transform, context);
+                RenderShapeWithFilter(element, BuildEllipsePath(element, isCircle: false), state, transform, context, suppressFilter);
                 break;
 
             case "line":
                 {
                     var linePath = BuildLinePath(element);
-                    RenderShapeWithFilter(element, linePath, state, transform, context);
+                    RenderShapeWithFilter(element, linePath, state, transform, context, suppressFilter);
                     RenderMarkers(linePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
                     break;
                 }
@@ -1439,7 +1446,7 @@ public static class SvgCodec
             case "polyline":
                 {
                     var polylinePath = BuildPolyPath(element, closed: false, workBudget);
-                    RenderShapeWithFilter(element, polylinePath, state, transform, context);
+                    RenderShapeWithFilter(element, polylinePath, state, transform, context, suppressFilter);
                     RenderMarkers(polylinePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
                     break;
                 }
@@ -1447,7 +1454,7 @@ public static class SvgCodec
             case "polygon":
                 {
                     var polygonPath = BuildPolyPath(element, closed: true, workBudget);
-                    RenderShapeWithFilter(element, polygonPath, state, transform, context);
+                    RenderShapeWithFilter(element, polygonPath, state, transform, context, suppressFilter);
                     RenderMarkers(polygonPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
                     break;
                 }
@@ -1455,7 +1462,7 @@ public static class SvgCodec
             case "path":
                 {
                     var dataPath = BuildPathDataPath(element, workBudget);
-                    RenderShapeWithFilter(element, dataPath, state, transform, context);
+                    RenderShapeWithFilter(element, dataPath, state, transform, context, suppressFilter);
                     RenderMarkers(dataPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget);
                     break;
                 }
@@ -1465,7 +1472,7 @@ public static class SvgCodec
                 break;
 
             case "text":
-                RenderText(element, state, transform, context, workBudget);
+                RenderText(element, state, transform, context, workBudget, suppressFilter);
                 break;
 
             default:
@@ -3226,6 +3233,14 @@ public static class SvgCodec
     /// <param name="state">The cascaded render state.</param>
     /// <param name="transform">The accumulated transform from local space into pixel space.</param>
     /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="suppressFilter">
+    ///     <see langword="true"/> when <paramref name="element"/> is being rendered as part of a
+    ///     <c>marker</c> element's own content (propagated from <c>RenderElement</c>'s
+    ///     <c>markerDepth &gt; 0</c>) - <paramref name="element"/>'s own <c>filter</c> attribute is
+    ///     then never resolved/evaluated at all, regardless of what it references, per the
+    ///     documented "filters on marker content have no effect" scope decision (see this method's
+    ///     remarks).
+    /// </param>
     /// <remarks>
     ///     A <c>filter</c> value of <c>none</c>/absent/not <c>url(#id)</c> syntax, a dangling id,
     ///     or an id resolving to an element not literally named <c>filter</c> are all tolerated by
@@ -3238,9 +3253,9 @@ public static class SvgCodec
     ///     <c>filter</c>) - see <see cref="RenderFilteredShape"/>'s remarks for the full filter
     ///     evaluation pipeline.
     /// </remarks>
-    private static void RenderShapeWithFilter(XElement element, Path localPath, RenderState state, Matrix3x2 transform, RenderContext context)
+    private static void RenderShapeWithFilter(XElement element, Path localPath, RenderState state, Matrix3x2 transform, RenderContext context, bool suppressFilter = false)
     {
-        var filterElement = ResolveFilterElement(element, context);
+        var filterElement = suppressFilter ? null : ResolveFilterElement(element, context);
         if (filterElement == null)
         {
             RenderShape(localPath, state, transform, context);
@@ -3335,6 +3350,17 @@ public static class SvgCodec
     ///     how large its filter region is; treating it as "budget OK" would still allocate a
     ///     potentially enormous temporary surface just to hand it back unchanged.
     ///     </para>
+    ///     <para>
+    ///     Per SVG semantics, an element's own <c>opacity</c> applies to the filtered result as a
+    ///     whole, not to the pre-filter source paint: <c>SourceGraphic</c> is rendered with a copy
+    ///     of <paramref name="state"/> whose <see cref="RenderState.Opacity"/> is forced to
+    ///     <c>1.0</c>, so the filter chain (for example a <c>feFlood</c>) always evaluates against
+    ///     a fully-opaque source, and <paramref name="state"/>'s own (possibly cascaded) opacity is
+    ///     applied exactly once, afterward, via <see cref="CompositeFilterResultOntoCanvas"/>'s
+    ///     coverage argument - the same per-pixel coverage-multiplier mechanism
+    ///     <see cref="Surface.CompositeOverSpan(int, int, ReadOnlySpan{float}, ReadOnlySpan{Rgba32})"/>
+    ///     already uses everywhere else in this codec.
+    ///     </para>
     /// </remarks>
     private static void RenderFilteredShape(XElement filterElement, Path localPath, RenderState state, Matrix3x2 transform, RenderContext context)
     {
@@ -3361,11 +3387,17 @@ public static class SvgCodec
         var sourceGraphic = new Surface(pixelWidth, pixelHeight);
         var localToTemp = transform * Matrix3x2.CreateTranslation(-pixelX, -pixelY);
         var tempContext = context with { Surface = sourceGraphic };
-        RenderShape(localPath, state, localToTemp, tempContext);
+
+        // Render SourceGraphic fully opaque (Opacity forced to 1.0) rather than with the
+        // element's own cascaded opacity - the filter chain must evaluate against an unmodified
+        // source, and the element's opacity is instead applied exactly once, afterward, when the
+        // filtered result is composited onto the real canvas below (see this method's remarks)
+        var opaqueState = state with { Opacity = 1f };
+        RenderShape(localPath, opaqueState, localToTemp, tempContext);
 
         var finalSurface = EvaluateFilterChain(filterElement, sourceGraphic, transform);
 
-        CompositeFilterResultOntoCanvas(finalSurface, pixelX, pixelY, context.Surface);
+        CompositeFilterResultOntoCanvas(finalSurface, pixelX, pixelY, context.Surface, state.Opacity);
     }
 
     /// <summary>
@@ -4105,10 +4137,17 @@ public static class SvgCodec
     /// <param name="pixelX">The filter region's pixel-space X origin, which can be negative or beyond <paramref name="canvas"/>'s own width.</param>
     /// <param name="pixelY">The filter region's pixel-space Y origin, which can be negative or beyond <paramref name="canvas"/>'s own height.</param>
     /// <param name="canvas">The real surface every other element also renders onto.</param>
-    private static void CompositeFilterResultOntoCanvas(Surface result, int pixelX, int pixelY, Surface canvas)
+    /// <param name="opacity">
+    ///     The referencing element's own cascaded <see cref="RenderState.Opacity"/>, applied here as
+    ///     a uniform per-pixel coverage multiplier - the same mechanism <see cref="ResolvePaint"/>
+    ///     already relies on for ordinary fill/stroke opacity - so it affects the filtered result as
+    ///     a whole exactly once, rather than the pre-filter <c>SourceGraphic</c> (see
+    ///     <see cref="RenderFilteredShape"/>'s remarks).
+    /// </param>
+    private static void CompositeFilterResultOntoCanvas(Surface result, int pixelX, int pixelY, Surface canvas, float opacity)
     {
         var coverage = new float[result.Width];
-        Array.Fill(coverage, 1f);
+        Array.Fill(coverage, opacity);
 
         for (var row = 0; row < result.Height; row++)
         {
@@ -5454,6 +5493,12 @@ public static class SvgCodec
     ///     with the text's character count before glyph layout begins so a pathologically long
     ///     run's per-rune outline/kerning work never starts once the budget is exceeded.
     /// </param>
+    /// <param name="suppressFilter">
+    ///     Forwarded to <see cref="RenderShapeWithFilter"/> - <see langword="true"/> when
+    ///     <paramref name="element"/> is part of a <c>marker</c> element's own content, so its own
+    ///     <c>filter</c> attribute (if any) is never resolved/evaluated, per the documented
+    ///     "filters on marker content have no effect" scope decision.
+    /// </param>
     /// <remarks>
     ///     Silently renders nothing - never throws - when <see cref="RenderContext.Fonts"/> is
     ///     <see langword="null"/>, no entry matches <paramref name="state"/>'s <c>font-family</c>,
@@ -5462,7 +5507,7 @@ public static class SvgCodec
     ///     descendant text node's content is concatenated and laid out as one flat run, a
     ///     documented simplification.
     /// </remarks>
-    private static void RenderText(XElement element, RenderState state, Matrix3x2 transform, RenderContext context, GeometryWorkBudget workBudget)
+    private static void RenderText(XElement element, RenderState state, Matrix3x2 transform, RenderContext context, GeometryWorkBudget workBudget, bool suppressFilter = false)
     {
         if (context.Fonts == null)
         {
@@ -5487,7 +5532,7 @@ public static class SvgCodec
 
         var origin = new Vector2(GetFloatAttribute(element, "x"), GetFloatAttribute(element, "y"));
         var glyphRunPath = BuildGlyphRunPath(text, font, state, origin);
-        RenderShapeWithFilter(element, glyphRunPath, state, transform, context);
+        RenderShapeWithFilter(element, glyphRunPath, state, transform, context, suppressFilter);
     }
 
     /// <summary>

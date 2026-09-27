@@ -189,6 +189,7 @@ sections:
                   - SvgCodec_Load_ArrowMarkersFixture_RendersArrowheadPastLineEnd
                   - SvgCodec_Load_MarkerEndOnClosedPolygon_OrientsUsingClosingEdgeTangent
                   - SvgCodec_Load_MarkerStrokeWidthUnitsOnScaledDocument_ScalesOnceNotTwice
+                  - SvgCodec_Load_MarkerContentWithFilterAttribute_FilterHasNoEffect
 
               - id: CanvasNet-Codecs-SvgCodec-MarkerReferenceCycle
                 title: >-
@@ -550,6 +551,7 @@ sections:
                   - SvgCodec_Load_FeCompositeOperatorXor_KeepsEachInputWhereTheOtherHasNoCoverage
                   - SvgCodec_Load_FeCompositeOperatorXorWithHalfChannelValue_RoundsAwayFromZeroNotToEven
                   - SvgCodec_Load_FilterOnStrokedHorizontalLine_UsesStrokeAwareBoundsNotDegenerate
+                  - SvgCodec_Load_OpacityWithFeFloodFilter_AppliesOpacityToFilteredResultNotSource
 
               - id: CanvasNet-Codecs-SvgCodec-FilterResourceSafety
                 title: >-

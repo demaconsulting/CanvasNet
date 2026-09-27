@@ -302,7 +302,11 @@ gradient stop) it resolves to at the leaf, rather than modeling isolated group c
 documented simplification: it produces visually identical results for the common case of
 non-overlapping shapes within a semi-transparent group, but does not reproduce the subtly
 different result SVG's isolated-group compositing model would produce for overlapping shapes
-within the same semi-transparent group.
+within the same semi-transparent group. A filtered element (see **Filters** below) is the one
+exception to this per-pixel fold: because `opacity` applies to the filtered result as a whole,
+not to the pre-filter source paint, its `SourceGraphic` is instead rendered fully opaque, and the
+element's own `opacity` is applied exactly once, afterward, as a uniform coverage multiplier when
+the filtered result is composited onto the canvas.
 
 ### Gradient, Use, and Text Support and Limits
 
@@ -427,7 +431,11 @@ registered under its own `result` name so later primitives can still resolve it 
 final primitive's own output buffer is composited onto `context.Surface` at the region's own
 pixel position via `Surface.CompositeOverSpan`, clipped to the canvas's own bounds - reusing the
 same offset-aware compositing primitive used elsewhere in this codec, rather than inventing new
-canvas-writing logic for filters.
+canvas-writing logic for filters. The element's own cascaded `opacity` (forced to `1.0` while
+`SourceGraphic` itself is rendered, so the filter chain always evaluates against a fully-opaque
+source) is applied at this same final compositing step, as a uniform per-pixel coverage
+multiplier passed to `CompositeOverSpan` - per SVG semantics, `opacity` applies to the filtered
+result as a whole, exactly once, not to the pre-filter source paint.
 
 #### Element/Group Nesting and Total-Element Bounds
 
