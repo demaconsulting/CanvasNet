@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 80">
+  <!--
+    Hand-authored fixture for CanvasNet's SvgCodec, exercising <style>-element CSS parsing,
+    every supported selector kind/combinator, and all 3 cascade precedence tiers in one document.
+    Licensed under the same MIT license as the rest of this repository.
+  -->
+  <style>
+    /* Universal selector */
+    * { stroke: none; }
+
+    /* Class selector */
+    .blue-fill { fill: blue; }
+
+    /* Id selector - higher specificity than a class selector, must win regardless of order */
+    #red-target { fill: red; }
+    .would-be-green { fill: green; }
+
+    /* Compound selector: only an element carrying both the type and the class matches */
+    rect.compound-orange { fill: orange; }
+
+    /* Comma-separated selector list */
+    .list-a, .list-b { fill: brown; }
+
+    /* Descendant combinator */
+    g .descendant-target { fill: purple; }
+
+    /* Child combinator */
+    #direct-parent > .child-target { fill: teal; }
+
+    /* Cascade tiebreak: later, equal-specificity rule wins */
+    .tiebreak { fill: yellow; }
+    .tiebreak { fill: magenta; }
+
+    /* Stylesheet-overrides-presentation-attribute tier */
+    .stylesheet-wins { fill: blue; }
+
+    /* Inline-style-overrides-stylesheet tier (still targeted by the id rule above) */
+    #red-target-inline { fill: red; }
+  </style>
+
+  <!-- Presentation-attribute-only tier: no stylesheet rule targets this element's fill -->
+  <rect x="0" y="0" width="20" height="20" fill="black"/>
+
+  <!-- Class selector tier -->
+  <rect x="20" y="0" width="20" height="20" class="blue-fill"/>
+
+  <!-- Id selector wins over a same-element, lower-specificity class selector -->
+  <rect x="40" y="0" width="20" height="20" id="red-target" class="would-be-green"/>
+
+  <!-- Compound selector requires both the type and the class condition -->
+  <rect x="60" y="0" width="20" height="20" class="compound-orange"/>
+  <circle cx="70" cy="50" r="10" class="compound-orange"/>
+
+  <!-- Comma-separated selector list: either listed class applies the same declaration -->
+  <rect x="80" y="0" width="20" height="20" class="list-a"/>
+  <rect x="80" y="40" width="20" height="20" class="list-b"/>
+
+  <!-- Descendant combinator: matches any depth of nesting inside a g -->
+  <g>
+    <rect x="100" y="0" width="20" height="20" class="descendant-target"/>
+  </g>
+
+  <!-- Child combinator: only a direct child of #direct-parent matches -->
+  <g id="direct-parent">
+    <rect x="120" y="0" width="20" height="20" class="child-target"/>
+  </g>
+  <g id="other-parent">
+    <g>
+      <rect x="120" y="40" width="20" height="20" class="child-target"/>
+    </g>
+  </g>
+
+  <!-- Cascade tiebreak: the later, equal-specificity rule (magenta) wins over the earlier (yellow) -->
+  <rect x="140" y="0" width="20" height="20" class="tiebreak"/>
+
+  <!-- Stylesheet rule overrides a presentation attribute -->
+  <rect x="160" y="0" width="20" height="20" class="stylesheet-wins" fill="black"/>
+
+  <!-- Inline style unconditionally overrides even a higher-specificity stylesheet id rule -->
+  <rect x="180" y="0" width="20" height="20" id="red-target-inline" style="fill: cyan;"/>
+</svg>

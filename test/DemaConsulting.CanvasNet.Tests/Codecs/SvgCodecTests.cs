@@ -2,6 +2,7 @@
 // cspell:ignore Dasharray hhea Hhea hmtx Hmtx hrefs letterboxed Loca Maxp unstroked
 // cspell:ignore miterlimit
 // cspell:ignore unparseable overpainted bbox moveto lineto rects unrotated unclipped
+// cspell:ignore pillarbox Pillarboxes sizeless basi unswapped
 using System.Diagnostics;
 using System.Reflection;
 using System.Text;
@@ -22,6 +23,25 @@ public class SvgCodecTests
 {
     /// <summary>Wraps <paramref name="svg"/> as a UTF-8 stream for <see cref="SvgCodec"/> to read.</summary>
     private static MemoryStream ToStream(string svg) => new(Encoding.UTF8.GetBytes(svg));
+
+    /// <summary>
+    ///     Asserts that two same-size <see cref="Surface"/> instances contain identical pixels.
+    /// </summary>
+    /// <param name="expected">The expected surface.</param>
+    /// <param name="actual">The actual surface.</param>
+    private static void AssertSurfacesEqual(Surface expected, Surface actual)
+    {
+        Assert.Equal(expected.Width, actual.Width);
+        Assert.Equal(expected.Height, actual.Height);
+
+        for (var y = 0; y < expected.Height; y++)
+        {
+            for (var x = 0; x < expected.Width; x++)
+            {
+                Assert.Equal(expected[x, y], actual[x, y]);
+            }
+        }
+    }
 
     /// <summary>
     ///     Builds a minimal, well-formed synthetic font with two mapped 50x50-unit square glyphs
@@ -1511,12 +1531,17 @@ public class SvgCodecTests
 
         var constructor = contextType
             .GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-            .Single(c => c.GetParameters().Length == 3);
+            .Single(c => c.GetParameters().Length == 4);
+        var stylesheetType = typeof(SvgCodec).GetNestedType("CssStylesheet", BindingFlags.NonPublic);
+        Assert.NotNull(stylesheetType);
+        var emptyStylesheet = stylesheetType.GetField("Empty", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+        Assert.NotNull(emptyStylesheet);
         var context = constructor.Invoke(
         [
             new Surface(1, 1),
             new Dictionary<string, XElement>(),
-            null
+            null,
+            emptyStylesheet
         ]);
 
         // Arrange: reflect the private static ResolveGradientStops(XElement, RenderContext) method
@@ -2573,7 +2598,7 @@ public class SvgCodecTests
         const string svg = """
             <svg viewBox='0 0 10 10'>
               <defs>
-                <filter id='f' x='0' y='0' width='1' height='1'>
+                <filter id='f' x='-1' y='-1' width='3' height='3'>
                   <feFlood flood-color='#ff0000' flood-opacity='0.5' result='fg'/>
                   <feFlood flood-color='#0000ff' flood-opacity='0.25' result='bg'/>
                   <feComposite in='fg' in2='bg' operator='in'/>
@@ -2696,6 +2721,430 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves <c>feComposite operator="arithmetic"</c> evaluates the documented premultiplied
+    ///     formula <c>result = k1*i1*i2 + k2*i1 + k3*i2 + k4</c> - hand-computed against two
+    ///     fully-opaque flat-color <c>feFlood</c> inputs (<c>in</c> = 0.8 gray, <c>in2</c> = 0.2
+    ///     gray) so every term is an exact rational: color
+    ///     <c>0.5*0.8*0.2 + 0.25*0.8 + 0.25*0.2 + 0 = 0.33</c> (byte 84, rounding away-from-zero);
+    ///     alpha <c>0.5*1*1 + 0.25*1 + 0.25*1 + 0 = 1.0</c> (byte 255, both inputs fully opaque).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeCompositeOperatorArithmetic_MatchesHandComputedFormula()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(204,204,204)' result='fg'/>
+                  <feFlood flood-color='rgb(51,51,51)' result='bg'/>
+                  <feComposite in='fg' in2='bg' k1='0.5' k2='0.25' k3='0.25' k4='0' operator='arithmetic'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(84, 84, 84, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <c>feComposite operator="arithmetic"</c> computes its output alpha via the exact
+    ///     same formula as color - not hardcoded to <c>1</c>, not silently dropped - using
+    ///     <c>filter50</c>'s own real-world <c>k1=1, k3=1</c> shape against two inputs with
+    ///     different partial alphas (<c>0.5</c>/<c>0.25</c> opacity, i.e. bytes 128/64) and a flat
+    ///     white color in both: <c>outAlpha = a1*a2 + a2 = a2*(a1 + 1) = (64/255)*(383/255) &#8776;
+    ///     0.376956</c> (byte 96); since both inputs are pure white, the premultiplied color
+    ///     formula collapses to the identical value, so the un-premultiplied output color remains
+    ///     white (255) while only alpha changes.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeCompositeOperatorArithmeticAlpha_MatchesFormulaNotHardcodedOrDropped()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='#ffffff' flood-opacity='0.5' result='fg'/>
+                  <feFlood flood-color='#ffffff' flood-opacity='0.25' result='bg'/>
+                  <feComposite in='fg' in2='bg' k1='1' k3='1' operator='arithmetic'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 255, 255, 96), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <c>feComposite operator="arithmetic"</c> clamps its raw (unclamped) per-channel
+    ///     result to <c>[0, 1]</c> rather than overflowing/wrapping: a white-over-black composite
+    ///     with <c>k2=2</c> raises both color and alpha to a raw <c>2.0</c> (clamped to byte 255),
+    ///     and a second filter with only <c>k4=-1</c> drives both to a raw <c>-1.0</c> (clamped to
+    ///     byte 0, with color forced to black per the zero-alpha convention).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeCompositeOperatorArithmeticOutOfRangeResult_ClampsToValidByteRange()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='high' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='#ffffff' result='fg'/>
+                  <feFlood flood-color='#000000' result='bg'/>
+                  <feComposite in='fg' in2='bg' k2='2' operator='arithmetic'/>
+                </filter>
+                <filter id='low' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='#ffffff' result='fg'/>
+                  <feFlood flood-color='#000000' result='bg'/>
+                  <feComposite in='fg' in2='bg' k4='-1' operator='arithmetic'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='5' height='10' fill='green' filter='url(#high)'/>
+              <rect x='5' y='0' width='5' height='10' fill='green' filter='url(#low)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the raw overflowing (>1) result clamps up to fully opaque white
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[2, 5]);
+
+        // Assert: the raw underflow (<0) result clamps down to fully transparent black
+        Assert.Equal(new Rgba32(0, 0, 0, 0), surface[7, 5]);
+    }
+
+    /// <summary>
+    ///     Regression test for the <c>filter50</c> alpha-silhouette bug: a <c>feGaussianBlur</c>
+    ///     &#8594; <c>feDiffuseLighting</c> &#8594; two <c>feComposite operator="arithmetic"</c>
+    ///     chain (identical primitive shape/attributes to the real-world <c>InkscapeFilters.svg</c>
+    ///     <c>filter50</c>) previously produced a solid, always-opaque rectangular blob filling the
+    ///     whole filter region, because <c>arithmetic</c> was entirely unimplemented and silently
+    ///     passed <c>feDiffuseLighting</c>'s own always-opaque output straight through. With the
+    ///     real formula, the final composite's alpha is <c>k1*a1*a2 + k3*a2 = 2*a2</c> (since the
+    ///     first composite, <c>diffuse</c> arithmetic-squared against itself, stays opaque
+    ///     everywhere): a point far outside the lit circle's own geometry (but inside the generous
+    ///     filter region) has <c>a2 = 0</c>, so the whole pixel resolves to fully transparent
+    ///     black; a point deep inside the circle has <c>a2 = 1</c>, and since
+    ///     <c>feDiffuseLighting</c>'s own lighting contribution is always non-negative, the second
+    ///     composite's <c>k3*p2</c> term alone (the circle's own opaque white fill) already reaches
+    ///     <c>1</c>, so the summed premultiplied color clamps to fully opaque white regardless of
+    ///     the exact lighting value - both expected pixels are therefore exactly, deterministically
+    ///     computable without needing the lighting formula's own numeric output.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeCompositeArithmeticWithDiffuseLighting_TracksSourceAlphaSilhouette()
+    {
+        // Arrange: a white circle, filtered by filter50's own literal primitive chain, with a
+        // deliberately oversized filter region so a point far outside the circle is still sampled
+        // inside the filter region rather than being clipped away entirely
+        const string svg = """
+            <svg viewBox='0 0 200 200'>
+              <defs>
+                <filter id='f' x='-200%' y='-200%' width='500%' height='500%'>
+                  <feGaussianBlur in='SourceGraphic' result='blur' stdDeviation='6'/>
+                  <feDiffuseLighting lighting-color='#ffffff' result='diffuse' surfaceScale='10'>
+                    <feDistantLight azimuth='235' elevation='25'/>
+                  </feDiffuseLighting>
+                  <feComposite in='diffuse' in2='diffuse' k1='1' operator='arithmetic' result='composite1'/>
+                  <feComposite in='composite1' in2='SourceGraphic' k1='1' k3='1' operator='arithmetic'/>
+                </filter>
+              </defs>
+              <circle cx='100' cy='100' r='20' fill='white' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 200, 200);
+
+        // Assert: far outside the circle's own geometry (70px from its edge, well past the blur's
+        // limited influence radius) the result is fully transparent, following the source
+        // silhouette rather than the old bug's solid opaque blob
+        Assert.Equal(new Rgba32(0, 0, 0, 0), surface[100, 10]);
+
+        // Assert: deep inside the circle, the result is fully opaque and lit bright white
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[100, 100]);
+    }
+
+    /// <summary>
+    ///     Proves <c>feBlend</c>'s twelve separable blend modes (including the default
+    ///     <c>normal</c>) each evaluate the exact CSS Compositing Level 1 per-channel <c>B(Cb,
+    ///     Cs)</c> formula, using two fully-opaque flat-color <c>feFlood</c> inputs
+    ///     (<c>in2</c>/backdrop = 0.4 gray = byte 102, <c>in</c>/source = 0.2 gray = byte 51) whose
+    ///     shared value across R/G/B makes every formula hand-computable to an exact byte with no
+    ///     rounding ambiguity. Both inputs are fully opaque, so the CSS Compositing simple-alpha
+    ///     composite collapses to exactly the blend function's own result with alpha <c>255</c>.
+    /// </summary>
+    [Theory]
+    [InlineData("normal", 51)] // B(Cb, Cs) = Cs = 0.2 -> 51
+    [InlineData("multiply", 20)] // Cb*Cs = 0.4*0.2 = 0.08 -> 20.4 -> 20
+    [InlineData("screen", 133)] // Cb+Cs-Cb*Cs = 0.4+0.2-0.08 = 0.52 -> 132.6 -> 133
+    [InlineData("overlay", 41)] // Cb<=0.5: 2*Cb*Cs = 2*0.4*0.2 = 0.16 -> 40.8 -> 41
+    [InlineData("darken", 51)] // min(Cb, Cs) = 0.2 -> 51
+    [InlineData("lighten", 102)] // max(Cb, Cs) = 0.4 -> 102
+    [InlineData("color-dodge", 128)] // min(1, Cb/(1-Cs)) = min(1, 0.4/0.8) = 0.5 -> 127.5 -> 128
+    [InlineData("color-burn", 0)] // 1-min(1, (1-Cb)/Cs) = 1-min(1, 0.6/0.2) = 1-1 = 0 -> 0
+    [InlineData("hard-light", 41)] // Cs<=0.5: multiply(Cb, 2*Cs) = multiply(0.4, 0.4) = 0.16 -> 41
+    [InlineData("soft-light", 65)] // Cs<=0.5: Cb-(1-2Cs)*Cb*(1-Cb) = 0.4-0.6*0.4*0.6 = 0.256 -> 65
+    [InlineData("difference", 51)] // |Cb-Cs| = |0.4-0.2| = 0.2 -> 51
+    [InlineData("exclusion", 112)] // Cb+Cs-2*Cb*Cs = 0.6-0.16 = 0.44 -> 112.2 -> 112
+    public void SvgCodec_Load_FeBlendSeparableMode_MatchesHandComputedFormula(string mode, byte expected)
+    {
+        // Arrange
+        var svg = $$"""
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(102,102,102)' result='bg'/>
+                  <feFlood flood-color='rgb(51,51,51)' result='fg'/>
+                  <feBlend in='fg' in2='bg' mode='{{mode}}'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(expected, expected, expected, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <c>feBlend mode="overlay"</c> evaluates the spec's exact
+    ///     <c>Overlay(Cb, Cs) = HardLight(Cs, Cb)</c> swapped-argument definition, not merely
+    ///     <c>hard-light</c>'s own <c>(Cb, Cs)</c> formula called unswapped (which would branch on
+    ///     the wrong channel and silently produce a different, incorrect result): backdrop
+    ///     <c>Cb=0.6</c> (byte 153), source <c>Cs=0.2</c> (byte 51). Overlay branches on
+    ///     <c>Cb&gt;0.5</c>, giving <c>1-2*(1-Cb)*(1-Cs) = 1-2*0.4*0.8 = 0.36</c> -&gt; byte
+    ///     <c>92</c>; calling <c>hard-light</c>'s own formula directly (unswapped) would instead
+    ///     branch on <c>Cs&lt;=0.5</c>, giving <c>multiply(Cb, 2*Cs) = 0.6*0.4 = 0.24</c> -&gt; byte
+    ///     <c>61</c> - a different value, proving the swap is load-bearing, not a no-op.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeBlendModeOverlay_MatchesHardLightWithSwappedArguments()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(153,153,153)' result='bg'/>
+                  <feFlood flood-color='rgb(51,51,51)' result='fg'/>
+                  <feBlend in='fg' in2='bg' mode='overlay'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: 92 (the correct swapped-argument result), not 61 (the wrong unswapped result)
+        Assert.Equal(new Rgba32(92, 92, 92, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <c>feBlend mode="normal"</c> (the default) produces byte-identical output to
+    ///     <c>feComposite operator="over"</c> for the same two fully-opaque inputs - both reduce
+    ///     to the same "source replaces backdrop" semantics (<c>B(Cb, Cs) = Cs</c>, then simple
+    ///     alpha compositing with an opaque source is source-over).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeBlendModeNormal_MatchesFeCompositeOperatorOver()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='blend' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(102,102,102)' result='bg'/>
+                  <feFlood flood-color='rgb(51,51,51)' result='fg'/>
+                  <feBlend in='fg' in2='bg' mode='normal'/>
+                </filter>
+                <filter id='over' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(102,102,102)' result='bg'/>
+                  <feFlood flood-color='rgb(51,51,51)' result='fg'/>
+                  <feComposite in='fg' in2='bg' operator='over'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='5' height='10' fill='green' filter='url(#blend)'/>
+              <rect x='5' y='0' width='5' height='10' fill='green' filter='url(#over)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(surface[7, 5], surface[2, 5]);
+        Assert.Equal(new Rgba32(51, 51, 51, 255), surface[2, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <c>feBlend</c>'s CSS Compositing simple-alpha compositing formula
+    ///     (<c>&#945;o = &#945;s + &#945;b*(1-&#945;s)</c>, premultiplied color composited then
+    ///     un-premultiplied) is exact for partially-transparent inputs, using <c>mode="normal"</c>
+    ///     to isolate the alpha/compositing math from the per-mode blend function (which collapses
+    ///     to <c>B(Cb, Cs) = Cs</c>): source <c>Cs=0.6</c> (byte 153) at 40% opacity (byte 102, i.e.
+    ///     <c>&#945;s=0.4</c>), backdrop <c>Cb=0.2</c> (byte 51) at 80% opacity (byte 204, i.e.
+    ///     <c>&#945;b=0.8</c>). Hand-computed: <c>&#945;o=0.4+0.8*0.6=0.88</c> (byte 224);
+    ///     <c>Co=(0.4*0.6+0.6*0.8*0.2)/0.88=0.336/0.88&#8776;0.3818</c> (byte 97).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeBlendPartiallyTransparentSource_CompositesAlphaCorrectly()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(51,51,51)' flood-opacity='0.8' result='bg'/>
+                  <feFlood flood-color='rgb(153,153,153)' flood-opacity='0.4' result='fg'/>
+                  <feBlend in='fg' in2='bg' mode='normal'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(97, 97, 97, 224), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <c>feBlend mode="luminosity"</c> (a non-separable mode) implements the spec's
+    ///     exact whole-RGB-triple reference algorithm, not a per-channel approximation, for a case
+    ///     that does <b>not</b> trigger <c>ClipColor</c>'s own clamping branch: backdrop is a
+    ///     uniform 0.4 gray (<c>Lum=0.4</c>, since the CSS Compositing luma coefficients sum to 1),
+    ///     source is pure green (<c>Lum=0.59</c>). <c>SetLum</c> shifts every backdrop channel by
+    ///     <c>+0.19</c> to <c>(0.59, 0.59, 0.59)</c> - within <c>[0, 1]</c>, so no clipping applies
+    ///     - byte <c>150</c> (<c>0.59*255=150.45</c>).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeBlendModeLuminosity_MatchesSpecFormulaWithoutClipping()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(102,102,102)' result='bg'/>
+                  <feFlood flood-color='rgb(0,255,0)' result='fg'/>
+                  <feBlend in='fg' in2='bg' mode='luminosity'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(150, 150, 150, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <c>feBlend mode="luminosity"</c>'s full reference algorithm - specifically
+    ///     <c>ClipColor</c>'s own rescale-toward-luminance branch, not merely its non-clipping fast
+    ///     path - using pure blue backdrop (<c>Cb=(0,0,1)</c>, <c>Lum=0.11</c>) and pure yellow
+    ///     source (<c>Cs=(1,1,0)</c>, <c>Lum=0.89</c>). <c>SetLum</c> shifts every channel by
+    ///     <c>+0.78</c> to <c>(0.78, 0.78, 1.78)</c> - blue's channel overflows past <c>1</c>,
+    ///     triggering <c>ClipColor</c>'s high-side rescale: with <c>l=0.89</c>, <c>x=1.78</c>, the
+    ///     rescale factor is <c>(1-l)/(x-l) = 0.11/0.89 = 11/89</c>, giving
+    ///     <c>R=G=78/89&#8776;0.876404</c> (byte 223) and <c>B=1.0</c> exactly (byte 255).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeBlendModeLuminosity_ClipColorClampsOutOfRangeChannel()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='#0000ff' result='bg'/>
+                  <feFlood flood-color='#ffff00' result='fg'/>
+                  <feBlend in='fg' in2='bg' mode='luminosity'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(223, 223, 255, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves a <c>mode</c> value this codec does not recognize (a syntactically well-formed
+    ///     but non-spec blend mode name) falls back to <c>normal</c> semantics identically to
+    ///     <c>mode</c> being absent entirely - both are the spec's documented default fallback,
+    ///     not merely "absent defaults, unrecognized throws/no-ops".
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeBlendModeUnrecognizedOrAbsent_BothFallBackToNormal()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='absent' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(102,102,102)' result='bg'/>
+                  <feFlood flood-color='rgb(51,51,51)' result='fg'/>
+                  <feBlend in='fg' in2='bg'/>
+                </filter>
+                <filter id='bogus' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(102,102,102)' result='bg'/>
+                  <feFlood flood-color='rgb(51,51,51)' result='fg'/>
+                  <feBlend in='fg' in2='bg' mode='not-a-real-mode'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='5' height='10' fill='green' filter='url(#absent)'/>
+              <rect x='5' y='0' width='5' height='10' fill='green' filter='url(#bogus)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: both resolve to the same normal-mode result (B(Cb, Cs) = Cs = 0.2 -> byte 51)
+        Assert.Equal(surface[7, 5], surface[2, 5]);
+        Assert.Equal(new Rgba32(51, 51, 51, 255), surface[2, 5]);
+    }
+
+    /// <summary>
     ///     Proves that a <c>filter="url(#id)"</c> reference which does not resolve to any element
     ///     (a dangling reference) renders the element normally, exactly as if no <c>filter</c>
     ///     attribute had been present at all - matching the existing dangling-reference tolerance
@@ -2722,12 +3171,9 @@ public class SvgCodecTests
     }
 
     /// <summary>
-    ///     Proves that a filter primitive type this codec does not implement (here
-    ///     <c>feColorMatrix</c>, but the same tolerant handling applies to <c>feTurbulence</c>,
-    ///     <c>feDisplacementMap</c>, <c>feImage</c>, <c>feTile</c>, <c>feDropShadow</c>,
-    ///     <c>feConvolveMatrix</c>, <c>feDiffuseLighting</c>, <c>feSpecularLighting</c>,
-    ///     <c>feComponentTransfer</c>, and <c>feMorphology</c>) is treated as a no-op passthrough
-    ///     of its input, rather than throwing or being ignored at the filter level.
+    ///     Proves that a filter primitive name this codec does not recognize at all (a
+    ///     syntactically well-formed but non-existent element name) is treated as a no-op
+    ///     passthrough of its input, rather than throwing or being ignored at the filter level.
     /// </summary>
     [Fact]
     public void SvgCodec_Load_FilterUnsupportedPrimitive_PassesThroughSourceGraphicUnchanged()
@@ -2737,7 +3183,7 @@ public class SvgCodecTests
             <svg viewBox='0 0 100 100'>
               <defs>
                 <filter id='f'>
-                  <feColorMatrix type='saturate' values='0'/>
+                  <feBogusPrimitive/>
                 </filter>
               </defs>
               <rect x='40' y='40' width='20' height='20' fill='teal' filter='url(#f)'/>
@@ -2751,6 +3197,971 @@ public class SvgCodecTests
         // Assert: the rect's own fill passed through unchanged, proving no exception was thrown
         // and the unsupported primitive did not alter (or blank out) the element's content
         Assert.Equal(new Rgba32(0, 128, 128, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feColorMatrix type="matrix"</c> applies all 20 affine coefficients in
+    ///     row-major order.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeColorMatrixTypeMatrix_AppliesFullAffineTransform()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feColorMatrix values='0 0 1 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0 1 0'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(64,128,192)' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(192, 64, 128, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feColorMatrix type="saturate" values="0"</c> desaturates toward the
+    ///     shared luminance gray value.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeColorMatrixTypeSaturate_DesaturatesTowardGray()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feColorMatrix type='saturate' values='0'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='red' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(54, 54, 54, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feColorMatrix type="hueRotate"</c> rotates hue by exactly the spec's
+    ///     closed-form formula (not a geometric axis-rotation, which yields different, incorrect
+    ///     coefficients). At 120 degrees on pure red (1,0,0), the spec formula evaluates to
+    ///     approximately (-0.36528, 0.44259, -0.36325), which clamps to (0, 0.44259, 0) and rounds
+    ///     to the byte triple (0, 113, 0).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeColorMatrixTypeHueRotate_RotatesHueByAngle()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feColorMatrix type='hueRotate' values='120'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='red' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        var pixel = surface[5, 5];
+        Assert.Equal(255, pixel.A);
+        Assert.Equal(0, pixel.R);
+        Assert.InRange(pixel.G, 111, 115);
+        Assert.Equal(0, pixel.B);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feColorMatrix type="luminanceToAlpha"</c> moves luminance into alpha
+    ///     while clearing color to black.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeColorMatrixTypeLuminanceToAlpha_ConvertsLuminanceToAlphaChannel()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feColorMatrix type='luminanceToAlpha'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(100,150,200)' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 0, 143), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that a missing <c>values</c> attribute falls back to the selected type's SVG
+    ///     default, here <c>saturate=1</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeColorMatrixMissingValuesAttribute_FallsBackToTypeDefault()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feColorMatrix type='saturate'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='teal' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 128, 128, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feComponentTransfer</c> with <c>feFuncR type="table"</c> remaps the red
+    ///     channel through the supplied table values.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeFuncRTypeTable_RemapsRedChannel()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feComponentTransfer>
+                    <feFuncR type='table' tableValues='1 0'/>
+                  </feComponentTransfer>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='red' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feFuncG type="discrete"</c> selects the stepped entry for the source
+    ///     green channel.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeFuncGTypeDiscrete_StepsGreenChannel()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feComponentTransfer>
+                    <feFuncG type='discrete' tableValues='0 1'/>
+                  </feComponentTransfer>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(0,128,0)' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feFuncB type="linear"</c> applies slope and intercept to the blue
+    ///     channel.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeFuncBTypeLinear_ScalesAndOffsetsBlueChannel()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feComponentTransfer>
+                    <feFuncB type='linear' slope='0.5' intercept='0.25'/>
+                  </feComponentTransfer>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(0,0,128)' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 128, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feFuncA type="gamma"</c> applies the gamma curve to alpha.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeFuncATypeGamma_AppliesGammaCurveToAlpha()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feComponentTransfer>
+                    <feFuncA type='gamma' amplitude='1' exponent='2' offset='0'/>
+                  </feComponentTransfer>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='red' fill-opacity='0.5' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 0, 0, 64), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that a missing <c>feFunc*</c> child leaves that channel unchanged.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MissingFeFuncChild_ChannelUnchanged()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feComponentTransfer>
+                    <feFuncR type='linear' slope='0.5' intercept='0'/>
+                  </feComponentTransfer>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(200,50,100)' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(100, 50, 100, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feMorphology operator="erode"</c> shrinks the opaque region.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeMorphologyOperatorErode_ShrinksOpaqueRegion()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 7 7'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feMorphology operator='erode' radius='1'/>
+                </filter>
+              </defs>
+              <rect x='2' y='2' width='3' height='3' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 7, 7);
+
+        // Assert
+        Assert.Equal(255, surface[3, 3].A);
+        Assert.Equal(0, surface[2, 3].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feMorphology operator="dilate"</c> grows the opaque region.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeMorphologyOperatorDilate_GrowsOpaqueRegion()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 7 7'>
+              <defs>
+                <filter id='f' x='-1' y='-1' width='3' height='3'>
+                  <feMorphology operator='dilate' radius='1'/>
+                </filter>
+              </defs>
+              <rect x='2' y='2' width='3' height='3' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 7, 7);
+
+        // Assert
+        Assert.Equal(255, surface[1, 3].A);
+        Assert.Equal(255, surface[3, 3].A);
+    }
+
+    /// <summary>
+    ///     Proves that an excessive resolved <c>feMorphology</c> radius is rejected.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeMorphologyRadiusExceedingCap_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feMorphology operator='dilate' radius='300'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act / Assert
+        using var stream = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves that a non-positive <c>feMorphology</c> radius is treated as identity.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeMorphologyNegativeRadius_TreatedAsIdentity()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 7 7'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feMorphology operator='dilate' radius='-1'/>
+                </filter>
+              </defs>
+              <rect x='3' y='3' width='1' height='1' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 7, 7);
+
+        // Assert
+        Assert.Equal(255, surface[3, 3].A);
+        Assert.Equal(0, surface[2, 3].A);
+    }
+
+    /// <summary>
+    ///     Proves that an identity <c>feConvolveMatrix</c> kernel leaves the input unchanged.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeConvolveMatrixIdentityKernel_LeavesInputUnchanged()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feConvolveMatrix order='1' kernelMatrix='1'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(40,80,120)' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(40, 80, 120, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that a simple edge-detect-style kernel produces the expected response.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeConvolveMatrixEdgeDetectKernel_ProducesExpectedEdgeResponse()
+    {
+        // Arrange
+        using var source = new Surface(3, 1);
+        source[0, 0] = new Rgba32(0, 0, 0, 255);
+        source[1, 0] = new Rgba32(255, 255, 255, 255);
+        source[2, 0] = new Rgba32(255, 255, 255, 255);
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 3 1'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feConvolveMatrix order='3 1' kernelMatrix='-1 1 0' targetX='1' edgeMode='none' preserveAlpha='true'/>
+                </filter>
+              </defs>
+              <image href='{dataUri}' x='0' y='0' width='3' height='1' preserveAspectRatio='none' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 3, 1);
+
+        // Assert: per the SVG spec's flipped-kernel convolution formula
+        // (RESULT(X) = sum_J kernelMatrix(orderX-J-1) * SOURCE(X-targetX+J) / divisor),
+        // pixel (1, 0) sums the flat black/white/white taps to a black (no-edge) response,
+        // while pixel (2, 0)'s flipped "-1" tap looks past the source's right boundary
+        // (transparent black under edgeMode="none"), producing a white edge response.
+        var edgePixel = surface[1, 0];
+        Assert.Equal(255, edgePixel.A);
+        Assert.Equal(new Rgba32(0, 0, 0, 255), edgePixel);
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[2, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>edgeMode="wrap"</c> samples across the opposite edge.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeConvolveMatrixEdgeModeWrap_SamplesAcrossOppositeEdge()
+    {
+        // Arrange
+        using var source = new Surface(3, 1);
+        source[0, 0] = new Rgba32(255, 0, 0, 255);
+        source[1, 0] = new Rgba32(0, 0, 0, 0);
+        source[2, 0] = new Rgba32(0, 0, 255, 255);
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 3 1'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feConvolveMatrix order='3 1' kernelMatrix='1 0 0' targetX='1' edgeMode='wrap'/>
+                </filter>
+              </defs>
+              <image href='{dataUri}' x='0' y='0' width='3' height='1' preserveAspectRatio='none' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 3, 1);
+
+        // Assert: per the SVG spec's flipped-kernel convolution formula, the wrap-relevant
+        // pixel is (2, 0), whose only non-zero-weighted tap requests SOURCE(3) -- one past
+        // the right edge -- which edgeMode="wrap" resolves to SOURCE(0) (the opposite/left
+        // edge), i.e. the red pixel.
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[2, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>preserveAlpha="true"</c> leaves the input alpha channel unchanged.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeConvolveMatrixPreserveAlphaTrue_LeavesAlphaChannelUnchanged()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feConvolveMatrix order='1' kernelMatrix='2' divisor='2' preserveAlpha='true'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='red' fill-opacity='0.5' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 0, 0, 128), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that an excessive <c>feConvolveMatrix</c> order is rejected before any kernel
+    ///     work runs.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeConvolveMatrixOrderExceedingCap_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feConvolveMatrix order='26' kernelMatrix='1'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act / Assert
+        using var stream = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves that a <c>kernelMatrix</c> count mismatch tolerantly falls back to passthrough.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeConvolveMatrixKernelMatrixCountMismatchOrder_TolerantlyPassesThrough()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feConvolveMatrix order='3' kernelMatrix='1 0 0'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 128, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feDisplacementMap</c> with a positive scale and the red-channel selector
+    ///     displaces source pixels.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDisplacementMapPositiveScaleWithRedChannelSelector_DisplacesSourcePixels()
+    {
+        // Arrange
+        using var source = new Surface(5, 1);
+        source[0, 0] = new Rgba32(255, 0, 0, 255);
+        source[1, 0] = new Rgba32(0, 128, 0, 255);
+        source[2, 0] = new Rgba32(0, 0, 255, 255);
+        source[3, 0] = new Rgba32(255, 255, 0, 255);
+        source[4, 0] = new Rgba32(0, 0, 0, 255);
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 5 1'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(255,128,0)' result='map'/>
+                  <feDisplacementMap in='SourceGraphic' in2='map' scale='2' xChannelSelector='R' yChannelSelector='G'/>
+                </filter>
+              </defs>
+              <image href='{dataUri}' x='0' y='0' width='5' height='1' preserveAspectRatio='none' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 5, 1);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[1, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feDisplacementMap scale="0"</c> is identity.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDisplacementMapZeroScale_LeavesInputUnchanged()
+    {
+        // Arrange
+        using var source = new Surface(5, 1);
+        source[0, 0] = new Rgba32(255, 0, 0, 255);
+        source[1, 0] = new Rgba32(0, 128, 0, 255);
+        source[2, 0] = new Rgba32(0, 0, 255, 255);
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 5 1'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='red' result='map'/>
+                  <feDisplacementMap in='SourceGraphic' in2='map' scale='0' xChannelSelector='R' yChannelSelector='A'/>
+                </filter>
+              </defs>
+              <image href='{dataUri}' x='0' y='0' width='5' height='1' preserveAspectRatio='none' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 5, 1);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 128, 0, 255), surface[1, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feDisplacementMap</c> with a positive scale and the blue-channel selector
+    ///     displaces source pixels.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDisplacementMapPositiveScaleWithBlueChannelSelector_DisplacesSourcePixels()
+    {
+        // Arrange
+        using var source = new Surface(5, 1);
+        source[0, 0] = new Rgba32(255, 0, 0, 255);
+        source[1, 0] = new Rgba32(0, 128, 0, 255);
+        source[2, 0] = new Rgba32(0, 0, 255, 255);
+        source[3, 0] = new Rgba32(255, 255, 0, 255);
+        source[4, 0] = new Rgba32(0, 0, 0, 255);
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 5 1'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(0,128,255)' result='map'/>
+                  <feDisplacementMap in='SourceGraphic' in2='map' scale='2' xChannelSelector='B' yChannelSelector='G'/>
+                </filter>
+              </defs>
+              <image href='{dataUri}' x='0' y='0' width='5' height='1' preserveAspectRatio='none' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 5, 1);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[1, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feDisplacementMap</c> with a positive scale and the alpha-channel selector
+    ///     displaces source pixels.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDisplacementMapPositiveScaleWithAlphaChannelSelector_DisplacesSourcePixels()
+    {
+        // Arrange
+        using var source = new Surface(5, 1);
+        source[0, 0] = new Rgba32(255, 0, 0, 255);
+        source[1, 0] = new Rgba32(0, 128, 0, 255);
+        source[2, 0] = new Rgba32(0, 0, 255, 255);
+        source[3, 0] = new Rgba32(255, 255, 0, 255);
+        source[4, 0] = new Rgba32(0, 0, 0, 255);
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 5 1'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(0,128,0)' result='map'/>
+                  <feDisplacementMap in='SourceGraphic' in2='map' scale='2' xChannelSelector='A' yChannelSelector='G'/>
+                </filter>
+              </defs>
+              <image href='{dataUri}' x='0' y='0' width='5' height='1' preserveAspectRatio='none' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 5, 1);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[1, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feDisplacementMap</c> with a negative scale displaces source pixels in
+    ///     the opposite direction of the equivalent positive scale.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDisplacementMapNegativeScale_DisplacesSourcePixelsInOppositeDirection()
+    {
+        // Arrange: a two-row source (rows are identical) so that the negative-scale vertical
+        // displacement - which lands on row 1 rather than staying within row 0 - still samples a
+        // known pixel value
+        using var source = new Surface(5, 2);
+        for (var row = 0; row < 2; row++)
+        {
+            source[0, row] = new Rgba32(255, 0, 0, 255);
+            source[1, row] = new Rgba32(0, 128, 0, 255);
+            source[2, row] = new Rgba32(0, 0, 255, 255);
+            source[3, row] = new Rgba32(255, 255, 0, 255);
+            source[4, row] = new Rgba32(0, 0, 0, 255);
+        }
+
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 5 2'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(255,128,0)' result='map'/>
+                  <feDisplacementMap in='SourceGraphic' in2='map' scale='-2' xChannelSelector='R' yChannelSelector='B'/>
+                </filter>
+              </defs>
+              <image href='{dataUri}' x='0' y='0' width='5' height='2' preserveAspectRatio='none' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 5, 2);
+
+        // Assert: pixel at (3, 0) pulls from (2, 1) - a -1 horizontal displacement, the mirror
+        // image of the +1 displacement produced by the equivalent positive-scale test
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[3, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feDisplacementMap</c> with a larger-magnitude scale produces a
+    ///     proportionally larger displacement than the equivalent smaller-scale case.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDisplacementMapLargerMagnitudeScale_ProducesProportionallyLargerDisplacement()
+    {
+        // Arrange
+        using var source = new Surface(5, 1);
+        source[0, 0] = new Rgba32(255, 0, 0, 255);
+        source[1, 0] = new Rgba32(0, 128, 0, 255);
+        source[2, 0] = new Rgba32(0, 0, 255, 255);
+        source[3, 0] = new Rgba32(255, 255, 0, 255);
+        source[4, 0] = new Rgba32(0, 0, 0, 255);
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 5 1'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(255,128,0)' result='map'/>
+                  <feDisplacementMap in='SourceGraphic' in2='map' scale='4' xChannelSelector='R' yChannelSelector='G'/>
+                </filter>
+              </defs>
+              <image href='{dataUri}' x='0' y='0' width='5' height='1' preserveAspectRatio='none' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 5, 1);
+
+        // Assert: a scale of 4 (double the scale='2' case) doubles the +1 displacement to +2, so
+        // pixel 0 pulls from pixel 2 and pixel 2 pulls from pixel 4
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[0, 0]);
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[2, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feTile</c> repeats the upstream primitive's declared subregion across the
+    ///     whole filter region.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeTileTilesUpstreamPrimitiveSubregionAcrossFilterRegion()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 4 4'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='red' x='0' y='0' width='0.5' height='0.5' result='seed'/>
+                  <feTile in='seed'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='4' height='4' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 4, 4);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[3, 3]);
+    }
+
+    /// <summary>
+    ///     Proves that, without an upstream primitive subregion, <c>feTile</c> is identity.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeTileNoUpstreamSubregion_TilesWholeRegionAsIdentity()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 4 4'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTile in='SourceGraphic'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='2' height='4' fill='blue' filter='url(#f)'/>
+              <rect x='2' y='0' width='2' height='4' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 4, 4);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[1, 2]);
+        Assert.Equal(new Rgba32(0, 128, 0, 255), surface[3, 2]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feDropShadow</c> matches the specification's equivalent manual primitive
+    ///     chain.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDropShadow_MatchesManualBlurOffsetFloodCompositeChainEquivalent()
+    {
+        // Arrange
+        const string dropShadowSvg = """
+            <svg viewBox='0 0 12 12'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feDropShadow dx='1' dy='1' stdDeviation='0' flood-color='red' flood-opacity='0.5'/>
+                </filter>
+              </defs>
+              <rect x='4' y='4' width='2' height='2' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+        const string manualSvg = """
+            <svg viewBox='0 0 12 12'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feGaussianBlur in='SourceAlpha' stdDeviation='0' result='blur'/>
+                  <feOffset in='blur' dx='1' dy='1' result='offset'/>
+                  <feFlood flood-color='red' flood-opacity='0.5' result='flood'/>
+                  <feComposite in='flood' in2='offset' operator='in' result='shadow'/>
+                  <feMerge>
+                    <feMergeNode in='shadow'/>
+                    <feMergeNode in='SourceGraphic'/>
+                  </feMerge>
+                </filter>
+              </defs>
+              <rect x='4' y='4' width='2' height='2' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var dropShadowStream = ToStream(dropShadowSvg);
+        using var manualStream = ToStream(manualSvg);
+        var dropShadowSurface = SvgCodec.Load(dropShadowStream, 12, 12);
+        var manualSurface = SvgCodec.Load(manualStream, 12, 12);
+
+        // Assert
+        AssertSurfacesEqual(manualSurface, dropShadowSurface);
+    }
+
+    /// <summary>
+    ///     Proves that a defaulted <c>feDropShadow</c> still paints visible shadow coverage offset
+    ///     away from the source content.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDropShadowDefaultDxDyStdDeviation_OffsetsShadowBy2Pixels()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 12 12'>
+              <defs>
+                <filter id='f' x='-2' y='-2' width='5' height='5'>
+                  <feDropShadow flood-color='red'/>
+                </filter>
+              </defs>
+              <rect x='3' y='3' width='2' height='2' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 12, 12);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[3, 3]);
+        Assert.True(surface[6, 6].A > 0, $"Expected default drop-shadow coverage at (6, 6), got {surface[6, 6]}.");
+    }
+
+    /// <summary>
+    ///     Proves that a primitive-level subregion clips the primitive output to the declared
+    ///     rectangle.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FePrimitiveWithSubregion_ClipsOutputToDeclaredXYWidthHeight()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='red' x='0.5' y='0' width='0.5' height='1'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(0, surface[2, 5].A);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[7, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that a primitive without its own subregion remains unaffected by the new
+    ///     clipping mechanism.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FePrimitiveWithoutSubregion_UnaffectedByNewMechanism()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='red'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[2, 5]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[7, 5]);
     }
 
     /// <summary>
@@ -3345,6 +4756,124 @@ public class SvgCodecTests
         // Assert: the gap between the two rects is filled by the flood, proving the use's own
         // filter attribute applies to the resolved <g> target's combined subtree bounds
         Assert.Equal(new Rgba32(255, 0, 0, 255), surface[25, 15]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>symbol</c> referenced via <c>use</c> establishes a new nested viewport,
+    ///     fitting the symbol's own <c>viewBox</c> content into the resolved <c>width</c>/
+    ///     <c>height</c> (falling back from the <c>use</c> element's own <c>width</c>/<c>height</c>)
+    ///     per the symbol's own <c>preserveAspectRatio</c> - new capability, via the same shared
+    ///     <c>ComputePreserveAspectRatioFit</c> helper the root <c>svg</c> element uses.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_UseReferencingSymbolWithViewBox_FitsContentToResolvedWidthHeight()
+    {
+        // Arrange: a symbol with a 10x10 viewBox containing a full-viewBox blue rect, referenced
+        // via a <use> that resolves a 20x20 box (its own width/height) - the symbol's content
+        // should be scaled up 2x to fill that 20x20 box, then translated by the use's own x=5,y=5
+        // offset, landing at (5,5)-(25,25) in the root's own coordinate space
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <symbol id='sym' viewBox='0 0 10 10'>
+                  <rect x='0' y='0' width='10' height='10' fill='blue'/>
+                </symbol>
+              </defs>
+              <use href='#sym' x='5' y='5' width='20' height='20'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the fitted, scaled-up content fills its resolved 20x20 box, sampled well inside
+        // the expected (5,5)-(25,25) region
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[15, 15]);
+
+        // Assert: outside the resolved 20x20 box, nothing was painted
+        Assert.Equal(0, surface[40, 40].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>symbol</c>'s own <c>preserveAspectRatio</c> attribute is honored when
+    ///     fitting its <c>viewBox</c> content into its resolved <c>width</c>/<c>height</c> - new
+    ///     capability, exercising a non-default align (<c>xMinYMin</c>) so the fitted content is
+    ///     pinned to the resolved box's own top-left corner rather than centered.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_UseReferencingSymbolWithPreserveAspectRatio_HonorsAlign()
+    {
+        // Arrange: a symbol with a 10x20 (portrait) viewBox fitted "meet" into a 20x20 (square)
+        // resolved box - under the default xMidYMid, the fitted 10x20 content (scaled to 10x20,
+        // scale=1) would be horizontally centered (offset x=5); under "xMinYMin", it is pinned to
+        // the left edge (offset x=0) instead. A blue marker rect fills the whole viewBox
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <symbol id='sym' viewBox='0 0 10 20' preserveAspectRatio='xMinYMin meet'>
+                  <rect x='0' y='0' width='10' height='20' fill='blue'/>
+                </symbol>
+              </defs>
+              <use href='#sym' x='0' y='0' width='20' height='20'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: content is pinned to the left edge (visible at x=2, well within the fitted
+        // 0-10 band) rather than centered (which would leave x=2 transparent, since centered
+        // content would occupy x=5-15)
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[2, 10]);
+
+        // Assert: the right-hand slack area (which the centered default would fill, but the
+        // left-pinned align leaves empty) is transparent
+        Assert.Equal(0, surface[17, 10].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>marker</c> element's own explicit <c>preserveAspectRatio</c> attribute
+    ///     is honored - new capability, routing the marker's <c>viewBox</c> fit through the same
+    ///     shared <c>ComputePreserveAspectRatioFit</c> helper as the root <c>svg</c>/a <c>symbol</c>
+    ///     - distinct from a marker with no explicit attribute at all, which always uses a "meet"
+    ///     -equivalent scale (see <see cref="SvgCodec_Load_MarkerWithViewBox_FitsContentToMarkerWidthHeight"/>).
+    ///     Exercises <c>slice</c> specifically: because a marker's content is always anchored by
+    ///     its own <c>refX</c>/<c>refY</c> (never clipped to <c>markerWidth</c>/<c>markerHeight</c>
+    ///     - see this class's remarks), an <c>&lt;align&gt;</c>'s Min/Mid/Max offset has no visible
+    ///     effect on an unclipped marker (the offset is a rigid translation that always cancels
+    ///     out relative to the anchor point), so <c>meet</c> versus <c>slice</c>'s different
+    ///     uniform scale factor is the one part of an explicit <c>preserveAspectRatio</c> that
+    ///     <i>is</i> visibly distinguishable here.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerWithExplicitPreserveAspectRatioSlice_UsesLargerUniformScale()
+    {
+        // Arrange: a marker with a 16x8 viewBox fitted into a 8x8 markerWidth/markerHeight -
+        // "meet" (min(8/16, 8/8) = 0.5, this marker's own pre-existing default-path scale) versus
+        // "slice" (max(8/16, 8/8) = 1, twice as large) - anchored via refX=8,refY=4 (the viewBox's
+        // own center) at the line's end vertex (10,10). Under "slice", the scaled-up content spans
+        // canvas (2,6)-(18,14); under the marker's pre-existing "meet"-equivalent default it would
+        // only span the narrower (6,8)-(14,12) - so canvas point (3,10) is covered only by the
+        // wider "slice" fit
+        const string svg = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <marker id='sl' markerWidth='8' markerHeight='8' refX='8' refY='4' viewBox='0 0 16 8' preserveAspectRatio='xMidYMid slice' markerUnits='userSpaceOnUse'>
+                  <rect x='0' y='0' width='16' height='8' fill='green'/>
+                </marker>
+              </defs>
+              <line x1='2' y1='10' x2='10' y2='10' stroke='black' stroke-width='1' marker-end='url(#sl)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert: the wider "slice" fit covers a point the narrower default "meet" fit would not
+        Assert.Equal(new Rgba32(0, 128, 0, 255), surface[3, 10]);
     }
 
     /// <summary>
@@ -4860,6 +6389,176 @@ public class SvgCodecTests
     }
 
     // ================================================================================================
+    // preserveAspectRatio - explicit align/meetOrSlice values (new capability)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Data-driven matrix covering all 9 non-<c>none</c> <c>&lt;align&gt;</c> values crossed
+    ///     with both <c>meetOrSlice</c> values, via <see cref="SvgCodec_Load_RootPreserveAspectRatio_AppliesAlignAndMeetOrSlice"/>.
+    ///     A single 200x100 <c>viewBox</c> rendered into a mismatched-both-axes 100x200 (portrait)
+    ///     raster makes the horizontal axis the exact-fit axis under <c>meet</c> (scale
+    ///     <c>min(100/200, 200/100) = 0.5</c>, fitted width exactly 100 = the raster width, so the
+    ///     <c>align</c>'s x-component has no visible effect and only its y-component does) and the
+    ///     horizontal axis the overflowing axis under <c>slice</c> (scale
+    ///     <c>max(100/200, 200/100) = 2</c>, fitted height exactly 200 = the raster height, so only
+    ///     the x-component has any visible effect) - see the test method's own remarks for the full
+    ///     geometry derivation. Each row's four trailing values are two independently-verified
+    ///     sample points (<c>x, y, expectedColor</c>) into the resulting raster.
+    /// </summary>
+    [Theory]
+    [InlineData("xMinYMin", "meet", 50, 5, "red", 50, 45, "blue")]
+    [InlineData("xMidYMin", "meet", 50, 5, "red", 50, 45, "blue")]
+    [InlineData("xMaxYMin", "meet", 50, 5, "red", 50, 45, "blue")]
+    [InlineData("xMinYMid", "meet", 50, 80, "red", 50, 120, "blue")]
+    [InlineData("xMidYMid", "meet", 50, 80, "red", 50, 120, "blue")]
+    [InlineData("xMaxYMid", "meet", 50, 80, "red", 50, 120, "blue")]
+    [InlineData("xMinYMax", "meet", 50, 155, "red", 50, 195, "blue")]
+    [InlineData("xMidYMax", "meet", 50, 155, "red", 50, 195, "blue")]
+    [InlineData("xMaxYMax", "meet", 50, 155, "red", 50, 195, "blue")]
+    [InlineData("xMinYMin", "slice", 10, 100, "red", 90, 100, "none")]
+    [InlineData("xMidYMin", "slice", 10, 100, "none", 90, 100, "none")]
+    [InlineData("xMaxYMin", "slice", 10, 100, "none", 90, 100, "blue")]
+    [InlineData("xMinYMid", "slice", 10, 100, "red", 90, 100, "none")]
+    [InlineData("xMidYMid", "slice", 10, 100, "none", 90, 100, "none")]
+    [InlineData("xMaxYMid", "slice", 10, 100, "none", 90, 100, "blue")]
+    [InlineData("xMinYMax", "slice", 10, 100, "red", 90, 100, "none")]
+    [InlineData("xMidYMax", "slice", 10, 100, "none", 90, 100, "none")]
+    [InlineData("xMaxYMax", "slice", 10, 100, "none", 90, 100, "blue")]
+    public void SvgCodec_Load_RootPreserveAspectRatio_AppliesAlignAndMeetOrSlice(
+        string align, string meetOrSlice, int x1, int y1, string color1, int x2, int y2, string color2)
+    {
+        // Arrange: a 200x100 viewBox with a red vertical stripe at its left edge (x 0-30, full
+        // height), a blue vertical stripe at its right edge (x 170-200, full height), a red
+        // horizontal stripe at its top edge (y 0-20, full width), and a blue horizontal stripe at
+        // its bottom edge (y 80-100, full width) - rendered into a 100x200 raster (see this
+        // Theory's own remarks for the resulting geometry). The "meet" rows sample a fixed
+        // x = 50 column (outside both vertical stripes' mapped position under "meet", regardless
+        // of align) at a y computed from the expected y-offset for the row's y-component; the
+        // "slice" rows sample a fixed y = 100 row (outside both horizontal stripes' mapped
+        // position under "slice", regardless of align) at the fixed x = 10/x = 90 columns.
+        var svg = $"""
+            <svg viewBox='0 0 200 100' preserveAspectRatio='{align} {meetOrSlice}'>
+              <rect x='0' y='0' width='30' height='100' fill='red'/>
+              <rect x='170' y='0' width='30' height='100' fill='blue'/>
+              <rect x='0' y='0' width='200' height='20' fill='red'/>
+              <rect x='0' y='80' width='200' height='20' fill='blue'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 200);
+
+        // Assert
+        AssertSampleColor(surface, x1, y1, color1);
+        AssertSampleColor(surface, x2, y2, color2);
+    }
+
+    /// <summary>Asserts one raster pixel is opaque red, opaque blue, or fully transparent ("none").</summary>
+    /// <param name="surface">The rasterized surface to sample.</param>
+    /// <param name="x">The pixel's x coordinate.</param>
+    /// <param name="y">The pixel's y coordinate.</param>
+    /// <param name="expected"><c>"red"</c>, <c>"blue"</c>, or <c>"none"</c> (fully transparent).</param>
+    private static void AssertSampleColor(Surface surface, int x, int y, string expected)
+    {
+        switch (expected)
+        {
+            case "red":
+                Assert.Equal(new Rgba32(255, 0, 0, 255), surface[x, y]);
+                break;
+            case "blue":
+                Assert.Equal(new Rgba32(0, 0, 255, 255), surface[x, y]);
+                break;
+            case "none":
+                Assert.Equal(0, surface[x, y].A);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(expected), expected, "Unrecognized expected color token.");
+        }
+    }
+
+    /// <summary>
+    ///     Proves that an explicit <c>preserveAspectRatio="none"</c> stretches content
+    ///     non-uniformly to exactly fill the viewport on both axes independently - no uniform
+    ///     scale, no letterbox/pillarbox remainder, and no centering - new capability, distinct
+    ///     from every other <c>align</c> value (all of which scale uniformly).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_RootPreserveAspectRatioNone_StretchesNonUniformly()
+    {
+        // Arrange: a 200x100 viewBox into a 100x200 raster stretches by scaleX = 100/200 = 0.5 and
+        // scaleY = 200/100 = 2 independently; a 10x10 marker centered in the viewBox (at (95,45)
+        // to (105,55)) lands at exactly (47.5,90) to (52.5,110) in raster space - sampling its
+        // center (50,100) proves both the non-uniform scale and the lack of any centering offset,
+        // and the background rect's own opaque corners prove there is no letterbox/pillarbox
+        const string svg = """
+            <svg viewBox='0 0 200 100' preserveAspectRatio='none'>
+              <rect x='0' y='0' width='200' height='100' fill='blue'/>
+              <rect x='95' y='45' width='10' height='10' fill='red'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 200);
+
+        // Assert: the centered marker landed at its exact non-uniformly-scaled position
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 100]);
+
+        // Assert: every corner of the raster is fully opaque - no letterbox/pillarbox bars
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[0, 0]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[99, 0]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[0, 199]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[99, 199]);
+    }
+
+    /// <summary>
+    ///     Regression test proving that an <b>absent</b> <c>preserveAspectRatio</c> attribute -
+    ///     today's pre-existing implicit default - still produces byte-for-byte identical output
+    ///     to an explicit <c>preserveAspectRatio="xMidYMid meet"</c> attribute (the SVG/CSS
+    ///     specification's own default value), confirming that adding explicit
+    ///     <c>preserveAspectRatio</c> support did not change the implicit-default behavior this
+    ///     codec already had (see this class's <c>ComputePreserveAspectRatioFit</c> remarks - the
+    ///     pre-existing "meet, centered" root fit was already spec-conformant <c>xMidYMid meet</c>,
+    ///     not a non-uniform stretch).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_NoPreserveAspectRatioAttribute_MatchesExplicitXMidYMidMeet()
+    {
+        // Arrange: a 200x100 viewBox into a mismatched 100x100 square raster, so the implicit
+        // "meet, centered" fit actually letterboxes (a non-trivial fit, not a no-op identity)
+        const string implicitSvg = """
+            <svg viewBox='0 0 200 100'>
+              <rect x='0' y='0' width='200' height='100' fill='blue'/>
+              <rect x='90' y='40' width='20' height='20' fill='red'/>
+            </svg>
+            """;
+        const string explicitSvg = """
+            <svg viewBox='0 0 200 100' preserveAspectRatio='xMidYMid meet'>
+              <rect x='0' y='0' width='200' height='100' fill='blue'/>
+              <rect x='90' y='40' width='20' height='20' fill='red'/>
+            </svg>
+            """;
+
+        // Act
+        using var implicitStream = ToStream(implicitSvg);
+        using var explicitStream = ToStream(explicitSvg);
+        var implicitSurface = SvgCodec.Load(implicitStream, 100, 100);
+        var explicitSurface = SvgCodec.Load(explicitStream, 100, 100);
+
+        // Assert: every pixel matches exactly between the two documents
+        Assert.Equal(implicitSurface.Width, explicitSurface.Width);
+        Assert.Equal(implicitSurface.Height, explicitSurface.Height);
+        for (var y = 0; y < implicitSurface.Height; y++)
+        {
+            for (var x = 0; x < implicitSurface.Width; x++)
+            {
+                Assert.Equal(implicitSurface[x, y], explicitSurface[x, y]);
+            }
+        }
+    }
+
+    // ================================================================================================
     // GetInfo and its three-tier fallback policy
     // ================================================================================================
 
@@ -5647,38 +7346,246 @@ public class SvgCodecTests
     }
 
     /// <summary>
-    ///     Proves that a percentage value on a shape geometry attribute (<c>x</c>) is rejected
-    ///     with <see cref="InvalidDataException"/>, because this codec has no defined
-    ///     viewport-relative basis to resolve it against - unlike the opacity percentage exercised
-    ///     by <see cref="SvgCodec_Load_NegativeScientificAndPercentageValues_RendersWithoutThrowing"/>
-    ///     above, which continues to work correctly and is unaffected by this rejection.
+    ///     Proves that a percentage value on a shape geometry attribute (<c>x</c>) resolves
+    ///     against the current viewport width - repurposed from this codec's original
+    ///     percentage-<i>rejection</i> behavior on this exact attribute/markup (percentages on
+    ///     shape geometry are now a supported new capability; see this class's percentage-geometry
+    ///     region below for the fuller per-attribute-family matrix). Unlike the opacity percentage
+    ///     exercised by <see cref="SvgCodec_Load_NegativeScientificAndPercentageValues_RendersWithoutThrowing"/>
+    ///     above (always a basis-1 fraction, unaffected by this change), <c>x</c> resolves its
+    ///     <c>%</c> against the SVG document's current viewport width.
     /// </summary>
     [Fact]
-    public void SvgCodec_Load_RectXPercentage_ThrowsInvalidDataException()
+    public void SvgCodec_Load_RectXPercentage_ResolvesAgainstViewportWidth()
     {
-        // Arrange
-        const string svg = "<svg viewBox='0 0 100 100'><rect x='50%' y='0' width='10' height='10'/></svg>";
+        // Arrange: x="50%" of a 100-wide viewBox resolves to x=50; a 10x10 rect at x=50 covers
+        // (55,5) but not (5,5)
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='50%' y='0' width='10' height='10' fill='red'/></svg>";
 
-        // Act & Assert
+        // Act
         using var stream2788 = ToStream(svg);
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2788, 100, 100));
+        var surface = SvgCodec.Load(stream2788, 100, 100);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[55, 5]);
+        Assert.Equal(0, surface[5, 5].A);
     }
 
     /// <summary>
-    ///     Proves that a percentage value on a shape geometry attribute (<c>width</c>) is
-    ///     rejected with <see cref="InvalidDataException"/>, for the same reason as the <c>x</c>
-    ///     attribute test above - exercising a different attribute through the same
-    ///     <c>GetFloatAttribute</c>/<c>ParseGeometryCoordinate</c> code path.
+    ///     Proves that a percentage value on a shape geometry attribute (<c>width</c>) resolves
+    ///     against the current viewport width - repurposed from this codec's original
+    ///     percentage-<i>rejection</i> behavior on this exact attribute/markup, for the same
+    ///     reason as the <c>x</c> attribute test above - exercising a different attribute through
+    ///     the same <c>GetFloatAttribute</c>/<c>ParseGeometryCoordinate</c> code path.
     /// </summary>
     [Fact]
-    public void SvgCodec_Load_RectWidthPercentage_ThrowsInvalidDataException()
+    public void SvgCodec_Load_RectWidthPercentage_ResolvesAgainstViewportWidth()
     {
-        // Arrange
-        const string svg = "<svg viewBox='0 0 100 100'><rect x='0' y='0' width='50%' height='10'/></svg>";
+        // Arrange: width="50%" of a 100-wide viewBox resolves to width=50; the rect spans x=[0,50)
+        const string svg = "<svg viewBox='0 0 100 100'><rect x='0' y='0' width='50%' height='10' fill='red'/></svg>";
 
-        // Act & Assert
+        // Act
         using var stream2804 = ToStream(svg);
-        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream2804, 100, 100));
+        var surface = SvgCodec.Load(stream2804, 100, 100);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[25, 5]);
+        Assert.Equal(0, surface[75, 5].A);
+    }
+
+    // ================================================================================================
+    // Percentage-based geometry - per-attribute-family basis matrix (new capability)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that a <c>rect</c>'s <c>y</c>/<c>height</c> percentages resolve against the
+    ///     current viewport height (the vertical basis), distinct from <c>x</c>/<c>width</c>'s
+    ///     horizontal basis exercised above.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_RectYHeightPercentage_ResolvesAgainstViewportHeight()
+    {
+        // Arrange: a 100x50 viewBox (non-square, so horizontal/vertical bases differ); y="40%" of
+        // 50 resolves to 20, height="20%" of 50 resolves to 10 - the rect spans y=[20,30)
+        const string svg = "<svg viewBox='0 0 100 50'><rect x='0' y='40%' width='10' height='20%' fill='red'/></svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 50);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 25]);
+        Assert.Equal(0, surface[5, 15].A);
+        Assert.Equal(0, surface[5, 35].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>circle</c>'s <c>cx</c>/<c>cy</c> percentages resolve against their own
+    ///     horizontal/vertical viewport bases, and its <c>r</c> percentage resolves against the
+    ///     diagonal basis (<c>sqrt(w^2 + h^2) / sqrt(2)</c>) - an axis-agnostic length, per the SVG
+    ///     specification.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CircleCxCyRPercentage_ResolvesAgainstHorizontalVerticalAndDiagonalBases()
+    {
+        // Arrange: a 300x400 viewBox; cx="50%" -> 150, cy="50%" -> 200; diagonal basis =
+        // sqrt(300^2+400^2)/sqrt(2) = 500/sqrt(2) ~ 353.55, so r="10%" -> ~35.355
+        const string svg = "<svg viewBox='0 0 300 400'><circle cx='50%' cy='50%' r='10%' fill='red'/></svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 300, 400);
+
+        // Assert: the circle's center (150,200) is filled, and a point ~35 units away (well
+        // within a ~35.355 radius) is filled, but a point 50 units away (well beyond it) is not
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[150, 200]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[150 + 30, 200]);
+        Assert.Equal(0, surface[150 + 50, 200].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>line</c>'s <c>x1</c>/<c>x2</c> and <c>y1</c>/<c>y2</c> percentages
+    ///     resolve against the horizontal/vertical viewport bases respectively.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_LineCoordinatePercentage_ResolvesAgainstViewport()
+    {
+        // Arrange: a 100x50 viewBox; the line's x1/x2/y1/y2 are percentages of the viewport,
+        // resolving to a horizontal line from (10,25) to (90,25)
+        const string svg =
+            "<svg viewBox='0 0 100 50'><line x1='10%' y1='50%' x2='90%' y2='50%' stroke='red' stroke-width='4'/></svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 50);
+
+        // Assert: the line spans x=[10,90] at y=25 - opaque within its span, transparent well
+        // outside it
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[15, 25]);
+        Assert.Equal(0, surface[5, 25].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>linearGradient</c>'s own <c>x1</c>/<c>x2</c> coordinates (a distinct,
+    ///     gradient-specific code path - see <c>GetGradientCoordinateOrDefault</c>) are unaffected
+    ///     by this phase's new viewport-relative percentage resolution, continuing to resolve
+    ///     <c>"0%"</c>/<c>"100%"</c> as basis-1 fractions of the gradient's own
+    ///     <c>objectBoundingBox</c> coordinate space rather than as viewport-relative lengths -
+    ///     the documented, out-of-scope-for-this-phase <c>userSpaceOnUse</c> simplification (see
+    ///     this class's remarks). Uses a <c>rect</c> fill (a non-degenerate, two-dimensional
+    ///     bounding box) rather than a <c>line</c> stroke, because a horizontal/vertical
+    ///     <c>line</c>'s own fill-geometry bounding box is degenerate on one axis and always
+    ///     falls back to an identity object-bounding-box map regardless of this change.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_GradientCoordinatePercentage_UnaffectedByViewportPercentageResolution()
+    {
+        // Arrange: a 100x50 viewBox; the rect's own x/y/width/height are plain numbers (not
+        // percentages, to isolate this test to the gradient's own coordinate space), and the
+        // gradient's x1="0%"/x2="100%" span its object-bounding-box fraction space left-to-right
+        const string svg = """
+            <svg viewBox='0 0 100 50'>
+              <defs>
+                <linearGradient id='g' x1='0%' y1='0%' x2='100%' y2='0%'>
+                  <stop offset='0' stop-color='black'/>
+                  <stop offset='1' stop-color='white'/>
+                </linearGradient>
+              </defs>
+              <rect x='10' y='10' width='80' height='30' fill='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 50);
+
+        // Assert: the rect's own left edge (near gradient fraction 0) is darker than its own
+        // right edge (near gradient fraction 1) - proving the gradient's "0%"/"100%" still span
+        // its own 80-wide bounding box, not this phase's new 100-wide viewport basis (which would
+        // instead place fraction 1 far beyond the rect's own right edge, painting it a uniform
+        // color throughout)
+        Assert.True(surface[12, 25].R < surface[88, 25].R);
+    }
+
+    /// <summary>
+    ///     Proves that <c>stroke-width</c>'s percentage resolves against the diagonal basis
+    ///     (an axis-agnostic length, per the SVG specification), distinct from the horizontal/
+    ///     vertical bases exercised by <c>x</c>/<c>y</c>-family attributes above.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_StrokeWidthPercentage_ResolvesAgainstDiagonalBasis()
+    {
+        // Arrange: a 300x400 viewBox; diagonal basis = sqrt(300^2+400^2)/sqrt(2) = 500/sqrt(2) ~
+        // 353.55, so stroke-width="10%" -> ~35.355 - a visibly thick horizontal line
+        const string svg = "<svg viewBox='0 0 300 400'><line x1='50' y1='200' x2='250' y2='200' stroke='black' stroke-width='10%'/></svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 300, 400);
+
+        // Assert: a point 15 units above/below the line's own y=200 centerline (well within a
+        // ~17.7 half-width) is covered by the stroke
+        Assert.Equal(255, surface[150, 185].A);
+        Assert.Equal(255, surface[150, 215].A);
+
+        // Assert: a point 30 units away (beyond the ~17.7 half-width) is not covered
+        Assert.Equal(0, surface[150, 170].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>font-size</c>'s percentage resolves against the parent element's own
+    ///     already-cascaded <c>font-size</c> (the CSS/SVG-defined basis), not any viewport
+    ///     dimension - a distinct basis from every other percentage-eligible attribute above.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FontSizePercentage_ResolvesAgainstParentFontSize()
+    {
+        // Arrange: the outer <g> establishes a 20-unit font-size; the inner <text> sets
+        // font-size="200%", which should resolve to 40 (double its parent's 20), rendering a
+        // visibly taller glyph than the parent's own 20-unit size would
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <g font-size='20'>
+                <text x='10' y='60' font-family='TestFont' font-size='200%'>A</text>
+              </g>
+            </svg>
+            """;
+
+        var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100, fonts);
+
+        // Assert: BuildTestFont's 'A' glyph is a 50x50-unit square in a 100-unit em - at
+        // font-size=40, it renders as a 20x20-unit square; its baseline is at y=60, so its top
+        // edge is at y=40 - a point at y=45 (within the glyph) is opaque
+        Assert.Equal(255, surface[15, 45].A);
+    }
+
+    /// <summary>
+    ///     Proves that each <c>stroke-dasharray</c> entry's percentage resolves against the
+    ///     diagonal basis, exactly like <c>stroke-width</c> above - per this phase's judgment
+    ///     call to include <c>stroke-dasharray</c> percentages alongside <c>stroke-width</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_StrokeDasharrayPercentage_ResolvesAgainstDiagonalBasis()
+    {
+        // Arrange: a 300x400 viewBox; diagonal basis ~353.55, so a dash-array of "10%,10%"
+        // resolves to roughly 35.355 on, 35.355 off - a horizontal line from x=0 to x=300 at
+        // y=200 should show its first dash covering x in [0,~35] and a gap starting immediately after
+        const string svg = "<svg viewBox='0 0 300 400'><line x1='0' y1='200' x2='300' y2='200' stroke='black' stroke-width='2' stroke-dasharray='10%,10%'/></svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 300, 400);
+
+        // Assert: near the very start of the line, within the first dash, the stroke is painted
+        Assert.Equal(255, surface[5, 200].A);
+
+        // Assert: well into the gap after the first ~35-unit dash (at x=60, comfortably inside
+        // the ~[35.355, 70.71] gap), nothing is painted
+        Assert.Equal(0, surface[60, 200].A);
     }
 
     /// <summary>
@@ -5862,12 +7769,13 @@ public class SvgCodecTests
     }
 
     /// <summary>
-    ///     Proves that well-formed-but-out-of-scope constructs (<c>&lt;style&gt;</c>,
-    ///     <c>&lt;mask&gt;</c>, <c>&lt;clipPath&gt;</c>,
-    ///     <c>&lt;pattern&gt;</c>, a nested <c>&lt;svg&gt;</c>) are silently
-    ///     skipped and do not prevent the rest of the document from rendering. (<c>filter</c> is
-    ///     no longer out-of-scope - see the dedicated filter tests above for its own
-    ///     dangling-reference/unsupported-primitive tolerance coverage.)
+    ///     Proves that well-formed-but-out-of-scope constructs (<c>&lt;mask&gt;</c>,
+    ///     <c>&lt;clipPath&gt;</c>, <c>&lt;pattern&gt;</c>, a nested <c>&lt;svg&gt;</c>) are
+    ///     silently skipped and do not prevent the rest of the document from rendering.
+    ///     (<c>filter</c> is no longer out-of-scope - see the dedicated filter tests above for its
+    ///     own dangling-reference/unsupported-primitive tolerance coverage. <c>&lt;style&gt;</c> is
+    ///     also no longer out-of-scope - see the dedicated CSS styling tests below for its own
+    ///     selector/cascade coverage.)
     /// </summary>
     [Fact]
     public void SvgCodec_Load_UnsupportedConstructs_StillRendersRestOfDocument()
@@ -5875,7 +7783,6 @@ public class SvgCodecTests
         // Arrange
         const string svg = """
             <svg viewBox='0 0 100 100'>
-              <style>rect { fill: red; }</style>
               <defs>
                 <mask id='m'><rect width='100' height='100' fill='white'/></mask>
                 <clipPath id='c'><rect width='50' height='50'/></clipPath>
@@ -5892,6 +7799,797 @@ public class SvgCodecTests
 
         // Assert: the plain rect after the unsupported constructs still rendered
         Assert.Equal(255, surface[20, 20].A);
+    }
+
+    // ================================================================================================
+    // <style> element and CSS selector/cascade support
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves a bare type selector (<c>rect</c>) matches every <c>rect</c> element and applies
+    ///     its declared <c>fill</c>, with no presentation attribute present at all.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssTypeSelector_AppliesToMatchingElementType()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>rect { fill: red; }</style>
+              <rect x='0' y='0' width='100' height='100'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(255, surface[50, 50].R);
+        Assert.Equal(0, surface[50, 50].G);
+    }
+
+    /// <summary>Proves a class selector (<c>.foo</c>) matches only an element carrying that class.</summary>
+    [Fact]
+    public void SvgCodec_Load_CssClassSelector_AppliesOnlyToMatchingClass()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>.foo { fill: red; }</style>
+              <rect x='0' y='0' width='50' height='100' class='foo'/>
+              <rect x='50' y='0' width='50' height='100'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the classed rect picked up the red fill, the un-classed one did not
+        Assert.Equal(255, surface[25, 50].R);
+        Assert.Equal(0, surface[75, 50].R);
+    }
+
+    /// <summary>Proves an id selector (<c>#foo</c>) matches only the single element carrying that id.</summary>
+    [Fact]
+    public void SvgCodec_Load_CssIdSelector_AppliesOnlyToMatchingId()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>#bar { fill: red; }</style>
+              <rect x='0' y='0' width='50' height='100' id='bar'/>
+              <rect x='50' y='0' width='50' height='100'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(255, surface[25, 50].R);
+        Assert.Equal(0, surface[75, 50].R);
+    }
+
+    /// <summary>Proves a universal selector (<c>*</c>) matches every element regardless of type/class/id.</summary>
+    [Fact]
+    public void SvgCodec_Load_CssUniversalSelector_AppliesToEveryElement()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>* { fill: red; }</style>
+              <rect x='0' y='0' width='50' height='100'/>
+              <circle cx='75' cy='50' r='25'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(255, surface[25, 50].R);
+        Assert.Equal(255, surface[75, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves a compound selector (<c>rect.foo</c>) requires both its type and class condition
+    ///     to match - a same-classed element of a different type is not affected.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssCompoundSelector_RequiresEveryConditionToMatch()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>rect.foo { fill: red; }</style>
+              <rect x='0' y='0' width='50' height='100' class='foo'/>
+              <circle cx='75' cy='50' r='25' class='foo'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the rect.foo matched the compound selector, but circle.foo (wrong type) did not
+        Assert.Equal(255, surface[25, 50].R);
+        Assert.Equal(0, surface[75, 50].R);
+    }
+
+    /// <summary>Proves a comma-separated selector list applies its declarations to every listed selector.</summary>
+    [Fact]
+    public void SvgCodec_Load_CssCommaSeparatedSelectorList_AppliesToEverySelector()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>rect, circle { fill: red; }</style>
+              <rect x='0' y='0' width='50' height='100'/>
+              <circle cx='75' cy='50' r='25'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(255, surface[25, 50].R);
+        Assert.Equal(255, surface[75, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves standard CSS specificity ordering: a higher-specificity id selector wins over a
+    ///     lower-specificity class selector even though the id rule appears earlier in the
+    ///     stylesheet's source order (specificity is compared before source order).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssSpecificity_HigherSpecificityWinsEvenIfEarlierInStylesheet()
+    {
+        // Arrange: the id rule (specificity 1,0,0) appears first, the class rule (0,1,0) second -
+        // the id rule must still win despite being earlier in source order
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>
+                #bar { fill: green; }
+                .foo { fill: red; }
+              </style>
+              <rect x='0' y='0' width='100' height='100' id='bar' class='foo'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: green (from the id rule) won, not red (from the later-but-lower-specificity class rule)
+        Assert.Equal(0, surface[50, 50].R);
+        Assert.Equal(128, surface[50, 50].G);
+    }
+
+    /// <summary>
+    ///     Proves the cascade's document-order tiebreak: when two rules have equal specificity,
+    ///     the later rule in source order wins.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssCascadeTiebreak_EqualSpecificityLaterRuleWins()
+    {
+        // Arrange: both rules are plain type selectors (equal specificity) - the second must win
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>
+                rect { fill: red; }
+                rect { fill: blue; }
+              </style>
+              <rect x='0' y='0' width='100' height='100'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(0, surface[50, 50].R);
+        Assert.Equal(255, surface[50, 50].B);
+    }
+
+    /// <summary>
+    ///     Proves precedence tier 1 in isolation: with no stylesheet and no inline <c>style</c> at
+    ///     all, a plain presentation attribute still applies exactly as before this phase.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssPrecedenceTier1_PresentationAttributeOnlyStillApplies()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <rect x='0' y='0' width='100' height='100' fill='red'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(255, surface[50, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves precedence tier 2 over tier 1: a matching stylesheet rule overrides a plain
+    ///     presentation attribute on the same element.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssPrecedenceTier2_StylesheetOverridesPresentationAttribute()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>rect { fill: red; }</style>
+              <rect x='0' y='0' width='100' height='100' fill='blue'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: red (stylesheet) won over blue (presentation attribute)
+        Assert.Equal(255, surface[50, 50].R);
+        Assert.Equal(0, surface[50, 50].B);
+    }
+
+    /// <summary>
+    ///     Proves precedence tier 3 over tier 2: an inline <c>style="..."</c> declaration
+    ///     unconditionally overrides any matching stylesheet rule, regardless of the stylesheet
+    ///     rule's specificity.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssPrecedenceTier3_InlineStyleOverridesStylesheet()
+    {
+        // Arrange: the stylesheet rule is an id selector (maximal, non-universal specificity), yet
+        // the inline style must still win
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>#bar { fill: red; }</style>
+              <rect x='0' y='0' width='100' height='100' id='bar' fill='green' style='fill: blue;'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(0, surface[50, 50].R);
+        Assert.Equal(255, surface[50, 50].B);
+    }
+
+    /// <summary>
+    ///     Proves that multiple <c>&lt;style&gt;</c> elements merge into a single cascade sharing
+    ///     one document-order source-order counter: a rule in the second <c>&lt;style&gt;</c>
+    ///     element beats an equal-specificity rule in the first.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssMultipleStyleElements_MergeIntoOneCascadeInDocumentOrder()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>rect { fill: red; }</style>
+              <style>rect { fill: blue; }</style>
+              <rect x='0' y='0' width='100' height='100'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the second style element's equal-specificity rule won
+        Assert.Equal(0, surface[50, 50].R);
+        Assert.Equal(255, surface[50, 50].B);
+    }
+
+    /// <summary>Proves a multi-class <c>class</c> attribute value is matched token-by-token.</summary>
+    [Fact]
+    public void SvgCodec_Load_CssMultiClassAttribute_MatchesEachClassToken()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>.b { fill: red; }</style>
+              <rect x='0' y='0' width='100' height='100' class='a b c'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(255, surface[50, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves a stylesheet rule can set <c>filter</c> on an element that carries no <c>filter</c>
+    ///     XML attribute at all - the architectural gap this fix closes: <c>filter</c> was
+    ///     previously read only via a direct <c>element.Attribute("filter")</c> lookup, completely
+    ///     bypassing the CSS cascade, so a class-targeted stylesheet rule setting <c>filter</c> had
+    ///     silently no effect. Uses a bare <c>feFlood</c> filter (see the dedicated filter tests
+    ///     above) so the effect is unambiguous: if the filter is applied, flood red entirely
+    ///     replaces the rect's own blue fill.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssStylesheetRuleSetsFilter_AppliesToElementWithNoFilterAttribute()
+    {
+        // Arrange: ".x" carries no "filter" XML attribute - only the stylesheet rule sets it
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feFlood flood-color='red'/>
+                </filter>
+              </defs>
+              <style>.x { filter: url(#f); }</style>
+              <rect x='0' y='0' width='100' height='100' fill='blue' class='x'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the stylesheet-cascaded filter replaced the rect's own blue fill with the
+        // filter's own red flood, proving the rule's "filter" declaration was actually applied
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves a stylesheet rule can set <c>clip-path</c> on an element that carries no
+    ///     <c>clip-path</c> XML attribute at all - the same architectural gap
+    ///     <see cref="SvgCodec_Load_CssStylesheetRuleSetsFilter_AppliesToElementWithNoFilterAttribute"/>
+    ///     closes for <c>filter</c>. A 100x100 rect clipped to its own left half (a 0-50 wide
+    ///     <c>clipPath</c> rect) must render transparent to the right of x=50 and its own fill to
+    ///     the left, proving the cascaded <c>clip-path</c> was actually applied, not silently
+    ///     ignored (which would leave the whole 100x100 rect opaque).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssStylesheetRuleSetsClipPath_AppliesToElementWithNoClipPathAttribute()
+    {
+        // Arrange: ".x" carries no "clip-path" XML attribute - only the stylesheet rule sets it
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'><rect x='0' y='0' width='50' height='100'/></clipPath>
+              </defs>
+              <style>.x { clip-path: url(#c); }</style>
+              <rect x='0' y='0' width='100' height='100' fill='green' class='x'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the left half (inside the clip region) is still opaque green ("green" = RGB
+        // (0,128,0) per the SVG named-color keyword, not (0,255,0)), the right half (outside it)
+        // is fully transparent - the cascaded clip-path was actually applied
+        Assert.Equal(128, surface[25, 50].G);
+        Assert.Equal(255, surface[25, 50].A);
+        Assert.Equal(0, surface[75, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves a stylesheet rule can set <c>mask</c> on an element that carries no <c>mask</c>
+    ///     XML attribute at all - the same architectural gap the <c>filter</c>/<c>clip-path</c>
+    ///     tests above close. Mirrors <see cref="SvgCodec_Load_MaskDefaultLuminance_WhiteRevealsBlackHides"/>'s
+    ///     own white-reveals/black-hides setup, but the <c>mask</c> reference is supplied only via
+    ///     a class-targeted stylesheet rule.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssStylesheetRuleSetsMask_AppliesToElementWithNoMaskAttribute()
+    {
+        // Arrange: ".x" carries no "mask" XML attribute - only the stylesheet rule sets it
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <mask id='m'><rect x='30' y='30' width='20' height='20' fill='white'/></mask>
+              </defs>
+              <style>.x { mask: url(#m); }</style>
+              <rect x='20' y='20' width='60' height='60' fill='blue' class='x'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: inside the mask's own white shape the blue fill is revealed; outside it (but
+        // still within the referencing rect's own bounds) it is hidden - proving the
+        // stylesheet-cascaded "mask" was actually applied
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[40, 40]);
+        Assert.Equal(0, surface[22, 22].A);
+    }
+
+    /// <summary>
+    ///     Proves a stylesheet rule can set <c>clip-rule</c> on a <c>clipPath</c> child that
+    ///     carries no <c>clip-rule</c> XML attribute at all: a self-intersecting figure-eight path
+    ///     (two overlapping squares joined at a point) covers a fully-enclosed hole under the
+    ///     nonzero winding rule but reveals it as a gap under evenodd - only <c>evenodd</c>, applied
+    ///     here purely via a class-targeted stylesheet rule, leaves the overlap region unfilled.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssStylesheetRuleSetsClipRule_AppliesToChildWithNoClipRuleAttribute()
+    {
+        // Arrange: two same-winding-direction overlapping rects (as one path) - nonzero (the
+        // default) fills the whole union including the overlap, evenodd leaves the overlap itself
+        // unfilled since it is covered twice
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'>
+                  <path class='x' d='M10,10 L60,10 L60,60 L10,60 Z M40,40 L90,40 L90,90 L40,90 Z'/>
+                </clipPath>
+              </defs>
+              <style>.x { clip-rule: evenodd; }</style>
+              <rect x='0' y='0' width='100' height='100' fill='green' clip-path='url(#c)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the overlap region (a 20x20 square around (50,50)) is unfilled under evenodd -
+        // proving the stylesheet-cascaded "clip-rule" was actually applied, not the nonzero default
+        Assert.Equal(0, surface[50, 50].A);
+
+        // Assert: a non-overlapping region of the first rect is still fully clipped-in
+        Assert.Equal(255, surface[20, 20].A);
+    }
+
+    /// <summary>
+    ///     Proves a stylesheet rule can set <c>stop-color</c>/<c>stop-opacity</c> on a gradient
+    ///     <c>stop</c> element that carries neither XML attribute at all - the same architectural
+    ///     gap the other five properties' tests above close, applied here to the two gradient-stop
+    ///     properties that have their own separate href-chain/caching logic in
+    ///     <c>SvgCodec.Gradients.cs</c> rather than flowing through
+    ///     <c>ApplyPresentationAttributes</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssStylesheetRuleSetsStopColorAndOpacity_AppliesToStopWithNoAttributes()
+    {
+        // Arrange: both "stop" elements carry no "stop-color"/"stop-opacity" XML attributes at all
+        // - only the stylesheet rules set them (opaque red at offset 0, half-opaque blue at offset 1)
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <linearGradient id='g' x1='0.1' y1='0' x2='0.9' y2='0'>
+                  <stop class='first' offset='0'/>
+                  <stop class='second' offset='1'/>
+                </linearGradient>
+              </defs>
+              <style>
+                .first { stop-color: red; stop-opacity: 1; }
+                .second { stop-color: blue; stop-opacity: 0.5; }
+              </style>
+              <rect x='0' y='0' width='100' height='100' fill='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the leftmost pixel is fully opaque red (the "first" stop's cascaded values), not
+        // the SVG-default opaque black that would result if the stylesheet rule were ignored
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[0, 50]);
+
+        // Assert: the rightmost pixel is half-opaque blue (the "second" stop's cascaded values)
+        Assert.Equal(new Rgba32(0, 0, 255, 128), surface[99, 50]);
+    }
+
+    /// <summary>
+    ///     Proves the descendant combinator (a space between compound selectors) matches an
+    ///     element nested anywhere beneath the ancestor, but not a same-type element that is not
+    ///     nested beneath it.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssDescendantCombinator_MatchesNestedElementOnly()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>g rect { fill: red; }</style>
+              <g><rect x='0' y='0' width='50' height='100'/></g>
+              <rect x='50' y='0' width='50' height='100'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the nested rect matched, the top-level sibling rect did not
+        Assert.Equal(255, surface[25, 50].R);
+        Assert.Equal(0, surface[75, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves the child combinator (<c>&gt;</c>) matches only a direct child, not a
+    ///     grandchild nested one level deeper.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssChildCombinator_MatchesDirectChildOnly()
+    {
+        // Arrange: "#outer > rect" only matches a rect that is a direct child of the id='outer'
+        // group - a rect one level further nested (whose immediate parent is a different, inner
+        // g) must not match, even though it is still a descendant of "#outer"
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>#outer > rect { fill: red; }</style>
+              <g id='outer'><rect x='0' y='0' width='50' height='100'/></g>
+              <g id='outer2'><g><rect x='50' y='0' width='50' height='100'/></g></g>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the direct child matched, the grandchild (nested one level deeper) did not
+        Assert.Equal(255, surface[25, 50].R);
+        Assert.Equal(0, surface[75, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves the descendant combinator backtracks across every matching ancestor rather than
+    ///     committing to just the nearest one: for <c>g &gt; .a .target</c>, the nearest <c>.a</c>
+    ///     ancestor of <c>.target</c> is not itself a direct child of a <c>g</c> (its immediate
+    ///     parent is a <c>symbol</c>), but a farther <c>.a</c> ancestor <em>is</em> a direct child
+    ///     of a <c>g</c> - CSS descendant-combinator semantics require trying every matching
+    ///     ancestor, so the selector must still match overall. A non-backtracking implementation
+    ///     that commits to the first (nearest) matching ancestor would incorrectly fail this match
+    ///     (leaving the target's default black fill), because it gives up as soon as the nearest
+    ///     <c>.a</c> candidate fails the <c>g &gt;</c> check without ever trying the farther one.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssDescendantCombinator_BacktracksToFartherMatchingAncestor()
+    {
+        // Arrange: the nearer ".a" (innermost <g class='a'>) has a <symbol> immediate parent, not
+        // a "g" - so "g > .a" fails for it - but the farther ".a" (outermost <g class='a'>) has a
+        // plain <g> immediate parent, so "g > .a" succeeds for it; the remaining ".target"
+        // descendant-combinator segment is then satisfied by that farther ancestor
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>g > .a .target { fill: red; }</style>
+              <g>
+                <g class='a'>
+                  <symbol>
+                    <g class='a'>
+                      <rect class='target' x='0' y='0' width='100' height='100'/>
+                    </g>
+                  </symbol>
+                </g>
+              </g>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the backtracking match succeeded - the target rect is red, not the default black
+        Assert.Equal(255, surface[50, 50].R);
+    }
+
+    /// <summary>
+    ///     Contrasts <see cref="SvgCodec_Load_CssDescendantCombinator_BacktracksToFartherMatchingAncestor"/>:
+    ///     proves the child combinator (<c>&gt;</c>) itself still does <em>not</em> backtrack - a
+    ///     failed <c>Child</c>-combinator match correctly gives up immediately rather than trying
+    ///     any farther ancestor, which remains correct CSS semantics (a child combinator has
+    ///     exactly one candidate, the immediate parent) and must not regress alongside the
+    ///     descendant-combinator backtracking fix.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssChildCombinator_StillDoesNotBacktrackPastImmediateParent()
+    {
+        // Arrange: "g > .a" - the immediate parent of ".a" is a <symbol>, not a "g"; even though an
+        // outer <g> exists farther up the ancestor chain, the child combinator must not backtrack
+        // to it, so the rule must not apply at all
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>g > .a { fill: red; }</style>
+              <g>
+                <symbol>
+                  <rect class='a' x='0' y='0' width='100' height='100'/>
+                </symbol>
+              </g>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: no backtracking past the immediate parent - the rect kept its default black fill
+        Assert.Equal(0, surface[50, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves malformed-CSS graceful degradation with a precise, documented outcome: one
+    ///     unterminated rule at the start of a stylesheet is dropped entirely (it contributes no
+    ///     declarations at all - it can never be recovered as well-formed), while resynchronizing
+    ///     via <c>SvgCodec.Css.Parser.cs</c>'s <c>FindSelectorRecoveryStart</c> lets *both*
+    ///     well-formed rules that follow it still be parsed and applied, rather than the whole
+    ///     remainder of the stylesheet being discarded (the pre-fix behavior).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssMalformedRule_SkipsOnlyThatRuleAndStillLoads()
+    {
+        // Arrange: ".broken" is missing its closing brace entirely (malformed/unterminated) and
+        // must contribute no styling at all; both "rect" and "circle" that follow it are
+        // well-formed and must still apply, proving recovery is not limited to just the first
+        // rule after the malformed one
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>
+                .broken { fill: red
+                rect { fill: blue; }
+                circle { fill: green; }
+              </style>
+              <rect x='0' y='0' width='50' height='100'/>
+              <circle cx='75' cy='50' r='20'/>
+            </svg>
+            """;
+
+        // Act: this must not throw despite the malformed first rule
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the rect picked up "fill: blue" and the circle picked up "fill: green" - both
+        // rules after the malformed one were recovered and applied, exactly as this method's
+        // documented resynchronization strategy guarantees; ".broken" itself applied nothing (the
+        // rect is blue, not red)
+        Assert.Equal(0, surface[25, 50].R);
+        Assert.Equal(0, surface[25, 50].G);
+        Assert.Equal(255, surface[25, 50].B);
+        Assert.Equal(0, surface[75, 50].R);
+        Assert.Equal(128, surface[75, 50].G);
+        Assert.Equal(0, surface[75, 50].B);
+    }
+
+    /// <summary>
+    ///     Proves a <c>&lt;style&gt;</c> element's own malformed individual declaration (missing a
+    ///     colon) is skipped without discarding the rest of that same rule's other declarations.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssMalformedDeclaration_SkipsOnlyThatDeclaration()
+    {
+        // Arrange: "not-a-declaration" has no colon and must be skipped; "fill: red" in the same
+        // rule body must still apply
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>rect { not-a-declaration; fill: red; }</style>
+              <rect x='0' y='0' width='100' height='100'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(255, surface[50, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves a <c>&lt;style&gt;</c> element's <c>type</c> attribute gates parsing: a
+    ///     non-CSS/absent-<c>text/css</c> value is treated as an opaque, entirely-skipped block.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssStyleElementNonCssType_TreatedAsOpaqueAndSkipped()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style type='text/plain'>rect { fill: red; }</style>
+              <rect x='0' y='0' width='100' height='100'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the rule was never parsed, so the rect kept its default black fill, not red
+        Assert.Equal(0, surface[50, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves a sibling combinator (<c>+</c>), explicitly out of scope for this phase, causes
+    ///     only its own selector to be dropped from a comma-separated list - the rest of the list
+    ///     (and the rest of the stylesheet) still applies.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssSiblingCombinator_DropsOnlyThatSelectorFromList()
+    {
+        // Arrange: "rect + circle" (unsupported sibling combinator) must be dropped, but the
+        // comma-listed plain "rect" selector in the same rule must still apply
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>rect + circle, rect { fill: red; }</style>
+              <rect x='0' y='0' width='100' height='100'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(255, surface[50, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves the <c>CssMatchWorkBudget</c> charge genuinely tracks real per-element matching
+    ///     cost - not merely the stylesheet's bare rule count - by exercising a single rule whose
+    ///     comma-separated selector-list length (<c>MaxCssSelectorsPerRule</c>, 64) and
+    ///     descendant-combinator chain length (<c>MaxCssCombinatorSegmentsPerSelector</c>, 16
+    ///     segments, each worth up to <c>MaxElementDepth</c>, 100, ancestor visits) both drive the
+    ///     charge far above what a "one rule = one unit" formula would ever produce: with only a
+    ///     modest number of elements this now correctly exceeds the cumulative budget and rejects
+    ///     the document, exactly the kind of pathological, disproportionately expensive stylesheet
+    ///     a code review found the pre-fix "rule count only" formula could never catch (a ~29x
+    ///     real wall-clock difference for an identical charged value).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssSelectorListAndCombinatorChainHeavyRule_ExceedsMatchWorkBudget()
+    {
+        // Arrange: one rule, 64 comma-separated selectors, each a 16-compound descendant chain -
+        // combined with just 25 plain elements this already exceeds the cumulative CSS
+        // selector-matching work budget, proving the charge scales with selector-list length and
+        // combinator-chain length, not bare rule count (a single rule)
+        const string chainSelector = "a a a a a a a a a a a a a a a a";
+        var selectorList = string.Join(",", Enumerable.Repeat(chainSelector, 64));
+        var elements = string.Concat(Enumerable.Repeat("<rect x='0' y='0' width='1' height='1'/>", 25));
+        var svg = "<svg viewBox='0 0 100 100'><style>" + selectorList + " { fill: red; }</style>" + elements + "</svg>";
+
+
+        // Act / Assert: the disproportionate per-element matching cost this rule drives is
+        // rejected, exactly like any other over-budget document
+        using var stream = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 100, 100));
+    }
+
+    /// <summary>
+    ///     Contrasts <see cref="SvgCodec_Load_CssSelectorListAndCombinatorChainHeavyRule_ExceedsMatchWorkBudget"/>:
+    ///     the identical element count against a single simple (one selector, one compound, no
+    ///     combinator) rule - whose per-element charge is the minimum possible weight of exactly
+    ///     <c>1</c> - stays comfortably within budget, proving the fix did not simply lower the
+    ///     cumulative ceiling across the board (which would reject ordinary, non-pathological
+    ///     stylesheets too) but instead made the *charge itself* proportional to real matching
+    ///     cost.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssSimpleSingleSelectorRule_StaysWithinMatchWorkBudget()
+    {
+        // Arrange: same 25-element document, but a single trivial "rect { fill: red; }" rule
+        var elements = string.Concat(Enumerable.Repeat("<rect x='0' y='0' width='1' height='1'/>", 25));
+        var svg = "<svg viewBox='0 0 100 100'><style>rect { fill: red; }</style>" + elements + "</svg>";
+
+        // Act: this must not throw - the simple rule's per-element weight is minimal
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the document loaded and the rule applied normally to the overlapping rects
+        Assert.Equal(255, surface[0, 0].R);
     }
 
     // ================================================================================================
@@ -5995,5 +8693,2721 @@ public class SvgCodecTests
         {
             File.Delete(path);
         }
+    }
+
+    // ================================================================================================
+    // <clipPath>/<mask> elements (Phase 2 of the SVG roadmap)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves the default <c>clipPathUnits="userSpaceOnUse"</c> mode: a <c>clipPath</c>
+    ///     containing a circle expressed in absolute local-space coordinates clips a larger
+    ///     referencing rect down to that circle's own shape.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipPathUserSpaceOnUse_ClipsToAbsoluteCircle()
+    {
+        // Arrange: a 60x60 red rect at (20,20)-(80,80), clipped by a circle centered at (50,50)
+        // with radius 20 (i.e. covering (30,30)-(70,70))
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'>
+                  <circle cx='50' cy='50' r='20'/>
+                </clipPath>
+              </defs>
+              <rect x='20' y='20' width='60' height='60' fill='red' clip-path='url(#c)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: inside the clip circle, the rect's own red fill is visible
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 50]);
+
+        // Assert: within the rect's own bounds but outside the clip circle, nothing is painted
+        Assert.Equal(0, surface[22, 22].A);
+        Assert.Equal(0, surface[78, 78].A);
+    }
+
+    /// <summary>
+    ///     Proves <c>clipPathUnits="objectBoundingBox"</c>: the clip content's own <c>[0, 1]</c>
+    ///     coordinate space is scaled/translated to exactly the referencing element's own bounding
+    ///     box, rather than being read as absolute local-space coordinates.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipPathObjectBoundingBox_ScalesClipContentToReferenceBounds()
+    {
+        // Arrange: a 40x40 red rect at (10,10)-(50,50); the clip circle, expressed in [0,1]
+        // objectBoundingBox space centered at (0.5,0.5) with radius 0.25, maps to a circle
+        // centered at (30,30) with radius 10 in the rect's own local space
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c' clipPathUnits='objectBoundingBox'>
+                  <circle cx='0.5' cy='0.5' r='0.25'/>
+                </clipPath>
+              </defs>
+              <rect x='10' y='10' width='40' height='40' fill='red' clip-path='url(#c)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: at the mapped circle's own center, the fill is visible
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[30, 30]);
+
+        // Assert: near a corner of the rect's own bounds (well outside the mapped circle),
+        // nothing is painted
+        Assert.Equal(0, surface[12, 12].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>clipPath</c> with more than one direct child shape clips to the union
+    ///     of every child's own coverage, not merely the first/last one.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipPathMultipleChildren_ClipsToUnionOfAllShapes()
+    {
+        // Arrange: two disjoint 20x20 clip rects (at (10,10) and (70,70)) inside a single
+        // clipPath, applied to a red rect spanning the whole 100x100 canvas
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'>
+                  <rect x='10' y='10' width='20' height='20'/>
+                  <rect x='70' y='70' width='20' height='20'/>
+                </clipPath>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='red' clip-path='url(#c)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: both clip rects' own regions show the red fill
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[15, 15]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[75, 75]);
+
+        // Assert: between the two clip rects, nothing is painted
+        Assert.Equal(0, surface[50, 50].A);
+    }
+
+    /// <summary>
+    ///     Resource-safety regression test: <c>MaxClipPathShapesPerClipPath</c> caps a single
+    ///     <c>clipPath</c> element to its first 256 recognized direct children - the 257th and
+    ///     later children are silently truncated (never rasterized onto the clip's coverage
+    ///     buffer at all), not rejected via an exception.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipPathExceedsMaxShapesPerClipPath_TruncatesToFirst256Shapes()
+    {
+        // Arrange: 256 identical circles (each independently counts toward the 256-shape cap
+        // regardless of overlapping an earlier one) plus a 257th, distinctly positioned rect that
+        // would visibly extend the clip region if (incorrectly) honored
+        var circles = string.Concat(Enumerable.Repeat("<circle cx='20' cy='20' r='15'/>", 256));
+        var svg = $"""
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'>
+                  {circles}
+                  <rect x='60' y='60' width='30' height='30'/>
+                </clipPath>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='red' clip-path='url(#c)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: inside the first 256 honored circles' own union, the clip still applies
+        // correctly - the reference shape's fill remains visible
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[20, 20]);
+
+        // Assert: inside the 257th shape's own, exclusive area (never covered by any of the 256
+        // circles), nothing is painted - the 257th+ child was truncated, never rasterized
+        Assert.Equal(0, surface[70, 70].A);
+
+        // Assert: a point covered by neither region remains fully transparent too, confirming
+        // the clip is still a hard, non-degenerate clip rather than a trivial "everything passes"
+        Assert.Equal(0, surface[50, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves the default luminance mask semantics: a white mask shape fully reveals the
+    ///     referencing element (luminance 1.0), while the area outside every mask shape (fully
+    ///     transparent black, per a freshly allocated mask buffer) fully hides it.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MaskDefaultLuminance_WhiteRevealsBlackHides()
+    {
+        // Arrange: a 60x60 blue rect at (20,20), masked by a white 20x20 rect at (30,30) - only
+        // the overlap between the mask's own white shape and the referencing rect's own bounds is
+        // revealed
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <mask id='m'>
+                  <rect x='30' y='30' width='20' height='20' fill='white'/>
+                </mask>
+              </defs>
+              <rect x='20' y='20' width='60' height='60' fill='blue' mask='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: inside the white mask shape, the blue fill is fully visible
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[40, 40]);
+
+        // Assert: within the referencing rect's own bounds but outside the mask's white shape
+        // (default mask background is fully transparent black - zero luminance), nothing is
+        // visible
+        Assert.Equal(0, surface[22, 22].A);
+    }
+
+    /// <summary>
+    ///     Proves that a gray mask shape attenuates the referencing element's alpha proportionally
+    ///     to its own luminance, rather than behaving as an all-or-nothing clip.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MaskGrayShape_AttenuatesAlphaProportionallyToLuminance()
+    {
+        // Arrange: a 50% gray (#808080) mask rect over the whole referencing rect - its
+        // luminance is roughly 0.5, so the resulting alpha should be roughly half of 255
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <mask id='m'>
+                  <rect x='0' y='0' width='100' height='100' fill='#808080'/>
+                </mask>
+              </defs>
+              <rect x='20' y='20' width='60' height='60' fill='blue' mask='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the fill's own color channels are untouched, only alpha is attenuated
+        var pixel = surface[50, 50];
+        Assert.Equal(0, pixel.R);
+        Assert.Equal(0, pixel.G);
+        Assert.Equal(255, pixel.B);
+        Assert.InRange((int)pixel.A, 110, 145);
+    }
+
+    /// <summary>
+    ///     Proves that <c>maskUnits="userSpaceOnUse"</c> (overriding the SVG default
+    ///     <c>objectBoundingBox</c>) reads the mask's own <c>x</c>/<c>y</c>/<c>width</c>/
+    ///     <c>height</c> region attributes as absolute local-space coordinates, independently of
+    ///     <c>maskContentUnits</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MaskUnitsUserSpaceOnUse_ReadsRegionAsAbsoluteCoordinates()
+    {
+        // Arrange: the mask's own region is explicitly restricted to (40,40)-(60,60) in absolute
+        // local-space coordinates; its content (a full-canvas white rect) would otherwise reveal
+        // the whole referencing shape, so only the intersection with the explicit region matters
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <mask id='m' maskUnits='userSpaceOnUse' x='40' y='40' width='20' height='20'>
+                  <rect x='0' y='0' width='100' height='100' fill='white'/>
+                </mask>
+              </defs>
+              <rect x='20' y='20' width='60' height='60' fill='blue' mask='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: inside the explicit (40,40)-(60,60) mask region, the fill is visible
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
+
+        // Assert: outside that explicit region (but still within the referencing rect's own
+        // bounds), the mask's offscreen buffer never covered this pixel at all, so nothing is
+        // painted
+        Assert.Equal(0, surface[22, 22].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>maskContentUnits="objectBoundingBox"</c> (overriding the SVG default
+    ///     <c>userSpaceOnUse</c>) maps the mask's own children through the referencing element's
+    ///     <c>[0, 1]</c> bounding-box space, independently of <c>maskUnits</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MaskContentUnitsObjectBoundingBox_ScalesMaskContentToReferenceBounds()
+    {
+        // Arrange: a 40x40 red rect at (10,10)-(50,50); the mask's own white content rect, given
+        // in [0,1] objectBoundingBox space as (0.25,0.25)-(0.75,0.75), maps to (20,20)-(40,40) in
+        // the referencing rect's own local space
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <mask id='m' maskContentUnits='objectBoundingBox'>
+                  <rect x='0.25' y='0.25' width='0.5' height='0.5' fill='white'/>
+                </mask>
+              </defs>
+              <rect x='10' y='10' width='40' height='40' fill='red' mask='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: inside the mapped mask content region, the fill is visible
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[30, 30]);
+
+        // Assert: outside the mapped mask content region (a corner of the rect's own bounds),
+        // nothing is visible
+        Assert.Equal(0, surface[12, 12].A);
+    }
+
+    /// <summary>
+    ///     Proves the spec-defined per-element ordering when both <c>clip-path</c> and
+    ///     <c>filter</c> are present on the same element: clip is applied to the pre-filter
+    ///     content, so a filter that paints far outside the clip shape (a bare <c>feFlood</c>,
+    ///     which fills its whole region) is still confined to the clip shape's own coverage.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipPathWithFilter_AppliesClipBeforeFilter()
+    {
+        // Arrange: a feFlood filter that would otherwise fill the whole (expanded) filter region
+        // red; a clip-path restricts visible output to a small circle well inside that region
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'>
+                  <circle cx='50' cy='50' r='10'/>
+                </clipPath>
+                <filter id='f'>
+                  <feFlood flood-color='red'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' clip-path='url(#c)' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: inside the clip circle, the flood is visible
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 50]);
+
+        // Assert: just outside the clip circle but still well within the filter's own expanded
+        // region (where an unclipped flood would have painted), nothing is visible - proving the
+        // clip was applied to the filter's own output, not bypassed
+        Assert.Equal(0, surface[50, 25].A);
+    }
+
+    /// <summary>
+    ///     Proves the spec-defined per-element ordering when both <c>mask</c> and <c>filter</c>
+    ///     are present on the same element: the mask is applied to the pre-filter content, so a
+    ///     filter's own flood output is itself attenuated by the mask, not left unmasked.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MaskWithFilter_AppliesMaskBeforeFilter()
+    {
+        // Arrange: a feFlood filter that fills its whole region red; a mask whose white content is
+        // restricted to a small rect confines the visible flood output to that same small rect
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <mask id='m'>
+                  <rect x='45' y='45' width='10' height='10' fill='white'/>
+                </mask>
+                <filter id='f'>
+                  <feFlood flood-color='red'/>
+                </filter>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' mask='url(#m)' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: inside the mask's own white region, the flood is visible
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 50]);
+
+        // Assert: outside the mask's own white region but still within the filter's own expanded
+        // region, nothing is visible - proving the mask was applied to the filter's own output
+        Assert.Equal(0, surface[25, 25].A);
+    }
+
+    /// <summary>
+    ///     Regression test proving pre-existing group-level filter-only rendering (a <c>filter</c>
+    ///     on a <c>g</c> element, with no <c>clip-path</c>/<c>mask</c> present at all) is unaffected
+    ///     by the Phase 2 clip/mask generalization of <c>RenderGroupWithEffects</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterOnlyNoClipOrMask_RendersUnaffected()
+    {
+        // Arrange: a filtered group wrapping two rects; the filter's own feFlood output entirely
+        // replaces the group's combined content, exactly as it did before this phase's changes
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feFlood flood-color='red'/>
+                </filter>
+              </defs>
+              <g filter='url(#f)'>
+                <rect x='10' y='10' width='20' height='20' fill='blue'/>
+                <rect x='70' y='70' width='20' height='20' fill='green'/>
+              </g>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the flood fills the group's own combined default filter region, entirely
+        // replacing both rects' own fills
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[20, 20]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[80, 80]);
+
+        // Assert: well outside the group's own combined filter region, nothing was painted
+        Assert.Equal(0, surface[1, 1].A);
+    }
+
+    /// <summary>
+    ///     Regression test proving a plain shape with no <c>filter</c>/<c>clip-path</c>/<c>mask</c>
+    ///     attribute at all still renders through the ordinary fast path (no offscreen buffer
+    ///     allocation), unaffected by this phase's generalized effects dispatch.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PlainShapeNoEffects_RendersUnaffected()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 10 10'><rect x='0' y='0' width='10' height='10' fill='blue'/></svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>mask</c>-reference cycle (an element's own mask content contains
+    ///     another element whose own mask references back to the very first <c>mask</c>) is caught
+    ///     by the pre-existing <c>MaxElementDepth</c> recursion guard, rather than recursing
+    ///     indefinitely into a <see cref="StackOverflowException"/>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MaskReferenceCycle_ThrowsInvalidDataException()
+    {
+        // Arrange: mask "a" contains a rect masked by "b", and mask "b" contains a rect masked by
+        // "a" - an unbounded mutual-recursion cycle through mask content rendering
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <mask id='a'>
+                  <rect x='0' y='0' width='10' height='10' fill='white' mask='url(#b)'/>
+                </mask>
+                <mask id='b'>
+                  <rect x='0' y='0' width='10' height='10' fill='white' mask='url(#a)'/>
+                </mask>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='blue' mask='url(#a)'/>
+            </svg>
+            """;
+
+        // Act & Assert
+        using var stream = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves that a dangling <c>clip-path</c> reference (a <c>url(#id)</c> naming a
+    ///     non-existent element) is a tolerant no-op: the referencing element renders exactly as
+    ///     if the attribute were absent, consistent with this codec's general dangling-reference
+    ///     handling.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_DanglingClipPathReference_RendersUnclipped()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 10 10'><rect x='0' y='0' width='10' height='10' fill='blue' clip-path='url(#missing)'/></svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the rect renders fully, unaffected by the dangling reference
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[5, 5]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[1, 1]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>clip-rule="evenodd"</c> on a <c>clipPath</c>'s own child overrides the
+    ///     default <c>nonzero</c> clip rule, producing a "doughnut" hole where two nested,
+    ///     identically wound rectangles overlap.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipPathChildClipRuleEvenOdd_ProducesHoleAtOverlap()
+    {
+        // Arrange: a single <path> clip child describing two identically wound, nested rects
+        // (outer 10,10-90,90 and inner 30,30-70,70, both drawn clockwise) - under "evenodd" the
+        // inner rect punches a hole; under the default "nonzero" it would not
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'>
+                  <path clip-rule='evenodd' d='M10,10 L90,10 L90,90 L10,90 Z M30,30 L70,30 L70,70 L30,70 Z'/>
+                </clipPath>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='red' clip-path='url(#c)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: within the outer ring (between the two rects), the fill is visible
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[20, 50]);
+
+        // Assert: inside the inner "hole", nothing is painted
+        Assert.Equal(0, surface[50, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>clip-path</c> attribute on a <c>g</c> element clips the whole group's
+    ///     combined rendered content as a single unit, not each child independently.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipPathOnGroup_ClipsCombinedGroupContent()
+    {
+        // Arrange: two rects inside a group clipped by a single circle spanning both of them
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'>
+                  <circle cx='50' cy='50' r='30'/>
+                </clipPath>
+              </defs>
+              <g clip-path='url(#c)'>
+                <rect x='10' y='40' width='30' height='20' fill='red'/>
+                <rect x='60' y='40' width='30' height='20' fill='green'/>
+              </g>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the portions of both rects inside the clip circle are visible
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[35, 50]);
+        Assert.Equal(new Rgba32(0, 128, 0, 255), surface[65, 50]);
+
+        // Assert: the portions of both rects outside the clip circle are clipped away
+        Assert.Equal(0, surface[12, 50].A);
+        Assert.Equal(0, surface[88, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>mask</c> attribute on a <c>use</c> element's own referencing element
+    ///     applies to the resolved target's combined rendered content, mirroring the identical
+    ///     pre-existing <c>filter</c>-on-<c>use</c> behavior.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MaskOnUseElement_MasksResolvedTarget()
+    {
+        // Arrange: a "use" element referencing a plain rect template, masked by a white rect
+        // covering only the left half of the referenced rect's own bounds
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <rect id='r' x='20' y='20' width='60' height='60' fill='blue'/>
+                <mask id='m'>
+                  <rect x='0' y='0' width='50' height='100' fill='white'/>
+                </mask>
+              </defs>
+              <use href='#r' mask='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the left half (inside the mask's own white region) is visible
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[30, 50]);
+
+        // Assert: the right half (outside the mask's own white region) is masked away
+        Assert.Equal(0, surface[70, 50].A);
+    }
+
+    /// <summary>
+    ///     Resource-safety regression test: an empty <c>clip-path</c> is charged against the same
+    ///     shared cumulative <c>FilterWorkBudget</c> ceiling a pathologically large filter region
+    ///     already trips, since Phase 2 deliberately reuses that one budget for clip/mask-only
+    ///     offscreen-buffer work too. Five giant, mutually-overlapping-in-local-space rects share
+    ///     one empty <c>clipPath</c>, each retaining its own exclusive, staggered "band" of the
+    ///     100-wide canvas, since later shapes paint over earlier ones in document order. Each
+    ///     application charges exactly <c>2 * 3535 * 3535 = 24,998,450</c> work units - one region
+    ///     -area unit for the "content" buffer plus one more for <c>ApplyClipPath</c>'s own
+    ///     additional <c>coverage</c> buffer (see <c>ComputeEffectsPipelineWorkUnits</c>'s remarks
+    ///     for why a single-effect application charges more than one buffer's worth of work). The
+    ///     first two shapes' cumulative charge (49,996,900) stays within the 50,000,000 ceiling, so
+    ///     their (empty) clip genuinely applies - hiding them completely - while the third shape's
+    ///     charge would push the running total to 74,995,350, so <c>TryCharge</c> fails from that
+    ///     point on and the codec tolerantly falls back to unclipped rendering for the third,
+    ///     fourth, and fifth shapes, leaving each fully visible in its own band.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipPathReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnclippedForExcessShapes()
+    {
+        // Arrange: 5 giant 3535x3535 rects sharing one empty clipPath, staggered so each retains
+        // an exclusive visible band on the 100x100 canvas; x is chosen so each shape's visible
+        // right edge (x + 3535) is a distinct, strictly decreasing value in document order
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'></clipPath>
+              </defs>
+              <rect x='-3445' y='0' width='3535' height='3535' fill='rgb(255,0,0)' clip-path='url(#c)'/>
+              <rect x='-3465' y='0' width='3535' height='3535' fill='rgb(0,255,0)' clip-path='url(#c)'/>
+              <rect x='-3485' y='0' width='3535' height='3535' fill='rgb(0,0,255)' clip-path='url(#c)'/>
+              <rect x='-3505' y='0' width='3535' height='3535' fill='rgb(255,255,0)' clip-path='url(#c)'/>
+              <rect x='-3525' y='0' width='3535' height='3535' fill='rgb(255,0,255)' clip-path='url(#c)'/>
+            </svg>
+            """;
+
+        // Act: must complete without allocating unbounded offscreen buffers
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: shapes 0-1's cumulative charge stayed within the 50,000,000 ceiling, so their
+        // (empty) clip genuinely applied - each is fully invisible in its own exclusive band
+        Assert.Equal(0, surface[80, 50].A);
+        Assert.Equal(0, surface[60, 50].A);
+
+        // Assert: shapes 2-4's charge would have exceeded the ceiling - the budget genuinely
+        // exhausted - so each tolerantly fell back to unclipped rendering, fully visible in its
+        // own exclusive band with its own plain fill color; this is deterministic proof that the
+        // excess shapes' clip was skipped rather than evaluated (a genuinely-applied empty clip
+        // would have hidden them, as it did for shapes 0-1)
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[40, 50]);
+        Assert.Equal(new Rgba32(255, 255, 0, 255), surface[20, 50]);
+        Assert.Equal(new Rgba32(255, 0, 255, 255), surface[5, 50]);
+    }
+
+    /// <summary>
+    ///     Resource-safety regression test: proves the shared cumulative <c>FilterWorkBudget</c>
+    ///     ceiling exercised by
+    ///     <see cref="SvgCodec_Load_ClipPathReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnclippedForExcessShapes"/>
+    ///     is exhausted by mask-only charges too, not just clip-path-only charges. Identical
+    ///     five-shape/five-band structure and cumulative arithmetic, but each shape references an
+    ///     empty <c>mask</c> (with explicit, literal <c>maskUnits="userSpaceOnUse"</c>
+    ///     <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> of exactly 3535x3535, reproducing the
+    ///     identical 24,998,450-per-application charge) instead of a <c>clip-path</c>. An empty
+    ///     mask renders zero content, leaving its offscreen buffer fully transparent black
+    ///     everywhere (luminance 0), so a successfully-charged, successfully-applied empty mask
+    ///     also reliably hides its referencing shape completely - the same "charged &lt;=&gt;
+    ///     invisible" equivalence as the empty-clip-path design.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MaskReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnmaskedForExcessShapes()
+    {
+        // Arrange: 5 giant 3535x3535 rects sharing one empty, explicitly-sized mask, staggered so
+        // each retains an exclusive visible band on the 100x100 canvas
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <mask id='m' maskUnits='userSpaceOnUse' x='0' y='0' width='3535' height='3535'></mask>
+              </defs>
+              <rect x='-3445' y='0' width='3535' height='3535' fill='rgb(255,0,0)' mask='url(#m)'/>
+              <rect x='-3465' y='0' width='3535' height='3535' fill='rgb(0,255,0)' mask='url(#m)'/>
+              <rect x='-3485' y='0' width='3535' height='3535' fill='rgb(0,0,255)' mask='url(#m)'/>
+              <rect x='-3505' y='0' width='3535' height='3535' fill='rgb(255,255,0)' mask='url(#m)'/>
+              <rect x='-3525' y='0' width='3535' height='3535' fill='rgb(255,0,255)' mask='url(#m)'/>
+            </svg>
+            """;
+
+        // Act: must complete without allocating unbounded offscreen buffers
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: shapes 0-1's cumulative charge stayed within the 50,000,000 ceiling, so their
+        // (empty) mask genuinely applied - each is fully invisible in its own exclusive band
+        Assert.Equal(0, surface[80, 50].A);
+        Assert.Equal(0, surface[60, 50].A);
+
+        // Assert: shapes 2-4's charge would have exceeded the ceiling - the same shared budget
+        // genuinely exhausted by mask-only charges - so each tolerantly fell back to unmasked
+        // rendering, fully visible in its own exclusive band with its own plain fill color; this
+        // is deterministic proof that the excess shapes' mask was skipped rather than evaluated (a
+        // genuinely-applied empty mask would have hidden them, as it did for shapes 0-1)
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[40, 50]);
+        Assert.Equal(new Rgba32(255, 255, 0, 255), surface[20, 50]);
+        Assert.Equal(new Rgba32(255, 0, 255, 255), surface[5, 50]);
+    }
+
+    /// <summary>
+    ///     Regression test for a code-review finding: <c>RenderShapeEffectsPipeline</c>/
+    ///     <c>RenderGroupWithEffects</c> each charged exactly one region-area unit against the
+    ///     shared cumulative <c>FilterWorkBudget</c> before allocating their own "content" buffer,
+    ///     regardless of how many of <c>clip-path</c>/<c>mask</c>/<c>filter</c> actually applied to
+    ///     that element - so an element combining <c>clip-path</c> <em>and</em> <c>mask</c> (each
+    ///     of which independently allocates its own additional full-size offscreen buffer, in
+    ///     <c>ApplyClipPath</c> and <c>ApplyMask</c> respectively)
+    ///     under-charged the shared budget by up to 3x relative to the memory it actually
+    ///     allocated. Proves the fix: two giant, staggered 3535x3535 rects (identical region size to
+    ///     <see cref="SvgCodec_Load_ClipPathReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnclippedForExcessShapes"/>/
+    ///     <see cref="SvgCodec_Load_MaskReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnmaskedForExcessShapes"/>
+    ///     above) each combine an empty <c>clip-path</c> <em>and</em> an empty, explicitly-sized
+    ///     <c>mask</c> - so each application now correctly charges three region-area units
+    ///     (content + clip coverage + mask source = <c>3 * 3535 * 3535 = 37,497,675</c> work units)
+    ///     rather than the pre-fix single unit (<c>12,499,225</c>). The first shape's combined
+    ///     charge (37,497,675) stays within the 50,000,000 cumulative ceiling, so its (empty)
+    ///     clip-path and (empty) mask both genuinely apply - hiding it completely - while the
+    ///     second shape's combined charge would push the running total to 74,995,350, so
+    ///     <c>TryCharge</c> fails and the codec tolerantly falls back to fully unclipped/unmasked
+    ///     rendering, leaving the second shape's own band fully visible in its own plain fill
+    ///     color. Under the pre-fix single-unit charge, two such shapes would only total
+    ///     24,998,450 - comfortably within budget - so both would have been (incorrectly)
+    ///     clipped/masked away, and this test would have failed to observe the second shape's
+    ///     fallback at all.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipPathAndMaskCombinedExceedingCumulativeBudget_FallsBackToUnclippedUnmaskedForExcessShape()
+    {
+        // Arrange: 2 giant 3535x3535 rects sharing one empty clipPath and one empty,
+        // explicitly-sized mask, staggered so each retains an exclusive visible band on the
+        // 100x100 canvas; x is chosen so each shape's visible right edge (x + 3535) is a distinct,
+        // strictly decreasing value in document order, exactly as the clip-only/mask-only
+        // sibling tests above
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'></clipPath>
+                <mask id='m' maskUnits='userSpaceOnUse' x='0' y='0' width='3535' height='3535'></mask>
+              </defs>
+              <rect x='-3445' y='0' width='3535' height='3535' fill='rgb(255,0,0)' clip-path='url(#c)' mask='url(#m)'/>
+              <rect x='-3465' y='0' width='3535' height='3535' fill='rgb(0,255,0)' clip-path='url(#c)' mask='url(#m)'/>
+            </svg>
+            """;
+
+        // Act: must complete without allocating unbounded offscreen buffers
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: shape 0's combined clip+mask charge (37,497,675) stayed within the 50,000,000
+        // ceiling, so its (empty) clip-path and (empty) mask both genuinely applied - it is fully
+        // invisible in its own exclusive band (70-90)
+        Assert.Equal(0, surface[80, 50].A);
+
+        // Assert: shape 1's combined charge would have pushed the cumulative total to 74,995,350,
+        // exceeding the ceiling - the budget genuinely exhausted by the combined charge - so it
+        // tolerantly fell back to fully unclipped/unmasked rendering, visible with its own plain
+        // fill color in its own exclusive band (0-70); this is deterministic proof that the excess
+        // shape's clip and mask were both skipped rather than evaluated (a genuinely-applied empty
+        // clip/mask would have hidden it, as it did for shape 0)
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[30, 50]);
+    }
+
+    /// <summary>
+    ///     Resource-safety regression test: a single pathologically large <c>mask</c>
+    ///     region (via explicit <c>maskUnits="userSpaceOnUse"</c> absolute coordinates spanning a
+    ///     huge local-space area) is rejected by the same pixel-space magnitude/dimension guards
+    ///     this codec's filter-region computation already enforces, rather than attempting to
+    ///     allocate an oversized offscreen buffer.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MaskRegionExceedsMaxDimension_FallsBackToUnmaskedRendering()
+    {
+        // Arrange: a mask region spanning 50,000 local-space units - once transformed to pixel
+        // space (a 1:1 viewBox-to-pixel mapping here) it exceeds Surface.MaxDimension (8192) on
+        // both axes, so ComputeMaskRegionPixelBounds must reject it and the pipeline must fall
+        // back to plain unmasked rendering rather than throwing or hanging
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <mask id='m' maskUnits='userSpaceOnUse' x='-25000' y='-25000' width='50000' height='50000'>
+                  <rect x='-25000' y='-25000' width='50000' height='50000' fill='white'/>
+                </mask>
+              </defs>
+              <rect x='40' y='40' width='20' height='20' fill='blue' mask='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the rect still renders (fallen back to plain, unmasked rendering) rather than
+        // disappearing entirely or throwing
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>clip-path</c> attribute whose <c>url(#id)</c> resolves to an element
+    ///     that is not literally a <c>clipPath</c> (here, a plain <c>rect</c>) is tolerantly
+    ///     ignored, identical to this codec's equivalent <c>filter</c> wrong-element-type
+    ///     tolerance.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ClipPathReferencesNonClipPathElement_RendersUnclipped()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <rect id='notAClipPath' x='0' y='0' width='1' height='1'/>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='blue' clip-path='url(#notAClipPath)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the rect renders fully, unaffected by the wrong-element-type reference
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[5, 5]);
+    }
+
+    // ================================================================================================
+    // <pattern> paint-server tests (Phase 3 of the SVG roadmap)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves the default <c>patternUnits="objectBoundingBox"</c>/<c>patternContentUnits="userSpaceOnUse"</c>
+    ///     combination: a <c>pattern</c> with explicit <c>width="1" height="1"</c> (per SVG,
+    ///     <c>width</c>/<c>height</c> themselves default to <c>0</c>, so they must be specified
+    ///     for any tile to render at all) but otherwise default units tiles exactly once across
+    ///     the referencing shape's own bounding box, so its content's own literal (absolute,
+    ///     <c>userSpaceOnUse</c>) coordinates paint only the tile's own centered sub-region,
+    ///     leaving the bounding box's own edges unpainted.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternDefaultUnits_TilesOnceAcrossShapeBoundingBox()
+    {
+        // Arrange: a 60x60 bounding box (20,20)-(80,80); the pattern's own width/height (1,1)
+        // are objectBoundingBox-interpreted (the default patternUnits), so exactly one tile
+        // spans the whole bounding box; its content is a literal absolute (44,44)-(56,56)
+        // square - patternContentUnits' own default "userSpaceOnUse" means these coordinates are
+        // plain document units, entirely unrelated to the tile's own [0,1) fractional grid space,
+        // so they must be authored near the bounding box's own real coordinate range to land
+        // inside the rendered tile at all
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='p' width='1' height='1'>
+                  <rect x='44' y='44' width='12' height='12' fill='rgb(0,255,0)'/>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='rgb(255,0,0)'/>
+              <rect x='20' y='20' width='60' height='60' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the bounding box's own center (44-56 on each axis) is painted green
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[50, 50]);
+
+        // Assert: a point near the bounding box's own edge - still inside the box, but outside
+        // the single tile's centered content - shows the background through, unpainted
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[22, 22]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>patternUnits="userSpaceOnUse"</c> reads <c>x</c>/<c>y</c>/<c>width</c>/
+    ///     <c>height</c> as literal user-space units, entirely independent of the referencing
+    ///     shape's own bounding box - repeating a small, literal 20-unit tile many times across
+    ///     the whole plane, rather than fitting one tile to the whole bounding box the way
+    ///     <c>objectBoundingBox</c> does.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternUserSpaceOnUseUnits_TilesRepeatedlyAcrossUserSpace()
+    {
+        // Arrange: a literal 20x20-unit tile (patternUnits=userSpaceOnUse, so x/y/width/height are
+        // plain document units, not bounding-box fractions), repeating every 20 units across the
+        // whole plane; its content is a small 2x2 square at each tile's own (1,1) corner
+        // (patternContentUnits' own default userSpaceOnUse means this literal coordinate is
+        // relative to that same repeating 20-unit grid, not the referencing shape's own bounding
+        // box)
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='p' patternUnits='userSpaceOnUse' x='0' y='0' width='20' height='20'>
+                  <rect x='1' y='1' width='2' height='2' fill='rgb(0,255,0)'/>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='rgb(255,0,0)'/>
+              <rect x='20' y='20' width='60' height='60' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: (22, 22) sits inside the repeated tile starting at (20, 20) - local offset
+        // (2, 2), inside the tile's own (1,1)-(3,3) content square - so it is green, proving the
+        // tile genuinely repeats using literal user-space units, independent of the bounding box
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[22, 22]);
+
+        // Assert: (50, 50) - the bounding box's own center, which was green under the
+        // objectBoundingBox single-tile combination (see
+        // SvgCodec_Load_PatternDefaultUnits_TilesOnceAcrossShapeBoundingBox) - sits at local
+        // offset (10, 10) within its own repeated tile, outside the (1,1)-(3,3) content square,
+        // so it is background here instead
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>patternContentUnits="objectBoundingBox"</c> maps a content child's own
+    ///     literal coordinates through the referencing shape's own bounding box, entirely
+    ///     independently of whatever <c>patternUnits</c>/tile size is in effect - the two
+    ///     attributes are genuinely independent coordinate systems, not one a special case of the
+    ///     other.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternContentUnitsObjectBoundingBox_MapsContentThroughShapeBoundingBox()
+    {
+        // Arrange: patternUnits stays userSpaceOnUse with a single tile spanning the whole
+        // 100x100 viewport (so grid space is just plain absolute local space, with no repetition
+        // to reason about); patternContentUnits is objectBoundingBox, so the content child's own
+        // 0.4-0.6 fractional coordinates map through the 60x60 (20,20)-(80,80) bounding box,
+        // landing at absolute (44,44)-(50,50) - nowhere near the pattern's own coordinate-space
+        // origin the same literal numbers would occupy under userSpaceOnUse content
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='p' patternUnits='userSpaceOnUse' patternContentUnits='objectBoundingBox' x='0' y='0' width='100' height='100'>
+                  <rect x='0.4' y='0.4' width='0.1' height='0.1' fill='rgb(0,255,0)'/>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='rgb(255,0,0)'/>
+              <rect x='20' y='20' width='60' height='60' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: (47, 47) - inside the bounding-box-mapped content region (44-50 on each axis) -
+        // is green
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[47, 47]);
+
+        // Assert: (5, 5) - where the same literal 0.4-0.6 numbers would land if interpreted as
+        // literal absolute units instead - is background, proving content truly used the bounding
+        // box, not literal user-space units
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves the fourth unit combination - <c>patternUnits="objectBoundingBox"</c> combined
+    ///     with <c>patternContentUnits="objectBoundingBox"</c> - composes correctly:
+    ///     <c>patternContentUnits="objectBoundingBox"</c> always maps a content coordinate through
+    ///     the whole referencing shape's own bounding box (never re-normalized to each repeated
+    ///     tile's own smaller sub-division), so the exact same rendered tile - containing a small
+    ///     bounding-box-relative square near its own origin - is what repeats twice across each
+    ///     axis, producing the same small square at two different absolute positions rather than
+    ///     one square rescaled per tile.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternObjectBoundingBoxUnitsAndContentUnits_TilesAndContentBothScaleToBoundingBox()
+    {
+        // Arrange: a 0.5x0.5 (half-bounding-box) tile repeats twice across each axis of the
+        // 60x60 (20,20)-(80,80) bounding box; the content is a small bounding-box-fraction square
+        // (0.05,0.05)-(0.15,0.15), which - because patternContentUnits=objectBoundingBox always
+        // maps through the WHOLE bounding box, not the tile's own smaller sub-range - lands at
+        // absolute (23,23)-(29,29) within the tile's own rendered buffer, and that same rendered
+        // square then repeats at the second tile's own position too
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='p' patternContentUnits='objectBoundingBox' x='0' y='0' width='0.5' height='0.5'>
+                  <rect x='0.05' y='0.05' width='0.1' height='0.1' fill='rgb(0,255,0)'/>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='rgb(255,0,0)'/>
+              <rect x='20' y='20' width='60' height='60' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: (26, 26) - inside the first tile's own rendered content square (23,23)-(29,29)
+        // - is green
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[26, 26]);
+
+        // Assert: (56, 56) - the identically-positioned point within the second (repeated) tile,
+        // 30 units on from the first (the tile's own 30-unit real-space period) - is also green,
+        // proving the same rendered tile content genuinely repeats
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[56, 56]);
+
+        // Assert: (40, 40) - between the two tiles' own content squares, still inside the
+        // bounding box - is background, unpainted
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[40, 40]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>patternTransform</c> is composed into the tile's own grid-to-pixel
+    ///     transform, rotating the tiled content's own visible placement.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternTransformRotate180_RotatesTiledContentPlacement()
+    {
+        // Arrange: a single tile spanning the whole 100x100 viewport, whose own content paints
+        // only its top-right quadrant; a 180-degree patternTransform (about the origin) swaps
+        // that visible quadrant to the diagonally-opposite corner
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='p' patternUnits='userSpaceOnUse' x='0' y='0' width='100' height='100' patternTransform='rotate(180)'>
+                  <rect x='50' y='0' width='50' height='50' fill='rgb(0,255,0)'/>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='rgb(255,0,0)'/>
+              <rect x='0' y='0' width='100' height='100' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the un-rotated top-right quadrant position is now background
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[75, 25]);
+
+        // Assert: the diagonally-opposite (bottom-left) position is now green
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[25, 75]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>viewBox</c> on a <c>pattern</c> takes precedence over
+    ///     <c>patternContentUnits</c>, fitting the content's own coordinate system into the tile
+    ///     buffer via the same preserve-aspect-ratio fitting logic used for
+    ///     <c>&lt;svg&gt;</c>/<c>&lt;symbol&gt;</c>/<c>&lt;marker&gt;</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternViewBox_FitsContentIntoTileBuffer()
+    {
+        // Arrange: a single tile spanning the whole 100x100 viewport, with its own 10x10 viewBox
+        // - default preserveAspectRatio (xMidYMid meet) scales it up 10x with no letterboxing
+        // (matching aspect ratios); content paints only the viewBox's own top-left quadrant
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='p' patternUnits='userSpaceOnUse' x='0' y='0' width='100' height='100' viewBox='0 0 10 10'>
+                  <rect x='0' y='0' width='5' height='5' fill='rgb(0,255,0)'/>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='rgb(255,0,0)'/>
+              <rect x='0' y='0' width='100' height='100' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the viewBox-fitted top-left quadrant is green
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[25, 25]);
+
+        // Assert: the diagonally-opposite quadrant is background
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[75, 75]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>pattern</c> with no <c>stop</c>-like content of its own inherits its
+    ///     rendered content (not its own geometry attributes) from the <c>pattern</c> it
+    ///     references via <c>href</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternHrefInheritance_InheritsContentFromTemplate()
+    {
+        // Arrange: "base" carries only content, no geometry attributes of its own (its own
+        // width/height would default to 0, which would tolerantly paint nothing if ever read
+        // directly); "derived" carries its own valid geometry (patternUnits=userSpaceOnUse
+        // spanning the whole 100x100 viewport as a single tile) and inherits only base's content
+        // (a literal absolute (0,0)-(100,100) fill, matching that same single-tile span)
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='base'>
+                  <rect x='0' y='0' width='100' height='100' fill='rgb(0,255,0)'/>
+                </pattern>
+                <pattern id='derived' href='#base' patternUnits='userSpaceOnUse' x='0' y='0' width='100' height='100'/>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='rgb(255,0,0)'/>
+              <rect x='10' y='10' width='80' height='80' fill='url(#derived)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the referenced bounding box is fully green - proving "derived" successfully
+        // used its own valid geometry (not "base"'s defaulted-to-zero geometry, which would have
+        // tolerantly painted nothing, leaving the background visible instead) together with
+        // "base"'s own inherited content
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[50, 50]);
+
+        // Assert: outside the referencing shape's own (10,10)-(90,90) bounds, the background
+        // still shows through unpainted
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>pattern</c> <c>href</c> chain of more than one hop still resolves
+    ///     (walking through an intermediate content-less link) to the eventual content-bearing
+    ///     template.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternHrefChainOfTwoHops_ResolvesToEventualContent()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='base'>
+                  <rect x='0' y='0' width='100' height='100' fill='rgb(0,255,0)'/>
+                </pattern>
+                <pattern id='middle' href='#base'/>
+                <pattern id='derived' href='#middle' patternUnits='userSpaceOnUse' x='0' y='0' width='100' height='100'/>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='rgb(255,0,0)'/>
+              <rect x='10' y='10' width='80' height='80' fill='url(#derived)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that a cyclical <c>pattern</c> <c>href</c> chain is rejected as malformed input
+    ///     rather than looping indefinitely.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternHrefCycle_ThrowsInvalidDataException()
+    {
+        // Arrange: "a" hrefs "b", which hrefs back to "a"
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='a' href='#b'/>
+                <pattern id='b' href='#a'/>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='url(#a)'/>
+            </svg>
+            """;
+
+        // Act & Assert
+        using var stream = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 100, 100));
+    }
+
+    /// <summary>
+    ///     Proves that a <c>pattern</c> reference on a <c>stroke</c> paints the stroke outline
+    ///     itself with the tiled pattern content, exactly like a <c>fill</c> reference does for
+    ///     fill geometry.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternStroke_PaintsStrokeOutlineWithTiledContent()
+    {
+        // Arrange: a horizontal line, stroked 10 units wide with a pattern whose content fills
+        // the whole tile solid green
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='p' patternUnits='userSpaceOnUse' x='0' y='0' width='10' height='10'>
+                  <rect x='0' y='0' width='10' height='10' fill='rgb(0,255,0)'/>
+                </pattern>
+              </defs>
+              <line x1='10' y1='50' x2='90' y2='50' stroke='url(#p)' stroke-width='10'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: a point on the stroke itself is green
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[50, 50]);
+
+        // Assert: a point well outside the stroke's own width is left untouched (transparent)
+        Assert.Equal(0, surface[50, 10].A);
+    }
+
+    /// <summary>
+    ///     Proves that a shape's own <c>fill</c> and <c>stroke</c> can each independently
+    ///     reference a different <c>pattern</c>, with the stroke's own tiled content painted over
+    ///     the fill's own tiled content along the shared outline, exactly like a solid-color
+    ///     fill/stroke pair.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternFillAndStroke_RenderIndependentPatterns()
+    {
+        // Arrange: a 60x60 rect, filled with one solid-green pattern and stroked (10 units wide)
+        // with a different solid-blue pattern
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='pFill' patternUnits='userSpaceOnUse' x='0' y='0' width='10' height='10'>
+                  <rect x='0' y='0' width='10' height='10' fill='rgb(0,255,0)'/>
+                </pattern>
+                <pattern id='pStroke' patternUnits='userSpaceOnUse' x='0' y='0' width='10' height='10'>
+                  <rect x='0' y='0' width='10' height='10' fill='rgb(0,0,255)'/>
+                </pattern>
+              </defs>
+              <rect x='20' y='20' width='60' height='60' fill='url(#pFill)' stroke='url(#pStroke)' stroke-width='10'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: well inside the rect, away from the stroke, shows the fill pattern
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[50, 50]);
+
+        // Assert: on the rect's own left edge (within the stroke's own width), the stroke
+        // pattern is painted on top of the fill pattern
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[20, 50]);
+    }
+
+    /// <summary>
+    ///     Regression test proving a dangling pattern-shaped <c>url(#id)</c> fill reference (an
+    ///     id that does not exist at all) is a tolerant no-op, byte-identical to this codec's
+    ///     pre-existing dangling-gradient-reference fallback: the referencing element renders
+    ///     exactly as if <c>fill</c> were absent.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_DanglingPatternReference_RendersUnfilled()
+    {
+        // Arrange
+        const string svg = "<svg viewBox='0 0 10 10'><rect x='0' y='0' width='10' height='10' fill='url(#missing)'/></svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: nothing is painted at all - no paint, no throw
+        Assert.Equal(0, surface[5, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>fill</c> attribute whose <c>url(#id)</c> resolves to an element that
+    ///     is not literally a <c>pattern</c> (here, a plain <c>rect</c>) is tolerantly treated the
+    ///     same as a dangling reference - unfilled, not an error - identical to this codec's
+    ///     equivalent <c>clip-path</c>/<c>mask</c> wrong-element-type tolerance.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FillReferencesNonPatternElement_RendersUnfilled()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <rect id='notAPattern' x='0' y='0' width='1' height='1'/>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='url(#notAPattern)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: nothing is painted at all
+        Assert.Equal(0, surface[5, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that a pattern whose own content references itself (directly, on one of its own
+    ///     children's <c>fill</c>) is rejected by the pre-existing <c>MaxElementDepth</c>
+    ///     recursion guard, exactly like a self-referencing <c>mask</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternSelfReferencingContent_ThrowsInvalidDataException()
+    {
+        // Arrange: "p"'s own content contains a shape that itself references "p"
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='p' patternUnits='userSpaceOnUse' x='0' y='0' width='10' height='10'>
+                  <rect x='0' y='0' width='10' height='10' fill='url(#p)'/>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act & Assert
+        using var stream = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 100, 100));
+    }
+
+    /// <summary>
+    ///     Resource-safety regression test: a pattern tile whose own pixel size would exceed
+    ///     <see cref="Surface.MaxDimension"/> is rejected the same way an oversized filter/mask
+    ///     region already is, falling back to painting nothing rather than attempting to allocate
+    ///     an oversized offscreen buffer.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternTileExceedsMaxDimension_FallsBackToUnfilledRendering()
+    {
+        // Arrange: a 10,000x10,000 literal (userSpaceOnUse) tile - well beyond Surface.MaxDimension
+        // (8192) once mapped to pixel space under this document's 1:1 viewBox-to-pixel mapping
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <pattern id='p' patternUnits='userSpaceOnUse' x='0' y='0' width='10000' height='10000'>
+                  <rect x='0' y='0' width='10000' height='10000' fill='rgb(0,255,0)'/>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(255,0,0)'/>
+              <rect x='0' y='0' width='10' height='10' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the pattern fill painted nothing at all - the background rect remains visible -
+        // and no exception was thrown
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Resource-safety regression test: <c>FilterWorkBudget</c> is a single shared cumulative
+    ///     ceiling, charged by every pattern-filled shape's own tile-plus-region buffer
+    ///     allocation cost. Four non-overlapping 4000x3750 (15,000,000-pixel-area) rects each
+    ///     charge just over 15,000,000 work units (the tile's own negligible 1-pixel area, plus
+    ///     the region's own 15,000,000-pixel area); the first three shapes' cumulative charge
+    ///     (45,000,003) stays within the 50,000,000 ceiling, so each is genuinely pattern-filled -
+    ///     but the fourth shape's charge would push the running total to 60,000,004, exceeding the
+    ///     ceiling, so it tolerantly falls back to painting nothing at all (unlike a <c>clip-path</c>/
+    ///     <c>mask</c> budget decline, a pattern has no secondary "paint anyway" fallback).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilledForExcessShapes()
+    {
+        // Arrange: a background rect, then four rects arranged as a non-overlapping 2x2 grid (so
+        // each shape's own assertion pixel is never covered by any other shape, regardless of
+        // document/paint order) - each 4000 x 3750 units, giving a 15,000,000-pixel painted
+        // region under this document's 1:1 viewBox-to-pixel mapping
+        const string svg = """
+            <svg viewBox='0 0 8000 7500'>
+              <defs>
+                <pattern id='p' patternUnits='userSpaceOnUse' x='0' y='0' width='1' height='1'>
+                  <rect x='0' y='0' width='1' height='1' fill='rgb(0,255,0)'/>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='8000' height='7500' fill='rgb(255,0,0)'/>
+              <rect x='0' y='0' width='4000' height='3750' fill='url(#p)'/>
+              <rect x='4000' y='0' width='4000' height='3750' fill='url(#p)'/>
+              <rect x='0' y='3750' width='4000' height='3750' fill='url(#p)'/>
+              <rect x='4000' y='3750' width='4000' height='3750' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act: must complete without allocating unbounded offscreen buffers
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 8000, 7500);
+
+        // Assert: the first three grid cells (document order) stayed within the cumulative
+        // budget, so each is genuinely pattern-filled green
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[2000, 1875]);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[6000, 1875]);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[2000, 5625]);
+
+        // Assert: the fourth (and only the fourth) grid cell's charge exhausted the shared
+        // cumulative budget, so it tolerantly fell back to painting nothing, leaving the
+        // background visible through it - deterministic proof the excess shape's pattern was
+        // skipped rather than evaluated
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[6000, 5625]);
+    }
+
+    /// <summary>
+    ///     Proves that a zero-width or zero-height <c>pattern</c> tile is tolerantly rejected -
+    ///     painting nothing at all - rather than throwing or dividing by zero.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternZeroWidthOrHeight_RendersUnfilledWithoutThrowing()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <pattern id='p' patternUnits='userSpaceOnUse' x='0' y='0' width='0' height='0'>
+                  <rect x='0' y='0' width='1' height='1' fill='rgb(0,255,0)'/>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(255,0,0)'/>
+              <rect x='0' y='0' width='10' height='10' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the pattern fill painted nothing at all - the background rect remains visible -
+        // and no exception was thrown
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>pattern</c>'s own content is rendered through the ordinary recursive
+    ///     <c>RenderElement</c> walk - not some special-cased shallow copy - by nesting a
+    ///     <c>g</c> group containing a <c>linearGradient</c>-filled shape inside the tile content,
+    ///     and confirming the gradient itself renders correctly.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_PatternContentWithGroupAndGradient_RendersViaRecursiveElementWalk()
+    {
+        // Arrange: a single tile spanning the whole 100x100 viewport, whose content is a <g>
+        // wrapping a rect filled with a left-to-right black-to-white linear gradient
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <pattern id='p' patternUnits='userSpaceOnUse' x='0' y='0' width='100' height='100'>
+                  <defs>
+                    <linearGradient id='g' x1='0' y1='0' x2='1' y2='0'>
+                      <stop offset='0' stop-color='black'/>
+                      <stop offset='1' stop-color='white'/>
+                    </linearGradient>
+                  </defs>
+                  <g>
+                    <rect x='0' y='0' width='100' height='100' fill='url(#g)'/>
+                  </g>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the left-to-right brightness ramp from the nested group's own gradient-filled
+        // rect is visible, proving the group and gradient both rendered through the ordinary
+        // recursive walk
+        Assert.True(surface[10, 50].R < surface[90, 50].R);
+    }
+
+    // ================================================================================================
+    // <image> element (Phase 4 of the SVG roadmap)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Builds a small, solid-color <see cref="Surface"/> for use as a raster test payload -
+    ///     small enough to keep the base64-encoded "data:" URI fixtures below readable, while still
+    ///     giving each pixel an unambiguous, distinguishable expected color.
+    /// </summary>
+    private static Surface BuildSolidSurface(int width, int height, Rgba32 color)
+    {
+        var surface = new Surface(width, height);
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                surface[x, y] = color;
+            }
+        }
+
+        return surface;
+    }
+
+    /// <summary>
+    ///     Encodes <paramref name="surface"/> via <see cref="PngCodec"/>'s own existing
+    ///     <c>Save</c> method and wraps the result as a base64-encoded
+    ///     <c>data:image/png;base64,...</c> URI, so an <c>&lt;image&gt;</c> href fixture below can
+    ///     be constructed entirely in-memory, without a binary fixture file under
+    ///     <c>SvgFixtures/</c> and without hand-rolling any binary PNG bytes.
+    /// </summary>
+    private static string BuildPngDataUri(Surface surface)
+    {
+        using var pngStream = new MemoryStream();
+        PngCodec.Save(surface, pngStream);
+        return "data:image/png;base64," + Convert.ToBase64String(pngStream.ToArray());
+    }
+
+    /// <summary>
+    ///     Same as <see cref="BuildPngDataUri"/>, but encoded via <see cref="JpegCodec"/>'s own
+    ///     existing <c>Save</c> method as a <c>data:image/jpeg;base64,...</c> URI. JPEG's own lossy
+    ///     compression means a test using this helper should assert with a reasonable color
+    ///     tolerance rather than exact equality (see <see cref="JpegCodecTests"/>'s own identical
+    ///     convention for round-tripped JPEG pixels).
+    /// </summary>
+    private static string BuildJpegDataUri(Surface surface)
+    {
+        using var jpegStream = new MemoryStream();
+        JpegCodec.Save(surface, jpegStream);
+        return "data:image/jpeg;base64," + Convert.ToBase64String(jpegStream.ToArray());
+    }
+
+    /// <summary>
+    ///     Proves the basic <c>data:image/png;base64,...</c> decode-and-place path: a small solid
+    ///     blue PNG is decoded and stretched (<c>preserveAspectRatio="none"</c>, so no letterbox
+    ///     complicates the assertion) across its own <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c>
+    ///     placement rect.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageDataUriPng_RendersDecodedPixelsAtPlacementRect()
+    {
+        // Arrange: a 2x2 solid blue PNG, placed at (20,20) with a 60x60 placement rect
+        using var source = BuildSolidSurface(2, 2, new Rgba32(0, 0, 255, 255));
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 100 100'>
+              <image href='{dataUri}' x='20' y='20' width='60' height='60' preserveAspectRatio='none'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the decoded blue pixel is visible inside the placement rect
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
+
+        // Assert: outside the placement rect, nothing was painted
+        Assert.Equal(0, surface[10, 10].A);
+    }
+
+    /// <summary>
+    ///     Proves the <c>data:image/jpeg;base64,...</c> decode path - the same placement behavior
+    ///     as the PNG test above, but dispatched through <see cref="JpegCodec"/> instead, and
+    ///     asserted with a color tolerance to account for JPEG's own lossy compression.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageDataUriJpeg_RendersDecodedPixelsAtPlacementRect()
+    {
+        // Arrange: a small solid green JPEG, stretched across its own placement rect
+        using var source = BuildSolidSurface(4, 4, new Rgba32(0, 200, 0, 255));
+        var dataUri = BuildJpegDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 100 100'>
+              <image href='{dataUri}' x='20' y='20' width='60' height='60' preserveAspectRatio='none'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the decoded pixel is fully opaque and close to the encoded green, allowing for
+        // JPEG's own lossy round-trip color drift
+        var pixel = surface[50, 50];
+        Assert.Equal(255, (int)pixel.A);
+        Assert.InRange((int)pixel.R, 0, 40);
+        Assert.InRange((int)pixel.G, 170, 255);
+        Assert.InRange((int)pixel.B, 0, 40);
+    }
+
+    /// <summary>
+    ///     Proves the default <c>xMidYMid meet</c> <c>preserveAspectRatio</c> fit: a wide 2x1
+    ///     source image is uniformly scaled to fit entirely within a square placement rect,
+    ///     leaving a transparent letterbox bar above/below rather than stretching non-uniformly.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImagePreserveAspectRatioMeet_LettersOrPillarboxesNonMatchingAspect()
+    {
+        // Arrange: a 2x1 solid green source, placed into a 100x100 square placement rect with no
+        // explicit preserveAspectRatio (defaults to "xMidYMid meet")
+        using var source = BuildSolidSurface(2, 1, new Rgba32(0, 255, 0, 255));
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 100 100'>
+              <image href='{dataUri}' x='0' y='0' width='100' height='100'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the 2:1 image is uniformly scaled to 100x50 and vertically centered, so a top
+        // corner point falls in the letterboxed, unpainted area
+        Assert.Equal(0, surface[50, 10].A);
+
+        // Assert: the vertical center shows the decoded green pixel
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves <c>preserveAspectRatio="none"</c>: the same non-matching-aspect source image
+    ///     used by the "meet" test above instead stretches non-uniformly to exactly fill the
+    ///     placement rect, with no letterbox remainder.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImagePreserveAspectRatioNone_StretchesNonUniformly()
+    {
+        // Arrange: identical source/placement to the "meet" test above, only differing by
+        // preserveAspectRatio="none"
+        using var source = BuildSolidSurface(2, 1, new Rgba32(0, 255, 0, 255));
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 100 100'>
+              <image href='{dataUri}' x='0' y='0' width='100' height='100' preserveAspectRatio='none'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the same top-corner point that was letterboxed (transparent) under the default
+        // "meet" fit now shows the decoded image - "none" filled the whole placement rect
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[50, 10]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>clip-path</c> still applies to an <c>image</c> element, reusing the same
+    ///     <c>ApplyClipPath</c> building block every shape/text element's own effects pipeline uses
+    ///     - mirrors <see cref="SvgCodec_Load_ClipPathUserSpaceOnUse_ClipsToAbsoluteCircle"/>'s own
+    ///     structure.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageWithClipPath_ClipsToClipPathShape()
+    {
+        // Arrange: a solid red image stretched across (20,20)-(80,80), clipped by a circle
+        // centered at (50,50) with radius 20
+        using var source = BuildSolidSurface(2, 2, new Rgba32(255, 0, 0, 255));
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'>
+                  <circle cx='50' cy='50' r='20'/>
+                </clipPath>
+              </defs>
+              <image href='{dataUri}' x='20' y='20' width='60' height='60' preserveAspectRatio='none' clip-path='url(#c)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: inside the clip circle, the decoded red pixel is visible
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 50]);
+
+        // Assert: within the image's own placement rect but outside the clip circle, nothing is
+        // painted
+        Assert.Equal(0, surface[22, 22].A);
+        Assert.Equal(0, surface[78, 78].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>mask</c> still applies to an <c>image</c> element, reusing the same
+    ///     <c>ApplyMask</c> luminance-attenuation building block every shape/text element's own
+    ///     effects pipeline uses - mirrors <see cref="SvgCodec_Load_MaskDefaultLuminance_WhiteRevealsBlackHides"/>'s
+    ///     own structure.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageWithMask_AttenuatesByMaskLuminance()
+    {
+        // Arrange: a solid blue image stretched across (20,20)-(80,80), masked by a white 20x20
+        // rect at (30,30) - only that overlap is revealed
+        using var source = BuildSolidSurface(2, 2, new Rgba32(0, 0, 255, 255));
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <mask id='m'>
+                  <rect x='30' y='30' width='20' height='20' fill='white'/>
+                </mask>
+              </defs>
+              <image href='{dataUri}' x='20' y='20' width='60' height='60' preserveAspectRatio='none' mask='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: inside the white mask shape, the decoded blue fill is fully visible
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[40, 40]);
+
+        // Assert: within the image's own placement rect but outside the mask's white shape,
+        // nothing is visible (default mask background is fully transparent black)
+        Assert.Equal(0, surface[22, 22].A);
+    }
+
+    /// <summary>
+    ///     Proves that <c>filter</c> still applies to an <c>image</c> element, reusing the same
+    ///     <c>EvaluateFilterChain</c> building block every shape/text element's own effects
+    ///     pipeline uses - mirrors <see cref="SvgCodec_Load_FeFloodFilter_RendersSolidColorBehindElement"/>'s
+    ///     own structure.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageWithFilter_AppliesFilterToDecodedPixels()
+    {
+        // Arrange: a solid blue image at (40,40)-(60,60); the filter's default region expands the
+        // image's own placement rect by -10%/120%, i.e. (38,38)-(62,62)
+        using var source = BuildSolidSurface(2, 2, new Rgba32(0, 0, 255, 255));
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feFlood flood-color='red'/>
+                </filter>
+              </defs>
+              <image href='{dataUri}' x='40' y='40' width='20' height='20' preserveAspectRatio='none' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the flood fills the expanded region outside the image's own placement rect
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[39, 50]);
+
+        // Assert: the flood also fully replaces the decoded blue pixel at the image's own center,
+        // since the filter's final output is the bare feFlood result, not a merge with the
+        // decoded raster
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feImage</c> reuses the Phase-4 raster image helpers to decode a
+    ///     base64-encoded raster and place it into the primitive's own declared subregion.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeImageDataUriRasterHref_RendersDecodedRasterIntoSubregion()
+    {
+        // Arrange
+        using var source = BuildSolidSurface(2, 2, new Rgba32(0, 0, 255, 255));
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feImage href='{dataUri}' x='0.5' y='0' width='0.5' height='1' preserveAspectRatio='none'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(0, surface[2, 5].A);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[7, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feImage href="#id"</c> renders the referenced element into the filter's
+    ///     offscreen surface using the ordinary element-rendering pipeline.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeImageElementReferenceHref_RendersReferencedElementOffscreen()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feImage href='#ref'/>
+                </filter>
+                <rect id='ref' x='2' y='2' width='4' height='4' fill='red'/>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[3, 3]);
+        Assert.Equal(0, surface[0, 0].A);
+    }
+
+    /// <summary>
+    ///     Proves that a self-referential <c>feImage href="#id"</c> chain hitting the codec's
+    ///     maximum nested reference depth tolerantly renders nothing rather than throwing.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeImageElementReferenceHrefExceedingMaxUseDepth_TolerantlyRendersEmpty()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feImage href='#self'/>
+                </filter>
+              </defs>
+              <rect id='self' x='0' y='0' width='10' height='10' fill='red' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(0, surface[5, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves that a dangling <c>feImage href="#id"</c> reference renders nothing without
+    ///     throwing.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeImageDanglingElementReference_RendersEmptyWithoutThrowing()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feImage href='#missing'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(0, surface[5, 5].A);
+    }
+
+    // ================================================================================================
+    // feDiffuseLighting / feSpecularLighting / feTurbulence
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves that against a perfectly flat (uniform-alpha) bump map, a <c>feDistantLight
+    ///     elevation="90"</c> (straight down the Z axis, <c>L=(0,0,1)</c>) produces an exact,
+    ///     hand-computable <c>N.L=1</c> - so the output color is exactly <c>diffuseConstant *
+    ///     lighting-color</c>, with no dependence on <c>azimuth</c> (which only rotates <c>L</c>
+    ///     within the X/Y plane, irrelevant once <c>elevation=90</c> makes <c>L</c> purely vertical).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDiffuseLightingFlatAlphaDistantLightAt90DegreesElevation_ProducesUniformLitColor()
+    {
+        // Arrange: a fully opaque, flat rect (uniform alpha => flat bump map => N=(0,0,1) exactly,
+        // including at every edge/corner kernel variant, since a constant input's Sobel gradient is
+        // always exactly zero) lit from straight overhead
+        const string svg = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feDiffuseLighting lighting-color='rgb(200,100,50)' surfaceScale='5'>
+                    <feDistantLight azimuth='30' elevation='90'/>
+                  </feDiffuseLighting>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='20' height='20' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert: D = kd(=1) * N.L(=1) * lighting-color, exactly
+        Assert.Equal(new Rgba32(200, 100, 50, 255), surface[10, 10]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feDiffuseLighting</c>'s output alpha is always fully opaque (<c>255</c>)
+    ///     per spec, even when the computed lit color is fully black (here, a light direction
+    ///     perpendicular to the flat surface normal, giving <c>N.L=0</c>).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDiffuseLightingOutputAlpha_IsAlwaysFullyOpaque()
+    {
+        // Arrange: elevation="0" keeps L entirely within the X/Y plane, so against a flat surface's
+        // N=(0,0,1), N.L=0 exactly - the lit color is black, but alpha must still be 255
+        const string svg = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feDiffuseLighting lighting-color='rgb(200,100,50)' surfaceScale='5'>
+                    <feDistantLight azimuth='0' elevation='0'/>
+                  </feDiffuseLighting>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='20' height='20' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[10, 10]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>diffuseConstant</c> scales <c>feDiffuseLighting</c>'s output linearly,
+    ///     using the same hand-computable flat-plane/90-degree-elevation setup as
+    ///     <see cref="SvgCodec_Load_FeDiffuseLightingFlatAlphaDistantLightAt90DegreesElevation_ProducesUniformLitColor"/>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDiffuseLightingDiffuseConstant_ScalesOutputLinearly()
+    {
+        // Arrange: identical filters except diffuseConstant="1" vs "0.5"
+        const string svgFull = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feDiffuseLighting lighting-color='rgb(200,100,50)' diffuseConstant='1' surfaceScale='5'>
+                    <feDistantLight azimuth='30' elevation='90'/>
+                  </feDiffuseLighting>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='20' height='20' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+        const string svgHalf = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feDiffuseLighting lighting-color='rgb(200,100,50)' diffuseConstant='0.5' surfaceScale='5'>
+                    <feDistantLight azimuth='30' elevation='90'/>
+                  </feDiffuseLighting>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='20' height='20' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var streamFull = ToStream(svgFull);
+        using var streamHalf = ToStream(svgHalf);
+        var surfaceFull = SvgCodec.Load(streamFull, 20, 20);
+        var surfaceHalf = SvgCodec.Load(streamHalf, 20, 20);
+
+        // Assert: exactly proportional, since 200/100/50 all halve to exact integers
+        Assert.Equal(new Rgba32(200, 100, 50, 255), surfaceFull[10, 10]);
+        Assert.Equal(new Rgba32(100, 50, 25, 255), surfaceHalf[10, 10]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>fePointLight</c> positioned directly above a bump's center lights that
+    ///     center more brightly than a point closer to the bump's tilted edge - proving the light's
+    ///     position (not just a constant direction) genuinely drives the per-pixel <c>L</c> vector.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeDiffuseLightingPointLightDirectlyAbove_ProducesBrighterCenterThanEdge()
+    {
+        // Arrange: an opaque disc (flat interior normal, tilted normal near its rim) lit by a point
+        // light close above its center - a large radius keeps the anti-aliased rim's own per-pixel
+        // gradient noise well away from the two sampled points
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feDiffuseLighting lighting-color='white' surfaceScale='5'>
+                    <fePointLight x='50' y='50' z='60'/>
+                  </feDiffuseLighting>
+                </filter>
+              </defs>
+              <circle cx='50' cy='50' r='40' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the flat-normal center, facing the close-overhead light almost directly, is
+        // brighter than a point near the disc's rim, whose tilted normal faces partly away from it
+        Assert.True(
+            surface[50, 50].R > surface[50, 85].R,
+            $"Expected center (R={surface[50, 50].R}) to be brighter than the near-rim point (R={surface[50, 85].R}).");
+    }
+
+    /// <summary>
+    ///     Proves that <c>feSpotLight</c>'s <c>limitingConeAngle</c> cutoff is enforced: a point well
+    ///     outside the narrow cone receives exactly zero light (not merely dim light), even though
+    ///     the un-cutoff spot attenuation formula alone (<c>-L.S &gt; 0</c>) would otherwise still
+    ///     contribute a small positive amount there.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeSpecularLightingSpotLightOutsideLimitingConeAngle_ProducesNoLight()
+    {
+        // Arrange: a spotlight above (10,10), pointing straight down, with only a 5-degree cone -
+        // hand-computed below, (90,90) lies at roughly a 66-degree angle off the spot axis
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feSpecularLighting specularConstant='1' specularExponent='1'>
+                    <feSpotLight x='10' y='10' z='50' pointsAtX='10' pointsAtY='10' pointsAtZ='0' limitingConeAngle='5'/>
+                  </feSpecularLighting>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='100' height='100' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: -L.S at (90,90) is 50/sqrt(80^2+80^2+50^2) ~= 0.404, well below cos(5deg) ~= 0.996,
+        // so the cone cutoff forces exactly zero light regardless of the surface normal
+        Assert.Equal(new Rgba32(0, 0, 0, 0), surface[90, 90]);
+    }
+
+    /// <summary>
+    ///     Proves that against a perfectly flat bump map, a <c>feDistantLight elevation="90"</c>
+    ///     gives <c>L=(0,0,1)=E</c>, so <c>H=(0,0,1)=N</c> and <c>N.H=1</c> exactly (regardless of
+    ///     <c>specularExponent</c>, since <c>1^n=1</c>) - so the output color is exactly
+    ///     <c>specularConstant * lighting-color</c>, an exact, hand-computable value.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeSpecularLightingFlatAlphaDistantLightAt90DegreesElevation_ProducesUniformSpecularHighlight()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feSpecularLighting lighting-color='rgb(200,100,50)' specularConstant='1.2' specularExponent='10'>
+                    <feDistantLight azimuth='45' elevation='90'/>
+                  </feSpecularLighting>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='20' height='20' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert: S = ks(=1.2) * 1 * lighting-color = (240, 120, 60); alpha = max(240,120,60) = 240
+        Assert.Equal(new Rgba32(240, 120, 60, 240), surface[10, 10]);
+    }
+
+    /// <summary>
+    ///     Proves the specific subtlety the task calls out: <c>feSpecularLighting</c>'s output alpha
+    ///     is <c>max(R, G, B)</c> of its own computed color - here, deliberately the <b>green</b>
+    ///     channel's value, proving alpha is not merely copied from red or forced to <c>255</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeSpecularLightingOutputAlpha_EqualsMaxOfRgbNotOne()
+    {
+        // Arrange: same flat-plane/90-degree-elevation setup, but with a lighting-color whose
+        // largest channel is green, not red
+        const string svg = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feSpecularLighting lighting-color='rgb(50,200,100)' specularConstant='1' specularExponent='3'>
+                    <feDistantLight azimuth='45' elevation='90'/>
+                  </feSpecularLighting>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='20' height='20' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert: S = (50, 200, 100) exactly (N.H=1 regardless of specularExponent); alpha = 200,
+        // the green channel's value - not 255, and not the red channel's value either
+        Assert.Equal(new Rgba32(50, 200, 100, 200), surface[10, 10]);
+    }
+
+    /// <summary>
+    ///     Proves that increasing <c>specularExponent</c> reduces the specular contribution at a
+    ///     fixed off-axis angle (<c>N.H &lt; 1</c>) - the mathematical basis for a larger exponent
+    ///     producing a narrower, more sharply focused highlight.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeSpecularLightingSpecularExponent_IncreasesFocusOfHighlight()
+    {
+        // Arrange: elevation="45" (not 90) against a flat plane keeps N.H fixed at a constant,
+        // off-axis value (Hz = (sin(45)+1)/|L+E)| ~= 0.924) strictly less than 1 everywhere,
+        // isolating the exponent's own effect
+        const string svgLowExponent = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feSpecularLighting lighting-color='white' specularConstant='1' specularExponent='1'>
+                    <feDistantLight azimuth='0' elevation='45'/>
+                  </feSpecularLighting>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='20' height='20' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+        const string svgHighExponent = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feSpecularLighting lighting-color='white' specularConstant='1' specularExponent='50'>
+                    <feDistantLight azimuth='0' elevation='45'/>
+                  </feSpecularLighting>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='20' height='20' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var streamLow = ToStream(svgLowExponent);
+        using var streamHigh = ToStream(svgHighExponent);
+        var surfaceLow = SvgCodec.Load(streamLow, 20, 20);
+        var surfaceHigh = SvgCodec.Load(streamHigh, 20, 20);
+
+        // Assert: pow(0.924, 50) << pow(0.924, 1), so the higher-exponent highlight is far dimmer
+        // at this fixed off-axis angle
+        Assert.True(
+            surfaceLow[10, 10].R > surfaceHigh[10, 10].R,
+            $"Expected specularExponent=1 (R={surfaceLow[10, 10].R}) to exceed specularExponent=50 (R={surfaceHigh[10, 10].R}).");
+    }
+
+    /// <summary>
+    ///     Proves the SVG specification's own published Park &amp; Miller minimal-standard PRNG
+    ///     conformance test vector: the 10,000th value generated from seed <c>1</c> must equal
+    ///     exactly <c>1043618065</c>. This is the strongest available spec-fidelity proof for
+    ///     <c>feTurbulence</c>'s reference algorithm transcription, verified here via reflection
+    ///     against the private <c>SvgCodec.TurbulenceTables.Random</c> helper directly (matching the
+    ///     existing <c>BindingFlags.NonPublic</c> idiom used by
+    ///     <see cref="SvgCodec_ResolveGradientStops_SameGradientElementResolvedTwice_ReturnsCachedListInstance"/>).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_TurbulenceTablesRandom_10000thValueFromSeedOne_MatchesSpecPublishedTestVector()
+    {
+        // Arrange: reflect the private nested TurbulenceTables type and its private static Random method
+        var tablesType = typeof(SvgCodec).GetNestedType("TurbulenceTables", BindingFlags.NonPublic);
+        Assert.NotNull(tablesType);
+        var randomMethod = tablesType.GetMethod("Random", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(randomMethod);
+
+        // Act: apply Random() 10,000 times starting from seed 1
+        object seed = 1L;
+        for (var i = 0; i < 10_000; i++)
+        {
+            seed = randomMethod.Invoke(null, [seed])!;
+        }
+
+        // Assert: matches the spec's own published test vector exactly
+        Assert.Equal(1043618065L, (long)seed);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feTurbulence</c> is fully deterministic: two independent <c>Load</c> calls
+    ///     against the identical document produce byte-for-byte identical output.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeTurbulenceSameSeedTwoLoadCalls_ProducesIdenticalOutput()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTurbulence type='fractalNoise' baseFrequency='0.2' numOctaves='3' seed='42'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act: two independent Load calls against the same document text
+        using var streamFirst = ToStream(svg);
+        using var streamSecond = ToStream(svg);
+        var surfaceFirst = SvgCodec.Load(streamFirst, 10, 10);
+        var surfaceSecond = SvgCodec.Load(streamSecond, 10, 10);
+
+        // Assert
+        AssertSurfacesEqual(surfaceFirst, surfaceSecond);
+    }
+
+    /// <summary>
+    ///     Proves that <c>feTurbulence</c>'s <c>seed</c> attribute genuinely feeds the permutation-
+    ///     table initialization, rather than being tolerantly ignored: two otherwise-identical
+    ///     primitives with different seeds produce different output.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeTurbulenceDifferentSeeds_ProducesDifferentOutput()
+    {
+        // Arrange
+        const string svgSeedOne = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTurbulence type='fractalNoise' baseFrequency='0.2' numOctaves='3' seed='1'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+        const string svgSeedTwo = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTurbulence type='fractalNoise' baseFrequency='0.2' numOctaves='3' seed='2'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var streamOne = ToStream(svgSeedOne);
+        using var streamTwo = ToStream(svgSeedTwo);
+        var surfaceOne = SvgCodec.Load(streamOne, 10, 10);
+        var surfaceTwo = SvgCodec.Load(streamTwo, 10, 10);
+
+        // Assert: at least one pixel differs between the two seeds
+        Assert.True(SurfacesDiffer(surfaceOne, surfaceTwo), "Expected different seeds to produce different turbulence output.");
+    }
+
+    /// <summary>
+    ///     Proves that <c>type="turbulence"</c> and <c>type="fractalNoise"</c> apply distinct
+    ///     color-conversion formulas against the same underlying noise field, rather than one being
+    ///     silently ignored.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeTurbulenceTypeTurbulenceVsFractalNoise_ProduceDifferentRemapping()
+    {
+        // Arrange: identical seed/frequency/octaves, differing only by type
+        const string svgTurbulence = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTurbulence type='turbulence' baseFrequency='0.2' numOctaves='3' seed='7'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+        const string svgFractalNoise = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTurbulence type='fractalNoise' baseFrequency='0.2' numOctaves='3' seed='7'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var streamTurbulence = ToStream(svgTurbulence);
+        using var streamFractalNoise = ToStream(svgFractalNoise);
+        var surfaceTurbulence = SvgCodec.Load(streamTurbulence, 10, 10);
+        var surfaceFractalNoise = SvgCodec.Load(streamFractalNoise, 10, 10);
+
+        // Assert
+        Assert.True(SurfacesDiffer(surfaceTurbulence, surfaceFractalNoise), "Expected type=\"turbulence\" and type=\"fractalNoise\" to produce different output.");
+    }
+
+    /// <summary>
+    ///     Proves that <c>numOctaves</c> genuinely drives the octave-accumulation loop, rather than
+    ///     being hard-coded to a single pass: <c>numOctaves="1"</c> vs <c>numOctaves="4"</c> (same
+    ///     seed/frequency) produce different output.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeTurbulenceNumOctavesVariation_ProducesDifferentOutputThanSingleOctave()
+    {
+        // Arrange
+        const string svgOneOctave = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTurbulence type='fractalNoise' baseFrequency='0.2' numOctaves='1' seed='7'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+        const string svgFourOctaves = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTurbulence type='fractalNoise' baseFrequency='0.2' numOctaves='4' seed='7'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var streamOne = ToStream(svgOneOctave);
+        using var streamFour = ToStream(svgFourOctaves);
+        var surfaceOne = SvgCodec.Load(streamOne, 10, 10);
+        var surfaceFour = SvgCodec.Load(streamFour, 10, 10);
+
+        // Assert
+        Assert.True(SurfacesDiffer(surfaceOne, surfaceFour), "Expected numOctaves=\"1\" and numOctaves=\"4\" to produce different output.");
+    }
+
+    /// <summary>
+    ///     Proves that <c>feTurbulence</c> produces genuine per-pixel noise (not a flat fill) across
+    ///     a reasonably sized region, and that every produced channel value falls within this
+    ///     codec's own byte-clamped <c>[0, 255]</c> range end-to-end.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeTurbulenceOutput_ValuesSpanNonDegenerateRangeAcrossPixels()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTurbulence type='turbulence' baseFrequency='0.15' numOctaves='3' seed='9'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='20' height='20' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert: every sampled red-channel value is a valid byte (trivially guaranteed by ToByte,
+        // but asserted end-to-end), and not every pixel shares the same value
+        var redValues = new HashSet<byte>();
+        for (var y = 0; y < 20; y++)
+        {
+            for (var x = 0; x < 20; x++)
+            {
+                var pixel = surface[x, y];
+                Assert.InRange(pixel.R, (byte)0, (byte)255);
+                redValues.Add(pixel.R);
+            }
+        }
+
+        Assert.True(redValues.Count > 1, "Expected feTurbulence output to vary across pixels, not remain a flat fill.");
+    }
+
+    /// <summary>
+    ///     Proves that an excessive <c>feTurbulence</c> <c>numOctaves</c> is rejected before any
+    ///     per-pixel noise work runs.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeTurbulenceNumOctavesExceedingCap_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTurbulence numOctaves='33'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act / Assert
+        using var stream = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 10, 10));
+    }
+
+    /// <summary>
+    ///     Proves the documented <c>stitchTiles</c> scope decision: <c>stitchTiles="stitch"</c>
+    ///     does not throw and tolerantly falls back to producing the exact same output as
+    ///     <c>stitchTiles="noStitch"</c> for otherwise-identical attributes.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeTurbulenceStitchTilesStitch_TolerantlyFallsBackToNoStitchBehavior()
+    {
+        // Arrange
+        const string svgStitch = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTurbulence type='fractalNoise' baseFrequency='0.2' numOctaves='3' seed='11' stitchTiles='stitch'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+        const string svgNoStitch = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feTurbulence type='fractalNoise' baseFrequency='0.2' numOctaves='3' seed='11' stitchTiles='noStitch'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act / Assert: "stitch" must not throw, and its behavior must be indistinguishable from
+        // the explicitly-requested "noStitch"
+        using var streamStitch = ToStream(svgStitch);
+        using var streamNoStitch = ToStream(svgNoStitch);
+        var surfaceStitch = SvgCodec.Load(streamStitch, 10, 10);
+        var surfaceNoStitch = SvgCodec.Load(streamNoStitch, 10, 10);
+        AssertSurfacesEqual(surfaceStitch, surfaceNoStitch);
+    }
+
+    /// <summary>
+    ///     Returns <see langword="true"/> if any pixel differs between two same-size surfaces.
+    /// </summary>
+    /// <param name="first">The first surface.</param>
+    /// <param name="second">The second surface.</param>
+    /// <returns><see langword="true"/> if at least one pixel differs.</returns>
+    private static bool SurfacesDiffer(Surface first, Surface second)
+    {
+        for (var y = 0; y < first.Height; y++)
+        {
+            for (var x = 0; x < first.Width; x++)
+            {
+                if (!first[x, y].Equals(second[x, y]))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Proves that an <c>image</c> element's own cascaded <c>opacity</c> is applied exactly
+    ///     once to the final composited result, mirroring every other effects-capable element's
+    ///     identical semantics.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageWithOpacity_AppliesUniformAlphaToCompositedResult()
+    {
+        // Arrange: a fully-opaque solid red image with opacity="0.5"
+        using var source = BuildSolidSurface(2, 2, new Rgba32(255, 0, 0, 255));
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 100 100'>
+              <image href='{dataUri}' x='0' y='0' width='100' height='100' preserveAspectRatio='none' opacity='0.5'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the decoded color channels are untouched, only alpha is attenuated to roughly
+        // half of fully opaque (0.5 * 255 = 127.5)
+        var pixel = surface[50, 50];
+        Assert.Equal(255, pixel.R);
+        Assert.Equal(0, pixel.G);
+        Assert.Equal(0, pixel.B);
+        Assert.InRange((int)pixel.A, 110, 145);
+    }
+
+    /// <summary>
+    ///     Proves that a malformed (invalid-character) base64 payload is a tolerant per-element
+    ///     no-op: <c>Load</c> completes normally and the rest of the document still renders,
+    ///     rather than an uncaught <see cref="FormatException"/> propagating out of <c>Load</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageMalformedBase64_SkipsElementWithoutThrowing()
+    {
+        // Arrange: a background rect, then an image whose base64 payload contains characters
+        // that are never valid base64
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(255,0,0)'/>
+              <image href='data:image/png;base64,!!!not-valid-base64!!!' x='0' y='0' width='10' height='10'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the malformed image painted nothing at all - the background rect remains
+        // visible - and no exception was thrown
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that well-formed base64 encoding a truncated/corrupt PNG payload is also a
+    ///     tolerant per-element no-op - a distinct failure path from malformed base64 itself
+    ///     (base64 decoding succeeds here; <see cref="PngCodec.Load(Stream)"/>'s own raster
+    ///     decode is what fails).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageTruncatedPngData_SkipsElementWithoutThrowing()
+    {
+        // Arrange: a real PNG encoding, truncated to its first 16 bytes (past the 8-byte
+        // signature but well short of a complete IHDR chunk) - still valid base64, but not a
+        // decodable PNG
+        using var source = BuildSolidSurface(4, 4, new Rgba32(0, 0, 255, 255));
+        using var pngStream = new MemoryStream();
+        PngCodec.Save(source, pngStream);
+        var truncatedBytes = pngStream.ToArray().AsSpan(0, 16).ToArray();
+        var dataUri = "data:image/png;base64," + Convert.ToBase64String(truncatedBytes);
+
+        var svg = $"""
+            <svg viewBox='0 0 10 10'>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(255,0,0)'/>
+              <image href='{dataUri}' x='0' y='0' width='10' height='10'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the truncated image painted nothing at all - the background rect remains
+        // visible - and no exception was thrown
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Regression test for a High-severity bug: an Adam7-interlaced PNG is well-formed per
+    ///     the PNG specification - its base64 payload decodes cleanly - but
+    ///     <see cref="PngCodec.Load(Stream)"/> itself refuses to decode it, throwing
+    ///     <see cref="UnsupportedImageFeatureException"/> (see
+    ///     <see cref="PngSuiteTests.UnsupportedFiles"/> and that test class's own coverage of this
+    ///     exact fixture). <see cref="UnsupportedImageFeatureException"/> derives from
+    ///     <see cref="IOException"/>, not from any of <see cref="FormatException"/>,
+    ///     <see cref="InvalidDataException"/>, or <see cref="ArgumentOutOfRangeException"/> - see
+    ///     that type's own remarks explaining why an existing <c>catch (InvalidDataException)</c>
+    ///     does not catch it - so before this fix it propagated straight out of
+    ///     <c>RenderImageWithEffects</c>'s catch filter and out of <c>Load</c> entirely, aborting
+    ///     the whole document's render rather than tolerantly skipping just the one problematic
+    ///     <c>&lt;image&gt;</c> element (the same "tolerant per-element no-op" contract already
+    ///     proven by <see cref="SvgCodec_Load_ImageMalformedBase64_SkipsElementWithoutThrowing"/>
+    ///     and <see cref="SvgCodec_Load_ImageTruncatedPngData_SkipsElementWithoutThrowing"/>
+    ///     above). This test embeds PngSuite's own <c>basi0g01.png</c> fixture (see
+    ///     <c>PngSuite\PngSuite.README</c>) as a <c>data:image/png;base64,...</c> href between two
+    ///     sibling rects, so it proves not merely that <c>Load</c> completes without throwing, but
+    ///     that both the preceding and following sibling elements still render correctly around
+    ///     the skipped <c>&lt;image&gt;</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageInterlacedPngData_SkipsElementWithoutThrowing()
+    {
+        // Arrange: a red top-half rect, an interlaced-PNG <image> spanning the whole canvas
+        // (well-formed base64, but a raster feature PngCodec.Load refuses), then a blue
+        // bottom-half rect painted after it
+        var interlacedPngBytes = File.ReadAllBytes(Path.Join(AppContext.BaseDirectory, "PngSuite", "basi0g01.png"));
+        var dataUri = "data:image/png;base64," + Convert.ToBase64String(interlacedPngBytes);
+        var svg = $"""
+            <svg viewBox='0 0 10 10'>
+              <rect x='0' y='0' width='10' height='5' fill='rgb(255,0,0)'/>
+              <image href='{dataUri}' x='0' y='0' width='10' height='10'/>
+              <rect x='0' y='5' width='10' height='5' fill='rgb(0,0,255)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the interlaced image painted nothing at all - both the preceding red rect and
+        // the following blue rect remain visible around it - and no exception was thrown
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 2]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[5, 7]);
+    }
+
+    /// <summary>
+    ///     Resource-safety regression test: <c>FilterWorkBudget</c> is a single shared cumulative
+    ///     ceiling, charged by every rendered <c>image</c> element's own placement-region pixel
+    ///     area (plus its own base64 payload length) - mirroring
+    ///     <see cref="SvgCodec_Load_PatternReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilledForExcessShapes"/>'s
+    ///     identical cumulative-budget-exhaustion structure and its deliberately deterministic,
+    ///     non-wall-clock-timing assertion style: four non-overlapping 4000x3750 (15,000,000-
+    ///     pixel-area) placements each charge just over 15,000,000 work units, so the first three
+    ///     placements' cumulative charge (45,000,000 plus a negligible base64-length term) stays
+    ///     within the 50,000,000 ceiling and each genuinely renders its decoded raster, but the
+    ///     fourth placement's charge would exceed the ceiling, so it tolerantly falls back to
+    ///     rendering nothing at all.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageOversizedDeclaredDimensionsExceedingBudget_FallsBackToUnrenderedWithoutThrowing()
+    {
+        // Arrange: a background rect, then four non-overlapping 4000x3750 <image> placements,
+        // each stretching the same tiny solid-green PNG across its own placement rect
+        using var source = BuildSolidSurface(2, 2, new Rgba32(0, 255, 0, 255));
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 8000 7500'>
+              <rect x='0' y='0' width='8000' height='7500' fill='rgb(255,0,0)'/>
+              <image href='{dataUri}' x='0' y='0' width='4000' height='3750' preserveAspectRatio='none'/>
+              <image href='{dataUri}' x='4000' y='0' width='4000' height='3750' preserveAspectRatio='none'/>
+              <image href='{dataUri}' x='0' y='3750' width='4000' height='3750' preserveAspectRatio='none'/>
+              <image href='{dataUri}' x='4000' y='3750' width='4000' height='3750' preserveAspectRatio='none'/>
+            </svg>
+            """;
+
+        // Act: must complete without allocating unbounded offscreen buffers
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 8000, 7500);
+
+        // Assert: the first three grid cells (document order) stayed within the cumulative
+        // budget, so each genuinely rendered its decoded green pixel
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[2000, 1875]);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[6000, 1875]);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), surface[2000, 5625]);
+
+        // Assert: the fourth (and only the fourth) grid cell's charge exhausted the shared
+        // cumulative budget, so it tolerantly fell back to painting nothing, leaving the
+        // background visible through it - deterministic proof the excess image was skipped
+        // rather than decoded, with no Stopwatch/timing assertion anywhere
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[6000, 5625]);
+    }
+
+    /// <summary>
+    ///     Proves the external-href-as-no-op security decision directly: a relative file-path
+    ///     <c>href</c> (never a <c>data:</c> URI) renders nothing, and - since this codec never
+    ///     constructs a <see cref="File.Exists(string?)"/>/<see cref="FileStream"/> for anything
+    ///     but a <c>data:</c> URI's own in-memory payload - no exception is thrown even though the
+    ///     referenced path does not exist on disk.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageExternalFileHref_RendersNothingWithoutFileAccess()
+    {
+        // Arrange: a relative file href pointing at a file that does not exist on disk
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(255,0,0)'/>
+              <image href='./this-file-does-not-exist-on-disk.png' x='0' y='0' width='10' height='10'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the external-href image painted nothing at all - the background rect remains
+        // visible - and no exception was thrown attempting to open the non-existent file
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves the nested-SVG-out-of-scope decision directly: a well-formed nested SVG document
+    ///     embedded as a <c>data:image/svg+xml;base64,...</c> URI renders nothing, without this
+    ///     codec ever attempting to re-parse it as a second document.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageNestedSvgDataUri_RendersNothingWithoutRecursion()
+    {
+        // Arrange: a small, valid nested SVG document, base64-encoded as its own data: URI
+        const string nestedSvg =
+            "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><rect width='10' height='10' fill='blue'/></svg>";
+        var nestedDataUri = "data:image/svg+xml;base64," + Convert.ToBase64String(Encoding.UTF8.GetBytes(nestedSvg));
+
+        var svg = $"""
+            <svg viewBox='0 0 10 10'>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(255,0,0)'/>
+              <image href='{nestedDataUri}' x='0' y='0' width='10' height='10'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the nested-SVG image painted nothing at all - the background rect remains
+        // visible - proving the nested document was never rendered
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that a zero-width or zero-height <c>image</c> placement rect is tolerantly
+    ///     rejected - painting nothing at all - rather than throwing or dividing by zero, mirroring
+    ///     <see cref="SvgCodec_Load_PatternZeroWidthOrHeight_RendersUnfilledWithoutThrowing"/>'s
+    ///     own structure.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageZeroWidthOrHeight_RendersNothingWithoutThrowing()
+    {
+        // Arrange
+        using var source = BuildSolidSurface(2, 2, new Rgba32(0, 255, 0, 255));
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 10 10'>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(255,0,0)'/>
+              <image href='{dataUri}' x='0' y='0' width='0' height='0'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the degenerate image painted nothing at all - the background rect remains
+        // visible - and no exception was thrown
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Confirms the documented "absent width/height defaults to 0, not 'auto'" simplification:
+    ///     an <c>image</c> element with neither attribute present renders nothing, rather than
+    ///     inferring a size from the decoded raster's own intrinsic dimensions.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageNoWidthOrHeightAttribute_RendersNothingWithoutThrowing()
+    {
+        // Arrange
+        using var source = BuildSolidSurface(2, 2, new Rgba32(0, 255, 0, 255));
+        var dataUri = BuildPngDataUri(source);
+        var svg = $"""
+            <svg viewBox='0 0 10 10'>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(255,0,0)'/>
+              <image href='{dataUri}' x='0' y='0'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the sizeless image painted nothing at all - the background rect remains
+        // visible - and no exception was thrown
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
     }
 }

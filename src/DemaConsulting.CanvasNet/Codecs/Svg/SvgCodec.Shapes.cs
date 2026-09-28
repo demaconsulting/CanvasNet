@@ -259,6 +259,7 @@ public static partial class SvgCodec
 
     /// <summary>Builds a <c>rect</c> element's outline, including optional rounded corners.</summary>
     /// <param name="element">The <c>rect</c> element.</param>
+    /// <param name="state">The cascaded render state, supplying the current viewport for percentage resolution.</param>
     /// <returns>
     ///     The local-space path, empty if the rectangle has no positive area, or if its corner-arc
     ///     construction overflows to a non-finite value (see this method's remarks).
@@ -272,12 +273,12 @@ public static partial class SvgCodec
     ///     "catch <see cref="OverflowException"/>, return an empty path" convention for the same
     ///     class of arithmetic-overflow risk in path <c>d</c> data.
     /// </remarks>
-    private static Path BuildRectPath(XElement element)
+    private static Path BuildRectPath(XElement element, RenderState state)
     {
-        var x = GetFloatAttribute(element, "x");
-        var y = GetFloatAttribute(element, "y");
-        var width = GetFloatAttribute(element, "width");
-        var height = GetFloatAttribute(element, "height");
+        var x = GetFloatAttribute(element, "x", state, PercentageAxis.Horizontal);
+        var y = GetFloatAttribute(element, "y", state, PercentageAxis.Vertical);
+        var width = GetFloatAttribute(element, "width", state, PercentageAxis.Horizontal);
+        var height = GetFloatAttribute(element, "height", state, PercentageAxis.Vertical);
         var builder = new PathBuilder();
         if (width <= 0f || height <= 0f)
         {
@@ -285,8 +286,8 @@ public static partial class SvgCodec
         }
 
         var (rx, ry) = ResolveRectRadii(
-            GetFloatAttribute(element, "rx", float.NaN),
-            GetFloatAttribute(element, "ry", float.NaN),
+            GetFloatAttribute(element, "rx", state, PercentageAxis.Horizontal, float.NaN),
+            GetFloatAttribute(element, "ry", state, PercentageAxis.Vertical, float.NaN),
             width,
             height);
 
@@ -401,18 +402,19 @@ public static partial class SvgCodec
     ///     <see langword="true"/> to read the single <c>r</c> radius attribute (<c>circle</c>);
     ///     <see langword="false"/> to read separate <c>rx</c>/<c>ry</c> attributes (<c>ellipse</c>).
     /// </param>
+    /// <param name="state">The cascaded render state, supplying the current viewport for percentage resolution.</param>
     /// <returns>
     ///     The local-space path, empty if either radius is not positive, or if its quarter-arc
     ///     construction overflows to a non-finite value - see <see cref="BuildRectPath"/>'s
     ///     remarks for the identical tolerant-skip convention applied here.
     /// </returns>
-    private static Path BuildEllipsePath(XElement element, bool isCircle)
+    private static Path BuildEllipsePath(XElement element, bool isCircle, RenderState state)
     {
-        var cx = GetFloatAttribute(element, "cx");
-        var cy = GetFloatAttribute(element, "cy");
+        var cx = GetFloatAttribute(element, "cx", state, PercentageAxis.Horizontal);
+        var cy = GetFloatAttribute(element, "cy", state, PercentageAxis.Vertical);
         var radius = isCircle
-            ? new Vector2(GetFloatAttribute(element, "r"), GetFloatAttribute(element, "r"))
-            : new Vector2(GetFloatAttribute(element, "rx"), GetFloatAttribute(element, "ry"));
+            ? new Vector2(GetFloatAttribute(element, "r", state, PercentageAxis.Diagonal), GetFloatAttribute(element, "r", state, PercentageAxis.Diagonal))
+            : new Vector2(GetFloatAttribute(element, "rx", state, PercentageAxis.Horizontal), GetFloatAttribute(element, "ry", state, PercentageAxis.Vertical));
 
         var builder = new PathBuilder();
         if (radius.X <= 0f || radius.Y <= 0f)
@@ -445,11 +447,12 @@ public static partial class SvgCodec
 
     /// <summary>Builds a <c>line</c> element's two-point open path.</summary>
     /// <param name="element">The <c>line</c> element.</param>
+    /// <param name="state">The cascaded render state, supplying the current viewport for percentage resolution.</param>
     /// <returns>The local-space path.</returns>
-    private static Path BuildLinePath(XElement element)
+    private static Path BuildLinePath(XElement element, RenderState state)
     {
-        var start = new Vector2(GetFloatAttribute(element, "x1"), GetFloatAttribute(element, "y1"));
-        var end = new Vector2(GetFloatAttribute(element, "x2"), GetFloatAttribute(element, "y2"));
+        var start = new Vector2(GetFloatAttribute(element, "x1", state, PercentageAxis.Horizontal), GetFloatAttribute(element, "y1", state, PercentageAxis.Vertical));
+        var end = new Vector2(GetFloatAttribute(element, "x2", state, PercentageAxis.Horizontal), GetFloatAttribute(element, "y2", state, PercentageAxis.Vertical));
 
         var builder = new PathBuilder();
         builder.MoveTo(start);

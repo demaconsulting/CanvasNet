@@ -103,6 +103,19 @@ public static partial class SvgCodec
     ///     The raw <c>marker-end</c> specification, in the same form as <paramref name="MarkerStart"/>,
     ///     applied to the last vertex.
     /// </param>
+    /// <param name="ViewportWidth">
+    ///     The current viewport's width, in user-space units - the basis a
+    ///     <see cref="PercentageAxis.Horizontal"/> percentage resolves against. Established by the
+    ///     root <c>svg</c> element's own resolved viewBox/size (see <c>RenderDocument</c>) and
+    ///     re-established whenever a <c>symbol</c> is rendered via a <c>use</c> reference (see
+    ///     <c>RenderUse</c>'s remarks) - no other element establishes a new viewport, matching this
+    ///     codec's documented, bounded <c>symbol</c>/nested-<c>svg</c> scope.
+    /// </param>
+    /// <param name="ViewportHeight">
+    ///     The current viewport's height, in user-space units - the basis a
+    ///     <see cref="PercentageAxis.Vertical"/> percentage resolves against. See
+    ///     <paramref name="ViewportWidth"/>'s remarks.
+    /// </param>
     private sealed record RenderState(
         string Fill,
         string Stroke,
@@ -123,12 +136,23 @@ public static partial class SvgCodec
         TextAnchor TextAnchor,
         string MarkerStart,
         string MarkerMid,
-        string MarkerEnd)
+        string MarkerEnd,
+        float ViewportWidth,
+        float ViewportHeight)
     {
         /// <summary>
         ///     The default render state every document starts with, matching the SVG/CSS initial
         ///     values for every cascaded presentation property this codec supports.
         /// </summary>
+        /// <remarks>
+        ///     <see cref="ViewportWidth"/>/<see cref="ViewportHeight"/> are seeded here with the
+        ///     CSS/UA replaced-element default (300x150, matching <c>ResolveViewBoxOrSize</c>'s own
+        ///     sizeless fallback) purely so this record always has a well-defined, finite,
+        ///     positive percentage basis even before <c>RenderDocument</c> overrides it with the
+        ///     document's own resolved viewBox/size - every real render path immediately overrides
+        ///     both fields (see <c>RenderDocument</c>'s remarks), so this default value is never
+        ///     itself observed by a percentage resolved against a real document.
+        /// </remarks>
         public static readonly RenderState Initial = new(
             Fill: "black",
             Stroke: "none",
@@ -149,13 +173,15 @@ public static partial class SvgCodec
             TextAnchor: TextAnchor.Start,
             MarkerStart: "none",
             MarkerMid: "none",
-            MarkerEnd: "none");
+            MarkerEnd: "none",
+            ViewportWidth: 300f,
+            ViewportHeight: 150f);
     }
 
     /// <summary>
-    ///     The fixed, per-document context (pixel target, id index, and optional font dictionary)
-    ///     threaded through the recursive tree walk, kept as its own type so every walk/render
-    ///     method needs only one extra parameter rather than three.
+    ///     The fixed, per-document context (pixel target, id index, stylesheet, and optional font
+    ///     dictionary) threaded through the recursive tree walk, kept as its own type so every
+    ///     walk/render method needs only one extra parameter rather than several.
     /// </summary>
     /// <param name="Surface">The pixel target every shape is rendered onto.</param>
     /// <param name="IdIndex">The whole-document id-to-element index built once up front.</param>
@@ -166,11 +192,25 @@ public static partial class SvgCodec
     ///     overload, or via <see cref="ToFontFaces"/> when the legacy single-font-per-family
     ///     overload is used.
     /// </param>
+    /// <param name="Stylesheet">
+    ///     The whole-document CSS stylesheet built once up front by <c>BuildStylesheet</c> (see
+    ///     <c>SvgCodec.Css.Cascade.cs</c>), mirroring <paramref name="IdIndex"/>'s identical
+    ///     "built once, read many times" lifetime. <see cref="CssStylesheet.Empty"/> for a document
+    ///     with no <c>&lt;style&gt;</c> element (or none containing any retainable rule).
+    /// </param>
     private sealed record RenderContext(
         Surface Surface,
         Dictionary<string, XElement> IdIndex,
-        IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>? Fonts)
+        IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>? Fonts,
+        CssStylesheet Stylesheet)
     {
+        /// <summary>
+        ///     The shared cumulative CSS selector-matching work budget (see
+        ///     <see cref="CssMatchWorkBudget"/>) for this <c>Load</c> call, charged once per
+        ///     element that has any stylesheet rule to match against.
+        /// </summary>
+        public CssMatchWorkBudget CssBudget { get; } = new();
+
         /// <summary>
         ///     Caches each gradient element's own resolved (pre-alpha) color stops, keyed by the
         ///     gradient <see cref="XElement"/>'s reference identity (matching the existing
@@ -186,6 +226,64 @@ public static partial class SvgCodec
         ///     stops mid-render.
         /// </summary>
         public Dictionary<XElement, List<GradientStop>> GradientStopCache { get; } = [];
+
+        /// <summary>
+        ///     Caches each <c>pattern</c> element's own resolved content element (the element whose
+        ///     children are actually rendered into each tile - see
+        ///     <see cref="ResolvePatternContentElement"/>), keyed by the referenced <c>pattern</c>
+        ///     <see cref="XElement"/>'s own reference identity, mirroring
+        ///     <see cref="GradientStopCache"/>'s identical "populated once, read many times, safe
+        ///     because the parsed <see cref="XDocument"/> is never mutated mid-<c>Load</c>" lifetime
+        ///     and rationale. A pattern referenced by many shapes therefore has its own <c>href</c>
+        ///     chain walked only once per <c>Load</c> call, rather than once per reference - unlike a
+        ///     rendered tile buffer itself (deliberately never cached; see
+        ///     <see cref="RenderPatternFill"/>'s remarks for why), the resolved content
+        ///     <em>element</em> is purely structural and does not depend on the referencing shape's
+        ///     own bounding box, so it is always safe to share across every reference.
+        /// </summary>
+        public Dictionary<XElement, XElement?> PatternContentCache { get; } = [];
+
+        /// <summary>
+        ///     Caches each element's own pre-built <see cref="CssElementStyleContext"/> (see
+        ///     <see cref="CssStylesheet.BuildElementContext"/>), keyed by the element's own
+        ///     reference identity, mirroring <see cref="GradientStopCache"/>'s identical "populated
+        ///     once, read many times, safe because the parsed <see cref="XDocument"/> is never
+        ///     mutated mid-<c>Load</c>" lifetime and rationale. Without this cache, every one of
+        ///     <see cref="ApplyPresentationAttributes"/>'s own per-element CSS matching (charged
+        ///     once against <see cref="CssBudget"/>) would be silently repeated - and re-charged -
+        ///     for every other call site that also needs to resolve one of an element's own
+        ///     cascaded properties (for example <see cref="ResolveFilterElement"/>,
+        ///     <see cref="ResolveClipPathElement"/>, <see cref="ResolveMaskElement"/>) against the
+        ///     exact same element, doubling real per-element matching cost with no benefit. See
+        ///     <see cref="GetStyleContext"/>, the sole reader/writer of this cache.
+        /// </summary>
+        private Dictionary<XElement, CssElementStyleContext> StyleContextCache { get; } = [];
+
+        /// <summary>
+        ///     Gets <paramref name="element"/>'s own <see cref="CssElementStyleContext"/>, building
+        ///     and charging <see cref="CssBudget"/> for it (via
+        ///     <see cref="CssStylesheet.BuildElementContext"/>) only the first time this element is
+        ///     asked for - every further call for the same element (see
+        ///     <see cref="StyleContextCache"/>'s remarks) reuses the cached result at no further
+        ///     matching cost or budget charge.
+        /// </summary>
+        /// <param name="element">The element to resolve a styling context for.</param>
+        /// <returns>The element's own (possibly cached) <see cref="CssElementStyleContext"/>.</returns>
+        /// <exception cref="InvalidDataException">
+        ///     Thrown via <see cref="CssBudget"/> the first time this element's context is built, if
+        ///     doing so exceeds the cumulative CSS selector-matching work budget.
+        /// </exception>
+        public CssElementStyleContext GetStyleContext(XElement element)
+        {
+            if (StyleContextCache.TryGetValue(element, out var cached))
+            {
+                return cached;
+            }
+
+            var built = Stylesheet.BuildElementContext(element, CssBudget);
+            StyleContextCache[element] = built;
+            return built;
+        }
     }
 
     // ================================================================================================
@@ -209,7 +307,7 @@ public static partial class SvgCodec
     private static readonly HashSet<string> SkippedElements = new(StringComparer.Ordinal)
     {
         "style", "animate", "animateTransform", "animateMotion", "animateColor", "set",
-        "image", "foreignObject", "svg", "metadata", "title", "desc", "script"
+        "foreignObject", "svg", "metadata", "title", "desc", "script"
     };
 
     /// <summary>
@@ -218,10 +316,17 @@ public static partial class SvgCodec
     /// </summary>
     /// <param name="root">The document's root element.</param>
     /// <param name="fitTransform">The viewBox-fit transform computed for this render.</param>
+    /// <param name="viewportSize">
+    ///     The document's own resolved viewBox/size (see <c>ResolveViewBoxOrSize</c>), seeded as
+    ///     the root render state's <see cref="RenderState.ViewportWidth"/>/
+    ///     <see cref="RenderState.ViewportHeight"/> - the initial percentage-resolution basis every
+    ///     descendant inherits until a <c>symbol</c> referenced via <c>use</c> establishes a new one.
+    /// </param>
     /// <param name="context">The fixed per-document render context.</param>
-    private static void RenderDocument(XElement root, Matrix3x2 fitTransform, RenderContext context)
+    private static void RenderDocument(XElement root, Matrix3x2 fitTransform, Vector2 viewportSize, RenderContext context)
     {
-        var rootState = ApplyPresentationAttributes(RenderState.Initial, root);
+        var initialState = RenderState.Initial with { ViewportWidth = viewportSize.X, ViewportHeight = viewportSize.Y };
+        var rootState = ApplyPresentationAttributes(initialState, root, context);
         var totalElements = 0;
         var workBudget = new GeometryWorkBudget();
         var filterWorkBudget = new FilterWorkBudget();
@@ -279,7 +384,7 @@ public static partial class SvgCodec
     /// <param name="boundsPrePassBudget">
     ///     The shared cumulative bounds-pre-pass work budget (see
     ///     <see cref="BoundsPrePassWorkBudget"/>), threaded down to every <c>g</c>/<c>symbol</c>/
-    ///     <c>use</c> dispatch below so <see cref="RenderFilteredGroup"/>'s own bounds-only
+    ///     <c>use</c> dispatch below so <see cref="RenderGroupWithEffects"/>'s own bounds-only
     ///     pre-pass is bounded in aggregate across every nested filtered group, independent of
     ///     each individual pre-pass invocation's own <see cref="MaxTotalRenderedElements"/> ceiling.
     /// </param>
@@ -354,7 +459,7 @@ public static partial class SvgCodec
             return;
         }
 
-        var state = ApplyPresentationAttributes(parentState, element);
+        var state = ApplyPresentationAttributes(parentState, element, context);
         var transform = ParseTransformAttribute(element) * parentTransform;
 
         // A marker's own content never applies its own descendants' "filter" attribute - per the
@@ -362,7 +467,7 @@ public static partial class SvgCodec
         // remarks) - so every shape/text dispatch below is told to suppress filter evaluation
         // whenever this call is itself part of a marker's content subtree (markerDepth > 0,
         // incremented only by RenderOneMarker, never by plain "g"/"symbol" nesting or "use")
-        var suppressFilter = markerDepth > 0;
+        var suppressEffects = markerDepth > 0;
 
         // A non-finite composed transform (see this method's remarks) cannot meaningfully
         // position this element or any descendant - skip the whole subtree as defense-in-depth,
@@ -383,13 +488,16 @@ public static partial class SvgCodec
                 // group in both situations (renders in place if encountered directly, and also
                 // renders when referenced via <use>)
                 //
-                // A "g"/"symbol" element's own "filter" attribute (suppressed identically to
-                // shape/text filtering whenever this call is itself part of a marker's own
-                // content, see suppressFilter above) renders the whole subtree below as one
-                // filtered unit via RenderFilteredGroup, instead of the plain unfiltered child
-                // loop - see RenderFilteredGroup's remarks for the full group-filter algorithm
-                var groupFilterElement = suppressFilter ? null : ResolveFilterElement(element, context);
-                if (groupFilterElement == null)
+                // A "g"/"symbol" element's own "filter"/"clip-path"/"mask" attributes (suppressed
+                // identically to shape/text effects whenever this call is itself part of a
+                // marker's own content, see suppressEffects above) render the whole subtree below
+                // as one combined unit via RenderGroupWithEffects whenever any of the three is
+                // present, instead of the plain unaffected child loop - see
+                // RenderGroupWithEffects's remarks for the full group-effects algorithm
+                var groupFilterElement = suppressEffects ? null : ResolveFilterElement(element, context);
+                var groupClipPathElement = suppressEffects ? null : ResolveClipPathElement(element, context);
+                var groupMaskElement = suppressEffects ? null : ResolveMaskElement(element, context);
+                if (groupFilterElement == null && groupClipPathElement == null && groupMaskElement == null)
                 {
                     foreach (var child in element.Elements())
                     {
@@ -398,27 +506,27 @@ public static partial class SvgCodec
                 }
                 else
                 {
-                    RenderFilteredGroup(groupFilterElement, element.Elements().ToList(), state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+                    RenderGroupWithEffects(groupFilterElement, groupClipPathElement, groupMaskElement, element.Elements().ToList(), state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
                 }
 
                 break;
 
             case "rect":
-                RenderShapeWithFilter(element, BuildRectPath(element), state, transform, context, filterWorkBudget, suppressFilter);
+                RenderShapeWithEffects(element, BuildRectPath(element, state), state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
                 break;
 
             case "circle":
-                RenderShapeWithFilter(element, BuildEllipsePath(element, isCircle: true), state, transform, context, filterWorkBudget, suppressFilter);
+                RenderShapeWithEffects(element, BuildEllipsePath(element, isCircle: true, state), state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
                 break;
 
             case "ellipse":
-                RenderShapeWithFilter(element, BuildEllipsePath(element, isCircle: false), state, transform, context, filterWorkBudget, suppressFilter);
+                RenderShapeWithEffects(element, BuildEllipsePath(element, isCircle: false, state), state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
                 break;
 
             case "line":
                 {
-                    var linePath = BuildLinePath(element);
-                    RenderShapeWithFilter(element, linePath, state, transform, context, filterWorkBudget, suppressFilter);
+                    var linePath = BuildLinePath(element, state);
+                    RenderShapeWithEffects(element, linePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
                     RenderMarkers(linePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
                     break;
                 }
@@ -426,7 +534,7 @@ public static partial class SvgCodec
             case "polyline":
                 {
                     var polylinePath = BuildPolyPath(element, closed: false, workBudget);
-                    RenderShapeWithFilter(element, polylinePath, state, transform, context, filterWorkBudget, suppressFilter);
+                    RenderShapeWithEffects(element, polylinePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
                     RenderMarkers(polylinePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
                     break;
                 }
@@ -434,7 +542,7 @@ public static partial class SvgCodec
             case "polygon":
                 {
                     var polygonPath = BuildPolyPath(element, closed: true, workBudget);
-                    RenderShapeWithFilter(element, polygonPath, state, transform, context, filterWorkBudget, suppressFilter);
+                    RenderShapeWithEffects(element, polygonPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
                     RenderMarkers(polygonPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
                     break;
                 }
@@ -442,7 +550,7 @@ public static partial class SvgCodec
             case "path":
                 {
                     var dataPath = BuildPathDataPath(element, workBudget);
-                    RenderShapeWithFilter(element, dataPath, state, transform, context, filterWorkBudget, suppressFilter);
+                    RenderShapeWithEffects(element, dataPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
                     RenderMarkers(dataPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
                     break;
                 }
@@ -452,7 +560,11 @@ public static partial class SvgCodec
                 break;
 
             case "text":
-                RenderText(element, state, transform, context, workBudget, filterWorkBudget, suppressFilter);
+                RenderText(element, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
+                break;
+
+            case "image":
+                RenderImageWithEffects(element, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget, suppressEffects);
                 break;
 
             default:
@@ -465,45 +577,78 @@ public static partial class SvgCodec
     /// <summary>
     ///     Applies every presentation attribute directly set on <paramref name="element"/> on top
     ///     of <paramref name="parent"/>'s cascaded state, leaving any attribute not present on
-    ///     <paramref name="element"/> inherited unchanged from <paramref name="parent"/>.
+    ///     <paramref name="element"/> inherited unchanged from <paramref name="parent"/>. Each
+    ///     cascaded property is first resolved through this codec's 3-tier CSS precedence chokepoint
+    ///     (<c>ResolveStyledValue</c> - inline <c>style="..."</c> beats any matching stylesheet rule
+    ///     beats the plain presentation attribute, see <c>SvgCodec.Css.Cascade.cs</c>'s remarks),
+    ///     falling back to reading the plain presentation attribute directly whenever neither CSS
+    ///     tier has a value for that property - the overwhelmingly common, fully
+    ///     backward-compatible case for a document with no <c>&lt;style&gt;</c> element and no
+    ///     inline <c>style</c> attributes. Every property's raw value - whichever tier it came from -
+    ///     flows through the exact same value parser (for example <see cref="ParseGeometryCoordinate"/>,
+    ///     <see cref="ParseOpacityValue"/>) that a plain presentation attribute already used before
+    ///     this phase, so the CSS engine never duplicates any SVG-specific value-parsing logic.
     /// </summary>
     /// <param name="parent">The inherited render state from the parent element.</param>
     /// <param name="element">The element whose own presentation attributes are applied.</param>
+    /// <param name="context">
+    ///     The fixed per-document render context, supplying this element's stylesheet-matching
+    ///     inputs (<see cref="RenderContext.Stylesheet"/>/<see cref="RenderContext.CssBudget"/>).
+    /// </param>
     /// <returns>The new, cascaded render state for <paramref name="element"/>.</returns>
-    private static RenderState ApplyPresentationAttributes(RenderState parent, XElement element)
+    private static RenderState ApplyPresentationAttributes(RenderState parent, XElement element, RenderContext context)
     {
-        var dashArrayAttr = (string?)element.Attribute("stroke-dasharray");
+        var styleContext = context.GetStyleContext(element);
+
+        string? Styled(string property) => ResolveStyledValue(styleContext, property) ?? (string?)element.Attribute(property);
+
+        var dashArrayAttr = Styled("stroke-dasharray");
         var strokeDashArray = dashArrayAttr switch
         {
             null => parent.StrokeDashArray,
             _ when string.Equals(dashArrayAttr.Trim(), "none", StringComparison.OrdinalIgnoreCase) => null,
-            _ => ParseDashArray(dashArrayAttr)
+            _ => ParseDashArray(dashArrayAttr, parent)
         };
 
         return parent with
         {
-            Fill = (string?)element.Attribute("fill") ?? parent.Fill,
-            Stroke = (string?)element.Attribute("stroke") ?? parent.Stroke,
-            FillOpacity = ParseOptionalOpacity(element, "fill-opacity") ?? parent.FillOpacity,
-            StrokeOpacity = ParseOptionalOpacity(element, "stroke-opacity") ?? parent.StrokeOpacity,
-            Opacity = parent.Opacity * (ParseOptionalOpacity(element, "opacity") ?? 1f),
-            FillRule = ParseFillRule((string?)element.Attribute("fill-rule")) ?? parent.FillRule,
-            StrokeWidth = GetOptionalFloat(element, "stroke-width") ?? parent.StrokeWidth,
-            StrokeLineCap = ParseLineCap((string?)element.Attribute("stroke-linecap")) ?? parent.StrokeLineCap,
-            StrokeLineJoin = ParseLineJoin((string?)element.Attribute("stroke-linejoin")) ?? parent.StrokeLineJoin,
-            StrokeMiterLimit = ParseValidMiterLimit(element) ?? parent.StrokeMiterLimit,
+            Fill = Styled("fill") ?? parent.Fill,
+            Stroke = Styled("stroke") ?? parent.Stroke,
+            FillOpacity = ParseStyledOptionalOpacity(Styled("fill-opacity")) ?? parent.FillOpacity,
+            StrokeOpacity = ParseStyledOptionalOpacity(Styled("stroke-opacity")) ?? parent.StrokeOpacity,
+            Opacity = parent.Opacity * (ParseStyledOptionalOpacity(Styled("opacity")) ?? 1f),
+            FillRule = ParseFillRule(Styled("fill-rule")) ?? parent.FillRule,
+            StrokeWidth = GetOptionalFloat(Styled("stroke-width"), "stroke-width", parent, PercentageAxis.Diagonal) ?? parent.StrokeWidth,
+            StrokeLineCap = ParseLineCap(Styled("stroke-linecap")) ?? parent.StrokeLineCap,
+            StrokeLineJoin = ParseLineJoin(Styled("stroke-linejoin")) ?? parent.StrokeLineJoin,
+            StrokeMiterLimit = ParseValidMiterLimit(Styled("stroke-miterlimit")) ?? parent.StrokeMiterLimit,
             StrokeDashArray = strokeDashArray,
-            StrokeDashOffset = GetOptionalFloat(element, "stroke-dashoffset") ?? parent.StrokeDashOffset,
-            FontFamily = (string?)element.Attribute("font-family") ?? parent.FontFamily,
-            FontSize = GetOptionalFloat(element, "font-size") ?? parent.FontSize,
-            FontWeight = ParseFontWeight((string?)element.Attribute("font-weight")) ?? parent.FontWeight,
-            FontStyle = ParseFontStyle((string?)element.Attribute("font-style")) ?? parent.FontStyle,
-            TextAnchor = ParseTextAnchor((string?)element.Attribute("text-anchor")) ?? parent.TextAnchor,
-            MarkerStart = (string?)element.Attribute("marker-start") ?? parent.MarkerStart,
-            MarkerMid = (string?)element.Attribute("marker-mid") ?? parent.MarkerMid,
-            MarkerEnd = (string?)element.Attribute("marker-end") ?? parent.MarkerEnd
+            StrokeDashOffset = GetOptionalFloat(Styled("stroke-dashoffset"), "stroke-dashoffset", parent, PercentageAxis.Diagonal) ?? parent.StrokeDashOffset,
+            FontFamily = Styled("font-family") ?? parent.FontFamily,
+            FontSize = GetOptionalFloat(Styled("font-size"), "font-size", parent, PercentageAxis.FontSize) ?? parent.FontSize,
+            FontWeight = ParseFontWeight(Styled("font-weight")) ?? parent.FontWeight,
+            FontStyle = ParseFontStyle(Styled("font-style")) ?? parent.FontStyle,
+            TextAnchor = ParseTextAnchor(Styled("text-anchor")) ?? parent.TextAnchor,
+            MarkerStart = Styled("marker-start") ?? parent.MarkerStart,
+            MarkerMid = Styled("marker-mid") ?? parent.MarkerMid,
+            MarkerEnd = Styled("marker-end") ?? parent.MarkerEnd
         };
     }
+
+    /// <summary>
+    ///     Parses an opacity-like value (<c>fill-opacity</c>/<c>stroke-opacity</c>/<c>opacity</c>) -
+    ///     already resolved by the caller from either the plain presentation attribute or the CSS
+    ///     cascade (see <c>ResolveStyledValue</c>) - accepting either a bare <c>[0, 1]</c> number
+    ///     or a percentage, and clamping the result to <c>[0, 1]</c>.
+    /// </summary>
+    /// <param name="raw">The already-resolved raw value, or <see langword="null"/> if absent from every tier.</param>
+    /// <returns>The clamped opacity value, or <see langword="null"/> if <paramref name="raw"/> is <see langword="null"/>.</returns>
+    /// <exception cref="FormatException">Thrown when <paramref name="raw"/> is present but not a valid number.</exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="raw"/> is present but parses to a non-finite value - see
+    ///     <see cref="ParseCoordinate"/>.
+    /// </exception>
+    private static float? ParseStyledOptionalOpacity(string? raw) => raw == null ? null : ParseOpacityValue(raw);
 
     /// <summary>Parses a <c>fill-rule</c>/<c>clip-rule</c>-style keyword.</summary>
     /// <param name="raw">The attribute's raw value, or <see langword="null"/> if absent.</param>
@@ -604,26 +749,7 @@ public static partial class SvgCodec
         };
     }
 
-    /// <summary>
-    ///     Parses an opacity-like attribute (<c>fill-opacity</c>/<c>stroke-opacity</c>/<c>opacity</c>/
-    ///     <c>stop-opacity</c>), accepting either a bare <c>[0, 1]</c> number or a percentage, and
-    ///     clamping the result to <c>[0, 1]</c>.
-    /// </summary>
-    /// <param name="element">The element to inspect.</param>
-    /// <param name="name">The attribute name to read.</param>
-    /// <returns>The clamped opacity value, or <see langword="null"/> if the attribute is absent.</returns>
-    /// <exception cref="FormatException">Thrown when the attribute is present but not a valid number.</exception>
-    /// <exception cref="InvalidDataException">
-    ///     Thrown when the attribute is present but parses to a non-finite value - see
-    ///     <see cref="ParseCoordinate"/>.
-    /// </exception>
-    private static float? ParseOptionalOpacity(XElement element, string name)
-    {
-        var raw = (string?)element.Attribute(name);
-        return raw == null ? null : ParseOpacityValue(raw);
-    }
-
-    /// <summary>Parses and clamps a raw opacity string to <c>[0, 1]</c>. See <see cref="ParseOptionalOpacity"/>.</summary>
+    /// <summary>Parses and clamps a raw opacity string to <c>[0, 1]</c>. See <see cref="ParseStyledOptionalOpacity"/>.</summary>
     /// <param name="raw">The raw opacity string.</param>
     /// <returns>The clamped opacity value.</returns>
     /// <exception cref="FormatException">Thrown when <paramref name="raw"/> is not a valid number.</exception>
@@ -634,62 +760,70 @@ public static partial class SvgCodec
     private static float ParseOpacityValue(string raw) => Math.Clamp(ParseCoordinate(raw, 1f), 0f, 1f);
 
     /// <summary>
-    ///     Parses a <c>stroke-dasharray</c> attribute's number list, tolerantly treating a
-    ///     negative-containing or all-zero list as "no dashing" (solid stroke) rather than an
-    ///     error, matching how an unparseable value is treated elsewhere in this codec.
+    ///     Parses a <c>stroke-dasharray</c> attribute's number list, resolving a trailing <c>%</c>
+    ///     on any entry against the diagonal percentage basis (see
+    ///     <see cref="PercentageAxis.Diagonal"/> and <see cref="ParseDashArrayNumberList"/>) and
+    ///     tolerantly treating a negative-containing or all-zero list as "no dashing" (solid
+    ///     stroke) rather than an error, matching how an unparseable value is treated elsewhere in
+    ///     this codec.
     /// </summary>
     /// <param name="raw">The attribute's raw, non-<c>"none"</c> value.</param>
+    /// <param name="state">
+    ///     The cascaded render state supplying the current viewport, used to resolve the diagonal
+    ///     percentage basis for any percentage-suffixed entry.
+    /// </param>
     /// <returns>The parsed dash array, or <see langword="null"/> for an effectively-solid stroke.</returns>
-    private static List<float>? ParseDashArray(string raw)
+    private static List<float>? ParseDashArray(string raw, RenderState state)
     {
-        var numbers = ParseNumberList(raw);
+        var numbers = ParseDashArrayNumberList(raw, ResolvePercentageBasis(state, PercentageAxis.Diagonal));
         return numbers.Count == 0 || numbers.Exists(v => v < 0f) || numbers.TrueForAll(v => v == 0f)
             ? null
             : numbers;
     }
 
     /// <summary>
-    ///     Parses and validates the <c>stroke-miterlimit</c> attribute against
-    ///     <see cref="Drawing.StrokeStyle"/>'s documented contract (finite and at least <c>1</c>),
-    ///     so an invalid value falls back to the inherited value here rather than escaping later
-    ///     as an undocumented <see cref="ArgumentOutOfRangeException"/> from
-    ///     <see cref="Drawing.StrokeStyle"/>'s constructor - mirroring this class's existing
-    ///     tolerant handling of a malformed <c>stroke-dasharray</c> (see
-    ///     <see cref="ParseDashArray"/>), rather than aborting the whole document over one
-    ///     presentation-attribute value.
+    ///     Parses and validates the already-resolved raw <c>stroke-miterlimit</c> value (from
+    ///     either the plain presentation attribute or the CSS cascade - see
+    ///     <c>ResolveStyledValue</c>) against <see cref="Drawing.StrokeStyle"/>'s documented
+    ///     contract (finite and at least <c>1</c>), so an invalid value falls back to the
+    ///     inherited value here rather than escaping later as an undocumented
+    ///     <see cref="ArgumentOutOfRangeException"/> from <see cref="Drawing.StrokeStyle"/>'s
+    ///     constructor - mirroring this class's existing tolerant handling of a malformed
+    ///     <c>stroke-dasharray</c> (see <see cref="ParseDashArray"/>), rather than aborting the
+    ///     whole document over one presentation-attribute value.
     /// </summary>
     /// <remarks>
-    ///     This deliberately does not delegate to <see cref="GetOptionalFloat"/>/
+    ///     This deliberately does not delegate to
+    ///     <see cref="GetOptionalFloat(string?, string, RenderState, PercentageAxis)"/>/
     ///     <see cref="ParseGeometryCoordinate"/>: <see cref="ParseCoordinate"/> already throws
     ///     <see cref="InvalidDataException"/> for a non-finite parsed value (added for
     ///     coordinates/lengths generally), which would preempt this method's own finiteness
     ///     check below and make it dead code - a non-finite <c>stroke-miterlimit</c> would then
     ///     abort the whole document instead of falling back to the inherited value, contradicting
-    ///     this method's documented contract above. Reading and parsing the raw attribute directly
-    ///     keeps the non-finite-falls-back path reachable for this attribute specifically, without
-    ///     changing that shared, correct-for-every-other-attribute behavior. The percentage-suffix
+    ///     this method's documented contract above. Parsing the raw value directly keeps the
+    ///     non-finite-falls-back path reachable for this attribute specifically, without changing
+    ///     that shared, correct-for-every-other-attribute behavior. The percentage-suffix
     ///     rejection below is intentionally duplicated (not delegated) for the same reason - see
     ///     <see cref="ParseGeometryCoordinate"/> for the identical check applied to other
     ///     shape/text geometry attributes.
     /// </remarks>
-    /// <param name="element">The element to inspect.</param>
+    /// <param name="raw">The already-resolved raw value, or <see langword="null"/> if absent from every tier.</param>
     /// <returns>The valid parsed value, or <see langword="null"/> if absent or out of contract.</returns>
     /// <exception cref="FormatException">
-    ///     Thrown when the attribute is present but not a valid number - propagates uncaught to
-    ///     this class's top-level <c>Load</c>/<c>GetInfo</c> boundary, which rewraps it as
-    ///     <see cref="InvalidDataException"/>.
+    ///     Thrown when <paramref name="raw"/> is present but not a valid number - propagates
+    ///     uncaught to this class's top-level <c>Load</c>/<c>GetInfo</c> boundary, which rewraps it
+    ///     as <see cref="InvalidDataException"/>.
     /// </exception>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when the attribute carries a percentage suffix - this codec has no defined
-    ///     viewport-relative basis for it, matching <see cref="ParseGeometryCoordinate"/>'s
+    ///     Thrown when <paramref name="raw"/> carries a percentage suffix - this codec has no
+    ///     defined viewport-relative basis for it, matching <see cref="ParseGeometryCoordinate"/>'s
     ///     rejection of a percentage on every other shape/text geometry attribute. Not thrown for
     ///     a non-finite parsed value (<c>NaN</c>, <c>Infinity</c>, <c>-Infinity</c>) - unlike
     ///     <see cref="ParseCoordinate"/>, such a value falls back to <see langword="null"/> here
     ///     instead, per this method's documented contract above.
     /// </exception>
-    private static float? ParseValidMiterLimit(XElement element)
+    private static float? ParseValidMiterLimit(string? raw)
     {
-        var raw = (string?)element.Attribute("stroke-miterlimit");
         if (raw == null)
         {
             return null;

@@ -267,6 +267,20 @@ reviews:
       - "docs/sysml2/model/canvas-net/codecs/svg-codec.sysml"    # unit SysML2 model
       - "src/DemaConsulting.CanvasNet/Codecs/SvgCodec.cs"         # unit source (public API entry point)
       - "src/DemaConsulting.CanvasNet/Codecs/Svg/**/*.cs"         # unit source (partial-class implementation files)
+      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.ColorMatrix.cs"  # phase 5 filter partial
+      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.ComponentTransfer.cs"  # phase 5 filter partial
+      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.Morphology.cs"  # phase 5 filter partial
+      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.Convolution.cs"  # phase 5 filter partial
+      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.DisplacementMap.cs"  # phase 5 filter partial
+      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.Tile.cs"  # phase 5 filter partial
+      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.DropShadow.cs"  # phase 5 filter partial
+      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.FeImage.cs"  # phase 5 filter partial
+      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.Lighting.cs"  # phase 6 filter partial
+      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.Turbulence.cs"  # phase 6 filter partial
+      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Css.Parser.cs"  # phase 7 CSS styling partial
+      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Css.Selectors.cs"  # phase 7 CSS styling partial
+      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Css.Cascade.cs"  # phase 7 CSS styling partial
+      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.Blend.cs"  # phase 8 filter partial
       - "src/DemaConsulting.CanvasNet/Codecs/NamespaceDoc.cs"     # Codecs namespace documentation
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/SvgCodecTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/SvgFixtureTests.cs"  # fixture conformance tests

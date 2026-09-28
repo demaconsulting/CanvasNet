@@ -2,7 +2,7 @@
 # Software Unit Requirements for SvgCodec
 #
 # cspell:ignore moveto lineto closepath dasharray letterboxing renderable xlink SMIL uncatchable
-# cspell:ignore miterlimit dashoffset
+# cspell:ignore miterlimit dashoffset unitless Pillarboxes
 #
 # These requirements describe the design-level behavior of the SvgCodec unit.
 
@@ -396,16 +396,27 @@ sections:
               - id: CanvasNet-Codecs-SvgCodec-ViewBoxFitting
                 title: >-
                   The SvgCodec class shall fit the document's intrinsic viewBox into the
-                  requested raster size using a "meet, centered" (CSS object-fit: contain
-                  equivalent) transform, letterboxing with transparent bars along whichever axis
-                  the intrinsic aspect ratio does not fill.
+                  requested raster size via the root svg element's own preserveAspectRatio
+                  attribute ("[defer] <align> [<meetOrSlice>]" - defer parsed and ignored, align
+                  is "none" or one of the 9 xMin/xMid/xMax x YMin/YMid/YMax combinations,
+                  meetOrSlice is "meet" (default) or "slice"), defaulting to "xMidYMid meet" (a
+                  "meet, centered", CSS object-fit: contain equivalent, transform) when the
+                  attribute is absent, letterboxing with transparent bars along whichever axis
+                  the intrinsic aspect ratio does not fill under "meet", overflowing the raster
+                  under "slice", and stretching non-uniformly with no letterboxing under
+                  align="none".
                 justification: |
                   Callers request a specific raster size that may not share the document's
-                  intrinsic aspect ratio; centered letterboxing avoids distorting or clipping
-                  the document's content.
+                  intrinsic aspect ratio; preserveAspectRatio is the SVG-specification-defined
+                  mechanism for a document to control how that mismatch is resolved, and the
+                  default "xMidYMid meet" behavior preserves this codec's pre-existing centered
+                  letterboxing for every document that omits the attribute.
                 tests:
                   - SvgCodec_Load_WideViewBoxIntoSquareRaster_LetterboxesTopAndBottom
                   - SvgCodec_Load_TallViewBoxIntoSquareRaster_LetterboxesLeftAndRight
+                  - SvgCodec_Load_RootPreserveAspectRatio_AppliesAlignAndMeetOrSlice
+                  - SvgCodec_Load_RootPreserveAspectRatioNone_StretchesNonUniformly
+                  - SvgCodec_Load_NoPreserveAspectRatioAttribute_MatchesExplicitXMidYMidMeet
 
               - id: CanvasNet-Codecs-SvgCodec-GetInfo
                 title: >-
@@ -485,24 +496,69 @@ sections:
                   - SvgCodec_Load_MalformedPathDataUnknownCommand_ThrowsInvalidDataException
                   - SvgCodec_Load_MalformedPathDataMissingArguments_ThrowsInvalidDataException
 
-              - id: CanvasNet-Codecs-SvgCodec-PercentageGeometryRejected
+              - id: CanvasNet-Codecs-SvgCodec-PercentageGeometryResolved
                 title: >-
-                  The SvgCodec class shall reject a percentage value on a shape/text geometry
+                  The SvgCodec class shall resolve a percentage value on a shape/text geometry
                   attribute (x, y, width, height, rx, ry, cx, cy, r, x1/y1/x2/y2, font-size,
-                  stroke-width, stroke-miterlimit, stroke-dashoffset, use's x/y, and text's x/y),
-                  with InvalidDataException, rather than silently resolving it against an
-                  undefined basis.
+                  stroke-width, stroke-dasharray, stroke-dashoffset, use's x/y/width/height, and
+                  text's x/y) against the current viewport (horizontal attributes against
+                  viewport width, vertical attributes against viewport height, axis-agnostic
+                  attributes against the diagonal basis sqrt(width^2 + height^2) / sqrt(2), and
+                  font-size against the parent element's own font-size), rather than rejecting it
+                  with InvalidDataException. stroke-miterlimit remains the sole exception, since
+                  it is a unitless ratio rather than a length.
                 justification: |
-                  SvgCodec has no defined viewport-relative basis to resolve a percentage against
-                  for these attributes (unlike opacity-family attributes and gradient
-                  coordinates/stop offset, which correctly treat a percentage as a [0, 1] fraction
-                  of their own well-defined basis); silently resolving one anyway (for example
-                  treating "50%" as the bare number 0.5) would render visibly wrong geometry
-                  without any indication of error, so a clear, explicit rejection is preferable to
-                  a silently incorrect result.
+                  Real-world SVG documents commonly size geometry as a percentage of their
+                  containing viewport; resolving these against a well-defined, spec-aligned basis
+                  lets this codec render such documents correctly instead of rejecting them
+                  outright.
                 tests:
-                  - SvgCodec_Load_RectXPercentage_ThrowsInvalidDataException
-                  - SvgCodec_Load_RectWidthPercentage_ThrowsInvalidDataException
+                  - SvgCodec_Load_RectXPercentage_ResolvesAgainstViewportWidth
+                  - SvgCodec_Load_RectWidthPercentage_ResolvesAgainstViewportWidth
+                  - SvgCodec_Load_RectYHeightPercentage_ResolvesAgainstViewportHeight
+                  - SvgCodec_Load_CircleCxCyRPercentage_ResolvesAgainstHorizontalVerticalAndDiagonalBases
+                  - SvgCodec_Load_LineCoordinatePercentage_ResolvesAgainstViewport
+                  - SvgCodec_Load_GradientCoordinatePercentage_UnaffectedByViewportPercentageResolution
+                  - SvgCodec_Load_StrokeWidthPercentage_ResolvesAgainstDiagonalBasis
+                  - SvgCodec_Load_FontSizePercentage_ResolvesAgainstParentFontSize
+                  - SvgCodec_Load_StrokeDasharrayPercentage_ResolvesAgainstDiagonalBasis
+
+              - id: CanvasNet-Codecs-SvgCodec-MarkerPreserveAspectRatio
+                title: >-
+                  The SvgCodec class shall honor a marker element's own explicit
+                  preserveAspectRatio attribute, fitting its viewBox into its own
+                  markerWidth/markerHeight through the shared preserveAspectRatio fit algorithm
+                  (honoring the viewBox's own origin and the requested align/meetOrSlice), while
+                  leaving a marker with a viewBox but no explicit preserveAspectRatio attribute
+                  fit exactly as before (an unchanged, simpler uniform "meet"-equivalent
+                  scale-down with no additional centering step).
+                justification: |
+                  A marker author may need finer control over how its own viewBox content fits
+                  its markerWidth/markerHeight than the pre-existing default fit provides,
+                  particularly a non-uniform "slice" fit; the pre-existing default fit is
+                  preserved unchanged for every marker that does not opt into this new capability,
+                  so no existing document's rendered output changes.
+                tests:
+                  - SvgCodec_Load_MarkerWithViewBox_FitsContentToMarkerWidthHeight
+                  - SvgCodec_Load_MarkerWithExplicitPreserveAspectRatioSlice_UsesLargerUniformScale
+
+              - id: CanvasNet-Codecs-SvgCodec-SymbolViewBoxFitting
+                title: >-
+                  The SvgCodec class shall, when a use element references a symbol element with
+                  its own viewBox, fit the symbol's viewBox content into the use/symbol element's
+                  resolved width/height (falling back, in order, to the use element's own
+                  width/height, then the symbol's own width/height, then the current viewport's
+                  own size) via the shared preserveAspectRatio fit algorithm, honoring the
+                  symbol's own preserveAspectRatio attribute, and establish that viewBox as the
+                  current viewport for the symbol's own content's percentage-geometry resolution.
+                justification: |
+                  symbol/use viewBox-fit is the standard SVG mechanism for reusable, self-
+                  contained graphics that need to be resized to fit a caller-chosen box (an "SVG
+                  sprite"); without it, a use referencing a symbol with a viewBox would render at
+                  the wrong scale or position.
+                tests:
+                  - SvgCodec_Load_UseReferencingSymbolWithViewBox_FitsContentToResolvedWidthHeight
+                  - SvgCodec_Load_UseReferencingSymbolWithPreserveAspectRatio_HonorsAlign
 
               - id: CanvasNet-Codecs-SvgCodec-UnsupportedConstructsIgnored
                 title: >-
@@ -552,6 +608,10 @@ sections:
                   - SvgCodec_Load_FeCompositeOperatorXorWithHalfChannelValue_RoundsAwayFromZeroNotToEven
                   - SvgCodec_Load_FilterOnStrokedHorizontalLine_UsesStrokeAwareBoundsNotDegenerate
                   - SvgCodec_Load_OpacityWithFeFloodFilter_AppliesOpacityToFilteredResultNotSource
+                  - SvgCodec_Load_FeCompositeOperatorArithmetic_MatchesHandComputedFormula
+                  - SvgCodec_Load_FeCompositeOperatorArithmeticAlpha_MatchesFormulaNotHardcodedOrDropped
+                  - SvgCodec_Load_FeCompositeOperatorArithmeticOutOfRangeResult_ClampsToValidByteRange
+                  - SvgCodec_Load_FeCompositeArithmeticWithDiffuseLighting_TracksSourceAlphaSilhouette
 
               - id: CanvasNet-Codecs-SvgCodec-FilterResourceSafety
                 title: >-
@@ -703,6 +763,540 @@ sections:
                   - SvgCodec_Load_DeeplyNestedFilteredGroupsWithEnormousInnerPath_ThrowsInvalidDataException
                   - SvgCodec_Load_ModestlyNestedFilteredGroupsWithNormalPath_RenderCorrectlyWithoutFalsePositiveFallback
 
+              - id: CanvasNet-Codecs-SvgCodec-FeColorMatrix
+                title: >-
+                  The SvgCodec class shall evaluate feColorMatrix primitives for the matrix,
+                  saturate, hueRotate, and luminanceToAlpha types, defaulting missing values per
+                  SVG semantics and applying the resolved transform to the named or implicit
+                  filter input.
+                justification: |
+                  Real-world SVG filters frequently adjust color channels, saturation, hue, or
+                  luminance-derived alpha without introducing new geometry. Supporting these modes
+                  closes the largest remaining gap between the codec's bounded filter pipeline and
+                  common authored filter recipes.
+                tests:
+                  - SvgCodec_Load_FeColorMatrixTypeMatrix_AppliesFullAffineTransform
+                  - SvgCodec_Load_FeColorMatrixTypeSaturate_DesaturatesTowardGray
+                  - SvgCodec_Load_FeColorMatrixTypeHueRotate_RotatesHueByAngle
+                  - SvgCodec_Load_FeColorMatrixTypeLuminanceToAlpha_ConvertsLuminanceToAlphaChannel
+                  - SvgCodec_Load_FeColorMatrixMissingValuesAttribute_FallsBackToTypeDefault
+
+              - id: CanvasNet-Codecs-SvgCodec-FeComponentTransfer
+                title: >-
+                  The SvgCodec class shall evaluate feComponentTransfer primitives, remapping
+                  each channel independently through identity, table, discrete, linear, and gamma
+                  transfer functions while leaving channels with no matching feFunc child
+                  unchanged.
+                justification: |
+                  Component-transfer stages are a common way authored SVG filters tune contrast,
+                  threshold behavior, alpha ramps, and per-channel response after blur or color-matrix
+                  stages. Supporting the standard transfer-function set lets the existing filter
+                  pipeline reproduce these authored adjustments directly.
+                tests:
+                  - SvgCodec_Load_FeFuncRTypeTable_RemapsRedChannel
+                  - SvgCodec_Load_FeFuncGTypeDiscrete_StepsGreenChannel
+                  - SvgCodec_Load_FeFuncBTypeLinear_ScalesAndOffsetsBlueChannel
+                  - SvgCodec_Load_FeFuncATypeGamma_AppliesGammaCurveToAlpha
+                  - SvgCodec_Load_MissingFeFuncChild_ChannelUnchanged
+
+              - id: CanvasNet-Codecs-SvgCodec-FeMorphology
+                title: >-
+                  The SvgCodec class shall evaluate feMorphology primitives for both erode and
+                  dilate operators, scaling authored radius values into pixels from the current
+                  transform and treating non-positive radii as an identity operation.
+                justification: |
+                  Morphological expansion and erosion are standard SVG building blocks for growing
+                  silhouettes, shrinking masks, and shaping alpha before later composite steps.
+                  Implementing both operators closes another common authored-filter gap without
+                  requiring any second rendering pipeline.
+                tests:
+                  - SvgCodec_Load_FeMorphologyOperatorErode_ShrinksOpaqueRegion
+                  - SvgCodec_Load_FeMorphologyOperatorDilate_GrowsOpaqueRegion
+                  - SvgCodec_Load_FeMorphologyRadiusExceedingCap_ThrowsInvalidDataException
+                  - SvgCodec_Load_FeMorphologyNegativeRadius_TreatedAsIdentity
+
+              - id: CanvasNet-Codecs-SvgCodec-FeConvolveMatrix
+                title: >-
+                  The SvgCodec class shall evaluate feConvolveMatrix primitives using the
+                  declared order and kernelMatrix, honoring divisor, bias, target position,
+                  preserveAlpha, and supported edge modes while tolerating malformed kernel counts
+                  as an identity passthrough.
+                justification: |
+                  Convolution kernels cover sharpening, edge detection, embossing, and other
+                  authored image-processing effects that cannot be reproduced with blur/offset/
+                  composite alone. Supporting bounded convolution expands the filter subset to a
+                  much wider class of real authored SVG effects.
+                tests:
+                  - SvgCodec_Load_FeConvolveMatrixIdentityKernel_LeavesInputUnchanged
+                  - SvgCodec_Load_FeConvolveMatrixEdgeDetectKernel_ProducesExpectedEdgeResponse
+                  - SvgCodec_Load_FeConvolveMatrixEdgeModeWrap_SamplesAcrossOppositeEdge
+                  - SvgCodec_Load_FeConvolveMatrixPreserveAlphaTrue_LeavesAlphaChannelUnchanged
+                  - SvgCodec_Load_FeConvolveMatrixOrderExceedingCap_ThrowsInvalidDataException
+                  - SvgCodec_Load_FeConvolveMatrixKernelMatrixCountMismatchOrder_TolerantlyPassesThrough
+
+              - id: CanvasNet-Codecs-SvgCodec-FeDisplacementMap
+                title: >-
+                  The SvgCodec class shall evaluate feDisplacementMap primitives by displacing
+                  the input image according to the selected channel values from the second input,
+                  scaled into pixels from the current transform.
+                justification: |
+                  Displacement maps are a common authored way to perturb geometry-free filtered
+                  imagery, especially for ripples, refraction, and noise-driven distortion.
+                  Supporting bounded channel-based displacement lets those authored effects render
+                  without inventing a separate effect pipeline.
+                tests:
+                  - SvgCodec_Load_FeDisplacementMapPositiveScaleWithRedChannelSelector_DisplacesSourcePixels
+                  - SvgCodec_Load_FeDisplacementMapZeroScale_LeavesInputUnchanged
+
+              - id: CanvasNet-Codecs-SvgCodec-FeTile
+                title: >-
+                  The SvgCodec class shall evaluate feTile primitives by repeating the resolved
+                  upstream primitive subregion across the filter region, while leaving primitives
+                  with no declared subregion unaffected by the new subregion mechanism.
+                justification: |
+                  Tiling a prior primitive's own subregion is the core purpose of feTile and is
+                  required by authored patterns that intentionally generate one small filtered
+                  tile and then repeat it. Recording primitive subregions once, generically, lets
+                  the existing filter pipeline support feTile without changing prior whole-region
+                  primitive behavior.
+                tests:
+                  - SvgCodec_Load_FeTileTilesUpstreamPrimitiveSubregionAcrossFilterRegion
+                  - SvgCodec_Load_FeTileNoUpstreamSubregion_TilesWholeRegionAsIdentity
+                  - SvgCodec_Load_FePrimitiveWithSubregion_ClipsOutputToDeclaredXYWidthHeight
+                  - SvgCodec_Load_FePrimitiveWithoutSubregion_UnaffectedByNewMechanism
+
+              - id: CanvasNet-Codecs-SvgCodec-FeDropShadow
+                title: >-
+                  The SvgCodec class shall evaluate feDropShadow primitives by constructing the
+                  equivalent blurred, offset, flood-colored shadow from SourceAlpha and
+                  compositing SourceGraphic over it, with SVG-default dx, dy, and stdDeviation
+                  values when omitted.
+                justification: |
+                  Drop shadows are one of the most common authored SVG filter effects. Supporting
+                  the primitive directly, while reusing the existing blur/offset/flood/composite
+                  implementation, keeps common authored documents readable without introducing a
+                  second shadow-specific pipeline.
+                tests:
+                  - SvgCodec_Load_FeDropShadow_MatchesManualBlurOffsetFloodCompositeChainEquivalent
+                  - SvgCodec_Load_FeDropShadowDefaultDxDyStdDeviation_OffsetsShadowBy2Pixels
+
+              - id: CanvasNet-Codecs-SvgCodec-FeImage
+                title: >-
+                  The SvgCodec class shall evaluate feImage primitives for both raster/data-URI
+                  href values and element-reference href values, fitting raster content with
+                  preserveAspectRatio semantics and rendering referenced SVG elements into an
+                  offscreen primitive surface.
+                justification: |
+                  Authored SVG filters commonly bring in external raster content or reuse an
+                  existing SVG element as an intermediate filtered input. Supporting both forms
+                  of feImage closes the final filter primitive in this phase that can introduce
+                  new imagery into the filter graph.
+                tests:
+                  - SvgCodec_Load_FeImageDataUriRasterHref_RendersDecodedRasterIntoSubregion
+                  - SvgCodec_Load_FeImageElementReferenceHref_RendersReferencedElementOffscreen
+                  - SvgCodec_Load_FeImageElementReferenceHrefExceedingMaxUseDepth_TolerantlyRendersEmpty
+                  - SvgCodec_Load_FeImageDanglingElementReference_RendersEmptyWithoutThrowing
+
+              - id: CanvasNet-Codecs-SvgCodec-FeDiffuseLighting
+                title: >-
+                  The SvgCodec class shall evaluate feDiffuseLighting primitives using the SVG
+                  surface-normal Sobel estimation and Lambertian (N.L) diffuse lighting formula
+                  against a feDistantLight, fePointLight, or feSpotLight child light source,
+                  producing a fully opaque result.
+                justification: |
+                  feDiffuseLighting is a standard SVG bump-mapping primitive used to relight
+                  a surface described by SourceAlpha (or another primitive's alpha channel) as if
+                  it were a physical bump map; supporting it against all three SVG light source
+                  types with the specification's own Lambertian formula is required for authored
+                  documents using embossing, engraving, or paper-texture style effects to render
+                  correctly rather than as an inert passthrough.
+                tests:
+                  - SvgCodec_Load_FeDiffuseLightingFlatAlphaDistantLightAt90DegreesElevation_ProducesUniformLitColor
+                  - SvgCodec_Load_FeDiffuseLightingOutputAlpha_IsAlwaysFullyOpaque
+                  - SvgCodec_Load_FeDiffuseLightingDiffuseConstant_ScalesOutputLinearly
+                  - SvgCodec_Load_FeDiffuseLightingPointLightDirectlyAbove_ProducesBrighterCenterThanEdge
+
+              - id: CanvasNet-Codecs-SvgCodec-FeSpecularLighting
+                title: >-
+                  The SvgCodec class shall evaluate feSpecularLighting primitives using the shared
+                  surface-normal estimation and Blinn-Phong (N.H) specular lighting formula
+                  against a feDistantLight, fePointLight, or feSpotLight child light source
+                  (honoring feSpotLight's limitingConeAngle cutoff), producing a result whose
+                  alpha channel is the maximum of its own color channels rather than fully opaque.
+                justification: |
+                  feSpecularLighting is the companion SVG bump-mapping primitive used to add
+                  physically-motivated highlights to a relit surface; its alpha-from-max(R,G,B)
+                  behavior is a specification-mandated subtlety (distinct from every other filter
+                  primitive in this codec, which either preserve or fully replace alpha) that must
+                  be implemented precisely so composited highlight layers blend correctly.
+                tests:
+                  - SvgCodec_Load_FeSpecularLightingSpotLightOutsideLimitingConeAngle_ProducesNoLight
+                  - SvgCodec_Load_FeSpecularLightingFlatAlphaDistantLightAt90DegreesElevation_ProducesUniformSpecularHighlight
+                  - SvgCodec_Load_FeSpecularLightingOutputAlpha_EqualsMaxOfRgbNotOne
+                  - SvgCodec_Load_FeSpecularLightingSpecularExponent_IncreasesFocusOfHighlight
+
+              - id: CanvasNet-Codecs-SvgCodec-FeTurbulence
+                title: >-
+                  The SvgCodec class shall evaluate feTurbulence primitives using the SVG
+                  specification's own published Perlin-noise reference algorithm and
+                  permutation-table initialization, honoring type, baseFrequency, numOctaves, and
+                  seed, and shall deterministically reproduce identical output for identical
+                  inputs.
+                justification: |
+                  feTurbulence is SVG's procedural noise-generation primitive, commonly used for
+                  authored texture, cloud, marble, and turbulence effects; because no independent
+                  golden pixel reference exists for it, the specification's own reference
+                  algorithm (down to its permutation-table initialization and published PRNG
+                  conformance test vector) is the only available fidelity anchor and must be
+                  transcribed exactly rather than approximated with a different noise function.
+                tests:
+                  - SvgCodec_TurbulenceTablesRandom_10000thValueFromSeedOne_MatchesSpecPublishedTestVector
+                  - SvgCodec_Load_FeTurbulenceSameSeedTwoLoadCalls_ProducesIdenticalOutput
+                  - SvgCodec_Load_FeTurbulenceDifferentSeeds_ProducesDifferentOutput
+                  - SvgCodec_Load_FeTurbulenceTypeTurbulenceVsFractalNoise_ProduceDifferentRemapping
+                  - SvgCodec_Load_FeTurbulenceNumOctavesVariation_ProducesDifferentOutputThanSingleOctave
+                  - SvgCodec_Load_FeTurbulenceOutput_ValuesSpanNonDegenerateRangeAcrossPixels
+                  - SvgCodec_Load_FeTurbulenceStitchTilesStitch_TolerantlyFallsBackToNoStitchBehavior
+
+              - id: CanvasNet-Codecs-SvgCodec-FeBlend
+                title: >-
+                  The SvgCodec class shall evaluate feBlend primitives against their in/in2 two
+                  input resolution, supporting all fifteen CSS Compositing Level 1 mode values
+                  (normal, multiply, screen, overlay, darken, lighten, color-dodge, color-burn,
+                  hard-light, soft-light, difference, exclusion, hue, saturation, color, and
+                  luminosity), defaulting to normal when mode is absent or unrecognized, and
+                  evaluating the four non-separable modes (hue, saturation, color, luminosity)
+                  via the specification's own Lum/ClipColor/SetLum/Sat/SetSat whole-RGB reference
+                  algorithm rather than any per-channel approximation.
+                justification: |
+                  feBlend is a widely-authored SVG filter primitive (Inkscape, Adobe Illustrator,
+                  and other common authoring tools emit it routinely) previously tolerated only as
+                  a no-op passthrough of its own input; without a real implementation, documents
+                  relying on any of its fifteen blend modes for a visual effect silently lost
+                  that effect entirely. The four non-separable modes specifically require the
+                  specification's own whole-RGB reference algorithm (not a per-channel
+                  approximation) because they are defined in terms of properties (hue, saturation,
+                  and luminosity) of the whole color triple, not any single channel in isolation.
+                tests:
+                  - SvgCodec_Load_FeBlendSeparableMode_MatchesHandComputedFormula
+                  - SvgCodec_Load_FeBlendModeOverlay_MatchesHardLightWithSwappedArguments
+                  - SvgCodec_Load_FeBlendModeNormal_MatchesFeCompositeOperatorOver
+                  - SvgCodec_Load_FeBlendPartiallyTransparentSource_CompositesAlphaCorrectly
+                  - SvgCodec_Load_FeBlendModeLuminosity_MatchesSpecFormulaWithoutClipping
+                  - SvgCodec_Load_FeBlendModeLuminosity_ClipColorClampsOutOfRangeChannel
+                  - SvgCodec_Load_FeBlendModeUnrecognizedOrAbsent_BothFallBackToNormal
+
+              - id: CanvasNet-Codecs-SvgCodec-FilterPrimitiveResourceSafety
+                title: >-
+                  The SvgCodec class shall reject feConvolveMatrix order values above a fixed
+                  maximum, feMorphology radii that resolve above a fixed pixel maximum, and
+                  feTurbulence numOctaves values above a fixed maximum with InvalidDataException,
+                  and shall account for feConvolveMatrix kernel area and feTurbulence numOctaves
+                  in the filter primitive work-unit budget before evaluating the chain.
+                justification: |
+                  These primitives introduce attacker-controlled neighborhood sizes or per-pixel
+                  octave counts whose cost would otherwise grow with kernel area, radius, or
+                  octave count. Bounding absurd single-attribute values at parse time and charging
+                  convolution kernels and turbulence octaves proportionally to their actual
+                  per-pixel work keeps the existing filter pipeline's resource-safety model
+                  intact.
+                tests:
+                  - SvgCodec_Load_FeConvolveMatrixOrderExceedingCap_ThrowsInvalidDataException
+                  - SvgCodec_Load_FeMorphologyRadiusExceedingCap_ThrowsInvalidDataException
+                  - SvgCodec_Load_FeTurbulenceNumOctavesExceedingCap_ThrowsInvalidDataException
+                  - SvgCodec_Load_FilterExcessivePrimitiveCount_SkipsFilterRatherThanUnboundedWork
+                  - SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes
+
+              - id: CanvasNet-Codecs-SvgCodec-ClipPathRendering
+                title: >-
+                  The SvgCodec class shall render a clip-path="url(#id)" attribute on any
+                  directly renderable shape, text, or g/symbol/use element by hard-clipping that
+                  element's own content to the union of a referenced clipPath element's own
+                  direct rect/circle/ellipse/polyline/polygon/path/text children, honoring
+                  clipPathUnits (userSpaceOnUse, the default, resolving children in the
+                  referencing element's own local space; objectBoundingBox, resolving children as
+                  fractions of the referencing element's own bounding box) and each clip child's
+                  own clip-rule (nonzero, the default, or evenodd), while tolerating a dangling or
+                  wrong-element-type clip-path reference as a no-op (rendering unclipped).
+                justification: |
+                  clip-path is a common SVG authoring mechanism for revealing only part of an
+                  element's own content (a rounded-rectangle photo crop, a doughnut-hole cutout
+                  via evenodd, a decorative shape mask) without altering the underlying geometry;
+                  callers relying on this common pattern need it to actually clip rather than
+                  silently render the whole, unclipped shape. Tolerating a dangling or
+                  wrong-element-type reference as a no-op matches this codec's general
+                  dangling-reference convention (already applied to filter/marker/gradient
+                  references), so one bad clip-path attribute cannot abort rendering of an
+                  otherwise-valid document.
+                tests:
+                  - SvgCodec_Load_ClipPathUserSpaceOnUse_ClipsToAbsoluteCircle
+                  - SvgCodec_Load_ClipPathObjectBoundingBox_ScalesClipContentToReferenceBounds
+                  - SvgCodec_Load_ClipPathMultipleChildren_ClipsToUnionOfAllShapes
+                  - SvgCodec_Load_DanglingClipPathReference_RendersUnclipped
+                  - SvgCodec_Load_ClipPathChildClipRuleEvenOdd_ProducesHoleAtOverlap
+                  - SvgCodec_Load_ClipPathOnGroup_ClipsCombinedGroupContent
+                  - SvgCodec_Load_ClipPathReferencesNonClipPathElement_RendersUnclipped
+
+              - id: CanvasNet-Codecs-SvgCodec-MaskRendering
+                title: >-
+                  The SvgCodec class shall render a mask="url(#id)" attribute on any directly
+                  renderable shape, text, or g/symbol/use element by rendering a referenced mask
+                  element's own children (via the ordinary element-rendering walk, so mask
+                  content may itself use clip-path/mask/filter) into an offscreen buffer and
+                  attenuating the referencing element's own alpha channel by each pixel's
+                  computed luminance (0.2125*R + 0.7154*G + 0.0721*B, scaled by that pixel's own
+                  alpha), honoring maskUnits (the mask's own x/y/width/height region box,
+                  defaulting to objectBoundingBox) independently from maskContentUnits (the mask
+                  content's own coordinate system, defaulting to userSpaceOnUse), while tolerating
+                  a dangling or wrong-element-type mask reference as a no-op (rendering
+                  unmasked).
+                justification: |
+                  mask is SVG's standard mechanism for a soft, gradient-capable reveal/hide effect
+                  (vignettes, fades, gradient-driven cutouts) that clip-path's hard-edged
+                  geometric model cannot express; luminance is the SVG-specification-default mask
+                  semantics, so implementing it (rather than only an alpha-only variant) covers
+                  the common case real-world documents actually author. maskUnits and
+                  maskContentUnits are deliberately independent attributes governing distinct
+                  concerns (the mask's own region box vs. its content's own coordinate system)
+                  and are resolved as such rather than conflated, matching the SVG specification's
+                  own separation of the two.
+                tests:
+                  - SvgCodec_Load_MaskDefaultLuminance_WhiteRevealsBlackHides
+                  - SvgCodec_Load_MaskGrayShape_AttenuatesAlphaProportionallyToLuminance
+                  - SvgCodec_Load_MaskUnitsUserSpaceOnUse_ReadsRegionAsAbsoluteCoordinates
+                  - SvgCodec_Load_MaskContentUnitsObjectBoundingBox_ScalesMaskContentToReferenceBounds
+                  - SvgCodec_Load_MaskOnUseElement_MasksResolvedTarget
+
+              - id: CanvasNet-Codecs-SvgCodec-EffectOrdering
+                title: >-
+                  The SvgCodec class shall apply clip-path and mask, when both are present
+                  together with filter on the same element, to that element's own pre-filter
+                  content, evaluating the filter's own primitive chain against the already
+                  clipped-and-masked result, per the ordering geometry -> fill/stroke -> clip ->
+                  mask -> filter -> group opacity, while leaving pre-existing filter-only and
+                  plain-shape (no filter/clip-path/mask at all) rendering byte-for-byte unaffected
+                  by this generalization.
+                justification: |
+                  SVG's own rendering model specifies clip-path and mask as applying before an
+                  element's own filter effect (the filter operates on the already-clipped-and-
+                  masked SourceGraphic, not the raw geometry), so an element combining filter with
+                  clip-path/mask that instead applied them in the opposite order (or ignored
+                  clip/mask when a filter is also present) would produce visibly incorrect output
+                  for a common real-world combination (for example, a soft-glow filter applied
+                  only within a clipped/masked region rather than across the whole unclipped
+                  shape). Explicitly regression-testing the pre-existing filter-only and
+                  plain-shape code paths guards against this generalization silently changing
+                  already-correct, already-shipped rendering behavior.
+                tests:
+                  - SvgCodec_Load_ClipPathWithFilter_AppliesClipBeforeFilter
+                  - SvgCodec_Load_MaskWithFilter_AppliesMaskBeforeFilter
+                  - SvgCodec_Load_FilterOnlyNoClipOrMask_RendersUnaffected
+                  - SvgCodec_Load_PlainShapeNoEffects_RendersUnaffected
+
+              - id: CanvasNet-Codecs-SvgCodec-EffectResourceSafety
+                title: >-
+                  The SvgCodec class shall bound clip-path/mask-related resource use by charging
+                  each offscreen clip/mask buffer allocation against the same cumulative
+                  region-area work budget already used for filter application, by capping the
+                  number of direct children a single clipPath element may rasterize, by rejecting
+                  a mask region whose pixel-space dimensions would exceed the same maximum surface
+                  dimension already enforced for filter regions (falling back to unmasked
+                  rendering), and by detecting a mask-reference cycle (a mask whose own content
+                  transitively references an ancestor element's mask) via the pre-existing
+                  element-nesting depth limit, raising InvalidDataException rather than
+                  overflowing the call stack or hanging.
+                justification: |
+                  Clip/mask offscreen-buffer allocation has the same "region-area x
+                  content-count" cost shape as filter application and untrusted document data
+                  drives both region size and content count, so it must be bounded the same way
+                  this codec already bounds filter-related resource use, rather than introducing
+                  an unbounded second allocation path alongside an already-bounded first one.
+                  Because mask content is rendered through the ordinary element-rendering walk
+                  (deliberately, so mask content can itself use clip-path/mask/filter), a
+                  mask-reference cycle recurses through that same walk and is therefore already
+                  caught by its pre-existing element-nesting depth limit without any new,
+                  dedicated cycle-detection mechanism; clip-path children, by contrast, are
+                  rasterized directly rather than walked, so they instead need a flat per-clipPath
+                  child-count ceiling (clip-path cannot itself cycle, since a clipPath element's
+                  own children are never resolved for a further nested clip-path/mask reference -
+                  a deliberately scoped-out edge case, documented alongside the other scoped-out
+                  clip-path/mask edge cases).
+                tests:
+                  - SvgCodec_Load_MaskReferenceCycle_ThrowsInvalidDataException
+                  - SvgCodec_Load_ClipPathReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnclippedForExcessShapes
+                  - SvgCodec_Load_MaskReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnmaskedForExcessShapes
+                  - SvgCodec_Load_ClipPathAndMaskCombinedExceedingCumulativeBudget_FallsBackToUnclippedUnmaskedForExcessShape
+                  - SvgCodec_Load_ClipPathExceedsMaxShapesPerClipPath_TruncatesToFirst256Shapes
+                  - SvgCodec_Load_MaskRegionExceedsMaxDimension_FallsBackToUnmaskedRendering
+
+              - id: CanvasNet-Codecs-SvgCodec-PatternRendering
+                title: >-
+                  The SvgCodec class shall paint a fill or stroke referencing a pattern element by
+                  tiling that pattern's own resolved content across the painted shape, honoring
+                  patternUnits (objectBoundingBox, the default, resolving the tile's own x/y/
+                  width/height as fractions of the referencing element's own bounding box;
+                  userSpaceOnUse, resolving them as absolute user-space coordinates) independently
+                  from patternContentUnits (the tile content's own coordinate system, defaulting
+                  to userSpaceOnUse, always mapped through the whole referencing element's own
+                  bounding box rather than any individual repeated tile's own sub-range),
+                  patternTransform, and a viewBox/preserveAspectRatio pair on the pattern element
+                  itself (taking precedence over patternContentUnits when present), while
+                  tolerating a dangling or wrong-element-type pattern reference as a no-op
+                  (rendering unfilled/unstroked).
+                justification: |
+                  pattern is a common SVG authoring mechanism for a repeating tiled fill (a
+                  hatching, a texture, a repeated icon) that neither a solid color nor a gradient
+                  can express; callers relying on this common pattern need it actually tiled
+                  rather than silently rendered as an unfilled or flat-colored shape. Tolerating a
+                  dangling or wrong-element-type reference as a no-op matches this codec's general
+                  dangling-reference convention (already applied to filter/marker/gradient/
+                  clip-path/mask references), so one bad pattern attribute cannot abort rendering
+                  of an otherwise-valid document.
+                tests:
+                  - SvgCodec_Load_PatternDefaultUnits_TilesOnceAcrossShapeBoundingBox
+                  - SvgCodec_Load_PatternUserSpaceOnUseUnits_TilesRepeatedlyAcrossUserSpace
+                  - SvgCodec_Load_PatternContentUnitsObjectBoundingBox_MapsContentThroughShapeBoundingBox
+                  - SvgCodec_Load_PatternObjectBoundingBoxUnitsAndContentUnits_TilesAndContentBothScaleToBoundingBox
+                  - SvgCodec_Load_PatternTransformRotate180_RotatesTiledContentPlacement
+                  - SvgCodec_Load_PatternViewBox_FitsContentIntoTileBuffer
+                  - SvgCodec_Load_PatternStroke_PaintsStrokeOutlineWithTiledContent
+                  - SvgCodec_Load_PatternFillAndStroke_RenderIndependentPatterns
+                  - SvgCodec_Load_DanglingPatternReference_RendersUnfilled
+                  - SvgCodec_Load_FillReferencesNonPatternElement_RendersUnfilled
+                  - SvgCodec_Load_PatternZeroWidthOrHeight_RendersUnfilledWithoutThrowing
+                  - SvgCodec_Load_PatternContentWithGroupAndGradient_RendersViaRecursiveElementWalk
+
+              - id: CanvasNet-Codecs-SvgCodec-PatternHrefInheritance
+                title: >-
+                  The SvgCodec class shall resolve a pattern element with no children of its own
+                  by inheriting content from the pattern it references via href/xlink:href,
+                  following a chain of such references (each link's own x/y/width/height/
+                  patternUnits/patternContentUnits/patternTransform/viewBox/preserveAspectRatio
+                  always read from the originally referenced pattern element, never inherited
+                  through the chain), and shall reject a cyclical reference chain with
+                  InvalidDataException rather than looping indefinitely.
+                justification: |
+                  Real-world SVG documents commonly define one pattern's tile content once and
+                  reuse it from other patterns with different geometry, exactly mirroring the
+                  gradient href/xlink:href precedent this codec already implements; callers need
+                  this template inheritance resolved correctly, and a malformed cyclical reference
+                  must fail predictably rather than hang.
+                tests:
+                  - SvgCodec_Load_PatternHrefInheritance_InheritsContentFromTemplate
+                  - SvgCodec_Load_PatternHrefChainOfTwoHops_ResolvesToEventualContent
+                  - SvgCodec_Load_PatternHrefCycle_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-SvgCodec-PatternResourceSafety
+                title: >-
+                  The SvgCodec class shall bound pattern-related resource use by charging each
+                  rendered tile-buffer-plus-painted-region offscreen buffer allocation against the
+                  same cumulative filter-evaluation work budget already used for filter/clip-path/
+                  mask application (falling back to unfilled/unstroked rendering on decline), by
+                  rejecting a tile whose pixel-space dimensions would exceed the same maximum
+                  surface dimension already enforced for filter regions (likewise falling back to
+                  unfilled/unstroked rendering), and by detecting a pattern-reference cycle (a
+                  pattern whose own content transitively references an ancestor element's
+                  pattern) via the pre-existing element-nesting depth limit, raising
+                  InvalidDataException rather than overflowing the call stack or hanging.
+                justification: |
+                  Pattern tile-buffer allocation has the same "region-area x tile-area" cost
+                  shape as filter/clip-path/mask application, and untrusted document data drives
+                  both a tile's own pixel size and the painted region's own pixel size, so it must
+                  be bounded the same way this codec already bounds every other offscreen-buffer-
+                  allocating effect, rather than introducing an unbounded parallel allocation path.
+                  Because pattern content is rendered through the ordinary element-rendering walk
+                  (deliberately, so pattern content can itself use clip-path/mask/filter/nested
+                  patterns), a pattern-reference cycle recurses through that same walk and is
+                  therefore already caught by its pre-existing element-nesting depth limit without
+                  any new, dedicated cycle-detection mechanism - exactly mirroring the mask-
+                  reference-cycle precedent.
+                tests:
+                  - SvgCodec_Load_PatternSelfReferencingContent_ThrowsInvalidDataException
+                  - SvgCodec_Load_PatternTileExceedsMaxDimension_FallsBackToUnfilledRendering
+                  - SvgCodec_Load_PatternReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilledForExcessShapes
+
+              - id: CanvasNet-Codecs-SvgCodec-ImageRendering
+                title: >-
+                  The SvgCodec class shall rasterize an image element whose href/xlink:href is a
+                  base64-encoded data URI with a supported MIME type (image/png, image/jpeg,
+                  image/bmp, image/tiff, or image/gif) by decoding it through that format's own
+                  existing codec and drawing the decoded raster into the element's own x/y/width/
+                  height placement rect, fitted per preserveAspectRatio (reusing the same fit
+                  computation already used for pattern viewBox fitting), and shall integrate this
+                  rendering with the same clip-path/mask/filter/opacity effects pipeline every
+                  other renderable element already uses, rather than special-casing image outside
+                  of it.
+                justification: |
+                  image is a common SVG authoring mechanism for embedding a raster asset (an icon,
+                  a photo, a texture) directly inside a vector document; callers relying on this
+                  common element need its base64-embedded raster payload actually decoded and
+                  drawn, with the same preserveAspectRatio fit semantics and the same clip-path/
+                  mask/filter/opacity effects support already available to every other renderable
+                  element, rather than being silently discarded as this codec's previous
+                  SkippedElements entry did.
+                tests:
+                  - SvgCodec_Load_ImageDataUriPng_RendersDecodedPixelsAtPlacementRect
+                  - SvgCodec_Load_ImageDataUriJpeg_RendersDecodedPixelsAtPlacementRect
+                  - SvgCodec_Load_ImagePreserveAspectRatioMeet_LettersOrPillarboxesNonMatchingAspect
+                  - SvgCodec_Load_ImagePreserveAspectRatioNone_StretchesNonUniformly
+                  - SvgCodec_Load_ImageWithClipPath_ClipsToClipPathShape
+                  - SvgCodec_Load_ImageWithMask_AttenuatesByMaskLuminance
+                  - SvgCodec_Load_ImageWithFilter_AppliesFilterToDecodedPixels
+                  - SvgCodec_Load_ImageWithOpacity_AppliesUniformAlphaToCompositedResult
+                  - SvgCodec_Load_ImageZeroWidthOrHeight_RendersNothingWithoutThrowing
+                  - SvgCodec_Load_ImageNoWidthOrHeightAttribute_RendersNothingWithoutThrowing
+
+              - id: CanvasNet-Codecs-SvgCodec-ImageExternalHrefScope
+                title: >-
+                  The SvgCodec class shall treat an image element's non-data: href (an external
+                  file path or URL) and a data:image/svg+xml data URI (a nested SVG document,
+                  whether base64-encoded or not) as a tolerant no-op - rendering nothing for that
+                  element, without opening any file, making any network request, or attempting to
+                  recursively parse a second SVG document - and shall likewise tolerate a
+                  malformed or truncated base64 payload, or a raster payload that its own decoder
+                  rejects, as the same kind of tolerant per-element no-op.
+                justification: |
+                  Resolving an external href would require introducing a base-path/resolver
+                  mechanism that does not otherwise exist anywhere in SvgCodec.Load, and doing so
+                  without one would mean either silently failing in a less predictable way or
+                  opening arbitrary caller-influenced file paths/URLs from untrusted document
+                  data - a security-sensitive capability this codec deliberately does not
+                  introduce for this phase. Recursively parsing a nested SVG document is likewise
+                  out of scope, for the same recursive-parsing-complexity reasoning that already
+                  excludes feImage's own referenced-element case. Both are documented, deliberate
+                  scope boundaries rather than oversights, and a malformed/truncated/undecodable
+                  raster payload must fail the same tolerant, per-element way every other
+                  dangling-reference case in this codec already does, rather than aborting the
+                  whole document's rendering.
+                tests:
+                  - SvgCodec_Load_ImageExternalFileHref_RendersNothingWithoutFileAccess
+                  - SvgCodec_Load_ImageNestedSvgDataUri_RendersNothingWithoutRecursion
+                  - SvgCodec_Load_ImageMalformedBase64_SkipsElementWithoutThrowing
+                  - SvgCodec_Load_ImageTruncatedPngData_SkipsElementWithoutThrowing
+
+              - id: CanvasNet-Codecs-SvgCodec-ImageResourceSafety
+                title: >-
+                  The SvgCodec class shall bound image-related resource use by charging each
+                  rendered image element's own base64 payload length plus its own placement
+                  region's pixel area against the same cumulative filter-evaluation work budget
+                  already used for filter/clip-path/mask/pattern application (falling back to
+                  rendering nothing on decline), before performing the base64 decode and raster
+                  decode, and shall rely on the same maximum surface dimension already enforced by
+                  each raster codec's own Load method to bound the decoded image's own pixel
+                  dimensions.
+                justification: |
+                  An image element's own base64 payload length and declared width/height are both
+                  entirely untrusted document data, and either one - a maliciously huge embedded
+                  payload, or a declared placement region far larger than the decoded content -
+                  could otherwise drive unbounded decode or sampling work; charging both up front,
+                  before doing any decode work, and before allocating any per-pixel sampling
+                  buffer, mirrors this codec's existing "charge before allocate" convention already
+                  established for pattern tile-buffer allocation, so a single hostile image
+                  element cannot exhaust resources any differently than every other offscreen-
+                  buffer-allocating effect this codec already bounds.
+                tests:
+                  - SvgCodec_Load_ImageOversizedDeclaredDimensionsExceedingBudget_FallsBackToUnrenderedWithoutThrowing
+
               - id: CanvasNet-Codecs-SvgCodec-ValidationNull
                 title: >-
                   The SvgCodec class shall reject null stream/path arguments to Load and GetInfo
@@ -739,3 +1333,123 @@ sections:
                   origin.
                 tests:
                   - SvgCodec_Load_NonPositiveWidth_PropagatesSurfaceArgumentOutOfRangeException
+
+              - id: CanvasNet-Codecs-SvgCodec-CssStyleElementParsing
+                title: >-
+                  The SvgCodec class shall parse a style element's text content as CSS, honoring
+                  its type attribute (parsed when absent or "text/css", otherwise treated as an
+                  opaque, entirely skipped block), and shall merge multiple style elements into
+                  one cascade in document order.
+                justification: |
+                  Real-world SVG documents commonly centralize presentation in a style element
+                  rather than repeating presentation attributes on every element; parsing it
+                  (rather than silently ignoring it, as before this requirement) is necessary to
+                  render such documents with their intended appearance. Honoring the type
+                  attribute avoids misinterpreting a non-CSS style block (for example a template
+                  or scripting language reusing the element name) as CSS.
+                tests:
+                  - SvgCodec_Load_CssTypeSelector_AppliesToMatchingElementType
+                  - SvgCodec_Load_CssMultipleStyleElements_MergeIntoOneCascadeInDocumentOrder
+                  - SvgCodec_Load_CssStyleElementNonCssType_TreatedAsOpaqueAndSkipped
+                  - SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier
+
+              - id: CanvasNet-Codecs-SvgCodec-CssSelectorMatching
+                title: >-
+                  The SvgCodec class shall match type, class (including space-separated
+                  multi-class class attributes), id, universal, and compound selectors, and
+                  comma-separated selector lists, against each element.
+                justification: |
+                  These selector kinds cover the overwhelming majority of real-world CSS used in
+                  SVG documents; supporting them lets a document target styling by tag name,
+                  semantic class, or unique id, matching ordinary CSS authoring practice.
+                tests:
+                  - SvgCodec_Load_CssTypeSelector_AppliesToMatchingElementType
+                  - SvgCodec_Load_CssClassSelector_AppliesOnlyToMatchingClass
+                  - SvgCodec_Load_CssIdSelector_AppliesOnlyToMatchingId
+                  - SvgCodec_Load_CssUniversalSelector_AppliesToEveryElement
+                  - SvgCodec_Load_CssCompoundSelector_RequiresEveryConditionToMatch
+                  - SvgCodec_Load_CssCommaSeparatedSelectorList_AppliesToEverySelector
+                  - SvgCodec_Load_CssMultiClassAttribute_MatchesEachClassToken
+                  - SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier
+
+              - id: CanvasNet-Codecs-SvgCodec-CssCombinators
+                title: >-
+                  The SvgCodec class shall match descendant (whitespace) and child (">")
+                  combinators against the live document ancestor chain; sibling ("+"/"~")
+                  combinators are explicitly out of scope, and a selector using one is dropped
+                  from its comma-separated list rather than discarding the whole rule.
+                justification: |
+                  Descendant and child combinators are the two combinators most commonly used to
+                  scope styling to a structural region of a document (for example "a group's
+                  shapes"). Sibling combinators are comparatively rare in real-world SVG styling
+                  and would otherwise require tracking sibling position/order data this codec
+                  does not currently retain; dropping only the offending selector (not the whole
+                  rule) preserves every other, supported selector in the same comma-separated
+                  list.
+                tests:
+                  - SvgCodec_Load_CssDescendantCombinator_MatchesNestedElementOnly
+                  - SvgCodec_Load_CssChildCombinator_MatchesDirectChildOnly
+                  - SvgCodec_Load_CssDescendantCombinator_BacktracksToFartherMatchingAncestor
+                  - SvgCodec_Load_CssChildCombinator_StillDoesNotBacktrackPastImmediateParent
+                  - SvgCodec_Load_CssSiblingCombinator_DropsOnlyThatSelectorFromList
+                  - SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier
+
+              - id: CanvasNet-Codecs-SvgCodec-CssSpecificityCascade
+                title: >-
+                  The SvgCodec class shall resolve multiple matching stylesheet rules for the
+                  same property via standard CSS specificity-tuple (id, class, type)
+                  comparison, using document order (later wins) as the tie-breaker at equal
+                  specificity.
+                justification: |
+                  Standard CSS specificity/cascade-order rules are the behavior real-world SVG
+                  authors already expect from any style element; implementing anything else
+                  (for example first-match-wins) would silently mis-render documents relying on
+                  ordinary CSS semantics.
+                tests:
+                  - SvgCodec_Load_CssSpecificity_HigherSpecificityWinsEvenIfEarlierInStylesheet
+                  - SvgCodec_Load_CssCascadeTiebreak_EqualSpecificityLaterRuleWins
+                  - SvgCodec_Load_CssMultipleStyleElements_MergeIntoOneCascadeInDocumentOrder
+                  - SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier
+
+              - id: CanvasNet-Codecs-SvgCodec-CssThreeTierPrecedence
+                title: >-
+                  The SvgCodec class shall resolve each cascaded property's effective value
+                  across three precedence tiers: a plain presentation attribute (lowest), any
+                  matching stylesheet rule (next), and an inline style attribute (highest,
+                  unconditionally overriding a matching stylesheet rule regardless of that
+                  rule's own specificity).
+                justification: |
+                  This is the standard CSS/SVG2 cascade order for these three origins; every
+                  cascaded property's raw value - whichever tier it came from - is handed to the
+                  exact same value parser a plain presentation attribute already used, so this
+                  requirement adds no duplicated SVG-value-parsing logic while remaining fully
+                  backward compatible with a document containing no style element or style
+                  attribute at all.
+                tests:
+                  - SvgCodec_Load_CssPrecedenceTier1_PresentationAttributeOnlyStillApplies
+                  - SvgCodec_Load_CssPrecedenceTier2_StylesheetOverridesPresentationAttribute
+                  - SvgCodec_Load_CssPrecedenceTier3_InlineStyleOverridesStylesheet
+                  - SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier
+                  - CanvasNet_SystemIntegration_SvgLoadWithCssStyleElement_ReturnsExpectedPixel
+
+              - id: CanvasNet-Codecs-SvgCodec-CssResourceSafety
+                title: >-
+                  The SvgCodec class shall bound stylesheet rule count, selector complexity,
+                  declarations per rule, and cumulative selector-matching work, consistent with
+                  this codec's existing budget philosophy, and shall tolerate a malformed
+                  individual rule or declaration by skipping only that rule/declaration rather
+                  than the whole stylesheet or aborting the document.
+                justification: |
+                  Without a bound, a hostile or degenerate stylesheet (for example an enormous
+                  rule count, or a selector/rule engineered to maximize matching work against a
+                  large document) could consume disproportionate memory or CPU relative to the
+                  rendered document's size, mirroring the risk this codec's existing
+                  GeometryWorkBudget/FilterWorkBudget budgets already guard against for path
+                  and filter complexity. Tolerating one malformed rule/declaration (rather than
+                  aborting the whole document) matches this codec's established policy of
+                  rendering as much of a document as possible rather than failing it outright
+                  over one unsupported or malformed construct.
+                tests:
+                  - SvgCodec_Load_CssMalformedRule_SkipsOnlyThatRuleAndStillLoads
+                  - SvgCodec_Load_CssMalformedDeclaration_SkipsOnlyThatDeclaration
+                  - SvgCodec_Load_CssSiblingCombinator_DropsOnlyThatSelectorFromList

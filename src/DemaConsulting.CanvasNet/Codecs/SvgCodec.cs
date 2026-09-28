@@ -4,6 +4,7 @@
 // cspell:ignore userspaceonuse objectboundingbox skewx skewy tspan
 // cspell:ignore rasterizing unparseable rrggbb sizeless bbox moveto multiplicatively pillarbox SMIL uncatchable formedness
 // cspell:ignore unblurred premult
+// cspell:ignore unitless letterboxing
 // cspell:ignore aliceblue antiquewhite blanchedalmond blueviolet burlywood cadetblue cornflowerblue
 // cspell:ignore cornsilk darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta
 // cspell:ignore darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen darkslateblue
@@ -75,7 +76,7 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     never for a <c>g</c>/<c>symbol</c> group, and never for a shape's own marker content),
 ///     referencing a <c>filter</c> element whose <c>fe*</c> primitive children
 ///     (<c>feFlood</c>, <c>feGaussianBlur</c>, <c>feOffset</c>, <c>feComposite</c> with
-///     <c>operator</c> <c>over</c>/<c>in</c>/<c>out</c>/<c>atop</c>/<c>xor</c>, and <c>feMerge</c>/
+///     <c>operator</c> <c>over</c>/<c>in</c>/<c>out</c>/<c>atop</c>/<c>xor</c>/<c>arithmetic</c>, and <c>feMerge</c>/
 ///     <c>feMergeNode</c>) are evaluated in document order against an offscreen buffer sized to
 ///     the filter region, with the <c>SourceGraphic</c> and <c>SourceAlpha</c> implicit inputs
 ///     supported; the filter region defaults to <c>objectBoundingBox</c>'s standard
@@ -87,18 +88,35 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     <c>text-anchor</c>, and, for a caller that registers more than one <see cref="SvgFontFace"/>
 ///     per family via the <see cref="LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>
 ///     overload, <c>font-weight</c>/<c>font-style</c>-aware closest-face matching - see this
-///     class's <c>SelectClosestFace</c> remarks for the matching algorithm).
+///     class's <c>SelectClosestFace</c> remarks for the matching algorithm); a shape/text
+///     element's own <c>clip-path="url(#id)"</c> and <c>mask="url(#id)"</c> presentation
+///     attributes (resolved with the same dangling-reference tolerance as <c>filter</c>, and
+///     combinable with <c>filter</c> and with each other on the same element, applied in the
+///     SVG-defined <c>clip-path</c> &#8594; <c>mask</c> &#8594; <c>filter</c> order - see
+///     <c>SvgCodec.ClippingAndMasking.cs</c>'s remarks for the <c>clipPathUnits</c>/
+///     <c>maskUnits</c>/<c>maskContentUnits</c> unit-space handling and documented per-feature
+///     simplifications); a <c>fill</c>/<c>stroke</c> <c>url(#id)</c> reference to a <c>pattern</c>
+///     paint server (with <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c>, <c>patternUnits</c>/
+///     <c>patternContentUnits</c>, <c>patternTransform</c>, an <c>href</c>/<c>xlink:href</c>
+///     content-inheritance chain, and an optional <c>viewBox</c>/<c>preserveAspectRatio</c> - see
+///     <c>SvgCodec.Patterns.cs</c>'s remarks for the documented per-feature simplifications); and
+///     an <c>image</c> element (with <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> placement,
+///     <c>preserveAspectRatio</c> fitting, and a base64-encoded <c>data:</c> URI <c>href</c>/
+///     <c>xlink:href</c> decoded via this codec's own sibling raster codecs - <see cref="PngCodec"/>,
+///     <see cref="JpegCodec"/>, <see cref="BmpCodec"/>, <see cref="TiffCodec"/>, and
+///     <see cref="GifCodec"/> - fully integrated with the same <c>filter</c>/<c>clip-path</c>/
+///     <c>mask</c>/<c>opacity</c> pipeline every other shape/text element uses; a non-<c>data:</c>
+///     href (a file path or URL) and any nested SVG reference (<c>data:image/svg+xml</c> or an
+///     external <c>.svg</c> file) are both a deliberate, documented, security-conscious no-op -
+///     see <c>SvgCodec.Image.cs</c>'s remarks for the full rationale).
 ///     </para>
 ///     <para>
-///     <b>Out of scope (silently ignored, per element).</b> <c>style</c> blocks and CSS
-///     class/id selectors, <c>mask</c>, <c>clipPath</c>, <c>pattern</c>,
+///     <b>Out of scope (silently ignored, per element).</b>
 ///     SMIL animation (<c>animate</c>/<c>animateTransform</c>/<c>animateMotion</c>/
-///     <c>animateColor</c>/<c>set</c>), <c>image</c>, <c>foreignObject</c>, nested <c>svg</c>, and
-///     an inline <c>style="..."</c> presentation attribute are all well-formed-but-unsupported
+///     <c>animateColor</c>/<c>set</c>), <c>foreignObject</c>, and nested <c>svg</c> are all
+///     well-formed-but-unsupported
 ///     constructs: encountering one never aborts the document, it is simply skipped, and every
-///     other element continues to render normally. The <c>preserveAspectRatio</c> attribute is
-///     never read - see this class's viewBox-fitting remarks below for the one fitting policy this
-///     codec always applies instead. Within the supported <c>marker</c> feature itself,
+///     other element continues to render normally. Within the supported <c>marker</c> feature itself,
 ///     <c>markerContentUnits</c> (a rarely-used SVG 2 attribute) is not read, and a marker's
 ///     <c>overflow</c>/clipping-to-its-own-viewport behavior is not implemented (marker content is
 ///     never clipped to <c>markerWidth</c>/<c>markerHeight</c>) - both explicitly out of scope.
@@ -106,16 +124,16 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     <c>filterUnits="userSpaceOnUse"</c> is tolerantly ignored and always falls back to the
 ///     <c>objectBoundingBox</c> default region computation; group-level (<c>g</c>/<c>symbol</c>)
 ///     filtering and filtering a shape's own marker content are both not implemented (a
-///     <c>filter</c> only ever affects the single element it is set on directly); and every
+///     <c>filter</c> only ever affects the single element it is set on directly); and any
 ///     primitive type other than <c>feFlood</c>/<c>feGaussianBlur</c>/<c>feOffset</c>/
-///     <c>feComposite</c>/<c>feMerge</c> - <c>feColorMatrix</c>, <c>feTurbulence</c>,
-///     <c>feDisplacementMap</c>, <c>feImage</c>, <c>feTile</c>, <c>feDropShadow</c>,
-///     <c>feConvolveMatrix</c>, <c>feDiffuseLighting</c>, <c>feSpecularLighting</c>,
-///     <c>feComponentTransfer</c>, and <c>feMorphology</c> - is a tolerant no-op passthrough of its
-///     own input rather than actually implemented; <c>feImage</c> in particular is out of scope
-///     specifically because it is the only primitive that could otherwise reference another
-///     filtered element's own render output, and omitting it removes any need for an additional
-///     filter-specific recursion-depth guard.
+///     <c>feComposite</c>/<c>feMerge</c>/<c>feColorMatrix</c>/<c>feComponentTransfer</c>/
+///     <c>feMorphology</c>/<c>feConvolveMatrix</c>/<c>feDisplacementMap</c>/<c>feTile</c>/
+///     <c>feDropShadow</c>/<c>feImage</c>/<c>feDiffuseLighting</c>/<c>feSpecularLighting</c>/
+///     <c>feTurbulence</c>/<c>feBlend</c> is a tolerant no-op passthrough of its own
+///     input rather than actually implemented. <c>feImage</c>'s element-reference form can
+///     recurse back into the ordinary element walk, so filter evaluation reuses the existing
+///     <c>MaxUseDepth</c> guard that already bounds <c>use</c>/marker reference depth, declining
+///     the nested render once that limit is reached.
 ///     </para>
 ///     <para>
 ///     Within the supported <c>text</c> feature itself, the <c>font-weight</c> relative
@@ -128,12 +146,80 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     <see cref="SvgFontStyle"/>'s remarks for the rationale).
 ///     </para>
 ///     <para>
-///     <b>ViewBox fitting.</b> <see cref="Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont}?)"/>
-///     always fits the document's intrinsic user-space size into the caller-requested raster size
-///     using a "meet, centered" policy equivalent to CSS <c>object-fit: contain</c> (SVG's own
-///     <c>preserveAspectRatio="xMidYMid meet"</c>): the content is uniformly scaled as large as
-///     possible while remaining fully visible, then centered, leaving transparent letterbox/
-///     pillarbox bars on the raster's shorter axis. This is the only fitting behavior implemented.
+///     <b>CSS <c>style</c> element and selector-based styling.</b> A <c>style</c> element's text
+///     content is parsed as CSS (honoring its <c>type</c> attribute - only absent or
+///     <c>text/css</c> is parsed, any other value is opaque and skipped), matching type
+///     (<c>rect</c>), class (<c>.foo</c>, including a space-separated multi-class <c>class</c>
+///     attribute), id (<c>#foo</c>), universal (<c>*</c>), and compound (<c>rect.foo</c>)
+///     selectors, comma-separated selector lists, and the descendant (whitespace) and child
+///     (<c>&gt;</c>) combinators. Sibling (<c>+</c>/<c>~</c>) combinators and pseudo-classes
+///     (for example <c>:hover</c>) are not implemented - SVG rendering has no interactive state
+///     for a pseudo-class to target, and this codec does not otherwise track the sibling-position
+///     data a sibling combinator would need; only the individual unsupported selector is dropped
+///     from its comma-separated list, not the whole rule. <c>@media</c>/other at-rules are not
+///     implemented, and a trailing <c>!important</c> is tolerantly stripped, applying that
+///     declaration's value at ordinary (non-<c>!important</c>) precedence rather than rejecting
+///     it. Multiple matching rules for the same property resolve via standard CSS specificity
+///     (id/class/type tuple comparison, universal contributing zero), with document order as the
+///     tie-breaker at equal specificity; multiple <c>style</c> elements merge into one cascade
+///     sharing a single document-order source-order counter, so a later <c>style</c> element's
+///     equal-specificity rule outranks an earlier one. Every cascaded property resolves across
+///     exactly 3 precedence tiers - a plain presentation attribute (lowest), any matching
+///     stylesheet rule (next), and an inline <c>style="..."</c> attribute (highest,
+///     unconditionally overriding a matching stylesheet rule regardless of its own specificity) -
+///     with every tier's raw value handed to the exact same value parser a plain presentation
+///     attribute already used, so no SVG-value-parsing logic is duplicated by the CSS engine. A
+///     malformed individual rule or declaration is skipped (resynchronizing at the next
+///     <c>}</c>/<c>;</c>) rather than aborting the whole stylesheet or document, and both the
+///     number of retained stylesheet rules/selectors/declarations and the cumulative
+///     selector-matching work performed against the document are bounded, mirroring this
+///     codec's existing <c>GeometryWorkBudget</c>/<c>FilterWorkBudget</c> resource-safety
+///     conventions.
+///     </para>
+///     <para>
+///     <b>ViewBox fitting and <c>preserveAspectRatio</c>.</b> <see cref="Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont}?)"/>
+///     fits the document's intrinsic user-space size into the caller-requested raster size per the
+///     root <c>svg</c> element's own <c>preserveAspectRatio</c> attribute (parsed as
+///     <c>[defer] &lt;align&gt; [meet|slice]</c>, with <c>defer</c> parsed and ignored - it is only
+///     meaningful for an <c>&lt;image&gt;</c>-referenced external resource's own load ordering, and
+///     has no observable effect either way even for a supported <c>data:</c> URI <c>&lt;image&gt;</c>,
+///     since this codec decodes it synchronously in place with no separate load-ordering concept
+///     at all); when absent, the SVG-defined default is <c>xMidYMid meet</c>, equivalent to CSS
+///     <c>object-fit: contain</c>: the content is uniformly scaled as large as possible while
+///     remaining fully visible, then centered, leaving transparent letterbox/pillarbox bars on the
+///     raster's shorter axis. All ten <c>align</c> values (<c>none</c>, or a cross product of
+///     <c>xMin</c>/<c>xMid</c>/<c>xMax</c> and <c>YMin</c>/<c>YMid</c>/<c>YMax</c>) and both
+///     <c>meet</c>/<c>slice</c> <c>meetOrSlice</c> values are implemented via one shared fit-transform
+///     helper, <c>ComputePreserveAspectRatioFit</c>, also reused by a <c>symbol</c> referenced via
+///     <c>use</c> (which establishes its own nested viewport, fitted against the symbol's own
+///     <c>viewBox</c> and <c>preserveAspectRatio</c> - new capability) and, for an explicit
+///     <c>marker</c>-own <c>preserveAspectRatio</c> attribute only, a <c>marker</c>'s own content
+///     fit against its <c>viewBox</c> (a <c>marker</c> with no explicit <c>preserveAspectRatio</c>
+///     attribute keeps its original, simpler uniform-scale-about-the-origin fit unchanged, to avoid
+///     double-counting a centering offset against its own <c>refX</c>/<c>refY</c> anchoring).
+///     </para>
+///     <para>
+///     <b>Percentage-based geometry.</b> A trailing <c>%</c> on a shape/text geometry attribute
+///     (<c>x</c>, <c>y</c>, <c>width</c>, <c>height</c>, <c>rx</c>, <c>ry</c>, <c>cx</c>, <c>cy</c>,
+///     <c>r</c>, <c>x1</c>/<c>y1</c>/<c>x2</c>/<c>y2</c>, <c>font-size</c>, <c>stroke-width</c>,
+///     <c>stroke-dashoffset</c>, each <c>stroke-dasharray</c> entry, <c>use</c>'s
+///     <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c>, and <c>text</c>'s <c>x</c>/<c>y</c>) resolves
+///     against the current viewport, per the SVG specification's per-attribute basis rules: a
+///     horizontal attribute resolves against the current viewport width; a vertical attribute
+///     against the current viewport height; an axis-agnostic length (<c>stroke-width</c>, a
+///     circle's <c>r</c>, and each <c>stroke-dasharray</c> entry) against
+///     <c>sqrt(width^2 + height^2) / sqrt(2)</c>; and <c>font-size</c> against the parent element's
+///     own already-cascaded <c>font-size</c>. The current viewport is carried by the same cascading
+///     per-element render state as every other inherited presentation attribute, and is only ever
+///     changed by the document root or a <c>symbol</c> referenced via <c>use</c> (see the ViewBox
+///     fitting paragraph above); every other element inherits it unchanged. <c>stroke-miterlimit</c>
+///     is the sole documented exception: it remains a unitless ratio per the SVG specification, not
+///     a length, so a percentage on it is deliberately still rejected as invalid numeric syntax (see
+///     below), unchanged from this codec's original behavior. Gradient coordinates on a
+///     <c>userSpaceOnUse</c> gradient are a separate, narrower simplification: they are still
+///     always resolved as basis-1 fractions of the gradient's own bounding-box-relative coordinate
+///     space rather than the current viewport (see this class's <c>GetGradientCoordinateOrDefault</c>
+///     remarks) - a bounded, intentionally out-of-scope simplification for this phase, not a defect.
 ///     </para>
 ///     <para>
 ///     <b>GetInfo fallback policy.</b> <see cref="GetInfo(Stream)"/> resolves an intrinsic size in
@@ -149,14 +235,7 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     which parses the whole document) or the bounded, root-start-tag-only <see cref="XmlReader"/>
 ///     read used by <see cref="GetInfo(Stream)"/> throwing <see cref="XmlException"/>, a
 ///     non-<c>svg</c> root element, missing required path/shape data, invalid numeric syntax
-///     (including a non-finite <c>NaN</c>/<c>Infinity</c> value), a percentage value on a
-///     shape/text geometry attribute (<c>x</c>, <c>y</c>, <c>width</c>, <c>height</c>, <c>rx</c>,
-///     <c>ry</c>, <c>cx</c>, <c>cy</c>, <c>r</c>, <c>x1</c>/<c>y1</c>/<c>x2</c>/<c>y2</c>,
-///     <c>font-size</c>, <c>stroke-width</c>, <c>stroke-miterlimit</c>, <c>stroke-dashoffset</c>,
-///     <c>use</c>'s <c>x</c>/<c>y</c>, and <c>text</c>'s <c>x</c>/<c>y</c> - this codec has no
-///     defined viewport-relative basis to resolve one against, unlike opacity-family attributes
-///     and gradient coordinates/<c>stop</c> <c>offset</c>, which correctly treat a percentage as a
-///     <c>[0, 1]</c> fraction and are unaffected), a non-positive <c>viewBox</c>
+///     (including a non-finite <c>NaN</c>/<c>Infinity</c> value), a non-positive <c>viewBox</c>
 ///     size, a malformed <c>transform</c> attribute, a gradient <c>href</c> cycle, or a combined
 ///     total of path-data commands/points-list coordinates/text characters exceeding a fixed
 ///     geometry-parsing work budget (independent of the total-rendered-element budget, bounding a
@@ -183,7 +262,14 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     <c>T</c> smooth-curve reflection, overflows an individually-finite pair of literals to a
 ///     non-finite value is likewise tolerant: the whole <c>path</c> element is skipped (rendered
 ///     as an empty path) rather than reaching <see cref="Drawing.DashSplitter"/>'s dash-interval
-///     walk, which would otherwise stall indefinitely on a non-finite path length.
+///     walk, which would otherwise stall indefinitely on a non-finite path length. An <c>image</c>
+///     element's own malformed base64 payload, or a malformed/truncated/oversized decoded raster
+///     payload (each rejected by the matching sibling raster codec's own <c>Load</c>, already
+///     enforcing <see cref="Surface.MaxDimension"/> internally), is likewise tolerant: the whole
+///     <c>image</c> element is skipped (rendered as if absent) rather than the exception
+///     propagating past it - see <c>SvgCodec.Image.cs</c>'s remarks for the full catalogue of
+///     tolerant <c>image</c>-specific no-op conditions, including its own href-scope security
+///     decisions.
 ///     </para>
 ///     <para>
 ///     <b>Caller-supplied raster dimensions.</b> The <c>width</c>/<c>height</c>
@@ -269,7 +355,7 @@ public static partial class SvgCodec
         try
         {
             var (origin, size) = ResolveViewBoxOrSize(root);
-            var fitTransform = ComputeFitTransform(origin, size, surface.Width, surface.Height);
+            var fitTransform = ComputeFitTransform(root, origin, size, surface.Width, surface.Height);
 
             // A tiny-but-positive, finite resolved viewBox/width/height (for example a subnormal
             // float) passes ResolveViewBoxOrSize's own "must be positive" check but can still
@@ -286,8 +372,9 @@ public static partial class SvgCodec
             }
 
             var idIndex = BuildIdIndex(root);
-            var context = new RenderContext(surface, idIndex, fonts);
-            RenderDocument(root, fitTransform, context);
+            var stylesheet = BuildStylesheet(root);
+            var context = new RenderContext(surface, idIndex, fonts, stylesheet);
+            RenderDocument(root, fitTransform, size, context);
         }
         catch (FormatException ex)
         {

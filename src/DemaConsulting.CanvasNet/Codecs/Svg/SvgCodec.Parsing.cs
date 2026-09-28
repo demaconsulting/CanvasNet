@@ -345,10 +345,12 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Computes the "meet, centered" (CSS <c>object-fit: contain</c> equivalent) transform that
-    ///     fits a document's intrinsic viewBox origin/size into a raster of the requested pixel
-    ///     dimensions - see this class's viewBox-fitting policy remarks.
+    ///     Computes the root <c>svg</c> element's own viewBox-fit transform - fitting its intrinsic
+    ///     viewBox origin/size into a raster of the requested pixel dimensions per the root's own
+    ///     <c>preserveAspectRatio</c> attribute (default <c>xMidYMid meet</c>, CSS <c>object-fit:
+    ///     contain</c> equivalent) - see this class's viewBox-fitting policy remarks.
     /// </summary>
+    /// <param name="root">The document's root <c>svg</c> element, whose own <c>preserveAspectRatio</c> attribute is read.</param>
     /// <param name="origin">The intrinsic viewBox origin.</param>
     /// <param name="size">The intrinsic viewBox size.</param>
     /// <param name="rasterWidth">The requested raster width, in pixels.</param>
@@ -362,16 +364,15 @@ public static partial class SvgCodec
     ///     the returned transform with <see cref="IsFiniteTransform"/> immediately after calling
     ///     this method, before using it to render anything.
     /// </returns>
-    private static Matrix3x2 ComputeFitTransform(Vector2 origin, Vector2 size, int rasterWidth, int rasterHeight)
-    {
-        var scale = MathF.Min(rasterWidth / size.X, rasterHeight / size.Y);
-        var scaledWidth = size.X * scale;
-        var scaledHeight = size.Y * scale;
-        var offsetX = (rasterWidth - scaledWidth) / 2f;
-        var offsetY = (rasterHeight - scaledHeight) / 2f;
-
-        return Matrix3x2.CreateTranslation(-origin.X, -origin.Y)
-            * Matrix3x2.CreateScale(scale, scale)
-            * Matrix3x2.CreateTranslation(offsetX, offsetY);
-    }
+    /// <remarks>
+    ///     A thin wrapper around the shared <see cref="ComputePreserveAspectRatioFit"/> helper
+    ///     (also reused by an explicit <c>marker</c> <c>preserveAspectRatio</c> and a <c>symbol</c>
+    ///     referenced via <c>use</c>): with no <c>preserveAspectRatio</c> attribute present, this
+    ///     resolves to <see cref="PreserveAspectRatio.Default"/> (<c>xMidYMid meet</c>), reproducing
+    ///     this codec's original "meet, centered" root-fit math bit-for-bit - no default-behavior
+    ///     change, and no existing fixture/test churn, for the common undecorated case. Only an
+    ///     explicit non-default <c>align</c>/<c>meetOrSlice</c> value is new behavior.
+    /// </remarks>
+    private static Matrix3x2 ComputeFitTransform(XElement root, Vector2 origin, Vector2 size, int rasterWidth, int rasterHeight) =>
+        ComputePreserveAspectRatioFit(origin, size, rasterWidth, rasterHeight, GetPreserveAspectRatio(root));
 }

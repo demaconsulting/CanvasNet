@@ -19,6 +19,7 @@ for their provenance and licensing.
 | `tolerant-unsupported.svg` | An unreferenced `filter` def (never resolved), plus a `rect` that still renders |
 | `arrow-markers.svg` | `marker` referenced via `marker-end`, `orient="auto"`, `markerUnits="userSpaceOnUse"` |
 | `label-halo.svg` | `filter` referenced via `filter="url(#id)"`: `feFlood`/`feGaussianBlur`/`feComposite` halo |
+| `css-styling.svg` | `<style>` CSS: type/class/id/universal/compound/comma-list selectors, combinators, cascade |
 
 ## Real-world third-party fixtures
 

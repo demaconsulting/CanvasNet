@@ -2,6 +2,7 @@
 
 <!-- cspell:ignore glyf sfnt codepoint -->
 <!-- cspell:ignore rasterizing unparseable SMIL renderable -->
+<!-- cspell:ignore unitless -->
 
 ## Purpose
 
@@ -894,18 +895,47 @@ elements (referenced via `marker-start`/`marker-mid`/`marker-end`, with `markerW
 `markerHeight`, `refX`/`refY`, `markerUnits`, `orient`, and an optional `viewBox`), `filter`
 elements (referenced via the `filter` presentation attribute on any directly renderable shape or
 `text` element, or on a `g`/`symbol` reference/`use` element - applied to the whole referenced
-subtree as a single unit - with `x`/`y`/`width`/`height` filter-region attributes and `feFlood`/
-`feGaussianBlur`/`feOffset`/`feComposite`/`feMerge` primitive children), and best-effort,
+subtree as a single unit - with `x`/`y`/`width`/`height` filter-region attributes and `feBlend`/
+`feColorMatrix`/`feComponentTransfer`/`feComposite`/`feConvolveMatrix`/`feDiffuseLighting`/
+`feDisplacementMap`/`feDropShadow`/`feFlood`/`feGaussianBlur`/`feImage`/`feMerge`/`feMorphology`/
+`feOffset`/`feSpecularLighting`/`feTile`/`feTurbulence` primitive children), `clipPath` elements
+(referenced via the `clip-path` presentation attribute, hard-clipping to the union of the
+`clipPath` element's own rect/circle/ellipse/polyline/polygon/path/text children, honoring
+`clipPathUnits` and each child's own `clip-rule`), `mask` elements (referenced via the `mask`
+presentation attribute, attenuating alpha by the referenced content's own computed luminance,
+honoring `maskUnits`/`x`/`y`/`width`/`height` and `maskContentUnits` as independent attributes) -
+`clip-path`/`mask` apply to the same per-shape/per-group targets `filter` does, and, when
+combined with `filter` on the same element, are applied before that element's own filter chain
+runs - `pattern` elements (referenced from a shape/text element's own `fill`/`stroke` as a tiled
+paint server, honoring `patternUnits`/`patternContentUnits`, `patternTransform`, an optional
+`viewBox`/`preserveAspectRatio`, and `href`/`xlink:href` tile-content inheritance) - `image`
+elements (a base64-encoded `data:` URI in a supported raster format, decoded through that
+format's own existing codec and drawn into the element's own `x`/`y`/`width`/`height` placement
+rect) - and best-effort,
 weight/style-aware `text` rendering against a caller-supplied dictionary of per-family font faces:
 either a single `TrueTypeFont` per family (the legacy shape), or a list of `SvgFontFace` values -
 each pairing a `TrueTypeFont` with the `font-weight`/`font-style` it represents - letting a caller
 register distinct bold/italic variants of a family and have `SvgCodec` pick the closest-matching
 face for each `text` element's own cascaded `font-weight`/`font-style`. The root
-`viewBox`/`width`/`height` are fit into the requested raster using a "meet, centered" policy
-equivalent to CSS `object-fit: contain` (`preserveAspectRatio` itself is not read). Well-formed but
-out-of-scope constructs (`style`, `mask`, `clipPath`, `animate`/SMIL, `image`,
-`foreignObject`, `pattern`, nested `svg`, CSS selectors, and every filter primitive other than
-the five listed above) are silently skipped/passed through so the rest of the document still
+`viewBox`/`width`/`height` are fit into the requested raster via the root `svg` element's own
+`preserveAspectRatio` attribute (`[defer] <align> [<meetOrSlice>]` - all 10 aligns and both
+`meet`/`slice`), defaulting to "xMidYMid meet" (equivalent to CSS `object-fit: contain`) when the
+attribute is absent - the same pre-existing centered-letterbox default every document without an
+explicit `preserveAspectRatio` attribute already rendered with. This same fit algorithm also
+applies to a `use` element referencing a `symbol` element with its own `viewBox`, and to a
+`marker` element's own explicit `preserveAspectRatio` attribute. Every shape/text geometry
+attribute (`x`/`y`/`width`/`height`/`rx`/`ry`/`cx`/`cy`/`r`/`x1`/`y1`/`x2`/`y2`/`font-size`/
+`stroke-width`/`stroke-dasharray`/`stroke-dashoffset`/`use`'s `x`/`y`/`width`/`height`/`text`'s
+`x`/`y`) also accepts a trailing `%`, resolved against the current viewport (or, for `font-size`,
+the parent element's own `font-size`) - `stroke-miterlimit` is the sole exception, since it is a
+unitless ratio rather than a length. A `style` element's text content is parsed as CSS, matching
+type/class/id/universal/compound selectors (including comma-separated lists and
+descendant/child combinators) against elements, with standard CSS specificity/cascade-order
+resolution and a 3-tier precedence (presentation attribute, then any matching stylesheet rule,
+then an inline `style="..."` attribute, which always wins). Well-formed but
+out-of-scope constructs (`animate`/SMIL,
+`foreignObject`, nested `svg`, and any remaining unrecognized filter primitive type)
+are silently skipped/passed through so the rest of the document still
 renders; malformed/unparseable input throws `InvalidDataException`.
 
 #### SvgCodec Methods

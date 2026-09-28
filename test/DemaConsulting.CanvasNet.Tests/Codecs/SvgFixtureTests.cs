@@ -239,13 +239,13 @@ public class SvgFixtureTests
     ///     templating, composed <c>transform</c> functions, and dozens of <c>filter="url(#...)"</c>
     ///     references placed on <c>use</c> elements referencing a shared <c>g</c> template (the
     ///     group-level filtering this feature adds support for) - whose primitive chains combine
-    ///     supported primitives (<c>feGaussianBlur</c>/<c>feComposite</c>) with several unsupported
-    ///     ones (<c>feSpecularLighting</c>/<c>feDiffuseLighting</c>/arithmetic-mode
-    ///     <c>feComposite</c>, each a tolerant no-op passthrough of its input) - loads without
-    ///     throwing despite this genuinely deep, mixed-support filter evaluation now actually being
+    ///     <c>feGaussianBlur</c>/<c>feComposite</c> (including its <c>arithmetic</c> operator) with
+    ///     <c>feSpecularLighting</c>/<c>feDiffuseLighting</c>, all now fully implemented rather
+    ///     than tolerantly passed through - loads without
+    ///     throwing despite this genuinely deep filter evaluation now actually being
     ///     performed for every one of these group-level filter references (proving the
-    ///     tolerant-passthrough policy for unsupported primitives, and the resource-safety guards
-    ///     shared with per-shape filtering, both hold within a real, unmodified, complex
+    ///     resource-safety guards
+    ///     shared with per-shape filtering hold within a real, unmodified, complex
     ///     third-party document, not only a small synthetic one), that a flower shape rendered
     ///     behind one such group-level <c>filter</c> reference still paints recognizably-related,
     ///     fully-opaque content at a deep-interior pixel (proving real content rendered, not just
@@ -256,12 +256,15 @@ public class SvgFixtureTests
     ///     evaluated color), that points in the gap between flowers remain transparent (proving
     ///     the render is not a degenerate whole-canvas fill that would make the previous
     ///     assertions vacuous), and - the assertion this feature specifically adds - that the
-    ///     filtered flower's own <c>feGaussianBlur</c> genuinely bleeds non-zero alpha into a
-    ///     point just outside the flower's own unfiltered silhouette, where the equivalent point
-    ///     under the first, unfiltered flower (<c>translate(50,50)</c>, no <c>filter</c>
-    ///     attribute) remains exactly, fully transparent - proving group-level filtering now
-    ///     genuinely changes the rendered pixels at real-world fixture scale, not merely tolerating
-    ///     the attribute without effect.
+    ///     filtered flower's final alpha at a partial-coverage antialiased silhouette edge pixel
+    ///     exactly matches the corresponding pixel of the first, unfiltered flower
+    ///     (<c>translate(50,50)</c>, no <c>filter</c> attribute) - a mathematical certainty given
+    ///     the chain's final primitive is <c>feComposite operator="atop"</c> against
+    ///     <c>SourceGraphic</c> (Porter-Duff atop's alpha formula, <c>bgA*fgA + (1-fgA)*bgA</c>,
+    ///     algebraically reduces to exactly <c>bgA</c> for any <c>fgA</c>) - proving group-level
+    ///     filtering now genuinely evaluates its full primitive chain (rather than tolerating the
+    ///     attribute as a no-op) while still recovering the source silhouette's own alpha exactly,
+    ///     as the spec requires.
     /// </summary>
     [Fact]
     public void SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent()
@@ -274,12 +277,17 @@ public class SvgFixtureTests
 
         // Assert: a petal of the second flower - translate(150,50), filter="url(#filter48)"
         // applied to the referencing <use> element itself - renders fully opaque at this
-        // deep-interior pixel, and its color, while altered from the original "#ff8010"
-        // (255,128,16) fill by the chain's feSpecularLighting/feGaussianBlur primitives now being
-        // genuinely evaluated against the group's own combined rendered content, still exactly
-        // matches this filter's own deterministic evaluation - proving real, filtered content
-        // rendered, not a blank/degenerate result
-        Assert.Equal(new Rgba32(247, 111, 24, 255), surface[135, 30]);
+        // deep-interior pixel, and its color, now that operator="arithmetic" feComposite is
+        // genuinely evaluated (previously an unimplemented no-op passthrough of "result3"),
+        // reflects "result7"'s real k1=0.5/k2=0.5/k3=1.1-weighted combination of the blurred
+        // "result3" base color and "result5"'s own feSpecularLighting output - whose k3=1.1
+        // weighting of a bright Blinn-Phong specular highlight (specularConstant="1.10000002",
+        // deep inside a well-lit convex region) saturates every channel to near-white, still
+        // exactly matching this filter's own deterministic evaluation - proving real, filtered
+        // content rendered, not a blank/degenerate result; the alpha component remains unchanged
+        // at 255 (unaffected by the arithmetic fix), since the chain's final operator="atop"
+        // composite against SourceGraphic by definition adopts SourceGraphic's own alpha
+        Assert.Equal(new Rgba32(254, 253, 252, 255), surface[135, 30]);
 
         // Assert: the gaps between flowers (the grid spacing is 100 units, and each flower's
         // petals only reach roughly 36 units from its own center) remain fully transparent -
@@ -287,17 +295,24 @@ public class SvgFixtureTests
         Assert.Equal(0, surface[100, 50].A);
         Assert.Equal(0, surface[100, 100].A);
 
-        // Assert: the second flower's own group-level filter (feGaussianBlur stdDeviation="8")
-        // genuinely bleeds non-zero alpha to a point just outside its unfiltered silhouette -
-        // the equivalent point relative to the first, unfiltered flower (translate(50,50), no
-        // filter attribute) remains exactly, fully transparent, proving this bleed is a real
-        // effect of the group-level filter chain now being evaluated, not pre-existing
-        // antialiasing or an unrelated coincidence
+        // Assert: the second flower's own group-level filter chain (feGaussianBlur ->
+        // feComposite xor/atop -> feGaussianBlur -> feComposite xor -> feGaussianBlur ->
+        // feSpecularLighting -> feComposite arithmetic -> feGaussianBlur -> feComposite atop
+        // against SourceGraphic) resolves to exactly SourceGraphic's own antialiased silhouette
+        // alpha at this pixel: Porter-Duff atop's alpha formula, bgA*fgA + (1-fgA)*bgA, is an
+        // algebraic identity that reduces to exactly bgA (SourceGraphic's own alpha) regardless
+        // of fgA (the upstream chain's foreground alpha) - so the final composite against
+        // SourceGraphic exactly recovers SourceGraphic's own antialiased edge, even though every
+        // primitive upstream of that final atop composite now genuinely evaluates (rather than
+        // tolerating arithmetic as a no-op passthrough). This is verified by comparing against
+        // the corresponding relative-offset pixel of the first, unfiltered flower
+        // (translate(50,50), no filter attribute), whose own raw antialiased edge independently
+        // yields the identical partial-coverage alpha value
         Assert.Equal(0, surface[98, 29].A);
-        var bleedPixel = surface[198, 29];
-        Assert.True(
-            bleedPixel.A > 0,
-            $"Expected the second flower's group-level filter to blur-bleed non-zero alpha at (198, 29), got A={bleedPixel.A}.");
+        var filteredEdgePixel = surface[182, 29];
+        var unfilteredEdgePixel = surface[82, 29];
+        Assert.Equal(35, filteredEdgePixel.A);
+        Assert.Equal(unfilteredEdgePixel.A, filteredEdgePixel.A);
     }
 
     /// <summary>
@@ -351,5 +366,56 @@ public class SvgFixtureTests
         // Assert: the line remains fully visible, unaffected, far from the halo on either side
         Assert.Equal(new Rgba32(0, 0, 0, 255), surface[10, 20]);
         Assert.Equal(new Rgba32(0, 0, 0, 255), surface[90, 20]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>css-styling.svg</c>'s <c>&lt;style&gt;</c> element and every selector
+    ///     kind/combinator it exercises (universal, class, id, compound, comma-separated list,
+    ///     descendant combinator, child combinator, cascade tiebreak) each apply their expected
+    ///     fill color end to end through a real file on disk, and that all 3 precedence tiers
+    ///     resolve as documented (presentation attribute only, stylesheet overrides presentation
+    ///     attribute, inline style overrides even a higher-specificity stylesheet id rule).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier()
+    {
+        // Arrange & Act
+        var surface = SvgCodec.Load(ResolveFixturePath("css-styling.svg"), 200, 80);
+
+        // Assert: presentation-attribute-only tier (no stylesheet rule targets this element)
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[10, 10]);
+
+        // Assert: class selector
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[30, 10]);
+
+        // Assert: id selector wins over a same-element, lower-specificity class selector
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 10]);
+
+        // Assert: compound selector - the rect (correct type+class) matched, the circle
+        // (correct class, wrong type) kept its default black fill
+        Assert.Equal(new Rgba32(255, 165, 0, 255), surface[70, 10]);
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[70, 50]);
+
+        // Assert: comma-separated selector list - both listed classes applied the same declaration
+        Assert.Equal(new Rgba32(165, 42, 42, 255), surface[90, 10]);
+        Assert.Equal(new Rgba32(165, 42, 42, 255), surface[90, 50]);
+
+        // Assert: descendant combinator - matches any depth of nesting inside a g
+        Assert.Equal(new Rgba32(128, 0, 128, 255), surface[110, 10]);
+
+        // Assert: child combinator - only a direct child of #direct-parent matched; the same
+        // class one level further nested (whose immediate parent is a different g) did not
+        Assert.Equal(new Rgba32(0, 128, 128, 255), surface[130, 10]);
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[130, 50]);
+
+        // Assert: cascade tiebreak - the later, equal-specificity rule (magenta) won
+        Assert.Equal(new Rgba32(255, 0, 255, 255), surface[150, 10]);
+
+        // Assert: a matching stylesheet rule overrides a plain presentation attribute
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[170, 10]);
+
+        // Assert: an inline style unconditionally overrides even a higher-specificity stylesheet
+        // id rule
+        Assert.Equal(new Rgba32(0, 255, 255, 255), surface[190, 10]);
     }
 }

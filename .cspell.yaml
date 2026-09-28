@@ -23,6 +23,7 @@ words:
   - basn
   - Beziers
   - BGRA
+  - Blinn
   - BITMAPCOREHEADER
   - BITMAPFILEHEADER
   - BITMAPINFOHEADER
@@ -36,8 +37,10 @@ words:
   - bowtie
   - buildmark
   - Casteljau
+  - chokepoint
   - CMYK
   - coeffs
+  - combinators
   - CSUM
   - Decodability
   - dequantize
@@ -78,6 +81,7 @@ words:
   - Inkscape
   - interoperating
   - JFIF
+  - Lambertian
   - lerp
   - libjpeg
   - luma
@@ -106,6 +110,8 @@ words:
   - Pandoc
   - packbits
   - PackBits
+  - Perlin
+  - Phong
   - pHYs
   - Pels
   - Premultiply
@@ -113,6 +119,8 @@ words:
   - premultiplied
   - premultiplies
   - premultiplying
+  - PRNG
+  - Prng
   - Qube
   - rasterizer
   - rasterizes
@@ -129,7 +137,9 @@ words:
   - sarifmark
   - scanline
   - scanlines
+  - Schrage
   - Skia
+  - Sobel
   - sonarmark
   - Subsampling
   - subsampling
@@ -147,6 +157,15 @@ words:
   - trns
   - tRNS
   - Truecolor
+  - unclipped
+  - Unclipped
+  - unmasked
+  - Unmasked
+  - unstroked
+  - Unstroked
+  - unduplicated
+  - rects
+  - letterboxing
   - Unpremultiply
   - unioning
   - unpremultiplication
@@ -180,6 +199,8 @@ words:
   - Maxp
   - notdef
   - Stanislaw
+  - stylesheet
+  - Stylesheet
   - tryparse
 
 # Exclude common build artifacts, dependencies, and vendored third-party code

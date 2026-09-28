@@ -57,76 +57,109 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Renders <paramref name="localPath"/> through <paramref name="element"/>'s own <c>filter</c>
-    ///     presentation attribute, if any, otherwise through the ordinary unfiltered
-    ///     <see cref="RenderShape"/> pipeline.
+    ///     Renders <paramref name="localPath"/> through <paramref name="element"/>'s own
+    ///     <c>filter</c>/<c>clip-path</c>/<c>mask</c> presentation attributes, if any, otherwise
+    ///     through the ordinary unaffected <see cref="RenderShape"/> pipeline.
     /// </summary>
     /// <param name="element">
     ///     The originating element (a shape, or a <c>text</c> element whose already-laid-out
-    ///     glyph-run outline is passed as <paramref name="localPath"/>), whose own <c>filter</c>
-    ///     attribute is read directly - <c>filter</c> does not cascade through <see cref="RenderState"/>,
-    ///     unlike <c>fill</c>/<c>stroke</c>/marker specifications, per CSS/SVG semantics.
+    ///     glyph-run outline is passed as <paramref name="localPath"/>), whose own <c>filter</c>/
+    ///     <c>clip-path</c>/<c>mask</c> attributes are read directly - none of the three cascade
+    ///     through <see cref="RenderState"/>, unlike <c>fill</c>/<c>stroke</c>/marker
+    ///     specifications, per CSS/SVG semantics.
     /// </param>
     /// <param name="localPath">The shape's (or glyph run's) already-built local-space outline.</param>
     /// <param name="state">The cascaded render state.</param>
     /// <param name="transform">The accumulated transform from local space into pixel space.</param>
     /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="useDepth">The current <c>use</c>-reference nesting depth, forwarded so a <c>mask</c>'s own content (rendered through the ordinary <see cref="RenderElement"/> walk) can enforce <see cref="MaxUseDepth"/>.</param>
+    /// <param name="elementDepth">The current recursion depth, forwarded so a <c>mask</c>'s own content can enforce <see cref="MaxElementDepth"/> - this is also this codec's only guard against a <c>mask</c>-reference cycle (see <see cref="ApplyMask"/>'s remarks).</param>
+    /// <param name="markerDepth">The current <c>marker</c>-reference nesting depth, forwarded unchanged.</param>
+    /// <param name="totalElements">The running total-rendered-elements count, forwarded so a <c>mask</c>'s own content is charged against <see cref="MaxTotalRenderedElements"/> exactly like any other rendered subtree.</param>
+    /// <param name="workBudget">The shared geometry-parsing work budget, forwarded to <c>clip-path</c> geometry building and to a <c>mask</c>'s own content.</param>
     /// <param name="filterWorkBudget">
     ///     The shared cumulative filter-evaluation work budget, forwarded to
-    ///     <see cref="RenderFilteredShape"/>.
+    ///     <see cref="RenderShapeEffectsPipeline"/> - also charged for the offscreen buffer a
+    ///     <c>clip-path</c>-only or <c>mask</c>-only (no <c>filter</c>) application allocates, see
+    ///     that method's remarks.
     /// </param>
-    /// <param name="suppressFilter">
+    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget, forwarded so a <c>mask</c>'s own content remains subject to it if it itself contains a filtered group.</param>
+    /// <param name="suppressEffects">
     ///     <see langword="true"/> when <paramref name="element"/> is being rendered as part of a
     ///     <c>marker</c> element's own content (propagated from <c>RenderElement</c>'s
-    ///     <c>markerDepth &gt; 0</c>) - <paramref name="element"/>'s own <c>filter</c> attribute is
-    ///     then never resolved/evaluated at all, regardless of what it references, per the
-    ///     documented "filters on marker content have no effect" scope decision (see this method's
-    ///     remarks).
+    ///     <c>markerDepth &gt; 0</c>) - <paramref name="element"/>'s own <c>filter</c>/
+    ///     <c>clip-path</c>/<c>mask</c> attributes are then never resolved/evaluated at all,
+    ///     regardless of what they reference, generalizing the pre-existing documented "filters on
+    ///     marker content have no effect" scope decision (see this method's remarks) uniformly to
+    ///     all three effects.
     /// </param>
     /// <remarks>
-    ///     A <c>filter</c> value of <c>none</c>/absent/not <c>url(#id)</c> syntax, a dangling id,
-    ///     or an id resolving to an element not literally named <c>filter</c> are all tolerated by
-    ///     rendering <paramref name="localPath"/> normally through <see cref="RenderShape"/> - the
-    ///     same dangling-reference tolerance convention as <see cref="ResolvePaint"/> and
-    ///     <see cref="ResolveMarkerElement"/>. This method itself handles only one shape (or glyph
-    ///     run)'s own <c>filter</c> attribute; a <c>g</c>/<c>symbol</c>/<c>use</c> element's own
-    ///     <c>filter</c> attribute (applying to its whole subtree as one filtered unit) is instead
-    ///     handled by <see cref="RenderFilteredGroup"/>, dispatched directly from
+    ///     A <c>filter</c>/<c>clip-path</c>/<c>mask</c> value of <c>none</c>/absent/not
+    ///     <c>url(#id)</c> syntax, a dangling id, or an id resolving to an element not literally
+    ///     named <c>filter</c>/<c>clipPath</c>/<c>mask</c> respectively are all tolerated by
+    ///     rendering <paramref name="localPath"/> normally through <see cref="RenderShape"/> when
+    ///     none of the three resolve - the same dangling-reference tolerance convention as
+    ///     <see cref="ResolvePaint"/> and <see cref="ResolveMarkerElement"/>. This method itself
+    ///     handles only one shape (or glyph run)'s own effects; a <c>g</c>/<c>symbol</c>/<c>use</c>
+    ///     element's own <c>filter</c>/<c>clip-path</c>/<c>mask</c> attributes (applying to its
+    ///     whole subtree as one combined unit) are instead handled by
+    ///     <see cref="RenderGroupWithEffects"/>, dispatched directly from
     ///     <see cref="RenderElement"/>'s <c>"g"</c>/<c>"symbol"</c> case and from
     ///     <see cref="RenderUse"/> - this method is never itself invoked for those container
-    ///     elements. A <c>filter</c> attribute is never applied to a shape's own marker content
+    ///     elements. None of the three attributes are ever applied to a shape's own marker content
     ///     either way (markers always render directly onto <paramref name="context"/>'s surface,
-    ///     unaffected by the referencing shape's own <c>filter</c>) - see
-    ///     <see cref="RenderFilteredShape"/>'s remarks for the full filter evaluation pipeline.
+    ///     unaffected by the referencing shape's own effects) - see
+    ///     <see cref="RenderShapeEffectsPipeline"/>'s remarks for the full ordering/evaluation
+    ///     pipeline.
     /// </remarks>
-    private static void RenderShapeWithFilter(XElement element, Path localPath, RenderState state, Matrix3x2 transform, RenderContext context, FilterWorkBudget filterWorkBudget, bool suppressFilter = false)
+    private static void RenderShapeWithEffects(
+        XElement element,
+        Path localPath,
+        RenderState state,
+        Matrix3x2 transform,
+        RenderContext context,
+        int useDepth,
+        int elementDepth,
+        int markerDepth,
+        ref int totalElements,
+        GeometryWorkBudget workBudget,
+        FilterWorkBudget filterWorkBudget,
+        BoundsPrePassWorkBudget boundsPrePassBudget,
+        bool suppressEffects = false)
     {
-        var filterElement = suppressFilter ? null : ResolveFilterElement(element, context);
-        if (filterElement == null)
+        var filterElement = suppressEffects ? null : ResolveFilterElement(element, context);
+        var clipPathElement = suppressEffects ? null : ResolveClipPathElement(element, context);
+        var maskElement = suppressEffects ? null : ResolveMaskElement(element, context);
+        if (filterElement == null && clipPathElement == null && maskElement == null)
         {
-            RenderShape(localPath, state, transform, context);
+            RenderShape(localPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
             return;
         }
 
-        RenderFilteredShape(filterElement, localPath, state, transform, context, filterWorkBudget);
+        RenderShapeEffectsPipeline(
+            filterElement, clipPathElement, maskElement, localPath, state, transform, context,
+            useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
     }
 
     /// <summary>
-    ///     Resolves <paramref name="element"/>'s own <c>filter</c> presentation attribute
-    ///     (<c>url(#id)</c>) to its referenced <c>filter</c> element, reusing the exact same
-    ///     <c>url(#id)</c>-parsing and dangling-reference tolerance as <see cref="ResolvePaint"/>/
-    ///     <see cref="ResolveMarkerElement"/>.
+    ///     Resolves <paramref name="element"/>'s own <c>filter</c> property (<c>url(#id)</c>) to
+    ///     its referenced <c>filter</c> element - through this class's exact same 3-tier CSS
+    ///     precedence chokepoint <see cref="ApplyPresentationAttributes"/> already uses (see
+    ///     <see cref="ResolveElementProperty"/>), so a matching stylesheet rule or inline
+    ///     <c>style</c> declaration for <c>filter</c> is honored exactly like the plain presentation
+    ///     attribute - then reusing the exact same <c>url(#id)</c>-parsing and dangling-reference
+    ///     tolerance as <see cref="ResolvePaint"/>/<see cref="ResolveMarkerElement"/>.
     /// </summary>
-    /// <param name="element">The element whose own <c>filter</c> attribute is read.</param>
+    /// <param name="element">The element whose own <c>filter</c> property is resolved.</param>
     /// <param name="context">The fixed per-document render context.</param>
     /// <returns>
-    ///     The referenced <c>filter</c> element, or <see langword="null"/> if the attribute is
-    ///     absent/blank, not <c>url(#id)</c> syntax, the id is dangling, or the resolved element is
+    ///     The referenced <c>filter</c> element, or <see langword="null"/> if no tier has a value,
+    ///     the value is not <c>url(#id)</c> syntax, the id is dangling, or the resolved element is
     ///     not literally a <c>filter</c>.
     /// </returns>
     private static XElement? ResolveFilterElement(XElement element, RenderContext context)
     {
-        var spec = (string?)element.Attribute("filter");
+        var spec = ResolveElementProperty(element, "filter", context);
         if (string.IsNullOrWhiteSpace(spec))
         {
             return null;
@@ -148,129 +181,166 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Renders <paramref name="localPath"/> into a temporary, filter-region-sized offscreen
-    ///     <see cref="Surface"/> (<c>SourceGraphic</c>), evaluates <paramref name="filterElement"/>'s
-    ///     own primitive chain against it, then composites the resulting buffer onto
-    ///     <paramref name="context"/>'s real surface at the filter region's pixel position.
+    ///     Renders <paramref name="localPath"/> through the unified <c>clip-path</c> &#8594;
+    ///     <c>mask</c> &#8594; <c>filter</c> effects pipeline, per SVG's defined per-element
+    ///     processing order (geometry &#8594; fill/stroke &#8594; clip &#8594; mask &#8594; filter
+    ///     &#8594; group opacity): all painted content is rendered once into a single temporary,
+    ///     region-sized offscreen <see cref="Surface"/> ("content"), <paramref name="clipPathElement"/>
+    ///     (if any) and then <paramref name="maskElement"/> (if any) attenuate that buffer's own
+    ///     alpha channel in place, <paramref name="filterElement"/> (if any) then evaluates its own
+    ///     primitive chain against the already-clipped/masked buffer, and the result is finally
+    ///     composited onto <paramref name="context"/>'s real surface with <paramref name="state"/>'s
+    ///     own cascaded opacity applied exactly once, last.
     /// </summary>
-    /// <param name="filterElement">The resolved <c>filter</c> element.</param>
+    /// <param name="filterElement">The resolved <c>filter</c> element, or <see langword="null"/> if none applies.</param>
+    /// <param name="clipPathElement">The resolved <c>clipPath</c> element, or <see langword="null"/> if none applies.</param>
+    /// <param name="maskElement">The resolved <c>mask</c> element, or <see langword="null"/> if none applies.</param>
     /// <param name="localPath">The shape's (or glyph run's) already-built local-space outline.</param>
     /// <param name="state">The cascaded render state.</param>
     /// <param name="transform">The accumulated transform from local space into pixel space.</param>
     /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="useDepth">The current <c>use</c>-reference nesting depth, forwarded to <paramref name="maskElement"/>'s own content rendering (see <see cref="ApplyMask"/>).</param>
+    /// <param name="elementDepth">The current recursion depth, forwarded to <paramref name="maskElement"/>'s own content rendering - this is also the sole guard against a <c>mask</c>-reference cycle, see <see cref="ApplyMask"/>'s remarks.</param>
+    /// <param name="markerDepth">The current <c>marker</c>-reference nesting depth, forwarded unchanged.</param>
+    /// <param name="totalElements">The running total-rendered-elements count, forwarded to <paramref name="maskElement"/>'s own content rendering.</param>
+    /// <param name="workBudget">The shared geometry-parsing work budget, forwarded to <c>clip-path</c> child geometry building and to <paramref name="maskElement"/>'s own content.</param>
     /// <param name="filterWorkBudget">
-    ///     The shared cumulative filter-evaluation work budget (see <see cref="FilterWorkBudget"/>),
-    ///     charged with this filter application's own region-weighted work unit immediately before
-    ///     <c>SourceGraphic</c> is allocated, so a filter reused across many shapes cannot bypass
-    ///     the resource-safety bound <see cref="MaxFilterPrimitiveWorkUnits"/> alone provides for a
-    ///     single filter application.
+    ///     The shared cumulative filter-evaluation work budget (see <see cref="FilterWorkBudget"/>).
+    ///     A real <c>filter</c> application is charged its existing region-weighted work unit
+    ///     (<c>primitiveCount * area</c>) exactly as before Phase 2; a <c>clip-path</c>/<c>mask</c>
+    ///     application with no filter (or whose filter did not itself survive
+    ///     <see cref="IsFilterPrimitiveWorkWithinBudget"/>) is instead charged a nominal
+    ///     <c>1 * area</c> - deliberately reusing this same budget class, rather than introducing a
+    ///     parallel one, because a clip/mask offscreen buffer is the exact same resource dimension
+    ///     (region-area-sized allocation) a filter application already charges against; one shared
+    ///     cumulative ceiling bounds the combined cost of all three effects together, and avoids
+    ///     doubling the parameter list every effects-capable call site already threads.
     /// </param>
+    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget, forwarded to <paramref name="maskElement"/>'s own content in case it itself contains a filtered group.</param>
     /// <remarks>
-    ///     If the filter region cannot be computed (an empty/degenerate local bounding box), or its
-    ///     pixel-space size is non-finite, non-positive, or exceeds <see cref="Surface.MaxDimension"/>
-    ///     on either axis, the whole filter effect is tolerantly skipped - <paramref name="localPath"/>
-    ///     renders exactly as if <c>filter</c> were absent - rather than attempting to clamp and
-    ///     still render at a smaller, silently mis-positioned region. See
-    ///     <see cref="ComputeFilterRegionPixelBounds(XElement, Path, RenderState, Matrix3x2)"/> for the region computation itself.
+    ///     The region this pipeline allocates its offscreen buffer at is chosen with the same
+    ///     "never smaller than what a filter could need" precedence as the group counterpart of
+    ///     this method (<see cref="RenderGroupWithEffects"/>): when <paramref name="filterElement"/>
+    ///     is present, the region is its own <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c>-derived
+    ///     box (unchanged from pre-Phase-2 behavior - <c>clip-path</c>/<c>mask</c> never need to
+    ///     enlarge a filter's own region, since clipping/masking only ever removes coverage);
+    ///     otherwise, when <paramref name="maskElement"/> alone is present, its own region box (see
+    ///     <see cref="ComputeMaskRegionLocalBounds"/>, honoring <c>maskUnits</c> properly); otherwise
+    ///     (a <c>clip-path</c>-only application) the plain painted, stroke-expanded bounds, with no
+    ///     <c>-10%/120%</c> expansion - there is no region-box concept for <c>clip-path</c> alone.
+    ///     If no region can be established at all, this whole pipeline is skipped and
+    ///     <paramref name="localPath"/> renders through the ordinary unaffected
+    ///     <see cref="RenderShape"/>, exactly mirroring every other tolerant-fallback case below.
     ///     <para>
-    ///     The <c>SourceGraphic</c> buffer is produced by re-entering <see cref="RenderShape"/>
-    ///     against a temporary <see cref="RenderContext"/> (<c>context with { Surface = ... }</c>,
-    ///     correctly sharing <paramref name="context"/>'s own <see cref="RenderContext.GradientStopCache"/>)
-    ///     and a transform translated so the region's own pixel origin lands at the temporary
-    ///     surface's local <c>(0, 0)</c>. The final filtered buffer is composited back using
-    ///     <see cref="Surface.CompositeOverSpan(int, int, ReadOnlySpan{float}, ReadOnlySpan{Rgba32})"/>
-    ///     - the existing offset-aware compositing primitive - one row at a time, clipped to
-    ///     <paramref name="context"/>'s own surface bounds, rather than any new per-pixel blending
-    ///     math.
+    ///     <paramref name="filterElement"/>'s own zero-primitive/per-application budget guard is
+    ///     unchanged from this method's own pre-Phase-2 form (then named <c>RenderFilteredShape</c>) - if it fails, the filter itself
+    ///     simply never applies (as if <paramref name="filterElement"/> were <see langword="null"/>
+    ///     from that point on), but a <paramref name="clipPathElement"/>/<paramref name="maskElement"/>
+    ///     that is also present is unaffected and still applies, since clip/mask are independent
+    ///     effects from filter. Only when none of the three effects would end up applying at all
+    ///     does this method fall back to the exact same zero-side-effect
+    ///     <see cref="RenderShape"/> call pre-Phase-2 code took for a filter that failed its own
+    ///     guard - this is what keeps a filter-only element's regression behavior byte-identical.
     ///     </para>
     ///     <para>
-    ///     A filter chain whose own <c>fe*</c> primitive count or primitive-count-times-region-area
-    ///     work exceeds <see cref="MaxFilterPrimitivesPerFilter"/>/<see cref="MaxFilterPrimitiveWorkUnits"/>
-    ///     (see <see cref="IsFilterPrimitiveWorkWithinBudget"/>) is tolerantly skipped identically -
-    ///     checked before <c>SourceGraphic</c> is even allocated, so no per-primitive work (buffer
-    ///     allocation, blur passes, compositing) ever begins for a rejected chain. A <c>feMerge</c>
-    ///     primitive is charged as its own <c>feMergeNode</c> child count (at least 1) rather than a
-    ///     flat 1, because <see cref="ApplyFeMerge"/> performs one full-surface
-    ///     <see cref="Surface.CompositeOver(Surface)"/> per <c>feMergeNode</c> - a flat charge would
-    ///     let a pathologically large <c>feMerge</c> bypass this budget while still doing
-    ///     O(node-count &#215; region-area) work.
-    ///     </para>
-    ///     <para>
-    ///     A <c>filter</c> element with zero primitive children (a zero work-unit count from
-    ///     <see cref="CountFilterPrimitiveWorkUnits"/>) is skipped identically to an out-of-budget
-    ///     chain - checked in the same guard, before <c>SourceGraphic</c> is allocated - because a
-    ///     filter with no primitives to evaluate can never change the rendered output, regardless of
-    ///     how large its filter region is; treating it as "budget OK" would still allocate a
-    ///     potentially enormous temporary surface just to hand it back unchanged.
-    ///     </para>
-    ///     <para>
-    ///     Once this filter application's own region-weighted work unit (identical to the value
-    ///     checked against <see cref="MaxFilterPrimitiveWorkUnits"/> above) would push
-    ///     <paramref name="filterWorkBudget"/>'s running cumulative total past
-    ///     <see cref="FilterWorkBudget"/>'s own fixed ceiling, this filter application is
-    ///     tolerantly skipped identically to every other case above - the same unfiltered-fallback
-    ///     pattern, never a thrown exception, so a document that legitimately reuses one filter
-    ///     across more shapes than the cumulative budget allows still finishes rendering, simply
-    ///     with the excess shapes rendered unfiltered rather than the whole <c>Load</c> call
-    ///     aborting.
-    ///     </para>
-    ///     <para>
-    ///     Per SVG semantics, an element's own <c>opacity</c> applies to the filtered result as a
-    ///     whole, not to the pre-filter source paint: <c>SourceGraphic</c> is rendered with a copy
-    ///     of <paramref name="state"/> whose <see cref="RenderState.Opacity"/> is forced to
-    ///     <c>1.0</c>, so the filter chain (for example a <c>feFlood</c>) always evaluates against
-    ///     a fully-opaque source, and <paramref name="state"/>'s own (possibly cascaded) opacity is
-    ///     applied exactly once, afterward, via <see cref="CompositeFilterResultOntoCanvas"/>'s
-    ///     coverage argument - the same per-pixel coverage-multiplier mechanism
-    ///     <see cref="Surface.CompositeOverSpan(int, int, ReadOnlySpan{float}, ReadOnlySpan{Rgba32})"/>
-    ///     already uses everywhere else in this codec.
+    ///     Per SVG semantics, <paramref name="state"/>'s own <c>opacity</c> applies to the final
+    ///     (clipped/masked/filtered) result as a whole, not to the pre-effects source paint:
+    ///     "content" is rendered with a copy of <paramref name="state"/> whose
+    ///     <see cref="RenderState.Opacity"/> is forced to <c>1.0</c>, and <paramref name="state"/>'s
+    ///     own (possibly cascaded) opacity is applied exactly once, afterward, via
+    ///     <see cref="CompositeFilterResultOntoCanvas"/>'s coverage argument - unchanged from
+    ///     pre-Phase-2 behavior.
     ///     </para>
     /// </remarks>
-    private static void RenderFilteredShape(XElement filterElement, Path localPath, RenderState state, Matrix3x2 transform, RenderContext context, FilterWorkBudget filterWorkBudget)
+    private static void RenderShapeEffectsPipeline(
+        XElement? filterElement,
+        XElement? clipPathElement,
+        XElement? maskElement,
+        Path localPath,
+        RenderState state,
+        Matrix3x2 transform,
+        RenderContext context,
+        int useDepth,
+        int elementDepth,
+        int markerDepth,
+        ref int totalElements,
+        GeometryWorkBudget workBudget,
+        FilterWorkBudget filterWorkBudget,
+        BoundsPrePassWorkBudget boundsPrePassBudget)
     {
-        var region = ComputeFilterRegionPixelBounds(filterElement, localPath, state, transform);
+        var rawBounds = ExpandBoundsForStroke(localPath.GetBounds(), state);
+
+        var region = ResolveEffectsRegionPixelBounds(filterElement, clipPathElement, maskElement, rawBounds, transform);
         if (region == null)
         {
-            RenderShape(localPath, state, transform, context);
+            RenderShape(localPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
             return;
         }
 
         var (pixelX, pixelY, pixelWidth, pixelHeight) = region.Value;
 
-        // A filter with zero primitive children can never change the rendered output - it has
-        // nothing to evaluate - so it is tolerantly treated exactly like an already-degenerate/
-        // out-of-budget filter (unfiltered fallback) rather than falling through to allocate a
-        // potentially enormous SourceGraphic surface just to hand it back unchanged
-        var primitiveCount = CountFilterPrimitiveWorkUnits(filterElement);
-        if (primitiveCount == 0 || !IsFilterPrimitiveWorkWithinBudget(primitiveCount, pixelWidth, pixelHeight))
+        // Identical zero-primitive/per-application-budget guard as this method's own pre-Phase-2
+        // form (then named RenderFilteredShape)
+        // - if the filter itself does not survive this check, it never applies, but this no
+        // longer unconditionally falls back to plain RenderShape below: a clip-path/mask that IS
+        // present must still run
+        var primitiveCount = filterElement == null ? 0 : CountFilterPrimitiveWorkUnits(filterElement);
+        var filterApplies = filterElement != null && primitiveCount != 0 &&
+            IsFilterPrimitiveWorkWithinBudget(primitiveCount, pixelWidth, pixelHeight);
+
+        // Nothing will actually apply (no clip, no mask, and the filter did not survive its own
+        // guard) - this is exactly the pre-Phase-2 "filter absent/rejected" fast path, with zero
+        // side effects, preserving that regression byte-for-byte
+        if (!filterApplies && clipPathElement == null && maskElement == null)
         {
-            RenderShape(localPath, state, transform, context);
+            RenderShape(localPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
             return;
         }
 
-        // Charge this filter application's own region-weighted work unit against the cumulative,
-        // per-Load-call budget (see FilterWorkBudget's remarks) before allocating SourceGraphic -
-        // this is the guard that bounds a single filter definition referenced by many shapes,
-        // complementing IsFilterPrimitiveWorkWithinBudget's per-application-only ceiling above
-        var filterWorkUnits = (long)primitiveCount * pixelWidth * pixelHeight;
-        if (!filterWorkBudget.TryCharge(filterWorkUnits))
+        // Charge this application's own region-weighted work unit against the shared cumulative
+        // budget before allocating the offscreen "content" buffer - see this method's remarks on
+        // why FilterWorkBudget is deliberately reused for clip/mask-only work too. The charge
+        // covers every offscreen buffer this application will actually allocate (content, plus
+        // clip-path's own coverage buffer, plus mask's own maskSource buffer) - see
+        // ComputeEffectsPipelineWorkUnits's remarks for why a single one-buffer charge previously
+        // under-charged a combined clip+mask (or clip/mask+filter) element.
+        var workUnits = ComputeEffectsPipelineWorkUnits(
+            filterApplies, primitiveCount, clipPathElement != null, maskElement != null, pixelWidth, pixelHeight);
+        if (!filterWorkBudget.TryCharge(workUnits))
         {
-            RenderShape(localPath, state, transform, context);
+            RenderShape(localPath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
             return;
         }
 
-        var sourceGraphic = new Surface(pixelWidth, pixelHeight);
+        var content = new Surface(pixelWidth, pixelHeight);
         var localToTemp = transform * Matrix3x2.CreateTranslation(-pixelX, -pixelY);
-        var tempContext = context with { Surface = sourceGraphic };
+        var tempContext = context with { Surface = content };
 
-        // Render SourceGraphic fully opaque (Opacity forced to 1.0) rather than with the
-        // element's own cascaded opacity - the filter chain must evaluate against an unmodified
-        // source, and the element's opacity is instead applied exactly once, afterward, when the
-        // filtered result is composited onto the real canvas below (see this method's remarks)
+        // Render "content" fully opaque (Opacity forced to 1.0) rather than with the element's own
+        // cascaded opacity - every downstream stage (clip/mask/filter) must evaluate against an
+        // unmodified source, and the element's opacity is instead applied exactly once, afterward
+        // (see this method's remarks)
         var opaqueState = state with { Opacity = 1f };
-        RenderShape(localPath, opaqueState, localToTemp, tempContext);
+        RenderShape(localPath, opaqueState, localToTemp, tempContext, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
 
-        var finalSurface = EvaluateFilterChain(filterElement, sourceGraphic, transform);
+        // Per SVG's defined ordering, clip-path is applied before mask, and both before filter
+        if (clipPathElement != null)
+        {
+            ApplyClipPath(clipPathElement, content, rawBounds, pixelX, pixelY, transform, state, context, workBudget);
+        }
+
+        if (maskElement != null)
+        {
+            ApplyMask(
+                maskElement, content, rawBounds, pixelX, pixelY, transform, state, context,
+                useDepth, elementDepth, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+        }
+
+        var finalSurface = filterApplies
+            ? EvaluateFilterChain(
+                filterElement!, content, transform, pixelX, pixelY, state, context, useDepth, elementDepth, markerDepth,
+                ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget)
+            : content;
 
         CompositeFilterResultOntoCanvas(finalSurface, pixelX, pixelY, context.Surface, state.Opacity);
     }
@@ -282,14 +352,14 @@ public static partial class SvgCodec
     ///     mirror of <see cref="RenderElement"/>'s dispatch switch, reusing the same
     ///     <c>Build*Path</c>/<see cref="BuildGlyphRunPath"/> helpers and <see cref="ExpandBoundsForStroke"/>
     ///     instead of actually rendering anything. Used exclusively by
-    ///     <see cref="RenderFilteredGroup"/> to size a filtered group's own <c>SourceGraphic</c>
+    ///     <see cref="RenderGroupWithEffects"/> to size a filtered group's own <c>SourceGraphic</c>
     ///     buffer before any of its content is rendered.
     /// </summary>
     /// <param name="element">The element whose own subtree bounds are computed.</param>
     /// <param name="parentState">The inherited render state from the parent element.</param>
     /// <param name="relativeTransform">
     ///     The accumulated transform from <paramref name="element"/>'s parent's own reference
-    ///     frame into the caller's chosen reference frame. <see cref="RenderFilteredGroup"/> always
+    ///     frame into the caller's chosen reference frame. <see cref="RenderGroupWithEffects"/> always
     ///     starts this at <see cref="Matrix3x2.Identity"/> for a filtered group's own direct
     ///     children, so the bounds this method returns stay in the filtered group's own local
     ///     space - deliberately <em>not</em> composed with any ancestor's accumulated pixel-space
@@ -313,11 +383,11 @@ public static partial class SvgCodec
     ///     mirroring <see cref="RenderOneMarker"/>'s identical <see cref="MaxMarkerDepth"/> guard.
     /// </param>
     /// <param name="totalElements">
-    ///     The running total-rendered-elements count. <see cref="RenderFilteredGroup"/> always
+    ///     The running total-rendered-elements count. <see cref="RenderGroupWithEffects"/> always
     ///     passes a local, independently bounded scratch counter here (never the real
     ///     per-<c>Load</c>-call counter <see cref="RenderElement"/> itself threads through), so
     ///     this bounds-only pre-pass cannot charge the same ceiling the real render pass that
-    ///     follows it will also charge - see <see cref="RenderFilteredGroup"/>'s remarks for the
+    ///     follows it will also charge - see <see cref="RenderGroupWithEffects"/>'s remarks for the
     ///     full rationale. The same <see cref="MaxTotalRenderedElements"/> ceiling is still
     ///     enforced against whatever counter is supplied, purely to keep this pre-pass's own work
     ///     bounded for a pathologically large subtree.
@@ -332,7 +402,7 @@ public static partial class SvgCodec
     ///     The shared, per-<c>Load</c>-call cumulative bounds-pre-pass work budget (see
     ///     <see cref="BoundsPrePassWorkBudget"/>) - deliberately <em>not</em> a fresh local-scratch
     ///     instance like <paramref name="totalElements"/>/<paramref name="workBudget"/> above:
-    ///     every <see cref="RenderFilteredGroup"/> invocation (nested or sibling) across the whole
+    ///     every <see cref="RenderGroupWithEffects"/> invocation (nested or sibling) across the whole
     ///     document shares this one instance, so the combined pre-pass work performed by many
     ///     nested filtered groups is bounded in aggregate, independent of how many times each
     ///     individual invocation "resets" its own local-scratch ceilings above. Charged both per
@@ -362,7 +432,7 @@ public static partial class SvgCodec
     ///     real render pass that follows this pre-pass (<see cref="RenderElement"/>'s shape cases,
     ///     via <see cref="RenderMarkers"/>) paints marker pixels (arrowheads, etc.) directly onto
     ///     whatever surface is current - for a filtered group, that is the offscreen
-    ///     <c>SourceGraphic</c> buffer <see cref="RenderFilteredGroup"/> sizes from this method's
+    ///     <c>SourceGraphic</c> buffer <see cref="RenderGroupWithEffects"/> sizes from this method's
     ///     own return value. A marker commonly extends beyond its host shape's own stroke-expanded
     ///     outline (for example an arrowhead marker on a thin line); omitting that marker geometry
     ///     here would size the offscreen buffer too small, silently clipping the marker's pixels
@@ -398,7 +468,7 @@ public static partial class SvgCodec
 
         // Charge the shared, per-Load-call cumulative pre-pass budget too - unlike
         // totalElements/workBudget above, this is never a fresh local-scratch instance, so it
-        // still accumulates across every nested RenderFilteredGroup invocation's own pre-pass,
+        // still accumulates across every nested RenderGroupWithEffects invocation's own pre-pass,
         // bounding the total "depth * subtree-size" work a document with many levels of nested
         // filtered groups could otherwise force (see BoundsPrePassWorkBudget's remarks)
         boundsPrePassBudget.Charge();
@@ -409,7 +479,7 @@ public static partial class SvgCodec
             return null;
         }
 
-        var state = ApplyPresentationAttributes(parentState, element);
+        var state = ApplyPresentationAttributes(parentState, element, context);
         var transform = ParseTransformAttribute(element) * relativeTransform;
         if (!IsFiniteTransform(transform))
         {
@@ -421,7 +491,7 @@ public static partial class SvgCodec
             case "g":
             case "symbol":
                 {
-                    // Mirrors RenderElement's identical suppressFilter/ResolveFilterElement
+                    // Mirrors RenderElement's identical suppressEffects/ResolveFilterElement
                     // derivation - a "g"/"symbol" element's own "filter" attribute never applies
                     // (to its own content, as one filtered unit) when this call is itself part of
                     // a marker's own content subtree
@@ -429,7 +499,7 @@ public static partial class SvgCodec
 
                     // When this element carries its own filter, its children must be visited
                     // relative to this element's own pre-transform local space
-                    // (Matrix3x2.Identity), exactly mirroring RenderFilteredGroup's own bounds
+                    // (Matrix3x2.Identity), exactly mirroring RenderGroupWithEffects's own bounds
                     // pre-pass (relativeTransform starting at Identity for a filtered group's own
                     // direct children) - so the filter's objectBoundingBox-relative region
                     // fractions (see ApplyOwnFilterToLocalBounds) are computed against the right
@@ -459,17 +529,17 @@ public static partial class SvgCodec
                 }
 
             case "rect":
-                return ShapeBoundsRespectingOwnFilter(element, BuildRectPath(element), state, transform, context, markerDepth);
+                return ShapeBoundsRespectingOwnFilter(element, BuildRectPath(element, state), state, transform, context, markerDepth);
 
             case "circle":
-                return ShapeBoundsRespectingOwnFilter(element, BuildEllipsePath(element, isCircle: true), state, transform, context, markerDepth);
+                return ShapeBoundsRespectingOwnFilter(element, BuildEllipsePath(element, isCircle: true, state), state, transform, context, markerDepth);
 
             case "ellipse":
-                return ShapeBoundsRespectingOwnFilter(element, BuildEllipsePath(element, isCircle: false), state, transform, context, markerDepth);
+                return ShapeBoundsRespectingOwnFilter(element, BuildEllipsePath(element, isCircle: false, state), state, transform, context, markerDepth);
 
             case "line":
                 {
-                    var linePath = BuildLinePath(element);
+                    var linePath = BuildLinePath(element, state);
                     var shapeBounds = ShapeBoundsRespectingOwnFilter(element, linePath, state, transform, context, markerDepth);
                     var markerBounds = ComputeMarkerContentLocalBounds(linePath, state, transform, context, useDepth, elementDepth, markerDepth, ref totalElements, workBudget, boundsPrePassBudget);
                     return UnionNullableBounds(shapeBounds, markerBounds);
@@ -526,10 +596,23 @@ public static partial class SvgCodec
                         return null;
                     }
 
-                    var offset = new Vector2(GetFloatAttribute(element, "x"), GetFloatAttribute(element, "y"));
-                    var useTransform = Matrix3x2.CreateTranslation(offset) * transform;
+                    var offset = new Vector2(
+                        GetFloatAttribute(element, "x", state, PercentageAxis.Horizontal),
+                        GetFloatAttribute(element, "y", state, PercentageAxis.Vertical));
 
-                    // Mirrors RenderUse's identical suppressFilter/ResolveFilterElement
+                    // Mirrors RenderUse's identical TryResolveUseTarget derivation - a "symbol"
+                    // target establishes a new nested viewport fitted via preserveAspectRatio
+                    // against its own viewBox (see TryResolveUseTarget's remarks); a non-"symbol"
+                    // target (or a degenerate/non-finite fit) reproduces the original
+                    // translate-only behavior exactly
+                    if (!TryResolveUseTarget(element, target, state, out var viewportFit, out var targetState))
+                    {
+                        return null;
+                    }
+
+                    var useTransform = viewportFit * Matrix3x2.CreateTranslation(offset) * transform;
+
+                    // Mirrors RenderUse's identical suppressEffects/ResolveFilterElement
                     // derivation - a "use" element's own "filter" attribute (never the referenced
                     // target's own attributes, which this same recursive call already handles
                     // identically to any other descendant) applies to its resolved target as one
@@ -537,7 +620,7 @@ public static partial class SvgCodec
                     // be visited relative to Matrix3x2.Identity instead of useTransform
                     var ownFilterElement = markerDepth > 0 ? null : ResolveFilterElement(element, context);
                     var targetRelativeTransform = ownFilterElement == null ? useTransform : Matrix3x2.Identity;
-                    var targetBounds = ComputeSubtreeLocalBounds(target, state, targetRelativeTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, boundsPrePassBudget);
+                    var targetBounds = ComputeSubtreeLocalBounds(target, targetState, targetRelativeTransform, context, useDepth + 1, elementDepth + 1, markerDepth, ref totalElements, workBudget, boundsPrePassBudget);
                     if (targetBounds == null)
                     {
                         return null;
@@ -578,7 +661,9 @@ public static partial class SvgCodec
                     // data would be
                     boundsPrePassBudget.ChargeGeometry(text.Length);
 
-                    var origin = new Vector2(GetFloatAttribute(element, "x"), GetFloatAttribute(element, "y"));
+                    var origin = new Vector2(
+                        GetFloatAttribute(element, "x", state, PercentageAxis.Horizontal),
+                        GetFloatAttribute(element, "y", state, PercentageAxis.Vertical));
                     var glyphRunPath = BuildGlyphRunPath(text, font, state, origin);
                     return ShapeBoundsRespectingOwnFilter(element, glyphRunPath, state, transform, context, markerDepth);
                 }
@@ -623,7 +708,7 @@ public static partial class SvgCodec
     ///     Computes one shape (or glyph run)'s own painted-content bounds for
     ///     <see cref="ComputeSubtreeLocalBounds"/>, additionally accounting for <paramref name="element"/>'s
     ///     own <c>filter</c> presentation attribute (if any) - the bounds-only counterpart of
-    ///     <see cref="RenderShapeWithFilter"/>, sharing its exact <see cref="ResolveFilterElement"/>/
+    ///     <see cref="RenderShapeWithEffects"/>, sharing its exact <see cref="ResolveFilterElement"/>/
     ///     <paramref name="markerDepth"/>-suppression decision, so a filtered ancestor group's own
     ///     offscreen buffer is sized large enough to contain this shape's own filtered output too
     ///     (see this class's remarks on nested group filtering), not just its raw stroke-expanded
@@ -631,7 +716,7 @@ public static partial class SvgCodec
     /// </summary>
     /// <param name="element">
     ///     The originating element, whose own <c>filter</c> attribute is read directly - identical
-    ///     to <see cref="RenderShapeWithFilter"/>'s own <paramref name="element"/> parameter.
+    ///     to <see cref="RenderShapeWithEffects"/>'s own <paramref name="element"/> parameter.
     /// </param>
     /// <param name="localPath">The shape's (or glyph run's) already-built local-space outline.</param>
     /// <param name="state">The cascaded render state.</param>
@@ -640,8 +725,8 @@ public static partial class SvgCodec
     /// <param name="markerDepth">
     ///     The current <c>marker</c>-reference nesting depth - when greater than zero (this call is
     ///     itself part of a marker's own content subtree), <paramref name="element"/>'s own
-    ///     <c>filter</c> attribute is never resolved, identical to <see cref="RenderShapeWithFilter"/>'s
-    ///     own <c>suppressFilter</c> derivation in <see cref="RenderElement"/>/<see cref="RenderText"/>.
+    ///     <c>filter</c> attribute is never resolved, identical to <see cref="RenderShapeWithEffects"/>'s
+    ///     own <c>suppressEffects</c> derivation in <see cref="RenderElement"/>/<see cref="RenderText"/>.
     /// </param>
     /// <returns>
     ///     <paramref name="element"/>'s own filter-expanded bounds (see
@@ -674,7 +759,7 @@ public static partial class SvgCodec
     ///     union of an element's (or a filtered <c>g</c>/<c>symbol</c>/<c>use</c> target subtree's)
     ///     own raw geometry bounds - mirroring the exact same "would this filter actually apply, or
     ///     tolerantly fall back to the raw, unfiltered bounds instead" decision
-    ///     <see cref="RenderFilteredShape"/>/<see cref="RenderFilteredGroup"/> themselves make at
+    ///     <see cref="RenderShapeEffectsPipeline"/>/<see cref="RenderGroupWithEffects"/> themselves make at
     ///     render time (a zero-primitive filter, or a filter region that cannot be computed from
     ///     <paramref name="rawLocalBounds"/>, falls back to <paramref name="rawLocalBounds"/>
     ///     unchanged), so <see cref="ComputeSubtreeLocalBounds"/>'s bounds pre-pass and the real
@@ -719,7 +804,7 @@ public static partial class SvgCodec
     ///     strictly necessary for a descendant filter that later falls back to unfiltered rendering
     ///     at real pixel scale (never smaller, so this can never re-introduce the clipping bug this
     ///     method exists to fix), and the descendant's own real render-time
-    ///     <see cref="RenderFilteredShape"/>/<see cref="RenderFilteredGroup"/> call remains the only
+    ///     <see cref="RenderShapeEffectsPipeline"/>/<see cref="RenderGroupWithEffects"/> call remains the only
     ///     site that ever charges <see cref="FilterWorkBudget"/>, so this pre-pass cannot
     ///     double-charge it.
     ///     <para>
@@ -753,7 +838,7 @@ public static partial class SvgCodec
             return null;
         }
 
-        // A zero-primitive filter can never change the rendered output (see RenderFilteredShape's
+        // A zero-primitive filter can never change the rendered output (see RenderShapeEffectsPipeline's
         // identical guard) and therefore always falls back to unfiltered rendering at real time -
         // this pre-pass must fall back to the same raw bounds in that case too, rather than
         // diverging from the real render decision
@@ -786,21 +871,22 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Renders every element in <paramref name="children"/> as one combined unit through
-    ///     <paramref name="filterElement"/>'s own primitive chain - the group-level counterpart of
-    ///     <see cref="RenderFilteredShape"/>, sharing its exact offscreen-render/filter/composite
-    ///     algorithm and every one of its resource-safety guards, but sized from the union of
-    ///     <paramref name="children"/>'s own subtree bounds (via <see cref="ComputeSubtreeLocalBounds"/>)
-    ///     instead of a single shape's own outline.
+    ///     Renders every element in <paramref name="children"/> as one combined unit through the
+    ///     same unified clip &#8594; mask &#8594; filter effects pipeline as
+    ///     <see cref="RenderShapeEffectsPipeline"/> - the group-level counterpart, sharing its
+    ///     exact offscreen-render/clip/mask/filter/composite ordering and every one of its
+    ///     resource-safety guards, but sized from the union of <paramref name="children"/>'s own
+    ///     subtree bounds (via <see cref="ComputeSubtreeLocalBounds"/>) instead of a single
+    ///     shape's own outline.
     /// </summary>
-    /// <param name="filterElement">The resolved <c>filter</c> element.</param>
+    /// <param name="filterElement">The resolved <c>filter</c> element, or <see langword="null"/> if none applies.</param>
     /// <param name="children">
-    ///     The elements to render as one filtered unit - a <c>g</c>/<c>symbol</c> element's own
+    ///     The elements to render as one combined unit - a <c>g</c>/<c>symbol</c> element's own
     ///     direct children (see <see cref="RenderElement"/>'s <c>"g"</c>/<c>"symbol"</c> case), or
     ///     a single-element list containing a <c>use</c> element's resolved target (see
     ///     <see cref="RenderUse"/>).
     /// </param>
-    /// <param name="state">The cascaded render state at the filtered group/use element itself.</param>
+    /// <param name="state">The cascaded render state at the referencing group/use element itself.</param>
     /// <param name="childrenTransform">
     ///     The accumulated transform from <paramref name="children"/>'s own shared local space
     ///     (the space <see cref="ComputeSubtreeLocalBounds"/> computes bounds in, starting from
@@ -811,9 +897,9 @@ public static partial class SvgCodec
     /// <param name="context">The fixed per-document render context.</param>
     /// <param name="useDepth">The current <c>use</c>-reference nesting depth.</param>
     /// <param name="elementDepth">
-    ///     The current recursion depth at the filtered group/use element itself - <paramref name="children"/>
+    ///     The current recursion depth at the referencing group/use element itself - <paramref name="children"/>
     ///     are always rendered/bounds-computed one level deeper (<c>elementDepth + 1</c>), mirroring
-    ///     the unfiltered <c>g</c> loop and unfiltered <c>use</c> re-entry this method replaces.
+    ///     the unaffected <c>g</c> loop and unaffected <c>use</c> re-entry this method replaces.
     /// </param>
     /// <param name="markerDepth">
     ///     The current <c>marker</c>-reference nesting depth, forwarded unchanged to every child
@@ -824,53 +910,66 @@ public static partial class SvgCodec
     /// <param name="filterWorkBudget">
     ///     The shared cumulative filter-evaluation work budget - charged identically (same
     ///     region-weighted work-unit formula, same <see cref="FilterWorkBudget.TryCharge"/> call)
-    ///     to <see cref="RenderFilteredShape"/>'s own charge, so group filters and shape filters
-    ///     share one running cumulative ceiling per <c>Load</c> call.
+    ///     to <see cref="RenderShapeEffectsPipeline"/>'s own charge, so group filters and shape
+    ///     filters share one running cumulative ceiling per <c>Load</c> call - and, as of Phase 2,
+    ///     also the region-weighted charge for a clip-path/mask-only (no filter) application, see
+    ///     <see cref="RenderShapeEffectsPipeline"/>'s remarks for why this budget is deliberately
+    ///     reused rather than duplicated.
     /// </param>
     /// <param name="boundsPrePassBudget">
     ///     The shared, per-<c>Load</c>-call cumulative bounds-pre-pass work budget (see
     ///     <see cref="BoundsPrePassWorkBudget"/>), charged by this method's own bounds pre-pass
     ///     below - unlike the fresh local-scratch <c>totalElements</c> counter/
     ///     <see cref="GeometryWorkBudget"/> instance the pre-pass otherwise uses (see this
-    ///     method's remarks), this ONE instance is shared by every <see cref="RenderFilteredGroup"/>
+    ///     method's remarks), this ONE instance is shared by every <see cref="RenderGroupWithEffects"/>
     ///     invocation (nested or sibling) for the whole document, so a document with many levels
     ///     of nested filtered groups cannot force unbounded total pre-pass work merely because
     ///     each nesting level's own pre-pass otherwise "resets" its own local-scratch ceilings.
     /// </param>
+    /// <param name="clipPathElement">The resolved <c>clipPath</c> element, or <see langword="null"/> if none applies.</param>
+    /// <param name="maskElement">The resolved <c>mask</c> element, or <see langword="null"/> if none applies.</param>
     /// <remarks>
     ///     If <paramref name="children"/>'s combined subtree paints nothing (an empty group, or a
-    ///     group/subtree consisting entirely of non-rendering/skipped/dangling content), the filter
-    ///     region cannot be computed, the filter chain has zero primitives or exceeds
-    ///     <see cref="MaxFilterPrimitivesPerFilter"/>/<see cref="MaxFilterPrimitiveWorkUnits"/>, or
-    ///     this application would push <paramref name="filterWorkBudget"/>'s cumulative total past
-    ///     its ceiling, the whole filter effect is tolerantly skipped and every element in
-    ///     <paramref name="children"/> is instead rendered directly (unfiltered), exactly as if the
-    ///     referencing <c>g</c>/<c>symbol</c>/<c>use</c> element had no <c>filter</c> attribute at
-    ///     all - mirroring <see cref="RenderFilteredShape"/>'s identical unfiltered-fallback
-    ///     convention.
+    ///     group/subtree consisting entirely of non-rendering/skipped/dangling content), no region
+    ///     can be computed at all, and this whole method falls back to rendering every element in
+    ///     <paramref name="children"/> directly (unaffected), exactly as if the referencing
+    ///     <c>g</c>/<c>symbol</c>/<c>use</c> element had none of <c>filter</c>/<c>clip-path</c>/
+    ///     <c>mask</c> at all. When a region IS available, <paramref name="filterElement"/>'s own
+    ///     zero-primitive/budget guard is evaluated exactly as this method's own pre-Phase-2 form (then named <c>RenderFilteredGroup</c>)
+    ///     did - but, per <see cref="RenderShapeEffectsPipeline"/>'s identical generalization, a
+    ///     filter that does not survive this guard no longer forces the whole method back to the
+    ///     plain unaffected fallback when <paramref name="clipPathElement"/>/<paramref name="maskElement"/>
+    ///     is also present; only when none of the three effects would apply at all does the
+    ///     original zero-side-effect fallback occur, preserving the filter-only regression
+    ///     byte-for-byte.
     ///     <para>
     ///     <paramref name="state"/>'s own (possibly cascaded) <see cref="RenderState.Opacity"/> is
-    ///     applied exactly once, after the filter chain evaluates, via
+    ///     applied exactly once, after clip/mask/filter all evaluate, via
     ///     <see cref="CompositeFilterResultOntoCanvas"/> - <paramref name="children"/> are rendered
-    ///     into <c>SourceGraphic</c> with a copy of <paramref name="state"/> whose
+    ///     into "content" with a copy of <paramref name="state"/> whose
     ///     <see cref="RenderState.Opacity"/> is forced to <c>1.0</c>, identical in shape to
-    ///     <see cref="RenderFilteredShape"/>'s own opacity handling. Because
+    ///     <see cref="RenderShapeEffectsPipeline"/>'s own opacity handling. Because
     ///     <see cref="ApplyPresentationAttributes"/> already multiplicatively folds an element's
     ///     own <c>opacity</c> attribute into <paramref name="state"/>'s <see cref="RenderState.Opacity"/>
     ///     before <see cref="RenderElement"/> ever dispatches into the <c>"g"</c>/<c>"use"</c> case,
-    ///     this reproduces "group opacity applies once, after the filter" with no further
+    ///     this reproduces "group opacity applies once, after clip/mask/filter" with no further
     ///     special-casing - each child's own <c>opacity</c> attribute still folds multiplicatively
     ///     underneath, per pixel, exactly as it does today.
     ///     </para>
     ///     <para>
-    ///     This codec implements no <c>clipPath</c> support at all (an existing, independently
-    ///     documented out-of-scope decision) - there is therefore nothing for this method to
-    ///     "respect" for clip ordering; a filtered group's clip-path attribute, like every other
-    ///     element's, is simply never read.
+    ///     <paramref name="clipPathElement"/>/<paramref name="maskElement"/> presence on a
+    ///     descendant does not need to be accounted for by this method's own bounds pre-pass below
+    ///     (<see cref="ComputeSubtreeLocalBounds"/> is unmodified for Phase 2): unlike a filter,
+    ///     which can paint pixels beyond a shape's own raw geometry (blur, flood, ...), clip-path/
+    ///     mask only ever attenuate coverage that some underlying shape's own geometry already
+    ///     paints - they never require the ancestor's own offscreen buffer to be sized any larger
+    ///     than that geometry's own (possibly filter-expanded) bounds already account for.
     ///     </para>
     /// </remarks>
-    private static void RenderFilteredGroup(
-        XElement filterElement,
+    private static void RenderGroupWithEffects(
+        XElement? filterElement,
+        XElement? clipPathElement,
+        XElement? maskElement,
         IReadOnlyList<XElement> children,
         RenderState state,
         Matrix3x2 childrenTransform,
@@ -906,7 +1005,7 @@ public static partial class SvgCodec
         //
         // boundsPrePassBudget is deliberately NOT one of these fresh local-scratch instances -
         // it is the one shared, per-Load-call instance threaded down from RenderDocument, so
-        // every nested/sibling RenderFilteredGroup invocation's own pre-pass below still
+        // every nested/sibling RenderGroupWithEffects invocation's own pre-pass below still
         // contributes toward ONE cumulative ceiling, bounding the "depth * subtree-size" total
         // pre-pass work a document with many levels of nested filtered groups would otherwise be
         // able to force by having each nesting level "reset" the local-scratch ceilings above
@@ -923,10 +1022,10 @@ public static partial class SvgCodec
             }
         }
 
-        // Every tolerant-fallback guard below renders each child directly and unfiltered,
-        // exactly as if the referencing element had no "filter" attribute at all - inlined at
-        // each guard (rather than a shared local function) because a local function cannot
-        // capture the "ref int totalElements" parameter threaded through this whole call chain
+        // Every tolerant-fallback guard below renders each child directly and unaffected, exactly
+        // as if the referencing element had none of "filter"/"clip-path"/"mask" - inlined at each
+        // guard (rather than a shared local function) because a local function cannot capture the
+        // "ref int totalElements" parameter threaded through this whole call chain
         if (localBounds.IsEmpty)
         {
             foreach (var child in children)
@@ -937,7 +1036,10 @@ public static partial class SvgCodec
             return;
         }
 
-        var region = ComputeFilterRegionPixelBounds(filterElement, localBounds, childrenTransform);
+        // Region precedence identical to RenderShapeEffectsPipeline: a filter's own region wins
+        // (it may need to expand beyond the raw painted bounds), otherwise a mask's own region,
+        // otherwise (clip-path only) the plain painted bounds with no expansion
+        var region = ResolveEffectsRegionPixelBounds(filterElement, clipPathElement, maskElement, localBounds, childrenTransform);
         if (region == null)
         {
             foreach (var child in children)
@@ -950,10 +1052,14 @@ public static partial class SvgCodec
 
         var (pixelX, pixelY, pixelWidth, pixelHeight) = region.Value;
 
-        // Identical zero-primitive/per-application-budget guard as RenderFilteredShape - see its
-        // remarks for the full rationale
-        var primitiveCount = CountFilterPrimitiveWorkUnits(filterElement);
-        if (primitiveCount == 0 || !IsFilterPrimitiveWorkWithinBudget(primitiveCount, pixelWidth, pixelHeight))
+        // Identical zero-primitive/per-application-budget guard as RenderShapeEffectsPipeline -
+        // see its remarks for the full rationale, including why a filter that fails this guard no
+        // longer unconditionally forces the plain fallback when clip/mask is also present
+        var primitiveCount = filterElement == null ? 0 : CountFilterPrimitiveWorkUnits(filterElement);
+        var filterApplies = filterElement != null && primitiveCount != 0 &&
+            IsFilterPrimitiveWorkWithinBudget(primitiveCount, pixelWidth, pixelHeight);
+
+        if (!filterApplies && clipPathElement == null && maskElement == null)
         {
             foreach (var child in children)
             {
@@ -963,10 +1069,13 @@ public static partial class SvgCodec
             return;
         }
 
-        // Identical cumulative-budget guard as RenderFilteredShape - group filters and shape
-        // filters share one running total per Load call
-        var filterWorkUnits = (long)primitiveCount * pixelWidth * pixelHeight;
-        if (!filterWorkBudget.TryCharge(filterWorkUnits))
+        // Identical cumulative-budget guard as RenderShapeEffectsPipeline - every effects
+        // application (shape or group; filter, clip-path, or mask) shares one running total per
+        // Load call, and the charge covers every offscreen buffer this application will actually
+        // allocate - see ComputeEffectsPipelineWorkUnits's remarks
+        var workUnits = ComputeEffectsPipelineWorkUnits(
+            filterApplies, primitiveCount, clipPathElement != null, maskElement != null, pixelWidth, pixelHeight);
+        if (!filterWorkBudget.TryCharge(workUnits))
         {
             foreach (var child in children)
             {
@@ -976,59 +1085,45 @@ public static partial class SvgCodec
             return;
         }
 
-        var sourceGraphic = new Surface(pixelWidth, pixelHeight);
+        var content = new Surface(pixelWidth, pixelHeight);
         var localToTemp = childrenTransform * Matrix3x2.CreateTranslation(-pixelX, -pixelY);
-        var tempContext = context with { Surface = sourceGraphic };
+        var tempContext = context with { Surface = content };
 
         // Render every child fully opaque (Opacity forced to 1.0), identical in shape to
-        // RenderFilteredShape's own SourceGraphic rendering - see this method's remarks
+        // RenderShapeEffectsPipeline's own "content" rendering - see this method's remarks
         var opaqueState = state with { Opacity = 1f };
         foreach (var child in children)
         {
             RenderElement(child, opaqueState, localToTemp, tempContext, useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
         }
 
-        var finalSurface = EvaluateFilterChain(filterElement, sourceGraphic, childrenTransform);
+        // Per SVG's defined ordering, clip-path is applied before mask, and both before filter
+        if (clipPathElement != null)
+        {
+            ApplyClipPath(clipPathElement, content, localBounds, pixelX, pixelY, childrenTransform, state, context, workBudget);
+        }
+
+        if (maskElement != null)
+        {
+            ApplyMask(
+                maskElement, content, localBounds, pixelX, pixelY, childrenTransform, state, context,
+                useDepth, elementDepth + 1, markerDepth, ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget);
+        }
+
+        var finalSurface = filterApplies
+            ? EvaluateFilterChain(
+                filterElement!, content, childrenTransform, pixelX, pixelY, state, context, useDepth, elementDepth + 1, markerDepth,
+                ref totalElements, workBudget, filterWorkBudget, boundsPrePassBudget)
+            : content;
 
         CompositeFilterResultOntoCanvas(finalSurface, pixelX, pixelY, context.Surface, state.Opacity);
     }
 
     /// <summary>
-    ///     Computes <paramref name="filterElement"/>'s filter region - always as if
-    ///     <c>filterUnits="objectBoundingBox"</c>, the SVG default, regardless of what an explicit
-    ///     <c>filterUnits="userSpaceOnUse"</c> actually says (a documented, deliberate
-    ///     simplification, see this class's remarks) - and converts it to an integer pixel-space
-    ///     bounding box, rounded outward.
-    /// </summary>
-    /// <param name="filterElement">The resolved <c>filter</c> element.</param>
-    /// <param name="localPath">The referencing shape's local-space outline.</param>
-    /// <param name="state">The cascaded render state, used to expand the degeneracy check for a stroke.</param>
-    /// <param name="transform">The accumulated transform from local space into pixel space.</param>
-    /// <returns>
-    ///     The pixel-space region as <c>(X, Y, Width, Height)</c>, or <see langword="null"/> if
-    ///     <paramref name="localPath"/>'s stroke-inflated local bounds are empty/degenerate, the
-    ///     region resolves to a non-positive size, its pixel-space transform is non-finite or
-    ///     exceeds <see cref="MaxCoordinateMagnitude"/>, or its rounded pixel size exceeds
-    ///     <see cref="Surface.MaxDimension"/> on either axis.
-    /// </returns>
-    /// <remarks>
-    ///     The degeneracy/zero-extent check below is performed against the actually-painted bounds
-    ///     (<paramref name="localPath"/>'s fill/centerline bounds, inflated by half the effective
-    ///     stroke width on each side when <paramref name="state"/> has a stroke - see
-    ///     <see cref="ExpandBoundsForStroke"/>) rather than the bare centerline bounds: a
-    ///     horizontal or vertical <c>line</c> has zero height or width in centerline space, so
-    ///     using the bare bounds would incorrectly treat a valid filter on a stroked axis-aligned
-    ///     line as degenerate and silently fall back to unfiltered rendering.
-    /// </remarks>
-    private static (int X, int Y, int Width, int Height)? ComputeFilterRegionPixelBounds(
-        XElement filterElement, Path localPath, RenderState state, Matrix3x2 transform) =>
-        ComputeFilterRegionPixelBounds(filterElement, ExpandBoundsForStroke(localPath.GetBounds(), state), transform);
-
-    /// <summary>
     ///     Computes <paramref name="filterElement"/>'s filter region from an already-computed
     ///     local-space painted-content bounding box - the shared core shared by the single-shape
     ///     overload above (which derives <paramref name="bounds"/> from one shape's own
-    ///     stroke-expanded outline) and <see cref="RenderFilteredGroup"/> (which derives
+    ///     stroke-expanded outline) and <see cref="RenderGroupWithEffects"/> (which derives
     ///     <paramref name="bounds"/> from the union of an entire group subtree's own painted
     ///     content via <see cref="ComputeSubtreeLocalBounds"/>) - always as if
     ///     <c>filterUnits="objectBoundingBox"</c>, the SVG default, regardless of what an explicit
@@ -1053,12 +1148,66 @@ public static partial class SvgCodec
         XElement filterElement, Rect bounds, Matrix3x2 transform)
     {
         var localRegion = ComputeFilterRegionLocalBounds(filterElement, bounds);
-        if (localRegion == null)
+        return localRegion == null ? null : ConvertLocalRegionToPixelBounds(localRegion.Value, transform);
+    }
+
+    /// <summary>
+    ///     Resolves the pixel-space region an effects pipeline (shape or group) should allocate its
+    ///     offscreen buffer at, applying the shared filter &gt; mask &gt; plain-bounds precedence
+    ///     used identically by both <see cref="RenderShapeEffectsPipeline"/> and
+    ///     <see cref="RenderGroupWithEffects"/> - factored out into its own method purely to avoid
+    ///     a nested ternary expression at each call site.
+    /// </summary>
+    /// <param name="filterElement">The resolved <c>filter</c> element, or <see langword="null"/> if none applies.</param>
+    /// <param name="clipPathElement">
+    ///     The resolved <c>clipPath</c> element - unused by the precedence logic itself (a
+    ///     <c>clip-path</c> never has its own region-box concept), but accepted so every call site
+    ///     passes the full resolved-element triple for symmetry/future-proofing.
+    /// </param>
+    /// <param name="maskElement">The resolved <c>mask</c> element, or <see langword="null"/> if none applies.</param>
+    /// <param name="bounds">The referencing element's (or group subtree's) already stroke-expanded local-space painted-content bounds.</param>
+    /// <param name="transform">The accumulated transform from local space into pixel space.</param>
+    /// <returns>
+    ///     <paramref name="filterElement"/>'s own filter region if present; otherwise
+    ///     <paramref name="maskElement"/>'s own mask region if present; otherwise
+    ///     <paramref name="bounds"/> converted directly with no region-box expansion; or
+    ///     <see langword="null"/> if the chosen region does not resolve to a valid pixel-space box.
+    /// </returns>
+    private static (int X, int Y, int Width, int Height)? ResolveEffectsRegionPixelBounds(
+        XElement? filterElement, XElement? clipPathElement, XElement? maskElement, Rect bounds, Matrix3x2 transform)
+    {
+        _ = clipPathElement;
+
+        if (filterElement != null)
         {
-            return null;
+            return ComputeFilterRegionPixelBounds(filterElement, bounds, transform);
         }
 
-        var pixelRegion = localRegion.Value.Transform(transform);
+        return maskElement != null
+            ? ComputeMaskRegionPixelBounds(maskElement, bounds, transform)
+            : ConvertLocalRegionToPixelBounds(bounds, transform);
+    }
+
+    /// <summary>
+    ///     Converts an already-computed local-space region into an integer pixel-space bounding
+    ///     box, rounded outward - the shared pixel-space conversion/validation core factored out
+    ///     of <see cref="ComputeFilterRegionPixelBounds(XElement, Rect, Matrix3x2)"/> so
+    ///     <see cref="ComputeMaskRegionPixelBounds"/> and a plain <c>clip-path</c>-only application
+    ///     (which has no region-box concept of its own, and so passes its raw painted bounds
+    ///     directly) can reuse the exact same finiteness/<see cref="MaxCoordinateMagnitude"/>/
+    ///     <see cref="Surface.MaxDimension"/> checks without duplicating them.
+    /// </summary>
+    /// <param name="localRegion">The already-computed local-space region.</param>
+    /// <param name="transform">The accumulated transform from local space into pixel space.</param>
+    /// <returns>
+    ///     The pixel-space region as <c>(X, Y, Width, Height)</c>, or <see langword="null"/> if
+    ///     <paramref name="localRegion"/>'s pixel-space transform is non-finite, non-positive, or
+    ///     exceeds <see cref="MaxCoordinateMagnitude"/>, or its rounded pixel size exceeds
+    ///     <see cref="Surface.MaxDimension"/> on either axis.
+    /// </returns>
+    private static (int X, int Y, int Width, int Height)? ConvertLocalRegionToPixelBounds(Rect localRegion, Matrix3x2 transform)
+    {
+        var pixelRegion = localRegion.Transform(transform);
         if (!float.IsFinite(pixelRegion.X) || !float.IsFinite(pixelRegion.Y) ||
             !float.IsFinite(pixelRegion.Width) || !float.IsFinite(pixelRegion.Height) ||
             pixelRegion.Width <= 0f || pixelRegion.Height <= 0f ||
@@ -1199,94 +1348,348 @@ public static partial class SvgCodec
         (long)primitiveCount * width * height <= MaxFilterPrimitiveWorkUnits;
 
     /// <summary>
+    ///     Computes the total <see cref="FilterWorkBudget"/> charge for one effects-pipeline
+    ///     application (a single shape in <see cref="RenderShapeEffectsPipeline"/>, or a whole
+    ///     group in <see cref="RenderGroupWithEffects"/>), shared by both so the two call sites
+    ///     cannot drift apart. A region-area-sized offscreen <see cref="Surface"/> is allocated for
+    ///     every one of the (up to three) effects that actually applies to this element - the
+    ///     pipeline's own opaque "content"/<c>SourceGraphic</c> buffer always, plus
+    ///     <see cref="ApplyClipPath"/>'s own <c>coverage</c> buffer when a <c>clip-path</c>
+    ///     applies, plus <see cref="ApplyMask"/>'s own <c>maskSource</c> buffer when a
+    ///     <c>mask</c> applies - so charging for only one of these (the pre-Phase-2 formula, which
+    ///     predates clip-path/mask ever being combined with each other or with a filter) let a
+    ///     combined clip+mask, or clip/mask+filter, element allocate up to 3x the memory actually
+    ///     charged against the shared cumulative budget. The filter's own primitive-count
+    ///     multiplier applies only to the "content" buffer's own portion of the charge (mirroring
+    ///     <see cref="IsFilterPrimitiveWorkWithinBudget"/>'s identical per-filter formula) - the
+    ///     additional clip-path/mask buffers are always a flat one region-area unit each,
+    ///     regardless of whether a filter is also present, since neither buffer's own cost scales
+    ///     with the filter's primitive count.
+    /// </summary>
+    /// <param name="filterApplies">
+    ///     Whether a <c>filter</c> survives its own per-filter <see cref="IsFilterPrimitiveWorkWithinBudget"/>
+    ///     guard and will therefore be evaluated against the "content" buffer.
+    /// </param>
+    /// <param name="primitiveCount">
+    ///     The filter's own primitive-equivalent work-unit count from
+    ///     <see cref="CountFilterPrimitiveWorkUnits"/>; ignored when <paramref name="filterApplies"/>
+    ///     is <see langword="false"/>.
+    /// </param>
+    /// <param name="clipPathApplies">
+    ///     Whether a <c>clip-path</c> element is present and will therefore cause
+    ///     <see cref="ApplyClipPath"/> to allocate its own additional region-area-sized <c>coverage</c>
+    ///     buffer.
+    /// </param>
+    /// <param name="maskApplies">
+    ///     Whether a <c>mask</c> element is present and will therefore cause <see cref="ApplyMask"/>
+    ///     to allocate its own additional region-area-sized <c>maskSource</c> buffer.
+    /// </param>
+    /// <param name="pixelWidth">The effects region's pixel width.</param>
+    /// <param name="pixelHeight">The effects region's pixel height.</param>
+    /// <returns>
+    ///     The total work-unit charge to pass to <see cref="FilterWorkBudget.TryCharge"/>, covering
+    ///     every offscreen buffer this application will actually allocate.
+    /// </returns>
+    private static long ComputeEffectsPipelineWorkUnits(
+        bool filterApplies,
+        int primitiveCount,
+        bool clipPathApplies,
+        bool maskApplies,
+        int pixelWidth,
+        int pixelHeight)
+    {
+        var regionArea = (long)pixelWidth * pixelHeight;
+
+        // The "content"/SourceGraphic buffer's own portion - scaled by the filter's own primitive
+        // count when a filter applies, exactly as this codec charged before Phase 2 introduced
+        // combinable clip-path/mask
+        var contentWorkUnits = filterApplies ? (long)primitiveCount * regionArea : regionArea;
+
+        // One additional flat region-area unit for each of clip-path/mask's own separate
+        // offscreen buffer, since neither buffer's cost scales with the filter's primitive count
+        var additionalBufferCount = (clipPathApplies ? 1 : 0) + (maskApplies ? 1 : 0);
+
+        return contentWorkUnits + (regionArea * additionalBufferCount);
+    }
+
+    /// <summary>
+    ///     Records a filter-primitive output rectangle in filter-buffer-local pixel coordinates.
+    /// </summary>
+    /// <param name="X">The local X origin.</param>
+    /// <param name="Y">The local Y origin.</param>
+    /// <param name="Width">The local width.</param>
+    /// <param name="Height">The local height.</param>
+    private readonly record struct PixelRect(int X, int Y, int Width, int Height)
+    {
+        /// <summary>Gets a value indicating whether this rectangle has no positive area.</summary>
+        public bool IsEmpty => Width <= 0 || Height <= 0;
+    }
+
+    /// <summary>
+    ///     Converts a float-valued channel back into a clamped byte using this codec's standard
+    ///     round-half-away-from-zero convention.
+    /// </summary>
+    /// <param name="value">The channel value to convert.</param>
+    /// <returns>The clamped byte result.</returns>
+    private static byte ToByte(float value) =>
+        (byte)Math.Clamp(MathF.Round(value, MidpointRounding.AwayFromZero), 0f, 255f);
+
+    /// <summary>
+    ///     Determines whether <paramref name="primitive"/> declares any explicit primitive
+    ///     subregion attribute.
+    /// </summary>
+    /// <param name="primitive">The primitive to inspect.</param>
+    /// <returns><see langword="true"/> when any of <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> is present.</returns>
+    private static bool PrimitiveDeclaresSubregion(XElement primitive) =>
+        primitive.Attribute("x") != null ||
+        primitive.Attribute("y") != null ||
+        primitive.Attribute("width") != null ||
+        primitive.Attribute("height") != null;
+
+    /// <summary>
+    ///     Resolves one primitive's own <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> rectangle into
+    ///     filter-buffer-local pixel coordinates, clamped to the enclosing filter region.
+    /// </summary>
+    /// <param name="primitive">The primitive whose own subregion is being resolved.</param>
+    /// <param name="filterRegionPixelBounds">The enclosing filter region in absolute pixel coordinates.</param>
+    /// <param name="regionPixelX">The enclosing filter region's absolute pixel-space X origin.</param>
+    /// <param name="regionPixelY">The enclosing filter region's absolute pixel-space Y origin.</param>
+    /// <param name="transform">
+    ///     The accumulated transform from the referencing element's local space into pixel space.
+    ///     Present for parity with the effects-pipeline call sites; primitive subregions reuse the
+    ///     filter region's own objectBoundingBox-relative convention and therefore need only the
+    ///     already-resolved pixel-space filter region itself.
+    /// </param>
+    /// <returns>The clamped, filter-buffer-local primitive rectangle.</returns>
+    private static PixelRect ResolvePrimitiveSubregionPixelBounds(
+        XElement primitive,
+        (int X, int Y, int Width, int Height) filterRegionPixelBounds,
+        int regionPixelX,
+        int regionPixelY,
+        Matrix3x2 transform)
+    {
+        _ = transform;
+
+        var xFraction = ParseFilterRegionFraction(primitive, "x", 0f);
+        var yFraction = ParseFilterRegionFraction(primitive, "y", 0f);
+        var widthFraction = ParseFilterRegionFraction(primitive, "width", 1f);
+        var heightFraction = ParseFilterRegionFraction(primitive, "height", 1f);
+
+        var absoluteX = filterRegionPixelBounds.X + (xFraction * filterRegionPixelBounds.Width);
+        var absoluteY = filterRegionPixelBounds.Y + (yFraction * filterRegionPixelBounds.Height);
+        var absoluteWidth = widthFraction * filterRegionPixelBounds.Width;
+        var absoluteHeight = heightFraction * filterRegionPixelBounds.Height;
+
+        var unclampedMinX = (int)MathF.Floor(absoluteX) - regionPixelX;
+        var unclampedMinY = (int)MathF.Floor(absoluteY) - regionPixelY;
+        var unclampedMaxX = (int)MathF.Ceiling(absoluteX + absoluteWidth) - regionPixelX;
+        var unclampedMaxY = (int)MathF.Ceiling(absoluteY + absoluteHeight) - regionPixelY;
+
+        var minX = Math.Clamp(unclampedMinX, 0, filterRegionPixelBounds.Width);
+        var minY = Math.Clamp(unclampedMinY, 0, filterRegionPixelBounds.Height);
+        var maxX = Math.Clamp(unclampedMaxX, 0, filterRegionPixelBounds.Width);
+        var maxY = Math.Clamp(unclampedMaxY, 0, filterRegionPixelBounds.Height);
+
+        return new PixelRect(minX, minY, Math.Max(0, maxX - minX), Math.Max(0, maxY - minY));
+    }
+
+    /// <summary>
+    ///     Clips one primitive output to <paramref name="subregion"/>, clearing every pixel
+    ///     outside that rectangle.
+    /// </summary>
+    /// <param name="source">The already-evaluated primitive output.</param>
+    /// <param name="subregion">The primitive's resolved, filter-buffer-local subregion.</param>
+    /// <returns>A new, clipped surface.</returns>
+    private static Surface ClipPrimitiveOutputToSubregion(Surface source, PixelRect subregion)
+    {
+        var clipped = new Surface(source.Width, source.Height);
+        if (subregion.IsEmpty)
+        {
+            return clipped;
+        }
+
+        for (var row = 0; row < subregion.Height; row++)
+        {
+            var sourceRow = source.GetRowSpan(subregion.Y + row).Slice(subregion.X, subregion.Width);
+            var destinationRow = clipped.GetRowSpan(subregion.Y + row).Slice(subregion.X, subregion.Width);
+            sourceRow.CopyTo(destinationRow);
+        }
+
+        return clipped;
+    }
+
+    /// <summary>
+    ///     Copies <paramref name="source"/> into <paramref name="destination"/> at the supplied
+    ///     destination origin, clipping to the destination bounds.
+    /// </summary>
+    /// <param name="source">The surface to copy from.</param>
+    /// <param name="destination">The surface to copy into.</param>
+    /// <param name="destinationX">The destination X origin.</param>
+    /// <param name="destinationY">The destination Y origin.</param>
+    private static void CopySurfaceInto(Surface source, Surface destination, int destinationX, int destinationY)
+    {
+        for (var row = 0; row < source.Height; row++)
+        {
+            var destRow = destinationY + row;
+            if (destRow < 0 || destRow >= destination.Height)
+            {
+                continue;
+            }
+
+            var startX = Math.Max(0, -destinationX);
+            var endX = Math.Min(source.Width, destination.Width - destinationX);
+            if (endX <= startX)
+            {
+                continue;
+            }
+
+            var length = endX - startX;
+            var sourceRow = source.GetRowSpan(row).Slice(startX, length);
+            var destinationRow = destination.GetRowSpan(destRow).Slice(destinationX + startX, length);
+            sourceRow.CopyTo(destinationRow);
+        }
+    }
+
+    /// <summary>
+    ///     Computes the union of two primitive subregions.
+    /// </summary>
+    /// <param name="first">The first subregion.</param>
+    /// <param name="second">The second subregion.</param>
+    /// <returns>The bounding union, or the non-empty operand when only one has area.</returns>
+    private static PixelRect UnionPrimitiveSubregions(PixelRect first, PixelRect second)
+    {
+        if (first.IsEmpty)
+        {
+            return second;
+        }
+
+        if (second.IsEmpty)
+        {
+            return first;
+        }
+
+        var minX = Math.Min(first.X, second.X);
+        var minY = Math.Min(first.Y, second.Y);
+        var maxX = Math.Max(first.X + first.Width, second.X + second.Width);
+        var maxY = Math.Max(first.Y + first.Height, second.Y + second.Height);
+        return new PixelRect(minX, minY, maxX - minX, maxY - minY);
+    }
+
+    /// <summary>
     ///     Counts <paramref name="filterElement"/>'s upfront primitive-equivalent work-unit charge
-    ///     for <see cref="IsFilterPrimitiveWorkWithinBudget"/>: each direct child counts as 1, except
-    ///     a <c>feMerge</c> child, which counts as its own <c>feMergeNode</c> child count (at least
-    ///     1) instead - because <see cref="ApplyFeMerge"/> performs one full-surface
-    ///     <see cref="Surface.CompositeOver(Surface)"/> per <c>feMergeNode</c>, so a flat charge of 1
-    ///     would let a <c>feMerge</c> with a huge number of merge nodes bypass the budget while still
-    ///     doing O(node-count &#215; region-area) work.
+    ///     for <see cref="IsFilterPrimitiveWorkWithinBudget"/>: most direct children count as 1;
+    ///     a <c>feMerge</c> child counts as its own <c>feMergeNode</c> count (at least 1); a
+    ///     <c>feConvolveMatrix</c> child counts as <c>orderX * orderY</c> (at least 1), reflecting
+    ///     its O(order<sup>2</sup> &#215; region-area) per-primitive cost; and a <c>feTurbulence</c>
+    ///     child counts as its own resolved <c>numOctaves</c> (at least 1), reflecting its
+    ///     O(numOctaves &#215; region-area) per-primitive cost.
     /// </summary>
     /// <param name="filterElement">The resolved <c>filter</c> element.</param>
     /// <returns>The total primitive-equivalent work-unit count.</returns>
     private static int CountFilterPrimitiveWorkUnits(XElement filterElement) =>
-        filterElement.Elements().Sum(primitive => primitive.Name.LocalName == "feMerge"
-            ? Math.Max(1, primitive.Elements().Count(node => node.Name.LocalName == "feMergeNode"))
-            : 1);
+        filterElement.Elements().Sum(primitive => primitive.Name.LocalName switch
+        {
+            "feMerge" => Math.Max(1, primitive.Elements().Count(node => node.Name.LocalName == "feMergeNode")),
+            "feConvolveMatrix" => Math.Max(1, GetConvolveMatrixOrder(primitive).X * GetConvolveMatrixOrder(primitive).Y),
+            "feTurbulence" => Math.Max(1, ResolveTurbulenceNumOctaves(primitive)),
+            _ => 1
+        });
 
     /// <summary>
     ///     Evaluates <paramref name="filterElement"/>'s <c>fe*</c> primitive children, in document
     ///     order, against <paramref name="sourceGraphic"/>.
     /// </summary>
     /// <param name="filterElement">The resolved <c>filter</c> element.</param>
-    /// <param name="sourceGraphic">
-    ///     The already-rendered <c>SourceGraphic</c> buffer, sized to the filter region.
-    /// </param>
-    /// <param name="transform">
-    ///     The referencing shape's own accumulated transform, used only to estimate the pixel-space
-    ///     scale for <c>feGaussianBlur</c>/<c>feOffset</c> via <see cref="EstimateUniformScale"/>.
-    /// </param>
+    /// <param name="sourceGraphic">The already-rendered <c>SourceGraphic</c> buffer, sized to the filter region.</param>
+    /// <param name="transform">The referencing element's own accumulated transform.</param>
+    /// <param name="regionPixelX">The filter region's absolute pixel-space X origin.</param>
+    /// <param name="regionPixelY">The filter region's absolute pixel-space Y origin.</param>
+    /// <param name="state">The referencing element's own cascaded render state.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="useDepth">The current <c>use</c>-reference nesting depth.</param>
+    /// <param name="elementDepth">The current element-recursion depth at the referencing element itself.</param>
+    /// <param name="markerDepth">The current marker-recursion depth.</param>
+    /// <param name="totalElements">The running total-rendered-elements count.</param>
+    /// <param name="workBudget">The shared geometry work budget.</param>
+    /// <param name="filterWorkBudget">The shared cumulative filter work budget.</param>
+    /// <param name="boundsPrePassBudget">The shared cumulative bounds-pre-pass work budget.</param>
     /// <returns>
     ///     The last document-order primitive's own output buffer, or <paramref name="sourceGraphic"/>
-    ///     itself if <paramref name="filterElement"/> has no <c>fe*</c> children at all (a
-    ///     degenerate spec edge case tolerated as "no filter").
+    ///     itself if <paramref name="filterElement"/> has no <c>fe*</c> children at all.
     /// </returns>
     /// <remarks>
     ///     Every buffer produced by every primitive in this pipeline is exactly
-    ///     <paramref name="sourceGraphic"/>'s own size - this invariant is what lets
-    ///     <c>feComposite</c>/<c>feMerge</c> reuse <see cref="Surface.CompositeOver(Surface)"/>
-    ///     directly, since that method requires equal-size surfaces. <c>in</c>/<c>in2</c> name
-    ///     resolution follows this fixed precedence: <c>"SourceGraphic"</c> resolves to
-    ///     <paramref name="sourceGraphic"/> itself; <c>"SourceAlpha"</c> resolves to a lazily-built,
-    ///     alpha-only copy of it; a name matching an earlier primitive's own <c>result</c>
-    ///     resolves to that primitive's output; an absent/empty name resolves to the immediately
-    ///     preceding primitive's own output (or <paramref name="sourceGraphic"/> for the very first
-    ///     primitive); and any other (dangling/unrecognized) name tolerantly falls back to
-    ///     <paramref name="sourceGraphic"/> - a documented simplification. Any primitive type other
-    ///     than <c>feFlood</c>/<c>feGaussianBlur</c>/<c>feOffset</c>/<c>feComposite</c>/<c>feMerge</c>
-    ///     (for example <c>feColorMatrix</c>, <c>feTurbulence</c>, <c>feDisplacementMap</c>,
-    ///     <c>feImage</c>, <c>feTile</c>, <c>feDropShadow</c>, <c>feConvolveMatrix</c>,
-    ///     <c>feDiffuseLighting</c>, <c>feSpecularLighting</c>, <c>feComponentTransfer</c>, or
-    ///     <c>feMorphology</c>) is a tolerant no-op passthrough of its own resolved <c>in</c> input,
-    ///     registered under its own <c>result</c> name (if any) so later primitives in the chain
-    ///     still resolve correctly by name - <c>feImage</c> in particular is entirely out of scope,
-    ///     which also means a filter chain can never reference another filtered element's own
-    ///     render output, so no additional recursion-depth guard is needed here. This method itself
-    ///     needs no internal primitive-count/work-budget guard: its only caller,
-    ///     <see cref="RenderFilteredShape"/>, already guarantees both stay within
-    ///     <see cref="MaxFilterPrimitivesPerFilter"/>/<see cref="MaxFilterPrimitiveWorkUnits"/>
-    ///     before this method is ever invoked (see <see cref="IsFilterPrimitiveWorkWithinBudget"/>).
+    ///     <paramref name="sourceGraphic"/>'s own size. <c>in</c>/<c>in2</c> name resolution
+    ///     follows this fixed precedence: <c>"SourceGraphic"</c>; <c>"SourceAlpha"</c>; an
+    ///     earlier named <c>result</c>; the immediately preceding primitive; and, for any other
+    ///     dangling/unrecognized name, tolerant fallback to <paramref name="sourceGraphic"/>.
+    ///     Any primitive name this codec does not recognize remains a tolerant no-op pass-through
+    ///     operation of its own resolved <c>in</c> input.
     /// </remarks>
-    private static Surface EvaluateFilterChain(XElement filterElement, Surface sourceGraphic, Matrix3x2 transform)
+    private static Surface EvaluateFilterChain(
+        XElement filterElement,
+        Surface sourceGraphic,
+        Matrix3x2 transform,
+        int regionPixelX,
+        int regionPixelY,
+        RenderState state,
+        RenderContext context,
+        int useDepth,
+        int elementDepth,
+        int markerDepth,
+        ref int totalElements,
+        GeometryWorkBudget workBudget,
+        FilterWorkBudget filterWorkBudget,
+        BoundsPrePassWorkBudget boundsPrePassBudget)
     {
         var scale = EstimateUniformScale(transform);
         var results = new Dictionary<string, Surface>(StringComparer.Ordinal);
+        var resultSubregions = new Dictionary<string, PixelRect>(StringComparer.Ordinal);
+        var filterRegionPixelBounds = (X: regionPixelX, Y: regionPixelY, Width: sourceGraphic.Width, Height: sourceGraphic.Height);
+        var fullRegion = new PixelRect(0, 0, sourceGraphic.Width, sourceGraphic.Height);
+        PixelRect previousSubregion = fullRegion;
         Surface? previousResult = null;
         Surface? sourceAlpha = null;
 
-        Surface ResolveInput(string? name)
+        Surface ResolveInput(string? name, out PixelRect subregion)
         {
             if (string.IsNullOrEmpty(name))
             {
+                subregion = previousResult == null ? fullRegion : previousSubregion;
                 return previousResult ?? sourceGraphic;
             }
 
             if (string.Equals(name, "SourceGraphic", StringComparison.Ordinal))
             {
+                subregion = fullRegion;
                 return sourceGraphic;
             }
 
             if (string.Equals(name, "SourceAlpha", StringComparison.Ordinal))
             {
+                subregion = fullRegion;
                 return sourceAlpha ??= BuildSourceAlpha(sourceGraphic);
             }
 
-            return results.TryGetValue(name, out var namedResult) ? namedResult : sourceGraphic;
+            if (results.TryGetValue(name, out var namedResult))
+            {
+                subregion = resultSubregions.TryGetValue(name, out var namedSubregion) ? namedSubregion : fullRegion;
+                return namedResult;
+            }
+
+            subregion = fullRegion;
+            return sourceGraphic;
         }
 
         foreach (var primitive in filterElement.Elements())
         {
-            var input = ResolveInput((string?)primitive.Attribute("in"));
+            var primitiveHasSubregion = PrimitiveDeclaresSubregion(primitive);
+            var primitiveSubregion = primitiveHasSubregion
+                ? ResolvePrimitiveSubregionPixelBounds(primitive, filterRegionPixelBounds, regionPixelX, regionPixelY, transform)
+                : fullRegion;
+
+            var input = ResolveInput((string?)primitive.Attribute("in"), out var inputSubregion);
+            var outputSubregion = fullRegion;
 
             Surface output;
             switch (primitive.Name.LocalName)
@@ -1304,27 +1707,107 @@ public static partial class SvgCodec
                     break;
 
                 case "feComposite":
-                    output = ApplyFeComposite(primitive, input, ResolveInput((string?)primitive.Attribute("in2")));
+                    var input2 = ResolveInput((string?)primitive.Attribute("in2"), out var input2Subregion);
+                    output = ApplyFeComposite(primitive, input, input2);
+                    outputSubregion = UnionPrimitiveSubregions(inputSubregion, input2Subregion);
+                    break;
+
+                case "feBlend":
+                    var blendInput2 = ResolveInput((string?)primitive.Attribute("in2"), out var blendInput2Subregion);
+                    output = ApplyFeBlend(primitive, input, blendInput2);
+                    outputSubregion = UnionPrimitiveSubregions(inputSubregion, blendInput2Subregion);
                     break;
 
                 case "feMerge":
-                    output = ApplyFeMerge(primitive, sourceGraphic.Width, sourceGraphic.Height, ResolveInput);
+                    output = ApplyFeMerge(primitive, sourceGraphic.Width, sourceGraphic.Height, name => ResolveInput(name, out _));
+                    break;
+
+                case "feColorMatrix":
+                    output = ApplyFeColorMatrix(primitive, input);
+                    outputSubregion = inputSubregion;
+                    break;
+
+                case "feComponentTransfer":
+                    output = ApplyFeComponentTransfer(primitive, input);
+                    outputSubregion = inputSubregion;
+                    break;
+
+                case "feMorphology":
+                    output = ApplyFeMorphology(primitive, input, scale);
+                    break;
+
+                case "feConvolveMatrix":
+                    output = ApplyFeConvolveMatrix(primitive, input);
+                    break;
+
+                case "feDisplacementMap":
+                    output = ApplyFeDisplacementMap(primitive, input, ResolveInput((string?)primitive.Attribute("in2"), out _), scale);
+                    break;
+
+                case "feTile":
+                    output = ApplyFeTile(input, inputSubregion);
+                    break;
+
+                case "feDropShadow":
+                    output = ApplyFeDropShadow(primitive, input, scale);
+                    break;
+
+                case "feImage":
+                    output = ApplyFeImage(
+                        primitive,
+                        sourceGraphic.Width,
+                        sourceGraphic.Height,
+                        primitiveSubregion,
+                        transform,
+                        regionPixelX,
+                        regionPixelY,
+                        state,
+                        context,
+                        useDepth,
+                        elementDepth,
+                        markerDepth,
+                        ref totalElements,
+                        workBudget,
+                        filterWorkBudget,
+                        boundsPrePassBudget);
+                    outputSubregion = primitiveSubregion;
+                    break;
+
+                case "feDiffuseLighting":
+                    output = ApplyFeDiffuseLighting(primitive, input, scale, transform, regionPixelX, regionPixelY);
+                    outputSubregion = inputSubregion;
+                    break;
+
+                case "feSpecularLighting":
+                    output = ApplyFeSpecularLighting(primitive, input, scale, transform, regionPixelX, regionPixelY);
+                    outputSubregion = inputSubregion;
+                    break;
+
+                case "feTurbulence":
+                    output = ApplyFeTurbulence(primitive, sourceGraphic.Width, sourceGraphic.Height, scale, regionPixelX, regionPixelY);
                     break;
 
                 default:
-                    // Tolerant no-op passthrough for every unsupported primitive type - see this
-                    // method's remarks for the full enumerated list
                     output = input;
+                    outputSubregion = inputSubregion;
                     break;
+            }
+
+            if (primitiveHasSubregion)
+            {
+                output = ClipPrimitiveOutputToSubregion(output, primitiveSubregion);
+                outputSubregion = primitiveSubregion;
             }
 
             var resultName = (string?)primitive.Attribute("result");
             if (!string.IsNullOrEmpty(resultName))
             {
                 results[resultName] = output;
+                resultSubregions[resultName] = outputSubregion;
             }
 
             previousResult = output;
+            previousSubregion = outputSubregion;
         }
 
         return previousResult ?? sourceGraphic;
@@ -1627,9 +2110,10 @@ public static partial class SvgCodec
     ///     Evaluates a <c>feComposite</c> primitive: <c>operator="over"</c> (the default, if
     ///     absent) reuses <see cref="Surface.CompositeOver(Surface)"/> directly (its formula
     ///     already <i>is</i> Porter-Duff "over"); <c>in</c>/<c>out</c>/<c>atop</c>/<c>xor</c> use
-    ///     the dedicated <see cref="CompositeFeOperator"/> per-pixel helper; any other/unrecognized
-    ///     operator value (for example <c>"arithmetic"</c>, seen in real-world documents) is a
-    ///     tolerant no-op passthrough of <paramref name="input"/>, ignoring <paramref name="input2"/>.
+    ///     the dedicated <see cref="CompositeFeOperator"/> per-pixel helper; <c>arithmetic</c> uses
+    ///     the dedicated <see cref="ApplyFeCompositeArithmetic"/> per-pixel helper; any other
+    ///     unrecognized operator value is a tolerant no-op passthrough of <paramref name="input"/>,
+    ///     ignoring <paramref name="input2"/>.
     /// </summary>
     /// <param name="element">The <c>feComposite</c> primitive element.</param>
     /// <param name="input">The already-resolved <c>in</c> input buffer.</param>
@@ -1659,11 +2143,91 @@ public static partial class SvgCodec
             case "xor":
                 return CompositeFeOperator(input, input2, FeCompositeOperator.Xor);
 
+            case "arithmetic":
+                return ApplyFeCompositeArithmetic(element, input, input2);
+
             default:
-                // An unrecognized operator value (e.g. "arithmetic") is a tolerant no-op
-                // passthrough of the "in" input, ignoring in2/k1..k4
+                // A genuinely unrecognized operator value is a tolerant no-op passthrough of the
+                // "in" input, ignoring in2/k1..k4
                 return input.Crop(0, 0, input.Width, input.Height);
         }
+    }
+
+    /// <summary>
+    ///     Evaluates a <c>feComposite operator="arithmetic"</c> primitive:
+    ///     <c>result = k1&#215;i1&#215;i2 + k2&#215;i1 + k3&#215;i2 + k4</c>, applied identically to
+    ///     each of R/G/B/A, clamped to <c>[0, 1]</c>.
+    /// </summary>
+    /// <param name="element">The <c>feComposite</c> primitive element (supplies <c>k1</c>..<c>k4</c>).</param>
+    /// <param name="input">The already-resolved <c>in</c> input buffer ("i1" above).</param>
+    /// <param name="input2">The already-resolved <c>in2</c> input buffer ("i2" above).</param>
+    /// <returns>A new, independent output buffer.</returns>
+    /// <remarks>
+    ///     Unlike <see cref="CompositeFeOperator"/>'s other four operators, the SVG/Filter Effects
+    ///     specification defines <c>arithmetic</c> directly on <b>premultiplied</b> channel values
+    ///     (including alpha, using the identical formula with <c>i1</c>/<c>i2</c> replaced by each
+    ///     input's own alpha) - so each input is converted to premultiplied form inline (mirroring
+    ///     <see cref="CompositeFeOperator"/>'s own inline premultiply pattern, not
+    ///     <see cref="Surface.PremultiplyAlpha"/>), the formula is evaluated once per channel plus
+    ///     once for alpha, every one of the four results is clamped to <c>[0, 1]</c>, and the
+    ///     premultiplied color is divided back down by the clamped output alpha (or set to <c>0</c>
+    ///     when that alpha is <c>0</c>) to derive the straight color this codec stores.
+    /// </remarks>
+    private static Surface ApplyFeCompositeArithmetic(XElement element, Surface input, Surface input2)
+    {
+        var k1 = ParsePercentOrNumber((string?)element.Attribute("k1") ?? string.Empty, 1f) ?? 0f;
+        var k2 = ParsePercentOrNumber((string?)element.Attribute("k2") ?? string.Empty, 1f) ?? 0f;
+        var k3 = ParsePercentOrNumber((string?)element.Attribute("k3") ?? string.Empty, 1f) ?? 0f;
+        var k4 = ParsePercentOrNumber((string?)element.Attribute("k4") ?? string.Empty, 1f) ?? 0f;
+
+        var width = input.Width;
+        var height = input.Height;
+        var output = new Surface(width, height);
+
+        for (var y = 0; y < height; y++)
+        {
+            var row1 = input.GetRowSpan(y);
+            var row2 = input2.GetRowSpan(y);
+            var outputRow = output.GetRowSpan(y);
+
+            for (var x = 0; x < width; x++)
+            {
+                var p1 = row1[x];
+                var p2 = row2[x];
+
+                var a1 = p1.A / 255f;
+                var a2 = p2.A / 255f;
+
+                var outA = Math.Clamp((k1 * a1 * a2) + (k2 * a1) + (k3 * a2) + k4, 0f, 1f);
+
+                byte outR, outG, outB;
+                if (outA <= 0f)
+                {
+                    outR = outG = outB = 0;
+                }
+                else
+                {
+                    var pr1 = (p1.R / 255f) * a1;
+                    var pg1 = (p1.G / 255f) * a1;
+                    var pb1 = (p1.B / 255f) * a1;
+                    var pr2 = (p2.R / 255f) * a2;
+                    var pg2 = (p2.G / 255f) * a2;
+                    var pb2 = (p2.B / 255f) * a2;
+
+                    var outPr = Math.Clamp((k1 * pr1 * pr2) + (k2 * pr1) + (k3 * pr2) + k4, 0f, 1f);
+                    var outPg = Math.Clamp((k1 * pg1 * pg2) + (k2 * pg1) + (k3 * pg2) + k4, 0f, 1f);
+                    var outPb = Math.Clamp((k1 * pb1 * pb2) + (k2 * pb1) + (k3 * pb2) + k4, 0f, 1f);
+
+                    outR = ToByte((outPr / outA) * 255f);
+                    outG = ToByte((outPg / outA) * 255f);
+                    outB = ToByte((outPb / outA) * 255f);
+                }
+
+                outputRow[x] = new Rgba32(outR, outG, outB, ToByte(outA * 255f));
+            }
+        }
+
+        return output;
     }
 
     /// <summary>
@@ -1788,7 +2352,7 @@ public static partial class SvgCodec
     ///     a uniform per-pixel coverage multiplier - the same mechanism <see cref="ResolvePaint"/>
     ///     already relies on for ordinary fill/stroke opacity - so it affects the filtered result as
     ///     a whole exactly once, rather than the pre-filter <c>SourceGraphic</c> (see
-    ///     <see cref="RenderFilteredShape"/>'s remarks).
+    ///     <see cref="RenderShapeEffectsPipeline"/>'s remarks).
     /// </param>
     private static void CompositeFilterResultOntoCanvas(Surface result, int pixelX, int pixelY, Surface canvas, float opacity)
     {

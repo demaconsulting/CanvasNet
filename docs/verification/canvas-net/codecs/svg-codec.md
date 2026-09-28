@@ -1,6 +1,7 @@
 ## SvgCodec Unit Verification Design
 
 <!-- cspell:ignore unstroked Letterboxing uncatchable Glyf Loca unparseable Cmap -->
+<!-- cspell:ignore unitless Pillarboxes letterboxed renderable -->
 
 This document describes the unit-level verification strategy for the `SvgCodec` class.
 
@@ -191,7 +192,8 @@ rejected with `InvalidDataException` once the bounded recursion guard is exceede
 `SvgCodec_Load_ArrowMarkersFixture_RendersArrowheadPastLineEnd`,
 `SvgCodec_Load_MarkerEndOnClosedPolygon_OrientsUsingClosingEdgeTangent`,
 `SvgCodec_Load_MarkerStrokeWidthUnitsOnScaledDocument_ScalesOnceNotTwice`,
-`SvgCodec_Load_MarkerContentWithFilterAttribute_FilterHasNoEffect`
+`SvgCodec_Load_MarkerContentWithFilterAttribute_FilterHasNoEffect`,
+`SvgCodec_Load_MarkerWithExplicitPreserveAspectRatioSlice_UsesLargerUniformScale`
 
 Asserts a `marker-end` reference renders its `marker` element's content past a `line`'s own end
 point, sized in user-space units; asserts `marker-start`/`marker-mid`/`marker-end` each
@@ -232,6 +234,18 @@ fill color, not the flood's - a regression test for a defect where marker-conten
 re-entered the same shape/text dispatch used everywhere else, which unconditionally resolved and
 evaluated a shape's own `filter` attribute, contradicting this codec's documented "filters on
 marker content have no effect" scope decision.
+`SvgCodec_Load_MarkerWithExplicitPreserveAspectRatioSlice_UsesLargerUniformScale` is a new-
+capability test proving an explicit `preserveAspectRatio="... slice"` attribute on a marker with
+its own `viewBox` selects `slice`'s larger uniform scale (`max(...)`) rather than the pre-existing
+default path's `meet`-equivalent (`min(...)`) scale, exercised via a canvas point covered only by
+the wider `slice` fit. It deliberately does not exercise `<align>`/origin variation: because a
+marker's content is always anchored by its own `refX`/`refY` (never clipped to
+`markerWidth`/`markerHeight`), an `<align>`'s `Min`/`Mid`/`Max` offset and the viewBox's own
+origin both algebraically cancel out of the final rendered position once that ref-anchoring is
+applied, regardless of their value - only the uniform scale factor itself is ever visibly
+different between the default (no attribute) path and an explicit `preserveAspectRatio`, making
+`meet` versus `slice` the only genuinely pixel-distinguishable part of this new capability given
+this codec's marker content is never clipped.
 
 #### CanvasNet-Codecs-SvgCodec-MarkerReferenceCycle: Marker Reference Dangling and Cycle Rejection
 
@@ -449,15 +463,51 @@ legacy `IReadOnlyDictionary<string, TrueTypeFont>?` overload and the richer over
 well; now that the richer overload has its own distinct name, this call is unambiguous and falls
 back to this legacy overload's own documented "no font registered" behavior.
 
-#### CanvasNet-Codecs-SvgCodec-ViewBoxFitting: ViewBox "Meet, Centered" Fitting and Letterboxing
+#### CanvasNet-Codecs-SvgCodec-ViewBoxFitting: ViewBox `preserveAspectRatio` Fitting
 
 **Tests**: `SvgCodec_Load_WideViewBoxIntoSquareRaster_LetterboxesTopAndBottom`,
-`SvgCodec_Load_TallViewBoxIntoSquareRaster_LetterboxesLeftAndRight`
+`SvgCodec_Load_TallViewBoxIntoSquareRaster_LetterboxesLeftAndRight`,
+`SvgCodec_Load_RootPreserveAspectRatio_AppliesAlignAndMeetOrSlice`,
+`SvgCodec_Load_RootPreserveAspectRatioNone_StretchesNonUniformly`,
+`SvgCodec_Load_NoPreserveAspectRatioAttribute_MatchesExplicitXMidYMidMeet`
 
 Asserts a wide (landscape) viewBox fit into a square raster is centered with transparent
 letterbox bars above and below its content, and a tall (portrait) viewBox fit into a square
 raster is centered with transparent letterbox bars to the left and right, in each case also
-asserting the content band itself is filled.
+asserting the content band itself is filled - these two pre-existing tests continue to prove the
+default (no explicit `preserveAspectRatio` attribute) "xMidYMid meet" fit is unchanged.
+`SvgCodec_Load_RootPreserveAspectRatio_AppliesAlignAndMeetOrSlice` is a data-driven `[Theory]`
+covering all 9 non-`none` `<align>` values combined with both `meet` and `slice` (18 rows total),
+rendering a single 200x100 viewBox with 4 marker stripes into a mismatched 100x200 raster and
+sampling pixels whose expected color was independently hand-verified via matrix composition, to
+prove every align/meetOrSlice combination is honored.
+`SvgCodec_Load_RootPreserveAspectRatioNone_StretchesNonUniformly` proves the new `align="none"`
+capability stretches the intrinsic viewBox independently on each axis with no uniform-scale
+constraint and no letterboxing, filling the raster completely.
+`SvgCodec_Load_NoPreserveAspectRatioAttribute_MatchesExplicitXMidYMidMeet` is a dedicated,
+explicitly-named regression test (not merely relying on other tests happening to still pass)
+that loops over every pixel of a document with no `preserveAspectRatio` attribute at all and
+asserts it is pixel-for-pixel identical to the same document with an explicit
+`preserveAspectRatio="xMidYMid meet"` attribute added - proving Finding #1 from this phase's
+planning report (the pre-existing default was already spec-conformant "meet, centered", not the
+non-uniform stretch a naive reading of the original feature request might assume) holds, and that
+adding `preserveAspectRatio` parsing introduced no default-behavior regression.
+
+#### CanvasNet-Codecs-SvgCodec-SymbolViewBoxFitting: `symbol`/`use` ViewBox Fitting
+
+**Tests**: `SvgCodec_Load_UseReferencingSymbolWithViewBox_FitsContentToResolvedWidthHeight`,
+`SvgCodec_Load_UseReferencingSymbolWithPreserveAspectRatio_HonorsAlign`
+
+Asserts a `use` element referencing a `symbol` element with its own `viewBox` fits that viewBox's
+content into the `use`/`symbol` element's resolved `width`/`height`, positioned by the `use`
+element's own `x`/`y` translation applied in the outer, already-fitted coordinate space.
+`SvgCodec_Load_UseReferencingSymbolWithPreserveAspectRatio_HonorsAlign` further asserts a
+`symbol`'s own `preserveAspectRatio` attribute (a portrait viewBox fitted into a square box,
+`xMinYMin` align) is honored, positioning content flush to the top-left rather than centered, and
+that the slack area a centered default would otherwise fill is left transparent - unlike a
+marker's ref-anchored content (see `CanvasNet-Codecs-SvgCodec-MarkerRendering` below), a
+`symbol`/`use`'s align offset is a plain, non-anchored translation, so it remains visibly
+distinguishable in rendered output.
 
 #### CanvasNet-Codecs-SvgCodec-GetInfo: GetInfo Reports Resolved Intrinsic Size
 
@@ -579,20 +629,55 @@ original input (`1e20`) likewise now exceeds `MaxCoordinateMagnitude` and is rej
 `DashSplitter` is ever reached - retained under its original name, repurposed identically to the
 two tests above.
 
-#### CanvasNet-Codecs-SvgCodec-PercentageGeometryRejected: Percentage Rejected on Geometry Attributes
+#### CanvasNet-Codecs-SvgCodec-PercentageGeometryResolved: Percentage Geometry Resolved Against Viewport
 
-**Tests**: `SvgCodec_Load_RectXPercentage_ThrowsInvalidDataException`,
-`SvgCodec_Load_RectWidthPercentage_ThrowsInvalidDataException`
+**Tests**: `SvgCodec_Load_RectXPercentage_ResolvesAgainstViewportWidth`,
+`SvgCodec_Load_RectWidthPercentage_ResolvesAgainstViewportWidth`,
+`SvgCodec_Load_RectYHeightPercentage_ResolvesAgainstViewportHeight`,
+`SvgCodec_Load_CircleCxCyRPercentage_ResolvesAgainstHorizontalVerticalAndDiagonalBases`,
+`SvgCodec_Load_LineCoordinatePercentage_ResolvesAgainstViewport`,
+`SvgCodec_Load_GradientCoordinatePercentage_UnaffectedByViewportPercentageResolution`,
+`SvgCodec_Load_StrokeWidthPercentage_ResolvesAgainstDiagonalBasis`,
+`SvgCodec_Load_FontSizePercentage_ResolvesAgainstParentFontSize`,
+`SvgCodec_Load_StrokeDasharrayPercentage_ResolvesAgainstDiagonalBasis`
 
-Asserts `Load` throws `InvalidDataException` for a `rect`'s `x` attribute expressed as a
-percentage and, separately, for its `width` attribute expressed as a percentage, proving a
-shape/text geometry attribute's percentage value is explicitly rejected rather than silently
-resolved against an undefined basis. Separately confirms (no dedicated regression test needed,
-since both already exist and are unaffected) that
+Asserts a `rect`'s `x`/`width` percentages resolve against the current viewport's width (
+`SvgCodec_Load_RectXPercentage_ResolvesAgainstViewportWidth`/
+`SvgCodec_Load_RectWidthPercentage_ResolvesAgainstViewportWidth` - repurposed, rather than
+silently deleted, from this codec's original percentage-*rejection* `Fact`s covering this exact
+attribute/markup, now proving successful resolution instead of `InvalidDataException`), and its
+`y`/`height` percentages resolve against the current viewport's height on a non-square viewBox
+(`SvgCodec_Load_RectYHeightPercentage_ResolvesAgainstViewportHeight`). Asserts a `circle`'s
+`cx`/`cy` percentages resolve against the horizontal/vertical bases respectively, and its `r`
+percentage resolves against the diagonal basis `sqrt(w^2 + h^2) / sqrt(2)` - an axis-agnostic
+length per the SVG specification
+(`SvgCodec_Load_CircleCxCyRPercentage_ResolvesAgainstHorizontalVerticalAndDiagonalBases`). Asserts
+a `line`'s `x1`/`y1`/`x2`/`y2` percentages resolve against the viewport
+(`SvgCodec_Load_LineCoordinatePercentage_ResolvesAgainstViewport`), and separately, that a
+`linearGradient`'s own `x1`/`x2` coordinates continue to resolve as basis-1 fractions of the
+gradient's own `objectBoundingBox` coordinate space, unaffected by this phase's new viewport-
+relative percentage resolution
+(`SvgCodec_Load_GradientCoordinatePercentage_UnaffectedByViewportPercentageResolution` - uses a
+`rect` fill rather than a `line` stroke, since a horizontal/vertical `line`'s own fill-geometry
+bounding box is degenerate on one axis and always falls back to an identity object-bounding-box
+map regardless of this change). Asserts `stroke-width`'s and each `stroke-dasharray` entry's
+percentage resolves against the diagonal basis, exactly like `r` above
+(`SvgCodec_Load_StrokeWidthPercentage_ResolvesAgainstDiagonalBasis`,
+`SvgCodec_Load_StrokeDasharrayPercentage_ResolvesAgainstDiagonalBasis`). Asserts `font-size`'s
+percentage resolves against the parent element's own already-cascaded `font-size` (the CSS/SVG-
+defined basis), not any viewport dimension
+(`SvgCodec_Load_FontSizePercentage_ResolvesAgainstParentFontSize`). Percentage resolution happens
+inside the existing `ParseGeometryCoordinate`/`ParseCoordinate` choke point, so the existing
+finite/magnitude guards those methods already apply still run *after* percentage resolution
+rather than being bypassed - `stroke-miterlimit` remains the sole documented exception (a
+unitless ratio, not a length), continuing to tolerantly fall back to the inherited value for a
+percentage there, unchanged. Separately confirms (no dedicated regression test needed, since both
+already exist and are unaffected) that
 `SvgCodec_Load_NegativeScientificAndPercentageValues_RendersWithoutThrowing` (which only exercises
 `opacity="50%"`) and `SvgCodec_Load_GradientStopOffsetPercentage_RendersGradientCorrectly` (which
 exercises gradient `stop` `offset` percentages) continue to pass unmodified, proving
-opacity-family attributes and gradient coordinates remain correctly unaffected by this rejection.
+opacity-family attributes and gradient `stop` `offset` remain correctly unaffected by this
+capability.
 
 #### CanvasNet-Codecs-SvgCodec-UnsupportedConstructsIgnored: Out-of-Scope Constructs Tolerated
 
@@ -601,7 +686,13 @@ opacity-family attributes and gradient coordinates remain correctly unaffected b
 
 Builds a document containing `style`, `mask`, `clipPath`, `pattern`, and a
 nested `svg` alongside an ordinary `rect`, and asserts the ordinary `rect` still renders — proving
-none of the out-of-scope elements abort the whole document. A real fixture file
+none of the out-of-scope elements abort the whole document. `mask`/`clipPath` are defined but
+never referenced by any element's own `mask`/`clip-path` attribute in this particular fixture, so
+this test only exercises their (unchanged) "non-rendering element, tolerated as a defs-only
+declaration" status - see `CanvasNet-Codecs-SvgCodec-ClipPathRendering`/
+`CanvasNet-Codecs-SvgCodec-MaskRendering` below for their own dedicated coverage once actually
+referenced; like `filter`, they are no longer an out-of-scope construct when referenced. A real
+fixture file
 (`SvgFixtures/tolerant-unsupported.svg`, whose `filter` def is now genuinely supported but simply
 never referenced by any element) exercises the same property end-to-end. See
 `CanvasNet-Codecs-SvgCodec-FilterRendering`/`CanvasNet-Codecs-SvgCodec-FilterResourceSafety` below
@@ -625,7 +716,11 @@ for `filter`'s own dedicated coverage - it is no longer an out-of-scope construc
 `SvgCodec_Load_FeCompositeOperatorXor_KeepsEachInputWhereTheOtherHasNoCoverage`,
 `SvgCodec_Load_FeCompositeOperatorXorWithHalfChannelValue_RoundsAwayFromZeroNotToEven`,
 `SvgCodec_Load_FilterOnStrokedHorizontalLine_UsesStrokeAwareBoundsNotDegenerate`,
-`SvgCodec_Load_OpacityWithFeFloodFilter_AppliesOpacityToFilteredResultNotSource`
+`SvgCodec_Load_OpacityWithFeFloodFilter_AppliesOpacityToFilteredResultNotSource`,
+`SvgCodec_Load_FeCompositeOperatorArithmetic_MatchesHandComputedFormula`,
+`SvgCodec_Load_FeCompositeOperatorArithmeticAlpha_MatchesFormulaNotHardcodedOrDropped`,
+`SvgCodec_Load_FeCompositeOperatorArithmeticOutOfRangeResult_ClampsToValidByteRange`,
+`SvgCodec_Load_FeCompositeArithmeticWithDiffuseLighting_TracksSourceAlphaSilhouette`
 
 Asserts a bare `feFlood` primitive's flood color entirely replaces the referencing element's own
 content, filling the (default, bounding-box-relative) filter region including the area behind the
@@ -635,8 +730,8 @@ outside the element's own bounds while the element's own fill remains visible on
 location; asserts a conventional `feFlood` → `feComposite(operator="out")` → `feGaussianBlur` →
 `feMerge` halo/glow recipe produces a genuinely softened (partially transparent, not hard-edged)
 flood color just outside the element's own edge - proving the blur actually ran - while the
-element's own fill remains fully opaque and unaffected at its center; asserts a filter primitive
-type this codec does not implement (`feColorMatrix`) is treated as a no-op passthrough of its own
+element's own fill remains fully opaque and unaffected at its center; asserts a genuinely
+unrecognized filter primitive name (`feBogusPrimitive`) is treated as a no-op passthrough of its own
 input rather than throwing or blanking the element's content; asserts the filter region's default
 computation expands the referencing element's own bounding box by exactly -10%/-10%/120%/120%,
 verified at pixels just inside and just outside each computed edge; asserts an explicit `filter`
@@ -649,10 +744,10 @@ the canvas. Two real fixture files corroborate this end to end:
 white halo behind a line's own midpoint label, previously invisible while `filter` was ignored),
 and the large, real, third-party `SvgFixtures/InkscapeFilters.svg` (see
 `CanvasNet-Codecs-SvgCodec-UnsupportedConstructsIgnored`'s predecessor coverage of this same
-fixture) proves this genuinely-evaluated filter-chain support, including its tolerant-passthrough
-handling of several unsupported primitives mixed into the same chains
-(`feSpecularLighting`/`feDiffuseLighting`/arithmetic-mode `feComposite`), holds at real-world scale
-and complexity, not only for small synthetic documents. `feComposite`'s `in`, `atop`, and `xor`
+fixture) proves this genuinely-evaluated filter-chain support, including its own
+`feSpecularLighting`/`feDiffuseLighting`/arithmetic-mode `feComposite` chains (all fully
+implemented and separately covered by their own dedicated requirements below), holds at real-world
+scale and complexity, not only for small synthetic documents. `feComposite`'s `in`, `atop`, and `xor`
 Porter-Duff operators (`over`/`out` were already covered above) are each additionally verified
 deterministically and synthetically, against two full-region, semi-transparent `feFlood` inputs
 that isolate the operator's own per-pixel formula from any shape-geometry/filter-region overlap
@@ -676,7 +771,29 @@ regression test for a defect where `opacity` was applied while painting the pre-
 `SourceGraphic` (so the filter chain, and the final compositing step, both then operated on
 already-attenuated content with no further opacity ever applied) instead of being applied exactly
 once, afterward, to the filter's own final output, per SVG's "opacity applies to the filtered
-result as a whole" semantics.
+result as a whole" semantics. `feComposite`'s `arithmetic` operator - the one Porter-Duff-family
+operator defined by the spec to operate on premultiplied color values rather than straight ones -
+is verified against its own `k1*i1*i2 + k2*i1 + k3*i2 + k4` formula (applied identically to color
+and alpha), computed by hand: a plain color-formula test with non-trivial `k1`/`k2`/`k3` values and
+fully-opaque inputs; a second test isolating the alpha channel specifically (using only `k1` and
+`k3`, both non-zero, against two different flood opacities) to prove alpha is computed via the same
+formula rather than being hardcoded to `1` or silently dropped; and a third test verifying results
+outside `[0,1]` are clamped rather than wrapping or throwing. A fourth, regression test reproduces
+the exact structural pattern of `InkscapeFilters.svg`'s `filter50` (`feGaussianBlur` →
+`feDiffuseLighting` - whose output alpha is always fully opaque per spec, regardless of its input's
+own alpha - → `feComposite operator="arithmetic"` combining the always-opaque lighting result with
+itself, then again with `SourceGraphic`) against a simple circle: prior to this operator being
+implemented, the previously-unimplemented `arithmetic` case fell through to a no-op passthrough of
+its first input, so the always-opaque `feDiffuseLighting` alpha propagated unchanged through the
+entire chain, producing an opaque rectangular blob covering the whole filter region regardless of
+the source shape's own silhouette; with `arithmetic` correctly implemented, the final composite's
+alpha algebraically reduces (for `filter50`'s own `k1`/`k3` values) to `min(2 * sourceAlpha, 1)`,
+so the test asserts a point outside the circle's geometry (but inside the oversized filter region)
+renders fully transparent, while a point well inside the circle renders fully opaque - proving the
+fix restores the source shape's own silhouette rather than a filter-region-shaped blob. This same
+fix is additionally corroborated end to end by `SvgCodec_Load_InkscapeFiltersFixture_...`'s own
+hand-recomputed pixel expectations, since `InkscapeFilters.svg`'s `filter48` also relies on this
+operator.
 
 #### CanvasNet-Codecs-SvgCodec-FilterResourceSafety: Filter Dangling Reference and Resource-Bound Tolerance
 
@@ -880,6 +997,518 @@ is the companion non-regression test: 5 levels of nested filtered groups wrappin
 ordinary path renders its fill color correctly, proving the new geometry-weighted ceiling is
 generous enough that ordinary real-world documents are never spuriously rejected.
 
+#### CanvasNet-Codecs-SvgCodec-FeColorMatrix: `feColorMatrix` Type Evaluation
+
+**Tests**: `SvgCodec_Load_FeColorMatrixTypeMatrix_AppliesFullAffineTransform`,
+`SvgCodec_Load_FeColorMatrixTypeSaturate_DesaturatesTowardGray`,
+`SvgCodec_Load_FeColorMatrixTypeHueRotate_RotatesHueByAngle`,
+`SvgCodec_Load_FeColorMatrixTypeLuminanceToAlpha_ConvertsLuminanceToAlphaChannel`,
+`SvgCodec_Load_FeColorMatrixMissingValuesAttribute_FallsBackToTypeDefault`
+
+Asserts the `matrix` form applies a full 4x5 affine color transform to the input pixel values;
+asserts `saturate` moves a colored source toward gray without changing its coverage; asserts
+`hueRotate` rotates a known source hue into the expected target channel ordering; asserts
+`luminanceToAlpha` zeros color while deriving alpha from luminance; and asserts omitted `values`
+fall back to the SVG-defined default for the chosen type instead of rejecting the filter.
+
+#### CanvasNet-Codecs-SvgCodec-FeComponentTransfer: `feComponentTransfer` Per-Channel Remapping
+
+**Tests**: `SvgCodec_Load_FeFuncRTypeTable_RemapsRedChannel`,
+`SvgCodec_Load_FeFuncGTypeDiscrete_StepsGreenChannel`,
+`SvgCodec_Load_FeFuncBTypeLinear_ScalesAndOffsetsBlueChannel`,
+`SvgCodec_Load_FeFuncATypeGamma_AppliesGammaCurveToAlpha`,
+`SvgCodec_Load_MissingFeFuncChild_ChannelUnchanged`
+
+Asserts each supported transfer-function form is evaluated on its matching channel: table lookup
+interpolates red from an authored table, discrete transfer steps green into authored buckets,
+linear transfer scales and offsets blue, and gamma transfer reshapes alpha through amplitude,
+exponent, and offset. The missing-child regression test proves an omitted `feFunc*` element
+leaves that channel unchanged rather than clearing or corrupting it.
+
+#### CanvasNet-Codecs-SvgCodec-FeMorphology: `feMorphology` Erode/Dilate Support
+
+**Tests**: `SvgCodec_Load_FeMorphologyOperatorErode_ShrinksOpaqueRegion`,
+`SvgCodec_Load_FeMorphologyOperatorDilate_GrowsOpaqueRegion`,
+`SvgCodec_Load_FeMorphologyRadiusExceedingCap_ThrowsInvalidDataException`,
+`SvgCodec_Load_FeMorphologyNegativeRadius_TreatedAsIdentity`
+
+Asserts `operator="erode"` contracts an opaque source region, `operator="dilate"` expands it,
+negative radii are treated as identity rather than malformed input, and a radius that resolves
+above the fixed pixel cap is rejected with `InvalidDataException` before any large-neighborhood
+processing is attempted.
+
+#### CanvasNet-Codecs-SvgCodec-FeConvolveMatrix: `feConvolveMatrix` Kernel Evaluation
+
+**Tests**: `SvgCodec_Load_FeConvolveMatrixIdentityKernel_LeavesInputUnchanged`,
+`SvgCodec_Load_FeConvolveMatrixEdgeDetectKernel_ProducesExpectedEdgeResponse`,
+`SvgCodec_Load_FeConvolveMatrixEdgeModeWrap_SamplesAcrossOppositeEdge`,
+`SvgCodec_Load_FeConvolveMatrixPreserveAlphaTrue_LeavesAlphaChannelUnchanged`,
+`SvgCodec_Load_FeConvolveMatrixOrderExceedingCap_ThrowsInvalidDataException`,
+`SvgCodec_Load_FeConvolveMatrixKernelMatrixCountMismatchOrder_TolerantlyPassesThrough`
+
+Asserts an identity kernel preserves the source exactly, a hand-authored edge-detect kernel
+produces the expected response at known pixels, `edgeMode="wrap"` samples from the opposite edge,
+`preserveAlpha="true"` keeps the original alpha channel unchanged while still filtering color, an
+oversized `order` is rejected with `InvalidDataException`, and a malformed `kernelMatrix` count
+falls back to a tolerant passthrough instead of throwing or corrupting later primitive inputs.
+
+#### CanvasNet-Codecs-SvgCodec-FeDisplacementMap: `feDisplacementMap` Channel-Based Sampling
+
+**Tests**: `SvgCodec_Load_FeDisplacementMapPositiveScaleWithRedChannelSelector_DisplacesSourcePixels`,
+`SvgCodec_Load_FeDisplacementMapZeroScale_LeavesInputUnchanged`
+
+Asserts a positive `scale` together with a red-channel selector actually displaces the sampled
+source pixel into a new location, proving the primitive consults the second input and moves the
+first input accordingly; and asserts a zero scale leaves the source unchanged, proving the effect
+reduces cleanly to identity when authored to do so.
+
+#### CanvasNet-Codecs-SvgCodec-FeTile: Primitive Subregion Tiling
+
+**Tests**: `SvgCodec_Load_FeTileTilesUpstreamPrimitiveSubregionAcrossFilterRegion`,
+`SvgCodec_Load_FeTileNoUpstreamSubregion_TilesWholeRegionAsIdentity`,
+`SvgCodec_Load_FePrimitiveWithSubregion_ClipsOutputToDeclaredXYWidthHeight`,
+`SvgCodec_Load_FePrimitiveWithoutSubregion_UnaffectedByNewMechanism`
+
+Asserts a primitive that declares its own `x`/`y`/`width`/`height` is clipped to that subregion
+and that a downstream `feTile` repeats exactly that clipped tile across the broader filter
+region. The companion regressions prove the new subregion mechanism remains opt-in: when no
+primitive subregion is declared, existing whole-region behavior remains unchanged and `feTile`
+degenerates to an identity repeat of the full input.
+
+#### CanvasNet-Codecs-SvgCodec-FeDropShadow: `feDropShadow` Expansion of Existing Primitives
+
+**Tests**: `SvgCodec_Load_FeDropShadow_MatchesManualBlurOffsetFloodCompositeChainEquivalent`,
+`SvgCodec_Load_FeDropShadowDefaultDxDyStdDeviation_OffsetsShadowBy2Pixels`
+
+Asserts `feDropShadow` renders byte-identically to the hand-authored blur/offset/flood/composite
+chain SVG defines as its semantic equivalent, proving it reuses the existing primitive behavior
+correctly; and asserts omitted `dx`, `dy`, and `stdDeviation` fall back to SVG's default 2-pixel
+shadow offset behavior rather than leaving the shadow without that shift.
+
+#### CanvasNet-Codecs-SvgCodec-FeImage: `feImage` Raster and Element Reference Inputs
+
+**Tests**: `SvgCodec_Load_FeImageDataUriRasterHref_RendersDecodedRasterIntoSubregion`,
+`SvgCodec_Load_FeImageElementReferenceHref_RendersReferencedElementOffscreen`,
+`SvgCodec_Load_FeImageElementReferenceHrefExceedingMaxUseDepth_TolerantlyRendersEmpty`,
+`SvgCodec_Load_FeImageDanglingElementReference_RendersEmptyWithoutThrowing`
+
+Asserts a raster/data-URI `href` is decoded and sampled into the primitive subregion with the
+expected fitted output; asserts an `href="#id"` reference renders the resolved SVG element into an
+offscreen primitive surface and exposes that result to later primitives; asserts the reused
+`MaxUseDepth` recursion guard tolerantly produces no nested output once reached; and asserts a
+reference to a missing id is ignored without throwing.
+
+#### CanvasNet-Codecs-SvgCodec-FeDiffuseLighting: `feDiffuseLighting` Lambertian Surface Lighting
+
+**Tests**: `SvgCodec_Load_FeDiffuseLightingFlatAlphaDistantLightAt90DegreesElevation_ProducesUniformLitColor`,
+`SvgCodec_Load_FeDiffuseLightingOutputAlpha_IsAlwaysFullyOpaque`,
+`SvgCodec_Load_FeDiffuseLightingDiffuseConstant_ScalesOutputLinearly`,
+`SvgCodec_Load_FeDiffuseLightingPointLightDirectlyAbove_ProducesBrighterCenterThanEdge`
+
+Asserts a flat-alpha surface lit by a `feDistantLight` at 90-degree elevation (`N=L=(0,0,1)`)
+produces the exact hand-computable `diffuseConstant * lighting-color` result; asserts the output
+alpha channel is always fully opaque regardless of the computed color, per the Lambertian
+formula's own specification; asserts `diffuseConstant` scales the output linearly; and asserts a
+`fePointLight` positioned directly above a bump's center lights that center more brightly than a
+point near the bump's tilted rim, proving the light's own position (not just a constant direction)
+genuinely drives the per-pixel light vector.
+
+#### CanvasNet-Codecs-SvgCodec-FeSpecularLighting: `feSpecularLighting` Blinn-Phong Surface Lighting
+
+**Tests**: `SvgCodec_Load_FeSpecularLightingSpotLightOutsideLimitingConeAngle_ProducesNoLight`,
+`SvgCodec_Load_FeSpecularLightingFlatAlphaDistantLightAt90DegreesElevation_ProducesUniformSpecularHighlight`,
+`SvgCodec_Load_FeSpecularLightingOutputAlpha_EqualsMaxOfRgbNotOne`,
+`SvgCodec_Load_FeSpecularLightingSpecularExponent_IncreasesFocusOfHighlight`
+
+Asserts a point well outside a `feSpotLight`'s own `limitingConeAngle` receives exactly zero
+light, even though the un-cutoff spot attenuation formula alone would otherwise still contribute a
+small positive amount there; asserts a flat-alpha surface lit by a `feDistantLight` at 90-degree
+elevation produces the exact hand-computable Blinn-Phong result (`N.H = 1` regardless of
+`specularExponent`); asserts the output alpha channel equals the maximum of its own computed
+R/G/B channels - deliberately proven against a color whose largest channel is green, not red, to
+rule out either channel being hard-coded or alpha being forced to `255`; and asserts increasing
+`specularExponent` at a fixed off-axis angle reduces the specular contribution, the mathematical
+basis for a sharper, more focused highlight.
+
+#### CanvasNet-Codecs-SvgCodec-FeTurbulence: `feTurbulence` Reference Perlin Noise
+
+**Tests**: `SvgCodec_TurbulenceTablesRandom_10000thValueFromSeedOne_MatchesSpecPublishedTestVector`,
+`SvgCodec_Load_FeTurbulenceSameSeedTwoLoadCalls_ProducesIdenticalOutput`,
+`SvgCodec_Load_FeTurbulenceDifferentSeeds_ProducesDifferentOutput`,
+`SvgCodec_Load_FeTurbulenceTypeTurbulenceVsFractalNoise_ProduceDifferentRemapping`,
+`SvgCodec_Load_FeTurbulenceNumOctavesVariation_ProducesDifferentOutputThanSingleOctave`,
+`SvgCodec_Load_FeTurbulenceOutput_ValuesSpanNonDegenerateRangeAcrossPixels`,
+`SvgCodec_Load_FeTurbulenceStitchTilesStitch_TolerantlyFallsBackToNoStitchBehavior`
+
+Asserts the specification's own published Park-Miller PRNG conformance test vector (the
+10,000th value generated from seed `1` equals exactly `1043618065`) via reflection against the
+private permutation-table PRNG helper directly - the strongest available spec-fidelity proof for
+this primitive's reference-algorithm transcription. Asserts two independent `Load` calls against
+an identical document produce byte-for-byte identical output (determinism); asserts different
+`seed` values produce different output, proving `seed` genuinely feeds the permutation-table
+initialization rather than being tolerantly ignored; asserts `type="turbulence"` and
+`type="fractalNoise"` apply distinct color-conversion formulas against the same underlying noise
+field; asserts varying `numOctaves` changes the output, proving each additional octave's
+contribution is genuinely summed rather than the parameter being ignored; asserts the generated
+noise field spans a non-degenerate range of values across pixels rather than collapsing to a
+constant; and asserts `stitchTiles="stitch"` tolerantly falls back to `noStitch` behavior rather
+than throwing.
+
+#### CanvasNet-Codecs-SvgCodec-FeBlend: `feBlend` CSS Compositing Blend Modes
+
+**Tests**: `SvgCodec_Load_FeBlendSeparableMode_MatchesHandComputedFormula`,
+`SvgCodec_Load_FeBlendModeOverlay_MatchesHardLightWithSwappedArguments`,
+`SvgCodec_Load_FeBlendModeNormal_MatchesFeCompositeOperatorOver`,
+`SvgCodec_Load_FeBlendPartiallyTransparentSource_CompositesAlphaCorrectly`,
+`SvgCodec_Load_FeBlendModeLuminosity_MatchesSpecFormulaWithoutClipping`,
+`SvgCodec_Load_FeBlendModeLuminosity_ClipColorClampsOutOfRangeChannel`,
+`SvgCodec_Load_FeBlendModeUnrecognizedOrAbsent_BothFallBackToNormal`
+
+Asserts each of `feBlend`'s twelve separable modes (`normal`, `multiply`, `screen`, `overlay`,
+`darken`, `lighten`, `color-dodge`, `color-burn`, `hard-light`, `soft-light`, `difference`,
+`exclusion`)
+produces the exact byte value the CSS Compositing Level 1 formula for that mode computes by hand
+against a fixed, partially-different backdrop/source gray pair, run as a single `[Theory]` covering
+all modes rather than one test per mode; additionally asserts, with a second, dedicated
+backdrop/source pair chosen so the swapped- and non-swapped-argument results differ, that `overlay`
+matches `HardLight(Cs, Cb)` (its own backdrop/source arguments swapped relative to `hard-light`'s
+own `HardLight(Cb, Cs)`) rather than `hard-light`'s own non-swapped formula - proving the
+implementation did not simply delegate to the existing `hard-light` helper with its arguments in
+their original order; asserts `mode="normal"` produces byte-identical output to
+the equivalent `feComposite operator="over"` composite, proving the "blend function returns the
+source color unchanged" special case for `normal` is wired correctly; asserts two differently,
+partially-transparent inputs (a semi-transparent source over a semi-transparent backdrop) composite
+via the CSS Compositing simple-alpha formula (`Co = Cs x (1 - ab / ar) + ...`, applied on straight,
+un-premultiplied colors, matching the specification precisely rather than any premultiplied
+shortcut) to the exact hand-computed color and alpha; and, for the four non-separable modes
+(`hue`, `saturation`, `color`, `luminosity`, which the spec requires be evaluated via the whole-RGB
+`Lum`/`ClipColor`/`SetLum`/`Sat`/`SetSat` reference algorithm rather than any per-channel
+approximation) asserts `luminosity` twice: once against a backdrop/source pair whose `SetLum`-shifted
+result already lies within `[0,1]` on every channel (no `ClipColor` correction needed), and once
+against a pair specifically chosen so the shifted result exceeds `1` on one channel, forcing
+`ClipColor`'s own rescale-toward-luminosity branch to execute, both verified against the spec's
+formula worked through step by step by hand; and asserts an absent `mode` attribute and an
+unrecognized `mode` value both fall back to `normal`, per the specification's own default and
+tolerant-unknown-value handling.
+
+#### CanvasNet-Codecs-SvgCodec-FilterPrimitiveResourceSafety: Primitive-Specific Filter Caps
+
+**Tests**: `SvgCodec_Load_FeConvolveMatrixOrderExceedingCap_ThrowsInvalidDataException`,
+`SvgCodec_Load_FeMorphologyRadiusExceedingCap_ThrowsInvalidDataException`,
+`SvgCodec_Load_FeTurbulenceNumOctavesExceedingCap_ThrowsInvalidDataException`,
+`SvgCodec_Load_FilterExcessivePrimitiveCount_SkipsFilterRatherThanUnboundedWork`,
+`SvgCodec_Load_FilterReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilteredForExcessShapes`
+
+Asserts the three primitive-specific attribute sanity caps reject absurd convolution order,
+morphology radius, and turbulence octave-count values with `InvalidDataException`, distinguishing
+malformed single-attribute input from the codec's tolerant aggregate-work fallback path. The
+existing filter-budget regressions remain listed here as supporting evidence that these
+primitive-specific checks plug into the same broader bounded-work model rather than bypassing it.
+
+#### CanvasNet-Codecs-SvgCodec-ClipPathRendering: `clipPath` Union-of-Children Hard Clipping
+
+**Tests**: `SvgCodec_Load_ClipPathUserSpaceOnUse_ClipsToAbsoluteCircle`,
+`SvgCodec_Load_ClipPathObjectBoundingBox_ScalesClipContentToReferenceBounds`,
+`SvgCodec_Load_ClipPathMultipleChildren_ClipsToUnionOfAllShapes`,
+`SvgCodec_Load_DanglingClipPathReference_RendersUnclipped`,
+`SvgCodec_Load_ClipPathChildClipRuleEvenOdd_ProducesHoleAtOverlap`,
+`SvgCodec_Load_ClipPathOnGroup_ClipsCombinedGroupContent`,
+`SvgCodec_Load_ClipPathReferencesNonClipPathElement_RendersUnclipped`
+
+Asserts a `clip-path="url(#id)"` referencing a `clipPath` with the default (`userSpaceOnUse`)
+`clipPathUnits` clips a rect's own fill to a circle positioned in the referencing element's own
+local space, verified at points inside and outside the circle; asserts
+`clipPathUnits="objectBoundingBox"` instead resolves the clip child's own coordinates as
+fractions of the referencing element's own bounding box, verified by comparing against the
+same-shaped `userSpaceOnUse` case scaled to a different reference rect's own bounds; asserts a
+`clipPath` with two non-overlapping children (a rect and a circle) clips to their combined union
+rather than only the last child or their intersection, verified at a point inside each child
+individually; asserts a `clip-path` reference to a nonexistent id renders the element fully
+unclipped, matching this codec's general dangling-reference convention; asserts a `clipPath`
+child's own `clip-rule="evenodd"` produces a hole where two overlapping shapes coincide (an
+outer square minus an inner, evenodd-ruled square), distinguishing it from the `nonzero` default
+which would instead produce their union with no hole; asserts `clip-path` on a `<g>` clips the
+combined rendered content of all of its children as a single unit, the same
+"whole-subtree-as-one-unit" convention `CanvasNet-Codecs-SvgCodec-GroupFilterRendering` already
+establishes for group-level `filter`; and asserts a `clip-path` reference that resolves to a
+well-formed element which is not literally a `clipPath` (a plain `rect`) is tolerated as a no-op,
+rendering unclipped, mirroring this codec's existing `filter`/marker wrong-element-type tolerance.
+
+#### CanvasNet-Codecs-SvgCodec-MaskRendering: `mask` Luminance Semantics and Independent Unit Attributes
+
+**Tests**: `SvgCodec_Load_MaskDefaultLuminance_WhiteRevealsBlackHides`,
+`SvgCodec_Load_MaskGrayShape_AttenuatesAlphaProportionallyToLuminance`,
+`SvgCodec_Load_MaskUnitsUserSpaceOnUse_ReadsRegionAsAbsoluteCoordinates`,
+`SvgCodec_Load_MaskContentUnitsObjectBoundingBox_ScalesMaskContentToReferenceBounds`,
+`SvgCodec_Load_MaskOnUseElement_MasksResolvedTarget`
+
+Asserts a `mask="url(#id)"` referencing a `mask` element with a white rect over half the
+referencing element's own bounds and a black rect over the other half fully reveals the element
+under the white region and fully hides it under the black region, proving the default luminance
+mask semantics; asserts a mid-gray mask shape attenuates the referencing element's own alpha
+proportionally to that gray's own computed luminance (the standard sRGB coefficients
+`0.2125*R + 0.7154*G + 0.0721*B`), verified against the exact expected alpha value rather than
+merely "some partial value"; asserts `maskUnits="userSpaceOnUse"` reads the mask's own
+`x`/`y`/`width`/`height` region box as literal absolute local-space coordinates rather than
+fractions of the referencing element's own bounding box; asserts `maskContentUnits="objectBoundingBox"`
+independently scales the mask's own *content* coordinates as fractions of the referencing
+element's own bounding box while the mask's own region box (`maskUnits`, left at its default)
+is unaffected - proving the two attributes are resolved independently rather than one being
+mistakenly conflated with (or overriding) the other; and asserts `mask` on a `<use>` element
+masks the whole resolved target subtree as a single unit, the same convention
+`CanvasNet-Codecs-SvgCodec-GroupFilterRendering` already establishes for group-level `filter`
+and `CanvasNet-Codecs-SvgCodec-ClipPathRendering` establishes for group-level `clip-path`.
+
+#### CanvasNet-Codecs-SvgCodec-EffectOrdering: Clip/Mask-Before-Filter Ordering and Regression Coverage
+
+**Tests**: `SvgCodec_Load_ClipPathWithFilter_AppliesClipBeforeFilter`,
+`SvgCodec_Load_MaskWithFilter_AppliesMaskBeforeFilter`,
+`SvgCodec_Load_FilterOnlyNoClipOrMask_RendersUnaffected`,
+`SvgCodec_Load_PlainShapeNoEffects_RendersUnaffected`
+
+Asserts an element carrying both `clip-path` and `filter` clips the element's own content to the
+clip region *before* the filter's own primitive chain runs, by using a filter whose `feFlood`
+would otherwise flood the whole (unclipped) filter region: only the portion of that flooded
+region inside the clip shape is visible, proving the filter operated on already-clipped content
+rather than the clip being applied (or ignored) after the filter, or applied to the filter's own
+final output instead of its input. Asserts the analogous ordering for `mask` combined with
+`filter`: the mask's own white region reveals the filter's flood output while the mask's own
+black region (still within the filter's own, larger, expanded region) hides it entirely, proving
+the mask was applied to the filter's `SourceGraphic` input, not its output. Two regression tests
+close the loop on the shared effects-pipeline generalization these two features required:
+`SvgCodec_Load_FilterOnlyNoClipOrMask_RendersUnaffected` re-verifies a group-level, filter-only
+`<g>` (no `clip-path`/`mask` attribute anywhere) still renders identically to
+`CanvasNet-Codecs-SvgCodec-GroupFilterRendering`'s own pre-existing coverage, proving the
+generalized `RenderGroupWithEffects` entry point did not alter pre-existing filter-only
+behavior; and `SvgCodec_Load_PlainShapeNoEffects_RendersUnaffected` proves a plain shape with
+none of `filter`/`clip-path`/`mask` present still renders through the ordinary fast path (no
+offscreen buffer of any kind allocated) with its own plain fill color, unaffected by either
+generalization.
+
+#### CanvasNet-Codecs-SvgCodec-EffectResourceSafety: Clip/Mask Resource-Safety Bounds
+
+**Tests**: `SvgCodec_Load_MaskReferenceCycle_ThrowsInvalidDataException`,
+`SvgCodec_Load_ClipPathReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnclippedForExcessShapes`,
+`SvgCodec_Load_MaskReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnmaskedForExcessShapes`,
+`SvgCodec_Load_ClipPathAndMaskCombinedExceedingCumulativeBudget_FallsBackToUnclippedUnmaskedForExcessShape`,
+`SvgCodec_Load_ClipPathExceedsMaxShapesPerClipPath_TruncatesToFirst256Shapes`,
+`SvgCodec_Load_MaskRegionExceedsMaxDimension_FallsBackToUnmaskedRendering`
+
+Asserts a `mask` whose own content transitively re-references an ancestor element's own `mask`
+(forming a reference cycle solely through `mask` attribute resolution, not plain element nesting
+or `use`/`marker` references) throws `InvalidDataException` rather than overflowing the call
+stack or hanging - caught for free by the pre-existing `MaxElementDepth` guard, since mask
+content is rendered through the ordinary `RenderElement` walk rather than a bespoke traversal (see
+the design doc's discussion of why clip-path, by contrast, needs no analogous cycle guard).
+Asserts the shared, cumulative `FilterWorkBudget` ceiling (the same budget class filter
+application already charges, reused rather than duplicated for clip/mask offscreen-buffer sizing
+
+- see the design doc's rationale) is genuinely exhausted by clip-path-only and mask-only
+offscreen-buffer charges, not merely approached: five giant, staggered shapes share one empty
+`clipPath` (respectively, one empty, explicitly-sized `mask`), each charging exactly
+`pixelWidth * pixelHeight` work units per application; the first four shapes' cumulative charge
+stays within the ceiling, so their (empty) clip/mask genuinely applies and hides them completely,
+while the fifth shape's charge would exceed the ceiling, so it tolerantly falls back to
+unclipped/unmasked rendering and remains fully visible in its own exclusive band. Regression test
+for a code-review finding that combining `clip-path` *and* `mask` on the same element previously
+charged only one region-area unit total (rather than one per offscreen buffer actually allocated):
+two giant, staggered shapes each combine an empty `clip-path` and an empty, explicitly-sized
+`mask`, so each application now correctly charges three region-area units (content + clip coverage
+- mask source); the first shape's combined charge stays within the ceiling and both its clip-path
+and mask genuinely apply (fully invisible), while the second shape's combined charge exceeds the
+ceiling and falls back to fully unclipped/unmasked rendering (visible in its own plain fill
+color) - proving the combined charge, not merely one of the two effects' own charge, is what
+correctly exhausts the shared budget. Asserts
+`MaxClipPathShapesPerClipPath` caps a single `clipPath` element to its first 256 recognized direct
+children - a 257th, distinctly positioned child is silently truncated (never rasterized onto the
+clip's coverage buffer), while the first 256 children's own union still clips correctly, proving
+truncation rather than an exception is the enforcement mechanism. Asserts a `mask` region whose
+explicit `maskUnits="userSpaceOnUse"` `x`/`y`/`width`/`height` spans a pathologically large
+local-space area - large enough that, once transformed to pixel space, it would exceed
+`Surface.MaxDimension` - is rejected by the same pixel-space magnitude/dimension guard already
+enforced for filter regions, tolerantly falling back to unmasked rendering rather than attempting
+an oversized offscreen buffer allocation.
+
+#### CanvasNet-Codecs-SvgCodec-PatternRendering: `pattern` Tiled Paint-Server Fill/Stroke
+
+**Tests**: `SvgCodec_Load_PatternDefaultUnits_TilesOnceAcrossShapeBoundingBox`,
+`SvgCodec_Load_PatternUserSpaceOnUseUnits_TilesRepeatedlyAcrossUserSpace`,
+`SvgCodec_Load_PatternContentUnitsObjectBoundingBox_MapsContentThroughShapeBoundingBox`,
+`SvgCodec_Load_PatternObjectBoundingBoxUnitsAndContentUnits_TilesAndContentBothScaleToBoundingBox`,
+`SvgCodec_Load_PatternTransformRotate180_RotatesTiledContentPlacement`,
+`SvgCodec_Load_PatternViewBox_FitsContentIntoTileBuffer`,
+`SvgCodec_Load_PatternStroke_PaintsStrokeOutlineWithTiledContent`,
+`SvgCodec_Load_PatternFillAndStroke_RenderIndependentPatterns`,
+`SvgCodec_Load_DanglingPatternReference_RendersUnfilled`,
+`SvgCodec_Load_FillReferencesNonPatternElement_RendersUnfilled`,
+`SvgCodec_Load_PatternZeroWidthOrHeight_RendersUnfilledWithoutThrowing`,
+`SvgCodec_Load_PatternContentWithGroupAndGradient_RendersViaRecursiveElementWalk`
+
+Asserts a `fill="url(#id)"` referencing a `pattern` with the default `patternUnits`
+(`objectBoundingBox`) and an explicit `width="1" height="1"` (per SVG, `width`/`height`
+themselves default to `0`, so a tile only ever renders once they are specified) tiles exactly
+once across the referencing shape's own bounding box, with the tile's own content - a literal
+absolute (`patternContentUnits`'s own default `userSpaceOnUse`) rect - painting only that single
+tile's own centered sub-region; asserts `patternUnits="userSpaceOnUse"` instead reads the tile's
+own `x`/`y`/`width`/`height` as literal, small user-space units, repeating the same tile many
+times across the whole plane, verified at a point inside one repeated tile's own content and a
+point (the bounding box's own center) that lands outside any tile's content; asserts
+`patternContentUnits="objectBoundingBox"` maps a content child's own literal coordinates through
+the referencing shape's own bounding box independently of whatever `patternUnits`/tile size is in
+effect, verified against a point where the same literal numbers would land if instead interpreted
+as absolute user-space units; asserts the fourth unit combination -
+`patternUnits="objectBoundingBox"` combined with `patternContentUnits="objectBoundingBox"` -
+composes correctly: because `patternContentUnits="objectBoundingBox"` always maps a content
+coordinate through the *whole* referencing shape's own bounding box (never re-normalized to a
+smaller repeated tile's own sub-division), the same rendered tile content genuinely repeats at
+each tile's own absolute position, verified at two repeated tiles' own content positions and a
+point between them that remains unpainted; asserts a `patternTransform="rotate(180)"` rotates the
+tiled content's own visible placement, verified against the un-rotated baseline position; asserts
+a `viewBox`/`preserveAspectRatio` pair on the `pattern` element itself fits its content into the
+tile buffer via the same `preserveAspectRatio` fitting logic already used for
+`<svg>`/`<symbol>`/`<marker>`, taking precedence over `patternContentUnits` when both are present;
+asserts a pattern referenced from a `stroke` attribute paints the stroke's own generated outline
+with tiled content, independent of the shape's own fill; asserts a shape with independent
+`fill="url(#a)"` and `stroke="url(#b)"` references renders each pattern into its own respective
+region without either interfering with the other; asserts `fill="url(#nonexistent)"` referencing
+a dangling id renders the shape unfilled (fully transparent, matching this codec's general
+dangling-reference convention, and byte-identical to this codec's pre-existing dangling-gradient-
+reference behavior); asserts a `fill` reference that resolves to a well-formed element which is
+not literally a `pattern` (a plain `rect`) is tolerated as a no-op, rendering unfilled, mirroring
+this codec's existing `clipPath`/`mask`/`filter`/marker wrong-element-type tolerance; asserts a
+`pattern` with a zero `width` or `height` renders the referencing shape unfilled without throwing,
+per SVG's own "a pattern with no positive tile area applies no paint" semantics; and asserts a
+`pattern`'s own content containing a nested `<g>` wrapping a `linearGradient`-filled shape renders
+correctly via the ordinary recursive `RenderElement` walk (not a bespoke, feature-limited content
+renderer), proving tile content may freely use this codec's other rendering features.
+
+#### CanvasNet-Codecs-SvgCodec-PatternHrefInheritance: `pattern` Href Template Inheritance and Cycle Rejection
+
+**Tests**: `SvgCodec_Load_PatternHrefInheritance_InheritsContentFromTemplate`,
+`SvgCodec_Load_PatternHrefChainOfTwoHops_ResolvesToEventualContent`,
+`SvgCodec_Load_PatternHrefCycle_ThrowsInvalidDataException`
+
+Asserts a `pattern` element with no children of its own (carrying only its own
+`x`/`y`/`width`/`height`/`patternUnits` geometry) inherits its rendered content from the `pattern`
+it references via `href`, proving content is inherited while geometry is always read from the
+originally-referenced element itself, exactly mirroring
+`CanvasNet-Codecs-SvgCodec-GradientHrefInheritance`'s identical "geometry attributes are never
+inherited, only content is" simplification for gradients; asserts an `href` chain of more than one
+hop (an intermediate, content-less link between the originally-referenced pattern and the
+eventual content-bearing template) still resolves to that eventual content; and asserts a
+cyclical `href` chain (a pattern that, directly or through intermediate links, references itself)
+throws `InvalidDataException` rather than looping indefinitely, mirroring
+`CanvasNet-Codecs-SvgCodec-GradientHrefInheritance`'s identical cycle-rejection test.
+
+#### CanvasNet-Codecs-SvgCodec-PatternResourceSafety: Pattern Resource-Safety Bounds
+
+**Tests**: `SvgCodec_Load_PatternSelfReferencingContent_ThrowsInvalidDataException`,
+`SvgCodec_Load_PatternTileExceedsMaxDimension_FallsBackToUnfilledRendering`,
+`SvgCodec_Load_PatternReferencedByManyShapesExceedingCumulativeBudget_FallsBackToUnfilledForExcessShapes`
+
+Asserts a `pattern` whose own content transitively contains a shape referencing that same pattern
+again (a reference cycle formed solely through pattern-content resolution, rendered through the
+ordinary `RenderElement` walk with `elementDepth + 1`) throws `InvalidDataException` rather than
+overflowing the call stack or hanging - caught for free by the pre-existing `MaxElementDepth`
+guard, exactly mirroring `CanvasNet-Codecs-SvgCodec-EffectResourceSafety`'s identical reliance for
+a mask-reference cycle, with no new, pattern-specific depth constant introduced. Asserts a tile
+whose pixel-space dimensions would exceed `Surface.MaxDimension` on either axis is rejected by
+the same pixel-space magnitude/dimension guard already enforced for filter/mask regions,
+tolerantly falling back to unfilled rendering rather than attempting an oversized tile-buffer
+allocation. Asserts the shared, cumulative `FilterWorkBudget` ceiling (the same budget class
+filter/clip-path/mask application already charges, reused rather than duplicated for pattern
+tile-buffer-plus-region-buffer sizing) is genuinely exhausted, not merely approached: four
+non-overlapping, equally-sized pattern-filled rects (arranged in a 2x2 grid, rather than the
+staggered/overlapping geometry `CanvasNet-Codecs-SvgCodec-EffectResourceSafety`'s own budget
+tests use, since a pattern's own budget-decline fallback is fully transparent/no-paint rather
+than clip-path/mask's "paint normally, ignoring the effect" fallback - overlapping shapes would
+let an earlier, successfully tiled shape's own paint remain visible underneath a later, declined
+shape, making success and failure indistinguishable) each charge their own tile-plus-region
+allocation cost against the shared budget; the first three shapes' cumulative charge stays within
+the ceiling, so each is genuinely pattern-filled, while the fourth shape's charge would exceed the
+ceiling, so it tolerantly falls back to rendering fully unfilled, verified via each shape's own
+exclusive assertion pixel (deterministic pixel/behavioral assertions only - no wall-clock timing
+of any kind).
+
+#### CanvasNet-Codecs-SvgCodec-ImageRendering: `image` Data-URI Decode, Placement, and Effects-Pipeline Integration
+
+**Tests**: `SvgCodec_Load_ImageDataUriPng_RendersDecodedPixelsAtPlacementRect`,
+`SvgCodec_Load_ImageDataUriJpeg_RendersDecodedPixelsAtPlacementRect`,
+`SvgCodec_Load_ImagePreserveAspectRatioMeet_LettersOrPillarboxesNonMatchingAspect`,
+`SvgCodec_Load_ImagePreserveAspectRatioNone_StretchesNonUniformly`,
+`SvgCodec_Load_ImageWithClipPath_ClipsToClipPathShape`,
+`SvgCodec_Load_ImageWithMask_AttenuatesByMaskLuminance`,
+`SvgCodec_Load_ImageWithFilter_AppliesFilterToDecodedPixels`,
+`SvgCodec_Load_ImageWithOpacity_AppliesUniformAlphaToCompositedResult`,
+`SvgCodec_Load_ImageZeroWidthOrHeight_RendersNothingWithoutThrowing`,
+`SvgCodec_Load_ImageNoWidthOrHeightAttribute_RendersNothingWithoutThrowing`
+
+Asserts a `data:image/png;base64,...` href decodes through the existing `PngCodec` and draws the
+decoded pixels into the element's own `x`/`y`/`width`/`height` placement rect (verified inside and
+outside that rect), and asserts a `data:image/jpeg;base64,...` href likewise decodes through the
+existing `JpegCodec`, with a color-tolerance assertion accounting for JPEG's own lossy
+compression; asserts the default `xMidYMid meet` `preserveAspectRatio` fit uniformly scales a
+non-matching-aspect source image and centers it, leaving a transparent letterboxed remainder
+outside the fitted content, and asserts `preserveAspectRatio="none"` instead stretches the same
+source non-uniformly to exactly fill the placement rect with no letterbox remainder; asserts
+`clip-path` still hard-clips an `image` element's own decoded content to the referenced
+`clipPath` shape, asserts `mask` still attenuates it by the referenced `mask` element's own
+luminance, and asserts `filter` still evaluates against it (a bare `feFlood` filter's own output
+fully replaces the decoded raster, exactly as it would for any other filtered element) - each
+proving `image` is integrated through the same effects pipeline every other renderable element
+uses, with no special-casing; asserts an `image` element's own cascaded `opacity` attenuates the
+final composited alpha exactly once, mirroring every other effects-capable element's identical
+semantics; and asserts a zero-width/zero-height placement rect, and an `image` element with
+neither `width` nor `height` present at all (both default to `0`, per this codec's documented
+"no auto-sizing from intrinsic raster dimensions" simplification), each tolerantly render nothing
+rather than throwing or dividing by zero.
+
+#### CanvasNet-Codecs-SvgCodec-ImageExternalHrefScope: `image` External-Href and Nested-SVG Scope Boundaries
+
+**Tests**: `SvgCodec_Load_ImageExternalFileHref_RendersNothingWithoutFileAccess`,
+`SvgCodec_Load_ImageNestedSvgDataUri_RendersNothingWithoutRecursion`,
+`SvgCodec_Load_ImageMalformedBase64_SkipsElementWithoutThrowing`,
+`SvgCodec_Load_ImageTruncatedPngData_SkipsElementWithoutThrowing`,
+`SvgCodec_Load_ImageInterlacedPngData_SkipsElementWithoutThrowing`
+
+Asserts an `image` element whose `href` is a relative file path (never a `data:` URI) renders
+nothing at all, and - since this codec never constructs a `File`/`FileStream` for anything but a
+`data:` URI's own in-memory payload - throws no exception even though the referenced path does
+not exist on disk, directly proving the external-href-as-no-op security decision (no
+base-path/resolver mechanism is introduced); asserts an `image` element whose `href` is a
+well-formed nested SVG document embedded as a `data:image/svg+xml;base64,...` URI likewise renders
+nothing, proving the nested-SVG-out-of-scope decision (this codec never attempts to re-parse it
+as a second document, mirroring the same recursive-parsing-complexity reasoning that already
+excludes `feImage`); asserts a malformed base64 payload (containing characters that are never
+valid base64) is a tolerant per-element no-op - `Load` completes normally and the rest of the
+document still renders - rather than an uncaught `FormatException` propagating out of `Load`;
+asserts a well-formed base64 payload encoding a truncated/corrupt PNG (valid base64, but an
+undecodable raster payload - a distinct failure path from malformed base64 itself) is likewise a
+tolerant per-element no-op; and asserts a well-formed base64 payload encoding PngSuite's own
+Adam7-interlaced fixture - a well-formed PNG that `PngCodec.Load` deliberately rejects with
+`UnsupportedImageFeatureException` rather than `InvalidDataException` - is likewise a
+tolerant per-element no-op, with sibling elements before and after the skipped `image` still
+rendering correctly, directly proving the well-formed-but-unsupported-raster-feature failure path
+is caught alongside the malformed-payload cases above rather than propagating out of `Load`.
+
+#### CanvasNet-Codecs-SvgCodec-ImageResourceSafety: Image Resource-Safety Bounds
+
+**Tests**: `SvgCodec_Load_ImageOversizedDeclaredDimensionsExceedingBudget_FallsBackToUnrenderedWithoutThrowing`
+
+Asserts the shared, cumulative `FilterWorkBudget` ceiling (the same budget class filter/
+clip-path/mask/`pattern` application already charges, reused rather than duplicated for image
+placement-region sizing) is genuinely exhausted, not merely approached, mirroring
+`CanvasNet-Codecs-SvgCodec-PatternResourceSafety`'s own identical cumulative-budget-exhaustion
+structure and deterministic, non-wall-clock-timing assertion style: four non-overlapping,
+equally-sized `image` placements (arranged in a 2x2 grid, each stretching the same tiny
+solid-color PNG across its own placement rect) each charge their own placement-region pixel-area
+cost (plus a negligible base64-length term) against the shared budget; the first three
+placements' cumulative charge stays within the ceiling, so each genuinely renders its decoded
+raster, while the fourth placement's charge would exceed the ceiling, so it tolerantly falls back
+to rendering nothing at all, verified via each placement's own exclusive assertion pixel
+(deterministic pixel assertions only - no wall-clock timing of any kind, per the anti-flaky-test
+finding from this codec's own filter-support formal review).
+
 #### CanvasNet-Codecs-SvgCodec-ValidationNull: Null Stream/Path Rejected
 
 **Tests**: `SvgCodec_Load_NullStream_ThrowsArgumentNullException`,
@@ -909,11 +1538,174 @@ asserts `Surface`'s own `ArgumentOutOfRangeException` propagates unwrapped (not 
 design decision that caller-supplied raster dimensions are ordinary API parameters rather than
 untrusted input.
 
+#### CanvasNet-Codecs-SvgCodec-CssStyleElementParsing: Style Element Parsing, Type Gating, and Multi-Element Merge
+
+**Tests**: `SvgCodec_Load_CssTypeSelector_AppliesToMatchingElementType`,
+`SvgCodec_Load_CssMultipleStyleElements_MergeIntoOneCascadeInDocumentOrder`,
+`SvgCodec_Load_CssStyleElementNonCssType_TreatedAsOpaqueAndSkipped`,
+`SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier`
+
+Loads a document with a single `style` element containing a type-selector rule and asserts the
+rule's declared fill applies to a matching `rect` with no other source of color. Separately,
+loads a document with two `style` elements each declaring an equal-specificity rule for the same
+property against the same element, and asserts the second (later, document-order) element's
+declaration wins - proving multiple `style` elements merge into a single cascade sharing one
+document-order source-order counter. Separately, loads a document whose single `style` element
+carries `type="text/plain"` and asserts its rule never applies at all (the element keeps its
+default fill), proving the `type` attribute gates parsing rather than being ignored. The
+fixture-integration test exercises `type`-absent style-element parsing end to end via a real file
+on disk alongside every other selector kind.
+
+#### CanvasNet-Codecs-SvgCodec-CssSelectorMatching: Type/Class/Id/Universal/Compound Selectors and Comma Lists
+
+**Tests**: `SvgCodec_Load_CssTypeSelector_AppliesToMatchingElementType`,
+`SvgCodec_Load_CssClassSelector_AppliesOnlyToMatchingClass`,
+`SvgCodec_Load_CssIdSelector_AppliesOnlyToMatchingId`,
+`SvgCodec_Load_CssUniversalSelector_AppliesToEveryElement`,
+`SvgCodec_Load_CssCompoundSelector_RequiresEveryConditionToMatch`,
+`SvgCodec_Load_CssCommaSeparatedSelectorList_AppliesToEverySelector`,
+`SvgCodec_Load_CssMultiClassAttribute_MatchesEachClassToken`,
+`SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier`
+
+For each selector kind, loads a document with a stylesheet rule using that selector kind and
+asserts it applies to a matching element and (where a natural negative case exists in the same
+document) does not apply to a non-matching one: a type selector against every `rect`; a class
+selector against only the classed rect, not an un-classed sibling; an id selector against only
+the identified rect, not an un-identified sibling; a universal selector against every element
+regardless of type; a compound selector (`rect.foo`) against only an element satisfying both its
+type and class condition, not a same-classed element of a different type; a comma-separated
+selector list applying its shared declaration to every listed selector; and a multi-class
+`class` attribute value (`class="a b c"`) matched by any one of its space-separated tokens. The
+fixture-integration test exercises every selector kind together, end to end, via a real file on
+disk.
+
+#### CanvasNet-Codecs-SvgCodec-CssCombinators: Descendant/Child Combinators and Sibling-Combinator Scope-Out
+
+**Tests**: `SvgCodec_Load_CssDescendantCombinator_MatchesNestedElementOnly`,
+`SvgCodec_Load_CssChildCombinator_MatchesDirectChildOnly`,
+`SvgCodec_Load_CssDescendantCombinator_BacktracksToFartherMatchingAncestor`,
+`SvgCodec_Load_CssChildCombinator_StillDoesNotBacktrackPastImmediateParent`,
+`SvgCodec_Load_CssSiblingCombinator_DropsOnlyThatSelectorFromList`,
+`SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier`
+
+Loads a document with a descendant-combinator rule (`g rect`) and asserts it matches a `rect`
+nested inside a `g` at any depth, but not a sibling `rect` that is not nested inside that `g` at
+all. Loads a document with a child-combinator rule (`#id > .class`) and asserts it matches only
+an element that is a *direct* child of the identified ancestor, not one nested one level further
+(whose immediate parent is a different element), proving the child combinator is stricter than
+the descendant combinator rather than a synonym for it. A further pair of tests proves the
+descendant combinator's matching actually backtracks rather than committing to only the nearest
+matching ancestor: `g > .a .target` is asserted to match an element whose *nearest* `.a` ancestor
+is not itself a direct child of any `g` (so a non-backtracking match would incorrectly reject the
+whole selector) but whose *farther* `.a` ancestor is a direct child of a `g` - the descendant
+combinator must retry every matching ancestor for the remaining, further-left chain, not merely
+the first one found; a companion test confirms the `Child` combinator, by contrast, still does
+not and must not backtrack past a failed immediate-parent match (a farther ancestor satisfying
+the compound selector is not a valid substitute for `>`'s own exact-parent requirement), so this
+fix changes only `Descendant`-combinator semantics. Loads a document whose stylesheet
+contains a comma-separated list with one sibling-combinator selector (`rect + circle`) alongside
+one plain, supported selector (`rect`) in the same rule, and asserts the plain selector's
+declaration still applies - proving only the unsupported sibling-combinator selector is dropped
+from its list, not the whole rule.
+
+#### CanvasNet-Codecs-SvgCodec-CssSpecificityCascade: Specificity Ordering and Document-Order Tiebreak
+
+**Tests**: `SvgCodec_Load_CssSpecificity_HigherSpecificityWinsEvenIfEarlierInStylesheet`,
+`SvgCodec_Load_CssCascadeTiebreak_EqualSpecificityLaterRuleWins`,
+`SvgCodec_Load_CssMultipleStyleElements_MergeIntoOneCascadeInDocumentOrder`,
+`SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier`
+
+Loads a document whose stylesheet declares a higher-specificity id-selector rule *before* a
+lower-specificity class-selector rule targeting the same element/property, and asserts the id
+rule's declaration wins - proving specificity is compared before document order, not simply
+"last rule wins" regardless of specificity. Separately, loads a document with two
+equal-specificity type-selector rules for the same property, and asserts the later (in document
+order) rule's declaration wins, confirming the document-order tie-break applies only once
+specificity is already equal.
+
+#### CanvasNet-Codecs-SvgCodec-CssThreeTierPrecedence: Presentation Attribute, Stylesheet, and Inline Style Tiers
+
+**Tests**: `SvgCodec_Load_CssPrecedenceTier1_PresentationAttributeOnlyStillApplies`,
+`SvgCodec_Load_CssPrecedenceTier2_StylesheetOverridesPresentationAttribute`,
+`SvgCodec_Load_CssPrecedenceTier3_InlineStyleOverridesStylesheet`,
+`SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier`,
+`CanvasNet_SystemIntegration_SvgLoadWithCssStyleElement_ReturnsExpectedPixel`
+
+Verifies each precedence tier individually and in combination. With no stylesheet and no inline
+`style` attribute at all, a plain presentation attribute applies exactly as it did before this
+feature existed (tier 1 in isolation). With a matching stylesheet rule and a conflicting plain
+presentation attribute on the same element, the stylesheet rule's declaration wins (tier 2 over
+tier 1). With a matching stylesheet id-selector rule (the highest selector specificity) and a
+conflicting inline `style="..."` declaration on the same element, the inline declaration wins
+regardless of the stylesheet rule's own specificity (tier 3 over tier 2, unconditionally). The
+system-integration test proves the same tier-2-over-tier-1 resolution end to end through the
+public `SvgCodec.Load` API as part of the whole rendering pipeline, and the fixture-integration
+test exercises all 3 tiers together via a real file on disk.
+
+#### CanvasNet-Codecs-SvgCodec-CssResourceSafety: Malformed-Rule Tolerance and Bounded Resource Use
+
+**Tests**: `SvgCodec_Load_CssMalformedRule_SkipsOnlyThatRuleAndStillLoads`,
+`SvgCodec_Load_CssMalformedDeclaration_SkipsOnlyThatDeclaration`,
+`SvgCodec_Load_CssSiblingCombinator_DropsOnlyThatSelectorFromList`
+
+Loads a document whose stylesheet contains one syntactically malformed rule (an unterminated
+declaration body missing its closing brace) immediately followed by a well-formed rule, and
+asserts `Load` does not throw and the document still renders - proving the malformed rule is
+skipped and parsing resynchronizes rather than aborting the whole stylesheet or document.
+Separately, loads a document whose single rule body contains one malformed individual
+declaration (missing its `:` separator) alongside one well-formed declaration, and asserts the
+well-formed declaration's value still applies - proving a malformed declaration is skipped
+without discarding the rest of that same rule's other declarations. The resource-bounding
+constants themselves (`MaxCssRules`, `MaxCssSelectorsPerRule`,
+`MaxCssCombinatorSegmentsPerSelector`, `MaxCssDeclarationsPerRule`, and the cumulative
+`CssMatchWorkBudget` ceiling) are exercised only indirectly by every CSS test above staying well
+within them - consistent with this codec's existing `GeometryWorkBudget`/`FilterWorkBudget`
+precedent, where the budget ceilings themselves are sized generously enough that no realistic
+test fixture is expected to approach them, and are documented via XML-doc rationale at their
+declaration site rather than a dedicated ceiling-triggering regression test.
+
 ### Additional Regression Test Scenarios (Unlinked)
 
 The tests below are defensive/regression tests added for a bug fix, not new observable features;
 per `requirements-principles.md`, tests may exist without a linked requirement, so these entries
 deliberately do not use the `CanvasNet-Codecs-SvgCodec-{Id}:` heading pattern above.
+
+#### CSS Cascade Now Covers Element-Level and Gradient-Stop Properties
+
+**Tests**: `SvgCodec_Load_CssStylesheetRuleSetsFilter_AppliesToElementWithNoFilterAttribute`,
+`SvgCodec_Load_CssStylesheetRuleSetsClipPath_AppliesToElementWithNoClipPathAttribute`,
+`SvgCodec_Load_CssStylesheetRuleSetsMask_AppliesToElementWithNoMaskAttribute`,
+`SvgCodec_Load_CssStylesheetRuleSetsClipRule_AppliesToChildWithNoClipRuleAttribute`,
+`SvgCodec_Load_CssStylesheetRuleSetsStopColorAndOpacity_AppliesToStopWithNoAttributes`
+
+`ApplyPresentationAttributes` was, before this fix, the *only* place this codec routed a
+presentation property through the three-tier `ResolveStyledValue` precedence chain (see *Three-
+Tier Precedence* in the design doc); six properties resolved elsewhere in the codebase - `filter`,
+`clip-path`, and `mask` (each resolved once, directly from a plain `XElement.Attribute(...)` read,
+at the point a shape/`text`/`g`/`symbol`/`use` element's own filter/clip/mask reference is
+resolved), a `clipPath` child's own `clip-rule` (read the same direct way inside the `clipPath`
+rasterization walk), and a gradient `stop`'s own `stop-color`/`stop-opacity` (read the same direct
+way while building a gradient's color stops) - bypassed the cascade entirely, so a stylesheet rule
+targeting any of these six had no observable effect. Each of the five tests above loads a document
+whose `<style>` rule targets a class carrying no corresponding plain XML attribute for the
+property under test, and asserts the stylesheet-only value is nonetheless applied to the rendered
+output (a `filter="url(#blurFilter)"`-equivalent Gaussian blur softens hard edges, a
+`clip-path`-equivalent hard-clips content to a shape, a `mask`-equivalent attenuates alpha by a
+luminance mask, a `clip-rule="evenodd"`-equivalent produces a figure-eight's true center hole, and
+a `stop-color`/`stop-opacity` pair renders the gradient's resolved color exactly) - each would
+render as if the stylesheet rule were entirely absent without this fix. All six call sites now
+resolve their property through a new, shared `ResolveElementProperty(element, property, context)`
+helper (`SvgCodec.Css.Cascade.cs`) that applies the exact same `BuildElementContext`/
+`ResolveStyledValue` three-tier precedence `ApplyPresentationAttributes` already used, falling
+back to the plain XML attribute only when neither a stylesheet rule nor an inline `style`
+declaration supplies the property - so a document with no `style` element and no inline `style`
+attributes anywhere continues to behave exactly as before. Because `filter`/`clip-path`/`mask`/
+`clip-rule`/`stop-color`/`stop-opacity` are element-level (not `RenderState`-inherited) properties,
+each call site's own element may not otherwise have been visited by `ApplyPresentationAttributes`
+in the same recursive walk step; `RenderContext.StyleContextCache` caches each element's resolved
+`CssElementStyleContext` so a given element's `CssMatchWorkBudget` charge is still incurred at
+most once, no matter how many of these properties (or `ApplyPresentationAttributes` itself) are
+later resolved for that same element.
 
 #### Bounded GetInfo Header-Only Parsing
 
