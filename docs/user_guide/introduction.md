@@ -904,7 +904,12 @@ presentation attribute, attenuating alpha by the referenced content's own comput
 honoring `maskUnits`/`x`/`y`/`width`/`height` and `maskContentUnits` as independent attributes) -
 `clip-path`/`mask` apply to the same per-shape/per-group targets `filter` does, and, when
 combined with `filter` on the same element, are applied before that element's own filter chain
-runs - and best-effort,
+runs - `pattern` elements (referenced from a shape/text element's own `fill`/`stroke` as a tiled
+paint server, honoring `patternUnits`/`patternContentUnits`, `patternTransform`, an optional
+`viewBox`/`preserveAspectRatio`, and `href`/`xlink:href` tile-content inheritance) - `image`
+elements (a base64-encoded `data:` URI in a supported raster format, decoded through that
+format's own existing codec and drawn into the element's own `x`/`y`/`width`/`height` placement
+rect) - and best-effort,
 weight/style-aware `text` rendering against a caller-supplied dictionary of per-family font faces:
 either a single `TrueTypeFont` per family (the legacy shape), or a list of `SvgFontFace` values -
 each pairing a `TrueTypeFont` with the `font-weight`/`font-style` it represents - letting a caller
@@ -926,8 +931,8 @@ type/class/id/universal/compound selectors (including comma-separated lists and
 descendant/child combinators) against elements, with standard CSS specificity/cascade-order
 resolution and a 3-tier precedence (presentation attribute, then any matching stylesheet rule,
 then an inline `style="..."` attribute, which always wins). Well-formed but
-out-of-scope constructs (`animate`/SMIL, `image`,
-`foreignObject`, `pattern`, nested `svg`, and any remaining unrecognized filter primitive type)
+out-of-scope constructs (`animate`/SMIL,
+`foreignObject`, nested `svg`, and any remaining unrecognized filter primitive type)
 are silently skipped/passed through so the rest of the document still
 renders; malformed/unparseable input throws `InvalidDataException`.
 

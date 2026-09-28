@@ -61,8 +61,11 @@ nor cacheable) - see *ViewBox Fitting Policy* below
 - `filter`, referenced from any renderable shape or `text` element, or from a `g`/`symbol`
   reference/`use` element (applied to the whole referenced subtree as a single unit), via the
   `filter` presentation attribute (`url(#id)`), with `x`/`y`/`width`/`height` filter-region
-  attributes (objectBoundingBox units) and `feFlood`, `feGaussianBlur`, `feOffset`,
-  `feComposite`, and `feMerge` primitive children
+  attributes (objectBoundingBox units) and `feBlend`, `feColorMatrix` (all types),
+  `feComponentTransfer`, `feComposite`, `feConvolveMatrix`, `feDiffuseLighting`,
+  `feDisplacementMap`, `feDropShadow`, `feFlood`, `feGaussianBlur`, `feImage`, `feMerge`,
+  `feMorphology`, `feOffset`, `feSpecularLighting`, `feTile`, and `feTurbulence` primitive
+  children
 - `clipPath`, referenced from any renderable shape/text/`g`/`symbol`/`use` element via the
   `clip-path` presentation attribute (`url(#id)`), hard-clipping that element's own content to
   the union of the `clipPath` element's own direct `rect`/`circle`/`ellipse`/`polyline`/
