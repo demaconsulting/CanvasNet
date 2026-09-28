@@ -1620,8 +1620,8 @@ public static partial class SvgCodec
     ///     follows this fixed precedence: <c>"SourceGraphic"</c>; <c>"SourceAlpha"</c>; an
     ///     earlier named <c>result</c>; the immediately preceding primitive; and, for any other
     ///     dangling/unrecognized name, tolerant fallback to <paramref name="sourceGraphic"/>.
-    ///     Unsupported primitives remain tolerant no-op pass-through operations of their own resolved
-    ///     <c>in</c> input - notably <c>feBlend</c>.
+    ///     Any primitive name this codec does not recognize remains a tolerant no-op pass-through
+    ///     operation of its own resolved <c>in</c> input.
     /// </remarks>
     private static Surface EvaluateFilterChain(
         XElement filterElement,
@@ -1707,6 +1707,12 @@ public static partial class SvgCodec
                     var input2 = ResolveInput((string?)primitive.Attribute("in2"), out var input2Subregion);
                     output = ApplyFeComposite(primitive, input, input2);
                     outputSubregion = UnionPrimitiveSubregions(inputSubregion, input2Subregion);
+                    break;
+
+                case "feBlend":
+                    var blendInput2 = ResolveInput((string?)primitive.Attribute("in2"), out var blendInput2Subregion);
+                    output = ApplyFeBlend(primitive, input, blendInput2);
+                    outputSubregion = UnionPrimitiveSubregions(inputSubregion, blendInput2Subregion);
                     break;
 
                 case "feMerge":
@@ -2101,9 +2107,10 @@ public static partial class SvgCodec
     ///     Evaluates a <c>feComposite</c> primitive: <c>operator="over"</c> (the default, if
     ///     absent) reuses <see cref="Surface.CompositeOver(Surface)"/> directly (its formula
     ///     already <i>is</i> Porter-Duff "over"); <c>in</c>/<c>out</c>/<c>atop</c>/<c>xor</c> use
-    ///     the dedicated <see cref="CompositeFeOperator"/> per-pixel helper; any other/unrecognized
-    ///     operator value (for example <c>"arithmetic"</c>, seen in real-world documents) is a
-    ///     tolerant no-op passthrough of <paramref name="input"/>, ignoring <paramref name="input2"/>.
+    ///     the dedicated <see cref="CompositeFeOperator"/> per-pixel helper; <c>arithmetic</c> uses
+    ///     the dedicated <see cref="ApplyFeCompositeArithmetic"/> per-pixel helper; any other
+    ///     unrecognized operator value is a tolerant no-op passthrough of <paramref name="input"/>,
+    ///     ignoring <paramref name="input2"/>.
     /// </summary>
     /// <param name="element">The <c>feComposite</c> primitive element.</param>
     /// <param name="input">The already-resolved <c>in</c> input buffer.</param>
@@ -2133,11 +2140,91 @@ public static partial class SvgCodec
             case "xor":
                 return CompositeFeOperator(input, input2, FeCompositeOperator.Xor);
 
+            case "arithmetic":
+                return ApplyFeCompositeArithmetic(element, input, input2);
+
             default:
-                // An unrecognized operator value (e.g. "arithmetic") is a tolerant no-op
-                // passthrough of the "in" input, ignoring in2/k1..k4
+                // A genuinely unrecognized operator value is a tolerant no-op passthrough of the
+                // "in" input, ignoring in2/k1..k4
                 return input.Crop(0, 0, input.Width, input.Height);
         }
+    }
+
+    /// <summary>
+    ///     Evaluates a <c>feComposite operator="arithmetic"</c> primitive:
+    ///     <c>result = k1&#215;i1&#215;i2 + k2&#215;i1 + k3&#215;i2 + k4</c>, applied identically to
+    ///     each of R/G/B/A, clamped to <c>[0, 1]</c>.
+    /// </summary>
+    /// <param name="element">The <c>feComposite</c> primitive element (supplies <c>k1</c>..<c>k4</c>).</param>
+    /// <param name="input">The already-resolved <c>in</c> input buffer ("i1" above).</param>
+    /// <param name="input2">The already-resolved <c>in2</c> input buffer ("i2" above).</param>
+    /// <returns>A new, independent output buffer.</returns>
+    /// <remarks>
+    ///     Unlike <see cref="CompositeFeOperator"/>'s other four operators, the SVG/Filter Effects
+    ///     specification defines <c>arithmetic</c> directly on <b>premultiplied</b> channel values
+    ///     (including alpha, using the identical formula with <c>i1</c>/<c>i2</c> replaced by each
+    ///     input's own alpha) - so each input is converted to premultiplied form inline (mirroring
+    ///     <see cref="CompositeFeOperator"/>'s own inline premultiply pattern, not
+    ///     <see cref="Surface.PremultiplyAlpha"/>), the formula is evaluated once per channel plus
+    ///     once for alpha, every one of the four results is clamped to <c>[0, 1]</c>, and the
+    ///     premultiplied color is divided back down by the clamped output alpha (or set to <c>0</c>
+    ///     when that alpha is <c>0</c>) to derive the straight color this codec stores.
+    /// </remarks>
+    private static Surface ApplyFeCompositeArithmetic(XElement element, Surface input, Surface input2)
+    {
+        var k1 = ParsePercentOrNumber((string?)element.Attribute("k1") ?? string.Empty, 1f) ?? 0f;
+        var k2 = ParsePercentOrNumber((string?)element.Attribute("k2") ?? string.Empty, 1f) ?? 0f;
+        var k3 = ParsePercentOrNumber((string?)element.Attribute("k3") ?? string.Empty, 1f) ?? 0f;
+        var k4 = ParsePercentOrNumber((string?)element.Attribute("k4") ?? string.Empty, 1f) ?? 0f;
+
+        var width = input.Width;
+        var height = input.Height;
+        var output = new Surface(width, height);
+
+        for (var y = 0; y < height; y++)
+        {
+            var row1 = input.GetRowSpan(y);
+            var row2 = input2.GetRowSpan(y);
+            var outputRow = output.GetRowSpan(y);
+
+            for (var x = 0; x < width; x++)
+            {
+                var p1 = row1[x];
+                var p2 = row2[x];
+
+                var a1 = p1.A / 255f;
+                var a2 = p2.A / 255f;
+
+                var outA = Math.Clamp((k1 * a1 * a2) + (k2 * a1) + (k3 * a2) + k4, 0f, 1f);
+
+                byte outR, outG, outB;
+                if (outA <= 0f)
+                {
+                    outR = outG = outB = 0;
+                }
+                else
+                {
+                    var pr1 = (p1.R / 255f) * a1;
+                    var pg1 = (p1.G / 255f) * a1;
+                    var pb1 = (p1.B / 255f) * a1;
+                    var pr2 = (p2.R / 255f) * a2;
+                    var pg2 = (p2.G / 255f) * a2;
+                    var pb2 = (p2.B / 255f) * a2;
+
+                    var outPr = Math.Clamp((k1 * pr1 * pr2) + (k2 * pr1) + (k3 * pr2) + k4, 0f, 1f);
+                    var outPg = Math.Clamp((k1 * pg1 * pg2) + (k2 * pg1) + (k3 * pg2) + k4, 0f, 1f);
+                    var outPb = Math.Clamp((k1 * pb1 * pb2) + (k2 * pb1) + (k3 * pb2) + k4, 0f, 1f);
+
+                    outR = ToByte((outPr / outA) * 255f);
+                    outG = ToByte((outPg / outA) * 255f);
+                    outB = ToByte((outPb / outA) * 255f);
+                }
+
+                outputRow[x] = new Rgba32(outR, outG, outB, ToByte(outA * 255f));
+            }
+        }
+
+        return output;
     }
 
     /// <summary>

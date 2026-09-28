@@ -111,9 +111,9 @@ scope. Within the supported `filter` feature itself, `filterUnits="userSpaceOnUs
 the same objectBoundingBox-relative region computation as the default, rather than being
 interpreted as literal absolute user-space coordinates), a `filter` on a shape's own `marker`
 content (has no effect - `marker` content is never recursed into by the ordinary element walk, so
-a group-level filter on a `<g>` inside a `marker` is never reached), and the remaining
-unsupported primitive type (`feBlend`) is explicitly out of scope. Encountering that remaining
-unsupported primitive type tolerantly passes through its resolved input rather than rejecting or
+a group-level filter on a `<g>` inside a `marker` is never reached) are explicitly out of
+scope. Encountering a genuinely unrecognized `fe*` primitive name (any type this codec does not
+recognize by name) tolerantly passes through its resolved input rather than rejecting or
 skipping the whole filter. `feImage` is now supported in both its raster-href and
 element-reference forms; because the element-reference form can recurse back into the ordinary
 element walk, filter evaluation now reuses the existing `MaxUseDepth` guard that already bounds
@@ -689,11 +689,21 @@ per-pixel-kernel blur), reading only the first (isotropic) component of `stdDevi
 clamping it to a fixed `MaxFilterBlurStdDeviationPixels` bound so a pathologically large
 requested radius cannot translate into unbounded per-pixel work. `feOffset` shifts a buffer's
 content by `dx`/`dy` (scaled by the element's own transform). `feComposite` implements Porter-Duff
-`over` by delegating to `Surface.CompositeOver`, and implements `in`/`out`/`atop`/`xor` via one
-small, dedicated per-pixel premultiplied-alpha helper - the only genuinely new blending math this
-feature introduces. `feMerge` layers each `feMergeNode` child's own resolved input over an
-initially transparent accumulator, in document order, via the same `CompositeOver`. Any other
-primitive type (`feBlend`) is a
+`over` by delegating to `Surface.CompositeOver`, implements `in`/`out`/`atop`/`xor` via one
+small, dedicated per-pixel premultiplied-alpha helper, and implements `arithmetic` via a second
+small per-pixel helper evaluating `result = k1*i1*i2 + k2*i1 + k3*i2 + k4` for each of R/G/B/A on
+premultiplied values (the one `feComposite` operator the spec itself defines on premultiplied
+rather than straight color), clamped to `[0, 1]` before being un-premultiplied for storage.
+`feMerge` layers each `feMergeNode` child's own resolved input over an
+initially transparent accumulator, in document order, via the same `CompositeOver`. `feBlend`
+evaluates one of fourteen CSS Compositing Level 1 blend modes - the eleven separable modes
+(`normal`, `multiply`, `screen`, `darken`, `lighten`, `color-dodge`, `color-burn`, `hard-light`,
+`soft-light`, `difference`, `exclusion`) per channel, and the four non-separable modes (`hue`,
+`saturation`, `color`, `luminosity`) via the spec's exact whole-triple `Lum`/`ClipColor`/
+`SetLum`/`Sat`/`SetSat` reference algorithm - then composites the blended `in` layer over `in2`
+using the standard simple-alpha ("source-over") formula, mirroring the same inline
+premultiply/un-premultiply pattern as the `arithmetic` operator above. Any other, genuinely
+unrecognized primitive name is a
 tolerant no-op passthrough of its own input, still registered under its own `result` name so
 later primitives can still resolve it by name. The
 final primitive's own output buffer is composited onto `context.Surface` at the region's own

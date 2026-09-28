@@ -280,6 +280,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Css.Parser.cs"  # phase 7 CSS styling partial
       - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Css.Selectors.cs"  # phase 7 CSS styling partial
       - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Css.Cascade.cs"  # phase 7 CSS styling partial
+      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.Blend.cs"  # phase 8 filter partial
       - "src/DemaConsulting.CanvasNet/Codecs/NamespaceDoc.cs"     # Codecs namespace documentation
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/SvgCodecTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/SvgFixtureTests.cs"  # fixture conformance tests

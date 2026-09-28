@@ -927,8 +927,8 @@ descendant/child combinators) against elements, with standard CSS specificity/ca
 resolution and a 3-tier precedence (presentation attribute, then any matching stylesheet rule,
 then an inline `style="..."` attribute, which always wins). Well-formed but
 out-of-scope constructs (`animate`/SMIL, `image`,
-`foreignObject`, `pattern`, nested `svg`, and every filter primitive other than
-the five listed above) are silently skipped/passed through so the rest of the document still
+`foreignObject`, `pattern`, nested `svg`, and any remaining unrecognized filter primitive type)
+are silently skipped/passed through so the rest of the document still
 renders; malformed/unparseable input throws `InvalidDataException`.
 
 #### SvgCodec Methods

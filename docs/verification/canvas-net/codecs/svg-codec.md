@@ -716,7 +716,11 @@ for `filter`'s own dedicated coverage - it is no longer an out-of-scope construc
 `SvgCodec_Load_FeCompositeOperatorXor_KeepsEachInputWhereTheOtherHasNoCoverage`,
 `SvgCodec_Load_FeCompositeOperatorXorWithHalfChannelValue_RoundsAwayFromZeroNotToEven`,
 `SvgCodec_Load_FilterOnStrokedHorizontalLine_UsesStrokeAwareBoundsNotDegenerate`,
-`SvgCodec_Load_OpacityWithFeFloodFilter_AppliesOpacityToFilteredResultNotSource`
+`SvgCodec_Load_OpacityWithFeFloodFilter_AppliesOpacityToFilteredResultNotSource`,
+`SvgCodec_Load_FeCompositeOperatorArithmetic_MatchesHandComputedFormula`,
+`SvgCodec_Load_FeCompositeOperatorArithmeticAlpha_MatchesFormulaNotHardcodedOrDropped`,
+`SvgCodec_Load_FeCompositeOperatorArithmeticOutOfRangeResult_ClampsToValidByteRange`,
+`SvgCodec_Load_FeCompositeArithmeticWithDiffuseLighting_TracksSourceAlphaSilhouette`
 
 Asserts a bare `feFlood` primitive's flood color entirely replaces the referencing element's own
 content, filling the (default, bounding-box-relative) filter region including the area behind the
@@ -726,8 +730,8 @@ outside the element's own bounds while the element's own fill remains visible on
 location; asserts a conventional `feFlood` → `feComposite(operator="out")` → `feGaussianBlur` →
 `feMerge` halo/glow recipe produces a genuinely softened (partially transparent, not hard-edged)
 flood color just outside the element's own edge - proving the blur actually ran - while the
-element's own fill remains fully opaque and unaffected at its center; asserts a filter primitive
-type this codec does not implement (`feColorMatrix`) is treated as a no-op passthrough of its own
+element's own fill remains fully opaque and unaffected at its center; asserts a genuinely
+unrecognized filter primitive name (`feBogusPrimitive`) is treated as a no-op passthrough of its own
 input rather than throwing or blanking the element's content; asserts the filter region's default
 computation expands the referencing element's own bounding box by exactly -10%/-10%/120%/120%,
 verified at pixels just inside and just outside each computed edge; asserts an explicit `filter`
@@ -740,10 +744,10 @@ the canvas. Two real fixture files corroborate this end to end:
 white halo behind a line's own midpoint label, previously invisible while `filter` was ignored),
 and the large, real, third-party `SvgFixtures/InkscapeFilters.svg` (see
 `CanvasNet-Codecs-SvgCodec-UnsupportedConstructsIgnored`'s predecessor coverage of this same
-fixture) proves this genuinely-evaluated filter-chain support, including its tolerant-passthrough
-handling of several unsupported primitives mixed into the same chains
-(`feSpecularLighting`/`feDiffuseLighting`/arithmetic-mode `feComposite`), holds at real-world scale
-and complexity, not only for small synthetic documents. `feComposite`'s `in`, `atop`, and `xor`
+fixture) proves this genuinely-evaluated filter-chain support, including its own
+`feSpecularLighting`/`feDiffuseLighting`/arithmetic-mode `feComposite` chains (all fully
+implemented and separately covered by their own dedicated requirements below), holds at real-world
+scale and complexity, not only for small synthetic documents. `feComposite`'s `in`, `atop`, and `xor`
 Porter-Duff operators (`over`/`out` were already covered above) are each additionally verified
 deterministically and synthetically, against two full-region, semi-transparent `feFlood` inputs
 that isolate the operator's own per-pixel formula from any shape-geometry/filter-region overlap
@@ -767,7 +771,29 @@ regression test for a defect where `opacity` was applied while painting the pre-
 `SourceGraphic` (so the filter chain, and the final compositing step, both then operated on
 already-attenuated content with no further opacity ever applied) instead of being applied exactly
 once, afterward, to the filter's own final output, per SVG's "opacity applies to the filtered
-result as a whole" semantics.
+result as a whole" semantics. `feComposite`'s `arithmetic` operator - the one Porter-Duff-family
+operator defined by the spec to operate on premultiplied color values rather than straight ones -
+is verified against its own `k1*i1*i2 + k2*i1 + k3*i2 + k4` formula (applied identically to color
+and alpha), computed by hand: a plain color-formula test with non-trivial `k1`/`k2`/`k3` values and
+fully-opaque inputs; a second test isolating the alpha channel specifically (using only `k1` and
+`k3`, both non-zero, against two different flood opacities) to prove alpha is computed via the same
+formula rather than being hardcoded to `1` or silently dropped; and a third test verifying results
+outside `[0,1]` are clamped rather than wrapping or throwing. A fourth, regression test reproduces
+the exact structural pattern of `InkscapeFilters.svg`'s `filter50` (`feGaussianBlur` →
+`feDiffuseLighting` - whose output alpha is always fully opaque per spec, regardless of its input's
+own alpha - → `feComposite operator="arithmetic"` combining the always-opaque lighting result with
+itself, then again with `SourceGraphic`) against a simple circle: prior to this operator being
+implemented, the previously-unimplemented `arithmetic` case fell through to a no-op passthrough of
+its first input, so the always-opaque `feDiffuseLighting` alpha propagated unchanged through the
+entire chain, producing an opaque rectangular blob covering the whole filter region regardless of
+the source shape's own silhouette; with `arithmetic` correctly implemented, the final composite's
+alpha algebraically reduces (for `filter50`'s own `k1`/`k3` values) to `min(2 * sourceAlpha, 1)`,
+so the test asserts a point outside the circle's geometry (but inside the oversized filter region)
+renders fully transparent, while a point well inside the circle renders fully opaque - proving the
+fix restores the source shape's own silhouette rather than a filter-region-shaped blob. This same
+fix is additionally corroborated end to end by `SvgCodec_Load_InkscapeFiltersFixture_...`'s own
+hand-recomputed pixel expectations, since `InkscapeFilters.svg`'s `filter48` also relies on this
+operator.
 
 #### CanvasNet-Codecs-SvgCodec-FilterResourceSafety: Filter Dangling Reference and Resource-Bound Tolerance
 
@@ -1127,6 +1153,36 @@ contribution is genuinely summed rather than the parameter being ignored; assert
 noise field spans a non-degenerate range of values across pixels rather than collapsing to a
 constant; and asserts `stitchTiles="stitch"` tolerantly falls back to `noStitch` behavior rather
 than throwing.
+
+#### CanvasNet-Codecs-SvgCodec-FeBlend: `feBlend` CSS Compositing Blend Modes
+
+**Tests**: `SvgCodec_Load_FeBlendSeparableMode_MatchesHandComputedFormula`,
+`SvgCodec_Load_FeBlendModeNormal_MatchesFeCompositeOperatorOver`,
+`SvgCodec_Load_FeBlendPartiallyTransparentSource_CompositesAlphaCorrectly`,
+`SvgCodec_Load_FeBlendModeLuminosity_MatchesSpecFormulaWithoutClipping`,
+`SvgCodec_Load_FeBlendModeLuminosity_ClipColorClampsOutOfRangeChannel`,
+`SvgCodec_Load_FeBlendModeUnrecognizedOrAbsent_BothFallBackToNormal`
+
+Asserts each of `feBlend`'s ten separable modes (`normal`, `multiply`, `screen`, `darken`,
+`lighten`, `color-dodge`, `color-burn`, `hard-light`, `soft-light`, `difference`, `exclusion`)
+produces the exact byte value the CSS Compositing Level 1 formula for that mode computes by hand
+against a fixed, partially-different backdrop/source gray pair, run as a single `[Theory]` covering
+all modes rather than one test per mode; asserts `mode="normal"` produces byte-identical output to
+the equivalent `feComposite operator="over"` composite, proving the "blend function returns the
+source color unchanged" special case for `normal` is wired correctly; asserts two differently,
+partially-transparent inputs (a semi-transparent source over a semi-transparent backdrop) composite
+via the CSS Compositing simple-alpha formula (`Co = Cs x (1 - ab / ar) + ...`, applied on straight,
+un-premultiplied colors, matching the specification precisely rather than any premultiplied
+shortcut) to the exact hand-computed color and alpha; and, for the four non-separable modes
+(`hue`, `saturation`, `color`, `luminosity`, which the spec requires be evaluated via the whole-RGB
+`Lum`/`ClipColor`/`SetLum`/`Sat`/`SetSat` reference algorithm rather than any per-channel
+approximation) asserts `luminosity` twice: once against a backdrop/source pair whose `SetLum`-shifted
+result already lies within `[0,1]` on every channel (no `ClipColor` correction needed), and once
+against a pair specifically chosen so the shifted result exceeds `1` on one channel, forcing
+`ClipColor`'s own rescale-toward-luminosity branch to execute, both verified against the spec's
+formula worked through step by step by hand; and asserts an absent `mode` attribute and an
+unrecognized `mode` value both fall back to `normal`, per the specification's own default and
+tolerant-unknown-value handling.
 
 #### CanvasNet-Codecs-SvgCodec-FilterPrimitiveResourceSafety: Primitive-Specific Filter Caps
 

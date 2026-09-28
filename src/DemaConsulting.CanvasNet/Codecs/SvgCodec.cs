@@ -76,7 +76,7 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     never for a <c>g</c>/<c>symbol</c> group, and never for a shape's own marker content),
 ///     referencing a <c>filter</c> element whose <c>fe*</c> primitive children
 ///     (<c>feFlood</c>, <c>feGaussianBlur</c>, <c>feOffset</c>, <c>feComposite</c> with
-///     <c>operator</c> <c>over</c>/<c>in</c>/<c>out</c>/<c>atop</c>/<c>xor</c>, and <c>feMerge</c>/
+///     <c>operator</c> <c>over</c>/<c>in</c>/<c>out</c>/<c>atop</c>/<c>xor</c>/<c>arithmetic</c>, and <c>feMerge</c>/
 ///     <c>feMergeNode</c>) are evaluated in document order against an offscreen buffer sized to
 ///     the filter region, with the <c>SourceGraphic</c> and <c>SourceAlpha</c> implicit inputs
 ///     supported; the filter region defaults to <c>objectBoundingBox</c>'s standard
@@ -129,7 +129,7 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     <c>feComposite</c>/<c>feMerge</c>/<c>feColorMatrix</c>/<c>feComponentTransfer</c>/
 ///     <c>feMorphology</c>/<c>feConvolveMatrix</c>/<c>feDisplacementMap</c>/<c>feTile</c>/
 ///     <c>feDropShadow</c>/<c>feImage</c>/<c>feDiffuseLighting</c>/<c>feSpecularLighting</c>/
-///     <c>feTurbulence</c> - notably <c>feBlend</c> - is a tolerant no-op passthrough of its own
+///     <c>feTurbulence</c>/<c>feBlend</c> is a tolerant no-op passthrough of its own
 ///     input rather than actually implemented. <c>feImage</c>'s element-reference form can
 ///     recurse back into the ordinary element walk, so filter evaluation reuses the existing
 ///     <c>MaxUseDepth</c> guard that already bounds <c>use</c>/marker reference depth, declining

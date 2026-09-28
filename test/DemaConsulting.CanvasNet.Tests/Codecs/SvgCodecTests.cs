@@ -2721,6 +2721,393 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves <c>feComposite operator="arithmetic"</c> evaluates the documented premultiplied
+    ///     formula <c>result = k1*i1*i2 + k2*i1 + k3*i2 + k4</c> - hand-computed against two
+    ///     fully-opaque flat-color <c>feFlood</c> inputs (<c>in</c> = 0.8 gray, <c>in2</c> = 0.2
+    ///     gray) so every term is an exact rational: color
+    ///     <c>0.5*0.8*0.2 + 0.25*0.8 + 0.25*0.2 + 0 = 0.33</c> (byte 84, rounding away-from-zero);
+    ///     alpha <c>0.5*1*1 + 0.25*1 + 0.25*1 + 0 = 1.0</c> (byte 255, both inputs fully opaque).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeCompositeOperatorArithmetic_MatchesHandComputedFormula()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(204,204,204)' result='fg'/>
+                  <feFlood flood-color='rgb(51,51,51)' result='bg'/>
+                  <feComposite in='fg' in2='bg' k1='0.5' k2='0.25' k3='0.25' k4='0' operator='arithmetic'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(84, 84, 84, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <c>feComposite operator="arithmetic"</c> computes its output alpha via the exact
+    ///     same formula as color - not hardcoded to <c>1</c>, not silently dropped - using
+    ///     <c>filter50</c>'s own real-world <c>k1=1, k3=1</c> shape against two inputs with
+    ///     different partial alphas (<c>0.5</c>/<c>0.25</c> opacity, i.e. bytes 128/64) and a flat
+    ///     white color in both: <c>outAlpha = a1*a2 + a2 = a2*(a1 + 1) = (64/255)*(383/255) &#8776;
+    ///     0.376956</c> (byte 96); since both inputs are pure white, the premultiplied color
+    ///     formula collapses to the identical value, so the un-premultiplied output color remains
+    ///     white (255) while only alpha changes.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeCompositeOperatorArithmeticAlpha_MatchesFormulaNotHardcodedOrDropped()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='#ffffff' flood-opacity='0.5' result='fg'/>
+                  <feFlood flood-color='#ffffff' flood-opacity='0.25' result='bg'/>
+                  <feComposite in='fg' in2='bg' k1='1' k3='1' operator='arithmetic'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 255, 255, 96), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <c>feComposite operator="arithmetic"</c> clamps its raw (unclamped) per-channel
+    ///     result to <c>[0, 1]</c> rather than overflowing/wrapping: a white-over-black composite
+    ///     with <c>k2=2</c> raises both color and alpha to a raw <c>2.0</c> (clamped to byte 255),
+    ///     and a second filter with only <c>k4=-1</c> drives both to a raw <c>-1.0</c> (clamped to
+    ///     byte 0, with color forced to black per the zero-alpha convention).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeCompositeOperatorArithmeticOutOfRangeResult_ClampsToValidByteRange()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='high' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='#ffffff' result='fg'/>
+                  <feFlood flood-color='#000000' result='bg'/>
+                  <feComposite in='fg' in2='bg' k2='2' operator='arithmetic'/>
+                </filter>
+                <filter id='low' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='#ffffff' result='fg'/>
+                  <feFlood flood-color='#000000' result='bg'/>
+                  <feComposite in='fg' in2='bg' k4='-1' operator='arithmetic'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='5' height='10' fill='green' filter='url(#high)'/>
+              <rect x='5' y='0' width='5' height='10' fill='green' filter='url(#low)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the raw overflowing (>1) result clamps up to fully opaque white
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[2, 5]);
+
+        // Assert: the raw underflow (<0) result clamps down to fully transparent black
+        Assert.Equal(new Rgba32(0, 0, 0, 0), surface[7, 5]);
+    }
+
+    /// <summary>
+    ///     Regression test for the <c>filter50</c> alpha-silhouette bug: a <c>feGaussianBlur</c>
+    ///     &#8594; <c>feDiffuseLighting</c> &#8594; two <c>feComposite operator="arithmetic"</c>
+    ///     chain (identical primitive shape/attributes to the real-world <c>InkscapeFilters.svg</c>
+    ///     <c>filter50</c>) previously produced a solid, always-opaque rectangular blob filling the
+    ///     whole filter region, because <c>arithmetic</c> was entirely unimplemented and silently
+    ///     passed <c>feDiffuseLighting</c>'s own always-opaque output straight through. With the
+    ///     real formula, the final composite's alpha is <c>k1*a1*a2 + k3*a2 = 2*a2</c> (since the
+    ///     first composite, <c>diffuse</c> arithmetic-squared against itself, stays opaque
+    ///     everywhere): a point far outside the lit circle's own geometry (but inside the generous
+    ///     filter region) has <c>a2 = 0</c>, so the whole pixel resolves to fully transparent
+    ///     black; a point deep inside the circle has <c>a2 = 1</c>, and since
+    ///     <c>feDiffuseLighting</c>'s own lighting contribution is always non-negative, the second
+    ///     composite's <c>k3*p2</c> term alone (the circle's own opaque white fill) already reaches
+    ///     <c>1</c>, so the summed premultiplied color clamps to fully opaque white regardless of
+    ///     the exact lighting value - both expected pixels are therefore exactly, deterministically
+    ///     computable without needing the lighting formula's own numeric output.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeCompositeArithmeticWithDiffuseLighting_TracksSourceAlphaSilhouette()
+    {
+        // Arrange: a white circle, filtered by filter50's own literal primitive chain, with a
+        // deliberately oversized filter region so a point far outside the circle is still sampled
+        // inside the filter region rather than being clipped away entirely
+        const string svg = """
+            <svg viewBox='0 0 200 200'>
+              <defs>
+                <filter id='f' x='-200%' y='-200%' width='500%' height='500%'>
+                  <feGaussianBlur in='SourceGraphic' result='blur' stdDeviation='6'/>
+                  <feDiffuseLighting lighting-color='#ffffff' result='diffuse' surfaceScale='10'>
+                    <feDistantLight azimuth='235' elevation='25'/>
+                  </feDiffuseLighting>
+                  <feComposite in='diffuse' in2='diffuse' k1='1' operator='arithmetic' result='composite1'/>
+                  <feComposite in='composite1' in2='SourceGraphic' k1='1' k3='1' operator='arithmetic'/>
+                </filter>
+              </defs>
+              <circle cx='100' cy='100' r='20' fill='white' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 200, 200);
+
+        // Assert: far outside the circle's own geometry (70px from its edge, well past the blur's
+        // limited influence radius) the result is fully transparent, following the source
+        // silhouette rather than the old bug's solid opaque blob
+        Assert.Equal(new Rgba32(0, 0, 0, 0), surface[100, 10]);
+
+        // Assert: deep inside the circle, the result is fully opaque and lit bright white
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[100, 100]);
+    }
+
+    /// <summary>
+    ///     Proves <c>feBlend</c>'s eleven separable blend modes (including the default
+    ///     <c>normal</c>) each evaluate the exact CSS Compositing Level 1 per-channel <c>B(Cb,
+    ///     Cs)</c> formula, using two fully-opaque flat-color <c>feFlood</c> inputs
+    ///     (<c>in2</c>/backdrop = 0.4 gray = byte 102, <c>in</c>/source = 0.2 gray = byte 51) whose
+    ///     shared value across R/G/B makes every formula hand-computable to an exact byte with no
+    ///     rounding ambiguity. Both inputs are fully opaque, so the CSS Compositing simple-alpha
+    ///     composite collapses to exactly the blend function's own result with alpha <c>255</c>.
+    /// </summary>
+    [Theory]
+    [InlineData("normal", 51)] // B(Cb, Cs) = Cs = 0.2 -> 51
+    [InlineData("multiply", 20)] // Cb*Cs = 0.4*0.2 = 0.08 -> 20.4 -> 20
+    [InlineData("screen", 133)] // Cb+Cs-Cb*Cs = 0.4+0.2-0.08 = 0.52 -> 132.6 -> 133
+    [InlineData("darken", 51)] // min(Cb, Cs) = 0.2 -> 51
+    [InlineData("lighten", 102)] // max(Cb, Cs) = 0.4 -> 102
+    [InlineData("color-dodge", 128)] // min(1, Cb/(1-Cs)) = min(1, 0.4/0.8) = 0.5 -> 127.5 -> 128
+    [InlineData("color-burn", 0)] // 1-min(1, (1-Cb)/Cs) = 1-min(1, 0.6/0.2) = 1-1 = 0 -> 0
+    [InlineData("hard-light", 41)] // Cs<=0.5: multiply(Cb, 2*Cs) = multiply(0.4, 0.4) = 0.16 -> 41
+    [InlineData("soft-light", 65)] // Cs<=0.5: Cb-(1-2Cs)*Cb*(1-Cb) = 0.4-0.6*0.4*0.6 = 0.256 -> 65
+    [InlineData("difference", 51)] // |Cb-Cs| = |0.4-0.2| = 0.2 -> 51
+    [InlineData("exclusion", 112)] // Cb+Cs-2*Cb*Cs = 0.6-0.16 = 0.44 -> 112.2 -> 112
+    public void SvgCodec_Load_FeBlendSeparableMode_MatchesHandComputedFormula(string mode, byte expected)
+    {
+        // Arrange
+        var svg = $$"""
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(102,102,102)' result='bg'/>
+                  <feFlood flood-color='rgb(51,51,51)' result='fg'/>
+                  <feBlend in='fg' in2='bg' mode='{{mode}}'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(expected, expected, expected, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <c>feBlend mode="normal"</c> (the default) produces byte-identical output to
+    ///     <c>feComposite operator="over"</c> for the same two fully-opaque inputs - both reduce
+    ///     to the same "source replaces backdrop" semantics (<c>B(Cb, Cs) = Cs</c>, then simple
+    ///     alpha compositing with an opaque source is source-over).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeBlendModeNormal_MatchesFeCompositeOperatorOver()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='blend' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(102,102,102)' result='bg'/>
+                  <feFlood flood-color='rgb(51,51,51)' result='fg'/>
+                  <feBlend in='fg' in2='bg' mode='normal'/>
+                </filter>
+                <filter id='over' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(102,102,102)' result='bg'/>
+                  <feFlood flood-color='rgb(51,51,51)' result='fg'/>
+                  <feComposite in='fg' in2='bg' operator='over'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='5' height='10' fill='green' filter='url(#blend)'/>
+              <rect x='5' y='0' width='5' height='10' fill='green' filter='url(#over)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(surface[7, 5], surface[2, 5]);
+        Assert.Equal(new Rgba32(51, 51, 51, 255), surface[2, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <c>feBlend</c>'s CSS Compositing simple-alpha compositing formula
+    ///     (<c>&#945;o = &#945;s + &#945;b*(1-&#945;s)</c>, premultiplied color composited then
+    ///     un-premultiplied) is exact for partially-transparent inputs, using <c>mode="normal"</c>
+    ///     to isolate the alpha/compositing math from the per-mode blend function (which collapses
+    ///     to <c>B(Cb, Cs) = Cs</c>): source <c>Cs=0.6</c> (byte 153) at 40% opacity (byte 102, i.e.
+    ///     <c>&#945;s=0.4</c>), backdrop <c>Cb=0.2</c> (byte 51) at 80% opacity (byte 204, i.e.
+    ///     <c>&#945;b=0.8</c>). Hand-computed: <c>&#945;o=0.4+0.8*0.6=0.88</c> (byte 224);
+    ///     <c>Co=(0.4*0.6+0.6*0.8*0.2)/0.88=0.336/0.88&#8776;0.3818</c> (byte 97).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeBlendPartiallyTransparentSource_CompositesAlphaCorrectly()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(51,51,51)' flood-opacity='0.8' result='bg'/>
+                  <feFlood flood-color='rgb(153,153,153)' flood-opacity='0.4' result='fg'/>
+                  <feBlend in='fg' in2='bg' mode='normal'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(97, 97, 97, 224), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <c>feBlend mode="luminosity"</c> (a non-separable mode) implements the spec's
+    ///     exact whole-RGB-triple reference algorithm, not a per-channel approximation, for a case
+    ///     that does <b>not</b> trigger <c>ClipColor</c>'s own clamping branch: backdrop is a
+    ///     uniform 0.4 gray (<c>Lum=0.4</c>, since the CSS Compositing luma coefficients sum to 1),
+    ///     source is pure green (<c>Lum=0.59</c>). <c>SetLum</c> shifts every backdrop channel by
+    ///     <c>+0.19</c> to <c>(0.59, 0.59, 0.59)</c> - within <c>[0, 1]</c>, so no clipping applies
+    ///     - byte <c>150</c> (<c>0.59*255=150.45</c>).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeBlendModeLuminosity_MatchesSpecFormulaWithoutClipping()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(102,102,102)' result='bg'/>
+                  <feFlood flood-color='rgb(0,255,0)' result='fg'/>
+                  <feBlend in='fg' in2='bg' mode='luminosity'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(150, 150, 150, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <c>feBlend mode="luminosity"</c>'s full reference algorithm - specifically
+    ///     <c>ClipColor</c>'s own rescale-toward-luminance branch, not merely its non-clipping fast
+    ///     path - using pure blue backdrop (<c>Cb=(0,0,1)</c>, <c>Lum=0.11</c>) and pure yellow
+    ///     source (<c>Cs=(1,1,0)</c>, <c>Lum=0.89</c>). <c>SetLum</c> shifts every channel by
+    ///     <c>+0.78</c> to <c>(0.78, 0.78, 1.78)</c> - blue's channel overflows past <c>1</c>,
+    ///     triggering <c>ClipColor</c>'s high-side rescale: with <c>l=0.89</c>, <c>x=1.78</c>, the
+    ///     rescale factor is <c>(1-l)/(x-l) = 0.11/0.89 = 11/89</c>, giving
+    ///     <c>R=G=78/89&#8776;0.876404</c> (byte 223) and <c>B=1.0</c> exactly (byte 255).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeBlendModeLuminosity_ClipColorClampsOutOfRangeChannel()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='#0000ff' result='bg'/>
+                  <feFlood flood-color='#ffff00' result='fg'/>
+                  <feBlend in='fg' in2='bg' mode='luminosity'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert
+        Assert.Equal(new Rgba32(223, 223, 255, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves a <c>mode</c> value this codec does not recognize (a syntactically well-formed
+    ///     but non-spec blend mode name) falls back to <c>normal</c> semantics identically to
+    ///     <c>mode</c> being absent entirely - both are the spec's documented default fallback,
+    ///     not merely "absent defaults, unrecognized throws/no-ops".
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeBlendModeUnrecognizedOrAbsent_BothFallBackToNormal()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='absent' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(102,102,102)' result='bg'/>
+                  <feFlood flood-color='rgb(51,51,51)' result='fg'/>
+                  <feBlend in='fg' in2='bg'/>
+                </filter>
+                <filter id='bogus' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(102,102,102)' result='bg'/>
+                  <feFlood flood-color='rgb(51,51,51)' result='fg'/>
+                  <feBlend in='fg' in2='bg' mode='not-a-real-mode'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='5' height='10' fill='green' filter='url(#absent)'/>
+              <rect x='5' y='0' width='5' height='10' fill='green' filter='url(#bogus)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: both resolve to the same normal-mode result (B(Cb, Cs) = Cs = 0.2 -> byte 51)
+        Assert.Equal(surface[7, 5], surface[2, 5]);
+        Assert.Equal(new Rgba32(51, 51, 51, 255), surface[2, 5]);
+    }
+
+    /// <summary>
     ///     Proves that a <c>filter="url(#id)"</c> reference which does not resolve to any element
     ///     (a dangling reference) renders the element normally, exactly as if no <c>filter</c>
     ///     attribute had been present at all - matching the existing dangling-reference tolerance
@@ -2747,9 +3134,9 @@ public class SvgCodecTests
     }
 
     /// <summary>
-    ///     Proves that a filter primitive type this codec still does not implement (here
-    ///     <c>feBlend</c>) is treated as a no-op passthrough of its input, rather than
-    ///     throwing or being ignored at the filter level.
+    ///     Proves that a filter primitive name this codec does not recognize at all (a
+    ///     syntactically well-formed but non-existent element name) is treated as a no-op
+    ///     passthrough of its input, rather than throwing or being ignored at the filter level.
     /// </summary>
     [Fact]
     public void SvgCodec_Load_FilterUnsupportedPrimitive_PassesThroughSourceGraphicUnchanged()
@@ -2759,7 +3146,7 @@ public class SvgCodecTests
             <svg viewBox='0 0 100 100'>
               <defs>
                 <filter id='f'>
-                  <feBlend mode='multiply'/>
+                  <feBogusPrimitive/>
                 </filter>
               </defs>
               <rect x='40' y='40' width='20' height='20' fill='teal' filter='url(#f)'/>

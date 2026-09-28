@@ -958,10 +958,10 @@ sections:
               renderable shape or text element's filter presentation attribute, evaluating a
               bounded feFlood/feGaussianBlur/feOffset/feComposite/feMerge/feColorMatrix/
               feComponentTransfer/feMorphology/feConvolveMatrix/feDisplacementMap/feTile/
-              feDropShadow/feImage/feDiffuseLighting/feSpecularLighting/feTurbulence primitive
-              chain against that element's own content within a bounded-size temporary offscreen
-              surface, and shall tolerate a dangling filter reference, a still-unsupported
-              primitive type, and pathological filter-region, convolution-order,
+              feDropShadow/feImage/feDiffuseLighting/feSpecularLighting/feTurbulence/feBlend
+              primitive chain against that element's own content within a bounded-size temporary
+              offscreen surface, and shall tolerate a dangling filter reference, a genuinely
+              unrecognized primitive type, and pathological filter-region, convolution-order,
               morphology-radius, or turbulence-octave inputs without failing or hanging.
             justification: |
               Real-world SVG documents use much more than the initial flood/blur/offset/
@@ -987,6 +987,7 @@ sections:
               - CanvasNet-Codecs-SvgCodec-FeDiffuseLighting
               - CanvasNet-Codecs-SvgCodec-FeSpecularLighting
               - CanvasNet-Codecs-SvgCodec-FeTurbulence
+              - CanvasNet-Codecs-SvgCodec-FeBlend
               - CanvasNet-Codecs-SvgCodec-FilterPrimitiveResourceSafety
             tests:
               - SvgCodec_Load_FeFloodFeGaussianBlurFeCompositeFilter_RendersBlurredHaloBehindContent
@@ -1003,6 +1004,7 @@ sections:
               - SvgCodec_Load_FeConvolveMatrixOrderExceedingCap_ThrowsInvalidDataException
               - SvgCodec_Load_FeMorphologyRadiusExceedingCap_ThrowsInvalidDataException
               - SvgCodec_Load_FeTurbulenceNumOctavesExceedingCap_ThrowsInvalidDataException
+              - SvgCodec_Load_FeBlendSeparableMode_MatchesHandComputedFormula
               - SvgCodec_Load_InkscapeFiltersFixture_ToleratesFiltersAndRendersFlowerContent
 
           - id: CanvasNet-Codecs-SvgClipPathMaskRendering
