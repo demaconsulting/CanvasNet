@@ -112,9 +112,8 @@ the same objectBoundingBox-relative region computation as the default, rather th
 interpreted as literal absolute user-space coordinates), a `filter` on a shape's own `marker`
 content (has no effect - `marker` content is never recursed into by the ordinary element walk, so
 a group-level filter on a `<g>` inside a `marker` is never reached), and the remaining
-unsupported primitive types (`feBlend`, `feTurbulence`, `feDiffuseLighting`, and
-`feSpecularLighting`) are all explicitly out of scope. Encountering one of those remaining
-unsupported primitive types tolerantly passes through its resolved input rather than rejecting or
+unsupported primitive type (`feBlend`) is explicitly out of scope. Encountering that remaining
+unsupported primitive type tolerantly passes through its resolved input rather than rejecting or
 skipping the whole filter. `feImage` is now supported in both its raster-href and
 element-reference forms; because the element-reference form can recurse back into the ordinary
 element walk, filter evaluation now reuses the existing `MaxUseDepth` guard that already bounds

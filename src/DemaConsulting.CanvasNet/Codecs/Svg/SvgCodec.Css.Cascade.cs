@@ -271,7 +271,10 @@ public static partial class SvgCodec
         /// <summary>The context for an element with no matching stylesheet rule and no inline <c>style</c> attribute.</summary>
         public static readonly CssElementStyleContext Empty = new(null, null);
 
+        /// <summary>The element's winning stylesheet declarations, or <see langword="null"/> if none matched.</summary>
         private readonly IReadOnlyDictionary<string, string>? _stylesheetDeclarations;
+
+        /// <summary>The element's own parsed inline <c>style</c> declarations, or <see langword="null"/> if absent/empty.</summary>
         private readonly IReadOnlyDictionary<string, string>? _inlineDeclarations;
 
         private CssElementStyleContext(
