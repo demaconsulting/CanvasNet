@@ -895,8 +895,10 @@ elements (referenced via `marker-start`/`marker-mid`/`marker-end`, with `markerW
 `markerHeight`, `refX`/`refY`, `markerUnits`, `orient`, and an optional `viewBox`), `filter`
 elements (referenced via the `filter` presentation attribute on any directly renderable shape or
 `text` element, or on a `g`/`symbol` reference/`use` element - applied to the whole referenced
-subtree as a single unit - with `x`/`y`/`width`/`height` filter-region attributes and `feFlood`/
-`feGaussianBlur`/`feOffset`/`feComposite`/`feMerge` primitive children), `clipPath` elements
+subtree as a single unit - with `x`/`y`/`width`/`height` filter-region attributes and `feBlend`/
+`feColorMatrix`/`feComponentTransfer`/`feComposite`/`feConvolveMatrix`/`feDiffuseLighting`/
+`feDisplacementMap`/`feDropShadow`/`feFlood`/`feGaussianBlur`/`feImage`/`feMerge`/`feMorphology`/
+`feOffset`/`feSpecularLighting`/`feTile`/`feTurbulence` primitive children), `clipPath` elements
 (referenced via the `clip-path` presentation attribute, hard-clipping to the union of the
 `clipPath` element's own rect/circle/ellipse/polyline/polygon/path/text children, honoring
 `clipPathUnits` and each child's own `clip-rule`), `mask` elements (referenced via the `mask`
