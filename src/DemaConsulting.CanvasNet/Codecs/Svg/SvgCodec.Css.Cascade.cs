@@ -46,6 +46,23 @@ public static partial class SvgCodec
         public IReadOnlyList<CssRule> Rules { get; } = rules;
 
         /// <summary>
+        ///     The per-element <see cref="CssMatchWorkBudget"/> charge for this stylesheet,
+        ///     computed exactly once here (at stylesheet-build time, not per element - see
+        ///     <see cref="BuildElementContext"/>) as the sum, across every retained rule, of every
+        ///     one of that rule's comma-separated selectors' own <see cref="ComputeSelectorMatchWeight"/>.
+        ///     Charging this precomputed total - rather than the bare <see cref="Rules"/> count -
+        ///     is what actually bounds real per-element matching CPU cost: the bare rule count is
+        ///     blind to both how many comma-separated selectors a rule contributes (each one is a
+        ///     fully independent match attempt - see <see cref="BuildElementContext"/>'s inner
+        ///     loop) and how expensive a descendant-combinator selector's ancestor walk can be (up
+        ///     to <see cref="MaxElementDepth"/> ancestors visited for a single failing match - see
+        ///     <see cref="Matches"/>), which is exactly the gap a code review found let a
+        ///     selectors-per-rule-heavy stylesheet drive up to a ~29x real wall-clock cost for the
+        ///     identical charged budget value the bare rule-count formula produced.
+        /// </summary>
+        public long MatchWorkPerElement { get; } = rules.Sum(rule => rule.Selectors.Sum(ComputeSelectorMatchWeight));
+
+        /// <summary>
         ///     Builds <paramref name="element"/>'s own <see cref="CssElementStyleContext"/>: matches
         ///     every stylesheet rule against <paramref name="element"/> once (not once per
         ///     property), resolving the winning declaration per property via specificity/source-
@@ -58,7 +75,9 @@ public static partial class SvgCodec
         /// <param name="budget">
         ///     The shared cumulative CSS selector-matching work budget (see
         ///     <see cref="CssMatchWorkBudget"/>), charged once per element that actually has any
-        ///     rule to match against.
+        ///     rule to match against, with this stylesheet's own precomputed
+        ///     <see cref="MatchWorkPerElement"/> (not the bare <see cref="Rules"/> count - see that
+        ///     property's remarks).
         /// </param>
         /// <returns>
         ///     The built context - <see cref="CssElementStyleContext.Empty"/>, with no allocation or
@@ -95,7 +114,7 @@ public static partial class SvgCodec
                 return CssElementStyleContext.Create(null, inlineDeclarations);
             }
 
-            budget.Charge(Rules.Count);
+            budget.Charge(MatchWorkPerElement);
 
             Dictionary<string, string>? stylesheetDeclarations = null;
             Dictionary<string, (int Ids, int Classes, int Types, int SourceOrder)>? winning = null;
@@ -200,6 +219,48 @@ public static partial class SvgCodec
     }
 
     /// <summary>
+    ///     Computes <paramref name="selector"/>'s own worst-case per-element matching cost, used by
+    ///     <see cref="CssStylesheet.MatchWorkPerElement"/> to build a <see cref="CssMatchWorkBudget"/>
+    ///     charge that genuinely tracks real CPU cost rather than merely counting rules (see that
+    ///     property's remarks): matching a selector against one element always tests its rightmost
+    ///     compound directly against the element (a fixed, cheap <c>O(1)</c> cost - the base
+    ///     <c>1</c> below), then walks backward through any further (leftward) compound/combinator
+    ///     pair (see <see cref="Matches"/>). A <see cref="CssCombinator.Child"/> pair costs another
+    ///     fixed <c>O(1)</c> (an exact <c>.Parent</c> comparison), but a
+    ///     <see cref="CssCombinator.Descendant"/> pair can, on a failing match, walk every one of
+    ///     the element's ancestors before giving up - up to <see cref="MaxElementDepth"/> of them,
+    ///     the codec's own hard structural ceiling on ancestor-chain length - so it is charged at
+    ///     that same worst-case weight rather than a flat <c>1</c>, directly tying this charge to
+    ///     the exact mechanism a code review found let a descendant-combinator-heavy selector drive
+    ///     real wall-clock cost far beyond what a naive per-selector <c>1</c> would ever charge.
+    /// </summary>
+    /// <param name="selector">The selector to weigh.</param>
+    /// <returns>
+    ///     The selector's own worst-case per-element match cost: <c>1</c> for its rightmost
+    ///     compound, plus <c>1</c> for every further <see cref="CssCombinator.Child"/> segment, plus
+    ///     <see cref="MaxElementDepth"/> for every further <see cref="CssCombinator.Descendant"/>
+    ///     segment.
+    /// </returns>
+    private static long ComputeSelectorMatchWeight(CssComplexSelector selector)
+    {
+        var segments = selector.Segments;
+
+        // The rightmost compound is always matched directly against the element itself - a fixed,
+        // cheap cost regardless of combinator
+        var weight = 1L;
+
+        // Every further (leftward) compound/combinator pair adds its own worst-case cost: a Child
+        // combinator is a single exact parent comparison, while a Descendant combinator can walk
+        // up to MaxElementDepth ancestors before a failing match gives up (see Matches)
+        for (var i = 1; i < segments.Count; i++)
+        {
+            weight += segments[i].Combinator == CssCombinator.Child ? 1 : MaxElementDepth;
+        }
+
+        return weight;
+    }
+
+    /// <summary>
     ///     One element's own pre-matched CSS styling context: its winning stylesheet declaration
     ///     per property (already resolved via specificity/source-order - see
     ///     <see cref="CssStylesheet.BuildElementContext"/>) and its own inline <c>style="..."</c> declarations,
@@ -258,29 +319,43 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Tracks the cumulative "stylesheet rule count times element visit count" CSS
-    ///     selector-matching work charged across a single <c>Load</c> call, throwing once a fixed
-    ///     cumulative budget is exceeded - mirrors <see cref="GeometryWorkBudget"/>'s identical
-    ///     "mutable reference type, charged incrementally, hard document-rejection ceiling" pattern
-    ///     and rationale. Naive per-element rule matching costs
-    ///     <c>O(elementCount * ruleCount)</c> in the worst case - a cost dimension no existing
-    ///     budget (<see cref="MaxTotalRenderedElements"/> counts elements only;
+    ///     Tracks the cumulative CSS selector-matching work charged across a single <c>Load</c>
+    ///     call, throwing once a fixed cumulative budget is exceeded - mirrors
+    ///     <see cref="GeometryWorkBudget"/>'s identical "mutable reference type, charged
+    ///     incrementally, hard document-rejection ceiling" pattern and rationale. Naive per-element
+    ///     rule matching costs <c>O(elementCount * ruleCount)</c> in the worst case, but that alone
+    ///     understates the real cost: a single rule's own comma-separated selector list (up to
+    ///     <see cref="MaxCssSelectorsPerRule"/> independent match attempts) and a single selector's
+    ///     own descendant-combinator ancestor walk (up to <see cref="MaxElementDepth"/> ancestors
+    ///     visited on a failing match) both multiply the true per-element cost far beyond what a
+    ///     bare rule count reflects - a code review found this let a selectors-per-rule-heavy
+    ///     stylesheet drive a ~29x real wall-clock difference for the identical charged budget
+    ///     value a bare-rule-count formula produced. Every charge therefore uses each stylesheet's
+    ///     own precomputed <see cref="CssStylesheet.MatchWorkPerElement"/> (see
+    ///     <see cref="ComputeSelectorMatchWeight"/>), not <see cref="CssStylesheet.Rules"/>'s bare
+    ///     count, so this budget genuinely tracks real CPU cost - a cost dimension no other
+    ///     existing budget (<see cref="MaxTotalRenderedElements"/> counts elements only;
     ///     <see cref="MaxCssRules"/> counts rules only) actually bounds.
     /// </summary>
     private sealed class CssMatchWorkBudget
     {
         /// <summary>
-        ///     The maximum combined "rule count times element visit count" work this codec will
-        ///     charge for CSS selector matching across a single <c>Load</c> call, before rejecting
-        ///     the document with <see cref="InvalidDataException"/> - a genuine resource bound, not
-        ///     a performance optimization (see this class's remarks): a document that legitimately
-        ///     needs more total matching work than this budget allows is rejected the same way an
-        ///     oversized <c>path</c> <c>d</c> attribute already is. <c>2,000,000</c> comfortably
-        ///     covers, for example, a document with <see cref="MaxCssRules"/> (2,000) rules
-        ///     combined with 1,000 elements (2,000,000 exactly), while still bounding the worst case
-        ///     (2,000 rules against <see cref="MaxTotalRenderedElements"/> (100,000) elements, which
-        ///     would otherwise charge 200,000,000) to a small, practical multiple of a realistic
-        ///     rule-heavy document's own cost.
+        ///     The maximum combined per-element-weighted CSS selector-matching work this codec will
+        ///     charge across a single <c>Load</c> call, before rejecting the document with
+        ///     <see cref="InvalidDataException"/> - a genuine resource bound, not a performance
+        ///     optimization (see this class's remarks): a document that legitimately needs more
+        ///     total matching work than this budget allows is rejected the same way an oversized
+        ///     <c>path</c> <c>d</c> attribute already is. <c>2,000,000</c> comfortably covers, for
+        ///     example, a document with <see cref="MaxCssRules"/> (2,000) simple (single-selector,
+        ///     single-compound) rules - each weighing exactly <c>1</c>, see
+        ///     <see cref="ComputeSelectorMatchWeight"/> - combined with 1,000 elements (2,000,000
+        ///     exactly), preserving this codec's original, pre-existing headroom for that common
+        ///     case unchanged, while a selector-list- or descendant-combinator-heavy stylesheet
+        ///     (whose per-element weight is proportionally larger - up to
+        ///     <see cref="MaxCssSelectorsPerRule"/> times <see cref="MaxElementDepth"/> per rule in
+        ///     the worst case) is now rejected proportionally sooner, exactly tracking its
+        ///     genuinely higher real cost rather than silently passing the identical check a simple
+        ///     stylesheet would.
         /// </summary>
         private const long MaxCumulativeCssMatchWorkUnits = 2_000_000L;
 
@@ -288,11 +363,12 @@ public static partial class SvgCodec
         private long _total;
 
         /// <summary>
-        ///     Charges <paramref name="amount"/> units of selector-matching work (the stylesheet's
-        ///     own rule count, charged once per element that has any rule to match against - see
+        ///     Charges <paramref name="amount"/> units of selector-matching work (one stylesheet's
+        ///     own precomputed <see cref="CssStylesheet.MatchWorkPerElement"/>, charged once per
+        ///     element that has any rule to match against - see
         ///     <see cref="CssStylesheet.BuildElementContext"/>) against the running total.
         /// </summary>
-        /// <param name="amount">The number of rules just matched against one element.</param>
+        /// <param name="amount">The weighted selector-matching work just performed against one element.</param>
         /// <exception cref="InvalidDataException">
         ///     Thrown once the cumulative total exceeds <see cref="MaxCumulativeCssMatchWorkUnits"/>.
         /// </exception>

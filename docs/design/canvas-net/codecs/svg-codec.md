@@ -525,21 +525,32 @@ existed: the CSS engine itself never understands SVG paint/numeric/keyword synta
 property/value token boundaries, so no SVG-specific value-parsing logic is duplicated between a
 presentation attribute and a CSS declaration carrying the same property.
 
-**Malformed input and resource safety.** A syntactically malformed individual rule or
-declaration is skipped (the parser resynchronizes at the next `}`/`;`) without discarding the
-rest of the stylesheet or aborting the document, matching this codec's established
-tolerant-parsing policy for other out-of-scope or malformed constructs. A whole-document
-`BuildStylesheet` pre-pass (mirroring the existing `BuildIdIndex` pre-pass) bounds the number of
-retained stylesheet rules, selectors per rule, combinator segments per selector, and declarations
-per rule with fixed constants, each documented with the same "generous but bounded" rationale
-style as `MaxFilterPrimitivesPerFilter`/`MaxConvolveMatrixOrder`; a document exceeding one of
-these is not rejected outright, it simply stops retaining further rules/selectors/declarations
-past the cap. Separately, a mutable `CssMatchWorkBudget` - following the exact
+**Malformed input and resource safety.** A syntactically malformed individual declaration is
+skipped (the parser resynchronizes at the next `;`) without discarding the rest of that rule's
+declarations. An unterminated rule body (missing its closing `}`) is dropped entirely - it can
+never be recovered as well-formed - but the parser resynchronizes onto the next rule attempt
+(the next `{` found anywhere after the failed one, backing off only far enough to recover a
+single trailing compound-selector-like token with no intervening whitespace - see
+`FindSelectorRecoveryStart`'s remarks in `SvgCodec.Css.Parser.cs`) rather than discarding every
+later rule in the stylesheet, matching this codec's established tolerant-parsing policy for other
+out-of-scope or malformed constructs. A whole-document `BuildStylesheet` pre-pass (mirroring the
+existing `BuildIdIndex` pre-pass) bounds the number of retained stylesheet rules, selectors per
+rule, combinator segments per selector, and declarations per rule with fixed constants, each
+documented with the same "generous but bounded" rationale style as
+`MaxFilterPrimitivesPerFilter`/`MaxConvolveMatrixOrder`; a document exceeding one of these is not
+rejected outright, it simply stops retaining further rules/selectors/declarations past the cap.
+Separately, a mutable `CssMatchWorkBudget` - following the exact
 `GeometryWorkBudget`/`FilterWorkBudget` pattern (`Charge`, throwing `InvalidDataException` once a
 fixed cumulative ceiling is exceeded) - bounds the *cumulative* selector-matching work performed
-across the whole document (charged once per element that has any stylesheet rule to match
-against), so a document that legitimately needs more total rule-times-element matching work than
-this budget allows is rejected the same way an oversized `path` `d` attribute already is.
+across the whole document, charged once per element against each stylesheet's own precomputed
+`CssStylesheet.MatchWorkPerElement` - the sum, across every retained rule, of every one of that
+rule's comma-separated selectors' own worst-case matching weight (`1` for its rightmost compound,
+plus another `1` for every further child-combinator segment, plus `MaxElementDepth` for every
+further descendant-combinator segment, since a failing descendant match can walk that many
+ancestors before giving up) - rather than the bare rule count, so a rule's own selector-list
+length and combinator-chain length both genuinely count toward the charge instead of being
+invisible to it. A document that legitimately needs more total weighted matching work than this
+budget allows is rejected the same way an oversized `path` `d` attribute already is.
 
 ### Gradient, Use, and Text Support and Limits
 

@@ -148,8 +148,9 @@ public static partial class SvgCodec
     /// <param name="openIndex">The index of the opening <c>{</c>.</param>
     /// <returns>
     ///     The index of the matching closing <c>}</c>, or <c>-1</c> if <paramref name="text"/> ends
-    ///     before the braces balance (an unterminated block - tolerated by the caller, see this
-    ///     class's malformed-CSS remarks).
+    ///     before the braces balance (an unterminated block - tolerated by the caller via
+    ///     resynchronization, see <see cref="ParseRawRules"/>'s remarks for a plain rule body, or
+    ///     via a simple "skip to end" fallback for an at-rule).
     /// </returns>
     private static int FindMatchingBrace(string text, int openIndex)
     {
@@ -179,11 +180,33 @@ public static partial class SvgCodec
     ///     at-rule (<c>@media</c> and any other <c>@</c>-prefixed construct - out of scope, see this
     ///     class's remarks) as one balanced-brace (or, for a bodiless at-rule such as
     ///     <c>@import "x";</c>, semicolon-terminated) unit. Never throws: any malformed trailing
-    ///     content (an unterminated rule or at-rule) simply ends the scan early, discarding only the
-    ///     unparseable remainder - consistent with this class's "skip the malformed part, keep
-    ///     rendering the rest" policy for CSS (see this class's remarks), never aborting the whole
-    ///     stylesheet or document.
+    ///     content simply narrows what is recovered, discarding only the unparseable part - never
+    ///     the whole stylesheet or document (see this class's remarks).
     /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         <b>Unterminated-rule resynchronization (exact behavior).</b> A rule body missing its
+    ///         closing <c>}</c> is dropped (it can never be recovered as a well-formed rule), but -
+    ///         critically - this must not also discard every later rule in the stylesheet: naive
+    ///         brace-depth counting alone cannot tell "an at-rule's own legitimately nested block"
+    ///         apart from "an unrelated later rule's <c>{</c>/<c>}</c> pair, wrongly absorbed into
+    ///         the unterminated rule's depth count because it never returned to zero." When
+    ///         <see cref="FindMatchingBrace"/> fails to find a rule's own closing brace, this method
+    ///         searches for the next <c>{</c> anywhere after the failed one (the earliest point a
+    ///         fresh rule could plausibly start) via <see cref="FindSelectorRecoveryStart"/>, and
+    ///         resumes scanning there - so a well-formed rule occurring after a single malformed one
+    ///         is still parsed and applied, at the cost of not being able to recover a full
+    ///         (possibly combinator-chained) selector for the immediately-following rule if it sat
+    ///         directly adjacent to the malformed one with no unambiguous boundary between them (see
+    ///         <see cref="FindSelectorRecoveryStart"/>'s remarks) - strictly better than this
+    ///         method's previous behavior of discarding every rule in the entire remainder of the
+    ///         stylesheet.
+    ///     </para>
+    ///     <para>
+    ///         If no further <c>{</c> exists anywhere in the remaining text either, there is truly
+    ///         nothing left to recover, and the scan ends there exactly as before.
+    ///     </para>
+    /// </remarks>
     /// <param name="css">The raw CSS text (a single <c>&lt;style&gt;</c> element's text content).</param>
     /// <returns>The raw rule pairs found, in document order.</returns>
     private static List<(string SelectorText, string DeclarationText)> ParseRawRules(string css)
@@ -243,9 +266,19 @@ public static partial class SvgCodec
             var closeBrace = FindMatchingBrace(stripped, openBrace);
             if (closeBrace == -1)
             {
-                // Unterminated rule body - nothing further to recover; stop scanning rather than
-                // guessing where the rule was meant to end
-                break;
+                // Unterminated rule body (see this method's remarks for the exact
+                // resynchronization strategy applied here) - resync onto the next rule attempt
+                // rather than discarding the rest of the stylesheet
+                var nestedOpen = stripped.IndexOf('{', openBrace + 1);
+                if (nestedOpen == -1)
+                {
+                    // No further '{' exists anywhere in the remaining text either - there is
+                    // truly nothing left to recover; stop scanning
+                    break;
+                }
+
+                i = FindSelectorRecoveryStart(stripped, nestedOpen);
+                continue;
             }
 
             rules.Add((selectorText, stripped[(openBrace + 1)..closeBrace]));
@@ -253,6 +286,52 @@ public static partial class SvgCodec
         }
 
         return rules;
+    }
+
+    /// <summary>
+    ///     Locates where a fresh rule attempt's own selector text should be considered to start,
+    ///     given that it was discovered by resynchronizing past a preceding unterminated rule (see
+    ///     <see cref="ParseRawRules"/>'s remarks) - the opening <c>{</c> at <paramref name="braceIndex"/>
+    ///     is the only reliable anchor available, since the unterminated rule swallowed any real
+    ///     rule/declaration boundary that might otherwise mark where its own malformed content
+    ///     ends and the next rule's selector begins. This walks backward from
+    ///     <paramref name="braceIndex"/> over a single trailing compound-selector-like token (type/
+    ///     class/id/universal-selector characters only, matching <see cref="TryParseCompoundSelector"/>'s
+    ///     own accepted character set) with no intervening whitespace, deliberately not attempting
+    ///     to recover a whitespace/<c>&gt;</c>-joined combinator chain: any such chain would itself
+    ///     already have been swallowed by the preceding unterminated rule's own (ambiguous, already
+    ///     discarded) content, so recovering only the single token immediately adjacent to the
+    ///     brace is the one unambiguous, safely-recoverable choice - anything further back cannot be
+    ///     distinguished from the abandoned rule's own malformed declaration text (for example
+    ///     <c>red</c> in <c>fill: red</c>) with certainty.
+    /// </summary>
+    /// <param name="text">The text being scanned (already comment-stripped).</param>
+    /// <param name="braceIndex">The index of the candidate new rule's own opening <c>{</c>.</param>
+    /// <returns>
+    ///     The index where the recovered selector text begins - equal to <paramref name="braceIndex"/>
+    ///     itself (an empty, and therefore rule-dropping, selector - see <see cref="ParseSelectorList"/>)
+    ///     if no such token exists immediately before it.
+    /// </returns>
+    private static int FindSelectorRecoveryStart(string text, int braceIndex)
+    {
+        var pos = braceIndex;
+
+        // Skip whitespace directly before the brace (e.g. the space in "rect {")
+        while (pos > 0 && char.IsWhiteSpace(text[pos - 1]))
+        {
+            pos--;
+        }
+
+        // Consume backward over the single trailing compound-selector-like token - stopping at
+        // the first character that cannot appear in one (whitespace, ':', ';', the preceding
+        // rule's own dangling '{', etc.), so only that one token is recovered, not anything
+        // further back
+        while (pos > 0 && (IsNameChar(text[pos - 1]) || text[pos - 1] is '.' or '#' or '*'))
+        {
+            pos--;
+        }
+
+        return pos;
     }
 
     /// <summary>

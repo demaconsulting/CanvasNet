@@ -7746,22 +7746,29 @@ public class SvgCodecTests
     }
 
     /// <summary>
-    ///     Proves malformed-CSS graceful degradation: one syntactically-broken rule in a
-    ///     stylesheet is skipped, the rest of the stylesheet's well-formed rules still apply, and
-    ///     the document still loads rather than aborting entirely.
+    ///     Proves malformed-CSS graceful degradation with a precise, documented outcome: one
+    ///     unterminated rule at the start of a stylesheet is dropped entirely (it contributes no
+    ///     declarations at all - it can never be recovered as well-formed), while resynchronizing
+    ///     via <c>SvgCodec.Css.Parser.cs</c>'s <c>FindSelectorRecoveryStart</c> lets *both*
+    ///     well-formed rules that follow it still be parsed and applied, rather than the whole
+    ///     remainder of the stylesheet being discarded (the pre-fix behavior).
     /// </summary>
     [Fact]
     public void SvgCodec_Load_CssMalformedRule_SkipsOnlyThatRuleAndStillLoads()
     {
-        // Arrange: the first rule is missing its closing brace entirely (malformed/unterminated),
-        // the second is well-formed and must still apply
+        // Arrange: ".broken" is missing its closing brace entirely (malformed/unterminated) and
+        // must contribute no styling at all; both "rect" and "circle" that follow it are
+        // well-formed and must still apply, proving recovery is not limited to just the first
+        // rule after the malformed one
         const string svg = """
             <svg viewBox='0 0 100 100'>
               <style>
                 .broken { fill: red
                 rect { fill: blue; }
+                circle { fill: green; }
               </style>
-              <rect x='0' y='0' width='100' height='100'/>
+              <rect x='0' y='0' width='50' height='100'/>
+              <circle cx='75' cy='50' r='20'/>
             </svg>
             """;
 
@@ -7769,11 +7776,16 @@ public class SvgCodecTests
         using var stream = ToStream(svg);
         var surface = SvgCodec.Load(stream, 100, 100);
 
-        // Assert: the document still loaded (a non-throwing Load is itself part of what this test
-        // proves) - the rect could plausibly have picked up either declaration or neither,
-        // depending on where the parser resynchronizes, so no stronger pixel assertion is made
-        Assert.Equal(100, surface.Width);
-        Assert.Equal(100, surface.Height);
+        // Assert: the rect picked up "fill: blue" and the circle picked up "fill: green" - both
+        // rules after the malformed one were recovered and applied, exactly as this method's
+        // documented resynchronization strategy guarantees; ".broken" itself applied nothing (the
+        // rect is blue, not red)
+        Assert.Equal(0, surface[25, 50].R);
+        Assert.Equal(0, surface[25, 50].G);
+        Assert.Equal(255, surface[25, 50].B);
+        Assert.Equal(0, surface[75, 50].R);
+        Assert.Equal(128, surface[75, 50].G);
+        Assert.Equal(0, surface[75, 50].B);
     }
 
     /// <summary>
@@ -7846,6 +7858,61 @@ public class SvgCodecTests
 
         // Assert
         Assert.Equal(255, surface[50, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves the <c>CssMatchWorkBudget</c> charge genuinely tracks real per-element matching
+    ///     cost - not merely the stylesheet's bare rule count - by exercising a single rule whose
+    ///     comma-separated selector-list length (<c>MaxCssSelectorsPerRule</c>, 64) and
+    ///     descendant-combinator chain length (<c>MaxCssCombinatorSegmentsPerSelector</c>, 16
+    ///     segments, each worth up to <c>MaxElementDepth</c>, 100, ancestor visits) both drive the
+    ///     charge far above what a "one rule = one unit" formula would ever produce: with only a
+    ///     modest number of elements this now correctly exceeds the cumulative budget and rejects
+    ///     the document, exactly the kind of pathological, disproportionately expensive stylesheet
+    ///     a code review found the pre-fix "rule count only" formula could never catch (a ~29x
+    ///     real wall-clock difference for an identical charged value).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssSelectorListAndCombinatorChainHeavyRule_ExceedsMatchWorkBudget()
+    {
+        // Arrange: one rule, 64 comma-separated selectors, each a 16-compound descendant chain -
+        // combined with just 25 plain elements this already exceeds the cumulative CSS
+        // selector-matching work budget, proving the charge scales with selector-list length and
+        // combinator-chain length, not bare rule count (a single rule)
+        const string chainSelector = "a a a a a a a a a a a a a a a a";
+        var selectorList = string.Join(",", Enumerable.Repeat(chainSelector, 64));
+        var elements = string.Concat(Enumerable.Repeat("<rect x='0' y='0' width='1' height='1'/>", 25));
+        var svg = "<svg viewBox='0 0 100 100'><style>" + selectorList + " { fill: red; }</style>" + elements + "</svg>";
+
+
+        // Act / Assert: the disproportionate per-element matching cost this rule drives is
+        // rejected, exactly like any other over-budget document
+        using var stream = ToStream(svg);
+        Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 100, 100));
+    }
+
+    /// <summary>
+    ///     Contrasts <see cref="SvgCodec_Load_CssSelectorListAndCombinatorChainHeavyRule_ExceedsMatchWorkBudget"/>:
+    ///     the identical element count against a single simple (one selector, one compound, no
+    ///     combinator) rule - whose per-element charge is the minimum possible weight of exactly
+    ///     <c>1</c> - stays comfortably within budget, proving the fix did not simply lower the
+    ///     cumulative ceiling across the board (which would reject ordinary, non-pathological
+    ///     stylesheets too) but instead made the *charge itself* proportional to real matching
+    ///     cost.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssSimpleSingleSelectorRule_StaysWithinMatchWorkBudget()
+    {
+        // Arrange: same 25-element document, but a single trivial "rect { fill: red; }" rule
+        var elements = string.Concat(Enumerable.Repeat("<rect x='0' y='0' width='1' height='1'/>", 25));
+        var svg = "<svg viewBox='0 0 100 100'><style>rect { fill: red; }</style>" + elements + "</svg>";
+
+        // Act: this must not throw - the simple rule's per-element weight is minimal
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the document loaded and the rule applied normally to the overlapping rects
+        Assert.Equal(255, surface[0, 0].R);
     }
 
     // ================================================================================================
