@@ -225,39 +225,96 @@ public static partial class SvgCodec
     ///     property's remarks): matching a selector against one element always tests its rightmost
     ///     compound directly against the element (a fixed, cheap <c>O(1)</c> cost - the base
     ///     <c>1</c> below), then walks backward through any further (leftward) compound/combinator
-    ///     pair (see <see cref="Matches"/>). A <see cref="CssCombinator.Child"/> pair costs another
-    ///     fixed <c>O(1)</c> (an exact <c>.Parent</c> comparison), but a
+    ///     pair via <see cref="MatchesAncestorChain"/>'s own backtracking search. A
+    ///     <see cref="CssCombinator.Child"/> pair costs another fixed <c>O(1)</c> (an exact
+    ///     <c>.Parent</c> comparison, with no backtracking possible), but a
     ///     <see cref="CssCombinator.Descendant"/> pair can, on a failing match, walk every one of
-    ///     the element's ancestors before giving up - up to <see cref="MaxElementDepth"/> of them,
-    ///     the codec's own hard structural ceiling on ancestor-chain length - so it is charged at
-    ///     that same worst-case weight rather than a flat <c>1</c>, directly tying this charge to
-    ///     the exact mechanism a code review found let a descendant-combinator-heavy selector drive
-    ///     real wall-clock cost far beyond what a naive per-selector <c>1</c> would ever charge.
+    ///     the element's ancestors - up to <see cref="MaxElementDepth"/> of them, the codec's own
+    ///     hard structural ceiling on ancestor-chain length - and, per CSS descendant-combinator
+    ///     backtracking semantics, retry the <b>entire remaining chain</b> from each one of those
+    ///     ancestors in turn before giving up (see <see cref="MatchesAncestorChain"/>'s remarks).
+    ///     This makes the true worst-case cost of a chain of <c>k</c> consecutive
+    ///     <see cref="CssCombinator.Descendant"/> segments <i>multiplicative</i>
+    ///     (<c>O(MaxElementDepth^k)</c>), not additive (<c>O(k * MaxElementDepth)</c>) - a code
+    ///     review found the earlier non-backtracking <see cref="Matches"/> implementation (and this
+    ///     method's earlier additive formula, which was only ever a valid bound for that
+    ///     non-backtracking algorithm) both under-counted real per-element cost the moment
+    ///     backtracking was introduced to fix descendant-combinator correctness. Cost accumulation
+    ///     saturates at <see cref="MaxSaturatedSelectorMatchWeight"/> well before any <see cref="long"/>
+    ///     overflow, since a chain of even a handful of consecutive
+    ///     <see cref="CssCombinator.Descendant"/> segments already vastly exceeds
+    ///     <see cref="CssMatchWorkBudget"/>'s own cumulative ceiling - the exact real magnitude
+    ///     beyond that point is irrelevant to the budget check, only that it is charged as "far too
+    ///     expensive," matching this method's own conservative-overestimate contract.
     /// </summary>
     /// <param name="selector">The selector to weigh.</param>
     /// <returns>
-    ///     The selector's own worst-case per-element match cost: <c>1</c> for its rightmost
-    ///     compound, plus <c>1</c> for every further <see cref="CssCombinator.Child"/> segment, plus
-    ///     <see cref="MaxElementDepth"/> for every further <see cref="CssCombinator.Descendant"/>
-    ///     segment.
+    ///     The selector's own worst-case per-element match cost, saturating at
+    ///     <see cref="MaxSaturatedSelectorMatchWeight"/> rather than overflowing.
     /// </returns>
     private static long ComputeSelectorMatchWeight(CssComplexSelector selector)
     {
         var segments = selector.Segments;
 
-        // The rightmost compound is always matched directly against the element itself - a fixed,
-        // cheap cost regardless of combinator
-        var weight = 1L;
+        // remaining tracks the worst-case cost of resolving segments[0..i-1] given that some
+        // element already satisfies segments[i] - starting at 0 for i == 0 (the leftmost compound
+        // needs no further ancestor walk at all once it is itself satisfied)
+        var remaining = 0L;
 
-        // Every further (leftward) compound/combinator pair adds its own worst-case cost: a Child
-        // combinator is a single exact parent comparison, while a Descendant combinator can walk
-        // up to MaxElementDepth ancestors before a failing match gives up (see Matches)
+        // Fold in every further (leftward) compound/combinator pair, left-to-right, mirroring
+        // MatchesAncestorChain's own right-to-left recursion collapsed into this closed-form
+        // recurrence: a Child pair adds a flat 1 (a single exact parent comparison), while a
+        // Descendant pair multiplies (1 + remaining) by MaxElementDepth - the worst case of
+        // retrying the entire remaining chain from every one of up to MaxElementDepth ancestors
         for (var i = 1; i < segments.Count; i++)
         {
-            weight += segments[i].Combinator == CssCombinator.Child ? 1 : MaxElementDepth;
+            remaining = segments[i].Combinator == CssCombinator.Child
+                ? AddSaturating(remaining, 1L)
+                : MultiplySaturating(AddSaturating(remaining, 1L), MaxElementDepth);
         }
 
-        return weight;
+        // The rightmost compound is always matched directly against the element itself - a fixed,
+        // cheap cost regardless of combinator - added on top of the folded remaining-chain cost
+        return AddSaturating(1L, remaining);
+    }
+
+    /// <summary>
+    ///     The saturation ceiling used by <see cref="ComputeSelectorMatchWeight"/>'s
+    ///     <see cref="AddSaturating"/>/<see cref="MultiplySaturating"/> helpers to represent "far
+    ///     too expensive to enumerate exactly" without risking a <see cref="long"/> overflow -
+    ///     chosen so that summing up to <see cref="MaxCssSelectorsPerRule"/> selectors across up to
+    ///     <see cref="MaxCssRules"/> rules (the two structural caps bounding
+    ///     <see cref="CssStylesheet.MatchWorkPerElement"/>'s own summation) can never itself
+    ///     overflow <see cref="long"/>: <c>10^12 &#215; 64 &#215; 2,000 = 1.28&#215;10^17</c>,
+    ///     comfortably below <see cref="long.MaxValue"/> (<c>~9.2&#215;10^18</c>).
+    /// </summary>
+    private const long MaxSaturatedSelectorMatchWeight = 1_000_000_000_000L;
+
+    /// <summary>
+    ///     Adds two non-negative <see cref="long"/> values, saturating at
+    ///     <see cref="MaxSaturatedSelectorMatchWeight"/> instead of overflowing.
+    /// </summary>
+    /// <param name="a">The first addend.</param>
+    /// <param name="b">The second addend.</param>
+    /// <returns>The saturated sum.</returns>
+    private static long AddSaturating(long a, long b) =>
+        a > MaxSaturatedSelectorMatchWeight - b ? MaxSaturatedSelectorMatchWeight : a + b;
+
+    /// <summary>
+    ///     Multiplies two non-negative <see cref="long"/> values, saturating at
+    ///     <see cref="MaxSaturatedSelectorMatchWeight"/> instead of overflowing.
+    /// </summary>
+    /// <param name="a">The first factor.</param>
+    /// <param name="b">The second factor.</param>
+    /// <returns>The saturated product.</returns>
+    private static long MultiplySaturating(long a, long b)
+    {
+        if (a == 0L || b == 0L)
+        {
+            return 0L;
+        }
+
+        return a > MaxSaturatedSelectorMatchWeight / b ? MaxSaturatedSelectorMatchWeight : a * b;
     }
 
     /// <summary>
@@ -464,4 +521,29 @@ public static partial class SvgCodec
     /// </returns>
     private static string? ResolveStyledValue(CssElementStyleContext styleContext, string property) =>
         styleContext.Resolve(property);
+
+    /// <summary>
+    ///     Resolves one presentation property directly on <paramref name="element"/> itself -
+    ///     through this class's exact same 3-tier CSS precedence chokepoint
+    ///     (<see cref="ResolveStyledValue"/>) <see cref="ApplyPresentationAttributes"/> already uses
+    ///     for the inheritable paint/font/marker properties - falling back to the plain
+    ///     presentation attribute when neither CSS tier has a value. This is the call site every
+    ///     reader of an element-level (non-inherited) property such as <c>filter</c>,
+    ///     <c>clip-path</c>, <c>mask</c>, <c>clip-rule</c>, <c>stop-color</c>, or <c>stop-opacity</c>
+    ///     must use instead of reading <c>element.Attribute(property)</c> directly, so a matching
+    ///     stylesheet rule or inline <c>style</c> declaration is never silently bypassed for those
+    ///     properties the way an ad hoc direct-XML-attribute read would (see
+    ///     <see cref="RenderContext.GetStyleContext"/>'s remarks on why this reuses, rather than
+    ///     rebuilds, the element's own cached styling context).
+    /// </summary>
+    /// <param name="element">The element whose own property is resolved (never an ancestor).</param>
+    /// <param name="property">The lower-case CSS/presentation property name to resolve (for example <c>"filter"</c>).</param>
+    /// <param name="context">The fixed per-document render context, supplying the element's cached styling context.</param>
+    /// <returns>
+    ///     The winning value from whichever tier has one (inline <c>style</c>, matching stylesheet
+    ///     rule, or the plain presentation attribute, in that precedence order), or
+    ///     <see langword="null"/> if none of the three has a value for <paramref name="property"/>.
+    /// </returns>
+    private static string? ResolveElementProperty(XElement element, string property, RenderContext context) =>
+        ResolveStyledValue(context.GetStyleContext(element), property) ?? (string?)element.Attribute(property);
 }

@@ -242,6 +242,48 @@ public static partial class SvgCodec
         ///     own bounding box, so it is always safe to share across every reference.
         /// </summary>
         public Dictionary<XElement, XElement?> PatternContentCache { get; } = [];
+
+        /// <summary>
+        ///     Caches each element's own pre-built <see cref="CssElementStyleContext"/> (see
+        ///     <see cref="CssStylesheet.BuildElementContext"/>), keyed by the element's own
+        ///     reference identity, mirroring <see cref="GradientStopCache"/>'s identical "populated
+        ///     once, read many times, safe because the parsed <see cref="XDocument"/> is never
+        ///     mutated mid-<c>Load</c>" lifetime and rationale. Without this cache, every one of
+        ///     <see cref="ApplyPresentationAttributes"/>'s own per-element CSS matching (charged
+        ///     once against <see cref="CssBudget"/>) would be silently repeated - and re-charged -
+        ///     for every other call site that also needs to resolve one of an element's own
+        ///     cascaded properties (for example <see cref="ResolveFilterElement"/>,
+        ///     <see cref="ResolveClipPathElement"/>, <see cref="ResolveMaskElement"/>) against the
+        ///     exact same element, doubling real per-element matching cost with no benefit. See
+        ///     <see cref="GetStyleContext"/>, the sole reader/writer of this cache.
+        /// </summary>
+        private Dictionary<XElement, CssElementStyleContext> StyleContextCache { get; } = [];
+
+        /// <summary>
+        ///     Gets <paramref name="element"/>'s own <see cref="CssElementStyleContext"/>, building
+        ///     and charging <see cref="CssBudget"/> for it (via
+        ///     <see cref="CssStylesheet.BuildElementContext"/>) only the first time this element is
+        ///     asked for - every further call for the same element (see
+        ///     <see cref="StyleContextCache"/>'s remarks) reuses the cached result at no further
+        ///     matching cost or budget charge.
+        /// </summary>
+        /// <param name="element">The element to resolve a styling context for.</param>
+        /// <returns>The element's own (possibly cached) <see cref="CssElementStyleContext"/>.</returns>
+        /// <exception cref="InvalidDataException">
+        ///     Thrown via <see cref="CssBudget"/> the first time this element's context is built, if
+        ///     doing so exceeds the cumulative CSS selector-matching work budget.
+        /// </exception>
+        public CssElementStyleContext GetStyleContext(XElement element)
+        {
+            if (StyleContextCache.TryGetValue(element, out var cached))
+            {
+                return cached;
+            }
+
+            var built = Stylesheet.BuildElementContext(element, CssBudget);
+            StyleContextCache[element] = built;
+            return built;
+        }
     }
 
     // ================================================================================================
@@ -556,7 +598,7 @@ public static partial class SvgCodec
     /// <returns>The new, cascaded render state for <paramref name="element"/>.</returns>
     private static RenderState ApplyPresentationAttributes(RenderState parent, XElement element, RenderContext context)
     {
-        var styleContext = context.Stylesheet.BuildElementContext(element, context.CssBudget);
+        var styleContext = context.GetStyleContext(element);
 
         string? Styled(string property) => ResolveStyledValue(styleContext, property) ?? (string?)element.Attribute(property);
 

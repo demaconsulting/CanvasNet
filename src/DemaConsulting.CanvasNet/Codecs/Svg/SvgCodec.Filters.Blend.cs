@@ -1,4 +1,4 @@
-// cspell:ignore feblend colordodge colorburn hardlight softlight
+// cspell:ignore feblend colordodge colorburn hardlight softlight unswapped
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 
@@ -15,11 +15,12 @@ public static partial class SvgCodec
     /// <param name="input2">The already-resolved <c>in2</c> buffer (the backdrop/bottom layer).</param>
     /// <returns>A new, independent output buffer.</returns>
     /// <remarks>
-    ///     Implements all fourteen CSS Compositing Level 1 blend modes
-    ///     (<see href="https://www.w3.org/TR/compositing-1/#blending"/>): the eleven separable
-    ///     modes (<c>normal</c>, <c>multiply</c>, <c>screen</c>, <c>darken</c>, <c>lighten</c>,
-    ///     <c>color-dodge</c>, <c>color-burn</c>, <c>hard-light</c>, <c>soft-light</c>,
-    ///     <c>difference</c>, <c>exclusion</c>) evaluated independently per channel, and the four
+    ///     Implements all fifteen CSS Compositing Level 1 blend modes
+    ///     (<see href="https://www.w3.org/TR/compositing-1/#blending"/>): the twelve separable
+    ///     modes (<c>normal</c>, <c>multiply</c>, <c>screen</c>, <c>overlay</c>, <c>darken</c>,
+    ///     <c>lighten</c>, <c>color-dodge</c>, <c>color-burn</c>, <c>hard-light</c>,
+    ///     <c>soft-light</c>, <c>difference</c>, <c>exclusion</c>) evaluated independently per
+    ///     channel, and the four
     ///     non-separable modes (<c>hue</c>, <c>saturation</c>, <c>color</c>, <c>luminosity</c>)
     ///     evaluated on the whole RGB triple via the spec's exact
     ///     <c>Lum</c>/<c>ClipColor</c>/<c>SetLum</c>/<c>Sat</c>/<c>SetSat</c> reference algorithm
@@ -114,6 +115,9 @@ public static partial class SvgCodec
             _ when string.Equals(mode, "screen", StringComparison.OrdinalIgnoreCase) =>
                 (BlendScreen(backdrop.R, source.R), BlendScreen(backdrop.G, source.G), BlendScreen(backdrop.B, source.B)),
 
+            _ when string.Equals(mode, "overlay", StringComparison.OrdinalIgnoreCase) =>
+                (BlendOverlay(backdrop.R, source.R), BlendOverlay(backdrop.G, source.G), BlendOverlay(backdrop.B, source.B)),
+
             _ when string.Equals(mode, "darken", StringComparison.OrdinalIgnoreCase) =>
                 (MathF.Min(backdrop.R, source.R), MathF.Min(backdrop.G, source.G), MathF.Min(backdrop.B, source.B)),
 
@@ -200,6 +204,32 @@ public static partial class SvgCodec
     /// <summary>Evaluates the <c>hard-light</c> separable blend formula (a source-conditioned <c>multiply</c>/<c>screen</c> split).</summary>
     private static float BlendHardLight(float cb, float cs) =>
         cs <= 0.5f ? BlendMultiply(cb, 2f * cs) : BlendScreen(cb, (2f * cs) - 1f);
+
+    /// <summary>
+    ///     Evaluates the <c>overlay</c> separable blend formula: per the CSS Compositing Level 1
+    ///     spec, <c>Overlay(Cb, Cs) = HardLight(Cs, Cb)</c> - i.e. <c>hard-light</c> with the
+    ///     backdrop and source arguments swapped, condition-tested on the <b>backdrop</b> channel
+    ///     rather than the source channel.
+    /// </summary>
+    /// <remarks>
+    ///     Substituting <see cref="BlendHardLight"/>'s own <c>(cb, cs)</c> parameters with
+    ///     <c>(cs, cb)</c> and simplifying reproduces the spec's direct <c>overlay</c> formula
+    ///     exactly: <c>2*Cb*Cs</c> when <c>Cb &lt;= 0.5</c>, else <c>1 - 2*(1-Cb)*(1-Cs)</c>. Calling
+    ///     <see cref="BlendHardLight"/> with the arguments in their original (unswapped) order would
+    ///     silently condition the branch on the wrong channel and produce an incorrect result.
+    /// </remarks>
+    /// <param name="cb">The straight backdrop channel value, in <c>[0, 1]</c>.</param>
+    /// <param name="cs">The straight source channel value, in <c>[0, 1]</c>.</param>
+    /// <returns>The blended channel value, in <c>[0, 1]</c>.</returns>
+    private static float BlendOverlay(float cb, float cs)
+    {
+        // Overlay(Cb, Cs) = HardLight(Cs, Cb) - renamed locals (rather than passing cs/cb
+        // directly) so the swapped argument order is unambiguous to both readers and static
+        // analysis, rather than looking like an accidental same-name-wrong-order mistake
+        var hardLightBackdrop = cs;
+        var hardLightSource = cb;
+        return BlendHardLight(hardLightBackdrop, hardLightSource);
+    }
 
     /// <summary>Evaluates the <c>soft-light</c> separable blend formula, including its own <c>D(x)</c> helper.</summary>
     private static float BlendSoftLight(float cb, float cs)

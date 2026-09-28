@@ -2,7 +2,7 @@
 // cspell:ignore Dasharray hhea Hhea hmtx Hmtx hrefs letterboxed Loca Maxp unstroked
 // cspell:ignore miterlimit
 // cspell:ignore unparseable overpainted bbox moveto lineto rects unrotated unclipped
-// cspell:ignore pillarbox Pillarboxes sizeless basi
+// cspell:ignore pillarbox Pillarboxes sizeless basi unswapped
 using System.Diagnostics;
 using System.Reflection;
 using System.Text;
@@ -2883,7 +2883,7 @@ public class SvgCodecTests
     }
 
     /// <summary>
-    ///     Proves <c>feBlend</c>'s eleven separable blend modes (including the default
+    ///     Proves <c>feBlend</c>'s twelve separable blend modes (including the default
     ///     <c>normal</c>) each evaluate the exact CSS Compositing Level 1 per-channel <c>B(Cb,
     ///     Cs)</c> formula, using two fully-opaque flat-color <c>feFlood</c> inputs
     ///     (<c>in2</c>/backdrop = 0.4 gray = byte 102, <c>in</c>/source = 0.2 gray = byte 51) whose
@@ -2895,6 +2895,7 @@ public class SvgCodecTests
     [InlineData("normal", 51)] // B(Cb, Cs) = Cs = 0.2 -> 51
     [InlineData("multiply", 20)] // Cb*Cs = 0.4*0.2 = 0.08 -> 20.4 -> 20
     [InlineData("screen", 133)] // Cb+Cs-Cb*Cs = 0.4+0.2-0.08 = 0.52 -> 132.6 -> 133
+    [InlineData("overlay", 41)] // Cb<=0.5: 2*Cb*Cs = 2*0.4*0.2 = 0.16 -> 40.8 -> 41
     [InlineData("darken", 51)] // min(Cb, Cs) = 0.2 -> 51
     [InlineData("lighten", 102)] // max(Cb, Cs) = 0.4 -> 102
     [InlineData("color-dodge", 128)] // min(1, Cb/(1-Cs)) = min(1, 0.4/0.8) = 0.5 -> 127.5 -> 128
@@ -2925,6 +2926,42 @@ public class SvgCodecTests
 
         // Assert
         Assert.Equal(new Rgba32(expected, expected, expected, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <c>feBlend mode="overlay"</c> evaluates the spec's exact
+    ///     <c>Overlay(Cb, Cs) = HardLight(Cs, Cb)</c> swapped-argument definition, not merely
+    ///     <c>hard-light</c>'s own <c>(Cb, Cs)</c> formula called unswapped (which would branch on
+    ///     the wrong channel and silently produce a different, incorrect result): backdrop
+    ///     <c>Cb=0.6</c> (byte 153), source <c>Cs=0.2</c> (byte 51). Overlay branches on
+    ///     <c>Cb&gt;0.5</c>, giving <c>1-2*(1-Cb)*(1-Cs) = 1-2*0.4*0.8 = 0.36</c> -&gt; byte
+    ///     <c>92</c>; calling <c>hard-light</c>'s own formula directly (unswapped) would instead
+    ///     branch on <c>Cs&lt;=0.5</c>, giving <c>multiply(Cb, 2*Cs) = 0.6*0.4 = 0.24</c> -&gt; byte
+    ///     <c>61</c> - a different value, proving the swap is load-bearing, not a no-op.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FeBlendModeOverlay_MatchesHardLightWithSwappedArguments()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='rgb(153,153,153)' result='bg'/>
+                  <feFlood flood-color='rgb(51,51,51)' result='fg'/>
+                  <feBlend in='fg' in2='bg' mode='overlay'/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='green' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: 92 (the correct swapped-argument result), not 61 (the wrong unswapped result)
+        Assert.Equal(new Rgba32(92, 92, 92, 255), surface[5, 5]);
     }
 
     /// <summary>
@@ -8080,6 +8117,185 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves a stylesheet rule can set <c>filter</c> on an element that carries no <c>filter</c>
+    ///     XML attribute at all - the architectural gap this fix closes: <c>filter</c> was
+    ///     previously read only via a direct <c>element.Attribute("filter")</c> lookup, completely
+    ///     bypassing the CSS cascade, so a class-targeted stylesheet rule setting <c>filter</c> had
+    ///     silently no effect. Uses a bare <c>feFlood</c> filter (see the dedicated filter tests
+    ///     above) so the effect is unambiguous: if the filter is applied, flood red entirely
+    ///     replaces the rect's own blue fill.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssStylesheetRuleSetsFilter_AppliesToElementWithNoFilterAttribute()
+    {
+        // Arrange: ".x" carries no "filter" XML attribute - only the stylesheet rule sets it
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <filter id='f'>
+                  <feFlood flood-color='red'/>
+                </filter>
+              </defs>
+              <style>.x { filter: url(#f); }</style>
+              <rect x='0' y='0' width='100' height='100' fill='blue' class='x'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the stylesheet-cascaded filter replaced the rect's own blue fill with the
+        // filter's own red flood, proving the rule's "filter" declaration was actually applied
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves a stylesheet rule can set <c>clip-path</c> on an element that carries no
+    ///     <c>clip-path</c> XML attribute at all - the same architectural gap
+    ///     <see cref="SvgCodec_Load_CssStylesheetRuleSetsFilter_AppliesToElementWithNoFilterAttribute"/>
+    ///     closes for <c>filter</c>. A 100x100 rect clipped to its own left half (a 0-50 wide
+    ///     <c>clipPath</c> rect) must render transparent to the right of x=50 and its own fill to
+    ///     the left, proving the cascaded <c>clip-path</c> was actually applied, not silently
+    ///     ignored (which would leave the whole 100x100 rect opaque).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssStylesheetRuleSetsClipPath_AppliesToElementWithNoClipPathAttribute()
+    {
+        // Arrange: ".x" carries no "clip-path" XML attribute - only the stylesheet rule sets it
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'><rect x='0' y='0' width='50' height='100'/></clipPath>
+              </defs>
+              <style>.x { clip-path: url(#c); }</style>
+              <rect x='0' y='0' width='100' height='100' fill='green' class='x'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the left half (inside the clip region) is still opaque green ("green" = RGB
+        // (0,128,0) per the SVG named-color keyword, not (0,255,0)), the right half (outside it)
+        // is fully transparent - the cascaded clip-path was actually applied
+        Assert.Equal(128, surface[25, 50].G);
+        Assert.Equal(255, surface[25, 50].A);
+        Assert.Equal(0, surface[75, 50].A);
+    }
+
+    /// <summary>
+    ///     Proves a stylesheet rule can set <c>mask</c> on an element that carries no <c>mask</c>
+    ///     XML attribute at all - the same architectural gap the <c>filter</c>/<c>clip-path</c>
+    ///     tests above close. Mirrors <see cref="SvgCodec_Load_MaskDefaultLuminance_WhiteRevealsBlackHides"/>'s
+    ///     own white-reveals/black-hides setup, but the <c>mask</c> reference is supplied only via
+    ///     a class-targeted stylesheet rule.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssStylesheetRuleSetsMask_AppliesToElementWithNoMaskAttribute()
+    {
+        // Arrange: ".x" carries no "mask" XML attribute - only the stylesheet rule sets it
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <mask id='m'><rect x='30' y='30' width='20' height='20' fill='white'/></mask>
+              </defs>
+              <style>.x { mask: url(#m); }</style>
+              <rect x='20' y='20' width='60' height='60' fill='blue' class='x'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: inside the mask's own white shape the blue fill is revealed; outside it (but
+        // still within the referencing rect's own bounds) it is hidden - proving the
+        // stylesheet-cascaded "mask" was actually applied
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[40, 40]);
+        Assert.Equal(0, surface[22, 22].A);
+    }
+
+    /// <summary>
+    ///     Proves a stylesheet rule can set <c>clip-rule</c> on a <c>clipPath</c> child that
+    ///     carries no <c>clip-rule</c> XML attribute at all: a self-intersecting figure-eight path
+    ///     (two overlapping squares joined at a point) covers a fully-enclosed hole under the
+    ///     nonzero winding rule but reveals it as a gap under evenodd - only <c>evenodd</c>, applied
+    ///     here purely via a class-targeted stylesheet rule, leaves the overlap region unfilled.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssStylesheetRuleSetsClipRule_AppliesToChildWithNoClipRuleAttribute()
+    {
+        // Arrange: two same-winding-direction overlapping rects (as one path) - nonzero (the
+        // default) fills the whole union including the overlap, evenodd leaves the overlap itself
+        // unfilled since it is covered twice
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <clipPath id='c'>
+                  <path class='x' d='M10,10 L60,10 L60,60 L10,60 Z M40,40 L90,40 L90,90 L40,90 Z'/>
+                </clipPath>
+              </defs>
+              <style>.x { clip-rule: evenodd; }</style>
+              <rect x='0' y='0' width='100' height='100' fill='green' clip-path='url(#c)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the overlap region (a 20x20 square around (50,50)) is unfilled under evenodd -
+        // proving the stylesheet-cascaded "clip-rule" was actually applied, not the nonzero default
+        Assert.Equal(0, surface[50, 50].A);
+
+        // Assert: a non-overlapping region of the first rect is still fully clipped-in
+        Assert.Equal(255, surface[20, 20].A);
+    }
+
+    /// <summary>
+    ///     Proves a stylesheet rule can set <c>stop-color</c>/<c>stop-opacity</c> on a gradient
+    ///     <c>stop</c> element that carries neither XML attribute at all - the same architectural
+    ///     gap the other five properties' tests above close, applied here to the two gradient-stop
+    ///     properties that have their own separate href-chain/caching logic in
+    ///     <c>SvgCodec.Gradients.cs</c> rather than flowing through
+    ///     <c>ApplyPresentationAttributes</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssStylesheetRuleSetsStopColorAndOpacity_AppliesToStopWithNoAttributes()
+    {
+        // Arrange: both "stop" elements carry no "stop-color"/"stop-opacity" XML attributes at all
+        // - only the stylesheet rules set them (opaque red at offset 0, half-opaque blue at offset 1)
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <defs>
+                <linearGradient id='g' x1='0.1' y1='0' x2='0.9' y2='0'>
+                  <stop class='first' offset='0'/>
+                  <stop class='second' offset='1'/>
+                </linearGradient>
+              </defs>
+              <style>
+                .first { stop-color: red; stop-opacity: 1; }
+                .second { stop-color: blue; stop-opacity: 0.5; }
+              </style>
+              <rect x='0' y='0' width='100' height='100' fill='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the leftmost pixel is fully opaque red (the "first" stop's cascaded values), not
+        // the SVG-default opaque black that would result if the stylesheet rule were ignored
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[0, 50]);
+
+        // Assert: the rightmost pixel is half-opaque blue (the "second" stop's cascaded values)
+        Assert.Equal(new Rgba32(0, 0, 255, 128), surface[99, 50]);
+    }
+
+    /// <summary>
     ///     Proves the descendant combinator (a space between compound selectors) matches an
     ///     element nested anywhere beneath the ancestor, but not a same-type element that is not
     ///     nested beneath it.
@@ -8130,6 +8346,80 @@ public class SvgCodecTests
         // Assert: the direct child matched, the grandchild (nested one level deeper) did not
         Assert.Equal(255, surface[25, 50].R);
         Assert.Equal(0, surface[75, 50].R);
+    }
+
+    /// <summary>
+    ///     Proves the descendant combinator backtracks across every matching ancestor rather than
+    ///     committing to just the nearest one: for <c>g &gt; .a .target</c>, the nearest <c>.a</c>
+    ///     ancestor of <c>.target</c> is not itself a direct child of a <c>g</c> (its immediate
+    ///     parent is a <c>symbol</c>), but a farther <c>.a</c> ancestor <em>is</em> a direct child
+    ///     of a <c>g</c> - CSS descendant-combinator semantics require trying every matching
+    ///     ancestor, so the selector must still match overall. A non-backtracking implementation
+    ///     that commits to the first (nearest) matching ancestor would incorrectly fail this match
+    ///     (leaving the target's default black fill), because it gives up as soon as the nearest
+    ///     <c>.a</c> candidate fails the <c>g &gt;</c> check without ever trying the farther one.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssDescendantCombinator_BacktracksToFartherMatchingAncestor()
+    {
+        // Arrange: the nearer ".a" (innermost <g class='a'>) has a <symbol> immediate parent, not
+        // a "g" - so "g > .a" fails for it - but the farther ".a" (outermost <g class='a'>) has a
+        // plain <g> immediate parent, so "g > .a" succeeds for it; the remaining ".target"
+        // descendant-combinator segment is then satisfied by that farther ancestor
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>g > .a .target { fill: red; }</style>
+              <g>
+                <g class='a'>
+                  <symbol>
+                    <g class='a'>
+                      <rect class='target' x='0' y='0' width='100' height='100'/>
+                    </g>
+                  </symbol>
+                </g>
+              </g>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the backtracking match succeeded - the target rect is red, not the default black
+        Assert.Equal(255, surface[50, 50].R);
+    }
+
+    /// <summary>
+    ///     Contrasts <see cref="SvgCodec_Load_CssDescendantCombinator_BacktracksToFartherMatchingAncestor"/>:
+    ///     proves the child combinator (<c>&gt;</c>) itself still does <em>not</em> backtrack - a
+    ///     failed <c>Child</c>-combinator match correctly gives up immediately rather than trying
+    ///     any farther ancestor, which remains correct CSS semantics (a child combinator has
+    ///     exactly one candidate, the immediate parent) and must not regress alongside the
+    ///     descendant-combinator backtracking fix.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_CssChildCombinator_StillDoesNotBacktrackPastImmediateParent()
+    {
+        // Arrange: "g > .a" - the immediate parent of ".a" is a <symbol>, not a "g"; even though an
+        // outer <g> exists farther up the ancestor chain, the child combinator must not backtrack
+        // to it, so the rule must not apply at all
+        const string svg = """
+            <svg viewBox='0 0 100 100'>
+              <style>g > .a { fill: red; }</style>
+              <g>
+                <symbol>
+                  <rect class='a' x='0' y='0' width='100' height='100'/>
+                </symbol>
+              </g>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: no backtracking past the immediate parent - the rect kept its default black fill
+        Assert.Equal(0, surface[50, 50].R);
     }
 
     /// <summary>

@@ -168,7 +168,7 @@ public static partial class SvgCodec
         var current = start;
         while (visited.Add(current))
         {
-            var stops = ParseStops(current);
+            var stops = ParseStops(current, context);
             if (stops.Count > 0)
             {
                 context.GradientStopCache[start] = stops;
@@ -197,12 +197,16 @@ public static partial class SvgCodec
 
     /// <summary>Parses a gradient element's direct <c>stop</c> children into color stops.</summary>
     /// <param name="gradientElement">The gradient element to inspect.</param>
+    /// <param name="context">
+    ///     The fixed per-document render context, supplying each stop's own cascaded
+    ///     <c>stop-color</c>/<c>stop-opacity</c> resolution (see <see cref="ParseStopColor"/>).
+    /// </param>
     /// <returns>
     ///     The parsed stops, in document order, with each stop's effective offset clamped to
     ///     <c>[0, 1]</c> and forced non-decreasing relative to the previous stop, per the SVG
     ///     specification's stop-offset normalization rule.
     /// </returns>
-    private static List<GradientStop> ParseStops(XElement gradientElement)
+    private static List<GradientStop> ParseStops(XElement gradientElement, RenderContext context)
     {
         var stops = new List<GradientStop>();
         var previousOffset = 0f;
@@ -214,7 +218,7 @@ public static partial class SvgCodec
             offset = Math.Max(previousOffset, Math.Clamp(offset, 0f, 1f));
             previousOffset = offset;
 
-            stops.Add(new GradientStop(offset, ParseStopColor(stopElement)));
+            stops.Add(new GradientStop(offset, ParseStopColor(stopElement, context)));
         }
 
         return stops;
@@ -222,18 +226,26 @@ public static partial class SvgCodec
 
     /// <summary>Parses a single <c>stop</c> element's <c>stop-color</c>/<c>stop-opacity</c> into a color.</summary>
     /// <param name="stopElement">The <c>stop</c> element.</param>
+    /// <param name="context">
+    ///     The fixed per-document render context, supplying this element's cascaded
+    ///     <c>stop-color</c>/<c>stop-opacity</c> resolution - through the same 3-tier CSS
+    ///     precedence chokepoint as every other presentation property (see
+    ///     <see cref="ResolveElementProperty"/>), so a matching stylesheet rule or inline
+    ///     <c>style</c> declaration for either property is honored exactly like the plain
+    ///     presentation attribute.
+    /// </param>
     /// <returns>
     ///     The stop's color; <c>stop-color</c> defaults to black and <c>stop-opacity</c> defaults
     ///     to fully opaque, per the SVG specification's initial values. An unrecognized
     ///     <c>stop-color</c> keyword tolerantly falls back to black rather than throwing.
     /// </returns>
-    private static Rgba32 ParseStopColor(XElement stopElement)
+    private static Rgba32 ParseStopColor(XElement stopElement, RenderContext context)
     {
-        var rawColor = (string?)stopElement.Attribute("stop-color");
+        var rawColor = ResolveElementProperty(stopElement, "stop-color", context);
         var color = rawColor == null ? null : ParseColor(rawColor.Trim());
         var baseColor = color ?? new Rgba32(0, 0, 0, 255);
 
-        var rawOpacity = (string?)stopElement.Attribute("stop-opacity");
+        var rawOpacity = ResolveElementProperty(stopElement, "stop-opacity", context);
         var opacity = rawOpacity == null ? 1f : ParseOpacityValue(rawOpacity);
 
         return ApplyAlpha(baseColor, opacity);

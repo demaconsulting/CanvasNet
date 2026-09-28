@@ -99,21 +99,22 @@ public static partial class SvgCodec
     private static readonly Rgba32 OpaqueWhite = new(255, 255, 255, 255);
 
     /// <summary>
-    ///     Resolves <paramref name="element"/>'s own <c>clip-path</c> presentation attribute
-    ///     (<c>url(#id)</c>) to its referenced <c>clipPath</c> element, mirroring
-    ///     <see cref="ResolveFilterElement"/>'s exact <c>url(#id)</c>-parsing and dangling-reference
-    ///     tolerance.
+    ///     Resolves <paramref name="element"/>'s own <c>clip-path</c> property (<c>url(#id)</c>) to
+    ///     its referenced <c>clipPath</c> element - through the same 3-tier CSS precedence
+    ///     chokepoint as <see cref="ResolveFilterElement"/> (see
+    ///     <see cref="ResolveElementProperty"/>), mirroring its exact <c>url(#id)</c>-parsing and
+    ///     dangling-reference tolerance.
     /// </summary>
-    /// <param name="element">The element whose own <c>clip-path</c> attribute is read.</param>
+    /// <param name="element">The element whose own <c>clip-path</c> property is resolved.</param>
     /// <param name="context">The fixed per-document render context.</param>
     /// <returns>
-    ///     The referenced <c>clipPath</c> element, or <see langword="null"/> if the attribute is
-    ///     absent/blank, not <c>url(#id)</c> syntax, the id is dangling, or the resolved element is
-    ///     not literally a <c>clipPath</c>.
+    ///     The referenced <c>clipPath</c> element, or <see langword="null"/> if no tier has a
+    ///     value, the value is not <c>url(#id)</c> syntax, the id is dangling, or the resolved
+    ///     element is not literally a <c>clipPath</c>.
     /// </returns>
     private static XElement? ResolveClipPathElement(XElement element, RenderContext context)
     {
-        var spec = (string?)element.Attribute("clip-path");
+        var spec = ResolveElementProperty(element, "clip-path", context);
         if (string.IsNullOrWhiteSpace(spec))
         {
             return null;
@@ -135,21 +136,21 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Resolves <paramref name="element"/>'s own <c>mask</c> presentation attribute
-    ///     (<c>url(#id)</c>) to its referenced <c>mask</c> element, mirroring
-    ///     <see cref="ResolveFilterElement"/>'s exact <c>url(#id)</c>-parsing and dangling-reference
-    ///     tolerance.
+    ///     Resolves <paramref name="element"/>'s own <c>mask</c> property (<c>url(#id)</c>) to its
+    ///     referenced <c>mask</c> element - through the same 3-tier CSS precedence chokepoint as
+    ///     <see cref="ResolveFilterElement"/> (see <see cref="ResolveElementProperty"/>), mirroring
+    ///     its exact <c>url(#id)</c>-parsing and dangling-reference tolerance.
     /// </summary>
-    /// <param name="element">The element whose own <c>mask</c> attribute is read.</param>
+    /// <param name="element">The element whose own <c>mask</c> property is resolved.</param>
     /// <param name="context">The fixed per-document render context.</param>
     /// <returns>
-    ///     The referenced <c>mask</c> element, or <see langword="null"/> if the attribute is
-    ///     absent/blank, not <c>url(#id)</c> syntax, the id is dangling, or the resolved element is
+    ///     The referenced <c>mask</c> element, or <see langword="null"/> if no tier has a value,
+    ///     the value is not <c>url(#id)</c> syntax, the id is dangling, or the resolved element is
     ///     not literally a <c>mask</c>.
     /// </returns>
     private static XElement? ResolveMaskElement(XElement element, RenderContext context)
     {
-        var spec = (string?)element.Attribute("mask");
+        var spec = ResolveElementProperty(element, "mask", context);
         if (string.IsNullOrWhiteSpace(spec))
         {
             return null;
@@ -260,7 +261,7 @@ public static partial class SvgCodec
 
             shapeCount++;
 
-            var clipRule = ParseFillRule((string?)child.Attribute("clip-rule")) ?? FillRule.NonZero;
+            var clipRule = ParseFillRule(ResolveElementProperty(child, "clip-rule", context)) ?? FillRule.NonZero;
             var pixelPath = TransformPath(childPath, localToTemp);
             PathFiller.Fill(coverage, pixelPath, OpaqueWhite, clipRule);
         }

@@ -961,8 +961,8 @@ sections:
               - id: CanvasNet-Codecs-SvgCodec-FeBlend
                 title: >-
                   The SvgCodec class shall evaluate feBlend primitives against their in/in2 two
-                  input resolution, supporting all fourteen CSS Compositing Level 1 mode values
-                  (normal, multiply, screen, darken, lighten, color-dodge, color-burn,
+                  input resolution, supporting all fifteen CSS Compositing Level 1 mode values
+                  (normal, multiply, screen, overlay, darken, lighten, color-dodge, color-burn,
                   hard-light, soft-light, difference, exclusion, hue, saturation, color, and
                   luminosity), defaulting to normal when mode is absent or unrecognized, and
                   evaluating the four non-separable modes (hue, saturation, color, luminosity)
@@ -972,13 +972,14 @@ sections:
                   feBlend is a widely-authored SVG filter primitive (Inkscape, Adobe Illustrator,
                   and other common authoring tools emit it routinely) previously tolerated only as
                   a no-op passthrough of its own input; without a real implementation, documents
-                  relying on any of its fourteen blend modes for a visual effect silently lost
+                  relying on any of its fifteen blend modes for a visual effect silently lost
                   that effect entirely. The four non-separable modes specifically require the
                   specification's own whole-RGB reference algorithm (not a per-channel
                   approximation) because they are defined in terms of properties (hue, saturation,
                   and luminosity) of the whole color triple, not any single channel in isolation.
                 tests:
                   - SvgCodec_Load_FeBlendSeparableMode_MatchesHandComputedFormula
+                  - SvgCodec_Load_FeBlendModeOverlay_MatchesHardLightWithSwappedArguments
                   - SvgCodec_Load_FeBlendModeNormal_MatchesFeCompositeOperatorOver
                   - SvgCodec_Load_FeBlendPartiallyTransparentSource_CompositesAlphaCorrectly
                   - SvgCodec_Load_FeBlendModeLuminosity_MatchesSpecFormulaWithoutClipping
@@ -1388,6 +1389,8 @@ sections:
                 tests:
                   - SvgCodec_Load_CssDescendantCombinator_MatchesNestedElementOnly
                   - SvgCodec_Load_CssChildCombinator_MatchesDirectChildOnly
+                  - SvgCodec_Load_CssDescendantCombinator_BacktracksToFartherMatchingAncestor
+                  - SvgCodec_Load_CssChildCombinator_StillDoesNotBacktrackPastImmediateParent
                   - SvgCodec_Load_CssSiblingCombinator_DropsOnlyThatSelectorFromList
                   - SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier
 

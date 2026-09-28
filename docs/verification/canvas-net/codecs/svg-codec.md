@@ -1157,17 +1157,24 @@ than throwing.
 #### CanvasNet-Codecs-SvgCodec-FeBlend: `feBlend` CSS Compositing Blend Modes
 
 **Tests**: `SvgCodec_Load_FeBlendSeparableMode_MatchesHandComputedFormula`,
+`SvgCodec_Load_FeBlendModeOverlay_MatchesHardLightWithSwappedArguments`,
 `SvgCodec_Load_FeBlendModeNormal_MatchesFeCompositeOperatorOver`,
 `SvgCodec_Load_FeBlendPartiallyTransparentSource_CompositesAlphaCorrectly`,
 `SvgCodec_Load_FeBlendModeLuminosity_MatchesSpecFormulaWithoutClipping`,
 `SvgCodec_Load_FeBlendModeLuminosity_ClipColorClampsOutOfRangeChannel`,
 `SvgCodec_Load_FeBlendModeUnrecognizedOrAbsent_BothFallBackToNormal`
 
-Asserts each of `feBlend`'s eleven separable modes (`normal`, `multiply`, `screen`, `darken`,
-`lighten`, `color-dodge`, `color-burn`, `hard-light`, `soft-light`, `difference`, `exclusion`)
+Asserts each of `feBlend`'s twelve separable modes (`normal`, `multiply`, `screen`, `overlay`,
+`darken`, `lighten`, `color-dodge`, `color-burn`, `hard-light`, `soft-light`, `difference`,
+`exclusion`)
 produces the exact byte value the CSS Compositing Level 1 formula for that mode computes by hand
 against a fixed, partially-different backdrop/source gray pair, run as a single `[Theory]` covering
-all modes rather than one test per mode; asserts `mode="normal"` produces byte-identical output to
+all modes rather than one test per mode; additionally asserts, with a second, dedicated
+backdrop/source pair chosen so the swapped- and non-swapped-argument results differ, that `overlay`
+matches `HardLight(Cs, Cb)` (its own backdrop/source arguments swapped relative to `hard-light`'s
+own `HardLight(Cb, Cs)`) rather than `hard-light`'s own non-swapped formula - proving the
+implementation did not simply delegate to the existing `hard-light` helper with its arguments in
+their original order; asserts `mode="normal"` produces byte-identical output to
 the equivalent `feComposite operator="over"` composite, proving the "blend function returns the
 source color unchanged" special case for `normal` is wired correctly; asserts two differently,
 partially-transparent inputs (a semi-transparent source over a semi-transparent backdrop) composite
@@ -1576,6 +1583,8 @@ disk.
 
 **Tests**: `SvgCodec_Load_CssDescendantCombinator_MatchesNestedElementOnly`,
 `SvgCodec_Load_CssChildCombinator_MatchesDirectChildOnly`,
+`SvgCodec_Load_CssDescendantCombinator_BacktracksToFartherMatchingAncestor`,
+`SvgCodec_Load_CssChildCombinator_StillDoesNotBacktrackPastImmediateParent`,
 `SvgCodec_Load_CssSiblingCombinator_DropsOnlyThatSelectorFromList`,
 `SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier`
 
@@ -1584,7 +1593,16 @@ nested inside a `g` at any depth, but not a sibling `rect` that is not nested in
 all. Loads a document with a child-combinator rule (`#id > .class`) and asserts it matches only
 an element that is a *direct* child of the identified ancestor, not one nested one level further
 (whose immediate parent is a different element), proving the child combinator is stricter than
-the descendant combinator rather than a synonym for it. Loads a document whose stylesheet
+the descendant combinator rather than a synonym for it. A further pair of tests proves the
+descendant combinator's matching actually backtracks rather than committing to only the nearest
+matching ancestor: `g > .a .target` is asserted to match an element whose *nearest* `.a` ancestor
+is not itself a direct child of any `g` (so a non-backtracking match would incorrectly reject the
+whole selector) but whose *farther* `.a` ancestor is a direct child of a `g` - the descendant
+combinator must retry every matching ancestor for the remaining, further-left chain, not merely
+the first one found; a companion test confirms the `Child` combinator, by contrast, still does
+not and must not backtrack past a failed immediate-parent match (a farther ancestor satisfying
+the compound selector is not a valid substitute for `>`'s own exact-parent requirement), so this
+fix changes only `Descendant`-combinator semantics. Loads a document whose stylesheet
 contains a comma-separated list with one sibling-combinator selector (`rect + circle`) alongside
 one plain, supported selector (`rect`) in the same rule, and asserts the plain selector's
 declaration still applies - proving only the unsupported sibling-combinator selector is dropped
@@ -1651,6 +1669,43 @@ declaration site rather than a dedicated ceiling-triggering regression test.
 The tests below are defensive/regression tests added for a bug fix, not new observable features;
 per `requirements-principles.md`, tests may exist without a linked requirement, so these entries
 deliberately do not use the `CanvasNet-Codecs-SvgCodec-{Id}:` heading pattern above.
+
+#### CSS Cascade Now Covers Element-Level and Gradient-Stop Properties
+
+**Tests**: `SvgCodec_Load_CssStylesheetRuleSetsFilter_AppliesToElementWithNoFilterAttribute`,
+`SvgCodec_Load_CssStylesheetRuleSetsClipPath_AppliesToElementWithNoClipPathAttribute`,
+`SvgCodec_Load_CssStylesheetRuleSetsMask_AppliesToElementWithNoMaskAttribute`,
+`SvgCodec_Load_CssStylesheetRuleSetsClipRule_AppliesToChildWithNoClipRuleAttribute`,
+`SvgCodec_Load_CssStylesheetRuleSetsStopColorAndOpacity_AppliesToStopWithNoAttributes`
+
+`ApplyPresentationAttributes` was, before this fix, the *only* place this codec routed a
+presentation property through the three-tier `ResolveStyledValue` precedence chain (see *Three-
+Tier Precedence* in the design doc); six properties resolved elsewhere in the codebase - `filter`,
+`clip-path`, and `mask` (each resolved once, directly from a plain `XElement.Attribute(...)` read,
+at the point a shape/`text`/`g`/`symbol`/`use` element's own filter/clip/mask reference is
+resolved), a `clipPath` child's own `clip-rule` (read the same direct way inside the `clipPath`
+rasterization walk), and a gradient `stop`'s own `stop-color`/`stop-opacity` (read the same direct
+way while building a gradient's color stops) - bypassed the cascade entirely, so a stylesheet rule
+targeting any of these six had no observable effect. Each of the five tests above loads a document
+whose `<style>` rule targets a class carrying no corresponding plain XML attribute for the
+property under test, and asserts the stylesheet-only value is nonetheless applied to the rendered
+output (a `filter="url(#blurFilter)"`-equivalent Gaussian blur softens hard edges, a
+`clip-path`-equivalent hard-clips content to a shape, a `mask`-equivalent attenuates alpha by a
+luminance mask, a `clip-rule="evenodd"`-equivalent produces a figure-eight's true center hole, and
+a `stop-color`/`stop-opacity` pair renders the gradient's resolved color exactly) - each would
+render as if the stylesheet rule were entirely absent without this fix. All six call sites now
+resolve their property through a new, shared `ResolveElementProperty(element, property, context)`
+helper (`SvgCodec.Css.Cascade.cs`) that applies the exact same `BuildElementContext`/
+`ResolveStyledValue` three-tier precedence `ApplyPresentationAttributes` already used, falling
+back to the plain XML attribute only when neither a stylesheet rule nor an inline `style`
+declaration supplies the property - so a document with no `style` element and no inline `style`
+attributes anywhere continues to behave exactly as before. Because `filter`/`clip-path`/`mask`/
+`clip-rule`/`stop-color`/`stop-opacity` are element-level (not `RenderState`-inherited) properties,
+each call site's own element may not otherwise have been visited by `ApplyPresentationAttributes`
+in the same recursive walk step; `RenderContext.StyleContextCache` caches each element's resolved
+`CssElementStyleContext` so a given element's `CssMatchWorkBudget` charge is still incurred at
+most once, no matter how many of these properties (or `ApplyPresentationAttributes` itself) are
+later resolved for that same element.
 
 #### Bounded GetInfo Header-Only Parsing
 

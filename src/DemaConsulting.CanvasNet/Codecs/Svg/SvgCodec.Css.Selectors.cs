@@ -350,10 +350,11 @@ public static partial class SvgCodec
 
     /// <summary>
     ///     Tests whether <paramref name="element"/> matches <paramref name="selector"/> - its final
-    ///     (rightmost) compound selector against <paramref name="element"/> itself, then each
-    ///     preceding compound selector against an ancestor found by walking the element's parent
-    ///     chain, per each segment's own <see cref="CssCombinator"/> (an exact parent match for
-    ///     <see cref="CssCombinator.Child"/>, any ancestor for <see cref="CssCombinator.Descendant"/>).
+    ///     (rightmost) compound selector against <paramref name="element"/> itself, then the
+    ///     remaining (leftward) compound-selector chain against the element's ancestors via
+    ///     <see cref="MatchesAncestorChain"/>, per each segment's own <see cref="CssCombinator"/>
+    ///     (an exact parent match for <see cref="CssCombinator.Child"/>, a backtracking search over
+    ///     every ancestor for <see cref="CssCombinator.Descendant"/> - see that method's remarks).
     ///     The parsed <see cref="XDocument"/> retains live parent links for the lifetime of one
     ///     <c>Load</c> call (see this class's remarks), so no separate parent-tracking bookkeeping
     ///     is needed here.
@@ -365,41 +366,81 @@ public static partial class SvgCodec
     {
         var segments = selector.Segments;
         var index = segments.Count - 1;
-        if (!MatchesCompound(element, segments[index].Compound))
+        return MatchesCompound(element, segments[index].Compound) &&
+               MatchesAncestorChain(element, segments, index);
+    }
+
+    /// <summary>
+    ///     Tests whether the remaining (leftward) compound-selector chain
+    ///     <c>segments[0..index-1]</c> matches some ancestor chain of <paramref name="current"/>,
+    ///     given that <paramref name="current"/> already satisfies <c>segments[index]</c>.
+    /// </summary>
+    /// <remarks>
+    ///     A <see cref="CssCombinator.Child"/> segment (<c>segments[index].Combinator</c>, the
+    ///     combinator connecting <c>segments[index - 1]</c> to <c>segments[index]</c>) has exactly
+    ///     one candidate - <paramref name="current"/>'s immediate parent - so a failed match there
+    ///     correctly gives up immediately with no backtracking possible or required.
+    ///     <para>
+    ///     A <see cref="CssCombinator.Descendant"/> segment, however, has CSS descendant-combinator
+    ///     semantics that require trying <b>every</b> ancestor that satisfies
+    ///     <c>segments[index - 1]</c>, not just the nearest one: a selector such as
+    ///     <c>g &gt; .a .target</c> must still match when the nearest <c>.a</c> ancestor is not a
+    ///     direct child of a <c>g</c>, provided some farther <c>.a</c> ancestor is. Committing to
+    ///     the first (nearest) matching ancestor - as an earlier, non-backtracking implementation
+    ///     did - silently under-matches that case. This method therefore recurses into every
+    ///     matching ancestor in turn (nearest first) and succeeds as soon as any one of them leads
+    ///     to a full match of the remaining chain, backtracking (trying the next farther matching
+    ///     ancestor) whenever one candidate's remaining chain fails.
+    ///     </para>
+    ///     <para>
+    ///     This backtracking search's own worst-case cost - not merely a flat per-segment cost - is
+    ///     exactly what <see cref="ComputeSelectorMatchWeight"/> charges against the
+    ///     <see cref="CssMatchWorkBudget"/>, so a pathologically deep chain of consecutive
+    ///     <see cref="CssCombinator.Descendant"/> segments is rejected proportionally to its real
+    ///     (multiplicative, not additive) cost rather than silently permitted to run unbounded.
+    ///     </para>
+    /// </remarks>
+    /// <param name="current">The element already known to satisfy <c>segments[index]</c>.</param>
+    /// <param name="segments">The full compound/combinator segment chain (see <see cref="CssComplexSelector.Segments"/>).</param>
+    /// <param name="index">
+    ///     The index, within <paramref name="segments"/>, of the segment <paramref name="current"/>
+    ///     already satisfies. When <c>0</c>, the entire chain is already satisfied and this method
+    ///     returns <see langword="true"/> immediately with no further ancestor walk.
+    /// </param>
+    /// <returns>
+    ///     <see langword="true"/> if the remaining chain matches some ancestor path of
+    ///     <paramref name="current"/>.
+    /// </returns>
+    private static bool MatchesAncestorChain(
+        XElement current,
+        IReadOnlyList<(CssCompoundSelector Compound, CssCombinator Combinator)> segments,
+        int index)
+    {
+        // The leftmost compound is already satisfied by "current" - the whole chain matches
+        if (index == 0)
         {
-            return false;
+            return true;
         }
 
-        var current = element;
-        index--;
-        while (index >= 0)
+        var combinator = segments[index].Combinator;
+        var targetCompound = segments[index - 1].Compound;
+
+        if (combinator == CssCombinator.Child)
         {
-            var combinator = segments[index + 1].Combinator;
-            if (combinator == CssCombinator.Child)
-            {
-                var parent = current.Parent;
-                if (parent == null || !MatchesCompound(parent, segments[index].Compound))
-                {
-                    return false;
-                }
-
-                current = parent;
-            }
-            else
-            {
-                var match = current.Ancestors().FirstOrDefault(ancestor => MatchesCompound(ancestor, segments[index].Compound));
-                if (match == null)
-                {
-                    return false;
-                }
-
-                current = match;
-            }
-
-            index--;
+            // Exactly one candidate (the immediate parent) - no backtracking possible, so a failed
+            // match here correctly gives up without trying any farther ancestor
+            var parent = current.Parent;
+            return parent != null &&
+                   MatchesCompound(parent, targetCompound) &&
+                   MatchesAncestorChain(parent, segments, index - 1);
         }
 
-        return true;
+        // Descendant combinator: try every matching ancestor (nearest first), backtracking to the
+        // next farther one whenever the remaining chain fails to match from a given candidate -
+        // see this method's remarks
+        return current.Ancestors().Any(ancestor =>
+            MatchesCompound(ancestor, targetCompound) &&
+            MatchesAncestorChain(ancestor, segments, index - 1));
     }
 
     /// <summary>

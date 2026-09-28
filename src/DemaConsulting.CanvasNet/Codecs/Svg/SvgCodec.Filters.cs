@@ -142,21 +142,24 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Resolves <paramref name="element"/>'s own <c>filter</c> presentation attribute
-    ///     (<c>url(#id)</c>) to its referenced <c>filter</c> element, reusing the exact same
-    ///     <c>url(#id)</c>-parsing and dangling-reference tolerance as <see cref="ResolvePaint"/>/
-    ///     <see cref="ResolveMarkerElement"/>.
+    ///     Resolves <paramref name="element"/>'s own <c>filter</c> property (<c>url(#id)</c>) to
+    ///     its referenced <c>filter</c> element - through this class's exact same 3-tier CSS
+    ///     precedence chokepoint <see cref="ApplyPresentationAttributes"/> already uses (see
+    ///     <see cref="ResolveElementProperty"/>), so a matching stylesheet rule or inline
+    ///     <c>style</c> declaration for <c>filter</c> is honored exactly like the plain presentation
+    ///     attribute - then reusing the exact same <c>url(#id)</c>-parsing and dangling-reference
+    ///     tolerance as <see cref="ResolvePaint"/>/<see cref="ResolveMarkerElement"/>.
     /// </summary>
-    /// <param name="element">The element whose own <c>filter</c> attribute is read.</param>
+    /// <param name="element">The element whose own <c>filter</c> property is resolved.</param>
     /// <param name="context">The fixed per-document render context.</param>
     /// <returns>
-    ///     The referenced <c>filter</c> element, or <see langword="null"/> if the attribute is
-    ///     absent/blank, not <c>url(#id)</c> syntax, the id is dangling, or the resolved element is
+    ///     The referenced <c>filter</c> element, or <see langword="null"/> if no tier has a value,
+    ///     the value is not <c>url(#id)</c> syntax, the id is dangling, or the resolved element is
     ///     not literally a <c>filter</c>.
     /// </returns>
     private static XElement? ResolveFilterElement(XElement element, RenderContext context)
     {
-        var spec = (string?)element.Attribute("filter");
+        var spec = ResolveElementProperty(element, "filter", context);
         if (string.IsNullOrWhiteSpace(spec))
         {
             return null;

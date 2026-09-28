@@ -486,7 +486,12 @@ chokepoint described below).
 supported, as are comma-separated selector lists and the descendant (whitespace) and child
 (`>`) combinators, matched via a backward walk from the selector's rightmost compound against the
 target element through `XElement.Parent`/`Ancestors()` for each preceding compound/combinator
-pair - `Child` requires an exact `.Parent` match, `Descendant` searches any ancestor. Sibling
+pair - `Child` requires an exact `.Parent` match, `Descendant` searches every ancestor that
+matches the compound selector and, on failure of the remaining (further-left) chain from one
+candidate, backtracks to try the next farther matching ancestor rather than committing to only
+the nearest match; this recursive backtracking is required for a chain like `g > .a .target` to
+match correctly when the nearest `.a` ancestor is not itself a direct child of a `g` but a
+farther `.a` ancestor is. Sibling
 combinators (`+`/`~`) and pseudo-classes (for example `:hover`) are explicitly out of scope: SVG
 rendering is a single static snapshot with no notion of interactive state, so a pseudo-class has
 no meaningful target state to render, and a sibling combinator would require tracking
@@ -516,7 +521,11 @@ tiers: a plain presentation attribute (lowest), any matching stylesheet rule (ne
 inline `style="..."` attribute (highest, unconditionally overriding a matching stylesheet rule
 regardless of that rule's own specificity). This resolution happens through a single chokepoint,
 `ResolveStyledValue`, called once per cascaded property from `ApplyPresentationAttributes` (see
-*Presentation-Attribute Inheritance Model* above): it returns the winning inline or stylesheet
+*Presentation-Attribute Inheritance Model* above) for every `RenderState`-inherited property
+(`fill`, `stroke`, `fill-opacity`, `stroke-opacity`, `opacity`, `fill-rule`, `stroke-width`,
+`stroke-linecap`, `stroke-linejoin`, `stroke-miterlimit`, `stroke-dasharray`,
+`stroke-dashoffset`, `font-family`, `font-size`, `font-weight`, `font-style`, `text-anchor`, and
+`marker-start`/`marker-mid`/`marker-end`): it returns the winning inline or stylesheet
 declaration's raw value, or `null` if neither tier has one, in which case the caller falls
 through to reading the plain presentation attribute directly - preserving exactly the
 pre-existing, backward-compatible behavior for a document with no `style` element and no inline
@@ -525,7 +534,21 @@ is handed to the *exact same* value parser (`ParseFillRule`, `ParseGeometryCoord
 `ParseOpacityValue`, and so on) a plain presentation attribute already used before this feature
 existed: the CSS engine itself never understands SVG paint/numeric/keyword syntax, only
 property/value token boundaries, so no SVG-specific value-parsing logic is duplicated between a
-presentation attribute and a CSS declaration carrying the same property.
+presentation attribute and a CSS declaration carrying the same property. The six element-level
+properties that do *not* flow through `RenderState` inheritance - `filter`, `clip-path`, `mask`,
+`clip-rule`, `stop-color`, and `stop-opacity` (see **Filters** and *Clipping and Masking* below,
+and *Gradients* above/below for why each is resolved independently of ordinary paint
+inheritance) - still resolve through this same three-tier precedence: each call site (filter/
+clip-path/mask reference resolution, a `clipPath` child's own `clip-rule`, a gradient `stop`'s
+own `stop-color`/`stop-opacity`) reads its property via a shared `ResolveElementProperty(element,
+property, context)` helper rather than the raw `XElement.Attribute(...)` these six properties
+used before this three-tier resolution existed for them, so a stylesheet rule targeting, for
+example, `filter` now has an observable effect exactly as a rule targeting `fill` already did.
+`ResolveElementProperty` builds on the same `BuildElementContext`/`ResolveStyledValue` machinery
+`ApplyPresentationAttributes` uses, but caches the resulting `CssElementStyleContext` per element
+(`RenderContext.StyleContextCache`) so an element referencing multiple such properties, or one
+already visited by `ApplyPresentationAttributes` itself, is charged against `CssMatchWorkBudget`
+only once, not once per property read.
 
 **Malformed input and resource safety.** A syntactically malformed individual declaration is
 skipped (the parser resynchronizes at the next `;`) without discarding the rest of that rule's
@@ -546,13 +569,24 @@ Separately, a mutable `CssMatchWorkBudget` - following the exact
 fixed cumulative ceiling is exceeded) - bounds the *cumulative* selector-matching work performed
 across the whole document, charged once per element against each stylesheet's own precomputed
 `CssStylesheet.MatchWorkPerElement` - the sum, across every retained rule, of every one of that
-rule's comma-separated selectors' own worst-case matching weight (`1` for its rightmost compound,
-plus another `1` for every further child-combinator segment, plus `MaxElementDepth` for every
-further descendant-combinator segment, since a failing descendant match can walk that many
-ancestors before giving up) - rather than the bare rule count, so a rule's own selector-list
-length and combinator-chain length both genuinely count toward the charge instead of being
-invisible to it. A document that legitimately needs more total weighted matching work than this
-budget allows is rejected the same way an oversized `path` `d` attribute already is.
+rule's comma-separated selectors' own worst-case matching weight. Because `Descendant`-combinator
+matching backtracks (retrying every matching ancestor for the remaining, further-left chain
+rather than committing to only the nearest one - see *Selector support* above), the weight for a
+segment chain is computed with the same recurrence the matcher itself follows, left to right:
+`Child` adds a flat `1`; `Descendant` multiplies `MaxElementDepth` by `1 +` the accumulated weight
+of everything still further left, since a failing match from any one of up to `MaxElementDepth`
+candidate ancestors must redo the entire remaining chain's own worst-case work. This makes the
+weight of a long run of chained descendant combinators grow exponentially in the number of such
+segments (genuinely bounding backtracking's own worst case, not merely the single-descendant-
+segment case an additive formula would already cover), so the weight computation saturates at a
+fixed `MaxSaturatedSelectorMatchWeight` ceiling using checked-overflow-free saturating
+arithmetic (`AddSaturating`/`MultiplySaturating`) rather than overflowing `long` - a document's
+own combinator-chain-length cap (`MaxCssCombinatorSegmentsPerSelector`) already makes an
+unsaturated value astronomically larger than any real budget ceiling could ever allow through
+regardless, so saturating instead of overflowing changes no accepted/rejected document, only how
+the intermediate arithmetic stays well-defined. A document that legitimately needs more total
+weighted matching work than this budget allows is rejected the same way an oversized `path` `d`
+attribute already is.
 
 ### Gradient, Use, and Text Support and Limits
 
@@ -699,13 +733,15 @@ premultiplied values (the one `feComposite` operator the spec itself defines on 
 rather than straight color), clamped to `[0, 1]` before being un-premultiplied for storage.
 `feMerge` layers each `feMergeNode` child's own resolved input over an
 initially transparent accumulator, in document order, via the same `CompositeOver`. `feBlend`
-evaluates one of fourteen CSS Compositing Level 1 blend modes - the eleven separable modes
-(`normal`, `multiply`, `screen`, `darken`, `lighten`, `color-dodge`, `color-burn`, `hard-light`,
-`soft-light`, `difference`, `exclusion`) per channel, and the four non-separable modes (`hue`,
-`saturation`, `color`, `luminosity`) via the spec's exact whole-triple `Lum`/`ClipColor`/
-`SetLum`/`Sat`/`SetSat` reference algorithm - then composites the blended `in` layer over `in2`
-using the standard simple-alpha ("source-over") formula, mirroring the same inline
-premultiply/un-premultiply pattern as the `arithmetic` operator above. Any other, genuinely
+evaluates one of fifteen CSS Compositing Level 1 blend modes - the twelve separable modes
+(`normal`, `multiply`, `screen`, `overlay`, `darken`, `lighten`, `color-dodge`, `color-burn`,
+`hard-light`, `soft-light`, `difference`, `exclusion`) per channel, and the four non-separable
+modes (`hue`, `saturation`, `color`, `luminosity`) via the spec's exact whole-triple `Lum`/
+`ClipColor`/`SetLum`/`Sat`/`SetSat` reference algorithm - then composites the blended `in` layer
+over `in2` using the standard simple-alpha ("source-over") formula, mirroring the same inline
+premultiply/un-premultiply pattern as the `arithmetic` operator above. `overlay` is defined as
+`hard-light` with its own backdrop/source arguments swapped (`Overlay(Cb, Cs) = HardLight(Cs,
+Cb)`), reusing that formula rather than duplicating its multiply/screen split. Any other, genuinely
 unrecognized primitive name is a
 tolerant no-op passthrough of its own input, still registered under its own `result` name so
 later primitives can still resolve it by name. The
