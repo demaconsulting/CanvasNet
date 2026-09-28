@@ -1163,7 +1163,7 @@ than throwing.
 `SvgCodec_Load_FeBlendModeLuminosity_ClipColorClampsOutOfRangeChannel`,
 `SvgCodec_Load_FeBlendModeUnrecognizedOrAbsent_BothFallBackToNormal`
 
-Asserts each of `feBlend`'s ten separable modes (`normal`, `multiply`, `screen`, `darken`,
+Asserts each of `feBlend`'s eleven separable modes (`normal`, `multiply`, `screen`, `darken`,
 `lighten`, `color-dodge`, `color-burn`, `hard-light`, `soft-light`, `difference`, `exclusion`)
 produces the exact byte value the CSS Compositing Level 1 formula for that mode computes by hand
 against a fixed, partially-different backdrop/source gray pair, run as a single `[Theory]` covering
