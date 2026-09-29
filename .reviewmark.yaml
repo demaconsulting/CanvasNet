@@ -674,6 +674,9 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.ContentStream.cs"  # phase 2 unit source (content stream)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.GraphicsState.cs"  # phase 2 unit source (graphics state)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.PathOps.cs"        # phase 2 unit source (path ops)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Color.cs"          # phase 3 unit source (device color)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Filters.cs"        # phase 3 unit source (filter pipeline)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Images.cs"         # phase 3 unit source (image XObjects)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfPageInfo.cs"              # phase 1 unit source (supporting record struct)
       - "src/DemaConsulting.CanvasNet.Pdf/NamespaceDoc.cs"             # Pdf namespace documentation
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentTests.cs"  # unit tests

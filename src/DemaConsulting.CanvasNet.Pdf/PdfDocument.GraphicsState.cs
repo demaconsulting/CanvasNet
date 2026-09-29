@@ -1,4 +1,5 @@
 using System.Numerics;
+using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Drawing;
 
 namespace DemaConsulting.CanvasNet.Pdf;
@@ -22,9 +23,14 @@ public sealed partial class PdfDocument
     ///         <see cref="Drawing.StrokeStyle"/>'s own defaults.
     ///     </para>
     ///     <para>
-    ///         Phase 2 fixes fill/stroke color to opaque black (see
-    ///         <c>PdfDocument.PathOps.cs</c>'s <c>OpaqueBlack</c> constant) - this class carries no
-    ///         color state, since no color operator is implemented in this phase.
+    ///         Phase 3 adds real device color state: <see cref="FillColor"/>/<see cref="StrokeColor"/>
+    ///         (the actual painted color, updated by <c>g</c>/<c>rg</c>/<c>k</c>/<c>sc</c>/<c>scn</c>
+    ///         and their stroking counterparts) and <see cref="FillColorSpace"/>/
+    ///         <see cref="StrokeColorSpace"/> (which device color space <c>sc</c>/<c>scn</c>'s
+    ///         operand count is currently interpreted against). Every field's default matches the
+    ///         PDF specification's own documented initial state for a freshly started content
+    ///         stream: <c>DeviceGray</c> at value <c>0</c>, i.e. opaque black - identical to Phase
+    ///         2's fixed-black behavior, so no Phase 2 test regresses.
     ///     </para>
     /// </remarks>
     private sealed class GraphicsState
@@ -73,6 +79,32 @@ public sealed partial class PdfDocument
         internal float DashPhase { get; set; }
 
         /// <summary>
+        ///     Gets or sets the current fill color. The PDF specification's default is opaque
+        ///     black (<c>DeviceGray</c> value <c>0</c>).
+        /// </summary>
+        internal Rgba32 FillColor { get; set; } = new(0, 0, 0, 255);
+
+        /// <summary>
+        ///     Gets or sets the current stroke color. The PDF specification's default is opaque
+        ///     black (<c>DeviceGray</c> value <c>0</c>).
+        /// </summary>
+        internal Rgba32 StrokeColor { get; set; } = new(0, 0, 0, 255);
+
+        /// <summary>
+        ///     Gets or sets the current fill color space, used to determine how many numeric
+        ///     operands <c>sc</c>/<c>scn</c> requires. The PDF specification's default is
+        ///     <c>DeviceGray</c>.
+        /// </summary>
+        internal PdfColorSpaceKind FillColorSpace { get; set; } = PdfColorSpaceKind.DeviceGray;
+
+        /// <summary>
+        ///     Gets or sets the current stroke color space, used to determine how many numeric
+        ///     operands <c>SC</c>/<c>SCN</c> requires. The PDF specification's default is
+        ///     <c>DeviceGray</c>.
+        /// </summary>
+        internal PdfColorSpaceKind StrokeColorSpace { get; set; } = PdfColorSpaceKind.DeviceGray;
+
+        /// <summary>
         ///     Produces an independent copy of this graphics state, for <c>q</c> to push onto the
         ///     graphics-state stack.
         /// </summary>
@@ -91,6 +123,10 @@ public sealed partial class PdfDocument
             MiterLimit = MiterLimit,
             DashArray = DashArray,
             DashPhase = DashPhase,
+            FillColor = FillColor,
+            StrokeColor = StrokeColor,
+            FillColorSpace = FillColorSpace,
+            StrokeColorSpace = StrokeColorSpace,
         };
     }
 

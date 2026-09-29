@@ -6,7 +6,7 @@ This document provides the system-level design for CanvasNetPdf.
 
 ![CanvasNetPdf Structure](CanvasNetPdfView.svg)
 
-<!-- cspell:ignore xref startxref -->
+<!-- cspell:ignore xref startxref CCITT bitstream -->
 
 ## Architecture
 
@@ -37,15 +37,21 @@ _CanvasNetSvg System Design_, `docs/design/canvas-net-svg.md`).
 structure parsing only: cross-reference resolution (in all of PDF's common forms), the
 trailer/catalog/page tree, and page count/size/rotation reporting; `Render` exposed its final
 call shape (a page index plus a caller-chosen output size) but returned only a correctly sized,
-fully transparent `Surface`. Phase 2 (this design) adds a content-stream interpreter: `Render`
-now tokenizes and executes a page's `/Contents` path-construction (`m`/`l`/`c`/`v`/`y`/`h`/`re`)
-and path-painting (`f`/`F`/`f*`/`S`/`s`/`B`/`B*`/`b`/`b*`/`n`) operators, plus the graphics-state
-stack (`q`/`Q`/`cm`/`w`/`J`/`j`/`M`/`d`), painting real path geometry in the correct device-pixel
+fully transparent `Surface`. Phase 2 added a content-stream interpreter: `Render` tokenizes and
+executes a page's `/Contents` path-construction (`m`/`l`/`c`/`v`/`y`/`h`/`re`) and path-painting
+(`f`/`F`/`f*`/`S`/`s`/`B`/`B*`/`b`/`b*`/`n`) operators, plus the graphics-state stack
+(`q`/`Q`/`cm`/`w`/`J`/`j`/`M`/`d`), painting real path geometry in the correct device-pixel
 position for the page's `/MediaBox` origin, effective `/Rotate`, and the caller's requested render
-size. **Phase 2 limitation**: every filled/stroked path paints in solid opaque black — no color
-space or color-setting operator is implemented yet. Text/font operators, image XObjects,
-additional stream filters, and clipping-path operators (`W`/`W*`) remain explicitly out of scope
-and are planned for later phases.
+size — but every filled/stroked path painted in solid opaque black, since no color operator was
+implemented yet. Phase 3 (this design) adds real device color (`g`/`G`/`rg`/`RG`/`k`/`K`/`cs`/
+`CS`/`sc`/`SC`/`scn`/`SCN`), a generalized `/Filter`/`/DecodeParms` stream-decoding pipeline
+(`FlateDecode` plus PNG/TIFF predictor reversal), and image XObjects (`Do`: `DCTDecode` via the
+`CanvasNet` system's `Codecs.JpegCodec`, or raw `DeviceGray`/`DeviceRGB`/`DeviceCMYK` 8-bit
+samples, composited through the current transformation matrix). **Phase 3 limitations**: no
+text/font operators, no Form XObject rendering (fails closed, rather than being silently
+skipped), no shading/patterns/transparency groups, no `CCITTFax`/`LZW`/`ASCII85`/`ASCIIHex`/`JPX`
+filter decoding (fails closed), and no `/SMask`/alpha compositing (every decoded image is treated
+as fully opaque). These remain out of scope and are planned for later phases.
 
 ## External Interfaces
 
@@ -68,11 +74,13 @@ The system exposes the following public API to external consumers, all on the se
   `ObjectDisposedException` once disposed.
 - **PdfDocument.Render(int pageIndex, int width, int height)**: Returns a `Surface` of the
   caller-specified `width`x`height` for the given page, painted with the page's interpreted
-  content-stream geometry (path construction/painting, in solid opaque black only — see
-  _PdfDocument Unit Design_ for the full Phase 2 operator set and color limitation), or a fully
-  transparent surface when the page declares no `/Contents`. Validates `pageIndex` the same way
-  as `GetPageInfo`, propagates `Surface`'s own `width`/`height` validation unwrapped, throws
-  `InvalidDataException` for malformed `/Contents` or a malformed recognized operator, and throws
+  content-stream geometry (path construction/painting with real device color, and any placed
+  image XObjects — see _PdfDocument Unit Design_ for the full Phase 3 operator set and its
+  documented fail-closed boundaries), or a fully transparent surface when the page declares no
+  `/Contents`. Validates `pageIndex` the same way as `GetPageInfo`, propagates `Surface`'s own
+  `width`/`height` validation unwrapped, throws `InvalidDataException` for malformed `/Contents`
+  or a malformed recognized operator, throws `Codecs.UnsupportedImageFeatureException` for a
+  well-formed but unsupported color space/stream filter/Form XObject, and throws
   `ObjectDisposedException` once disposed.
 - **PdfDocument.Dispose()**: Idempotent; releases the buffered/parsed document state. No other
   public member may be called afterward without throwing `ObjectDisposedException`.
@@ -97,9 +105,13 @@ and page-tree traversal/inheritance) and every method's full parameter and excep
 `src/DemaConsulting.CanvasNet.Pdf/DemaConsulting.CanvasNet.Pdf.csproj`), specifically:
 
 - The `Canvas` subsystem's `Surface` unit — the content-rendered destination raster `Render`
-  returns, and `Rgba32` — the fixed opaque-black fill/stroke color
+  returns, and `Rgba32` — the fill/stroke color and decoded image-pixel representation
 - The `Codecs` subsystem's shared `UnsupportedImageFeatureException` type — reused, unmodified,
-  to signal a well-formed-but-unsupported `/Encrypt`ed document (see Risk Control Measures below)
+  to signal a well-formed-but-unsupported `/Encrypt`ed document, color space, stream filter, or
+  Form XObject (see Risk Control Measures below)
+- The `Codecs` subsystem's `JpegCodec` unit (new as of Phase 3) — decodes an image XObject's raw
+  `DCTDecode` (JPEG) bitstream via `JpegCodec.Load(Stream)` directly, without requiring
+  APP0/JFIF framing
 - The `Geometry` subsystem's `PathBuilder`/`Path` — accumulates each content stream's current
   path as its path-construction operators are dispatched
 - The `Drawing` subsystem's `PathFiller`/`PathStroker`/`StrokeStyle`/`FillRule`/`LineCap`/
@@ -145,9 +157,16 @@ each with its own consistently-applied behavior:
 An `/Encrypt` key present in the trailer is detected explicitly and fails closed: `PdfDocument`
 never attempts to interpret the (still-encrypted) bytes of an encrypted document as plaintext
 content, instead throwing `Codecs.UnsupportedImageFeatureException` (feature `"pdf-encrypted"`)
-immediately upon detection. No other segregation is required at the system level: `CanvasNetPdf`
-contains exactly one unit, so this risk control is inherently contained within it (IEC 62304
-§5.3.3).
+immediately upon detection. Phase 3 extends this same fail-closed posture to every well-formed
+but out-of-scope construct it can now encounter: an unsupported color space (`Indexed`/
+`Separation`/`DeviceN`/`ICCBased`/`CalRGB`/`CalGray`/`Lab`/patterns), an unsupported stream filter
+(anything other than `FlateDecode`, or a `DCTDecode` combined with another filter), an
+unsupported image `/BitsPerComponent`, and a `/Subtype /Form` XObject are all rejected with
+`Codecs.UnsupportedImageFeatureException` rather than being silently skipped or mis-rendered —
+each carrying a distinct, descriptive `Feature` string so a caller (or this repository's own
+tests) can distinguish exactly which unsupported construct was encountered. No other segregation
+is required at the system level: `CanvasNetPdf` contains exactly one unit, so this risk control is
+inherently contained within it (IEC 62304 §5.3.3).
 
 ## Data Flow
 
@@ -175,12 +194,14 @@ contains exactly one unit, so this risk control is inherently contained within i
 3. **Processing**: Builds the page's base current transformation matrix from its raw `/MediaBox`
    origin, effective `/Rotate`, and the requested `width`/`height`; resolves `/Contents` to fully
    decoded bytes (concatenating a multi-stream array with a space separator); tokenizes and
-   dispatches every recognized path-construction/painting and graphics-state operator, silently
-   skipping any other keyword; throws `InvalidDataException` for malformed `/Contents` or a
-   malformed recognized operator's operand count/type
+   dispatches every recognized path-construction/painting, graphics-state, device-color, and
+   image-XObject operator, silently skipping any other keyword; throws `InvalidDataException` for
+   malformed `/Contents` or a malformed recognized operator's operand count/type, and throws
+   `Codecs.UnsupportedImageFeatureException` for a well-formed but unsupported color space,
+   stream filter, or Form XObject
 4. **Output**: A new `Canvas.Surface` of exactly the requested size, painted with the page's
-   interpreted path geometry in solid opaque black (or fully transparent, when the page declares
-   no `/Contents` at all)
+   interpreted path geometry and any placed image XObjects (or fully transparent, when the page
+   declares no `/Contents` at all)
 
 ## Design Constraints
 

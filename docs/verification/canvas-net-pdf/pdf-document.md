@@ -22,6 +22,12 @@ content-stream string, then call `Render` through the public API and assert spec
 colors at specific `Surface` coordinates - every expected coordinate was independently confirmed
 against the real rasterizer (not merely hand-derived) before being fixed into an assertion, since
 stroke/curve antialiasing and the PDF-to-device y-axis flip make hand derivation error-prone.
+Device-color, stream-filter-pipeline, and image-XObject tests (Phase 3) additionally use a
+second private test helper, `BuildSinglePagePdfWithResources`, extending the same in-memory
+construction with a page `/Resources` dictionary and 0 or more extra indirect objects (color-space
+arrays, image-XObject streams) the resources reference by number - used whenever a test needs a
+named `/Resources/ColorSpace` or `/Resources/XObject` entry that a bare content-stream string
+cannot express.
 Cross-reference form, linear-scan fallback, page-tree traversal/inheritance/cycle-rejection,
 `/Encrypt` detection, and public-API (`Open`/`PageCount`/`GetPageInfo`/`Render`/`Dispose`) tests
 exercise the same hand-authored, byte-exact fixture files under `PdfFixtures/` (see
@@ -190,12 +196,12 @@ propagated unwrapped from `Surface`'s own constructor).
 **Tests**: `PdfDocument_ContentStream_UnknownOperator_IsSkippedWithoutThrowing`,
 `CanvasNetPdf_SystemIntegration_PdfRender_FilledRectangleAndStrokedLine_PaintsExpectedPixels`
 
-Renders a content stream containing an unrecognized color operator (`RG`) immediately followed by
-a recognized stroke operator, asserting the stroke still painted its expected pixel (proving the
-unknown operator was silently skipped rather than aborting the whole stream). The end-to-end
-system-integration test independently proves the same dispatch loop against a real, hand-authored
-fixture containing both a filled rectangle and a stroked line, asserting specific opaque-black and
-transparent pixels at specific coordinates.
+Renders a content stream containing an unrecognized operator (`gs`, ExtGState - still out of
+scope in Phase 3) immediately followed by a recognized stroke operator, asserting the stroke
+still painted its expected pixel (proving the unknown operator was silently skipped rather than
+aborting the whole stream). The end-to-end system-integration test independently proves the same
+dispatch loop against a real, hand-authored fixture containing both a filled rectangle and a
+stroked line, asserting specific opaque-black and transparent pixels at specific coordinates.
 
 #### CanvasNetPdf-PdfDocument-ContentsResolution: Contents Array Concatenates With a Space Separator
 
@@ -285,6 +291,91 @@ Calls `Dispose()` twice on the same instance. Asserts neither call throws.
 
 Disposes an opened document, then calls `PageCount`, `GetPageInfo`, and `Render`. Asserts each
 throws `ObjectDisposedException`.
+
+#### CanvasNetPdf-PdfDocument-DeviceColorOperators: Device Color Operators Set the Expected Fill/Stroke Color
+
+**Tests**: `PdfDocument_Color_SetGrayFill_SetsExpectedRgbaColor`,
+`PdfDocument_Color_SetGrayStroke_SetsExpectedRgbaColor`,
+`PdfDocument_Color_SetRgbFill_SetsExpectedRgbaColor`,
+`PdfDocument_Color_SetRgbStroke_SetsExpectedRgbaColor`,
+`PdfDocument_Color_SetCmykFill_ConvertsToExpectedRgbaColor`,
+`PdfDocument_Color_SetCmykStroke_ConvertsToExpectedRgbaColor`,
+`PdfDocument_Color_ComponentValuesOutsideZeroToOne_AreClamped` (`[Theory]`),
+`PdfDocument_Color_MalformedOperandCount_ThrowsInvalidDataException` (`[Theory]`, one case per
+`g`/`G`/`rg`/`RG`/`k`/`K`/`cs`/`CS`/`sc`/`SC`/`scn`/`SCN`)
+
+Renders a filled rectangle/stroked line after each of `g`/`G`/`rg`/`RG`/`k`/`K`, asserting the
+painted pixel matches the exact expected RGBA conversion (including the CMYK
+`R = 255 * (1 - C) * (1 - K)` formula, hand-verified). A `[Theory]` renders `rg` with several
+component values outside `[0, 1]`, asserting the painted color matches the clamped (not
+rejected) result. A second `[Theory]` renders each operator with a malformed operand count,
+asserting `InvalidDataException` in every case.
+
+#### CanvasNetPdf-PdfDocument-ColorSpaceOperators: cs/CS/sc/scn Track and Apply the Current Color Space
+
+**Tests**: `PdfDocument_Color_SetColorSpaceFill_DeviceNames_ResetsColorToBlack` (`[Theory]`),
+`PdfDocument_Color_SetColorSpaceStroke_DeviceNames_ResetsColorToBlack` (`[Theory]`),
+`PdfDocument_Color_SetColorFillUsingCurrentColorSpace_Sc_PaintsExpectedColor`,
+`PdfDocument_Color_SetColorStrokeUsingCurrentColorSpace_SC_PaintsExpectedColor`,
+`PdfDocument_Color_ScnWithPatternName_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Color_UnsupportedNamedColorSpace_ThrowsUnsupportedImageFeatureException` (`[Theory]`:
+Indexed/Separation/DeviceN/ICCBased/CalRGB/CalGray/Lab),
+`CanvasNetPdf_SystemIntegration_PdfRender_ColoredRectangleFill_PaintsExpectedRgbPixels`
+
+Renders a red-filled rectangle, then a `cs`/`CS` device-name switch (asserted, for all three
+device names, to reset color to opaque black), then a second rectangle - proving the reset. Sets
+color via `sc`/`SC` against the current (`DeviceRGB`) color space, asserting the expected painted
+color. Renders `scn` with a trailing pattern name, asserting
+`Codecs.UnsupportedImageFeatureException`. A `[Theory]` selects each unsupported named color
+space (declared inline in a `/Resources/ColorSpace` dictionary built via
+`BuildSinglePagePdfWithResources`) via `cs`, asserting
+`Codecs.UnsupportedImageFeatureException` in every case. The end-to-end system-integration test
+independently proves `rg` painting a real, hand-authored fixture, asserting a specific interior
+pixel is opaque red and an exterior pixel remains transparent.
+
+#### CanvasNetPdf-PdfDocument-FilterPipeline: Filter Pipeline Reverses PNG/TIFF Predictors, Fails Closed Otherwise
+
+**Tests**: `PdfDocument_Images_FlateDecodePngPredictor_DecodesExpectedPixels`,
+`PdfDocument_Images_FlateDecodeTiffPredictor_DecodesExpectedPixels`,
+`PdfDocument_Images_UnsupportedFilter_ThrowsUnsupportedImageFeatureException`
+
+Builds a small (2x2 pixel), hand-computed `FlateDecode` stream with a PNG predictor (mixed
+`None`/`Up` filter-type rows) and, separately, a TIFF predictor (per-row horizontal-difference
+encoding) as an image XObject, rendering it via `Do` and asserting every decoded pixel matches
+the value independently hand-derived from the PNG specification's own defilter formulas (not
+merely re-deriving the implementation's own output). Renders an image XObject declaring an
+unsupported filter (`/LZWDecode`), asserting `Codecs.UnsupportedImageFeatureException`.
+
+#### CanvasNetPdf-PdfDocument-ImageXObjects: Do Composites Images, Fails Closed on Form XObjects/Unsupported Features
+
+**Tests**: `PdfDocument_Images_DoOperator_DeviceGrayFlateDecode_PlacesExpectedPixels`,
+`PdfDocument_Images_DoOperator_DeviceRgbFlateDecode_PlacesExpectedPixels`,
+`PdfDocument_Images_DoOperator_DeviceCmykFlateDecode_PlacesExpectedPixels`,
+`PdfDocument_Images_DoOperator_DctDecodeJpeg_PlacesExpectedPixels`,
+`PdfDocument_Images_UnsupportedBitsPerComponent_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Images_UnsupportedColorSpace_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Images_DoOperator_UndefinedXObjectName_ThrowsInvalidDataException`,
+`PdfDocument_Images_DoOperator_FormXObject_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Images_DoOperator_MalformedOperandCount_ThrowsInvalidDataException`,
+`CanvasNetPdf_SystemIntegration_PdfRender_ImageXObjectPlacement_CompositesExpectedPixels`
+
+Places a small, raw 8-bit `DeviceGray`/`DeviceRGB`/`DeviceCMYK` `FlateDecode` image XObject via
+`cm`/`Do`, asserting the four composited device pixels match the image's four known source
+pixels (proving both the sample-to-color conversion and the unit-square-to-device-space mapping,
+including the PDF image-space row-0-is-top convention). Places a bare `DCTDecode` (JPEG) image
+XObject (an 8x8 solid-color surface encoded via `Codecs.JpegCodec.Save` at test-run time, quality
+100 - a flat color block's DCT has only a DC coefficient, so the round-trip reproduces it within
+a small per-channel tolerance), asserting the decoded/composited pixel matches within that
+tolerance. Renders an image XObject with an unsupported `/BitsPerComponent` (`1`) and, separately,
+an unsupported `/ColorSpace` (`Indexed`), each asserting
+`Codecs.UnsupportedImageFeatureException`. Renders `Do` with a name undeclared in
+`/Resources/XObject`, asserting `InvalidDataException`. Renders `Do` on a `/Subtype /Form`
+XObject, asserting `Codecs.UnsupportedImageFeatureException` (not silently skipped). A `[Theory]`
+renders `Do` with a malformed operand count/type, asserting `InvalidDataException` in every case.
+The end-to-end system-integration test independently proves the same `Do` compositing against a
+real, hand-authored fixture, asserting specific composited pixel colors at specific coordinates
+matching the fixture's known 2x2 source image, and a pixel outside the placed image's
+device-space footprint remains transparent.
 
 ## Acceptance Criteria
 

@@ -628,51 +628,6 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
-    ///     Returns a stream's fully decoded data bytes, applying <c>/Filter</c> if present.
-    /// </summary>
-    /// <remarks>
-    ///     Phase 1 supports only the <c>FlateDecode</c> filter (used by cross-reference and object
-    ///     streams), with no <c>/DecodeParms</c> predictor support - sufficient for this phase's
-    ///     hand-authored fixtures, which never apply a PNG/TIFF predictor. Any other declared
-    ///     filter is rejected with <see cref="UnsupportedImageFeatureException"/> rather than
-    ///     silently returning undecoded bytes.
-    /// </remarks>
-    private byte[] GetStreamDecodedBytes(PdfObject streamObject)
-    {
-        var raw = GetStreamRawBytes(streamObject);
-        var filterObject = streamObject.Get("Filter");
-        if (filterObject is null)
-        {
-            return raw;
-        }
-
-        var resolvedFilter = Resolve(filterObject);
-        string filterName;
-        if (resolvedFilter.Kind == PdfKind.Name)
-        {
-            filterName = resolvedFilter.Text;
-        }
-        else if (resolvedFilter.Kind == PdfKind.Array && resolvedFilter.Items.Count == 1 &&
-                 Resolve(resolvedFilter.Items[0]).Kind == PdfKind.Name)
-        {
-            filterName = Resolve(resolvedFilter.Items[0]).Text;
-        }
-        else
-        {
-            throw new InvalidDataException("Unsupported /Filter value.");
-        }
-
-        if (filterName == "FlateDecode")
-        {
-            return ZlibDecompress(raw);
-        }
-
-        throw new UnsupportedImageFeatureException(
-            $"pdf-filter-{filterName}",
-            $"Stream filter '{filterName}' is not supported in this phase.");
-    }
-
-    /// <summary>
     ///     Decompresses a complete zlib stream (2-byte header, DEFLATE-compressed data, 4-byte
     ///     big-endian Adler-32 trailer), mirroring <c>PngCodec</c>'s own established zlib-handling
     ///     pattern: <see cref="DeflateStream"/> decodes the raw DEFLATE payload once the 2-byte

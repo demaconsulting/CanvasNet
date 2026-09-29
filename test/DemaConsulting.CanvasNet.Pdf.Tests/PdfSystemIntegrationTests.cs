@@ -1,3 +1,4 @@
+// cspell:ignore xobject devicergb
 using DemaConsulting.CanvasNet.Codecs;
 
 namespace DemaConsulting.CanvasNet.Pdf.Tests;
@@ -163,5 +164,54 @@ public class PdfSystemIntegrationTests
         var exception = Assert.Throws<UnsupportedImageFeatureException>(
             () => PdfDocument.Open(Fixture("encrypted-trailer.pdf")));
         Assert.Equal("pdf-encrypted", exception.Feature);
+    }
+
+    /// <summary>
+    ///     Proves <see cref="PdfDocument.Render"/> paints real device color end-to-end (Phase 3):
+    ///     a hand-authored fixture using <c>rg</c> to fill a rectangle red, asserting a specific
+    ///     interior pixel is opaque red and an exterior pixel remains transparent.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_PdfRender_ColoredRectangleFill_PaintsExpectedRgbPixels()
+    {
+        // Arrange: MediaBox [0 0 100 100], /Contents = "1 0 0 rg 10 10 80 80 re f" (an
+        // 80x80 rectangle filled opaque red).
+        using var document = PdfDocument.Open(Fixture("color-rgb-rectangle-fill.pdf"));
+
+        // Act
+        using var surface = document.Render(0, 100, 100);
+
+        // Assert: interior of the filled rectangle is opaque red; a point outside it is not.
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <see cref="PdfDocument.Render"/> decodes and composites an image XObject
+    ///     end-to-end (Phase 3): a hand-authored fixture placing a 2x2 <c>DeviceRGB</c>
+    ///     <c>FlateDecode</c> image via <c>cm</c>/<c>Do</c>, asserting specific composited pixel
+    ///     colors matching the fixture's known source pixels, and a pixel outside the placed
+    ///     image's device-space footprint remains transparent.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_PdfRender_ImageXObjectPlacement_CompositesExpectedPixels()
+    {
+        // Arrange: MediaBox [0 0 100 100], /Contents = "60 0 0 60 10 10 cm /Im0 Do" places a 2x2
+        // image (top-left red, top-right green, bottom-left blue, bottom-right yellow) into the
+        // device-space footprint x in [10,70], y in [30,90] (PDF user y=30..90 flips to that same
+        // device y range for this identity-rotation, full-page-sized MediaBox).
+        using var document = PdfDocument.Open(Fixture("image-xobject-devicergb-flate.pdf"));
+
+        // Act
+        using var surface = document.Render(0, 100, 100);
+
+        // Assert: the four source quadrants land in their mathematically correct device pixels.
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[25, 40]);
+        Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[55, 40]);
+        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[25, 75]);
+        Assert.Equal(new Canvas.Rgba32(255, 255, 0, 255), surface[55, 75]);
+
+        // Assert: a pixel outside the placed image's device-space footprint remains transparent.
+        Assert.Equal(default, surface[5, 5]);
     }
 }

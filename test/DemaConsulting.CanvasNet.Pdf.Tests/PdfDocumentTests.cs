@@ -86,6 +86,105 @@ public class PdfDocumentTests
         return document.Render(0, width, height);
     }
 
+    /// <summary>
+    ///     Builds an in-memory, single-page, classic-xref PDF exactly like
+    ///     <see cref="BuildSinglePagePdf"/>, but with the page declaring a
+    ///     <c>/Resources &lt;&lt; ... &gt;&gt;</c> dictionary (<paramref name="resourcesBody"/>,
+    ///     inserted verbatim between the outer <c>&lt;&lt; &gt;&gt;</c>) and 0 or more extra
+    ///     indirect objects (<paramref name="extraObjectBodies"/>, numbered <c>5 0 obj</c>,
+    ///     <c>6 0 obj</c>, ... in order) that <paramref name="resourcesBody"/> may reference by
+    ///     number - used by every color-space-resource and image-XObject test that needs a
+    ///     <c>/Resources</c> dictionary (plain color-operator tests needing no <c>/Resources</c>
+    ///     keep using <see cref="BuildSinglePagePdf"/>/<see cref="RenderContent"/> unchanged).
+    /// </summary>
+    private static byte[] BuildSinglePagePdfWithResources(
+        double mediaBoxWidth,
+        double mediaBoxHeight,
+        string content,
+        string resourcesBody,
+        IReadOnlyList<byte[]> extraObjectBodies,
+        int rotate = 0)
+    {
+        var contentBytes = System.Text.Encoding.ASCII.GetBytes(content);
+        var rotateEntry = rotate == 0 ? string.Empty : $" /Rotate {rotate}";
+        var streamHeader = System.Text.Encoding.ASCII.GetBytes($"<< /Length {contentBytes.Length} >>\nstream\n");
+        var streamFooter = "\nendstream"u8.ToArray();
+        var streamBody = new byte[streamHeader.Length + contentBytes.Length + streamFooter.Length];
+        streamHeader.CopyTo(streamBody, 0);
+        contentBytes.CopyTo(streamBody, streamHeader.Length);
+        streamFooter.CopyTo(streamBody, streamHeader.Length + contentBytes.Length);
+
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            System.Text.Encoding.ASCII.GetBytes(
+                $"<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 {mediaBoxWidth} {mediaBoxHeight}] >>"),
+            System.Text.Encoding.ASCII.GetBytes(
+                $"<< /Type /Page /Parent 2 0 R{rotateEntry} /Contents 4 0 R /Resources << {resourcesBody} >> >>"),
+            streamBody,
+        };
+        bodies.AddRange(extraObjectBodies);
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        var offsets = new List<int>();
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            offsets.Add(buffer.Count);
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        var xrefOffset = buffer.Count;
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"xref\n0 {bodies.Count + 1}\n"));
+        buffer.AddRange("0000000000 65535 f \n"u8.ToArray());
+        foreach (var offset in offsets)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{offset:D10} 00000 n \n"));
+        }
+
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes(
+            $"trailer\n<< /Size {bodies.Count + 1} /Root 1 0 R >>\nstartxref\n{xrefOffset}\n%%EOF\n"));
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Builds an indirect-object body (dictionary header + raw stream bytes) for use as one of
+    ///     <see cref="BuildSinglePagePdfWithResources"/>'s <c>extraObjectBodies</c> - the
+    ///     <paramref name="dictionaryEntries"/> text is inserted verbatim between the dictionary's
+    ///     outer <c>&lt;&lt; &gt;&gt;</c> alongside an automatically computed <c>/Length</c>.
+    /// </summary>
+    private static byte[] BuildStreamObjectBody(string dictionaryEntries, byte[] streamData)
+    {
+        var header = System.Text.Encoding.ASCII.GetBytes($"<< {dictionaryEntries} /Length {streamData.Length} >>\nstream\n");
+        var footer = "\nendstream"u8.ToArray();
+        var body = new byte[header.Length + streamData.Length + footer.Length];
+        header.CopyTo(body, 0);
+        streamData.CopyTo(body, header.Length);
+        footer.CopyTo(body, header.Length + streamData.Length);
+        return body;
+    }
+
+    /// <summary>Compresses <paramref name="data"/> into a standards-conformant zlib stream (header + deflate + Adler-32), as <c>FlateDecode</c> expects.</summary>
+    private static byte[] ZlibCompress(byte[] data)
+    {
+        using var output = new MemoryStream();
+        using (var zlib = new System.IO.Compression.ZLibStream(output, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true))
+        {
+            zlib.Write(data, 0, data.Length);
+        }
+
+        return output.ToArray();
+    }
+
+    /// <summary>Renders page 0 of an in-memory PDF built by <see cref="BuildSinglePagePdfWithResources"/>.</summary>
+    private static Canvas.Surface RenderPdfBytes(byte[] bytes, int width = 100, int height = 100)
+    {
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        return document.Render(0, width, height);
+    }
+
     #region Tokenizer
 
     /// <summary>Proves that the tokenizer parses integer, negative, leading-dot, and zero number forms.</summary>
@@ -630,12 +729,12 @@ public class PdfDocumentTests
     public void PdfDocument_ContentStream_UnknownOperator_IsSkippedWithoutThrowing()
     {
         // Arrange
-        const string content = "1 0 0 RG 2 w 10 10 m 10 90 l S";
+        const string content = "/GS1 gs 2 w 10 10 m 10 90 l S";
 
         // Act
         using var surface = RenderContent(content);
 
-        // Assert: the unrecognized 'RG' color operator was skipped, and the stroke after it still painted.
+        // Assert: the unrecognized 'gs' (ExtGState) operator was skipped, and the stroke after it still painted.
         Assert.Equal(Black, surface[10, 50]);
     }
 
@@ -905,6 +1004,547 @@ public class PdfDocumentTests
         // y => device y 40..60) is painted, and the first rectangle's area does not bleed into it.
         Assert.Equal(Black, surface[50, 50]);
         Assert.Equal(default, surface[15, 15]);
+    }
+
+    #endregion
+
+    #region Color
+
+    /// <summary>Proves that <c>g</c> sets the fill color to the expected gray RGBA value.</summary>
+    [Fact]
+    public void PdfDocument_Color_SetGrayFill_SetsExpectedRgbaColor()
+    {
+        // Arrange: 0.5 gray rounds (round-half-to-even) to byte 128.
+        const string content = "0.5 g 10 10 80 80 re f";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(128, 128, 128, 255), surface[50, 50]);
+    }
+
+    /// <summary>Proves that <c>G</c> sets the stroke color to the expected gray RGBA value.</summary>
+    [Fact]
+    public void PdfDocument_Color_SetGrayStroke_SetsExpectedRgbaColor()
+    {
+        // Arrange
+        const string content = "0.5 G 4 w 10 50 m 90 50 l S";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(128, 128, 128, 255), surface[50, 50]);
+    }
+
+    /// <summary>Proves that <c>rg</c> sets the fill color to the expected RGB value.</summary>
+    [Fact]
+    public void PdfDocument_Color_SetRgbFill_SetsExpectedRgbaColor()
+    {
+        // Arrange
+        const string content = "1 0 0 rg 10 10 80 80 re f";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>Proves that <c>RG</c> sets the stroke color to the expected RGB value.</summary>
+    [Fact]
+    public void PdfDocument_Color_SetRgbStroke_SetsExpectedRgbaColor()
+    {
+        // Arrange
+        const string content = "0 1 0 RG 4 w 10 50 m 90 50 l S";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>Proves that <c>k</c> converts CMYK to the expected RGB fill color.</summary>
+    [Fact]
+    public void PdfDocument_Color_SetCmykFill_ConvertsToExpectedRgbaColor()
+    {
+        // Arrange: C=0 M=1 Y=1 K=0 -> R=255*(1-0)*(1-0)=255, G=255*(1-1)*(1-0)=0, B=255*(1-1)*(1-0)=0 (red).
+        const string content = "0 1 1 0 k 10 10 80 80 re f";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>Proves that <c>K</c> converts CMYK to the expected RGB stroke color.</summary>
+    [Fact]
+    public void PdfDocument_Color_SetCmykStroke_ConvertsToExpectedRgbaColor()
+    {
+        // Arrange: C=1 M=0 Y=0 K=0 -> R=0, G=255, B=255 (cyan).
+        const string content = "1 0 0 0 K 4 w 10 50 m 90 50 l S";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(0, 255, 255, 255), surface[50, 50]);
+    }
+
+    /// <summary>Proves that color-component values outside <c>[0, 1]</c> are clamped, not rejected.</summary>
+    [Theory]
+    [InlineData("-1 2 -0.5 rg 10 10 80 80 re f", 0, 255, 0)]
+    [InlineData("2 -1 -1 rg 10 10 80 80 re f", 255, 0, 0)]
+    public void PdfDocument_Color_ComponentValuesOutsideZeroToOne_AreClamped(string content, byte r, byte g, byte b)
+    {
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(r, g, b, 255), surface[50, 50]);
+    }
+
+    /// <summary>Proves that a malformed operand count for every device color operator throws <see cref="InvalidDataException"/>.</summary>
+    [Theory]
+    [InlineData("0.5 0.5 g")]
+    [InlineData("0.5 0.5 G")]
+    [InlineData("1 0 rg")]
+    [InlineData("1 0 RG")]
+    [InlineData("1 0 0 k")]
+    [InlineData("1 0 0 K")]
+    [InlineData("/DeviceRGB /DeviceGray cs")]
+    [InlineData("/DeviceRGB /DeviceGray CS")]
+    [InlineData("1 0 sc")]
+    [InlineData("1 0 SC")]
+    [InlineData("1 0 scn")]
+    [InlineData("1 0 SCN")]
+    public void PdfDocument_Color_MalformedOperandCount_ThrowsInvalidDataException(string content)
+    {
+        Assert.Throws<InvalidDataException>(() => RenderContent(content));
+    }
+
+    /// <summary>Proves that <c>cs</c> accepts the three device color-space names and resets the fill color to black.</summary>
+    [Theory]
+    [InlineData("DeviceGray")]
+    [InlineData("DeviceRGB")]
+    [InlineData("DeviceCMYK")]
+    public void PdfDocument_Color_SetColorSpaceFill_DeviceNames_ResetsColorToBlack(string colorSpaceName)
+    {
+        // Arrange: paint red first, then switch color space (resetting to black), then fill.
+        var content = $"1 0 0 rg 10 10 40 80 re f /{colorSpaceName} cs 60 10 20 80 re f";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[20, 50]);
+        Assert.Equal(Black, surface[70, 50]);
+    }
+
+    /// <summary>Proves that <c>CS</c> accepts the three device color-space names and resets the stroke color to black.</summary>
+    [Theory]
+    [InlineData("DeviceGray")]
+    [InlineData("DeviceRGB")]
+    [InlineData("DeviceCMYK")]
+    public void PdfDocument_Color_SetColorSpaceStroke_DeviceNames_ResetsColorToBlack(string colorSpaceName)
+    {
+        // Arrange: stroke red first, then switch stroke color space (resetting to black), then stroke again.
+        var content = $"1 0 0 RG 4 w 10 30 m 90 30 l S /{colorSpaceName} CS 10 70 m 90 70 l S";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert: PDF y-up user space flips to device y-down, so user y=30 -> device y=70, and
+        // user y=70 -> device y=30.
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 70]);
+        Assert.Equal(Black, surface[50, 30]);
+    }
+
+    /// <summary>Proves that <c>sc</c> paints using the current fill color space's component count.</summary>
+    [Fact]
+    public void PdfDocument_Color_SetColorFillUsingCurrentColorSpace_Sc_PaintsExpectedColor()
+    {
+        // Arrange: switch to DeviceRGB (resets to black), then 'sc' with 3 components.
+        const string content = "/DeviceRGB cs 0 0 1 sc 10 10 80 80 re f";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[50, 50]);
+    }
+
+    /// <summary>Proves that <c>SC</c> paints using the current stroke color space's component count.</summary>
+    [Fact]
+    public void PdfDocument_Color_SetColorStrokeUsingCurrentColorSpace_SC_PaintsExpectedColor()
+    {
+        // Arrange
+        const string content = "/DeviceRGB CS 0 0 1 SC 4 w 10 50 m 90 50 l S";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[50, 50]);
+    }
+
+    /// <summary>Proves that <c>scn</c> with a trailing pattern name throws <see cref="UnsupportedImageFeatureException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Color_ScnWithPatternName_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange
+        const string content = "/P0 scn";
+
+        // Act & Assert
+        Assert.Throws<UnsupportedImageFeatureException>(() => RenderContent(content));
+    }
+
+    /// <summary>Proves that an unsupported named color space (resolved via <c>/Resources/ColorSpace</c>) throws <see cref="UnsupportedImageFeatureException"/> when selected with <c>cs</c>.</summary>
+    [Theory]
+    [InlineData("[/Indexed /DeviceRGB 1 <00FFFFFF>]")]
+    [InlineData("[/Separation /Spot /DeviceGray 4 0 R]")]
+    [InlineData("[/DeviceN [/Spot] /DeviceGray 4 0 R]")]
+    [InlineData("[/ICCBased 4 0 R]")]
+    [InlineData("[/CalRGB << >>]")]
+    [InlineData("[/CalGray << >>]")]
+    [InlineData("[/Lab << >>]")]
+    public void PdfDocument_Color_UnsupportedNamedColorSpace_ThrowsUnsupportedImageFeatureException(string colorSpaceArray)
+    {
+        // Arrange: an unused placeholder function stream, referenced only when the color space
+        // array under test declares /Separation or /DeviceN (both name a tint-transform function
+        // by indirect reference); the other cases in this theory never dereference object 5.
+        var functionStream = BuildStreamObjectBody("/FunctionType 4", "{ }"u8.ToArray());
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/CS0 cs",
+            $"/ColorSpace << /CS0 {colorSpaceArray} >>",
+            [functionStream]);
+
+        // Act & Assert
+        Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+    }
+
+    #endregion
+
+    #region Filters
+
+    /// <summary>Proves that a <c>FlateDecode</c>+PNG-predictor image XObject decodes the expected raw pixels.</summary>
+    [Fact]
+    public void PdfDocument_Images_FlateDecodePngPredictor_DecodesExpectedPixels()
+    {
+        // Arrange: a 2x2 DeviceRGB image, PNG predictor 15 (adaptive). Row 0 uses filter type 0
+        // (None): raw pixels (255,0,0) (0,255,0). Row 1 uses filter type 2 (Up): stored as the
+        // difference from row 0, encoding raw pixels (0,0,255) (255,255,0).
+        byte[] row0 = [0, 255, 0, 0, 0, 255, 0];
+        byte[] row1raw = [0, 0, 255, 255, 255, 0];
+        var row1Filtered = new byte[row1raw.Length];
+        for (var i = 0; i < row1raw.Length; i++)
+        {
+            row1Filtered[i] = (byte)(row1raw[i] - row0[i + 1]);
+        }
+
+        var rawRows = new List<byte>();
+        rawRows.AddRange(row0);
+        rawRows.Add(2); // filter type: Up
+        rawRows.AddRange(row1Filtered);
+        var compressed = ZlibCompress([.. rawRows]);
+
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8 "
+            + "/Filter /FlateDecode /DecodeParms << /Predictor 15 /Colors 3 /BitsPerComponent 8 /Columns 2 >>",
+            compressed);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: row 0 (top of unit square) -> device top half; row 1 -> device bottom half.
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[25, 25]);
+        Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[75, 25]);
+        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[25, 75]);
+        Assert.Equal(new Canvas.Rgba32(255, 255, 0, 255), surface[75, 75]);
+    }
+
+    /// <summary>Proves that a <c>FlateDecode</c>+TIFF-predictor image XObject decodes the expected raw pixels.</summary>
+    [Fact]
+    public void PdfDocument_Images_FlateDecodeTiffPredictor_DecodesExpectedPixels()
+    {
+        // Arrange: a 2x2 DeviceGray image, TIFF predictor 2. Raw pixels per row: (10, 200).
+        // TIFF-encoded: byte 0 verbatim, byte 1 = raw[1] - raw[0].
+        byte[] rawRow = [10, 200];
+        var encodedRow = new byte[] { rawRow[0], (byte)(rawRow[1] - rawRow[0]) };
+        var rawBytes = new List<byte>();
+        rawBytes.AddRange(encodedRow);
+        rawBytes.AddRange(encodedRow);
+        var compressed = ZlibCompress([.. rawBytes]);
+
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 "
+            + "/Filter /FlateDecode /DecodeParms << /Predictor 2 /Colors 1 /BitsPerComponent 8 /Columns 2 >>",
+            compressed);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: both source pixels in a row decode to (10) then (200); both rows identical.
+        Assert.Equal(new Canvas.Rgba32(10, 10, 10, 255), surface[25, 25]);
+        Assert.Equal(new Canvas.Rgba32(200, 200, 200, 255), surface[75, 25]);
+        Assert.Equal(new Canvas.Rgba32(10, 10, 10, 255), surface[25, 75]);
+        Assert.Equal(new Canvas.Rgba32(200, 200, 200, 255), surface[75, 75]);
+    }
+
+    /// <summary>Proves that an image XObject declaring an unsupported filter throws <see cref="UnsupportedImageFeatureException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Images_UnsupportedFilter_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /LZWDecode",
+            [1, 2, 3, 4]);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act & Assert
+        Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+    }
+
+    #endregion
+
+    #region Images
+
+    /// <summary>Proves that <c>Do</c> decodes and places a raw 8-bit <c>DeviceGray</c> <c>FlateDecode</c> image XObject at the expected device pixels.</summary>
+    [Fact]
+    public void PdfDocument_Images_DoOperator_DeviceGrayFlateDecode_PlacesExpectedPixels()
+    {
+        // Arrange: a 2x2 DeviceGray image: row0 = (0, 255), row1 = (64, 192).
+        byte[] raw = [0, 255, 64, 192];
+        var compressed = ZlibCompress(raw);
+
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode",
+            compressed);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[25, 25]);
+        Assert.Equal(new Canvas.Rgba32(255, 255, 255, 255), surface[75, 25]);
+        Assert.Equal(new Canvas.Rgba32(64, 64, 64, 255), surface[25, 75]);
+        Assert.Equal(new Canvas.Rgba32(192, 192, 192, 255), surface[75, 75]);
+    }
+
+    /// <summary>Proves that <c>Do</c> decodes and places a raw 8-bit <c>DeviceRGB</c> <c>FlateDecode</c> image XObject at the expected device pixels.</summary>
+    [Fact]
+    public void PdfDocument_Images_DoOperator_DeviceRgbFlateDecode_PlacesExpectedPixels()
+    {
+        // Arrange: a 2x2 DeviceRGB image: row0 = red, green; row1 = blue, white.
+        byte[] raw = [255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255];
+        var compressed = ZlibCompress(raw);
+
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode",
+            compressed);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[25, 25]);
+        Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[75, 25]);
+        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[25, 75]);
+        Assert.Equal(new Canvas.Rgba32(255, 255, 255, 255), surface[75, 75]);
+    }
+
+    /// <summary>Proves that <c>Do</c> decodes and places a raw 8-bit <c>DeviceCMYK</c> <c>FlateDecode</c> image XObject at the expected device pixels.</summary>
+    [Fact]
+    public void PdfDocument_Images_DoOperator_DeviceCmykFlateDecode_PlacesExpectedPixels()
+    {
+        // Arrange: a single-pixel 1x1 DeviceCMYK image: C=0 M=1 Y=1 K=0 -> red.
+        byte[] raw = [0, 255, 255, 0];
+        var compressed = ZlibCompress(raw);
+
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceCMYK /BitsPerComponent 8 /Filter /FlateDecode",
+            compressed);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>Proves that <c>Do</c> decodes a bare <c>DCTDecode</c> (JPEG) image XObject via <see cref="JpegCodec.Load(Stream)"/> and places the expected (solid-color, lossless-for-flat-blocks) pixels.</summary>
+    [Fact]
+    public void PdfDocument_Images_DoOperator_DctDecodeJpeg_PlacesExpectedPixels()
+    {
+        // Arrange: an 8x8 (one MCU block), solid blue surface - a flat color block's DCT has only
+        // a DC coefficient, so a high-quality encode/decode round-trip reproduces it exactly (or
+        // within a tiny rounding tolerance).
+        var solid = new Canvas.Surface(8, 8);
+        var blue = new Canvas.Rgba32(0, 0, 255, 255);
+        for (var y = 0; y < 8; y++)
+        {
+            for (var x = 0; x < 8; x++)
+            {
+                solid[x, y] = blue;
+            }
+        }
+
+        using var jpegStream = new MemoryStream();
+        JpegCodec.Save(solid, jpegStream, quality: 100);
+        var jpegBytes = jpegStream.ToArray();
+
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 8 /Height 8 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode",
+            jpegBytes);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: within a small per-channel tolerance of solid blue.
+        var pixel = surface[50, 50];
+        Assert.True(Math.Abs(pixel.R - blue.R) <= 8, $"R={pixel.R}");
+        Assert.True(Math.Abs(pixel.G - blue.G) <= 8, $"G={pixel.G}");
+        Assert.True(Math.Abs(pixel.B - blue.B) <= 8, $"B={pixel.B}");
+        Assert.Equal(255, pixel.A);
+    }
+
+    /// <summary>Proves that an image XObject with an unsupported <c>/BitsPerComponent</c> throws <see cref="UnsupportedImageFeatureException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Images_UnsupportedBitsPerComponent_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 1 /Filter /FlateDecode",
+            ZlibCompress([0x00]));
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act & Assert
+        Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that an image XObject with an unsupported <c>/ColorSpace</c> throws <see cref="UnsupportedImageFeatureException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Images_UnsupportedColorSpace_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace [/Indexed /DeviceRGB 1 <00FFFFFF>] /BitsPerComponent 8 /Filter /FlateDecode",
+            ZlibCompress([0x00]));
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act & Assert
+        Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that <c>Do</c> with a name not declared in <c>/Resources/XObject</c> throws <see cref="InvalidDataException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Images_DoOperator_UndefinedXObjectName_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/NotDeclared Do",
+            "/XObject << >>",
+            []);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that <c>Do</c> on a <c>/Subtype /Form</c> XObject throws <see cref="UnsupportedImageFeatureException"/> rather than being silently skipped.</summary>
+    [Fact]
+    public void PdfDocument_Images_DoOperator_FormXObject_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange
+        var formStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Form /BBox [0 0 1 1]",
+            "q Q"u8.ToArray());
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Fm0 Do",
+            "/XObject << /Fm0 5 0 R >>",
+            [formStream]);
+
+        // Act & Assert
+        Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that <c>Do</c> with a malformed (non-1, non-name) operand count/type throws <see cref="InvalidDataException"/>.</summary>
+    [Theory]
+    [InlineData("Do")]
+    [InlineData("/Im0 /Im1 Do")]
+    [InlineData("1 Do")]
+    public void PdfDocument_Images_DoOperator_MalformedOperandCount_ThrowsInvalidDataException(string content)
+    {
+        Assert.Throws<InvalidDataException>(() => RenderContent(content));
     }
 
     #endregion

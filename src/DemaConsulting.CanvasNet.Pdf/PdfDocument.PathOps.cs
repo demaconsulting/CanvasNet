@@ -8,19 +8,6 @@ namespace DemaConsulting.CanvasNet.Pdf;
 public sealed partial class PdfDocument
 {
     /// <summary>
-    ///     The fixed fill/stroke color used by every path-painting operator in this phase.
-    /// </summary>
-    /// <remarks>
-    ///     Phase 2 implements no color space or color-setting operator (<c>rg</c>, <c>g</c>,
-    ///     <c>k</c>, <c>sc</c>/<c>scn</c>, and their stroking counterparts are all silently
-    ///     skipped, like any other unrecognized operator) - every painted pixel is opaque black,
-    ///     regardless of what color operators a real-world content stream may issue. This is a
-    ///     documented, intentional, in-progress limitation of this phase, not a bug; a later phase
-    ///     is expected to add real color support.
-    /// </remarks>
-    private static readonly Rgba32 OpaqueBlack = new(0, 0, 0, 255);
-
-    /// <summary>
     ///     The minimum device-space (pixel) stroke line width this phase ever paints with,
     ///     implementing the PDF specification's "a line width of 0 shall be rendered as the
     ///     thinnest line that can be rendered at device resolution" rule (interpreted here as
@@ -222,7 +209,7 @@ public sealed partial class PdfDocument
 
         if (fill)
         {
-            PathFiller.Fill(_surface, path, OpaqueBlack, fillRule);
+            PathFiller.Fill(_surface, path, _gs.FillColor, fillRule);
         }
 
         if (stroke)
@@ -235,7 +222,7 @@ public sealed partial class PdfDocument
                 ScaledDashArray(),
                 ScaledDashPhase());
             var outline = PathStroker.Stroke(path, style);
-            PathFiller.Fill(_surface, outline, OpaqueBlack, FillRule.NonZero);
+            PathFiller.Fill(_surface, outline, _gs.StrokeColor, FillRule.NonZero);
         }
 
         // Per spec, every path-painting operator (including 'n') always clears the current

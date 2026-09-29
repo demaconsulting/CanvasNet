@@ -112,6 +112,27 @@ against a fixture whose trailer contains an `/Encrypt` key. Asserts
 an encrypted document is rejected rather than silently mis-parsed at the system's own public
 entry point.
 
+### Integration: Pdf Render Colored Rectangle Fill Paints Expected Rgb Pixels
+
+**Test**: `CanvasNetPdf_SystemIntegration_PdfRender_ColoredRectangleFill_PaintsExpectedRgbPixels`
+
+Exercises end-to-end system behavior for the Phase 3 device-color operators: calls the public
+`Render` API against a hand-authored fixture using `rg` to fill a rectangle opaque red. Asserts a
+specific interior pixel is opaque red and a specific exterior pixel remains transparent,
+confirming real device color (not merely solid opaque black) is rasterized through the system's
+own public entry point.
+
+### Integration: Pdf Render Image X Object Placement Composites Expected Pixels
+
+**Test**: `CanvasNetPdf_SystemIntegration_PdfRender_ImageXObjectPlacement_CompositesExpectedPixels`
+
+Exercises end-to-end system behavior for the Phase 3 image-XObject pipeline: calls the public
+`Render` API against a hand-authored fixture placing a 2x2 `DeviceRGB` `FlateDecode` image
+XObject via `cm`/`Do`. Asserts the four composited device pixels match the fixture's known source
+image quadrants, and a pixel outside the placed image's device-space footprint remains
+transparent, confirming stream decoding, sample-to-color conversion, and unit-square-to-device
+compositing all integrate correctly through the system's own public entry point.
+
 ## Acceptance Criteria
 
 A system-level test run passes when all scenarios above pass without error or exception beyond

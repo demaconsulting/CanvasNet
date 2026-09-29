@@ -1,14 +1,17 @@
 # PDF Test Fixtures
 
+<!-- cspell:ignore xobject devicergb -->
+
 Every PDF file in this folder is a small, hand-authored document created specifically for this
 repository to exercise `PdfDocument`'s parsing internals (tokenizer, object model,
 cross-reference resolution in all three forms, the linear-scan fallback, page-tree traversal with
-inheritance, and `/Encrypt` detection - Phase 1) and its content-stream interpreter (path
+inheritance, and `/Encrypt` detection - Phase 1), its content-stream interpreter (path
 construction/painting operators, the graphics-state stack, CTM/rotation derivation, and
-`/Contents` resolution - Phase 2) end to end via real files on disk. There is no third-party
-source corpus behind any of them (unlike, for example, `PngSuite` in the core test project): each
-was constructed byte-by-byte from scratch for CanvasNet and is licensed under the same MIT license
-as the rest of this repository.
+`/Contents` resolution - Phase 2), and its device color/image-XObject support (`rg`/`cs`/`scn`
+device color operators and `Do`-placed image XObjects - Phase 3) end to end via real files on
+disk. There is no third-party source corpus behind any of them (unlike, for example, `PngSuite` in
+the core test project): each was constructed byte-by-byte from scratch for CanvasNet and is
+licensed under the same MIT license as the rest of this repository.
 
 | File | Exercises |
 | ------ | ----------- |
@@ -24,3 +27,5 @@ as the rest of this repository.
 | `path-construction-rotated-page.pdf` | `/Rotate 90` with an asymmetric filled rectangle - CTM/rotation-sign check |
 | `contents-array-two-streams.pdf` | `/Contents` as an array - proves space-separator stream concatenation |
 | `no-contents-page.pdf` | A page with no `/Contents` key - proves it still renders as a blank surface |
+| `color-rgb-rectangle-fill.pdf` | `rg` device color (Phase 3) - a rectangle filled opaque red |
+| `image-xobject-devicergb-flate.pdf` | `/Subtype /Image` XObject (2x2 `DeviceRGB`/`FlateDecode`) placed via `cm`/`Do` |

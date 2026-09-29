@@ -14,6 +14,16 @@ public sealed partial class PdfDocument
     private Surface _surface = null!;
 
     /// <summary>
+    ///     The current page's resolved <c>/Resources</c> dictionary (inherited from the nearest
+    ///     ancestor that declares one, exactly like <c>/MediaBox</c>/<c>/Rotate</c>), or
+    ///     <see langword="null"/> when no ancestor declares one - used by the <c>cs</c>/<c>CS</c>
+    ///     color-space operators and the <c>Do</c> image-XObject operator to resolve a named
+    ///     <c>/ColorSpace</c>/<c>/XObject</c> resource. Reset at the start of every
+    ///     <see cref="ExecuteContentStream"/> call.
+    /// </summary>
+    private PdfObject? _resources;
+
+    /// <summary>
     ///     Tokenizes and executes <paramref name="contentBytes"/> as a page content stream,
     ///     painting recognized path-construction/painting operators onto <paramref name="surface"/>
     ///     and ignoring every other operator, starting from <paramref name="baseCtm"/> as the
@@ -25,13 +35,18 @@ public sealed partial class PdfDocument
     ///     The initial current transformation matrix, mapping PDF user-space points to device
     ///     pixel-space points, before any content-stream <c>cm</c> operator is applied.
     /// </param>
+    /// <param name="resources">
+    ///     The current page's resolved <c>/Resources</c> dictionary, or <see langword="null"/>
+    ///     when none is declared anywhere in the page's ancestry.
+    /// </param>
     /// <exception cref="InvalidDataException">
     ///     Thrown when the content stream is not lexically well-formed, or when a recognized
     ///     operator's operand count/type does not match its documented requirement.
     /// </exception>
-    private void ExecuteContentStream(byte[] contentBytes, Surface surface, Matrix3x2 baseCtm)
+    private void ExecuteContentStream(byte[] contentBytes, Surface surface, Matrix3x2 baseCtm, PdfObject? resources)
     {
         _surface = surface;
+        _resources = resources;
         _gsStack = new Stack<GraphicsState>();
         _gs = new GraphicsState { CurrentTransform = baseCtm };
         _pathBuilder = new PathBuilder();
@@ -86,7 +101,8 @@ public sealed partial class PdfDocument
     /// <summary>
     ///     Dispatches one recognized content-stream keyword operator (per the fixed set this
     ///     phase implements) against its accumulated operand stack, silently ignoring any other
-    ///     keyword (color, text, image, clipping, and every other operator not yet implemented).
+    ///     keyword (text, clipping, ExtGState, shading, inline images, and every other operator
+    ///     not yet implemented).
     /// </summary>
     /// <param name="operatorName">The operator keyword.</param>
     /// <param name="operands">The operands accumulated since the previous operator.</param>
@@ -188,11 +204,50 @@ public sealed partial class PdfDocument
                 PaintCurrentPath(fill: false, FillRule.NonZero, stroke: false, closeFirst: false);
                 break;
 
+            // Device color operators (PdfDocument.Color.cs).
+            case "g":
+                OpSetGrayFill(operands);
+                break;
+            case "G":
+                OpSetGrayStroke(operands);
+                break;
+            case "rg":
+                OpSetRgbFill(operands);
+                break;
+            case "RG":
+                OpSetRgbStroke(operands);
+                break;
+            case "k":
+                OpSetCmykFill(operands);
+                break;
+            case "K":
+                OpSetCmykStroke(operands);
+                break;
+            case "cs":
+                OpSetColorSpaceFill(operands);
+                break;
+            case "CS":
+                OpSetColorSpaceStroke(operands);
+                break;
+            case "sc":
+            case "scn":
+                OpSetColorFill(operands, operatorName);
+                break;
+            case "SC":
+            case "SCN":
+                OpSetColorStroke(operands, operatorName);
+                break;
+
+            // Image XObject operator (PdfDocument.Images.cs).
+            case "Do":
+                OpDrawXObject(operands);
+                break;
+
             default:
-                // Any other keyword (BT/ET/Tf/Tj/TJ, rg/RG/g/G/k/K/cs/CS/sc/SC/scn/SCN, gs, Do,
-                // W/W*, sh, BI/ID/EI, or any other undefined keyword) is silently skipped - out
-                // of Phase 2 scope (color, text, images, clipping, additional filters) per this
-                // phase's documented lenient-consumer posture toward unrecognized operators.
+                // Any other keyword (BT/ET/Tf/Tj/TJ, gs, W/W*, sh, BI/ID/EI, or any other
+                // undefined keyword) is silently skipped - out of Phase 3 scope (text/fonts, Form
+                // XObjects, shading/patterns, ExtGState, clipping) per this phase's documented
+                // lenient-consumer posture toward unrecognized operators.
                 break;
         }
     }

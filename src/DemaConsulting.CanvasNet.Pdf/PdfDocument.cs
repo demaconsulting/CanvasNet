@@ -1,3 +1,4 @@
+// cspell:ignore CCITT
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 
@@ -18,22 +19,24 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///     </para>
 ///     <para>
 ///         Phase 1 of this package's implementation established document parsing and the
-///         page-info API surface. Phase 2 adds a content-stream interpreter:
-///         <see cref="Render(int, int, int)"/> now tokenizes and executes each page's
-///         <c>/Contents</c> (path-construction operators <c>m</c>/<c>l</c>/<c>c</c>/<c>v</c>/
-///         <c>y</c>/<c>h</c>/<c>re</c>, path-painting operators <c>f</c>/<c>F</c>/<c>f*</c>/
-///         <c>S</c>/<c>s</c>/<c>B</c>/<c>B*</c>/<c>b</c>/<c>b*</c>/<c>n</c>, and the graphics-
-///         state operators <c>q</c>/<c>Q</c>/<c>cm</c>/<c>w</c>/<c>J</c>/<c>j</c>/<c>M</c>/
-///         <c>d</c>), painting real path geometry onto the returned <see cref="Surface"/> in
-///         the correct device-pixel position for the page's <c>/MediaBox</c> origin, effective
-///         <c>/Rotate</c>, and the caller's requested render size. Every other keyword
-///         (color, text, image, clipping, and additional stream filter operators) is silently
-///         skipped - not an error, simply out of this phase's scope. <strong>Phase 2
-///         limitation</strong>: every filled/stroked path paints in solid opaque black,
-///         regardless of any color operator a content stream may issue - no color space or
-///         color-setting operator is implemented yet; a later phase is expected to add real
-///         color support. A page with no <c>/Contents</c> at all still renders as a fully
-///         transparent (blank) <see cref="Surface"/>, exactly as every page did in Phase 1.
+///         page-info API surface. Phase 2 added a content-stream interpreter (path-
+///         construction/painting operators and the graphics-state stack), painting every path
+///         in solid opaque black. Phase 3 (this release) adds real device color
+///         (<c>g</c>/<c>G</c>/<c>rg</c>/<c>RG</c>/<c>k</c>/<c>K</c>/<c>cs</c>/<c>CS</c>/
+///         <c>sc</c>/<c>SC</c>/<c>scn</c>/<c>SCN</c>), a generalized <c>/Filter</c>/
+///         <c>/DecodeParms</c> stream-decoding pipeline (<c>FlateDecode</c> plus PNG/TIFF
+///         predictor reversal), and image XObjects (<c>Do</c>: <c>DCTDecode</c> via
+///         <see cref="Codecs.JpegCodec"/>, or raw <c>DeviceGray</c>/<c>DeviceRGB</c>/
+///         <c>DeviceCMYK</c> 8-bit samples, composited through the current transformation
+///         matrix). <strong>Phase 3 limitations</strong>: no text/font operators, no Form
+///         XObject rendering (fails closed with <see cref="UnsupportedImageFeatureException"/>
+///         rather than being silently skipped), no shading/patterns/transparency groups, no
+///         <c>CCITTFax</c>/<c>LZW</c>/<c>ASCII85</c>/<c>ASCIIHex</c>/<c>JPX</c> filter
+///         decoding (fails closed), and no <c>/SMask</c>/alpha compositing (every decoded
+///         image is treated as fully opaque) - a later phase is expected to add these. Every
+///         other keyword not implemented by any phase is silently skipped, not an error. A
+///         page with no <c>/Contents</c> at all still renders as a fully transparent (blank)
+///         <see cref="Surface"/>, exactly as every page did in Phase 1.
 ///     </para>
 ///     <para>
 ///         Encrypted documents (a trailer declaring an <c>/Encrypt</c> key) are rejected with
@@ -213,8 +216,8 @@ public sealed partial class PdfDocument : IDisposable
     /// <summary>
     ///     Renders the specified page into a new <see cref="Surface"/> of the given dimensions,
     ///     tokenizing and executing the page's <c>/Contents</c> content stream (see the
-    ///     <see cref="PdfDocument"/> class remarks for the recognized operator set and the
-    ///     current "solid opaque black only" color limitation).
+    ///     <see cref="PdfDocument"/> class remarks for the recognized operator set and this
+    ///     phase's documented feature limitations).
     /// </summary>
     /// <param name="pageIndex">The zero-based index of the page to render.</param>
     /// <param name="width">The width of the rendered surface, in pixels.</param>
@@ -247,10 +250,11 @@ public sealed partial class PdfDocument : IDisposable
 
         var surface = new Surface(width, height);
         var pageInfo = _pages[pageIndex];
-        var (pageNode, x0, y0, boxWidth, boxHeight) = ResolvePageNodeAndMediaBox(pageIndex);
+        var (pageNode, x0, y0, boxWidth, boxHeight, resources) = ResolvePageDetails(pageIndex);
         var baseCtm = BuildBaseCtm(x0, y0, boxWidth, boxHeight, pageInfo.Rotation, width, height);
         var contentBytes = ResolvePageContentBytes(pageNode);
-        ExecuteContentStream(contentBytes, surface, baseCtm);
+        var resolvedResources = resources is null ? null : Resolve(resources);
+        ExecuteContentStream(contentBytes, surface, baseCtm, resolvedResources);
         return surface;
     }
 

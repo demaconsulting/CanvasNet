@@ -293,10 +293,10 @@ sections:
             title: >-
               The PdfDocument class shall paint the current path via the f/F/f*/S/s/B/B*/b/b*/n
               path-painting operators (choosing the nonzero or even-odd fill rule as documented,
-              closing the current subpath first for s/b/b*, and never painting anything for n) in
-              solid opaque black (Phase 2 implements no color space or color-setting operator),
-              and shall always clear the current path afterward while leaving the surrounding
-              graphics state, including its CTM and stroke style, unaffected by that clear.
+              closing the current subpath first for s/b/b*, and never painting anything for n)
+              using the current graphics state's fill/stroke color, and shall always clear the
+              current path afterward while leaving the surrounding graphics state, including its
+              CTM, stroke style, and color, unaffected by that clear.
             justification: |
               Callers need every documented fill-rule/stroke/close-first combination and the
               path-clearing-but-state-preserving behavior between consecutive painted paths to
@@ -331,3 +331,94 @@ sections:
               - PdfDocument_PageCount_AfterDispose_ThrowsObjectDisposedException
               - PdfDocument_GetPageInfo_AfterDispose_ThrowsObjectDisposedException
               - PdfDocument_Render_AfterDispose_ThrowsObjectDisposedException
+
+          - id: CanvasNetPdf-PdfDocument-DeviceColorOperators
+            title: >-
+              The PdfDocument class shall implement the g/G/rg/RG/k/K device color operators,
+              setting the current fill/stroke color from clamped-to-[0,1] gray/RGB/CMYK
+              components (CMYK converted via R = 255 * (1 - C) * (1 - K), and the equivalent
+              formulas for G/B), clamping any component outside [0,1] rather than rejecting it,
+              and throwing InvalidDataException for a malformed operand count or type.
+            justification: |
+              Real device color is the direct Phase 3 successor to Phase 2's fixed opaque-black
+              painting; every filled/stroked path must reflect the color a content stream
+              actually requests, converted per the PDF specification's own documented formulas.
+            tests:
+              - PdfDocument_Color_SetGrayFill_SetsExpectedRgbaColor
+              - PdfDocument_Color_SetGrayStroke_SetsExpectedRgbaColor
+              - PdfDocument_Color_SetRgbFill_SetsExpectedRgbaColor
+              - PdfDocument_Color_SetRgbStroke_SetsExpectedRgbaColor
+              - PdfDocument_Color_SetCmykFill_ConvertsToExpectedRgbaColor
+              - PdfDocument_Color_SetCmykStroke_ConvertsToExpectedRgbaColor
+              - PdfDocument_Color_ComponentValuesOutsideZeroToOne_AreClamped
+              - PdfDocument_Color_MalformedOperandCount_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-ColorSpaceOperators
+            title: >-
+              The PdfDocument class shall implement the cs/CS operators, resolving DeviceGray/
+              DeviceRGB/DeviceCMYK directly or via the current page's /Resources/ColorSpace
+              dictionary and resetting color to opaque black, and the sc/SC/scn/SCN operators,
+              setting color from the current color space's required component count; any other
+              resolved color space (Indexed/Separation/DeviceN/ICCBased/CalRGB/CalGray/Lab, an
+              undeclared name, or a scn/SCN /Pattern name) shall throw
+              UnsupportedImageFeatureException rather than being silently mis-rendered.
+            justification: |
+              A content stream that selects an unsupported color space or a pattern color must be
+              rejected explicitly (fail closed), not silently mis-rendered with the wrong number
+              of components or an incorrect color, so a caller can detect the unsupported feature
+              rather than receiving a plausible-looking but wrong image.
+            tests:
+              - PdfDocument_Color_SetColorSpaceFill_DeviceNames_ResetsColorToBlack
+              - PdfDocument_Color_SetColorSpaceStroke_DeviceNames_ResetsColorToBlack
+              - PdfDocument_Color_SetColorFillUsingCurrentColorSpace_Sc_PaintsExpectedColor
+              - PdfDocument_Color_SetColorStrokeUsingCurrentColorSpace_SC_PaintsExpectedColor
+              - PdfDocument_Color_ScnWithPatternName_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Color_UnsupportedNamedColorSpace_ThrowsUnsupportedImageFeatureException
+              - CanvasNetPdf_SystemIntegration_PdfRender_ColoredRectangleFill_PaintsExpectedRgbPixels
+
+          - id: CanvasNetPdf-PdfDocument-FilterPipeline
+            title: >-
+              The PdfDocument class shall generalize stream decoding into an ordered /Filter/
+              /DecodeParms pipeline, supporting FlateDecode optionally followed by a PNG
+              (/Predictor 10-15) or TIFF (/Predictor 2) predictor reversal, while preserving the
+              existing bare-FlateDecode behavior for cross-reference streams, object streams, and
+              page /Contents; any other filter name shall throw
+              UnsupportedImageFeatureException, and a malformed /Filter//DecodeParms shape or an
+              unrecognized /Predictor value shall throw InvalidDataException.
+            justification: |
+              Image XObjects commonly use a PNG or TIFF predictor alongside FlateDecode to
+              improve compression; without predictor reversal, such an image would decode to
+              incorrect pixel data rather than failing closed or decoding correctly, and every
+              existing Phase 1/2 stream-decoding call site must continue to behave identically.
+            tests:
+              - PdfDocument_Images_FlateDecodePngPredictor_DecodesExpectedPixels
+              - PdfDocument_Images_FlateDecodeTiffPredictor_DecodesExpectedPixels
+              - PdfDocument_Images_UnsupportedFilter_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-ImageXObjects
+            title: >-
+              The PdfDocument class shall implement the Do operator for a /Subtype /Image
+              XObject, decoding a bare /Filter /DCTDecode image via Codecs.JpegCodec.Load or
+              interpreting raw DeviceGray/DeviceRGB/DeviceCMYK 8-bit samples, and compositing the
+              decoded image onto the destination surface through the current transformation
+              matrix (nearest-neighbor sampling, treating every image as fully opaque); Do on a
+              /Subtype /Form XObject, an unsupported /ColorSpace, or an unsupported
+              /BitsPerComponent shall throw UnsupportedImageFeatureException rather than being
+              silently skipped or mis-rendered, and a malformed operand count/type or an
+              undeclared XObject name shall throw InvalidDataException.
+            justification: |
+              Image XObjects are a common, visually significant PDF content type; callers need
+              them decoded and correctly positioned, and need every explicitly out-of-scope
+              construct (Form XObjects, unsupported color spaces/bit depths) to fail closed with a
+              distinguishable exception rather than being silently skipped or mis-rendered.
+            tests:
+              - PdfDocument_Images_DoOperator_DeviceGrayFlateDecode_PlacesExpectedPixels
+              - PdfDocument_Images_DoOperator_DeviceRgbFlateDecode_PlacesExpectedPixels
+              - PdfDocument_Images_DoOperator_DeviceCmykFlateDecode_PlacesExpectedPixels
+              - PdfDocument_Images_DoOperator_DctDecodeJpeg_PlacesExpectedPixels
+              - PdfDocument_Images_UnsupportedBitsPerComponent_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Images_UnsupportedColorSpace_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Images_DoOperator_UndefinedXObjectName_ThrowsInvalidDataException
+              - PdfDocument_Images_DoOperator_FormXObject_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Images_DoOperator_MalformedOperandCount_ThrowsInvalidDataException
+              - CanvasNetPdf_SystemIntegration_PdfRender_ImageXObjectPlacement_CompositesExpectedPixels

@@ -20,7 +20,7 @@ public sealed partial class PdfDocument
     ///     it) since a page's raw node/box origin is an internal rendering detail, not part of
     ///     this package's public page-info contract.
     /// </summary>
-    private readonly List<(PdfObject Node, double X0, double Y0, double BoxWidth, double BoxHeight)> _pageDetails = [];
+    private readonly List<(PdfObject Node, double X0, double Y0, double BoxWidth, double BoxHeight, PdfObject? Resources)> _pageDetails = [];
 
     /// <summary>
     ///     Walks the document catalog's page tree (<c>/Pages</c> and its recursively-nested
@@ -47,15 +47,16 @@ public sealed partial class PdfDocument
 
         var pages = new List<PdfPageInfo>();
         var visited = new HashSet<int>();
-        TraversePageTree(pagesReference, 0, 0, DefaultMediaBoxWidth, DefaultMediaBoxHeight, 0, visited, pages);
+        TraversePageTree(pagesReference, 0, 0, DefaultMediaBoxWidth, DefaultMediaBoxHeight, 0, null, visited, pages);
         return pages;
     }
 
     /// <summary>
     ///     Recursively visits a page-tree node (an intermediate <c>/Type /Pages</c> node or a leaf
-    ///     <c>/Type /Page</c>), inheriting <c>/MediaBox</c> and <c>/Rotate</c> from ancestors when
-    ///     not declared locally, and appending a <see cref="PdfPageInfo"/> (plus its parallel
-    ///     <see cref="_pageDetails"/> entry) for every leaf page encountered, in document order.
+    ///     <c>/Type /Page</c>), inheriting <c>/MediaBox</c>, <c>/Rotate</c>, and <c>/Resources</c>
+    ///     from ancestors when not declared locally, and appending a <see cref="PdfPageInfo"/>
+    ///     (plus its parallel <see cref="_pageDetails"/> entry) for every leaf page encountered,
+    ///     in document order.
     /// </summary>
     private void TraversePageTree(
         PdfObject nodeReference,
@@ -64,6 +65,7 @@ public sealed partial class PdfDocument
         double inheritedWidth,
         double inheritedHeight,
         int inheritedRotation,
+        PdfObject? inheritedResources,
         HashSet<int> visited,
         List<PdfPageInfo> pages)
     {
@@ -80,6 +82,7 @@ public sealed partial class PdfDocument
 
         var (x0, y0, width, height) = ResolveMediaBox(node, inheritedX0, inheritedY0, inheritedWidth, inheritedHeight);
         var rotation = ResolveRotation(node, inheritedRotation);
+        var resources = node.Get("Resources") ?? inheritedResources;
 
         var type = GetNameValue(node, "Type");
         var kids = node.Get("Kids");
@@ -92,7 +95,7 @@ public sealed partial class PdfDocument
 
             foreach (var kid in kids.Items)
             {
-                TraversePageTree(kid, x0, y0, width, height, rotation, visited, pages);
+                TraversePageTree(kid, x0, y0, width, height, rotation, resources, visited, pages);
             }
         }
         else
@@ -102,7 +105,7 @@ public sealed partial class PdfDocument
                 (int)Math.Round(displayWidth),
                 (int)Math.Round(displayHeight),
                 rotation));
-            _pageDetails.Add((node, x0, y0, width, height));
+            _pageDetails.Add((node, x0, y0, width, height, resources));
         }
     }
 
@@ -184,13 +187,13 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
-    ///     Gets the given page's leaf <see cref="PdfObject"/> node and raw (pre-rotation-swap)
-    ///     <c>/MediaBox</c> extent, previously captured by <see cref="TraversePageTree"/> during
-    ///     construction.
+    ///     Gets the given page's leaf <see cref="PdfObject"/> node, raw (pre-rotation-swap)
+    ///     <c>/MediaBox</c> extent, and inherited <c>/Resources</c> dictionary, previously
+    ///     captured by <see cref="TraversePageTree"/> during construction.
     /// </summary>
     /// <param name="pageIndex">The zero-based page index. Must already be range-validated by the caller.</param>
-    /// <returns>The page's leaf node and raw <c>/MediaBox</c> extent.</returns>
-    private (PdfObject Node, double X0, double Y0, double BoxWidth, double BoxHeight) ResolvePageNodeAndMediaBox(int pageIndex) =>
+    /// <returns>The page's leaf node, raw <c>/MediaBox</c> extent, and inherited <c>/Resources</c>.</returns>
+    private (PdfObject Node, double X0, double Y0, double BoxWidth, double BoxHeight, PdfObject? Resources) ResolvePageDetails(int pageIndex) =>
         _pageDetails[pageIndex];
 
     /// <summary>
