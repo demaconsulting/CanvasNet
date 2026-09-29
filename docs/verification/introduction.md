@@ -39,6 +39,9 @@ constituent software items, specifically:
 - **CanvasNetSvg (System)** — A separate, independently-distributed software system providing
   SVG (Scalable Vector Graphics) rasterization, containing a single unit, `SvgCodec` — see
   _CanvasNetSvg System Verification_ (`canvas-net-svg.md`)
+- **CanvasNetPdf (System)** — A separate, independently-distributed software system providing
+  PDF page-rendering support, containing a single unit, `PdfDocument` — see
+  _CanvasNetPdf System Verification_ (`canvas-net-pdf.md`)
 
 The following OTS items are also covered:
 

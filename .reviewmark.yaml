@@ -611,6 +611,71 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgCodecTests.cs"    # unit tests
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgFixtureTests.cs"  # fixture conformance tests
 
+  # CanvasNetPdf-Architecture Review (one per system)
+  - id: CanvasNetPdf-Architecture
+    title: Review that CanvasNetPdf Architecture Satisfies Requirements
+    context:
+      - "README.md"
+      - "docs/user_guide/**/*.md"
+    paths:
+      - "docs/reqstream/canvas-net-pdf.yaml"                          # system requirements
+      - "docs/design/introduction.md"                                 # design introduction
+      - "docs/design/canvas-net-pdf.md"                               # system design
+      - "docs/verification/introduction.md"                           # verification introduction
+      - "docs/verification/canvas-net-pdf.md"                         # system verification
+      - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfSystemIntegrationTests.cs"  # integration tests
+
+  # CanvasNetPdf-Design Review (one per system)
+  - id: CanvasNetPdf-Design
+    title: Review that CanvasNetPdf Design is Consistent and Complete
+    context:
+      - "docs/reqstream/canvas-net-pdf.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-pdf/platform-requirements.yaml"    # platform requirements
+      - "docs/design/introduction.md"                                 # design introduction
+      - "docs/design/canvas-net-pdf.md"                               # system design
+      - "docs/design/canvas-net-pdf/**/*.md"                          # all system design documents
+
+  # CanvasNetPdf-Verification Review (one per system)
+  - id: CanvasNetPdf-Verification
+    title: Review that CanvasNetPdf Verification is Consistent and Complete
+    context:
+      - "docs/reqstream/canvas-net-pdf.yaml"
+    paths:
+      - "docs/verification/introduction.md"                           # verification introduction
+      - "docs/verification/canvas-net-pdf.md"                         # system verification
+      - "docs/verification/canvas-net-pdf/**/*.md"                    # all verification documents
+
+  # CanvasNetPdf-AllRequirements Review (one per system)
+  - id: CanvasNetPdf-AllRequirements
+    title: Review that All CanvasNetPdf Requirements are Complete
+    context:
+      - "docs/design/canvas-net-pdf.md"
+      - "docs/reqstream/canvas-net-pdf.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-pdf/**/*.yaml"                     # all requirements files
+
+  # CanvasNetPdf-PdfDocument Review (one per direct unit)
+  - id: CanvasNetPdf-PdfDocument
+    title: Review that CanvasNetPdf PdfDocument Implementation is Correct
+    context:
+      - "docs/design/canvas-net-pdf.md"
+      - "docs/reqstream/canvas-net-pdf.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-pdf/pdf-document.yaml"             # unit requirements
+      - "docs/design/canvas-net-pdf/pdf-document.md"                  # unit design
+      - "docs/verification/canvas-net-pdf/pdf-document.md"            # unit verification
+      - "docs/sysml2/model/canvas-net-pdf/pdf-document.sysml"         # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.cs"              # phase 1 unit source (public API)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Tokenizer.cs"    # phase 1 unit source (tokenizer)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.ObjectModel.cs"  # phase 1 unit source (object model)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Xref.cs"         # phase 1 unit source (xref resolution)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.PageTree.cs"     # phase 1 unit source (page-tree traversal)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfPageInfo.cs"              # phase 1 unit source (supporting record struct)
+      - "src/DemaConsulting.CanvasNet.Pdf/NamespaceDoc.cs"             # Pdf namespace documentation
+      - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfSystemIntegrationTests.cs"  # integration tests
+
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark
     title: Review that BuildMark Provides Required Functionality

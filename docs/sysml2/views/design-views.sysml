@@ -16,6 +16,10 @@ package CanvasNet {
         expose CanvasNetSvgSystem;
     }
 
+    view CanvasNetPdfView {
+        expose CanvasNetPdfSystem;
+    }
+
     view CanvasView {
         expose Canvas;
     }

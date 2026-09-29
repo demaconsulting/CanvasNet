@@ -1,0 +1,127 @@
+---
+# Software System Requirements for CanvasNetPdf
+#
+# These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.Pdf
+# package (namespace DemaConsulting.CanvasNet.Pdf) from the perspective of its consumers, without
+# specifying implementation details.
+#
+# CanvasNetPdf is an independent software system, distributed as its own NuGet package, depending
+# on the core CanvasNet system (docs/reqstream/canvas-net.yaml) for its Canvas.Surface pixel
+# buffer and Codecs.UnsupportedImageFeatureException type - see docs/design/canvas-net-pdf.md's
+# Dependencies section for details.
+#
+# Phase 1 scope: PdfDocument parses a PDF document's structure (cross-references, trailer, page
+# tree) and reports page count/size/rotation, but does not yet interpret page content streams -
+# Render returns a correctly sized, fully transparent Surface. Rendering real page content is
+# planned for a later phase.
+#
+# cspell:ignore xref startxref
+
+sections:
+  - title: CanvasNetPdf Requirements
+    requirements:
+      - id: CanvasNetPdf-Open
+        title: >-
+          The library shall parse a well-formed PDF document exactly once, from either a stream or
+          a file path, resolving its cross-reference data (classic table, cross-reference stream,
+          object stream, and hybrid combinations of these, falling back to a linear scan of the
+          document when normal cross-reference parsing fails or does not resolve to a valid
+          catalog) and reject a null stream/path, an empty or whitespace-only path, or malformed
+          document structure per the documented exception contract.
+        tags: [system]
+        justification: |
+          Callers need a single, reliable entry point that turns raw PDF bytes into a usable,
+          in-memory document regardless of which cross-reference form a given producer used, and
+          must be able to distinguish a programming error (null/empty argument) from malformed
+          input (corrupt document structure).
+        children:
+          - CanvasNetPdf-PdfDocument-Open
+          - CanvasNetPdf-PdfDocument-Tokenizer
+          - CanvasNetPdf-PdfDocument-ObjectModel
+          - CanvasNetPdf-PdfDocument-ClassicXref
+          - CanvasNetPdf-PdfDocument-XrefStream
+          - CanvasNetPdf-PdfDocument-ObjectStream
+          - CanvasNetPdf-PdfDocument-HybridXref
+          - CanvasNetPdf-PdfDocument-LinearScanFallback
+          - CanvasNetPdf-PdfDocument-PageTreeCycleRejection
+        tests:
+          - CanvasNetPdf_SystemIntegration_PdfOpen_ReturnsExpectedPageCount
+          - CanvasNetPdf_SystemIntegration_PdfValidationNull_NullStreamThrowsArgumentNullException
+
+      - id: CanvasNetPdf-PageCount
+        title: >-
+          The library shall report the document's true resolved page count after traversing its
+          page tree (including nested Kids arrays), regardless of which cross-reference form was
+          used to locate the underlying objects.
+        tags: [system]
+        justification: |
+          Callers need to know how many pages a document has before deciding which pages to
+          inspect or render.
+        children:
+          - CanvasNetPdf-PdfDocument-PageTreeTraversal
+        tests:
+          - CanvasNetPdf_SystemIntegration_PdfOpen_ReturnsExpectedPageCount
+
+      - id: CanvasNetPdf-GetPageInfo
+        title: >-
+          The library shall report each page's own display (rotation-adjusted) width and height
+          plus its normalized effective rotation, inheriting an undeclared MediaBox/Rotate from
+          the nearest ancestor that declares one, and shall reject an out-of-range page index with
+          ArgumentOutOfRangeException.
+        tags: [system]
+        justification: |
+          Callers need each page's actual displayed dimensions (already accounting for rotation)
+          to size a render target correctly, without independently re-implementing PDF's
+          MediaBox/Rotate inheritance and rotation-swap rules themselves.
+        children:
+          - CanvasNetPdf-PdfDocument-GetPageInfo
+          - CanvasNetPdf-PdfDocument-PageTreeInheritance
+        tests:
+          - CanvasNetPdf_SystemIntegration_PdfGetPageInfo_ReportsRotatedDimensions
+
+      - id: CanvasNetPdf-Render
+        title: >-
+          The library shall return a correctly width x height-sized Surface for a valid page
+          index, propagating Surface's own dimension contract unwrapped; in Phase 1 this Surface
+          is always fully transparent, since page content-stream interpretation is not yet
+          implemented.
+        tags: [system]
+        justification: |
+          Callers need a Surface-shaped render target sized to their own request (not derived from
+          the page's MediaBox), so that Phase 1 already establishes the final Render call shape a
+          later phase's real content rendering will fill in without a breaking API change.
+        children:
+          - CanvasNetPdf-PdfDocument-Render
+        tests:
+          - CanvasNetPdf_SystemIntegration_PdfRender_ReturnsBlankSizedSurface
+
+      - id: CanvasNetPdf-Dispose
+        title: >-
+          The library shall make Dispose idempotent (safe to call more than once) and shall throw
+          ObjectDisposedException from every other public member once the document has been
+          disposed.
+        tags: [system]
+        justification: |
+          Callers need standard, predictable IDisposable behavior - matching every other
+          disposable type in CanvasNet - so that double-disposing (a common pattern with using
+          declarations and manual disposal both present) never throws.
+        children:
+          - CanvasNetPdf-PdfDocument-Dispose
+          - CanvasNetPdf-PdfDocument-ObjectDisposedException
+        tests:
+          - CanvasNetPdf_SystemIntegration_PdfDispose_ObjectDisposedExceptionAfterDispose
+
+      - id: CanvasNetPdf-EncryptDetection
+        title: >-
+          The library shall detect an encrypted document (an /Encrypt key present in the trailer)
+          and reject it with UnsupportedImageFeatureException rather than silently mis-parsing its
+          (still-encrypted) bytes as plaintext content.
+        tags: [system]
+        justification: |
+          Decrypting a PDF is out of scope for this library; silently treating encrypted bytes as
+          plaintext would produce garbage results indistinguishable from a real (but malformed)
+          document, so callers need a clear, well-formed-but-unsupported signal instead.
+        children:
+          - CanvasNetPdf-PdfDocument-EncryptDetection
+        tests:
+          - CanvasNetPdf_SystemIntegration_PdfEncryptDetection_EncryptedTrailerThrowsUnsupportedImageFeatureException

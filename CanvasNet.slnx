@@ -2,9 +2,11 @@
   <Folder Name="/src/">
     <Project Path="src/DemaConsulting.CanvasNet/DemaConsulting.CanvasNet.csproj" />
     <Project Path="src/DemaConsulting.CanvasNet.Svg/DemaConsulting.CanvasNet.Svg.csproj" />
+    <Project Path="src/DemaConsulting.CanvasNet.Pdf/DemaConsulting.CanvasNet.Pdf.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test/DemaConsulting.CanvasNet.Tests/DemaConsulting.CanvasNet.Tests.csproj" />
     <Project Path="test/DemaConsulting.CanvasNet.Svg.Tests/DemaConsulting.CanvasNet.Svg.Tests.csproj" />
+    <Project Path="test/DemaConsulting.CanvasNet.Pdf.Tests/DemaConsulting.CanvasNet.Pdf.Tests.csproj" />
   </Folder>
 </Solution>

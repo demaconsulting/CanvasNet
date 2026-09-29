@@ -34,6 +34,8 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 - 📐 **SVG Codec** - Rasterize a common SVG subset, including markers/filters/clip-paths/masks and
   weight/style-aware font matching, to a surface (ships as the separate
   `DemaConsulting.CanvasNet.Svg` package)
+- 📄 **PDF Document** - Open a PDF, inspect its page count/size/rotation, and (in a future phase)
+  rasterize pages to a surface (ships as the separate `DemaConsulting.CanvasNet.Pdf` package)
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
@@ -68,12 +70,25 @@ Or via Package Manager Console:
 Install-Package DemaConsulting.CanvasNet.Svg
 ```
 
+PDF document parsing requires the separate `DemaConsulting.CanvasNet.Pdf` package:
+
+```bash
+dotnet add package DemaConsulting.CanvasNet.Pdf
+```
+
+Or via Package Manager Console:
+
+```powershell
+Install-Package DemaConsulting.CanvasNet.Pdf
+```
+
 ## Usage
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Svg;
+using DemaConsulting.CanvasNet.Pdf;
 using System.IO;
 
 // Create a surface, set a pixel, and crop an independent copy
@@ -108,6 +123,14 @@ Console.WriteLine($"Frames: {gifInfo.FrameCount}");
 
 // Decode/rasterize an SVG into a 256x256 surface
 using var rasterized = SvgCodec.Load("icon.svg", 256, 256);
+
+// Open a PDF, inspect its (rotation-adjusted) page size, and render it. Phase 1's Render
+// is intentionally in-progress: it returns a correctly sized but fully blank (transparent)
+// surface, since content-stream interpretation is not implemented yet; no page content is
+// drawn. Rendering actual page content is planned for a later phase.
+using var pdfDoc = PdfDocument.Open("document.pdf");
+var pageInfo = pdfDoc.GetPageInfo(0);
+using var pdfSurface = pdfDoc.Render(0, pageInfo.Width, pageInfo.Height);
 
 // Triage an untrusted file's header before decoding pixel data
 var info = PngCodec.GetInfo("untrusted.png");

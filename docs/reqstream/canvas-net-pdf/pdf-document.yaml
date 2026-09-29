@@ -1,0 +1,224 @@
+---
+# Software Unit Requirements for PdfDocument
+#
+# cspell:ignore xref startxref endobj endstream ObjStm MediaBox
+#
+# These requirements describe the design-level behavior of the PdfDocument unit.
+#
+# Packaging note: PdfDocument is distributed as the separate DemaConsulting.CanvasNet.Pdf NuGet
+# package (namespace DemaConsulting.CanvasNet.Pdf), which references the core
+# DemaConsulting.CanvasNet package. PdfDocument is the sole unit of the CanvasNetPdf system.
+
+sections:
+  - title: CanvasNetPdf Requirements
+    sections:
+      - title: PdfDocument Requirements
+        requirements:
+          - id: CanvasNetPdf-PdfDocument-Tokenizer
+            title: >-
+              The PdfDocument class shall tokenize a PDF byte stream into numbers (integer and
+              real, including leading-plus and bare-dot forms), literal strings (including nested
+              parentheses and backslash/octal escapes), hexadecimal strings (padding an odd digit
+              count with a trailing zero nibble), names (decoding  # xx hash escapes), array and
+              dictionary delimiters, and the reserved keywords, while skipping %-comments.
+            justification: |
+              Every later parsing stage (object model, cross-reference tables/streams, page tree)
+              depends on a correct, spec-conformant token stream; a tokenizer defect would corrupt
+              every downstream feature silently.
+            tests:
+              - PdfDocument_Tokenizer_Numbers_ParsesIntegerAndRealForms
+              - PdfDocument_Tokenizer_LiteralString_HandlesNestedParensAndEscapes
+              - PdfDocument_Tokenizer_HexString_DecodesFullBytes
+              - PdfDocument_Tokenizer_HexString_PadsOddDigitCountWithTrailingZero
+              - PdfDocument_Tokenizer_Name_DecodesHashEscapes
+              - PdfDocument_Tokenizer_Delimiters_RecognizesArrayAndDictionaryBrackets
+              - PdfDocument_Tokenizer_Comments_AreSkipped
+              - PdfDocument_Tokenizer_Keywords_AreRecognizedVerbatim
+              - PdfDocument_Tokenizer_EndOfInput_ReturnsEndOfFileToken
+
+          - id: CanvasNetPdf-PdfDocument-ObjectModel
+            title: >-
+              The PdfDocument class shall parse a token stream into its internal object model
+              (dictionaries with nested entries, arrays of mixed element kinds, and indirect
+              references), distinguishing a bare number followed by an object-definition header
+              from an indirect reference.
+            justification: |
+              PDF's dictionary/array/reference object model is the structural backbone every
+              cross-reference and page-tree feature is built on; it must be parsed correctly and
+              distinctly from a superficially similar bare-number-then-keyword sequence.
+            tests:
+              - PdfDocument_ObjectModel_Dictionary_ParsesNestedEntries
+              - PdfDocument_ObjectModel_Array_ParsesMixedElementTypes
+              - PdfDocument_ObjectModel_IndirectReference_ParsesObjectAndGenerationNumbers
+              - PdfDocument_ObjectModel_BareNumber_IsNotMisreadAsReference
+
+          - id: CanvasNetPdf-PdfDocument-ClassicXref
+            title: >-
+              The PdfDocument class shall parse a classic xref table and trailer dictionary,
+              resolving the catalog and every page object it references.
+            justification: |
+              The classic xref/trailer form is the original, still-common cross-reference format
+              and must be supported for broad real-world document compatibility.
+            tests:
+              - PdfDocument_Open_ClassicXref_ResolvesRootAndPage
+
+          - id: CanvasNetPdf-PdfDocument-XrefStream
+            title: >-
+              The PdfDocument class shall parse a /Type /XRef cross-reference stream (with no
+              classic table present), decoding its /W width-triplet-driven binary fields, and
+              resolve the catalog and every page object it references.
+            justification: |
+              Modern PDF producers commonly emit cross-reference streams instead of classic
+              tables; without this support, a large class of real-world documents would fail to
+              open.
+            tests:
+              - PdfDocument_Open_XrefStream_ResolvesRootAndPage
+
+          - id: CanvasNetPdf-PdfDocument-ObjectStream
+            title: >-
+              The PdfDocument class shall decompress a /Type /ObjStm object stream (FlateDecode)
+              and resolve an indirect object compressed within it, using the stream's /N and
+              /First header fields.
+            justification: |
+              Object streams let producers compactly store many small objects (such as page
+              dictionaries) inside one compressed stream; without support for resolving objects
+              compressed this way, many modern documents' pages would be unreachable.
+            tests:
+              - PdfDocument_Open_ObjectStream_DecompressesAndResolvesCompressedPage
+
+          - id: CanvasNetPdf-PdfDocument-HybridXref
+            title: >-
+              The PdfDocument class shall resolve an object described only by a hybrid document's
+              supplementary /XRefStm cross-reference stream, even though the document's classic
+              trailer marks that object number as free.
+            justification: |
+              Hybrid-reference files let old readers use the classic table while modern readers
+              use the supplementary stream to reach objects (such as ones compressed in an object
+              stream) the classic table cannot describe; without this, such documents would appear
+              to be missing objects a modern reader should be able to find.
+            tests:
+              - PdfDocument_Open_HybridXref_ResolvesCompressedEntryViaXRefStm
+
+          - id: CanvasNetPdf-PdfDocument-LinearScanFallback
+            title: >-
+              The PdfDocument class shall fall back to a linear scan of the document for "N G obj"
+              markers, reconstructing an object-offset table directly, when startxref is absent,
+              unreadable, or the parsed cross-reference chain does not resolve to a valid catalog.
+            justification: |
+              Real-world PDF producers occasionally emit documents with a missing or corrupt
+              startxref/cross-reference section; a linear-scan fallback lets such otherwise
+              well-formed documents still be opened instead of always failing outright.
+            tests:
+              - PdfDocument_Open_MalformedStartxref_FallsBackToLinearScan
+
+          - id: CanvasNetPdf-PdfDocument-PageTreeTraversal
+            title: >-
+              The PdfDocument class shall traverse the document's page tree, from the catalog's
+              /Pages root through recursively nested /Kids arrays, reporting every /Type /Page
+              leaf found, in document order.
+            justification: |
+              Callers need every page in a document reported, regardless of how deeply the
+              document's own page tree happens to be nested.
+            tests:
+              - PdfDocument_PageTree_Traversal_ReportsAllPagesInDocumentOrder
+
+          - id: CanvasNetPdf-PdfDocument-PageTreeInheritance
+            title: >-
+              The PdfDocument class shall inherit a page's /MediaBox and /Rotate from the nearest
+              ancestor page-tree node that declares one (defaulting to US Letter [0 0 612 792] and
+              rotation 0 when wholly undeclared in the ancestry), and shall swap the reported
+              width and height when the normalized effective rotation is 90 or 270 degrees.
+            justification: |
+              PDF pages routinely omit their own /MediaBox/Rotate, relying on an ancestor /Pages
+              node's declaration; callers need the correct, already-inherited and rotation-adjusted
+              size without independently re-implementing this inheritance and swap logic.
+            tests:
+              - PdfDocument_PageTree_Inheritance_ExplicitMediaBoxAndNoRotationIsUnchanged
+              - PdfDocument_PageTree_Inheritance_Rotation90SwapsDisplayedWidthAndHeight
+              - PdfDocument_PageTree_Inheritance_MediaBoxInheritedFromPagesNodeWhenPageOmitsIt
+
+          - id: CanvasNetPdf-PdfDocument-PageTreeCycleRejection
+            title: >-
+              The PdfDocument class shall detect and reject an unbounded page-tree reference cycle
+              (a /Kids entry referencing one of its own ancestors) with InvalidDataException.
+            justification: |
+              A malformed or adversarial document's page tree could otherwise cause an unbounded
+              traversal loop; rejecting the cycle keeps parsing bounded and predictable.
+            tests:
+              - PdfDocument_PageTree_CycleRejection_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-EncryptDetection
+            title: >-
+              The PdfDocument class shall detect an /Encrypt key in the trailer and throw
+              UnsupportedImageFeatureException with feature token "pdf-encrypted", without
+              attempting to resolve or decrypt the referenced encryption dictionary.
+            justification: |
+              Treating still-encrypted bytes as plaintext would silently produce meaningless
+              results; a clear, well-formed-but-unsupported signal lets callers distinguish this
+              case from a genuinely malformed document.
+            tests:
+              - PdfDocument_Open_EncryptedTrailer_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-Open
+            title: >-
+              The PdfDocument class shall expose Open(Stream) and Open(string) overloads that
+              fully buffer their input and parse it identically, rejecting a null stream or path
+              with ArgumentNullException and an empty or whitespace-only path with
+              ArgumentException, without taking ownership of (or disposing) a caller-supplied
+              stream.
+            justification: |
+              Callers need a predictable, symmetric entry point regardless of whether their PDF
+              data already lives in a stream or only exists as a file on disk, and must retain
+              ownership of any stream they pass in themselves.
+            tests:
+              - PdfDocument_Open_NullStream_ThrowsArgumentNullException
+              - PdfDocument_Open_NullPath_ThrowsArgumentNullException
+              - PdfDocument_Open_EmptyOrWhitespacePath_ThrowsArgumentException
+
+          - id: CanvasNetPdf-PdfDocument-GetPageInfo
+            title: >-
+              The PdfDocument class shall reject a GetPageInfo call with a negative page index or
+              one greater than or equal to PageCount with ArgumentOutOfRangeException.
+            justification: |
+              Callers need a clear, standard validation error rather than an out-of-bounds crash
+              or a silently wrong result when passing an invalid page index.
+            tests:
+              - PdfDocument_GetPageInfo_OutOfRangeIndex_ThrowsArgumentOutOfRangeException
+
+          - id: CanvasNetPdf-PdfDocument-Render
+            title: >-
+              The PdfDocument class shall return a fully transparent Surface of the caller-
+              specified width and height for a valid page index (Phase 1 does not yet interpret
+              page content streams), validate the page index the same way GetPageInfo does, and
+              propagate Surface's own width/height validation unwrapped rather than duplicating
+              it.
+            justification: |
+              Phase 1 establishes Render's final call shape (page index plus caller-chosen output
+              size) so a later phase's real content rendering can be added without a breaking API
+              change, while still returning a correctly sized, predictable result today.
+            tests:
+              - PdfDocument_Render_ValidPageIndex_ReturnsCorrectlySizedBlankSurface
+              - PdfDocument_Render_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException
+              - PdfDocument_Render_InvalidWidth_PropagatesSurfaceArgumentOutOfRangeException
+
+          - id: CanvasNetPdf-PdfDocument-Dispose
+            title: >-
+              The PdfDocument class shall make Dispose idempotent, safe to call more than once
+              without throwing.
+            justification: |
+              Callers commonly combine a using declaration with manual disposal (or dispose more
+              than once for other reasons); Dispose must tolerate this without throwing.
+            tests:
+              - PdfDocument_Dispose_CalledTwice_DoesNotThrow
+
+          - id: CanvasNetPdf-PdfDocument-ObjectDisposedException
+            title: >-
+              The PdfDocument class shall throw ObjectDisposedException from PageCount,
+              GetPageInfo, and Render once the document has been disposed.
+            justification: |
+              Callers must not be able to read stale or released parsed state through a disposed
+              PdfDocument instance.
+            tests:
+              - PdfDocument_PageCount_AfterDispose_ThrowsObjectDisposedException
+              - PdfDocument_GetPageInfo_AfterDispose_ThrowsObjectDisposedException
+              - PdfDocument_Render_AfterDispose_ThrowsObjectDisposedException

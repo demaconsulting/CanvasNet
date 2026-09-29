@@ -58,6 +58,13 @@ software items, specifically:
   decodes/rasterizes a subset of SVG vector documents into a `CanvasNet.Canvas.Surface`.
   `CanvasNetSvg` depends on this `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`,
   and `Codecs` subsystems — see _CanvasNetSvg System Design_ (`canvas-net-svg.md`)
+- **CanvasNetPdf (System)** — A separate, independently-distributed software system providing
+  PDF page-rendering support, containing a single unit, `PdfDocument`, which parses a PDF
+  document's structure (cross-references, trailer, page tree) and reports its page count/size/
+  rotation. `CanvasNetPdf` depends on this `CanvasNet` system's `Canvas` and `Codecs`
+  subsystems — see _CanvasNetPdf System Design_ (`canvas-net-pdf.md`). Phase 1: `Render` returns
+  a correctly sized but blank (fully transparent) `Surface`; page content-stream interpretation
+  is planned for a later phase
 
 The following OTS items are also covered:
 
@@ -120,6 +127,13 @@ A sibling top-level system, `CanvasNetSvg`, lives in this same repository alongs
 `DemaConsulting.CanvasNet.Svg`, is distributed as its own separate NuGet package and depends on
 the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, and `Codecs` subsystems — see
 the Folder Layout section below and _CanvasNetSvg System Design_ (`canvas-net-svg.md`).
+
+A second sibling top-level system, `CanvasNetPdf`, likewise lives in this same repository
+alongside `CanvasNet`: its sole unit, `PdfDocument`, namespace `DemaConsulting.CanvasNet.Pdf`, is
+distributed as its own separate NuGet package and depends on the `CanvasNet` system's `Canvas`
+and `Codecs` subsystems only (Phase 1 has no need of `Geometry`/`Drawing`/`Fonts` — `Render`
+constructs only a blank `Surface`) — see the Folder Layout section below and _CanvasNetPdf
+System Design_ (`canvas-net-pdf.md`).
 
 ## Folder Layout
 
@@ -230,6 +244,31 @@ paint files added for linear/radial gradient support in `PathFiller`. The siblin
 system's sole unit, `SvgCodec`, depends on the `CanvasNet` system's `Geometry`, `Drawing`,
 `Fonts`, and `Codecs` subsystems (not only `Canvas`) to build and rasterize the vector paths and
 text it decodes from SVG documents — see _CanvasNetSvg System Design_ (`canvas-net-svg.md`).
+
+`PdfDocument` lives in the second sibling `src/DemaConsulting.CanvasNet.Pdf/` project folder
+(namespace `DemaConsulting.CanvasNet.Pdf`, distributed as the separate
+`DemaConsulting.CanvasNet.Pdf` NuGet package). Like `SvgCodec`'s own folder, this is the source
+folder of a separate, sibling system's sole unit (see _CanvasNetPdf System Design_,
+`canvas-net-pdf.md`), a flat structure with no further nesting:
+
+```text
+src/DemaConsulting.CanvasNet.Pdf/
+├── PdfDocument.cs               — Public API entry point: Open/PageCount/GetPageInfo/Render/
+│                                   Dispose; partial-class implementation continues below
+├── PdfDocument.Tokenizer.cs     — Low-level lexer (numbers/strings/names/delimiters/keywords)
+├── PdfDocument.ObjectModel.cs   — Internal `PdfObject` tagged union + recursive-descent parser
+├── PdfDocument.Xref.cs          — Classic xref+trailer, xref stream, object stream, hybrid
+│                                   `/XRefStm`, linear-scan fallback, `/Encrypt` detection
+├── PdfDocument.PageTree.cs      — Catalog→Pages→Kids traversal, MediaBox/Rotate inheritance,
+│                                   cycle rejection, `PdfPageInfo` production
+├── PdfPageInfo.cs               — Standalone supporting record struct (resolved page size/rotation)
+└── NamespaceDoc.cs              — Namespace-level XML documentation
+```
+
+`PdfDocument`'s Phase 1 dependencies are limited to the `CanvasNet` system's `Canvas` (`Surface`)
+and `Codecs` (`UnsupportedImageFeatureException`) subsystems — see _CanvasNetPdf System Design_
+(`canvas-net-pdf.md`). A later phase that begins interpreting page content streams will add
+`Geometry`/`Drawing`/`Fonts` dependencies explicitly, at the point they are actually first used.
 
 ## Document Conventions
 

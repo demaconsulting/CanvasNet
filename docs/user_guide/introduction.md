@@ -1079,6 +1079,117 @@ Parses an SVG file at the specified path and returns an `ImageInfo`.
 - `ArgumentException`: Thrown when `path` is an empty string.
 - `InvalidDataException`: Thrown for the same conditions as `GetInfo(Stream)`.
 
+### PdfDocument
+
+`PdfDocument` is distributed via the separate `DemaConsulting.CanvasNet.Pdf` NuGet package
+(namespace `DemaConsulting.CanvasNet.Pdf`), which references the core `DemaConsulting.CanvasNet`
+package - see the Installation section of the project README.
+
+The `PdfDocument` sealed class opens a PDF document, parses its cross-reference table/stream and
+page tree, and reports each page's displayed (rotation-adjusted) size and its page count.
+**Phase 1 is intentionally in-progress**: `Render` returns a correctly sized but fully blank
+(all-transparent) `Surface` - no content-stream interpretation, color-space handling, or image/
+font decoding is implemented yet. This is a documented, in-progress limitation of the current
+phase, not a bug; rendering actual page content is planned for a later phase.
+
+```csharp
+using var doc = PdfDocument.Open("file.pdf");
+var info = doc.GetPageInfo(0);
+using var surface = doc.Render(0, info.Width, info.Height);
+```
+
+#### PdfDocument Methods
+
+##### PdfDocument.Open(Stream stream)
+
+```csharp
+public static PdfDocument Open(Stream stream)
+```
+
+Reads the entirety of an open, readable stream into an in-memory buffer and parses it into a new
+`PdfDocument`. Does not take ownership of, and does not dispose, the caller's `stream`.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `stream` is null.
+- `InvalidDataException`: Thrown when the stream does not contain valid, supported PDF content
+  (including when normal cross-reference parsing fails and the linear-scan fallback also cannot
+  resolve the document catalog).
+- `UnsupportedImageFeatureException`: Thrown when the document's trailer declares an `/Encrypt`
+  entry; encrypted content is never interpreted as plaintext.
+
+##### PdfDocument.Open(string path)
+
+```csharp
+public static PdfDocument Open(string path)
+```
+
+Opens its own internal `FileStream` for the file at `path`, reads it fully, closes that stream
+synchronously within `Open` (mirroring `PngCodec.Load(string)`'s open/consume/close pattern), then
+parses the buffered content identically to the `Stream` overload above.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `path` is null.
+- `ArgumentException`: Thrown when `path` is an empty or whitespace-only string.
+- `InvalidDataException`: Thrown for the same conditions as `Open(Stream)`.
+- `UnsupportedImageFeatureException`: Thrown for the same reason as `Open(Stream)`.
+
+##### PdfDocument.PageCount
+
+```csharp
+public int PageCount { get; }
+```
+
+The total number of pages in the document's page tree.
+
+**Exceptions:**
+
+- `ObjectDisposedException`: Thrown when accessed after `Dispose()` has been called.
+
+##### PdfDocument.GetPageInfo(int pageIndex)
+
+```csharp
+public PdfPageInfo GetPageInfo(int pageIndex)
+```
+
+Returns the specified page's displayed (rotation-adjusted) width/height, plus its normalized
+clockwise rotation (0/90/180/270). Width and height are swapped relative to the page's raw
+`/MediaBox` when rotation is 90 or 270. A leaf page inherits `/MediaBox`/`/Rotate` from its
+page-tree ancestors when it does not declare its own.
+
+**Exceptions:**
+
+- `ArgumentOutOfRangeException`: Thrown when `pageIndex` is negative or `>= PageCount`.
+- `ObjectDisposedException`: Thrown when called after `Dispose()` has been called.
+
+##### PdfDocument.Render(int pageIndex, int width, int height)
+
+```csharp
+public Surface Render(int pageIndex, int width, int height)
+```
+
+Returns a new `Surface` of the caller-specified `width` x `height` for the given page. **Phase 1
+does not interpret the page's content stream**: the returned `Surface` is exactly the blank
+(zero-initialized, fully transparent) surface `new Surface(width, height)` already produces - it
+is not clamped or derived from the page's own `/MediaBox` size. Rendering actual page content is
+planned for a later phase.
+
+**Exceptions:**
+
+- `ArgumentOutOfRangeException`: Thrown when `pageIndex` is negative or `>= PageCount`, or when
+  `width`/`height` is not a valid `Surface` size (propagates from `new Surface(width, height)`).
+- `ObjectDisposedException`: Thrown when called after `Dispose()` has been called.
+
+##### PdfDocument.Dispose()
+
+```csharp
+public void Dispose()
+```
+
+Releases the document's in-memory buffer and parsed state. Idempotent - safe to call more than
+once. Every other public member throws `ObjectDisposedException` once called.
+
 ### TrueTypeFont
 
 The `TrueTypeFont` class loads glyph-based TrueType (`glyf`-based) SFNT fonts and exposes raw
