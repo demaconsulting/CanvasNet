@@ -134,7 +134,7 @@ internal sealed class SyntheticFontBuilder
     /// <summary>
     ///     Builds a 54-byte <c>head</c> table.
     /// </summary>
-    public static byte[] Head(int unitsPerEm, int indexToLocFormat)
+    public static byte[] Head(int unitsPerEm, int indexToLocFormat, int macStyle = 0)
     {
         var buf = new List<byte>();
         WriteUInt32(buf, 0x00010000); // version
@@ -152,7 +152,7 @@ internal sealed class SyntheticFontBuilder
         WriteInt16(buf, 0); // yMin
         WriteInt16(buf, 0); // xMax
         WriteInt16(buf, 0); // yMax
-        WriteUInt16(buf, 0); // macStyle
+        WriteUInt16(buf, macStyle);
         WriteUInt16(buf, 0); // lowestRecPPEM
         WriteInt16(buf, 0); // fontDirectionHint
         WriteInt16(buf, indexToLocFormat);
@@ -901,6 +901,112 @@ internal sealed class SyntheticFontBuilder
         WriteUInt16(buf, 0); // kern table version
         WriteUInt16(buf, 1); // nTables
         buf.AddRange(subtable);
+        return [.. buf];
+    }
+
+    /// <summary>
+    ///     Describes one <c>name</c> table record to be built by <see cref="Name"/>.
+    /// </summary>
+    public readonly record struct NameRecord(int PlatformId, int EncodingId, int LanguageId, int NameId, string Value);
+
+    /// <summary>
+    ///     Builds a format-0 <c>name</c> table from an ordered list of records, encoding each
+    ///     record's string as big-endian UTF-16 for a Windows platform record
+    ///     (<see cref="NameRecord.PlatformId"/> <c>3</c>) or as ASCII for a Macintosh platform
+    ///     record (<see cref="NameRecord.PlatformId"/> <c>1</c>) - sufficient for every test in
+    ///     this suite, since no synthetic fixture needs a genuinely non-ASCII Mac Roman string.
+    /// </summary>
+    public static byte[] Name(IReadOnlyList<NameRecord> records)
+    {
+        var stringData = new List<byte>();
+        var entries = new List<(int Offset, int Length)>();
+        foreach (var record in records)
+        {
+            var encoded = record.PlatformId == 1
+                ? System.Text.Encoding.ASCII.GetBytes(record.Value)
+                : System.Text.Encoding.BigEndianUnicode.GetBytes(record.Value);
+            entries.Add((stringData.Count, encoded.Length));
+            stringData.AddRange(encoded);
+        }
+
+        var buf = new List<byte>();
+        WriteUInt16(buf, 0); // format
+        WriteUInt16(buf, records.Count);
+        WriteUInt16(buf, 6 + records.Count * 12); // stringOffset
+
+        for (var i = 0; i < records.Count; i++)
+        {
+            var record = records[i];
+            var (offset, length) = entries[i];
+            WriteUInt16(buf, record.PlatformId);
+            WriteUInt16(buf, record.EncodingId);
+            WriteUInt16(buf, record.LanguageId);
+            WriteUInt16(buf, record.NameId);
+            WriteUInt16(buf, length);
+            WriteUInt16(buf, offset);
+        }
+
+        buf.AddRange(stringData);
+        return [.. buf];
+    }
+
+    /// <summary>
+    ///     Builds a full 64-byte version-0 <c>OS/2</c> table (long enough to include
+    ///     <c>fsSelection</c>), with every field beyond <c>usWeightClass</c>/<c>fsSelection</c> -
+    ///     the only two fields <see cref="StyleTable"/> reads - filled with a plausible
+    ///     placeholder value.
+    /// </summary>
+    public static byte[] Os2(int usWeightClass, int fsSelection)
+    {
+        var buf = new List<byte>();
+        WriteUInt16(buf, 0); // version
+        WriteInt16(buf, 0); // xAvgCharWidth
+        WriteUInt16(buf, usWeightClass);
+        WriteUInt16(buf, 5); // usWidthClass
+        WriteUInt16(buf, 0); // fsType
+        WriteInt16(buf, 0); // ySubscriptXSize
+        WriteInt16(buf, 0); // ySubscriptYSize
+        WriteInt16(buf, 0); // ySubscriptXOffset
+        WriteInt16(buf, 0); // ySubscriptYOffset
+        WriteInt16(buf, 0); // ySuperscriptXSize
+        WriteInt16(buf, 0); // ySuperscriptYSize
+        WriteInt16(buf, 0); // ySuperscriptXOffset
+        WriteInt16(buf, 0); // ySuperscriptYOffset
+        WriteInt16(buf, 0); // yStrikeoutSize
+        WriteInt16(buf, 0); // yStrikeoutPosition
+        WriteInt16(buf, 0); // sFamilyClass
+        for (var i = 0; i < 10; i++)
+        {
+            buf.Add(0); // panose
+        }
+
+        WriteUInt32(buf, 0); // ulUnicodeRange1
+        WriteUInt32(buf, 0); // ulUnicodeRange2
+        WriteUInt32(buf, 0); // ulUnicodeRange3
+        WriteUInt32(buf, 0); // ulUnicodeRange4
+        buf.AddRange("SYNT"u8.ToArray()); // achVendID
+        WriteUInt16(buf, fsSelection);
+        return [.. buf];
+    }
+
+    /// <summary>
+    ///     Builds a full 32-byte version-3.0 <c>post</c> table (long enough to include
+    ///     <c>isFixedPitch</c>), with every field beyond <c>italicAngle</c>/<c>isFixedPitch</c> -
+    ///     the only two fields <see cref="StyleTable"/> reads - filled with a plausible
+    ///     placeholder value.
+    /// </summary>
+    public static byte[] Post(int isFixedPitch, double italicAngle = 0)
+    {
+        var buf = new List<byte>();
+        WriteUInt32(buf, 0x00030000); // version 3.0: no glyph name arrays follow
+        WriteUInt32(buf, unchecked((uint)(int)Math.Round(italicAngle * 65536.0))); // italicAngle (Fixed)
+        WriteInt16(buf, 0); // underlinePosition
+        WriteInt16(buf, 0); // underlineThickness
+        WriteUInt32(buf, unchecked((uint)isFixedPitch));
+        WriteUInt32(buf, 0); // minMemType42
+        WriteUInt32(buf, 0); // maxMemType42
+        WriteUInt32(buf, 0); // minMemType1
+        WriteUInt32(buf, 0); // maxMemType1
         return [.. buf];
     }
 }

@@ -670,3 +670,163 @@ sections:
                   - SfntContainer_TryReadTtcHeader_TruncatedHeader_ThrowsInvalidDataException
                   - SfntContainer_TryReadTtcHeader_ZeroFonts_ThrowsInvalidDataException
                   - SfntContainer_TryReadTtcHeader_TruncatedFaceOffsetTable_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GetNameInfoResolvesTypographicNames
+                title: >-
+                  The TrueTypeFont class shall prefer the name table's typographic family
+                  (nameID 16) and typographic subfamily (nameID 17) records over the standard
+                  family (nameID 1) and subfamily (nameID 2) records when both are present, when
+                  resolving GetNameInfo's FamilyName and SubfamilyName.
+                justification: |
+                  The typographic name records exist specifically to carry the font's preferred
+                  display family/subfamily (for example distinguishing a full weight axis from the
+                  coarser legacy four-style model); callers asking for a font's name should get the
+                  more accurate typographic value whenever the font author has supplied one.
+                tests:
+                  - TrueTypeFont_GetNameInfo_TypographicNamesPresent_PrefersNameId16And17
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GetNameInfoFallsBackToStandardNames
+                title: >-
+                  The TrueTypeFont class shall fall back to the name table's standard family
+                  (nameID 1) and subfamily (nameID 2) records when resolving GetNameInfo's
+                  FamilyName and SubfamilyName if the typographic (nameID 16/17) records are
+                  absent.
+                justification: |
+                  Most real-world fonts (including every fixture bundled with this repository) only
+                  supply the standard name records; GetNameInfo must still resolve a usable
+                  family/subfamily name for them.
+                tests:
+                  - TrueTypeFont_GetNameInfo_TypographicNamesAbsent_FallsBackToNameId1And2
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GetNameInfoPlatformPreference
+                title: >-
+                  The TrueTypeFont class shall prefer a Windows platform (platformID 3) name
+                  record over a Macintosh platform (platformID 1) name record for the same nameID
+                  when both are present, when resolving GetNameInfo.
+                justification: |
+                  Windows platform records use Unicode (UTF-16BE) encoding, which unambiguously
+                  round-trips any codepoint, whereas Macintosh platform records use a legacy 8-bit
+                  encoding whose repertoire is far more limited; preferring the Windows record
+                  yields a more faithful string whenever both are available.
+                tests:
+                  - TrueTypeFont_GetNameInfo_WindowsAndMacintoshRecordsPresent_PrefersWindowsRecord
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GetNameInfoMacintoshFallback
+                title: >-
+                  The TrueTypeFont class shall resolve GetNameInfo's name strings from a
+                  Macintosh platform (platformID 1, encoding 0, Mac Roman) name record when no
+                  Windows platform record exists for that nameID.
+                justification: |
+                  Some fonts (particularly older ones) only supply Macintosh platform name records;
+                  GetNameInfo must still decode and expose their strings correctly rather than
+                  treating the font as nameless.
+                tests:
+                  - TrueTypeFont_GetNameInfo_OnlyMacintoshRecordPresent_ResolvesFromMacintoshRecord
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GetNameInfoMissingRecordTolerant
+                title: >-
+                  The TrueTypeFont class shall return null for any single FontNameInfo member
+                  (for example PostScriptName) whose corresponding nameID has no resolvable
+                  record in the name table, without affecting resolution of the other members.
+                justification: |
+                  Not every font supplies every name string (a PostScript name record in
+                  particular is optional); a missing individual record must not prevent the other,
+                  present name strings from being resolved and returned.
+                tests:
+                  - TrueTypeFont_GetNameInfo_PostScriptNameRecordMissing_ReturnsNullPostScriptName
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GetNameInfoNoNameTableTolerant
+                title: >-
+                  The TrueTypeFont class shall return a FontNameInfo with every member null,
+                  rather than throwing, when GetNameInfo is called on a font that has no name
+                  table at all.
+                justification: |
+                  The name table is optional per the OpenType specification; a font's absence of
+                  this table must degrade gracefully to an all-null result rather than being
+                  treated as a load-time or query-time error.
+                tests:
+                  - TrueTypeFont_GetNameInfo_NoNameTable_ReturnsAllNullFontNameInfo
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GetNameInfoMalformedRecordTolerant
+                title: >-
+                  The TrueTypeFont class shall ignore an individual name table record whose
+                  declared string offset/length falls outside the table's own bounds, rather than
+                  throwing or discarding the entire name table's other well-formed records.
+                justification: |
+                  A single corrupted or truncated record must not prevent every other, independently
+                  well-formed record in the same name table from being resolved and returned.
+                tests:
+                  - TrueTypeFont_GetNameInfo_MalformedNameRecord_IgnoresRecordWithoutThrowing
+
+              - id: CanvasNet-Fonts-TrueTypeFont-StyleFromOs2FsSelection
+                title: >-
+                  The TrueTypeFont class shall derive IsBold true from the OS/2 table's
+                  fsSelection bold bit (bit 5) and IsItalic true from its italic bit (bit 0) when
+                  the OS/2 table is present and long enough to contain fsSelection.
+                justification: |
+                  The OS/2 table's fsSelection field is the OpenType specification's primary,
+                  purpose-built source for a font's bold/italic classification; callers need
+                  IsBold/IsItalic to reflect it directly.
+                tests:
+                  - TrueTypeFont_IsBold_Os2FsSelectionBoldBitSet_ReturnsTrue
+                  - TrueTypeFont_IsItalic_Os2FsSelectionItalicBitSet_ReturnsTrue
+
+              - id: CanvasNet-Fonts-TrueTypeFont-StyleFromOs2WeightClass
+                title: >-
+                  The TrueTypeFont class shall derive IsBold true from the OS/2 table's
+                  usWeightClass being at least 600 (Semibold or heavier) when fsSelection's own
+                  bold bit is not set.
+                justification: |
+                  Some fonts convey boldness only through usWeightClass rather than the
+                  fsSelection bold bit; a heavier weight class is itself evidence of a visually
+                  bold font and should also be reflected in IsBold.
+                tests:
+                  - TrueTypeFont_IsBold_Os2WeightClassAtLeast600_ReturnsTrue
+
+              - id: CanvasNet-Fonts-TrueTypeFont-StyleFromPostItalicAngle
+                title: >-
+                  The TrueTypeFont class shall derive IsItalic true from the post table's
+                  italicAngle being non-zero when the post table is present and long enough to
+                  contain italicAngle.
+                justification: |
+                  A non-zero slant angle recorded in the post table is itself direct, independent
+                  evidence that a font is italic/oblique, and should be reflected in IsItalic even
+                  when other sources are silent or absent.
+                tests:
+                  - TrueTypeFont_IsItalic_PostItalicAngleNonZero_ReturnsTrue
+
+              - id: CanvasNet-Fonts-TrueTypeFont-StyleFallsBackToMacStyleWhenOs2Absent
+                title: >-
+                  The TrueTypeFont class shall derive IsBold and IsItalic from the head table's
+                  macStyle bits 0 and 1 respectively when the OS/2 table is absent, and shall
+                  always OR the macStyle-derived booleans into IsBold/IsItalic even when OS/2 is
+                  present.
+                justification: |
+                  The head table's macStyle field is mandatory (head is always present), making it
+                  a reliable fallback when the optional OS/2 table is missing; because either
+                  source can independently indicate a bold or italic font, combining both with OR
+                  avoids a false negative when only one of the two sources reflects the truth.
+                tests:
+                  - TrueTypeFont_Style_Os2TableAbsent_FallsBackToHeadMacStyle
+
+              - id: CanvasNet-Fonts-TrueTypeFont-IsFixedPitchFromPostTable
+                title: >-
+                  The TrueTypeFont class shall derive IsFixedPitch true from the post table's
+                  isFixedPitch field being non-zero when the post table is present and long
+                  enough to contain that field.
+                justification: |
+                  The post table's isFixedPitch field is the OpenType specification's dedicated
+                  source for a font's fixed-pitch (monospace) classification.
+                tests:
+                  - TrueTypeFont_IsFixedPitch_PostIsFixedPitchNonZero_ReturnsTrue
+
+              - id: CanvasNet-Fonts-TrueTypeFont-IsFixedPitchAbsentPostTableTolerant
+                title: >-
+                  The TrueTypeFont class shall return IsFixedPitch false, rather than throwing,
+                  when the post table is absent or too short to contain isFixedPitch.
+                justification: |
+                  The post table is optional per the OpenType specification and has no reliable
+                  alternate source for fixed-pitch classification; a font lacking it must default
+                  to IsFixedPitch false rather than the query failing.
+                tests:
+                  - TrueTypeFont_IsFixedPitch_PostTableAbsent_ReturnsFalseWithoutThrowing

@@ -42,7 +42,8 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
 - 🌅 **Gradient Paint** - Linear or radial gradient fills with spread
 - 🔤 **TrueType/CFF Fonts** - Load TrueType (`glyf`) or CFF/OpenType (`.otf`) fonts and individual
-  faces of a TrueType Collection (`.ttc`), map codepoints, extract glyph outlines
+  faces of a TrueType Collection (`.ttc`), map codepoints, extract glyph outlines, and query
+  name/style metadata (family/subfamily/full/PostScript name, bold/italic/fixed-pitch)
 - 🎬 **Rendering** - Transform-aware canvas with text and shape drawing
 - ⚡ **Span-Based** - Fast, allocation-conscious pixel and row access
 - 🔄 **Multi-Target** - Supports .NET 8, 9, and 10
@@ -310,6 +311,21 @@ var faceCount = TrueTypeFont.GetFaceCount("collection.ttc"); // e.g. 2
 // Load a specific face by index (face 0 is used when Load is called without
 // an index, matching an ordinary single-face font's default behavior)
 var boldFace = TrueTypeFont.Load("collection.ttc", faceIndex: 1);
+```
+
+Querying a font's name and style metadata:
+
+```csharp
+// Resolve the font's family/subfamily/full/PostScript name from its name table
+var nameInfo = font.GetNameInfo();
+Console.WriteLine($"{nameInfo.FamilyName} {nameInfo.SubfamilyName}"); // e.g. "Open Sans Regular"
+
+// Derived bold/italic/fixed-pitch classification (from OS/2, head.macStyle, and post)
+if (font.IsBold || font.IsItalic || font.IsFixedPitch)
+{
+    Console.WriteLine("Bold: {0}, Italic: {1}, Fixed-pitch: {2}",
+        font.IsBold, font.IsItalic, font.IsFixedPitch);
+}
 ```
 
 ## Building

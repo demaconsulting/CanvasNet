@@ -1,16 +1,46 @@
 // cspell:ignore SFNT Sfnt sfnt glyf Glyf cmap Cmap loca Loca hmtx Hmtx hhea Hhea
 // cspell:ignore maxp Maxp notdef codepoint codepoints subtable subtables subsetted
 // cspell:ignore subsetting PPEM OTTO ttcf
+// cspell:ignore macStyle fsSelection usWeightClass isFixedPitch italicAngle nameID
 using DemaConsulting.CanvasNet.Geometry;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Fonts;
 
 /// <summary>
+///     A font's resolved <c>name</c>-table strings: the typographic (or, if absent, standard)
+///     family and subfamily names, the full name, and the PostScript name.
+/// </summary>
+/// <remarks>
+///     Every field is <see langword="null"/> when the underlying font has no <c>name</c> table,
+///     or no record for that specific name identifier, in any of the platform/encoding
+///     combinations this type resolves (see <see cref="TrueTypeFont.GetNameInfo"/>) - this never
+///     throws, mirroring <see cref="TrueTypeFont.GetKerning"/>'s "absent optional table => benign
+///     default" contract rather than a required-table throwing contract.
+/// </remarks>
+/// <param name="FamilyName">
+///     The typographic family name (<c>nameID</c> 16) if present; otherwise the standard family
+///     name (<c>nameID</c> 1); otherwise <see langword="null"/>.
+/// </param>
+/// <param name="SubfamilyName">
+///     The typographic subfamily name (<c>nameID</c> 17) if present; otherwise the standard
+///     subfamily name (<c>nameID</c> 2); otherwise <see langword="null"/>.
+/// </param>
+/// <param name="FullName">The full font name (<c>nameID</c> 4), or <see langword="null"/>.</param>
+/// <param name="PostScriptName">
+///     The PostScript name (<c>nameID</c> 6), or <see langword="null"/>.
+/// </param>
+public readonly record struct FontNameInfo(
+    string? FamilyName,
+    string? SubfamilyName,
+    string? FullName,
+    string? PostScriptName);
+
+/// <summary>
 ///     Provides hand-rolled, dependency-free loading and querying of TrueType (<c>glyf</c>-based)
 ///     and CFF/OpenType (<c>CFF </c>-based) SFNT font files, including TrueType Collection
 ///     (<c>ttcf</c>) containers: metrics, character-to-glyph mapping, glyph outline extraction,
-///     advance widths, and basic pairwise kerning.
+///     advance widths, basic pairwise kerning, and <c>name</c>-table/style metadata.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -67,6 +97,17 @@ namespace DemaConsulting.CanvasNet.Fonts;
 ///     malformed input instead.
 ///     </para>
 ///     <para>
+///     <see cref="GetNameInfo"/> resolves the font's <c>name</c>-table family/subfamily/full/
+///     PostScript name strings, and <see cref="IsBold"/>/<see cref="IsItalic"/>/
+///     <see cref="IsFixedPitch"/> derive bold/italic/fixed-pitch style metadata from the optional
+///     <c>OS/2</c> and <c>post</c> tables and the required <c>head.macStyle</c> field. Both are
+///     resolved per-face for a <c>ttcf</c> container, exactly as every other table this class
+///     reads. <c>name</c> and <c>OS/2</c>/<c>post</c> are all optional; their absence, or the
+///     absence of any specific record/field within them, never throws - see
+///     <see cref="NameTable"/>/<see cref="StyleTable"/> for the exact resolution and fallback
+///     rules.
+///     </para>
+///     <para>
 ///     <see cref="GetGlyphOutline"/> returns a <see cref="Path"/> in raw font design units
 ///     (y-axis increasing upward, per TrueType/OpenType convention) - it is <em>not</em> scaled to
 ///     a point size and <em>not</em> flipped to a y-down pixel convention. <see cref="UnitsPerEm"/>
@@ -79,6 +120,7 @@ public sealed class TrueTypeFont
     private readonly IGlyphOutlineSource _glyphs;
     private readonly CmapTable _cmap;
     private readonly KernTable _kern;
+    private readonly NameTable _name;
 
     /// <summary>
     ///     The number of font design units per em, from <c>head.unitsPerEm</c>.
@@ -105,17 +147,44 @@ public sealed class TrueTypeFont
     /// </summary>
     public int GlyphCount { get; }
 
-    private TrueTypeFont(int unitsPerEm, int glyphCount, HmtxHheaReader metrics, IGlyphOutlineSource glyphs, CmapTable cmap, KernTable kern)
+    /// <summary>
+    ///     Whether this font is a bold-weight design, derived from the <c>OS/2</c> table's
+    ///     <c>fsSelection</c> BOLD bit or <c>usWeightClass</c> &gt;= 600 when <c>OS/2</c> is
+    ///     present, and always OR'd with <c>head.macStyle</c> bit 0.
+    /// </summary>
+    public bool IsBold { get; }
+
+    /// <summary>
+    ///     Whether this font is an italic/oblique design, derived from the <c>OS/2</c> table's
+    ///     <c>fsSelection</c> ITALIC bit or a nonzero <c>post.italicAngle</c> when either table is
+    ///     present, and always OR'd with <c>head.macStyle</c> bit 1.
+    /// </summary>
+    public bool IsItalic { get; }
+
+    /// <summary>
+    ///     Whether this font is a fixed-pitch (monospaced) design, from the <c>post</c> table's
+    ///     <c>isFixedPitch</c> field. <see langword="false"/> when the <c>post</c> table is
+    ///     absent or too short to contain that field.
+    /// </summary>
+    public bool IsFixedPitch { get; }
+
+    private TrueTypeFont(
+        int unitsPerEm, int glyphCount, HmtxHheaReader metrics, IGlyphOutlineSource glyphs, CmapTable cmap, KernTable kern,
+        NameTable name, bool isBold, bool isItalic, bool isFixedPitch)
     {
         UnitsPerEm = unitsPerEm;
         GlyphCount = glyphCount;
         Ascender = metrics.Ascender;
         Descender = metrics.Descender;
         LineGap = metrics.LineGap;
+        IsBold = isBold;
+        IsItalic = isItalic;
+        IsFixedPitch = isFixedPitch;
         _metrics = metrics;
         _glyphs = glyphs;
         _cmap = cmap;
         _kern = kern;
+        _name = name;
     }
 
     /// <summary>
@@ -367,6 +436,19 @@ public sealed class TrueTypeFont
     }
 
     /// <summary>
+    ///     Resolves this font's family/subfamily/full/PostScript name strings from its <c>name</c>
+    ///     table, preferring the typographic (16/17) family/subfamily names over the standard
+    ///     (1/2) ones when both are present, and preferring a Windows/Unicode-BMP platform record
+    ///     over a Macintosh platform record when both are present for the same name identifier.
+    /// </summary>
+    /// <returns>
+    ///     A <see cref="FontNameInfo"/> with every resolvable field populated, and any field the
+    ///     font's <c>name</c> table (or the font as a whole) does not provide left
+    ///     <see langword="null"/>. Never throws.
+    /// </returns>
+    public FontNameInfo GetNameInfo() => new(_name.FamilyName, _name.SubfamilyName, _name.FullName, _name.PostScriptName);
+
+    /// <summary>
     ///     Validates a glyph index argument shared by <see cref="GetGlyphOutline"/> and
     ///     <see cref="GetAdvanceWidth"/>.
     /// </summary>
@@ -512,6 +594,18 @@ public sealed class TrueTypeFont
             ? KernTable.Parse(data, kernRange.Offset, kernRange.Length)
             : KernTable.Empty;
 
-        return new TrueTypeFont(unitsPerEm, numGlyphs, metrics, glyphs, cmap, kern);
+        var macStyle = SfntContainer.ReadUInt16(data, head.Offset + 44);
+
+        var name = container.TryGetTable("name", out var nameRange)
+            ? NameTable.Parse(data, nameRange.Offset, nameRange.Length)
+            : NameTable.Empty;
+
+        var os2 = container.TryGetTable("OS/2", out var os2Range) ? os2Range : ((int, int)?)null;
+        var post = container.TryGetTable("post", out var postRange) ? postRange : ((int, int)?)null;
+        var style = StyleTable.Parse(data, macStyle, os2, post);
+
+        return new TrueTypeFont(
+            unitsPerEm, numGlyphs, metrics, glyphs, cmap, kern,
+            name, style.IsBold, style.IsItalic, style.IsFixedPitch);
     }
 }

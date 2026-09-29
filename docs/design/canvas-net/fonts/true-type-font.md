@@ -12,8 +12,9 @@ The `TrueTypeFont` class is the sole public software unit in the `Fonts` subsyst
 hand-rolled loading and querying of glyph-based TrueType SFNT fonts and CFF/OpenType
 (`OTTO`-flavored) fonts, including selecting an individual face out of a TrueType Collection
 (`ttcf`) container, while documenting the supporting internal `SfntContainer`, `CmapTable`,
-`GlyfLocaReader`, `CffTable`, `CffCharstringInterpreter`, `HmtxHheaReader`, and `KernTable`
-helpers inline because none has any independent public behavior beyond supporting this unit.
+`GlyfLocaReader`, `CffTable`, `CffCharstringInterpreter`, `HmtxHheaReader`, `KernTable`,
+`NameTable`, and `StyleTable` helpers inline because none has any independent public behavior
+beyond supporting this unit.
 
 #### Purpose
 
@@ -21,10 +22,11 @@ helpers inline because none has any independent public behavior beyond supportin
 (optionally selecting a specific face of a TrueType Collection), inspect top-level metrics
 (`UnitsPerEm`, `Ascender`, `Descender`, `LineGap`, `GlyphCount`), map Unicode codepoints to glyph
 indices, extract glyph outlines as `DemaConsulting.CanvasNet.Geometry.Path`, query horizontal
-advance widths, and read pairwise kerning adjustments from a classic `kern` format-0 subtable
-when present. The class deliberately stops at raw font-design-unit geometry and scalar metrics:
-it does not perform text shaping, line layout, point-size scaling, hint execution, pixel
-rendering, or expose font name/style metadata (bold/italic/fixed-pitch).
+advance widths, read pairwise kerning adjustments from a classic `kern` format-0 subtable when
+present, and resolve the font's own name (`GetNameInfo()`) and bold/italic/fixed-pitch style
+classification (`IsBold`/`IsItalic`/`IsFixedPitch`) from its `name`, `OS/2`, `head`, and `post`
+tables. The class deliberately stops at raw font-design-unit geometry and scalar metrics: it does
+not perform text shaping, line layout, point-size scaling, hint execution, or pixel rendering.
 
 #### Data Model
 
@@ -32,21 +34,22 @@ All parsed SFNT structures are read directly from the in-memory font byte array 
 big-endian byte composition. `TrueTypeFont` stores only immutable parsed state:
 `HmtxHheaReader` for horizontal metrics, an `IGlyphOutlineSource` (either `GlyfLocaReader` for
 eager `loca` parsing plus lazy glyph decoding, or `CffTable` for CFF structural parsing plus lazy
-Type 2 charstring decoding) for outline access, `CmapTable` for codepoint mapping, and
-`KernTable` for pair lookups. `IGlyphOutlineSource` is a small internal dispatch abstraction: both
-outline backends implement it identically (a `GlyphCount` property and a `GetGlyphOutline(int)`
-method), so `TrueTypeFont.GetGlyphOutline` never needs to know or check which outline flavor the
-loaded font actually uses.
+Type 2 charstring decoding) for outline access, `CmapTable` for codepoint mapping, `KernTable` for
+pair lookups, `NameTable` for name-string resolution, and the `IsBold`/`IsItalic`/`IsFixedPitch`
+booleans derived once at load time by `StyleTable`. `IGlyphOutlineSource` is a small internal
+dispatch abstraction: both outline backends implement it identically (a `GlyphCount` property and
+a `GetGlyphOutline(int)` method), so `TrueTypeFont.GetGlyphOutline` never needs to know or check
+which outline flavor the loaded font actually uses.
 
 ##### SFNT Offset Table (12 bytes, big-endian)
 
-| Offset | Size | Field           | Use                                                  |
-| ------ | ---- | --------------- | ---------------------------------------------------- |
-| 0      | 4    | `sfntVersion`   | Accept `0x00010000`, `'true'`, or `'OTTO'`           |
-| 4      | 2    | `numTables`     | Number of directory entries                          |
-| 6      | 2    | `searchRange`   | Read but not otherwise interpreted                   |
-| 8      | 2    | `entrySelector` | Read but not otherwise interpreted                   |
-| 10     | 2    | `rangeShift`    | Read but not otherwise interpreted                   |
+| Offset | Size | Field           | Use                                        |
+| ------ | ---- | --------------- | ------------------------------------------ |
+| 0      | 4    | `sfntVersion`   | Accept `0x00010000`, `'true'`, or `'OTTO'` |
+| 4      | 2    | `numTables`     | Number of directory entries                |
+| 6      | 2    | `searchRange`   | Read but not otherwise interpreted         |
+| 8      | 2    | `entrySelector` | Read but not otherwise interpreted         |
+| 10     | 2    | `rangeShift`    | Read but not otherwise interpreted         |
 
 `'OTTO'` is accepted only as a *candidate* flavor at this layer: `TrueTypeFont` still requires an
 `OTTO`-tagged font to contain a `CFF` table (see Required vs. Optional Tables below), and any
@@ -55,12 +58,12 @@ as before.
 
 ##### `ttcf` TrueType Collection Header (12 + 4 × `numFonts` bytes, big-endian)
 
-| Offset            | Size             | Field         | Use                                                           |
-| ----------------- | ---------------- | ------------- | ------------------------------------------------------------- |
-| 0                 | 4                | `ttcTag`      | Must be `'ttcf'` for `TryReadTtcHeader` to recognize the file |
-| 4                 | 4                | `version`     | Read but not otherwise interpreted                            |
-| 8                 | 4                | `numFonts`    | Number of faces; zero is rejected                             |
-| 12                | `4 * numFonts`   | `offsetTable` | Each face's own SFNT offset table start, absolute from byte 0 |
+| Offset | Size           | Field         | Use                                                           |
+| ------ | -------------- | ------------- | ------------------------------------------------------------- |
+| 0      | 4              | `ttcTag`      | Must be `'ttcf'` for `TryReadTtcHeader` to recognize the file |
+| 4      | 4              | `version`     | Read but not otherwise interpreted                            |
+| 8      | 4              | `numFonts`    | Number of faces; zero is rejected                             |
+| 12     | `4 * numFonts` | `offsetTable` | Each face's own SFNT offset table start, absolute from byte 0 |
 
 `SfntContainer.TryReadTtcHeader` returns `false` (not an exception) for any file whose first 4
 bytes are not `'ttcf'`, letting `TrueTypeFont` treat that case as "ordinary single-face SFNT"
@@ -83,14 +86,15 @@ invalid and throw `InvalidDataException` rather than returning `false`.
 | ------ | ---- | ------------------ | --------------------------------------------------------------------------- |
 | 0      | 4    | `version`          | Present in the table prefix                                                 |
 | 18     | 2    | `unitsPerEm`       | Exposed as `UnitsPerEm`; zero is rejected                                   |
+| 44     | 2    | `macStyle`         | Bits 0/1 (bold/italic) always OR'd into `IsBold`/`IsItalic` by `StyleTable` |
 | 50     | 2    | `indexToLocFormat` | Selects short (`0`) or long (`1`) `loca` parsing (glyf-flavored fonts only) |
 
 ##### `maxp` Table Fields Used (6-byte prefix)
 
-| Offset | Size | Field       | Use in This Unit                                                              |
-| ------ | ---- | ----------- | ----------------------------------------------------------------------------- |
-| 0      | 4    | `version`   | Must be `0x00010000` (glyf-flavored) or `0x00005000` (CFF-flavored)           |
-| 4      | 2    | `numGlyphs` | Exposed as `GlyphCount`; for CFF fonts must equal `CffTable`'s glyph count    |
+| Offset | Size | Field       | Use in This Unit                                                           |
+| ------ | ---- | ----------- | -------------------------------------------------------------------------- |
+| 0      | 4    | `version`   | Must be `0x00010000` (glyf-flavored) or `0x00005000` (CFF-flavored)        |
+| 4      | 2    | `numGlyphs` | Exposed as `GlyphCount`; for CFF fonts must equal `CffTable`'s glyph count |
 
 ##### `hhea` Table Fields Used (36 bytes)
 
@@ -164,26 +168,26 @@ and the default (neither flag set) is unscaled.
 ##### `CFF` Table Structure
 
 <!-- markdownlint-disable MD013 -->
-| Region                | Layout                                         | Use in This Unit                                                                              |
-| --------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Header                | major/minor version, `hdrSize`, `offSize`      | `hdrSize` locates the Name INDEX; unsupported major versions are rejected                     |
-| Name INDEX            | CFF INDEX (see below)                          | Read past but not otherwise interpreted                                                       |
-| Top DICT INDEX        | CFF INDEX of one DICT                          | Supplies `CharStrings` (op `17`), `Private` (op `18`), and `ROS` (op `12 30`) operator values |
-| String INDEX          | CFF INDEX                                      | Read past but not otherwise interpreted                                                       |
-| Global Subr INDEX     | CFF INDEX                                      | Global subroutines, addressed by `callgsubr` with bias `32768`/`1131`/`107` by count          |
-| Private DICT          | DICT at the Top DICT's `Private` offset/size   | Optional; supplies `Subrs` (op `19`), a Private-DICT-relative Local Subr INDEX offset         |
-| Local Subr INDEX      | CFF INDEX at `Private DICT start + Subrs`      | Local subroutines, addressed by `callsubr` with the same bias scheme                          |
-| CharStrings INDEX     | CFF INDEX of Type 2 charstring byte arrays     | One entry per glyph; `CffTable.GlyphCount` is this INDEX's own count                          |
+| Region            | Layout                                       | Use in This Unit                                                                              |
+| ----------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Header            | major/minor version, `hdrSize`, `offSize`    | `hdrSize` locates the Name INDEX; unsupported major versions are rejected                     |
+| Name INDEX        | CFF INDEX (see below)                        | Read past but not otherwise interpreted                                                       |
+| Top DICT INDEX    | CFF INDEX of one DICT                        | Supplies `CharStrings` (op `17`), `Private` (op `18`), and `ROS` (op `12 30`) operator values |
+| String INDEX      | CFF INDEX                                    | Read past but not otherwise interpreted                                                       |
+| Global Subr INDEX | CFF INDEX                                    | Global subroutines, addressed by `callgsubr` with bias `32768`/`1131`/`107` by count          |
+| Private DICT      | DICT at the Top DICT's `Private` offset/size | Optional; supplies `Subrs` (op `19`), a Private-DICT-relative Local Subr INDEX offset         |
+| Local Subr INDEX  | CFF INDEX at `Private DICT start + Subrs`    | Local subroutines, addressed by `callsubr` with the same bias scheme                          |
+| CharStrings INDEX | CFF INDEX of Type 2 charstring byte arrays   | One entry per glyph; `CffTable.GlyphCount` is this INDEX's own count                          |
 <!-- markdownlint-enable MD013 -->
 
 ###### CFF INDEX Structure (used for every INDEX above)
 
-| Region       | Layout                                     | Use                                                  |
-| ------------ | ------------------------------------------ | ---------------------------------------------------- |
-| `count`      | uint16                                     | Zero means an empty INDEX (no offset array)          |
-| `offSize`    | uint8 (present only if `count > 0`)        | Byte width (1-4) of each offset                      |
-| `offset[]`   | `count + 1` entries of `offSize` bytes     | 1-based, relative to the byte after the offset array |
-| `data`       | `offset[count] - 1` bytes                  | Concatenated variable-length entries                 |
+| Region     | Layout                                 | Use                                                  |
+| ---------- | -------------------------------------- | ---------------------------------------------------- |
+| `count`    | uint16                                 | Zero means an empty INDEX (no offset array)          |
+| `offSize`  | uint8 (present only if `count > 0`)    | Byte width (1-4) of each offset                      |
+| `offset[]` | `count + 1` entries of `offSize` bytes | 1-based, relative to the byte after the offset array |
+| `data`     | `offset[count] - 1` bytes              | Concatenated variable-length entries                 |
 
 ###### DICT Encoding (Top DICT and Private DICT)
 
@@ -207,20 +211,20 @@ running-point/current-subpath state a `glyf` glyph decoder would maintain, but l
 the operator subset in the table below:
 
 <!-- markdownlint-disable MD013 -->
-| Operator(s)                                    | Code(s)      | Behavior                                                                   |
-| ---------------------------------------------- | ------------ | -------------------------------------------------------------------------- |
-| `hstem`, `vstem`, `hstemhm`, `vstemhm`         | 1, 3, 18, 23 | Accumulate stem-hint count (operand pairs, plus any already on the stack)  |
-| `vmoveto`, `rlineto`, `hlineto`                | 4, 5, 6      | (`vmoveto` also below) `rlineto`/`hlineto` append line segments            |
-| `vlineto`                                      | 7            | Appends line segments, alternating axis with `hlineto`                     |
-| `rrcurveto`, `hhcurveto`, `vvcurveto`          | 8, 27, 26    | Append cubic Bezier segments per operator-specific operand packing         |
-| `callsubr`, `return`                           | 10, 11       | Invoke/resume a local subroutine, biased and depth/step bounded            |
-| `endchar`                                      | 14           | Finishes the outline; legacy 4-operand seac-style form is rejected         |
-| `hmoveto`                                      | 22           | Starts a new subpath, horizontal-only offset                               |
-| `vmoveto`                                      | 4            | Starts a new subpath, vertical-only offset                                 |
-| `rmoveto`                                      | 21           | Starts a new subpath, general XY offset                                    |
-| `hintmask`, `cntrmask`                         | 19, 20       | Skip `ceil(stemCount / 8)` mask bytes                                      |
-| `hvcurveto`, `vhcurveto`                       | 31, 30       | Append cubic Bezier segments, alternating start/end tangent axis           |
-| `callgsubr`                                    | 29           | Invoke a global subroutine, biased and depth/step bounded                  |
+| Operator(s)                            | Code(s)      | Behavior                                                                  |
+| -------------------------------------- | ------------ | ------------------------------------------------------------------------- |
+| `hstem`, `vstem`, `hstemhm`, `vstemhm` | 1, 3, 18, 23 | Accumulate stem-hint count (operand pairs, plus any already on the stack) |
+| `vmoveto`, `rlineto`, `hlineto`        | 4, 5, 6      | (`vmoveto` also below) `rlineto`/`hlineto` append line segments           |
+| `vlineto`                              | 7            | Appends line segments, alternating axis with `hlineto`                    |
+| `rrcurveto`, `hhcurveto`, `vvcurveto`  | 8, 27, 26    | Append cubic Bezier segments per operator-specific operand packing        |
+| `callsubr`, `return`                   | 10, 11       | Invoke/resume a local subroutine, biased and depth/step bounded           |
+| `endchar`                              | 14           | Finishes the outline; legacy 4-operand seac-style form is rejected        |
+| `hmoveto`                              | 22           | Starts a new subpath, horizontal-only offset                              |
+| `vmoveto`                              | 4            | Starts a new subpath, vertical-only offset                                |
+| `rmoveto`                              | 21           | Starts a new subpath, general XY offset                                   |
+| `hintmask`, `cntrmask`                 | 19, 20       | Skip `ceil(stemCount / 8)` mask bytes                                     |
+| `hvcurveto`, `vhcurveto`               | 31, 30       | Append cubic Bezier segments, alternating start/end tangent axis          |
+| `callgsubr`                            | 29           | Invoke a global subroutine, biased and depth/step bounded                 |
 <!-- markdownlint-enable MD013 -->
 
 Any operator outside this set - including the two-byte flex escape operators (`12 34`/`12 35`/
@@ -285,6 +289,59 @@ format 12, `(0,4)`/`(0,6)` format 12, `(3,1)` format 4, `(0,3)` format 4, then a
 | 10     | 2            | `entrySelector` | Present; not otherwise interpreted                   |
 | 12     | 2            | `rangeShift`    | Present; not otherwise interpreted                   |
 | 14     | `6 * nPairs` | `pairs`         | Sorted `(left, right, value)` entries for search     |
+
+##### `name` Table Layout Used
+
+| Offset | Size         | Field          | Use in This Unit                                              |
+| ------ | ------------ | -------------- | ------------------------------------------------------------- |
+| 0      | 2            | `format`       | Read but not otherwise interpreted (0 and 1 both accepted)    |
+| 2      | 2            | `count`        | Number of name records; sizes the record array                |
+| 4      | 2            | `stringOffset` | Start of the string storage area, relative to table start     |
+| 6      | `12 * count` | `nameRecords`  | Each record's platform/encoding/language/nameID/length/offset |
+
+###### Name Record (12 bytes, big-endian)
+
+| Offset | Size | Field        | Use in This Unit                                                         |
+| ------ | ---- | ------------ | ------------------------------------------------------------------------ |
+| 0      | 2    | `platformID` | `3` (Windows) or `1` (Macintosh) are decoded; all others are ignored     |
+| 2      | 2    | `encodingID` | Windows: `1`/`10` (Unicode BMP/full); Macintosh: `0` (Roman)             |
+| 4      | 2    | `languageID` | Preferred: Windows `0x0409` (en-US), Macintosh `0` (English)             |
+| 6      | 2    | `nameID`     | Only `1`, `2`, `4`, `6`, `16`, `17` are consumed; all others are skipped |
+| 8      | 2    | `length`     | String byte length; an out-of-bounds record is skipped, not the table    |
+| 10     | 2    | `offset`     | String byte offset, relative to `stringOffset`                           |
+
+`NameTable` resolves each of `FamilyName`/`SubfamilyName`/`FullName`/`PostScriptName` from
+whichever qualifying record best matches, in order: a Windows-platform record in the preferred
+language, else any Windows-platform record for that nameID; failing that, a Macintosh-platform
+record in the preferred language, else any Macintosh-platform record. `FamilyName` and
+`SubfamilyName` prefer the typographic nameID (`16`/`17`) over the standard nameID (`1`/`2`) when
+both resolve; `FullName` (`4`) and `PostScriptName` (`6`) have no typographic alternate. A
+completely absent, truncated, or otherwise unparsable `name` table yields `NameTable.Empty`, whose
+resolved strings are all `null` (surfaced as an all-`null` `FontNameInfo`) rather than throwing.
+
+##### `OS/2` Table Fields Used (partial; version-0 layout)
+
+| Offset | Size | Field           | Use in This Unit                                                            |
+| ------ | ---- | --------------- | --------------------------------------------------------------------------- |
+| 4      | 2    | `usWeightClass` | `IsBold` is also `true` when this is `>= 600`, even if `fsSelection` is not |
+| 62     | 2    | `fsSelection`   | Bit 0 (italic) and bit 5 (bold) are OR'd into `IsItalic`/`IsBold`           |
+
+`OS/2` is entirely optional. `StyleTable` gates each field independently on the table being long
+enough to contain it (`usWeightClass` needs at least 6 bytes; `fsSelection` needs at least 64), so
+a present-but-truncated `OS/2` table contributes only the fields it can actually reach, and an
+absent `OS/2` table simply leaves `IsBold`/`IsItalic` to whatever `head.macStyle` and `post`
+independently indicate.
+
+##### `post` Table Fields Used (partial; version 1.0/2.0/3.0 header)
+
+| Offset | Size | Field          | Use in This Unit                                                  |
+| ------ | ---- | -------------- | ----------------------------------------------------------------- |
+| 4      | 4    | `italicAngle`  | `IsItalic` is also `true` when this fixed-point value is non-zero |
+| 12     | 4    | `isFixedPitch` | `IsFixedPitch` is `true` when this is non-zero                    |
+
+`post` is entirely optional; `IsFixedPitch` defaults to `false` and is set only when `post` is
+present and at least 16 bytes long. `italicAngle` needs at least 8 bytes to be read; a shorter
+`post` table simply does not contribute to `IsItalic`.
 
 #### Key Methods
 
@@ -395,6 +452,28 @@ Binary-searches the selected `kern` format-0 pair array.
 - Never throws; returns `0` for a missing pair, for a missing or unusable `kern` table, and even
   for an out-of-range glyph index supplied only for kerning lookup
 
+##### GetNameInfo()
+
+Returns a `FontNameInfo` populated from the loaded font's `name` table, resolving `FamilyName`,
+`SubfamilyName`, `FullName`, and `PostScriptName` per the platform/nameID preference order
+described under `name` Table Layout Used above.
+
+**Throws:**
+
+- Never throws; a member whose corresponding record cannot be resolved (including every member,
+  for a font with no `name` table at all) is `null`
+
+##### IsBold / IsItalic / IsFixedPitch
+
+Read-only properties computed once at load time by `StyleTable` from whichever of `OS/2.fsSelection`
+/ `OS/2.usWeightClass`, `head.macStyle`, and `post.italicAngle` / `post.isFixedPitch` are present,
+per the derivation rules described under the `OS/2` and `post` table-layout subsections above.
+
+**Throws:**
+
+- Never throws; each property degrades to `false` when its underlying optional table(s) are
+  absent or too short to contain the relevant field
+
 ##### Internal Helper Roles
 
 - `SfntContainer` parses the offset table and table directory, enforces overflow-safe bounds
@@ -409,34 +488,42 @@ Binary-searches the selected `kern` format-0 pair array.
   supported operator subset
 - `HmtxHheaReader` parses top-level typographic metrics and advance widths
 - `KernTable` tolerantly parses the first qualifying horizontal format-0 subtable, if any
+- `NameTable` tolerantly parses the `name` table's records and resolves the platform/nameID
+  preference order into `FamilyName`/`SubfamilyName`/`FullName`/`PostScriptName`
+- `StyleTable` derives `IsBold`/`IsItalic`/`IsFixedPitch` from whichever of `OS/2`, `head.macStyle`,
+  and `post` are present
 
 #### Error Handling
 
 ##### Public Exception Contract
 
 <!-- markdownlint-disable MD013 -->
-| Member                  | Exception                                     | Condition                                                                                                        |
-| ----------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `Load(Stream)`          | `ArgumentNullException`                       | `stream` is null                                                                                                 |
-| `Load(Stream)`          | `InvalidDataException`                        | Bad SFNT version, missing required table (per outline flavor), bad table bounds, truncation, or invalid CFF data |
-| `Load(string)`          | `ArgumentNullException`                       | `path` is null                                                                                                   |
-| `Load(string)`          | `ArgumentException`                           | `path` is empty                                                                                                  |
-| `Load(string)`          | `InvalidDataException`                        | Same font-structure failures as `Load(Stream)`                                                                   |
-| `Load(Stream, int)`     | `ArgumentNullException`                       | `stream` is null                                                                                                 |
-| `Load(Stream, int)`     | `ArgumentOutOfRangeException`                 | `faceIndex` is negative or not less than the file's own face count                                               |
-| `Load(Stream, int)`     | `InvalidDataException`                        | As `Load(Stream)`, plus a malformed `ttcf` header                                                                |
-| `Load(string, int)`     | `ArgumentNullException`/`ArgumentException`   | Null/empty `path`, as `Load(string)`                                                                             |
-| `Load(string, int)`     | `ArgumentOutOfRangeException`                 | As `Load(Stream, int)`                                                                                           |
-| `Load(string, int)`     | `InvalidDataException`                        | As `Load(Stream, int)`                                                                                           |
-| `GetFaceCount(Stream)`  | `ArgumentNullException`                       | `stream` is null                                                                                                 |
-| `GetFaceCount(Stream)`  | `InvalidDataException`                        | Stream too short for a tag, or a malformed `ttcf` header                                                         |
-| `GetFaceCount(string)`  | `ArgumentNullException`/`ArgumentException`   | Null/empty `path`                                                                                                |
-| `GetFaceCount(string)`  | `InvalidDataException`                        | As `GetFaceCount(Stream)`                                                                                        |
-| `GetGlyphIndex(int)`    | none                                          | Unmapped codepoints and unusable `cmap` data return `0`                                                          |
-| `GetGlyphOutline(int)`  | `ArgumentOutOfRangeException`                 | `glyphIndex` is outside `[0, GlyphCount)`                                                                        |
-| `GetGlyphOutline(int)`  | `InvalidDataException`                        | Malformed/truncated glyph or charstring data, or a rejected composite-glyph/CFF-operator feature                 |
-| `GetAdvanceWidth(int)`  | `ArgumentOutOfRangeException`                 | `glyphIndex` is outside `[0, GlyphCount)`                                                                        |
-| `GetKerning(int, int)`  | none                                          | Missing pair/table or bad kerning data returns `0`                                                               |
+| Member                 | Exception                                   | Condition                                                                                                        |
+| ---------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `Load(Stream)`         | `ArgumentNullException`                     | `stream` is null                                                                                                 |
+| `Load(Stream)`         | `InvalidDataException`                      | Bad SFNT version, missing required table (per outline flavor), bad table bounds, truncation, or invalid CFF data |
+| `Load(string)`         | `ArgumentNullException`                     | `path` is null                                                                                                   |
+| `Load(string)`         | `ArgumentException`                         | `path` is empty                                                                                                  |
+| `Load(string)`         | `InvalidDataException`                      | Same font-structure failures as `Load(Stream)`                                                                   |
+| `Load(Stream, int)`    | `ArgumentNullException`                     | `stream` is null                                                                                                 |
+| `Load(Stream, int)`    | `ArgumentOutOfRangeException`               | `faceIndex` is negative or not less than the file's own face count                                               |
+| `Load(Stream, int)`    | `InvalidDataException`                      | As `Load(Stream)`, plus a malformed `ttcf` header                                                                |
+| `Load(string, int)`    | `ArgumentNullException`/`ArgumentException` | Null/empty `path`, as `Load(string)`                                                                             |
+| `Load(string, int)`    | `ArgumentOutOfRangeException`               | As `Load(Stream, int)`                                                                                           |
+| `Load(string, int)`    | `InvalidDataException`                      | As `Load(Stream, int)`                                                                                           |
+| `GetFaceCount(Stream)` | `ArgumentNullException`                     | `stream` is null                                                                                                 |
+| `GetFaceCount(Stream)` | `InvalidDataException`                      | Stream too short for a tag, or a malformed `ttcf` header                                                         |
+| `GetFaceCount(string)` | `ArgumentNullException`/`ArgumentException` | Null/empty `path`                                                                                                |
+| `GetFaceCount(string)` | `InvalidDataException`                      | As `GetFaceCount(Stream)`                                                                                        |
+| `GetGlyphIndex(int)`   | none                                        | Unmapped codepoints and unusable `cmap` data return `0`                                                          |
+| `GetGlyphOutline(int)` | `ArgumentOutOfRangeException`               | `glyphIndex` is outside `[0, GlyphCount)`                                                                        |
+| `GetGlyphOutline(int)` | `InvalidDataException`                      | Malformed/truncated glyph or charstring data, or a rejected composite-glyph/CFF-operator feature                 |
+| `GetAdvanceWidth(int)` | `ArgumentOutOfRangeException`               | `glyphIndex` is outside `[0, GlyphCount)`                                                                        |
+| `GetKerning(int, int)` | none                                        | Missing pair/table or bad kerning data returns `0`                                                               |
+| `GetNameInfo()`        | none                                        | Unresolvable name members (including every member, absent `name` table) are `null`                               |
+| `IsBold`               | none                                        | Degrades to `false` when `OS/2`/`head.macStyle` cannot indicate boldness                                         |
+| `IsItalic`             | none                                        | Degrades to `false` when `OS/2`/`head.macStyle`/`post` cannot indicate italics                                   |
+| `IsFixedPitch`         | none                                        | Degrades to `false` when `post` is absent or too short                                                           |
 <!-- markdownlint-enable MD013 -->
 
 ##### Required vs. Optional Tables
@@ -445,10 +532,14 @@ Binary-searches the selected `kern` format-0 pair array.
 because `TrueTypeFont` cannot report top-level metrics without them. A glyf-flavored font (`maxp`
 version `0x00010000`) additionally requires `loca` and `glyf`; a CFF-flavored (`OTTO`-tagged)
 font (`maxp` version `0x00005000`) instead requires `CFF` and does **not** require `loca`/`glyf`
-at all. By contrast, `cmap` and `kern` are intentionally lenient for either flavor. A missing or
-unusable `cmap` still leaves the font usable by glyph index directly, so `GetGlyphIndex` degrades
+at all. By contrast, `cmap`, `kern`, `name`, `OS/2`, and `post` are all intentionally lenient for
+either flavor. A missing or unusable `cmap` still leaves the font usable by glyph index directly,
+so `GetGlyphIndex` degrades
 to returning `0`. A missing or malformed `kern` table does not prevent metrics or outlines from
-being queried, so `GetKerning` degrades to returning `0`.
+being queried, so `GetKerning` degrades to returning `0`. Similarly, a missing or malformed
+`name`, `OS/2`, or `post` table never prevents the font from loading or being queried for
+metrics/outlines: `GetNameInfo()` degrades to `null` members and `IsBold`/`IsItalic`/
+`IsFixedPitch` degrade to `false` for whichever source table is absent or unusable.
 
 ##### Overflow-Safe Structural Validation
 

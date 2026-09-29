@@ -31,11 +31,15 @@ words:
   - endobj
   - endstream
   - Flate
+  - fonttools
+  - MACROMAN
   - mediabox
   - Parms
+  - panose
   - rasterizing
   - startxref
   - Startxref
+  - SYNT
   - undecoded
   - BITMAPCOREHEADER
   - BITMAPFILEHEADER

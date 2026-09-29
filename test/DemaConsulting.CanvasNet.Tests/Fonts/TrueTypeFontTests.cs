@@ -729,4 +729,356 @@ public class TrueTypeFontTests
         using var ms = new MemoryStream(buf.ToArray());
         Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(ms));
     }
+
+    /// <summary>
+    ///     Builds a well-formed synthetic font (as <see cref="BuildWellFormedFont"/>) that also
+    ///     carries the given optional <c>name</c>/<c>OS/2</c>/<c>post</c> tables and
+    ///     <c>head.macStyle</c> value, for exercising <see cref="TrueTypeFont.GetNameInfo"/> and
+    ///     the <see cref="TrueTypeFont.IsBold"/>/<see cref="TrueTypeFont.IsItalic"/>/
+    ///     <see cref="TrueTypeFont.IsFixedPitch"/> properties end to end.
+    /// </summary>
+    private static byte[] BuildFontWithNameAndStyle(
+        byte[]? name = null, byte[]? os2 = null, byte[]? post = null, int macStyle = 0)
+    {
+        var glyph = SyntheticFontBuilder.SimpleGlyph(
+        [
+            [(0, 0, true), (10, 0, true), (10, 10, true), (0, 10, true)]
+        ]);
+
+        var builder = new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0, macStyle))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(1))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 50, 1))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([500]))
+            .AddTable("loca", SyntheticFontBuilder.Loca([glyph.Length], longFormat: false))
+            .AddTable("glyf", glyph);
+
+        if (name != null)
+        {
+            builder.AddTable("name", name);
+        }
+
+        if (os2 != null)
+        {
+            builder.AddTable("OS/2", os2);
+        }
+
+        if (post != null)
+        {
+            builder.AddTable("post", post);
+        }
+
+        return builder.Build();
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont GetNameInfo TypographicNamesPresent PrefersNameId16And17.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetNameInfo_TypographicNamesPresent_PrefersNameId16And17()
+    {
+        // Arrange: a font whose name table has both standard (1/2) and typographic (16/17) names
+        var name = SyntheticFontBuilder.Name(
+        [
+            new SyntheticFontBuilder.NameRecord(3, 1, 0x0409, 1, "Standard Family"),
+            new SyntheticFontBuilder.NameRecord(3, 1, 0x0409, 2, "Standard Subfamily"),
+            new SyntheticFontBuilder.NameRecord(3, 1, 0x0409, 16, "Typographic Family"),
+            new SyntheticFontBuilder.NameRecord(3, 1, 0x0409, 17, "Typographic Subfamily"),
+        ]);
+        var data = BuildFontWithNameAndStyle(name: name);
+
+        // Act: load the font and resolve its name info
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+        var info = font.GetNameInfo();
+
+        // Assert: the typographic names are preferred over the standard names
+        Assert.Equal("Typographic Family", info.FamilyName);
+        Assert.Equal("Typographic Subfamily", info.SubfamilyName);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont GetNameInfo TypographicNamesAbsent FallsBackToNameId1And2.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetNameInfo_TypographicNamesAbsent_FallsBackToNameId1And2()
+    {
+        // Arrange: a font whose name table has only standard (1/2) names
+        var name = SyntheticFontBuilder.Name(
+        [
+            new SyntheticFontBuilder.NameRecord(3, 1, 0x0409, 1, "Standard Family"),
+            new SyntheticFontBuilder.NameRecord(3, 1, 0x0409, 2, "Standard Subfamily"),
+        ]);
+        var data = BuildFontWithNameAndStyle(name: name);
+
+        // Act: load the font and resolve its name info
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+        var info = font.GetNameInfo();
+
+        // Assert: the standard names are resolved
+        Assert.Equal("Standard Family", info.FamilyName);
+        Assert.Equal("Standard Subfamily", info.SubfamilyName);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont GetNameInfo WindowsAndMacintoshRecordsPresent PrefersWindowsRecord.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetNameInfo_WindowsAndMacintoshRecordsPresent_PrefersWindowsRecord()
+    {
+        // Arrange: a font whose name table has both a Windows and a Macintosh record for nameID 1
+        var name = SyntheticFontBuilder.Name(
+        [
+            new SyntheticFontBuilder.NameRecord(3, 1, 0x0409, 1, "Windows Family"),
+            new SyntheticFontBuilder.NameRecord(1, 0, 0, 1, "Macintosh Family"),
+        ]);
+        var data = BuildFontWithNameAndStyle(name: name);
+
+        // Act: load the font and resolve its name info
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+        var info = font.GetNameInfo();
+
+        // Assert: the Windows record is preferred
+        Assert.Equal("Windows Family", info.FamilyName);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont GetNameInfo OnlyMacintoshRecordPresent ResolvesFromMacintoshRecord.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetNameInfo_OnlyMacintoshRecordPresent_ResolvesFromMacintoshRecord()
+    {
+        // Arrange: a font whose name table has only a Macintosh record for nameID 1
+        var name = SyntheticFontBuilder.Name(
+        [
+            new SyntheticFontBuilder.NameRecord(1, 0, 0, 1, "Macintosh Only Family"),
+        ]);
+        var data = BuildFontWithNameAndStyle(name: name);
+
+        // Act: load the font and resolve its name info
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+        var info = font.GetNameInfo();
+
+        // Assert: the Macintosh record resolves as a fallback
+        Assert.Equal("Macintosh Only Family", info.FamilyName);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont GetNameInfo PostScriptNameRecordMissing ReturnsNullPostScriptName.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetNameInfo_PostScriptNameRecordMissing_ReturnsNullPostScriptName()
+    {
+        // Arrange: a font whose name table has a family name but no PostScript name (nameID 6)
+        var name = SyntheticFontBuilder.Name(
+        [
+            new SyntheticFontBuilder.NameRecord(3, 1, 0x0409, 1, "Some Family"),
+        ]);
+        var data = BuildFontWithNameAndStyle(name: name);
+
+        // Act: load the font and resolve its name info
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+        var info = font.GetNameInfo();
+
+        // Assert: the present field resolves, and the missing field is null
+        Assert.Equal("Some Family", info.FamilyName);
+        Assert.Null(info.PostScriptName);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont GetNameInfo NoNameTable ReturnsAllNullFontNameInfo.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetNameInfo_NoNameTable_ReturnsAllNullFontNameInfo()
+    {
+        // Arrange: a well-formed font with no name table at all
+        var data = BuildFontWithNameAndStyle();
+
+        // Act: load the font and resolve its name info
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+        var info = font.GetNameInfo();
+
+        // Assert: every field is null
+        Assert.Equal(default, info);
+        Assert.Null(info.FamilyName);
+        Assert.Null(info.SubfamilyName);
+        Assert.Null(info.FullName);
+        Assert.Null(info.PostScriptName);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont GetNameInfo MalformedNameRecord IgnoresRecordWithoutThrowing.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetNameInfo_MalformedNameRecord_IgnoresRecordWithoutThrowing()
+    {
+        // Arrange: hand-build a name table with one well-formed record and one record whose
+        // string bytes fall outside the table's bounds
+        var buf = new List<byte>();
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // format
+        SyntheticFontBuilder.WriteUInt16(buf, 2); // count
+        SyntheticFontBuilder.WriteUInt16(buf, 6 + 2 * 12); // stringOffset
+
+        SyntheticFontBuilder.WriteUInt16(buf, 3); // platformID
+        SyntheticFontBuilder.WriteUInt16(buf, 1); // encodingID
+        SyntheticFontBuilder.WriteUInt16(buf, 0x0409); // languageID
+        SyntheticFontBuilder.WriteUInt16(buf, 1); // nameID
+        SyntheticFontBuilder.WriteUInt16(buf, 4); // length
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // offset
+
+        SyntheticFontBuilder.WriteUInt16(buf, 3); // platformID
+        SyntheticFontBuilder.WriteUInt16(buf, 1); // encodingID
+        SyntheticFontBuilder.WriteUInt16(buf, 0x0409); // languageID
+        SyntheticFontBuilder.WriteUInt16(buf, 4); // nameID (full name)
+        SyntheticFontBuilder.WriteUInt16(buf, 0xFFFF); // length: absurdly large
+        SyntheticFontBuilder.WriteUInt16(buf, 0xFFFF); // offset: absurdly large
+
+        buf.AddRange(System.Text.Encoding.BigEndianUnicode.GetBytes("OK"));
+        var name = buf.ToArray();
+        var data = BuildFontWithNameAndStyle(name: name);
+
+        // Act: load the font and resolve its name info - never throws despite the malformed
+        // second record
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+        var info = font.GetNameInfo();
+
+        // Assert: the well-formed record still resolves, and the malformed record is ignored
+        Assert.Equal("OK", info.FamilyName);
+        Assert.Null(info.FullName);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont IsBold Os2FsSelectionBoldBitSet ReturnsTrue.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_IsBold_Os2FsSelectionBoldBitSet_ReturnsTrue()
+    {
+        // Arrange: a font whose OS/2 table sets only the BOLD fsSelection bit
+        var os2 = SyntheticFontBuilder.Os2(usWeightClass: 400, fsSelection: 0x20);
+        var data = BuildFontWithNameAndStyle(os2: os2);
+
+        // Act: load the font
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+
+        // Assert: IsBold is true, IsItalic is false
+        Assert.True(font.IsBold);
+        Assert.False(font.IsItalic);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont IsItalic Os2FsSelectionItalicBitSet ReturnsTrue.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_IsItalic_Os2FsSelectionItalicBitSet_ReturnsTrue()
+    {
+        // Arrange: a font whose OS/2 table sets only the ITALIC fsSelection bit
+        var os2 = SyntheticFontBuilder.Os2(usWeightClass: 400, fsSelection: 0x1);
+        var data = BuildFontWithNameAndStyle(os2: os2);
+
+        // Act: load the font
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+
+        // Assert: IsItalic is true, IsBold is false
+        Assert.True(font.IsItalic);
+        Assert.False(font.IsBold);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont IsBold Os2WeightClassAtLeast600 ReturnsTrue.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_IsBold_Os2WeightClassAtLeast600_ReturnsTrue()
+    {
+        // Arrange: a font whose OS/2 table declares a heavy usWeightClass with no fsSelection bits
+        var os2 = SyntheticFontBuilder.Os2(usWeightClass: 700, fsSelection: 0);
+        var data = BuildFontWithNameAndStyle(os2: os2);
+
+        // Act: load the font
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+
+        // Assert: IsBold is true purely from the weight class
+        Assert.True(font.IsBold);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont IsItalic PostItalicAngleNonZero ReturnsTrue.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_IsItalic_PostItalicAngleNonZero_ReturnsTrue()
+    {
+        // Arrange: a font with a post table declaring a nonzero italicAngle and no OS/2 table
+        var post = SyntheticFontBuilder.Post(isFixedPitch: 0, italicAngle: -12.0);
+        var data = BuildFontWithNameAndStyle(post: post);
+
+        // Act: load the font
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+
+        // Assert: IsItalic is true purely from the post table's italic angle
+        Assert.True(font.IsItalic);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Style Os2TableAbsent FallsBackToHeadMacStyle.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Style_Os2TableAbsent_FallsBackToHeadMacStyle()
+    {
+        // Arrange: a font with no OS/2 or post table at all, but head.macStyle's Bold and Italic
+        // bits both set
+        const int macStyle = 0x1 | 0x2;
+        var data = BuildFontWithNameAndStyle(macStyle: macStyle);
+
+        // Act: load the font
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+
+        // Assert: both IsBold and IsItalic are true, derived purely from head.macStyle
+        Assert.True(font.IsBold);
+        Assert.True(font.IsItalic);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont IsFixedPitch PostIsFixedPitchNonZero ReturnsTrue.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_IsFixedPitch_PostIsFixedPitchNonZero_ReturnsTrue()
+    {
+        // Arrange: a font whose post table declares isFixedPitch
+        var post = SyntheticFontBuilder.Post(isFixedPitch: 1);
+        var data = BuildFontWithNameAndStyle(post: post);
+
+        // Act: load the font
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+
+        // Assert: IsFixedPitch is true
+        Assert.True(font.IsFixedPitch);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont IsFixedPitch PostTableAbsent ReturnsFalseWithoutThrowing.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_IsFixedPitch_PostTableAbsent_ReturnsFalseWithoutThrowing()
+    {
+        // Arrange: a well-formed font with no post table at all
+        var data = BuildFontWithNameAndStyle();
+
+        // Act: load the font (never throws over the missing post table)
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+
+        // Assert: IsFixedPitch is false
+        Assert.False(font.IsFixedPitch);
+    }
 }

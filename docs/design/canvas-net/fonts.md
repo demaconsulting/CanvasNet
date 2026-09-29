@@ -9,14 +9,15 @@
 The `Fonts` subsystem is the fifth software subsystem in CanvasNet. It groups the single public
 `TrueTypeFont` unit that loads glyph-based TrueType SFNT fonts as well as CFF/OpenType
 (`OTTO`-flavored) fonts and individual faces of a TrueType Collection (`ttcf`) container, maps
-Unicode codepoints to glyph indices, extracts glyph outlines as `Geometry.Path` geometry, and
-reports horizontal metrics and basic kerning. Internally, `TrueTypeFont` fronts `SfntContainer`,
-`CmapTable`, `GlyfLocaReader`, `CffTable`, `CffCharstringInterpreter`, `HmtxHheaReader`, and
-`KernTable` exactly as `PathFiller` fronts `EdgeFlattener` and `ScanlineRasterizer`: one public
-entry point coordinating several independently testable helpers. `GlyfLocaReader` and `CffTable`
-both implement a small internal `IGlyphOutlineSource` abstraction so `TrueTypeFont` dispatches
-`GetGlyphOutline` to whichever outline flavor the loaded font actually uses without any
-type-checking of its own.
+Unicode codepoints to glyph indices, extracts glyph outlines as `Geometry.Path` geometry, reports
+horizontal metrics and basic kerning, and exposes each font's name (`name` table) and derived
+bold/italic/fixed-pitch style metadata. Internally, `TrueTypeFont` fronts `SfntContainer`,
+`CmapTable`, `GlyfLocaReader`, `CffTable`, `CffCharstringInterpreter`, `HmtxHheaReader`,
+`KernTable`, `NameTable`, and `StyleTable` exactly as `PathFiller` fronts `EdgeFlattener` and
+`ScanlineRasterizer`: one public entry point coordinating several independently testable helpers.
+`GlyfLocaReader` and `CffTable` both implement a small internal `IGlyphOutlineSource` abstraction
+so `TrueTypeFont` dispatches `GetGlyphOutline` to whichever outline flavor the loaded font
+actually uses without any type-checking of its own.
 
 ### Purpose
 
@@ -25,19 +26,21 @@ and CFF/OpenType (`OTTO`-flavored, Type 2 charstring-based) SFNT font files, inc
 an individual face out of a TrueType Collection (`ttcf`) container. Its responsibility ends at
 vector geometry and scalar metrics: it loads font structure, resolves codepoints to glyph
 indices, decodes glyph contours into `DemaConsulting.CanvasNet.Geometry.Path`, reports advance
-widths, and returns pairwise kerning adjustments from classic `kern` format-0 subtables when
-present. Text layout, shaping, hint execution, point-size scaling, pixel rendering, font
-name/style metadata (bold/italic/fixed-pitch), and system font discovery/fallback are all
-outside this subsystem's boundary.
+widths, returns pairwise kerning adjustments from classic `kern` format-0 subtables when present,
+and resolves the font's own name (family/subfamily/full/PostScript name) and bold/italic/
+fixed-pitch style classification from its `name`, `OS/2`, `head`, and `post` tables. Text layout,
+shaping, hint execution, point-size scaling, pixel rendering, and system font discovery/fallback
+are all outside this subsystem's boundary.
 
 ### Units
 
 - **TrueTypeFont** — the sole public unit of the subsystem. It exposes `Load(Stream)` /
   `Load(string)`, the explicit-face-selection overloads `Load(Stream, int)` / `Load(string, int)`,
-  `GetFaceCount(Stream)` / `GetFaceCount(string)`, plus query methods for codepoint mapping, glyph
-  outlines, advance widths, and kerning. Its unit design documents the internal helpers inline
-  because none has an independent public contract beyond supporting `TrueTypeFont`; see
-  _TrueTypeFont Unit Design_ (`fonts/true-type-font.md`)
+  `GetFaceCount(Stream)` / `GetFaceCount(string)`, query methods for codepoint mapping, glyph
+  outlines, advance widths, and kerning, `GetNameInfo()` for the font's name-table strings, and
+  `IsBold`/`IsItalic`/`IsFixedPitch` for its derived style classification. Its unit design
+  documents the internal helpers inline because none has an independent public contract beyond
+  supporting `TrueTypeFont`; see _TrueTypeFont Unit Design_ (`fonts/true-type-font.md`)
 
 ### Dependencies
 

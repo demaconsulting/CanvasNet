@@ -153,3 +153,34 @@ sections:
             tests:
               - TrueTypeFont_RealTtcContainer_FaceOne_RendersCffGlyphOutlineAsVisibleInk
               - TrueTypeFont_RealTtcContainer_FaceZero_RendersGlyfGlyphOutlineAsVisibleInk
+
+          - id: CanvasNet-Fonts-NameStyleMetadata
+            title: >-
+              The Fonts subsystem shall expose each loaded font's name-table strings (family,
+              subfamily, full name, PostScript name) and derived bold/italic/fixed-pitch style
+              metadata, applying documented OpenType platform-preference and table-fallback
+              rules, and tolerating absent or malformed optional tables without throwing.
+            justification: |
+              Callers selecting or labeling a loaded font (for example choosing a system fallback
+              font, or displaying a font picker) need its human-readable name and basic style
+              classification, resolved consistently from whichever name/style tables a real-world
+              font actually supplies, without the caller re-implementing OpenType's own
+              platform-preference and table-fallback rules itself.
+            children:
+              - CanvasNet-Fonts-TrueTypeFont-GetNameInfoResolvesTypographicNames
+              - CanvasNet-Fonts-TrueTypeFont-GetNameInfoFallsBackToStandardNames
+              - CanvasNet-Fonts-TrueTypeFont-GetNameInfoPlatformPreference
+              - CanvasNet-Fonts-TrueTypeFont-GetNameInfoMacintoshFallback
+              - CanvasNet-Fonts-TrueTypeFont-GetNameInfoMissingRecordTolerant
+              - CanvasNet-Fonts-TrueTypeFont-GetNameInfoNoNameTableTolerant
+              - CanvasNet-Fonts-TrueTypeFont-GetNameInfoMalformedRecordTolerant
+              - CanvasNet-Fonts-TrueTypeFont-StyleFromOs2FsSelection
+              - CanvasNet-Fonts-TrueTypeFont-StyleFromOs2WeightClass
+              - CanvasNet-Fonts-TrueTypeFont-StyleFromPostItalicAngle
+              - CanvasNet-Fonts-TrueTypeFont-StyleFallsBackToMacStyleWhenOs2Absent
+              - CanvasNet-Fonts-TrueTypeFont-IsFixedPitchFromPostTable
+              - CanvasNet-Fonts-TrueTypeFont-IsFixedPitchAbsentPostTableTolerant
+            tests:
+              - TrueTypeFont_RealOpenSansFont_ExposesExpectedNameAndStyleMetadata
+              - TrueTypeFont_RealSourceSans3OtfFont_ExposesExpectedNameAndStyleMetadata
+              - TrueTypeFont_RealTtcContainer_BothFaces_ExposeExpectedNameAndStyleMetadataIndependently

@@ -18,6 +18,18 @@ namespace DemaConsulting.CanvasNet.Tests.Fonts;
 ///     production font data, complementing the hand-rolled synthetic fixtures every other
 ///     <c>Fonts</c> test builds via <see cref="TestSupport.SyntheticFontBuilder"/>.
 /// </summary>
+/// <remarks>
+///     The expected <see cref="TrueTypeFont.GetNameInfo"/>/<see cref="TrueTypeFont.IsBold"/>/
+///     <see cref="TrueTypeFont.IsItalic"/>/<see cref="TrueTypeFont.IsFixedPitch"/> values asserted
+///     by the name/style metadata tests below were confirmed directly against these exact fixture
+///     files using a throwaway <c>fonttools</c> (Python) inspection script - not guessed - which
+///     read <c>name.getName(nameID, platformID, encodingID, languageID)</c> for IDs 1/2/4/6/16/17
+///     under both <c>(3, 1, 0x409)</c> and <c>(1, 0, 0)</c>, and printed
+///     <c>OS/2.fsSelection</c>/<c>usWeightClass</c>, <c>head.macStyle</c>, and
+///     <c>post.isFixedPitch</c>/<c>italicAngle</c>. All three fixtures (and both faces of the
+///     <c>.ttc</c>) were confirmed to have no <c>nameID</c> 16/17 records, and to be
+///     Regular/non-bold/non-italic/non-fixed-pitch.
+/// </remarks>
 public class TrueTypeFontRealFontIntegrationTests
 {
     /// <summary>
@@ -101,18 +113,81 @@ public class TrueTypeFontRealFontIntegrationTests
     }
 
     /// <summary>
-    ///     Proves that the <c>ttcf</c> container's first face (the TrueType "Open Sans" font) is
-    ///     also independently loadable and decodable, confirming both faces of the collection
-    ///     remain usable side by side.
+    ///     Proves that the real "Open Sans" production font exposes the exact family/subfamily/
+    ///     full/PostScript name and bold/italic/fixed-pitch style metadata confirmed directly
+    ///     against the fixture via <c>fonttools</c> (see this class's remarks): a font with no
+    ///     <c>nameID</c> 16/17 records (so the 1/2 fallback path resolves), non-bold, non-italic,
+    ///     non-fixed-pitch.
     /// </summary>
     [Fact]
-    public void TrueTypeFont_RealTtcContainer_FaceZero_RendersGlyfGlyphOutlineAsVisibleInk()
+    public void TrueTypeFont_RealOpenSansFont_ExposesExpectedNameAndStyleMetadata()
     {
-        var font = TrueTypeFont.Load(TtcFontPath, 0);
-        var glyphIndex = font.GetGlyphIndex('A');
-        Assert.NotEqual(0, glyphIndex);
+        // Act: load the real font and resolve its name/style metadata
+        var font = TrueTypeFont.Load(FontPath);
+        var info = font.GetNameInfo();
 
-        AssertGlyphRendersAsVisibleInk(font, glyphIndex);
+        // Assert: the exact values confirmed via fonttools inspection of this fixture
+        Assert.Equal("Open Sans", info.FamilyName);
+        Assert.Equal("Regular", info.SubfamilyName);
+        Assert.Equal("Open Sans Regular", info.FullName);
+        Assert.Equal("OpenSans-Regular", info.PostScriptName);
+        Assert.False(font.IsBold);
+        Assert.False(font.IsItalic);
+        Assert.False(font.IsFixedPitch);
+    }
+
+    /// <summary>
+    ///     Proves that the real "Source Sans 3" CFF/OpenType production font exposes the exact
+    ///     name/style metadata confirmed directly against the fixture via <c>fonttools</c> (see
+    ///     this class's remarks).
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_RealSourceSans3OtfFont_ExposesExpectedNameAndStyleMetadata()
+    {
+        // Act: load the real CFF/OpenType font and resolve its name/style metadata
+        var font = TrueTypeFont.Load(OtfFontPath);
+        var info = font.GetNameInfo();
+
+        // Assert: the exact values confirmed via fonttools inspection of this fixture
+        Assert.Equal("Source Sans 3", info.FamilyName);
+        Assert.Equal("Regular", info.SubfamilyName);
+        Assert.Equal("Source Sans 3", info.FullName);
+        Assert.Equal("SourceSans3-Regular", info.PostScriptName);
+        Assert.False(font.IsBold);
+        Assert.False(font.IsItalic);
+        Assert.False(font.IsFixedPitch);
+    }
+
+    /// <summary>
+    ///     Proves that both faces of the locally-assembled <c>ttcf</c> container independently
+    ///     expose their own real name/style metadata - face 0's "Open Sans" metadata and face 1's
+    ///     "Source Sans 3" metadata are never cross-contaminated, confirming per-face table
+    ///     resolution is correct for <c>name</c>/<c>OS/2</c>/<c>post</c> exactly as it already is
+    ///     for every other table this unit reads.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_RealTtcContainer_BothFaces_ExposeExpectedNameAndStyleMetadataIndependently()
+    {
+        // Act: load both faces and resolve each one's own name/style metadata
+        var faceZero = TrueTypeFont.Load(TtcFontPath, 0);
+        var faceZeroInfo = faceZero.GetNameInfo();
+
+        var faceOne = TrueTypeFont.Load(TtcFontPath, 1);
+        var faceOneInfo = faceOne.GetNameInfo();
+
+        // Assert: face 0 matches the standalone Open Sans fixture's metadata
+        Assert.Equal("Open Sans", faceZeroInfo.FamilyName);
+        Assert.Equal("OpenSans-Regular", faceZeroInfo.PostScriptName);
+        Assert.False(faceZero.IsBold);
+        Assert.False(faceZero.IsItalic);
+        Assert.False(faceZero.IsFixedPitch);
+
+        // Assert: face 1 matches the standalone Source Sans 3 fixture's metadata, not face 0's
+        Assert.Equal("Source Sans 3", faceOneInfo.FamilyName);
+        Assert.Equal("SourceSans3-Regular", faceOneInfo.PostScriptName);
+        Assert.False(faceOne.IsBold);
+        Assert.False(faceOne.IsItalic);
+        Assert.False(faceOne.IsFixedPitch);
     }
 
     /// <summary>

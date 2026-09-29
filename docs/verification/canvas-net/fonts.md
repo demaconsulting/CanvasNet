@@ -40,13 +40,20 @@ and `.ttc`), and reuse the system tests for the integrated collaboration between
     `TrueTypeFont_RealTtcContainer_FaceZero_RendersGlyfGlyphOutlineAsVisibleInk` load the two
     faces of the locally-assembled `OpenSans-SourceSans3.ttc` TrueType Collection fixture (see
     `FontFixtures/README.md` for its assembly provenance)
+  - `TrueTypeFont_RealOpenSansFont_ExposesExpectedNameAndStyleMetadata`,
+    `TrueTypeFont_RealSourceSans3OtfFont_ExposesExpectedNameAndStyleMetadata`, and
+    `TrueTypeFont_RealTtcContainer_BothFaces_ExposeExpectedNameAndStyleMetadataIndependently`
+    assert the exact `GetNameInfo()`/`IsBold`/`IsItalic`/`IsFixedPitch` values against each real
+    fixture, confirmed directly against these same fixture files with a throwaway `fonttools`
+    inspection script (see `TrueTypeFontRealFontIntegrationTests.cs`'s class remarks) rather than
+    guessed
 
   Every other `Fonts` test remains synthetic-fixture-based
 
 ### Acceptance Criteria
 
 The `Fonts` subsystem's verification passes when every `Fonts` unit test named in the
-`TrueTypeFont` unit verification design passes, when all four real-fixture integration tests in
+`TrueTypeFont` unit verification design passes, when all seven real-fixture integration tests in
 `TrueTypeFontRealFontIntegrationTests.cs` pass, and when both `CanvasNet_SystemIntegration_*`
 font scenarios pass without error or unexpected exception.
 
@@ -100,3 +107,20 @@ Loads both faces of the locally-assembled `OpenSans-SourceSans3.ttc` fixture via
 count, and decodes/renders a glyph from each face, proving both the glyf-flavored face-0 font and
 the CFF-flavored face-1 font remain independently usable once selected out of the shared
 container.
+
+#### CanvasNet-Fonts-NameStyleMetadata: Fonts Expose Their Own Name and Derived Style Metadata
+
+**Tests**: `TrueTypeFont_RealOpenSansFont_ExposesExpectedNameAndStyleMetadata`,
+`TrueTypeFont_RealSourceSans3OtfFont_ExposesExpectedNameAndStyleMetadata`,
+`TrueTypeFont_RealTtcContainer_BothFaces_ExposeExpectedNameAndStyleMetadataIndependently`
+
+Loads each real font fixture (the standalone Open Sans `.ttf`, the standalone Source Sans 3
+`.otf`, and both faces of the `.ttc` container independently) and asserts `GetNameInfo()`'s
+`FamilyName`/`SubfamilyName`/`FullName`/`PostScriptName` and the `IsBold`/`IsItalic`/
+`IsFixedPitch` properties against the exact real values confirmed against those fixture files via
+`fonttools`, proving the subsystem's platform-preference and style-derivation rules resolve
+correctly against genuine production font data (not merely synthetic fixtures), and that each
+`.ttc` face resolves its own metadata independently of the other. The full unit-level behavior of
+`GetNameInfo`/`IsBold`/`IsItalic`/`IsFixedPitch` (platform preference, typographic-name
+preference, missing/malformed-record tolerance, OS/2-absent and post-absent fallback) is verified
+by the `TrueTypeFont` unit's own verification design (`fonts/true-type-font.md`).

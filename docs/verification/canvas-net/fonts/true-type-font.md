@@ -475,3 +475,101 @@ Loads the same ordinary (non-`ttcf`) synthetic font through both `Load(Stream)` 
 Verifies a truncated `ttcf` header, a header declaring zero fonts, and a truncated per-face
 offset table are all rejected with `InvalidDataException`, both through the public `Load` path
 and directly against `TryReadTtcHeader`.
+
+##### CanvasNet-Fonts-TrueTypeFont-GetNameInfoResolvesTypographicNames: Typographic Names (16/17) Are Preferred When Present
+
+**Tests**: `TrueTypeFont_GetNameInfo_TypographicNamesPresent_PrefersNameId16And17`
+
+Builds a synthetic font whose `name` table carries both the standard (`1`/`2`) and typographic
+(`16`/`17`) family/subfamily records with distinct values, and asserts `GetNameInfo()` resolves
+`FamilyName`/`SubfamilyName` from the typographic records.
+
+##### CanvasNet-Fonts-TrueTypeFont-GetNameInfoFallsBackToStandardNames: Standard Names Resolve Without Typographic Records
+
+**Tests**: `TrueTypeFont_GetNameInfo_TypographicNamesAbsent_FallsBackToNameId1And2`
+
+Builds a synthetic font whose `name` table carries only the standard (`1`/`2`) family/subfamily
+records, and asserts `GetNameInfo()` still resolves `FamilyName`/`SubfamilyName` from them.
+
+##### CanvasNet-Fonts-TrueTypeFont-GetNameInfoPlatformPreference: Windows-Platform Records Are Preferred Over Macintosh
+
+**Tests**: `TrueTypeFont_GetNameInfo_WindowsAndMacintoshRecordsPresent_PrefersWindowsRecord`
+
+Builds a synthetic font whose `name` table carries both a Windows-platform and a
+Macintosh-platform record for the same nameID with distinct values, and asserts `GetNameInfo()`
+resolves from the Windows-platform record.
+
+##### CanvasNet-Fonts-TrueTypeFont-GetNameInfoMacintoshFallback: Macintosh Records Resolve Without a Windows Record
+
+**Tests**: `TrueTypeFont_GetNameInfo_OnlyMacintoshRecordPresent_ResolvesFromMacintoshRecord`
+
+Builds a synthetic font whose `name` table carries only a Macintosh-platform (Mac Roman) record,
+and asserts `GetNameInfo()` correctly decodes and resolves its string.
+
+##### CanvasNet-Fonts-TrueTypeFont-GetNameInfoMissingRecordTolerant: A Single Missing Record Does Not Affect the Others
+
+**Tests**: `TrueTypeFont_GetNameInfo_PostScriptNameRecordMissing_ReturnsNullPostScriptName`
+
+Builds a synthetic font whose `name` table omits the PostScript name (nameID `6`) record, and
+asserts `GetNameInfo().PostScriptName` is `null` while `FamilyName`/`SubfamilyName`/`FullName`
+still resolve normally.
+
+##### CanvasNet-Fonts-TrueTypeFont-GetNameInfoNoNameTableTolerant: A Completely Absent `name` Table Yields an All-Null Result
+
+**Tests**: `TrueTypeFont_GetNameInfo_NoNameTable_ReturnsAllNullFontNameInfo`
+
+Builds a synthetic font with no `name` table at all, and asserts `GetNameInfo()` returns a
+`FontNameInfo` with every member `null` rather than throwing.
+
+##### CanvasNet-Fonts-TrueTypeFont-GetNameInfoMalformedRecordTolerant: A Malformed Record Is Ignored, Not the Table
+
+**Tests**: `TrueTypeFont_GetNameInfo_MalformedNameRecord_IgnoresRecordWithoutThrowing`
+
+Builds a synthetic font whose `name` table contains one record whose declared string
+offset/length falls outside the table's own bounds alongside other well-formed records, and
+asserts `GetNameInfo()` ignores only the malformed record (without throwing) while the other
+records still resolve.
+
+##### CanvasNet-Fonts-TrueTypeFont-StyleFromOs2FsSelection: `OS/2.fsSelection` Bold/Italic Bits Drive `IsBold`/`IsItalic`
+
+**Tests**: `TrueTypeFont_IsBold_Os2FsSelectionBoldBitSet_ReturnsTrue`,
+`TrueTypeFont_IsItalic_Os2FsSelectionItalicBitSet_ReturnsTrue`
+
+Builds synthetic fonts with `OS/2.fsSelection`'s bold bit (bit 5) and italic bit (bit 0) each set
+independently, and asserts `IsBold`/`IsItalic` reflect them.
+
+##### CanvasNet-Fonts-TrueTypeFont-StyleFromOs2WeightClass: `OS/2.usWeightClass >= 600` Also Implies `IsBold`
+
+**Tests**: `TrueTypeFont_IsBold_Os2WeightClassAtLeast600_ReturnsTrue`
+
+Builds a synthetic font with `OS/2.usWeightClass` set to a Semibold-or-heavier value and
+`fsSelection`'s bold bit clear, and asserts `IsBold` is still `true`.
+
+##### CanvasNet-Fonts-TrueTypeFont-StyleFromPostItalicAngle: A Non-Zero `post.italicAngle` Also Implies `IsItalic`
+
+**Tests**: `TrueTypeFont_IsItalic_PostItalicAngleNonZero_ReturnsTrue`
+
+Builds a synthetic font with a non-zero `post.italicAngle` and no other italic indicator set, and
+asserts `IsItalic` is still `true`.
+
+##### CanvasNet-Fonts-TrueTypeFont-StyleFallsBackToMacStyleWhenOs2Absent: `head.macStyle` Drives Style When `OS/2` Is Absent
+
+**Tests**: `TrueTypeFont_Style_Os2TableAbsent_FallsBackToHeadMacStyle`
+
+Builds a synthetic font with no `OS/2` table and `head.macStyle`'s bold/italic bits set, and
+asserts `IsBold`/`IsItalic` are both `true`, proving the mandatory `head` table alone is
+sufficient when the optional `OS/2` table is missing.
+
+##### CanvasNet-Fonts-TrueTypeFont-IsFixedPitchFromPostTable: `post.isFixedPitch` Drives `IsFixedPitch`
+
+**Tests**: `TrueTypeFont_IsFixedPitch_PostIsFixedPitchNonZero_ReturnsTrue`
+
+Builds a synthetic font with `post.isFixedPitch` set non-zero, and asserts `IsFixedPitch` is
+`true`.
+
+##### CanvasNet-Fonts-TrueTypeFont-IsFixedPitchAbsentPostTableTolerant: Defaults to `false` Without a `post` Table
+
+**Tests**: `TrueTypeFont_IsFixedPitch_PostTableAbsent_ReturnsFalseWithoutThrowing`
+
+Builds a synthetic font with no `post` table at all, and asserts `IsFixedPitch` is `false`
+without throwing.

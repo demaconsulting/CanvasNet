@@ -470,6 +470,8 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Fonts/CffCharstringInterpreter.cs"  # internal helper source (Type 2 interpreter)
       - "src/DemaConsulting.CanvasNet/Fonts/HmtxHheaReader.cs"    # internal helper source
       - "src/DemaConsulting.CanvasNet/Fonts/KernTable.cs"         # internal helper source
+      - "src/DemaConsulting.CanvasNet/Fonts/NameTable.cs"         # internal helper source (name-table resolution)
+      - "src/DemaConsulting.CanvasNet/Fonts/StyleTable.cs"        # internal helper source (style derivation)
       - "src/DemaConsulting.CanvasNet/Fonts/NamespaceDoc.cs"      # Fonts namespace documentation
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/SfntContainerTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/CmapTableTests.cs"      # unit tests
@@ -478,6 +480,8 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/CffCharstringInterpreterTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/HmtxHheaReaderTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/KernTableTests.cs"      # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Fonts/NameTableTests.cs"      # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Fonts/StyleTableTests.cs"     # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/TrueTypeFontTests.cs"   # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/TrueTypeFontRealFontIntegrationTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/TestSupport/SyntheticFontBuilder.cs"  # shared test helper
