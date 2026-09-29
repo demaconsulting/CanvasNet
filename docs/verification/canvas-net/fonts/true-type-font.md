@@ -1,26 +1,28 @@
 ### TrueTypeFont Unit Verification Design
 
 <!-- cspell:ignore glyf sfnt cmap loca hmtx hhea maxp notdef -->
-<!-- cspell:ignore codepoint codepoints subtable -->
+<!-- cspell:ignore codepoint codepoints subtable charstring charstrings ttcf hintmask cntrmask -->
+<!-- cspell:ignore hstemhm vstemhm callsubr callgsubr hhcurveto vvcurveto hvcurveto vhcurveto -->
+<!-- cspell:ignore rlineto hlineto vlineto rmoveto hmoveto vmoveto rrcurveto endchar seac gsubr -->
 This document describes the unit-level verification strategy for the `TrueTypeFont` class and its
-supporting internal helpers `SfntContainer`, `CmapTable`, `GlyfLocaReader`, `HmtxHheaReader`, and
-`KernTable`.
+supporting internal helpers `SfntContainer`, `CmapTable`, `GlyfLocaReader`, `CffTable`,
+`CffCharstringInterpreter`, `HmtxHheaReader`, and `KernTable`.
 
 #### Verification Approach
 
 The `TrueTypeFont` unit is verified through focused unit tests that exercise each helper directly
 via `InternalsVisibleTo`, plus end-to-end `TrueTypeFont` tests that load a complete synthetic
-font and drive the public API. Every fixture font used by this synthetic-fixture coverage is
-assembled in memory by the shared `SyntheticFontBuilder` helper under
-`test/DemaConsulting.CanvasNet.Tests/TestSupport/`; no third-party font files are used for this
-portion of the suite, so it avoids fixture licensing concerns while still covering both
-well-formed and deliberately malformed SFNT structures. One additional integration test,
-`TrueTypeFontRealFontIntegrationTests.TrueTypeFont_RealOpenSansFont_RendersGlyphOutlineAsVisibleInk`,
-loads the real, licensed (SIL OFL 1.1) "Open Sans" production font fixture
-(`test/DemaConsulting.CanvasNet.Tests/FontFixtures/OpenSans-Regular.ttf`, attributed per the
-accompanying `OpenSans.LICENSE`) to prove the unit genuinely composes with the `Drawing` pipeline
-on real-world glyph data, complementing (rather than replacing) the synthetic-fixture coverage
-above.
+font and drive the public API. Every fixture font used by this synthetic-fixture coverage - glyf-
+flavored, CFF/OTTO-flavored, and `ttcf`-collection - is assembled in memory by the shared
+`SyntheticFontBuilder` helper under `test/DemaConsulting.CanvasNet.Tests/TestSupport/`; no
+third-party font files are used for this portion of the suite, so it avoids fixture licensing
+concerns while still covering both well-formed and deliberately malformed SFNT/CFF structures.
+Four additional integration tests in `TrueTypeFontRealFontIntegrationTests.cs` load real,
+OFL-licensed production font fixtures (`OpenSans-Regular.ttf`, `SourceSans3-Regular.otf`, and the
+locally-assembled `OpenSans-SourceSans3.ttc`) to prove the unit genuinely composes with the
+`Drawing` pipeline on real-world glyph data - across all three outline-flavor/container
+combinations this phase adds - complementing (rather than replacing) the synthetic-fixture
+coverage above.
 
 #### Test Environment
 
@@ -75,13 +77,15 @@ Calls `Load(string)` with an empty path and asserts `ArgumentException` is throw
 Builds an otherwise minimal font with an arbitrary unrecognized `sfntVersion` and asserts
 `InvalidDataException` is thrown before any table parsing proceeds.
 
-##### CanvasNet-Fonts-TrueTypeFont-RejectCffOutlines: OTTO/CFF Fonts Are Rejected
+##### CanvasNet-Fonts-TrueTypeFont-RejectOttoWithoutCffTable: OTTO Fonts Without a CFF Table Are Rejected
 
 **Tests**: `TrueTypeFont_Load_OttoFont_ThrowsInvalidDataException`,
 `SfntContainer_Parse_OttoVersion_ThrowsInvalidDataException`
 
-Exercises both the public `Load` path and the container parser directly with an `OTTO` font and
-asserts both reject the unsupported outline flavor.
+Exercises both the public `Load` path and the container parser directly with an `OTTO`-tagged
+font that omits the required `CFF` table, asserting both reject it; an `OTTO`-tagged font that
+*does* contain a well-formed `CFF` table is covered separately (see
+`CanvasNet-Fonts-TrueTypeFont-LoadCffOutlines` below) and now succeeds.
 
 ##### CanvasNet-Fonts-TrueTypeFont-RejectMissingRequiredTable: Missing Required Tables Fail Load
 
@@ -93,7 +97,10 @@ Builds a font that omits required tables and asserts `Load` throws `InvalidDataE
 
 **Tests**: `TrueTypeFont_Load_MaxpVersion05_ThrowsInvalidDataException`
 
-Builds a font whose `maxp.version` is `0x00005000` and asserts `Load` rejects it.
+Builds a font whose `maxp.version` is `0x00005000` while still declaring itself glyf-flavored
+(TrueType-tagged, not `OTTO`) and asserts `Load` rejects it; the same `maxp.version` on a
+genuinely `OTTO`-tagged, CFF-backed font is the expected, accepted combination (see
+`CanvasNet-Fonts-TrueTypeFont-LoadCffOutlines`).
 
 ##### CanvasNet-Fonts-TrueTypeFont-RejectInvalidUnitsPerEm: Zero Units-Per-Em Is Rejected
 
@@ -285,3 +292,186 @@ lookups all return `0` without throwing.
 
 Exercises empty, truncated, malformed, unsupported-format, and cross-stream kerning tables,
 asserting the parser degrades to "no kerning data" rather than failing load.
+
+##### CanvasNet-Fonts-TrueTypeFont-LoadCffOutlines: CFF/OpenType Fonts Load Through the Same Public API
+
+**Tests**: `TrueTypeFont_Load_OttoFontWithCffTable_Succeeds`,
+`SfntContainer_Parse_OttoVersionWithCffTable_Succeeds`,
+`TrueTypeFont_RealSourceSans3OtfFont_RendersCffGlyphOutlineAsVisibleInk`
+
+Builds a synthetic `OTTO`-tagged, `CFF`-backed font and asserts both the public `Load` path and
+the container parser succeed and expose the expected metrics/outline, then confirms the same
+behavior against a real production CFF/OpenType font fixture.
+
+##### CanvasNet-Fonts-TrueTypeFont-RejectCffGlyphCountMismatch: CFF/`maxp` Glyph Count Disagreement Is Rejected
+
+**Tests**: `TrueTypeFont_Load_CffGlyphCountMismatchesMaxp_ThrowsInvalidDataException`
+
+Builds a synthetic CFF font whose CharStrings INDEX count disagrees with `maxp.numGlyphs` and
+asserts `Load` rejects it with `InvalidDataException`.
+
+##### CanvasNet-Fonts-TrueTypeFont-RejectCidKeyedCff: CID-Keyed CFF Data Is Rejected
+
+**Tests**: `CffTable_Parse_CidKeyedRos_ThrowsInvalidDataException`
+
+Builds a synthetic CFF Top DICT declaring a `ROS` operator and asserts `CffTable` rejects it with
+`InvalidDataException`.
+
+##### CanvasNet-Fonts-TrueTypeFont-CffTableParsing: CFF Structural Parsing and Per-Glyph Isolation
+
+**Tests**: `CffTable_Parse_WellFormedFont_ExposesGlyphCountAndOutlines`,
+`CffTable_Parse_NoPrivateDict_SucceedsWithNoLocalSubrs`,
+`CffTable_GetGlyphOutline_OutOfRangeIndex_ThrowsArgumentOutOfRangeException`,
+`CffTable_GetGlyphOutline_OneCorruptGlyph_DoesNotBreakOtherGlyphs`,
+`CffTable_Parse_MissingCharStringsOperator_ThrowsInvalidDataException`,
+`CffTable_Parse_UnsupportedMajorVersion_ThrowsInvalidDataException`,
+`CffTable_Parse_TruncatedTable_ThrowsInvalidDataException`,
+`CffTable_Parse_EmptyCharStringsIndex_ThrowsInvalidDataException`
+
+Covers well-formed parsing (with and without a Private DICT/Local Subr INDEX), out-of-range glyph
+index rejection, lazy per-glyph decoding such that one corrupt glyph's charstring does not break
+any other glyph in the same font, and rejection of a missing `CharStrings` operator, an
+unsupported CFF major version, a truncated table, and an empty CharStrings INDEX.
+
+##### CanvasNet-Fonts-TrueTypeFont-CffStemHints: Stem Hint Counting and Hint Mask Byte Skipping
+
+**Tests**: `CffCharstringInterpreter_HStem_VStem_AccumulateStemCountForHintMask`,
+`CffCharstringInterpreter_HintMask_ImplicitVStem_CountsTowardMaskBytes`,
+`CffCharstringInterpreter_HintMask_TruncatedMaskBytes_ThrowsInvalidDataException`
+
+Verifies `hstem`/`vstem` accumulate the stem count `hintmask`/`cntrmask` uses to size their mask
+byte skip, that operand pairs left on the stack before the first mask operator are counted as an
+implicit final `vstem`, and that a truncated mask byte region is rejected.
+
+##### CanvasNet-Fonts-TrueTypeFont-CffMoveTo: Moveto Operators and the Optional Leading Width Operand
+
+**Tests**: `CffCharstringInterpreter_RMoveTo_LineTo_Endchar_ProducesClosedContour`,
+`CffCharstringInterpreter_RMoveTo_WithLeadingWidth_IgnoresWidthOperand`,
+`CffCharstringInterpreter_HMoveTo_VMoveTo_MoveAlongSingleAxis`,
+`CffCharstringInterpreter_RMoveTo_WrongOperandCount_ThrowsInvalidDataException`
+
+Verifies `rmoveto` starts a subpath and closes correctly with a following `lineto`/`endchar`, that
+an optional leading width operand on the first stack-clearing operator is recognized and
+discarded rather than misread as a coordinate, that `hmoveto`/`vmoveto` move along a single axis,
+and that an incompatible operand count is rejected.
+
+##### CanvasNet-Fonts-TrueTypeFont-CffLineTo: Lineto Operators and Alternating-Axis Packing
+
+**Tests**: `CffCharstringInterpreter_HLineTo_VLineTo_AlternateAxes`,
+`CffCharstringInterpreter_RLineTo_OddOperandCount_ThrowsInvalidDataException`
+
+Verifies `hlineto`/`vlineto` alternate axis correctly across their operand list and that `rlineto`
+rejects an odd operand count.
+
+##### CanvasNet-Fonts-TrueTypeFont-CffCurveTo: Curve Operators and Their Operand-Packing Conventions
+
+**Tests**: `CffCharstringInterpreter_RRCurveTo_ProducesCubicBezier`,
+`CffCharstringInterpreter_HHCurveTo_VVCurveTo_ProduceCubicBeziers`,
+`CffCharstringInterpreter_HHCurveTo_LeadingOperand_AppliesToFirstCurveOnly`,
+`CffCharstringInterpreter_HVCurveTo_VHCurveTo_AlternateStartTangent`,
+`CffCharstringInterpreter_HVCurveTo_TrailingOperand_SuppliesFinalAxisDelta`
+
+Verifies `rrcurveto` produces a general cubic Bezier, `hhcurveto`/`vvcurveto` produce
+axis-constrained-start cubic Beziers (including a leading cross-axis operand applying only to the
+first curve), and `hvcurveto`/`vhcurveto` alternate start tangent per curve including a trailing
+operand supplying the final curve's otherwise-implied-zero axis delta.
+
+##### CanvasNet-Fonts-TrueTypeFont-CffSubroutines: Subroutine Calls, Bias, Recursion, and Depth Bounding
+
+**Tests**: `CffCharstringInterpreter_CallSubr_AppliesBias_AndReturns`,
+`CffCharstringInterpreter_CallGSubr_AppliesGlobalBias`,
+`CffCharstringInterpreter_CallSubr_OutOfRangeIndex_ThrowsInvalidDataException`,
+`CffCharstringInterpreter_CallSubr_ExceedsMaxDepth_ThrowsInvalidDataException`,
+`CffTable_Parse_WithLocalSubrs_DecodesGlyphUsingCallSubr`,
+`CffTable_Parse_WithGlobalSubrs_DecodesGlyphUsingCallGSubr`
+
+Verifies `callsubr`/`callgsubr` apply the correct bias and resume via `return`, that an
+out-of-range (post-bias) subroutine index is rejected, that a self-recursive subroutine chain is
+rejected once it exceeds the maximum call depth, and that `CffTable` correctly wires both local
+and global subroutine INDEXes through to the interpreter end to end.
+
+##### CanvasNet-Fonts-TrueTypeFont-CffEndChar: `endchar` and Seac-Style Rejection
+
+**Tests**: `CffCharstringInterpreter_EmptyCharstring_ProducesEmptyPath`,
+`CffCharstringInterpreter_EndChar_SeacStyleFourOperands_ThrowsInvalidDataException`,
+`CffCharstringInterpreter_EndChar_UnexpectedOperandCount_ThrowsInvalidDataException`
+
+Verifies a charstring consisting only of `endchar` decodes as an empty path, and that both the
+legacy 4-operand seac-style accented-character composition form and any other unexpected leftover
+operand count are rejected with `InvalidDataException`.
+
+##### CanvasNet-Fonts-TrueTypeFont-CffUnsupportedOperatorRejection: Unsupported Operators, Escapes, and Truncation
+
+**Tests**: `CffCharstringInterpreter_UnsupportedOperator_ThrowsInvalidDataException`,
+`CffCharstringInterpreter_FlexEscapeOperator_ThrowsInvalidDataException`,
+`CffCharstringInterpreter_FixedPointOperand_DecodesCorrectly`,
+`CffCharstringInterpreter_TruncatedCharstring_ThrowsInvalidDataException`
+
+Verifies an operator outside the supported set and a two-byte flex escape operator are both
+rejected, that a 16.16 fixed-point operand decodes to the correct value, and that a charstring
+truncated before its declared operand/operator data is fully read is rejected.
+
+##### CanvasNet-Fonts-TrueTypeFont-GetFaceCountPlainSfnt: `GetFaceCount` Reports 1 for an Ordinary SFNT Font
+
+**Tests**: `TrueTypeFont_GetFaceCount_PlainSfnt_ReturnsOne`
+
+Calls `GetFaceCount` against a synthetic ordinary (non-`ttcf`) font and asserts it returns `1`.
+
+##### CanvasNet-Fonts-TrueTypeFont-GetFaceCountTtc: `GetFaceCount` Reports a `ttcf` Container's True Face Count
+
+**Tests**: `TrueTypeFont_GetFaceCount_TtcContainer_ReturnsFaceCount`,
+`TrueTypeFont_GetFaceCount_Path_ReadsFromFile`,
+`SfntContainer_TryReadTtcHeader_WellFormedContainer_ReturnsFaceOffsets`,
+`SfntContainer_TryReadTtcHeader_EachFaceIndependentlyParsable`
+
+Verifies `GetFaceCount` against both a stream and a file path returns the container's own
+declared face count, and that `TryReadTtcHeader` correctly resolves each face's own offset such
+that each face can be parsed independently.
+
+##### CanvasNet-Fonts-TrueTypeFont-LoadTtcDefaultsFaceZero: `Load` Defaults to Face 0 for a `ttcf` File
+
+**Tests**: `TrueTypeFont_Load_TtcContainer_DefaultsToFaceZero`,
+`SfntContainer_TryReadTtcHeader_NonTtcFont_ReturnsFalse`
+
+Verifies `Load(Stream)`/`Load(string)` against a synthetic 2-face `ttcf` container transparently
+resolves and loads face 0, and that `TryReadTtcHeader` returns `false` (not an exception) for a
+file that is not `ttcf`-tagged.
+
+##### CanvasNet-Fonts-TrueTypeFont-LoadTtcExplicitFaceIndex: Explicit Face Selection via `Load(..., int)`
+
+**Tests**: `TrueTypeFont_Load_TtcContainer_ExplicitFaceIndex_SelectsThatFace`,
+`TrueTypeFont_Load_TtcContainer_Path_FaceIndex_ReadsFromFile`,
+`TrueTypeFont_RealTtcContainer_FaceOne_RendersCffGlyphOutlineAsVisibleInk`,
+`TrueTypeFont_RealTtcContainer_FaceZero_RendersGlyfGlyphOutlineAsVisibleInk`
+
+Verifies both new overloads (stream and path) correctly select and load a non-default face of a
+synthetic `ttcf` container, then confirms the same explicit-selection behavior against the real,
+locally-assembled two-face `.ttc` fixture for both its glyf-flavored and CFF-flavored faces.
+
+##### CanvasNet-Fonts-TrueTypeFont-RejectFaceIndexOutOfRange: Out-of-Range Face Indices Are Rejected
+
+**Tests**: `TrueTypeFont_Load_TtcContainer_FaceIndexOutOfRange_ThrowsArgumentOutOfRangeException`,
+`TrueTypeFont_Load_NonTtcFont_FaceIndexOne_ThrowsArgumentOutOfRangeException`,
+`TrueTypeFont_Load_NegativeFaceIndex_ThrowsArgumentOutOfRangeException`
+
+Verifies a face index at or beyond a `ttcf` container's declared face count, a non-zero face
+index against an ordinary (non-`ttcf`) font, and a negative face index are all rejected with
+`ArgumentOutOfRangeException`.
+
+##### CanvasNet-Fonts-TrueTypeFont-FaceIndexZeroBehavesAsLoad: `faceIndex = 0` Matches Plain `Load` for Non-Collection Fonts
+
+**Tests**: `TrueTypeFont_Load_NonTtcFont_FaceIndexZero_BehavesIdenticallyToLoad`
+
+Loads the same ordinary (non-`ttcf`) synthetic font through both `Load(Stream)` and
+`Load(Stream, 0)` and asserts the two results expose identical metrics and outlines.
+
+##### CanvasNet-Fonts-TrueTypeFont-RejectMalformedTtcHeader: Malformed `ttcf` Headers Are Rejected
+
+**Tests**: `TrueTypeFont_Load_MalformedTtcHeader_ThrowsInvalidDataException`,
+`SfntContainer_TryReadTtcHeader_TruncatedHeader_ThrowsInvalidDataException`,
+`SfntContainer_TryReadTtcHeader_ZeroFonts_ThrowsInvalidDataException`,
+`SfntContainer_TryReadTtcHeader_TruncatedFaceOffsetTable_ThrowsInvalidDataException`
+
+Verifies a truncated `ttcf` header, a header declaring zero fonts, and a truncated per-face
+offset table are all rejected with `InvalidDataException`, both through the public `Load` path
+and directly against `TryReadTtcHeader`.

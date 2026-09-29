@@ -2,6 +2,7 @@
 // cspell:ignore maxp Maxp notdef codepoint codepoints subtable subtables subsetted
 // cspell:ignore subsetting PPEM OTTO
 using DemaConsulting.CanvasNet.Fonts;
+using DemaConsulting.CanvasNet.Geometry;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 
 namespace DemaConsulting.CanvasNet.Tests.Fonts;
@@ -454,5 +455,278 @@ public class TrueTypeFontTests
         // Act/Assert: loading the truncated stream throws
         using var ms438 = new MemoryStream(truncated);
         Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(ms438));
+    }
+
+    /// <summary>
+    ///     Builds a minimal, well-formed synthetic CFF/OTTO font with a single glyph, glyph 0
+    ///     being a 10x10 square outline via a Type 2 charstring.
+    /// </summary>
+    private static byte[] BuildWellFormedCffFont()
+    {
+        var cs = new List<byte>();
+        SyntheticFontBuilder.WriteCharstringNumber(cs, 0);
+        SyntheticFontBuilder.WriteCharstringNumber(cs, 0);
+        SyntheticFontBuilder.WriteCharstringOperator(cs, 21); // rmoveto
+        SyntheticFontBuilder.WriteCharstringNumber(cs, 10);
+        SyntheticFontBuilder.WriteCharstringNumber(cs, 0);
+        SyntheticFontBuilder.WriteCharstringNumber(cs, 0);
+        SyntheticFontBuilder.WriteCharstringNumber(cs, 10);
+        SyntheticFontBuilder.WriteCharstringNumber(cs, -10);
+        SyntheticFontBuilder.WriteCharstringNumber(cs, 0);
+        SyntheticFontBuilder.WriteCharstringOperator(cs, 5); // rlineto
+        SyntheticFontBuilder.WriteCharstringOperator(cs, 14); // endchar
+
+        var cff = SyntheticFontBuilder.Cff([[.. cs]]);
+
+        return new SyntheticFontBuilder()
+            .WithSfntVersion(0x4F54544F) // 'OTTO'
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(1, version: 0x00005000))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 50, 1))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([500]))
+            .AddTable("CFF ", cff)
+            .Build();
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load OttoFontWithCffTable Succeeds.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_OttoFontWithCffTable_Succeeds()
+    {
+        // Arrange: build a well-formed synthetic OTTO/CFF font
+        var data = BuildWellFormedCffFont();
+
+        // Act: load the font and decode its single glyph's outline
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+        var outline = font.GetGlyphOutline(0);
+
+        // Assert: the font loads successfully and the CFF outline is decoded
+        Assert.Equal(1, font.GlyphCount);
+        Assert.Single(outline.Subpaths);
+        Assert.Contains(outline.Subpaths[0].Commands, c => c.Type == PathCommandType.LineTo);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load CffGlyphCountMismatchesMaxp ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_CffGlyphCountMismatchesMaxp_ThrowsInvalidDataException()
+    {
+        // Arrange: build an OTTO/CFF font whose maxp.numGlyphs (2) does not match the CFF
+        // CharStrings INDEX's actual glyph count (1)
+        var cs = new List<byte>();
+        SyntheticFontBuilder.WriteCharstringOperator(cs, 14); // endchar
+        var cff = SyntheticFontBuilder.Cff([[.. cs]]);
+
+        var data = new SyntheticFontBuilder()
+            .WithSfntVersion(0x4F54544F)
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(2, version: 0x00005000))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 50, 2))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([500, 500]))
+            .AddTable("CFF ", cff)
+            .Build();
+
+        // Act/Assert: loading the font with the mismatched glyph count throws
+        using var ms = new MemoryStream(data);
+        Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(ms));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont GetFaceCount PlainSfnt ReturnsOne.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetFaceCount_PlainSfnt_ReturnsOne()
+    {
+        // Arrange: a well-formed, single-face (non-collection) font
+        var data = BuildWellFormedFont();
+
+        // Act: query the face count
+        using var ms = new MemoryStream(data);
+        var faceCount = TrueTypeFont.GetFaceCount(ms);
+
+        // Assert: an ordinary SFNT font always reports exactly one face
+        Assert.Equal(1, faceCount);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont GetFaceCount TtcContainer ReturnsFaceCount.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetFaceCount_TtcContainer_ReturnsFaceCount()
+    {
+        // Arrange: a synthetic 2-face ttcf container wrapping two independent, well-formed fonts
+        var ttc = SyntheticFontBuilder.Ttc([BuildWellFormedFont(), BuildWellFormedCffFont()]);
+
+        // Act: query the face count
+        using var ms = new MemoryStream(ttc);
+        var faceCount = TrueTypeFont.GetFaceCount(ms);
+
+        // Assert: both faces are reported
+        Assert.Equal(2, faceCount);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont GetFaceCount Path ReadsFromFile.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetFaceCount_Path_ReadsFromFile()
+    {
+        // Arrange: write a well-formed font to a temporary file
+        var data = BuildWellFormedFont();
+        var path = System.IO.Path.GetTempFileName();
+        try
+        {
+            File.WriteAllBytes(path, data);
+
+            // Act: query the face count from the file path
+            var faceCount = TrueTypeFont.GetFaceCount(path);
+
+            // Assert: an ordinary SFNT font always reports exactly one face
+            Assert.Equal(1, faceCount);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load TtcContainer DefaultsToFaceZero.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_TtcContainer_DefaultsToFaceZero()
+    {
+        // Arrange: a synthetic 2-face ttcf container; face 0 is the TrueType font, face 1 is CFF
+        var ttc = SyntheticFontBuilder.Ttc([BuildWellFormedFont(), BuildWellFormedCffFont()]);
+
+        // Act: load without an explicit face index
+        using var ms = new MemoryStream(ttc);
+        var font = TrueTypeFont.Load(ms);
+
+        // Assert: face 0 (the TrueType font, GlyphCount 2) was selected, not face 1
+        Assert.Equal(2, font.GlyphCount);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load TtcContainer ExplicitFaceIndex SelectsThatFace.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_TtcContainer_ExplicitFaceIndex_SelectsThatFace()
+    {
+        // Arrange: a synthetic 2-face ttcf container; face 0 is the TrueType font, face 1 is CFF
+        var ttc = SyntheticFontBuilder.Ttc([BuildWellFormedFont(), BuildWellFormedCffFont()]);
+
+        // Act: load face 1 explicitly
+        using var ms = new MemoryStream(ttc);
+        var font = TrueTypeFont.Load(ms, 1);
+
+        // Assert: face 1 (the CFF font, GlyphCount 1) was selected
+        Assert.Equal(1, font.GlyphCount);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load TtcContainer FaceIndexOutOfRange ThrowsArgumentOutOfRangeException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_TtcContainer_FaceIndexOutOfRange_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange: a synthetic 2-face ttcf container
+        var ttc = SyntheticFontBuilder.Ttc([BuildWellFormedFont(), BuildWellFormedCffFont()]);
+
+        // Act/Assert: an out-of-range face index throws
+        using var ms = new MemoryStream(ttc);
+        Assert.Throws<ArgumentOutOfRangeException>(() => TrueTypeFont.Load(ms, 2));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load NonTtcFont FaceIndexOne ThrowsArgumentOutOfRangeException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_NonTtcFont_FaceIndexOne_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange: an ordinary, single-face (non-collection) font
+        var data = BuildWellFormedFont();
+
+        // Act/Assert: requesting face index 1 on a single-face file throws
+        using var ms = new MemoryStream(data);
+        Assert.Throws<ArgumentOutOfRangeException>(() => TrueTypeFont.Load(ms, 1));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load NonTtcFont FaceIndexZero BehavesIdenticallyToLoad.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_NonTtcFont_FaceIndexZero_BehavesIdenticallyToLoad()
+    {
+        // Arrange: an ordinary, single-face (non-collection) font
+        var data = BuildWellFormedFont();
+
+        // Act: load with explicit face index 0
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms, 0);
+
+        // Assert: behaves identically to the parameterless Load
+        Assert.Equal(1000, font.UnitsPerEm);
+        Assert.Equal(2, font.GlyphCount);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load TtcContainer Path FaceIndex ReadsFromFile.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_TtcContainer_Path_FaceIndex_ReadsFromFile()
+    {
+        // Arrange: write a synthetic 2-face ttcf container to a temporary file
+        var ttc = SyntheticFontBuilder.Ttc([BuildWellFormedFont(), BuildWellFormedCffFont()]);
+        var path = System.IO.Path.GetTempFileName();
+        try
+        {
+            File.WriteAllBytes(path, ttc);
+
+            // Act: load face 1 explicitly from the file path
+            var font = TrueTypeFont.Load(path, 1);
+
+            // Assert: face 1 (the CFF font, GlyphCount 1) was selected
+            Assert.Equal(1, font.GlyphCount);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load NegativeFaceIndex ThrowsArgumentOutOfRangeException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_NegativeFaceIndex_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange: an ordinary, well-formed font
+        var data = BuildWellFormedFont();
+
+        // Act/Assert: a negative face index throws
+        using var ms = new MemoryStream(data);
+        Assert.Throws<ArgumentOutOfRangeException>(() => TrueTypeFont.Load(ms, -1));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load MalformedTtcHeader ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_MalformedTtcHeader_ThrowsInvalidDataException()
+    {
+        // Arrange: a 'ttcf'-tagged file too short to contain its declared face offset table
+        var buf = new List<byte>();
+        SyntheticFontBuilder.WriteUInt32(buf, 0x74746366); // 'ttcf'
+        SyntheticFontBuilder.WriteUInt16(buf, 1);
+        SyntheticFontBuilder.WriteUInt16(buf, 0);
+        SyntheticFontBuilder.WriteUInt32(buf, 2); // numFonts = 2, but no offsets follow
+
+        // Act/Assert: loading the malformed ttcf header throws
+        using var ms = new MemoryStream(buf.ToArray());
+        Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(ms));
     }
 }

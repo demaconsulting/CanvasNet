@@ -43,7 +43,7 @@ namespace DemaConsulting.CanvasNet.Fonts;
 ///     is effective against that amplification even though the component-count cap is not.
 ///     </para>
 /// </remarks>
-internal sealed class GlyfLocaReader
+internal sealed class GlyfLocaReader : IGlyphOutlineSource
 {
     /// <summary>
     ///     The maximum composite glyph nesting depth permitted before

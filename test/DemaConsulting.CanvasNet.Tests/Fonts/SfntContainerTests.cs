@@ -87,7 +87,8 @@ public class SfntContainerTests
     [Fact]
     public void SfntContainer_Parse_OttoVersion_ThrowsInvalidDataException()
     {
-        // Arrange: build a font with the unsupported 'OTTO' (CFF-flavored) sfnt version tag
+        // Arrange: build a font with the 'OTTO' (CFF-flavored) sfnt version tag but no 'CFF '
+        // table - structurally inconsistent, and still rejected
         var data = new SyntheticFontBuilder()
             .WithSfntVersion(0x4F54544F) // 'OTTO'
             .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
@@ -96,6 +97,27 @@ public class SfntContainerTests
         // Act/Assert: parsing throws, and the message identifies the unsupported version
         var ex = Assert.Throws<InvalidDataException>(() => SfntContainer.Parse(data));
         Assert.Contains("OTTO", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Proves that SfntContainer Parse OttoVersionWithCffTable Succeeds.
+    /// </summary>
+    [Fact]
+    public void SfntContainer_Parse_OttoVersionWithCffTable_Succeeds()
+    {
+        // Arrange: build a font with the 'OTTO' sfnt version tag and a 'CFF ' table present
+        var data = new SyntheticFontBuilder()
+            .WithSfntVersion(0x4F54544F) // 'OTTO'
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("CFF ", [1, 0, 4, 4])
+            .Build();
+
+        // Act: parse the font data
+        var container = SfntContainer.Parse(data);
+
+        // Assert: parsing succeeds and both tables are exposed
+        Assert.True(container.TryGetTable("head", out _));
+        Assert.True(container.TryGetTable("CFF ", out _));
     }
 
     /// <summary>
@@ -258,5 +280,111 @@ public class SfntContainerTests
 
         // Assert: the read value matches the original within F2Dot14 precision
         Assert.Equal(value, result, 3);
+    }
+
+    /// <summary>
+    ///     Proves that SfntContainer TryReadTtcHeader WellFormedContainer ReturnsFaceOffsets.
+    /// </summary>
+    [Fact]
+    public void SfntContainer_TryReadTtcHeader_WellFormedContainer_ReturnsFaceOffsets()
+    {
+        // Arrange: build two independent single-face fonts, then wrap them in a synthetic ttcf
+        // container
+        var face0 = BuildMinimalFont();
+        var face1 = BuildMinimalFont();
+        var ttc = SyntheticFontBuilder.Ttc([face0, face1]);
+
+        // Act: read the ttcf header
+        var isTtc = SfntContainer.TryReadTtcHeader(ttc, out var faceOffsets);
+
+        // Assert: the container is recognized and both face offsets are reported
+        Assert.True(isTtc);
+        Assert.Equal(2, faceOffsets.Count);
+        Assert.True(faceOffsets[1] > faceOffsets[0]);
+    }
+
+    /// <summary>
+    ///     Proves that SfntContainer TryReadTtcHeader NonTtcFont ReturnsFalse.
+    /// </summary>
+    [Fact]
+    public void SfntContainer_TryReadTtcHeader_NonTtcFont_ReturnsFalse()
+    {
+        // Arrange: an ordinary, non-collection SFNT font
+        var data = BuildMinimalFont();
+
+        // Act: attempt to read a ttcf header
+        var isTtc = SfntContainer.TryReadTtcHeader(data, out var faceOffsets);
+
+        // Assert: not recognized as a collection, and no face offsets are reported
+        Assert.False(isTtc);
+        Assert.Empty(faceOffsets);
+    }
+
+    /// <summary>
+    ///     Proves that SfntContainer TryReadTtcHeader EachFaceIndependentlyParsable.
+    /// </summary>
+    [Fact]
+    public void SfntContainer_TryReadTtcHeader_EachFaceIndependentlyParsable()
+    {
+        // Arrange: wrap two single-face fonts in a synthetic ttcf container
+        var face0 = BuildMinimalFont();
+        var face1 = BuildMinimalFont();
+        var ttc = SyntheticFontBuilder.Ttc([face0, face1]);
+        Assert.True(SfntContainer.TryReadTtcHeader(ttc, out var faceOffsets));
+
+        // Act: parse each face independently via its own offset table start
+        var container0 = SfntContainer.Parse(ttc, faceOffsets[0]);
+        var container1 = SfntContainer.Parse(ttc, faceOffsets[1]);
+
+        // Assert: both faces' tables are independently resolvable
+        Assert.True(container0.TryGetTable("head", out _));
+        Assert.True(container1.TryGetTable("head", out _));
+    }
+
+    /// <summary>
+    ///     Proves that SfntContainer TryReadTtcHeader TruncatedHeader ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void SfntContainer_TryReadTtcHeader_TruncatedHeader_ThrowsInvalidDataException()
+    {
+        // Arrange: only the 4-byte 'ttcf' tag, missing the rest of the fixed 12-byte prefix
+        byte[] data = [0x74, 0x74, 0x63, 0x66];
+
+        // Act/Assert: reading the truncated header throws
+        Assert.Throws<InvalidDataException>(() => SfntContainer.TryReadTtcHeader(data, out _));
+    }
+
+    /// <summary>
+    ///     Proves that SfntContainer TryReadTtcHeader ZeroFonts ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void SfntContainer_TryReadTtcHeader_ZeroFonts_ThrowsInvalidDataException()
+    {
+        // Arrange: a ttcf header declaring zero faces
+        var buf = new List<byte>();
+        SyntheticFontBuilder.WriteUInt32(buf, 0x74746366); // 'ttcf'
+        SyntheticFontBuilder.WriteUInt16(buf, 1);
+        SyntheticFontBuilder.WriteUInt16(buf, 0);
+        SyntheticFontBuilder.WriteUInt32(buf, 0); // numFonts = 0
+
+        // Act/Assert: reading the header throws
+        Assert.Throws<InvalidDataException>(() => SfntContainer.TryReadTtcHeader([.. buf], out _));
+    }
+
+    /// <summary>
+    ///     Proves that SfntContainer TryReadTtcHeader TruncatedFaceOffsetTable ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void SfntContainer_TryReadTtcHeader_TruncatedFaceOffsetTable_ThrowsInvalidDataException()
+    {
+        // Arrange: a ttcf header declaring 2 faces but supplying no face offset table at all
+        var buf = new List<byte>();
+        SyntheticFontBuilder.WriteUInt32(buf, 0x74746366); // 'ttcf'
+        SyntheticFontBuilder.WriteUInt16(buf, 1);
+        SyntheticFontBuilder.WriteUInt16(buf, 0);
+        SyntheticFontBuilder.WriteUInt32(buf, 2); // numFonts = 2, but no offsets follow
+
+        // Act/Assert: reading the header throws
+        Assert.Throws<InvalidDataException>(() => SfntContainer.TryReadTtcHeader([.. buf], out _));
     }
 }

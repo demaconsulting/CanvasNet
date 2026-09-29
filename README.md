@@ -41,7 +41,8 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
 - 🌅 **Gradient Paint** - Linear or radial gradient fills with spread
-- 🔤 **TrueType Fonts** - Load fonts, map codepoints, extract glyph outlines
+- 🔤 **TrueType/CFF Fonts** - Load TrueType (`glyf`) or CFF/OpenType (`.otf`) fonts and individual
+  faces of a TrueType Collection (`.ttc`), map codepoints, extract glyph outlines
 - 🎬 **Rendering** - Transform-aware canvas with text and shape drawing
 - ⚡ **Span-Based** - Fast, allocation-conscious pixel and row access
 - 🔄 **Multi-Target** - Supports .NET 8, 9, and 10
@@ -238,7 +239,7 @@ var gradient = new LinearGradient(
 PathFiller.Fill(canvas, rectangle, gradient, FillRule.NonZero, 1f);
 ```
 
-Loading a TrueType font and filling a glyph outline:
+Loading a TrueType (or CFF/OpenType) font and filling a glyph outline:
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
@@ -247,7 +248,9 @@ using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Geometry;
 using System.Numerics;
 
-// Convert a glyph outline from font units (Y up) to canvas space (Y down)
+// Convert a glyph outline from font units (Y up) to canvas space (Y down).
+// glyf-flavored fonts produce QuadraticBezierTo segments; CFF/OpenType (.otf)
+// fonts produce CubicBezierTo segments - both are handled here.
 static Path TransformGlyph(Path glyph, float scale, float baselineY)
 {
     var builder = new PathBuilder();
@@ -269,6 +272,12 @@ static Path TransformGlyph(Path glyph, float scale, float baselineY)
                         ToCanvas(command.Control1),
                         ToCanvas(command.EndPoint));
                     break;
+                case PathCommandType.CubicBezierTo:
+                    builder.CubicBezierTo(
+                        ToCanvas(command.Control1),
+                        ToCanvas(command.Control2),
+                        ToCanvas(command.EndPoint));
+                    break;
                 case PathCommandType.Close:
                     builder.Close();
                     break;
@@ -279,7 +288,8 @@ static Path TransformGlyph(Path glyph, float scale, float baselineY)
     return builder.Build();
 }
 
-// Load the font and get glyph 'A' scaled to a 48px em size
+// Load the font (accepts .ttf, .otf, or a specific face of a .ttc) and get
+// glyph 'A' scaled to a 48px em size
 var font = TrueTypeFont.Load("font.ttf");
 var glyphIndex = font.GetGlyphIndex('A');
 var glyphOutline = font.GetGlyphOutline(glyphIndex);
@@ -289,6 +299,17 @@ var canvasOutline = TransformGlyph(glyphOutline, scale, baselineY: 56f);
 // Fill the transformed glyph outline
 using var surface = new Surface(64, 64);
 PathFiller.Fill(surface, canvasOutline, new Rgba32(20, 120, 255, 255));
+```
+
+Selecting a face from a TrueType Collection (`.ttc`):
+
+```csharp
+// Discover how many faces the collection contains
+var faceCount = TrueTypeFont.GetFaceCount("collection.ttc"); // e.g. 2
+
+// Load a specific face by index (face 0 is used when Load is called without
+// an index, matching an ordinary single-face font's default behavior)
+var boldFace = TrueTypeFont.Load("collection.ttc", faceIndex: 1);
 ```
 
 ## Building

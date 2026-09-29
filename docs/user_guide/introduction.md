@@ -1203,14 +1203,20 @@ once. Every other public member throws `ObjectDisposedException` once called.
 
 ### TrueTypeFont
 
-The `TrueTypeFont` class loads glyph-based TrueType (`glyf`-based) SFNT fonts and exposes raw
-font-design-unit outlines, metrics, advance widths, and basic pairwise kerning.
+The `TrueTypeFont` class loads glyph-based TrueType (`glyf`-based) SFNT fonts and CFF/OpenType
+(`OTTO`-flavored, Type 2 charstring-based) fonts - including selecting an individual face out of
+a TrueType Collection (`.ttc`) container - and exposes raw font-design-unit outlines, metrics,
+advance widths, and basic pairwise kerning through one uniform API regardless of outline flavor.
 
 ```csharp
 public sealed class TrueTypeFont
 {
     public static TrueTypeFont Load(Stream stream);
     public static TrueTypeFont Load(string path);
+    public static TrueTypeFont Load(Stream stream, int faceIndex);
+    public static TrueTypeFont Load(string path, int faceIndex);
+    public static int GetFaceCount(Stream stream);
+    public static int GetFaceCount(string path);
 
     public int UnitsPerEm { get; }
     public int Ascender { get; }
@@ -1227,22 +1233,42 @@ public sealed class TrueTypeFont
 
 `GetGlyphOutline` returns `Geometry.Path` in raw font-design-unit coordinates with Y increasing
 upward, per the TrueType convention. Callers typically scale that path by the desired point size
-and flip Y before rendering it through `PathFiller` or `PathStroker`.
+and flip Y before rendering it through `PathFiller` or `PathStroker`. A glyf-flavored font's
+outline uses `LineTo`/`QuadraticBezierTo` segments; a CFF/OpenType font's outline uses
+`LineTo`/`CubicBezierTo` segments instead - callers that support both must handle both command
+kinds (see Example 12 below).
 
 ```csharp
-var font = TrueTypeFont.Load("font.ttf");
+var font = TrueTypeFont.Load("font.ttf");   // also accepts a CFF/OpenType .otf file
 var glyphIndex = font.GetGlyphIndex('A');
 var outline = font.GetGlyphOutline(glyphIndex);
 var advanceWidth = font.GetAdvanceWidth(glyphIndex);
 ```
 
+`Load(Stream, int)` / `Load(string, int)` select a specific zero-based face out of a `.ttc`
+(TrueType Collection) container; `GetFaceCount` reports how many faces a file contains (`1` for
+an ordinary single-face font) without parsing any face's own table directory:
+
+```csharp
+var faceCount = TrueTypeFont.GetFaceCount("collection.ttc"); // e.g. 2
+var secondFace = TrueTypeFont.Load("collection.ttc", faceIndex: 1);
+```
+
+`Load(Stream)`/`Load(string)` (without an explicit `faceIndex`) transparently default to face 0
+when given a `.ttc` file, so existing callers that only ever loaded single-face fonts continue to
+work unchanged against the first face of a collection.
+
 **Exceptions:**
 
-- `ArgumentNullException`: Thrown when `Load` receives a null stream or path.
-- `ArgumentException`: Thrown when `Load(string)` receives an empty path.
-- `InvalidDataException`: Thrown when the font data is malformed, truncated, or unsupported.
+- `ArgumentNullException`: Thrown when `Load`/`GetFaceCount` receives a null stream or path.
+- `ArgumentException`: Thrown when the `string`-path overload of `Load`/`GetFaceCount` receives an
+  empty path.
+- `InvalidDataException`: Thrown when the font data is malformed, truncated, or unsupported
+  (including CFF-specific failures such as CID-keyed CFF data, and `.ttc`-specific failures such
+  as a malformed collection header).
 - `ArgumentOutOfRangeException`: Thrown when `GetGlyphOutline` or `GetAdvanceWidth` receives an
-  out-of-range glyph index.
+  out-of-range glyph index, or when `Load(Stream, int)`/`Load(string, int)` receives a `faceIndex`
+  that is negative or not less than the file's own face count.
 
 ### PathFiller
 
@@ -1826,6 +1852,9 @@ using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Geometry;
 using System.Numerics;
 
+// glyf-flavored (.ttf) fonts produce QuadraticBezierTo segments; CFF/OpenType
+// (.otf) fonts produce CubicBezierTo segments instead - both are handled here
+// so this helper works for either outline flavor.
 static Path TransformGlyph(Path glyph, float scale, float baselineY)
 {
     var builder = new PathBuilder();
@@ -1847,6 +1876,12 @@ static Path TransformGlyph(Path glyph, float scale, float baselineY)
                         ToCanvas(command.Control1),
                         ToCanvas(command.EndPoint));
                     break;
+                case PathCommandType.CubicBezierTo:
+                    builder.CubicBezierTo(
+                        ToCanvas(command.Control1),
+                        ToCanvas(command.Control2),
+                        ToCanvas(command.EndPoint));
+                    break;
                 case PathCommandType.Close:
                     builder.Close();
                     break;
@@ -1857,7 +1892,7 @@ static Path TransformGlyph(Path glyph, float scale, float baselineY)
     return builder.Build();
 }
 
-var font = TrueTypeFont.Load("font.ttf");
+var font = TrueTypeFont.Load("font.ttf"); // also accepts .otf, or a .ttc via the faceIndex overload
 var glyphIndex = font.GetGlyphIndex('A');
 var glyphOutline = font.GetGlyphOutline(glyphIndex);
 var scale = 48f / font.UnitsPerEm;

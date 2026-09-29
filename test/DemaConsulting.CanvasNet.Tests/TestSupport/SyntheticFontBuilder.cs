@@ -1,6 +1,8 @@
 // cspell:ignore SFNT Sfnt sfnt glyf Glyf cmap Cmap loca Loca hmtx Hmtx hhea Hhea
 // cspell:ignore maxp Maxp notdef codepoint codepoints subtable subtables subsetted
-// cspell:ignore subsetting PPEM OTTO
+// cspell:ignore subsetting PPEM OTTO ttcf
+using DemaConsulting.CanvasNet.Fonts;
+
 namespace DemaConsulting.CanvasNet.Tests.TestSupport;
 
 /// <summary>
@@ -550,6 +552,323 @@ internal sealed class SyntheticFontBuilder
         WriteUInt16(buf, encodingId);
         WriteUInt32(buf, 12); // subtable offset (immediately after this one 12-byte header)
         buf.AddRange(subtableBytes);
+        return [.. buf];
+    }
+
+    /// <summary>
+    ///     Builds a minimal, well-formed raw CFF table byte array (Header, Name INDEX, Top DICT
+    ///     INDEX, String INDEX, Global Subr INDEX, an optional Private DICT + Local Subr INDEX,
+    ///     and the CharStrings INDEX) directly from already-encoded Type 2 charstring bytecode for
+    ///     each glyph - used to exercise <see cref="CffTable"/> and
+    ///     <see cref="CffCharstringInterpreter"/> without any third-party font fixture.
+    /// </summary>
+    /// <param name="charStrings">Every glyph's raw Type 2 charstring bytecode, glyph 0 first.</param>
+    /// <param name="globalSubrs">Every global subroutine's raw bytecode, index order.</param>
+    /// <param name="localSubrs">Every local subroutine's raw bytecode, index order.</param>
+    /// <param name="includeRos">
+    ///     When <see langword="true"/>, the Top DICT declares the <c>ROS</c> operator (CID-keyed
+    ///     font identification) so <see cref="CffTable"/>'s CID-rejection path can be exercised;
+    ///     <paramref name="charStrings"/> is then not required to be well-formed, since the CID
+    ///     check happens first.
+    /// </param>
+    /// <param name="includePrivate">
+    ///     When <see langword="false"/>, the Top DICT omits the <c>Private</c> operator entirely
+    ///     (a legitimate CFF font may have no Private DICT at all), so no local subroutines are
+    ///     reachable regardless of <paramref name="localSubrs"/>.
+    /// </param>
+    public static byte[] Cff(
+        IReadOnlyList<byte[]> charStrings,
+        IReadOnlyList<byte[]>? globalSubrs = null,
+        IReadOnlyList<byte[]>? localSubrs = null,
+        bool includeRos = false,
+        bool includePrivate = true)
+    {
+        globalSubrs ??= [];
+        localSubrs ??= [];
+
+        byte[] header = [1, 0, 4, 4]; // major, minor, hdrSize, offSize (offSize is advisory only)
+        var nameIndex = WriteCffIndex([System.Text.Encoding.ASCII.GetBytes("Synthetic")]);
+        var stringIndex = WriteCffIndex([]);
+        var globalSubrIndex = WriteCffIndex(globalSubrs);
+        var charStringsIndex = WriteCffIndex(charStrings);
+
+        // The Private DICT's own content is fixed at exactly 6 bytes (a 5-byte integer operand
+        // plus the 1-byte 'Subrs' operator) whenever local subroutines are present, so the Local
+        // Subr INDEX's offset relative to the Private DICT's own start - the 'Subrs' operand - is
+        // always exactly 6, regardless of any other value in this synthetic layout.
+        var privateDict = new List<byte>();
+        if (localSubrs.Count > 0)
+        {
+            WriteDictInt(privateDict, 6);
+            WriteDictOperator(privateDict, 19); // Subrs
+        }
+
+        var privateDictBytes = privateDict.ToArray();
+        var localSubrIndex = WriteCffIndex(localSubrs);
+
+        // Two-pass layout: the Top DICT's own byte length is fixed by which operators it
+        // contains (every operand uses the fixed 5-byte integer encoding), independent of the
+        // operand *values* - so a placeholder Top DICT (all offsets 0) has the exact same length
+        // as the final one, letting every other section's position be computed from it before
+        // the Top DICT's real offset values are known.
+        var topDictPlaceholder = BuildTopDict(0, 0, 0, includePrivate, includeRos);
+        var topDictIndexPlaceholder = WriteCffIndex([topDictPlaceholder]);
+
+        var prefixLength = header.Length + nameIndex.Length + topDictIndexPlaceholder.Length + stringIndex.Length + globalSubrIndex.Length;
+        var charStringsOffset = prefixLength;
+        var privateOffset = charStringsOffset + charStringsIndex.Length;
+        var privateSize = privateDictBytes.Length;
+
+        var topDict = BuildTopDict(charStringsOffset, privateOffset, privateSize, includePrivate, includeRos);
+        var topDictIndex = WriteCffIndex([topDict]);
+
+        var buf = new List<byte>();
+        buf.AddRange(header);
+        buf.AddRange(nameIndex);
+        buf.AddRange(topDictIndex);
+        buf.AddRange(stringIndex);
+        buf.AddRange(globalSubrIndex);
+        buf.AddRange(charStringsIndex);
+        buf.AddRange(privateDictBytes);
+        buf.AddRange(localSubrIndex);
+        return [.. buf];
+    }
+
+    /// <summary>
+    ///     Builds a Top DICT's raw bytes, including the <c>CharStrings</c> operator, an optional
+    ///     <c>Private</c> operator, and (for CID-rejection tests) an optional <c>ROS</c> operator -
+    ///     every operand encoded with the fixed 5-byte integer form, so this method's return
+    ///     length depends only on <paramref name="includePrivate"/>/<paramref name="includeRos"/>,
+    ///     never on the operand values themselves.
+    /// </summary>
+    private static byte[] BuildTopDict(int charStringsOffset, int privateOffset, int privateSize, bool includePrivate, bool includeRos)
+    {
+        var buf = new List<byte>();
+        if (includeRos)
+        {
+            WriteDictInt(buf, 0);
+            WriteDictInt(buf, 0);
+            WriteDictInt(buf, 0);
+            WriteDictOperator(buf, 1230); // ROS
+        }
+
+        WriteDictInt(buf, charStringsOffset);
+        WriteDictOperator(buf, 17); // CharStrings
+
+        if (includePrivate)
+        {
+            WriteDictInt(buf, privateSize);
+            WriteDictInt(buf, privateOffset);
+            WriteDictOperator(buf, 18); // Private
+        }
+
+        return [.. buf];
+    }
+
+    /// <summary>
+    ///     Appends a CFF DICT integer operand using the fixed 5-byte form (<c>29</c> followed by a
+    ///     big-endian <see langword="int"/>) - always exactly 5 bytes, regardless of magnitude,
+    ///     which is what lets <see cref="BuildTopDict"/>'s length stay independent of its operand
+    ///     values (see <see cref="Cff"/>'s remarks on its two-pass layout).
+    /// </summary>
+    private static void WriteDictInt(List<byte> buf, int value)
+    {
+        buf.Add(29);
+        WriteUInt32(buf, unchecked((uint)value));
+    }
+
+    /// <summary>
+    ///     Appends a CFF DICT operator: a single byte for an operator code below <c>1200</c>, or
+    ///     the two-byte escape form (<c>12</c>, <c>code - 1200</c>) otherwise.
+    /// </summary>
+    private static void WriteDictOperator(List<byte> buf, int op)
+    {
+        if (op >= 1200)
+        {
+            buf.Add(12);
+            buf.Add((byte)(op - 1200));
+        }
+        else
+        {
+            buf.Add((byte)op);
+        }
+    }
+
+    /// <summary>
+    ///     Appends a Type 2 charstring numeric operand using the smallest applicable encoding: the
+    ///     compact single/two-byte forms for <c>-1131..1131</c>, the 3-byte <c>28</c> form for the
+    ///     rest of the 16-bit signed range, or the 5-byte <c>255</c> 16.16 fixed-point form for
+    ///     anything larger, or for a non-integral value.
+    /// </summary>
+    public static void WriteCharstringNumber(List<byte> buf, double value)
+    {
+        var isInteger = Math.Abs(value - Math.Round(value)) < double.Epsilon;
+        if (isInteger && value is >= -32768 and <= 32767)
+        {
+            var intValue = (int)value;
+            switch (intValue)
+            {
+                case >= -107 and <= 107:
+                    buf.Add((byte)(intValue + 139));
+                    return;
+                case >= 108 and <= 1131:
+                    buf.Add((byte)(((intValue - 108) / 256) + 247));
+                    buf.Add((byte)((intValue - 108) % 256));
+                    return;
+                case >= -1131 and <= -108:
+                    var positive = -intValue - 108;
+                    buf.Add((byte)((positive / 256) + 251));
+                    buf.Add((byte)(positive % 256));
+                    return;
+                default:
+                    buf.Add(28);
+                    WriteInt16(buf, intValue);
+                    return;
+            }
+        }
+
+        WriteCharstringFixed(buf, value);
+    }
+
+    /// <summary>
+    ///     Appends a Type 2 charstring numeric operand using the 5-byte <c>255</c> 16.16
+    ///     fixed-point form, regardless of whether <paramref name="value"/> could fit a more
+    ///     compact integer encoding - used to deliberately exercise the fixed-point decode path.
+    /// </summary>
+    public static void WriteCharstringFixed(List<byte> buf, double value)
+    {
+        buf.Add(255);
+        WriteUInt32(buf, unchecked((uint)(int)Math.Round(value * 65536.0)));
+    }
+
+    /// <summary>
+    ///     Appends a Type 2 charstring operator: a single byte for an operator code below
+    ///     <c>1200</c> (the two-byte escape range base used by this test support's own encoding,
+    ///     matching <see cref="WriteDictOperator"/>'s convention), or the two-byte escape form
+    ///     (<c>12</c>, <c>code - 1200</c>) otherwise.
+    /// </summary>
+    public static void WriteCharstringOperator(List<byte> buf, int op)
+    {
+        if (op >= 1200)
+        {
+            buf.Add(12);
+            buf.Add((byte)(op - 1200));
+        }
+        else
+        {
+            buf.Add((byte)op);
+        }
+    }
+
+    /// <summary>
+    ///     Builds a raw CFF INDEX structure's bytes (<c>count</c>, <c>offSize</c>, the 1-based
+    ///     offset array, and the concatenated entry bytes) from a list of already-encoded entries.
+    ///     Writes only the 2-byte <c>count</c> field (no <c>offSize</c>/offset array/data) when
+    ///     <paramref name="entries"/> is empty, per the CFF INDEX format.
+    /// </summary>
+    public static byte[] WriteCffIndex(IReadOnlyList<byte[]> entries)
+    {
+        var buf = new List<byte>();
+        WriteUInt16(buf, entries.Count);
+        if (entries.Count == 0)
+        {
+            return [.. buf];
+        }
+
+        var totalDataLength = entries.Sum(e => e.Length);
+        var maxOffset = totalDataLength + 1;
+        var offSize = maxOffset switch
+        {
+            <= 0xFF => 1,
+            <= 0xFFFF => 2,
+            <= 0xFFFFFF => 3,
+            _ => 4,
+        };
+
+        buf.Add((byte)offSize);
+
+        var offset = 1;
+        WriteOffset(buf, offset, offSize);
+        foreach (var entry in entries)
+        {
+            offset += entry.Length;
+            WriteOffset(buf, offset, offSize);
+        }
+
+        foreach (var entry in entries)
+        {
+            buf.AddRange(entry);
+        }
+
+        return [.. buf];
+    }
+
+    /// <summary>
+    ///     Appends a CFF INDEX offset-array entry as a big-endian, unsigned integer occupying
+    ///     exactly <paramref name="offSize"/> bytes.
+    /// </summary>
+    private static void WriteOffset(List<byte> buf, int value, int offSize)
+    {
+        for (var i = offSize - 1; i >= 0; i--)
+        {
+            buf.Add((byte)((value >> (8 * i)) & 0xFF));
+        }
+    }
+
+    /// <summary>
+    ///     Assembles two or more independently-built, standalone SFNT font byte arrays (each
+    ///     already internally self-consistent, with table directory offsets relative to its own
+    ///     start) into a single <c>ttcf</c> TrueType Collection container, rewriting each face's
+    ///     table directory entries' offsets to be absolute from the start of the container -
+    ///     exactly the transformation a real multi-face <c>ttcf</c> container's table directory
+    ///     entries already reflect (see <see cref="SfntContainer"/>'s remarks).
+    /// </summary>
+    /// <param name="faces">Every face's complete, standalone SFNT byte array, in face order.</param>
+    /// <returns>A single well-formed <c>ttcf</c> container holding every given face.</returns>
+    public static byte[] Ttc(IReadOnlyList<byte[]> faces)
+    {
+        var numFonts = faces.Count;
+        var headerSize = 12 + 4 * numFonts;
+        var faceStarts = new int[numFonts];
+        var cursor = headerSize;
+        for (var i = 0; i < numFonts; i++)
+        {
+            faceStarts[i] = cursor;
+            cursor += faces[i].Length;
+        }
+
+        var buf = new List<byte>();
+        WriteUInt32(buf, 0x74746366); // ttcTag ('ttcf')
+        WriteUInt16(buf, 1); // majorVersion
+        WriteUInt16(buf, 0); // minorVersion
+        WriteUInt32(buf, (uint)numFonts);
+        foreach (var faceStart in faceStarts)
+        {
+            WriteUInt32(buf, (uint)faceStart);
+        }
+
+        for (var i = 0; i < numFonts; i++)
+        {
+            var faceBytes = (byte[])faces[i].Clone();
+            var numTables = (faceBytes[4] << 8) | faceBytes[5];
+            for (var t = 0; t < numTables; t++)
+            {
+                var entryOffset = 12 + t * 16 + 8;
+                var original =
+                    ((uint)faceBytes[entryOffset] << 24) |
+                    ((uint)faceBytes[entryOffset + 1] << 16) |
+                    ((uint)faceBytes[entryOffset + 2] << 8) |
+                    faceBytes[entryOffset + 3];
+                var rewritten = original + (uint)faceStarts[i];
+                faceBytes[entryOffset] = (byte)((rewritten >> 24) & 0xFF);
+                faceBytes[entryOffset + 1] = (byte)((rewritten >> 16) & 0xFF);
+                faceBytes[entryOffset + 2] = (byte)((rewritten >> 8) & 0xFF);
+                faceBytes[entryOffset + 3] = (byte)(rewritten & 0xFF);
+            }
+
+            buf.AddRange(faceBytes);
+        }
+
         return [.. buf];
     }
 

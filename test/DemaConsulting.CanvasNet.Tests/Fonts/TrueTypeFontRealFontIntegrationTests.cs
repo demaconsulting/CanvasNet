@@ -30,6 +30,19 @@ public class TrueTypeFontRealFontIntegrationTests
     private static string FontPath => System.IO.Path.Join(AppContext.BaseDirectory, "FontFixtures", "OpenSans-Regular.ttf");
 
     /// <summary>
+    ///     The path to the real "Source Sans 3" CFF/OpenType (<c>.otf</c>) font (see
+    ///     <c>FontFixtures\README.md</c> for provenance and SIL OFL 1.1 licensing).
+    /// </summary>
+    private static string OtfFontPath => System.IO.Path.Join(AppContext.BaseDirectory, "FontFixtures", "SourceSans3-Regular.otf");
+
+    /// <summary>
+    ///     The path to the synthetic <c>ttcf</c> container locally assembled from
+    ///     <see cref="FontPath"/> (face 0) and <see cref="OtfFontPath"/> (face 1) - see
+    ///     <c>FontFixtures\README.md</c> for how it was built and its licensing basis.
+    /// </summary>
+    private static string TtcFontPath => System.IO.Path.Join(AppContext.BaseDirectory, "FontFixtures", "OpenSans-SourceSans3.ttc");
+
+    /// <summary>
     ///     Proves that a real glyph loaded from a real production font, when transformed into
     ///     pixel space and filled onto a <see cref="Surface"/> via <see cref="PathFiller"/>,
     ///     produces actual visible ink within its expected bounding-box region while leaving the
@@ -43,6 +56,74 @@ public class TrueTypeFontRealFontIntegrationTests
         var glyphIndex = font.GetGlyphIndex('A');
         Assert.NotEqual(0, glyphIndex); // must be a real mapped glyph, not .notdef
 
+        AssertGlyphRendersAsVisibleInk(font, glyphIndex);
+    }
+
+    /// <summary>
+    ///     Proves that a real glyph decoded from a real CFF/OpenType (<c>.otf</c>) production
+    ///     font's Type 2 charstring bytecode, when transformed into pixel space and filled onto a
+    ///     <see cref="Surface"/>, produces actual visible ink - proving <see cref="CffTable"/>/
+    ///     <see cref="CffCharstringInterpreter"/> genuinely decode real-world CFF outline data,
+    ///     not just synthetic fixtures. The glyph ('H') is deliberately chosen from among a set of
+    ///     straight-line-only Latin letters verified not to require the Type 2 flex escape
+    ///     operators, which are outside this library's supported operator set (see
+    ///     <c>FontFixtures\README.md</c> for the verification detail).
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_RealSourceSans3OtfFont_RendersCffGlyphOutlineAsVisibleInk()
+    {
+        // Arrange: load the real CFF/OpenType font from disk and resolve capital 'H'
+        var font = TrueTypeFont.Load(OtfFontPath);
+        var glyphIndex = font.GetGlyphIndex('H');
+        Assert.NotEqual(0, glyphIndex); // must be a real mapped glyph, not .notdef
+
+        AssertGlyphRendersAsVisibleInk(font, glyphIndex);
+    }
+
+    /// <summary>
+    ///     Proves that a locally-assembled <c>ttcf</c> TrueType Collection fixture's second face
+    ///     (the CFF/OpenType "Source Sans 3" font) is independently loadable and decodable via
+    ///     <see cref="TrueTypeFont.Load(string, int)"/>, with its glyph outline rendering as real
+    ///     visible ink exactly as it does when loaded as a standalone <c>.otf</c> file.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_RealTtcContainer_FaceOne_RendersCffGlyphOutlineAsVisibleInk()
+    {
+        // Arrange: the ttcf container's face count and explicit face-1 selection
+        var faceCount = TrueTypeFont.GetFaceCount(TtcFontPath);
+        Assert.Equal(2, faceCount);
+
+        var font = TrueTypeFont.Load(TtcFontPath, 1);
+        var glyphIndex = font.GetGlyphIndex('H');
+        Assert.NotEqual(0, glyphIndex);
+
+        AssertGlyphRendersAsVisibleInk(font, glyphIndex);
+    }
+
+    /// <summary>
+    ///     Proves that the <c>ttcf</c> container's first face (the TrueType "Open Sans" font) is
+    ///     also independently loadable and decodable, confirming both faces of the collection
+    ///     remain usable side by side.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_RealTtcContainer_FaceZero_RendersGlyfGlyphOutlineAsVisibleInk()
+    {
+        var font = TrueTypeFont.Load(TtcFontPath, 0);
+        var glyphIndex = font.GetGlyphIndex('A');
+        Assert.NotEqual(0, glyphIndex);
+
+        AssertGlyphRendersAsVisibleInk(font, glyphIndex);
+    }
+
+    /// <summary>
+    ///     Extracts <paramref name="glyphIndex"/>'s real outline from <paramref name="font"/>,
+    ///     confirms its metrics are sane for a real font, transforms it from font design-unit
+    ///     space into a small pixel-space canvas, fills it via <see cref="PathFiller"/>, and
+    ///     asserts that real visible ink was painted within the glyph's own bounding box while the
+    ///     canvas's far corners remain fully transparent background.
+    /// </summary>
+    private static void AssertGlyphRendersAsVisibleInk(TrueTypeFont font, int glyphIndex)
+    {
         // Act: extract the glyph's real outline (font design units, y-axis up), query its
         // advance width, and confirm a self-kerning lookup does not throw
         var outline = font.GetGlyphOutline(glyphIndex);
@@ -51,7 +132,7 @@ public class TrueTypeFontRealFontIntegrationTests
 
         // Assert: the outline is real contour data, and metrics are sane for a real font
         Assert.NotEmpty(outline.Subpaths);
-        Assert.True(advance > 0, "A real 'A' glyph must have a positive advance width.");
+        Assert.True(advance > 0, "A real glyph must have a positive advance width.");
         _ = kerning; // GetKerning never throws; this call itself is the assertion
 
         // Arrange: transform the glyph outline from font design units (y-up) into pixel space
@@ -132,14 +213,20 @@ public class TrueTypeFontRealFontIntegrationTests
                         builder.QuadraticBezierTo(Map(command.Control1), Map(command.EndPoint));
                         break;
 
+                    case PathCommandType.CubicBezierTo:
+                        builder.CubicBezierTo(Map(command.Control1), Map(command.Control2), Map(command.EndPoint));
+                        break;
+
                     case PathCommandType.Close:
                         builder.Close();
                         break;
 
                     default:
-                        // TrueTypeFont glyph outlines only ever contain LineTo, QuadraticBezierTo,
-                        // and Close commands (see GlyfLocaReader) - matching that reader's own
-                        // AppendTransformed helper.
+                        // TrueTypeFont glyph outlines only ever contain LineTo,
+                        // QuadraticBezierTo, CubicBezierTo, and Close commands (TrueType glyf
+                        // outlines never emit CubicBezierTo; CFF outlines never emit
+                        // QuadraticBezierTo) - matching GlyfLocaReader's own AppendTransformed
+                        // helper, extended for CFF's cubic segments.
                         throw new InvalidOperationException("Unexpected path command in a glyph outline.");
                 }
             }

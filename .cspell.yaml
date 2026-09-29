@@ -215,6 +215,43 @@ words:
   - stylesheet
   - Stylesheet
   - tryparse
+  - callgsubr
+  - callsubr
+  - Charstring
+  - charstring
+  - cntrmask
+  - Endchar
+  - endchar
+  - hhcurveto
+  - hintmask
+  - hlineto
+  - hmoveto
+  - hstem
+  - hstemhm
+  - hvcurveto
+  - lineto
+  - Lineto
+  - misalign
+  - moveto
+  - Moveto
+  - rcurveline
+  - rlinecurve
+  - rlineto
+  - rmoveto
+  - rrcurveto
+  - Seac
+  - seac
+  - Sfnt
+  - SFNT
+  - Subr
+  - Subrs
+  - ttcf
+  - vhcurveto
+  - vlineto
+  - vmoveto
+  - vstem
+  - vstemhm
+  - vvcurveto
 
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
