@@ -298,6 +298,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Geometry/PathCommandType.cs"  # supporting data type source
       - "test/DemaConsulting.CanvasNet.Tests/Geometry/PathBuilderTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Geometry/PathTests.cs"        # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Geometry/PathCommandTests.cs"  # unit tests
 
   # CanvasNet-Geometry-CornerRoundEffect Review (one per unit)
   - id: CanvasNet-Geometry-CornerRoundEffect

@@ -11,10 +11,12 @@ namespace DemaConsulting.CanvasNet.Geometry;
 ///     <see cref="Subpath.Commands"/> is expected to be walked in tight loops by a future
 ///     rasterizer/stroker, and a single flat, non-nullable value type keeps that walk allocation-
 ///     free with no virtual dispatch. Not every field is meaningful for every <see cref="Type"/>;
-///     see each field's own documentation for which command types populate it. Instances are
-///     produced only by <see cref="PathBuilder"/>'s internal factory methods, so a
+///     see each field's own documentation for which command types populate it. A
 ///     <see cref="Subpath.Commands"/> list is guaranteed to only ever contain well-formed
-///     commands.
+///     commands, since every factory method other than <see cref="LineTo"/> is internal to this
+///     package and used only by <see cref="PathBuilder"/>; <see cref="LineTo"/> alone is public,
+///     for an external consumer to synthesize a standalone straight-line command to pass to
+///     <see cref="ComputeTangents"/> (see its own documentation for why).
 /// </remarks>
 public readonly struct PathCommand
 {
@@ -101,12 +103,24 @@ public readonly struct PathCommand
     }
 
     /// <summary>
-    ///     Creates a <see cref="PathCommandType.LineTo"/> command. Used only by
-    ///     <see cref="PathBuilder"/>.
+    ///     Creates a <see cref="PathCommandType.LineTo"/> command.
     /// </summary>
     /// <param name="end">The point the line segment draws to.</param>
     /// <returns>The constructed command.</returns>
-    internal static PathCommand LineTo(Vector2 end) =>
+    /// <remarks>
+    ///     Unlike this struct's other factory methods, <see cref="LineTo"/> is public rather than
+    ///     internal: a straight line segment is the simplest possible <see cref="PathCommand"/>,
+    ///     and consumers outside this package legitimately need to synthesize one - for example, a
+    ///     format codec computing a marker/arrowhead orientation for a closed subpath's implicit
+    ///     closing edge (which is not itself recorded as its own <see cref="PathCommand"/> - see
+    ///     <see cref="Subpath.IsClosed"/>) can build a <see cref="LineTo"/> command representing
+    ///     that edge and pass it to <see cref="ComputeTangents"/>, rather than reimplementing
+    ///     tangent math of its own. <see cref="QuadraticBezierTo"/>, <see cref="CubicBezierTo"/>,
+    ///     <see cref="ArcTo"/>, and <see cref="Close"/> remain internal because only
+    ///     <see cref="PathBuilder"/> - which alone knows how to keep a <see cref="Subpath"/>'s
+    ///     accumulated state consistent for those richer command shapes - constructs them.
+    /// </remarks>
+    public static PathCommand LineTo(Vector2 end) =>
         new(PathCommandType.LineTo, end, default, default, default, 0f, false, false);
 
     /// <summary>
@@ -157,4 +171,75 @@ public readonly struct PathCommand
     /// <returns>The constructed command.</returns>
     internal static PathCommand Close() =>
         new(PathCommandType.Close, default, default, default, default, 0f, false, false);
+
+    /// <summary>
+    ///     Computes this command's outgoing (leaving <paramref name="start"/>) and incoming
+    ///     (arriving at <see cref="EndPoint"/>) unit tangent directions.
+    /// </summary>
+    /// <param name="start">The command's start point (the previous vertex's position).</param>
+    /// <returns>
+    ///     The outgoing/incoming unit tangents, or <see langword="null"/> for either when the
+    ///     relevant control points/endpoints are coincident (a zero-length direction has no
+    ///     meaningful tangent), for <see cref="PathCommandType.LineTo"/>,
+    ///     <see cref="PathCommandType.QuadraticBezierTo"/>, and
+    ///     <see cref="PathCommandType.CubicBezierTo"/>. Returns <c>(null, null)</c> for
+    ///     <see cref="PathCommandType.ArcTo"/> and <see cref="PathCommandType.Close"/> - an arc's
+    ///     tangent depends on its converted Bezier representation (see
+    ///     <see cref="SvgArcConverter"/>), which this method does not perform, and a
+    ///     <see cref="PathCommandType.Close"/> command carries no <see cref="EndPoint"/> of its
+    ///     own to compute a direction from at all.
+    /// </returns>
+    /// <remarks>
+    ///     This is the shared building block a marker/arrowhead-orientation feature (or any other
+    ///     consumer needing a path segment's direction of travel) needs: a straight line's
+    ///     outgoing and incoming tangents are both simply its normalized direction of travel; a
+    ///     Bezier curve's outgoing tangent points toward its first non-coincident control point
+    ///     (falling back to its end point when every control point coincides with
+    ///     <paramref name="start"/>), and its incoming tangent points away from its last
+    ///     non-coincident control point (falling back to <paramref name="start"/> when every
+    ///     control point coincides with <see cref="EndPoint"/>).
+    /// </remarks>
+    public (Vector2? Outgoing, Vector2? Incoming) ComputeTangents(Vector2 start)
+    {
+        switch (Type)
+        {
+            case PathCommandType.LineTo:
+                var lineDirection = NormalizeOrNull(EndPoint - start);
+                return (lineDirection, lineDirection);
+
+            case PathCommandType.QuadraticBezierTo:
+                var outgoingQuad = NormalizeOrNull(Control1 - start)
+                    ?? NormalizeOrNull(EndPoint - start);
+                var incomingQuad = NormalizeOrNull(EndPoint - Control1)
+                    ?? NormalizeOrNull(EndPoint - start);
+                return (outgoingQuad, incomingQuad);
+
+            case PathCommandType.CubicBezierTo:
+                var outgoingCubic = NormalizeOrNull(Control1 - start)
+                    ?? NormalizeOrNull(Control2 - start)
+                    ?? NormalizeOrNull(EndPoint - start);
+                var incomingCubic = NormalizeOrNull(EndPoint - Control2)
+                    ?? NormalizeOrNull(EndPoint - Control1)
+                    ?? NormalizeOrNull(EndPoint - start);
+                return (outgoingCubic, incomingCubic);
+
+            default:
+                return (null, null);
+        }
+    }
+
+    /// <summary>Normalizes <paramref name="vector"/>, tolerating a zero-length or non-finite result.</summary>
+    /// <param name="vector">The vector to normalize.</param>
+    /// <returns>
+    ///     The unit-length direction, or <see langword="null"/> if <paramref name="vector"/>'s
+    ///     length is zero, subnormal-to-zero, or non-finite (a degenerate direction has no
+    ///     meaningful orientation to contribute).
+    /// </returns>
+    private static Vector2? NormalizeOrNull(Vector2 vector)
+    {
+        var lengthSquared = vector.LengthSquared();
+        return float.IsFinite(lengthSquared) && lengthSquared > float.Epsilon
+            ? Vector2.Normalize(vector)
+            : null;
+    }
 }

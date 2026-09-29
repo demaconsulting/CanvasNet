@@ -1,18 +1,21 @@
 ## Path Unit Verification Design
 
 This document describes the unit-level verification strategy for the `Path` and `PathBuilder`
-classes (and their supporting `Subpath`, `PathCommand`, and `PathCommandType` data types).
+classes (and their supporting `Subpath` and `PathCommandType` data types, plus `PathCommand`'s own
+`LineTo` factory and `ComputeTangents` method).
 
 ### Verification Approach
 
 The `Path`/`PathBuilder` unit is verified through unit tests that exercise every fluent builder
 method, the `InvalidOperationException` guards, `Build()`'s snapshot semantics, `Clear()`,
-`Path.Empty`, and both modes of `Path.GetBounds`, in isolation. Expected bounding rectangles are
-hand-computed independently of the implementation for both the conservative (control-point
-convex-hull) mode and the flattening-based tighter mode.
+`Path.Empty`, both modes of `Path.GetBounds`, and `PathCommand`'s own public `LineTo`/
+`ComputeTangents` API, in isolation. Expected bounding rectangles are hand-computed independently
+of the implementation for both the conservative (control-point convex-hull) mode and the
+flattening-based tighter mode; expected tangent directions are likewise hand-computed via
+`Vector2.Normalize` of the geometrically-expected direction, independent of the implementation.
 
-Unit tests reside in `PathBuilderTests.cs` within the `DemaConsulting.CanvasNet.Tests.Geometry`
-project namespace.
+Unit tests reside in `PathBuilderTests.cs` and `PathCommandTests.cs` within the
+`DemaConsulting.CanvasNet.Tests.Geometry` project namespace.
 
 ### Test Environment
 
@@ -163,6 +166,31 @@ zero.
 Calls `Path.Circle` with a negative `radius` and asserts the result equals `Path.Empty` -
 confirming the "non-positive radius returns an empty path" contract holds for negative values,
 not only for exactly zero.
+
+#### CanvasNet-Geometry-PathCommand-PublicLineToFactory: Public LineTo Factory
+
+**Test**: `PathCommand_LineTo_GivenEndPoint_ConstructsLineToCommandWithThatEndPoint`
+
+Calls the public `PathCommand.LineTo` factory directly (not through `PathBuilder`) and asserts
+the resulting command's `Type` is `LineTo` and its `EndPoint` matches the value supplied.
+
+#### CanvasNet-Geometry-PathCommand-ComputeTangents: Tangent Computation Per Command Type
+
+**Tests**: `PathCommand_ComputeTangents_LineTo_ReturnsSameNormalizedDirectionForBothTangents`,
+`PathCommand_ComputeTangents_LineToWithCoincidentStartAndEnd_ReturnsNullTangents`,
+`PathCommand_ComputeTangents_QuadraticBezierTo_PointsTowardThenAwayFromControlPoint`,
+`PathCommand_ComputeTangents_QuadraticBezierToWithControlCoincidentWithStart_FallsBackToEndDirection`,
+`PathCommand_ComputeTangents_CubicBezierTo_PointsTowardFirstThenAwayFromSecondControlPoint`,
+`PathCommand_ComputeTangents_CubicBezierToWithBothControlPointsCoincidentWithEndpoints_FallsBackToEndDirection`,
+`PathCommand_ComputeTangents_ArcTo_ReturnsNullTangents`,
+`PathCommand_ComputeTangents_Close_ReturnsNullTangents`
+
+Exercises `ComputeTangents` for every command type: a `LineTo` yields the same normalized
+direction for both tangents, or `null` for both when its start and end coincide; a
+`QuadraticBezierTo`/`CubicBezierTo` yields tangents pointing toward/away from its control
+point(s), falling back to the straight start-to-end direction when every control point
+coincides with its nearest endpoint; an `ArcTo` and a `Close` both yield `(null, null)`
+unconditionally.
 
 ### Acceptance Criteria
 

@@ -236,7 +236,7 @@ public static partial class SvgCodec
     ///     Either tangent is <see langword="null"/> at an open subpath's first (no incoming
     ///     segment) or last (no outgoing segment) vertex, or when the adjacent segment itself
     ///     degenerates to a zero-length direction (for example a repeated coordinate) - see
-    ///     <see cref="ComputeCommandTangents"/>.
+    ///     <see cref="PathCommand.ComputeTangents"/>.
     /// </remarks>
     private readonly struct MarkerVertex(Vector2 position, Vector2? incomingTangent, Vector2? outgoingTangent)
     {
@@ -323,7 +323,7 @@ public static partial class SvgCodec
                     continue;
                 }
 
-                var (outgoing, incoming) = ComputeCommandTangents(command, current);
+                var (outgoing, incoming) = command.ComputeTangents(current);
 
                 // Fold this command's outgoing tangent into the vertex it starts from (the
                 // previously-added vertex, whether that was the subpath's own Start or a prior
@@ -342,74 +342,20 @@ public static partial class SvgCodec
             var lastIndex = vertices.Count - 1;
             if (closed && lastIndex != subpathStartIndex)
             {
-                // Computed directly (rather than via ComputeCommandTangents with a constructed
-                // PathCommand) because PathCommand's factory methods are internal to the core
-                // package - this package and the core package are independently versioned NuGet
-                // packages, so relying on cross-package internal access is fragile. A LineTo's
-                // outgoing/incoming tangents are both simply the normalized direction of travel,
-                // which is exactly what is computed here for the implicit closing edge.
-                var closingDirection = NormalizeOrNull(subpath.Start - vertices[lastIndex].Position);
-                vertices[lastIndex] = vertices[lastIndex].WithOutgoingTangent(closingDirection);
-                vertices[subpathStartIndex] = vertices[subpathStartIndex].WithIncomingTangent(closingDirection);
+                // The implicit closing edge is not itself recorded as a PathCommand in
+                // subpath.Commands (a Close command carries no EndPoint of its own), so a
+                // standalone LineTo command representing it is synthesized here via
+                // PathCommand's own public LineTo factory, then handed to the same
+                // ComputeTangents this class uses for every other segment - rather than
+                // reimplementing tangent math independently in this package.
+                var (closingOutgoing, closingIncoming) =
+                    PathCommand.LineTo(subpath.Start).ComputeTangents(vertices[lastIndex].Position);
+                vertices[lastIndex] = vertices[lastIndex].WithOutgoingTangent(closingOutgoing);
+                vertices[subpathStartIndex] = vertices[subpathStartIndex].WithIncomingTangent(closingIncoming);
             }
         }
 
         return vertices;
-    }
-
-    /// <summary>
-    ///     Computes one path command's outgoing (leaving its start point) and incoming (arriving
-    ///     at its end point) unit tangent directions, per this class's documented per-command-type
-    ///     rules.
-    /// </summary>
-    /// <param name="command">The command to inspect - a <see cref="PathCommandType.LineTo"/>, <see cref="PathCommandType.QuadraticBezierTo"/>, or <see cref="PathCommandType.CubicBezierTo"/>.</param>
-    /// <param name="start">The command's start point (the previous vertex's position).</param>
-    /// <returns>
-    ///     The outgoing/incoming unit tangents, or <see langword="null"/> for either when the
-    ///     relevant control points/endpoints are coincident (a zero-length direction has no
-    ///     meaningful tangent).
-    /// </returns>
-    /// <remarks>
-    ///     <see cref="PathCommandType.ArcTo"/> is deliberately not one of this method's cases:
-    ///     every one of this class's own shape builders (<see cref="BuildRectPath"/>,
-    ///     <see cref="BuildEllipsePath"/>, and <see cref="PathDataParser"/>'s own arc handling)
-    ///     converts an SVG arc to cubic Bezier segments immediately, via <see cref="AppendArcTo"/>/
-    ///     <see cref="PathDataParser.AppendArc"/>, before ever building a <see cref="Path"/> -
-    ///     confirmed directly from this codec's own source, not merely assumed - so an
-    ///     <see cref="PathCommandType.ArcTo"/> command never actually appears in a local-space
-    ///     <see cref="Path"/> this method is called against. The <c>default</c> case below still
-    ///     handles it (and <see cref="PathCommandType.Close"/>, though that is filtered out by
-    ///     <see cref="BuildMarkerVertices"/> before reaching here) defensively, returning "no
-    ///     tangent" rather than throwing, so a future change elsewhere in this class that ever did
-    ///     produce one would degrade to an un-oriented marker rather than an uncaught exception.
-    /// </remarks>
-    private static (Vector2? Outgoing, Vector2? Incoming) ComputeCommandTangents(PathCommand command, Vector2 start)
-    {
-        switch (command.Type)
-        {
-            case PathCommandType.LineTo:
-                var lineDirection = NormalizeOrNull(command.EndPoint - start);
-                return (lineDirection, lineDirection);
-
-            case PathCommandType.QuadraticBezierTo:
-                var outgoingQuad = NormalizeOrNull(command.Control1 - start)
-                    ?? NormalizeOrNull(command.EndPoint - start);
-                var incomingQuad = NormalizeOrNull(command.EndPoint - command.Control1)
-                    ?? NormalizeOrNull(command.EndPoint - start);
-                return (outgoingQuad, incomingQuad);
-
-            case PathCommandType.CubicBezierTo:
-                var outgoingCubic = NormalizeOrNull(command.Control1 - start)
-                    ?? NormalizeOrNull(command.Control2 - start)
-                    ?? NormalizeOrNull(command.EndPoint - start);
-                var incomingCubic = NormalizeOrNull(command.EndPoint - command.Control2)
-                    ?? NormalizeOrNull(command.EndPoint - command.Control1)
-                    ?? NormalizeOrNull(command.EndPoint - start);
-                return (outgoingCubic, incomingCubic);
-
-            default:
-                return (null, null);
-        }
     }
 
     /// <summary>Normalizes <paramref name="vector"/>, tolerating a zero-length or non-finite result.</summary>
