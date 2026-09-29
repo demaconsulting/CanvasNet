@@ -56,8 +56,8 @@ software items, specifically:
 - **CanvasNetSvg (System)** — A separate, independently-distributed software system providing
   SVG (Scalable Vector Graphics) rasterization, containing a single unit, `SvgCodec`, which
   decodes/rasterizes a subset of SVG vector documents into a `CanvasNet.Canvas.Surface`.
-  `CanvasNetSvg` depends on this `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, and `Fonts`
-  subsystems — see _CanvasNetSvg System Design_ (`canvas-net-svg.md`)
+  `CanvasNetSvg` depends on this `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`,
+  and `Codecs` subsystems — see _CanvasNetSvg System Design_ (`canvas-net-svg.md`)
 
 The following OTS items are also covered:
 
@@ -118,8 +118,8 @@ interfaces and responsibilities.
 A sibling top-level system, `CanvasNetSvg`, lives in this same repository alongside `CanvasNet`
 (rather than as one of its subsystems): its sole unit, `SvgCodec`, namespace
 `DemaConsulting.CanvasNet.Svg`, is distributed as its own separate NuGet package and depends on
-the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, and `Fonts` subsystems — see the Folder
-Layout section below and _CanvasNetSvg System Design_ (`canvas-net-svg.md`).
+the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, and `Codecs` subsystems — see
+the Folder Layout section below and _CanvasNetSvg System Design_ (`canvas-net-svg.md`).
 
 ## Folder Layout
 
@@ -227,9 +227,9 @@ expand further to mirror the software architecture. `Canvas/Surface.cs` also gai
 `CompositeOverSpan` method used internally by `Drawing/PathFiller.cs`, and the `Drawing`
 subsystem now includes the additional stroking files listed above, along with the gradient
 paint files added for linear/radial gradient support in `PathFiller`. The sibling `CanvasNetSvg`
-system's sole unit, `SvgCodec`, depends on the `CanvasNet` system's `Geometry`, `Drawing`, and
-`Fonts` subsystems (not only `Canvas`) to build and rasterize the vector paths and text it
-decodes from SVG documents — see _CanvasNetSvg System Design_ (`canvas-net-svg.md`).
+system's sole unit, `SvgCodec`, depends on the `CanvasNet` system's `Geometry`, `Drawing`,
+`Fonts`, and `Codecs` subsystems (not only `Canvas`) to build and rasterize the vector paths and
+text it decodes from SVG documents — see _CanvasNetSvg System Design_ (`canvas-net-svg.md`).
 
 ## Document Conventions
 

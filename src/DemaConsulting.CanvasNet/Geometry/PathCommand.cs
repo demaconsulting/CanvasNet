@@ -79,7 +79,7 @@ public readonly struct PathCommand
 
     /// <summary>
     ///     Initializes every field of the tagged union directly. Private because only this
-    ///     struct's own internal factory methods below construct instances, keeping every field
+    ///     struct's own factory methods below construct instances, keeping every field
     ///     combination that is ever produced consistent with its <see cref="Type"/>.
     /// </summary>
     private PathCommand(
