@@ -187,19 +187,128 @@ sections:
 
           - id: CanvasNetPdf-PdfDocument-Render
             title: >-
-              The PdfDocument class shall return a fully transparent Surface of the caller-
-              specified width and height for a valid page index (Phase 1 does not yet interpret
-              page content streams), validate the page index the same way GetPageInfo does, and
-              propagate Surface's own width/height validation unwrapped rather than duplicating
-              it.
+              The PdfDocument class shall return a Surface of the caller-specified width and
+              height for a valid page index, painting it with the page's interpreted content-
+              stream geometry (see CanvasNetPdf-PdfDocument-ContentStreamDispatch and its sibling
+              requirements below) or, when the page declares no /Contents at all, a fully
+              transparent surface; it shall validate the page index the same way GetPageInfo does,
+              and propagate Surface's own width/height validation unwrapped rather than
+              duplicating it.
             justification: |
-              Phase 1 establishes Render's final call shape (page index plus caller-chosen output
-              size) so a later phase's real content rendering can be added without a breaking API
-              change, while still returning a correctly sized, predictable result today.
+              Phase 1 established Render's final call shape (page index plus caller-chosen output
+              size) so Phase 2's real content-stream rendering could be added without a breaking
+              API change; callers need a correctly sized, correctly painted result.
             tests:
               - PdfDocument_Render_ValidPageIndex_ReturnsCorrectlySizedBlankSurface
               - PdfDocument_Render_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException
               - PdfDocument_Render_InvalidWidth_PropagatesSurfaceArgumentOutOfRangeException
+              - PdfDocument_ContentStream_NoContents_RendersBlankSurface
+
+          - id: CanvasNetPdf-PdfDocument-ContentStreamDispatch
+            title: >-
+              The PdfDocument class shall tokenize and dispatch a page's resolved content-stream
+              bytes over a fixed set of recognized path-construction/painting and graphics-state
+              operators, silently skipping any other keyword (color, text, image, clipping, and
+              any other operator not yet implemented) rather than throwing, and shall throw
+              InvalidDataException when a recognized operator's own operand count/type does not
+              match its documented requirement.
+            justification: |
+              Real-world content streams routinely contain operators outside this phase's scope
+              (color, text, images, clipping); a lenient-toward-the-unrecognized, strict-toward-
+              the-malformed-recognized dispatch loop lets such streams still render their in-scope
+              geometry instead of failing outright.
+            tests:
+              - PdfDocument_ContentStream_UnknownOperator_IsSkippedWithoutThrowing
+              - CanvasNetPdf_SystemIntegration_PdfRender_FilledRectangleAndStrokedLine_PaintsExpectedPixels
+
+          - id: CanvasNetPdf-PdfDocument-ContentsResolution
+            title: >-
+              The PdfDocument class shall resolve a page's /Contents entry to fully decoded
+              content-stream bytes whether declared as a single stream or as an array of streams,
+              concatenating array entries with a single space byte between each so adjacent tokens
+              from different streams can never merge into one, and shall throw
+              InvalidDataException when /Contents is neither a stream nor an array of streams, or
+              when an array entry does not itself resolve to a stream.
+            justification: |
+              The PDF specification explicitly requires the space separator between concatenated
+              /Contents array entries; omitting it can silently corrupt otherwise well-formed
+              geometry by merging two numeric operands from adjacent streams into one.
+            tests:
+              - PdfDocument_ContentStream_ContentsArray_ConcatenatesStreamsWithSpaceSeparator
+
+          - id: CanvasNetPdf-PdfDocument-GraphicsStateStack
+            title: >-
+              The PdfDocument class shall maintain a graphics-state stack via the q/Q operators
+              (tolerating an unbalanced Q with no matching prior q as a no-op), compose the
+              current transformation matrix via the cm operator by right-multiplying the supplied
+              matrix onto the current transform, and store the line width/cap/join/miter-limit/
+              dash-pattern operands of w/J/j/M/d on the current graphics state, all with
+              InvalidDataException thrown for a malformed operand count.
+            justification: |
+              Nested q/cm/Q blocks are the standard PDF idiom for scoping a coordinate-space or
+              stroke-style change to one part of a content stream; without a correctly composing,
+              correctly restoring stack, every subsequently drawn path's position/appearance could
+              be silently wrong.
+            tests:
+              - PdfDocument_GraphicsState_QPushCmThenQPop_RestoresPriorTransform
+              - PdfDocument_GraphicsState_NestedQQ_ComposesTransformsInOrder
+              - PdfDocument_GraphicsState_UnbalancedQWithNoMatchingPush_DoesNotThrow
+              - PdfDocument_GraphicsState_MalformedCmOperandCount_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-CtmDerivation
+            title: >-
+              The PdfDocument class shall derive each page's base (pre-content-stream) current
+              transformation matrix from its raw /MediaBox origin, effective /Rotate, and the
+              caller's requested render width/height, mapping PDF user-space coordinates (origin
+              bottom-left, y-axis up) to device pixel-space coordinates (origin top-left, y-axis
+              down) with the correct rotation and independent X/Y scaling to the requested size.
+            justification: |
+              An incorrect CTM derivation would silently misplace every rendered page's geometry;
+              this is most reliably proven with a deliberately asymmetric fixture at a non-zero
+              rotation, where any rotation-sign or origin-offset error produces a detectably wrong
+              pixel position rather than a merely-shifted-but-plausible one.
+            tests:
+              - CanvasNetPdf_SystemIntegration_PdfRender_RotatedPage_MapsGeometryToCorrectPixelPosition
+
+          - id: CanvasNetPdf-PdfDocument-PathConstruction
+            title: >-
+              The PdfDocument class shall build the current path from the m/l/c/v/y/h/re path-
+              construction operators exactly as the PDF specification documents (v's first control
+              point defaults to the current point; y's second control point defaults to the
+              curve's own endpoint; re appends an independently closed rectangular subpath), baking
+              the current transformation matrix into every emitted point, requiring an already-open
+              subpath for every operator except m/re, and throwing InvalidDataException for a
+              malformed operand count or a draw operator issued before the first m/re.
+            justification: |
+              Path construction is the geometric foundation every fill/stroke operator paints;
+              each operator (especially the v/y curve shorthands, whose control-point defaulting
+              rules are easy to get backwards) must build exactly the curve/line/rectangle the
+              specification documents.
+            tests:
+              - PdfDocument_PathOps_MoveLineRectCurve_BuildExpectedGeometry
+              - PdfDocument_PathOps_MalformedOperandCount_ThrowsInvalidDataException
+              - PdfDocument_PathOps_DrawBeforeMoveTo_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-PathPainting
+            title: >-
+              The PdfDocument class shall paint the current path via the f/F/f*/S/s/B/B*/b/b*/n
+              path-painting operators (choosing the nonzero or even-odd fill rule as documented,
+              closing the current subpath first for s/b/b*, and never painting anything for n) in
+              solid opaque black (Phase 2 implements no color space or color-setting operator),
+              and shall always clear the current path afterward while leaving the surrounding
+              graphics state, including its CTM and stroke style, unaffected by that clear.
+            justification: |
+              Callers need every documented fill-rule/stroke/close-first combination and the
+              path-clearing-but-state-preserving behavior between consecutive painted paths to
+              behave exactly as the specification requires, or subsequent paths in the same
+              content stream could silently paint with a stale path or a reset graphics state.
+            tests:
+              - PdfDocument_PathOps_FillNonZero_PaintsExpectedPixels
+              - PdfDocument_PathOps_FillEvenOdd_PaintsExpectedPixels
+              - PdfDocument_PathOps_Stroke_PaintsExpectedPixels
+              - PdfDocument_PathOps_CloseAndFillAndStroke_PaintsExpectedPixels
+              - PdfDocument_PathOps_NoOp_DiscardsPathWithoutPainting
+              - PdfDocument_PathOps_PaintOperator_ClearsPathButPreservesGraphicsState
 
           - id: CanvasNetPdf-PdfDocument-Dispose
             title: >-

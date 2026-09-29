@@ -11,19 +11,27 @@ package; its unit tests live in the sibling `DemaConsulting.CanvasNet.Pdf.Tests`
 ### Verification Approach
 
 The `PdfDocument` unit is verified through unit tests that exercise its tokenizer, object model,
-and public API in isolation. Tokenizer and object-model tests (`PdfDocumentTests.cs`) construct
-small, hand-written byte sequences directly (using the `internal`, `InternalsVisibleTo`-exposed
-`PdfTokenizer`/`PdfObject` types) for controlled, targeted coverage of individual lexical and
-structural rules without needing a full, valid PDF file for every case. Cross-reference form,
-linear-scan fallback, page-tree traversal/inheritance/cycle-rejection, `/Encrypt` detection, and
-public-API (`Open`/`PageCount`/`GetPageInfo`/`Render`/`Dispose`) tests exercise the same
-hand-authored, byte-exact fixture files under `PdfFixtures/` (see `PdfFixtures/README.md` for
-provenance) through the public API only. Because `PdfDocument`'s Phase 1 dependencies
-(`Canvas.Surface`, `Codecs.UnsupportedImageFeatureException`) are all sibling in-house types, not
-external services, no mocking or stubbing is required. Tests assert on parsed token/object field
-values, on `PageCount`/`PdfPageInfo` field values, on `Surface` pixel/dimension values, and on
-thrown exception types (and, for `UnsupportedImageFeatureException`, its `Feature` token) - never
-on "no exception thrown" alone, so every test can actually fail if the implementation is wrong.
+content-stream interpreter, and public API in isolation. Tokenizer and object-model tests
+(`PdfDocumentTests.cs`) construct small, hand-written byte sequences directly (using the
+`internal`, `InternalsVisibleTo`-exposed `PdfTokenizer`/`PdfObject` types) for controlled,
+targeted coverage of individual lexical and structural rules without needing a full, valid PDF
+file for every case. Content-stream interpreter tests (graphics-state stack, path-construction,
+path-painting) build small, in-memory, single-page PDFs via a private test helper
+(`BuildSinglePagePdf`) parameterized by `/MediaBox` size, optional `/Rotate`, and an arbitrary
+content-stream string, then call `Render` through the public API and assert specific pixel
+colors at specific `Surface` coordinates - every expected coordinate was independently confirmed
+against the real rasterizer (not merely hand-derived) before being fixed into an assertion, since
+stroke/curve antialiasing and the PDF-to-device y-axis flip make hand derivation error-prone.
+Cross-reference form, linear-scan fallback, page-tree traversal/inheritance/cycle-rejection,
+`/Encrypt` detection, and public-API (`Open`/`PageCount`/`GetPageInfo`/`Render`/`Dispose`) tests
+exercise the same hand-authored, byte-exact fixture files under `PdfFixtures/` (see
+`PdfFixtures/README.md` for provenance) through the public API only. Because `PdfDocument`'s
+dependencies (`Canvas.Surface`, `Codecs.UnsupportedImageFeatureException`, `Geometry.PathBuilder`,
+`Drawing.PathFiller`/`PathStroker`) are all sibling in-house types, not external services, no
+mocking or stubbing is required. Tests assert on parsed token/object field values, on
+`PageCount`/`PdfPageInfo` field values, on `Surface` pixel/dimension values, and on thrown
+exception types (and, for `UnsupportedImageFeatureException`, its `Feature` token) - never on "no
+exception thrown" alone, so every test can actually fail if the implementation is wrong.
 
 Unit tests reside in `PdfDocumentTests.cs` within the `DemaConsulting.CanvasNet.Pdf.Tests`
 project.
@@ -32,10 +40,12 @@ project.
 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
-- **Mocking**: None required; `PdfDocument`'s Phase 1 dependencies are all in-house types
-  (`Canvas.Surface`, `Codecs.UnsupportedImageFeatureException`)
-- **Isolation**: Each test method builds its own byte sequence or opens its own fixture file from
-  `PdfFixtures/`; no shared state between tests
+- **Mocking**: None required; `PdfDocument`'s dependencies are all in-house types
+  (`Canvas.Surface`, `Codecs.UnsupportedImageFeatureException`, `Geometry.PathBuilder`,
+  `Drawing.PathFiller`/`PathStroker`)
+- **Isolation**: Each test method builds its own byte sequence, its own in-memory single-page PDF
+  (content-stream interpreter tests), or opens its own fixture file from `PdfFixtures/`; no shared
+  state between tests
 
 ### Unit-Level Test Scenarios
 
@@ -162,17 +172,104 @@ validation precedes any parsing attempt.
 Opens a single-page fixture and calls `GetPageInfo` with an out-of-range index. Asserts
 `ArgumentOutOfRangeException` for both a negative index and one at/beyond `PageCount`.
 
-#### CanvasNetPdf-PdfDocument-Render: Render Returns Correctly Sized Blank Surface and Validates Arguments
+#### CanvasNetPdf-PdfDocument-Render: Render Paints Content-Stream Geometry and Validates Arguments
 
 **Tests**: `PdfDocument_Render_ValidPageIndex_ReturnsCorrectlySizedBlankSurface`,
 `PdfDocument_Render_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException`,
-`PdfDocument_Render_InvalidWidth_PropagatesSurfaceArgumentOutOfRangeException`
+`PdfDocument_Render_InvalidWidth_PropagatesSurfaceArgumentOutOfRangeException`,
+`PdfDocument_ContentStream_NoContents_RendersBlankSurface`
 
-Calls `Render` with a valid page index and caller-chosen size, asserting the returned `Surface`
-has exactly the requested dimensions and every pixel is the default (fully transparent) value.
-Calls `Render` with an out-of-range page index and a non-positive width, asserting
-`ArgumentOutOfRangeException` in both cases (the latter propagated unwrapped from `Surface`'s own
-constructor).
+Calls `Render` with a valid page index and caller-chosen size against a fixture with no
+`/Contents`, asserting the returned `Surface` has exactly the requested dimensions and every
+pixel is the default (fully transparent) value. Calls `Render` with an out-of-range page index
+and a non-positive width, asserting `ArgumentOutOfRangeException` in both cases (the latter
+propagated unwrapped from `Surface`'s own constructor).
+
+#### CanvasNetPdf-PdfDocument-ContentStreamDispatch: Unknown Operators Are Skipped, Malformed Recognized Operators Throw
+
+**Tests**: `PdfDocument_ContentStream_UnknownOperator_IsSkippedWithoutThrowing`,
+`CanvasNetPdf_SystemIntegration_PdfRender_FilledRectangleAndStrokedLine_PaintsExpectedPixels`
+
+Renders a content stream containing an unrecognized color operator (`RG`) immediately followed by
+a recognized stroke operator, asserting the stroke still painted its expected pixel (proving the
+unknown operator was silently skipped rather than aborting the whole stream). The end-to-end
+system-integration test independently proves the same dispatch loop against a real, hand-authored
+fixture containing both a filled rectangle and a stroked line, asserting specific opaque-black and
+transparent pixels at specific coordinates.
+
+#### CanvasNetPdf-PdfDocument-ContentsResolution: Contents Array Concatenates With a Space Separator
+
+**Test**: `PdfDocument_ContentStream_ContentsArray_ConcatenatesStreamsWithSpaceSeparator`
+
+Opens `PdfFixtures/contents-array-two-streams.pdf`, whose `/Contents` is a two-entry array (one
+stream holding `"10 10 40"`, the other holding `"40 re f"`) deliberately chosen so an
+omitted-separator regression would merge the two `"40"` tokens into `"4040"`, reducing `re`'s
+operand count and (in this specific fixture) throwing `InvalidDataException` instead of rendering
+the expected filled square. Asserts the expected filled-square pixel is opaque black and a pixel
+outside it remains transparent, confirming the required space-separator concatenation.
+
+#### CanvasNetPdf-PdfDocument-GraphicsStateStack: q/Q/cm Compose and Restore the Current Transform
+
+**Tests**: `PdfDocument_GraphicsState_QPushCmThenQPop_RestoresPriorTransform`,
+`PdfDocument_GraphicsState_NestedQQ_ComposesTransformsInOrder`,
+`PdfDocument_GraphicsState_UnbalancedQWithNoMatchingPush_DoesNotThrow`,
+`PdfDocument_GraphicsState_MalformedCmOperandCount_ThrowsInvalidDataException`
+
+Renders a content stream that draws an identical line segment both inside a `q`/`cm`/`Q` block
+and after the matching `Q`, asserting the post-`Q` segment lands at its unscaled device position
+(proving the CTM was restored, not left scaled). Renders a nested `q`/`cm`/`q`/`cm`/`Q`/`Q` block
+whose two `cm`s each scale a different single axis, asserting the drawn segment lands only at the
+position both axes' composed scale produces, and explicitly asserting the two single-axis-only
+positions a partial-composition bug would instead produce are *not* painted. Renders a stray `Q`
+with no matching prior `q`, asserting no exception is thrown (a documented no-op leniency).
+Renders a malformed `cm` (wrong operand count), asserting `InvalidDataException`.
+
+#### CanvasNetPdf-PdfDocument-CtmDerivation: Base CTM Correctly Incorporates MediaBox/Rotate/Requested Size
+
+**Test**: `CanvasNetPdf_SystemIntegration_PdfRender_RotatedPage_MapsGeometryToCorrectPixelPosition`
+
+Opens `PdfFixtures/path-construction-rotated-page.pdf` (`/MediaBox [0 0 200 100]`,
+`/Rotate 90`, a deliberately asymmetric filled rectangle near the raw MediaBox's bottom-left
+corner) and renders it at its rotation-swapped display size (100x200). Asserts the rectangle's
+interior is opaque black at its mathematically correct rotated device position, and asserts a
+specific pixel where a 270-instead-of-90 rotation-sign regression would incorrectly paint it
+instead remains transparent - a fixture and assertion pair specifically designed so a
+rotation-sign or origin-offset defect produces a detectably wrong result rather than a merely
+shifted-but-still-plausible one.
+
+#### CanvasNetPdf-PdfDocument-PathConstruction: Path-Construction Operators Build Documented Geometry
+
+**Tests**: `PdfDocument_PathOps_MoveLineRectCurve_BuildExpectedGeometry`,
+`PdfDocument_PathOps_MalformedOperandCount_ThrowsInvalidDataException` (`[Theory]`, one case per
+`m`/`l`/`c`/`v`/`y`/`re`), `PdfDocument_PathOps_DrawBeforeMoveTo_ThrowsInvalidDataException`
+
+Renders, in turn: an explicit `m`/`l`/`h`-built square (filled), a `re`-built rectangle (filled),
+a full `c` cubic Bezier (stroked), a `v` shorthand curve (whose first control point defaults to
+the current point, stroked), and a `y` shorthand curve (whose second control point defaults to
+the endpoint, stroked) - asserting the mathematically exact Bezier-midpoint (or interior/exterior)
+pixel each construction is expected to paint. A `[Theory]` exercises a too-few/too-many operand
+count for each path-construction operator, asserting `InvalidDataException` in every case.
+Renders a bare `l` with no preceding `m`/`re`, asserting `InvalidDataException`.
+
+#### CanvasNetPdf-PdfDocument-PathPainting: Path-Painting Operators Fill/Stroke/Clear as Documented
+
+**Tests**: `PdfDocument_PathOps_FillNonZero_PaintsExpectedPixels`,
+`PdfDocument_PathOps_FillEvenOdd_PaintsExpectedPixels`, `PdfDocument_PathOps_Stroke_PaintsExpectedPixels`,
+`PdfDocument_PathOps_CloseAndFillAndStroke_PaintsExpectedPixels`,
+`PdfDocument_PathOps_NoOp_DiscardsPathWithoutPainting`,
+`PdfDocument_PathOps_PaintOperator_ClearsPathButPreservesGraphicsState`
+
+Renders a filled rectangle (`f`), asserting an interior pixel is opaque black and an exterior
+pixel remains transparent. Renders two nested, same-winding rectangles (`f*`), asserting the outer
+ring is filled but the doubly-covered inner region is left as an even-odd "hole". Renders a
+stroked vertical line (`S`), asserting a pixel on the line is opaque black and a pixel beside it
+is not. Renders an *open* triangle (no `h`) via `b`, asserting both the filled interior and the
+implicit closing edge are painted - directly contrasted, at the same coordinate, against the same
+triangle painted with a plain `S` (no closing), which leaves that coordinate untouched. Renders a
+rectangle followed by `n`, asserting the entire surface remains fully transparent. Renders two
+rectangles filled under the same scaled `cm`, asserting the second path's fill lands only in its
+own expected region - proving the first path was cleared after its own `f` rather than
+accumulating into the second, while the surrounding CTM was preserved across the clear.
 
 #### CanvasNetPdf-PdfDocument-Dispose: Dispose Is Idempotent
 

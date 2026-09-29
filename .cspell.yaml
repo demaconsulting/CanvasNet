@@ -24,6 +24,10 @@ words:
   - Beziers
   - BGRA
   - Blinn
+  - closepath
+  - componentwise
+  - renderable
+  - unparseable
   - endobj
   - endstream
   - Flate

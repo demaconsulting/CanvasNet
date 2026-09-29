@@ -80,6 +80,56 @@ public class PdfSystemIntegrationTests
         Assert.Equal(default, surface[39, 19]);
     }
 
+    /// <summary>
+    ///     Proves <see cref="PdfDocument.Render"/> rasterizes real path geometry end-to-end: a
+    ///     hand-authored fixture containing a filled rectangle and a stroked vertical line,
+    ///     asserting specific opaque-black/transparent pixels at specific coordinates (not merely
+    ///     "the surface is not blank").
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_PdfRender_FilledRectangleAndStrokedLine_PaintsExpectedPixels()
+    {
+        // Arrange: MediaBox [0 0 100 100], /Contents = "10 10 40 40 re f\n2 w 60 10 m 60 90 l S"
+        // (a filled 40x40 square at user (10,10)-(50,50), plus a 2-unit-wide stroked vertical
+        // line at user x=60 from y=10 to y=90).
+        using var document = PdfDocument.Open(Fixture("path-construction-rect-and-line.pdf"));
+
+        // Act
+        using var surface = document.Render(0, 100, 100);
+
+        // Assert: interior of the filled rectangle is opaque black; a point outside it is not.
+        Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+
+        // Assert: the stroked line is opaque black at its own x-position, but not a bit away.
+        Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[60, 50]);
+        Assert.Equal(default, surface[70, 50]);
+    }
+
+    /// <summary>
+    ///     Proves the base CTM correctly incorporates a page's effective <c>/Rotate</c>: a
+    ///     hand-authored, 90-degree-rotated fixture's asymmetric filled rectangle lands at its
+    ///     mathematically correct device-pixel position, not at the mirrored/opposite position a
+    ///     270-degree-instead-of-90-degree rotation-sign bug would produce.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_PdfRender_RotatedPage_MapsGeometryToCorrectPixelPosition()
+    {
+        // Arrange: MediaBox [0 0 200 100], /Rotate 90, /Contents = "10 10 30 20 re f" (an
+        // asymmetric rectangle near the raw MediaBox's bottom-left corner).
+        using var document = PdfDocument.Open(Fixture("path-construction-rotated-page.pdf"));
+
+        // Act: displayed size swaps to 100x200 under /Rotate 90 - render at that exact size.
+        using var surface = document.Render(0, 100, 200);
+
+        // Assert: correctly rotated, the rectangle lands at device px in [10,30), py in [10,40).
+        Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[20, 25]);
+
+        // Assert: a 270-instead-of-90 rotation-sign bug would instead place it near (80,175) -
+        // proving this specific pixel is untouched rules out that regression.
+        Assert.Equal(default, surface[80, 175]);
+    }
+
     /// <summary>Proves a null stream is rejected before any parsing is attempted.</summary>
     [Fact]
     public void CanvasNetPdf_SystemIntegration_PdfValidationNull_NullStreamThrowsArgumentNullException()

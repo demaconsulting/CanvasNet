@@ -8,12 +8,20 @@
 (namespace `DemaConsulting.CanvasNet.Pdf`), which references the core
 `DemaConsulting.CanvasNet` package.
 
-The `PdfDocument` class is the sole software unit of the `CanvasNetPdf` system. Its Phase 1
-dependencies are limited to `CanvasNet`'s `Canvas` subsystem (`Surface`) and `Codecs` subsystem
-(`UnsupportedImageFeatureException`) — see the Dependencies section of _CanvasNetPdf System
-Design_ (`../canvas-net-pdf.md`). It provides hand-rolled parsing of a PDF document's structure
-(cross-references, trailer, page tree) and, in Phase 1, returns a correctly sized but blank
-`Surface` from `Render` — real page content rendering is deferred to a later phase.
+The `PdfDocument` class is the sole software unit of the `CanvasNetPdf` system. Its dependencies
+are limited to `CanvasNet`'s `Canvas` subsystem (`Surface`, `Rgba32`), `Codecs` subsystem
+(`UnsupportedImageFeatureException`), `Geometry` subsystem (`PathBuilder`, `Path`), and `Drawing`
+subsystem (`PathFiller`, `PathStroker`, `StrokeStyle`, `FillRule`, `LineCap`, `LineJoin`) — see
+the Dependencies section of _CanvasNetPdf System Design_ (`../canvas-net-pdf.md`). It provides
+hand-rolled parsing of a PDF document's structure (cross-references, trailer, page tree) and, as
+of Phase 2, a content-stream interpreter: `Render` tokenizes and executes a page's `/Contents`
+path-construction/painting and graphics-state operators, painting real path geometry onto the
+returned `Surface`. **Phase 2 limitation**: every filled/stroked path paints in solid opaque
+black — no color space or color-setting operator (`rg`/`g`/`k`/`sc`/`scn` and their stroking
+counterparts) is implemented yet, text/font operators, image XObjects, additional stream filters,
+and clipping-path operators (`W`/`W*`) are likewise out of scope for this phase and are silently
+skipped like any other unrecognized keyword; a later phase is expected to add real color, text,
+image, and clipping support.
 
 ### Purpose
 
@@ -47,6 +55,29 @@ re-parsing it each time — a property a purely static API could not express.
 - **`_disposed` (`bool`)** — mirrors `Canvas.Surface`'s own disposal field exactly: `false` until
   `Dispose()` is called, then permanently `true`; every other public member checks this first via
   `ObjectDisposedException.ThrowIf(_disposed, this)`.
+- **`_pageDetails` (`IReadOnlyList<(PdfObject Node, double X0, double Y0, double BoxWidth, double BoxHeight)>`)**
+  — the raw (non-rotated, non-swapped) leaf page node and its inherited `/MediaBox`'s origin and
+  size, one entry per page in the same document order as `_pages`, populated in lock-step by
+  `TraversePageTree` — `Render` needs the raw `/MediaBox` origin (`_pages`/`PdfPageInfo` only
+  exposes the already-rotation-swapped display width/height) to correctly derive each page's base
+  CTM (see `BuildBaseCtm` below).
+- **`_gsStack` (`Stack<GraphicsState>`, nested `GraphicsState` class, `PdfDocument.GraphicsState.cs`)**
+  — the `q`/`Q` graphics-state stack, and `_gs` (`GraphicsState`) — the current graphics state
+  (current transformation matrix plus line width/cap/join/miter-limit/dash pattern), both reset at
+  the start of every `ExecuteContentStream` call. `GraphicsState.Clone()` performs a member-wise
+  copy (the dash array reference is shared, never mutated in place, so sharing it across a clone
+  is safe).
+- **`_pathBuilder` (`Geometry.PathBuilder`), `_currentPoint`/`_subpathStart` (`Vector2`,
+  untransformed user-space), `_hasOpenSubpath` (`bool`)** (`PdfDocument.PathOps.cs`) — the path
+  currently under construction by the path-construction operators, and the bookkeeping the `v`/
+  `y` curve shorthands and `h`'s closepath need in the same untransformed user-space coordinates
+  the next operator's own operands arrive in; `_hasOpenSubpath` mirrors `PathBuilder`'s own
+  internal "can draw" state purely so a malformed "draw before move" content stream can be
+  rejected with this class's own `InvalidDataException` convention rather than letting
+  `PathBuilder`'s `InvalidOperationException` escape unwrapped. All three are reset at the start
+  of every `ExecuteContentStream` call and cleared after every path-painting operator.
+- **`_surface` (`Canvas.Surface`, `PdfDocument.ContentStream.cs`)** — the destination surface
+  every path-painting operator draws onto for the content stream currently being executed.
 - **`PdfObject`/`PdfKind`** (internal, `PdfDocument.ObjectModel.cs`) — a small tagged-union
   representation of every PDF object kind (`Null`, `Boolean`, `Number`, `LiteralString`/
   `HexString`, `Name`, `Array`, `Dictionary`, `Stream`, `Reference`); not part of the public API
@@ -83,21 +114,28 @@ re-parsing it each time — a property a purely static API could not express.
   `pageIndex < 0 || pageIndex >= PageCount`, then returns `_pages[pageIndex]` (already computed
   during `Open`).
 - **`Render(int pageIndex, int width, int height)`** — disposed-check and `pageIndex`
-  range-check identical to `GetPageInfo`, then returns `new Surface(width, height)` unmodified
-  (Phase 1: no content-stream interpretation). `Surface`'s own constructor supplies the
-  `width`/`height` `ArgumentOutOfRangeException`/`MaxDimension` contract; this is deliberately not
-  duplicated here, and the caller-specified `width`/`height` is used exactly as given — it is
-  never clamped to, or derived from, the page's own `/MediaBox` size.
+  range-check identical to `GetPageInfo`, then builds `new Surface(width, height)`, resolves the
+  page's leaf node and raw `/MediaBox` origin via `ResolvePageNodeAndMediaBox`, derives the page's
+  base CTM via `BuildBaseCtm` (see _Content-Stream Interpreter_ below), resolves the page's
+  `/Contents` bytes via `ResolvePageContentBytes`, executes them via `ExecuteContentStream`, and
+  returns the painted surface. `Surface`'s own constructor supplies the `width`/`height`
+  `ArgumentOutOfRangeException`/`MaxDimension` contract; this is deliberately not duplicated here,
+  and the caller-specified `width`/`height` is used exactly as given — it is never clamped to, or
+  derived from, the page's own `/MediaBox` size.
 - **`Dispose()`** — idempotent (mirrors `Surface`'s exact pattern): `if (_disposed) return;` then
   `_disposed = true;`. No finalizer (only managed memory — the buffered bytes and parsed object
   model — is held).
 - **Tokenizer (`PdfDocument.Tokenizer.cs`)** — a stateless-per-call lexer producing numbers,
   literal/hex strings, names, array/dictionary delimiters, comments (skipped), and keyword
   tokens, following the PDF specification's own whitespace/delimiter/regular character classes.
+  Reused unmodified by the content-stream interpreter (a content stream tokenizes with exactly
+  the same lexical rules as the rest of the document).
 - **Object model parser (`PdfDocument.ObjectModel.cs`)** — a recursive-descent parser turning the
   tokenizer's output into a `PdfObject` tree (dictionaries, arrays, indirect references,
   streams), distinguishing a bare number followed by an object-definition header (`N G obj`)
-  from an indirect reference (`N G R`) by one token of lookahead.
+  from an indirect reference (`N G R`) by one token of lookahead. Its `ParseArray`/`ParseValue`
+  helpers are reused, unmodified, by `ExecuteContentStream` to parse an operand token that begins
+  an array (content streams never legitimately need a content-stream-specific array parser).
 - **Cross-reference resolution (`PdfDocument.Xref.cs`)** — parses a classic `xref`/`trailer`
   section, a `/Type /XRef` cross-reference stream (`/W`-width-driven binary field decoding), and
   a `/Type /ObjStm` compressed object stream (`FlateDecode`, `System.IO.Compression.DeflateStream`
@@ -111,7 +149,8 @@ re-parsing it each time — a property a purely static API could not express.
   simplification**: a cross-reference stream's own `/Length` must be a direct integer, not an
   indirect reference — resolving an indirect `/Length` would require the very xref table that
   stream is helping to build; regular content/object streams parsed after xref resolution
-  completes may use an indirect `/Length` freely.
+  completes may use an indirect `/Length` freely. `GetStreamDecodedBytes` (also defined here) is
+  reused, unmodified, by `ResolvePageContentBytes` to decode a `/Contents` stream's bytes.
 - **Page-tree traversal (`PdfDocument.PageTree.cs`)** — walks `trailer["/Root"]` → catalog
   `/Pages` → recursively nested `/Kids` arrays, producing an ordered, flattened page list. Each
   page's `/MediaBox`/`/Rotate` is inherited from the nearest ancestor that declares one
@@ -119,7 +158,77 @@ re-parsing it each time — a property a purely static API could not express.
   the ancestry), normalized (`/Rotate` modulo 360, rejecting a non-multiple-of-90 value with
   `InvalidDataException`), and used to compute each page's already-rotated `PdfPageInfo`
   (swapping `Width`/`Height` at 90/270). A visited-node set (keyed by object number) detects and
-  rejects an unbounded `/Kids` reference cycle with `InvalidDataException`.
+  rejects an unbounded `/Kids` reference cycle with `InvalidDataException`. `ResolveMediaBox`
+  additionally returns the box's raw `(X0, Y0)` origin (not just its `Width`/`Height`), threaded
+  through `TraversePageTree` into `_pageDetails`, since `BuildBaseCtm` needs that origin to
+  correctly translate a `/MediaBox` that does not start at `(0, 0)`.
+  `ResolvePageNodeAndMediaBox(int pageIndex)` is `Render`'s own entry point into this data.
+
+### Content-Stream Interpreter
+
+- **`BuildBaseCtm(x0, y0, boxWidth, boxHeight, rotation, width, height)`
+  (`PdfDocument.PageTree.cs`)** — derives the page's base (pre-content-stream) current
+  transformation matrix as `Translate(-x0, -y0) * RotationFlip(rotation, boxWidth, boxHeight) *
+  Scale(scaleX, scaleY)` (row-vector composition: a user-space point is first translated by the
+  raw `/MediaBox` origin, then rotated/flipped, then scaled to the requested render size), where:
+  - `RotationFlip` is one of four literal matrices mapping PDF user-space (origin bottom-left,
+    y-axis up) to un-scaled device pixel-space (origin top-left, y-axis down) for the page's
+    effective rotation: `Rotate0 = (1,0,0,-1,0,boxHeight)`, `Rotate90 = (0,1,1,0,0,0)`,
+    `Rotate180 = (-1,0,0,1,boxWidth,0)`, `Rotate270 = (0,-1,-1,0,boxHeight,boxWidth)` — confirmed
+    by hand-checking each case maps `(0,0)`/`(boxWidth,boxHeight)` to the expected device corner.
+  - `scaleX = width / displayWidth`, `scaleY = height / displayHeight`, where `displayWidth`/
+    `displayHeight` are the already rotation-swapped dimensions (matching `PdfPageInfo.Width`/
+    `Height`, and mirroring `SvgCodec.Load`'s own independent-X/Y requested-size scaling).
+- **`ExecuteContentStream(byte[] contentBytes, Surface surface, Matrix3x2 baseCtm)`
+  (`PdfDocument.ContentStream.cs`)** — resets `_surface`/`_gsStack`/`_gs`/`_pathBuilder`/
+  `_currentPoint`/`_subpathStart`/`_hasOpenSubpath`, then tokenizes `contentBytes` exactly like
+  the rest of the document, accumulating operands (numbers, names, strings, arrays) until a
+  `Keyword` token is reached, at which point `DispatchOperator` is called and the operand list is
+  cleared — content-stream operators are always postfix (operands first, operator keyword last).
+- **`DispatchOperator(string operatorName, List<PdfObject> operands)`
+  (`PdfDocument.ContentStream.cs`)** — a single `switch` over every operator this phase
+  implements (graphics-state, path-construction, path-painting), silently doing nothing for any
+  other keyword (color, text, image, clipping, and any other operator not yet implemented).
+- **`ResolvePageContentBytes(PdfObject pageNode)` (`PdfDocument.ContentStream.cs`)** — resolves
+  `/Contents`: a single stream is decoded directly via `GetStreamDecodedBytes`; an array of
+  streams is decoded entry-by-entry and concatenated with a single space byte inserted between
+  each entry (per the PDF specification's own requirement, so adjacent tokens from different
+  streams can never merge); a page with no `/Contents` key returns an empty array (rendered as a
+  blank page, exactly as every page did in Phase 1).
+- **Graphics-state operators (`PdfDocument.GraphicsState.cs`)** — `OpPushGraphicsState`
+  (`q`, pushes a clone of `_gs`), `OpPopGraphicsState` (`Q`, pops into `_gs`, tolerating an empty
+  stack as a documented no-op leniency distinct from this class's strict operand-count/type
+  checks), `OpConcatMatrix` (`cm`, right-multiplies the supplied matrix onto `_gs.CurrentTransform`
+  per the specification: `CTM' = M × CTM`, so a point transforms as `P × M × CTM`, applying the
+  newest `cm` first), and `OpSetLineWidth`/`OpSetLineCap`/`OpSetLineJoin`/`OpSetMiterLimit`/
+  `OpSetDashPattern` (`w`/`J`/`j`/`M`/`d`, storing their operand(s) verbatim on `_gs`). Every
+  handler validates its operand count/type via a shared `RequireNumbers` helper, throwing
+  `InvalidDataException` on mismatch.
+- **Path-construction operators (`PdfDocument.PathOps.cs`)** — `OpMoveTo`/`OpLineTo`/`OpCurveTo`/
+  `OpCurveToV`/`OpCurveToY`/`OpClosePath`/`OpRectangle` (`m`/`l`/`c`/`v`/`y`/`h`/`re`), each
+  transforming its own operands through the current CTM via a shared `Transform` helper before
+  calling into `_pathBuilder` (matching `SvgCodec.PathRender.cs`'s established "bake the
+  transform into each point before construction" pattern, rather than transforming the finished
+  path afterward) — `v` reuses `_currentPoint` (transformed at draw time, not pre-transformed) as
+  its first control point, and `y` reuses its own endpoint as its second control point, per the
+  specification's documented shorthand semantics. `re` always ends its own subpath already closed
+  (equivalent to `m l l l h`), so a subsequent draw operator without an intervening `m`/`re`
+  throws `InvalidDataException` via a shared `RequireOpenSubpath` helper.
+- **Path-painting operators (`PdfDocument.PathOps.cs`)** — a single shared `PaintCurrentPath`
+  method parameterized by `fill`/`fillRule`/`stroke`/`closeFirst`, covering all ten operators
+  (`f`/`F`/`f*`/`S`/`s`/`B`/`B*`/`b`/`b*`/`n`): fills via `Drawing.PathFiller.Fill` with the fixed
+  `OpaqueBlack` color (this phase's only color) and the operator's documented fill rule; strokes
+  via `Drawing.PathStroker.Stroke` then fills the resulting outline with the same `OpaqueBlack`
+  color, using a `Drawing.StrokeStyle` built from the current graphics state's line width/cap/
+  join/miter-limit/dash pattern — every `StrokeStyle` field is passed explicitly (the PDF
+  specification's own default miter limit is `10`, not `StrokeStyle`'s own C# default of `4`).
+  `DeviceScale` (`sqrt(|det(CTM.Linear)|)`, the CTM with its translation zeroed) converts a
+  user-space line width/dash length into device pixel-space, with a `MinimumDeviceLineWidth` of
+  one device pixel implementing the specification's "a line width of 0 renders as the thinnest
+  renderable line" rule. Every path-painting operator, including `n`, always clears the current
+  path afterward (`_pathBuilder.Clear()`); the surrounding graphics state is entirely unaffected
+  by that clear, so a subsequent path in the same content stream still sees the same CTM/stroke
+  style.
 
 ### Error Handling
 
@@ -137,15 +246,31 @@ re-parsing it each time — a property a purely static API could not express.
   directly.
 - **Non-positive/too-large `width`/`height` to `Render`** — `ArgumentOutOfRangeException`,
   propagated unwrapped from `Surface`'s own constructor, not duplicated.
+- **Malformed `/Contents`** (neither a stream nor an array of streams, or an array entry that
+  does not itself resolve to a stream) — `InvalidDataException`.
+- **Malformed content-stream syntax, or a malformed operand count/type for a recognized
+  operator** — `InvalidDataException`, matching `PdfDocument.Xref.cs`'s own established
+  malformed-input convention. An unrecognized operator is never an error (see _Content-Stream
+  Interpreter_ above); an unbalanced `Q` with no matching prior `q` is likewise tolerated as a
+  documented no-op, not an error.
 - **Any public member called after `Dispose()`** — `ObjectDisposedException`, thrown first via
   `ObjectDisposedException.ThrowIf(_disposed, this)`, before any other validation.
 
 ### Dependencies
 
-- `Canvas.Surface` (from the core `CanvasNet` system) — the `Render` return type
+- `Canvas.Surface` (from the core `CanvasNet` system) — the `Render` return type and every
+  path-painting operator's paint destination
+- `Canvas.Rgba32` (from the core `CanvasNet` system) — the fixed `OpaqueBlack` fill/stroke color
 - `Codecs.UnsupportedImageFeatureException` (from the core `CanvasNet` system) — reused,
   unmodified, for `/Encrypt` detection
+- `Geometry.PathBuilder`/`Path` (from the core `CanvasNet` system) — accumulates the current
+  path's subpaths/commands as path-construction operators are dispatched
+- `Drawing.PathFiller`/`PathStroker`/`StrokeStyle`/`FillRule`/`LineCap`/`LineJoin` (from the core
+  `CanvasNet` system) — rasterize the current path onto `_surface` for every path-painting
+  operator
 - BCL `System.IO.Compression.DeflateStream` — `FlateDecode` decompression of object streams
+- BCL `System.Numerics.Matrix3x2`/`Vector2` — the current transformation matrix and every
+  transformed path point
 
 ### Callers
 

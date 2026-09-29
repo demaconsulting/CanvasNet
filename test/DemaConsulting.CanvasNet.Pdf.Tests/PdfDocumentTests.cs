@@ -15,6 +15,77 @@ public class PdfDocumentTests
 
     private static string Fixture(string name) => Path.Join(FixturesPath, name);
 
+    /// <summary>The opaque black color every Phase 2 fill/stroke operator paints with.</summary>
+    private static readonly Canvas.Rgba32 Black = new(0, 0, 0, 255);
+
+    /// <summary>
+    ///     Builds an in-memory, single-page, classic-xref PDF (matching
+    ///     <c>PdfFixtures\README.md</c>'s hand-authored template) whose one page declares the
+    ///     given <c>/MediaBox</c>, optional <c>/Rotate</c>, and a single <c>/Contents</c> stream
+    ///     holding <paramref name="content"/> verbatim - used by tests that only need arbitrary
+    ///     content-stream text against a fixed page size, without a dedicated fixture file on disk.
+    /// </summary>
+    private static byte[] BuildSinglePagePdf(double mediaBoxWidth, double mediaBoxHeight, string content, int rotate = 0)
+    {
+        var contentBytes = System.Text.Encoding.ASCII.GetBytes(content);
+        var rotateEntry = rotate == 0 ? string.Empty : $" /Rotate {rotate}";
+        var streamHeader = System.Text.Encoding.ASCII.GetBytes($"<< /Length {contentBytes.Length} >>\nstream\n");
+        var streamFooter = "\nendstream"u8.ToArray();
+        var streamBody = new byte[streamHeader.Length + contentBytes.Length + streamFooter.Length];
+        streamHeader.CopyTo(streamBody, 0);
+        contentBytes.CopyTo(streamBody, streamHeader.Length);
+        streamFooter.CopyTo(streamBody, streamHeader.Length + contentBytes.Length);
+
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            System.Text.Encoding.ASCII.GetBytes(
+                $"<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 {mediaBoxWidth} {mediaBoxHeight}] >>"),
+            System.Text.Encoding.ASCII.GetBytes($"<< /Type /Page /Parent 2 0 R{rotateEntry} /Contents 4 0 R >>"),
+            streamBody,
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        var offsets = new List<int>();
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            offsets.Add(buffer.Count);
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        var xrefOffset = buffer.Count;
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"xref\n0 {bodies.Count + 1}\n"));
+        buffer.AddRange("0000000000 65535 f \n"u8.ToArray());
+        foreach (var offset in offsets)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{offset:D10} 00000 n \n"));
+        }
+
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes(
+            $"trailer\n<< /Size {bodies.Count + 1} /Root 1 0 R >>\nstartxref\n{xrefOffset}\n%%EOF\n"));
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Renders <paramref name="content"/> against a single-page PDF built by
+    ///     <see cref="BuildSinglePagePdf"/>, returning the resulting <see cref="Canvas.Surface"/>.
+    /// </summary>
+    private static Canvas.Surface RenderContent(
+        string content,
+        int width = 100,
+        int height = 100,
+        double mediaBoxWidth = 100,
+        double mediaBoxHeight = 100,
+        int rotate = 0)
+    {
+        var bytes = BuildSinglePagePdf(mediaBoxWidth, mediaBoxHeight, content, rotate);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        return document.Render(0, width, height);
+    }
+
     #region Tokenizer
 
     /// <summary>Proves that the tokenizer parses integer, negative, leading-dot, and zero number forms.</summary>
@@ -548,6 +619,292 @@ public class PdfDocumentTests
 
         // Act & Assert
         Assert.Throws<ObjectDisposedException>(() => document.Render(0, 10, 10));
+    }
+
+    #endregion
+
+    #region ContentStream
+
+    /// <summary>Proves that an unknown/unimplemented operator is silently skipped and does not stop subsequent operators from executing.</summary>
+    [Fact]
+    public void PdfDocument_ContentStream_UnknownOperator_IsSkippedWithoutThrowing()
+    {
+        // Arrange
+        const string content = "1 0 0 RG 2 w 10 10 m 10 90 l S";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert: the unrecognized 'RG' color operator was skipped, and the stroke after it still painted.
+        Assert.Equal(Black, surface[10, 50]);
+    }
+
+    /// <summary>Proves that a <c>/Contents</c> array of streams is concatenated with a space separator, rather than merging adjacent tokens.</summary>
+    [Fact]
+    public void PdfDocument_ContentStream_ContentsArray_ConcatenatesStreamsWithSpaceSeparator()
+    {
+        // Arrange
+        using var document = PdfDocument.Open(Fixture("contents-array-two-streams.pdf"));
+
+        // Act: stream 4 holds "10 10 40" and stream 5 holds "40 re f"; correct concatenation
+        // with a space separator reconstructs "10 10 40 40 re f" (a filled 40x40 square).
+        using var surface = document.Render(0, 100, 100);
+
+        // Assert
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[90, 90]);
+    }
+
+    /// <summary>Proves that a page with no <c>/Contents</c> key at all renders as a fully blank surface, without throwing.</summary>
+    [Fact]
+    public void PdfDocument_ContentStream_NoContents_RendersBlankSurface()
+    {
+        // Arrange
+        using var document = PdfDocument.Open(Fixture("no-contents-page.pdf"));
+
+        // Act
+        using var surface = document.Render(0, 20, 20);
+
+        // Assert
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                Assert.Equal(default, surface[x, y]);
+            }
+        }
+    }
+
+    #endregion
+
+    #region GraphicsState
+
+    /// <summary>Proves that <c>q</c>/<c>cm</c>/<c>Q</c> restores the prior transform after the matching pop.</summary>
+    [Fact]
+    public void PdfDocument_GraphicsState_QPushCmThenQPop_RestoresPriorTransform()
+    {
+        // Arrange: inside q/Q, 'cm' doubles the scale, so the first diagonal segment is drawn
+        // through a different device location than the second, identical, segment issued after Q.
+        const string content = "2 w q 2 0 0 2 0 0 cm 10 10 m 20 20 l S Q 10 10 m 20 20 l S";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert: the second segment (after Q) is drawn at the unscaled location - proving the
+        // CTM was restored, not left doubled.
+        Assert.NotEqual(default, surface[15, 85]);
+    }
+
+    /// <summary>Proves that nested <c>q</c>/<c>cm</c>/<c>q</c>/<c>cm</c>/.../<c>Q</c>/<c>Q</c> composes both matrices, in order, onto the same drawing operation.</summary>
+    [Fact]
+    public void PdfDocument_GraphicsState_NestedQQ_ComposesTransformsInOrder()
+    {
+        // Arrange: an outer cm scales X only (x2), an inner cm scales Y only (x2); only their
+        // composition scales both axes, placing the drawn segment at (30,70)-ish. A bug applying
+        // only one of the two cm's would place it at (30,85) (X-only) or (15,70) (Y-only) instead.
+        const string content = "2 w q 2 0 0 1 0 0 cm q 1 0 0 2 0 0 cm 10 10 m 20 20 l S Q Q";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert
+        Assert.NotEqual(default, surface[30, 70]);
+        Assert.Equal(default, surface[30, 85]);
+        Assert.Equal(default, surface[15, 70]);
+    }
+
+    /// <summary>Proves that an unbalanced <c>Q</c> with no matching prior <c>q</c> is tolerated as a no-op, rather than throwing.</summary>
+    [Fact]
+    public void PdfDocument_GraphicsState_UnbalancedQWithNoMatchingPush_DoesNotThrow()
+    {
+        // Arrange
+        const string content = "Q 2 w 10 10 m 20 20 l S";
+
+        // Act
+        var exception = Record.Exception(() => RenderContent(content).Dispose());
+
+        // Assert
+        Assert.Null(exception);
+    }
+
+    /// <summary>Proves that a malformed <c>cm</c> operand count throws <see cref="InvalidDataException"/>.</summary>
+    [Fact]
+    public void PdfDocument_GraphicsState_MalformedCmOperandCount_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string content = "1 2 3 cm";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderContent(content));
+    }
+
+    #endregion
+
+    #region PathOps
+
+    /// <summary>Proves that <c>m</c>/<c>l</c>/<c>c</c>/<c>v</c>/<c>y</c>/<c>re</c> each build the geometry the PDF specification documents for them.</summary>
+    [Fact]
+    public void PdfDocument_PathOps_MoveLineRectCurve_BuildExpectedGeometry()
+    {
+        // m/l/h: an explicit square built from move/line/closepath, filled.
+        using (var surface = RenderContent("10 10 m 90 10 l 90 90 l 10 90 l h f"))
+        {
+            Assert.Equal(Black, surface[50, 50]);
+        }
+
+        // re: a rectangle built via the single-operator shorthand, filled.
+        using (var surface = RenderContent("20 20 30 30 re f"))
+        {
+            Assert.Equal(Black, surface[30, 65]);
+            Assert.Equal(default, surface[5, 5]);
+        }
+
+        // c: a full cubic Bezier curve with two explicit control points, stroked.
+        using (var surface = RenderContent("3 w 10 50 m 10 10 90 10 90 50 c S"))
+        {
+            Assert.Equal(Black, surface[50, 80]);
+        }
+
+        // v: the first control point defaults to the current point.
+        using (var surface = RenderContent("3 w 10 50 m 90 10 90 50 v S"))
+        {
+            Assert.Equal(Black, surface[50, 65]);
+        }
+
+        // y: the second control point defaults to the curve's own endpoint.
+        using (var surface = RenderContent("3 w 10 50 m 30 10 90 50 y S"))
+        {
+            Assert.Equal(Black, surface[58, 65]);
+        }
+    }
+
+    /// <summary>Proves that a malformed operand count for a path-construction operator throws <see cref="InvalidDataException"/>.</summary>
+    [Theory]
+    [InlineData("m")]
+    [InlineData("1 m")]
+    [InlineData("1 2 3 m")]
+    [InlineData("10 10 m 1 l")]
+    [InlineData("10 10 m 1 2 3 4 5 c")]
+    [InlineData("10 10 m 1 2 3 v")]
+    [InlineData("10 10 m 1 2 3 y")]
+    [InlineData("1 2 3 re")]
+    public void PdfDocument_PathOps_MalformedOperandCount_ThrowsInvalidDataException(string content)
+    {
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderContent(content));
+    }
+
+    /// <summary>Proves that issuing a draw operator before any <c>m</c>/<c>re</c> throws <see cref="InvalidDataException"/>.</summary>
+    [Fact]
+    public void PdfDocument_PathOps_DrawBeforeMoveTo_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string content = "10 10 l";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderContent(content));
+    }
+
+    /// <summary>Proves that <c>f</c> fills using the nonzero winding rule.</summary>
+    [Fact]
+    public void PdfDocument_PathOps_FillNonZero_PaintsExpectedPixels()
+    {
+        // Arrange
+        const string content = "10 10 40 40 re f";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>Proves that <c>f*</c> fills using the even-odd rule, leaving a nested same-winding rectangle unfilled as a "hole".</summary>
+    [Fact]
+    public void PdfDocument_PathOps_FillEvenOdd_PaintsExpectedPixels()
+    {
+        // Arrange
+        const string content = "10 10 80 80 re 30 30 40 40 re f*";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert: the outer ring is filled, but the doubly-covered inner region is not (even-odd hole).
+        Assert.Equal(Black, surface[15, 50]);
+        Assert.Equal(default, surface[50, 50]);
+    }
+
+    /// <summary>Proves that <c>S</c> strokes the current path without filling it.</summary>
+    [Fact]
+    public void PdfDocument_PathOps_Stroke_PaintsExpectedPixels()
+    {
+        // Arrange
+        const string content = "2 w 60 10 m 60 90 l S";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert
+        Assert.Equal(Black, surface[60, 50]);
+        Assert.Equal(default, surface[70, 50]);
+    }
+
+    /// <summary>Proves that <c>b</c> closes the current (still-open) subpath before both filling and stroking it.</summary>
+    [Fact]
+    public void PdfDocument_PathOps_CloseAndFillAndStroke_PaintsExpectedPixels()
+    {
+        // Arrange: an open triangle (no 'h'); 'b' must close it before painting.
+        const string closed = "2 w 20 20 m 80 20 l 50 70 l b";
+        const string open = "2 w 20 20 m 80 20 l 50 70 l S";
+
+        // Act
+        using var closedSurface = RenderContent(closed);
+        using var openSurface = RenderContent(open);
+
+        // Assert: the interior is filled, and the implicit closing edge is stroked - proven by
+        // comparison against a plain 'S' (no closing), which leaves that same pixel unpainted.
+        Assert.Equal(Black, closedSurface[50, 63]);
+        Assert.Equal(Black, closedSurface[35, 55]);
+        Assert.Equal(default, openSurface[35, 55]);
+    }
+
+    /// <summary>Proves that <c>n</c> discards the current path without painting anything.</summary>
+    [Fact]
+    public void PdfDocument_PathOps_NoOp_DiscardsPathWithoutPainting()
+    {
+        // Arrange
+        const string content = "10 10 40 40 re n";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                Assert.Equal(default, surface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>Proves that a path-painting operator clears the current path, but leaves the surrounding graphics state (CTM/line width) untouched for the next path.</summary>
+    [Fact]
+    public void PdfDocument_PathOps_PaintOperator_ClearsPathButPreservesGraphicsState()
+    {
+        // Arrange: the first rectangle is filled, then a second, unrelated rectangle is filled
+        // under the same (still-scaled) graphics state - if the first path were not cleared, the
+        // second 're' would incorrectly append to (rather than replace) it.
+        const string content = "2 0 0 2 0 0 cm 5 5 10 10 re f 20 20 10 10 re f";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert: second rectangle (user 20..30,20..30, scaled x2 = device 40..60, then flipped
+        // y => device y 40..60) is painted, and the first rectangle's area does not bleed into it.
+        Assert.Equal(Black, surface[50, 50]);
+        Assert.Equal(default, surface[15, 15]);
     }
 
     #endregion

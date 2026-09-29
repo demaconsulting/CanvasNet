@@ -671,6 +671,9 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.ObjectModel.cs"  # phase 1 unit source (object model)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Xref.cs"         # phase 1 unit source (xref resolution)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.PageTree.cs"     # phase 1 unit source (page-tree traversal)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.ContentStream.cs"  # phase 2 unit source (content stream)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.GraphicsState.cs"  # phase 2 unit source (graphics state)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.PathOps.cs"        # phase 2 unit source (path ops)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfPageInfo.cs"              # phase 1 unit source (supporting record struct)
       - "src/DemaConsulting.CanvasNet.Pdf/NamespaceDoc.cs"             # Pdf namespace documentation
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentTests.cs"  # unit tests

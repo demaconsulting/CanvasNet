@@ -56,9 +56,33 @@ inheritance and rotation normalization integrate correctly with the public API.
 **Test**: `CanvasNetPdf_SystemIntegration_PdfRender_ReturnsBlankSizedSurface`
 
 Exercises end-to-end system behavior for `Render`: calls the public `Render` API for a valid page
-index and caller-chosen size. Asserts the returned `Surface` has exactly the requested
-dimensions and every pixel is the default (fully transparent) value, confirming Phase 1's
-documented "blank page" behavior is honored at the system's own public entry point.
+index and caller-chosen size, against a fixture with no `/Contents`. Asserts the returned
+`Surface` has exactly the requested dimensions and every pixel is the default (fully transparent)
+value, confirming the documented "a page with no content renders blank" behavior is honored at
+the system's own public entry point.
+
+### Integration: Pdf Render Filled Rectangle And Stroked Line Paints Expected Pixels
+
+**Test**: `CanvasNetPdf_SystemIntegration_PdfRender_FilledRectangleAndStrokedLine_PaintsExpectedPixels`
+
+Exercises end-to-end system behavior for the Phase 2 content-stream interpreter: calls the public
+`Render` API against a hand-authored fixture containing a filled rectangle and a stroked vertical
+line. Asserts specific opaque-black pixels inside the rectangle and along the stroked line, and
+specific fully-transparent pixels away from both, confirming real path geometry is rasterized to
+the correct device-pixel positions through the system's own public entry point (not merely that
+"something non-blank" was painted).
+
+### Integration: Pdf Render Rotated Page Maps Geometry To Correct Pixel Position
+
+**Test**: `CanvasNetPdf_SystemIntegration_PdfRender_RotatedPage_MapsGeometryToCorrectPixelPosition`
+
+Exercises end-to-end system behavior for the base CTM's rotation handling: calls the public
+`Render` API against a hand-authored, `/Rotate 90` fixture containing a deliberately asymmetric
+filled rectangle, at the fixture's own rotation-swapped display size. Asserts the rectangle's
+interior is opaque black at its mathematically correct rotated position, and asserts a specific
+pixel where a 270-instead-of-90 rotation-sign regression would incorrectly paint it is untouched,
+confirming `/MediaBox`/`/Rotate`-to-device-pixel-space correctness through the system's own public
+entry point.
 
 ### Integration: Pdf Validation Null Null Stream Throws Argument Null Exception
 

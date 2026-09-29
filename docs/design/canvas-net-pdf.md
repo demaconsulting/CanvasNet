@@ -33,13 +33,19 @@ and `PdfDocument`: inserting one here would not separate anything (there is noth
 system to separate it from), mirroring `CanvasNetSvg`'s own single-unit precedent (see
 _CanvasNetSvg System Design_, `docs/design/canvas-net-svg.md`).
 
-**Phase 1 scope.** `PdfDocument` is being delivered incrementally. Phase 1 (this design)
-implements document structure parsing only: cross-reference resolution (in all of PDF's common
-forms), the trailer/catalog/page tree, and page count/size/rotation reporting. `Render` already
-exposes its final call shape (a page index plus a caller-chosen output size) but, in Phase 1,
-returns a correctly sized, fully transparent `Surface` rather than interpreting the page's
-content stream — page content rendering (text, paths, images, color) is planned for later
-phases and is explicitly out of scope here.
+**Phased delivery.** `PdfDocument` is being delivered incrementally. Phase 1 implemented document
+structure parsing only: cross-reference resolution (in all of PDF's common forms), the
+trailer/catalog/page tree, and page count/size/rotation reporting; `Render` exposed its final
+call shape (a page index plus a caller-chosen output size) but returned only a correctly sized,
+fully transparent `Surface`. Phase 2 (this design) adds a content-stream interpreter: `Render`
+now tokenizes and executes a page's `/Contents` path-construction (`m`/`l`/`c`/`v`/`y`/`h`/`re`)
+and path-painting (`f`/`F`/`f*`/`S`/`s`/`B`/`B*`/`b`/`b*`/`n`) operators, plus the graphics-state
+stack (`q`/`Q`/`cm`/`w`/`J`/`j`/`M`/`d`), painting real path geometry in the correct device-pixel
+position for the page's `/MediaBox` origin, effective `/Rotate`, and the caller's requested render
+size. **Phase 2 limitation**: every filled/stroked path paints in solid opaque black — no color
+space or color-setting operator is implemented yet. Text/font operators, image XObjects,
+additional stream filters, and clipping-path operators (`W`/`W*`) remain explicitly out of scope
+and are planned for later phases.
 
 ## External Interfaces
 
@@ -61,10 +67,13 @@ The system exposes the following public API to external consumers, all on the se
   `ArgumentOutOfRangeException` for `pageIndex < 0 || pageIndex >= PageCount`, and
   `ObjectDisposedException` once disposed.
 - **PdfDocument.Render(int pageIndex, int width, int height)**: Returns a `Surface` of the
-  caller-specified `width`x`height` for the given page. Phase 1: the returned `Surface` is
-  always fully transparent (blank) — no content-stream interpretation is performed yet. Validates
-  `pageIndex` the same way as `GetPageInfo`, propagates `Surface`'s own `width`/`height`
-  validation unwrapped, and throws `ObjectDisposedException` once disposed.
+  caller-specified `width`x`height` for the given page, painted with the page's interpreted
+  content-stream geometry (path construction/painting, in solid opaque black only — see
+  _PdfDocument Unit Design_ for the full Phase 2 operator set and color limitation), or a fully
+  transparent surface when the page declares no `/Contents`. Validates `pageIndex` the same way
+  as `GetPageInfo`, propagates `Surface`'s own `width`/`height` validation unwrapped, throws
+  `InvalidDataException` for malformed `/Contents` or a malformed recognized operator, and throws
+  `ObjectDisposedException` once disposed.
 - **PdfDocument.Dispose()**: Idempotent; releases the buffered/parsed document state. No other
   public member may be called afterward without throwing `ObjectDisposedException`.
 
@@ -87,16 +96,21 @@ and page-tree traversal/inheritance) and every method's full parameter and excep
 `DemaConsulting.CanvasNet`, referenced via a project reference from
 `src/DemaConsulting.CanvasNet.Pdf/DemaConsulting.CanvasNet.Pdf.csproj`), specifically:
 
-- The `Canvas` subsystem's `Surface` unit — constructing the blank (Phase 1) or, in a later
-  phase, content-rendered destination raster `Render` returns
+- The `Canvas` subsystem's `Surface` unit — the content-rendered destination raster `Render`
+  returns, and `Rgba32` — the fixed opaque-black fill/stroke color
 - The `Codecs` subsystem's shared `UnsupportedImageFeatureException` type — reused, unmodified,
   to signal a well-formed-but-unsupported `/Encrypt`ed document (see Risk Control Measures below)
+- The `Geometry` subsystem's `PathBuilder`/`Path` — accumulates each content stream's current
+  path as its path-construction operators are dispatched
+- The `Drawing` subsystem's `PathFiller`/`PathStroker`/`StrokeStyle`/`FillRule`/`LineCap`/
+  `LineJoin` — rasterizes each finished path onto the destination `Surface` for every
+  path-painting operator
 
-Phase 1 introduces no dependency on the `CanvasNet` system's `Geometry`, `Drawing`, or `Fonts`
-subsystems: no Phase 1 file constructs a `Path`, rasterizes a fill/stroke, or looks up a glyph —
-`Render` only constructs a blank `Surface`. A later phase that begins interpreting page content
-streams will add those dependencies explicitly, at the point they are actually first used, rather
-than declaring them here in advance of any real usage.
+This dependency on `Geometry`/`Drawing` is new as of Phase 2: Phase 1 introduced no such
+dependency (no Phase 1 file constructed a `Path`, rasterized a fill/stroke, or looked up a
+glyph — `Render` only constructed a blank `Surface`). Phase 2 still introduces no dependency on
+the `Fonts` subsystem: no text/font operator is implemented yet; a later phase that adds text
+rendering will add that dependency explicitly, at the point it is actually first used.
 
 This is an ordinary, same-repository, system-to-system dependency: both `CanvasNet` and
 `CanvasNetPdf` are produced by this repository, so it is neither an OTS Software Item (not a
@@ -151,15 +165,22 @@ contains exactly one unit, so this risk control is inherently contained within i
 4. **Output**: A new `PdfDocument` instance whose `PageCount`/`GetPageInfo` reflect the fully
    resolved page tree — parsed once, reused across every subsequent call on that instance
 
-**PDF render path (Phase 1):**
+**PDF render path:**
 
 1. **Input**: A `pageIndex` and a caller-requested output `width`/`height`
 2. **Validation**: Rejects an out-of-range `pageIndex` with `ArgumentOutOfRangeException`
    (identically to `GetPageInfo`); a non-positive `width`/`height`, or a `width`/`height`
    exceeding `Surface.MaxDimension` (8192), propagates, unwrapped, as `Surface`'s own
    `ArgumentOutOfRangeException`
-3. **Processing**: Phase 1 performs no content-stream interpretation
-4. **Output**: A new, fully transparent `Canvas.Surface` of exactly the requested size
+3. **Processing**: Builds the page's base current transformation matrix from its raw `/MediaBox`
+   origin, effective `/Rotate`, and the requested `width`/`height`; resolves `/Contents` to fully
+   decoded bytes (concatenating a multi-stream array with a space separator); tokenizes and
+   dispatches every recognized path-construction/painting and graphics-state operator, silently
+   skipping any other keyword; throws `InvalidDataException` for malformed `/Contents` or a
+   malformed recognized operator's operand count/type
+4. **Output**: A new `Canvas.Surface` of exactly the requested size, painted with the page's
+   interpreted path geometry in solid opaque black (or fully transparent, when the page declares
+   no `/Contents` at all)
 
 ## Design Constraints
 

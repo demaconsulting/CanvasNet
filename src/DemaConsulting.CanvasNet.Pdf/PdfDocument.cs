@@ -17,12 +17,23 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         instance).
 ///     </para>
 ///     <para>
-///         Phase 1 of this package's implementation establishes document parsing and the page-info
-///         API surface, but does not yet interpret page content streams:
-///         <see cref="Render(int, int, int)"/> currently returns a correctly sized but fully
-///         transparent (blank) <see cref="Surface"/>. Actual page content (paths, text, images) is
-///         planned for a later phase - this is a documented, intentional, in-progress limitation
-///         of the current phase, not a bug.
+///         Phase 1 of this package's implementation established document parsing and the
+///         page-info API surface. Phase 2 adds a content-stream interpreter:
+///         <see cref="Render(int, int, int)"/> now tokenizes and executes each page's
+///         <c>/Contents</c> (path-construction operators <c>m</c>/<c>l</c>/<c>c</c>/<c>v</c>/
+///         <c>y</c>/<c>h</c>/<c>re</c>, path-painting operators <c>f</c>/<c>F</c>/<c>f*</c>/
+///         <c>S</c>/<c>s</c>/<c>B</c>/<c>B*</c>/<c>b</c>/<c>b*</c>/<c>n</c>, and the graphics-
+///         state operators <c>q</c>/<c>Q</c>/<c>cm</c>/<c>w</c>/<c>J</c>/<c>j</c>/<c>M</c>/
+///         <c>d</c>), painting real path geometry onto the returned <see cref="Surface"/> in
+///         the correct device-pixel position for the page's <c>/MediaBox</c> origin, effective
+///         <c>/Rotate</c>, and the caller's requested render size. Every other keyword
+///         (color, text, image, clipping, and additional stream filter operators) is silently
+///         skipped - not an error, simply out of this phase's scope. <strong>Phase 2
+///         limitation</strong>: every filled/stroked path paints in solid opaque black,
+///         regardless of any color operator a content stream may issue - no color space or
+///         color-setting operator is implemented yet; a later phase is expected to add real
+///         color support. A page with no <c>/Contents</c> at all still renders as a fully
+///         transparent (blank) <see cref="Surface"/>, exactly as every page did in Phase 1.
 ///     </para>
 ///     <para>
 ///         Encrypted documents (a trailer declaring an <c>/Encrypt</c> key) are rejected with
@@ -200,22 +211,30 @@ public sealed partial class PdfDocument : IDisposable
     }
 
     /// <summary>
-    ///     Renders the specified page into a new <see cref="Surface"/> of the given dimensions.
+    ///     Renders the specified page into a new <see cref="Surface"/> of the given dimensions,
+    ///     tokenizing and executing the page's <c>/Contents</c> content stream (see the
+    ///     <see cref="PdfDocument"/> class remarks for the recognized operator set and the
+    ///     current "solid opaque black only" color limitation).
     /// </summary>
     /// <param name="pageIndex">The zero-based index of the page to render.</param>
     /// <param name="width">The width of the rendered surface, in pixels.</param>
     /// <param name="height">The height of the rendered surface, in pixels.</param>
     /// <returns>
     ///     A new <see cref="Surface"/> of the requested <paramref name="width"/> x
-    ///     <paramref name="height"/>. In this phase the returned surface is always fully
-    ///     transparent (blank) - page content-stream interpretation is not yet implemented; see
-    ///     the <see cref="PdfDocument"/> class remarks.
+    ///     <paramref name="height"/>, painted with the page's interpreted content-stream geometry.
+    ///     A page with no <c>/Contents</c> renders as a fully transparent (blank) surface.
     /// </returns>
     /// <exception cref="ArgumentOutOfRangeException">
     ///     Thrown when <paramref name="pageIndex"/> is negative or greater than or equal to
     ///     <see cref="PageCount"/>, or when <paramref name="width"/>/<paramref name="height"/> is
     ///     outside <see cref="Surface"/>'s own valid dimension range (propagated, unwrapped, from
     ///     the <see cref="Surface(int, int)"/> constructor).
+    /// </exception>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     Thrown when <c>/Contents</c> is malformed (neither a stream nor an array of streams,
+    ///     or an array entry that does not resolve to a stream), when the content stream is not
+    ///     lexically well-formed, or when a recognized operator's operand count/type does not
+    ///     match its documented requirement.
     /// </exception>
     /// <exception cref="ObjectDisposedException">Thrown when this document has been disposed.</exception>
     public Surface Render(int pageIndex, int width, int height)
@@ -226,10 +245,13 @@ public sealed partial class PdfDocument : IDisposable
             throw new ArgumentOutOfRangeException(nameof(pageIndex), pageIndex, "Page index is out of range.");
         }
 
-        // Phase 1: no content-stream interpretation yet - a freshly constructed Surface is
-        // already fully transparent (see Surface's own constructor remarks), which is exactly
-        // the documented Phase 1 "blank page" contract; no special-case fill logic is needed.
-        return new Surface(width, height);
+        var surface = new Surface(width, height);
+        var pageInfo = _pages[pageIndex];
+        var (pageNode, x0, y0, boxWidth, boxHeight) = ResolvePageNodeAndMediaBox(pageIndex);
+        var baseCtm = BuildBaseCtm(x0, y0, boxWidth, boxHeight, pageInfo.Rotation, width, height);
+        var contentBytes = ResolvePageContentBytes(pageNode);
+        ExecuteContentStream(contentBytes, surface, baseCtm);
+        return surface;
     }
 
     /// <summary>
