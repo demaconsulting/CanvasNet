@@ -10,6 +10,25 @@ namespace DemaConsulting.CanvasNet.Tests.Geometry;
 public class PathCommandTests
 {
     /// <summary>
+    ///     Asserts that two unit-direction vectors are equal within a small tolerance, rather
+    ///     than requiring bit-exact equality. <see cref="PathCommand.ComputeTangents"/> computes
+    ///     its result via an intermediate <see langword="double"/> pipeline (to avoid the
+    ///     float-precision overflow covered by other tests in this class), which can legitimately
+    ///     differ from a purely <see langword="float"/>-precision reference computation (such as
+    ///     <see cref="Vector2.Normalize(Vector2)"/>) in the last representable bit, without either
+    ///     result being wrong.
+    /// </summary>
+    /// <param name="expected">The expected unit direction, computed via a reference method.</param>
+    /// <param name="actual">The actual unit direction returned by the method under test.</param>
+    private static void AssertDirectionApproximatelyEqual(Vector2 expected, Vector2? actual)
+    {
+        Assert.NotNull(actual);
+        Assert.True(
+            Vector2.Distance(expected, actual.Value) < 1e-6f,
+            $"Expected direction approximately {expected} but was {actual.Value}.");
+    }
+
+    /// <summary>
     ///     Proves that the public LineTo factory constructs a LineTo command carrying the given
     ///     end point, usable by a consumer outside this package that needs to synthesize a
     ///     standalone straight-line command (for example, an implicit closing edge that is not
@@ -92,6 +111,31 @@ public class PathCommandTests
     }
 
     /// <summary>
+    ///     Proves that a LineTo command still returns a valid unit tangent when its start and end
+    ///     points are individually finite but so far apart (near opposite ends of the float
+    ///     range) that computing their delta as a float Vector2 subtraction would itself overflow
+    ///     to positive/negative infinity, before any widening of the squared-length step ever gets
+    ///     a chance to help. The delta itself must be computed in double precision.
+    /// </summary>
+    [Fact]
+    public void PathCommand_ComputeTangents_LineToWithFarApartNearMaxFiniteCoordinates_ReturnsValidNormalizedDirection()
+    {
+        // Arrange: a horizontal line segment whose endpoints are each individually finite, but
+        // whose float-precision delta (EndPoint - start) would overflow to infinity
+        var start = new Vector2(-float.MaxValue, 0f);
+        var command = PathCommand.LineTo(new Vector2(float.MaxValue, 0f));
+
+        // Act
+        var (outgoing, incoming) = command.ComputeTangents(start);
+
+        // Assert: the direction is unambiguously +X, so both tangents are the unit X vector
+        Assert.NotNull(outgoing);
+        Assert.NotNull(incoming);
+        Assert.Equal(new Vector2(1, 0), outgoing);
+        Assert.Equal(new Vector2(1, 0), incoming);
+    }
+
+    /// <summary>
     ///     Proves that a QuadraticBezierTo command's outgoing tangent points toward its control
     ///     point, and its incoming tangent points away from that same control point toward its
     ///     end point.
@@ -109,8 +153,8 @@ public class PathCommandTests
         var (outgoing, incoming) = command.ComputeTangents(start);
 
         // Assert
-        Assert.Equal(Vector2.Normalize(control - start), outgoing);
-        Assert.Equal(Vector2.Normalize(end - control), incoming);
+        AssertDirectionApproximatelyEqual(Vector2.Normalize(control - start), outgoing);
+        AssertDirectionApproximatelyEqual(Vector2.Normalize(end - control), incoming);
     }
 
     /// <summary>
@@ -130,8 +174,8 @@ public class PathCommandTests
         var (outgoing, incoming) = command.ComputeTangents(start);
 
         // Assert
-        Assert.Equal(Vector2.Normalize(end - start), outgoing);
-        Assert.Equal(Vector2.Normalize(end - start), incoming);
+        AssertDirectionApproximatelyEqual(Vector2.Normalize(end - start), outgoing);
+        AssertDirectionApproximatelyEqual(Vector2.Normalize(end - start), incoming);
     }
 
     /// <summary>
@@ -152,8 +196,8 @@ public class PathCommandTests
         var (outgoing, incoming) = command.ComputeTangents(start);
 
         // Assert
-        Assert.Equal(Vector2.Normalize(control1 - start), outgoing);
-        Assert.Equal(Vector2.Normalize(end - control2), incoming);
+        AssertDirectionApproximatelyEqual(Vector2.Normalize(control1 - start), outgoing);
+        AssertDirectionApproximatelyEqual(Vector2.Normalize(end - control2), incoming);
     }
 
     /// <summary>
@@ -174,8 +218,8 @@ public class PathCommandTests
         var (outgoing, incoming) = command.ComputeTangents(start);
 
         // Assert
-        Assert.Equal(Vector2.Normalize(end - start), outgoing);
-        Assert.Equal(Vector2.Normalize(end - start), incoming);
+        AssertDirectionApproximatelyEqual(Vector2.Normalize(end - start), outgoing);
+        AssertDirectionApproximatelyEqual(Vector2.Normalize(end - start), incoming);
     }
 
     /// <summary>

@@ -313,6 +313,8 @@ sections:
                 tests:
                   - PathCommand_ComputeTangents_LineTo_ReturnsSameNormalizedDirectionForBothTangents
                   - PathCommand_ComputeTangents_LineToWithCoincidentStartAndEnd_ReturnsNullTangents
+                  - PathCommand_ComputeTangents_LineToWithLargeFiniteCoordinates_ReturnsValidNormalizedDirection
+                  - PathCommand_ComputeTangents_LineToWithFarApartNearMaxFiniteCoordinates_ReturnsValidNormalizedDirection
                   - PathCommand_ComputeTangents_QuadraticBezierTo_PointsTowardThenAwayFromControlPoint
                   - PathCommand_ComputeTangents_QuadraticBezierToWithControlCoincidentWithStart_FallsBackToEndDirection
                   - PathCommand_ComputeTangents_CubicBezierTo_PointsTowardFirstThenAwayFromSecondControlPoint

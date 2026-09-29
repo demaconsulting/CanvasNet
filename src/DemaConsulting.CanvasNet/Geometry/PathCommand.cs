@@ -204,23 +204,23 @@ public readonly struct PathCommand
         switch (Type)
         {
             case PathCommandType.LineTo:
-                var lineDirection = NormalizeOrNull(EndPoint - start);
+                var lineDirection = NormalizeOrNull(start, EndPoint);
                 return (lineDirection, lineDirection);
 
             case PathCommandType.QuadraticBezierTo:
-                var outgoingQuad = NormalizeOrNull(Control1 - start)
-                    ?? NormalizeOrNull(EndPoint - start);
-                var incomingQuad = NormalizeOrNull(EndPoint - Control1)
-                    ?? NormalizeOrNull(EndPoint - start);
+                var outgoingQuad = NormalizeOrNull(start, Control1)
+                    ?? NormalizeOrNull(start, EndPoint);
+                var incomingQuad = NormalizeOrNull(Control1, EndPoint)
+                    ?? NormalizeOrNull(start, EndPoint);
                 return (outgoingQuad, incomingQuad);
 
             case PathCommandType.CubicBezierTo:
-                var outgoingCubic = NormalizeOrNull(Control1 - start)
-                    ?? NormalizeOrNull(Control2 - start)
-                    ?? NormalizeOrNull(EndPoint - start);
-                var incomingCubic = NormalizeOrNull(EndPoint - Control2)
-                    ?? NormalizeOrNull(EndPoint - Control1)
-                    ?? NormalizeOrNull(EndPoint - start);
+                var outgoingCubic = NormalizeOrNull(start, Control1)
+                    ?? NormalizeOrNull(start, Control2)
+                    ?? NormalizeOrNull(start, EndPoint);
+                var incomingCubic = NormalizeOrNull(Control2, EndPoint)
+                    ?? NormalizeOrNull(Control1, EndPoint)
+                    ?? NormalizeOrNull(start, EndPoint);
                 return (outgoingCubic, incomingCubic);
 
             default:
@@ -228,37 +228,43 @@ public readonly struct PathCommand
         }
     }
 
-    /// <summary>Normalizes <paramref name="vector"/>, tolerating a zero-length or non-finite result.</summary>
-    /// <param name="vector">The vector to normalize.</param>
+    /// <summary>
+    ///     Computes the normalized direction from <paramref name="from"/> to <paramref name="to"/>,
+    ///     tolerating a zero-length or non-finite result.
+    /// </summary>
+    /// <param name="from">The direction's start point.</param>
+    /// <param name="to">The direction's end point.</param>
     /// <returns>
-    ///     The unit-length direction, or <see langword="null"/> if <paramref name="vector"/>'s
-    ///     length is zero, subnormal-to-zero, or non-finite (a degenerate direction has no
+    ///     The unit-length direction, or <see langword="null"/> if the two points coincide, or
+    ///     the direction is subnormal-to-zero or non-finite (a degenerate direction has no
     ///     meaningful orientation to contribute).
     /// </returns>
     /// <remarks>
-    ///     The squared length is accumulated in <see langword="double"/> rather than
-    ///     <see langword="float"/> precision because <c>Vector2.LengthSquared()</c> squares both
-    ///     components in <see langword="float"/> arithmetic, which spuriously overflows to
-    ///     <see cref="float.PositiveInfinity"/> for finite coordinates whose magnitude exceeds
-    ///     roughly 1.8e19 - well before the coordinates themselves overflow. Using
-    ///     <see langword="double"/> for the length calculation avoids that false-positive
-    ///     degeneracy while still correctly reporting a genuinely zero-length or non-finite input.
+    ///     Every step of this computation - the point-to-point delta and its squared length -
+    ///     is performed in <see langword="double"/> rather than <see langword="float"/>
+    ///     precision. Computing the delta as a <see cref="Vector2"/> subtraction first would
+    ///     itself overflow to <see cref="float.PositiveInfinity"/> for finite points as close
+    ///     together (in magnitude terms) as <c>(-float.MaxValue, 0)</c> and
+    ///     <c>(float.MaxValue, 0)</c>, before the squared-length widening in a prior revision of
+    ///     this method ever got a chance to help; widening at the point-to-point delta itself,
+    ///     rather than only at the squared-length step, avoids that false-positive degeneracy
+    ///     while still correctly reporting a genuinely zero-length or non-finite direction.
     /// </remarks>
-    private static Vector2? NormalizeOrNull(Vector2 vector)
+    private static Vector2? NormalizeOrNull(Vector2 from, Vector2 to)
     {
-        // Accumulate the squared length in double precision to avoid the float-squaring
-        // overflow that would otherwise misclassify large-but-finite vectors as degenerate
-        double x = vector.X;
-        double y = vector.Y;
-        var lengthSquared = (x * x) + (y * y);
+        // Compute the delta itself in double precision so that neither the subtraction nor the
+        // squared-length step can spuriously overflow for finite, far-apart points
+        double dx = (double)to.X - from.X;
+        double dy = (double)to.Y - from.Y;
+        var lengthSquared = (dx * dx) + (dy * dy);
         if (!double.IsFinite(lengthSquared) || lengthSquared <= float.Epsilon)
         {
             return null;
         }
 
-        // Divide by the double-precision length (cast back to float) so the resulting
-        // direction remains a valid unit vector even for very large input magnitudes
-        var length = (float)Math.Sqrt(lengthSquared);
-        return new Vector2(vector.X / length, vector.Y / length);
+        // Divide by the double-precision length so the resulting direction remains a valid unit
+        // vector even for very large or far-apart input magnitudes
+        var length = Math.Sqrt(lengthSquared);
+        return new Vector2((float)(dx / length), (float)(dy / length));
     }
 }
