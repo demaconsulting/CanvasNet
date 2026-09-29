@@ -6,6 +6,8 @@ input-files:
   - docs/design/title.txt
   - docs/design/introduction.md
   - docs/design/canvas-net.md
+  - docs/design/canvas-net-svg.md
+  - docs/design/canvas-net-svg/svg-codec.md
   - docs/design/ots.md
   - docs/design/ots/buildmark.md
   - docs/design/ots/fileassert.md

@@ -18,7 +18,6 @@ includes:
   - docs/reqstream/canvas-net/codecs/tiff-codec.yaml
   - docs/reqstream/canvas-net/codecs/jpeg-codec.yaml
   - docs/reqstream/canvas-net/codecs/gif-codec.yaml
-  - docs/reqstream/canvas-net/codecs/svg-codec.yaml
   - docs/reqstream/canvas-net/geometry.yaml
   - docs/reqstream/canvas-net/geometry/rect.yaml
   - docs/reqstream/canvas-net/geometry/path.yaml
@@ -36,6 +35,9 @@ includes:
   - docs/reqstream/canvas-net/rendering/text-renderer.yaml
   - docs/reqstream/canvas-net/rendering/shapes.yaml
   - docs/reqstream/canvas-net/platform-requirements.yaml
+  - docs/reqstream/canvas-net-svg.yaml
+  - docs/reqstream/canvas-net-svg/svg-codec.yaml
+  - docs/reqstream/canvas-net-svg/platform-requirements.yaml
   - docs/reqstream/ots/xunit.yaml
   - docs/reqstream/ots/reqstream.yaml
   - docs/reqstream/ots/buildmark.yaml

@@ -4,10 +4,12 @@
 # These requirements describe the design-level behavior of the Path and PathBuilder unit,
 # within the Geometry subsystem. Path is an immutable snapshot produced only by
 # PathBuilder.Build(); PathBuilder is the mutable, fluent builder used to construct it. The
-# supporting types Subpath, PathCommand, and PathCommandType have no requirements of their own
-# (they are plain data carriers with no independently testable behavior) and are covered here
-# inline, following the precedent set by Rgba32 being covered inline within the Surface unit's
-# requirements.
+# supporting types Subpath and PathCommandType have no requirements of their own (they are plain
+# data carriers with no independently testable behavior) and are covered here inline, following
+# the precedent set by Rgba32 being covered inline within the Surface unit's requirements.
+# PathCommand is likewise mostly a plain data carrier, except for its public LineTo factory and
+# ComputeTangents method, which have independently testable behavior and their own requirements
+# below.
 
 sections:
   - title: CanvasNet Requirements
@@ -275,3 +277,47 @@ sections:
                   - PathBuilder_TangentArcTo_ZeroRadius_DegradesToLineToCorner
                   - PathBuilder_TangentArcTo_NegativeRadius_ThrowsArgumentOutOfRangeException
                   - PathBuilder_TangentArcTo_NoCurrentPoint_ThrowsInvalidOperationException
+
+              - id: CanvasNet-Geometry-PathCommand-PublicLineToFactory
+                title: >-
+                  The PathCommand class shall provide a public LineTo(end) static factory that
+                  constructs a standalone LineTo command, independent of PathBuilder.
+                justification: |
+                  A consumer outside this package (for example, a format codec computing a
+                  marker/arrowhead orientation for a closed subpath's implicit closing edge, which
+                  is never itself recorded as its own PathCommand) legitimately needs to
+                  synthesize a straight-line command to feed into ComputeTangents, without relying
+                  on cross-package internal access to this package's own PathBuilder-only factory
+                  methods, which is fragile once the two packages are independently NuGet
+                  versioned.
+                tests:
+                  - PathCommand_LineTo_GivenEndPoint_ConstructsLineToCommandWithThatEndPoint
+
+              - id: CanvasNet-Geometry-PathCommand-ComputeTangents
+                title: >-
+                  The PathCommand class shall provide a ComputeTangents(start) method returning
+                  the command's outgoing and incoming unit tangent directions for LineTo,
+                  QuadraticBezierTo, and CubicBezierTo commands - falling back, for a Bezier
+                  command, to the nearest non-coincident control point or endpoint when a control
+                  point coincides with the command's start or end point - and returning
+                  (null, null) for ArcTo and Close commands and for any command whose relevant
+                  direction is zero-length.
+                justification: |
+                  A path segment's tangent direction is the shared building block any
+                  marker/arrowhead-orientation feature (or any other future consumer needing a
+                  segment's direction of travel, such as a future PDF/PPTX/VSDX format codec
+                  package rendering its own connector arrowheads) needs; centralizing this
+                  computation on PathCommand itself - rather than duplicating it privately inside
+                  each consuming package - keeps the geometry authoritative in one place and
+                  usable across every current and future package built on top of Path.
+                tests:
+                  - PathCommand_ComputeTangents_LineTo_ReturnsSameNormalizedDirectionForBothTangents
+                  - PathCommand_ComputeTangents_LineToWithCoincidentStartAndEnd_ReturnsNullTangents
+                  - PathCommand_ComputeTangents_LineToWithLargeFiniteCoordinates_ReturnsValidNormalizedDirection
+                  - PathCommand_ComputeTangents_LineToWithFarApartNearMaxFiniteCoordinates_ReturnsValidNormalizedDirection
+                  - PathCommand_ComputeTangents_QuadraticBezierTo_PointsTowardThenAwayFromControlPoint
+                  - PathCommand_ComputeTangents_QuadraticBezierToWithControlCoincidentWithStart_FallsBackToEndDirection
+                  - PathCommand_ComputeTangents_CubicBezierTo_PointsTowardFirstThenAwayFromSecondControlPoint
+                  - PathCommand_ComputeTangents_CubicBezierToWithBothControlPointsCoincidentWithEndpoints_FallsBackToEndDirection
+                  - PathCommand_ComputeTangents_ArcTo_ReturnsNullTangents
+                  - PathCommand_ComputeTangents_Close_ReturnsNullTangents

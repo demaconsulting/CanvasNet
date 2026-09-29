@@ -44,12 +44,15 @@ directly as its own `Start` field, and `PathCommandType` only enumerates the com
 legally follow a subpath's start. This makes "a subpath's first point" a structural guarantee
 rather than a convention every consumer must separately validate.
 
-`PathCommand` is a flat readonly struct (not a class hierarchy) with a private constructor and
-internal static factory methods (`LineTo`, `QuadraticBezierTo`, `CubicBezierTo`, `ArcTo`,
-`Close`) used only by `PathBuilder`, carrying every field any command kind might need
-(`EndPoint`, `Control1`, `Control2`, `Radius`, `RotationDegrees`, `LargeArc`, `Sweep`); which
-fields are meaningful is determined by `Type`. This keeps `Path`'s internal storage a simple,
-allocation-friendly array of value-type structs rather than an array of polymorphic references.
+`PathCommand` is a flat readonly struct (not a class hierarchy) with a private constructor,
+carrying every field any command kind might need (`EndPoint`, `Control1`, `Control2`, `Radius`,
+`RotationDegrees`, `LargeArc`, `Sweep`); which fields are meaningful is determined by `Type`.
+This keeps `Path`'s internal storage a simple, allocation-friendly array of value-type structs
+rather than an array of polymorphic references. Every static factory method (`QuadraticBezierTo`,
+`CubicBezierTo`, `ArcTo`, `Close`) is internal, used only by `PathBuilder`, except `LineTo`, which
+is public: a straight line segment is the simplest possible `PathCommand`, and a consumer outside
+this package (see `PathCommand.ComputeTangents` below) legitimately needs to synthesize one of
+its own.
 
 **Architectural decision: `PathBuilder.ArcTo` stores raw SVG parameters only.** `ArcTo` never
 pre-inspects or pre-converts its `radius`/`rotationDegrees`/`largeArc`/`sweep`/`end` parameters;
@@ -125,6 +128,34 @@ subpath's own contribution.
 
 Never throws.
 
+#### PathCommand.LineTo(end)
+
+A public static factory constructing a standalone `LineTo` command, independent of
+`PathBuilder`. Unlike every other factory on this type, this one is public: a consumer outside
+this package (for example, a format codec computing a marker/arrowhead orientation) legitimately
+needs to synthesize a straight-line command of its own - for example, to represent a closed
+subpath's implicit closing edge, which is never itself recorded as its own `PathCommand` (a
+`Close` command carries no `EndPoint`).
+
+#### PathCommand.ComputeTangents(start)
+
+Computes this command's outgoing (leaving `start`) and incoming (arriving at `EndPoint`) unit
+tangent directions. For `LineTo`, both tangents are the normalized direction of travel. For
+`QuadraticBezierTo`/`CubicBezierTo`, the outgoing tangent points toward the first non-coincident
+control point (falling back through the remaining control points, then to `EndPoint`, when every
+earlier one coincides with `start`), and the incoming tangent points away from the last
+non-coincident control point (falling back symmetrically toward `start`). Returns
+`(null, null)` for `ArcTo` (whose tangent depends on its Bezier conversion via
+`SvgArcConverter`, which this method does not perform) and `Close` (which carries no `EndPoint`
+of its own), and `null` for either tangent whenever the relevant direction is zero-length.
+
+This is the shared geometry building block a marker/arrowhead-orientation feature needs -
+first introduced for `DemaConsulting.CanvasNet.Svg`'s own marker rendering, but deliberately
+placed on `PathCommand` itself, in core, rather than duplicated privately inside that package: a
+future format codec package (for example, a PDF, PPTX, or VSDX codec rendering its own connector
+arrowheads) needing the same tangent/direction computation can call this same public API instead
+of reimplementing it.
+
 ### Error Handling
 
 `PathBuilder`'s drawing-command guard (`InvalidOperationException` before the first `MoveTo`, or
@@ -143,6 +174,13 @@ and by its `ArcTo` handling, respectively).
 ### Callers
 
 `PathBuilder` and `Path` are public API entry points, invoked externally by consumers of the
-CanvasNet package. `Path` has no dependency on any consumer; `Geometry` has no runnable
-end-to-end example yet within this library, since no rasterizer (the reserved `Drawing`
-subsystem) exists yet to consume a `Path`.
+CanvasNet package. `Path` has no dependency on any consumer; within this repository, `Path` is
+consumed by the `Drawing` subsystem's `PathFiller` (scan-conversion fill rasterization) and
+`PathStroker` (stroke-outline generation), both of which rasterize a `Path` into a `Surface`.
+`PathCommand.LineTo` and `PathCommand.ComputeTangents`
+are, likewise, public API entry points with an external caller: the separate
+`DemaConsulting.CanvasNet.Svg` package's marker-rendering feature calls both - synthesizing a
+`LineTo` command for a closed subpath's implicit closing edge and computing every marker
+vertex's tangent via `ComputeTangents` - rather than depending on cross-package internal access
+to this package's `PathBuilder`-only factory methods, which would be fragile once the two
+packages are independently NuGet versioned.

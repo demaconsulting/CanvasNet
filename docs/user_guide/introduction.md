@@ -886,6 +886,10 @@ path and returns an `ImageInfo`.
 
 ### SvgCodec
 
+`SvgCodec` is distributed via the separate `DemaConsulting.CanvasNet.Svg` NuGet package (namespace
+`DemaConsulting.CanvasNet.Svg`), which references the core `DemaConsulting.CanvasNet` package -
+see the Installation section of the project README.
+
 The `SvgCodec` static class decodes and rasterizes a common real-world subset of SVG documents
 into a `Surface` of caller-chosen pixel dimensions. `SvgCodec` is decode-only: there is no `Save`.
 It supports basic shapes (`rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `path`),
@@ -1747,6 +1751,7 @@ Console.WriteLine(font.GetAdvanceWidth(glyphIndex));
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Svg;
 using System.IO;
 using System.Text;
 

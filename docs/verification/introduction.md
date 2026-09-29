@@ -36,6 +36,9 @@ constituent software items, specifically:
   `PathStroker`, and `GradientPaint`
 - **Fonts (Subsystem)** — TrueType (`glyf`-based) SFNT font loading and glyph-outline extraction:
   `TrueTypeFont`
+- **CanvasNetSvg (System)** — A separate, independently-distributed software system providing
+  SVG (Scalable Vector Graphics) rasterization, containing a single unit, `SvgCodec` — see
+  _CanvasNetSvg System Verification_ (`canvas-net-svg.md`)
 
 The following OTS items are also covered:
 
