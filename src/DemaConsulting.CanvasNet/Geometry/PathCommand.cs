@@ -257,7 +257,7 @@ public readonly struct PathCommand
         double dx = (double)to.X - from.X;
         double dy = (double)to.Y - from.Y;
         var lengthSquared = (dx * dx) + (dy * dy);
-        if (!double.IsFinite(lengthSquared) || lengthSquared <= float.Epsilon)
+        if (!double.IsFinite(lengthSquared) || lengthSquared <= 0)
         {
             return null;
         }

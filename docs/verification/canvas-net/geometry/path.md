@@ -178,6 +178,7 @@ the resulting command's `Type` is `LineTo` and its `EndPoint` matches the value 
 
 **Tests**: `PathCommand_ComputeTangents_LineTo_ReturnsSameNormalizedDirectionForBothTangents`,
 `PathCommand_ComputeTangents_LineToWithCoincidentStartAndEnd_ReturnsNullTangents`,
+`PathCommand_ComputeTangents_LineToWithFarApartNearMaxFiniteCoordinates_ReturnsValidNormalizedDirection`,
 `PathCommand_ComputeTangents_QuadraticBezierTo_PointsTowardThenAwayFromControlPoint`,
 `PathCommand_ComputeTangents_QuadraticBezierToWithControlCoincidentWithStart_FallsBackToEndDirection`,
 `PathCommand_ComputeTangents_CubicBezierTo_PointsTowardFirstThenAwayFromSecondControlPoint`,
@@ -186,11 +187,12 @@ the resulting command's `Type` is `LineTo` and its `EndPoint` matches the value 
 `PathCommand_ComputeTangents_Close_ReturnsNullTangents`
 
 Exercises `ComputeTangents` for every command type: a `LineTo` yields the same normalized
-direction for both tangents, or `null` for both when its start and end coincide; a
-`QuadraticBezierTo`/`CubicBezierTo` yields tangents pointing toward/away from its control
-point(s), falling back to the straight start-to-end direction when every control point
-coincides with its nearest endpoint; an `ArcTo` and a `Close` both yield `(null, null)`
-unconditionally.
+direction for both tangents, or `null` for both when its start and end coincide, or a valid
+normalized direction even when its start and end coordinates are near opposite ends of the
+finite `float` range; a `QuadraticBezierTo`/`CubicBezierTo` yields tangents pointing
+toward/away from its control point(s), falling back to the straight start-to-end direction
+when every control point coincides with its nearest endpoint; an `ArcTo` and a `Close` both
+yield `(null, null)` unconditionally.
 
 ### Acceptance Criteria
 
