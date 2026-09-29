@@ -48,7 +48,7 @@ class:
   `ArgumentNullException` for a null `stream`/`path`, `ArgumentException` for an empty/whitespace
   `path`, `InvalidDataException` for malformed or unsupported SVG data, and
   `ArgumentOutOfRangeException` (propagated, unwrapped, from `Surface`'s own constructor) for a
-  non-positive `width`/`height`.
+  non-positive `width`/`height` or a `width`/`height` exceeding `Surface.MaxDimension` (8192).
 - **SvgCodec.LoadWithFontFaces(Stream stream, int width, int height, fontFaces)** /
   **SvgCodec.LoadWithFontFaces(string path, int width, int height, fontFaces)**: The richer
   loading entry point, accepting more than one registered `SvgFontFace` (weight/style variant)
@@ -65,8 +65,8 @@ class:
 <!-- markdownlint-disable MD013 -->
 | Interface | Direction | Format | Constraints |
 | -------------------------------------- | ---------------- | ------------------------------ | ------------------------------- |
-| `SvgCodec.Load(...)` | Inbound/Outbound | Method call / `Surface` return | Valid SVG stream or path; `width`/`height` > 0 |
-| `SvgCodec.LoadWithFontFaces(...)` | Inbound/Outbound | Method call / `Surface` return | Valid SVG stream or path; `width`/`height` > 0 |
+| `SvgCodec.Load(...)` | Inbound/Outbound | Method call / `Surface` return | Valid SVG stream or path; `0 < width, height <= 8192` |
+| `SvgCodec.LoadWithFontFaces(...)` | Inbound/Outbound | Method call / `Surface` return | Valid SVG stream or path; `0 < width, height <= 8192` |
 | `SvgCodec.GetInfo(...)` | Inbound/Outbound | Method call / `ImageInfo` return | Valid SVG stream or path |
 <!-- markdownlint-enable MD013 -->
 
@@ -140,8 +140,8 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
    `ArgumentNullException`, an empty/whitespace `path` with `ArgumentException`, and malformed or
    resource-disproportionate SVG data (non-well-formed XML, a DOCTYPE declaration, a malformed
    `viewBox`/`transform`/path `d` attribute, or a budget exceeded) with `InvalidDataException`;
-   a non-positive `width`/`height` propagates, unwrapped, as `Surface`'s own
-   `ArgumentOutOfRangeException`
+   a non-positive `width`/`height`, or a `width`/`height` exceeding `Surface.MaxDimension` (8192),
+   propagates, unwrapped, as `Surface`'s own `ArgumentOutOfRangeException`
 3. **Processing**: Parses the document with `System.Xml.Linq`, builds an id→element index,
    resolves the root `viewBox`/`width`/`height` into an intrinsic size and computes the
    `preserveAspectRatio`-driven fit transform into the requested raster, then recursively walks

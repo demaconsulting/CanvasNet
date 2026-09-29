@@ -174,9 +174,10 @@ and by its `ArcTo` handling, respectively).
 ### Callers
 
 `PathBuilder` and `Path` are public API entry points, invoked externally by consumers of the
-CanvasNet package. `Path` has no dependency on any consumer; `Geometry` has no runnable
-end-to-end example yet within this library, since no rasterizer (the reserved `Drawing`
-subsystem) exists yet to consume a `Path`. `PathCommand.LineTo` and `PathCommand.ComputeTangents`
+CanvasNet package. `Path` has no dependency on any consumer; within this repository, `Path` is
+consumed by the `Drawing` subsystem's `PathFiller` (scan-conversion fill rasterization) and
+`PathStroker` (stroke-outline generation), both of which rasterize a `Path` into a `Surface`.
+`PathCommand.LineTo` and `PathCommand.ComputeTangents`
 are, likewise, public API entry points with an external caller: the separate
 `DemaConsulting.CanvasNet.Svg` package's marker-rendering feature calls both - synthesizing a
 `LineTo` command for a closed subpath's implicit closing edge and computing every marker
