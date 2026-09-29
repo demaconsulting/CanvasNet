@@ -64,39 +64,40 @@
 
   <!-- Project References -->
   <ItemGroup>
-    <ProjectReference Include="..\..\src\DemaConsulting.CanvasNet\DemaConsulting.CanvasNet.csproj" />
+    <ProjectReference Include="..\..\src\DemaConsulting.CanvasNet.Svg\DemaConsulting.CanvasNet.Svg.csproj" />
   </ItemGroup>
 
-  <!-- PngSuite Conformance Corpus (see PngSuite\PngSuite.README / PngSuite.LICENSE) -->
+  <!-- Shared test-support helpers reused from the core test project (single source of truth;
+       linked, not duplicated - see DemaConsulting.CanvasNet.Tests\TestSupport\*.cs). The whole
+       folder is linked (not just SyntheticFontBuilder.cs) so its own XML doc comments'
+       cross-references to sibling TestSupport types still resolve. -->
   <ItemGroup>
-    <None Include="PngSuite\**">
+    <Compile Include="..\DemaConsulting.CanvasNet.Tests\TestSupport\**\*.cs" Link="TestSupport\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- Hand-authored SVG test fixtures (see SvgFixtures\README.md for provenance) -->
+  <ItemGroup>
+    <None Include="SvgFixtures\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
 
-  <!-- TIFF and JPEG test fixtures, generated from the PngSuite corpus via ImageMagick
-       (see TiffFixtures\README.md / JpegFixtures\README.md for provenance) -->
+  <!-- Real-world "Open Sans" TrueType font fixture, reused from the core test project (single
+       source of truth; linked, not duplicated - see
+       DemaConsulting.CanvasNet.Tests\FontFixtures\README.md for provenance and SIL OFL 1.1
+       licensing), used by the real-font SVG integration test -->
   <ItemGroup>
-    <None Include="TiffFixtures\**">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="JpegFixtures\**">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
-  <!-- Real-world "Open Sans" TrueType font fixture, used by Fonts real-font integration tests
-       (see FontFixtures\README.md for provenance and SIL OFL 1.1 licensing) -->
-  <ItemGroup>
-    <None Include="FontFixtures\**">
+    <None Include="..\DemaConsulting.CanvasNet.Tests\FontFixtures\**" Link="FontFixtures\%(RecursiveDir)%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
 
-  <!-- Real-world GIF test fixtures, sourced from samplelib.com (see GifFixtures\README.md for
-       provenance and licensing) -->
+  <!-- PngSuite conformance corpus, reused from the core test project (single source of truth;
+       linked, not duplicated - see DemaConsulting.CanvasNet.Tests\PngSuite\PngSuite.README /
+       PngSuite.LICENSE for provenance), used by an SvgCodecTests embedded-image test to exercise
+       an interlaced PNG feature that PngCodec.Load intentionally refuses -->
   <ItemGroup>
-    <None Include="GifFixtures\**">
+    <None Include="..\DemaConsulting.CanvasNet.Tests\PngSuite\**" Link="PngSuite\%(RecursiveDir)%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

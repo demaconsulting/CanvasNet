@@ -32,7 +32,8 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 - 🗜️ **JPEG Codec** - Load baseline/progressive; save baseline JPEG
 - 🎞️ **GIF Codec** - Decode-only load of first GIF frame; `GetInfo` reports the true frame count
 - 📐 **SVG Codec** - Rasterize a common SVG subset, including markers/filters/clip-paths/masks and
-  weight/style-aware font matching, to a surface
+  weight/style-aware font matching, to a surface (ships as the separate
+  `DemaConsulting.CanvasNet.Svg` package)
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
@@ -55,11 +56,24 @@ Or via Package Manager Console:
 Install-Package DemaConsulting.CanvasNet
 ```
 
+SVG rasterization requires the separate `DemaConsulting.CanvasNet.Svg` package:
+
+```bash
+dotnet add package DemaConsulting.CanvasNet.Svg
+```
+
+Or via Package Manager Console:
+
+```powershell
+Install-Package DemaConsulting.CanvasNet.Svg
+```
+
 ## Usage
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Svg;
 using System.IO;
 
 // Create a surface, set a pixel, and crop an independent copy

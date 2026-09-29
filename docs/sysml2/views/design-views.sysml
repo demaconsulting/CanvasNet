@@ -12,6 +12,10 @@ package CanvasNet {
         expose CanvasNetSystem;
     }
 
+    view CanvasNetSvgView {
+        expose CanvasNetSvgSystem;
+    }
+
     view CanvasView {
         expose Canvas;
     }

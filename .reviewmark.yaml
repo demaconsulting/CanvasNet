@@ -99,7 +99,7 @@ reviews:
       - "docs/reqstream/canvas-net.yaml"
     paths:
       - "requirements.yaml"                                                 # root requirements file
-      - "docs/reqstream/**/*.yaml"                                          # all requirements files
+      - "docs/reqstream/canvas-net/**/*.yaml"                              # all requirements files
 
   # CanvasNet-Canvas Review (one per subsystem)
   - id: CanvasNet-Canvas
@@ -251,39 +251,6 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Codecs/NamespaceDoc.cs"     # Codecs namespace documentation
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/GifCodecTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/GifFixtureTests.cs"  # fixture conformance tests
-
-  # CanvasNet-Codecs-SvgCodec Review (one per unit)
-  - id: CanvasNet-Codecs-SvgCodec
-    title: Review that CanvasNet Codecs SvgCodec Implementation is Correct
-    context:
-      - "docs/design/canvas-net.md"
-      - "docs/reqstream/canvas-net.yaml"
-      - "docs/design/canvas-net/codecs.md"
-      - "docs/reqstream/canvas-net/codecs.yaml"
-    paths:
-      - "docs/reqstream/canvas-net/codecs/svg-codec.yaml"     # unit requirements
-      - "docs/design/canvas-net/codecs/svg-codec.md"         # unit design
-      - "docs/verification/canvas-net/codecs/svg-codec.md"   # unit verification
-      - "docs/sysml2/model/canvas-net/codecs/svg-codec.sysml"    # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet/Codecs/SvgCodec.cs"         # unit source (public API entry point)
-      - "src/DemaConsulting.CanvasNet/Codecs/Svg/**/*.cs"         # unit source (partial-class implementation files)
-      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.ColorMatrix.cs"  # phase 5 filter partial
-      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.ComponentTransfer.cs"  # phase 5 filter partial
-      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.Morphology.cs"  # phase 5 filter partial
-      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.Convolution.cs"  # phase 5 filter partial
-      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.DisplacementMap.cs"  # phase 5 filter partial
-      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.Tile.cs"  # phase 5 filter partial
-      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.DropShadow.cs"  # phase 5 filter partial
-      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.FeImage.cs"  # phase 5 filter partial
-      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.Lighting.cs"  # phase 6 filter partial
-      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.Turbulence.cs"  # phase 6 filter partial
-      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Css.Parser.cs"  # phase 7 CSS styling partial
-      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Css.Selectors.cs"  # phase 7 CSS styling partial
-      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Css.Cascade.cs"  # phase 7 CSS styling partial
-      - "src/DemaConsulting.CanvasNet/Codecs/Svg/SvgCodec.Filters.Blend.cs"  # phase 8 filter partial
-      - "src/DemaConsulting.CanvasNet/Codecs/NamespaceDoc.cs"     # Codecs namespace documentation
-      - "test/DemaConsulting.CanvasNet.Tests/Codecs/SvgCodecTests.cs"  # unit tests
-      - "test/DemaConsulting.CanvasNet.Tests/Codecs/SvgFixtureTests.cs"  # fixture conformance tests
 
   # CanvasNet-Geometry Review (one per subsystem)
   - id: CanvasNet-Geometry
@@ -567,6 +534,80 @@ reviews:
       - "docs/verification/canvas-net/rendering/shapes.md"      # unit verification
       - "src/DemaConsulting.CanvasNet/Rendering/Shapes.cs"          # unit source
       - "test/DemaConsulting.CanvasNet.Tests/Rendering/ShapesTests.cs"  # unit tests
+
+  # CanvasNetSvg-Architecture Review (one per system)
+  - id: CanvasNetSvg-Architecture
+    title: Review that CanvasNetSvg Architecture Satisfies Requirements
+    context:
+      - "README.md"
+      - "docs/user_guide/**/*.md"
+    paths:
+      - "docs/reqstream/canvas-net-svg.yaml"                          # system requirements
+      - "docs/design/introduction.md"                                 # design introduction
+      - "docs/design/canvas-net-svg.md"                               # system design
+      - "docs/verification/introduction.md"                           # verification introduction
+      - "docs/verification/canvas-net-svg.md"                         # system verification
+      - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgSystemIntegrationTests.cs"  # integration tests
+
+  # CanvasNetSvg-Design Review (one per system)
+  - id: CanvasNetSvg-Design
+    title: Review that CanvasNetSvg Design is Consistent and Complete
+    context:
+      - "docs/reqstream/canvas-net-svg.yaml"
+    paths:
+      - "docs/design/introduction.md"                                 # design introduction
+      - "docs/design/canvas-net-svg.md"                               # system design
+      - "docs/design/canvas-net-svg/**/*.md"                          # all system design documents
+
+  # CanvasNetSvg-Verification Review (one per system)
+  - id: CanvasNetSvg-Verification
+    title: Review that CanvasNetSvg Verification is Consistent and Complete
+    context:
+      - "docs/reqstream/canvas-net-svg.yaml"
+    paths:
+      - "docs/verification/introduction.md"                           # verification introduction
+      - "docs/verification/canvas-net-svg.md"                         # system verification
+      - "docs/verification/canvas-net-svg/**/*.md"                    # all verification documents
+
+  # CanvasNetSvg-AllRequirements Review (one per system)
+  - id: CanvasNetSvg-AllRequirements
+    title: Review that All CanvasNetSvg Requirements are Complete
+    context:
+      - "docs/design/canvas-net-svg.md"
+      - "docs/reqstream/canvas-net-svg.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-svg/**/*.yaml"                     # all requirements files
+
+  # CanvasNetSvg-SvgCodec Review (one per direct unit)
+  - id: CanvasNetSvg-SvgCodec
+    title: Review that CanvasNetSvg SvgCodec Implementation is Correct
+    context:
+      - "docs/design/canvas-net-svg.md"
+      - "docs/reqstream/canvas-net-svg.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-svg/svg-codec.yaml"                # unit requirements
+      - "docs/design/canvas-net-svg/svg-codec.md"                     # unit design
+      - "docs/verification/canvas-net-svg/svg-codec.md"               # unit verification
+      - "docs/sysml2/model/canvas-net-svg/svg-codec.sysml"            # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Svg/SvgCodec.cs"                # unit source (public API entry point)
+      - "src/DemaConsulting.CanvasNet.Svg/*.cs"                       # unit source (partial-class implementation files)
+      - "src/DemaConsulting.CanvasNet.Svg/SvgCodec.Filters.ColorMatrix.cs"  # phase 5 filter partial
+      - "src/DemaConsulting.CanvasNet.Svg/SvgCodec.Filters.ComponentTransfer.cs"  # phase 5 filter partial
+      - "src/DemaConsulting.CanvasNet.Svg/SvgCodec.Filters.Morphology.cs"  # phase 5 filter partial
+      - "src/DemaConsulting.CanvasNet.Svg/SvgCodec.Filters.Convolution.cs"  # phase 5 filter partial
+      - "src/DemaConsulting.CanvasNet.Svg/SvgCodec.Filters.DisplacementMap.cs"  # phase 5 filter partial
+      - "src/DemaConsulting.CanvasNet.Svg/SvgCodec.Filters.Tile.cs"  # phase 5 filter partial
+      - "src/DemaConsulting.CanvasNet.Svg/SvgCodec.Filters.DropShadow.cs"  # phase 5 filter partial
+      - "src/DemaConsulting.CanvasNet.Svg/SvgCodec.Filters.FeImage.cs"  # phase 5 filter partial
+      - "src/DemaConsulting.CanvasNet.Svg/SvgCodec.Filters.Lighting.cs"  # phase 6 filter partial
+      - "src/DemaConsulting.CanvasNet.Svg/SvgCodec.Filters.Turbulence.cs"  # phase 6 filter partial
+      - "src/DemaConsulting.CanvasNet.Svg/SvgCodec.Css.Parser.cs"  # phase 7 CSS styling partial
+      - "src/DemaConsulting.CanvasNet.Svg/SvgCodec.Css.Selectors.cs"  # phase 7 CSS styling partial
+      - "src/DemaConsulting.CanvasNet.Svg/SvgCodec.Css.Cascade.cs"  # phase 7 CSS styling partial
+      - "src/DemaConsulting.CanvasNet.Svg/SvgCodec.Filters.Blend.cs"  # phase 8 filter partial
+      - "src/DemaConsulting.CanvasNet.Svg/NamespaceDoc.cs"            # Svg namespace documentation
+      - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgCodecTests.cs"    # unit tests
+      - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgFixtureTests.cs"  # fixture conformance tests
 
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark

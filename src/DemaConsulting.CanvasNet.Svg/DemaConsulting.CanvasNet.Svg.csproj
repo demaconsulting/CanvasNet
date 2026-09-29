@@ -7,20 +7,20 @@
     <Nullable>enable</Nullable>
 
     <!-- NuGet Package Configuration -->
-    <PackageId>DemaConsulting.CanvasNet</PackageId>
+    <PackageId>DemaConsulting.CanvasNet.Svg</PackageId>
     <Version>0.0.0</Version>
     <Authors>DEMA Consulting</Authors>
     <Company>DEMA Consulting</Company>
-    <Description>CanvasNet is a .NET library providing a canvas-based drawing and rendering API.</Description>
+    <Description>DemaConsulting.CanvasNet.Svg provides a decode/rasterize-only SVG codec for the CanvasNet canvas-based drawing and rendering API.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/demaconsulting/CanvasNet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/demaconsulting/CanvasNet</RepositoryUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>Icon.png</PackageIcon>
-    <PackageTags>canvas;dotnet-library</PackageTags>
+    <PackageTags>canvas;dotnet-library;svg</PackageTags>
     <Copyright>Copyright DEMA Consulting</Copyright>
-    <Title>CanvasNet</Title>
-    <Product>DemaConsulting.CanvasNet</Product>
+    <Title>CanvasNet.Svg</Title>
+    <Product>DemaConsulting.CanvasNet.Svg</Product>
 
     <!-- Symbol Package Configuration -->
     <IncludeSymbols>true</IncludeSymbols>
@@ -53,23 +53,8 @@
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.401" PrivateAssets="All" />
   </ItemGroup>
 
-  <!-- Runtime Dependencies -->
-  <ItemGroup>
-    <!-- Provides TensorPrimitives, used by Surface's vectorized bulk pixel operations
-         (PremultiplyAlpha, UnpremultiplyAlpha, CompositeOver) to accelerate per-channel
-         floating-point arithmetic. In-box on net9.0/net10.0; supplied via this package on
-         net8.0. Pinned to the same version across all three TFMs for a single, auditable,
-         identical API surface rather than relying on an implicit framework reference. -->
-    <PackageReference Include="System.Numerics.Tensors" Version="10.0.12" />
-  </ItemGroup>
-
   <!-- Code Analysis Dependencies -->
   <ItemGroup>
-    <!-- Analyzer packages use child-element form to configure both PrivateAssets and IncludeAssets:
-         - PrivateAssets="all" prevents these build-time analyzers from becoming transitive dependencies
-           in packages that consume this library.
-         - IncludeAssets lists all asset types (including 'analyzers' and 'buildtransitive') to ensure
-           Roslyn analyzers and MSBuild targets are fully activated during the build. -->
     <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.401">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -80,9 +65,13 @@
     </PackageReference>
   </ItemGroup>
 
+  <!-- Project References -->
   <ItemGroup>
-    <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Tests" />
-    <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Svg" />
+    <ProjectReference Include="..\DemaConsulting.CanvasNet\DemaConsulting.CanvasNet.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Svg.Tests" />
   </ItemGroup>
 
   <ItemGroup>

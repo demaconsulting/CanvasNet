@@ -30,9 +30,8 @@ software items, specifically:
 - **Canvas (Subsystem)** — Pixel-buffer primitives: the `Surface` unit (mutable, in-memory
   32-bit RGBA pixel buffer with span-based row access) and the `Rgba32` unit
 - **Codecs (Subsystem)** — Image format codecs: `BmpCodec`, `PngCodec`, `TiffCodec`, and
-  `JpegCodec`, each converting to and from a `Surface` pixel buffer; `GifCodec`, a decode-only
-  unit that loads a `Surface` from the first frame of a GIF file; and `SvgCodec`, a
-  decode/rasterize-only unit that rasterizes a subset of SVG vector documents into a `Surface`
+  `JpegCodec`, each converting to and from a `Surface` pixel buffer; and `GifCodec`, a decode-only
+  unit that loads a `Surface` from the first frame of a GIF file
 - **Geometry (Subsystem)** — Vector-geometry primitives, distinct from the `Drawing`
   subsystem (which covers rasterization built on top of these primitives): the `Rect` unit
   (axis-aligned bounding rectangle), the `Path` unit (immutable vector path and its
@@ -54,6 +53,11 @@ software items, specifically:
   `Drawing`, and `Fonts`: the transform-aware `Canvas` wrapper, `TextRenderer` (measure and draw
   TrueType text with alignment and kerning), and `Shapes` (rectangle, rounded rectangle, and
   circle helpers)
+- **CanvasNetSvg (System)** — A separate, independently-distributed software system providing
+  SVG (Scalable Vector Graphics) rasterization, containing a single unit, `SvgCodec`, which
+  decodes/rasterizes a subset of SVG vector documents into a `CanvasNet.Canvas.Surface`.
+  `CanvasNetSvg` depends on this `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, and `Fonts`
+  subsystems — see _CanvasNetSvg System Design_ (`canvas-net-svg.md`)
 
 The following OTS items are also covered:
 
@@ -90,9 +94,9 @@ diagram or the prose below.
 
 CanvasNet is organized into six subsystems under the system level: the `Canvas` subsystem
 (the `Surface` and `Rgba32` units, namespace `DemaConsulting.CanvasNet.Canvas`), the `Codecs`
-subsystem (the `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`, and `SvgCodec` units,
-namespace
-`DemaConsulting.CanvasNet.Codecs`, flat — no further nesting), the `Geometry` subsystem (the
+subsystem (the `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, and `GifCodec` units,
+namespace `DemaConsulting.CanvasNet.Codecs`, flat — no further nesting), the
+`Geometry` subsystem (the
 `Rect`, `Path`, `BezierFlattening`, and `SvgArcConverter` units, namespace
 `DemaConsulting.CanvasNet.Geometry`, flat — no further nesting), the `Drawing` subsystem (the
 `PathFiller` unit, covering the supporting `FillRule` enum and the internal
@@ -110,6 +114,12 @@ the `Shapes` extension-method unit, namespace `DemaConsulting.CanvasNet.Renderin
 further nesting). As additional functionality is added, further subsystems and nested
 subsystems would organize related units and provide architectural boundaries with well-defined
 interfaces and responsibilities.
+
+A sibling top-level system, `CanvasNetSvg`, lives in this same repository alongside `CanvasNet`
+(rather than as one of its subsystems): its sole unit, `SvgCodec`, namespace
+`DemaConsulting.CanvasNet.Svg`, is distributed as its own separate NuGet package and depends on
+the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, and `Fonts` subsystems — see the Folder
+Layout section below and _CanvasNetSvg System Design_ (`canvas-net-svg.md`).
 
 ## Folder Layout
 
@@ -143,7 +153,6 @@ src/DemaConsulting.CanvasNet/
 │   ├── GifCodec.cs               — Decode-only, first-frame-only GIF loader; public API entry
 │   │                                point, partial-class implementation continues under `Gif/`
 │   ├── Gif/                      — `GifCodec` partial-class implementation files (decode, LZW)
-│   ├── SvgCodec.cs               — Decode/rasterize-only loader for a subset of SVG documents
 │   └── NamespaceDoc.cs           — Namespace-level XML documentation
 ├── Drawing/
 │   ├── FillRule.cs                — Nonzero/even-odd fill-rule enumeration
@@ -193,16 +202,34 @@ src/DemaConsulting.CanvasNet/
     └── NamespaceDoc.cs             — Namespace-level XML documentation
 ```
 
+`SvgCodec` lives in the sibling `src/DemaConsulting.CanvasNet.Svg/` project folder (namespace
+`DemaConsulting.CanvasNet.Svg`, distributed as the separate `DemaConsulting.CanvasNet.Svg` NuGet
+package). This is not a subsystem-mirroring structure of `CanvasNet` — it is the source folder of
+the separate, sibling `CanvasNetSvg` system's sole unit (see _CanvasNetSvg System Design_,
+`canvas-net-svg.md`), a flat structure with no further nesting:
+
+```text
+src/DemaConsulting.CanvasNet.Svg/
+├── SvgCodec.cs                — Decode/rasterize-only public API entry point; partial-class
+│                                implementation continues in the remaining sibling files below
+├── SvgCodec.*.cs               — `SvgCodec` partial-class implementation files (attributes,
+│                                 clipping/masking, CSS cascade/parser/selectors, elements,
+│                                 filters, gradients, image, markers, paint, parsing, path
+│                                 data/render, patterns, preserve-aspect-ratio, shapes, text)
+├── SvgFontFace.cs              — Registered font-face (family/weight/style) data carrier
+├── SvgFontStyle.cs             — Font-style enumeration used by `SvgFontFace`
+└── NamespaceDoc.cs             — Namespace-level XML documentation
+```
+
 This six-subsystem folder structure reflects the small number of subsystems in the system
 today. As the system grows with additional subsystems and units, the folder structure will
 expand further to mirror the software architecture. `Canvas/Surface.cs` also gained a
 `CompositeOverSpan` method used internally by `Drawing/PathFiller.cs`, and the `Drawing`
 subsystem now includes the additional stroking files listed above, along with the gradient
-paint files added for linear/radial gradient support in `PathFiller`. `Codecs/SvgCodec.cs` is
-the first unit in the `Codecs` subsystem whose dependencies are not limited to `Canvas`: it also
-depends on the `Geometry`, `Drawing`, and `Fonts` subsystems to build and rasterize the vector
-paths and text it decodes from SVG documents — see _Codecs Subsystem Design_
-(`docs/design/canvas-net/codecs.md`).
+paint files added for linear/radial gradient support in `PathFiller`. The sibling `CanvasNetSvg`
+system's sole unit, `SvgCodec`, depends on the `CanvasNet` system's `Geometry`, `Drawing`, and
+`Fonts` subsystems (not only `Canvas`) to build and rasterize the vector paths and text it
+decodes from SVG documents — see _CanvasNetSvg System Design_ (`canvas-net-svg.md`).
 
 ## Document Conventions
 
