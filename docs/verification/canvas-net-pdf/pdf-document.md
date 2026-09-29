@@ -31,13 +31,20 @@ cannot express.
 Cross-reference form, linear-scan fallback, page-tree traversal/inheritance/cycle-rejection,
 `/Encrypt` detection, and public-API (`Open`/`PageCount`/`GetPageInfo`/`Render`/`Dispose`) tests
 exercise the same hand-authored, byte-exact fixture files under `PdfFixtures/` (see
-`PdfFixtures/README.md` for provenance) through the public API only. Because `PdfDocument`'s
-dependencies (`Canvas.Surface`, `Codecs.UnsupportedImageFeatureException`, `Geometry.PathBuilder`,
-`Drawing.PathFiller`/`PathStroker`) are all sibling in-house types, not external services, no
-mocking or stubbing is required. Tests assert on parsed token/object field values, on
-`PageCount`/`PdfPageInfo` field values, on `Surface` pixel/dimension values, and on thrown
-exception types (and, for `UnsupportedImageFeatureException`, its `Feature` token) - never on "no
-exception thrown" alone, so every test can actually fail if the implementation is wrong.
+`PdfFixtures/README.md` for provenance) through the public API only. Font-resolution/encoding/
+text-operator tests (Phase 4) build a minimal synthetic embedded TrueType font in-memory (via the
+shared `SyntheticFontBuilder` test helper, linked from `DemaConsulting.CanvasNet.Tests`) whenever
+a test only needs controlled glyph outlines/`cmap` mappings; the one required end-to-end,
+real-font pixel-level test instead reuses the shared, unmodified `OpenSans-Regular.ttf` fixture
+(the same file `DemaConsulting.CanvasNet.Svg.Tests` links in), re-deriving its expected
+device-pixel positions from the font's own outline/metrics rather than hardcoded numbers. Because
+`PdfDocument`'s dependencies (`Canvas.Surface`, `Codecs.UnsupportedImageFeatureException`,
+`Geometry.PathBuilder`, `Drawing.PathFiller`/`PathStroker`, and, as of Phase 4, `Fonts.TrueTypeFont`)
+are all sibling in-house types, not external services, no mocking or stubbing is required. Tests
+assert on parsed token/object field values, on `PageCount`/`PdfPageInfo` field values, on
+`Surface` pixel/dimension values, and on thrown exception types (and, for
+`UnsupportedImageFeatureException`, its `Feature` token) - never on "no exception thrown" alone,
+so every test can actually fail if the implementation is wrong.
 
 Unit tests reside in `PdfDocumentTests.cs` within the `DemaConsulting.CanvasNet.Pdf.Tests`
 project.
@@ -376,6 +383,157 @@ The end-to-end system-integration test independently proves the same `Do` compos
 real, hand-authored fixture, asserting specific composited pixel colors at specific coordinates
 matching the fixture's known 2x2 source image, and a pixel outside the placed image's
 device-space footprint remains transparent.
+
+#### CanvasNetPdf-PdfDocument-FontResolution: Font Resolution Loads Embedded FontFile2, Fails Closed Otherwise
+
+**Tests**: `PdfDocument_Fonts_UnsupportedSubtype_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Fonts_MissingFontFile2_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Fonts_UndefinedFontName_ThrowsInvalidDataException`
+
+A `[Theory]` builds a `/Resources/Font` dictionary declaring each excluded subtype
+(`/Type0`/`/Type1`/`/MMType1`/`/Type3`) in turn and selects it via `Tf`, asserting
+`Codecs.UnsupportedImageFeatureException` in every case. Builds a `/Subtype /TrueType` font
+dictionary whose `/FontDescriptor` omits `/FontFile2` entirely, asserting the same exception -
+proving no standard-14/system-font substitution is ever silently attempted. Selects a font name
+absent from `/Resources/Font` via `Tf`, asserting `InvalidDataException`.
+
+#### CanvasNetPdf-PdfDocument-FontEncoding: WinAnsi/MacRoman Base Encodings and Differences Overrides Resolve Correctly
+
+**Tests**: `PdfDocument_Fonts_UnrecognizedEncoding_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Fonts_DefaultEncoding_IsWinAnsiEncoding`,
+`PdfDocument_Fonts_MacRomanEncoding_DiffersFromWinAnsiEncoding`,
+`PdfDocument_Fonts_Differences_OverridesBaseEncodingCode`,
+`PdfDocument_Fonts_Differences_Absent_LeavesBaseEncodingCodeUnmapped`,
+`PdfDocument_Fonts_Differences_UnrecognizedGlyphName_ThrowsInvalidDataException`,
+`PdfDocument_Fonts_Differences_NameBeforeStartingCode_ThrowsInvalidDataException`
+
+Selects a font declaring an unrecognized `/Encoding` base-encoding name, asserting
+`Codecs.UnsupportedImageFeatureException`. Selects a font with no `/Encoding` key at all and,
+separately, a font explicitly declaring `/MacRomanEncoding`, showing the byte code `0xE0` (which
+diverges between the two base encodings - `WinAnsiEncoding` maps it to U+00E0, `MacRomanEncoding`
+to U+2021) through a synthetic font whose `cmap` maps only U+00E0 to a real glyph, asserting the
+default-encoding case paints ink and the MacRoman case does not (resolving to `.notdef`/no
+paint) - proving the correct table is actually consulted, not merely that some table exists.
+Declares an `/Encoding/Differences` array remapping a code to glyph name `agrave` (U+00E0) and
+shows that code through a font whose `cmap` maps only U+00E0, asserting ink is painted where the
+base encoding alone would not have resolved to that codepoint; separately shows a code with no
+`/Differences` override present, asserting it keeps its base-encoding mapping unchanged. Declares
+a `/Differences` array containing an unrecognized glyph name, asserting `InvalidDataException`
+(a fail-closed policy, not a silent mis-mapping to `.notdef`); separately declares a
+`/Differences` array beginning with a glyph name before any starting code number, asserting
+`InvalidDataException` for that malformed array shape too.
+
+#### CanvasNetPdf-PdfDocument-FontWidths: Advance-Width Resolution Follows the Documented Priority
+
+**Tests**: `PdfDocument_Fonts_Widths_ExplicitEntry_DeterminesAdvance`,
+`PdfDocument_Fonts_Widths_MissingWidthFallback_DeterminesAdvance`,
+`PdfDocument_Fonts_Widths_FontOwnAdvanceFallback_DeterminesAdvance`
+
+Shows two glyphs from a font declaring an explicit `/Widths` entry for the first code, asserting
+the second glyph's painted device-x position matches the explicit width, not the font's own
+metric. Declares a font whose `/Widths` array omits a shown code but whose `/FontDescriptor`
+declares `/MissingWidth`, asserting the second glyph's position matches the `/MissingWidth`
+value. Declares a font with neither `/Widths` nor `/MissingWidth` for a shown code, asserting the
+second glyph's position matches the embedded font's own `GetAdvanceWidth`/`UnitsPerEm` metric.
+
+#### CanvasNetPdf-PdfDocument-TextObjectState: BT/ET Reset Only Tm/Tlm; q/Q Save/Restore Text State
+
+**Tests**: `PdfDocument_Text_BeginText_ResetsTextMatrixButPreservesFontAndTextState`,
+`PdfDocument_Text_PushPopGraphicsState_RestoresFontSize`
+
+Selects a font and size, moves the text position, ends the text object (`ET`), begins a new one
+(`BT`) without re-selecting the font, and shows a glyph at a freshly-set position - asserting the
+previously selected font/size is still in effect (painted ink appears, proving `Tf` was not lost)
+while the text position reset to identity is honored (the glyph appears at the new position, not
+offset by the first text object's position). Selects a font size, pushes the graphics state
+(`q`), changes the font size, pops it (`Q`), and shows a glyph - asserting the glyph's painted
+size matches the original (pre-`q`) font size, proving `q`/`Q` saves/restores text state exactly
+like every other graphics-state parameter.
+
+#### CanvasNetPdf-PdfDocument-TextStateOperators: Tc/Tw/Tz Apply Their Documented Spacing/Scaling Formulas
+
+**Tests**: `PdfDocument_Text_Tc_AddsToGlyphAdvance`, `PdfDocument_Text_Tw_AppliesOnlyToCode32`,
+`PdfDocument_Text_Tz_ScalesHorizontalShapeAndAdvance`
+
+Sets a nonzero `Tc` and shows two glyphs, asserting the second glyph's device-x position is
+offset by the additional character spacing beyond its own advance width. Sets a nonzero `Tw` and
+shows a string containing a code-32 (space) byte followed by a non-space byte, asserting only the
+byte immediately after the space is offset by the word spacing (a non-space code is never
+affected). Sets `Tz` to a value other than the default `100` and shows two glyphs, asserting both
+each glyph's own painted horizontal shape (narrower/wider) and its advance are scaled
+accordingly, while the vertical shape (unaffected by `Th`) is unchanged.
+
+#### CanvasNetPdf-PdfDocument-Tf: Tf Resolves the Named Font Resource and Selects Its Size
+
+**Tests**: `PdfDocument_Text_ShowText_PaintsGlyphAtComposedTextRenderingMatrix`
+
+Selects a font and size via `Tf`, then shows a glyph and asserts its painted device-pixel
+position/size matches the composed text-rendering matrix formula independently re-derived from
+the same font's own metrics (see this class's own pixel-math derivation, confirmed empirically
+against the real rasterizer before being fixed into every position-dependent test's assertions).
+
+#### CanvasNetPdf-PdfDocument-Tr: Tr Supports Fill/Invisible Modes, Fails Closed for Stroke/Clip Modes
+
+**Tests**: `PdfDocument_Text_RenderMode3_Invisible_DoesNotPaintGlyph`,
+`PdfDocument_Text_RenderMode3_Invisible_StillAdvancesTextPosition`,
+`PdfDocument_Text_RenderMode_UnsupportedDefinedMode_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Text_RenderMode_OutOfDefinedRange_ThrowsInvalidDataException`
+
+Sets `Tr 3` (invisible) and shows a glyph, asserting no ink is painted at its expected position.
+Sets `Tr 3`, shows a first glyph, then shows a second glyph with `Tr 0` (fill), asserting the
+second glyph's position reflects the first (invisible) glyph's own advance - proving invisible
+text still moves the text position. A `[Theory]` sets `Tr` to each of the defined stroke/clip
+modes (`1`/`2`/`4`/`5`/`6`/`7`) in turn, asserting `Codecs.UnsupportedImageFeatureException` in
+every case; a separate `[Theory]` sets `Tr` to a value outside the specification's defined
+`0`-`7` range, asserting `InvalidDataException`.
+
+#### CanvasNetPdf-PdfDocument-TextPositioning: Td/TD/Tm/T* Compose the Text and Line Matrices Correctly
+
+**Tests**: `PdfDocument_Text_Td_OffsetsLineMatrixNotLastTextMatrix`,
+`PdfDocument_Text_TD_SetsLeadingToNegativeTy`, `PdfDocument_Text_Tm_ReplacesTextAndLineMatrix`,
+`PdfDocument_Text_TStar_UsesCurrentLeading`
+
+Issues two `Td` calls in sequence and shows a glyph after each, asserting the second glyph's
+position reflects both displacements measured from the (unmoved) line matrix, not accumulated
+relative to the first `Td`'s resulting text matrix. Issues `TD` and shows a glyph, then issues
+`T*` (with no intervening `TL`) and shows a second glyph, asserting the second glyph's vertical
+position reflects the leading `TD` implicitly set (`Leading = -ty`). Issues `Tm` with an explicit
+matrix and shows a glyph, asserting its position matches that matrix directly (a replacement, not
+a composition with any prior text/line matrix). Sets `TL` explicitly, issues `T*`, and shows a
+glyph, asserting its position matches exactly `0 -TL Td`'s own effect.
+
+#### CanvasNetPdf-PdfDocument-TextShowing: Tj/'/"/TJ Paint the Correct Glyphs at the Correct Positions
+
+**Tests**: `PdfDocument_Text_ShowText_PaintsGlyphAtComposedTextRenderingMatrix`,
+`PdfDocument_Text_TJ_AppliesPositionAdjustments`,
+`PdfDocument_Text_TJ_ArrayEntryNotStringOrNumber_ThrowsInvalidDataException`,
+`PdfDocument_Text_QuoteOperator_MovesToNextLineThenShows`,
+`PdfDocument_Text_DoubleQuoteOperator_SetsSpacingThenMovesAndShows`,
+`CanvasNetPdf_SystemIntegration_PdfRender_EmbeddedTrueTypeFontText_PaintsGlyphStrokesNotCounters`
+
+Shows a string via `Tj`, asserting the painted glyph's device-pixel position/size matches the
+composed text-rendering matrix. Shows a `TJ` array containing a numeric position adjustment
+between two strings, asserting the second string's glyphs are shifted by exactly that
+adjustment's thousandths-of-text-space amount (scaled by `Tfs`/`Th`), beyond the preceding
+glyph's own advance. A `TJ` array containing an element that is neither a string nor a number
+asserts `InvalidDataException`. Issues `Td` then `'`, asserting the shown text is positioned
+exactly as `T*` followed by `Tj` would place it. Issues `"` with explicit word/character spacing
+operands, asserting both spacing parameters are applied to the subsequently shown text exactly as
+setting `Tw`/`Tc` then issuing `'` would. The end-to-end system-integration test independently
+proves the same glyph-painting pipeline against a real, hand-authored fixture embedding the real
+`OpenSans-Regular.ttf` production font, re-deriving expected ink/counter/background pixel
+positions from the font's own outline metrics rather than hardcoded numbers.
+
+#### CanvasNetPdf-PdfDocument-TextErrorHandling: No-Font-Selected and Malformed-Operand Text Operators Fail Closed
+
+**Tests**: `PdfDocument_Text_ShowText_NoFontSelected_ThrowsInvalidDataException`,
+`PdfDocument_Text_MalformedOperandCount_ThrowsInvalidDataException`
+
+A `[Theory]` shows text via each of `Tj`/`'`/`"` with no preceding `Tf` call, asserting
+`InvalidDataException` in every case. A large `[Theory]` supplies a malformed operand count/type
+to each text operator in turn (including a trailing garbage-operand `ET`, a wrong-arity `Tf`, and
+out-of-range operand counts for `Td`/`Tm`), asserting `InvalidDataException` in every case,
+matching every other operator family's own established convention.
 
 ## Acceptance Criteria
 

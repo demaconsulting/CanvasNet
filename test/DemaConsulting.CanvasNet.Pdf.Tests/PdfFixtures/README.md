@@ -29,3 +29,12 @@ licensed under the same MIT license as the rest of this repository.
 | `no-contents-page.pdf` | A page with no `/Contents` key - proves it still renders as a blank surface |
 | `color-rgb-rectangle-fill.pdf` | `rg` device color (Phase 3) - a rectangle filled opaque red |
 | `image-xobject-devicergb-flate.pdf` | `/Subtype /Image` XObject (2x2 `DeviceRGB`/`FlateDecode`) placed via `cm`/`Do` |
+| `text-embedded-truetype-font.pdf` | `/Subtype /TrueType` font, embedded `/FontFile2` (Phase 4) - `Tf`/`Td`/`Tj` |
+
+`text-embedded-truetype-font.pdf` is the one exception to the "no third-party source corpus"
+statement above: its `/FontFile2` stream is a real, unmodified, `FlateDecode`-compressed copy of
+the same "Open Sans" TrueType font every other CanvasNet test project shares (see
+`DemaConsulting.CanvasNet.Tests\FontFixtures\README.md` for its provenance and SIL Open Font
+License 1.1 text, not repeated here) - everything else about the file (its object structure,
+page/font/descriptor dictionaries, and content stream) was still hand-authored from scratch for
+this repository, exactly like every other fixture in this folder.

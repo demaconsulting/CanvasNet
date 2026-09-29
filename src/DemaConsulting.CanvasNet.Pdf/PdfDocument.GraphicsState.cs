@@ -105,6 +105,45 @@ public sealed partial class PdfDocument
         internal PdfColorSpaceKind StrokeColorSpace { get; set; } = PdfColorSpaceKind.DeviceGray;
 
         /// <summary>
+        ///     Gets or sets the currently selected font, resolved by the most recent <c>Tf</c>
+        ///     operator, or <see langword="null"/> when no <c>Tf</c> has been issued yet (in
+        ///     which case a text-showing operator fails closed - see
+        ///     <see cref="PdfDocument.ShowText"/>). Phase 4 adds this and every other field below;
+        ///     every one of them is, per the PDF specification, part of the graphics state
+        ///     proper (saved/restored by <c>q</c>/<c>Q</c>, and persisting across <c>BT</c>/
+        ///     <c>ET</c>) - a deliberate, documented distinction from
+        ///     <see cref="PdfDocument._textMatrix"/>/<see cref="PdfDocument._lineMatrix"/>, which
+        ///     are reset by <c>BT</c> and live outside this class entirely (see that field's own
+        ///     remarks).
+        /// </summary>
+        internal ResolvedFont? Font { get; set; }
+
+        /// <summary>Gets or sets the current font size, in unscaled text-space units. The PDF specification defines no default (a <c>Tf</c> is required before text is shown).</summary>
+        internal double FontSize { get; set; }
+
+        /// <summary>Gets or sets the character spacing, in unscaled text-space units. The PDF specification's default is <c>0</c>.</summary>
+        internal double CharSpacing { get; set; }
+
+        /// <summary>Gets or sets the word spacing, in unscaled text-space units. The PDF specification's default is <c>0</c>.</summary>
+        internal double WordSpacing { get; set; }
+
+        /// <summary>Gets or sets the horizontal scaling, as a percentage. The PDF specification's default is <c>100</c>.</summary>
+        internal double HorizontalScaling { get; set; } = 100;
+
+        /// <summary>Gets or sets the leading, in unscaled text-space units. The PDF specification's default is <c>0</c>.</summary>
+        internal double Leading { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the text-rendering mode. The PDF specification's default is <c>0</c>
+        ///     (fill) - see <see cref="PdfDocument.OpSetTextRenderMode"/> for which modes this
+        ///     phase actually supports.
+        /// </summary>
+        internal int RenderMode { get; set; }
+
+        /// <summary>Gets or sets the text rise, in unscaled text-space units. The PDF specification's default is <c>0</c>.</summary>
+        internal double TextRise { get; set; }
+
+        /// <summary>
         ///     Produces an independent copy of this graphics state, for <c>q</c> to push onto the
         ///     graphics-state stack.
         /// </summary>
@@ -112,7 +151,9 @@ public sealed partial class PdfDocument
         /// <remarks>
         ///     <see cref="DashArray"/> is shared, not deep-copied: it is only ever replaced
         ///     wholesale by <c>d</c> (never mutated in place), so sharing the same
-        ///     <see cref="IReadOnlyList{T}"/> reference across a clone is safe.
+        ///     <see cref="IReadOnlyList{T}"/> reference across a clone is safe. <see cref="Font"/>
+        ///     is likewise shared, not deep-copied: <see cref="ResolvedFont"/> instances are
+        ///     immutable once resolved by <see cref="PdfDocument.ResolveFont"/>.
         /// </remarks>
         internal GraphicsState Clone() => new()
         {
@@ -127,6 +168,14 @@ public sealed partial class PdfDocument
             StrokeColor = StrokeColor,
             FillColorSpace = FillColorSpace,
             StrokeColorSpace = StrokeColorSpace,
+            Font = Font,
+            FontSize = FontSize,
+            CharSpacing = CharSpacing,
+            WordSpacing = WordSpacing,
+            HorizontalScaling = HorizontalScaling,
+            Leading = Leading,
+            RenderMode = RenderMode,
+            TextRise = TextRise,
         };
     }
 

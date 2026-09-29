@@ -82,4 +82,14 @@
     </None>
   </ItemGroup>
 
+  <!-- Real-world "Open Sans" TrueType font fixture, reused from the core test project (single
+       source of truth; linked, not duplicated - see
+       DemaConsulting.CanvasNet.Tests\FontFixtures\README.md for provenance and SIL OFL 1.1
+       licensing), used by the real-font PDF integration test -->
+  <ItemGroup>
+    <None Include="..\DemaConsulting.CanvasNet.Tests\FontFixtures\**" Link="FontFixtures\%(RecursiveDir)%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

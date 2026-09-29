@@ -1,0 +1,728 @@
+// cspell:ignore WinAnsi WinAnsiEncoding MacRoman MacRomanEncoding notdef Zcaron Ycaron
+// cspell:ignore zcaron ycaron dieresis dbase perthousand Lslash lslash guilsingl
+// cspell:ignore periodcentered onesuperior twosuperior threesuperior ordfeminine ordmasculine
+// cspell:ignore adieresis odieresis udieresis ecircumflex icircumflex ocircumflex ucircumflex
+// cspell:ignore ntilde ccedilla eacute egrave igrave ograve ugrave agrave
+// cspell:ignore codepoints Aacute Acircumflex Aring Atilde Edieresis Iacute Idieresis
+// cspell:ignore Oacute Oslash Otilde Scaron Uacute Yacute Ydieresis aacute acircumflex
+// cspell:ignore approxequal aring asciicircum asciitilde atilde braceleft braceright
+// cspell:ignore bracketleft bracketright brokenbar caron daggerdbl dotaccent dotlessi
+// cspell:ignore edieresis emdash endash exclam exclamdown germandbls greaterequal
+// cspell:ignore guillemotleft guillemotright guilsinglleft guilsinglright hungarumlaut
+// cspell:ignore iacute idieresis lessequal logicalnot nbspace notequal numbersign oacute
+// cspell:ignore ogonek onehalf onequarter oslash otilde parenleft parenright partialdiff
+// cspell:ignore plusminus questiondown quotedbl quotedblbase quotedblleft quotedblright
+// cspell:ignore quoteleft quoteright quotesinglbase quotesingle scaron threequarters
+// cspell:ignore uacute yacute ydieresis
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Fonts;
+
+namespace DemaConsulting.CanvasNet.Pdf;
+
+public sealed partial class PdfDocument
+{
+    /// <summary>
+    ///     A simple (single-byte-code) TrueType font, fully resolved from its <c>/Resources/Font</c>
+    ///     dictionary: the loaded <see cref="Fonts.TrueTypeFont"/>, its effective code-to-Unicode-
+    ///     codepoint encoding table, and its code-to-declared-advance-width table.
+    /// </summary>
+    /// <remarks>
+    ///     Instances are built once by <see cref="BuildResolvedFont"/> and cached by
+    ///     <see cref="ResolveFont"/> in <see cref="_fontCache"/> for the lifetime of a single
+    ///     <see cref="Render(int, int, int)"/> call - see <see cref="_fontCache"/>'s own remarks
+    ///     for why the cache is never shared across calls.
+    /// </remarks>
+    private sealed class ResolvedFont
+    {
+        /// <summary>Gets the loaded embedded TrueType font.</summary>
+        internal required TrueTypeFont Font { get; init; }
+
+        /// <summary>
+        ///     Gets the effective code (0-255) to Unicode codepoint map, after applying the
+        ///     font's <c>/Encoding</c> base encoding and any <c>/Differences</c> overrides. A
+        ///     code absent from this map has no mapped codepoint (the PDF specification's
+        ///     "undefined" slot in the base encoding table, never overridden by
+        ///     <c>/Differences</c>) - <see cref="ShowText"/> treats such a code as mapping to
+        ///     Unicode codepoint <c>0</c>, which almost always resolves to glyph <c>0</c>
+        ///     (<c>.notdef</c>) via <see cref="Fonts.TrueTypeFont.GetGlyphIndex"/>.
+        /// </summary>
+        internal required IReadOnlyDictionary<int, int> Encoding { get; init; }
+
+        /// <summary>
+        ///     Gets the code (0-255) to declared advance width map, in glyph-space units per
+        ///     1000 (text-space thousandths), from the font dictionary's <c>/FirstChar</c>/
+        ///     <c>/LastChar</c>/<c>/Widths</c> entries. A code absent from this map has no
+        ///     explicit declared width - see <see cref="MissingWidth"/> and
+        ///     <see cref="ShowText"/>'s remarks for the documented fallback priority.
+        /// </summary>
+        internal required IReadOnlyDictionary<int, double> Widths { get; init; }
+
+        /// <summary>
+        ///     Gets the font's <c>/FontDescriptor/MissingWidth</c> value (in the same
+        ///     per-1000 units as <see cref="Widths"/>), or <c>0</c> when not declared - the PDF
+        ///     specification's own documented default.
+        /// </summary>
+        internal required double MissingWidth { get; init; }
+    }
+
+    /// <summary>
+    ///     Caches every font dictionary resolved (via <see cref="ResolveFont"/>) by the <c>Tf</c>
+    ///     operator during the content stream currently being executed by
+    ///     <see cref="ExecuteContentStream"/>, keyed by the resolved (indirect-reference-followed)
+    ///     font dictionary <see cref="PdfObject"/>'s own reference identity - <see cref="PdfObject"/>
+    ///     never overrides <see cref="object.Equals(object?)"/>/<see cref="object.GetHashCode"/>,
+    ///     so this is exactly the same "same instance in, same instance out" identity
+    ///     <see cref="GetObject(int)"/>'s own <c>_objectCache</c> already guarantees for every
+    ///     indirect reference resolved more than once - a directly-inlined (non-indirect-reference)
+    ///     font dictionary is keyed just as safely, since <see cref="ParseValue(PdfTokenizer)"/>
+    ///     never re-parses the same source bytes into two different <see cref="PdfObject"/>
+    ///     instances within one document parse.
+    /// </summary>
+    /// <remarks>
+    ///     Reinitialized (cleared) at the start of every <see cref="ExecuteContentStream"/> call,
+    ///     alongside <see cref="_gsStack"/>/<see cref="_pathBuilder"/> - an explicit, documented
+    ///     "per-<see cref="Render(int, int, int)"/>-call only" cache scope, never shared or reused
+    ///     across separate <see cref="Render(int, int, int)"/> calls on the same
+    ///     <see cref="PdfDocument"/> instance (each of which may, in principle, execute a
+    ///     different page's content stream against the same font resource name, so caching a
+    ///     resolved font beyond one call's lifetime could serve a stale/wrong font).
+    /// </remarks>
+    private Dictionary<PdfObject, ResolvedFont> _fontCache = null!;
+
+    /// <summary>
+    ///     Handles the <c>Tf</c> operator's font-name lookup: resolves a named simple TrueType
+    ///     font from the current page's <c>/Resources/Font</c> dictionary, building and caching
+    ///     (in <see cref="_fontCache"/>) a <see cref="ResolvedFont"/> the first time this
+    ///     particular font dictionary object is resolved during the current content-stream
+    ///     execution.
+    /// </summary>
+    /// <param name="name">The font resource name (without the leading slash).</param>
+    /// <returns>The resolved font.</returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="name"/> is not declared in the current page's
+    ///     <c>/Resources/Font</c> dictionary (or no <c>/Resources</c> exists at all).
+    /// </exception>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Propagated from <see cref="BuildResolvedFont"/> for an unsupported <c>/Subtype</c>, a
+    ///     missing embedded <c>/FontFile2</c>, or an unrecognized <c>/Encoding</c> base encoding.
+    /// </exception>
+    private ResolvedFont ResolveFont(string name)
+    {
+        var fontsEntry = _resources?.Get("Font");
+        var fontsDictionary = fontsEntry is null ? null : Resolve(fontsEntry);
+        var entry = fontsDictionary?.Get(name);
+        if (entry is null)
+        {
+            throw new InvalidDataException(
+                $"Undefined font '/{name}' (not declared in the current page's /Resources/Font).");
+        }
+
+        var fontDict = Resolve(entry);
+        if (_fontCache.TryGetValue(fontDict, out var cached))
+        {
+            return cached;
+        }
+
+        var resolved = BuildResolvedFont(fontDict);
+        _fontCache[fontDict] = resolved;
+        return resolved;
+    }
+
+    /// <summary>
+    ///     Builds a <see cref="ResolvedFont"/> from a font dictionary: validates <c>/Subtype
+    ///     /TrueType</c>, loads the required embedded <c>/FontDescriptor/FontFile2</c>, and
+    ///     resolves <c>/Encoding</c> and <c>/Widths</c>.
+    /// </summary>
+    /// <remarks>
+    ///     This package never falls back to a substitute/standard-14 font: a simple TrueType font
+    ///     with no embedded <c>/FontFile2</c> fails closed with
+    ///     <see cref="UnsupportedImageFeatureException"/> rather than silently rendering with an
+    ///     unrelated font (a documented, deliberate scope boundary - see the
+    ///     <see cref="PdfDocument"/> class remarks and <c>.agent-logs/planning-pdf-codec-roadmap-
+    ///     revised-b4e91d02.md</c>'s Assumption 3).
+    /// </remarks>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <c>/FontDescriptor</c> is missing, or <c>/FontDescriptor/FontFile2</c> does
+    ///     not resolve to a stream.
+    /// </exception>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown when <c>/Subtype</c> is not <c>TrueType</c> (for example <c>Type0</c>,
+    ///     <c>Type1</c>, <c>MMType1</c>, or <c>Type3</c>), or when <c>/FontDescriptor</c> has no
+    ///     <c>/FontFile2</c> entry (a non-embedded/standard-14 font).
+    /// </exception>
+    private ResolvedFont BuildResolvedFont(PdfObject fontDict)
+    {
+        var subtype = GetNameValue(fontDict, "Subtype");
+        if (subtype != "TrueType")
+        {
+            throw new UnsupportedImageFeatureException(
+                $"pdf-font-subtype-{subtype ?? "missing"}",
+                $"Font /Subtype '{subtype ?? "(missing)"}' is not supported; only simple " +
+                "/Subtype /TrueType fonts are supported (Type0/composite, Type1/CFF, MMType1, " +
+                "and Type3 fonts are not supported).");
+        }
+
+        var descriptorEntry = fontDict.Get("FontDescriptor")
+            ?? throw new InvalidDataException("Font dictionary is missing required /FontDescriptor.");
+        var descriptor = Resolve(descriptorEntry);
+
+        var fontFileEntry = descriptor.Get("FontFile2");
+        if (fontFileEntry is null)
+        {
+            throw new UnsupportedImageFeatureException(
+                "pdf-font-not-embedded",
+                "Font has no embedded /FontDescriptor/FontFile2; non-embedded and standard-14 " +
+                "font substitution is not supported.");
+        }
+
+        var fontFileStream = Resolve(fontFileEntry);
+        if (fontFileStream.Kind != PdfKind.Stream)
+        {
+            throw new InvalidDataException("/FontDescriptor/FontFile2 does not resolve to a stream.");
+        }
+
+        var fontBytes = GetStreamDecodedBytes(fontFileStream);
+        var font = TrueTypeFont.Load(new MemoryStream(fontBytes));
+
+        var encoding = ResolveEncoding(fontDict.Get("Encoding"));
+        var (widths, missingWidth) = ResolveWidths(fontDict, descriptor);
+
+        return new ResolvedFont
+        {
+            Font = font,
+            Encoding = encoding,
+            Widths = widths,
+            MissingWidth = missingWidth,
+        };
+    }
+
+    /// <summary>
+    ///     Resolves a font dictionary's <c>/Encoding</c> entry into a full 256-entry code-to-
+    ///     Unicode-codepoint map, applying the named base encoding (defaulting to
+    ///     <c>/WinAnsiEncoding</c> when <c>/Encoding</c> is absent) and any <c>/Differences</c>
+    ///     overrides.
+    /// </summary>
+    /// <param name="encodingEntry">
+    ///     The font dictionary's <c>/Encoding</c> entry (a name, a dictionary, or
+    ///     <see langword="null"/> when absent).
+    /// </param>
+    /// <returns>A code-to-codepoint map covering every code with a defined mapping.</returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <c>/Encoding</c> is neither a name nor a dictionary, when
+    ///     <c>/Encoding/BaseEncoding</c> is not a name, when <c>/Encoding/Differences</c> is not
+    ///     an array, when a <c>/Differences</c> array entry is neither a number nor a name, when a
+    ///     <c>/Differences</c> name appears before any starting code, or when a
+    ///     <c>/Differences</c> name is not a recognized glyph name (see
+    ///     <see cref="StandardGlyphNames"/>'s own remarks for the covered name set).
+    /// </exception>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown when the named base encoding is neither <c>/WinAnsiEncoding</c> nor
+    ///     <c>/MacRomanEncoding</c>.
+    /// </exception>
+    private IReadOnlyDictionary<int, int> ResolveEncoding(PdfObject? encodingEntry)
+    {
+        var table = (int[])WinAnsiEncodingTable.Clone();
+        PdfObject? differences = null;
+
+        if (encodingEntry is not null)
+        {
+            var resolved = Resolve(encodingEntry);
+            switch (resolved.Kind)
+            {
+                case PdfKind.Name:
+                    ApplyBaseEncoding(resolved.Text, table);
+                    break;
+
+                case PdfKind.Dictionary:
+                    var baseEncodingEntry = resolved.Get("BaseEncoding");
+                    if (baseEncodingEntry is not null)
+                    {
+                        var baseEncoding = Resolve(baseEncodingEntry);
+                        if (baseEncoding.Kind != PdfKind.Name)
+                        {
+                            throw new InvalidDataException("/Encoding/BaseEncoding must be a name.");
+                        }
+
+                        ApplyBaseEncoding(baseEncoding.Text, table);
+                    }
+
+                    differences = resolved.Get("Differences");
+                    break;
+
+                default:
+                    throw new InvalidDataException("/Encoding must be a name or a dictionary.");
+            }
+        }
+
+        if (differences is not null)
+        {
+            ApplyDifferences(Resolve(differences), table);
+        }
+
+        var map = new Dictionary<int, int>(256);
+        for (var code = 0; code < 256; code++)
+        {
+            if (table[code] != 0)
+            {
+                map[code] = table[code];
+            }
+        }
+
+        return map;
+    }
+
+    /// <summary>Applies a named base encoding's 256-entry code-to-codepoint table onto <paramref name="table"/>.</summary>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown when <paramref name="baseEncodingName"/> is neither <c>WinAnsiEncoding</c> nor
+    ///     <c>MacRomanEncoding</c>.
+    /// </exception>
+    private static void ApplyBaseEncoding(string baseEncodingName, int[] table)
+    {
+        switch (baseEncodingName)
+        {
+            case "WinAnsiEncoding":
+                Array.Copy(WinAnsiEncodingTable, table, 256);
+                break;
+
+            case "MacRomanEncoding":
+                Array.Copy(MacRomanEncodingTable, table, 256);
+                break;
+
+            default:
+                throw new UnsupportedImageFeatureException(
+                    $"pdf-font-encoding-{baseEncodingName}",
+                    $"/Encoding base encoding '/{baseEncodingName}' is not supported; only " +
+                    "/WinAnsiEncoding and /MacRomanEncoding are supported.");
+        }
+    }
+
+    /// <summary>
+    ///     Applies a <c>/Differences</c> array's code/glyph-name pairs onto <paramref name="table"/>,
+    ///     per the PDF specification's own alternating "a starting code, then zero or more names
+    ///     assigned to consecutive codes from that starting code" grammar.
+    /// </summary>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="differences"/> is not an array, when an array entry is
+    ///     neither a number nor a name, when a name entry appears before any starting code (or
+    ///     after the code has advanced past 255), or when a name is not a recognized glyph name.
+    /// </exception>
+    private void ApplyDifferences(PdfObject differences, int[] table)
+    {
+        if (differences.Kind != PdfKind.Array)
+        {
+            throw new InvalidDataException("/Encoding/Differences must be an array.");
+        }
+
+        var code = -1;
+        foreach (var item in differences.Items)
+        {
+            var resolved = Resolve(item);
+            if (resolved.Kind == PdfKind.Number)
+            {
+                code = (int)resolved.Number;
+                continue;
+            }
+
+            if (resolved.Kind != PdfKind.Name)
+            {
+                throw new InvalidDataException("/Encoding/Differences array entries must be numbers or names.");
+            }
+
+            if (code is < 0 or > 255)
+            {
+                throw new InvalidDataException(
+                    "/Encoding/Differences glyph name is not preceded by a valid starting code in [0, 255].");
+            }
+
+            if (!StandardGlyphNames.TryGetValue(resolved.Text, out var codepoint))
+            {
+                throw new InvalidDataException(
+                    $"/Encoding/Differences references unrecognized glyph name '/{resolved.Text}'.");
+            }
+
+            table[code] = codepoint;
+            code++;
+        }
+    }
+
+    /// <summary>
+    ///     Resolves a font dictionary's <c>/FirstChar</c>/<c>/LastChar</c>/<c>/Widths</c> entries
+    ///     into a code-to-declared-width map, plus the font descriptor's <c>/MissingWidth</c>
+    ///     fallback.
+    /// </summary>
+    /// <returns>
+    ///     The code-to-width map (empty when <c>/FirstChar</c>/<c>/Widths</c> is absent or
+    ///     malformed - a documented leniency, since <see cref="ShowText"/> itself falls back to
+    ///     <see cref="ResolvedFont.MissingWidth"/> and then the font's own metrics for any code
+    ///     missing from this map), and the resolved <c>/MissingWidth</c> value (<c>0</c> when not
+    ///     declared).
+    /// </returns>
+    private (IReadOnlyDictionary<int, double> Widths, double MissingWidth) ResolveWidths(PdfObject fontDict, PdfObject descriptor)
+    {
+        var missingWidth = 0.0;
+        var missingWidthEntry = descriptor.Get("MissingWidth");
+        if (missingWidthEntry is not null && Resolve(missingWidthEntry) is { Kind: PdfKind.Number } missingWidthValue)
+        {
+            missingWidth = missingWidthValue.Number;
+        }
+
+        var widths = new Dictionary<int, double>();
+        var firstCharEntry = fontDict.Get("FirstChar");
+        var widthsEntry = fontDict.Get("Widths");
+        if (firstCharEntry is not null && widthsEntry is not null &&
+            Resolve(firstCharEntry) is { Kind: PdfKind.Number } firstCharValue &&
+            Resolve(widthsEntry) is { Kind: PdfKind.Array } widthsArray)
+        {
+            var firstChar = (int)firstCharValue.Number;
+            for (var i = 0; i < widthsArray.Items.Count; i++)
+            {
+                if (Resolve(widthsArray.Items[i]) is { Kind: PdfKind.Number } widthValue)
+                {
+                    widths[firstChar + i] = widthValue.Number;
+                }
+            }
+        }
+
+        return (widths, missingWidth);
+    }
+
+    /// <summary>
+    ///     Maps a subset of the Adobe Glyph List's standard glyph names to their Unicode
+    ///     codepoints, sufficient to build <see cref="WinAnsiEncodingTable"/>/
+    ///     <see cref="MacRomanEncodingTable"/> and to resolve every common ASCII/Latin-1
+    ///     <c>/Differences</c> glyph name.
+    /// </summary>
+    /// <remarks>
+    ///     This is a deliberately partial subset of the full Adobe Glyph List (not every glyph
+    ///     name ever defined) - a glyph name outside this set encountered in a <c>/Differences</c>
+    ///     array is a malformed/unsupported reference to an undefined name from this
+    ///     implementation's point of view, and <see cref="ApplyDifferences"/> throws
+    ///     <see cref="InvalidDataException"/> for it (a fail-closed policy, not a silent
+    ///     mis-mapping to codepoint <c>0</c>/<c>.notdef</c>).
+    /// </remarks>
+    private static readonly IReadOnlyDictionary<string, int> StandardGlyphNames = new Dictionary<string, int>
+    {
+        ["A"] = 0x0041,
+        ["AE"] = 0x00C6,
+        ["Aacute"] = 0x00C1,
+        ["Acircumflex"] = 0x00C2,
+        ["Adieresis"] = 0x00C4,
+        ["Agrave"] = 0x00C0,
+        ["Aring"] = 0x00C5,
+        ["Atilde"] = 0x00C3,
+        ["B"] = 0x0042,
+        ["C"] = 0x0043,
+        ["Ccedilla"] = 0x00C7,
+        ["D"] = 0x0044,
+        ["Delta"] = 0x2206,
+        ["E"] = 0x0045,
+        ["Eacute"] = 0x00C9,
+        ["Ecircumflex"] = 0x00CA,
+        ["Edieresis"] = 0x00CB,
+        ["Egrave"] = 0x00C8,
+        ["Eth"] = 0x00D0,
+        ["Euro"] = 0x20AC,
+        ["F"] = 0x0046,
+        ["G"] = 0x0047,
+        ["H"] = 0x0048,
+        ["I"] = 0x0049,
+        ["Iacute"] = 0x00CD,
+        ["Icircumflex"] = 0x00CE,
+        ["Idieresis"] = 0x00CF,
+        ["Igrave"] = 0x00CC,
+        ["J"] = 0x004A,
+        ["K"] = 0x004B,
+        ["L"] = 0x004C,
+        ["M"] = 0x004D,
+        ["N"] = 0x004E,
+        ["Ntilde"] = 0x00D1,
+        ["O"] = 0x004F,
+        ["OE"] = 0x0152,
+        ["Oacute"] = 0x00D3,
+        ["Ocircumflex"] = 0x00D4,
+        ["Odieresis"] = 0x00D6,
+        ["Ograve"] = 0x00D2,
+        ["Omega"] = 0x03A9,
+        ["Oslash"] = 0x00D8,
+        ["Otilde"] = 0x00D5,
+        ["P"] = 0x0050,
+        ["Q"] = 0x0051,
+        ["R"] = 0x0052,
+        ["S"] = 0x0053,
+        ["Scaron"] = 0x0160,
+        ["T"] = 0x0054,
+        ["Thorn"] = 0x00DE,
+        ["U"] = 0x0055,
+        ["Uacute"] = 0x00DA,
+        ["Ucircumflex"] = 0x00DB,
+        ["Udieresis"] = 0x00DC,
+        ["Ugrave"] = 0x00D9,
+        ["V"] = 0x0056,
+        ["W"] = 0x0057,
+        ["X"] = 0x0058,
+        ["Y"] = 0x0059,
+        ["Yacute"] = 0x00DD,
+        ["Ydieresis"] = 0x0178,
+        ["Z"] = 0x005A,
+        ["Zcaron"] = 0x017D,
+        ["a"] = 0x0061,
+        ["aacute"] = 0x00E1,
+        ["acircumflex"] = 0x00E2,
+        ["acute"] = 0x00B4,
+        ["adieresis"] = 0x00E4,
+        ["ae"] = 0x00E6,
+        ["agrave"] = 0x00E0,
+        ["ampersand"] = 0x0026,
+        ["apple"] = 0xF8FF,
+        ["approxequal"] = 0x2248,
+        ["aring"] = 0x00E5,
+        ["asciicircum"] = 0x005E,
+        ["asciitilde"] = 0x007E,
+        ["asterisk"] = 0x002A,
+        ["at"] = 0x0040,
+        ["atilde"] = 0x00E3,
+        ["b"] = 0x0062,
+        ["backslash"] = 0x005C,
+        ["bar"] = 0x007C,
+        ["braceleft"] = 0x007B,
+        ["braceright"] = 0x007D,
+        ["bracketleft"] = 0x005B,
+        ["bracketright"] = 0x005D,
+        ["breve"] = 0x02D8,
+        ["brokenbar"] = 0x00A6,
+        ["bullet"] = 0x2022,
+        ["c"] = 0x0063,
+        ["caron"] = 0x02C7,
+        ["ccedilla"] = 0x00E7,
+        ["cedilla"] = 0x00B8,
+        ["cent"] = 0x00A2,
+        ["circumflex"] = 0x02C6,
+        ["colon"] = 0x003A,
+        ["comma"] = 0x002C,
+        ["copyright"] = 0x00A9,
+        ["currency"] = 0x00A4,
+        ["d"] = 0x0064,
+        ["dagger"] = 0x2020,
+        ["daggerdbl"] = 0x2021,
+        ["degree"] = 0x00B0,
+        ["dieresis"] = 0x00A8,
+        ["divide"] = 0x00F7,
+        ["dollar"] = 0x0024,
+        ["dotaccent"] = 0x02D9,
+        ["dotlessi"] = 0x0131,
+        ["e"] = 0x0065,
+        ["eacute"] = 0x00E9,
+        ["ecircumflex"] = 0x00EA,
+        ["edieresis"] = 0x00EB,
+        ["egrave"] = 0x00E8,
+        ["eight"] = 0x0038,
+        ["ellipsis"] = 0x2026,
+        ["emdash"] = 0x2014,
+        ["endash"] = 0x2013,
+        ["equal"] = 0x003D,
+        ["eth"] = 0x00F0,
+        ["exclam"] = 0x0021,
+        ["exclamdown"] = 0x00A1,
+        ["f"] = 0x0066,
+        ["fi"] = 0xFB01,
+        ["five"] = 0x0035,
+        ["fl"] = 0xFB02,
+        ["florin"] = 0x0192,
+        ["four"] = 0x0034,
+        ["fraction"] = 0x2044,
+        ["g"] = 0x0067,
+        ["germandbls"] = 0x00DF,
+        ["grave"] = 0x0060,
+        ["greater"] = 0x003E,
+        ["greaterequal"] = 0x2265,
+        ["guillemotleft"] = 0x00AB,
+        ["guillemotright"] = 0x00BB,
+        ["guilsinglleft"] = 0x2039,
+        ["guilsinglright"] = 0x203A,
+        ["h"] = 0x0068,
+        ["hungarumlaut"] = 0x02DD,
+        ["hyphen"] = 0x002D,
+        ["i"] = 0x0069,
+        ["iacute"] = 0x00ED,
+        ["icircumflex"] = 0x00EE,
+        ["idieresis"] = 0x00EF,
+        ["igrave"] = 0x00EC,
+        ["infinity"] = 0x221E,
+        ["integral"] = 0x222B,
+        ["j"] = 0x006A,
+        ["k"] = 0x006B,
+        ["l"] = 0x006C,
+        ["less"] = 0x003C,
+        ["lessequal"] = 0x2264,
+        ["logicalnot"] = 0x00AC,
+        ["lozenge"] = 0xF8E7,
+        ["m"] = 0x006D,
+        ["macron"] = 0x00AF,
+        ["mu"] = 0x00B5,
+        ["multiply"] = 0x00D7,
+        ["n"] = 0x006E,
+        ["nbspace"] = 0x00A0,
+        ["nine"] = 0x0039,
+        ["notequal"] = 0x2260,
+        ["ntilde"] = 0x00F1,
+        ["numbersign"] = 0x0023,
+        ["o"] = 0x006F,
+        ["oacute"] = 0x00F3,
+        ["ocircumflex"] = 0x00F4,
+        ["odieresis"] = 0x00F6,
+        ["oe"] = 0x0153,
+        ["ogonek"] = 0x02DB,
+        ["ograve"] = 0x00F2,
+        ["one"] = 0x0031,
+        ["onehalf"] = 0x00BD,
+        ["onequarter"] = 0x00BC,
+        ["onesuperior"] = 0x00B9,
+        ["ordfeminine"] = 0x00AA,
+        ["ordmasculine"] = 0x00BA,
+        ["oslash"] = 0x00F8,
+        ["otilde"] = 0x00F5,
+        ["p"] = 0x0070,
+        ["paragraph"] = 0x00B6,
+        ["parenleft"] = 0x0028,
+        ["parenright"] = 0x0029,
+        ["partialdiff"] = 0x2202,
+        ["percent"] = 0x0025,
+        ["period"] = 0x002E,
+        ["periodcentered"] = 0x00B7,
+        ["perthousand"] = 0x2030,
+        ["pi"] = 0x03C0,
+        ["plus"] = 0x002B,
+        ["plusminus"] = 0x00B1,
+        ["product"] = 0x220F,
+        ["q"] = 0x0071,
+        ["question"] = 0x003F,
+        ["questiondown"] = 0x00BF,
+        ["quotedbl"] = 0x0022,
+        ["quotedblbase"] = 0x201E,
+        ["quotedblleft"] = 0x201C,
+        ["quotedblright"] = 0x201D,
+        ["quoteleft"] = 0x2018,
+        ["quoteright"] = 0x2019,
+        ["quotesinglbase"] = 0x201A,
+        ["quotesingle"] = 0x0027,
+        ["r"] = 0x0072,
+        ["radical"] = 0x221A,
+        ["registered"] = 0x00AE,
+        ["ring"] = 0x02DA,
+        ["s"] = 0x0073,
+        ["scaron"] = 0x0161,
+        ["section"] = 0x00A7,
+        ["semicolon"] = 0x003B,
+        ["seven"] = 0x0037,
+        ["six"] = 0x0036,
+        ["slash"] = 0x002F,
+        ["space"] = 0x0020,
+        ["sterling"] = 0x00A3,
+        ["summation"] = 0x2211,
+        ["t"] = 0x0074,
+        ["thorn"] = 0x00FE,
+        ["three"] = 0x0033,
+        ["threequarters"] = 0x00BE,
+        ["threesuperior"] = 0x00B3,
+        ["tilde"] = 0x02DC,
+        ["trademark"] = 0x2122,
+        ["two"] = 0x0032,
+        ["twosuperior"] = 0x00B2,
+        ["u"] = 0x0075,
+        ["uacute"] = 0x00FA,
+        ["ucircumflex"] = 0x00FB,
+        ["udieresis"] = 0x00FC,
+        ["ugrave"] = 0x00F9,
+        ["underscore"] = 0x005F,
+        ["v"] = 0x0076,
+        ["w"] = 0x0077,
+        ["x"] = 0x0078,
+        ["y"] = 0x0079,
+        ["yacute"] = 0x00FD,
+        ["ydieresis"] = 0x00FF,
+        ["yen"] = 0x00A5,
+        ["z"] = 0x007A,
+        ["zcaron"] = 0x017E,
+        ["zero"] = 0x0030,
+    };
+
+    /// <summary>
+    ///     The PDF specification (Appendix D) <c>/WinAnsiEncoding</c> base encoding, as a
+    ///     256-entry code-to-Unicode-codepoint table (<c>0</c> for an undefined code).
+    /// </summary>
+    private static readonly int[] WinAnsiEncodingTable =
+    [
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0020, 0x0021, 0x0022, 0x0023, 0x0024, 0x0025, 0x0026, 0x0027,
+        0x0028, 0x0029, 0x002A, 0x002B, 0x002C, 0x002D, 0x002E, 0x002F,
+        0x0030, 0x0031, 0x0032, 0x0033, 0x0034, 0x0035, 0x0036, 0x0037,
+        0x0038, 0x0039, 0x003A, 0x003B, 0x003C, 0x003D, 0x003E, 0x003F,
+        0x0040, 0x0041, 0x0042, 0x0043, 0x0044, 0x0045, 0x0046, 0x0047,
+        0x0048, 0x0049, 0x004A, 0x004B, 0x004C, 0x004D, 0x004E, 0x004F,
+        0x0050, 0x0051, 0x0052, 0x0053, 0x0054, 0x0055, 0x0056, 0x0057,
+        0x0058, 0x0059, 0x005A, 0x005B, 0x005C, 0x005D, 0x005E, 0x005F,
+        0x0060, 0x0061, 0x0062, 0x0063, 0x0064, 0x0065, 0x0066, 0x0067,
+        0x0068, 0x0069, 0x006A, 0x006B, 0x006C, 0x006D, 0x006E, 0x006F,
+        0x0070, 0x0071, 0x0072, 0x0073, 0x0074, 0x0075, 0x0076, 0x0077,
+        0x0078, 0x0079, 0x007A, 0x007B, 0x007C, 0x007D, 0x007E, 0x2022,
+        0x20AC, 0x2022, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021,
+        0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0x2022, 0x017D, 0x2022,
+        0x2022, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
+        0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x2022, 0x017E, 0x0178,
+        0x0020, 0x00A1, 0x00A2, 0x00A3, 0x00A4, 0x00A5, 0x00A6, 0x00A7,
+        0x00A8, 0x00A9, 0x00AA, 0x00AB, 0x00AC, 0x002D, 0x00AE, 0x00AF,
+        0x00B0, 0x00B1, 0x00B2, 0x00B3, 0x00B4, 0x00B5, 0x00B6, 0x00B7,
+        0x00B8, 0x00B9, 0x00BA, 0x00BB, 0x00BC, 0x00BD, 0x00BE, 0x00BF,
+        0x00C0, 0x00C1, 0x00C2, 0x00C3, 0x00C4, 0x00C5, 0x00C6, 0x00C7,
+        0x00C8, 0x00C9, 0x00CA, 0x00CB, 0x00CC, 0x00CD, 0x00CE, 0x00CF,
+        0x00D0, 0x00D1, 0x00D2, 0x00D3, 0x00D4, 0x00D5, 0x00D6, 0x00D7,
+        0x00D8, 0x00D9, 0x00DA, 0x00DB, 0x00DC, 0x00DD, 0x00DE, 0x00DF,
+        0x00E0, 0x00E1, 0x00E2, 0x00E3, 0x00E4, 0x00E5, 0x00E6, 0x00E7,
+        0x00E8, 0x00E9, 0x00EA, 0x00EB, 0x00EC, 0x00ED, 0x00EE, 0x00EF,
+        0x00F0, 0x00F1, 0x00F2, 0x00F3, 0x00F4, 0x00F5, 0x00F6, 0x00F7,
+        0x00F8, 0x00F9, 0x00FA, 0x00FB, 0x00FC, 0x00FD, 0x00FE, 0x00FF,
+    ];
+
+    /// <summary>
+    ///     The PDF specification (Appendix D) <c>/MacRomanEncoding</c> base encoding, as a
+    ///     256-entry code-to-Unicode-codepoint table (<c>0</c> for an undefined code).
+    /// </summary>
+    private static readonly int[] MacRomanEncodingTable =
+    [
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0020, 0x0021, 0x0022, 0x0023, 0x0024, 0x0025, 0x0026, 0x0027,
+        0x0028, 0x0029, 0x002A, 0x002B, 0x002C, 0x002D, 0x002E, 0x002F,
+        0x0030, 0x0031, 0x0032, 0x0033, 0x0034, 0x0035, 0x0036, 0x0037,
+        0x0038, 0x0039, 0x003A, 0x003B, 0x003C, 0x003D, 0x003E, 0x003F,
+        0x0040, 0x0041, 0x0042, 0x0043, 0x0044, 0x0045, 0x0046, 0x0047,
+        0x0048, 0x0049, 0x004A, 0x004B, 0x004C, 0x004D, 0x004E, 0x004F,
+        0x0050, 0x0051, 0x0052, 0x0053, 0x0054, 0x0055, 0x0056, 0x0057,
+        0x0058, 0x0059, 0x005A, 0x005B, 0x005C, 0x005D, 0x005E, 0x005F,
+        0x0060, 0x0061, 0x0062, 0x0063, 0x0064, 0x0065, 0x0066, 0x0067,
+        0x0068, 0x0069, 0x006A, 0x006B, 0x006C, 0x006D, 0x006E, 0x006F,
+        0x0070, 0x0071, 0x0072, 0x0073, 0x0074, 0x0075, 0x0076, 0x0077,
+        0x0078, 0x0079, 0x007A, 0x007B, 0x007C, 0x007D, 0x007E, 0x0000,
+        0x00C4, 0x00C5, 0x00C7, 0x00C9, 0x00D1, 0x00D6, 0x00DC, 0x00E1,
+        0x00E0, 0x00E2, 0x00E4, 0x00E3, 0x00E5, 0x00E7, 0x00E9, 0x00E8,
+        0x00EA, 0x00EB, 0x00ED, 0x00EC, 0x00EE, 0x00EF, 0x00F1, 0x00F3,
+        0x00F2, 0x00F4, 0x00F6, 0x00F5, 0x00FA, 0x00F9, 0x00FB, 0x00FC,
+        0x2020, 0x00B0, 0x00A2, 0x00A3, 0x00A7, 0x2022, 0x00B6, 0x00DF,
+        0x00AE, 0x00A9, 0x2122, 0x00B4, 0x00A8, 0x2260, 0x00C6, 0x00D8,
+        0x221E, 0x00B1, 0x2264, 0x2265, 0x00A5, 0x00B5, 0x2202, 0x2211,
+        0x220F, 0x03C0, 0x222B, 0x00AA, 0x00BA, 0x03A9, 0x00E6, 0x00F8,
+        0x00BF, 0x00A1, 0x00AC, 0x221A, 0x0192, 0x2248, 0x2206, 0x00AB,
+        0x00BB, 0x2026, 0x0020, 0x00C0, 0x00C3, 0x00D5, 0x0152, 0x0153,
+        0x2013, 0x2014, 0x201C, 0x201D, 0x2018, 0x2019, 0x00F7, 0xF8E7,
+        0x00FF, 0x0178, 0x2044, 0x00A4, 0x2039, 0x203A, 0xFB01, 0xFB02,
+        0x2021, 0x00B7, 0x201A, 0x201E, 0x2030, 0x00C2, 0x00CA, 0x00C1,
+        0x00CB, 0x00C8, 0x00CD, 0x00CE, 0x00CF, 0x00CC, 0x00D3, 0x00D4,
+        0xF8FF, 0x00D2, 0x00DA, 0x00DB, 0x00D9, 0x0131, 0x02C6, 0x02DC,
+        0x00AF, 0x02D8, 0x02D9, 0x02DA, 0x00B8, 0x02DD, 0x02DB, 0x02C7,
+    ];
+}

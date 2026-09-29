@@ -1,5 +1,6 @@
 // cspell:ignore xobject devicergb
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Fonts;
 
 namespace DemaConsulting.CanvasNet.Pdf.Tests;
 
@@ -16,6 +17,14 @@ public class PdfSystemIntegrationTests
     private static string FixturesPath => Path.Join(AppContext.BaseDirectory, "PdfFixtures");
 
     private static string Fixture(string name) => Path.Join(FixturesPath, name);
+
+    /// <summary>
+    ///     The path to the real "Open Sans" TrueType font, copied to the test output directory by
+    ///     this project's <c>FontFixtures\**</c> content-link item (mirroring
+    ///     <c>DemaConsulting.CanvasNet.Svg.Tests</c>'s own reuse of the same shared file - see
+    ///     <c>DemaConsulting.CanvasNet.Tests\FontFixtures\README.md</c> for provenance/licensing).
+    /// </summary>
+    private static string FontPath => Path.Join(AppContext.BaseDirectory, "FontFixtures", "OpenSans-Regular.ttf");
 
     /// <summary>
     ///     Opens a multi-page fixture once, asserts <see cref="PdfDocument.PageCount"/>, then calls
@@ -213,5 +222,83 @@ public class PdfSystemIntegrationTests
 
         // Assert: a pixel outside the placed image's device-space footprint remains transparent.
         Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <see cref="PdfDocument.Render"/> resolves an embedded simple TrueType font end
+    ///     to end (Phase 4): a hand-authored fixture with a real, embedded (via
+    ///     <c>/FontDescriptor/FontFile2</c>) copy of the shared <c>OpenSans-Regular.ttf</c>
+    ///     production font (see <c>PdfFixtures\README.md</c> for provenance and the
+    ///     <c>FontFixtures\README.md</c> in <c>DemaConsulting.CanvasNet.Tests</c> for the font's
+    ///     own SIL OFL 1.1 licensing - not duplicated here), drawing <c>"HO"</c> at font size 60
+    ///     with the default <c>/WinAnsiEncoding</c>. Rather than hardcoding font-specific magic
+    ///     pixel numbers, this test independently re-derives the expected device-pixel positions
+    ///     of real glyph ink from the font's own outline/metrics (the same production
+    ///     <see cref="TrueTypeFont"/> API <see cref="PdfDocument"/> itself uses) via the
+    ///     documented text-rendering-matrix formula, then asserts specific pixels: one inside
+    ///     'H's left stroke (opaque), one inside 'O's hollow counter (transparent), and the
+    ///     canvas corners, well outside both glyphs (transparent background).
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_PdfRender_EmbeddedTrueTypeFontText_PaintsGlyphStrokesNotCounters()
+    {
+        // Arrange: MediaBox [0 0 200 100], /Contents = "BT /F1 60 Tf 10 20 Td (HO) Tj ET" -
+        // renders "HO" at font size 60, text-space origin (10, 20), using the embedded font's
+        // own advance widths (the font dictionary declares no /Widths array).
+        const double fontSize = 60;
+        const double originX = 10;
+        const double originY = 20;
+        const double mediaBoxHeight = 100;
+
+        using var document = PdfDocument.Open(Fixture("text-embedded-truetype-font.pdf"));
+
+        // Act: render at the MediaBox's own pixel dimensions (a 1:1 user-space-to-device-pixel
+        // mapping, since width/height exactly match the MediaBox), then load the same real font
+        // independently to re-derive expected glyph-ink pixel positions from its own metrics.
+        using var surface = document.Render(0, 200, 100);
+        var font = TrueTypeFont.Load(FontPath);
+
+        // Maps a font-design-space point (in the glyph currently being measured, whose text-space
+        // origin is (originXForGlyph, originY)) to the device pixel it lands on, replicating the
+        // exact Trm/base-CTM composition PdfDocument.Text.cs uses: text-space x/y scale by
+        // fontSize/UnitsPerEm and offset by the glyph's own text-space origin, then flip y against
+        // the MediaBox height (device x is otherwise unchanged for this identity-rotation page).
+        (int X, int Y) ToDevicePixel(double originXForGlyph, double fx, double fy)
+        {
+            var textX = fx / font.UnitsPerEm * fontSize + originXForGlyph;
+            var textY = fy / font.UnitsPerEm * fontSize + originY;
+            return ((int)Math.Floor(textX), (int)Math.Floor(mediaBoxHeight - textY));
+        }
+
+        var hGlyph = font.GetGlyphIndex('H');
+        var oGlyph = font.GetGlyphIndex('O');
+        Assert.NotEqual(0, hGlyph);
+        Assert.NotEqual(0, oGlyph);
+
+        var hBounds = font.GetGlyphOutline(hGlyph).GetBounds(0.25f);
+        var oBounds = font.GetGlyphOutline(oGlyph).GetBounds(0.25f);
+        Assert.False(hBounds.IsEmpty);
+        Assert.False(oBounds.IsEmpty);
+
+        // 'O' is placed immediately after 'H', advanced by 'H's own advance width (in text
+        // space) - matching ShowText's undeclared-/Widths fallback to the font's own metrics.
+        var originXForO = originX + (double)font.GetAdvanceWidth(hGlyph) / font.UnitsPerEm * fontSize;
+
+        // Assert: a point 15% in from 'H's left edge, at half its glyph height, lies on 'H's
+        // solid left vertical stem (which spans 'H's full height) - real opaque ink.
+        var (strokeX, strokeY) = ToDevicePixel(originX, hBounds.X + hBounds.Width * 0.15, hBounds.Y + hBounds.Height * 0.5);
+        Assert.True(surface[strokeX, strokeY].A > 0, $"Expected opaque ink inside 'H's left stroke at ({strokeX},{strokeY}).");
+
+        // Assert: the exact center of 'O's bounding box lies within its hollow counter (the
+        // round hole every 'O' glyph has at its geometric center) - not painted.
+        var (counterX, counterY) = ToDevicePixel(
+            originXForO, oBounds.X + oBounds.Width * 0.5, oBounds.Y + oBounds.Height * 0.5);
+        Assert.Equal(0, surface[counterX, counterY].A);
+
+        // Assert: the canvas's far corners, well outside both glyphs, remain fully transparent.
+        Assert.Equal(0, surface[0, 0].A);
+        Assert.Equal(0, surface[199, 0].A);
+        Assert.Equal(0, surface[0, 99].A);
+        Assert.Equal(0, surface[199, 99].A);
     }
 }

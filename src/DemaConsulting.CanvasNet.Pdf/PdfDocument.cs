@@ -21,22 +21,41 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         Phase 1 of this package's implementation established document parsing and the
 ///         page-info API surface. Phase 2 added a content-stream interpreter (path-
 ///         construction/painting operators and the graphics-state stack), painting every path
-///         in solid opaque black. Phase 3 (this release) adds real device color
+///         in solid opaque black. Phase 3 added real device color
 ///         (<c>g</c>/<c>G</c>/<c>rg</c>/<c>RG</c>/<c>k</c>/<c>K</c>/<c>cs</c>/<c>CS</c>/
 ///         <c>sc</c>/<c>SC</c>/<c>scn</c>/<c>SCN</c>), a generalized <c>/Filter</c>/
 ///         <c>/DecodeParms</c> stream-decoding pipeline (<c>FlateDecode</c> plus PNG/TIFF
 ///         predictor reversal), and image XObjects (<c>Do</c>: <c>DCTDecode</c> via
 ///         <see cref="Codecs.JpegCodec"/>, or raw <c>DeviceGray</c>/<c>DeviceRGB</c>/
 ///         <c>DeviceCMYK</c> 8-bit samples, composited through the current transformation
-///         matrix). <strong>Phase 3 limitations</strong>: no text/font operators, no Form
-///         XObject rendering (fails closed with <see cref="UnsupportedImageFeatureException"/>
-///         rather than being silently skipped), no shading/patterns/transparency groups, no
-///         <c>CCITTFax</c>/<c>LZW</c>/<c>ASCII85</c>/<c>ASCIIHex</c>/<c>JPX</c> filter
-///         decoding (fails closed), and no <c>/SMask</c>/alpha compositing (every decoded
-///         image is treated as fully opaque) - a later phase is expected to add these. Every
-///         other keyword not implemented by any phase is silently skipped, not an error. A
-///         page with no <c>/Contents</c> at all still renders as a fully transparent (blank)
-///         <see cref="Surface"/>, exactly as every page did in Phase 1.
+///         matrix).
+///     </para>
+///     <para>
+///         Phase 4 (this release) adds embedded simple-TrueType-font text rendering: the text
+///         object/state/positioning/showing operators (<c>BT</c>/<c>ET</c>, <c>Tc</c>/<c>Tw</c>/
+///         <c>Tz</c>/<c>TL</c>/<c>Tf</c>/<c>Tr</c>/<c>Ts</c>, <c>Td</c>/<c>TD</c>/<c>Tm</c>/
+///         <c>T*</c>, and <c>Tj</c>/<c>'</c>/<c>"</c>/<c>TJ</c>), resolving each named
+///         <c>/Resources/Font</c> entry against <see cref="Fonts.TrueTypeFont"/> (see
+///         <c>PdfDocument.Fonts.cs</c>) and painting each glyph outline through the composed
+///         text-rendering matrix (see <c>PdfDocument.Text.cs</c>). <strong>Phase 4 scope
+///         boundary</strong>: only simple (<c>/Subtype /TrueType</c>) fonts with an embedded
+///         <c>/FontDescriptor/FontFile2</c> are supported, and only the <c>/WinAnsiEncoding</c>/
+///         <c>/MacRomanEncoding</c> base encodings (plus <c>/Differences</c> overrides) - a
+///         <c>/Type0</c> (composite), <c>/Type1</c>, <c>/MMType1</c>, or <c>/Type3</c> font, a
+///         font with no embedded <c>/FontFile2</c> (this library never substitutes a standard-14
+///         or system font), an unrecognized base <c>/Encoding</c>, or a stroke/clip text-
+///         rendering mode (<c>1</c>/<c>2</c>/<c>4</c>-<c>7</c>; only fill mode <c>0</c> and
+///         invisible mode <c>3</c> are supported) all fail closed with
+///         <see cref="UnsupportedImageFeatureException"/> rather than silently substituting or
+///         skipping. <strong>Phase 3/4 limitations</strong>: no Form XObject rendering (fails
+///         closed with <see cref="UnsupportedImageFeatureException"/> rather than being silently
+///         skipped), no shading/patterns/transparency groups, no <c>CCITTFax</c>/<c>LZW</c>/
+///         <c>ASCII85</c>/<c>ASCIIHex</c>/<c>JPX</c> filter decoding (fails closed), and no
+///         <c>/SMask</c>/alpha compositing (every decoded image is treated as fully opaque) - a
+///         later phase is expected to add these. Every other keyword not implemented by any
+///         phase is silently skipped, not an error. A page with no <c>/Contents</c> at all still
+///         renders as a fully transparent (blank) <see cref="Surface"/>, exactly as every page
+///         did in Phase 1.
 ///     </para>
 ///     <para>
 ///         Encrypted documents (a trailer declaring an <c>/Encrypt</c> key) are rejected with
@@ -238,6 +257,12 @@ public sealed partial class PdfDocument : IDisposable
     ///     or an array entry that does not resolve to a stream), when the content stream is not
     ///     lexically well-formed, or when a recognized operator's operand count/type does not
     ///     match its documented requirement.
+    /// </exception>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown when a <c>Tf</c> operator selects a font this library does not support (a
+    ///     non-<c>TrueType</c> simple font, a font with no embedded <c>/FontFile2</c>, or an
+    ///     unrecognized <c>/Encoding</c> base encoding), or when a <c>Tr</c> operator selects a
+    ///     defined but unsupported text-rendering mode.
     /// </exception>
     /// <exception cref="ObjectDisposedException">Thrown when this document has been disposed.</exception>
     public Surface Render(int pageIndex, int width, int height)

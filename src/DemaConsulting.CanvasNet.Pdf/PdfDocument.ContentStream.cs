@@ -53,6 +53,9 @@ public sealed partial class PdfDocument
         _currentPoint = default;
         _subpathStart = default;
         _hasOpenSubpath = false;
+        _fontCache = new Dictionary<PdfObject, ResolvedFont>();
+        _textMatrix = Matrix3x2.Identity;
+        _lineMatrix = Matrix3x2.Identity;
 
         var tokenizer = new PdfTokenizer(contentBytes);
         var operands = new List<PdfObject>();
@@ -101,14 +104,18 @@ public sealed partial class PdfDocument
     /// <summary>
     ///     Dispatches one recognized content-stream keyword operator (per the fixed set this
     ///     phase implements) against its accumulated operand stack, silently ignoring any other
-    ///     keyword (text, clipping, ExtGState, shading, inline images, and every other operator
-    ///     not yet implemented).
+    ///     keyword (clipping, ExtGState, shading, inline images, Form XObjects, and every other
+    ///     operator not yet implemented).
     /// </summary>
     /// <param name="operatorName">The operator keyword.</param>
     /// <param name="operands">The operands accumulated since the previous operator.</param>
     /// <exception cref="InvalidDataException">
     ///     Thrown when a recognized operator's operand count/type does not match its documented
     ///     requirement.
+    /// </exception>
+    /// <exception cref="Codecs.UnsupportedImageFeatureException">
+    ///     Propagated from <see cref="OpSetFont"/> (an unsupported font) or
+    ///     <see cref="OpSetTextRenderMode"/> (a defined but unsupported text-rendering mode).
     /// </exception>
     private void DispatchOperator(string operatorName, List<PdfObject> operands)
     {
@@ -243,11 +250,73 @@ public sealed partial class PdfDocument
                 OpDrawXObject(operands);
                 break;
 
+            // Text object operators (PdfDocument.Text.cs).
+            case "BT":
+                RequireOperandCount(operands, "BT", 0);
+                OpBeginText();
+                break;
+            case "ET":
+                RequireOperandCount(operands, "ET", 0);
+                OpEndText();
+                break;
+
+            // Text-state operators (PdfDocument.Text.cs).
+            case "Tc":
+                OpSetCharSpacing(operands);
+                break;
+            case "Tw":
+                OpSetWordSpacing(operands);
+                break;
+            case "Tz":
+                OpSetHorizontalScaling(operands);
+                break;
+            case "TL":
+                OpSetLeading(operands);
+                break;
+            case "Tf":
+                OpSetFont(operands);
+                break;
+            case "Tr":
+                OpSetTextRenderMode(operands);
+                break;
+            case "Ts":
+                OpSetTextRise(operands);
+                break;
+
+            // Text-positioning operators (PdfDocument.Text.cs).
+            case "Td":
+                OpTextMoveTo(operands);
+                break;
+            case "TD":
+                OpTextMoveToSetLeading(operands);
+                break;
+            case "Tm":
+                OpSetTextMatrix(operands);
+                break;
+            case "T*":
+                RequireOperandCount(operands, "T*", 0);
+                OpTextNextLine();
+                break;
+
+            // Text-showing operators (PdfDocument.Text.cs).
+            case "Tj":
+                OpShowText(operands);
+                break;
+            case "'":
+                OpShowTextNextLine(operands);
+                break;
+            case "\"":
+                OpShowTextNextLineWithSpacing(operands);
+                break;
+            case "TJ":
+                OpShowTextArray(operands);
+                break;
+
             default:
-                // Any other keyword (BT/ET/Tf/Tj/TJ, gs, W/W*, sh, BI/ID/EI, or any other
-                // undefined keyword) is silently skipped - out of Phase 3 scope (text/fonts, Form
-                // XObjects, shading/patterns, ExtGState, clipping) per this phase's documented
-                // lenient-consumer posture toward unrecognized operators.
+                // Any other keyword (gs, W/W*, sh, BI/ID/EI, Tc/Td/.../TJ's own undefined
+                // siblings, or any other undefined keyword) is silently skipped - out of this
+                // phase's scope (Form XObjects, shading/patterns, ExtGState, clipping) per this
+                // phase's documented lenient-consumer posture toward unrecognized operators.
                 break;
         }
     }

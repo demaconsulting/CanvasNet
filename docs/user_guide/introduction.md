@@ -1087,10 +1087,14 @@ package - see the Installation section of the project README.
 
 The `PdfDocument` sealed class opens a PDF document, parses its cross-reference table/stream and
 page tree, and reports each page's displayed (rotation-adjusted) size and its page count.
-**Phase 1 is intentionally in-progress**: `Render` returns a correctly sized but fully blank
-(all-transparent) `Surface` - no content-stream interpretation, color-space handling, or image/
-font decoding is implemented yet. This is a documented, in-progress limitation of the current
-phase, not a bug; rendering actual page content is planned for a later phase.
+`Render` interprets a page's content stream, painting real path geometry, device color (`rg`/
+`g`/`k`/`cs`/`sc` and related operators), placed image XObjects (`Do`), and text shown with a
+simple, embedded TrueType font (`Tf`/`Td`/`Tj` and the other `BT`/`ET` text operators) onto the
+returned `Surface`. **Documented scope boundaries**: only a `/Subtype /TrueType` font with an
+embedded `/FontDescriptor/FontFile2` is supported (no standard-14/system-font substitution);
+`/Type0` (composite), `/Type1`, `/MMType1`, `/Type3` fonts, Form XObjects, shading/patterns/
+transparency groups, and stroke/clip text-rendering modes all fail closed with
+`UnsupportedImageFeatureException` rather than being silently skipped or mis-rendered.
 
 ```csharp
 using var doc = PdfDocument.Open("file.pdf");
@@ -1169,16 +1173,23 @@ page-tree ancestors when it does not declare its own.
 public Surface Render(int pageIndex, int width, int height)
 ```
 
-Returns a new `Surface` of the caller-specified `width` x `height` for the given page. **Phase 1
-does not interpret the page's content stream**: the returned `Surface` is exactly the blank
-(zero-initialized, fully transparent) surface `new Surface(width, height)` already produces - it
-is not clamped or derived from the page's own `/MediaBox` size. Rendering actual page content is
-planned for a later phase.
+Returns a new `Surface` of the caller-specified `width` x `height` for the given page, painted
+with the page's interpreted content-stream geometry (path construction/painting with real device
+color, placed image XObjects, and text shown with a resolved embedded TrueType font), or a fully
+transparent surface when the page declares no `/Contents`. The `width`/`height` used is exactly
+as given - it is not clamped or derived from the page's own `/MediaBox` size.
 
 **Exceptions:**
 
 - `ArgumentOutOfRangeException`: Thrown when `pageIndex` is negative or `>= PageCount`, or when
   `width`/`height` is not a valid `Surface` size (propagates from `new Surface(width, height)`).
+- `InvalidDataException`: Thrown for malformed `/Contents`, a malformed recognized operator's
+  operand count/type, an unresolvable font resource name, or a text-showing operator invoked with
+  no font selected.
+- `UnsupportedImageFeatureException`: Thrown for a well-formed but unsupported color space,
+  stream filter, Form XObject, font subtype (`/Type0`/`/Type1`/`/MMType1`/`/Type3`, or a
+  `/Subtype /TrueType` font lacking an embedded `/FontFile2`), font encoding, or text-rendering
+  mode.
 - `ObjectDisposedException`: Thrown when called after `Dispose()` has been called.
 
 ##### PdfDocument.Dispose()

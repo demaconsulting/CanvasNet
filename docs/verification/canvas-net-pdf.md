@@ -133,6 +133,23 @@ image quadrants, and a pixel outside the placed image's device-space footprint r
 transparent, confirming stream decoding, sample-to-color conversion, and unit-square-to-device
 compositing all integrate correctly through the system's own public entry point.
 
+### Integration: Pdf Render Embedded True Type Font Text Paints Glyph Strokes Not Counters
+
+**Test**: `CanvasNetPdf_SystemIntegration_PdfRender_EmbeddedTrueTypeFontText_PaintsGlyphStrokesNotCounters`
+
+Exercises end-to-end system behavior for the Phase 4 text-rendering pipeline: calls the public
+`Render` API against a hand-authored fixture with a real, embedded (`/FontDescriptor/FontFile2`)
+copy of the shared `OpenSans-Regular.ttf` production font, drawing `"HO"` at font size 60 with
+the default `/WinAnsiEncoding` via `BT`/`Tf`/`Td`/`Tj`/`ET`. Rather than hardcoding font-specific
+pixel numbers, the test independently loads the same real font through
+`Fonts.TrueTypeFont` and re-derives the expected device-pixel positions of real glyph ink from
+the font's own outline/metrics via the documented text-rendering-matrix formula. Asserts a pixel
+inside `'H'`'s left stroke is opaque, a pixel at the exact center of `'O'`'s bounding box (its
+hollow counter) is transparent, and the canvas's far corners remain transparent, confirming
+font-dictionary resolution, `/Encoding` mapping, glyph-outline transformation, and glyph painting
+all integrate correctly through the system's own public entry point with a real font file (not a
+hand-rolled synthetic one).
+
 ## Acceptance Criteria
 
 A system-level test run passes when all scenarios above pass without error or exception beyond

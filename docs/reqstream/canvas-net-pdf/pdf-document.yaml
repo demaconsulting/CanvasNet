@@ -418,6 +418,187 @@ sections:
               - PdfDocument_Images_DoOperator_DctDecodeJpeg_PlacesExpectedPixels
               - PdfDocument_Images_UnsupportedBitsPerComponent_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Images_UnsupportedColorSpace_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-FontResolution
+            title: >-
+              The PdfDocument class shall resolve a /Resources/Font entry naming a /Subtype
+              /TrueType simple font with an embedded /FontDescriptor/FontFile2 stream, loading it
+              via Fonts.TrueTypeFont.Load, and caching the resolved font by font-dictionary object
+              identity for the duration of a single Render call; a font whose /Subtype is /Type0,
+              /Type1, /MMType1, or /Type3, or a /Subtype /TrueType font lacking an embedded
+              /FontFile2 (no standard-14/system-font substitution is attempted), shall throw
+              UnsupportedImageFeatureException, and a Tf operator naming a font absent from
+              /Resources/Font shall throw InvalidDataException.
+            justification: |
+              Composite/CID-keyed fonts, Type 1/CFF fonts, Type 3 fonts, and any non-embedded
+              simple font are all explicitly out of this phase's scope; a caller must receive a
+              distinguishable, fail-closed exception for each rather than a silently
+              mis-rendered or substituted glyph, and repeatedly selecting the same font resource
+              within one render must not repeatedly re-decode its embedded font bytes.
+            tests:
+              - PdfDocument_Fonts_UnsupportedSubtype_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Fonts_MissingFontFile2_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Fonts_UndefinedFontName_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-FontEncoding
+            title: >-
+              The PdfDocument class shall resolve a font dictionary's /Encoding into a full
+              256-entry code-to-Unicode-codepoint map, defaulting to /WinAnsiEncoding when
+              /Encoding is absent, supporting /WinAnsiEncoding and /MacRomanEncoding as named
+              base encodings (throwing UnsupportedImageFeatureException for any other base
+              encoding name), and applying an /Encoding/Differences array's code-then-glyph-name
+              run-length overrides via a standard Adobe-glyph-name-to-Unicode-codepoint mapping,
+              throwing InvalidDataException for an unrecognized glyph name or for /Differences
+              beginning with a glyph name before any starting code.
+            justification: |
+              WinAnsi and MacRoman are the two base encodings a simple TrueType font's /Encoding
+              commonly names, and /Differences overrides are the standard mechanism a PDF
+              producer uses to remap individual codes to nonstandard glyphs; every one of these
+              must resolve to the correct Unicode codepoint for painted text to match the
+              document's intent, and any other base encoding or unrecognized glyph name must fail
+              closed rather than be silently mis-mapped.
+            tests:
+              - PdfDocument_Fonts_UnrecognizedEncoding_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Fonts_DefaultEncoding_IsWinAnsiEncoding
+              - PdfDocument_Fonts_MacRomanEncoding_DiffersFromWinAnsiEncoding
+              - PdfDocument_Fonts_Differences_OverridesBaseEncodingCode
+              - PdfDocument_Fonts_Differences_Absent_LeavesBaseEncodingCodeUnmapped
+              - PdfDocument_Fonts_Differences_UnrecognizedGlyphName_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Differences_NameBeforeStartingCode_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-FontWidths
+            title: >-
+              The PdfDocument class shall resolve each shown code's advance width with a
+              documented priority: an explicit /FirstChar-/Widths array entry for that code
+              first, else the font descriptor's /MissingWidth, else (when the font declares
+              neither) the embedded font's own GetAdvanceWidth/UnitsPerEm metric.
+            justification: |
+              A PDF producer may declare per-glyph widths explicitly, fall back to a single
+              /MissingWidth default, or omit width information entirely and expect the font's own
+              metrics to be used; painted text must advance by the mathematically correct amount
+              in every case for subsequent glyphs (and any caller measuring text) to land in the
+              correct position.
+            tests:
+              - PdfDocument_Fonts_Widths_ExplicitEntry_DeterminesAdvance
+              - PdfDocument_Fonts_Widths_MissingWidthFallback_DeterminesAdvance
+              - PdfDocument_Fonts_Widths_FontOwnAdvanceFallback_DeterminesAdvance
+
+          - id: CanvasNetPdf-PdfDocument-TextObjectState
+            title: >-
+              The PdfDocument class shall implement BT/ET, resetting only the text matrix (Tm)
+              and line matrix (Tlm) to identity while leaving every other text-state parameter
+              (font, size, character/word spacing, horizontal scaling, leading, render mode, text
+              rise) unaffected as part of the persistent graphics state, so that state is saved
+              and restored by q/Q exactly like every other graphics-state parameter.
+            justification: |
+              The PDF specification defines Tm/Tlm as local to a text object while every other
+              text parameter persists as ordinary graphics state; painting a second text object
+              in the same content stream must not silently lose the first text object's font,
+              size, or other text-state configuration, and a q/Q pair must save/restore text
+              state exactly like line width or color.
+            tests:
+              - PdfDocument_Text_BeginText_ResetsTextMatrixButPreservesFontAndTextState
+              - PdfDocument_Text_PushPopGraphicsState_RestoresFontSize
+
+          - id: CanvasNetPdf-PdfDocument-TextStateOperators
+            title: >-
+              The PdfDocument class shall implement the Tc, Tw, Tz, TL, and Ts text-state
+              operators, storing character spacing, word spacing (applied only to the
+              single-byte code 32), horizontal scaling percentage, leading, and text rise
+              respectively, each affecting subsequent glyph placement/advance as documented by
+              the PDF specification.
+            justification: |
+              These parameters directly control inter-character spacing, word spacing, horizontal
+              stretch, line-to-line displacement, and vertical baseline offset; each must be
+              applied with the specification's own exact formula for painted text layout to match
+              the document's intent.
+            tests:
+              - PdfDocument_Text_Tc_AddsToGlyphAdvance
+              - PdfDocument_Text_Tw_AppliesOnlyToCode32
+              - PdfDocument_Text_Tz_ScalesHorizontalShapeAndAdvance
+
+          - id: CanvasNetPdf-PdfDocument-Tf
+            title: >-
+              The PdfDocument class shall implement the Tf operator (a font resource name then a
+              size), resolving the named font resource via font resolution and storing it
+              alongside the requested size as the currently selected font for subsequent
+              text-showing operators.
+            justification: |
+              Tf is the sole mechanism a content stream uses to select which embedded font and
+              size subsequent glyphs are painted with; it must correctly resolve the named
+              resource and reject an undeclared name.
+            tests:
+              - PdfDocument_Text_ShowText_PaintsGlyphAtComposedTextRenderingMatrix
+
+          - id: CanvasNetPdf-PdfDocument-Tr
+            title: >-
+              The PdfDocument class shall implement the Tr (text-rendering mode) operator,
+              supporting mode 0 (fill, the default) and mode 3 (invisible - glyphs still advance
+              the text position but are not painted), throwing UnsupportedImageFeatureException
+              for stroke/clip modes 1, 2, and 4-7, and InvalidDataException for any other numeric
+              value.
+            justification: |
+              Stroke and clip text-rendering modes are explicitly out of this phase's scope; a
+              content stream requesting one must fail closed rather than being silently
+              mis-rendered as a fill, while invisible text (commonly used for an OCR text layer
+              beneath a scanned image) must still correctly advance the text position without
+              painting any ink.
+            tests:
+              - PdfDocument_Text_RenderMode3_Invisible_DoesNotPaintGlyph
+              - PdfDocument_Text_RenderMode3_Invisible_StillAdvancesTextPosition
+              - PdfDocument_Text_RenderMode_UnsupportedDefinedMode_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Text_RenderMode_OutOfDefinedRange_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-TextPositioning
+            title: >-
+              The PdfDocument class shall implement the Td, TD, Tm, and T* text-positioning
+              operators, per the PDF specification's line-matrix-relative displacement (Td/TD, TD
+              additionally setting leading to -ty) versus direct-replacement (Tm) semantics, with
+              T* equivalent to "0 -TL Td".
+            justification: |
+              Correct line/paragraph layout depends entirely on these operators composing the
+              text and line matrices exactly per specification; an incorrect composition would
+              silently misplace every subsequent line of text.
+            tests:
+              - PdfDocument_Text_Td_OffsetsLineMatrixNotLastTextMatrix
+              - PdfDocument_Text_TD_SetsLeadingToNegativeTy
+              - PdfDocument_Text_Tm_ReplacesTextAndLineMatrix
+              - PdfDocument_Text_TStar_UsesCurrentLeading
+
+          - id: CanvasNetPdf-PdfDocument-TextShowing
+            title: >-
+              The PdfDocument class shall implement the Tj, ' (quote), " (double-quote), and TJ
+              text-showing operators - Tj shows a string as-is; ' performs T* then Tj; " sets Tw
+              and Tc then performs ' ; and TJ shows an array of strings interleaved with
+              thousandths-of-text-space position adjustments applied between glyphs - painting
+              each resolved glyph's outline via the composed text-rendering matrix and
+              Drawing.PathFiller.Fill with the current fill color (mode 0) or skipping painting
+              entirely (mode 3), and advancing the text matrix by each glyph's resolved width.
+            justification: |
+              These are the operators that actually place visible ink on the page; each must
+              resolve every shown byte through the selected font's encoding, paint the correct
+              glyph outline at the correct position, and advance by the mathematically correct
+              amount, including TJ's per-adjustment position correction.
+            tests:
+              - PdfDocument_Text_ShowText_PaintsGlyphAtComposedTextRenderingMatrix
+              - PdfDocument_Text_TJ_AppliesPositionAdjustments
+              - PdfDocument_Text_TJ_ArrayEntryNotStringOrNumber_ThrowsInvalidDataException
+              - PdfDocument_Text_QuoteOperator_MovesToNextLineThenShows
+              - PdfDocument_Text_DoubleQuoteOperator_SetsSpacingThenMovesAndShows
+              - CanvasNetPdf_SystemIntegration_PdfRender_EmbeddedTrueTypeFontText_PaintsGlyphStrokesNotCounters
+
+          - id: CanvasNetPdf-PdfDocument-TextErrorHandling
+            title: >-
+              The PdfDocument class shall throw InvalidDataException for a text-showing operator
+              (Tj/'/"/TJ) invoked with no font currently selected, or for a malformed operand
+              count/type for any text operator.
+            justification: |
+              A content stream that attempts to show text before any Tf call, or that supplies a
+              malformed operand list to a text operator, is malformed input and must be rejected
+              explicitly rather than silently ignored or causing an unhandled internal exception.
+            tests:
+              - PdfDocument_Text_ShowText_NoFontSelected_ThrowsInvalidDataException
+              - PdfDocument_Text_MalformedOperandCount_ThrowsInvalidDataException
               - PdfDocument_Images_DoOperator_UndefinedXObjectName_ThrowsInvalidDataException
               - PdfDocument_Images_DoOperator_FormXObject_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Images_DoOperator_MalformedOperandCount_ThrowsInvalidDataException

@@ -34,8 +34,9 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 - 📐 **SVG Codec** - Rasterize a common SVG subset, including markers/filters/clip-paths/masks and
   weight/style-aware font matching, to a surface (ships as the separate
   `DemaConsulting.CanvasNet.Svg` package)
-- 📄 **PDF Document** - Open a PDF, inspect its page count/size/rotation, and (in a future phase)
-  rasterize pages to a surface (ships as the separate `DemaConsulting.CanvasNet.Pdf` package)
+- 📄 **PDF Document** - Open a PDF, inspect its page count/size/rotation, and rasterize a page's
+  path geometry, device color, image XObjects, and embedded-TrueType-font text to a surface
+  (ships as the separate `DemaConsulting.CanvasNet.Pdf` package)
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines

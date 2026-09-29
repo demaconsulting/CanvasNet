@@ -2,7 +2,7 @@
 
 ![CanvasNetPdf Structure](CanvasNetPdfView.svg)
 
-<!-- cspell:ignore xref startxref endobj endstream ObjStm MediaBox unresolvable -->
+<!-- cspell:ignore xref startxref endobj endstream ObjStm MediaBox unresolvable Trise -->
 <!-- cspell:ignore CCITT reimplementation diffability bitstream -->
 
 `PdfDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pdf` NuGet package
@@ -12,25 +12,41 @@
 The `PdfDocument` class is the sole software unit of the `CanvasNetPdf` system. Its dependencies
 are limited to `CanvasNet`'s `Canvas` subsystem (`Surface`, `Rgba32`), `Codecs` subsystem
 (`UnsupportedImageFeatureException`, and, as of Phase 3, `JpegCodec`), `Geometry` subsystem
-(`PathBuilder`, `Path`), and `Drawing` subsystem (`PathFiller`, `PathStroker`, `StrokeStyle`,
-`FillRule`, `LineCap`, `LineJoin`) — see the Dependencies section of _CanvasNetPdf System Design_
-(`../canvas-net-pdf.md`). It provides hand-rolled parsing of a PDF document's structure
-(cross-references, trailer, page tree), a content-stream interpreter (`Render` tokenizes and
-executes a page's `/Contents` path-construction/painting and graphics-state operators), and, as
-of Phase 3, real device color, a generalized stream-filter pipeline, and image XObjects: `g`/`G`/
-`rg`/`RG`/`k`/`K`/`cs`/`CS`/`sc`/`SC`/`scn`/`SCN` set the actual fill/stroke color a path paints
-with; a generalized `/Filter`/`/DecodeParms` pipeline (`FlateDecode` plus PNG/TIFF predictor
-reversal) decodes any stream, not only a page's own `/Contents`; and `Do` decodes and composites
-a `/Subtype /Image` XObject (`DCTDecode` via `Codecs.JpegCodec`, or raw `DeviceGray`/`DeviceRGB`/
-`DeviceCMYK` 8-bit samples) through the current transformation matrix. **Phase 3 limitations**:
-no text/font operators, no Form XObject rendering (`Do` on a `/Subtype /Form` XObject fails
-closed with `UnsupportedImageFeatureException`, rather than being silently skipped), no
-shading/patterns/transparency groups, no `CCITTFax`/`LZW`/`ASCII85`/`ASCIIHex`/`JPX` filter
-decoding (fails closed), and no `/SMask`/alpha compositing (every decoded image is treated as
-fully opaque) — these remain out of scope for this phase and are silently skipped (any other
-undefined keyword) or explicitly rejected (Form XObjects, unsupported color spaces/filters), per
-the operator/exception taxonomy documented below; a later phase is expected to add real text,
-Form XObject, and transparency support.
+(`PathBuilder`, `Path`), `Drawing` subsystem (`PathFiller`, `PathStroker`, `StrokeStyle`,
+`FillRule`, `LineCap`, `LineJoin`), and, as of Phase 4, `Fonts` subsystem (`TrueTypeFont`) — see
+the Dependencies section of _CanvasNetPdf System Design_ (`../canvas-net-pdf.md`). It provides
+hand-rolled parsing of a PDF document's structure (cross-references, trailer, page tree), a
+content-stream interpreter (`Render` tokenizes and executes a page's `/Contents` path-
+construction/painting and graphics-state operators), real device color, a generalized stream-
+filter pipeline, image XObjects (Phase 3), and, as of Phase 4, real embedded-TrueType-font text
+rendering: `g`/`G`/`rg`/`RG`/`k`/`K`/`cs`/`CS`/`sc`/`SC`/`scn`/`SCN` set the actual fill/stroke
+color a path paints with; a generalized `/Filter`/`/DecodeParms` pipeline (`FlateDecode` plus
+PNG/TIFF predictor reversal) decodes any stream, not only a page's own `/Contents`; `Do` decodes
+and composites a `/Subtype /Image` XObject (`DCTDecode` via `Codecs.JpegCodec`, or raw
+`DeviceGray`/`DeviceRGB`/`DeviceCMYK` 8-bit samples) through the current transformation matrix;
+and `BT`/`ET`/`Tc`/`Tw`/`Tz`/`TL`/`Tf`/`Tr`/`Ts`/`Td`/`TD`/`Tm`/`T*`/`Tj`/`'`/`"`/`TJ` resolve a
+simple (non-composite) embedded TrueType font declared in the current page's
+`/Resources/Font` dictionary, map each shown byte through that font's `/Encoding` to a Unicode
+codepoint, and paint the resulting glyph outline (scaled/positioned by the composed text-
+rendering matrix) via `Drawing.PathFiller.Fill` with the current fill color, exactly like any
+other filled path. **Phase 4 limitations**: only `/Subtype /TrueType` simple fonts with an
+embedded `/FontDescriptor/FontFile2` are supported — `/Type0` (composite/CID-keyed), `/Type1`,
+`/MMType1`, and `/Type3` fonts, and any simple font lacking an embedded `/FontFile2` (no
+standard-14/system-font substitution is attempted, by design — see
+`../canvas-net-pdf/pdf-document.md`'s _Font & Text Rendering_ section and
+`../../../.agent-logs/planning-pdf-codec-roadmap-revised-b4e91d02.md`), all fail closed with
+`Codecs.UnsupportedImageFeatureException`; only the `/WinAnsiEncoding` and `/MacRomanEncoding`
+base encodings (plus `/Differences`) are supported (an unrecognized base encoding also fails
+closed); only text-rendering modes `0` (fill) and `3` (invisible) are supported (stroke/clip
+modes `1`/`2`/`4`-`7` fail closed); and no additional stream filters were added for this phase.
+**Phase 3 limitations** (unchanged): no Form XObject rendering (`Do` on a `/Subtype /Form`
+XObject fails closed with `UnsupportedImageFeatureException`, rather than being silently
+skipped), no shading/patterns/transparency groups, no `CCITTFax`/`LZW`/`ASCII85`/`ASCIIHex`/`JPX`
+filter decoding (fails closed), and no `/SMask`/alpha compositing (every decoded image is treated
+as fully opaque) — these remain out of scope for this phase and are silently skipped (any other
+undefined keyword) or explicitly rejected (Form XObjects, unsupported color spaces/filters/
+fonts/encodings/render modes), per the operator/exception taxonomy documented below; a later
+phase is expected to add Form XObject and transparency support.
 
 ### Purpose
 
@@ -76,10 +92,15 @@ re-parsing it each time — a property a purely static API could not express.
   resolve a `cs`/`CS`/`Do` operator's named color-space/XObject resource.
 - **`_gsStack` (`Stack<GraphicsState>`, nested `GraphicsState` class, `PdfDocument.GraphicsState.cs`)**
   — the `q`/`Q` graphics-state stack, and `_gs` (`GraphicsState`) — the current graphics state
-  (current transformation matrix, line width/cap/join/miter-limit/dash pattern, and, as of Phase
-  3, `FillColor`/`StrokeColor`/`FillColorSpace`/`StrokeColorSpace`), both reset at the start of
-  every `ExecuteContentStream` call. `GraphicsState.Clone()` performs a member-wise copy (the
-  dash array reference is shared, never mutated in place, so sharing it across a clone is safe).
+  (current transformation matrix, line width/cap/join/miter-limit/dash pattern, `FillColor`/
+  `StrokeColor`/`FillColorSpace`/`StrokeColorSpace` (Phase 3), and, as of Phase 4, persistent
+  text state — `Font` (the currently selected `ResolvedFont?`), `FontSize`, `CharSpacing`,
+  `WordSpacing`, `HorizontalScaling`, `Leading`, `RenderMode`, `TextRise`), both reset at the
+  start of every `ExecuteContentStream` call. `GraphicsState.Clone()` performs a member-wise copy
+  (the dash array reference and the resolved `Font` reference are shared, never mutated in
+  place, so sharing either across a clone is safe) — text state is deliberately part of
+  `GraphicsState`, not a separate field, since `q`/`Q` must save/restore it exactly like every
+  other graphics-state parameter (the PDF specification's own rule).
 - **`_resources` (`PdfObject?`, `PdfDocument.ContentStream.cs`, added in Phase 3)** — the current
   page's resolved `/Resources` dictionary (from `_pageDetails`), reset at the start of every
   `ExecuteContentStream` call; consulted by `cs`/`CS` (`/Resources/ColorSpace`) and `Do`
@@ -93,6 +114,24 @@ re-parsing it each time — a property a purely static API could not express.
   rejected with this class's own `InvalidDataException` convention rather than letting
   `PathBuilder`'s `InvalidOperationException` escape unwrapped. All three are reset at the start
   of every `ExecuteContentStream` call and cleared after every path-painting operator.
+- **`_textMatrix`/`_lineMatrix` (`Matrix3x2`, `PdfDocument.Text.cs`, added in Phase 4)** — the
+  current text-space-to-user-space matrix (`Tm`) and the line matrix `Tj`/`T*`/`TD` measure the
+  next line's `Td` displacement from. Deliberately fields of `PdfDocument` itself, not
+  `GraphicsState`: the PDF specification resets both to the identity matrix only at `BT`, and
+  `q`/`Q` never save/restore them (unlike every other text-state parameter, which does live on
+  `GraphicsState` — see `_gsStack` above) — a `q`/`Q` pair nested inside a `BT`/`ET` text object
+  must not perturb the running text position. Both are reset once per `ExecuteContentStream`
+  call and again by every `BT`.
+- **`_fontCache` (`Dictionary<PdfObject, ResolvedFont>`, `PdfDocument.Fonts.cs`, added in Phase
+  4)** — memoizes each font dictionary's resolved `ResolvedFont` (embedded `Fonts.TrueTypeFont`,
+  256-entry code-to-Unicode-codepoint encoding map, per-code `/Widths` map, `/MissingWidth`) by
+  the font dictionary `PdfObject`'s own reference identity, so `Tf` re-selecting the same font
+  resource repeatedly within one `Render` call never re-decodes/re-parses the embedded
+  `FontFile2` bytes more than once. Reset (cleared) at the start of every `ExecuteContentStream`
+  call — scoped to a single `Render` call only, per this phase's documented caching contract (a
+  later `Render` call always re-resolves every font from scratch, trading a small amount of
+  redundant work across separate calls for never risking a stale reference into a different
+  document's object graph).
 - **`_surface` (`Canvas.Surface`, `PdfDocument.ContentStream.cs`)** — the destination surface
   every path-painting operator draws onto for the content stream currently being executed.
 - **`PdfObject`/`PdfKind`** (internal, `PdfDocument.ObjectModel.cs`) — a small tagged-union
@@ -307,6 +346,67 @@ re-parsing it each time — a property a purely static API could not express.
   specification's image-space convention, the opposite of user-space's y-up convention) — no
   bilinear interpolation, a documented Phase 3 simplification consistent with Phase 2's own
   stroke-width simplification precedent.
+- **Font resolution (`PdfDocument.Fonts.cs`, added in Phase 4)** — `ResolveFont(PdfObject
+  fontResource)` looks up (and caches, via `_fontCache`) a font dictionary's `Fonts.TrueTypeFont`,
+  `/Encoding`, and `/Widths`/`/MissingWidth`. Only `/Subtype /TrueType` is supported; `/Type0`,
+  `/Type1`, `/MMType1`, and `/Type3` each throw `Codecs.UnsupportedImageFeatureException` naming
+  the rejected subtype. The font dictionary's `/FontDescriptor/FontFile2` stream is required and
+  decoded via the same `GetStreamDecodedBytes` every other stream in this class uses, then loaded
+  via `Fonts.TrueTypeFont.Load(new MemoryStream(decodedBytes))` — a font lacking `/FontFile2`
+  throws `Codecs.UnsupportedImageFeatureException` (no standard-14/system-font substitution is
+  ever attempted; this is an intentional, documented scope boundary, not a temporary gap — see
+  `.agent-logs/planning-pdf-codec-roadmap-revised-b4e91d02.md`). `ResolveEncoding` builds a full
+  256-entry `int[]` code-to-Unicode-codepoint map: `ApplyBaseEncoding` seeds it from one of two
+  hand-transcribed 256-entry tables (`WinAnsiEncodingTable`/`MacRomanEncodingTable`, the PDF
+  specification's own Appendix D tables), defaulting to `/WinAnsiEncoding` when `/Encoding` is
+  absent entirely and throwing `Codecs.UnsupportedImageFeatureException` for any other named base
+  encoding (`/StandardEncoding`/`/PDFDocEncoding`/anything else); `ApplyDifferences` then applies
+  an `/Encoding/Differences` array's `code1 name1 name2 ... code2 name1 ...` run-length overrides,
+  resolving each glyph name via `StandardGlyphNames` (a ~240-entry Adobe Glyph List subset
+  covering common ASCII/Latin-1 names) - an unrecognized glyph name throws
+  `InvalidDataException` (a fail-closed policy, not a silent mis-mapping to codepoint `0`/
+  `.notdef`), as does a `/Differences` array beginning with a glyph name before any starting code
+  number. `ResolveWidths` builds a sparse `code -> width`
+  (`/1000`-scaled) map from `/FirstChar`/`/Widths` (missing/malformed entries silently omitted,
+  not rejected), plus `/FontDescriptor/MissingWidth` (defaulting to `0`, the specification's own
+  documented default) as the fallback for any code absent from that map.
+- **Text rendering (`PdfDocument.Text.cs`, added in Phase 4)** — `OpBeginText`/`OpEndText`
+  (`BT`/`ET`) reset only `_textMatrix`/`_lineMatrix` to the identity matrix (every other text-
+  state parameter lives on `GraphicsState` and is untouched, per this phase's documented `q`/`Q`-
+  interaction design — see `_textMatrix`/`_lineMatrix` above). `OpSetCharSpacing`/
+  `OpSetWordSpacing`/`OpSetHorizontalScaling`/`OpSetLeading`/`OpSetTextRise` (`Tc`/`Tw`/`Tz`/`TL`/
+  `Ts`) store their one operand verbatim; `OpSetFont` (`Tf`, a name then a number) resolves the
+  named font resource via `ResolveFont` and stores it alongside the requested size;
+  `OpSetTextRenderMode` (`Tr`) accepts only mode `0` (fill, the default) and `3` (invisible —
+  painted with zero-area geometry, i.e. skipped entirely), throwing
+  `Codecs.UnsupportedImageFeatureException` for stroke/clip modes `1`/`2`/`4`-`7` (out of this
+  phase's scope) or `InvalidDataException` for any other numeric value. `OpTextMoveTo`/
+  `OpTextMoveToSetLeading`/`OpTextNextLine` (`Td`/`TD`/`T*`) and `OpSetTextMatrix` (`Tm`)
+  manipulate `_textMatrix`/`_lineMatrix` per the specification's own line-matrix-relative-
+  displacement (`Td`/`TD`, `TD` additionally setting `Leading = -ty`) versus direct-replacement
+  (`Tm`) semantics; `T*` is exactly `0 -TL Td`. `OpShowText`/`OpShowTextNextLine`/
+  `OpShowTextNextLineWithSpacing`/`OpShowTextArray` (`Tj`/`'`/`"`/`TJ`) each ultimately call
+  `ShowText`, which throws `InvalidDataException` if no font is currently selected (`Tf` was
+  never called), then iterates the string byte-by-byte (composite/multi-byte fonts are out of
+  this phase's scope, matching the Type0 rejection above): `ShowGlyph` resolves each byte through
+  the selected font's encoding map to a Unicode codepoint, looks up its glyph index/outline/
+  advance width via `Fonts.TrueTypeFont`, computes the text-rendering matrix `Trm = [Tfs·Th, 0, 0,
+  Tfs, 0, Trise] × Tm × CTM` (row-vector composition, matching `OpConcatMatrix`'s own convention),
+  combines it with a `1/UnitsPerEm` glyph-space scale, transforms every glyph outline point
+  through the result (`AppendTransformedGlyphOutline`, reimplementing - since it is `private` in
+  a different assembly - the exact glyph-outline-to-`Geometry.Path` re-issuing pattern
+  `SvgCodec.Text.cs` established), and fills the transformed outline via `Drawing.PathFiller.Fill`
+  with `_gs.FillColor` (skipped entirely for render mode `3`). `ResolveGlyphWidth` determines each
+  glyph's advance in text space with a documented priority: an explicit `/Widths` entry for that
+  code first, else `/FontDescriptor/MissingWidth`, else (only when the font declares neither -
+  i.e. `ResolvedFont.Widths` has no entry and `MissingWidth` was never declared) the font's own
+  `GetAdvanceWidth`/`UnitsPerEm` metric - then advances `Tm.x` by
+  `((w0 - Tj/1000) × Tfs + Tc + (code == 32 ? Tw : 0)) × Th` per the specification (the `Tj/1000`
+  term only applies within `TJ`'s array form, via `ApplyTextSpaceAdjustment`; `Tw` only applies to
+  the single-byte code `32`, per the specification's own restriction, never a multi-byte code
+  that merely decodes to codepoint 32). Every operator validates its operand count/type via the
+  same `RequireNumbers`/`RequireOperandCount` helpers every other operator family uses, throwing
+  `InvalidDataException` on mismatch.
 
 ### Error Handling
 
@@ -347,6 +447,19 @@ re-parsing it each time — a property a purely static API could not express.
 - **`Do` with a name undeclared in `/Resources/XObject` (or no `/Resources` at all), a
   non-stream/missing-`/Subtype` resolved value, or a malformed operand count/type** —
   `InvalidDataException` (a malformed content stream, not merely unsupported).
+- **A font dictionary whose `/Subtype` is `/Type0`, `/Type1`, `/MMType1`, or `/Type3`, or a
+  `/Subtype /TrueType` font lacking an embedded `/FontDescriptor/FontFile2`** —
+  `Codecs.UnsupportedImageFeatureException` (composite/CID-keyed, Type 1/CFF, and Type 3 fonts,
+  and font substitution for a non-embedded font, are all out of this phase's scope by design).
+- **An `/Encoding` naming an unrecognized base encoding** (anything other than
+  `/WinAnsiEncoding`/`/MacRomanEncoding`, or their dictionary form's `/BaseEncoding`) —
+  `Codecs.UnsupportedImageFeatureException`.
+- **`Tr` (text-rendering mode) set to `1`, `2`, or `4`-`7`** (stroke/clip modes) —
+  `Codecs.UnsupportedImageFeatureException`; any other numeric value outside `0`-`7` is
+  `InvalidDataException` instead.
+- **A text-showing operator (`Tj`/`'`/`"`/`TJ`) with no font currently selected** (`Tf` was never
+  called), or a malformed operand count/type for any text operator — `InvalidDataException`,
+  matching every other operator family's own convention.
 - **Any public member called after `Dispose()`** — `ObjectDisposedException`, thrown first via
   `ObjectDisposedException.ThrowIf(_disposed, this)`, before any other validation.
 
@@ -366,7 +479,10 @@ re-parsing it each time — a property a purely static API could not express.
   path's subpaths/commands as path-construction operators are dispatched
 - `Drawing.PathFiller`/`PathStroker`/`StrokeStyle`/`FillRule`/`LineCap`/`LineJoin` (from the core
   `CanvasNet` system) — rasterize the current path onto `_surface` for every path-painting
-  operator
+  operator, and, as of Phase 4, every filled glyph outline
+- `Fonts.TrueTypeFont` (from the core `CanvasNet` system, new as of Phase 4) — loads an embedded
+  `/FontFile2` byte stream and resolves each shown codepoint to a glyph index/outline/advance
+  width, exactly as `SvgCodec.Text.cs` already uses it for SVG `<text>` rendering
 - BCL `System.IO.Compression.DeflateStream` — `FlateDecode` decompression of object streams and,
   as of Phase 3, any other `FlateDecode`-filtered stream (image XObjects included)
 - BCL `System.Numerics.Matrix3x2`/`Vector2` — the current transformation matrix, every
