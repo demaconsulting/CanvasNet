@@ -6,7 +6,7 @@ package CanvasNet {
         comment designRef /* Design: docs/design/canvas-net-svg.md */
         comment verificationRef /* Verification: docs/verification/canvas-net-svg.md */
         comment reqRef /* Requirements: docs/reqstream/canvas-net-svg.yaml */
-        comment /* CanvasNetSvg depends on the sibling CanvasNet system's Canvas subsystem (for the Surface pixel buffer SvgCodec rasterizes into), Geometry subsystem (for Path/Rect/BezierFlattening/SvgArcConverter), Drawing subsystem (for PathFiller/PathStroker/GradientPaint rasterization), and Fonts subsystem (for TrueTypeFont glyph-outline text rendering) - modeled below as ordinary part usages of those existing subsystem part defs, since both systems live in this same repository/package rather than being third-party (OTS) or Shared Package dependencies. */
+        comment /* CanvasNetSvg depends on the sibling CanvasNet system's Canvas subsystem (for the Surface pixel buffer SvgCodec rasterizes into), Geometry subsystem (for Path/Rect/BezierFlattening/SvgArcConverter), Drawing subsystem (for PathFiller/PathStroker/GradientPaint rasterization), and Fonts subsystem (for TrueTypeFont glyph-outline text rendering) - modeled below as ordinary part usages of those existing subsystem part defs, since both systems live in this same git repository (though each is distributed as its own separate NuGet package - CanvasNetSvg is not folded into the CanvasNet package) rather than being third-party (OTS) or Shared Package dependencies (both of which are reserved for a package produced by a different repository). */
 
         part svgCodec : SvgCodec;
 

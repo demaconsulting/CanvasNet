@@ -108,14 +108,27 @@ FileAssert, Pandoc, ReqStream, ReviewMark, SarifMark, SonarMark, VersionMark, We
 `SvgCodec`'s `Load`/`LoadWithFontFaces` operations parse externally-supplied, potentially
 untrusted SVG documents (XML markup that may embed references, gradients, filters, and
 base64-encoded raster images). Risk control for this untrusted-input parsing is segregated
-entirely within the single `SvgCodec` unit — explicit DTD/external-entity hardening (rejecting
-any document containing a DOCTYPE declaration), bounded element-nesting depth, total-element,
-geometry-work, and number-list-length budgets, and tolerant-fallback (rather than
-whole-document-rejecting) handling of dangling references, reference cycles, and
-resource-disproportionate constructs — see _SvgCodec Unit Design_ (`canvas-net-svg/svg-codec.md`)
-for the complete set of budgets and fallback behaviors. No other segregation is required at the
-system level: `CanvasNetSvg` contains exactly one unit, so this risk control is inherently
-contained within it (IEC 62304 §5.3.3).
+entirely within the single `SvgCodec` unit and falls into two distinct categories, each with its
+own consistently-applied behavior:
+
+- **Tolerantly skipped, no-effect constructs** — a document containing one of these continues to
+  render the rest of its content rather than failing outright: a dangling `url(#id)` reference
+  (gradient, pattern, filter, clip-path, or mask) that resolves to no element, a well-formed but
+  out-of-scope/unrecognized element or filter primitive, an external (non-`data:`) `image` `href`,
+  and a nested `data:image/svg+xml` document.
+- **Rejected reference cycles** — an unbounded self- or mutually-referencing chain (a `use`
+  element referencing itself directly or indirectly, a `marker` referencing a marker that
+  eventually references it again, a `mask`/`pattern` whose own content resolves back to itself)
+  is explicitly detected and rejected with a thrown `InvalidDataException`, rather than being
+  tolerated or silently skipped: recursing into a genuine cycle would otherwise never terminate.
+
+Beyond these two categories, explicit DTD/external-entity hardening (rejecting any document
+containing a DOCTYPE declaration) and bounded element-nesting depth, total-element,
+geometry-work, and number-list-length budgets likewise reject the offending document with a
+thrown `InvalidDataException` once exceeded, rather than tolerating it — see _SvgCodec Unit
+Design_ (`canvas-net-svg/svg-codec.md`) for the complete set of budgets and fallback behaviors.
+No other segregation is required at the system level: `CanvasNetSvg` contains exactly one unit,
+so this risk control is inherently contained within it (IEC 62304 §5.3.3).
 
 ## Data Flow
 

@@ -1633,7 +1633,7 @@ specificity is already equal.
 `SvgCodec_Load_CssPrecedenceTier2_StylesheetOverridesPresentationAttribute`,
 `SvgCodec_Load_CssPrecedenceTier3_InlineStyleOverridesStylesheet`,
 `SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier`,
-`CanvasNet_SystemIntegration_SvgLoadWithCssStyleElement_ReturnsExpectedPixel`
+`CanvasNetSvg_SystemIntegration_SvgLoadWithCssStyleElement_ReturnsExpectedPixel`
 
 Verifies each precedence tier individually and in combination. With no stylesheet and no inline
 `style` attribute at all, a plain presentation attribute applies exactly as it did before this

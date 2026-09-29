@@ -44,7 +44,7 @@ sections:
           - CanvasNetSvg-SvgCodec-TotalDocumentElementBudget
           - CanvasNetSvg-SvgCodec-ValidationOutputDimensions
         tests:
-          - CanvasNet_SystemIntegration_SvgLoad_ReturnsExpectedPixel
+          - CanvasNetSvg_SystemIntegration_SvgLoad_ReturnsExpectedPixel
 
       - id: CanvasNetSvg-Lib-SvgMarkerRendering
         title: >-
@@ -65,6 +65,7 @@ sections:
           - CanvasNetSvg-SvgCodec-MarkerReferenceCycle
           - CanvasNetSvg-SvgCodec-MarkerPreserveAspectRatio
         tests:
+          - CanvasNetSvg_SystemIntegration_SvgMarkerRendering_RendersMarkerAtLineEnd
           - SvgCodec_Load_MarkerEndOnLine_RendersArrowheadPastLineEnd
           - SvgCodec_Load_MarkerStartMidEndOnPolyline_RendersDistinctMarkersAtEachVertex
           - SvgCodec_Load_ArrowMarkersFixture_RendersArrowheadPastLineEnd
@@ -111,6 +112,7 @@ sections:
           - CanvasNetSvg-SvgCodec-FeBlend
           - CanvasNetSvg-SvgCodec-FilterPrimitiveResourceSafety
         tests:
+          - CanvasNetSvg_SystemIntegration_SvgFilterRendering_AppliesFilterChainToShape
           - SvgCodec_Load_FeFloodFeGaussianBlurFeCompositeFilter_RendersBlurredHaloBehindContent
           - SvgCodec_Load_FeColorMatrixTypeHueRotate_RotatesHueByAngle
           - SvgCodec_Load_FeFuncATypeGamma_AppliesGammaCurveToAlpha
@@ -151,6 +153,7 @@ sections:
           - CanvasNetSvg-SvgCodec-EffectOrdering
           - CanvasNetSvg-SvgCodec-EffectResourceSafety
         tests:
+          - CanvasNetSvg_SystemIntegration_SvgClipPathRendering_ClipsContentToReferencedShape
           - SvgCodec_Load_ClipPathUserSpaceOnUse_ClipsToAbsoluteCircle
           - SvgCodec_Load_ClipPathObjectBoundingBox_ScalesClipContentToReferenceBounds
           - SvgCodec_Load_MaskDefaultLuminance_WhiteRevealsBlackHides
@@ -181,6 +184,7 @@ sections:
           - CanvasNetSvg-SvgCodec-PatternHrefInheritance
           - CanvasNetSvg-SvgCodec-PatternResourceSafety
         tests:
+          - CanvasNetSvg_SystemIntegration_SvgPatternRendering_TilesPatternAcrossShape
           - SvgCodec_Load_PatternDefaultUnits_TilesOnceAcrossShapeBoundingBox
           - SvgCodec_Load_PatternUserSpaceOnUseUnits_TilesRepeatedlyAcrossUserSpace
           - SvgCodec_Load_PatternContentUnitsObjectBoundingBox_MapsContentThroughShapeBoundingBox
@@ -226,6 +230,7 @@ sections:
           - CanvasNetSvg-SvgCodec-ImageExternalHrefScope
           - CanvasNetSvg-SvgCodec-ImageResourceSafety
         tests:
+          - CanvasNetSvg_SystemIntegration_SvgImageRendering_RendersEmbeddedRasterImage
           - SvgCodec_Load_ImageDataUriPng_RendersDecodedPixelsAtPlacementRect
           - SvgCodec_Load_ImageDataUriJpeg_RendersDecodedPixelsAtPlacementRect
           - SvgCodec_Load_ImagePreserveAspectRatioMeet_LettersOrPillarboxesNonMatchingAspect
@@ -258,6 +263,7 @@ sections:
           - CanvasNetSvg-SvgCodec-ViewBoxFitting
           - CanvasNetSvg-SvgCodec-SymbolViewBoxFitting
         tests:
+          - CanvasNetSvg_SystemIntegration_SvgViewBoxFitting_LetterboxesWideViewBox
           - SvgCodec_Load_WideViewBoxIntoSquareRaster_LetterboxesTopAndBottom
           - SvgCodec_Load_TallViewBoxIntoSquareRaster_LetterboxesLeftAndRight
           - SvgCodec_Load_RootPreserveAspectRatio_AppliesAlignAndMeetOrSlice
@@ -279,6 +285,7 @@ sections:
         children:
           - CanvasNetSvg-SvgCodec-PercentageGeometryResolved
         tests:
+          - CanvasNetSvg_SystemIntegration_SvgPercentageGeometryResolution_ResolvesWidthPercentage
           - SvgCodec_Load_RectXPercentage_ResolvesAgainstViewportWidth
           - SvgCodec_Load_RectWidthPercentage_ResolvesAgainstViewportWidth
           - SvgCodec_Load_RectYHeightPercentage_ResolvesAgainstViewportHeight
@@ -302,6 +309,7 @@ sections:
           - CanvasNetSvg-SvgCodec-GetInfo
           - CanvasNetSvg-SvgCodec-GetInfoFallback
         tests:
+          - CanvasNetSvg_SystemIntegration_SvgGetInfo_ReturnsViewBoxDimensions
           - SvgCodec_GetInfo_ViewBoxPresent_ReturnsViewBoxDimensions
           - SvgCodec_GetInfo_FromFilePath_ReturnsExpectedInfo
           - SvgCodec_GetInfo_NoViewBoxWidthHeightPresent_ReturnsWidthHeight
@@ -322,6 +330,7 @@ sections:
           - CanvasNetSvg-SvgCodec-TextFontFallbackSkipsSilently
           - CanvasNetSvg-SvgCodec-TextAnchor
         tests:
+          - CanvasNetSvg_SystemIntegration_SvgTextRendering_RendersGlyphAtExpectedPosition
           - SvgCodec_Load_TextWithMatchingFont_RendersGlyphAtExpectedPosition
           - SvgCodec_Load_TextWithKerningPair_AppliesKerningBetweenGlyphs
           - SvgCodec_Load_TextFixtureWithRealFont_RendersVisibleGlyphInk
@@ -348,6 +357,7 @@ sections:
           - CanvasNetSvg-SvgCodec-FontFaceMatching
           - CanvasNetSvg-SvgCodec-LegacySingleFontCompatibility
         tests:
+          - CanvasNetSvg_SystemIntegration_SvgFontWeightStyleMatching_SelectsBoldFaceOverNormalFace
           - SvgCodec_Load_TextFontWeightBold_SelectsBoldFaceOverNormalFace
           - SvgCodec_Load_TextFontStyleItalic_SelectsItalicFaceOverNormalFace
           - SvgCodec_Load_TextFontWeightAndStyleCombined_SelectsExactMatchAmongThreeFaces
@@ -367,6 +377,7 @@ sections:
         children:
           - CanvasNetSvg-SvgCodec-ValidationNull
         tests:
+          - CanvasNetSvg_SystemIntegration_SvgValidationNull_NullStreamThrowsArgumentNullException
           - SvgCodec_Load_NullStream_ThrowsArgumentNullException
           - SvgCodec_Load_NullPath_ThrowsArgumentNullException
           - SvgCodec_GetInfo_NullStream_ThrowsArgumentNullException
@@ -384,6 +395,7 @@ sections:
         children:
           - CanvasNetSvg-SvgCodec-ValidationEmptyPath
         tests:
+          - CanvasNetSvg_SystemIntegration_SvgValidationEmptyPath_EmptyPathThrowsArgumentException
           - SvgCodec_Load_EmptyPath_ThrowsArgumentException
           - SvgCodec_Load_WhitespacePath_ThrowsArgumentException
           - SvgCodec_GetInfo_EmptyPath_ThrowsArgumentException
@@ -401,6 +413,7 @@ sections:
           - CanvasNetSvg-SvgCodec-MalformedXmlRejected
           - CanvasNetSvg-SvgCodec-MalformedPathDataRejected
         tests:
+          - CanvasNetSvg_SystemIntegration_SvgUnsupportedFormatValidation_MalformedXmlThrowsInvalidDataException
           - SvgCodec_Load_MalformedXml_ThrowsInvalidDataException
           - SvgCodec_Load_MalformedViewBoxWrongNumberCount_ThrowsInvalidDataException
           - SvgCodec_Load_ViewBoxNonPositiveWidth_ThrowsInvalidDataException
@@ -422,6 +435,7 @@ sections:
         children:
           - CanvasNetSvg-SvgCodec-XxeHardening
         tests:
+          - CanvasNetSvg_SystemIntegration_SvgXxeHardening_DoctypeDeclarationThrowsInvalidDataException
           - SvgCodec_Load_DocumentWithDoctypeDeclaration_ThrowsInvalidDataException
           - SvgCodec_Load_DocumentWithExternalEntityDoctype_ThrowsInvalidDataException
           - SvgCodec_GetInfo_DocumentWithExternalEntityDoctype_ThrowsInvalidDataException
@@ -438,6 +452,7 @@ sections:
         children:
           - CanvasNetSvg-SvgCodec-UnsupportedConstructsIgnored
         tests:
+          - CanvasNetSvg_SystemIntegration_SvgTolerateUnsupportedConstructs_StillRendersRestOfDocument
           - SvgCodec_Load_UnsupportedConstructs_StillRendersRestOfDocument
           - SvgCodec_Load_ToleratesUnsupportedConstructFixture_StillRendersRemainingContent
 
@@ -452,6 +467,7 @@ sections:
           - CanvasNetSvg-SvgCodec-ValidationNull
           - CanvasNetSvg-SvgCodec-ValidationEmptyPath
         tests:
+          - CanvasNetSvg_SystemIntegration_SvgGetInfoValidation_NullStreamThrowsArgumentNullException
           - SvgCodec_GetInfo_NullStream_ThrowsArgumentNullException
           - SvgCodec_GetInfo_NullPath_ThrowsArgumentNullException
           - SvgCodec_GetInfo_EmptyPath_ThrowsArgumentException
@@ -477,4 +493,4 @@ sections:
           - CanvasNetSvg-SvgCodec-CssThreeTierPrecedence
           - CanvasNetSvg-SvgCodec-CssResourceSafety
         tests:
-          - CanvasNet_SystemIntegration_SvgLoadWithCssStyleElement_ReturnsExpectedPixel
+          - CanvasNetSvg_SystemIntegration_SvgLoadWithCssStyleElement_ReturnsExpectedPixel

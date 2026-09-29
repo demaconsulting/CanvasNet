@@ -6,6 +6,8 @@ input-files:
   - docs/verification/title.txt
   - docs/verification/introduction.md
   - docs/verification/canvas-net.md
+  - docs/verification/canvas-net-svg.md
+  - docs/verification/canvas-net-svg/svg-codec.md
   - docs/verification/ots.md
   - docs/verification/ots/buildmark.md
   - docs/verification/ots/fileassert.md

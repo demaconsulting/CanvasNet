@@ -342,10 +342,15 @@ public static partial class SvgCodec
             var lastIndex = vertices.Count - 1;
             if (closed && lastIndex != subpathStartIndex)
             {
-                var (closingOutgoing, closingIncoming) = ComputeCommandTangents(
-                    PathCommand.LineTo(subpath.Start), vertices[lastIndex].Position);
-                vertices[lastIndex] = vertices[lastIndex].WithOutgoingTangent(closingOutgoing);
-                vertices[subpathStartIndex] = vertices[subpathStartIndex].WithIncomingTangent(closingIncoming);
+                // Computed directly (rather than via ComputeCommandTangents with a constructed
+                // PathCommand) because PathCommand's factory methods are internal to the core
+                // package - this package and the core package are independently versioned NuGet
+                // packages, so relying on cross-package internal access is fragile. A LineTo's
+                // outgoing/incoming tangents are both simply the normalized direction of travel,
+                // which is exactly what is computed here for the implicit closing edge.
+                var closingDirection = NormalizeOrNull(subpath.Start - vertices[lastIndex].Position);
+                vertices[lastIndex] = vertices[lastIndex].WithOutgoingTangent(closingDirection);
+                vertices[subpathStartIndex] = vertices[subpathStartIndex].WithIncomingTangent(closingDirection);
             }
         }
 

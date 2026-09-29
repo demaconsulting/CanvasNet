@@ -82,7 +82,6 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Tests" />
-    <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Svg" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1432,7 +1432,7 @@ sections:
               - SvgCodec_Load_CssPrecedenceTier2_StylesheetOverridesPresentationAttribute
               - SvgCodec_Load_CssPrecedenceTier3_InlineStyleOverridesStylesheet
               - SvgCodec_Load_CssStylingFixture_AppliesEverySelectorKindAndPrecedenceTier
-              - CanvasNet_SystemIntegration_SvgLoadWithCssStyleElement_ReturnsExpectedPixel
+              - CanvasNetSvg_SystemIntegration_SvgLoadWithCssStyleElement_ReturnsExpectedPixel
 
           - id: CanvasNetSvg-SvgCodec-CssResourceSafety
             title: >-

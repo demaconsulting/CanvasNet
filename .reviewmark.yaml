@@ -555,6 +555,7 @@ reviews:
     context:
       - "docs/reqstream/canvas-net-svg.yaml"
     paths:
+      - "docs/reqstream/canvas-net-svg/platform-requirements.yaml"    # platform requirements
       - "docs/design/introduction.md"                                 # design introduction
       - "docs/design/canvas-net-svg.md"                               # system design
       - "docs/design/canvas-net-svg/**/*.md"                          # all system design documents
