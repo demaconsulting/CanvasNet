@@ -968,12 +968,18 @@ sections:
           The library shall provide an immutable vector path type, built via a mutable, fluent
           builder supporting move, line, quadratic and cubic Bezier, SVG-style elliptical arc, and
           close-subpath commands, and shall compute an axis-aligned bounding rectangle for a path
-          in either a conservative or a tighter, flattening-based mode.
+          in either a conservative or a tighter, flattening-based mode; individual path commands
+          shall also expose a public standalone-line-segment factory and tangent-direction
+          computation for use by external format-codec packages implementing marker/arrowhead
+          rendering.
         tags: [system]
         justification: |
           A vector path is the foundational shape-description primitive future drawing/rendering
           functionality in this library will consume; callers need to build one incrementally,
-          using a single reusable builder instance, and to reason about its extent.
+          using a single reusable builder instance, and to reason about its extent. Format-codec
+          packages built on top of Path (such as the SVG codec's marker rendering) additionally
+          need a shared, authoritative way to compute a path segment's direction of travel,
+          without duplicating that math themselves or depending on this package's internals.
         children:
           - CanvasNet-Geometry-Path
         tests:

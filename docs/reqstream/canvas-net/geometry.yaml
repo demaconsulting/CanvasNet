@@ -42,13 +42,19 @@ sections:
               mutable, fluent, allocation-conscious builder supporting move, line, quadratic and
               cubic Bezier, SVG-style elliptical arc, and close-subpath commands, and shall
               compute an axis-aligned bounding rectangle for a path in either a conservative
-              (control-point convex hull) or tighter (flattening-based) mode.
+              (control-point convex hull) or tighter (flattening-based) mode; individual path
+              commands shall also expose a public standalone-line-segment factory and a
+              tangent-direction computation for use by external format-codec packages
+              implementing marker/arrowhead rendering.
             justification: |
               A vector path (potentially several independent subpaths of mixed line, curve, and
               arc segments) is the foundational shape-description primitive future
               drawing/rendering functionality in this library will consume; callers need to build
               one incrementally and reuse a single builder instance across many paths without
-              per-path allocation overhead.
+              per-path allocation overhead. Format-codec packages built on top of Path (such as
+              the SVG codec's marker rendering) additionally need a shared, authoritative way to
+              compute a path segment's direction of travel, without duplicating that math
+              themselves or depending on this package's internals.
             children:
               - CanvasNet-Geometry-Path-BuildEveryCommandType
               - CanvasNet-Geometry-Path-ArcToStoresRawParameters
@@ -70,6 +76,8 @@ sections:
               - CanvasNet-Geometry-Path-RoundRectangle
               - CanvasNet-Geometry-Path-Circle
               - CanvasNet-Geometry-PathBuilder-TangentArcTo
+              - CanvasNet-Geometry-PathCommand-PublicLineToFactory
+              - CanvasNet-Geometry-PathCommand-ComputeTangents
             tests:
               - PathBuilder_Build_EveryCommandType_RecordsCommandsInOrder
               - Path_GetBounds_ConservativeMode_CubicWithControlPointsOutsideChord_ReturnsControlPointConvexHull
