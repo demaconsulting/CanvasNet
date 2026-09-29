@@ -211,6 +211,11 @@ public class SvgSystemIntegrationTests
 
         // Assert: the rect's own fill remains fully opaque and unaffected at its center
         Assert.Equal(new Rgba32(0, 128, 0, 255), surface[50, 50]);
+
+        // Assert: just outside the rect's own edge (which a fill-only render would leave fully
+        // transparent), a softened orange halo pixel is visible - proving the filter chain
+        // actually ran end-to-end through the public API rather than being silently ignored
+        Assert.Equal(new Rgba32(255, 161, 0, 19), surface[61, 50]);
     }
 
     /// <summary>
@@ -461,7 +466,8 @@ public class SvgSystemIntegrationTests
         Assert.Throws<ArgumentException>(() => SvgCodec.Load(string.Empty, 10, 10));
     }
 
-    /// <summary>    ///     Proves that the system rejects malformed (non-well-formed) SVG XML with
+    /// <summary>
+    ///     Proves that the system rejects malformed (non-well-formed) SVG XML with
     ///     <see cref="InvalidDataException"/> through the public API. See <c>SvgCodecTests</c> for
     ///     the full unit test coverage of the other malformed-input variants (viewBox, transform,
     ///     path data).

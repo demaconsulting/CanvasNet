@@ -235,11 +235,30 @@ public readonly struct PathCommand
     ///     length is zero, subnormal-to-zero, or non-finite (a degenerate direction has no
     ///     meaningful orientation to contribute).
     /// </returns>
+    /// <remarks>
+    ///     The squared length is accumulated in <see langword="double"/> rather than
+    ///     <see langword="float"/> precision because <c>Vector2.LengthSquared()</c> squares both
+    ///     components in <see langword="float"/> arithmetic, which spuriously overflows to
+    ///     <see cref="float.PositiveInfinity"/> for finite coordinates whose magnitude exceeds
+    ///     roughly 1.8e19 - well before the coordinates themselves overflow. Using
+    ///     <see langword="double"/> for the length calculation avoids that false-positive
+    ///     degeneracy while still correctly reporting a genuinely zero-length or non-finite input.
+    /// </remarks>
     private static Vector2? NormalizeOrNull(Vector2 vector)
     {
-        var lengthSquared = vector.LengthSquared();
-        return float.IsFinite(lengthSquared) && lengthSquared > float.Epsilon
-            ? Vector2.Normalize(vector)
-            : null;
+        // Accumulate the squared length in double precision to avoid the float-squaring
+        // overflow that would otherwise misclassify large-but-finite vectors as degenerate
+        double x = vector.X;
+        double y = vector.Y;
+        var lengthSquared = (x * x) + (y * y);
+        if (!double.IsFinite(lengthSquared) || lengthSquared <= float.Epsilon)
+        {
+            return null;
+        }
+
+        // Divide by the double-precision length (cast back to float) so the resulting
+        // direction remains a valid unit vector even for very large input magnitudes
+        var length = (float)Math.Sqrt(lengthSquared);
+        return new Vector2(vector.X / length, vector.Y / length);
     }
 }

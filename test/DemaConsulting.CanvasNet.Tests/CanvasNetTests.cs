@@ -547,6 +547,31 @@ public class CanvasNetTests
     }
 
     /// <summary>
+    ///     Proves that the system can synthesize a standalone line-segment command via the public
+    ///     <see cref="PathCommand.LineTo"/> factory and compute a sane tangent direction from it
+    ///     via <see cref="PathCommand.ComputeTangents"/>, through the public API - the shared
+    ///     building block an external format-codec package (such as the SVG codec's marker/
+    ///     arrowhead rendering) needs to orient a decoration at a path segment's end, without
+    ///     depending on this package's internal Path/PathBuilder construction.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_LineToAndComputeTangents_ReturnsNormalizedDirection()
+    {
+        // Arrange: a standalone horizontal line segment from (0,0) to (10,0), synthesized
+        // directly via the public LineTo factory rather than via PathBuilder
+        var command = PathCommand.LineTo(new Vector2(10, 0));
+
+        // Act: compute the command's outgoing/incoming tangents from its start point
+        var (outgoing, incoming) = command.ComputeTangents(new Vector2(0, 0));
+
+        // Assert: both tangents are the same sane, unit-length direction of travel
+        Assert.NotNull(outgoing);
+        Assert.NotNull(incoming);
+        Assert.Equal(new Vector2(1, 0), outgoing);
+        Assert.Equal(new Vector2(1, 0), incoming);
+    }
+
+    /// <summary>
     ///     Proves that the system silently no-ops, through PathFiller's public API, when filling
     ///     an empty Path or a Path whose bounds do not intersect the target Surface - in both
     ///     cases leaving every pixel of the Surface at its initial, fully transparent state.

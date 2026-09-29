@@ -984,6 +984,7 @@ sections:
           - CanvasNet-Geometry-Path
         tests:
           - CanvasNet_SystemIntegration_BuildFlattenAndBoundPath_ReturnsExpectedBounds
+          - CanvasNet_SystemIntegration_LineToAndComputeTangents_ReturnsNormalizedDirection
 
       - id: CanvasNet-Lib-GeometryBezierFlattening
         title: >-

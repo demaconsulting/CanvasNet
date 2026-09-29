@@ -10,7 +10,7 @@
 # pixel buffer, Geometry path/flattening primitives, Drawing rasterization, and Fonts glyph
 # outlines - see docs/design/canvas-net-svg.md's Dependencies section for details.
 #
-# cspell:ignore rasterizing letterboxing renderable Dasharray xlink Pillarboxes
+# cspell:ignore rasterizing letterboxing renderable Dasharray xlink Pillarboxes SMIL
 
 sections:
   - title: SVG Codec API
@@ -83,8 +83,10 @@ sections:
           feDropShadow/feImage/feDiffuseLighting/feSpecularLighting/feTurbulence/feBlend
           primitive chain against that element's own content within a bounded-size temporary
           offscreen surface, and shall tolerate a dangling filter reference, a genuinely
-          unrecognized primitive type, and pathological filter-region, convolution-order,
-          morphology-radius, or turbulence-octave inputs without failing or hanging.
+          unrecognized primitive type, and a pathological filter-region or blur-radius input
+          by skipping or clamping rather than failing, while rejecting an excessive
+          convolution-order, morphology-radius, or turbulence-octave parameter with
+          InvalidDataException rather than performing unbounded per-pixel work.
         tags: [system]
         justification: |
           Real-world SVG documents use much more than the initial flood/blur/offset/composite
@@ -447,8 +449,9 @@ sections:
         tags: [system]
         justification: |
           Real-world SVG documents commonly include constructs outside this codec's supported
-          subset (such as filters or masks); rejecting the entire document because of one such
-          element would be needlessly strict when the rest of the document is renderable.
+          subset (such as a nested svg element, SMIL animation elements, or foreignObject);
+          rejecting the entire document because of one such element would be needlessly strict
+          when the rest of the document is renderable.
         children:
           - CanvasNetSvg-SvgCodec-UnsupportedConstructsIgnored
         tests:

@@ -145,12 +145,15 @@ if (-not $skipDotnetFormat) {
     # moves, or any other change that git's stash/pop cannot losslessly
     # round-trip. Instead, run in dry-run mode and treat BOTH the exit code
     # AND the tool's own diagnostic text as signals - `--verify-no-changes`
-    # always prints a "failed to verify formatting" line per affected file
-    # regardless of which platform's exit-code bug is in play, so the text
-    # check is a reliable fallback. This never mutates the working tree.
+    # always emits MSBuild-style diagnostic lines (e.g.
+    # "File.cs(1,17): error WHITESPACE: Fix whitespace formatting. ...") for
+    # each affected file regardless of which platform's exit-code bug is in
+    # play, so matching the generic "`: error <CODE>:`" pattern (not any one
+    # hardcoded rule code) is a reliable fallback. This never mutates the
+    # working tree.
     $formatOutput = dotnet format --verify-no-changes --no-restore 2>&1
     $formatOutput | ForEach-Object { Write-Host $_ }
-    if ($LASTEXITCODE -ne 0 -or ($formatOutput -join "`n") -match 'failed to verify formatting') {
+    if ($LASTEXITCODE -ne 0 -or ($formatOutput -join "`n") -match ': error [A-Z0-9]+:') {
         $lintError = $true
         Write-Host "dotnet format found formatting issues; run fix.ps1 locally and commit the results."
     }

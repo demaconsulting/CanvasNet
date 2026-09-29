@@ -565,9 +565,8 @@ sections:
           - id: CanvasNetSvg-SvgCodec-UnsupportedConstructsIgnored
             title: >-
               The SvgCodec class shall silently skip well-formed but out-of-scope elements
-              (including style, mask, clipPath, pattern, a nested svg,
-              animate/SMIL, image, and foreignObject), continuing to render the rest of the
-              document.
+              (including a nested svg, animate/other SMIL animation elements, and
+              foreignObject), continuing to render the rest of the document.
             justification: |
               Real-world SVG documents commonly include constructs outside this codec's
               supported subset; rejecting the entire document because of one such element
