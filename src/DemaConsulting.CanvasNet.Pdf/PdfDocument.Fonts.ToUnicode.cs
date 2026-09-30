@@ -29,7 +29,12 @@ public sealed partial class PdfDocument
     ///     wrong/incomplete map, so they instead fail closed with
     ///     <see cref="UnsupportedImageFeatureException"/>. A <c>bfrange</c> whose array
     ///     destination contains a nested array (the CIDSystemInfo-style "array of arrays"
-    ///     destination sub-form) is out of scope for the same reason and also fails closed.
+    ///     destination sub-form) is out of scope for the same reason and also fails closed. An
+    ///     empty hex/literal-string destination (<c>&lt;&gt;</c>) - seen from real-world
+    ///     producers such as WeasyPrint to mean "this code has no single-character Unicode
+    ///     equivalent" - is not an unbalanced/malformed block shape, so it is skipped (no mapping
+    ///     is added for the affected code(s)) rather than failing closed; see
+    ///     <see cref="TryDecodeFirstUtf16CodePoint"/>.
     /// </remarks>
     /// <param name="fontDict">The (already-resolved) font dictionary to query.</param>
     /// <returns>
@@ -155,7 +160,13 @@ public sealed partial class PdfDocument
                 throw new InvalidDataException("A bfchar entry's destination must be a string.");
             }
 
-            map[code] = DecodeFirstUtf16CodePoint(destinationToken.Bytes ?? []);
+            // An empty destination string (e.g. "<0003> <>", seen from real-world producers such
+            // as WeasyPrint) signals "no single-character Unicode equivalent" for this code - skip
+            // it rather than treating it as malformed.
+            if (TryDecodeFirstUtf16CodePoint(destinationToken.Bytes ?? [], out var codepoint))
+            {
+                map[code] = codepoint;
+            }
         }
     }
 
@@ -207,11 +218,15 @@ public sealed partial class PdfDocument
             if (destinationToken.Kind is PdfTokenKind.HexString or PdfTokenKind.LiteralString)
             {
                 // A single hex/literal-string destination: consecutive codes map to consecutive
-                // incrementing codepoints starting at the destination's own first codepoint.
-                var startCodepoint = DecodeFirstUtf16CodePoint(destinationToken.Bytes ?? []);
-                for (var code = srcLo; code <= srcHi; code++)
+                // incrementing codepoints starting at the destination's own first codepoint. An
+                // empty destination string means the whole range has no Unicode equivalent - skip
+                // it rather than treating it as malformed.
+                if (TryDecodeFirstUtf16CodePoint(destinationToken.Bytes ?? [], out var startCodepoint))
                 {
-                    map[code] = startCodepoint + (code - srcLo);
+                    for (var code = srcLo; code <= srcHi; code++)
+                    {
+                        map[code] = startCodepoint + (code - srcLo);
+                    }
                 }
 
                 continue;
@@ -249,7 +264,13 @@ public sealed partial class PdfDocument
                         throw new InvalidDataException("A bfrange destination array element must be a string.");
                     }
 
-                    map[code] = DecodeFirstUtf16CodePoint(elementToken.Bytes ?? []);
+                    // An empty destination string means this specific code has no Unicode
+                    // equivalent - skip mapping it rather than treating it as malformed.
+                    if (TryDecodeFirstUtf16CodePoint(elementToken.Bytes ?? [], out var elementCodepoint))
+                    {
+                        map[code] = elementCodepoint;
+                    }
+
                     code++;
                 }
 
@@ -302,8 +323,8 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
-    ///     Decodes a destination string's raw bytes as UTF-16BE, returning only its first decoded
-    ///     UTF-16 code unit's codepoint.
+    ///     Attempts to decode a destination string's raw bytes as UTF-16BE, returning only its
+    ///     first decoded UTF-16 code unit's codepoint.
     /// </summary>
     /// <remarks>
     ///     A <c>bfchar</c>/<c>bfrange</c> destination may legitimately decode to more than one
@@ -313,18 +334,32 @@ public sealed partial class PdfDocument
     ///     resolved-but-unconsumed groundwork field this phase, not a full multi-codepoint
     ///     text-extraction map.
     /// </remarks>
+    /// <returns>
+    ///     <see langword="false"/> (with <paramref name="codepoint"/> left at zero) when
+    ///     <paramref name="bytes"/> is empty - real-world producers (for example WeasyPrint) emit
+    ///     an empty destination string (<c>&lt;&gt;</c>) to mean "this code has no single-character
+    ///     Unicode equivalent", which is skipped rather than treated as malformed. Otherwise
+    ///     <see langword="true"/>.
+    /// </returns>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when the destination string is empty or has an odd byte count (not a valid
-    ///     UTF-16BE encoding of at least one code unit).
+    ///     Thrown when the destination string is non-empty but has an odd byte count (not a
+    ///     valid UTF-16BE encoding of a whole number of code units).
     /// </exception>
-    private static int DecodeFirstUtf16CodePoint(byte[] bytes)
+    private static bool TryDecodeFirstUtf16CodePoint(byte[] bytes, out int codepoint)
     {
-        if (bytes.Length < 2 || bytes.Length % 2 != 0)
+        if (bytes.Length == 0)
         {
-            throw new InvalidDataException(
-                "A bfchar/bfrange destination string must be a non-empty, even-length UTF-16BE encoding.");
+            codepoint = 0;
+            return false;
         }
 
-        return (bytes[0] << 8) | bytes[1];
+        if (bytes.Length % 2 != 0)
+        {
+            throw new InvalidDataException(
+                "A non-empty bfchar/bfrange destination string must be an even-length UTF-16BE encoding.");
+        }
+
+        codepoint = (bytes[0] << 8) | bytes[1];
+        return true;
     }
 }

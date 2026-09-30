@@ -3236,6 +3236,92 @@ public class PdfDocumentTests
         Assert.Equal(0x004F, result[2]);
     }
 
+    /// <summary>Proves that a <c>beginbfchar</c>/<c>endbfchar</c> entry with an empty hex-string destination (<c>&lt;&gt;</c>, seen from real-world producers such as WeasyPrint to mean "no single-character Unicode equivalent") is skipped rather than treated as malformed.</summary>
+    [Fact]
+    public void PdfDocument_Fonts_ToUnicode_BfChar_EmptyDestination_SkipsMapping()
+    {
+        // Arrange
+        var cmapBytes = BuildToUnicodeCMapStreamBytes("2 beginbfchar\n<0003> <>\n<0041> <0048>\nendbfchar");
+        var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
+        {
+            ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
+        });
+
+        // Act
+        var result = document.ResolveToUnicodeMap(fontDict);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.False(result.ContainsKey(0x0003));
+        Assert.Equal(0x0048, result[0x0041]);
+    }
+
+    /// <summary>Proves that a <c>beginbfrange</c>/<c>endbfrange</c> entry with a single empty hex-string destination skips mapping the whole range rather than treated as malformed.</summary>
+    [Fact]
+    public void PdfDocument_Fonts_ToUnicode_BfRangeHexForm_EmptyDestination_SkipsWholeRange()
+    {
+        // Arrange
+        var cmapBytes = BuildToUnicodeCMapStreamBytes("1 beginbfrange\n<0001> <0003> <>\nendbfrange");
+        var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
+        {
+            ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
+        });
+
+        // Act
+        var result = document.ResolveToUnicodeMap(fontDict);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Empty(result);
+    }
+
+    /// <summary>Proves that a <c>bfrange</c> destination array's empty hex-string element skips mapping only that one code, leaving its siblings mapped.</summary>
+    [Fact]
+    public void PdfDocument_Fonts_ToUnicode_BfRangeArrayForm_EmptyDestinationElement_SkipsThatCodeOnly()
+    {
+        // Arrange
+        var cmapBytes = BuildToUnicodeCMapStreamBytes("1 beginbfrange\n<0001> <0002> [<> <004F>]\nendbfrange");
+        var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
+        {
+            ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
+        });
+
+        // Act
+        var result = document.ResolveToUnicodeMap(fontDict);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.False(result.ContainsKey(0x0001));
+        Assert.Equal(0x004F, result[0x0002]);
+    }
+
+    /// <summary>Proves that a non-empty destination string with an odd byte count (not a whole number of UTF-16BE code units) still throws <see cref="InvalidDataException"/> rather than being silently treated as "no mapping".</summary>
+    [Fact]
+    public void PdfDocument_Fonts_ToUnicode_BfChar_OddLengthDestination_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var cmapBytes = BuildToUnicodeCMapStreamBytes("1 beginbfchar\n<0041> <00>\nendbfchar");
+        var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
+        {
+            ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
+        });
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => document.ResolveToUnicodeMap(fontDict));
+    }
+
     /// <summary>Proves that a <c>bfrange</c> destination array containing a nested array (the out-of-scope CIDSystemInfo-style "array of arrays" destination sub-form) throws <see cref="UnsupportedImageFeatureException"/>, unlike the in-scope array-of-hex-strings destination form.</summary>
     [Fact]
     public void PdfDocument_Fonts_ToUnicode_UnsupportedArrayDestinationBfRange_ThrowsUnsupportedImageFeatureException()
