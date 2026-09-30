@@ -421,6 +421,94 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Proves <see cref="PdfDocument.Render"/> resolves a <c>/Type0</c>/<c>/Identity-H</c>
+    ///     <c>CIDFontType2</c> composite font end to end (Phase 9): a hand-authored fixture with a
+    ///     real, embedded (via the descendant font's <c>/FontDescriptor/FontFile2</c>) copy of the
+    ///     shared <c>OpenSans-Regular.ttf</c> production font (see <c>PdfFixtures\README.md</c> for
+    ///     provenance), a non-identity <c>/CIDToGIDMap</c> stream remapping CID 1 to the glyph
+    ///     index of <c>'H'</c> and CID 2 to the glyph index of <c>'O'</c>, and an explicit
+    ///     <c>/W</c> array declaring their advance widths - drawing the 2-byte Identity-H codes
+    ///     <c>0001 0002</c> at font size 60. Rather than hardcoding font-specific magic pixel
+    ///     numbers, this test independently re-derives the expected device-pixel positions of real
+    ///     glyph ink from the font's own outline (looked up directly by glyph index, bypassing
+    ///     <c>cmap</c> entirely - exactly as the composite code path does), combined with the
+    ///     fixture's own declared <c>/W</c> advance widths (composite fonts never fall back to the
+    ///     font's own metrics), then asserts specific pixels: one inside 'H's left stroke (opaque),
+    ///     one inside 'O's hollow counter (transparent), and the canvas corners, well outside both
+    ///     glyphs (transparent background).
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_RenderType0CompositeFont_PaintsExpectedGlyphInk()
+    {
+        // Arrange: MediaBox [0 0 200 100], /Contents = "BT /F1 60 Tf 10 20 Td <00010002> Tj ET" -
+        // renders CID 1 then CID 2 at font size 60, text-space origin (10, 20). The descendant
+        // font's /CIDToGIDMap stream remaps CID 1 -> GID 43 ('H') and CID 2 -> GID 50 ('O'); its
+        // /W array declares CID 1's width as 700 and CID 2's width as 650 (both /1000 em units).
+        const double fontSize = 60;
+        const double originX = 10;
+        const double originY = 20;
+        const double mediaBoxHeight = 100;
+        const int hGlyph = 43;
+        const int oGlyph = 50;
+        const double wH = 700.0 / 1000.0;
+        const double wO = 650.0 / 1000.0;
+
+        using var document = PdfDocument.Open(Fixture("text-composite-truetype-identity-h.pdf"));
+
+        // Act: render at the MediaBox's own pixel dimensions (a 1:1 user-space-to-device-pixel
+        // mapping), then load the same real font independently to re-derive expected glyph-ink
+        // pixel positions from its own outline, looked up directly by glyph index.
+        using var surface = document.Render(0, 200, 100);
+        var font = TrueTypeFont.Load(FontPath);
+
+        // Maps a font-design-space point (in the glyph currently being measured, whose text-space
+        // origin is (originXForGlyph, originY)) to the device pixel it lands on, replicating the
+        // exact Trm/base-CTM composition PdfDocument.Text.cs uses: text-space x/y scale by
+        // fontSize/UnitsPerEm and offset by the glyph's own text-space origin, then flip y against
+        // the MediaBox height (device x is otherwise unchanged for this identity-rotation page).
+        (int X, int Y) ToDevicePixel(double originXForGlyph, double fx, double fy)
+        {
+            var textX = fx / font.UnitsPerEm * fontSize + originXForGlyph;
+            var textY = fy / font.UnitsPerEm * fontSize + originY;
+            return ((int)Math.Floor(textX), (int)Math.Floor(mediaBoxHeight - textY));
+        }
+
+        var hBounds = font.GetGlyphOutline(hGlyph).GetBounds(0.25f);
+        var oBounds = font.GetGlyphOutline(oGlyph).GetBounds(0.25f);
+        Assert.False(hBounds.IsEmpty);
+        Assert.False(oBounds.IsEmpty);
+
+        // The second glyph ('O') is placed immediately after the first ('H'), advanced by CID 1's
+        // declared /W width (in text space) - never the font's own metrics, since composite fonts
+        // have no such fallback.
+        var originXForO = originX + wH * fontSize;
+
+        // Assert: a point 15% in from 'H's left edge, at half its glyph height, lies on 'H's
+        // solid left vertical stem (which spans 'H's full height) - real opaque ink.
+        var (strokeX, strokeY) = ToDevicePixel(originX, hBounds.X + hBounds.Width * 0.15, hBounds.Y + hBounds.Height * 0.5);
+        Assert.True(surface[strokeX, strokeY].A > 0, $"Expected opaque ink inside 'H's left stroke at ({strokeX},{strokeY}).");
+
+        // Assert: the exact center of 'O's bounding box lies within its hollow counter (the
+        // round hole every 'O' glyph has at its geometric center) - not painted.
+        var (counterX, counterY) = ToDevicePixel(
+            originXForO, oBounds.X + oBounds.Width * 0.5, oBounds.Y + oBounds.Height * 0.5);
+        Assert.Equal(0, surface[counterX, counterY].A);
+
+        // Assert: a point one full CID-2 advance width (per its declared /W entry) past 'O's own
+        // origin lies well beyond 'O's right edge - transparent background, confirming CID 2's
+        // declared width (not the font's own advance metric) determines how far text position
+        // moves.
+        var (pastOX, pastOY) = ToDevicePixel(originXForO + wO * fontSize, oBounds.X + oBounds.Width * 0.5, oBounds.Y + oBounds.Height * 0.5);
+        Assert.Equal(0, surface[pastOX, pastOY].A);
+
+        // Assert: the canvas's far corners, well outside both glyphs, remain fully transparent.
+        Assert.Equal(0, surface[0, 0].A);
+        Assert.Equal(0, surface[199, 0].A);
+        Assert.Equal(0, surface[0, 99].A);
+        Assert.Equal(0, surface[199, 99].A);
+    }
+
+    /// <summary>
     ///     Proves <see cref="PdfDocument.Render"/> resolves a Standard-14 simple TrueType font
     ///     (<c>/BaseFont /Helvetica</c>) with no embedded <c>/FontFile2</c> end to end (Phase 6):
     ///     a synthetic, in-memory single-page document (no new binary fixture needed) drawing a

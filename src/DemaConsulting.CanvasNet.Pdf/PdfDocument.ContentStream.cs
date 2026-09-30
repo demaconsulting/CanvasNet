@@ -53,7 +53,7 @@ public sealed partial class PdfDocument
         _currentPoint = default;
         _subpathStart = default;
         _hasOpenSubpath = false;
-        _fontCache = new Dictionary<PdfObject, ResolvedFont>();
+        _fontCache = new Dictionary<PdfObject, IResolvedFont>();
         _textMatrix = Matrix3x2.Identity;
         _lineMatrix = Matrix3x2.Identity;
 

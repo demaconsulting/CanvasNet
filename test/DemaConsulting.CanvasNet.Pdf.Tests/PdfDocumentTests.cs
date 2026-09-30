@@ -2,7 +2,7 @@ using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 
-// cspell:ignore agrave Xyzzy Zapf Nonsymbolic
+// cspell:ignore agrave Xyzzy Zapf Nonsymbolic cids
 
 namespace DemaConsulting.CanvasNet.Pdf.Tests;
 
@@ -389,6 +389,55 @@ public class PdfDocumentTests
 
         return ($"/Font << /{fontResourceName} 5 0 R >>", [fontDictObj, descriptorObj, fontFileObj]);
     }
+
+    /// <summary>
+    ///     Builds a <c>/Resources/Font</c> dictionary (as a <see cref="BuildSinglePagePdfWithResources"/>-
+    ///     compatible <c>resourcesBody</c>/<c>extraObjectBodies</c> pair) declaring a single
+    ///     Type0/CIDFontType2 composite font resource named <c>/F1</c>, with the given embedded
+    ///     <c>/FontFile2</c> bytes and <c>/Encoding</c>, descendant <c>/Subtype</c>,
+    ///     <c>/CIDToGIDMap</c> stream, and other descendant-dictionary entries appended verbatim.
+    /// </summary>
+    /// <remarks>
+    ///     Numbered so the Type0 font dictionary is object <c>5</c> (referenced as <c>5 0 R</c> by
+    ///     the returned <c>/Font</c> resources entry), the CIDFontType2 descendant dictionary is
+    ///     object <c>6</c> (referenced as <c>6 0 R</c> by the font dictionary's
+    ///     <c>/DescendantFonts</c>), the <c>/FontDescriptor</c> is object <c>7</c>, the
+    ///     <c>/FontFile2</c> stream is object <c>8</c>, and (only when
+    ///     <paramref name="cidToGidMapStreamBytes"/> is supplied) the <c>/CIDToGIDMap</c> stream is
+    ///     object <c>9</c> - matching every other Phase 3+ image-XObject/font test's own
+    ///     "extra objects start at 5" convention.
+    /// </remarks>
+    private static (string ResourcesBody, List<byte[]> ExtraObjects) BuildCompositeFontResources(
+        byte[] fontFileBytes,
+        string encoding = "/Identity-H",
+        string descendantSubtype = "/CIDFontType2",
+        string cidFontExtra = "",
+        byte[]? cidToGidMapStreamBytes = null,
+        string fontResourceName = "F1")
+    {
+        var cidToGidEntry = cidToGidMapStreamBytes is not null ? " /CIDToGIDMap 9 0 R" : string.Empty;
+
+        var fontDictObj = System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Type /Font /Subtype /Type0 /BaseFont /Test /Encoding {encoding} /DescendantFonts [6 0 R] >>");
+        var descendantObj = System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Type /Font /Subtype {descendantSubtype} /BaseFont /Test " +
+            "/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> " +
+            $"/FontDescriptor 7 0 R{cidToGidEntry} {cidFontExtra} >>");
+        var descriptorObj = "<< /Type /FontDescriptor /FontFile2 8 0 R >>"u8.ToArray();
+        var fontFileObj = BuildStreamObjectBody(string.Empty, fontFileBytes);
+
+        var extraObjects = new List<byte[]> { fontDictObj, descendantObj, descriptorObj, fontFileObj };
+        if (cidToGidMapStreamBytes is not null)
+        {
+            extraObjects.Add(BuildStreamObjectBody(string.Empty, cidToGidMapStreamBytes));
+        }
+
+        return ($"/Font << /{fontResourceName} 5 0 R >>", extraObjects);
+    }
+
+    /// <summary>Encodes each CID in <paramref name="cids"/> as a 2-byte big-endian code, returning the resulting hex-string content-stream operand text (including the enclosing angle brackets).</summary>
+    private static string BuildIdentityHHexString(params int[] cids) =>
+        "<" + string.Concat(cids.Select(cid => $"{cid:X4}")) + ">";
 
     #region Tokenizer
 
@@ -2209,9 +2258,8 @@ public class PdfDocumentTests
 
     #region Fonts
 
-    /// <summary>Proves that a non-<c>TrueType</c> simple/composite font <c>/Subtype</c> throws <see cref="UnsupportedImageFeatureException"/> rather than being silently substituted.</summary>
+    /// <summary>Proves that a non-<c>TrueType</c>/non-<c>Type0</c> simple font <c>/Subtype</c> throws <see cref="UnsupportedImageFeatureException"/> rather than being silently substituted.</summary>
     [Theory]
-    [InlineData("Type0")]
     [InlineData("Type1")]
     [InlineData("MMType1")]
     [InlineData("Type3")]
@@ -2586,6 +2634,271 @@ public class PdfDocumentTests
         Assert.NotEqual(default, surface[23, 89]);
     }
 
+    /// <summary>Proves that a <c>/Type0</c>/<c>/Identity-H</c>/<c>CIDFontType2</c> composite font resolves its embedded <c>/FontFile2</c> and paints real glyph ink rather than throwing.</summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type0_IdentityHCidFontType2_ResolvesEmbeddedFont()
+    {
+        // Arrange: no /CIDToGIDMap declared -> identity (CID 1 -> GID 1, a painted square glyph).
+        var fontBytes = BuildEmbeddedFontBytes([], glyphCount: 3);
+        var (resourcesBody, extraObjects) = BuildCompositeFontResources(fontBytes);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf 5 5 Td {BuildIdentityHHexString(1)} Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: some glyph ink was actually painted somewhere on the canvas.
+        var paintedAnyPixel = false;
+        for (var y = 0; y < surface.Height && !paintedAnyPixel; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                if (surface[x, y].A > 0)
+                {
+                    paintedAnyPixel = true;
+                    break;
+                }
+            }
+        }
+
+        Assert.True(paintedAnyPixel);
+    }
+
+    /// <summary>Proves that an explicit <c>/CIDToGIDMap /Identity</c> name behaves identically to an absent <c>/CIDToGIDMap</c> entry (CID used directly as GID).</summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type0_CidToGidMapIdentity_UsesCidAsGid()
+    {
+        // Arrange: CID 1 -> GID 1 (a painted square glyph) via the explicit /Identity name.
+        var fontBytes = BuildEmbeddedFontBytes([], glyphCount: 3);
+        var (resourcesBody, extraObjects) = BuildCompositeFontResources(
+            fontBytes, cidFontExtra: "/CIDToGIDMap /Identity");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf 5 5 Td {BuildIdentityHHexString(1)} Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: text x [7, 15) holds the painted square glyph (design x [100, 500) of 1000,
+        // scaled by fontSize 20, offset by originX 5).
+        Assert.NotEqual(default, surface[11, 89]);
+    }
+
+    /// <summary>Proves that a <c>/CIDToGIDMap</c> stream remaps a CID to a different glyph index rather than treating the CID as the glyph index directly.</summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type0_CidToGidMapStream_RemapsCidToGid()
+    {
+        // Arrange: the stream remaps CID 1 -> GID 0 (.notdef, an empty glyph) - had the map been
+        // ignored (or treated as identity), CID 1 would instead resolve to GID 1 (a painted
+        // square), so no painted pixels proves the stream's remapping was actually applied.
+        var fontBytes = BuildEmbeddedFontBytes([], glyphCount: 3);
+        var cidToGidMapBytes = new byte[] { 0x00, 0x00, 0x00, 0x00 };
+        var (resourcesBody, extraObjects) = BuildCompositeFontResources(
+            fontBytes, cidToGidMapStreamBytes: cidToGidMapBytes);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf 5 5 Td {BuildIdentityHHexString(1)} Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: no glyph ink painted anywhere on the canvas.
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                Assert.Equal(0, surface[x, y].A);
+            }
+        }
+    }
+
+    /// <summary>Proves that a CID beyond the end of a <c>/CIDToGIDMap</c> stream's table maps to <c>.notdef</c> (GID 0) rather than throwing.</summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type0_CidToGidMapStream_OutOfRangeCid_MapsToNotdef()
+    {
+        // Arrange: the map's table has only 1 entry (index 0), so CID 5 is out of range.
+        var fontBytes = BuildEmbeddedFontBytes([], glyphCount: 3);
+        var cidToGidMapBytes = new byte[] { 0x00, 0x63 };
+        var (resourcesBody, extraObjects) = BuildCompositeFontResources(
+            fontBytes, cidToGidMapStreamBytes: cidToGidMapBytes);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf 5 5 Td {BuildIdentityHHexString(5)} Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: no exception, and no glyph ink painted anywhere on the canvas.
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                Assert.Equal(0, surface[x, y].A);
+            }
+        }
+    }
+
+    /// <summary>Proves that a <c>/Type0</c> font's <c>/Encoding</c> value other than <c>/Identity-H</c> - including <c>/Identity-V</c> and a predefined CJK encoding name - throws <see cref="UnsupportedImageFeatureException"/>.</summary>
+    [Theory]
+    [InlineData("/Identity-V")]
+    [InlineData("/UniGB-UCS2-H")]
+    [InlineData("/SomeOtherEncoding")]
+    public void PdfDocument_Fonts_Type0_NonIdentityHEncoding_ThrowsUnsupportedImageFeatureException(string encoding)
+    {
+        // Arrange
+        var fontBytes = BuildEmbeddedFontBytes([], glyphCount: 3);
+        var (resourcesBody, extraObjects) = BuildCompositeFontResources(fontBytes, encoding: encoding);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf {BuildIdentityHHexString(1)} Tj ET", resourcesBody, extraObjects);
+
+        // Act & Assert
+        Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that a descendant font <c>/Subtype /CIDFontType0</c> (CFF-flavored, not yet supported) throws <see cref="UnsupportedImageFeatureException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type0_CidFontType0Subtype_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange
+        var fontBytes = BuildEmbeddedFontBytes([], glyphCount: 3);
+        var (resourcesBody, extraObjects) = BuildCompositeFontResources(fontBytes, descendantSubtype: "/CIDFontType0");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf {BuildIdentityHHexString(1)} Tj ET", resourcesBody, extraObjects);
+
+        // Act & Assert
+        Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that a <c>/Type0</c> font dictionary with no <c>/DescendantFonts</c> entry throws <see cref="InvalidDataException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type0_MissingDescendantFonts_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var fontDictObj = "<< /Type /Font /Subtype /Type0 /BaseFont /Test /Encoding /Identity-H >>"u8.ToArray();
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf {BuildIdentityHHexString(1)} Tj ET", "/Font << /F1 5 0 R >>", [fontDictObj]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that a <c>/DescendantFonts</c> array with other than exactly one element throws <see cref="InvalidDataException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type0_DescendantFontsNotSingleElement_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var fontDictObj =
+            "<< /Type /Font /Subtype /Type0 /BaseFont /Test /Encoding /Identity-H /DescendantFonts [] >>"u8.ToArray();
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf {BuildIdentityHHexString(1)} Tj ET", "/Font << /F1 5 0 R >>", [fontDictObj]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that a descendant font whose <c>/FontDescriptor</c> has no embedded <c>/FontFile2</c> throws <see cref="InvalidDataException"/> (composite fonts have no system-font fallback path).</summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type0_NoEmbeddedFontFile_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var descriptorObj = "<< /Type /FontDescriptor >>"u8.ToArray();
+        var descendantObj =
+            "<< /Type /Font /Subtype /CIDFontType2 /BaseFont /Test /FontDescriptor 7 0 R >>"u8.ToArray();
+        var fontDictObj =
+            "<< /Type /Font /Subtype /Type0 /BaseFont /Test /Encoding /Identity-H /DescendantFonts [6 0 R] >>"u8.ToArray();
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf {BuildIdentityHHexString(1)} Tj ET", "/Font << /F1 5 0 R >>",
+            [fontDictObj, descendantObj, descriptorObj]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that an absent <c>/DW</c> defaults to 1000 (a full em) and determines every CID's advance width when no <c>/W</c> entry applies.</summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type0_Widths_DwDefault1000_DeterminesAdvance()
+    {
+        // Arrange: no /W declared, /DW absent -> defaults to 1000 -> advance = 1.0 * 20 = 20 for
+        // both CIDs.
+        var fontBytes = BuildEmbeddedFontBytes([], glyphCount: 3);
+        var (resourcesBody, extraObjects) = BuildCompositeFontResources(fontBytes);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf 5 5 Td {BuildIdentityHHexString(1, 2)} Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: CID 1's square paints at text x [7, 15); CID 2 starts at Tm.x = 5 + 20 = 25,
+        // painting at text x [27, 35) - clearly past the gap after CID 1's square.
+        Assert.NotEqual(default, surface[11, 89]);
+        Assert.Equal(default, surface[16, 89]);
+        Assert.NotEqual(default, surface[31, 89]);
+    }
+
+    /// <summary>Proves that the individual-width <c>/W</c> sub-form (<c>c [w1 w2 ...]</c>) determines each listed CID's advance width.</summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type0_Widths_WArrayIndividualForm_DeterminesAdvance()
+    {
+        // Arrange: CID 1's declared width is 500 (individual form) -> advance = 0.5 * 20 = 10.
+        // CID 2 has no matching entry, so falls back to the default DW value of 1000.
+        var fontBytes = BuildEmbeddedFontBytes([], glyphCount: 3);
+        var (resourcesBody, extraObjects) = BuildCompositeFontResources(fontBytes, cidFontExtra: "/W [1 [500]]");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf 5 5 Td {BuildIdentityHHexString(1, 2)} Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: CID 2 starts at Tm.x = 5 + 10 = 15, painting at text x [17, 25).
+        Assert.NotEqual(default, surface[11, 89]);
+        Assert.Equal(default, surface[16, 89]);
+        Assert.NotEqual(default, surface[21, 89]);
+    }
+
+    /// <summary>Proves that the range-width <c>/W</c> sub-form (<c>cFirst cLast w</c>) determines every CID in the range's advance width.</summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type0_Widths_WArrayRangeForm_DeterminesAdvance()
+    {
+        // Arrange: both CID 1 and CID 2's declared width is 500 (range form) -> advance = 0.5 *
+        // 20 = 10 each.
+        var fontBytes = BuildEmbeddedFontBytes([], glyphCount: 3);
+        var (resourcesBody, extraObjects) = BuildCompositeFontResources(fontBytes, cidFontExtra: "/W [1 2 500]");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf 5 5 Td {BuildIdentityHHexString(1, 2)} Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: CID 2 starts at Tm.x = 5 + 10 = 15, painting at text x [17, 25).
+        Assert.NotEqual(default, surface[11, 89]);
+        Assert.Equal(default, surface[16, 89]);
+        Assert.NotEqual(default, surface[21, 89]);
+    }
+
+    /// <summary>Proves that a <c>/W</c> array entry whose second element is neither an array (individual form) nor a number (range form) throws <see cref="InvalidDataException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type0_Widths_MalformedWArray_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var fontBytes = BuildEmbeddedFontBytes([], glyphCount: 3);
+        var (resourcesBody, extraObjects) = BuildCompositeFontResources(fontBytes, cidFontExtra: "/W [1 (bad)]");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf {BuildIdentityHHexString(1)} Tj ET", resourcesBody, extraObjects);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
     #endregion
 
     #region Text
@@ -2951,6 +3264,74 @@ public class PdfDocumentTests
     public void PdfDocument_Text_MalformedOperandCount_ThrowsInvalidDataException(string content)
     {
         Assert.Throws<InvalidDataException>(() => RenderContent(content));
+    }
+
+    /// <summary>Proves that showing a hex string with an odd byte count against a <c>/Type0</c> (2-byte-per-code) composite font throws <see cref="InvalidDataException"/>.</summary>
+    [Fact]
+    public void PdfDocument_ShowText_Type0_OddByteLengthString_ThrowsInvalidDataException()
+    {
+        // Arrange: a single-byte hex string cannot be split into whole 2-byte composite codes.
+        var fontBytes = BuildEmbeddedFontBytes([], glyphCount: 3);
+        var (resourcesBody, extraObjects) = BuildCompositeFontResources(fontBytes);
+
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT /F1 20 Tf <01> Tj ET", resourcesBody, extraObjects);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that <c>Tj</c> against a <c>/Type0</c> composite font decodes 2 bytes per code and paints each resolved glyph at its correctly advanced position.</summary>
+    [Fact]
+    public void PdfDocument_ShowText_Type0_TwoByteCodes_ShowsEachGlyphAtCorrectPosition()
+    {
+        // Arrange: CID 1's declared width is 1000 (a full em) -> advance = 1.0 * 20 = 20; CID 2's
+        // declared width is 600 -> advance = 0.6 * 20 = 12 (unused here, but present to mirror the
+        // simple-font "ExplicitEntry" width test's exact numeric pattern).
+        var fontBytes = BuildEmbeddedFontBytes([], glyphCount: 3);
+        var (resourcesBody, extraObjects) = BuildCompositeFontResources(
+            fontBytes, cidFontExtra: "/W [1 [1000] 2 3 600]");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf 5 5 Td {BuildIdentityHHexString(1, 2)} Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: CID 1 paints at text x [7, 15); CID 2 starts at Tm.x = 5 + 20 = 25, painting at
+        // text x [27, 35) - clearly past the "no explicit width applied yet" gap boundary.
+        Assert.NotEqual(default, surface[11, 89]);
+        Assert.Equal(default, surface[16, 89]);
+        Assert.NotEqual(default, surface[31, 89]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>Tw</c> (word spacing) is <b>not</b> applied to a composite
+    ///     <c>/Type0</c>/<c>/Identity-H</c> font's 2-byte code <c>32</c> - per PDF specification
+    ///     section 9.3.3, word spacing only applies to the single-byte code <c>32</c> of a simple
+    ///     font, never to any code decoded from a composite font (even one numerically equal to
+    ///     <c>32</c>). Regression test for a bug where the word-spacing check compared the
+    ///     decoded code to <c>32</c> without also checking the font's code-byte-width.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_ShowText_Type0_WordSpacingCode32_IsNotAppliedToCompositeFont()
+    {
+        // Arrange: CID 32 declares width 1000 (a full em -> 20 device units at font size 20); a
+        // large 1000 Tw would grossly displace the following CID 1 glyph if incorrectly applied.
+        var fontBytes = BuildEmbeddedFontBytes([], glyphCount: 33);
+        var (resourcesBody, extraObjects) = BuildCompositeFontResources(
+            fontBytes, cidFontExtra: "/W [32 [1000] 1 [1000]]");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf 1000 Tw 5 5 Td {BuildIdentityHHexString(32, 1)} Tj ET",
+            resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: CID 1 (the second glyph) begins immediately after CID 32's own 20-unit advance
+        // (Tm.x = 5 + 20 = 25), not displaced by any extra Tw - it paints starting at text x
+        // ~[27, 35), well short of where an incorrectly-applied 1000 Tw would push it off-canvas.
+        Assert.NotEqual(default, surface[31, 89]);
     }
 
     #endregion

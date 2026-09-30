@@ -1,7 +1,7 @@
 ---
 # Software Unit Requirements for PdfDocument
 #
-# cspell:ignore xref startxref endobj endstream ObjStm MediaBox Zapf Nonsymbolic
+# cspell:ignore xref startxref endobj endstream ObjStm MediaBox Zapf Nonsymbolic subsetted
 #
 # These requirements describe the design-level behavior of the PdfDocument unit.
 #
@@ -502,24 +502,71 @@ sections:
               The PdfDocument class shall resolve a /Resources/Font entry naming a /Subtype
               /TrueType simple font with an embedded /FontDescriptor/FontFile2 stream, loading it
               via Fonts.TrueTypeFont.Load, and caching the resolved font by font-dictionary object
-              identity for the duration of a single Render call; a font whose /Subtype is /Type0,
+              identity for the duration of a single Render call; a font whose /Subtype is
               /Type1, /MMType1, or /Type3 shall throw UnsupportedImageFeatureException, a
               /Subtype /TrueType font lacking an embedded /FontFile2 shall instead be resolved via
               system/bundled font-fallback substitution (see CanvasNetPdf-PdfDocument-FontFallback),
-              and a Tf operator naming a font absent from /Resources/Font shall throw
-              InvalidDataException.
+              a /Subtype /Type0 composite font shall instead be resolved via
+              CanvasNetPdf-PdfDocument-CompositeFontResolution, and a Tf operator naming a font
+              absent from /Resources/Font shall throw InvalidDataException.
             justification: |
-              Composite/CID-keyed fonts, Type 1/CFF fonts, and Type 3 fonts remain explicitly out
-              of this phase's scope and must fail closed with a distinguishable exception; a
-              non-embedded /Subtype /TrueType simple font, however, is common enough in real-world
-              PDFs (referencing a standard-14 name, or an installed system font, without
-              embedding it) that silently refusing to render it is a worse outcome than a
-              best-effort visual substitute, and repeatedly selecting the same font resource
-              within one render must not repeatedly re-decode its embedded font bytes.
+              Type 1/CFF fonts and Type 3 fonts remain explicitly out of this phase's scope and
+              must fail closed with a distinguishable exception; a non-embedded /Subtype
+              /TrueType simple font, however, is common enough in real-world PDFs (referencing a
+              standard-14 name, or an installed system font, without embedding it) that silently
+              refusing to render it is a worse outcome than a best-effort visual substitute, and
+              repeatedly selecting the same font resource within one render must not repeatedly
+              re-decode its embedded font bytes.
             tests:
               - PdfDocument_Fonts_UnsupportedSubtype_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Fonts_UndefinedFontName_ThrowsInvalidDataException
               - PdfDocument_BuildResolvedFont_EmbeddedFontFileTakesPriorityOverFallback
+
+          - id: CanvasNetPdf-PdfDocument-CompositeFontResolution
+            title: >-
+              The PdfDocument class shall resolve a /Resources/Font entry naming a /Subtype
+              /Type0 composite font whose /Encoding is the name /Identity-H and whose
+              /DescendantFonts is a single-element array naming a /Subtype /CIDFontType2
+              descendant font with an embedded /FontDescriptor/FontFile2 stream: decoding each
+              shown 2-byte code directly as a CID, mapping it to a glyph index via the
+              descendant's /CIDToGIDMap (the identity map when absent or the name /Identity, or
+              an explicit big-endian uint16-per-CID lookup table for a stream, with an
+              out-of-range CID mapping to glyph 0/.notdef), and resolving its advance width from
+              the descendant's /DW (defaulting to 1000) and /W (supporting both the
+              "c [w1 w2 ... wn]" individual-width sub-form and the "cFirst cLast w" range
+              sub-form) entries; any other /Encoding (including /Identity-V and predefined CJK
+              encodings) or descendant /Subtype (including /CIDFontType0) shall throw
+              UnsupportedImageFeatureException, and a missing/malformed /DescendantFonts,
+              /CIDToGIDMap, /W array, missing/non-embedded descendant /FontFile2, or an odd-byte-
+              length shown string shall throw InvalidDataException.
+            justification: |
+              Type0/Identity-H/CIDFontType2 composite fonts are the encoding real-world PDF
+              producers (Microsoft Word, LibreOffice, and browser print-to-PDF among them)
+              overwhelmingly emit for embedded subsetted TrueType text, so continuing to reject
+              every /Type0 font unconditionally is a significant real-world compatibility gap;
+              /CIDFontType0 (CFF-flavored) descendant fonts, vertical writing (/Identity-V),
+              predefined CJK encodings, and custom CMap-based /Encoding streams remain explicitly
+              out of this phase's scope and must fail closed with a distinguishable exception
+              rather than being silently mis-rendered, and a composite font with no embedded
+              descendant font has no fallback substitution path (unlike a simple TrueType font -
+              see CanvasNetPdf-PdfDocument-FontFallback), so it must fail closed too.
+            tests:
+              - PdfDocument_Fonts_Type0_IdentityHCidFontType2_ResolvesEmbeddedFont
+              - PdfDocument_Fonts_Type0_CidToGidMapIdentity_UsesCidAsGid
+              - PdfDocument_Fonts_Type0_CidToGidMapStream_RemapsCidToGid
+              - PdfDocument_Fonts_Type0_CidToGidMapStream_OutOfRangeCid_MapsToNotdef
+              - PdfDocument_Fonts_Type0_NonIdentityHEncoding_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Fonts_Type0_CidFontType0Subtype_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Fonts_Type0_MissingDescendantFonts_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Type0_DescendantFontsNotSingleElement_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Type0_NoEmbeddedFontFile_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Type0_Widths_DwDefault1000_DeterminesAdvance
+              - PdfDocument_Fonts_Type0_Widths_WArrayIndividualForm_DeterminesAdvance
+              - PdfDocument_Fonts_Type0_Widths_WArrayRangeForm_DeterminesAdvance
+              - PdfDocument_Fonts_Type0_Widths_MalformedWArray_ThrowsInvalidDataException
+              - PdfDocument_ShowText_Type0_OddByteLengthString_ThrowsInvalidDataException
+              - PdfDocument_ShowText_Type0_TwoByteCodes_ShowsEachGlyphAtCorrectPosition
+              - CanvasNetPdf_SystemIntegration_RenderType0CompositeFont_PaintsExpectedGlyphInk
 
           - id: CanvasNetPdf-PdfDocument-FontFallback
             title: >-
@@ -589,7 +636,10 @@ sections:
               /MissingWidth default, or omit width information entirely and expect the font's own
               metrics to be used; painted text must advance by the mathematically correct amount
               in every case for subsequent glyphs (and any caller measuring text) to land in the
-              correct position.
+              correct position. The same declared/default-width priority also applies to
+              composite fonts, using the shown code's CID as the lookup key and /DW as the
+              default width instead of /MissingWidth - see
+              CanvasNetPdf-PdfDocument-CompositeFontResolution for its own dedicated width tests.
             tests:
               - PdfDocument_Fonts_Widths_ExplicitEntry_DeterminesAdvance
               - PdfDocument_Fonts_Widths_MissingWidthFallback_DeterminesAdvance
@@ -616,18 +666,23 @@ sections:
             title: >-
               The PdfDocument class shall implement the Tc, Tw, Tz, TL, and Ts text-state
               operators, storing character spacing, word spacing (applied only to the
-              single-byte code 32), horizontal scaling percentage, leading, and text rise
-              respectively, each affecting subsequent glyph placement/advance as documented by
-              the PDF specification.
+              single-byte code 32 of a simple font, never to any code decoded from a composite
+              font even one numerically equal to 32), horizontal scaling percentage, leading, and
+              text rise respectively, each affecting subsequent glyph placement/advance as
+              documented by the PDF specification.
             justification: |
               These parameters directly control inter-character spacing, word spacing, horizontal
               stretch, line-to-line displacement, and vertical baseline offset; each must be
               applied with the specification's own exact formula for painted text layout to match
-              the document's intent.
+              the document's intent. Word spacing in particular must be gated on the selected
+              font's code-byte-width, not just the decoded code's numeric value, since a
+              composite /Identity-H font's 2-byte code can numerically equal 32 without being the
+              single-byte space code the specification's word-spacing rule addresses.
             tests:
               - PdfDocument_Text_Tc_AddsToGlyphAdvance
               - PdfDocument_Text_Tw_AppliesOnlyToCode32
               - PdfDocument_Text_Tz_ScalesHorizontalShapeAndAdvance
+              - PdfDocument_ShowText_Type0_WordSpacingCode32_IsNotAppliedToCompositeFont
 
           - id: CanvasNetPdf-PdfDocument-Tf
             title: >-

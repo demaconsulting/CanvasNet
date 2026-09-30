@@ -472,7 +472,7 @@ device-space footprint remains transparent.
 `PdfDocument_BuildResolvedFont_EmbeddedFontFileTakesPriorityOverFallback`
 
 A `[Theory]` builds a `/Resources/Font` dictionary declaring each excluded subtype
-(`/Type0`/`/Type1`/`/MMType1`/`/Type3`) in turn and selects it via `Tf`, asserting
+(`/Type1`/`/MMType1`/`/Type3`) in turn and selects it via `Tf`, asserting
 `Codecs.UnsupportedImageFeatureException` in every case. Selects a font name absent from
 `/Resources/Font` via `Tf`, asserting `InvalidDataException`. Builds a `/Subtype /TrueType` font
 dictionary with both an embedded `/FontFile2` stream and a deliberately unmatched `/BaseFont`
@@ -480,7 +480,54 @@ name, asserting the embedded synthetic font's own known glyph shape is what gets
 fallback font's differently-shaped glyph - proving an embedded font always wins over fallback
 substitution. As of Phase 6, a `/Subtype /TrueType` font lacking an embedded `/FontFile2` no
 longer fails closed here at all; see `CanvasNetPdf-PdfDocument-FontFallback` below for its
-resolution.
+resolution. As of Phase 9, a `/Subtype /Type0` composite font no longer fails closed here either;
+see `CanvasNetPdf-PdfDocument-CompositeFontResolution` immediately below for its own resolution
+and remaining fail-closed cases.
+
+#### CanvasNetPdf-PdfDocument-CompositeFontResolution: Type0/Identity-H Composite Fonts Resolve, Fail Closed Otherwise
+
+**Tests**: `PdfDocument_Fonts_Type0_IdentityHCidFontType2_ResolvesEmbeddedFont`,
+`PdfDocument_Fonts_Type0_CidToGidMapIdentity_UsesCidAsGid`,
+`PdfDocument_Fonts_Type0_CidToGidMapStream_RemapsCidToGid`,
+`PdfDocument_Fonts_Type0_CidToGidMapStream_OutOfRangeCid_MapsToNotdef`,
+`PdfDocument_Fonts_Type0_NonIdentityHEncoding_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Fonts_Type0_CidFontType0Subtype_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Fonts_Type0_MissingDescendantFonts_ThrowsInvalidDataException`,
+`PdfDocument_Fonts_Type0_DescendantFontsNotSingleElement_ThrowsInvalidDataException`,
+`PdfDocument_Fonts_Type0_NoEmbeddedFontFile_ThrowsInvalidDataException`,
+`PdfDocument_Fonts_Type0_Widths_DwDefault1000_DeterminesAdvance`,
+`PdfDocument_Fonts_Type0_Widths_WArrayIndividualForm_DeterminesAdvance`,
+`PdfDocument_Fonts_Type0_Widths_WArrayRangeForm_DeterminesAdvance`,
+`PdfDocument_Fonts_Type0_Widths_MalformedWArray_ThrowsInvalidDataException`,
+`PdfDocument_ShowText_Type0_OddByteLengthString_ThrowsInvalidDataException`,
+`PdfDocument_ShowText_Type0_TwoByteCodes_ShowsEachGlyphAtCorrectPosition`,
+`CanvasNetPdf_SystemIntegration_RenderType0CompositeFont_PaintsExpectedGlyphInk`
+
+Builds a `/Subtype /Type0`/`/Encoding /Identity-H` font dictionary naming a single
+`/Subtype /CIDFontType2` descendant font with an embedded `/FontFile2`, asserting resolution
+succeeds and the embedded font is what gets used. Declares a descendant `/CIDToGIDMap` of the
+name `/Identity`, asserting a shown CID maps to the identical glyph index; separately declares a
+`/CIDToGIDMap` stream remapping a CID to a different glyph index, asserting the remapped (not
+identical) glyph index is used, and that a CID beyond the stream's own table length maps to glyph
+`0`/`.notdef`. A `[Theory]` declares `/Encoding` as an arbitrary other name and, separately,
+`/Identity-V`, asserting `Codecs.UnsupportedImageFeatureException` in both cases. Declares a
+descendant `/Subtype /CIDFontType0`, asserting `Codecs.UnsupportedImageFeatureException`.
+Declares a Type0 font dictionary with no `/DescendantFonts` and, separately, a `/DescendantFonts`
+array with two elements, asserting `InvalidDataException` in both cases. Declares a descendant
+font with no embedded `/FontFile2`, asserting `InvalidDataException` (not
+`UnsupportedImageFeatureException` - a composite font has no fallback substitution path).
+Declares a descendant font with no `/W` array, asserting the shown code's advance matches the
+default `/DW` of `1000`; separately declares a `/W` array using the `c [w1 w2 ... wn]`
+individual-width sub-form and, separately, the `cFirst cLast w` range sub-form, asserting the
+shown code's advance matches the declared width in each case; declares a malformed `/W` array
+shape, asserting `InvalidDataException`. Shows an odd-byte-length string against a composite
+font via `Tj`, asserting `InvalidDataException`. Shows two 2-byte codes via `Tj`, asserting each
+glyph is painted at the position its own declared/default width determines. The end-to-end
+system-integration test opens a hand-authored fixture (`text-composite-truetype-identity-h.pdf`)
+declaring a real embedded Open Sans descendant font with a deliberately non-identity
+`/CIDToGIDMap`, independently reloads the same font, and asserts specific stroke/counter/corner
+pixels - proving the full 2-byte Identity-H code → CID → GID (via the non-identity
+`/CIDToGIDMap`) → TrueType glyph outline → painted-pixel pipeline end to end.
 
 #### CanvasNetPdf-PdfDocument-FontFallback: Non-Embedded TrueType Fonts Are Substituted, Symbol/ZapfDingbats Fail Closed
 
@@ -565,7 +612,8 @@ like every other graphics-state parameter.
 #### CanvasNetPdf-PdfDocument-TextStateOperators: Tc/Tw/Tz Apply Their Documented Spacing/Scaling Formulas
 
 **Tests**: `PdfDocument_Text_Tc_AddsToGlyphAdvance`, `PdfDocument_Text_Tw_AppliesOnlyToCode32`,
-`PdfDocument_Text_Tz_ScalesHorizontalShapeAndAdvance`
+`PdfDocument_Text_Tz_ScalesHorizontalShapeAndAdvance`,
+`PdfDocument_ShowText_Type0_WordSpacingCode32_IsNotAppliedToCompositeFont`
 
 Sets a nonzero `Tc` and shows two glyphs, asserting the second glyph's device-x position is
 offset by the additional character spacing beyond its own advance width. Sets a nonzero `Tw` and
@@ -573,7 +621,11 @@ shows a string containing a code-32 (space) byte followed by a non-space byte, a
 byte immediately after the space is offset by the word spacing (a non-space code is never
 affected). Sets `Tz` to a value other than the default `100` and shows two glyphs, asserting both
 each glyph's own painted horizontal shape (narrower/wider) and its advance are scaled
-accordingly, while the vertical shape (unaffected by `Th`) is unchanged.
+accordingly, while the vertical shape (unaffected by `Th`) is unchanged. Sets a large `Tw` against
+a composite `/Type0`/`/Identity-H` font whose first 2-byte code numerically equals `32`, asserting
+the following glyph lands at its ordinary (un-spaced) advance position rather than being displaced
+far off-canvas - proving word spacing is gated on the font's code-byte-width, not merely the
+decoded code's numeric value.
 
 #### CanvasNetPdf-PdfDocument-Tf: Tf Resolves the Named Font Resource and Selects Its Size
 

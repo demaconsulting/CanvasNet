@@ -291,21 +291,40 @@ public sealed partial class PdfDocument
 
     /// <summary>
     ///     Shared core of every text-showing operator (<c>Tj</c>/<c>'</c>/<c>"</c>/<c>TJ</c>):
-    ///     shows each byte of <paramref name="bytes"/> as a single-byte character code against a
-    ///     simple font (this phase's documented scope boundary - no 2-byte/composite <c>Type0</c>
-    ///     font codes).
+    ///     decodes <paramref name="bytes"/> into character codes using the selected font's
+    ///     <see cref="IResolvedFont.CodeByteWidth"/> (1 byte per code for a simple font, 2
+    ///     bytes - big-endian - per code for a composite <c>/Identity-H</c> font), showing each
+    ///     decoded code in turn via <see cref="ShowGlyph"/>.
     /// </summary>
     /// <exception cref="InvalidDataException">
     ///     Thrown when no font has been selected yet via <c>Tf</c> (<see cref="GraphicsState.Font"/>
-    ///     is <see langword="null"/>).
+    ///     is <see langword="null"/>), or when a composite font's string byte length is not a
+    ///     multiple of 2.
     /// </exception>
     private void ShowText(byte[] bytes)
     {
         var font = _gs.Font ?? throw new InvalidDataException(
             "A text-showing operator was used before a font was selected via 'Tf'.");
 
-        foreach (var code in bytes)
+        if (font.CodeByteWidth == 1)
         {
+            foreach (var code in bytes)
+            {
+                ShowGlyph(font, code);
+            }
+
+            return;
+        }
+
+        if (bytes.Length % 2 != 0)
+        {
+            throw new InvalidDataException(
+                "A Type0 (Identity-H) string's byte length must be a multiple of 2.");
+        }
+
+        for (var i = 0; i < bytes.Length; i += 2)
+        {
+            var code = (bytes[i] << 8) | bytes[i + 1];
             ShowGlyph(font, code);
         }
     }
@@ -313,12 +332,14 @@ public sealed partial class PdfDocument
     /// <summary>
     ///     Lays out and (unless the current render mode is invisible) paints a single glyph for
     ///     character code <paramref name="code"/>, then advances <see cref="_textMatrix"/> by the
-    ///     glyph's displacement.
+    ///     glyph's displacement (per PDF specification section 9.3.3, word spacing is only added
+    ///     for the single-byte code <c>32</c> of a simple font - never for any code decoded from
+    ///     a composite font, even one that numerically equals <c>32</c>, since word spacing
+    ///     "shall not apply to occurrences of the byte value 32 in multiple-byte codes").
     /// </summary>
-    private void ShowGlyph(ResolvedFont font, int code)
+    private void ShowGlyph(IResolvedFont font, int code)
     {
-        var codepoint = font.Encoding.TryGetValue(code, out var mapped) ? mapped : 0;
-        var glyphIndex = font.Font.GetGlyphIndex(codepoint);
+        var (glyphIndex, w0) = font.Resolve(code);
 
         if (_gs.RenderMode != 3)
         {
@@ -334,39 +355,9 @@ public sealed partial class PdfDocument
         }
 
         var horizontalScale = _gs.HorizontalScaling / 100.0;
-        var w0 = ResolveGlyphWidth(font, code, glyphIndex);
-        var displacement = ((w0 * _gs.FontSize) + _gs.CharSpacing + (code == 32 ? _gs.WordSpacing : 0)) * horizontalScale;
+        var applyWordSpacing = font.CodeByteWidth == 1 && code == 32;
+        var displacement = ((w0 * _gs.FontSize) + _gs.CharSpacing + (applyWordSpacing ? _gs.WordSpacing : 0)) * horizontalScale;
         _textMatrix = Matrix3x2.CreateTranslation((float)displacement, 0f) * _textMatrix;
-    }
-
-    /// <summary>
-    ///     Resolves a single character code's declared advance width, in text-space units (glyph-
-    ///     space-per-1000, not yet scaled by <see cref="GraphicsState.FontSize"/>).
-    /// </summary>
-    /// <remarks>
-    ///     Priority order: (1) the font dictionary's own <c>/Widths</c> entry for
-    ///     <paramref name="code"/>, when declared; (2) the font descriptor's <c>/MissingWidth</c>,
-    ///     when declared as nonzero; (3) the embedded TrueType font's own natural advance width
-    ///     (<see cref="Fonts.TrueTypeFont.GetAdvanceWidth"/>, scaled by <c>1/UnitsPerEm</c>) - this
-    ///     third tier is this implementation's own documented fallback for the common case of a
-    ///     font dictionary with no explicit <c>/Widths</c> entry for a given code and no
-    ///     <c>/MissingWidth</c> declared (both default to <c>0</c>, which would otherwise collapse
-    ///     every such glyph's advance to zero and overprint every subsequent glyph at the same
-    ///     position).
-    /// </remarks>
-    private static double ResolveGlyphWidth(ResolvedFont font, int code, int glyphIndex)
-    {
-        if (font.Widths.TryGetValue(code, out var declaredWidth))
-        {
-            return declaredWidth / 1000.0;
-        }
-
-        if (font.MissingWidth != 0)
-        {
-            return font.MissingWidth / 1000.0;
-        }
-
-        return font.Font.GetAdvanceWidth(glyphIndex) / (double)font.Font.UnitsPerEm;
     }
 
     /// <summary>

@@ -6,7 +6,7 @@ This document provides the system-level design for CanvasNetPdf.
 
 ![CanvasNetPdf Structure](CanvasNetPdfView.svg)
 
-<!-- cspell:ignore xref startxref CCITT bitstream Zapf unembedded bitdepth xobject Annots -->
+<!-- cspell:ignore xref startxref CCITT bitstream Zapf unembedded bitdepth xobject Annots cidfonttype -->
 <!-- cspell:ignore AcroForms -->
 
 ## Architecture
@@ -65,9 +65,17 @@ fails closed with `Codecs.UnsupportedImageFeatureException`, since a symbol/ding
 no meaningful generic-family equivalent. Phase 7 narrowed Phase 3's stream-filter boundary: a
 page's `/Contents` or an image XObject's data may now also be filtered with `LZWDecode`,
 `ASCII85Decode`, `ASCIIHexDecode`, or `RunLengthDecode` (individually or composed with
-`FlateDecode`'s predictor reversal), in addition to `FlateDecode` itself. **Current limitations**:
-`/Type0` (composite/CID-keyed), `/Type1`, `/MMType1`, and `/Type3` fonts remain entirely
-unsupported and fail closed; only the `/WinAnsiEncoding`/`/MacRomanEncoding` base encodings (plus
+`FlateDecode`'s predictor reversal), in addition to `FlateDecode` itself. Phase 9 added composite
+font support: a `/Subtype /Type0` font whose `/Encoding` is the name `/Identity-H` and whose
+single-element `/DescendantFonts` array names a `/Subtype /CIDFontType2` font with an embedded
+`/FontDescriptor/FontFile2` is now resolved by decoding each shown 2-byte code directly as a CID,
+mapping it to a glyph index via the descendant's `/CIDToGIDMap`, and resolving its advance width
+from the descendant's `/DW`/`/W` entries — composite fonts have no fallback substitution path, so
+a missing embedded font still fails closed. **Current limitations**: `/Type1`, `/MMType1`, and
+`/Type3` fonts remain entirely unsupported and fail closed; `/Encoding` values other than
+`/Identity-H` (including `/Identity-V` and predefined CJK encodings) and descendant `/Subtype`
+values other than `/CIDFontType2` (including `/CIDFontType0`) fail closed too; only the
+`/WinAnsiEncoding`/`/MacRomanEncoding` base encodings (plus
 `/Differences`) are supported (an unrecognized base encoding fails closed); only fill (`Tr 0`)
 and invisible (`Tr 3`) text-rendering modes are supported (stroke/clip modes fail closed); no
 Form XObject rendering (fails closed, rather than being silently skipped); no shading/patterns/
@@ -199,7 +207,7 @@ but out-of-scope construct it could then encounter: an unsupported color space (
 `Separation`/`DeviceN`/`ICCBased`/`CalRGB`/`CalGray`/`Lab`/patterns), an unsupported stream filter,
 an unsupported image `/BitsPerComponent`, and a `/Subtype /Form` XObject are all rejected with
 `Codecs.UnsupportedImageFeatureException` rather than being silently skipped or mis-rendered.
-Phase 4 extended the same posture to text/font constructs: a font dictionary's `/Type0`/`/Type1`/
+Phase 4 extended the same posture to text/font constructs: a font dictionary's `/Type1`/
 `/MMType1`/`/Type3` subtype, an `/Encoding` naming an unrecognized base encoding, and a
 stroke/clip text-rendering mode (`Tr 1`/`2`/`4`-`7`) are all likewise rejected with
 `Codecs.UnsupportedImageFeatureException`. Phase 6 narrowed (but did not remove) the font-subtype
@@ -214,14 +222,22 @@ to also include `LZWDecode`, `ASCII85Decode`, `ASCIIHexDecode`, and `RunLengthDe
 other than these five (plus `DCTDecode` for image XObjects) remains rejected with
 `Codecs.UnsupportedImageFeatureException` (`"pdf-filter-{name}"`), and malformed bytes for any of
 the five supported filters are rejected with `InvalidDataException` (malformed, not merely
-unsupported). Each currently-thrown `Codecs.UnsupportedImageFeatureException` carries a distinct,
+unsupported). Phase 9 narrowed the font-subtype fail-closed boundary again: a `/Subtype /Type0`
+font is no longer unconditionally rejected — an `/Encoding` other than `/Identity-H` (feature
+`"pdf-font-type0-encoding-{name}"`) or a descendant `/Subtype` other than `/CIDFontType2`
+(feature `"pdf-font-cidfonttype-{subtype}"`) still fails closed, and a composite font has no
+fallback substitution path, so a missing/non-embedded descendant `/FontFile2` fails closed with
+`InvalidDataException` rather than `Codecs.UnsupportedImageFeatureException`. Each
+currently-thrown `Codecs.UnsupportedImageFeatureException` carries a distinct,
 descriptive `Feature` string so a caller (or this repository's own tests) can distinguish exactly
 which unsupported construct was encountered — the complete current set is: `pdf-encrypted`,
 `pdf-pattern-color`, `pdf-colorspace-{name}` (`Indexed`/`Separation`/`DeviceN`/`ICCBased`/
 `CalRGB`/`CalGray`/`Lab`), `pdf-filter-{name}` (`CCITTFaxDecode`/`JPXDecode` and any other
 unrecognized filter), `pdf-tiff-predictor-bitdepth-{n}`, `pdf-image-bitdepth-{n}`,
-`pdf-form-xobject`, `pdf-font-subtype-{subtype}` (`Type0`/`Type1`/`MMType1`/`Type3`),
-`pdf-font-symbolic-not-embedded` (`Symbol`/`ZapfDingbats`), `pdf-font-encoding-{name}`, and
+`pdf-form-xobject`, `pdf-font-subtype-{subtype}` (`Type1`/`MMType1`/`Type3`),
+`pdf-font-symbolic-not-embedded` (`Symbol`/`ZapfDingbats`), `pdf-font-encoding-{name}`,
+`pdf-font-type0-encoding-{name}` (a `/Type0` `/Encoding` other than `/Identity-H`),
+`pdf-font-cidfonttype-{subtype}` (a descendant `/Subtype` other than `/CIDFontType2`), and
 `pdf-text-render-mode-{mode}` (stroke/clip). `/Annots` (annotations) and AcroForms are simply not
 processed at all — page rendering silently ignores `/Annots` rather than throwing — since this is
 an unimplemented feature, not a fail-closed scope boundary. No other segregation is required at

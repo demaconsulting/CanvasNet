@@ -116,7 +116,7 @@ public sealed partial class PdfDocument
         ///     are reset by <c>BT</c> and live outside this class entirely (see that field's own
         ///     remarks).
         /// </summary>
-        internal ResolvedFont? Font { get; set; }
+        internal IResolvedFont? Font { get; set; }
 
         /// <summary>Gets or sets the current font size, in unscaled text-space units. The PDF specification defines no default (a <c>Tf</c> is required before text is shown).</summary>
         internal double FontSize { get; set; }
@@ -152,7 +152,7 @@ public sealed partial class PdfDocument
         ///     <see cref="DashArray"/> is shared, not deep-copied: it is only ever replaced
         ///     wholesale by <c>d</c> (never mutated in place), so sharing the same
         ///     <see cref="IReadOnlyList{T}"/> reference across a clone is safe. <see cref="Font"/>
-        ///     is likewise shared, not deep-copied: <see cref="ResolvedFont"/> instances are
+        ///     is likewise shared, not deep-copied: <see cref="IResolvedFont"/> instances are
         ///     immutable once resolved by <see cref="PdfDocument.ResolveFont"/>.
         /// </remarks>
         internal GraphicsState Clone() => new()

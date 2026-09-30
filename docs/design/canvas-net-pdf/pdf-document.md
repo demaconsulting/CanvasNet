@@ -3,7 +3,7 @@
 ![CanvasNetPdf Structure](CanvasNetPdfView.svg)
 
 <!-- cspell:ignore xref startxref endobj endstream ObjStm MediaBox unresolvable Trise -->
-<!-- cspell:ignore CCITT reimplementation diffability bitstream Zapf Nonsymbolic -->
+<!-- cspell:ignore CCITT reimplementation diffability bitstream Zapf Nonsymbolic cidfonttype -->
 <!-- cspell:ignore Segoe Dejavu Nimbus Consolas ttcf dogfooding LOCALAPPDATA -->
 
 `PdfDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pdf` NuGet package
@@ -37,9 +37,14 @@ longer an unconditional failure: it is instead substituted with the closest-matc
 actually installed on the host operating system, or - when nothing matches - a bundled Liberation
 Sans/Serif/Mono font, fully automatically and silently (see _Font Resolution_ and _Font Fallback
 Resolution_ below, and `Fonts.SystemFontCatalog`'s own unit design,
-`../canvas-net/fonts/system-font-catalog.md`). **Phase 4 limitations (narrowed by Phase 6, see
-above)**: `/Type0` (composite/CID-keyed), `/Type1`, `/MMType1`, and `/Type3` fonts remain entirely
-unsupported and fail closed with `Codecs.UnsupportedImageFeatureException`; only the
+`../canvas-net/fonts/system-font-catalog.md`). As of Phase 9 (this phase), a composite
+`/Subtype /Type0`/`/Encoding /Identity-H` font naming a single `/CIDFontType2` descendant font
+(with its own embedded `/FontDescriptor/FontFile2`) is also resolved and rendered end to end,
+decoding each shown string as 2-byte-per-code (CID) values rather than 1-byte-per-code (see
+_Composite Font Resolution_ below). **Phase 4 limitations (narrowed by Phase 6/9, see
+above)**: `/CIDFontType0` composite fonts, non-`/Identity-H` composite `/Encoding`s (including
+`/Identity-V` and predefined CJK encodings), `/Type1`, `/MMType1`, and `/Type3` fonts remain
+entirely unsupported and fail closed with `Codecs.UnsupportedImageFeatureException`; only the
 `/WinAnsiEncoding` and `/MacRomanEncoding` base encodings (plus `/Differences`) are supported (an
 unrecognized base encoding also fails closed); only text-rendering modes `0` (fill) and `3`
 (invisible) are supported (stroke/clip modes `1`/`2`/`4`-`7` fail closed); and no additional
@@ -100,7 +105,7 @@ re-parsing it each time — a property a purely static API could not express.
   — the `q`/`Q` graphics-state stack, and `_gs` (`GraphicsState`) — the current graphics state
   (current transformation matrix, line width/cap/join/miter-limit/dash pattern, `FillColor`/
   `StrokeColor`/`FillColorSpace`/`StrokeColorSpace` (Phase 3), and, as of Phase 4, persistent
-  text state — `Font` (the currently selected `ResolvedFont?`), `FontSize`, `CharSpacing`,
+  text state — `Font` (the currently selected `IResolvedFont?`), `FontSize`, `CharSpacing`,
   `WordSpacing`, `HorizontalScaling`, `Leading`, `RenderMode`, `TextRise`), both reset at the
   start of every `ExecuteContentStream` call. `GraphicsState.Clone()` performs a member-wise copy
   (the dash array reference and the resolved `Font` reference are shared, never mutated in
@@ -128,16 +133,18 @@ re-parsing it each time — a property a purely static API could not express.
   `GraphicsState` — see `_gsStack` above) — a `q`/`Q` pair nested inside a `BT`/`ET` text object
   must not perturb the running text position. Both are reset once per `ExecuteContentStream`
   call and again by every `BT`.
-- **`_fontCache` (`Dictionary<PdfObject, ResolvedFont>`, `PdfDocument.Fonts.cs`, added in Phase
-  4)** — memoizes each font dictionary's resolved `ResolvedFont` (embedded `Fonts.TrueTypeFont`,
-  256-entry code-to-Unicode-codepoint encoding map, per-code `/Widths` map, `/MissingWidth`) by
-  the font dictionary `PdfObject`'s own reference identity, so `Tf` re-selecting the same font
-  resource repeatedly within one `Render` call never re-decodes/re-parses the embedded
-  `FontFile2` bytes more than once. Reset (cleared) at the start of every `ExecuteContentStream`
-  call — scoped to a single `Render` call only, per this phase's documented caching contract (a
-  later `Render` call always re-resolves every font from scratch, trading a small amount of
-  redundant work across separate calls for never risking a stale reference into a different
-  document's object graph).
+- **`_fontCache` (`Dictionary<PdfObject, IResolvedFont>`, `PdfDocument.Fonts.cs`, added in Phase
+  4, generalized to the `IResolvedFont` abstraction in Phase 9)** — memoizes each font
+  dictionary's resolved `IResolvedFont` (either a `ResolvedSimpleFont` — embedded
+  `Fonts.TrueTypeFont`, 256-entry code-to-Unicode-codepoint encoding map, per-code `/Widths` map,
+  `/MissingWidth` — or, as of Phase 9, a `ResolvedCompositeFont` — descendant-font
+  `Fonts.TrueTypeFont`, CID-to-glyph-index map, per-CID `/W` map, `/DW` default width) by the font
+  dictionary `PdfObject`'s own reference identity, so `Tf` re-selecting the same font resource
+  repeatedly within one `Render` call never re-decodes/re-parses the embedded `FontFile2` bytes
+  more than once. Reset (cleared) at the start of every `ExecuteContentStream` call — scoped to a
+  single `Render` call only, per this phase's documented caching contract (a later `Render` call
+  always re-resolves every font from scratch, trading a small amount of redundant work across
+  separate calls for never risking a stale reference into a different document's object graph).
 - **`_surface` (`Canvas.Surface`, `PdfDocument.ContentStream.cs`)** — the destination surface
   every path-painting operator draws onto for the content stream currently being executed.
 - **`PdfObject`/`PdfKind`** (internal, `PdfDocument.ObjectModel.cs`) — a small tagged-union
@@ -370,15 +377,23 @@ re-parsing it each time — a property a purely static API could not express.
   bilinear interpolation, a documented Phase 3 simplification consistent with Phase 2's own
   stroke-width simplification precedent.
 - **Font resolution (`PdfDocument.Fonts.cs`, added in Phase 4, fallback branch rewritten in
-  Phase 6)** — `ResolveFont(PdfObject fontResource)` looks up (and caches, via `_fontCache`) a
-  font dictionary's `Fonts.TrueTypeFont`, `/Encoding`, and `/Widths`/`/MissingWidth`. Only
-  `/Subtype /TrueType` is supported; `/Type0`, `/Type1`, `/MMType1`, and `/Type3` each throw
-  `Codecs.UnsupportedImageFeatureException` naming the rejected subtype. `BuildResolvedFont`
-  requires `/FontDescriptor`; when its `FontFile2` entry resolves to a stream, that embedded font
-  always wins - decoded via the same `GetStreamDecodedBytes` every other stream in this class
-  uses, then loaded via `Fonts.TrueTypeFont.Load(new MemoryStream(decodedBytes))`. Only when
-  `FontFile2` is absent does `BuildResolvedFont` call `ResolveFallbackFont` (see _Font Fallback
-  Resolution_ immediately below) instead of failing closed. `ResolveEncoding` builds a full
+  Phase 6, dispatch generalized to `IResolvedFont` in Phase 9)** — `ResolveFont(PdfObject
+  fontResource)` looks up (and caches, via `_fontCache`) an `IResolvedFont`. `BuildResolvedFont`
+  dispatches on `/Subtype`: `/TrueType` builds a `ResolvedSimpleFont` via
+  `BuildResolvedSimpleFont` (the renamed former `BuildResolvedFont` body, unchanged behavior);
+  `/Type0` builds a `ResolvedCompositeFont` via `BuildResolvedCompositeFont` (see _Composite Font
+  Resolution_ below); any other `/Subtype` (`/Type1`, `/MMType1`, `/Type3`) throws
+  `Codecs.UnsupportedImageFeatureException` naming the rejected subtype. `IResolvedFont` exposes
+  `Font` (the underlying `Fonts.TrueTypeFont`), `CodeByteWidth` (`1` for a simple font, `2` for a
+  composite `/Identity-H` font - consulted by `ShowText`'s code-decoding loop), and
+  `Resolve(int code)` (returning the code's glyph index and text-space advance width in one call
+  - the single entry point `ShowGlyph` uses regardless of which concrete implementation is
+  active). `BuildResolvedSimpleFont` requires `/FontDescriptor`; when its `FontFile2` entry
+  resolves to a stream, that embedded font always wins - decoded via the same
+  `GetStreamDecodedBytes` every other stream in this class uses, then loaded via
+  `Fonts.TrueTypeFont.Load(new MemoryStream(decodedBytes))`. Only when `FontFile2` is absent does
+  `BuildResolvedSimpleFont` call `ResolveFallbackFont` (see _Font Fallback Resolution_ immediately
+  below) instead of failing closed. `ResolveEncoding` builds a full
   256-entry `int[]` code-to-Unicode-codepoint map: `ApplyBaseEncoding` seeds it from one of two
   hand-transcribed 256-entry tables (`WinAnsiEncodingTable`/`MacRomanEncodingTable`, the PDF
   specification's own Appendix D tables), defaulting to `/WinAnsiEncoding` when `/Encoding` is
@@ -393,8 +408,36 @@ re-parsing it each time — a property a purely static API could not express.
   (`/1000`-scaled) map from `/FirstChar`/`/Widths` (missing/malformed entries silently omitted,
   not rejected), plus `/FontDescriptor/MissingWidth` (defaulting to `0`, the specification's own
   documented default) as the fallback for any code absent from that map.
+- **Composite font resolution (`PdfDocument.Fonts.Type0.cs`, added in Phase 9)** —
+  `BuildResolvedCompositeFont` is `BuildResolvedFont`'s `/Type0` dispatch target. It requires
+  `/Encoding` to resolve to the name `Identity-H`; any other name (including `Identity-V`) or
+  non-name kind throws `Codecs.UnsupportedImageFeatureException` (feature
+  `pdf-font-type0-encoding-{name}`) - no CMap-based or vertical-writing encoding is supported.
+  `/DescendantFonts` must resolve to a single-element array whose element resolves to a
+  dictionary (`InvalidDataException` for a missing/malformed array, matching this class's own
+  "malformed required field" convention); that descendant's `/Subtype` must be `CIDFontType2`
+  (`Codecs.UnsupportedImageFeatureException`, feature `pdf-font-cidfonttype-{subtype}`, otherwise
+  - this is the `/CIDFontType0` rejection point). The descendant's `/FontDescriptor/FontFile2` is
+  required (`InvalidDataException` if `/FontDescriptor` or `/FontFile2` is missing or non-stream)
+  and always embedded - unlike `BuildResolvedSimpleFont`, no fallback substitution is ever
+  attempted for a composite font (a deliberate Non-Goal: composite fonts must embed their
+  descendant font). `ResolveCidToGidMap` resolves `/CIDToGIDMap`: absent or the name `/Identity`
+  yields the identity function; a stream is decoded (via the same `GetStreamDecodedBytes` every
+  other stream uses) into a big-endian `uint16`-per-CID lookup table (an odd byte count throws
+  `InvalidDataException`), with an out-of-range/negative CID mapping to glyph `0`/`.notdef` per
+  the specification; any other resolved kind throws `InvalidDataException`. `ResolveCompositeWidths`
+  resolves `/DW` (defaulting to `1000`, the specification's own documented default - not `0`, this
+  is the one place a `TrueType`-family font descriptor's own default differs between the simple-
+  and composite-font paths) and `/W` (a CID-to-width map, supporting both the `c [w1 w2 ... wn]`
+  individual-width sub-form and the `cFirst cLast w` range sub-form, disambiguated by the resolved
+  `PdfKind` - `Array` vs. `Number` - of the element immediately following the leading CID number;
+  any other shape, or a range form with `cLast < cFirst`, throws `InvalidDataException`).
+  `ResolvedCompositeFont.Resolve(code)` treats `code` directly as the CID (per `/Identity-H`'s own
+  "code equals CID" identity), maps it to a glyph index via `CidToGid`, and resolves its width from
+  `CidWidths` (falling back to `DefaultWidth`) - the same `(GlyphIndex, Width)` tuple shape
+  `ResolvedSimpleFont.Resolve` returns, so `ShowGlyph` never needs a type check.
 - **Font fallback resolution (`PdfDocument.FontFallback.cs`, added in Phase 6)** —
-  `ResolveFallbackFont(baseFontName, descriptor)` is `BuildResolvedFont`'s sole entry point into
+  `ResolveFallbackFont(baseFontName, descriptor)` is `BuildResolvedSimpleFont`'s sole entry point into
   this file. It first fails closed with `Codecs.UnsupportedImageFeatureException` (feature
   `pdf-font-symbolic-not-embedded`) for `/BaseFont` `Symbol` or `ZapfDingbats`, or for any font
   whose `/FontDescriptor/Flags` declares the `Symbolic` bit (bit 3) without also declaring the
@@ -435,26 +478,29 @@ re-parsing it each time — a property a purely static API could not express.
   (`Tm`) semantics; `T*` is exactly `0 -TL Td`. `OpShowText`/`OpShowTextNextLine`/
   `OpShowTextNextLineWithSpacing`/`OpShowTextArray` (`Tj`/`'`/`"`/`TJ`) each ultimately call
   `ShowText`, which throws `InvalidDataException` if no font is currently selected (`Tf` was
-  never called), then iterates the string byte-by-byte (composite/multi-byte fonts are out of
-  this phase's scope, matching the Type0 rejection above): `ShowGlyph` resolves each byte through
-  the selected font's encoding map to a Unicode codepoint, looks up its glyph index/outline/
-  advance width via `Fonts.TrueTypeFont`, computes the text-rendering matrix `Trm = [Tfs·Th, 0, 0,
+  never called), then decodes the shown byte string into a sequence of character codes using the
+  selected font's `IResolvedFont.CodeByteWidth` - one byte per code for a simple font (unchanged
+  since Phase 4), or, as of Phase 9, two bytes (big-endian) per code for a composite
+  `/Identity-H` font (`InvalidDataException` if the byte string's length is not a multiple of 2)
+  - showing each decoded code via `ShowGlyph`: `ShowGlyph` calls the selected font's
+  `IResolvedFont.Resolve(code)` once (folding in the encoding/glyph-index/advance-width lookup
+  each concrete `IResolvedFont` implementation documents its own priority for - see _Font
+  Resolution_/_Composite Font Resolution_ above), looks up the resolved glyph index's outline via
+  `Fonts.TrueTypeFont.GetGlyphOutline`, computes the text-rendering matrix `Trm = [Tfs·Th, 0, 0,
   Tfs, 0, Trise] × Tm × CTM` (row-vector composition, matching `OpConcatMatrix`'s own convention),
   combines it with a `1/UnitsPerEm` glyph-space scale, transforms every glyph outline point
   through the result (`AppendTransformedGlyphOutline`, reimplementing - since it is `private` in
   a different assembly - the exact glyph-outline-to-`Geometry.Path` re-issuing pattern
   `SvgCodec.Text.cs` established), and fills the transformed outline via `Drawing.PathFiller.Fill`
-  with `_gs.FillColor` (skipped entirely for render mode `3`). `ResolveGlyphWidth` determines each
-  glyph's advance in text space with a documented priority: an explicit `/Widths` entry for that
-  code first, else `/FontDescriptor/MissingWidth`, else (only when the font declares neither -
-  i.e. `ResolvedFont.Widths` has no entry and `MissingWidth` was never declared) the font's own
-  `GetAdvanceWidth`/`UnitsPerEm` metric - then advances `Tm.x` by
-  `((w0 - Tj/1000) × Tfs + Tc + (code == 32 ? Tw : 0)) × Th` per the specification (the `Tj/1000`
-  term only applies within `TJ`'s array form, via `ApplyTextSpaceAdjustment`; `Tw` only applies to
-  the single-byte code `32`, per the specification's own restriction, never a multi-byte code
-  that merely decodes to codepoint 32). Every operator validates its operand count/type via the
-  same `RequireNumbers`/`RequireOperandCount` helpers every other operator family uses, throwing
-  `InvalidDataException` on mismatch.
+  with `_gs.FillColor` (skipped entirely for render mode `3`), then advances `Tm.x` by
+  `((w0 - Tj/1000) × Tfs + Tc + (code == 32 && CodeByteWidth == 1 ? Tw : 0)) × Th` per the
+  specification, where `w0` is `IResolvedFont.Resolve(code)`'s returned advance width (the
+  `Tj/1000` term only applies within `TJ`'s array form, via `ApplyTextSpaceAdjustment`) - word
+  spacing is gated on `CodeByteWidth == 1` (as of Phase 9) since the specification's word-spacing
+  rule addresses only the single-byte code `32` of a simple font, never a composite font's 2-byte
+  code even when it numerically equals `32`. Every operator validates its operand
+  count/type via the same `RequireNumbers`/`RequireOperandCount` helpers every other operator
+  family uses, throwing `InvalidDataException` on mismatch.
 
 ### Error Handling
 
@@ -496,15 +542,30 @@ re-parsing it each time — a property a purely static API could not express.
 - **`Do` with a name undeclared in `/Resources/XObject` (or no `/Resources` at all), a
   non-stream/missing-`/Subtype` resolved value, or a malformed operand count/type** —
   `InvalidDataException` (a malformed content stream, not merely unsupported).
-- **A font dictionary whose `/Subtype` is `/Type0`, `/Type1`, `/MMType1`, or `/Type3`** —
-  `Codecs.UnsupportedImageFeatureException` (composite/CID-keyed, Type 1/CFF, and Type 3 fonts
-  remain entirely out of scope by design). A `/Subtype /TrueType` font lacking an embedded
+- **A font dictionary whose `/Subtype` is `/Type1`, `/MMType1`, or `/Type3`** —
+  `Codecs.UnsupportedImageFeatureException` (Type 1/CFF and Type 3 fonts remain entirely out of
+  scope by design). A `/Subtype /TrueType` font lacking an embedded
   `/FontDescriptor/FontFile2` no longer reaches this list at all as of Phase 6 - it is resolved
   via fallback substitution instead (see below), except that a `/BaseFont` of `Symbol` or
   `ZapfDingbats`, or a font whose `/FontDescriptor/Flags` declares `Symbolic` without also
   declaring `Nonsymbolic`, still throws `Codecs.UnsupportedImageFeatureException` (feature
   `pdf-font-symbolic-not-embedded`) - a symbol/dingbat glyph set has no meaningful generic-family
   equivalent and is never substituted with an unrelated system or bundled font.
+- **A `/Subtype /Type0` font's `/Encoding`, when not the name `Identity-H`** (for example
+  `Identity-V` or a predefined CJK encoding name) — `Codecs.UnsupportedImageFeatureException`
+  (feature `pdf-font-type0-encoding-{name}`), as of Phase 9. A `/Type0` font's `/DescendantFonts`
+  entry, when missing or not a single-element array whose element resolves to a dictionary, is
+  `InvalidDataException` instead (a malformed required field, not merely unsupported). A
+  descendant font's `/Subtype`, when not `CIDFontType2` (for example `CIDFontType0`) —
+  `Codecs.UnsupportedImageFeatureException` (feature `pdf-font-cidfonttype-{subtype}`). A
+  descendant font's missing/non-embedded `/FontDescriptor/FontFile2` is `InvalidDataException`
+  (no fallback substitution is ever attempted for a composite font - a deliberate Phase 9
+  Non-Goal). A descendant font's `/CIDToGIDMap`, when resolving to anything other than the name
+  `Identity` or a stream (or a stream with an odd byte count), is `InvalidDataException`; a
+  malformed `/W` array shape (not matching either the `c [w1 w2 ... wn]` or `cFirst cLast w`
+  sub-form, or a range form with `cLast < cFirst`) is `InvalidDataException` too. A composite
+  font's shown byte string with an odd byte length is `InvalidDataException` (a 2-byte-per-code
+  string must have an even byte count).
 - **An `/Encoding` naming an unrecognized base encoding** (anything other than
   `/WinAnsiEncoding`/`/MacRomanEncoding`, or their dictionary form's `/BaseEncoding`) —
   `Codecs.UnsupportedImageFeatureException`.

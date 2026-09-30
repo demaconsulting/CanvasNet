@@ -10,9 +10,11 @@ construction/painting operators, the graphics-state stack, CTM/rotation derivati
 `/Contents` resolution - Phase 2), its device color/image-XObject support (`rg`/`cs`/`scn`
 device color operators and `Do`-placed image XObjects - Phase 3), its embedded-TrueType text
 support (`Tf`/`Td`/`Tj` against a `/FontFile2`-embedded simple font - Phase 4), its Standard-14
-font-fallback substitution (Phase 6), and its `LZWDecode`/`ASCII85Decode`/`ASCIIHexDecode`/
-`RunLengthDecode` content-stream filter set (Phase 7) end to end via real files on disk. There is
-no third-party source corpus behind any of them (unlike, for example, `PngSuite` in the core test
+font-fallback substitution (Phase 6), its `LZWDecode`/`ASCII85Decode`/`ASCIIHexDecode`/
+`RunLengthDecode` content-stream filter set (Phase 7), and its `/Type0`/`/Encoding /Identity-H`/
+`/CIDFontType2` composite-font text support (2-byte-code `Tj` against a `/FontFile2`-embedded
+descendant font, with a non-identity `/CIDToGIDMap` - Phase 9) end to end via real files on disk.
+There is no third-party source corpus behind any of them (unlike, for example, `PngSuite` in the core test
 project): each was constructed byte-by-byte from scratch for CanvasNet and is licensed under the
 same MIT license as the rest of this repository.
 
@@ -33,6 +35,7 @@ same MIT license as the rest of this repository.
 | `color-rgb-rectangle-fill.pdf` | `rg` device color (Phase 3) - a rectangle filled opaque red |
 | `image-xobject-devicergb-flate.pdf` | `/Subtype /Image` XObject (2x2 `DeviceRGB`/`FlateDecode`) placed via `cm`/`Do` |
 | `text-embedded-truetype-font.pdf` | `/Subtype /TrueType` font, embedded `/FontFile2` (Phase 4) - `Tf`/`Td`/`Tj` |
+| `text-composite-truetype-identity-h.pdf` | `/Type0`/`/Identity-H`/`CIDFontType2`, `/FontFile2` (Phase 9) |
 | `content-stream-lzw.pdf` | `/Contents` compressed with `LZWDecode` (Phase 7) - a filled rectangle |
 | `content-stream-ascii85.pdf` | `/Contents` armored with `ASCII85Decode` (Phase 7) - the same filled rectangle |
 | `content-stream-asciihex.pdf` | `/Contents` armored with `ASCIIHexDecode` (Phase 7) - the same filled rectangle |
@@ -58,4 +61,8 @@ the same "Open Sans" TrueType font every other CanvasNet test project shares (se
 `DemaConsulting.CanvasNet.Tests\FontFixtures\README.md` for its provenance and SIL Open Font
 License 1.1 text, not repeated here) - everything else about the file (its object structure,
 page/font/descriptor dictionaries, and content stream) was still hand-authored from scratch for
-this repository, exactly like every other fixture in this folder.
+this repository, exactly like every other fixture in this folder. `text-composite-truetype-identity-h.pdf`
+reuses the exact same real, unmodified Open Sans TrueType font bytes (independently
+`FlateDecode`-recompressed for this second file, but decoding to identical font bytes) as its
+`/CIDFontType2` descendant font's own `/FontFile2` - no new font asset was sourced for this
+second fixture either.

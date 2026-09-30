@@ -152,6 +152,28 @@ font-dictionary resolution, `/Encoding` mapping, glyph-outline transformation, a
 all integrate correctly through the system's own public entry point with a real font file (not a
 hand-rolled synthetic one).
 
+### Integration: Render Type0 Composite Font Paints Expected Glyph Ink
+
+**Test**: `CanvasNetPdf_SystemIntegration_RenderType0CompositeFont_PaintsExpectedGlyphInk`
+
+Exercises end-to-end system behavior for the Phase 9 Type0/Identity-H/CIDFontType2 composite-font
+text-rendering pipeline: calls the public `Render` API against a hand-authored fixture with a
+real, embedded (descendant `/FontDescriptor/FontFile2`) copy of the shared `OpenSans-Regular.ttf`
+production font, a non-identity `/CIDToGIDMap` stream remapping CID 1/2 to the glyph indices of
+`'H'`/`'O'`, and an explicit `/W` array declaring their advance widths, drawing the 2-byte
+Identity-H codes `0001 0002` at font size 60 via `BT`/`Tf`/`Td`/`Tj`/`ET`. Rather than hardcoding
+font-specific pixel numbers, the test independently loads the same real font through
+`Fonts.TrueTypeFont` and re-derives the expected device-pixel positions of real glyph ink from
+the font's own outline, looked up directly by glyph index (bypassing `cmap` entirely, exactly as
+the composite code path does), combined with the fixture's own declared `/W` advance widths
+(composite fonts never fall back to the font's own metrics). Asserts a pixel inside `'H'`'s left
+stroke is opaque, a pixel at the exact center of `'O'`'s bounding box (its hollow counter) is
+transparent, a pixel one full CID-2 advance width past `'O'`'s own origin is transparent, and the
+canvas's far corners remain transparent, confirming Type0 font-dictionary resolution,
+`/CIDToGIDMap` remapping, `/W`-declared advance widths, 2-byte code decoding, glyph-outline
+transformation, and glyph painting all integrate correctly through the system's own public entry
+point with a real font file (not a hand-rolled synthetic one).
+
 ### Integration: Pdf Render Lzw Decode Content Stream Paints Expected Pixels
 
 **Test**: `CanvasNetPdf_SystemIntegration_PdfRender_LzwDecodeContentStream_PaintsExpectedPixels`

@@ -18,7 +18,7 @@
 # RunLengthDecode) - see docs/design/canvas-net-pdf.md for the full current feature set and its
 # documented, still-unsupported-feature boundary.
 #
-# cspell:ignore xref startxref devicergb Zapf
+# cspell:ignore xref startxref devicergb Zapf subsetted
 
 sections:
   - title: CanvasNetPdf Requirements
@@ -242,3 +242,23 @@ sections:
           - CanvasNetPdf_SystemIntegration_PdfRender_EmbeddedTrueTypeFontText_PaintsGlyphStrokesNotCounters
           - CanvasNetPdf_SystemIntegration_RenderStandard14HelveticaWithoutEmbeddedFont_PaintsVisibleGlyphInk
           - CanvasNetPdf_SystemIntegration_RenderSymbolFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException
+
+      - id: CanvasNetPdf-CompositeFontTextRendering
+        title: >-
+          The library shall render Type0/Identity-H composite-font (2-byte-encoded CID) text:
+          resolving a page's referenced Type0/CIDFontType2 composite fonts (requiring an embedded
+          /FontFile2 on the descendant font, with no fallback substitution path), mapping each
+          decoded CID to a glyph index via the descendant font's /CIDToGIDMap, and applying the
+          descendant font's declared /DW/W advance widths, then painting each shown glyph's
+          outline at its correctly positioned/scaled device location.
+        tags: [system]
+        justification: |
+          Type0/Identity-H/CIDFontType2 composite fonts are the encoding real-world PDF producers
+          (Microsoft Word, LibreOffice, and browser print-to-PDF among them) overwhelmingly emit
+          for embedded subsetted TrueType text, so callers need this document text to actually
+          appear as recognizable glyph shapes in their document-correct position, not merely be
+          rejected as an unsupported font subtype.
+        children:
+          - CanvasNetPdf-PdfDocument-CompositeFontResolution
+        tests:
+          - CanvasNetPdf_SystemIntegration_RenderType0CompositeFont_PaintsExpectedGlyphInk

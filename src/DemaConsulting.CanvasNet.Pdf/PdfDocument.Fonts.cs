@@ -22,20 +22,57 @@ namespace DemaConsulting.CanvasNet.Pdf;
 public sealed partial class PdfDocument
 {
     /// <summary>
+    ///     A font resolved from a <c>/Resources/Font</c> entry, abstracting over the two
+    ///     concrete resolution strategies this class supports: <see cref="ResolvedSimpleFont"/>
+    ///     (a single-byte-code <c>/Subtype /TrueType</c> font) and <see cref="ResolvedCompositeFont"/>
+    ///     (a two-byte-code <c>/Subtype /Type0</c>/<c>/Encoding /Identity-H</c> composite font, see
+    ///     <c>PdfDocument.Fonts.Type0.cs</c>). <see cref="ShowText"/> decodes each shown string
+    ///     into a sequence of codes using <see cref="CodeByteWidth"/> bytes per code, then resolves
+    ///     each code's glyph index and advance width via <see cref="Resolve"/> - the same entry
+    ///     point regardless of which concrete implementation is active, so <see cref="ShowGlyph"/>
+    ///     never needs to know which one produced the font currently selected via <c>Tf</c>.
+    /// </summary>
+    private interface IResolvedFont
+    {
+        /// <summary>Gets the loaded embedded TrueType font backing this resolved font.</summary>
+        TrueTypeFont Font { get; }
+
+        /// <summary>
+        ///     Gets the number of bytes <see cref="ShowText"/> decodes per character code: <c>1</c>
+        ///     for a simple font, <c>2</c> for a composite <c>/Identity-H</c> font.
+        /// </summary>
+        int CodeByteWidth { get; }
+
+        /// <summary>
+        ///     Resolves a single decoded character code to the glyph index <see cref="ShowGlyph"/>
+        ///     paints, and the code's advance width in text-space units (glyph-space-per-1000,
+        ///     not yet scaled by <see cref="GraphicsState.FontSize"/>).
+        /// </summary>
+        /// <param name="code">The decoded character code (a byte for a simple font, a 16-bit big-endian value for a composite font).</param>
+        /// <returns>The resolved glyph index and text-space advance width.</returns>
+        (int GlyphIndex, double Width) Resolve(int code);
+    }
+
+    /// <summary>
     ///     A simple (single-byte-code) TrueType font, fully resolved from its <c>/Resources/Font</c>
     ///     dictionary: the loaded <see cref="Fonts.TrueTypeFont"/>, its effective code-to-Unicode-
     ///     codepoint encoding table, and its code-to-declared-advance-width table.
     /// </summary>
     /// <remarks>
-    ///     Instances are built once by <see cref="BuildResolvedFont"/> and cached by
+    ///     Instances are built once by <see cref="BuildResolvedSimpleFont"/> and cached by
     ///     <see cref="ResolveFont"/> in <see cref="_fontCache"/> for the lifetime of a single
     ///     <see cref="Render(int, int, int)"/> call - see <see cref="_fontCache"/>'s own remarks
     ///     for why the cache is never shared across calls.
     /// </remarks>
-    private sealed class ResolvedFont
+    private sealed class ResolvedSimpleFont : IResolvedFont
     {
         /// <summary>Gets the loaded embedded TrueType font.</summary>
         internal required TrueTypeFont Font { get; init; }
+
+        TrueTypeFont IResolvedFont.Font => Font;
+
+        /// <summary>A simple font always decodes exactly one byte per character code.</summary>
+        int IResolvedFont.CodeByteWidth => 1;
 
         /// <summary>
         ///     Gets the effective code (0-255) to Unicode codepoint map, after applying the
@@ -63,6 +100,32 @@ public sealed partial class PdfDocument
         ///     specification's own documented default.
         /// </summary>
         internal required double MissingWidth { get; init; }
+
+        /// <summary>
+        ///     Resolves <paramref name="code"/> to a glyph index via <see cref="Encoding"/>/
+        ///     <see cref="Fonts.TrueTypeFont.GetGlyphIndex"/>, and its advance width with the
+        ///     documented priority: an explicit <see cref="Widths"/> entry first, else
+        ///     <see cref="MissingWidth"/> (when nonzero), else the font's own
+        ///     <see cref="Fonts.TrueTypeFont.GetAdvanceWidth"/>/<see cref="Fonts.TrueTypeFont.UnitsPerEm"/>
+        ///     metric.
+        /// </summary>
+        public (int GlyphIndex, double Width) Resolve(int code)
+        {
+            var codepoint = Encoding.TryGetValue(code, out var mapped) ? mapped : 0;
+            var glyphIndex = Font.GetGlyphIndex(codepoint);
+
+            if (Widths.TryGetValue(code, out var declaredWidth))
+            {
+                return (glyphIndex, declaredWidth / 1000.0);
+            }
+
+            if (MissingWidth != 0)
+            {
+                return (glyphIndex, MissingWidth / 1000.0);
+            }
+
+            return (glyphIndex, Font.GetAdvanceWidth(glyphIndex) / (double)Font.UnitsPerEm);
+        }
     }
 
     /// <summary>
@@ -87,13 +150,13 @@ public sealed partial class PdfDocument
     ///     different page's content stream against the same font resource name, so caching a
     ///     resolved font beyond one call's lifetime could serve a stale/wrong font).
     /// </remarks>
-    private Dictionary<PdfObject, ResolvedFont> _fontCache = null!;
+    private Dictionary<PdfObject, IResolvedFont> _fontCache = null!;
 
     /// <summary>
-    ///     Handles the <c>Tf</c> operator's font-name lookup: resolves a named simple TrueType
-    ///     font from the current page's <c>/Resources/Font</c> dictionary, building and caching
-    ///     (in <see cref="_fontCache"/>) a <see cref="ResolvedFont"/> the first time this
-    ///     particular font dictionary object is resolved during the current content-stream
+    ///     Handles the <c>Tf</c> operator's font-name lookup: resolves a named font (simple or
+    ///     composite) from the current page's <c>/Resources/Font</c> dictionary, building and
+    ///     caching (in <see cref="_fontCache"/>) an <see cref="IResolvedFont"/> the first time
+    ///     this particular font dictionary object is resolved during the current content-stream
     ///     execution.
     /// </summary>
     /// <param name="name">The font resource name (without the leading slash).</param>
@@ -104,10 +167,11 @@ public sealed partial class PdfDocument
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Propagated from <see cref="BuildResolvedFont"/> for an unsupported <c>/Subtype</c>, a
-    ///     non-embedded <c>Symbol</c>/<c>ZapfDingbats</c>/symbolic font, or an unrecognized
-    ///     <c>/Encoding</c> base encoding.
+    ///     non-embedded <c>Symbol</c>/<c>ZapfDingbats</c>/symbolic font, an unrecognized
+    ///     <c>/Encoding</c> base encoding, or an unsupported composite-font <c>/Encoding</c>/
+    ///     descendant <c>/Subtype</c> (see <c>PdfDocument.Fonts.Type0.cs</c>).
     /// </exception>
-    private ResolvedFont ResolveFont(string name)
+    private IResolvedFont ResolveFont(string name)
     {
         var fontsEntry = _resources?.Get("Font");
         var fontsDictionary = fontsEntry is null ? null : Resolve(fontsEntry);
@@ -130,8 +194,35 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
-    ///     Builds a <see cref="ResolvedFont"/> from a font dictionary: validates <c>/Subtype
-    ///     /TrueType</c>, loads the embedded <c>/FontDescriptor/FontFile2</c> if present (which
+    ///     Builds an <see cref="IResolvedFont"/> from a font dictionary, dispatching on
+    ///     <c>/Subtype</c>: <c>/TrueType</c> resolves a simple font via
+    ///     <see cref="BuildResolvedSimpleFont"/>; <c>/Type0</c> resolves a composite
+    ///     <c>/Encoding /Identity-H</c>/<c>/CIDFontType2</c> font via
+    ///     <see cref="BuildResolvedCompositeFont"/> (see <c>PdfDocument.Fonts.Type0.cs</c>); any
+    ///     other <c>/Subtype</c> (<c>Type1</c>, <c>MMType1</c>, <c>Type3</c>) fails closed.
+    /// </summary>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown when <c>/Subtype</c> is not <c>TrueType</c> or <c>Type0</c> (for example
+    ///     <c>Type1</c>, <c>MMType1</c>, or <c>Type3</c>).
+    /// </exception>
+    private IResolvedFont BuildResolvedFont(PdfObject fontDict)
+    {
+        var subtype = GetNameValue(fontDict, "Subtype");
+        return subtype switch
+        {
+            "TrueType" => BuildResolvedSimpleFont(fontDict),
+            "Type0" => BuildResolvedCompositeFont(fontDict),
+            _ => throw new UnsupportedImageFeatureException(
+                $"pdf-font-subtype-{subtype ?? "missing"}",
+                $"Font /Subtype '{subtype ?? "(missing)"}' is not supported; only simple " +
+                "/Subtype /TrueType fonts and composite /Subtype /Type0 fonts are supported " +
+                "(Type1/CFF, MMType1, and Type3 fonts are not supported)."),
+        };
+    }
+
+    /// <summary>
+    ///     Builds a <see cref="ResolvedSimpleFont"/> from a <c>/Subtype /TrueType</c> font
+    ///     dictionary: loads the embedded <c>/FontDescriptor/FontFile2</c> if present (which
     ///     always takes priority over any substitute), or else resolves a substitute font via
     ///     <see cref="ResolveFallbackFont"/> (a Standard-14/system/bundled-Liberation match), and
     ///     resolves <c>/Encoding</c> and <c>/Widths</c>.
@@ -151,23 +242,11 @@ public sealed partial class PdfDocument
     ///     not resolve to a stream, or <c>/BaseFont</c> is missing.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when <c>/Subtype</c> is not <c>TrueType</c> (for example <c>Type0</c>,
-    ///     <c>Type1</c>, <c>MMType1</c>, or <c>Type3</c>), or when a <c>Symbol</c>/
-    ///     <c>ZapfDingbats</c>/symbolic font has no embedded <c>/FontFile2</c> (see
-    ///     <see cref="ResolveFallbackFont"/>).
+    ///     Thrown when a <c>Symbol</c>/<c>ZapfDingbats</c>/symbolic font has no embedded
+    ///     <c>/FontFile2</c> (see <see cref="ResolveFallbackFont"/>).
     /// </exception>
-    private ResolvedFont BuildResolvedFont(PdfObject fontDict)
+    private ResolvedSimpleFont BuildResolvedSimpleFont(PdfObject fontDict)
     {
-        var subtype = GetNameValue(fontDict, "Subtype");
-        if (subtype != "TrueType")
-        {
-            throw new UnsupportedImageFeatureException(
-                $"pdf-font-subtype-{subtype ?? "missing"}",
-                $"Font /Subtype '{subtype ?? "(missing)"}' is not supported; only simple " +
-                "/Subtype /TrueType fonts are supported (Type0/composite, Type1/CFF, MMType1, " +
-                "and Type3 fonts are not supported).");
-        }
-
         var descriptorEntry = fontDict.Get("FontDescriptor")
             ?? throw new InvalidDataException("Font dictionary is missing required /FontDescriptor.");
         var descriptor = Resolve(descriptorEntry);
@@ -195,7 +274,7 @@ public sealed partial class PdfDocument
         var encoding = ResolveEncoding(fontDict.Get("Encoding"));
         var (widths, missingWidth) = ResolveWidths(fontDict, descriptor);
 
-        return new ResolvedFont
+        return new ResolvedSimpleFont
         {
             Font = font,
             Encoding = encoding,
@@ -360,10 +439,10 @@ public sealed partial class PdfDocument
     /// </summary>
     /// <returns>
     ///     The code-to-width map (empty when <c>/FirstChar</c>/<c>/Widths</c> is absent or
-    ///     malformed - a documented leniency, since <see cref="ShowText"/> itself falls back to
-    ///     <see cref="ResolvedFont.MissingWidth"/> and then the font's own metrics for any code
-    ///     missing from this map), and the resolved <c>/MissingWidth</c> value (<c>0</c> when not
-    ///     declared).
+    ///     malformed - a documented leniency, since <see cref="ResolvedSimpleFont.Resolve"/>
+    ///     itself falls back to <see cref="ResolvedSimpleFont.MissingWidth"/> and then the font's
+    ///     own metrics for any code missing from this map), and the resolved <c>/MissingWidth</c>
+    ///     value (<c>0</c> when not declared).
     /// </returns>
     private (IReadOnlyDictionary<int, double> Widths, double MissingWidth) ResolveWidths(PdfObject fontDict, PdfObject descriptor)
     {
