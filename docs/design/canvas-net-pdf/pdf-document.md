@@ -5,6 +5,9 @@
 <!-- cspell:ignore xref startxref endobj endstream ObjStm MediaBox unresolvable Trise -->
 <!-- cspell:ignore CCITT reimplementation diffability bitstream Zapf Nonsymbolic cidfonttype -->
 <!-- cspell:ignore Segoe Dejavu Nimbus Consolas ttcf dogfooding LOCALAPPDATA -->
+<!-- cspell:ignore beginbfchar endbfchar beginbfrange endbfrange codepoints tounicode bfrange -->
+<!-- cspell:ignore begincodespacerange endcodespacerange findresource defineresource currentdict -->
+<!-- cspell:ignore begincmap endcmap bfchar usecmap cidrange cidchar codespacerange -->
 
 `PdfDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pdf` NuGet package
 (namespace `DemaConsulting.CanvasNet.Pdf`), which references the core
@@ -138,8 +141,11 @@ re-parsing it each time — a property a purely static API could not express.
   dictionary's resolved `IResolvedFont` (either a `ResolvedSimpleFont` — embedded
   `Fonts.TrueTypeFont`, 256-entry code-to-Unicode-codepoint encoding map, per-code `/Widths` map,
   `/MissingWidth` — or, as of Phase 9, a `ResolvedCompositeFont` — descendant-font
-  `Fonts.TrueTypeFont`, CID-to-glyph-index map, per-CID `/W` map, `/DW` default width) by the font
-  dictionary `PdfObject`'s own reference identity, so `Tf` re-selecting the same font resource
+    `Fonts.TrueTypeFont`, CID-to-glyph-index map, per-CID `/W` map, `/DW` default width, and, as of
+    Phase 10, a `ToUnicode` code-to-Unicode-codepoint map resolved from the Type0 font dictionary's
+    own `/ToUnicode` CMap stream when present (`null` otherwise) — resolved-but-unconsumed
+    groundwork this phase, not yet read anywhere at rendering time) by the font
+    dictionary `PdfObject`'s own reference identity, so `Tf` re-selecting the same font resource
   repeatedly within one `Render` call never re-decodes/re-parses the embedded `FontFile2` bytes
   more than once. Reset (cleared) at the start of every `ExecuteContentStream` call — scoped to a
   single `Render` call only, per this phase's documented caching contract (a later `Render` call
@@ -436,6 +442,32 @@ re-parsing it each time — a property a purely static API could not express.
   "code equals CID" identity), maps it to a glyph index via `CidToGid`, and resolves its width from
   `CidWidths` (falling back to `DefaultWidth`) - the same `(GlyphIndex, Width)` tuple shape
   `ResolvedSimpleFont.Resolve` returns, so `ShowGlyph` never needs a type check.
+- **`/ToUnicode` CMap resolution (`PdfDocument.Fonts.ToUnicode.cs`, added in Phase 10)** —
+  `ResolveToUnicodeMap(fontDict)` is called from `BuildResolvedCompositeFont` (on the Type0 font
+  dictionary itself, not the descendant font dictionary) and stores its result on
+  `ResolvedCompositeFont.ToUnicode`; it is unconsumed groundwork this phase - nothing reads it at
+  rendering time. It returns `null` when `/ToUnicode` is absent or doesn't resolve to a stream
+  (the same leniency `ResolveWidths` applies to a missing `/Widths` array), otherwise decodes the
+  stream (via the same `GetStreamDecodedBytes` every other stream uses) and tokenizes it with a
+  fresh `PdfTokenizer`, reusing `ParseValue`'s string/hex-string/array parsing primitives rather
+  than a second, purpose-built CMap tokenizer. `beginbfchar`/`endbfchar` pairs map a single hex-
+  string source code to a hex-string or literal-text (UTF-16BE) destination's codepoint.
+  `beginbfrange`/`endbfrange` triples (`srcLo srcHi dst`) support two destination forms: a single
+  hex/literal-string destination maps consecutive codes across `[srcLo, srcHi]` to consecutive
+  incrementing codepoints starting at that destination's own codepoint, and an array destination
+  maps each code individually to its own corresponding array element - a nested array element
+  (the CIDSystemInfo-style "array of arrays" destination sub-form) is out of scope and throws
+  `Codecs.UnsupportedImageFeatureException` (feature `pdf-font-tounicode-bfrange-array-
+  destination`). A destination decoding to more than one UTF-16 code unit (e.g. a ligature) keeps
+  only its first codepoint - a documented simplification, not a fidelity goal this phase.
+  `begincodespacerange`/`endcodespacerange` and the CMap's own PostScript resource-management
+  wrapper keywords (`begin`/`end`/`dict`/`def`/`findresource`/`defineresource`/`pop`/
+  `currentdict`/`begincmap`/`endcmap`, and any bare number/name operand appearing alongside them)
+  are silently skipped - mirroring `ExecuteContentStream`'s own "silently ignore any other
+  operator" precedent - since none of them affect bfchar/bfrange mapping semantics. A
+  `usecmap`/`cidrange`/`cidchar` operator, by contrast, is explicitly out of this phase's scope
+  and throws `Codecs.UnsupportedImageFeatureException` (feature `pdf-font-tounicode-{operator}`)
+  rather than being silently (and incorrectly) ignored.
 - **Font fallback resolution (`PdfDocument.FontFallback.cs`, added in Phase 6)** —
   `ResolveFallbackFont(baseFontName, descriptor)` is `BuildResolvedSimpleFont`'s sole entry point into
   this file. It first fails closed with `Codecs.UnsupportedImageFeatureException` (feature
@@ -566,6 +598,16 @@ re-parsing it each time — a property a purely static API could not express.
   sub-form, or a range form with `cLast < cFirst`) is `InvalidDataException` too. A composite
   font's shown byte string with an odd byte length is `InvalidDataException` (a 2-byte-per-code
   string must have an even byte count).
+- **A `bfrange` destination array containing a nested array** (the CIDSystemInfo-style "array of
+  arrays" destination sub-form), as of Phase 10 — `Codecs.UnsupportedImageFeatureException`
+  (feature `pdf-font-tounicode-bfrange-array-destination`); a `usecmap`/`cidrange`/`cidchar`
+  operator appearing in a `/ToUnicode` CMap stream is likewise
+  `Codecs.UnsupportedImageFeatureException` (feature `pdf-font-tounicode-{operator}`). By
+  contrast, `begincodespacerange`/`endcodespacerange` and the CMap's own PostScript resource-
+  management wrapper keywords (`begin`/`end`/`dict`/`def`/`findresource`/`defineresource`/`pop`/
+  `currentdict`/`begincmap`/`endcmap`) are silently ignored, not rejected - they carry no
+  bfchar/bfrange mapping semantics of their own. An absent `/ToUnicode` entry resolves to a null
+  map, matching `ResolveWidths`'s own "missing optional field" leniency.
 - **An `/Encoding` naming an unrecognized base encoding** (anything other than
   `/WinAnsiEncoding`/`/MacRomanEncoding`, or their dictionary form's `/BaseEncoding`) —
   `Codecs.UnsupportedImageFeatureException`.
@@ -603,6 +645,10 @@ re-parsing it each time — a property a purely static API could not express.
 - BCL `System.Numerics.Matrix3x2`/`Vector2` — the current transformation matrix, every
   transformed path point, and (as of Phase 3) an image XObject's unit-square-to-device-space
   compositing math
+- `PdfTokenizer`/`PdfObject`/`ParseValue` (internal, `PdfDocument.Tokenizer.cs`/
+  `PdfDocument.ObjectModel.cs`) — reused as of Phase 10 by `ResolveToUnicodeMap` to tokenize and
+  parse a `/ToUnicode` CMap stream's `bfchar`/`bfrange` operands (hex strings, literal strings,
+  and arrays); no second, purpose-built CMap tokenizer was introduced.
 
 ### Callers
 

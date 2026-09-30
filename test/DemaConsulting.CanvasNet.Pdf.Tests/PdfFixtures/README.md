@@ -1,6 +1,7 @@
 # PDF Test Fixtures
 
 <!-- cspell:ignore xobject devicergb pdfhost flipperfile qwikpdf -->
+<!-- cspell:ignore bfchar bfrange codepoints -->
 
 Every PDF file in this folder is a small, hand-authored document created specifically for this
 repository to exercise `PdfDocument`'s parsing internals (tokenizer, object model,
@@ -11,9 +12,11 @@ construction/painting operators, the graphics-state stack, CTM/rotation derivati
 device color operators and `Do`-placed image XObjects - Phase 3), its embedded-TrueType text
 support (`Tf`/`Td`/`Tj` against a `/FontFile2`-embedded simple font - Phase 4), its Standard-14
 font-fallback substitution (Phase 6), its `LZWDecode`/`ASCII85Decode`/`ASCIIHexDecode`/
-`RunLengthDecode` content-stream filter set (Phase 7), and its `/Type0`/`/Encoding /Identity-H`/
+`RunLengthDecode` content-stream filter set (Phase 7), its `/Type0`/`/Encoding /Identity-H`/
 `/CIDFontType2` composite-font text support (2-byte-code `Tj` against a `/FontFile2`-embedded
-descendant font, with a non-identity `/CIDToGIDMap` - Phase 9) end to end via real files on disk.
+descendant font, with a non-identity `/CIDToGIDMap` - Phase 9), and its `/ToUnicode` CMap
+resolution (`bfchar`/`bfrange` operators - Phase 10, resolved but unconsumed at rendering time)
+end to end via real files on disk.
 There is no third-party source corpus behind any of them (unlike, for example, `PngSuite` in the core test
 project): each was constructed byte-by-byte from scratch for CanvasNet and is licensed under the
 same MIT license as the rest of this repository.
@@ -35,7 +38,7 @@ same MIT license as the rest of this repository.
 | `color-rgb-rectangle-fill.pdf` | `rg` device color (Phase 3) - a rectangle filled opaque red |
 | `image-xobject-devicergb-flate.pdf` | `/Subtype /Image` XObject (2x2 `DeviceRGB`/`FlateDecode`) placed via `cm`/`Do` |
 | `text-embedded-truetype-font.pdf` | `/Subtype /TrueType` font, embedded `/FontFile2` (Phase 4) - `Tf`/`Td`/`Tj` |
-| `text-composite-truetype-identity-h.pdf` | `/Type0`/`/Identity-H`/`CIDFontType2`, `/FontFile2` (Phase 9) |
+| `text-composite-truetype-identity-h.pdf` | `/Type0`/`Identity-H`/`CIDFontType2` (Phase 9) + `/ToUnicode` (Phase 10) |
 | `content-stream-lzw.pdf` | `/Contents` compressed with `LZWDecode` (Phase 7) - a filled rectangle |
 | `content-stream-ascii85.pdf` | `/Contents` armored with `ASCII85Decode` (Phase 7) - the same filled rectangle |
 | `content-stream-asciihex.pdf` | `/Contents` armored with `ASCIIHexDecode` (Phase 7) - the same filled rectangle |
@@ -65,4 +68,9 @@ this repository, exactly like every other fixture in this folder. `text-composit
 reuses the exact same real, unmodified Open Sans TrueType font bytes (independently
 `FlateDecode`-recompressed for this second file, but decoding to identical font bytes) as its
 `/CIDFontType2` descendant font's own `/FontFile2` - no new font asset was sourced for this
-second fixture either.
+second fixture either. As of Phase 10, `text-composite-truetype-identity-h.pdf` also declares a
+`/ToUnicode` CMap stream (object 10, added without disturbing any pre-existing object) mapping
+CID 1 via `bfchar` and CID 2 via a single-entry `bfrange` to the Unicode codepoints `U+0048`/
+`U+004F` respectively - the same two CIDs the existing content stream's `Tj` operator shows -
+wrapped in the standard Adobe CMap/PostScript resource-management boilerplate; this map is
+resolved by `ResolveToUnicodeMap` but not yet consumed anywhere at rendering time.

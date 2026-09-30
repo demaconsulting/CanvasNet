@@ -250,15 +250,19 @@ sections:
           /FontFile2 on the descendant font, with no fallback substitution path), mapping each
           decoded CID to a glyph index via the descendant font's /CIDToGIDMap, and applying the
           descendant font's declared /DW/W advance widths, then painting each shown glyph's
-          outline at its correctly positioned/scaled device location.
+          outline at its correctly positioned/scaled device location; it shall also resolve (but
+          not yet consume at rendering time) a composite font's optional /ToUnicode CMap as a
+          code-to-Unicode-codepoint map.
         tags: [system]
         justification: |
           Type0/Identity-H/CIDFontType2 composite fonts are the encoding real-world PDF producers
           (Microsoft Word, LibreOffice, and browser print-to-PDF among them) overwhelmingly emit
           for embedded subsetted TrueType text, so callers need this document text to actually
           appear as recognizable glyph shapes in their document-correct position, not merely be
-          rejected as an unsupported font subtype.
+          rejected as an unsupported font subtype. Resolving /ToUnicode as unconsumed groundwork
+          unblocks a future text-extraction feature without re-deriving CMap-parsing primitives.
         children:
           - CanvasNetPdf-PdfDocument-CompositeFontResolution
+          - CanvasNetPdf-PdfDocument-ToUnicodeCMap
         tests:
           - CanvasNetPdf_SystemIntegration_RenderType0CompositeFont_PaintsExpectedGlyphInk

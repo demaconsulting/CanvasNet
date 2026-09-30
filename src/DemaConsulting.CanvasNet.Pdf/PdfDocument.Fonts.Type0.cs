@@ -52,6 +52,16 @@ public sealed partial class PdfDocument
         internal required IReadOnlyDictionary<int, double> CidWidths { get; init; }
 
         /// <summary>
+        ///     Gets the font dictionary's resolved <c>/ToUnicode</c> CMap (see
+        ///     <see cref="ResolveToUnicodeMap"/>), or <see langword="null"/> when <c>/ToUnicode</c>
+        ///     is absent or malformed. A resolved-but-unconsumed field as of Phase 10 - nothing
+        ///     reads this at rendering time; it exists purely as groundwork for a future
+        ///     text-extraction feature and Phase 11's composite-font fallback-substitution
+        ///     decision.
+        /// </summary>
+        internal IReadOnlyDictionary<int, int>? ToUnicode { get; init; }
+
+        /// <summary>
         ///     Resolves a two-byte <c>/Identity-H</c> code (which, per the PDF specification, is
         ///     the CID directly - no CMap indirection) to a glyph index via
         ///     <see cref="CidToGid"/>, and its advance width from <see cref="CidWidths"/>,
@@ -143,6 +153,7 @@ public sealed partial class PdfDocument
 
         var cidToGid = ResolveCidToGidMap(descendantFont);
         var (cidWidths, defaultWidth) = ResolveCompositeWidths(descendantFont);
+        var toUnicode = ResolveToUnicodeMap(fontDict);
 
         return new ResolvedCompositeFont
         {
@@ -150,6 +161,7 @@ public sealed partial class PdfDocument
             CidToGid = cidToGid,
             DefaultWidth = defaultWidth,
             CidWidths = cidWidths,
+            ToUnicode = toUnicode,
         };
     }
 

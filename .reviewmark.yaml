@@ -713,6 +713,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Images.cs"         # phase 3 unit source (image XObjects)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Fonts.cs"          # phase 4 unit source (font resolution)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Fonts.Type0.cs"  # phase 9 unit source (composite fonts)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Fonts.ToUnicode.cs"  # phase 10 unit source (ToUnicode CMap)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.FontFallback.cs"  # phase 6 unit source (font fallback)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Text.cs"          # phase 4 unit source (text rendering)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfPageInfo.cs"              # phase 1 unit source (supporting record struct)

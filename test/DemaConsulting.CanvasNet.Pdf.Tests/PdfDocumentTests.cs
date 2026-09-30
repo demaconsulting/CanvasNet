@@ -3,6 +3,9 @@ using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 
 // cspell:ignore agrave Xyzzy Zapf Nonsymbolic cids
+// cspell:ignore beginbfchar endbfchar beginbfrange endbfrange begincodespacerange
+// cspell:ignore endcodespacerange findresource defineresource currentdict begincmap endcmap
+// cspell:ignore bfchar bfrange nendbfchar nendbfrange tounicode usecmap cidrange cidchar codepoints
 
 namespace DemaConsulting.CanvasNet.Pdf.Tests;
 
@@ -438,6 +441,31 @@ public class PdfDocumentTests
     /// <summary>Encodes each CID in <paramref name="cids"/> as a 2-byte big-endian code, returning the resulting hex-string content-stream operand text (including the enclosing angle brackets).</summary>
     private static string BuildIdentityHHexString(params int[] cids) =>
         "<" + string.Concat(cids.Select(cid => $"{cid:X4}")) + ">";
+
+    /// <summary>
+    ///     Wraps <paramref name="cmapBody"/> (the <c>beginbfchar</c>/<c>beginbfrange</c>/
+    ///     <c>begincodespacerange</c>/other bare-operator content under test) in the standard
+    ///     Adobe CMap/PostScript resource-management boilerplate every real-world
+    ///     <c>/ToUnicode</c> stream requires (PDF 32000-1:2008 &#xA7;9.10.3's own worked example),
+    ///     so <c>ResolveToUnicodeMap</c> tests exercise that the boilerplate is tolerated, not
+    ///     merely a bare <c>bfchar</c>/<c>bfrange</c> block.
+    /// </summary>
+    private static byte[] BuildToUnicodeCMapStreamBytes(string cmapBody) =>
+        System.Text.Encoding.ASCII.GetBytes(
+            "/CIDInit /ProcSet findresource begin\n" +
+            "12 dict begin\n" +
+            "begincmap\n" +
+            "/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n" +
+            "/CMapName /Adobe-Identity-UCS def\n" +
+            "/CMapType 2 def\n" +
+            "1 begincodespacerange\n" +
+            "<0000> <FFFF>\n" +
+            "endcodespacerange\n" +
+            $"{cmapBody}\n" +
+            "endcmap\n" +
+            "CMapName currentdict /CMap defineresource pop\n" +
+            "end\n" +
+            "end");
 
     #region Tokenizer
 
@@ -2897,6 +2925,132 @@ public class PdfDocumentTests
 
         // Act & Assert
         Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that <c>ResolveToUnicodeMap</c> returns <see langword="null"/> when the font dictionary has no <c>/ToUnicode</c> entry at all.</summary>
+    [Fact]
+    public void PdfDocument_Fonts_ToUnicode_Absent_ResolvesNull()
+    {
+        // Arrange
+        var bytes = BuildSinglePagePdf(100, 100, "BT ET");
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>());
+
+        // Act
+        var result = document.ResolveToUnicodeMap(fontDict);
+
+        // Assert
+        Assert.Null(result);
+    }
+
+    /// <summary>Proves that a <c>beginbfchar</c>/<c>endbfchar</c> entry maps its single source code to its destination's codepoint.</summary>
+    [Fact]
+    public void PdfDocument_Fonts_ToUnicode_BfChar_MapsSingleCode()
+    {
+        // Arrange
+        var cmapBytes = BuildToUnicodeCMapStreamBytes("1 beginbfchar\n<0041> <0048>\nendbfchar");
+        var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
+        {
+            ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
+        });
+
+        // Act
+        var result = document.ResolveToUnicodeMap(fontDict);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(0x0048, result[0x0041]);
+    }
+
+    /// <summary>Proves that a <c>beginbfrange</c>/<c>endbfrange</c> entry with a single hex-string destination maps consecutive source codes to consecutive incrementing codepoints.</summary>
+    [Fact]
+    public void PdfDocument_Fonts_ToUnicode_BfRangeHexForm_MapsConsecutiveCodes()
+    {
+        // Arrange
+        var cmapBytes = BuildToUnicodeCMapStreamBytes("1 beginbfrange\n<0001> <0003> <0048>\nendbfrange");
+        var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
+        {
+            ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
+        });
+
+        // Act
+        var result = document.ResolveToUnicodeMap(fontDict);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(0x0048, result[1]);
+        Assert.Equal(0x0049, result[2]);
+        Assert.Equal(0x004A, result[3]);
+    }
+
+    /// <summary>Proves that a <c>beginbfrange</c>/<c>endbfrange</c> entry with an array-of-hex-strings destination maps each code in the range to its own corresponding array element.</summary>
+    [Fact]
+    public void PdfDocument_Fonts_ToUnicode_BfRangeArrayForm_MapsEachCodeIndividually()
+    {
+        // Arrange
+        var cmapBytes = BuildToUnicodeCMapStreamBytes("1 beginbfrange\n<0001> <0002> [<0048> <004F>]\nendbfrange");
+        var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
+        {
+            ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
+        });
+
+        // Act
+        var result = document.ResolveToUnicodeMap(fontDict);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(0x0048, result[1]);
+        Assert.Equal(0x004F, result[2]);
+    }
+
+    /// <summary>Proves that a <c>bfrange</c> destination array containing a nested array (the out-of-scope CIDSystemInfo-style "array of arrays" destination sub-form) throws <see cref="UnsupportedImageFeatureException"/>, unlike the in-scope array-of-hex-strings destination form.</summary>
+    [Fact]
+    public void PdfDocument_Fonts_ToUnicode_UnsupportedArrayDestinationBfRange_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange
+        var cmapBytes = BuildToUnicodeCMapStreamBytes("1 beginbfrange\n<0001> <0001> [[<0048>]]\nendbfrange");
+        var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
+        {
+            ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
+        });
+
+        // Act & Assert
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(() => document.ResolveToUnicodeMap(fontDict));
+        Assert.Equal("pdf-font-tounicode-bfrange-array-destination", exception.Feature);
+    }
+
+    /// <summary>Proves that each explicitly out-of-scope, data-bearing CMap operator (<c>usecmap</c>/<c>cidrange</c>/<c>cidchar</c>) fails closed with <see cref="UnsupportedImageFeatureException"/> rather than being silently ignored like the CMap's own PostScript wrapper keywords.</summary>
+    [Theory]
+    [InlineData("usecmap")]
+    [InlineData("cidrange")]
+    [InlineData("cidchar")]
+    public void PdfDocument_Fonts_ToUnicode_UnsupportedOperator_ThrowsUnsupportedImageFeatureException(string operatorName)
+    {
+        // Arrange
+        var cmapBytes = BuildToUnicodeCMapStreamBytes(operatorName);
+        var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
+        {
+            ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
+        });
+
+        // Act & Assert
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(() => document.ResolveToUnicodeMap(fontDict));
+        Assert.Equal($"pdf-font-tounicode-{operatorName}", exception.Feature);
     }
 
     #endregion

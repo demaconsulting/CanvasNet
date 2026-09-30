@@ -2,6 +2,9 @@
 # Software Unit Requirements for PdfDocument
 #
 # cspell:ignore xref startxref endobj endstream ObjStm MediaBox Zapf Nonsymbolic subsetted
+# cspell:ignore beginbfchar endbfchar beginbfrange endbfrange codepoints begincodespacerange
+# cspell:ignore endcodespacerange findresource defineresource currentdict begincmap endcmap
+# cspell:ignore bfchar bfrange usecmap cidrange cidchar
 #
 # These requirements describe the design-level behavior of the PdfDocument unit.
 #
@@ -567,6 +570,41 @@ sections:
               - PdfDocument_ShowText_Type0_OddByteLengthString_ThrowsInvalidDataException
               - PdfDocument_ShowText_Type0_TwoByteCodes_ShowsEachGlyphAtCorrectPosition
               - CanvasNetPdf_SystemIntegration_RenderType0CompositeFont_PaintsExpectedGlyphInk
+
+          - id: CanvasNetPdf-PdfDocument-ToUnicodeCMap
+            title: >-
+              The PdfDocument class shall, when resolving a /Subtype /Type0 composite font,
+              additionally resolve its /ToUnicode entry (when present) as a CMap stream mapping
+              each shown code to a Unicode codepoint: tokenizing the decoded stream with the
+              content-stream tokenizer/parser primitives, parsing "beginbfchar"/"endbfchar" code-
+              to-destination pairs and "beginbfrange"/"endbfrange" srcLo/srcHi/destination
+              triples (a single hex/literal-string destination mapping consecutive codes to
+              consecutive incrementing codepoints, or an array-of-hex-strings destination mapping
+              each code to its own corresponding array element), decoding a multi-codepoint
+              destination to only its first UTF-16BE codepoint, and silently ignoring
+              "begincodespacerange"/"endcodespacerange" and the CMap's PostScript resource-
+              management wrapper keywords ("begin"/"end"/"dict"/"def"/"findresource"/
+              "defineresource"/"pop"/"currentdict"/"begincmap"/"endcmap"); an absent /ToUnicode
+              entry shall resolve to a null map, a "usecmap"/"cidrange"/"cidchar" operator shall
+              throw UnsupportedImageFeatureException, and a bfrange destination array containing
+              a nested array (the CIDSystemInfo-style "array of arrays" destination sub-form)
+              shall likewise throw UnsupportedImageFeatureException.
+            justification: |
+              A /ToUnicode CMap is the sole spec-defined mechanism for recovering the Unicode
+              text a composite font's opaque CID-based codes represent, and resolving it as
+              unconsumed groundwork this phase (it is not yet wired into rendering) unblocks a
+              future text-extraction feature and Phase 11's composite-font fallback-substitution
+              decision without re-deriving CMap-parsing primitives later; the CIDSystemInfo-style
+              array-of-arrays bfrange destination sub-form and the usecmap/cidrange/cidchar
+              operators remain explicitly out of this phase's scope and must fail closed with a
+              distinguishable exception rather than being silently mis-parsed.
+            tests:
+              - PdfDocument_Fonts_ToUnicode_Absent_ResolvesNull
+              - PdfDocument_Fonts_ToUnicode_BfChar_MapsSingleCode
+              - PdfDocument_Fonts_ToUnicode_BfRangeHexForm_MapsConsecutiveCodes
+              - PdfDocument_Fonts_ToUnicode_BfRangeArrayForm_MapsEachCodeIndividually
+              - PdfDocument_Fonts_ToUnicode_UnsupportedArrayDestinationBfRange_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Fonts_ToUnicode_UnsupportedOperator_ThrowsUnsupportedImageFeatureException
 
           - id: CanvasNetPdf-PdfDocument-FontFallback
             title: >-

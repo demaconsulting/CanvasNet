@@ -1,6 +1,8 @@
 ## PdfDocument Unit Verification Design
 
 <!-- cspell:ignore xref startxref endobj endstream ObjStm MediaBox Zapf Nonsymbolic -->
+<!-- cspell:ignore bfchar bfrange beginbfchar endbfchar beginbfrange endbfrange codepoints -->
+<!-- cspell:ignore usecmap cidrange cidchar -->
 
 This document describes the unit-level verification strategy for the `PdfDocument` class.
 
@@ -528,6 +530,32 @@ declaring a real embedded Open Sans descendant font with a deliberately non-iden
 `/CIDToGIDMap`, independently reloads the same font, and asserts specific stroke/counter/corner
 pixels - proving the full 2-byte Identity-H code → CID → GID (via the non-identity
 `/CIDToGIDMap`) → TrueType glyph outline → painted-pixel pipeline end to end.
+
+#### CanvasNetPdf-PdfDocument-ToUnicodeCMap: /ToUnicode CMap Resolves to a Code-to-Codepoint Map
+
+**Tests**: `PdfDocument_Fonts_ToUnicode_Absent_ResolvesNull`,
+`PdfDocument_Fonts_ToUnicode_BfChar_MapsSingleCode`,
+`PdfDocument_Fonts_ToUnicode_BfRangeHexForm_MapsConsecutiveCodes`,
+`PdfDocument_Fonts_ToUnicode_BfRangeArrayForm_MapsEachCodeIndividually`,
+`PdfDocument_Fonts_ToUnicode_UnsupportedArrayDestinationBfRange_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Fonts_ToUnicode_UnsupportedOperator_ThrowsUnsupportedImageFeatureException`
+
+Builds a font dictionary with no `/ToUnicode` entry at all, asserting `ResolveToUnicodeMap`
+resolves a null map. Builds a `/ToUnicode` CMap stream (wrapped in the standard Adobe CMap/
+PostScript resource-management boilerplate, proving that boilerplate is tolerated rather than
+merely a bare `bfchar`/`bfrange` block) declaring a single `beginbfchar`/`endbfchar` pair,
+asserting the source code resolves to its destination's codepoint. Declares a
+`beginbfrange`/`endbfrange` triple with a single hex-string destination, asserting consecutive
+codes across the declared `[srcLo, srcHi]` range resolve to consecutive incrementing codepoints
+starting at that destination's codepoint. Declares a `beginbfrange`/`endbfrange` triple with an
+array-of-hex-strings destination, asserting each code in the range resolves to its own
+corresponding array element. Declares a `beginbfrange`/`endbfrange` triple whose destination
+array contains a nested array (the out-of-scope CIDSystemInfo-style "array of arrays"
+destination sub-form), asserting `Codecs.UnsupportedImageFeatureException` (unlike the in-scope
+array-of-hex-strings destination form, which succeeds). A `[Theory]` declares each of the
+explicitly out-of-scope `usecmap`/`cidrange`/`cidchar` operators, asserting
+`Codecs.UnsupportedImageFeatureException` in every case, rather than those operators being
+silently ignored like the CMap's own PostScript resource-management wrapper keywords.
 
 #### CanvasNetPdf-PdfDocument-FontFallback: Non-Embedded TrueType Fonts Are Substituted, Symbol/ZapfDingbats Fail Closed
 
