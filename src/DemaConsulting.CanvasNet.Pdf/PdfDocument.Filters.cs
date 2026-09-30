@@ -99,23 +99,30 @@ public sealed partial class PdfDocument
     ///     <c>/DecodeParms</c> pipeline.
     /// </summary>
     /// <remarks>
-    ///     Supports <c>FlateDecode</c> (optionally followed by a PNG - predictor values
-    ///     <c>10</c>-<c>15</c> - or TIFF - predictor value <c>2</c> - predictor reversal). Any
-    ///     other filter name (including <c>DCTDecode</c>, which <c>PdfDocument.Images.cs</c>
-    ///     always detects and bypasses before ever calling this method) is rejected with
+    ///     Supports <c>FlateDecode</c> and <c>LZWDecode</c> (either optionally followed by a
+    ///     PNG - predictor values <c>10</c>-<c>15</c> - or TIFF - predictor value <c>2</c> -
+    ///     predictor reversal), plus <c>ASCII85Decode</c>, <c>ASCIIHexDecode</c>, and
+    ///     <c>RunLengthDecode</c> (none of which carry a predictor: PDF only ever declares
+    ///     <c>/Predictor</c> alongside the two image-compression filters). Any other filter name
+    ///     (including <c>DCTDecode</c>/<c>CCITTFaxDecode</c>/<c>JPXDecode</c>, which
+    ///     <c>PdfDocument.Images.cs</c> always detects and bypasses - for <c>DCTDecode</c> - or
+    ///     rejects before ever calling this method) is rejected with
     ///     <see cref="UnsupportedImageFeatureException"/>. This is the same behavior Phase 1/2
     ///     already relied on for cross-reference streams, object streams, and page
     ///     <c>/Contents</c> (all of which only ever use a bare <c>FlateDecode</c> filter with no
     ///     <c>/DecodeParms</c>), generalized to a full ordered pipeline.
     /// </remarks>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when <c>/Filter</c>/<c>/DecodeParms</c> is malformed, or when a declared
-    ///     <c>/Predictor</c> value is not <c>1</c>, <c>2</c>, or in <c>10..15</c>.
+    ///     Thrown when <c>/Filter</c>/<c>/DecodeParms</c> is malformed, when a declared
+    ///     <c>/Predictor</c> value is not <c>1</c>, <c>2</c>, or in <c>10..15</c>, or when a
+    ///     filtered stream's own bytes are malformed for its declared filter (see the individual
+    ///     <c>Decode*</c> methods).
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when a filter name other than <c>FlateDecode</c> is declared, or when a TIFF
-    ///     predictor (<c>/Predictor 2</c>) is combined with a <c>/BitsPerComponent</c> other than
-    ///     <c>8</c>.
+    ///     Thrown when a filter name other than <c>FlateDecode</c>, <c>LZWDecode</c>,
+    ///     <c>ASCII85Decode</c>, <c>ASCIIHexDecode</c>, or <c>RunLengthDecode</c> is declared, or
+    ///     when a TIFF predictor (<c>/Predictor 2</c>) is combined with a
+    ///     <c>/BitsPerComponent</c> other than <c>8</c>.
     /// </exception>
     private byte[] GetStreamDecodedBytes(PdfObject streamObject)
     {
@@ -126,17 +133,21 @@ public sealed partial class PdfDocument
         for (var i = 0; i < names.Count; i++)
         {
             var name = names[i];
-            if (name != "FlateDecode")
-            {
-                throw new UnsupportedImageFeatureException(
-                    $"pdf-filter-{name}",
-                    $"Stream filter '{name}' is not supported in this phase.");
-            }
-
-            data = ZlibDecompress(data);
-
             var parm = parms[i];
-            if (parm is not null && GetIntEntry(parm, "Predictor", 1) > 1)
+
+            data = name switch
+            {
+                "FlateDecode" => ZlibDecompress(data),
+                "LZWDecode" => DecodeLzw(data, parm is null || GetIntEntry(parm, "EarlyChange", 1) != 0),
+                "ASCII85Decode" => DecodeAscii85(data),
+                "ASCIIHexDecode" => DecodeAsciiHex(data),
+                "RunLengthDecode" => DecodeRunLength(data),
+                _ => throw new UnsupportedImageFeatureException(
+                    $"pdf-filter-{name}",
+                    $"Stream filter '{name}' is not supported in this phase."),
+            };
+
+            if (name is "FlateDecode" or "LZWDecode" && parm is not null && GetIntEntry(parm, "Predictor", 1) > 1)
             {
                 data = ApplyPredictor(data, parm);
             }

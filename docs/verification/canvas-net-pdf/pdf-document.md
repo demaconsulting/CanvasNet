@@ -344,14 +344,95 @@ pixel is opaque red and an exterior pixel remains transparent.
 
 **Tests**: `PdfDocument_Images_FlateDecodePngPredictor_DecodesExpectedPixels`,
 `PdfDocument_Images_FlateDecodeTiffPredictor_DecodesExpectedPixels`,
+`PdfDocument_Images_LzwDecodePngPredictor_DecodesExpectedPixels`,
 `PdfDocument_Images_UnsupportedFilter_ThrowsUnsupportedImageFeatureException`
 
 Builds a small (2x2 pixel), hand-computed `FlateDecode` stream with a PNG predictor (mixed
 `None`/`Up` filter-type rows) and, separately, a TIFF predictor (per-row horizontal-difference
 encoding) as an image XObject, rendering it via `Do` and asserting every decoded pixel matches
 the value independently hand-derived from the PNG specification's own defilter formulas (not
-merely re-deriving the implementation's own output). Renders an image XObject declaring an
-unsupported filter (`/LZWDecode`), asserting `Codecs.UnsupportedImageFeatureException`.
+merely re-deriving the implementation's own output). Repeats the PNG-predictor case with the raw
+bytes compressed via `LZWDecode` instead of `FlateDecode` (using a test-only classic-LZW encoder,
+never shipped in `src/`), proving predictor reversal is gated on filter name (`FlateDecode` or
+`LZWDecode`) rather than merely on `/DecodeParms` presence. Renders an image XObject declaring an
+unsupported filter (`/CCITTFaxDecode` - still genuinely unsupported after Phase 7, unlike
+`/LZWDecode`), asserting `Codecs.UnsupportedImageFeatureException`.
+
+#### CanvasNetPdf-PdfDocument-LzwDecodeFilter: LZWDecode Decodes the PDF-Variant Algorithm, Fails Closed on Malformed Input
+
+**Tests**: `PdfDocument_Filters_LzwDecode_SpecExampleTable7_DecodesExpectedBytes`,
+`PdfDocument_Filters_LzwDecode_EarlyChangeDefault_GrowsCodeWidthOneCodeEarly`,
+`PdfDocument_Filters_LzwDecode_EarlyChangeZero_GrowsCodeWidthOneCodeLater`,
+`PdfDocument_Filters_LzwDecode_ClearCodeMidStream_ReinitializesTable`,
+`PdfDocument_Filters_LzwDecode_MissingEodCode_ThrowsInvalidDataException`,
+`PdfDocument_Filters_LzwDecode_InvalidCode_ThrowsInvalidDataException`,
+`PdfDocument_Images_DoOperator_DeviceGrayLzwDecode_PlacesExpectedPixels`,
+`CanvasNetPdf_SystemIntegration_PdfRender_LzwDecodeContentStream_PaintsExpectedPixels`
+
+Every unit test renders a `width`x1 `DeviceGray` image XObject scaled to exactly fill a
+`width`x1 device surface (a 1:1 nearest-neighbor byte-to-pixel mapping), so each decoded byte is
+directly inspectable as one device pixel. Decodes the ISO 32000-1/2 section 7.4.4.2 `Table
+7`/`EXAMPLE 2` worked vector (`80 0B 60 50 22 0C 0C 85 01`), asserting the exact expected
+`"-----A---B"` bytes. Decodes a synthetic (not spec-provided), deterministically generated
+320-byte vector - long enough for the dictionary to cross dynamic code 511, the 9-to-10-bit
+code-width growth boundary - encoded once with the default (`EarlyChange` absent, meaning `1`)
+timing and once with `/EarlyChange 0`, asserting each round-trips correctly with its matching
+timing and that decoding the same bytes with the opposite timing throws `InvalidDataException`
+(proving the two timings are genuinely different, not merely two names for the same behavior).
+Proves a mid-stream Clear code actually reinitializes the dictionary: a hand-packed vector
+(`CLEAR, 'A', 'A', 'A', CLEAR, 'B', 260`) asserts `InvalidDataException`, since code `260` (which
+would still mean `"AA"` if the table were *not* reset) is not yet present in a properly reset
+table. Asserts `InvalidDataException` for a bit stream truncated before an EOD code, and for an
+invalid/out-of-range code. Places a plain (unpredicted) `LZWDecode` `DeviceGray` image via `Do`,
+asserting the composited pixels. The end-to-end system-integration test independently proves
+`LZWDecode` decoding a real page `/Contents` stream, asserting a specific interior pixel of the
+resulting filled rectangle is opaque red and an exterior pixel remains transparent.
+
+#### CanvasNetPdf-PdfDocument-AsciiDecodeFilters: ASCII85Decode/ASCIIHexDecode Decode Per Spec, Fail Closed
+
+**Tests**: `PdfDocument_Filters_Ascii85Decode_ZeroGroup_DecodesToFourZeroBytes`,
+`PdfDocument_Filters_Ascii85Decode_FullGroup_DecodesExpectedBytes`,
+`PdfDocument_Filters_Ascii85Decode_PartialFinalGroup_AppliesPaddingRule`,
+`PdfDocument_Filters_Ascii85Decode_WhitespaceIgnored_DecodesExpectedBytes`,
+`PdfDocument_Filters_Ascii85Decode_ZInMiddleOfGroup_ThrowsInvalidDataException`,
+`PdfDocument_Filters_Ascii85Decode_ValueExceedsRange_ThrowsInvalidDataException`,
+`PdfDocument_Filters_Ascii85Decode_MissingEodMarker_ThrowsInvalidDataException`,
+`PdfDocument_Filters_AsciiHexDecode_HexDigitPairs_DecodesExpectedBytes`,
+`PdfDocument_Filters_AsciiHexDecode_OddTrailingDigit_PadsWithZeroNibble`,
+`PdfDocument_Filters_AsciiHexDecode_WhitespaceIgnored_DecodesExpectedBytes`,
+`PdfDocument_Filters_AsciiHexDecode_InvalidCharacter_ThrowsInvalidDataException`,
+`PdfDocument_Filters_AsciiHexDecode_MissingEodMarker_ThrowsInvalidDataException`,
+`CanvasNetPdf_SystemIntegration_PdfRender_Ascii85DecodeContentStream_PaintsExpectedPixels`,
+`CanvasNetPdf_SystemIntegration_PdfRender_AsciiHexDecodeContentStream_PaintsExpectedPixels`
+
+Using the same `width`x1 `DeviceGray`-image inspection technique as the LZWDecode tests above,
+decodes the `z` all-zero-group shorthand; a full 5-character group and the self-derived (per the
+spec's own section 7.4.3 formula, since the ISO 32000-1 text has no isolated numbered ASCII85
+example) `00 01 02 03` → `!!*-'` vector; the final-partial-group padding rule via the self-derived
+2-byte (`4D 61` → `9jn`) and 3-byte (`4D 61 6E` → `9jqo`) vectors; and that interspersed PDF
+white-space characters are ignored. Asserts `InvalidDataException` for a `z` occurring mid-group,
+a 5-character group whose base-85 value exceeds `2^32 - 1` (`uuuuu`, all-`u` digits), and a
+missing `~>` EOD marker. Decodes ASCIIHexDecode hex-digit pairs, an odd trailing digit (implicitly
+padded with a zero nibble), and interspersed whitespace; asserts `InvalidDataException` for an
+invalid character and a missing `>` EOD marker. The two end-to-end system-integration tests
+independently prove each filter decoding a real page `/Contents` stream, asserting the expected
+filled-rectangle pixels.
+
+#### CanvasNetPdf-PdfDocument-RunLengthDecodeFilter: RunLengthDecode Implements the PackBits Scheme, Fails Closed on Truncation
+
+**Tests**: `PdfDocument_Filters_RunLengthDecode_LiteralRun_CopiesBytesVerbatim`,
+`PdfDocument_Filters_RunLengthDecode_RepeatRun_RepeatsSingleByte`,
+`PdfDocument_Filters_RunLengthDecode_EodMarker_StopsDecoding`,
+`PdfDocument_Filters_RunLengthDecode_TruncatedRun_ThrowsInvalidDataException`,
+`CanvasNetPdf_SystemIntegration_PdfRender_RunLengthDecodeContentStream_PaintsExpectedPixels`
+
+Using the same `width`x1 `DeviceGray`-image inspection technique, decodes a literal run (length
+byte 0-127 copies the following `length + 1` bytes verbatim) and a repeat run (length byte
+129-255 repeats the following single byte `257 - length` times), asserts the `128` EOD length
+byte stops decoding and ignores any trailing bytes after it, and asserts `InvalidDataException`
+for a literal run that declares more bytes than remain (truncated, no EOD reached). The
+end-to-end system-integration test independently proves `RunLengthDecode` decoding a real page
+`/Contents` stream, asserting the expected filled-rectangle pixels.
 
 #### CanvasNetPdf-PdfDocument-ImageXObjects: Do Composites Images, Fails Closed on Form XObjects/Unsupported Features
 

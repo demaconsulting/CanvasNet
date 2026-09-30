@@ -44,14 +44,15 @@ unsupported and fail closed with `Codecs.UnsupportedImageFeatureException`; only
 unrecognized base encoding also fails closed); only text-rendering modes `0` (fill) and `3`
 (invisible) are supported (stroke/clip modes `1`/`2`/`4`-`7` fail closed); and no additional
 stream filters were added for either phase.
-**Phase 3 limitations** (unchanged): no Form XObject rendering (`Do` on a `/Subtype /Form`
-XObject fails closed with `UnsupportedImageFeatureException`, rather than being silently
-skipped), no shading/patterns/transparency groups, no `CCITTFax`/`LZW`/`ASCII85`/`ASCIIHex`/`JPX`
-filter decoding (fails closed), and no `/SMask`/alpha compositing (every decoded image is treated
-as fully opaque) — these remain out of scope for this phase and are silently skipped (any other
-undefined keyword) or explicitly rejected (Form XObjects, unsupported color spaces/filters/
-fonts/encodings/render modes), per the operator/exception taxonomy documented below; a later
-phase is expected to add Form XObject and transparency support.
+**Phase 3 limitations** (narrowed by Phase 7, see below): no Form XObject rendering (`Do` on a
+`/Subtype /Form` XObject fails closed with `UnsupportedImageFeatureException`, rather than being
+silently skipped), no shading/patterns/transparency groups, no `CCITTFax`/`JPX` filter decoding
+(fails closed; `LZWDecode`/`ASCII85Decode`/`ASCIIHexDecode`/`RunLengthDecode` are supported as of
+Phase 7, see below), and no `/SMask`/alpha compositing (every decoded image is treated as fully
+opaque) — these remain out of scope for this phase and are silently skipped (any other undefined
+keyword) or explicitly rejected (Form XObjects, unsupported color spaces/filters/fonts/encodings/
+render modes), per the operator/exception taxonomy documented below; a later phase is expected to
+add Form XObject and transparency support.
 
 ### Purpose
 
@@ -316,20 +317,37 @@ re-parsing it each time — a property a purely static API could not express.
   `Codecs.UnsupportedImageFeatureException` rather than being interpreted as a component. Every
   malformed operand count/type throws `InvalidDataException`, matching every other operator in
   this class.
-- **Stream filter pipeline (`PdfDocument.Filters.cs`, added in Phase 3)** — generalizes the
-  Phase 1/2 single-filter `GetStreamDecodedBytes` into an ordered `/Filter`/`/DecodeParms`
-  pipeline (`ResolveFilterPipeline`), preserving the exact existing behavior (bare `FlateDecode`,
-  no predictor) for cross-reference streams, object streams, and page `/Contents` — none of which
-  regress. Each `FlateDecode` step decompresses via the existing `ZlibDecompress`, then, when
-  `/DecodeParms` declares `/Predictor > 1`, reverses either a TIFF predictor (`/Predictor 2` —
-  per-row horizontal-difference reversal, requiring `/BitsPerComponent 8`) or a PNG predictor
-  (`/Predictor 10`-`15` — an independent reimplementation, named identically for diffability, of
+- **Stream filter pipeline (`PdfDocument.Filters.cs`, added in Phase 3; extended in Phase 7)** —
+  generalizes the Phase 1/2 single-filter `GetStreamDecodedBytes` into an ordered
+  `/Filter`/`/DecodeParms` pipeline (`ResolveFilterPipeline`), preserving the exact existing
+  behavior (bare `FlateDecode`, no predictor) for cross-reference streams, object streams, and
+  page `/Contents` — none of which regress. Each `FlateDecode` step decompresses via the existing
+  `ZlibDecompress`; each `LZWDecode` step decompresses via `PdfDocument.Filters.Lzw.cs`'s
+  `DecodeLzw` — a from-scratch PDF-variant LZW decoder (fixed 258-entry initial table, MSB-first
+  variable 9-12 bit code packing, `/DecodeParms /EarlyChange`-controlled growth timing, mid-stream
+  Clear-code reinitialization), deliberately reimplemented rather than reused from either
+  `Codecs/Gif/GifCodec.Lzw.cs` (LSB-first bit packing, no `EarlyChange` concept, GIF-specific
+  Clear/EOI code values) or `Codecs/Tiff/TiffCodec.Compression.cs` (MSB-first and a fixed
+  early-change timing, but no `/EarlyChange` toggle) — both were read only as structural
+  references, per the same "independent reimplementation, cited by name for diffability" pattern
+  already used for the PNG predictor below. `ASCII85Decode`/`ASCIIHexDecode` decode via
+  `PdfDocument.Filters.Ascii.cs` (base-85/hex-digit ASCII armoring, per ISO 32000-1/2
+  §7.4.3/§7.4.2), and `RunLengthDecode` decodes via `PdfDocument.Filters.RunLength.cs` (the
+  PackBits-style scheme of §7.4.5). After a `FlateDecode` or `LZWDecode` step only (never after
+  `ASCII85Decode`/`ASCIIHexDecode`/`RunLengthDecode`, which the PDF specification never pairs with
+  a predictor), when `/DecodeParms` declares `/Predictor > 1`, the pipeline reverses either a TIFF
+  predictor (`/Predictor 2` — per-row horizontal-difference reversal, requiring
+  `/BitsPerComponent 8`) or a PNG predictor (`/Predictor 10`-`15` — an independent
+  reimplementation, named identically for diffability, of
   `Codecs/Png/PngCodec.Filtering.cs`'s `DefilterRow`/`Sub`/`Up`/`Average`/`Paeth`/Paeth-predictor
   algorithm, since those methods are `private` in a different assembly and cannot be reused
   directly). Any other filter name (including `DCTDecode`, which `PdfDocument.Images.cs` always
-  detects and bypasses before calling this pipeline) throws
-  `Codecs.UnsupportedImageFeatureException`; a malformed `/Filter`/`/DecodeParms` shape or an
-  unrecognized `/Predictor` value throws `InvalidDataException`.
+  detects and bypasses before calling this pipeline; and `CCITTFaxDecode`/`JPXDecode`/
+  `JBIG2Decode`/`Crypt`, which remain out of scope) throws
+  `Codecs.UnsupportedImageFeatureException`; a malformed `/Filter`/`/DecodeParms` shape, an
+  unrecognized `/Predictor` value, or malformed bytes for any of the five supported filters
+  (missing EOD marker, invalid/out-of-range code or character, truncated run, or an out-of-range
+  ASCII85 group value) throws `InvalidDataException`.
 - **Image XObjects (`PdfDocument.Images.cs`, added in Phase 3)** — `OpDrawXObject` (`Do`)
   resolves a named XObject from the current page's `/Resources/XObject` dictionary; a
   `/Subtype /Form` XObject throws `Codecs.UnsupportedImageFeatureException` (explicit fail-closed,
@@ -466,10 +484,11 @@ re-parsing it each time — a property a purely static API could not express.
   `/Resources/ColorSpace` name, or any other unrecognized value) — `Codecs.UnsupportedImageFeatureException`.
 - **`scn`/`SCN` with a trailing pattern name** — `Codecs.UnsupportedImageFeatureException`
   (`/Pattern` color is out of this phase's scope).
-- **An unsupported stream filter** (anything other than `FlateDecode`, or `DCTDecode` combined
-  with another filter) — `Codecs.UnsupportedImageFeatureException`; an unrecognized `/Predictor`
-  value, or a malformed `/Filter`/`/DecodeParms` shape, is `InvalidDataException` instead
-  (malformed, not merely unsupported).
+- **An unsupported stream filter** (anything other than `FlateDecode`, `LZWDecode`,
+  `ASCII85Decode`, `ASCIIHexDecode`, `RunLengthDecode`, or `DCTDecode` combined with another
+  filter) — `Codecs.UnsupportedImageFeatureException`; an unrecognized `/Predictor` value, a
+  malformed `/Filter`/`/DecodeParms` shape, or malformed bytes for any of the five supported
+  filters is `InvalidDataException` instead (malformed, not merely unsupported).
 - **An unsupported image `/BitsPerComponent`** (anything other than `8`), or a TIFF predictor
   combined with a non-`8` `/BitsPerComponent` — `Codecs.UnsupportedImageFeatureException`.
 - **`Do` on a `/Subtype /Form` XObject** — `Codecs.UnsupportedImageFeatureException`, thrown

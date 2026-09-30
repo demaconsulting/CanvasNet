@@ -379,21 +379,99 @@ sections:
           - id: CanvasNetPdf-PdfDocument-FilterPipeline
             title: >-
               The PdfDocument class shall generalize stream decoding into an ordered /Filter/
-              /DecodeParms pipeline, supporting FlateDecode optionally followed by a PNG
-              (/Predictor 10-15) or TIFF (/Predictor 2) predictor reversal, while preserving the
-              existing bare-FlateDecode behavior for cross-reference streams, object streams, and
-              page /Contents; any other filter name shall throw
+              /DecodeParms pipeline, supporting FlateDecode and LZWDecode (each optionally
+              followed by a PNG /Predictor 10-15 or TIFF /Predictor 2 predictor reversal) and
+              ASCII85Decode/ASCIIHexDecode/RunLengthDecode (which never accept a predictor),
+              while preserving the existing bare-FlateDecode behavior for cross-reference
+              streams, object streams, and page /Contents; any other filter name shall throw
               UnsupportedImageFeatureException, and a malformed /Filter//DecodeParms shape or an
               unrecognized /Predictor value shall throw InvalidDataException.
             justification: |
-              Image XObjects commonly use a PNG or TIFF predictor alongside FlateDecode to
-              improve compression; without predictor reversal, such an image would decode to
-              incorrect pixel data rather than failing closed or decoding correctly, and every
-              existing Phase 1/2 stream-decoding call site must continue to behave identically.
+              Image XObjects commonly use a PNG or TIFF predictor alongside FlateDecode or
+              LZWDecode to improve compression; without predictor reversal, such an image would
+              decode to incorrect pixel data rather than failing closed or decoding correctly,
+              and every existing Phase 1/2 stream-decoding call site must continue to behave
+              identically.
             tests:
               - PdfDocument_Images_FlateDecodePngPredictor_DecodesExpectedPixels
               - PdfDocument_Images_FlateDecodeTiffPredictor_DecodesExpectedPixels
+              - PdfDocument_Images_LzwDecodePngPredictor_DecodesExpectedPixels
               - PdfDocument_Images_UnsupportedFilter_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-LzwDecodeFilter
+            title: >-
+              The PdfDocument class shall implement the PDF-variant LZWDecode filter per ISO
+              32000-1/2 section 7.4.4: an initial 258-entry table (codes 0-255 literal, 256
+              Clear, 257 EOD), MSB-first variable 9-12 bit code packing, code-width growth timing
+              controlled by /DecodeParms /EarlyChange (default 1, one code early; 0, one code
+              later), and mid-stream Clear-code table reinitialization; a missing EOD marker, an
+              invalid or out-of-range code, or a truncated bit stream shall throw
+              InvalidDataException rather than silently producing truncated or incorrect output.
+            justification: |
+              LZWDecode is a commonly produced PDF stream filter (content streams and image
+              XObjects alike); an incorrect early-change interpretation, code-width growth
+              timing, or truncation-tolerant decoder would silently corrupt decoded data rather
+              than failing closed or decoding correctly, matching ISO 32000-1's own worked Table
+              7/Example 2 vector.
+            tests:
+              - PdfDocument_Filters_LzwDecode_SpecExampleTable7_DecodesExpectedBytes
+              - PdfDocument_Filters_LzwDecode_EarlyChangeDefault_GrowsCodeWidthOneCodeEarly
+              - PdfDocument_Filters_LzwDecode_EarlyChangeZero_GrowsCodeWidthOneCodeLater
+              - PdfDocument_Filters_LzwDecode_ClearCodeMidStream_ReinitializesTable
+              - PdfDocument_Filters_LzwDecode_MissingEodCode_ThrowsInvalidDataException
+              - PdfDocument_Filters_LzwDecode_InvalidCode_ThrowsInvalidDataException
+              - PdfDocument_Images_DoOperator_DeviceGrayLzwDecode_PlacesExpectedPixels
+              - CanvasNetPdf_SystemIntegration_PdfRender_LzwDecodeContentStream_PaintsExpectedPixels
+
+          - id: CanvasNetPdf-PdfDocument-AsciiDecodeFilters
+            title: >-
+              The PdfDocument class shall implement the ASCII85Decode filter (base-85 groups of
+              5 characters decoding to 4 bytes, the z shorthand for an all-zero 4-byte group at a
+              group boundary only, the final-partial-group n+1-character padding rule, and the
+              ~> EOD marker) and the ASCIIHexDecode filter (hex-digit pairs decoding to bytes,
+              ignoring whitespace, the > EOD marker, and an odd trailing digit implicitly padded
+              with a zero nibble) per ISO 32000-1/2 sections 7.4.2/7.4.3; an invalid character, a
+              z occurring mid-group, an out-of-range 5-character group value, a final partial
+              group of exactly one character, or a missing EOD marker shall throw
+              InvalidDataException.
+            justification: |
+              ASCII85Decode and ASCIIHexDecode are the two ASCII-armoring filters PDF producers
+              commonly layer over a binary compression filter (frequently LZWDecode); decoding
+              either incorrectly would corrupt every stream layered beneath it, and malformed
+              input must fail closed rather than silently decode to the wrong bytes.
+            tests:
+              - PdfDocument_Filters_Ascii85Decode_ZeroGroup_DecodesToFourZeroBytes
+              - PdfDocument_Filters_Ascii85Decode_FullGroup_DecodesExpectedBytes
+              - PdfDocument_Filters_Ascii85Decode_PartialFinalGroup_AppliesPaddingRule
+              - PdfDocument_Filters_Ascii85Decode_WhitespaceIgnored_DecodesExpectedBytes
+              - PdfDocument_Filters_Ascii85Decode_ZInMiddleOfGroup_ThrowsInvalidDataException
+              - PdfDocument_Filters_Ascii85Decode_ValueExceedsRange_ThrowsInvalidDataException
+              - PdfDocument_Filters_Ascii85Decode_MissingEodMarker_ThrowsInvalidDataException
+              - PdfDocument_Filters_AsciiHexDecode_HexDigitPairs_DecodesExpectedBytes
+              - PdfDocument_Filters_AsciiHexDecode_OddTrailingDigit_PadsWithZeroNibble
+              - PdfDocument_Filters_AsciiHexDecode_WhitespaceIgnored_DecodesExpectedBytes
+              - PdfDocument_Filters_AsciiHexDecode_InvalidCharacter_ThrowsInvalidDataException
+              - PdfDocument_Filters_AsciiHexDecode_MissingEodMarker_ThrowsInvalidDataException
+              - CanvasNetPdf_SystemIntegration_PdfRender_Ascii85DecodeContentStream_PaintsExpectedPixels
+              - CanvasNetPdf_SystemIntegration_PdfRender_AsciiHexDecodeContentStream_PaintsExpectedPixels
+
+          - id: CanvasNetPdf-PdfDocument-RunLengthDecodeFilter
+            title: >-
+              The PdfDocument class shall implement the RunLengthDecode filter per ISO 32000-1/2
+              section 7.4.5: a length byte 0-127 copies the following length+1 bytes literally,
+              a length byte 129-255 repeats the following single byte 257-length times, and a
+              length byte of 128 denotes EOD; a run requiring more source bytes than remain shall
+              throw InvalidDataException rather than silently producing truncated output.
+            justification: |
+              RunLengthDecode is a simple, commonly used filter for monochrome image data; a
+              truncated or malformed run must fail closed, not silently decode to the wrong byte
+              count.
+            tests:
+              - PdfDocument_Filters_RunLengthDecode_LiteralRun_CopiesBytesVerbatim
+              - PdfDocument_Filters_RunLengthDecode_RepeatRun_RepeatsSingleByte
+              - PdfDocument_Filters_RunLengthDecode_EodMarker_StopsDecoding
+              - PdfDocument_Filters_RunLengthDecode_TruncatedRun_ThrowsInvalidDataException
+              - CanvasNetPdf_SystemIntegration_PdfRender_RunLengthDecodeContentStream_PaintsExpectedPixels
 
           - id: CanvasNetPdf-PdfDocument-ImageXObjects
             title: >-

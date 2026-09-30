@@ -190,6 +190,135 @@ public class PdfDocumentTests
     }
 
     /// <summary>
+    ///     Renders a <paramref name="width"/>x1 <c>DeviceGray</c> image XObject (declaring
+    ///     <paramref name="filterAndParams"/>, e.g. <c>"/Filter /LZWDecode"</c>) placed to exactly
+    ///     fill a <paramref name="width"/>x1 page/device surface - giving an exact 1:1
+    ///     nearest-neighbor correspondence between decoded-byte index and device pixel column, so
+    ///     every filter unit test below can directly assert <c>surface[i, 0]</c> against the
+    ///     exact byte it expects <c>GetStreamDecodedBytes</c> to have produced at index
+    ///     <c>i</c>, exactly like the existing predictor tests already do for 2x2 images.
+    /// </summary>
+    private static Canvas.Surface RenderGrayscaleImage(int width, byte[] streamData, string filterAndParams)
+    {
+        var imageStream = BuildStreamObjectBody(
+            $"/Type /XObject /Subtype /Image /Width {width} /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 {filterAndParams}",
+            streamData);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            width,
+            1,
+            $"{width} 0 0 1 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        return RenderPdfBytes(bytes, width, 1);
+    }
+
+    /// <summary>
+    ///     Builds the deterministic, synthetic (not spec-provided) 320-byte data vector the
+    ///     <c>EarlyChange</c> growth-timing tests use - long enough for the dictionary to cross
+    ///     dynamic code 511 (the point where code width must grow from 9 to 10 bits), so the two
+    ///     <c>/EarlyChange</c> timings actually diverge (independently confirmed via a Python
+    ///     prototype during this phase's planning: shorter vectors never reach the boundary and
+    ///     cannot distinguish the two timings at all).
+    /// </summary>
+    private static byte[] BuildLzwGrowthTestData()
+    {
+        var data = new byte[320];
+        for (var i = 0; i < data.Length; i++)
+        {
+            data[i] = (byte)(((i * 37) + 11) % 199);
+        }
+
+        return data;
+    }
+
+    /// <summary>
+    ///     A minimal, test-only classic-LZW encoder that produces exactly the byte sequence the
+    ///     production <see cref="PdfDocument"/> PDF-variant <c>LZWDecode</c> decoder expects -
+    ///     used only to synthesize test vectors, never shipped in <c>src/</c>. Mirrors the
+    ///     encoder side of the same classic-LZW algorithm described in
+    ///     <c>PdfDocument.Filters.Lzw.cs</c>'s own remarks: the encoder grows its code width one
+    ///     table entry earlier than the decoder's own growth check, because the encoder omits a
+    ///     dictionary addition only for its final flushed code, while the decoder omits one only
+    ///     for its very first code after a Clear.
+    /// </summary>
+    private static byte[] EncodeLzwForTest(byte[] data, bool earlyChange)
+    {
+        var earlyChangeAmount = earlyChange ? 1 : 0;
+        var bits = new List<int>();
+
+        void Emit(int code, int width)
+        {
+            for (var i = width - 1; i >= 0; i--)
+            {
+                bits.Add((code >> i) & 1);
+            }
+        }
+
+        var table = new Dictionary<(int Prefix, byte Suffix), int>();
+        var codeWidth = 9;
+        var nextCode = 258;
+        var extCode = (1 << codeWidth) + 1 - earlyChangeAmount;
+
+        Emit(256, codeWidth); // Clear
+
+        if (data.Length == 0)
+        {
+            Emit(257, codeWidth); // EOD
+        }
+        else
+        {
+            var currentCode = (int)data[0];
+            for (var i = 1; i < data.Length; i++)
+            {
+                var next = data[i];
+                if (table.TryGetValue((currentCode, next), out var extended))
+                {
+                    currentCode = extended;
+                    continue;
+                }
+
+                Emit(currentCode, codeWidth);
+                if (nextCode < 4096)
+                {
+                    table[(currentCode, next)] = nextCode;
+                    nextCode++;
+                    if (nextCode >= extCode && codeWidth < 12)
+                    {
+                        codeWidth++;
+                        extCode = (1 << codeWidth) + 1 - earlyChangeAmount;
+                    }
+                }
+
+                currentCode = next;
+            }
+
+            Emit(currentCode, codeWidth);
+            Emit(257, codeWidth); // EOD
+        }
+
+        while (bits.Count % 8 != 0)
+        {
+            bits.Add(0);
+        }
+
+        var output = new byte[bits.Count / 8];
+        for (var i = 0; i < output.Length; i++)
+        {
+            var b = 0;
+            for (var j = 0; j < 8; j++)
+            {
+                b = (b << 1) | bits[(i * 8) + j];
+            }
+
+            output[i] = (byte)b;
+        }
+
+        return output;
+    }
+
+    /// <summary>
     ///     Builds a minimal, well-formed synthetic embedded TrueType font (see
     ///     <see cref="SyntheticFontBuilder"/>): a 1000-unit em square, glyph 0 the
     ///     (empty-outline) <c>.notdef</c>, and every glyph from index 1 onward a filled square
@@ -1390,9 +1519,10 @@ public class PdfDocumentTests
     [Fact]
     public void PdfDocument_Images_UnsupportedFilter_ThrowsUnsupportedImageFeatureException()
     {
-        // Arrange
+        // Arrange: /CCITTFaxDecode remains genuinely unsupported even after Phase 7 (unlike
+        // /LZWDecode, which this phase implements - see PdfFixtures/README.md/design docs).
         var imageStream = BuildStreamObjectBody(
-            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /LZWDecode",
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /CCITTFaxDecode",
             [1, 2, 3, 4]);
 
         var bytes = BuildSinglePagePdfWithResources(
@@ -1404,6 +1534,436 @@ public class PdfDocumentTests
 
         // Act & Assert
         Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that an image XObject declaring an <c>LZWDecode</c>+PNG-predictor filter decodes the expected raw pixels.</summary>
+    [Fact]
+    public void PdfDocument_Images_LzwDecodePngPredictor_DecodesExpectedPixels()
+    {
+        // Arrange: same 2x2 DeviceRGB/PNG-predictor-15 raw layout as
+        // PdfDocument_Images_FlateDecodePngPredictor_DecodesExpectedPixels, but compressed with
+        // LZWDecode instead of FlateDecode - proves predictor reversal applies after LZWDecode too.
+        byte[] row0 = [0, 255, 0, 0, 0, 255, 0];
+        byte[] row1raw = [0, 0, 255, 255, 255, 0];
+        var row1Filtered = new byte[row1raw.Length];
+        for (var i = 0; i < row1raw.Length; i++)
+        {
+            row1Filtered[i] = (byte)(row1raw[i] - row0[i + 1]);
+        }
+
+        var rawRows = new List<byte>();
+        rawRows.AddRange(row0);
+        rawRows.Add(2); // filter type: Up
+        rawRows.AddRange(row1Filtered);
+        var compressed = EncodeLzwForTest([.. rawRows], earlyChange: true);
+
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8 "
+            + "/Filter /LZWDecode /DecodeParms << /Predictor 15 /Colors 3 /BitsPerComponent 8 /Columns 2 >>",
+            compressed);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: row 0 (top of unit square) -> device top half; row 1 -> device bottom half.
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[25, 25]);
+        Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[75, 25]);
+        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[25, 75]);
+        Assert.Equal(new Canvas.Rgba32(255, 255, 0, 255), surface[75, 75]);
+    }
+
+    /// <summary>Proves that a plain (unpredicted) <c>LZWDecode</c> image XObject decodes and places the expected pixels via <c>Do</c>.</summary>
+    [Fact]
+    public void PdfDocument_Images_DoOperator_DeviceGrayLzwDecode_PlacesExpectedPixels()
+    {
+        // Arrange: a 2x1 DeviceGray image, raw samples (10, 200), no predictor.
+        byte[] rawSamples = [10, 200];
+        var compressed = EncodeLzwForTest(rawSamples, earlyChange: true);
+
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /LZWDecode",
+            compressed);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(10, 10, 10, 255), surface[25, 50]);
+        Assert.Equal(new Canvas.Rgba32(200, 200, 200, 255), surface[75, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that the mandatory ISO 32000-1/2 section 7.4.4.2 <c>Table 7</c>/<c>EXAMPLE 2</c>
+    ///     worked LZWDecode vector (input <c>45 45 45 45 45 65 45 45 45 66</c>, i.e. ASCII
+    ///     <c>"-----A---B"</c>, packed per <c>EXAMPLE 2</c> as <c>80 0B 60 50 22 0C 0C 85 01</c>)
+    ///     decodes to the exact expected bytes.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Filters_LzwDecode_SpecExampleTable7_DecodesExpectedBytes()
+    {
+        // Arrange: the spec's own EXAMPLE 2 byte sequence, as a 10x1 DeviceGray image so each
+        // decoded byte becomes one directly inspectable pixel.
+        byte[] specBytes = [0x80, 0x0B, 0x60, 0x50, 0x22, 0x0C, 0x0C, 0x85, 0x01];
+
+        // Act
+        using var surface = RenderGrayscaleImage(10, specBytes, "/Filter /LZWDecode");
+
+        // Assert: "-----A---B" == 2D 2D 2D 2D 2D 41 2D 2D 2D 42
+        byte[] expected = [0x2D, 0x2D, 0x2D, 0x2D, 0x2D, 0x41, 0x2D, 0x2D, 0x2D, 0x42];
+        for (var i = 0; i < expected.Length; i++)
+        {
+            Assert.Equal(new Canvas.Rgba32(expected[i], expected[i], expected[i], 255), surface[i, 0]);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that the default (<c>/EarlyChange</c> absent, meaning <c>1</c>) code-width
+    ///     growth timing decodes a synthetic vector deliberately long enough to cross the 9-to-10
+    ///     bit boundary, and that decoding the very same bytes with <c>/EarlyChange 0</c> instead
+    ///     (the wrong timing for how they were encoded) is rejected - proving the two timings are
+    ///     genuinely different, not merely two names for the same behavior.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Filters_LzwDecode_EarlyChangeDefault_GrowsCodeWidthOneCodeEarly()
+    {
+        // Arrange: a synthetic (not spec-provided), deterministically generated 320-byte vector
+        // long enough for the dictionary to cross code 511 (the 9-to-10-bit growth boundary).
+        var data = BuildLzwGrowthTestData();
+        var encoded = EncodeLzwForTest(data, earlyChange: true);
+
+        // Act
+        using var correctSurface = RenderGrayscaleImage(data.Length, encoded, "/Filter /LZWDecode");
+
+        // Assert: decoded with the matching (default) EarlyChange timing, every byte round-trips.
+        for (var i = 0; i < data.Length; i++)
+        {
+            Assert.Equal(new Canvas.Rgba32(data[i], data[i], data[i], 255), correctSurface[i, 0]);
+        }
+
+        // Assert: decoding the same bytes with the opposite (late) timing desyncs and fails closed.
+        Assert.Throws<InvalidDataException>(
+            () => RenderGrayscaleImage(data.Length, encoded, "/Filter /LZWDecode /DecodeParms << /EarlyChange 0 >>"));
+    }
+
+    /// <summary>
+    ///     Proves that <c>/EarlyChange 0</c> code-width growth timing decodes a synthetic vector
+    ///     encoded with that same (later) timing, and that decoding the very same bytes with the
+    ///     default (early) timing instead is rejected.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Filters_LzwDecode_EarlyChangeZero_GrowsCodeWidthOneCodeLater()
+    {
+        // Arrange: the same synthetic vector, this time encoded with EarlyChange 0 timing.
+        var data = BuildLzwGrowthTestData();
+        var encoded = EncodeLzwForTest(data, earlyChange: false);
+
+        // Act
+        using var correctSurface = RenderGrayscaleImage(
+            data.Length, encoded, "/Filter /LZWDecode /DecodeParms << /EarlyChange 0 >>");
+
+        // Assert: decoded with the matching (EarlyChange 0) timing, every byte round-trips.
+        for (var i = 0; i < data.Length; i++)
+        {
+            Assert.Equal(new Canvas.Rgba32(data[i], data[i], data[i], 255), correctSurface[i, 0]);
+        }
+
+        // Assert: decoding the same bytes with the default (early) timing instead desyncs.
+        Assert.Throws<InvalidDataException>(() => RenderGrayscaleImage(data.Length, encoded, "/Filter /LZWDecode"));
+    }
+
+    /// <summary>
+    ///     Proves that a Clear-table code occurring mid-stream actually reinitializes the
+    ///     dictionary: after <c>CLEAR, 'A', 'A', 'A'</c> (which would - if the table were
+    ///     <em>not</em> reset - leave dynamic code <c>260</c> meaning <c>"AA"</c>), a second
+    ///     <c>CLEAR</c> followed by <c>'B', 260</c> must reject code <c>260</c> as not-yet-present
+    ///     (since a properly reset table has not yet reassigned it) rather than silently
+    ///     resolving it against the stale pre-reset entry.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Filters_LzwDecode_ClearCodeMidStream_ReinitializesTable()
+    {
+        // Arrange: 9-bit codes [256 (Clear), 65, 65, 65, 256 (Clear), 66, 260], hand-packed MSB-first.
+        byte[] data = [0x80, 0x10, 0x48, 0x24, 0x18, 0x01, 0x0A, 0x08];
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderGrayscaleImage(1, data, "/Filter /LZWDecode"));
+    }
+
+    /// <summary>Proves that a bit stream truncated before an EOD code is reached throws <see cref="InvalidDataException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Filters_LzwDecode_MissingEodCode_ThrowsInvalidDataException()
+    {
+        // Arrange: 9-bit codes [256 (Clear), 65, 66] with no EOD code, hand-packed MSB-first.
+        byte[] data = [0x80, 0x10, 0x48, 0x40];
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderGrayscaleImage(1, data, "/Filter /LZWDecode"));
+    }
+
+    /// <summary>Proves that an out-of-range code (not yet present in the table, and not the very next code) throws <see cref="InvalidDataException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Filters_LzwDecode_InvalidCode_ThrowsInvalidDataException()
+    {
+        // Arrange: 9-bit codes [256 (Clear), 300] - 300 is not a valid code before any table
+        // entry exists (only 0-257 are), hand-packed MSB-first.
+        byte[] data = [0x80, 0x4B, 0x00];
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderGrayscaleImage(1, data, "/Filter /LZWDecode"));
+    }
+
+    /// <summary>Proves that an all-zero-group <c>ASCII85Decode</c> <c>z</c> shorthand decodes to four zero bytes.</summary>
+    [Fact]
+    public void PdfDocument_Filters_Ascii85Decode_ZeroGroup_DecodesToFourZeroBytes()
+    {
+        // Arrange: "z~>" - the z shorthand for 00 00 00 00, then EOD.
+        var data = "z~>"u8.ToArray();
+
+        // Act
+        using var surface = RenderGrayscaleImage(4, data, "/Filter /ASCII85Decode");
+
+        // Assert
+        for (var i = 0; i < 4; i++)
+        {
+            Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[i, 0]);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that a full 5-character ASCII85 group decodes to its expected 4 bytes -
+    ///     self-derived (per the spec's own section 7.4.3 formula) vector: bytes
+    ///     <c>00 01 02 03</c> encode to <c>!!*-'</c>.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Filters_Ascii85Decode_FullGroup_DecodesExpectedBytes()
+    {
+        // Arrange
+        var data = "!!*-'~>"u8.ToArray();
+
+        // Act
+        using var surface = RenderGrayscaleImage(4, data, "/Filter /ASCII85Decode");
+
+        // Assert
+        byte[] expected = [0x00, 0x01, 0x02, 0x03];
+        for (var i = 0; i < expected.Length; i++)
+        {
+            Assert.Equal(new Canvas.Rgba32(expected[i], expected[i], expected[i], 255), surface[i, 0]);
+        }
+    }
+
+    /// <summary>
+    ///     Proves the final-partial-group padding rule: self-derived vectors <c>4D 61</c> (2
+    ///     bytes) encodes to <c>9jn</c> (n+1 = 3 characters), and <c>4D 61 6E</c> (3 bytes)
+    ///     encodes to <c>9jqo</c> (n+1 = 4 characters).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Filters_Ascii85Decode_PartialFinalGroup_AppliesPaddingRule()
+    {
+        // Arrange & Act
+        using var twoByteSurface = RenderGrayscaleImage(2, "9jn~>"u8.ToArray(), "/Filter /ASCII85Decode");
+        using var threeByteSurface = RenderGrayscaleImage(3, "9jqo~>"u8.ToArray(), "/Filter /ASCII85Decode");
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(0x4D, 0x4D, 0x4D, 255), twoByteSurface[0, 0]);
+        Assert.Equal(new Canvas.Rgba32(0x61, 0x61, 0x61, 255), twoByteSurface[1, 0]);
+        Assert.Equal(new Canvas.Rgba32(0x4D, 0x4D, 0x4D, 255), threeByteSurface[0, 0]);
+        Assert.Equal(new Canvas.Rgba32(0x61, 0x61, 0x61, 255), threeByteSurface[1, 0]);
+        Assert.Equal(new Canvas.Rgba32(0x6E, 0x6E, 0x6E, 255), threeByteSurface[2, 0]);
+    }
+
+    /// <summary>Proves that PDF white-space characters interspersed within an <c>ASCII85Decode</c> stream are ignored.</summary>
+    [Fact]
+    public void PdfDocument_Filters_Ascii85Decode_WhitespaceIgnored_DecodesExpectedBytes()
+    {
+        // Arrange: the same "!!*-'" vector, with whitespace inserted between every character.
+        var data = "! ! \t* \n - \r ' \f ~ >"u8.ToArray();
+
+        // Act
+        using var surface = RenderGrayscaleImage(4, data, "/Filter /ASCII85Decode");
+
+        // Assert
+        byte[] expected = [0x00, 0x01, 0x02, 0x03];
+        for (var i = 0; i < expected.Length; i++)
+        {
+            Assert.Equal(new Canvas.Rgba32(expected[i], expected[i], expected[i], 255), surface[i, 0]);
+        }
+    }
+
+    /// <summary>Proves that a <c>z</c> character occurring in the middle of a group throws <see cref="InvalidDataException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Filters_Ascii85Decode_ZInMiddleOfGroup_ThrowsInvalidDataException()
+    {
+        // Arrange: 'z' after one already-accumulated group character is invalid.
+        var data = "!z~>"u8.ToArray();
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderGrayscaleImage(1, data, "/Filter /ASCII85Decode"));
+    }
+
+    /// <summary>Proves that a 5-character group whose base-85 value exceeds <c>2^32 - 1</c> throws <see cref="InvalidDataException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Filters_Ascii85Decode_ValueExceedsRange_ThrowsInvalidDataException()
+    {
+        // Arrange: five 'u' (84) digits: 84*85^4 + 84*85^3 + 84*85^2 + 84*85 + 84 = 85^5 - 1,
+        // which exceeds uint.MaxValue (2^32 - 1 = 4294967295 < 85^5 - 1 = 4437053124).
+        var data = "uuuuu~>"u8.ToArray();
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderGrayscaleImage(1, data, "/Filter /ASCII85Decode"));
+    }
+
+    /// <summary>Proves that a missing <c>~&gt;</c> EOD marker throws <see cref="InvalidDataException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Filters_Ascii85Decode_MissingEodMarker_ThrowsInvalidDataException()
+    {
+        // Arrange: a well-formed group, but no ~> terminator.
+        var data = "!!*-'"u8.ToArray();
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderGrayscaleImage(4, data, "/Filter /ASCII85Decode"));
+    }
+
+    /// <summary>Proves that hex-digit pairs decode to the expected bytes.</summary>
+    [Fact]
+    public void PdfDocument_Filters_AsciiHexDecode_HexDigitPairs_DecodesExpectedBytes()
+    {
+        // Arrange
+        var data = "0A1B2C>"u8.ToArray();
+
+        // Act
+        using var surface = RenderGrayscaleImage(3, data, "/Filter /ASCIIHexDecode");
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(0x0A, 0x0A, 0x0A, 255), surface[0, 0]);
+        Assert.Equal(new Canvas.Rgba32(0x1B, 0x1B, 0x1B, 255), surface[1, 0]);
+        Assert.Equal(new Canvas.Rgba32(0x2C, 0x2C, 0x2C, 255), surface[2, 0]);
+    }
+
+    /// <summary>Proves that an odd trailing hex digit is implicitly padded with a zero low nibble.</summary>
+    [Fact]
+    public void PdfDocument_Filters_AsciiHexDecode_OddTrailingDigit_PadsWithZeroNibble()
+    {
+        // Arrange: a single trailing "A" digit, implicitly followed by a zero nibble -> 0xA0.
+        var data = "0A1BA>"u8.ToArray();
+
+        // Act
+        using var surface = RenderGrayscaleImage(3, data, "/Filter /ASCIIHexDecode");
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(0x0A, 0x0A, 0x0A, 255), surface[0, 0]);
+        Assert.Equal(new Canvas.Rgba32(0x1B, 0x1B, 0x1B, 255), surface[1, 0]);
+        Assert.Equal(new Canvas.Rgba32(0xA0, 0xA0, 0xA0, 255), surface[2, 0]);
+    }
+
+    /// <summary>Proves that PDF white-space characters interspersed within an <c>ASCIIHexDecode</c> stream are ignored.</summary>
+    [Fact]
+    public void PdfDocument_Filters_AsciiHexDecode_WhitespaceIgnored_DecodesExpectedBytes()
+    {
+        // Arrange
+        var data = "0A \t1B\n2C\r\f>"u8.ToArray();
+
+        // Act
+        using var surface = RenderGrayscaleImage(3, data, "/Filter /ASCIIHexDecode");
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(0x0A, 0x0A, 0x0A, 255), surface[0, 0]);
+        Assert.Equal(new Canvas.Rgba32(0x1B, 0x1B, 0x1B, 255), surface[1, 0]);
+        Assert.Equal(new Canvas.Rgba32(0x2C, 0x2C, 0x2C, 255), surface[2, 0]);
+    }
+
+    /// <summary>Proves that a non-hexadecimal, non-whitespace character throws <see cref="InvalidDataException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Filters_AsciiHexDecode_InvalidCharacter_ThrowsInvalidDataException()
+    {
+        // Arrange: 'G' is not a valid hex digit.
+        var data = "0AG1>"u8.ToArray();
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderGrayscaleImage(2, data, "/Filter /ASCIIHexDecode"));
+    }
+
+    /// <summary>Proves that a missing <c>&gt;</c> EOD marker throws <see cref="InvalidDataException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Filters_AsciiHexDecode_MissingEodMarker_ThrowsInvalidDataException()
+    {
+        // Arrange: well-formed hex digits, but no > terminator.
+        var data = "0A1B2C"u8.ToArray();
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderGrayscaleImage(3, data, "/Filter /ASCIIHexDecode"));
+    }
+
+    /// <summary>Proves that a length byte 0-127 (a literal run) copies the following <c>length + 1</c> bytes verbatim.</summary>
+    [Fact]
+    public void PdfDocument_Filters_RunLengthDecode_LiteralRun_CopiesBytesVerbatim()
+    {
+        // Arrange: length byte 2 -> copy the next 3 literal bytes, then EOD (128).
+        byte[] data = [2, 0x10, 0x20, 0x30, 128];
+
+        // Act
+        using var surface = RenderGrayscaleImage(3, data, "/Filter /RunLengthDecode");
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(0x10, 0x10, 0x10, 255), surface[0, 0]);
+        Assert.Equal(new Canvas.Rgba32(0x20, 0x20, 0x20, 255), surface[1, 0]);
+        Assert.Equal(new Canvas.Rgba32(0x30, 0x30, 0x30, 255), surface[2, 0]);
+    }
+
+    /// <summary>Proves that a length byte 129-255 (a repeat run) repeats the following single byte <c>257 - length</c> times.</summary>
+    [Fact]
+    public void PdfDocument_Filters_RunLengthDecode_RepeatRun_RepeatsSingleByte()
+    {
+        // Arrange: length byte 254 -> repeat the next byte 257 - 254 = 3 times, then EOD (128).
+        byte[] data = [254, 0x55, 128];
+
+        // Act
+        using var surface = RenderGrayscaleImage(3, data, "/Filter /RunLengthDecode");
+
+        // Assert
+        for (var i = 0; i < 3; i++)
+        {
+            Assert.Equal(new Canvas.Rgba32(0x55, 0x55, 0x55, 255), surface[i, 0]);
+        }
+    }
+
+    /// <summary>Proves that the EOD length byte (<c>128</c>) stops decoding, ignoring any trailing bytes after it.</summary>
+    [Fact]
+    public void PdfDocument_Filters_RunLengthDecode_EodMarker_StopsDecoding()
+    {
+        // Arrange: a literal run, then EOD, then trailing bytes that must be ignored.
+        byte[] data = [1, 0x10, 0x20, 128, 0xFF, 0xFF];
+
+        // Act
+        using var surface = RenderGrayscaleImage(2, data, "/Filter /RunLengthDecode");
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(0x10, 0x10, 0x10, 255), surface[0, 0]);
+        Assert.Equal(new Canvas.Rgba32(0x20, 0x20, 0x20, 255), surface[1, 0]);
+    }
+
+    /// <summary>Proves that a literal run requiring more bytes than remain (truncated, no EOD) throws <see cref="InvalidDataException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Filters_RunLengthDecode_TruncatedRun_ThrowsInvalidDataException()
+    {
+        // Arrange: length byte 5 declares a 6-byte literal run, but only 2 bytes follow.
+        byte[] data = [5, 0x10, 0x20];
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderGrayscaleImage(1, data, "/Filter /RunLengthDecode"));
     }
 
     #endregion

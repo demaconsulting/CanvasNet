@@ -30,6 +30,10 @@ licensed under the same MIT license as the rest of this repository.
 | `color-rgb-rectangle-fill.pdf` | `rg` device color (Phase 3) - a rectangle filled opaque red |
 | `image-xobject-devicergb-flate.pdf` | `/Subtype /Image` XObject (2x2 `DeviceRGB`/`FlateDecode`) placed via `cm`/`Do` |
 | `text-embedded-truetype-font.pdf` | `/Subtype /TrueType` font, embedded `/FontFile2` (Phase 4) - `Tf`/`Td`/`Tj` |
+| `content-stream-lzw.pdf` | `/Contents` compressed with `LZWDecode` (Phase 7) - a filled rectangle |
+| `content-stream-ascii85.pdf` | `/Contents` armored with `ASCII85Decode` (Phase 7) - the same filled rectangle |
+| `content-stream-asciihex.pdf` | `/Contents` armored with `ASCIIHexDecode` (Phase 7) - the same filled rectangle |
+| `content-stream-runlength.pdf` | `/Contents` compressed with `RunLengthDecode` (Phase 7) - the same filled rectangle |
 
 `text-embedded-truetype-font.pdf` is the one exception to the "no third-party source corpus"
 statement above: its `/FontFile2` stream is a real, unmodified, `FlateDecode`-compressed copy of

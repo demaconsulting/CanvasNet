@@ -225,6 +225,88 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Proves <see cref="PdfDocument.Render"/> decodes an <c>LZWDecode</c>-compressed page
+    ///     content stream end-to-end (Phase 7): a hand-authored fixture whose <c>/Contents</c>
+    ///     stream is the PDF-variant-LZW-compressed bytes of <c>"1 0 0 rg 10 10 80 80 re f"</c>
+    ///     (an 80x80 rectangle filled opaque red), proving the decoded operator text is parsed
+    ///     and rendered exactly like an uncompressed content stream would be.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_PdfRender_LzwDecodeContentStream_PaintsExpectedPixels()
+    {
+        // Arrange
+        using var document = PdfDocument.Open(Fixture("content-stream-lzw.pdf"));
+
+        // Act
+        using var surface = document.Render(0, 100, 100);
+
+        // Assert: interior of the filled rectangle is opaque red; a point outside it is not.
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <see cref="PdfDocument.Render"/> decodes an <c>ASCII85Decode</c>-armored page
+    ///     content stream end-to-end (Phase 7): a hand-authored fixture whose <c>/Contents</c>
+    ///     stream is the base-85 encoding (terminated by <c>~&gt;</c>) of the same
+    ///     <c>"1 0 0 rg 10 10 80 80 re f"</c> content-stream text.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_PdfRender_Ascii85DecodeContentStream_PaintsExpectedPixels()
+    {
+        // Arrange
+        using var document = PdfDocument.Open(Fixture("content-stream-ascii85.pdf"));
+
+        // Act
+        using var surface = document.Render(0, 100, 100);
+
+        // Assert: interior of the filled rectangle is opaque red; a point outside it is not.
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <see cref="PdfDocument.Render"/> decodes an <c>ASCIIHexDecode</c>-armored page
+    ///     content stream end-to-end (Phase 7): a hand-authored fixture whose <c>/Contents</c>
+    ///     stream is the hex-digit-pair encoding (terminated by <c>&gt;</c>) of the same
+    ///     <c>"1 0 0 rg 10 10 80 80 re f"</c> content-stream text.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_PdfRender_AsciiHexDecodeContentStream_PaintsExpectedPixels()
+    {
+        // Arrange
+        using var document = PdfDocument.Open(Fixture("content-stream-asciihex.pdf"));
+
+        // Act
+        using var surface = document.Render(0, 100, 100);
+
+        // Assert: interior of the filled rectangle is opaque red; a point outside it is not.
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <see cref="PdfDocument.Render"/> decodes a <c>RunLengthDecode</c>-compressed
+    ///     page content stream end-to-end (Phase 7): a hand-authored fixture whose
+    ///     <c>/Contents</c> stream is a single PackBits-style literal run (length byte, the
+    ///     literal bytes, then the <c>128</c> EOD marker) wrapping the same
+    ///     <c>"1 0 0 rg 10 10 80 80 re f"</c> content-stream text.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_PdfRender_RunLengthDecodeContentStream_PaintsExpectedPixels()
+    {
+        // Arrange
+        using var document = PdfDocument.Open(Fixture("content-stream-runlength.pdf"));
+
+        // Act
+        using var surface = document.Render(0, 100, 100);
+
+        // Assert: interior of the filled rectangle is opaque red; a point outside it is not.
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
     ///     Proves <see cref="PdfDocument.Render"/> resolves an embedded simple TrueType font end
     ///     to end (Phase 4): a hand-authored fixture with a real, embedded (via
     ///     <c>/FontDescriptor/FontFile2</c>) copy of the shared <c>OpenSans-Regular.ttf</c>
