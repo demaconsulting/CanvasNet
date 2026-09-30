@@ -2,7 +2,7 @@
 
 <!-- cspell:ignore xref startxref endobj endstream ObjStm MediaBox Zapf Nonsymbolic -->
 <!-- cspell:ignore bfchar bfrange beginbfchar endbfchar beginbfrange endbfrange codepoints -->
-<!-- cspell:ignore usecmap cidrange cidchar -->
+<!-- cspell:ignore usecmap cidrange cidchar cidfonttype -->
 
 This document describes the unit-level verification strategy for the `PdfDocument` class.
 
@@ -493,7 +493,13 @@ and remaining fail-closed cases.
 `PdfDocument_Fonts_Type0_CidToGidMapStream_RemapsCidToGid`,
 `PdfDocument_Fonts_Type0_CidToGidMapStream_OutOfRangeCid_MapsToNotdef`,
 `PdfDocument_Fonts_Type0_NonIdentityHEncoding_ThrowsUnsupportedImageFeatureException`,
-`PdfDocument_Fonts_Type0_CidFontType0Subtype_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Fonts_Type0_CidFontType0_NoFontFile3_ThrowsInvalidDataException`,
+`PdfDocument_Fonts_Type0_CidFontType0_OpenTypeCff_ResolvesEmbeddedFont`,
+`PdfDocument_Fonts_Type0_CidFontType0_NonStandardCidToGidMap_IsIgnored`,
+`PdfDocument_Fonts_Type0_CidFontType0_Widths_WArrayIndividualForm_DeterminesAdvance`,
+`PdfDocument_Fonts_Type0_CidFontType0_NonOpenTypeFontFile3Subtype_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Fonts_Type0_CidFontType0_MissingFontFile3Subtype_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Fonts_Type0_CidFontType0_CidKeyedCff_ThrowsInvalidDataException`,
 `PdfDocument_Fonts_Type0_MissingDescendantFonts_ThrowsInvalidDataException`,
 `PdfDocument_Fonts_Type0_DescendantFontsNotSingleElement_ThrowsInvalidDataException`,
 `PdfDocument_Fonts_Type0_NoEmbeddedFontFile_ThrowsInvalidDataException`,
@@ -503,7 +509,8 @@ and remaining fail-closed cases.
 `PdfDocument_Fonts_Type0_Widths_MalformedWArray_ThrowsInvalidDataException`,
 `PdfDocument_ShowText_Type0_OddByteLengthString_ThrowsInvalidDataException`,
 `PdfDocument_ShowText_Type0_TwoByteCodes_ShowsEachGlyphAtCorrectPosition`,
-`CanvasNetPdf_SystemIntegration_RenderType0CompositeFont_PaintsExpectedGlyphInk`
+`CanvasNetPdf_SystemIntegration_RenderType0CompositeFont_PaintsExpectedGlyphInk`,
+`CanvasNetPdf_SystemIntegration_RenderCidFontType0CompositeFont_PaintsExpectedGlyphInk`
 
 Builds a `/Subtype /Type0`/`/Encoding /Identity-H` font dictionary naming a single
 `/Subtype /CIDFontType2` descendant font with an embedded `/FontFile2`, asserting resolution
@@ -513,10 +520,25 @@ name `/Identity`, asserting a shown CID maps to the identical glyph index; separ
 identical) glyph index is used, and that a CID beyond the stream's own table length maps to glyph
 `0`/`.notdef`. A `[Theory]` declares `/Encoding` as an arbitrary other name and, separately,
 `/Identity-V`, asserting `Codecs.UnsupportedImageFeatureException` in both cases. Declares a
-descendant `/Subtype /CIDFontType0`, asserting `Codecs.UnsupportedImageFeatureException`.
-Declares a Type0 font dictionary with no `/DescendantFonts` and, separately, a `/DescendantFonts`
-array with two elements, asserting `InvalidDataException` in both cases. Declares a descendant
-font with no embedded `/FontFile2`, asserting `InvalidDataException` (not
+`/Subtype /CIDFontType0` descendant whose `/FontDescriptor` has only `/FontFile2` (no
+`/FontFile3`), asserting `InvalidDataException` (not `UnsupportedImageFeatureException` - the
+subtype itself is now supported; only the missing embedded font program fails). Builds a
+synthetic, non-CID-keyed, `/OpenType`-wrapped CFF `/FontFile3` (via `SyntheticFontBuilder.Cff`)
+on a `/CIDFontType0` descendant, asserting resolution succeeds and real glyph ink paints via
+identity CID-to-glyph-index (Phase 12); separately declares a non-standard `/CIDToGIDMap
+/Identity` entry on such a descendant, asserting it is ignored (the identity map is used
+regardless); separately proves the same `/DW`/`/W` width-resolution logic applies identically to
+a `/CIDFontType0` descendant. A `[Theory]` declares the `/FontFile3` stream's own `/Subtype` as
+`/Type1C` and, separately, `/CIDFontType0C` (a bare CFF stream, no SFNT wrapper), asserting
+`Codecs.UnsupportedImageFeatureException` in both cases; a further test omits the `/Subtype` key
+from the `/FontFile3` stream entirely, asserting the same exception (a missing `/Subtype` is not
+guessed as `/OpenType`). Builds an `/OpenType`-wrapped `/FontFile3` whose embedded CFF program's
+Top DICT declares `ROS` (CID-keyed CFF, via `SyntheticFontBuilder.Cff(..., includeRos: true)`),
+asserting `InvalidDataException` (surfaced uncaught from `Fonts.CffTable.Parse`'s own existing
+CID-keyed rejection, with no new translation code in the `Pdf` subsystem). Declares a Type0 font
+dictionary with no `/DescendantFonts` and, separately, a `/DescendantFonts` array with two
+elements, asserting `InvalidDataException` in both cases. Declares a descendant font with no
+embedded `/FontFile2` (still `/CIDFontType2`), asserting `InvalidDataException` (not
 `UnsupportedImageFeatureException` - a composite font has no fallback substitution path).
 Declares a descendant font with no `/W` array, asserting the shown code's advance matches the
 default `/DW` of `1000`; separately declares a `/W` array using the `c [w1 w2 ... wn]`
@@ -524,12 +546,17 @@ individual-width sub-form and, separately, the `cFirst cLast w` range sub-form, 
 shown code's advance matches the declared width in each case; declares a malformed `/W` array
 shape, asserting `InvalidDataException`. Shows an odd-byte-length string against a composite
 font via `Tj`, asserting `InvalidDataException`. Shows two 2-byte codes via `Tj`, asserting each
-glyph is painted at the position its own declared/default width determines. The end-to-end
-system-integration test opens a hand-authored fixture (`text-composite-truetype-identity-h.pdf`)
-declaring a real embedded Open Sans descendant font with a deliberately non-identity
-`/CIDToGIDMap`, independently reloads the same font, and asserts specific stroke/counter/corner
-pixels - proving the full 2-byte Identity-H code → CID → GID (via the non-identity
-`/CIDToGIDMap`) → TrueType glyph outline → painted-pixel pipeline end to end.
+glyph is painted at the position its own declared/default width determines. The first
+end-to-end system-integration test opens a hand-authored fixture
+(`text-composite-truetype-identity-h.pdf`) declaring a real embedded Open Sans descendant font
+with a deliberately non-identity `/CIDToGIDMap`, independently reloads the same font, and asserts
+specific stroke/counter/corner pixels - proving the full 2-byte Identity-H code → CID → GID (via
+the non-identity `/CIDToGIDMap`) → TrueType glyph outline → painted-pixel pipeline end to end.
+The second (Phase 12) opens an entirely synthetic fixture
+(`text-composite-cff-cidfonttype0-identity-h.pdf`) whose `/CIDFontType0` descendant embeds a
+synthetic, non-CID-keyed, `/OpenType`-wrapped CFF program with no `/CIDToGIDMap` declared, and
+asserts real glyph ink paints at the analytically-known position of its hand-designed square
+glyph - proving the same end-to-end pipeline for the `/CIDFontType0` shape.
 
 #### CanvasNetPdf-PdfDocument-ToUnicodeCMap: /ToUnicode CMap Resolves to a Code-to-Codepoint Map
 

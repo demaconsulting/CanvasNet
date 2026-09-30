@@ -1,4 +1,4 @@
-// cspell:ignore xobject devicergb Zapf Nonsymbolic
+// cspell:ignore xobject devicergb Zapf Nonsymbolic OTTO cidfonttype
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Fonts;
 
@@ -506,6 +506,42 @@ public class PdfSystemIntegrationTests
         Assert.Equal(0, surface[199, 0].A);
         Assert.Equal(0, surface[0, 99].A);
         Assert.Equal(0, surface[199, 99].A);
+    }
+
+    /// <summary>
+    ///     Proves <see cref="PdfDocument.Render"/> resolves a <c>/Type0</c>/<c>/Identity-H</c>
+    ///     <c>CIDFontType0</c> composite font end to end (Phase 12): a hand-authored, entirely
+    ///     synthetic fixture (see <c>PdfFixtures\README.md</c>) whose descendant font's
+    ///     <c>/FontDescriptor/FontFile3</c> is a synthetic, non-CID-keyed, <c>/OpenType</c>-
+    ///     wrapped CFF program (built via <c>SyntheticFontBuilder.Cff</c> - no third-party font
+    ///     asset), with no <c>/CIDToGIDMap</c> declared (identity CID-to-glyph-index is used
+    ///     unconditionally for this subtype). The content stream draws the 2-byte Identity-H code
+    ///     <c>0001</c> (CID 1, resolving to GID 1 - a filled square spanning font-design-space
+    ///     <c>(100, 100)</c>-<c>(500, 500)</c> of a 1000-unit em) at font size 20, text-space
+    ///     origin <c>(5, 5)</c>, on a 100x100 MediaBox - matching
+    ///     <see cref="PdfDocumentTests"/>'s own <c>PdfDocument_Fonts_Type0_CidFontType0_*</c> unit
+    ///     tests' pixel-position convention exactly, since both share the same synthetic glyph
+    ///     design.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_RenderCidFontType0CompositeFont_PaintsExpectedGlyphInk()
+    {
+        // Arrange
+        using var document = PdfDocument.Open(Fixture("text-composite-cff-cidfonttype0-identity-h.pdf"));
+
+        // Act
+        using var surface = document.Render(0, 100, 100);
+
+        // Assert: text x [7, 15) holds the painted square glyph (design x [100, 500) of 1000,
+        // scaled by fontSize 20, offset by originX 5, flipped against the MediaBox height for
+        // originY 5) - real glyph ink, not merely "did not throw".
+        Assert.NotEqual(0, surface[11, 89].A);
+
+        // Assert: the canvas's far corners, well outside the glyph, remain fully transparent.
+        Assert.Equal(0, surface[0, 0].A);
+        Assert.Equal(0, surface[99, 0].A);
+        Assert.Equal(0, surface[0, 99].A);
+        Assert.Equal(0, surface[99, 99].A);
     }
 
     /// <summary>

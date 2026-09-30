@@ -1,4 +1,4 @@
-// cspell:ignore cidfonttype
+// cspell:ignore cidfonttype fontfile
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Fonts;
 
@@ -17,6 +17,11 @@ public sealed partial class PdfDocument
     ///     Instances are built once by <see cref="BuildResolvedCompositeFont"/> and cached by
     ///     <see cref="ResolveFont"/> in <see cref="_fontCache"/>, exactly like
     ///     <see cref="ResolvedSimpleFont"/> - see that type's own remarks for the cache's scope.
+    ///     The descendant font may be a <c>CIDFontType2</c> (TrueType-outline, embedded
+    ///     <c>/FontFile2</c>) or a <c>CIDFontType0</c> (non-CID-keyed-CFF-outline, embedded
+    ///     <c>/OpenType</c>-wrapped <c>/FontFile3</c>) font - see
+    ///     <see cref="BuildResolvedCompositeFont"/> for the exact dispatch and each subtype's
+    ///     scope/non-goals.
     /// </remarks>
     private sealed class ResolvedCompositeFont : IResolvedFont
     {
@@ -77,27 +82,39 @@ public sealed partial class PdfDocument
 
     /// <summary>
     ///     Builds a <see cref="ResolvedCompositeFont"/> from a <c>/Subtype /Type0</c> font
-    ///     dictionary: requires <c>/Encoding /Identity-H</c>, a single-element
-    ///     <c>/DescendantFonts</c> array whose sole element is a <c>/Subtype /CIDFontType2</c>
-    ///     dictionary with an embedded <c>/FontDescriptor/FontFile2</c>, and resolves that
-    ///     descendant's <c>/CIDToGIDMap</c> and <c>/DW</c>/<c>/W</c> entries.
+    ///     dictionary: requires <c>/Encoding /Identity-H</c> and a single-element
+    ///     <c>/DescendantFonts</c> array whose sole element is either a
+    ///     <c>/Subtype /CIDFontType2</c> dictionary with an embedded
+    ///     <c>/FontDescriptor/FontFile2</c> (resolving that descendant's <c>/CIDToGIDMap</c>), or
+    ///     a <c>/Subtype /CIDFontType0</c> dictionary with an embedded, non-CID-keyed-CFF,
+    ///     <c>/OpenType</c>-wrapped <c>/FontDescriptor/FontFile3</c> (see
+    ///     <see cref="LoadCidFontType0Font"/> - CID is used directly as glyph index, identity;
+    ///     any non-standard <c>/CIDToGIDMap</c> on such a descendant is ignored), and resolves the
+    ///     descendant's <c>/DW</c>/<c>/W</c> entries either way.
     /// </summary>
     /// <remarks>
     ///     No fallback substitution is attempted for a composite font with no embedded
-    ///     <c>/FontFile2</c> (unlike <see cref="BuildResolvedSimpleFont"/>'s
+    ///     descendant-font program (unlike <see cref="BuildResolvedSimpleFont"/>'s
     ///     <see cref="ResolveFallbackFont"/> path) - this is a deliberate, documented Non-Goal of
     ///     this phase: composite fonts are always required to embed their descendant font.
     /// </remarks>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <c>/DescendantFonts</c> is missing, does not resolve to a single-element
     ///     array whose element resolves to a dictionary, when the descendant's
-    ///     <c>/FontDescriptor</c> is missing, or when <c>/FontDescriptor/FontFile2</c> is missing
-    ///     or does not resolve to a stream.
+    ///     <c>/FontDescriptor</c> is missing, when a <c>CIDFontType2</c> descendant's
+    ///     <c>/FontDescriptor/FontFile2</c> is missing or does not resolve to a stream, when a
+    ///     <c>CIDFontType0</c> descendant's <c>/FontDescriptor/FontFile3</c> is missing or does
+    ///     not resolve to a stream, or when the embedded font program cannot be parsed (for
+    ///     example a CID-keyed CFF program, which <see cref="Fonts.TrueTypeFont.Load(Stream)"/>
+    ///     rejects).
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when <c>/Encoding</c> is not the name <c>Identity-H</c> (for example
-    ///     <c>Identity-V</c> or a predefined CJK encoding), or when the descendant font's
-    ///     <c>/Subtype</c> is not <c>CIDFontType2</c> (for example <c>CIDFontType0</c>).
+    ///     <c>Identity-V</c> or a predefined CJK encoding), when the descendant font's
+    ///     <c>/Subtype</c> is neither <c>CIDFontType2</c> nor <c>CIDFontType0</c>, or when a
+    ///     <c>CIDFontType0</c> descendant's <c>/FontFile3</c> stream's own <c>/Subtype</c> is not
+    ///     the name <c>OpenType</c> (for example a bare <c>/CIDFontType0C</c> CFF stream, which
+    ///     has no SFNT wrapper and is not supported).
     /// </exception>
     private IResolvedFont BuildResolvedCompositeFont(PdfObject fontDict)
     {
@@ -128,30 +145,24 @@ public sealed partial class PdfDocument
         }
 
         var descendantSubtype = GetNameValue(descendantFont, "Subtype");
-        if (descendantSubtype != "CIDFontType2")
+        if (descendantSubtype != "CIDFontType2" && descendantSubtype != "CIDFontType0")
         {
             throw new UnsupportedImageFeatureException(
                 $"pdf-font-cidfonttype-{descendantSubtype ?? "missing"}",
                 $"Descendant font /Subtype '{descendantSubtype ?? "(missing)"}' is not " +
-                "supported; only /CIDFontType2 is supported (/CIDFontType0 is not supported).");
+                "supported; only /CIDFontType2 and /CIDFontType0 are supported.");
         }
 
         var descriptorEntry = descendantFont.Get("FontDescriptor")
             ?? throw new InvalidDataException("Descendant font dictionary is missing required /FontDescriptor.");
         var descriptor = Resolve(descriptorEntry);
 
-        var fontFileEntry = descriptor.Get("FontFile2")
-            ?? throw new InvalidDataException("Descendant font /FontDescriptor is missing required /FontFile2.");
-        var fontFileStream = Resolve(fontFileEntry);
-        if (fontFileStream.Kind != PdfKind.Stream)
+        var (font, cidToGid) = descendantSubtype switch
         {
-            throw new InvalidDataException("/FontDescriptor/FontFile2 does not resolve to a stream.");
-        }
+            "CIDFontType2" => (LoadCidFontType2Font(descriptor), ResolveCidToGidMap(descendantFont)),
+            _ => (LoadCidFontType0Font(descriptor), (Func<int, int>)(cid => cid)),
+        };
 
-        var fontBytes = GetStreamDecodedBytes(fontFileStream);
-        var font = TrueTypeFont.Load(new MemoryStream(fontBytes));
-
-        var cidToGid = ResolveCidToGidMap(descendantFont);
         var (cidWidths, defaultWidth) = ResolveCompositeWidths(descendantFont);
         var toUnicode = ResolveToUnicodeMap(fontDict);
 
@@ -166,11 +177,93 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
-    ///     Resolves a descendant CIDFontType2 dictionary's <c>/CIDToGIDMap</c> entry into a
+    ///     Loads a <c>CIDFontType2</c> descendant's embedded <c>/FontDescriptor/FontFile2</c>
+    ///     TrueType-outline font program, unchanged from the pre-Phase-12 behavior.
+    /// </summary>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <c>/FontDescriptor/FontFile2</c> is missing or does not resolve to a
+    ///     stream.
+    /// </exception>
+    private TrueTypeFont LoadCidFontType2Font(PdfObject descriptor)
+    {
+        var fontFileEntry = descriptor.Get("FontFile2")
+            ?? throw new InvalidDataException("Descendant font /FontDescriptor is missing required /FontFile2.");
+        var fontFileStream = Resolve(fontFileEntry);
+        if (fontFileStream.Kind != PdfKind.Stream)
+        {
+            throw new InvalidDataException("/FontDescriptor/FontFile2 does not resolve to a stream.");
+        }
+
+        var fontBytes = GetStreamDecodedBytes(fontFileStream);
+        return TrueTypeFont.Load(new MemoryStream(fontBytes));
+    }
+
+    /// <summary>
+    ///     Loads a <c>CIDFontType0</c> descendant's embedded <c>/FontDescriptor/FontFile3</c>
+    ///     font program: requires a stream whose own <c>/Subtype</c> is the name
+    ///     <c>OpenType</c> (an SFNT container wrapping a <c>CFF </c> table), then decodes and
+    ///     loads it exactly like any other embedded SFNT program via
+    ///     <see cref="Fonts.TrueTypeFont.Load(Stream)"/>. Per PDF 32000-1 &#xA7;9.7.4.2, a CID is
+    ///     interpreted directly as a glyph index (identity) for a <c>CIDFontType0</c> whose CFF
+    ///     program is not CID-keyed - this method does not, and cannot, distinguish that case
+    ///     itself; it is <see cref="Fonts.TrueTypeFont.Load(Stream)"/>'s own CFF parsing (via
+    ///     <c>Fonts.CffTable.Parse</c>) that rejects a CID-keyed (<c>ROS</c>-bearing) CFF program
+    ///     by throwing <see cref="InvalidDataException"/>, which is allowed to propagate uncaught
+    ///     here - consistent with this codebase's "composite fonts fail closed on any
+    ///     embedded-font problem, no fallback" convention.
+    /// </summary>
+    /// <remarks>
+    ///     A bare/naked <c>/CIDFontType0C</c> <c>/FontFile3</c> stream (a raw CFF byte stream with
+    ///     no SFNT/OTTO wrapper) is a deliberate, documented Non-Goal: <see cref="Fonts.TrueTypeFont"/>
+    ///     requires an SFNT container, so such a stream is rejected here (by its
+    ///     <c>/Subtype</c>) before ever reaching <see cref="Fonts.TrueTypeFont.Load(Stream)"/>.
+    ///     A non-standard <c>/CIDToGIDMap</c> key on the <c>CIDFontType0</c> descendant dictionary
+    ///     (not a valid key for this subtype per the PDF specification) is deliberately never
+    ///     consulted by this method or its caller.
+    /// </remarks>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <c>/FontDescriptor/FontFile3</c> is missing or does not resolve to a
+    ///     stream.
+    /// </exception>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown when the <c>/FontFile3</c> stream's own <c>/Subtype</c> is not the name
+    ///     <c>OpenType</c> (for example <c>Type1C</c> or <c>CIDFontType0C</c>, or when the key is
+    ///     absent entirely).
+    /// </exception>
+    private TrueTypeFont LoadCidFontType0Font(PdfObject descriptor)
+    {
+        var fontFileEntry = descriptor.Get("FontFile3")
+            ?? throw new InvalidDataException("Descendant font /FontDescriptor is missing required /FontFile3.");
+        var fontFileStream = Resolve(fontFileEntry);
+        if (fontFileStream.Kind != PdfKind.Stream)
+        {
+            throw new InvalidDataException("/FontDescriptor/FontFile3 does not resolve to a stream.");
+        }
+
+        var fontFileSubtype = GetNameValue(fontFileStream, "Subtype");
+        if (fontFileSubtype != "OpenType")
+        {
+            throw new UnsupportedImageFeatureException(
+                $"pdf-font-fontfile3-subtype-{fontFileSubtype ?? "missing"}",
+                $"/FontFile3 /Subtype '{fontFileSubtype ?? "(missing)"}' is not supported; only " +
+                "/OpenType is supported (a bare /CIDFontType0C CFF stream with no SFNT wrapper " +
+                "is not supported).");
+        }
+
+        var fontBytes = GetStreamDecodedBytes(fontFileStream);
+        return TrueTypeFont.Load(new MemoryStream(fontBytes));
+    }
+
+    /// <summary>
+    ///     Resolves a <c>CIDFontType2</c> descendant dictionary's <c>/CIDToGIDMap</c> entry into a
     ///     CID-to-glyph-index function: the identity map when absent or the name <c>/Identity</c>,
     ///     or an explicit big-endian <c>uint16</c>-per-CID lookup table when a stream (an
     ///     out-of-range/negative CID maps to glyph <c>0</c>/<c>.notdef</c>, per the PDF
-    ///     specification).
+    ///     specification). <c>/CIDToGIDMap</c> is a <c>CIDFontType2</c>-only key per the PDF
+    ///     specification - this method is never called for a <c>CIDFontType0</c> descendant,
+    ///     which unconditionally uses the identity CID-to-glyph-index map instead (see
+    ///     <see cref="BuildResolvedCompositeFont"/> and <see cref="LoadCidFontType0Font"/>'s own
+    ///     remarks).
     /// </summary>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <c>/CIDToGIDMap</c> resolves to anything other than the name

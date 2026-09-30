@@ -6,6 +6,7 @@ using DemaConsulting.CanvasNet.Tests.TestSupport;
 // cspell:ignore beginbfchar endbfchar beginbfrange endbfrange begincodespacerange
 // cspell:ignore endcodespacerange findresource defineresource currentdict begincmap endcmap
 // cspell:ignore bfchar bfrange nendbfchar nendbfrange tounicode usecmap cidrange cidchar codepoints
+// cspell:ignore OTTO rmoveto rlineto endchar notdef charstring charstrings cidfonttype
 
 namespace DemaConsulting.CanvasNet.Pdf.Tests;
 
@@ -366,6 +367,77 @@ public class PdfDocumentTests
     }
 
     /// <summary>
+    ///     Builds a single glyph's Type 2 charstring bytecode: a filled square outline spanning
+    ///     font-design-space <c>(100, 100)</c>-<c>(500, 500)</c> (matching
+    ///     <see cref="BuildEmbeddedFontBytes"/>'s own TrueType-outline square glyph, so both
+    ///     descendant-font flavors paint identical ink for a given glyph index), via
+    ///     <c>rmoveto</c> to <c>(100, 100)</c> then a single <c>rlineto</c> with three relative
+    ///     deltas - the Type 2 charstring language auto-closes the final segment back to the
+    ///     starting point at <c>endchar</c>, exactly like
+    ///     <c>Fonts.TrueTypeFontTests.BuildWellFormedCffFont</c>'s own square glyph.
+    /// </summary>
+    private static byte[] BuildSquareCffCharstring()
+    {
+        var cs = new List<byte>();
+        SyntheticFontBuilder.WriteCharstringNumber(cs, 100);
+        SyntheticFontBuilder.WriteCharstringNumber(cs, 100);
+        SyntheticFontBuilder.WriteCharstringOperator(cs, 21); // rmoveto
+        SyntheticFontBuilder.WriteCharstringNumber(cs, 400);
+        SyntheticFontBuilder.WriteCharstringNumber(cs, 0);
+        SyntheticFontBuilder.WriteCharstringNumber(cs, 0);
+        SyntheticFontBuilder.WriteCharstringNumber(cs, 400);
+        SyntheticFontBuilder.WriteCharstringNumber(cs, -400);
+        SyntheticFontBuilder.WriteCharstringNumber(cs, 0);
+        SyntheticFontBuilder.WriteCharstringOperator(cs, 5); // rlineto
+        SyntheticFontBuilder.WriteCharstringOperator(cs, 14); // endchar
+        return [.. cs];
+    }
+
+    /// <summary>
+    ///     Builds a minimal, well-formed synthetic embedded OTTO/CFF-flavored SFNT font (see
+    ///     <see cref="SyntheticFontBuilder.Cff"/>): a 1000-unit em square, glyph 0 the
+    ///     (empty-outline) <c>.notdef</c>, and every glyph from index 1 onward
+    ///     <see cref="BuildSquareCffCharstring"/>'s filled square outline with a fixed 600-unit
+    ///     advance width - the <c>CIDFontType0</c>/<c>/FontFile3</c> counterpart of
+    ///     <see cref="BuildEmbeddedFontBytes"/>, built via the exact
+    ///     <c>WithSfntVersion(0x4F54544F)</c> ('OTTO') + <c>maxp</c> version <c>0x00005000</c> +
+    ///     <c>CFF </c>-table pattern already proven in
+    ///     <c>Fonts.TrueTypeFontTests.BuildWellFormedCffFont</c>. No <c>cmap</c> table is included
+    ///     (composite fonts never consult <c>cmap</c> - a CID is used directly as a glyph index),
+    ///     mirroring how <c>Fonts.TrueTypeFont.Load</c> tolerates a missing <c>cmap</c> entirely.
+    /// </summary>
+    /// <param name="glyphCount">The total number of glyphs (including glyph 0).</param>
+    /// <param name="includeRos">
+    ///     When <see langword="true"/>, the embedded CFF program's Top DICT declares the
+    ///     <c>ROS</c> operator (CID-keyed font identification), which <c>Fonts.CffTable.Parse</c>
+    ///     rejects - used to prove that rejection propagates uncaught through
+    ///     <c>LoadCidFontType0Font</c>.
+    /// </param>
+    private static byte[] BuildEmbeddedCffFontBytes(int glyphCount = 2, bool includeRos = false)
+    {
+        var notdefCharstring = new List<byte>();
+        SyntheticFontBuilder.WriteCharstringOperator(notdefCharstring, 14); // endchar
+        var charStrings = new List<byte[]> { notdefCharstring.ToArray() }; // glyph 0: empty .notdef
+        var advanceWidths = new List<int> { 0 };
+        for (var glyphIndex = 1; glyphIndex < glyphCount; glyphIndex++)
+        {
+            charStrings.Add(BuildSquareCffCharstring());
+            advanceWidths.Add(600);
+        }
+
+        var cff = SyntheticFontBuilder.Cff(charStrings, includeRos: includeRos);
+
+        return new SyntheticFontBuilder()
+            .WithSfntVersion(0x4F54544F) // 'OTTO'
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(glyphCount, version: 0x00005000))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 0, glyphCount))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx(advanceWidths))
+            .AddTable("CFF ", cff)
+            .Build();
+    }
+
+    /// <summary>
     ///     Builds a <c>/Resources/Font</c> dictionary (as a <see cref="BuildSinglePagePdfWithResources"/>-
     ///     compatible <c>resourcesBody</c>/<c>extraObjectBodies</c> pair) declaring a single simple
     ///     TrueType font resource named <c>/F1</c>, with the given embedded <c>/FontFile2</c> bytes
@@ -436,6 +508,42 @@ public class PdfDocumentTests
         }
 
         return ($"/Font << /{fontResourceName} 5 0 R >>", extraObjects);
+    }
+
+    /// <summary>
+    ///     Builds a <c>/Resources/Font</c> dictionary (as a <see cref="BuildSinglePagePdfWithResources"/>-
+    ///     compatible <c>resourcesBody</c>/<c>extraObjectBodies</c> pair) declaring a single
+    ///     Type0/CIDFontType0 composite font resource named <c>/F1</c>, with the given embedded
+    ///     <c>/FontFile3</c> bytes (the <c>/FontFile3</c> stream's own <c>/Subtype</c> set to
+    ///     <paramref name="fontFileSubtype"/>) and descendant-dictionary entries appended
+    ///     verbatim - the <c>CIDFontType0</c> counterpart of
+    ///     <see cref="BuildCompositeFontResources"/>.
+    /// </summary>
+    /// <remarks>
+    ///     Numbered so the Type0 font dictionary is object <c>5</c> (referenced as <c>5 0 R</c> by
+    ///     the returned <c>/Font</c> resources entry), the CIDFontType0 descendant dictionary is
+    ///     object <c>6</c> (referenced as <c>6 0 R</c> by the font dictionary's
+    ///     <c>/DescendantFonts</c>), the <c>/FontDescriptor</c> is object <c>7</c>, and the
+    ///     <c>/FontFile3</c> stream is object <c>8</c> - matching
+    ///     <see cref="BuildCompositeFontResources"/>'s own "extra objects start at 5" convention.
+    /// </remarks>
+    private static (string ResourcesBody, List<byte[]> ExtraObjects) BuildCidFontType0FontResources(
+        byte[] fontFileBytes,
+        string fontFileSubtype = "/OpenType",
+        string cidFontExtra = "",
+        string fontResourceName = "F1")
+    {
+        var fontDictObj = System.Text.Encoding.ASCII.GetBytes(
+            "<< /Type /Font /Subtype /Type0 /BaseFont /Test /Encoding /Identity-H /DescendantFonts [6 0 R] >>");
+        var descendantObj = System.Text.Encoding.ASCII.GetBytes(
+            "<< /Type /Font /Subtype /CIDFontType0 /BaseFont /Test " +
+            "/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> " +
+            $"/FontDescriptor 7 0 R {cidFontExtra} >>");
+        var descriptorObj = "<< /Type /FontDescriptor /FontFile3 8 0 R >>"u8.ToArray();
+        var fontFileDictEntries = string.IsNullOrEmpty(fontFileSubtype) ? string.Empty : $"/Subtype {fontFileSubtype}";
+        var fontFileObj = BuildStreamObjectBody(fontFileDictEntries, fontFileBytes);
+
+        return ($"/Font << /{fontResourceName} 5 0 R >>", [fontDictObj, descendantObj, descriptorObj, fontFileObj]);
     }
 
     /// <summary>Encodes each CID in <paramref name="cids"/> as a 2-byte big-endian code, returning the resulting hex-string content-stream operand text (including the enclosing angle brackets).</summary>
@@ -2785,11 +2893,13 @@ public class PdfDocumentTests
         Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
     }
 
-    /// <summary>Proves that a descendant font <c>/Subtype /CIDFontType0</c> (CFF-flavored, not yet supported) throws <see cref="UnsupportedImageFeatureException"/>.</summary>
+    /// <summary>Proves that a <c>CIDFontType0</c> descendant font whose <c>/FontDescriptor</c> has no embedded <c>/FontFile3</c> (only <c>/FontFile2</c>) throws <see cref="InvalidDataException"/>.</summary>
     [Fact]
-    public void PdfDocument_Fonts_Type0_CidFontType0Subtype_ThrowsUnsupportedImageFeatureException()
+    public void PdfDocument_Fonts_Type0_CidFontType0_NoFontFile3_ThrowsInvalidDataException()
     {
-        // Arrange
+        // Arrange: a CIDFontType0 descendant whose /FontDescriptor declares only /FontFile2 (no
+        // /FontFile3) - LoadCidFontType0Font requires /FontFile3, so this fails closed rather than
+        // falling back to /FontFile2.
         var fontBytes = BuildEmbeddedFontBytes([], glyphCount: 3);
         var (resourcesBody, extraObjects) = BuildCompositeFontResources(fontBytes, descendantSubtype: "/CIDFontType0");
 
@@ -2797,7 +2907,120 @@ public class PdfDocumentTests
             100, 100, $"BT /F1 20 Tf {BuildIdentityHHexString(1)} Tj ET", resourcesBody, extraObjects);
 
         // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that a <c>/Type0</c>/<c>/Identity-H</c>/<c>CIDFontType0</c> composite font resolves its embedded, <c>/OpenType</c>-wrapped, non-CID-keyed <c>/FontFile3</c> CFF program and paints real glyph ink - identity CID-to-glyph-index (no <c>/CIDToGIDMap</c> consulted) - rather than throwing.</summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type0_CidFontType0_OpenTypeCff_ResolvesEmbeddedFont()
+    {
+        // Arrange: CID 1 -> GID 1 (identity, a painted square glyph) via a synthetic OTTO/CFF
+        // /FontFile3.
+        var fontBytes = BuildEmbeddedCffFontBytes(glyphCount: 3);
+        var (resourcesBody, extraObjects) = BuildCidFontType0FontResources(fontBytes);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf 5 5 Td {BuildIdentityHHexString(1)} Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: text x [7, 15) holds the painted square glyph (design x [100, 500) of 1000,
+        // scaled by fontSize 20, offset by originX 5) - matching the CIDFontType2 equivalent
+        // (PdfDocument_Fonts_Type0_CidToGidMapIdentity_UsesCidAsGid) exactly, since both flavors
+        // paint the same square glyph shape.
+        Assert.NotEqual(default, surface[11, 89]);
+    }
+
+    /// <summary>Proves that a non-standard <c>/CIDToGIDMap</c> entry on a <c>CIDFontType0</c> descendant is ignored (identity CID-to-glyph-index is always used), rather than remapping the CID away from its painted glyph.</summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type0_CidFontType0_NonStandardCidToGidMap_IsIgnored()
+    {
+        // Arrange: a /CIDToGIDMap /Identity entry (not a valid key for CIDFontType0 per the PDF
+        // specification, but sometimes seen in real-world producers) is declared on the
+        // descendant - had it been consulted (rather than ignored) as a stream remap or any other
+        // shape, this would behave differently; here it is simply ignored, so CID 1 still resolves
+        // to GID 1 via identity.
+        var fontBytes = BuildEmbeddedCffFontBytes(glyphCount: 3);
+        var (resourcesBody, extraObjects) = BuildCidFontType0FontResources(
+            fontBytes, cidFontExtra: "/CIDToGIDMap /Identity");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf 5 5 Td {BuildIdentityHHexString(1)} Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: text x [7, 15) holds the painted square glyph.
+        Assert.NotEqual(default, surface[11, 89]);
+    }
+
+    /// <summary>Proves that a <c>CIDFontType0</c> descendant's <c>/DW</c>/<c>/W</c> width resolution behaves identically to the <c>CIDFontType2</c> path (fully generic, no subtype-specific logic).</summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type0_CidFontType0_Widths_WArrayIndividualForm_DeterminesAdvance()
+    {
+        // Arrange: CID 1's declared width is 500 (individual form) -> advance = 0.5 * 20 = 10.
+        // CID 2 has no matching entry, so falls back to the default DW value of 1000.
+        var fontBytes = BuildEmbeddedCffFontBytes(glyphCount: 3);
+        var (resourcesBody, extraObjects) = BuildCidFontType0FontResources(fontBytes, cidFontExtra: "/W [1 [500]]");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf 5 5 Td {BuildIdentityHHexString(1, 2)} Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: CID 2 starts at Tm.x = 5 + 10 = 15, painting at text x [17, 25).
+        Assert.NotEqual(default, surface[11, 89]);
+        Assert.Equal(default, surface[16, 89]);
+        Assert.NotEqual(default, surface[21, 89]);
+    }
+
+    /// <summary>Proves that a <c>CIDFontType0</c> descendant's <c>/FontFile3</c> stream declaring any <c>/Subtype</c> other than <c>/OpenType</c> (for example a bare <c>/CIDFontType0C</c> or <c>/Type1C</c> CFF stream with no SFNT wrapper) throws <see cref="UnsupportedImageFeatureException"/>.</summary>
+    [Theory]
+    [InlineData("/Type1C")]
+    [InlineData("/CIDFontType0C")]
+    public void PdfDocument_Fonts_Type0_CidFontType0_NonOpenTypeFontFile3Subtype_ThrowsUnsupportedImageFeatureException(string fontFileSubtype)
+    {
+        // Arrange
+        var fontBytes = BuildEmbeddedCffFontBytes(glyphCount: 3);
+        var (resourcesBody, extraObjects) = BuildCidFontType0FontResources(fontBytes, fontFileSubtype: fontFileSubtype);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf {BuildIdentityHHexString(1)} Tj ET", resourcesBody, extraObjects);
+
+        // Act & Assert
         Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that a <c>CIDFontType0</c> descendant's <c>/FontFile3</c> stream with no <c>/Subtype</c> key at all also throws <see cref="UnsupportedImageFeatureException"/> (a missing <c>/Subtype</c> is treated the same as any other unsupported value, not guessed as <c>/OpenType</c> from the stream's own magic bytes).</summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type0_CidFontType0_MissingFontFile3Subtype_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange
+        var fontBytes = BuildEmbeddedCffFontBytes(glyphCount: 3);
+        var (resourcesBody, extraObjects) = BuildCidFontType0FontResources(fontBytes, fontFileSubtype: "");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf {BuildIdentityHHexString(1)} Tj ET", resourcesBody, extraObjects);
+
+        // Act & Assert
+        Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that a <c>CIDFontType0</c> descendant's <c>/OpenType</c>-wrapped <c>/FontFile3</c> whose embedded CFF program's Top DICT declares <c>ROS</c> (CID-keyed CFF) throws <see cref="InvalidDataException"/> - <c>Fonts.CffTable.Parse</c>'s existing CID-keyed rejection surfaces uncaught through this new path, with no new translation code.</summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type0_CidFontType0_CidKeyedCff_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var fontBytes = BuildEmbeddedCffFontBytes(glyphCount: 3, includeRos: true);
+        var (resourcesBody, extraObjects) = BuildCidFontType0FontResources(fontBytes);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf {BuildIdentityHHexString(1)} Tj ET", resourcesBody, extraObjects);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
     }
 
     /// <summary>Proves that a <c>/Type0</c> font dictionary with no <c>/DescendantFonts</c> entry throws <see cref="InvalidDataException"/>.</summary>

@@ -2,6 +2,7 @@
 
 <!-- cspell:ignore xobject devicergb pdfhost flipperfile qwikpdf -->
 <!-- cspell:ignore bfchar bfrange codepoints -->
+<!-- cspell:ignore cidfonttype OTTO -->
 
 Every PDF file in this folder is a small, hand-authored document created specifically for this
 repository to exercise `PdfDocument`'s parsing internals (tokenizer, object model,
@@ -14,8 +15,10 @@ support (`Tf`/`Td`/`Tj` against a `/FontFile2`-embedded simple font - Phase 4), 
 font-fallback substitution (Phase 6), its `LZWDecode`/`ASCII85Decode`/`ASCIIHexDecode`/
 `RunLengthDecode` content-stream filter set (Phase 7), its `/Type0`/`/Encoding /Identity-H`/
 `/CIDFontType2` composite-font text support (2-byte-code `Tj` against a `/FontFile2`-embedded
-descendant font, with a non-identity `/CIDToGIDMap` - Phase 9), and its `/ToUnicode` CMap
-resolution (`bfchar`/`bfrange` operators - Phase 10, resolved but unconsumed at rendering time)
+descendant font, with a non-identity `/CIDToGIDMap` - Phase 9), its `/ToUnicode` CMap
+resolution (`bfchar`/`bfrange` operators - Phase 10, resolved but unconsumed at rendering time),
+and its `/Type0`/`/CIDFontType0` (CFF-outline) composite-font text support (a non-CID-keyed CFF
+program embedded via an `/OpenType`-wrapped `/FontFile3` - Phase 12)
 end to end via real files on disk.
 There is no third-party source corpus behind any of them (unlike, for example, `PngSuite` in the core test
 project): each was constructed byte-by-byte from scratch for CanvasNet and is licensed under the
@@ -39,6 +42,7 @@ same MIT license as the rest of this repository.
 | `image-xobject-devicergb-flate.pdf` | `/Subtype /Image` XObject (2x2 `DeviceRGB`/`FlateDecode`) placed via `cm`/`Do` |
 | `text-embedded-truetype-font.pdf` | `/Subtype /TrueType` font, embedded `/FontFile2` (Phase 4) - `Tf`/`Td`/`Tj` |
 | `text-composite-truetype-identity-h.pdf` | `/Type0`/`Identity-H`/`CIDFontType2` (Phase 9) + `/ToUnicode` (Phase 10) |
+| `text-composite-cff-cidfonttype0-identity-h.pdf` | `/Type0`/`Identity-H`/`CIDFontType0` non-CID-keyed OpenType CFF |
 | `content-stream-lzw.pdf` | `/Contents` compressed with `LZWDecode` (Phase 7) - a filled rectangle |
 | `content-stream-ascii85.pdf` | `/Contents` armored with `ASCII85Decode` (Phase 7) - the same filled rectangle |
 | `content-stream-asciihex.pdf` | `/Contents` armored with `ASCIIHexDecode` (Phase 7) - the same filled rectangle |
@@ -74,3 +78,16 @@ CID 1 via `bfchar` and CID 2 via a single-entry `bfrange` to the Unicode codepoi
 `U+004F` respectively - the same two CIDs the existing content stream's `Tj` operator shows -
 wrapped in the standard Adobe CMap/PostScript resource-management boilerplate; this map is
 resolved by `ResolveToUnicodeMap` but not yet consumed anywhere at rendering time.
+
+`text-composite-cff-cidfonttype0-identity-h.pdf` (Phase 12) exercises the `/CIDFontType0`
+(CFF-outline) descendant-font path: unlike every other fixture with an embedded font, it is
+**entirely hand-authored and synthetic, including its embedded font program** - built with the
+same `SyntheticFontBuilder.Cff`/`WithSfntVersion(0x4F54544F)` ('OTTO') helper combination already
+proven by `DemaConsulting.CanvasNet.Tests\Fonts\TrueTypeFontTests.cs`'s own OTTO/CFF coverage, not
+derived from any real-world font. Its `/Type0`/`/Identity-H` font names a `/CIDFontType0`
+descendant whose `/FontDescriptor/FontFile3` is a minimal, well-formed, non-CID-keyed CFF program
+(no `ROS`/`FDArray`/`FDSelect`) wrapped in an `OTTO`-tagged SFNT container (`/Subtype /OpenType`),
+with no `/CIDToGIDMap` declared (ignored for this subtype regardless - identity CID-to-glyph-index
+is always used). Its content stream draws Identity-H code `0001` (CID 1, resolving directly to
+GID 1 - a filled square spanning font-design-space `(100, 100)`-`(500, 500)` of a 1000-unit em) at
+font size 20, text-space origin `(5, 5)`, on a 100x100 `/MediaBox`.

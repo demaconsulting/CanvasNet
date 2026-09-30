@@ -3,7 +3,7 @@
 ![CanvasNetPdf Structure](CanvasNetPdfView.svg)
 
 <!-- cspell:ignore xref startxref endobj endstream ObjStm MediaBox unresolvable Trise -->
-<!-- cspell:ignore CCITT reimplementation diffability bitstream Zapf Nonsymbolic cidfonttype -->
+<!-- cspell:ignore CCITT reimplementation diffability bitstream Zapf Nonsymbolic cidfonttype fontfile -->
 <!-- cspell:ignore Segoe Dejavu Nimbus Consolas ttcf dogfooding LOCALAPPDATA -->
 <!-- cspell:ignore beginbfchar endbfchar beginbfrange endbfrange codepoints tounicode bfrange -->
 <!-- cspell:ignore begincodespacerange endcodespacerange findresource defineresource currentdict -->
@@ -40,18 +40,22 @@ longer an unconditional failure: it is instead substituted with the closest-matc
 actually installed on the host operating system, or - when nothing matches - a bundled Liberation
 Sans/Serif/Mono font, fully automatically and silently (see _Font Resolution_ and _Font Fallback
 Resolution_ below, and `Fonts.SystemFontCatalog`'s own unit design,
-`../canvas-net/fonts/system-font-catalog.md`). As of Phase 9 (this phase), a composite
+`../canvas-net/fonts/system-font-catalog.md`). As of Phase 9, a composite
 `/Subtype /Type0`/`/Encoding /Identity-H` font naming a single `/CIDFontType2` descendant font
 (with its own embedded `/FontDescriptor/FontFile2`) is also resolved and rendered end to end,
-decoding each shown string as 2-byte-per-code (CID) values rather than 1-byte-per-code (see
-_Composite Font Resolution_ below). **Phase 4 limitations (narrowed by Phase 6/9, see
-above)**: `/CIDFontType0` composite fonts, non-`/Identity-H` composite `/Encoding`s (including
+decoding each shown string as 2-byte-per-code (CID) values rather than 1-byte-per-code; as of
+Phase 12 (this phase), a `/CIDFontType0` descendant font (with its own embedded, non-CID-keyed-
+CFF, `/OpenType`-wrapped `/FontDescriptor/FontFile3`) is resolved identically (see _Composite Font
+Resolution_ below). **Phase 4 limitations (narrowed by Phase 6/9/12, see
+above)**: a bare/naked `/CIDFontType0C` CFF `/FontFile3` stream (no SFNT wrapper), CID-keyed CFF
+(`ROS`/`FDArray`/`FDSelect`), non-`/Identity-H` composite `/Encoding`s (including
 `/Identity-V` and predefined CJK encodings), `/Type1`, `/MMType1`, and `/Type3` fonts remain
-entirely unsupported and fail closed with `Codecs.UnsupportedImageFeatureException`; only the
-`/WinAnsiEncoding` and `/MacRomanEncoding` base encodings (plus `/Differences`) are supported (an
-unrecognized base encoding also fails closed); only text-rendering modes `0` (fill) and `3`
-(invisible) are supported (stroke/clip modes `1`/`2`/`4`-`7` fail closed); and no additional
-stream filters were added for either phase.
+entirely unsupported and fail closed with `Codecs.UnsupportedImageFeatureException` (CID-keyed CFF
+instead surfaces as `InvalidDataException` via `Fonts.CffTable.Parse`'s own existing rejection);
+only the `/WinAnsiEncoding` and `/MacRomanEncoding` base encodings (plus `/Differences`) are
+supported (an unrecognized base encoding also fails closed); only text-rendering modes `0` (fill)
+and `3` (invisible) are supported (stroke/clip modes `1`/`2`/`4`-`7` fail closed); and no
+additional stream filters were added for any of these phases.
 **Phase 3 limitations** (narrowed by Phase 7, see below): no Form XObject rendering (`Do` on a
 `/Subtype /Form` XObject fails closed with `UnsupportedImageFeatureException`, rather than being
 silently skipped), no shading/patterns/transparency groups, no `CCITTFax`/`JPX` filter decoding
@@ -414,34 +418,63 @@ re-parsing it each time — a property a purely static API could not express.
   (`/1000`-scaled) map from `/FirstChar`/`/Widths` (missing/malformed entries silently omitted,
   not rejected), plus `/FontDescriptor/MissingWidth` (defaulting to `0`, the specification's own
   documented default) as the fallback for any code absent from that map.
-- **Composite font resolution (`PdfDocument.Fonts.Type0.cs`, added in Phase 9)** —
-  `BuildResolvedCompositeFont` is `BuildResolvedFont`'s `/Type0` dispatch target. It requires
-  `/Encoding` to resolve to the name `Identity-H`; any other name (including `Identity-V`) or
-  non-name kind throws `Codecs.UnsupportedImageFeatureException` (feature
+- **Composite font resolution (`PdfDocument.Fonts.Type0.cs`, added in Phase 9, extended in
+  Phase 12)** — `BuildResolvedCompositeFont` is `BuildResolvedFont`'s `/Type0` dispatch target. It
+  requires `/Encoding` to resolve to the name `Identity-H`; any other name (including
+  `Identity-V`) or non-name kind throws `Codecs.UnsupportedImageFeatureException` (feature
   `pdf-font-type0-encoding-{name}`) - no CMap-based or vertical-writing encoding is supported.
   `/DescendantFonts` must resolve to a single-element array whose element resolves to a
   dictionary (`InvalidDataException` for a missing/malformed array, matching this class's own
-  "malformed required field" convention); that descendant's `/Subtype` must be `CIDFontType2`
-  (`Codecs.UnsupportedImageFeatureException`, feature `pdf-font-cidfonttype-{subtype}`, otherwise
-  - this is the `/CIDFontType0` rejection point). The descendant's `/FontDescriptor/FontFile2` is
-  required (`InvalidDataException` if `/FontDescriptor` or `/FontFile2` is missing or non-stream)
-  and always embedded - unlike `BuildResolvedSimpleFont`, no fallback substitution is ever
-  attempted for a composite font (a deliberate Non-Goal: composite fonts must embed their
-  descendant font). `ResolveCidToGidMap` resolves `/CIDToGIDMap`: absent or the name `/Identity`
-  yields the identity function; a stream is decoded (via the same `GetStreamDecodedBytes` every
-  other stream uses) into a big-endian `uint16`-per-CID lookup table (an odd byte count throws
-  `InvalidDataException`), with an out-of-range/negative CID mapping to glyph `0`/`.notdef` per
-  the specification; any other resolved kind throws `InvalidDataException`. `ResolveCompositeWidths`
+  "malformed required field" convention); that descendant's `/Subtype` must be `CIDFontType2` or
+  `CIDFontType0` (`Codecs.UnsupportedImageFeatureException`, feature
+  `pdf-font-cidfonttype-{subtype}`, for any other value or a missing `/Subtype`). Neither
+  descendant subtype is ever embedded on a fallback/substitute basis - unlike
+  `BuildResolvedSimpleFont`, no fallback substitution is ever attempted for a composite font (a
+  deliberate Non-Goal: composite fonts must embed their descendant font). The descendant's
+  `/FontDescriptor` is resolved once and dispatched, by subtype, to one of two loader helpers
+  producing a `(TrueTypeFont Font, Func<int,int> CidToGid)` pair:
+  - `LoadCidFontType2Font` (the pre-Phase-12 path, unchanged): requires
+    `/FontDescriptor/FontFile2` (`InvalidDataException` if missing or non-stream), decodes it via
+    `GetStreamDecodedBytes`, loads it via `Fonts.TrueTypeFont.Load`, and pairs it with
+    `ResolveCidToGidMap`'s resolved `/CIDToGIDMap` function (see below).
+  - `LoadCidFontType0Font` (new in Phase 12): requires `/FontDescriptor/FontFile3`
+    (`InvalidDataException` if missing or non-stream); the `FontFile3` stream's own `/Subtype`
+    must be the name `OpenType` (`Codecs.UnsupportedImageFeatureException`, feature
+    `pdf-font-fontfile3-subtype-{subtype}`, for any other value or a missing `/Subtype` - this is
+    the bare/naked `/CIDFontType0C` rejection point: such a stream has no SFNT wrapper and
+    `Fonts.TrueTypeFont.Load` requires one). On a supported `/OpenType` stream, decodes it via
+    `GetStreamDecodedBytes` and loads it via `Fonts.TrueTypeFont.Load`, exactly like the
+    `CIDFontType2` path - the same `TrueTypeFont` type, no new `Fonts`-subsystem code. Per PDF
+    32000-1 §9.7.4.2, a non-CID-keyed CFF program uses identity CID-to-glyph-index, so this path
+    is paired with `cid => cid` directly (not `ResolveCidToGidMap` - `/CIDToGIDMap` is a
+    `CIDFontType2`-only key per the specification, and any non-standard occurrence on a
+    `CIDFontType0` descendant is deliberately ignored, never consulted). If the embedded CFF
+    program is CID-keyed (`ROS` present in its Top DICT), `Fonts.CffTable.Parse` (invoked
+    transitively by `TrueTypeFont.Load`) already rejects it with `InvalidDataException`, which
+    propagates uncaught here - no new translation code, consistent with this class's "composite
+    fonts fail closed on any embedded-font problem" convention. CID-keyed CFF support itself
+    (`FDArray`/`FDSelect`-aware charstring dispatch, a CID-keyed `charset` parser) is a
+    separately-scoped, not-yet-implemented future phase.
+
+  Regardless of descendant subtype, `ResolveCompositeWidths`
   resolves `/DW` (defaulting to `1000`, the specification's own documented default - not `0`, this
   is the one place a `TrueType`-family font descriptor's own default differs between the simple-
   and composite-font paths) and `/W` (a CID-to-width map, supporting both the `c [w1 w2 ... wn]`
   individual-width sub-form and the `cFirst cLast w` range sub-form, disambiguated by the resolved
   `PdfKind` - `Array` vs. `Number` - of the element immediately following the leading CID number;
-  any other shape, or a range form with `cLast < cFirst`, throws `InvalidDataException`).
+  any other shape, or a range form with `cLast < cFirst`, throws `InvalidDataException`) - this
+  logic has no subtype-specific branch at all. `ResolveCidToGidMap` (called only for a
+  `CIDFontType2` descendant) resolves `/CIDToGIDMap`: absent or the name `/Identity`
+  yields the identity function; a stream is decoded (via the same `GetStreamDecodedBytes` every
+  other stream uses) into a big-endian `uint16`-per-CID lookup table (an odd byte count throws
+  `InvalidDataException`), with an out-of-range/negative CID mapping to glyph `0`/`.notdef` per
+  the specification; any other resolved kind throws `InvalidDataException`.
   `ResolvedCompositeFont.Resolve(code)` treats `code` directly as the CID (per `/Identity-H`'s own
   "code equals CID" identity), maps it to a glyph index via `CidToGid`, and resolves its width from
   `CidWidths` (falling back to `DefaultWidth`) - the same `(GlyphIndex, Width)` tuple shape
-  `ResolvedSimpleFont.Resolve` returns, so `ShowGlyph` never needs a type check.
+  `ResolvedSimpleFont.Resolve` returns, so `ShowGlyph` never needs a type check;
+  `ResolvedCompositeFont` itself has no descendant-subtype-specific field or branch - the same
+  shape serves both `CIDFontType2` and `CIDFontType0` descendants.
 - **`/ToUnicode` CMap resolution (`PdfDocument.Fonts.ToUnicode.cs`, added in Phase 10)** —
   `ResolveToUnicodeMap(fontDict)` is called from `BuildResolvedCompositeFont` (on the Type0 font
   dictionary itself, not the descendant font dictionary) and stores its result on
@@ -588,14 +621,23 @@ re-parsing it each time — a property a purely static API could not express.
   (feature `pdf-font-type0-encoding-{name}`), as of Phase 9. A `/Type0` font's `/DescendantFonts`
   entry, when missing or not a single-element array whose element resolves to a dictionary, is
   `InvalidDataException` instead (a malformed required field, not merely unsupported). A
-  descendant font's `/Subtype`, when not `CIDFontType2` (for example `CIDFontType0`) —
+  descendant font's `/Subtype`, when neither `CIDFontType2` nor `CIDFontType0` —
   `Codecs.UnsupportedImageFeatureException` (feature `pdf-font-cidfonttype-{subtype}`). A
-  descendant font's missing/non-embedded `/FontDescriptor/FontFile2` is `InvalidDataException`
-  (no fallback substitution is ever attempted for a composite font - a deliberate Phase 9
-  Non-Goal). A descendant font's `/CIDToGIDMap`, when resolving to anything other than the name
-  `Identity` or a stream (or a stream with an odd byte count), is `InvalidDataException`; a
-  malformed `/W` array shape (not matching either the `c [w1 w2 ... wn]` or `cFirst cLast w`
-  sub-form, or a range form with `cLast < cFirst`) is `InvalidDataException` too. A composite
+  `CIDFontType2` descendant font's missing/non-embedded `/FontDescriptor/FontFile2`, or a
+  `CIDFontType0` descendant font's missing/non-embedded `/FontDescriptor/FontFile3`, is
+  `InvalidDataException` (no fallback substitution is ever attempted for a composite font - a
+  deliberate Phase 9 Non-Goal, unchanged by Phase 12). As of Phase 12, a `CIDFontType0`
+  descendant's `/FontFile3` stream whose own `/Subtype` is not the name `OpenType` (for example
+  `Type1C`, `CIDFontType0C`, or a missing `/Subtype`) is instead
+  `Codecs.UnsupportedImageFeatureException` (feature `pdf-font-fontfile3-subtype-{subtype}`); an
+  `/OpenType`-wrapped `/FontFile3` whose embedded CFF program is CID-keyed (`ROS` present) is
+  `InvalidDataException`, surfaced uncaught from `Fonts.CffTable.Parse`'s own existing rejection.
+  A `CIDFontType2` descendant font's `/CIDToGIDMap`, when resolving to anything other than the
+  name `Identity` or a stream (or a stream with an odd byte count), is `InvalidDataException`
+  (this key is never consulted, and any non-standard occurrence never validated, for a
+  `CIDFontType0` descendant); a malformed `/W` array shape (not matching either the
+  `c [w1 w2 ... wn]` or `cFirst cLast w` sub-form, or a range form with `cLast < cFirst`) is
+  `InvalidDataException` too, regardless of descendant subtype. A composite
   font's shown byte string with an odd byte length is `InvalidDataException` (a 2-byte-per-code
   string must have an even byte count).
 - **A `bfrange` destination array containing a nested array** (the CIDSystemInfo-style "array of

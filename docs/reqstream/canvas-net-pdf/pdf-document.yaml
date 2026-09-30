@@ -529,37 +529,58 @@ sections:
             title: >-
               The PdfDocument class shall resolve a /Resources/Font entry naming a /Subtype
               /Type0 composite font whose /Encoding is the name /Identity-H and whose
-              /DescendantFonts is a single-element array naming a /Subtype /CIDFontType2
-              descendant font with an embedded /FontDescriptor/FontFile2 stream: decoding each
-              shown 2-byte code directly as a CID, mapping it to a glyph index via the
-              descendant's /CIDToGIDMap (the identity map when absent or the name /Identity, or
-              an explicit big-endian uint16-per-CID lookup table for a stream, with an
-              out-of-range CID mapping to glyph 0/.notdef), and resolving its advance width from
-              the descendant's /DW (defaulting to 1000) and /W (supporting both the
-              "c [w1 w2 ... wn]" individual-width sub-form and the "cFirst cLast w" range
-              sub-form) entries; any other /Encoding (including /Identity-V and predefined CJK
-              encodings) or descendant /Subtype (including /CIDFontType0) shall throw
-              UnsupportedImageFeatureException, and a missing/malformed /DescendantFonts,
-              /CIDToGIDMap, /W array, missing/non-embedded descendant /FontFile2, or an odd-byte-
-              length shown string shall throw InvalidDataException.
+              /DescendantFonts is a single-element array naming either a /Subtype /CIDFontType2
+              descendant font with an embedded /FontDescriptor/FontFile2 stream, or a /Subtype
+              /CIDFontType0 descendant font with an embedded, non-CID-keyed-CFF,
+              /FontDescriptor/FontFile3 stream whose own /Subtype is the name /OpenType:
+              decoding each shown 2-byte code directly as a CID, mapping it to a glyph index -
+              for a /CIDFontType2 descendant, via the descendant's /CIDToGIDMap (the identity map
+              when absent or the name /Identity, or an explicit big-endian uint16-per-CID lookup
+              table for a stream, with an out-of-range CID mapping to glyph 0/.notdef); for a
+              /CIDFontType0 descendant, always the identity map (the CID used directly as the
+              glyph index per PDF 32000-1 §9.7.4.2, since the supported CFF programs are not
+              CID-keyed), ignoring any /CIDToGIDMap entry present (not a valid key for this
+              subtype) - and resolving its advance width from the descendant's /DW (defaulting to
+              1000) and /W (supporting both the "c [w1 w2 ... wn]" individual-width sub-form and
+              the "cFirst cLast w" range sub-form) entries, identically regardless of descendant
+              subtype; any other /Encoding (including /Identity-V and predefined CJK encodings)
+              or descendant /Subtype (other than /CIDFontType2 or /CIDFontType0) shall throw
+              UnsupportedImageFeatureException, as shall a /CIDFontType0 descendant's /FontFile3
+              stream whose own /Subtype is not the name /OpenType (for example a bare
+              /CIDFontType0C CFF stream with no SFNT wrapper, or a missing /Subtype key), and a
+              missing/malformed /DescendantFonts, /CIDToGIDMap, /W array, missing/non-embedded
+              descendant /FontFile2 or /FontFile3, an unparsable embedded font program (for
+              example a CID-keyed CFF program), or an odd-byte-length shown string shall throw
+              InvalidDataException.
             justification: |
-              Type0/Identity-H/CIDFontType2 composite fonts are the encoding real-world PDF
-              producers (Microsoft Word, LibreOffice, and browser print-to-PDF among them)
-              overwhelmingly emit for embedded subsetted TrueType text, so continuing to reject
-              every /Type0 font unconditionally is a significant real-world compatibility gap;
-              /CIDFontType0 (CFF-flavored) descendant fonts, vertical writing (/Identity-V),
-              predefined CJK encodings, and custom CMap-based /Encoding streams remain explicitly
-              out of this phase's scope and must fail closed with a distinguishable exception
-              rather than being silently mis-rendered, and a composite font with no embedded
-              descendant font has no fallback substitution path (unlike a simple TrueType font -
-              see CanvasNetPdf-PdfDocument-FontFallback), so it must fail closed too.
+              Type0/Identity-H composite fonts are the encoding real-world PDF producers
+              (Microsoft Word, LibreOffice, and browser print-to-PDF among them) overwhelmingly
+              emit for embedded subsetted text, so continuing to reject every /Type0 font
+              unconditionally is a significant real-world compatibility gap; both the
+              /CIDFontType2 (TrueType-outline) and the /CIDFontType0 (non-CID-keyed-CFF-outline,
+              /OpenType-wrapped /FontFile3) shapes are now supported, since real-world PDF
+              producers emit both interchangeably depending on the source font's own outline
+              flavor. A bare/naked /CIDFontType0C CFF stream (no SFNT wrapper), CID-keyed CFF
+              (ROS/FDArray/FDSelect - a larger, separately-scoped future phase), vertical writing
+              (/Identity-V), predefined CJK encodings, and custom CMap-based /Encoding streams
+              remain explicitly out of this phase's scope and must fail closed with a
+              distinguishable exception rather than being silently mis-rendered, and a composite
+              font with no embedded descendant font has no fallback substitution path (unlike a
+              simple TrueType font - see CanvasNetPdf-PdfDocument-FontFallback), so it must fail
+              closed too.
             tests:
               - PdfDocument_Fonts_Type0_IdentityHCidFontType2_ResolvesEmbeddedFont
               - PdfDocument_Fonts_Type0_CidToGidMapIdentity_UsesCidAsGid
               - PdfDocument_Fonts_Type0_CidToGidMapStream_RemapsCidToGid
               - PdfDocument_Fonts_Type0_CidToGidMapStream_OutOfRangeCid_MapsToNotdef
               - PdfDocument_Fonts_Type0_NonIdentityHEncoding_ThrowsUnsupportedImageFeatureException
-              - PdfDocument_Fonts_Type0_CidFontType0Subtype_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Fonts_Type0_CidFontType0_NoFontFile3_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Type0_CidFontType0_OpenTypeCff_ResolvesEmbeddedFont
+              - PdfDocument_Fonts_Type0_CidFontType0_NonStandardCidToGidMap_IsIgnored
+              - PdfDocument_Fonts_Type0_CidFontType0_Widths_WArrayIndividualForm_DeterminesAdvance
+              - PdfDocument_Fonts_Type0_CidFontType0_NonOpenTypeFontFile3Subtype_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Fonts_Type0_CidFontType0_MissingFontFile3Subtype_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Fonts_Type0_CidFontType0_CidKeyedCff_ThrowsInvalidDataException
               - PdfDocument_Fonts_Type0_MissingDescendantFonts_ThrowsInvalidDataException
               - PdfDocument_Fonts_Type0_DescendantFontsNotSingleElement_ThrowsInvalidDataException
               - PdfDocument_Fonts_Type0_NoEmbeddedFontFile_ThrowsInvalidDataException
@@ -570,6 +591,7 @@ sections:
               - PdfDocument_ShowText_Type0_OddByteLengthString_ThrowsInvalidDataException
               - PdfDocument_ShowText_Type0_TwoByteCodes_ShowsEachGlyphAtCorrectPosition
               - CanvasNetPdf_SystemIntegration_RenderType0CompositeFont_PaintsExpectedGlyphInk
+              - CanvasNetPdf_SystemIntegration_RenderCidFontType0CompositeFont_PaintsExpectedGlyphInk
 
           - id: CanvasNetPdf-PdfDocument-ToUnicodeCMap
             title: >-
