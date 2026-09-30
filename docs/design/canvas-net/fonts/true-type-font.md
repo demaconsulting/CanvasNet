@@ -7,39 +7,58 @@
 <!-- cspell:ignore charstring charstrings hintmask cntrmask hstemhm vstemhm callsubr callgsubr -->
 <!-- cspell:ignore hhcurveto vvcurveto hvcurveto vhcurveto rlineto hlineto vlineto rmoveto -->
 <!-- cspell:ignore hmoveto vmoveto rrcurveto endchar seac gsubr subrs subr ttcf numFonts faceIndex -->
+<!-- cspell:ignore eexec lenIV hsbw dotsection hstem vstem callothersubr othersubr -->
+<!-- cspell:ignore setcurrentpoint closepath pfb pfa cleartomark -->
 
 The `TrueTypeFont` class is the sole public software unit in the `Fonts` subsystem. It provides
-hand-rolled loading and querying of glyph-based TrueType SFNT fonts and CFF/OpenType
-(`OTTO`-flavored) fonts, including selecting an individual face out of a TrueType Collection
-(`ttcf`) container, while documenting the supporting internal `SfntContainer`, `CmapTable`,
-`GlyfLocaReader`, `CffTable`, `CffCharstringInterpreter`, `HmtxHheaReader`, `KernTable`,
-`NameTable`, and `StyleTable` helpers inline because none has any independent public behavior
-beyond supporting this unit.
+hand-rolled loading and querying of glyph-based TrueType SFNT fonts, CFF/OpenType
+(`OTTO`-flavored) fonts, and classic PostScript Type 1 font programs (both as caller-supplied
+cleartext/encrypted byte segments and as standalone auto-detected `.pfb`/`.pfa` files), including
+selecting an individual face out of a TrueType Collection (`ttcf`) container, while documenting
+the supporting internal `SfntContainer`, `CmapTable`, `GlyfLocaReader`, `CffTable`,
+`CffCharstringInterpreter`, `Type1Table`, `Type1CharstringInterpreter`,
+`Type1CharstringDecryption`, `Type1PfbReader`, `Type1PfaReader`, `Type1StandardGlyphNames`,
+`HmtxHheaReader`, `KernTable`, `NameTable`, and `StyleTable` helpers inline because none has any
+independent public behavior beyond supporting this unit.
 
 #### Purpose
 
-`TrueTypeFont` lets callers load a TrueType or CFF/OpenType font from a stream or file path
-(optionally selecting a specific face of a TrueType Collection), inspect top-level metrics
-(`UnitsPerEm`, `Ascender`, `Descender`, `LineGap`, `GlyphCount`), map Unicode codepoints to glyph
-indices, extract glyph outlines as `DemaConsulting.CanvasNet.Geometry.Path`, query horizontal
-advance widths, read pairwise kerning adjustments from a classic `kern` format-0 subtable when
-present, and resolve the font's own name (`GetNameInfo()`) and bold/italic/fixed-pitch style
-classification (`IsBold`/`IsItalic`/`IsFixedPitch`) from its `name`, `OS/2`, `head`, and `post`
-tables. The class deliberately stops at raw font-design-unit geometry and scalar metrics: it does
-not perform text shaping, line layout, point-size scaling, hint execution, or pixel rendering.
+`TrueTypeFont` lets callers load a TrueType, CFF/OpenType, or classic PostScript Type 1 font from
+a stream or file path (optionally selecting a specific face of a TrueType Collection), inspect
+top-level metrics (`UnitsPerEm`, `Ascender`, `Descender`, `LineGap`, `GlyphCount`), map Unicode
+codepoints to glyph indices, extract glyph outlines as `DemaConsulting.CanvasNet.Geometry.Path`,
+query horizontal advance widths, read pairwise kerning adjustments from a classic `kern` format-0
+subtable when present, and resolve the font's own name (`GetNameInfo()`) and bold/italic/fixed-pitch
+style classification (`IsBold`/`IsItalic`/`IsFixedPitch`) from its `name`, `OS/2`, `head`, and
+`post` tables. The class deliberately stops at raw font-design-unit geometry and scalar metrics:
+it does not perform text shaping, line layout, point-size scaling, hint execution, or pixel
+rendering. For Type 1 font programs specifically, the class does not support `seac`-composed
+accented glyphs (composite glyphs built from two other glyphs plus fixed accent-placement
+metrics) - a charstring using `seac` is rejected with `InvalidDataException` rather than being
+resolved - and, for standalone `.pfb`/`.pfa` files (which carry no caller-suppliable text
+encoding of their own), only a small curated built-in codepoint-to-glyph-name vocabulary covering
+common Latin/ASCII characters is available as the default encoding.
 
 #### Data Model
 
-All parsed SFNT structures are read directly from the in-memory font byte array using explicit
-big-endian byte composition. `TrueTypeFont` stores only immutable parsed state:
-`HmtxHheaReader` for horizontal metrics, an `IGlyphOutlineSource` (either `GlyfLocaReader` for
-eager `loca` parsing plus lazy glyph decoding, or `CffTable` for CFF structural parsing plus lazy
-Type 2 charstring decoding) for outline access, `CmapTable` for codepoint mapping, `KernTable` for
-pair lookups, `NameTable` for name-string resolution, and the `IsBold`/`IsItalic`/`IsFixedPitch`
+All parsed SFNT/Type 1 structures are read directly from the in-memory font byte array using
+explicit big-endian byte composition. `TrueTypeFont` stores only immutable parsed state:
+`HmtxHheaReader` for horizontal metrics, an `IGlyphOutlineSource` (`GlyfLocaReader` for eager
+`loca` parsing plus lazy glyph decoding, `CffTable` for CFF structural parsing plus lazy Type 2
+charstring decoding, or `Type1Table` for Type 1 font-program structural parsing plus lazy Type 1
+charstring decoding) for outline access, `CmapTable` for codepoint mapping, `KernTable` for pair
+lookups, `NameTable` for name-string resolution, and the `IsBold`/`IsItalic`/`IsFixedPitch`
 booleans derived once at load time by `StyleTable`. `IGlyphOutlineSource` is a small internal
-dispatch abstraction: both outline backends implement it identically (a `GlyphCount` property and
-a `GetGlyphOutline(int)` method), so `TrueTypeFont.GetGlyphOutline` never needs to know or check
-which outline flavor the loaded font actually uses.
+dispatch abstraction: all three outline backends implement it identically (a `GlyphCount`
+property and a `GetGlyphOutline(int)` method), so `TrueTypeFont.GetGlyphOutline` never needs to
+know or check which outline flavor the loaded font actually uses. A font loaded via `LoadType1`
+or via standalone `.pfb`/`.pfa` auto-detection synthesizes its own `CmapTable` (via
+`CmapTable.FromMap`) and `HmtxHheaReader` (via `HmtxHheaReader.FromAdvanceWidths`) directly from
+the parsed `Type1Table`'s glyph names/advance widths and the caller's (or the built-in default's)
+codepoint-to-glyph-name encoding, rather than reading those tables from any SFNT byte layout,
+since a Type 1 font program has no `cmap`/`hmtx` tables of its own; its `NameTable` is
+`NameTable.Empty`, its `KernTable` is `KernTable.Empty`, `UnitsPerEm` is fixed at `1000` (the
+classic Type 1 convention), and `IsBold`/`IsItalic`/`IsFixedPitch` are all `false`.
 
 ##### SFNT Offset Table (12 bytes, big-endian)
 
@@ -239,6 +258,104 @@ operand (the glyph's CFF-encoded advance width, superseded by this unit's own `h
 `GetAdvanceWidth`); it is recognized by its odd-numbered-out operand count and discarded rather
 than misread as a coordinate.
 
+##### Type 1 Font Program Structure (`Type1Table`)
+
+A classic PostScript Type 1 font program is not an SFNT font at all: it is a PostScript program
+consisting of a cleartext region (the first `length1` bytes) followed by an `eexec`-encrypted
+binary region (the next `length2` bytes) containing the font's `/Subrs` and `/CharStrings`
+dictionaries, each entry itself further encrypted as a nested "charstring" cipher layer.
+`Type1Table.Parse` decrypts the `length2` region with `Type1CharstringDecryption` (`eexec` key
+`R0 = 55665`), then scans the decrypted bytes for the literal tokens `/Subrs` and `/CharStrings`
+using a token-agnostic binary-blob scanner: rather than requiring specific procedure names for
+each entry's own encoding/decoding operators (which vary across font-generation tools - `RD`/`-|`
+for reading an entry's raw bytes, `ND`/`|-`/`def` for defining a completed glyph procedure, `NP`/
+`|` for defining a completed subroutine procedure), the scanner locates each entry by its `dup
+<index> <byte-count>` (for `/Subrs`) or `/<name> <byte-count>` (for `/CharStrings`) prefix
+followed by any single non-whitespace-delimited token, then reads exactly `byte-count` raw bytes
+immediately after that token and a single delimiting space, decrypting each entry independently
+with `Type1CharstringDecryption` (charstring key `R0 = 4330`) and discarding that entry's own
+`lenIV` leading bytes (default `4`, overridable by an explicit `/lenIV` entry appearing before
+`/CharStrings` in the decrypted region). A glyph named `.notdef` is always forced to glyph index
+`0` regardless of its position in the `/CharStrings` dictionary, matching `glyf`/CFF-flavored
+font convention; every other glyph is indexed in first-seen dictionary order. `GetAdvanceWidth`
+is derived without fully decoding a glyph's outline, by peeking only as far as that glyph's own
+leading `hsbw`/`sbw` operator and its width operand.
+
+###### Type 1 Charstring Structure (`Type1CharstringInterpreter`)
+
+Each `/CharStrings` (or `/Subrs`) entry is a sequence of integer-only operands (Type 1 has no
+16.16 fixed-point encoding; operator byte `255` is instead a plain big-endian 32-bit signed
+integer) and single- or two-byte operator codes, interpreted against the same running-point/
+current-subpath state model as `CffCharstringInterpreter`, but over a different, Type-1-specific
+operator set and with no `callsubr`/`callgsubr` bias (Type 1 subroutine indices are used directly):
+
+<!-- markdownlint-disable MD013 -->
+| Operator(s) | Code(s) | Behavior |
+| --------------------------------------------------- | --------------- | ---------------------------------------------------------------------------------- |
+| `hstem`, `vstem`, `hstem3`, `vstem3`, `dotsection` | 1, 3, 12 2, 12 1, 12 0 | Consumed and discarded; this unit performs no hint execution |
+| `hsbw` | 13 | Captures the glyph's left side bearing and advance width, sets the initial point |
+| `sbw` | 12 7 | As `hsbw`, but with independent X and Y side bearing/advance components |
+| `rmoveto`, `hmoveto`, `vmoveto` | 21, 22, 4 | Starts a new subpath at a general/horizontal-only/vertical-only offset |
+| `rlineto`, `hlineto`, `vlineto` | 5, 6, 7 | Appends a line segment; `hlineto`/`vlineto` are axis-only |
+| `rrcurveto`, `hvcurveto`, `vhcurveto` | 8, 31, 30 | Appends a cubic Bezier segment, `hvcurveto`/`vhcurveto` alternating start/end axis |
+| `closepath` | 9 | Closes the current subpath |
+| `callsubr`, `return` | 10, 11 | Invoke/resume a local subroutine by direct (unbiased) index, depth/step bounded |
+| `div` | 12 12 | Pops the top two stack values regardless of stack depth, pushes their quotient |
+| `callothersubr`, `pop`, `setcurrentpoint` | 12 16, 12 17, 12 33 | Implement real flex geometry (othersubr 1/2/0) and hint replacement (othersubr 3), detailed below |
+| `endchar` | 14 | Finishes the outline |
+<!-- markdownlint-enable MD013 -->
+
+`seac` (escape operator `12 6`, the legacy accented-composite-glyph operator) is explicitly
+rejected with `InvalidDataException` wherever encountered; any other operator outside this set is
+likewise rejected with `InvalidDataException`, as is a charstring that ends before its declared
+operand/operator data has been fully read. Flex is implemented as real curve geometry rather than
+a no-op: `callothersubr` index `1` begins buffering up to seven subsequent `rmoveto` deltas and
+marks the interpreter as "flexing" (during which no point is actually committed to the path
+yet); index `2` marks an intermediate flex reference point (a no-op beyond continuing to buffer);
+index `0` ends flex, requires exactly the three arguments `[flexHeight, finalX, finalY]` and
+exactly seven buffered points, discards the first buffered point (an off-curve reference only),
+and converts the remaining six into two `CubicBezierTo` calls - matching the real curve a flex
+hint is a rendering-quality annotation for, rather than the polyline of straight `rmoveto` deltas
+a naive pass-through would otherwise draw. After ending flex, the interpreter pushes `finalY` then
+`finalX` onto a small internal PostScript-operand stack so that the charstring's own subsequent
+`pop pop setcurrentpoint` sequence observes `[finalX, finalY]` in the order it expects. Hint
+replacement (`callothersubr` index `3`) is treated as transparent pass-through: it pops exactly
+one argument (a subroutine number) onto the same internal stack, and the charstring's own
+subsequent `pop callsubr` sequence retrieves and invokes that subroutine exactly as if no hint
+replacement had occurred, since this unit performs no hint execution of its own.
+
+##### PFB Segmented Binary Structure (`Type1PfbReader`)
+
+A `.pfb`-framed Type 1 font file wraps its cleartext and `eexec`-encrypted regions (plus a final
+PostScript trailer) in a generic sequence of length-prefixed segments, each headed by
+`0x80 <type-byte> <4-byte little-endian length>`, where `<type-byte>` is `0x01` (ASCII/cleartext
+segment), `0x02` (binary/encrypted segment), or `0x03` (end-of-file marker, carrying no length or
+payload). `Type1PfbReader.Read` loops generically over however many segments the file actually
+contains (not a hard-coded three-segment assumption): ASCII segments encountered before the first
+binary segment are concatenated, header-stripped, into the cleartext region (`length1`); binary
+segments are concatenated, header-stripped, into the encrypted region (`length2`); any further
+ASCII segment appearing after the encrypted region (the standard zero-fill/`cleartomark` trailer)
+is read past and discarded rather than appended to either region; the loop stops at a `0x03`
+marker or the end of the input. `TrySniff` recognizes a `.pfb` file by its leading `0x80` marker
+byte. `Read` fails closed with `InvalidDataException` on a truncated segment header or payload, an
+unrecognized segment type byte, or a file containing no binary (`0x02`) segment at all.
+
+##### PFA Hex-Encoded ASCII Structure (`Type1PfaReader`)
+
+A `.pfa`-framed Type 1 font file instead represents its entire content as printable ASCII,
+beginning with `%!`, with the `eexec`-encrypted region hex-encoded (two ASCII hex digits per
+encrypted byte, tolerating embedded whitespace/newlines within the hex run) immediately following
+the literal keyword `eexec`. `Type1PfaReader.Read` locates that keyword, hex-decodes the run of
+hex digits and whitespace immediately following it (any other byte ends the run), trims trailing
+zero-padding bytes from the decoded result (a common `.pfa` convention before the trailer), and
+takes the cleartext region (`length1`) to be the original file bytes from offset zero through the
+end of the literal `eexec` keyword - the cleartext region's own content is never reinterpreted by
+this reader, only its byte count matters to `Type1Table.Parse`. `TrySniff` recognizes a `.pfa`
+file by its leading `%!` bytes. `Read` fails closed with `InvalidDataException` when the `eexec`
+keyword is missing, the decoded hex-digit count is odd, a non-hex/non-whitespace byte is
+encountered before any hex digit has been read, or zero bytes remain after trimming trailing
+zero-padding.
+
 ##### `cmap` Subtables Used
 
 ###### Format 4 (segment mapping to delta values)
@@ -347,8 +464,11 @@ present and at least 16 bytes long. `italicAngle` needs at least 8 bytes to be r
 
 ##### Load(Stream stream)
 
-Copies the source stream into memory, parses the SFNT container (transparently selecting face 0
-if the stream begins with a `ttcf` header), validates every required table for the font's
+Copies the source stream into memory. First checks whether the bytes are a standalone Type 1 font
+program framed as `.pfb` (`Type1PfbReader.TrySniff`) or `.pfa` (`Type1PfaReader.TrySniff`); if so,
+parses it with `Type1Table.Parse` using the built-in `Type1StandardGlyphNames` default encoding
+and returns that font directly. Otherwise, parses the SFNT container (transparently selecting
+face 0 if the stream begins with a `ttcf` header), validates every required table for the font's
 outline flavor, parses `head`, `maxp`, `hhea`, and `hmtx`, eagerly parses `loca` (glyf-flavored)
 or the `CFF` table (CFF-flavored), and parses `cmap` / `kern` leniently when present.
 
@@ -357,8 +477,9 @@ or the `CFF` table (CFF-flavored), and parses `cmap` / `kern` leniently when pre
 - `ArgumentNullException` — `stream` is null
 - `InvalidDataException` — the SFNT version is unrecognized, an `OTTO`-flavored font is missing
   its `CFF` table, a required table is missing or malformed, a table directory entry is out of
-  bounds or would overflow ordinary arithmetic, the stream is truncated, or (CFF-flavored only) the
-  CFF data is CID-keyed, structurally malformed, or its CharStrings count disagrees with `maxp`
+  bounds or would overflow ordinary arithmetic, the stream is truncated, (CFF-flavored only) the
+  CFF data is CID-keyed, structurally malformed, or its CharStrings count disagrees with `maxp`,
+  or (recognized as `.pfb`/`.pfa`-framed) the Type 1 font program data is structurally malformed
 
 ##### Load(string path)
 
@@ -393,11 +514,30 @@ Opens `path` as a read-only `FileStream` and delegates to `Load(Stream, int)`.
 **Throws:** as `Load(Stream, int)`, plus `ArgumentNullException`/`ArgumentException` for a null
 or empty `path` exactly as `Load(string)`.
 
+##### LoadType1(Stream stream, int length1, int length2, codepointToGlyphName)
+
+Loads a classic PostScript Type 1 font program from its raw cleartext (`length1` bytes) and
+`eexec`-encrypted (`length2` bytes) byte segments, exactly as they would be extracted from a
+PDF Type1 font's own `FontFile` stream, together with a caller-supplied codepoint-to-glyph-name
+encoding. Copies `stream` into memory, parses it with `Type1Table.Parse(bytes, length1, length2)`,
+and builds a `TrueTypeFont` around the resulting `Type1Table` (via the shared internal
+`BuildFromType1Table` helper also used by standalone `.pfb`/`.pfa` auto-detection), synthesizing
+its `CmapTable` from `codepointToGlyphName` resolved against `Type1Table.TryGetGlyphIndex` and its
+`HmtxHheaReader` from every glyph's own `GetAdvanceWidth`.
+
+**Throws:**
+
+- `ArgumentNullException` — `stream` or `codepointToGlyphName` is null
+- `InvalidDataException` — `length1`/`length2` are negative, exceed the stream's own length, or
+  the Type 1 font program data itself (the `/Subrs`/`/CharStrings` structure or any glyph's own
+  charstring, including a charstring using `seac` or another unsupported operator) is malformed
+
 ##### GetFaceCount(Stream stream) / GetFaceCount(string path)
 
 Reads only enough of the stream to distinguish a `ttcf` container from an ordinary SFNT font: the
 first 4 bytes (the tag), and - only if that tag is `ttcf` - the header's `numFonts` field. Returns
-`1` for an ordinary SFNT font, or the container's own declared face count for a `ttcf` file.
+`1` for an ordinary SFNT font, for a standalone `.pfb`/`.pfa`-framed Type 1 font file (neither of
+which begins with the `ttcf` tag), or the container's own declared face count for a `ttcf` file.
 Neither overload parses any face's own table directory.
 
 **Throws:**
@@ -486,7 +626,20 @@ per the derivation rules described under the `OS/2` and `post` table-layout subs
   decodes each glyph's Type 2 charstring via `CffCharstringInterpreter`
 - `CffCharstringInterpreter` executes a single glyph's Type 2 charstring bytecode against the
   supported operator subset
-- `HmtxHheaReader` parses top-level typographic metrics and advance widths
+- `Type1Table` (an `IGlyphOutlineSource`) decrypts the `eexec` region, scans it for `/Subrs` and
+  `/CharStrings` entries in a procedure-name-agnostic way, then lazily decodes each glyph's Type 1
+  charstring via `Type1CharstringInterpreter`
+- `Type1CharstringInterpreter` executes a single glyph's Type 1 charstring bytecode against the
+  supported operator subset, including real flex geometry and hint-replacement pass-through
+- `Type1CharstringDecryption` implements the shared `eexec`/charstring LCG decryption algorithm
+  used by both the `eexec` region itself and each individual `/Subrs`/`/CharStrings` entry
+- `Type1PfbReader` / `Type1PfaReader` auto-detect and reassemble a standalone `.pfb`/`.pfa`-framed
+  Type 1 font file into the same cleartext/`length1`/`length2` byte-segment shape `Type1Table.Parse`
+  and `LoadType1` already consume
+- `Type1StandardGlyphNames` supplies the small, curated, built-in codepoint-to-glyph-name
+  vocabulary used as the default encoding for standalone `.pfb`/`.pfa` auto-detection
+- `HmtxHheaReader` parses top-level typographic metrics and advance widths (from `hmtx`, or
+  synthesized via `FromAdvanceWidths` for a Type 1 font program)
 - `KernTable` tolerantly parses the first qualifying horizontal format-0 subtable, if any
 - `NameTable` tolerantly parses the `name` table's records and resolves the platform/nameID
   preference order into `FamilyName`/`SubfamilyName`/`FullName`/`PostScriptName`
@@ -501,16 +654,18 @@ per the derivation rules described under the `OS/2` and `post` table-layout subs
 | Member                 | Exception                                   | Condition                                                                                                        |
 | ---------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `Load(Stream)`         | `ArgumentNullException`                     | `stream` is null                                                                                                 |
-| `Load(Stream)`         | `InvalidDataException`                      | Bad SFNT version, missing required table (per outline flavor), bad table bounds, truncation, or invalid CFF data |
+| `Load(Stream)`         | `InvalidDataException`                      | Bad SFNT version, missing required table, truncation, invalid CFF data, or malformed Type 1 data                 |
 | `Load(string)`         | `ArgumentNullException`                     | `path` is null                                                                                                   |
 | `Load(string)`         | `ArgumentException`                         | `path` is empty                                                                                                  |
 | `Load(string)`         | `InvalidDataException`                      | Same font-structure failures as `Load(Stream)`                                                                   |
 | `Load(Stream, int)`    | `ArgumentNullException`                     | `stream` is null                                                                                                 |
-| `Load(Stream, int)`    | `ArgumentOutOfRangeException`               | `faceIndex` is negative or not less than the file's own face count                                               |
+| `Load(Stream, int)`    | `ArgumentOutOfRangeException`               | `faceIndex` is negative or not less than the file's own face count (always `1` for standalone Type 1)            |
 | `Load(Stream, int)`    | `InvalidDataException`                      | As `Load(Stream)`, plus a malformed `ttcf` header                                                                |
 | `Load(string, int)`    | `ArgumentNullException`/`ArgumentException` | Null/empty `path`, as `Load(string)`                                                                             |
 | `Load(string, int)`    | `ArgumentOutOfRangeException`               | As `Load(Stream, int)`                                                                                           |
 | `Load(string, int)`    | `InvalidDataException`                      | As `Load(Stream, int)`                                                                                           |
+| `LoadType1(...)`       | `ArgumentNullException`                     | `stream` or `codepointToGlyphName` is null                                                                       |
+| `LoadType1(...)`       | `InvalidDataException`                      | `length1`/`length2` negative or exceed stream length, or Type 1 data (including `seac`) is malformed             |
 | `GetFaceCount(Stream)` | `ArgumentNullException`                     | `stream` is null                                                                                                 |
 | `GetFaceCount(Stream)` | `InvalidDataException`                      | Stream too short for a tag, or a malformed `ttcf` header                                                         |
 | `GetFaceCount(string)` | `ArgumentNullException`/`ArgumentException` | Null/empty `path`                                                                                                |
@@ -596,12 +751,27 @@ segments - the reverse of the glyf-flavored decoder's natively-quadratic posture
 opened by a moveto operator is closed either by an explicit path close or by `endchar`, matching
 the fill-rule expectations `Drawing.PathFiller` already applies to `glyf`-flavored outlines.
 
+##### Type 1 Subroutine Call Bounds and Fail-Closed Unsupported Operators
+
+`Type1CharstringInterpreter` applies the same deterministic-limit posture as
+`CffCharstringInterpreter`: a maximum `callsubr` nesting depth and a maximum total executed
+charstring-operator step count, both charged per single glyph decode, catching self-recursive
+subroutine cycles and excessively long/repetitive non-cyclic call chains alike. Unlike Type 2
+charstrings, Type 1 `callsubr` addresses subroutines directly with no bias adjustment. `seac`
+(the legacy accented-composite-glyph operator) and every operator outside the supported Type 1
+set are rejected immediately with `InvalidDataException` the moment they are encountered, rather
+than being silently skipped or approximated, so a font relying on either cannot produce a
+silently-wrong outline.
+
 #### Dependencies
 
 `TrueTypeFont` depends only on the `Geometry` subsystem: `Path` as the public outline return
 type, `PathBuilder` as the construction mechanism for decoded contours, and `PathCommand`
 semantics as the command set a caller later walks if it needs to transform the returned outline.
-The unit has no dependency on `Canvas`, `Drawing`, or any runtime NuGet package.
+The unit has no dependency on `Canvas`, `Drawing`, or any runtime NuGet package. This holds
+equally for the Type 1 support added by `Type1Table`, `Type1CharstringInterpreter`,
+`Type1CharstringDecryption`, `Type1PfbReader`, `Type1PfaReader`, and `Type1StandardGlyphNames`:
+all six are pure byte-array/`Geometry` code with no additional dependency of their own.
 
 #### Callers
 

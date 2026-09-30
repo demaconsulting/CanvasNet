@@ -469,6 +469,12 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Fonts/IGlyphOutlineSource.cs"  # internal outline-backend dispatch abstraction
       - "src/DemaConsulting.CanvasNet/Fonts/CffTable.cs"          # internal helper source (CFF structural parsing)
       - "src/DemaConsulting.CanvasNet/Fonts/CffCharstringInterpreter.cs"  # internal helper source (Type 2 interpreter)
+      - "src/DemaConsulting.CanvasNet/Fonts/Type1Table.cs"        # internal helper source (Type 1 structural parsing)
+      - "src/DemaConsulting.CanvasNet/Fonts/Type1CharstringInterpreter.cs"  # internal helper (Type 1 interpreter)
+      - "src/DemaConsulting.CanvasNet/Fonts/Type1CharstringDecryption.cs"  # internal helper (eexec decryption)
+      - "src/DemaConsulting.CanvasNet/Fonts/Type1PfbReader.cs"    # internal helper source (standalone .pfb auto-detect)
+      - "src/DemaConsulting.CanvasNet/Fonts/Type1PfaReader.cs"    # internal helper source (standalone .pfa auto-detect)
+      - "src/DemaConsulting.CanvasNet/Fonts/Type1StandardGlyphNames.cs"  # internal helper (default glyph-name encoding)
       - "src/DemaConsulting.CanvasNet/Fonts/HmtxHheaReader.cs"    # internal helper source
       - "src/DemaConsulting.CanvasNet/Fonts/KernTable.cs"         # internal helper source
       - "src/DemaConsulting.CanvasNet/Fonts/NameTable.cs"         # internal helper source (name-table resolution)
@@ -479,6 +485,10 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/GlyfLocaReaderTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/CffTableTests.cs"       # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/CffCharstringInterpreterTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Fonts/Type1TableTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Fonts/Type1CharstringInterpreterTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Fonts/Type1PfbReaderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Fonts/Type1PfaReaderTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/HmtxHheaReaderTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/KernTableTests.cs"      # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/NameTableTests.cs"      # unit tests

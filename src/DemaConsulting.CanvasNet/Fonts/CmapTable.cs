@@ -55,6 +55,27 @@ internal sealed class CmapTable
     }
 
     /// <summary>
+    ///     Builds a <see cref="CmapTable"/> directly from an in-memory codepoint-to-glyph-index
+    ///     map, bypassing <see cref="Parse"/>'s binary <c>cmap</c> table format entirely.
+    /// </summary>
+    /// <remarks>
+    ///     Used for font formats with no <c>cmap</c> table of their own - a classic PostScript
+    ///     Type 1 font program instead associates glyphs with names, and the caller (or, for a
+    ///     standalone <c>.pfb</c>/<c>.pfa</c> load, <see cref="Type1StandardGlyphNames"/>) supplies
+    ///     a codepoint-to-name encoding that gets resolved to glyph indices ahead of time.
+    /// </remarks>
+    /// <param name="codepointToGlyphIndex">The codepoint-to-glyph-index map to wrap.</param>
+    /// <returns>
+    ///     A <see cref="CmapTable"/> whose <see cref="GetGlyphIndex"/> returns the mapped glyph
+    ///     index for a known codepoint, or <c>0</c> (<c>.notdef</c>) for any other codepoint.
+    /// </returns>
+    internal static CmapTable FromMap(IReadOnlyDictionary<int, int> codepointToGlyphIndex)
+    {
+        ArgumentNullException.ThrowIfNull(codepointToGlyphIndex);
+        return new CmapTable(codepoint => codepointToGlyphIndex.GetValueOrDefault(codepoint, 0));
+    }
+
+    /// <summary>
     ///     Parses a <c>cmap</c> table and selects the highest-priority supported subtable.
     /// </summary>
     /// <param name="data">The complete font file contents.</param>

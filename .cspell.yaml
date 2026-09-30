@@ -263,6 +263,34 @@ words:
   - vstem
   - vstemhm
   - vvcurveto
+  - eexec
+  - Eexec
+  - hsbw
+  - Hsbw
+  - sbw
+  - dotsection
+  - Dotsection
+  - lenIV
+  - cleartomark
+  - ncleartomark
+  - ncurrentfile
+  - congruential
+  - codepoints
+  - charstrings
+  - ciphertext
+  - reindexing
+  - exclam
+  - quotedbl
+  - numbersign
+  - quotesingle
+  - parenleft
+  - parenright
+  - bracketleft
+  - bracketright
+  - asciicircum
+  - braceleft
+  - braceright
+  - asciitilde
 
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:

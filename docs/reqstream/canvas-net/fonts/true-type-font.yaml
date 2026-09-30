@@ -830,3 +830,105 @@ sections:
                   to IsFixedPitch false rather than the query failing.
                 tests:
                   - TrueTypeFont_IsFixedPitch_PostTableAbsent_ReturnsFalseWithoutThrowing
+
+              - id: CanvasNet-Fonts-TrueTypeFont-LoadType1FromSegments
+                title: >-
+                  The TrueTypeFont class shall load a classic PostScript Type 1 font program from
+                  its raw cleartext/eexec-encrypted byte segments (a caller-supplied Length1 and
+                  Length2, as typically extracted from a PDF Type1 font's own FontFile stream) and
+                  a caller-supplied codepoint-to-glyph-name encoding, exposing GlyphCount,
+                  GetGlyphIndex, GetGlyphOutline, and GetAdvanceWidth behavior equivalent to a
+                  glyf/CFF-flavored font, and shall reject malformed or truncated Type 1 font
+                  program data, or a glyph charstring using an unsupported operator (including
+                  seac), with InvalidDataException.
+                justification: |
+                  A PDF Type1 font's embedded FontFile stream carries a Type 1 font program as raw
+                  Length1/Length2-delimited byte segments with no SFNT/OpenType wrapper of its
+                  own; a caller already holding those segments and the font's own text encoding
+                  must be able to load and query it through the same TrueTypeFont API used for
+                  every other supported outline flavor.
+                tests:
+                  - TrueTypeFont_LoadType1_WellFormedProgram_ExposesGlyphsAndMetrics
+                  - TrueTypeFont_LoadType1_NegativeLength1_ThrowsInvalidDataException
+                  - TrueTypeFont_LoadType1_Length2ExceedsStreamBounds_ThrowsInvalidDataException
+                  - TrueTypeFont_LoadType1_NullStream_ThrowsArgumentNullException
+                  - TrueTypeFont_LoadType1_NullEncoding_ThrowsArgumentNullException
+                  - Type1Table_Parse_WellFormedFont_ExposesGlyphCountAndOutlines
+                  - Type1Table_Parse_NotdefNotFirst_ReindexesToGlyphZero
+                  - Type1Table_GetAdvanceWidth_ReturnsHsbwWidth
+                  - Type1Table_TryGetGlyphIndex_UnknownName_ReturnsFalse
+                  - Type1Table_GetGlyphOutline_OutOfRangeIndex_ThrowsArgumentOutOfRangeException
+                  - Type1Table_Parse_WithLocalSubrs_DecodesGlyphUsingCallSubr
+                  - Type1Table_Parse_VariousProcNameTokens_ScannerIsProcedureNameAgnostic
+                  - Type1Table_Parse_CustomLenIv_DecodesCorrectly
+                  - Type1Table_Parse_SeacOperator_ThrowsInvalidDataException
+                  - Type1Table_Parse_MissingCharStrings_ThrowsInvalidDataException
+                  - Type1Table_Parse_NegativeLength_ThrowsInvalidDataException
+                  - Type1Table_Parse_LengthsExceedFileBounds_ThrowsInvalidDataException
+                  - Type1Table_Parse_EmptyCharStrings_ThrowsInvalidDataException
+                  - Type1CharstringInterpreter_EmptyCharstring_ProducesEmptyPathAndZeroWidth
+                  - Type1CharstringInterpreter_Hsbw_CapturesWidthAndSideBearing
+                  - Type1CharstringInterpreter_Sbw_CapturesWidthAndBothSideBearings
+                  - Type1CharstringInterpreter_RLineTo_HLineTo_VLineTo_ProduceLines
+                  - Type1CharstringInterpreter_RRCurveTo_ProducesCubicBezier
+                  - Type1CharstringInterpreter_VhCurveTo_HvCurveTo_AlternateStartTangent
+                  - Type1CharstringInterpreter_ClosePath_ClosesSubpath
+                  - Type1CharstringInterpreter_HStem_VStem_Hstem3_Vstem3_Dotsection_ConsumedWithoutError
+                  - Type1CharstringInterpreter_CallSubr_Return_NoBias_DirectIndex
+                  - Type1CharstringInterpreter_CallSubr_OutOfRangeIndex_ThrowsInvalidDataException
+                  - Type1CharstringInterpreter_CallSubr_ExceedsMaxDepth_ThrowsInvalidDataException
+                  - Type1CharstringInterpreter_Div_ResultFeedsSubsequentOperator
+                  - Type1CharstringInterpreter_Flex_EndToEnd_ProducesTwoRealCubicBeziers
+                  - Type1CharstringInterpreter_HintReplacement_OtherSubr3_IsTransparentPassThrough
+                  - Type1CharstringInterpreter_Seac_ThrowsInvalidDataException
+                  - Type1CharstringInterpreter_UnsupportedOperator_ThrowsInvalidDataException
+                  - Type1CharstringInterpreter_UnsupportedEscapeOperator_ThrowsInvalidDataException
+                  - Type1CharstringInterpreter_CallOtherSubr_UnsupportedIndex_ThrowsInvalidDataException
+                  - Type1CharstringInterpreter_RLineTo_WrongOperandCount_ThrowsInvalidDataException
+                  - Type1CharstringInterpreter_FiveByteInteger_DecodesAsPlainInt32
+                  - Type1CharstringInterpreter_TruncatedCharstring_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-LoadType1Outlines
+                title: >-
+                  The TrueTypeFont class shall auto-detect a standalone classic PostScript Type 1
+                  font program framed as either a PFB (binary segment-header) or PFA
+                  (plain-ASCII, hex-encoded encrypted region) file passed to Load, parsing it using
+                  a small, curated, built-in codepoint-to-glyph-name encoding covering common
+                  Latin/ASCII characters as its default encoding, and shall report GetFaceCount as
+                  1 and reject a face index other than 0 for such a file, and shall continue to
+                  reject any input recognized as neither a supported SFNT/OpenType font nor a
+                  PFB/PFA-framed Type 1 font program with InvalidDataException.
+                justification: |
+                  A standalone .pfb/.pfa font file (as opposed to a PDF-embedded FontFile stream)
+                  has no caller-supplied Length1/Length2 segmentation or text encoding available;
+                  Load must still be able to recognize and load it directly, exactly as it already
+                  does for SFNT/OpenType/TrueType Collection files, without requiring the caller to
+                  pre-parse the file's own framing or supply an encoding of their own.
+                tests:
+                  - TrueTypeFont_Load_StandalonePfbFile_AutoDetectsAndRoundTrips
+                  - TrueTypeFont_Load_StandalonePfaFile_AutoDetectsAndRoundTrips
+                  - TrueTypeFont_Load_StandalonePfbFile_Path_ReadsFromFile
+                  - TrueTypeFont_GetFaceCount_StandaloneType1File_ReturnsOne
+                  - TrueTypeFont_Load_StandaloneType1File_FaceIndexOne_ThrowsArgumentOutOfRangeException
+                  - TrueTypeFont_Load_NonType1NonSfntGarbage_ThrowsInvalidDataException
+                  - Type1PfbReader_TrySniff_RecognizesPfbHeader
+                  - Type1PfbReader_TrySniff_NonPfbData_ReturnsFalse
+                  - Type1PfbReader_Read_TwoSegmentFile_ReassemblesLength1AndLength2
+                  - Type1PfbReader_Read_MultiSegmentFile_ConcatenatesLikeTypedSegments
+                  - Type1PfbReader_Read_TrailingAsciiSegment_DiscardsItAsTrailer
+                  - Type1PfbReader_Read_NoBinarySegment_ThrowsInvalidDataException
+                  - Type1PfbReader_Read_MissingEndOfFileMarker_ThrowsInvalidDataException
+                  - Type1PfbReader_Read_UnrecognizedSegmentType_ThrowsInvalidDataException
+                  - Type1PfbReader_Read_TruncatedHeader_ThrowsInvalidDataException
+                  - Type1PfbReader_Read_TruncatedPayload_ThrowsInvalidDataException
+                  - Type1PfbReader_Read_MissingSegmentMarkerByte_ThrowsInvalidDataException
+                  - Type1PfaReader_TrySniff_RecognizesPercentBangPrefix
+                  - Type1PfaReader_TrySniff_NonPfaData_ReturnsFalse
+                  - Type1PfaReader_Read_WellFormedFile_ReassemblesLength1AndLength2
+                  - Type1PfaReader_Read_MultiLineWhitespaceWrappedHex_ToleratesEmbeddedWhitespace
+                  - Type1PfaReader_Read_TrailingZeroPadding_IsTrimmed
+                  - Type1PfaReader_Read_MissingEexecKeyword_ThrowsInvalidDataException
+                  - Type1PfaReader_Read_OddHexDigitCount_ThrowsInvalidDataException
+                  - Type1PfaReader_Read_NonHexByteBeforeAnyHexDigit_ThrowsInvalidDataException
+                  - Type1PfaReader_Read_ZeroBytesAfterTrim_ThrowsInvalidDataException
+                  - Type1PfaReader_Read_LowercaseAndUppercaseHexDigits_AreBothAccepted

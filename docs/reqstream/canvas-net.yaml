@@ -1257,6 +1257,23 @@ sections:
         tests:
           - CanvasNet_SystemIntegration_LoadCffOtfFontAndFillGlyphOutline_ReturnsExpectedPixels
 
+      - id: CanvasNet-Lib-FontsType1OutlineDecoding
+        title: >-
+          The library shall load a classic PostScript Type 1 font program - either from
+          caller-supplied cleartext/eexec-encrypted byte segments or auto-detected from a
+          standalone .pfb/.pfa file - and decode its glyph outlines into the same vector path
+          geometry the library already produces for glyf/CFF-flavored fonts, so callers can
+          render Type 1 glyphs interchangeably through the same TrueTypeFont API.
+        tags: [system]
+        justification: |
+          Classic PostScript Type 1 fonts remain common as embedded fonts in legacy PDF
+          documents and as standalone .pfb/.pfa font files; callers need to load and render
+          Type 1 glyph outlines without caring which outline flavor a given font file uses.
+        children:
+          - CanvasNet-Fonts-Type1OutlineDecoding
+        tests:
+          - CanvasNet_SystemIntegration_LoadType1FontAndFillGlyphOutline_ReturnsExpectedPixels
+
       - id: CanvasNet-Lib-FontsTtcSupport
         title: >-
           The library shall report how many font faces a file contains and load any one of

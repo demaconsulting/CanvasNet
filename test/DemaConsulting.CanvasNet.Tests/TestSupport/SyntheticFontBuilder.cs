@@ -1009,4 +1009,265 @@ internal sealed class SyntheticFontBuilder
         WriteUInt32(buf, 0); // maxMemType1
         return [.. buf];
     }
+
+    /// <summary>
+    ///     Appends a Type 1 charstring numeric operand using the smallest applicable encoding.
+    /// </summary>
+    /// <remarks>
+    ///     Unlike <see cref="WriteCharstringNumber"/> (Type 2's encoding), Type 1 has no 3-byte
+    ///     <c>28</c> form - anything outside the compact single/two-byte ranges falls straight
+    ///     through to the 5-byte <c>255</c> form, which for Type 1 is a plain 32-bit signed
+    ///     integer (not Type 2's 16.16 fixed-point value).
+    /// </remarks>
+    public static void WriteType1CharstringNumber(List<byte> buf, int value)
+    {
+        switch (value)
+        {
+            case >= -107 and <= 107:
+                buf.Add((byte)(value + 139));
+                return;
+            case >= 108 and <= 1131:
+                buf.Add((byte)(((value - 108) / 256) + 247));
+                buf.Add((byte)((value - 108) % 256));
+                return;
+            case >= -1131 and <= -108:
+                var positive = -value - 108;
+                buf.Add((byte)((positive / 256) + 251));
+                buf.Add((byte)(positive % 256));
+                return;
+            default:
+                buf.Add(255);
+                WriteUInt32(buf, unchecked((uint)value));
+                return;
+        }
+    }
+
+    /// <summary>
+    ///     Appends a Type 1 charstring operator: a single byte for an operator code below
+    ///     <c>1200</c>, or the two-byte escape form (<c>12</c>, <c>code - 1200</c>) otherwise -
+    ///     matching <see cref="WriteCharstringOperator"/>'s convention for the escape range base.
+    /// </summary>
+    public static void WriteType1CharstringOperator(List<byte> buf, int op)
+    {
+        if (op >= 1200)
+        {
+            buf.Add(12);
+            buf.Add((byte)(op - 1200));
+        }
+        else
+        {
+            buf.Add((byte)op);
+        }
+    }
+
+    /// <summary>
+    ///     Builds a complete, hand-authored classic PostScript Type 1 font program from already
+    ///     hand-encoded glyph charstrings and (optional) subroutines, returning the byte layout
+    ///     <see cref="Type1Table.Parse"/> expects directly: <c>Length1</c> cleartext bytes
+    ///     immediately followed by <c>Length2</c> <c>eexec</c>-encrypted bytes.
+    /// </summary>
+    /// <param name="charStrings">
+    ///     Every glyph's name and already-encoded (plaintext, not yet charstring-encrypted)
+    ///     charstring bytes, in <c>/CharStrings</c> dict-encounter order.
+    /// </param>
+    /// <param name="subrs">
+    ///     Every subroutine's already-encoded (plaintext) charstring bytes, indexed by
+    ///     subroutine number (<see langword="null"/> or empty for no <c>/Subrs</c> dictionary).
+    /// </param>
+    /// <param name="lenIv">
+    ///     The <c>/lenIV</c> value to declare and to use for individual charstring/subroutine
+    ///     encryption lead-in padding. Only an explicit <c>/lenIV NN def</c> declaration is
+    ///     emitted when this differs from the Type 1 Font Format's documented default of <c>4</c>.
+    /// </param>
+    /// <param name="readToken">
+    ///     The (arbitrary, font-specific) "read binary data" procedure name token to emit between
+    ///     each entry's declared length and its raw bytes - varying this across test fixtures
+    ///     proves <see cref="Type1Table"/>'s scanner never depends on its literal spelling.
+    /// </param>
+    /// <param name="defToken">
+    ///     The (arbitrary, font-specific) "define" procedure name token to emit immediately after
+    ///     each entry's raw bytes.
+    /// </param>
+    /// <returns>The assembled font program bytes, and its cleartext/encrypted region lengths.</returns>
+    public static (byte[] FontFileBytes, int Length1, int Length2) Type1(
+        IReadOnlyList<(string Name, byte[] Charstring)> charStrings,
+        IReadOnlyList<byte[]>? subrs = null,
+        int lenIv = 4,
+        string readToken = "RD",
+        string defToken = "ND")
+    {
+        subrs ??= [];
+
+        var cleartext = System.Text.Encoding.ASCII.GetBytes(
+            "%!PS-AdobeFont-1.0: Synthetic\n/FontName /Synthetic def\ncurrentfile eexec\n");
+
+        var plaintext = new List<byte>();
+        void AppendAscii(string s) => plaintext.AddRange(System.Text.Encoding.ASCII.GetBytes(s));
+
+        AppendAscii("dup /Private 15 dict dup begin\n");
+        if (lenIv != 4)
+        {
+            AppendAscii($"/lenIV {lenIv} def\n");
+        }
+
+        if (subrs.Count > 0)
+        {
+            AppendAscii($"/Subrs {subrs.Count} array\n");
+            for (var i = 0; i < subrs.Count; i++)
+            {
+                var encrypted = EncryptType1Entry(subrs[i], lenIv);
+                AppendAscii($"dup {i} {encrypted.Length} {readToken} ");
+                plaintext.AddRange(encrypted);
+                AppendAscii($" {defToken}\n");
+            }
+        }
+
+        AppendAscii($"/CharStrings {charStrings.Count} dict dup begin\n");
+        foreach (var (name, charstring) in charStrings)
+        {
+            var encrypted = EncryptType1Entry(charstring, lenIv);
+            AppendAscii($"/{name} {encrypted.Length} {readToken} ");
+            plaintext.AddRange(encrypted);
+            AppendAscii($" {defToken}\n");
+        }
+
+        AppendAscii("end\nend\n");
+
+        // The eexec cipher's own leading discard count is fixed at 4 bytes, regardless of the
+        // font's declared '/lenIV' (which only governs individual charstring/subroutine entries).
+        var withLeadIn = new byte[4 + plaintext.Count];
+        withLeadIn[0] = 0x01;
+        withLeadIn[1] = 0x02;
+        withLeadIn[2] = 0x03;
+        withLeadIn[3] = 0x04;
+        plaintext.CopyTo(withLeadIn, 4);
+
+        var encryptedPrivateDict = EncryptType1(withLeadIn, EexecR0);
+
+        var fontFileBytes = new byte[cleartext.Length + encryptedPrivateDict.Length];
+        cleartext.CopyTo(fontFileBytes, 0);
+        encryptedPrivateDict.CopyTo(fontFileBytes, cleartext.Length);
+
+        return (fontFileBytes, cleartext.Length, encryptedPrivateDict.Length);
+    }
+
+    /// <summary>
+    ///     Encrypts a single charstring/subroutine entry's plaintext bytes, prefixed with
+    ///     <paramref name="lenIv"/> arbitrary lead-in bytes, using the classic PostScript Type 1
+    ///     charstring cipher key - the inverse of what the production <c>Type1Table.Parse</c>
+    ///     parser performs when reading the entry back. This helper avoids referencing the
+    ///     internal <c>Type1CharstringDecryption</c>/<c>Type1Table</c> types directly (their own
+    ///     assembly only grants <c>InternalsVisibleTo</c> to the core test project, not to the
+    ///     other test projects that link this shared file), so the cipher key constant is
+    ///     duplicated locally as <see cref="CharstringR0"/>.
+    /// </summary>
+    private static byte[] EncryptType1Entry(byte[] plainCharstring, int lenIv)
+    {
+        var withLeadIn = new byte[lenIv + plainCharstring.Length];
+        for (var i = 0; i < lenIv; i++)
+        {
+            withLeadIn[i] = (byte)(0x55 + i); // arbitrary, non-zero lead-in padding
+        }
+
+        plainCharstring.CopyTo(withLeadIn, lenIv);
+        return EncryptType1(withLeadIn, CharstringR0);
+    }
+
+    /// <summary>
+    ///     The classic PostScript Type 1 "eexec" cipher's initial key, duplicated locally from the
+    ///     published Type 1 Font Format specification (see remarks on <see cref="EncryptType1Entry"/>
+    ///     for why this is not simply referenced from the internal production type).
+    /// </summary>
+    private const ushort EexecR0 = 55665;
+
+    /// <summary>
+    ///     The classic PostScript Type 1 individual charstring/subroutine cipher's initial key,
+    ///     duplicated locally from the published Type 1 Font Format specification (see remarks on
+    ///     <see cref="EncryptType1Entry"/> for why this is not simply referenced from the internal
+    ///     production type).
+    /// </summary>
+    private const ushort CharstringR0 = 4330;
+
+    /// <summary>
+    ///     Encrypts <paramref name="plain"/> using the classic PostScript Type 1 "eexec" additive
+    ///     stream cipher - the forward direction of the same published cipher that production code
+    ///     only ever decrypts.
+    /// </summary>
+    /// <remarks>
+    ///     This is deliberately not implemented by reusing the production decryption routine with
+    ///     its arguments swapped: the cipher's key-update step must always feed back the
+    ///     <em>ciphertext</em> byte, not the plaintext byte, so encryption and decryption apply
+    ///     the same recurrence in opposite output roles rather than being literally the same
+    ///     function call with its input and output swapped.
+    /// </remarks>
+    private static byte[] EncryptType1(byte[] plain, ushort r)
+    {
+        const ushort c1 = 52845;
+        const ushort c2 = 22719;
+
+        var cipher = new byte[plain.Length];
+        var key = r;
+        for (var i = 0; i < plain.Length; i++)
+        {
+            var c = (byte)(plain[i] ^ (key >> 8));
+            cipher[i] = c;
+            key = (ushort)(((c + key) * c1) + c2);
+        }
+
+        return cipher;
+    }
+
+    /// <summary>
+    ///     Re-serializes a Type 1 font program (already in <see cref="Type1Table.Parse"/>'s
+    ///     <c>Length1</c>/<c>Length2</c> byte layout - see <see cref="Type1"/>) into the classic
+    ///     "PFB" binary segment framing: a cleartext segment (<c>0x80 0x01</c>), a binary segment
+    ///     (<c>0x80 0x02</c>), and a terminating end-of-file marker (<c>0x80 0x03</c>).
+    /// </summary>
+    public static byte[] Type1Pfb(byte[] fontFileBytes, int length1, int length2)
+    {
+        var buf = new List<byte>();
+        AppendPfbSegment(buf, 0x01, fontFileBytes, 0, length1);
+        AppendPfbSegment(buf, 0x02, fontFileBytes, length1, length2);
+        buf.Add(0x80);
+        buf.Add(0x03);
+        return [.. buf];
+    }
+
+    private static void AppendPfbSegment(List<byte> buf, byte segmentType, byte[] data, int offset, int length)
+    {
+        buf.Add(0x80);
+        buf.Add(segmentType);
+        buf.Add((byte)(length & 0xFF));
+        buf.Add((byte)((length >> 8) & 0xFF));
+        buf.Add((byte)((length >> 16) & 0xFF));
+        buf.Add((byte)((length >> 24) & 0xFF));
+        buf.AddRange(new ArraySegment<byte>(data, offset, length));
+    }
+
+    /// <summary>
+    ///     Re-serializes a Type 1 font program (already in <see cref="Type1Table.Parse"/>'s
+    ///     <c>Length1</c>/<c>Length2</c> byte layout - see <see cref="Type1"/>) into the plain-ASCII
+    ///     "PFA" framing: the cleartext bytes verbatim (already containing the literal
+    ///     <c>eexec</c> keyword - see <see cref="Type1"/>), followed by the encrypted region
+    ///     hex-encoded, wrapped at <paramref name="hexLineWidth"/> characters per line to also
+    ///     exercise <see cref="Type1PfaReader"/>'s embedded-whitespace tolerance.
+    /// </summary>
+    public static byte[] Type1Pfa(byte[] fontFileBytes, int length1, int length2, int hexLineWidth = 64)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append(System.Text.Encoding.Latin1.GetString(fontFileBytes, 0, length1));
+
+        for (var i = 0; i < length2; i++)
+        {
+            if (i > 0 && i % hexLineWidth == 0)
+            {
+                sb.Append('\n');
+            }
+
+            sb.Append(fontFileBytes[length1 + i].ToString("X2", System.Globalization.CultureInfo.InvariantCulture));
+        }
+
+        sb.Append('\n');
+        return System.Text.Encoding.Latin1.GetBytes(sb.ToString());
+    }
 }

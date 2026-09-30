@@ -573,3 +573,100 @@ Builds a synthetic font with `post.isFixedPitch` set non-zero, and asserts `IsFi
 
 Builds a synthetic font with no `post` table at all, and asserts `IsFixedPitch` is `false`
 without throwing.
+
+##### CanvasNet-Fonts-TrueTypeFont-LoadType1FromSegments: Type 1 Font Programs Load From Caller-Supplied Byte Segments
+
+**Tests**: `TrueTypeFont_LoadType1_WellFormedProgram_ExposesGlyphsAndMetrics`,
+`TrueTypeFont_LoadType1_NegativeLength1_ThrowsInvalidDataException`,
+`TrueTypeFont_LoadType1_Length2ExceedsStreamBounds_ThrowsInvalidDataException`,
+`TrueTypeFont_LoadType1_NullStream_ThrowsArgumentNullException`,
+`TrueTypeFont_LoadType1_NullEncoding_ThrowsArgumentNullException`,
+`Type1Table_Parse_WellFormedFont_ExposesGlyphCountAndOutlines`,
+`Type1Table_Parse_NotdefNotFirst_ReindexesToGlyphZero`,
+`Type1Table_GetAdvanceWidth_ReturnsHsbwWidth`,
+`Type1Table_TryGetGlyphIndex_UnknownName_ReturnsFalse`,
+`Type1Table_GetGlyphOutline_OutOfRangeIndex_ThrowsArgumentOutOfRangeException`,
+`Type1Table_Parse_WithLocalSubrs_DecodesGlyphUsingCallSubr`,
+`Type1Table_Parse_VariousProcNameTokens_ScannerIsProcedureNameAgnostic`,
+`Type1Table_Parse_CustomLenIv_DecodesCorrectly`,
+`Type1Table_Parse_SeacOperator_ThrowsInvalidDataException`,
+`Type1Table_Parse_MissingCharStrings_ThrowsInvalidDataException`,
+`Type1Table_Parse_NegativeLength_ThrowsInvalidDataException`,
+`Type1Table_Parse_LengthsExceedFileBounds_ThrowsInvalidDataException`,
+`Type1Table_Parse_EmptyCharStrings_ThrowsInvalidDataException`,
+`Type1CharstringInterpreter_EmptyCharstring_ProducesEmptyPathAndZeroWidth`,
+`Type1CharstringInterpreter_Hsbw_CapturesWidthAndSideBearing`,
+`Type1CharstringInterpreter_Sbw_CapturesWidthAndBothSideBearings`,
+`Type1CharstringInterpreter_RLineTo_HLineTo_VLineTo_ProduceLines`,
+`Type1CharstringInterpreter_RRCurveTo_ProducesCubicBezier`,
+`Type1CharstringInterpreter_VhCurveTo_HvCurveTo_AlternateStartTangent`,
+`Type1CharstringInterpreter_ClosePath_ClosesSubpath`,
+`Type1CharstringInterpreter_HStem_VStem_Hstem3_Vstem3_Dotsection_ConsumedWithoutError`,
+`Type1CharstringInterpreter_CallSubr_Return_NoBias_DirectIndex`,
+`Type1CharstringInterpreter_CallSubr_OutOfRangeIndex_ThrowsInvalidDataException`,
+`Type1CharstringInterpreter_CallSubr_ExceedsMaxDepth_ThrowsInvalidDataException`,
+`Type1CharstringInterpreter_Div_ResultFeedsSubsequentOperator`,
+`Type1CharstringInterpreter_Flex_EndToEnd_ProducesTwoRealCubicBeziers`,
+`Type1CharstringInterpreter_HintReplacement_OtherSubr3_IsTransparentPassThrough`,
+`Type1CharstringInterpreter_Seac_ThrowsInvalidDataException`,
+`Type1CharstringInterpreter_UnsupportedOperator_ThrowsInvalidDataException`,
+`Type1CharstringInterpreter_UnsupportedEscapeOperator_ThrowsInvalidDataException`,
+`Type1CharstringInterpreter_CallOtherSubr_UnsupportedIndex_ThrowsInvalidDataException`,
+`Type1CharstringInterpreter_RLineTo_WrongOperandCount_ThrowsInvalidDataException`,
+`Type1CharstringInterpreter_FiveByteInteger_DecodesAsPlainInt32`,
+`Type1CharstringInterpreter_TruncatedCharstring_ThrowsInvalidDataException`
+
+Exercises `TrueTypeFont.LoadType1` end-to-end against a hand-authored synthetic Type 1 font
+program (via `SyntheticFontBuilder.Type1`), asserting `GetGlyphIndex`/`GetGlyphOutline`/
+`GetAdvanceWidth` behave equivalently to the glyf/CFF-flavored paths, and that malformed
+`length1`/`length2` values and null arguments are rejected as documented. Separately verifies
+`Type1Table`'s own `/Subrs`/`/CharStrings` scanner - including its procedure-name-agnostic
+behavior across varied `RD`/`ND`/`NP`/`-|`/`|-` token fixtures, `.notdef`-reindexing,
+custom-`lenIV` handling, and its fail-closed structural-malformation paths - and
+`Type1CharstringInterpreter`'s full opcode set in isolation, including a geometry-asserting
+end-to-end flex test that checks actual `Path` point data (not merely the absence of an
+exception), a hint-replacement pass-through test, `seac` rejection, and subroutine call-depth
+bounding.
+
+##### CanvasNet-Fonts-TrueTypeFont-LoadType1Outlines: Standalone `.pfb`/`.pfa` Type 1 Files Auto-Detect Through `Load`
+
+**Tests**: `TrueTypeFont_Load_StandalonePfbFile_AutoDetectsAndRoundTrips`,
+`TrueTypeFont_Load_StandalonePfaFile_AutoDetectsAndRoundTrips`,
+`TrueTypeFont_Load_StandalonePfbFile_Path_ReadsFromFile`,
+`TrueTypeFont_GetFaceCount_StandaloneType1File_ReturnsOne`,
+`TrueTypeFont_Load_StandaloneType1File_FaceIndexOne_ThrowsArgumentOutOfRangeException`,
+`TrueTypeFont_Load_NonType1NonSfntGarbage_ThrowsInvalidDataException`,
+`Type1PfbReader_TrySniff_RecognizesPfbHeader`,
+`Type1PfbReader_TrySniff_NonPfbData_ReturnsFalse`,
+`Type1PfbReader_Read_TwoSegmentFile_ReassemblesLength1AndLength2`,
+`Type1PfbReader_Read_MultiSegmentFile_ConcatenatesLikeTypedSegments`,
+`Type1PfbReader_Read_TrailingAsciiSegment_DiscardsItAsTrailer`,
+`Type1PfbReader_Read_NoBinarySegment_ThrowsInvalidDataException`,
+`Type1PfbReader_Read_MissingEndOfFileMarker_ThrowsInvalidDataException`,
+`Type1PfbReader_Read_UnrecognizedSegmentType_ThrowsInvalidDataException`,
+`Type1PfbReader_Read_TruncatedHeader_ThrowsInvalidDataException`,
+`Type1PfbReader_Read_TruncatedPayload_ThrowsInvalidDataException`,
+`Type1PfbReader_Read_MissingSegmentMarkerByte_ThrowsInvalidDataException`,
+`Type1PfaReader_TrySniff_RecognizesPercentBangPrefix`,
+`Type1PfaReader_TrySniff_NonPfaData_ReturnsFalse`,
+`Type1PfaReader_Read_WellFormedFile_ReassemblesLength1AndLength2`,
+`Type1PfaReader_Read_MultiLineWhitespaceWrappedHex_ToleratesEmbeddedWhitespace`,
+`Type1PfaReader_Read_TrailingZeroPadding_IsTrimmed`,
+`Type1PfaReader_Read_MissingEexecKeyword_ThrowsInvalidDataException`,
+`Type1PfaReader_Read_OddHexDigitCount_ThrowsInvalidDataException`,
+`Type1PfaReader_Read_NonHexByteBeforeAnyHexDigit_ThrowsInvalidDataException`,
+`Type1PfaReader_Read_ZeroBytesAfterTrim_ThrowsInvalidDataException`,
+`Type1PfaReader_Read_LowercaseAndUppercaseHexDigits_AreBothAccepted`
+
+Builds standalone `.pfb` and `.pfa` re-serializations of the same synthetic Type 1 font program
+(via `SyntheticFontBuilder.Type1Pfb`/`Type1Pfa`) and asserts `Load(Stream)`/`Load(string)`
+auto-detect and round-trip them using the built-in `Type1StandardGlyphNames` default encoding,
+that `GetFaceCount` reports `1` and `Load(Stream, 1)` is rejected with
+`ArgumentOutOfRangeException`, and that data recognized as neither SFNT/OpenType nor `.pfb`/`.pfa`
+still throws `InvalidDataException`. Separately verifies `Type1PfbReader`'s generic
+type-tagged-segment loop (two-segment, multi-segment, and trailing-ASCII-trailer cases) and
+`Type1PfaReader`'s whitespace-tolerant hex decoding (well-formed, multi-line/whitespace-wrapped,
+and trailing-zero-padding cases), and both readers' fail-closed behavior on truncated headers/
+payloads, unrecognized segment types, a missing binary segment or end-of-file marker, a missing
+`eexec` keyword, an odd hex-digit count, a non-hex byte before any hex digit, and zero decoded
+bytes after trim.

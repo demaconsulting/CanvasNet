@@ -185,6 +185,28 @@ sections:
               - TrueTypeFont_RealSourceSans3OtfFont_ExposesExpectedNameAndStyleMetadata
               - TrueTypeFont_RealTtcContainer_BothFaces_ExposeExpectedNameAndStyleMetadataIndependently
 
+          - id: CanvasNet-Fonts-Type1OutlineDecoding
+            title: >-
+              The Fonts subsystem shall load a classic PostScript Type 1 font program - either
+              from caller-supplied cleartext/eexec-encrypted byte segments or auto-detected from
+              a standalone .pfb/.pfa file - and decode its glyph outlines from Type 1 charstring
+              bytecode into the same vector path geometry as a glyf/CFF-flavored font, supporting
+              a fixed, well-defined subset of the Type 1 charstring operator set (including real
+              flex geometry and hint-replacement pass-through), and rejecting seac-based
+              composite glyphs and malformed/truncated font program data.
+            justification: |
+              Classic PostScript Type 1 fonts remain common as embedded fonts in legacy PDF
+              documents and as standalone .pfb/.pfa font files; callers need the same TrueTypeFont
+              API to load and render Type 1 glyph outlines interchangeably with the glyf/CFF
+              flavors this subsystem already supports.
+            children:
+              - CanvasNet-Fonts-TrueTypeFont-LoadType1FromSegments
+              - CanvasNet-Fonts-TrueTypeFont-LoadType1Outlines
+            tests:
+              - TrueTypeFont_LoadType1_WellFormedProgram_ExposesGlyphsAndMetrics
+              - TrueTypeFont_Load_StandalonePfbFile_AutoDetectsAndRoundTrips
+              - TrueTypeFont_Load_StandalonePfaFile_AutoDetectsAndRoundTrips
+
           - id: CanvasNet-Fonts-SystemFontDiscovery
             title: >-
               The Fonts subsystem shall provide directory-scan-only discovery of fonts installed

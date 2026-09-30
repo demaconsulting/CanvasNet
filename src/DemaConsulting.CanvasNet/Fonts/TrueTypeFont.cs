@@ -303,6 +303,56 @@ public sealed class TrueTypeFont
     }
 
     /// <summary>
+    ///     Loads a <see cref="TrueTypeFont"/> from the raw segments of a classic PostScript Type 1
+    ///     font program (as opposed to an SFNT-wrapped or standalone <c>.pfb</c>/<c>.pfa</c> file -
+    ///     see <see cref="Load(Stream)"/>, which auto-detects the latter two).
+    /// </summary>
+    /// <remarks>
+    ///     This overload is intended for a caller that already has direct access to a Type 1
+    ///     font's embedded byte segments - typically from a PDF <c>Type1</c> font's own
+    ///     <c>FontFile</c> stream, whose <c>/Length1</c> and <c>/Length2</c> values delimit the
+    ///     cleartext and <c>eexec</c>-encrypted regions of an otherwise-unframed font program - and
+    ///     that also already knows the font's own text encoding (a Type 1 font associates glyphs
+    ///     with names, not codepoints, and has no <c>cmap</c>-equivalent table of its own).
+    /// </remarks>
+    /// <param name="stream">
+    ///     The stream to read the Type 1 font program from. Reading begins at the stream's current
+    ///     position and consumes the remainder of the stream.
+    /// </param>
+    /// <param name="length1">
+    ///     The number of cleartext bytes at the start of the font program (never parsed - only
+    ///     counted).
+    /// </param>
+    /// <param name="length2">
+    ///     The number of <c>eexec</c>-encrypted bytes immediately following the cleartext region.
+    /// </param>
+    /// <param name="codepointToGlyphName">
+    ///     The font's own codepoint-to-glyph-name encoding, used to build this font's synthesized
+    ///     <c>cmap</c>-equivalent lookup.
+    /// </param>
+    /// <returns>A new <see cref="TrueTypeFont"/> ready to be queried.</returns>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="stream"/> or <paramref name="codepointToGlyphName"/> is null.
+    /// </exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown for the same conditions as <see cref="Type1Table.Parse"/> and
+    ///     <see cref="Type1Table.GetGlyphOutline"/> (see their own documentation) - most notably
+    ///     when <paramref name="length1"/>/<paramref name="length2"/> are negative or exceed the
+    ///     stream's length, when the decrypted private dictionary is missing the required
+    ///     <c>/CharStrings</c> dictionary, or when a glyph's charstring bytecode is malformed or
+    ///     uses an unsupported operator (including <c>seac</c>).
+    /// </exception>
+    public static TrueTypeFont LoadType1(Stream stream, int length1, int length2, IReadOnlyDictionary<int, string> codepointToGlyphName)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        ArgumentNullException.ThrowIfNull(codepointToGlyphName);
+
+        var data = ReadAllBytes(stream);
+        var table = Type1Table.Parse(data, length1, length2);
+        return BuildFromType1Table(table, codepointToGlyphName);
+    }
+
+    /// <summary>
     ///     Reports how many faces a font file holds, without parsing any face's own table
     ///     directory.
     /// </summary>
@@ -499,8 +549,84 @@ public sealed class TrueTypeFont
             throw new ArgumentOutOfRangeException(
                 nameof(faceIndex), faceIndex, "Face index must be 0 for a font file that is not a 'ttcf' collection.");
         }
+        else if (TryLoadStandaloneType1(data, out var type1Font))
+        {
+            return type1Font;
+        }
 
         return LoadFromBytes(data, offsetTableStart);
+    }
+
+    /// <summary>
+    ///     Auto-detects a standalone <c>.pfb</c> or <c>.pfa</c>-framed classic PostScript Type 1
+    ///     font program (see <see cref="Type1PfbReader"/>/<see cref="Type1PfaReader"/>) and, if
+    ///     recognized, parses it using <see cref="Type1StandardGlyphNames"/> as its default
+    ///     codepoint-to-glyph-name encoding (a standalone file, unlike a PDF <c>FontFile</c>
+    ///     stream loaded via <see cref="LoadType1"/>, has no caller-supplied encoding available).
+    /// </summary>
+    private static bool TryLoadStandaloneType1(byte[] data, out TrueTypeFont font)
+    {
+        byte[] fontFileBytes;
+        int length1;
+        int length2;
+
+        if (Type1PfbReader.TrySniff(data))
+        {
+            (fontFileBytes, length1, length2) = Type1PfbReader.Read(data);
+        }
+        else if (Type1PfaReader.TrySniff(data))
+        {
+            (fontFileBytes, length1, length2) = Type1PfaReader.Read(data);
+        }
+        else
+        {
+            font = null!;
+            return false;
+        }
+
+        var table = Type1Table.Parse(fontFileBytes, length1, length2);
+        font = BuildFromType1Table(table, Type1StandardGlyphNames.CodepointToGlyphName);
+        return true;
+    }
+
+    /// <summary>
+    ///     Builds a <see cref="TrueTypeFont"/> directly from a parsed <see cref="Type1Table"/> and
+    ///     a codepoint-to-glyph-name encoding - the common construction path shared by
+    ///     <see cref="LoadType1"/> and <see cref="TryLoadStandaloneType1"/>.
+    /// </summary>
+    /// <remarks>
+    ///     A Type 1 font's design space is conventionally 1000 units per em (unlike TrueType's
+    ///     conventional 1000/2048/etc. - but always caller/table-declared; Type 1 fonts never
+    ///     declare <c>unitsPerEm</c> at all, so this is a fixed assumption, not a parsed value).
+    ///     Bold/italic/fixed-pitch flags and kerning/naming data have no Type 1 equivalent
+    ///     consulted here (a documented Non-Goal for this phase), so they are fixed to
+    ///     <see langword="false"/>/<see cref="KernTable.Empty"/>/<see cref="NameTable.Empty"/>.
+    /// </remarks>
+    private static TrueTypeFont BuildFromType1Table(Type1Table table, IReadOnlyDictionary<int, string> codepointToGlyphName)
+    {
+        const int type1UnitsPerEm = 1000;
+
+        var codepointToGlyphIndex = new Dictionary<int, int>();
+        foreach (var (codepoint, glyphName) in codepointToGlyphName)
+        {
+            if (table.TryGetGlyphIndex(glyphName, out var glyphIndex))
+            {
+                codepointToGlyphIndex[codepoint] = glyphIndex;
+            }
+        }
+
+        var advanceWidths = new int[table.GlyphCount];
+        for (var i = 0; i < table.GlyphCount; i++)
+        {
+            advanceWidths[i] = table.GetAdvanceWidth(i);
+        }
+
+        var metrics = HmtxHheaReader.FromAdvanceWidths(0, 0, 0, advanceWidths);
+        var cmap = CmapTable.FromMap(codepointToGlyphIndex);
+
+        return new TrueTypeFont(
+            type1UnitsPerEm, table.GlyphCount, metrics, table, cmap, KernTable.Empty, NameTable.Empty,
+            isBold: false, isItalic: false, isFixedPitch: false);
     }
 
     /// <summary>

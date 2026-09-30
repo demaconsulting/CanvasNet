@@ -1081,4 +1081,212 @@ public class TrueTypeFontTests
         // Assert: IsFixedPitch is false
         Assert.False(font.IsFixedPitch);
     }
+
+    /// <summary>
+    ///     Builds a minimal, well-formed synthetic Type 1 font program (not SFNT-wrapped, not
+    ///     PFB/PFA-framed) with <c>.notdef</c>, <c>space</c>, and <c>A</c> glyphs.
+    /// </summary>
+    private static (byte[] FontFileBytes, int Length1, int Length2) BuildSimpleType1Program()
+    {
+        var notdef = new List<byte>();
+        SyntheticFontBuilder.WriteType1CharstringNumber(notdef, 0);
+        SyntheticFontBuilder.WriteType1CharstringNumber(notdef, 600);
+        SyntheticFontBuilder.WriteType1CharstringOperator(notdef, 13); // hsbw
+        SyntheticFontBuilder.WriteType1CharstringOperator(notdef, 14); // endchar
+
+        var space = new List<byte>();
+        SyntheticFontBuilder.WriteType1CharstringNumber(space, 0);
+        SyntheticFontBuilder.WriteType1CharstringNumber(space, 300);
+        SyntheticFontBuilder.WriteType1CharstringOperator(space, 13); // hsbw
+        SyntheticFontBuilder.WriteType1CharstringOperator(space, 14); // endchar
+
+        var a = new List<byte>();
+        SyntheticFontBuilder.WriteType1CharstringNumber(a, 50);
+        SyntheticFontBuilder.WriteType1CharstringNumber(a, 700);
+        SyntheticFontBuilder.WriteType1CharstringOperator(a, 13); // hsbw
+        SyntheticFontBuilder.WriteType1CharstringNumber(a, 0);
+        SyntheticFontBuilder.WriteType1CharstringNumber(a, 0);
+        SyntheticFontBuilder.WriteType1CharstringOperator(a, 21); // rmoveto
+        SyntheticFontBuilder.WriteType1CharstringNumber(a, 10);
+        SyntheticFontBuilder.WriteType1CharstringNumber(a, 0);
+        SyntheticFontBuilder.WriteType1CharstringOperator(a, 5); // rlineto
+        SyntheticFontBuilder.WriteType1CharstringOperator(a, 9); // closepath
+        SyntheticFontBuilder.WriteType1CharstringOperator(a, 14); // endchar
+
+        return SyntheticFontBuilder.Type1([(".notdef", [.. notdef]), ("space", [.. space]), ("A", [.. a])]);
+    }
+
+    private static readonly Dictionary<int, string> Type1TestEncoding = new()
+    {
+        [' '] = "space",
+        ['A'] = "A",
+    };
+
+    /// <summary>
+    ///     Proves that TrueTypeFont LoadType1 WellFormedProgram ExposesGlyphsAndMetrics.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_LoadType1_WellFormedProgram_ExposesGlyphsAndMetrics()
+    {
+        var program = BuildSimpleType1Program();
+
+        using var ms = new MemoryStream(program.FontFileBytes);
+        var font = TrueTypeFont.LoadType1(ms, program.Length1, program.Length2, Type1TestEncoding);
+
+        Assert.Equal(3, font.GlyphCount);
+
+        var glyphIndexA = font.GetGlyphIndex('A');
+        Assert.NotEqual(0, glyphIndexA);
+        Assert.Equal(700, font.GetAdvanceWidth(glyphIndexA));
+
+        var outline = font.GetGlyphOutline(glyphIndexA);
+        Assert.Single(outline.Subpaths);
+
+        var glyphIndexSpace = font.GetGlyphIndex(' ');
+        Assert.Equal(300, font.GetAdvanceWidth(glyphIndexSpace));
+        Assert.Empty(font.GetGlyphOutline(glyphIndexSpace).Subpaths);
+
+        // An unmapped codepoint resolves to .notdef (glyph 0), matching the SFNT cmap convention.
+        Assert.Equal(0, font.GetGlyphIndex('Z'));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont LoadType1 NegativeLength1 ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_LoadType1_NegativeLength1_ThrowsInvalidDataException()
+    {
+        var program = BuildSimpleType1Program();
+        using var ms = new MemoryStream(program.FontFileBytes);
+
+        Assert.Throws<InvalidDataException>(() => TrueTypeFont.LoadType1(ms, -1, program.Length2, Type1TestEncoding));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont LoadType1 Length2ExceedsStreamBounds ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_LoadType1_Length2ExceedsStreamBounds_ThrowsInvalidDataException()
+    {
+        var program = BuildSimpleType1Program();
+        using var ms = new MemoryStream(program.FontFileBytes);
+
+        Assert.Throws<InvalidDataException>(() => TrueTypeFont.LoadType1(ms, program.Length1, program.Length2 + 10_000, Type1TestEncoding));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont LoadType1 NullStream ThrowsArgumentNullException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_LoadType1_NullStream_ThrowsArgumentNullException() =>
+        Assert.Throws<ArgumentNullException>(() => TrueTypeFont.LoadType1(null!, 0, 0, Type1TestEncoding));
+
+    /// <summary>
+    ///     Proves that TrueTypeFont LoadType1 NullEncoding ThrowsArgumentNullException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_LoadType1_NullEncoding_ThrowsArgumentNullException()
+    {
+        var program = BuildSimpleType1Program();
+        using var ms = new MemoryStream(program.FontFileBytes);
+
+        Assert.Throws<ArgumentNullException>(() => TrueTypeFont.LoadType1(ms, program.Length1, program.Length2, null!));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load StandalonePfbFile AutoDetectsAndRoundTrips.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_StandalonePfbFile_AutoDetectsAndRoundTrips()
+    {
+        var program = BuildSimpleType1Program();
+        var pfb = SyntheticFontBuilder.Type1Pfb(program.FontFileBytes, program.Length1, program.Length2);
+
+        using var ms = new MemoryStream(pfb);
+        var font = TrueTypeFont.Load(ms);
+
+        Assert.Equal(3, font.GlyphCount);
+        var glyphIndex = font.GetGlyphIndex('A');
+        Assert.NotEqual(0, glyphIndex);
+        Assert.Single(font.GetGlyphOutline(glyphIndex).Subpaths);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load StandalonePfaFile AutoDetectsAndRoundTrips.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_StandalonePfaFile_AutoDetectsAndRoundTrips()
+    {
+        var program = BuildSimpleType1Program();
+        var pfa = SyntheticFontBuilder.Type1Pfa(program.FontFileBytes, program.Length1, program.Length2);
+
+        using var ms = new MemoryStream(pfa);
+        var font = TrueTypeFont.Load(ms);
+
+        Assert.Equal(3, font.GlyphCount);
+        var glyphIndex = font.GetGlyphIndex('A');
+        Assert.NotEqual(0, glyphIndex);
+        Assert.Single(font.GetGlyphOutline(glyphIndex).Subpaths);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load StandalonePfbFile Path ReadsFromFile.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_StandalonePfbFile_Path_ReadsFromFile()
+    {
+        var program = BuildSimpleType1Program();
+        var pfb = SyntheticFontBuilder.Type1Pfb(program.FontFileBytes, program.Length1, program.Length2);
+
+        var path = System.IO.Path.GetTempFileName();
+        try
+        {
+            File.WriteAllBytes(path, pfb);
+            var font = TrueTypeFont.Load(path);
+
+            Assert.Equal(3, font.GlyphCount);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont GetFaceCount StandaloneType1File ReturnsOne.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetFaceCount_StandaloneType1File_ReturnsOne()
+    {
+        var program = BuildSimpleType1Program();
+        var pfb = SyntheticFontBuilder.Type1Pfb(program.FontFileBytes, program.Length1, program.Length2);
+
+        using var ms = new MemoryStream(pfb);
+        Assert.Equal(1, TrueTypeFont.GetFaceCount(ms));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load StandaloneType1File FaceIndexOne ThrowsArgumentOutOfRangeException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_StandaloneType1File_FaceIndexOne_ThrowsArgumentOutOfRangeException()
+    {
+        var program = BuildSimpleType1Program();
+        var pfb = SyntheticFontBuilder.Type1Pfb(program.FontFileBytes, program.Length1, program.Length2);
+
+        using var ms = new MemoryStream(pfb);
+        Assert.Throws<ArgumentOutOfRangeException>(() => TrueTypeFont.Load(ms, 1));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load NonType1NonSfntGarbage ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_NonType1NonSfntGarbage_ThrowsInvalidDataException()
+    {
+        byte[] garbage = [1, 2, 3, 4, 5, 6, 7, 8];
+        using var ms = new MemoryStream(garbage);
+
+        Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(ms));
+    }
 }

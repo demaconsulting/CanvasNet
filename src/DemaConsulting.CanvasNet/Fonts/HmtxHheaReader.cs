@@ -100,6 +100,27 @@ internal sealed class HmtxHheaReader
     }
 
     /// <summary>
+    ///     Builds an <see cref="HmtxHheaReader"/> directly from an already-resolved per-glyph
+    ///     advance-width array, bypassing <see cref="Parse"/>'s binary <c>hhea</c>/<c>hmtx</c>
+    ///     table format entirely.
+    /// </summary>
+    /// <remarks>
+    ///     Used for font formats with no <c>hhea</c>/<c>hmtx</c> tables of their own - a classic
+    ///     PostScript Type 1 font program instead declares each glyph's own advance width via its
+    ///     charstring's <c>hsbw</c>/<c>sbw</c> operator (see <see cref="Type1Table.GetAdvanceWidth"/>).
+    /// </remarks>
+    /// <param name="ascender">The typographic ascender.</param>
+    /// <param name="descender">The typographic descender.</param>
+    /// <param name="lineGap">The typographic line gap.</param>
+    /// <param name="advanceWidths">Every glyph's advance width, indexed by glyph index.</param>
+    /// <returns>A new <see cref="HmtxHheaReader"/> exposing the supplied metrics.</returns>
+    internal static HmtxHheaReader FromAdvanceWidths(int ascender, int descender, int lineGap, int[] advanceWidths)
+    {
+        ArgumentNullException.ThrowIfNull(advanceWidths);
+        return new HmtxHheaReader(ascender, descender, lineGap, advanceWidths);
+    }
+
+    /// <summary>
     ///     Looks up a glyph's advance width.
     /// </summary>
     /// <param name="glyphIndex">
