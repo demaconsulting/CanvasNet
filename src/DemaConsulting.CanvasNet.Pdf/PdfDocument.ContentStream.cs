@@ -83,6 +83,10 @@ public sealed partial class PdfDocument
                     break;
 
                 case PdfTokenKind.ArrayStart:
+                case PdfTokenKind.DictStart:
+                    // Inline dictionary operands occur legitimately in content streams (e.g. the
+                    // BDC/DP marked-content operators' inline "properties" dictionary); parse them
+                    // with the same generic object parser used elsewhere rather than rejecting them.
                     operands.Add(ParseValue(tokenizer, token));
                     break;
 
@@ -92,9 +96,11 @@ public sealed partial class PdfDocument
                     break;
 
                 default:
-                    // A content stream never legitimately contains a bare '>>'/']'/dictionary
-                    // delimiter here - this class's own convention (see PdfDocument.Xref.cs) is
-                    // to throw on truly unparseable structure rather than silently continuing.
+                    // A content stream never legitimately contains a bare '>>'/']' delimiter or
+                    // any other unrecognized token kind here (well-formed '['/'<<' operands are
+                    // consumed above, alongside their matching close token) - this class's own
+                    // convention (see PdfDocument.Xref.cs) is to throw on truly unparseable
+                    // structure rather than silently continuing.
                     throw new InvalidDataException(
                         $"Unexpected token '{token.Kind}' in PDF content stream.");
             }

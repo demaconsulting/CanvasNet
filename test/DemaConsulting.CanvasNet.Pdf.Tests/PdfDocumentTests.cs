@@ -959,6 +959,27 @@ public class PdfDocumentTests
         Assert.Equal(default, surface[90, 90]);
     }
 
+    /// <summary>
+    ///     Proves that a marked-content <c>BDC</c> operator's inline properties dictionary
+    ///     operand (e.g. <c>/P &lt;&lt; /MCID 0 &gt;&gt; BDC</c>, as commonly emitted by tagged-PDF
+    ///     producers such as Word/LibreOffice/browser print-to-PDF) is parsed as a dictionary
+    ///     operand rather than throwing - regression test for a real-world content stream that
+    ///     previously failed with "Unexpected token 'DictStart'".
+    /// </summary>
+    [Fact]
+    public void PdfDocument_ContentStream_BdcWithInlinePropertiesDictionary_IsParsedWithoutThrowing()
+    {
+        // Arrange
+        const string content = "/P << /MCID 0 >> BDC 20 20 30 30 re f EMC";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert: the fill after the BDC operator still painted, proving the inline dictionary
+        // operand was consumed correctly rather than corrupting subsequent operator parsing.
+        Assert.Equal(Black, surface[30, 65]);
+    }
+
     /// <summary>Proves that a page with no <c>/Contents</c> key at all renders as a fully blank surface, without throwing.</summary>
     [Fact]
     public void PdfDocument_ContentStream_NoContents_RendersBlankSurface()
