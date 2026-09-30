@@ -316,8 +316,54 @@ the expected declared width and height without throwing merely because the leadi
 exceeds the soft cap, confirming the system upholds the invariant that `GetInfo` never throws for
 an input `Load` would successfully decode.
 
+### Integration: Load a CFF/OTF Font and Fill a Glyph Outline Returns Expected Pixels
+
+**Test**: `CanvasNet_SystemIntegration_LoadCffOtfFontAndFillGlyphOutline_ReturnsExpectedPixels`
+
+Exercises end-to-end system behavior across the `Fonts`, `Geometry`, `Drawing`, and `Canvas`
+subsystems for a real CFF/OpenType (OTTO-flavored) production font: loads the real "Source Sans
+3" `.otf` fixture, resolves capital `H` to a glyph index, decodes its outline from Type 2
+charstring bytecode, scales and flips it into canvas coordinates, and fills it through
+`PathFiller` onto a `Surface`. Asserts real, non-transparent ink is painted while the canvas's
+far corners remain fully transparent, confirming the system integrates CFF outline decoding with
+vector rasterization end to end, not merely glyf-flavored TrueType outlines.
+
+### Integration: Load a Face from a TTC Container by Index Returns Expected Face
+
+**Test**: `CanvasNet_SystemIntegration_LoadFaceFromTtcContainerByIndex_ReturnsExpectedFace`
+
+Exercises end-to-end system behavior for the `Fonts` subsystem's multi-face collection support:
+reports the face count of a real, locally-assembled 2-face TrueType Collection (`.ttc`) fixture,
+loads both faces explicitly by index, and loads the same file with no explicit face index at all.
+Asserts the container reports 2 faces, face 0 resolves to "Open Sans", face 1 resolves to "Source
+Sans 3", and omitting the face index behaves identically to requesting face 0, confirming the
+system's face-count/face-selection API integrates correctly end to end against real `ttcf`
+container data.
+
+### Integration: Load a Font and Query Name and Style Metadata Returns Expected Values
+
+**Test**: `CanvasNet_SystemIntegration_LoadFontAndQueryNameAndStyleMetadata_ReturnsExpectedValues`
+
+Exercises end-to-end system behavior for the `Fonts` subsystem's name/style metadata APIs: loads
+the real "Open Sans" production font and resolves its family/subfamily/full/PostScript names and
+bold/italic/fixed-pitch style. Asserts every value matches this fixture's independently
+`fonttools`-confirmed metadata, confirming the system integrates `name`/`OS/2`/`post` table
+parsing end to end against real font data.
+
+### Integration: Resolve System Font Fallback Returns Bundled Fallback Font
+
+**Test**: `CanvasNet_SystemIntegration_ResolveSystemFontFallback_ReturnsBundledFallbackFont`
+
+Exercises end-to-end system behavior for the `Fonts` subsystem's bundled last-resort fallback
+font: requests the bundled Liberation Sans Regular fallback through
+`SystemFontCatalog.LoadBundledFallback` (deliberately not `FindBestMatch`, since what is actually
+installed on the host machine running the test varies by CI runner and platform). Asserts a
+genuine, well-formed, non-bold/non-italic/non-fixed-pitch font with real glyph data was loaded,
+confirming the system's fallback-font path integrates end to end deterministically, even on a CI
+environment with zero discoverable OS fonts.
+
 ## Acceptance Criteria
 
-A system-level test run passes when all twenty-four scenarios above pass without error or
+A system-level test run passes when all twenty-nine scenarios above pass without error or
 exception beyond those explicitly asserted. Any unexpected exception, wrong exception type, or
 wrong return value constitutes a failure.

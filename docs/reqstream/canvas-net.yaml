@@ -1240,6 +1240,73 @@ sections:
         tests:
           - CanvasNet_SystemIntegration_LoadFontAndQueryMetrics_ReturnsExpectedValues
 
+      - id: CanvasNet-Lib-FontsCffOutlineDecoding
+        title: >-
+          The library shall load a CFF/OpenType (OTTO-flavored) font and decode its glyph
+          outlines into the same vector path geometry the library already produces for
+          glyf-flavored TrueType fonts, so callers can render either flavor's glyphs
+          interchangeably through one API.
+        tags: [system]
+        justification: |
+          Real-world production fonts (in particular most professionally produced Latin, and
+          nearly all "Pro"/"Premium" commercial font families) commonly ship as CFF-flavored
+          OpenType rather than glyf-flavored TrueType; callers need to load and render either
+          flavor's glyph outlines without caring which one a given font file actually uses.
+        children:
+          - CanvasNet-Fonts-CffOutlineDecoding
+        tests:
+          - CanvasNet_SystemIntegration_LoadCffOtfFontAndFillGlyphOutline_ReturnsExpectedPixels
+
+      - id: CanvasNet-Lib-FontsTtcSupport
+        title: >-
+          The library shall report how many font faces a file contains and load any one of
+          them by index, defaulting to the first face when no index is given, so callers can
+          use a single file that bundles multiple weight/style variants (a TrueType
+          Collection) exactly like an ordinary single-face font file.
+        tags: [system]
+        justification: |
+          A TrueType Collection bundles multiple font faces (commonly weight/style variants)
+          inside one file; callers need to discover how many faces a file contains and select
+          any one of them by index, while an ordinary single-face font file continues to work
+          exactly as before by default.
+        children:
+          - CanvasNet-Fonts-TtcSupport
+        tests:
+          - CanvasNet_SystemIntegration_LoadFaceFromTtcContainerByIndex_ReturnsExpectedFace
+
+      - id: CanvasNet-Lib-FontsNameStyleMetadata
+        title: >-
+          The library shall expose a loaded font's human-readable name (family, subfamily,
+          full name, PostScript name) and derived bold/italic/fixed-pitch style, so callers
+          can label or classify a font without inspecting its raw font tables themselves.
+        tags: [system]
+        justification: |
+          Callers selecting or labeling a loaded font (for example choosing a system fallback
+          font, or displaying a font picker) need its human-readable name and basic style
+          classification, resolved consistently regardless of exactly which name/style tables
+          a real-world font actually supplies.
+        children:
+          - CanvasNet-Fonts-NameStyleMetadata
+        tests:
+          - CanvasNet_SystemIntegration_LoadFontAndQueryNameAndStyleMetadata_ReturnsExpectedValues
+
+      - id: CanvasNet-Lib-FontsSystemFontDiscovery
+        title: >-
+          The library shall discover fonts installed on the host operating system, match a
+          requested family name and style against them, and provide a bundled last-resort
+          fallback font, so a caller substituting a non-embedded font always obtains a usable
+          font even when nothing installed matches or no host fonts are found at all.
+        tags: [system]
+        justification: |
+          A caller resolving a document's non-embedded font needs to know what fonts are
+          actually installed on the host machine, a best-effort way to match a requested
+          family/style against them, and a deterministic last resort when nothing matches -
+          without having to bundle or discover fonts itself.
+        children:
+          - CanvasNet-Fonts-SystemFontDiscovery
+        tests:
+          - CanvasNet_SystemIntegration_ResolveSystemFontFallback_ReturnsBundledFallbackFont
+
   - title: Rendering API
     requirements:
       - id: CanvasNet-Lib-RenderingTransformStack
