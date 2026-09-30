@@ -1,17 +1,20 @@
 # PDF Test Fixtures
 
-<!-- cspell:ignore xobject devicergb -->
+<!-- cspell:ignore xobject devicergb pdfhost flipperfile qwikpdf -->
 
 Every PDF file in this folder is a small, hand-authored document created specifically for this
 repository to exercise `PdfDocument`'s parsing internals (tokenizer, object model,
 cross-reference resolution in all three forms, the linear-scan fallback, page-tree traversal with
 inheritance, and `/Encrypt` detection - Phase 1), its content-stream interpreter (path
 construction/painting operators, the graphics-state stack, CTM/rotation derivation, and
-`/Contents` resolution - Phase 2), and its device color/image-XObject support (`rg`/`cs`/`scn`
-device color operators and `Do`-placed image XObjects - Phase 3) end to end via real files on
-disk. There is no third-party source corpus behind any of them (unlike, for example, `PngSuite` in
-the core test project): each was constructed byte-by-byte from scratch for CanvasNet and is
-licensed under the same MIT license as the rest of this repository.
+`/Contents` resolution - Phase 2), its device color/image-XObject support (`rg`/`cs`/`scn`
+device color operators and `Do`-placed image XObjects - Phase 3), its embedded-TrueType text
+support (`Tf`/`Td`/`Tj` against a `/FontFile2`-embedded simple font - Phase 4), its Standard-14
+font-fallback substitution (Phase 6), and its `LZWDecode`/`ASCII85Decode`/`ASCIIHexDecode`/
+`RunLengthDecode` content-stream filter set (Phase 7) end to end via real files on disk. There is
+no third-party source corpus behind any of them (unlike, for example, `PngSuite` in the core test
+project): each was constructed byte-by-byte from scratch for CanvasNet and is licensed under the
+same MIT license as the rest of this repository.
 
 | File | Exercises |
 | ------ | ----------- |
@@ -34,6 +37,20 @@ licensed under the same MIT license as the rest of this repository.
 | `content-stream-ascii85.pdf` | `/Contents` armored with `ASCII85Decode` (Phase 7) - the same filled rectangle |
 | `content-stream-asciihex.pdf` | `/Contents` armored with `ASCIIHexDecode` (Phase 7) - the same filled rectangle |
 | `content-stream-runlength.pdf` | `/Contents` compressed with `RunLengthDecode` (Phase 7) - the same filled rectangle |
+| `combined-vector-text-image.pdf` | Filled rect + stroked line + image XObject + font text (Phase 8) |
+| `standard14-font-fallback.pdf` | `/BaseFont /Helvetica`, no `/FontFile2` - on-disk fallback (Phase 6) fixture |
+| `malformed-content-stream.pdf` | `re` operator given only 2 of its 4 required operands (malformed) |
+
+For this phase, a real-world third-party PDF sourcing pass was investigated (mirroring
+`SvgFixtures`' Wikimedia Commons CC0 sourcing) to see whether a small, genuinely verifiable,
+permissively-licensed sample corpus could be added alongside the hand-authored fixtures. No
+suitable candidate was found: Wikimedia Commons no longer topically categorizes "PDF files" (that
+category is deprecated/under discussion), and the "public domain sample PDF" sites that turned up
+in a web search (`pdfhost.io`, `flipperfile.com`, `qwikpdf.com`) have no checkable authorship or
+license text comparable to `WikimediaCommons.LICENSE`'s verifiable provenance. Rather than
+fabricate a "real-world" provenance claim for an unverifiable source, the corpus remains entirely
+hand-authored and honestly documented as such; a human maintainer can revisit real-world sourcing
+in a future, non-blocking follow-up.
 
 `text-embedded-truetype-font.pdf` is the one exception to the "no third-party source corpus"
 statement above: its `/FontFile2` stream is a real, unmodified, `FlateDecode`-compressed copy of

@@ -1,5 +1,7 @@
 # System Verification Design
 
+<!-- cspell:ignore Zapf -->
+
 This document describes the system-level verification strategy for CanvasNetPdf.
 
 ## Verification Approach
@@ -150,8 +152,105 @@ font-dictionary resolution, `/Encoding` mapping, glyph-outline transformation, a
 all integrate correctly through the system's own public entry point with a real font file (not a
 hand-rolled synthetic one).
 
+### Integration: Pdf Render Lzw Decode Content Stream Paints Expected Pixels
+
+**Test**: `CanvasNetPdf_SystemIntegration_PdfRender_LzwDecodeContentStream_PaintsExpectedPixels`
+
+Exercises end-to-end system behavior for the Phase 7 `LZWDecode` content-stream filter: calls the
+public `Render` API against a hand-authored fixture whose `/Contents` stream is PDF-variant
+LZW-compressed. Asserts the same interior-opaque-red/exterior-transparent pixel pattern as the
+uncompressed device-color fixture, confirming the decoded operator text is parsed and rendered
+identically to an uncompressed content stream through the system's own public entry point.
+
+### Integration: Pdf Render Ascii85 Decode Content Stream Paints Expected Pixels
+
+**Test**: `CanvasNetPdf_SystemIntegration_PdfRender_Ascii85DecodeContentStream_PaintsExpectedPixels`
+
+Exercises end-to-end system behavior for the Phase 7 `ASCII85Decode` content-stream filter: calls
+the public `Render` API against a hand-authored fixture whose `/Contents` stream is base-85
+armored (terminated by `~>`). Asserts the same interior-opaque-red/exterior-transparent pixel
+pattern, confirming `ASCII85Decode` decoding integrates correctly through the system's own public
+entry point.
+
+### Integration: Pdf Render Ascii Hex Decode Content Stream Paints Expected Pixels
+
+**Test**: `CanvasNetPdf_SystemIntegration_PdfRender_AsciiHexDecodeContentStream_PaintsExpectedPixels`
+
+Exercises end-to-end system behavior for the Phase 7 `ASCIIHexDecode` content-stream filter:
+calls the public `Render` API against a hand-authored fixture whose `/Contents` stream is
+hex-digit-pair armored (terminated by `>`). Asserts the same interior-opaque-red/
+exterior-transparent pixel pattern, confirming `ASCIIHexDecode` decoding integrates correctly
+through the system's own public entry point.
+
+### Integration: Pdf Render Run Length Decode Content Stream Paints Expected Pixels
+
+**Test**: `CanvasNetPdf_SystemIntegration_PdfRender_RunLengthDecodeContentStream_PaintsExpectedPixels`
+
+Exercises end-to-end system behavior for the Phase 7 `RunLengthDecode` content-stream filter:
+calls the public `Render` API against a hand-authored fixture whose `/Contents` stream is a
+single PackBits-style literal run. Asserts the same interior-opaque-red/exterior-transparent
+pixel pattern, confirming `RunLengthDecode` decoding integrates correctly through the system's
+own public entry point.
+
+### Integration: Render Standard14 Helvetica Without Embedded Font Paints Visible Glyph Ink
+
+**Test**: `CanvasNetPdf_SystemIntegration_RenderStandard14HelveticaWithoutEmbeddedFont_PaintsVisibleGlyphInk`
+
+Exercises end-to-end system behavior for the Phase 6 font-fallback substitution path: calls the
+public `Render` API against a synthetic, in-memory single-page document declaring a
+`/BaseFont /Helvetica` font resource with no embedded `/FontFile2`. Since the actual substitute
+font (a matching system font, or the bundled Liberation Sans fallback) genuinely varies across
+the Windows/Linux/macOS CI matrix, asserts the strongest platform-independent property: at least
+one visibly-painted (non-transparent) pixel appears somewhere on the canvas, confirming the
+fallback path genuinely renders a substitute glyph rather than merely not throwing.
+
+### Integration: Render Symbol Font Without Embedded Font Throws Unsupported Image Feature Exception
+
+**Test**: `CanvasNetPdf_SystemIntegration_RenderSymbolFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException`
+
+Exercises end-to-end system behavior for the Phase 6 font-fallback fail-closed boundary: calls
+the public `Render` API against a synthetic, in-memory single-page document declaring a
+`/BaseFont /Symbol` font resource with no embedded `/FontFile2`. Asserts
+`Codecs.UnsupportedImageFeatureException` is thrown with `Feature == "pdf-font-symbolic-not-embedded"`,
+confirming Symbol/ZapfDingbats fonts are never substituted with an unrelated system or bundled
+font through the system's own public entry point.
+
+### Integration: Pdf Validation Empty Path Empty Path Throws Argument Exception
+
+**Test**: `CanvasNetPdf_SystemIntegration_PdfValidationEmptyPath_EmptyPathThrowsArgumentException`
+
+Exercises end-to-end system behavior for empty-path-argument validation: calls the public
+`Open(string)` API with `string.Empty`. Asserts `ArgumentException` is thrown, confirming the
+documented validation contract is honored at the system's own public entry point, before any
+file access is attempted.
+
+### Integration: Pdf Unsupported Format Validation Malformed Content Stream Throws Invalid Data Exception
+
+**Test**: `CanvasNetPdf_SystemIntegration_PdfUnsupportedFormatValidation_MalformedContentStreamThrowsInvalidDataException`
+
+Exercises end-to-end system behavior for content-stream-level malformed-data validation: calls
+the public `Render` API against a hand-authored fixture whose otherwise well-formed
+document/xref/page-tree structure has a `/Contents` stream containing a lexically malformed
+operator (a `re` given only 2 of its 4 required operands). Asserts `InvalidDataException` is
+thrown, confirming a content-stream-level malformation (distinct from the structural
+malformations already covered by `malformed-startxref.pdf`/`cyclic-page-tree.pdf`) is rejected at
+the system's own public entry point.
+
+### Integration: Pdf Get Page Info Validation Out Of Range Page Index Throws Argument Out Of Range Exception
+
+**Test**: `CanvasNetPdf_SystemIntegration_PdfGetPageInfoValidation_OutOfRangePageIndexThrowsArgumentOutOfRangeException`
+
+Exercises end-to-end system behavior for out-of-range-page-index validation: calls the public
+`GetPageInfo` API against a single-page fixture with an out-of-range page index. Asserts
+`ArgumentOutOfRangeException` is thrown, confirming the documented validation contract is honored
+at the system's own public entry point.
+
 ## Acceptance Criteria
 
 A system-level test run passes when all scenarios above pass without error or exception beyond
 those explicitly asserted. Any unexpected exception, wrong exception type, or wrong return value
-constitutes a failure.
+constitutes a failure. Collectively, these scenarios cover the complete current CanvasNetPdf
+feature set: document structure parsing, the content-stream interpreter, device color, image
+XObjects, the full `FlateDecode`/`LZWDecode`/`ASCII85Decode`/`ASCIIHexDecode`/`RunLengthDecode`
+stream-filter set, embedded-TrueType and automatically-substituted-fallback text rendering, and
+the documented validation-contract/fail-closed exception boundaries.

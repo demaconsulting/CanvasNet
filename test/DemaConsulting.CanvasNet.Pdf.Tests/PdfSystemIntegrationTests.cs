@@ -148,6 +148,42 @@ public class PdfSystemIntegrationTests
         Assert.Throws<ArgumentNullException>(() => PdfDocument.Open((Stream)null!));
     }
 
+    /// <summary>Proves an empty path is rejected before any file access is attempted.</summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_PdfValidationEmptyPath_EmptyPathThrowsArgumentException()
+    {
+        // Arrange, Act & Assert
+        Assert.Throws<ArgumentException>(() => PdfDocument.Open(string.Empty));
+    }
+
+    /// <summary>
+    ///     Proves a well-formed document/xref/page-tree whose <c>/Contents</c> stream is itself
+    ///     lexically malformed (a <c>re</c> operator given only 2 of its 4 required operands) is
+    ///     rejected with <see cref="InvalidDataException"/> end-to-end through
+    ///     <see cref="PdfDocument.Render"/>, distinct from the structural malformations
+    ///     (<c>malformed-startxref.pdf</c>/<c>cyclic-page-tree.pdf</c>) already covered elsewhere.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_PdfUnsupportedFormatValidation_MalformedContentStreamThrowsInvalidDataException()
+    {
+        // Arrange
+        using var document = PdfDocument.Open(Fixture("malformed-content-stream.pdf"));
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => document.Render(0, 100, 100));
+    }
+
+    /// <summary>Proves an out-of-range page index is rejected by <see cref="PdfDocument.GetPageInfo"/>.</summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_PdfGetPageInfoValidation_OutOfRangePageIndexThrowsArgumentOutOfRangeException()
+    {
+        // Arrange
+        using var document = PdfDocument.Open(Fixture("classic-xref-single-page.pdf"));
+
+        // Act & Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => document.GetPageInfo(1));
+    }
+
     /// <summary>Proves every other public member throws once the document has been disposed.</summary>
     [Fact]
     public void CanvasNetPdf_SystemIntegration_PdfDispose_ObjectDisposedExceptionAfterDispose()

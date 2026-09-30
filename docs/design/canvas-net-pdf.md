@@ -6,7 +6,8 @@ This document provides the system-level design for CanvasNetPdf.
 
 ![CanvasNetPdf Structure](CanvasNetPdfView.svg)
 
-<!-- cspell:ignore xref startxref CCITT bitstream -->
+<!-- cspell:ignore xref startxref CCITT bitstream Zapf unembedded bitdepth xobject Annots -->
+<!-- cspell:ignore AcroForms -->
 
 ## Architecture
 
@@ -47,22 +48,34 @@ implemented yet. Phase 3 added real device color (`g`/`G`/`rg`/`RG`/`k`/`K`/`cs`
 `CS`/`sc`/`SC`/`scn`/`SCN`), a generalized `/Filter`/`/DecodeParms` stream-decoding pipeline
 (`FlateDecode` plus PNG/TIFF predictor reversal), and image XObjects (`Do`: `DCTDecode` via the
 `CanvasNet` system's `Codecs.JpegCodec`, or raw `DeviceGray`/`DeviceRGB`/`DeviceCMYK` 8-bit
-samples, composited through the current transformation matrix). Phase 4 (this design) adds real
-text/font rendering: `BT`/`ET`/`Tc`/`Tw`/`Tz`/`TL`/`Tf`/`Tr`/`Ts`/`Td`/`TD`/`Tm`/`T*`/`Tj`/`'`/`"`/
+samples, composited through the current transformation matrix). Phase 4 added real text/font
+rendering: `BT`/`ET`/`Tc`/`Tw`/`Tz`/`TL`/`Tf`/`Tr`/`Ts`/`Td`/`TD`/`Tm`/`T*`/`Tj`/`'`/`"`/
 `TJ` resolve a simple `/Subtype /TrueType` font from the current page's `/Resources/Font`
 dictionary (requiring an embedded `/FontDescriptor/FontFile2`, loaded via the `CanvasNet`
 system's `Fonts.TrueTypeFont`), map each shown byte through its `/WinAnsiEncoding`/
 `/MacRomanEncoding` (plus `/Differences`) encoding to a Unicode codepoint, and paint the
 resulting glyph outline through the composed text-rendering matrix exactly like any other filled
-path. **Phase 4 limitations**: only simple, embedded TrueType fonts (`/Type0`/`/Type1`/
-`/MMType1`/`/Type3`, and any font lacking `/FontFile2` — no standard-14/system-font substitution
-— fail closed); only `/WinAnsiEncoding`/`/MacRomanEncoding` base encodings (an unrecognized base
-encoding fails closed); only fill (`Tr 0`) and invisible (`Tr 3`) text-rendering modes
-(stroke/clip modes fail closed); no additional stream filters. **Phase 3 limitations**
-(unchanged): no Form XObject rendering (fails closed, rather than being silently skipped), no
-shading/patterns/transparency groups, no `CCITTFax`/`LZW`/`ASCII85`/`ASCIIHex`/`JPX` filter
-decoding (fails closed), and no `/SMask`/alpha compositing (every decoded image is treated as
-fully opaque). These remain out of scope and are planned for later phases.
+path. Phase 6 narrowed Phase 4's font-resolution boundary: a `/Subtype /TrueType` font with no
+embedded `/FontFile2` is no longer an unconditional failure — it is instead automatically
+substituted with the closest-matching font actually installed on the host operating system, or,
+when nothing matches, a bundled Liberation Sans/Serif/Mono font (via the `CanvasNet` system's
+`Fonts.SystemFontCatalog`), except that a `/BaseFont` of `Symbol`/`ZapfDingbats` (or any font
+whose `/FontDescriptor/Flags` declares `Symbolic` without also declaring `Nonsymbolic`) still
+fails closed with `Codecs.UnsupportedImageFeatureException`, since a symbol/dingbat glyph set has
+no meaningful generic-family equivalent. Phase 7 narrowed Phase 3's stream-filter boundary: a
+page's `/Contents` or an image XObject's data may now also be filtered with `LZWDecode`,
+`ASCII85Decode`, `ASCIIHexDecode`, or `RunLengthDecode` (individually or composed with
+`FlateDecode`'s predictor reversal), in addition to `FlateDecode` itself. **Current limitations**:
+`/Type0` (composite/CID-keyed), `/Type1`, `/MMType1`, and `/Type3` fonts remain entirely
+unsupported and fail closed; only the `/WinAnsiEncoding`/`/MacRomanEncoding` base encodings (plus
+`/Differences`) are supported (an unrecognized base encoding fails closed); only fill (`Tr 0`)
+and invisible (`Tr 3`) text-rendering modes are supported (stroke/clip modes fail closed); no
+Form XObject rendering (fails closed, rather than being silently skipped); no shading/patterns/
+transparency groups; no `CCITTFaxDecode`/`JPXDecode` filter decoding (fails closed); no
+`/SMask`/alpha compositing (every decoded image is treated as fully opaque); and encrypted
+documents (`/Encrypt` present in the trailer) are rejected outright rather than decrypted. These
+remain out of scope and are planned for later phases (see Risk Control Measures below for the
+complete, currently-thrown `Feature` string taxonomy).
 
 ## External Interfaces
 
@@ -86,14 +99,17 @@ The system exposes the following public API to external consumers, all on the se
 - **PdfDocument.Render(int pageIndex, int width, int height)**: Returns a `Surface` of the
   caller-specified `width`x`height` for the given page, painted with the page's interpreted
   content-stream geometry (path construction/painting with real device color, any placed image
-  XObjects, and any shown text painted with a resolved embedded TrueType font — see
-  _PdfDocument Unit Design_ for the full Phase 4 operator set and its documented fail-closed
-  boundaries), or a fully transparent surface when the page declares no `/Contents`. Validates
+  XObjects decoded through the full `/Filter` chain — `FlateDecode`, `LZWDecode`,
+  `ASCII85Decode`, `ASCIIHexDecode`, `RunLengthDecode`, `DCTDecode`, individually or composed —
+  and any shown text painted with a resolved embedded TrueType font, or an automatically
+  substituted system/bundled fallback font when none is embedded — see _PdfDocument Unit Design_
+  for the full operator set and its documented fail-closed boundaries), or a fully transparent
+  surface when the page declares no `/Contents`. Validates
   `pageIndex` the same way as `GetPageInfo`, propagates `Surface`'s own `width`/`height`
   validation unwrapped, throws `InvalidDataException` for malformed `/Contents` or a malformed
   recognized operator, throws `Codecs.UnsupportedImageFeatureException` for a well-formed but
-  unsupported color space/stream filter/Form XObject/font subtype/encoding/text-rendering mode,
-  and throws `ObjectDisposedException` once disposed.
+  unsupported color space/stream filter/Form XObject/font subtype/encoding/text-rendering
+  mode/symbolic-font-without-embedded-data, and throws `ObjectDisposedException` once disposed.
 - **PdfDocument.Dispose()**: Idempotent; releases the buffered/parsed document state. No other
   public member may be called afterward without throwing `ObjectDisposedException`.
 
@@ -133,11 +149,17 @@ and page-tree traversal/inheritance) and every method's full parameter and excep
   `/FontFile2` byte stream and resolves each shown codepoint to a glyph index/outline/advance
   width, exactly as `CanvasNetSvg`'s own `SvgCodec.Text.cs` already uses it for SVG `<text>`
   rendering
+- The `Fonts` subsystem's `SystemFontCatalog` unit (new as of Phase 6) — locates the
+  closest-matching font actually installed on the host operating system (or, when nothing
+  matches, loads a bundled Liberation Sans/Serif/Mono fallback) when a page's `/Subtype
+  /TrueType` font declares no embedded `/FontFile2`, so that documents referencing an
+  unembedded standard font still render recognizable glyph shapes rather than failing closed
 
 This dependency on `Geometry`/`Drawing` is new as of Phase 2 (Phase 1 introduced no such
 dependency — no Phase 1 file constructed a `Path`, rasterized a fill/stroke, or looked up a
-glyph). The dependency on `Fonts` is new as of Phase 4: Phases 1-3 implemented no text/font
-operator and introduced no such dependency.
+glyph). The dependency on `Fonts.TrueTypeFont` is new as of Phase 4, and the dependency on
+`Fonts.SystemFontCatalog` is new as of Phase 6: Phases 1-3 implemented no text/font operator and
+introduced no such dependency.
 
 This is an ordinary, same-repository, system-to-system dependency: both `CanvasNet` and
 `CanvasNetPdf` are produced by this repository, so it is neither an OTS Software Item (not a
@@ -174,17 +196,36 @@ never attempts to interpret the (still-encrypted) bytes of an encrypted document
 content, instead throwing `Codecs.UnsupportedImageFeatureException` (feature `"pdf-encrypted"`)
 immediately upon detection. Phase 3 extended this same fail-closed posture to every well-formed
 but out-of-scope construct it could then encounter: an unsupported color space (`Indexed`/
-`Separation`/`DeviceN`/`ICCBased`/`CalRGB`/`CalGray`/`Lab`/patterns), an unsupported stream filter
-(anything other than `FlateDecode`, or a `DCTDecode` combined with another filter), an
-unsupported image `/BitsPerComponent`, and a `/Subtype /Form` XObject are all rejected with
+`Separation`/`DeviceN`/`ICCBased`/`CalRGB`/`CalGray`/`Lab`/patterns), an unsupported stream filter,
+an unsupported image `/BitsPerComponent`, and a `/Subtype /Form` XObject are all rejected with
 `Codecs.UnsupportedImageFeatureException` rather than being silently skipped or mis-rendered.
-Phase 4 extends the same posture to text/font constructs: a font dictionary's `/Type0`/`/Type1`/
-`/MMType1`/`/Type3` subtype, a `/Subtype /TrueType` font lacking an embedded `/FontFile2` (no
-standard-14/system-font substitution is ever attempted), an `/Encoding` naming an unrecognized
-base encoding, and a stroke/clip text-rendering mode (`Tr 1`/`2`/`4`-`7`) are all likewise
-rejected with `Codecs.UnsupportedImageFeatureException` — each carrying a distinct, descriptive
-`Feature` string so a caller (or this repository's own tests) can distinguish exactly which
-unsupported construct was encountered. No other segregation is required at the system level:
+Phase 4 extended the same posture to text/font constructs: a font dictionary's `/Type0`/`/Type1`/
+`/MMType1`/`/Type3` subtype, an `/Encoding` naming an unrecognized base encoding, and a
+stroke/clip text-rendering mode (`Tr 1`/`2`/`4`-`7`) are all likewise rejected with
+`Codecs.UnsupportedImageFeatureException`. Phase 6 narrowed (but did not remove) the font-subtype
+fail-closed boundary: a `/Subtype /TrueType` font lacking an embedded `/FontFile2` is now resolved
+via automatic system/bundled-font substitution rather than rejected outright, except that a
+`/BaseFont` of `Symbol`/`ZapfDingbats` (or any font whose `/FontDescriptor/Flags` declares
+`Symbolic` without also declaring `Nonsymbolic`) still fails closed with
+`Codecs.UnsupportedImageFeatureException` (feature `"pdf-font-symbolic-not-embedded"`), since a
+symbol/dingbat glyph set has no meaningful generic-family equivalent and is never substituted
+with an unrelated font. Phase 7 extended the supported stream-filter set from `FlateDecode` alone
+to also include `LZWDecode`, `ASCII85Decode`, `ASCIIHexDecode`, and `RunLengthDecode`; any filter
+other than these five (plus `DCTDecode` for image XObjects) remains rejected with
+`Codecs.UnsupportedImageFeatureException` (`"pdf-filter-{name}"`), and malformed bytes for any of
+the five supported filters are rejected with `InvalidDataException` (malformed, not merely
+unsupported). Each currently-thrown `Codecs.UnsupportedImageFeatureException` carries a distinct,
+descriptive `Feature` string so a caller (or this repository's own tests) can distinguish exactly
+which unsupported construct was encountered — the complete current set is: `pdf-encrypted`,
+`pdf-pattern-color`, `pdf-colorspace-{name}` (`Indexed`/`Separation`/`DeviceN`/`ICCBased`/
+`CalRGB`/`CalGray`/`Lab`), `pdf-filter-{name}` (`CCITTFaxDecode`/`JPXDecode` and any other
+unrecognized filter), `pdf-tiff-predictor-bitdepth-{n}`, `pdf-image-bitdepth-{n}`,
+`pdf-form-xobject`, `pdf-font-subtype-{subtype}` (`Type0`/`Type1`/`MMType1`/`Type3`),
+`pdf-font-symbolic-not-embedded` (`Symbol`/`ZapfDingbats`), `pdf-font-encoding-{name}`, and
+`pdf-text-render-mode-{mode}` (stroke/clip). `/Annots` (annotations) and AcroForms are simply not
+processed at all — page rendering silently ignores `/Annots` rather than throwing — since this is
+an unimplemented feature, not a fail-closed scope boundary. No other segregation is required at
+the system level:
 `CanvasNetPdf` contains exactly one unit, so this risk control is inherently contained within it
 (IEC 62304 §5.3.3).
 
@@ -213,16 +254,21 @@ unsupported construct was encountered. No other segregation is required at the s
    `ArgumentOutOfRangeException`
 3. **Processing**: Builds the page's base current transformation matrix from its raw `/MediaBox`
    origin, effective `/Rotate`, and the requested `width`/`height`; resolves `/Contents` to fully
-   decoded bytes (concatenating a multi-stream array with a space separator); tokenizes and
+   decoded bytes (concatenating a multi-stream array with a space separator, and decoding through
+   its full `/Filter` chain — `FlateDecode`, `LZWDecode`, `ASCII85Decode`, `ASCIIHexDecode`,
+   `RunLengthDecode`, individually or composed); tokenizes and
    dispatches every recognized path-construction/painting, graphics-state, device-color,
    image-XObject, and text operator, silently skipping any other keyword — a text-showing
    operator (`Tj`/`'`/`"`/`TJ`) resolves each shown byte through the currently selected font's
    `/Encoding` to a Unicode codepoint, looks up its glyph outline/advance width via the resolved
-   embedded `Fonts.TrueTypeFont`, and paints it through the composed text-rendering matrix
+   font (an embedded `Fonts.TrueTypeFont`, or, when none is embedded, an automatically
+   substituted system/bundled `Fonts.SystemFontCatalog` fallback), and paints it through the
+   composed text-rendering matrix
    exactly like any other filled path; throws `InvalidDataException` for malformed `/Contents` or
    a malformed recognized operator's operand count/type, and throws
    `Codecs.UnsupportedImageFeatureException` for a well-formed but unsupported color space,
-   stream filter, Form XObject, font subtype/encoding, or text-rendering mode
+   stream filter, Form XObject, font subtype/encoding/symbolic-font-without-embedded-data, or
+   text-rendering mode
 4. **Output**: A new `Canvas.Surface` of exactly the requested size, painted with the page's
    interpreted path geometry, any placed image XObjects, and any shown text (or fully
    transparent, when the page declares no `/Contents` at all)

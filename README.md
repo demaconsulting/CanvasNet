@@ -131,10 +131,10 @@ Console.WriteLine($"Frames: {gifInfo.FrameCount}");
 // Decode/rasterize an SVG into a 256x256 surface
 using var rasterized = SvgCodec.Load("icon.svg", 256, 256);
 
-// Open a PDF, inspect its (rotation-adjusted) page size, and render it. Phase 1's Render
-// is intentionally in-progress: it returns a correctly sized but fully blank (transparent)
-// surface, since content-stream interpretation is not implemented yet; no page content is
-// drawn. Rendering actual page content is planned for a later phase.
+// Open a PDF, inspect its (rotation-adjusted) page size, and render it. Render paints the
+// page's real content-stream geometry: path fills/strokes with device color, placed image
+// XObjects, and text (using the page's embedded font, or an automatically substituted
+// system/bundled fallback font when none is embedded).
 using var pdfDoc = PdfDocument.Open("document.pdf");
 var pageInfo = pdfDoc.GetPageInfo(0);
 using var pdfSurface = pdfDoc.Render(0, pageInfo.Width, pageInfo.Height);

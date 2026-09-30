@@ -1,6 +1,6 @@
 # Introduction
 
-<!-- cspell:ignore glyf sfnt cmap loca hmtx hhea codepoint -->
+<!-- cspell:ignore glyf sfnt cmap loca hmtx hhea codepoint Zapf -->
 
 This document provides the detailed design for CanvasNet, a .NET library
 providing a canvas-based drawing and rendering API.
@@ -65,10 +65,13 @@ software items, specifically:
 - **CanvasNetPdf (System)** — A separate, independently-distributed software system providing
   PDF page-rendering support, containing a single unit, `PdfDocument`, which parses a PDF
   document's structure (cross-references, trailer, page tree) and reports its page count/size/
-  rotation. `CanvasNetPdf` depends on this `CanvasNet` system's `Canvas` and `Codecs`
-  subsystems — see _CanvasNetPdf System Design_ (`canvas-net-pdf.md`). Phase 1: `Render` returns
-  a correctly sized but blank (fully transparent) `Surface`; page content-stream interpretation
-  is planned for a later phase
+  rotation, then renders each page's content stream end to end: path construction/painting with
+  real device color, image XObjects (decoded through a `FlateDecode`/`LZWDecode`/
+  `ASCII85Decode`/`ASCIIHexDecode`/`RunLengthDecode`/`DCTDecode` filter pipeline), and text drawn
+  with an embedded TrueType font or an automatically substituted system/bundled fallback font
+  when none is embedded. `CanvasNetPdf` depends on this `CanvasNet` system's `Canvas`,
+  `Geometry`, `Drawing`, `Fonts`, and `Codecs` subsystems — see _CanvasNetPdf System Design_
+  (`canvas-net-pdf.md`)
 
 The following OTS items are also covered:
 
@@ -136,9 +139,10 @@ the Folder Layout section below and _CanvasNetSvg System Design_ (`canvas-net-sv
 
 A second sibling top-level system, `CanvasNetPdf`, likewise lives in this same repository
 alongside `CanvasNet`: its sole unit, `PdfDocument`, namespace `DemaConsulting.CanvasNet.Pdf`, is
-distributed as its own separate NuGet package and depends on the `CanvasNet` system's `Canvas`
-and `Codecs` subsystems only (Phase 1 has no need of `Geometry`/`Drawing`/`Fonts` — `Render`
-constructs only a blank `Surface`) — see the Folder Layout section below and _CanvasNetPdf
+distributed as its own separate NuGet package and depends on the `CanvasNet` system's `Canvas`,
+`Geometry`, `Drawing`, `Fonts`, and `Codecs` subsystems (`Render` rasterizes real page-content
+geometry, device color, image XObjects, and text with automatic font-fallback substitution) —
+see the Folder Layout section below and _CanvasNetPdf
 System Design_ (`canvas-net-pdf.md`).
 
 ## Folder Layout
@@ -261,22 +265,47 @@ folder of a separate, sibling system's sole unit (see _CanvasNetPdf System Desig
 
 ```text
 src/DemaConsulting.CanvasNet.Pdf/
-├── PdfDocument.cs               — Public API entry point: Open/PageCount/GetPageInfo/Render/
-│                                   Dispose; partial-class implementation continues below
-├── PdfDocument.Tokenizer.cs     — Low-level lexer (numbers/strings/names/delimiters/keywords)
-├── PdfDocument.ObjectModel.cs   — Internal `PdfObject` tagged union + recursive-descent parser
-├── PdfDocument.Xref.cs          — Classic xref+trailer, xref stream, object stream, hybrid
-│                                   `/XRefStm`, linear-scan fallback, `/Encrypt` detection
-├── PdfDocument.PageTree.cs      — Catalog→Pages→Kids traversal, MediaBox/Rotate inheritance,
-│                                   cycle rejection, `PdfPageInfo` production
-├── PdfPageInfo.cs               — Standalone supporting record struct (resolved page size/rotation)
-└── NamespaceDoc.cs              — Namespace-level XML documentation
+├── PdfDocument.cs                    — Public API entry point: Open/PageCount/GetPageInfo/
+│                                        Render/Dispose; partial-class implementation continues
+│                                        in every file below
+├── PdfDocument.Tokenizer.cs          — Low-level lexer (numbers/strings/names/delimiters/keywords)
+├── PdfDocument.ObjectModel.cs        — Internal `PdfObject` tagged union + recursive-descent parser
+├── PdfDocument.Xref.cs               — Classic xref+trailer, xref stream, object stream, hybrid
+│                                        `/XRefStm`, linear-scan fallback, `/Encrypt` detection
+├── PdfDocument.PageTree.cs           — Catalog→Pages→Kids traversal, MediaBox/Rotate inheritance,
+│                                        cycle rejection, `PdfPageInfo` production
+├── PdfDocument.ContentStream.cs      — Content-stream tokenizer/dispatch loop, `/Contents`
+│                                        resolution (single stream or space-joined array)
+├── PdfDocument.GraphicsState.cs      — Graphics-state stack (`q`/`Q`/`cm`/`w`/`J`/`j`/`M`/`d`),
+│                                        CTM derivation from `/MediaBox`/`/Rotate`
+├── PdfDocument.PathOps.cs            — Path-construction (`m`/`l`/`c`/`v`/`y`/`h`/`re`) and
+│                                        path-painting (`f`/`F`/`f*`/`S`/`s`/`B`/`B*`/`b`/`b*`/`n`)
+├── PdfDocument.Color.cs              — Device color operators (`g`/`G`/`rg`/`RG`/`k`/`K`/`cs`/
+│                                        `CS`/`sc`/`SC`/`scn`/`SCN`)
+├── PdfDocument.Filters.cs            — Generalized `/Filter`/`/DecodeParms` pipeline dispatch,
+│                                        `FlateDecode` plus PNG/TIFF predictor reversal
+├── PdfDocument.Filters.Lzw.cs        — `LZWDecode` filter (PDF-variant early-change LZW)
+├── PdfDocument.Filters.Ascii.cs      — `ASCII85Decode`/`ASCIIHexDecode` filters
+├── PdfDocument.Filters.RunLength.cs  — `RunLengthDecode` filter (PackBits-style)
+├── PdfDocument.Images.cs             — Image XObjects (`Do`: `DCTDecode` via `Codecs.JpegCodec`,
+│                                        or raw `DeviceGray`/`DeviceRGB`/`DeviceCMYK` samples)
+├── PdfDocument.Fonts.cs              — Simple-font resolution (`/Resources/Font`), `/Encoding`
+│                                        mapping, `/Widths`
+├── PdfDocument.FontFallback.cs       — Standard-14/system-font substitution when no embedded
+│                                        `/FontFile2` is present (fails closed for Symbol/
+│                                        ZapfDingbats)
+├── PdfDocument.Text.cs               — Text-object/text-state operators (`BT`/`ET`/`Tc`/`Tw`/
+│                                        `Tz`/`TL`/`Tf`/`Tr`/`Ts`/`Td`/`TD`/`Tm`/`T*`), text-showing
+│                                        (`Tj`/`'`/`"`/`TJ`) and glyph painting
+├── PdfPageInfo.cs                    — Standalone supporting record struct (resolved page size/rotation)
+└── NamespaceDoc.cs                   — Namespace-level XML documentation
 ```
 
-`PdfDocument`'s Phase 1 dependencies are limited to the `CanvasNet` system's `Canvas` (`Surface`)
-and `Codecs` (`UnsupportedImageFeatureException`) subsystems — see _CanvasNetPdf System Design_
-(`canvas-net-pdf.md`). A later phase that begins interpreting page content streams will add
-`Geometry`/`Drawing`/`Fonts` dependencies explicitly, at the point they are actually first used.
+`PdfDocument`'s dependencies span the `CanvasNet` system's `Canvas` (`Surface`/`Rgba32`),
+`Geometry` (`PathBuilder`/`Path`), `Drawing` (`PathFiller`/`PathStroker`/`StrokeStyle`), `Fonts`
+(`TrueTypeFont`, `SystemFontCatalog`), and `Codecs` (`UnsupportedImageFeatureException`,
+`JpegCodec`) subsystems — see _CanvasNetPdf System Design_ (`canvas-net-pdf.md`) for exactly
+which file introduced each dependency.
 
 ## Document Conventions
 

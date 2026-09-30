@@ -718,6 +718,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Pdf/NamespaceDoc.cs"             # Pdf namespace documentation
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfSystemIntegrationTests.cs"  # integration tests
+      - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfFixtureTests.cs"   # fixture conformance tests
 
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark
