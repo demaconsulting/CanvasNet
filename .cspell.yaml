@@ -273,3 +273,4 @@ ignorePaths:
   - "**/obj/**"
   - package-lock.json
   - "**/PngSuite/**"
+  - "src/DemaConsulting.CanvasNet/Fonts/BundledFonts/OFL.txt"

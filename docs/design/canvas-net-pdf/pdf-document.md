@@ -3,7 +3,8 @@
 ![CanvasNetPdf Structure](CanvasNetPdfView.svg)
 
 <!-- cspell:ignore xref startxref endobj endstream ObjStm MediaBox unresolvable Trise -->
-<!-- cspell:ignore CCITT reimplementation diffability bitstream -->
+<!-- cspell:ignore CCITT reimplementation diffability bitstream Zapf Nonsymbolic -->
+<!-- cspell:ignore Segoe Dejavu Nimbus Consolas ttcf dogfooding LOCALAPPDATA -->
 
 `PdfDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pdf` NuGet package
 (namespace `DemaConsulting.CanvasNet.Pdf`), which references the core
@@ -13,8 +14,9 @@ The `PdfDocument` class is the sole software unit of the `CanvasNetPdf` system. 
 are limited to `CanvasNet`'s `Canvas` subsystem (`Surface`, `Rgba32`), `Codecs` subsystem
 (`UnsupportedImageFeatureException`, and, as of Phase 3, `JpegCodec`), `Geometry` subsystem
 (`PathBuilder`, `Path`), `Drawing` subsystem (`PathFiller`, `PathStroker`, `StrokeStyle`,
-`FillRule`, `LineCap`, `LineJoin`), and, as of Phase 4, `Fonts` subsystem (`TrueTypeFont`) — see
-the Dependencies section of _CanvasNetPdf System Design_ (`../canvas-net-pdf.md`). It provides
+`FillRule`, `LineCap`, `LineJoin`), and, as of Phase 4, `Fonts` subsystem (`TrueTypeFont`, and, as
+of Phase 6, `SystemFontCatalog`) — see the Dependencies section of _CanvasNetPdf System Design_
+(`../canvas-net-pdf.md`). It provides
 hand-rolled parsing of a PDF document's structure (cross-references, trailer, page tree), a
 content-stream interpreter (`Render` tokenizes and executes a page's `/Contents` path-
 construction/painting and graphics-state operators), real device color, a generalized stream-
@@ -25,20 +27,23 @@ PNG/TIFF predictor reversal) decodes any stream, not only a page's own `/Content
 and composites a `/Subtype /Image` XObject (`DCTDecode` via `Codecs.JpegCodec`, or raw
 `DeviceGray`/`DeviceRGB`/`DeviceCMYK` 8-bit samples) through the current transformation matrix;
 and `BT`/`ET`/`Tc`/`Tw`/`Tz`/`TL`/`Tf`/`Tr`/`Ts`/`Td`/`TD`/`Tm`/`T*`/`Tj`/`'`/`"`/`TJ` resolve a
-simple (non-composite) embedded TrueType font declared in the current page's
-`/Resources/Font` dictionary, map each shown byte through that font's `/Encoding` to a Unicode
-codepoint, and paint the resulting glyph outline (scaled/positioned by the composed text-
-rendering matrix) via `Drawing.PathFiller.Fill` with the current fill color, exactly like any
-other filled path. **Phase 4 limitations**: only `/Subtype /TrueType` simple fonts with an
-embedded `/FontDescriptor/FontFile2` are supported — `/Type0` (composite/CID-keyed), `/Type1`,
-`/MMType1`, and `/Type3` fonts, and any simple font lacking an embedded `/FontFile2` (no
-standard-14/system-font substitution is attempted, by design — see
-`../canvas-net-pdf/pdf-document.md`'s _Font & Text Rendering_ section and
-`../../../.agent-logs/planning-pdf-codec-roadmap-revised-b4e91d02.md`), all fail closed with
-`Codecs.UnsupportedImageFeatureException`; only the `/WinAnsiEncoding` and `/MacRomanEncoding`
-base encodings (plus `/Differences`) are supported (an unrecognized base encoding also fails
-closed); only text-rendering modes `0` (fill) and `3` (invisible) are supported (stroke/clip
-modes `1`/`2`/`4`-`7` fail closed); and no additional stream filters were added for this phase.
+simple (non-composite) TrueType font declared in the current page's `/Resources/Font`
+dictionary, map each shown byte through that font's `/Encoding` to a Unicode codepoint, and paint
+the resulting glyph outline (scaled/positioned by the composed text-rendering matrix) via
+`Drawing.PathFiller.Fill` with the current fill color, exactly like any other filled path. As of
+Phase 6 (this phase), a `/Subtype /TrueType` simple font with an embedded
+`/FontDescriptor/FontFile2` still always wins, but a font with no embedded `/FontFile2` is no
+longer an unconditional failure: it is instead substituted with the closest-matching font
+actually installed on the host operating system, or - when nothing matches - a bundled Liberation
+Sans/Serif/Mono font, fully automatically and silently (see _Font Resolution_ and _Font Fallback
+Resolution_ below, and `Fonts.SystemFontCatalog`'s own unit design,
+`../canvas-net/fonts/system-font-catalog.md`). **Phase 4 limitations (narrowed by Phase 6, see
+above)**: `/Type0` (composite/CID-keyed), `/Type1`, `/MMType1`, and `/Type3` fonts remain entirely
+unsupported and fail closed with `Codecs.UnsupportedImageFeatureException`; only the
+`/WinAnsiEncoding` and `/MacRomanEncoding` base encodings (plus `/Differences`) are supported (an
+unrecognized base encoding also fails closed); only text-rendering modes `0` (fill) and `3`
+(invisible) are supported (stroke/clip modes `1`/`2`/`4`-`7` fail closed); and no additional
+stream filters were added for either phase.
 **Phase 3 limitations** (unchanged): no Form XObject rendering (`Do` on a `/Subtype /Form`
 XObject fails closed with `UnsupportedImageFeatureException`, rather than being silently
 skipped), no shading/patterns/transparency groups, no `CCITTFax`/`LZW`/`ASCII85`/`ASCIIHex`/`JPX`
@@ -346,16 +351,16 @@ re-parsing it each time — a property a purely static API could not express.
   specification's image-space convention, the opposite of user-space's y-up convention) — no
   bilinear interpolation, a documented Phase 3 simplification consistent with Phase 2's own
   stroke-width simplification precedent.
-- **Font resolution (`PdfDocument.Fonts.cs`, added in Phase 4)** — `ResolveFont(PdfObject
-  fontResource)` looks up (and caches, via `_fontCache`) a font dictionary's `Fonts.TrueTypeFont`,
-  `/Encoding`, and `/Widths`/`/MissingWidth`. Only `/Subtype /TrueType` is supported; `/Type0`,
-  `/Type1`, `/MMType1`, and `/Type3` each throw `Codecs.UnsupportedImageFeatureException` naming
-  the rejected subtype. The font dictionary's `/FontDescriptor/FontFile2` stream is required and
-  decoded via the same `GetStreamDecodedBytes` every other stream in this class uses, then loaded
-  via `Fonts.TrueTypeFont.Load(new MemoryStream(decodedBytes))` — a font lacking `/FontFile2`
-  throws `Codecs.UnsupportedImageFeatureException` (no standard-14/system-font substitution is
-  ever attempted; this is an intentional, documented scope boundary, not a temporary gap — see
-  `.agent-logs/planning-pdf-codec-roadmap-revised-b4e91d02.md`). `ResolveEncoding` builds a full
+- **Font resolution (`PdfDocument.Fonts.cs`, added in Phase 4, fallback branch rewritten in
+  Phase 6)** — `ResolveFont(PdfObject fontResource)` looks up (and caches, via `_fontCache`) a
+  font dictionary's `Fonts.TrueTypeFont`, `/Encoding`, and `/Widths`/`/MissingWidth`. Only
+  `/Subtype /TrueType` is supported; `/Type0`, `/Type1`, `/MMType1`, and `/Type3` each throw
+  `Codecs.UnsupportedImageFeatureException` naming the rejected subtype. `BuildResolvedFont`
+  requires `/FontDescriptor`; when its `FontFile2` entry resolves to a stream, that embedded font
+  always wins - decoded via the same `GetStreamDecodedBytes` every other stream in this class
+  uses, then loaded via `Fonts.TrueTypeFont.Load(new MemoryStream(decodedBytes))`. Only when
+  `FontFile2` is absent does `BuildResolvedFont` call `ResolveFallbackFont` (see _Font Fallback
+  Resolution_ immediately below) instead of failing closed. `ResolveEncoding` builds a full
   256-entry `int[]` code-to-Unicode-codepoint map: `ApplyBaseEncoding` seeds it from one of two
   hand-transcribed 256-entry tables (`WinAnsiEncodingTable`/`MacRomanEncodingTable`, the PDF
   specification's own Appendix D tables), defaulting to `/WinAnsiEncoding` when `/Encoding` is
@@ -370,6 +375,31 @@ re-parsing it each time — a property a purely static API could not express.
   (`/1000`-scaled) map from `/FirstChar`/`/Widths` (missing/malformed entries silently omitted,
   not rejected), plus `/FontDescriptor/MissingWidth` (defaulting to `0`, the specification's own
   documented default) as the fallback for any code absent from that map.
+- **Font fallback resolution (`PdfDocument.FontFallback.cs`, added in Phase 6)** —
+  `ResolveFallbackFont(baseFontName, descriptor)` is `BuildResolvedFont`'s sole entry point into
+  this file. It first fails closed with `Codecs.UnsupportedImageFeatureException` (feature
+  `pdf-font-symbolic-not-embedded`) for `/BaseFont` `Symbol` or `ZapfDingbats`, or for any font
+  whose `/FontDescriptor/Flags` declares the `Symbolic` bit (bit 3) without also declaring the
+  `Nonsymbolic` bit (bit 6) - a symbol/dingbat glyph set has no meaningful generic-family
+  equivalent, so it is never substituted rather than being silently mis-rendered. Otherwise,
+  `ResolveFallbackFlavor` classifies the requested serif/fixed-pitch/bold/italic flavor: a
+  recognized Standard-14 name (the fixed 12-entry `Standard14Flavors` table, covering
+  Helvetica/Times/Courier's four style variants each - `Symbol`/`ZapfDingbats` deliberately
+  excluded, since they are rejected above before this table is ever consulted) takes priority and
+  bypasses the descriptor entirely; otherwise the flavor is derived from `/FontDescriptor/Flags`
+  bit 1 (`FixedPitch`)/bit 2 (`Serif`), `/FontWeight >= 600` (else a case-insensitive `"Bold"`
+  substring in `/BaseFont`) for bold, and `/FontDescriptor/Flags` bit 7 (`Italic`) OR a non-zero
+  `/ItalicAngle` OR a case-insensitive `"Italic"`/`"Oblique"` substring in `/BaseFont` for italic.
+  `StripFontNameDecoration` then reduces `/BaseFont` to a plain family-name hint by removing a
+  leading six-uppercase-letter-plus-`+` PDF subset tag and any trailing style-name suffix (for
+  example `"Arial,BoldItalic"` and `"ABCDEF+Arial-BoldItalic"` both become `"Arial"`), and that
+  hint plus the resolved flavor are passed to `Fonts.SystemFontCatalog.FindBestMatch`; a match is
+  loaded (and process-lifetime-cached by `(FilePath, FaceIndex)`, via `LoadFallbackFontFromDisk`)
+  from disk, while no match falls through to `Fonts.SystemFontCatalog.LoadBundledFallback`'s own
+  bundled Liberation Sans/Serif/Mono font (which is itself already process-lifetime-cached by
+  `SystemFontCatalog`). This process-lifetime cache is deliberately broader-scoped than
+  `_fontCache`'s per-`Render` call scope, since a system or bundled font file's bytes never
+  change between calls or between documents.
 - **Text rendering (`PdfDocument.Text.cs`, added in Phase 4)** — `OpBeginText`/`OpEndText`
   (`BT`/`ET`) reset only `_textMatrix`/`_lineMatrix` to the identity matrix (every other text-
   state parameter lives on `GraphicsState` and is untouched, per this phase's documented `q`/`Q`-
@@ -447,10 +477,15 @@ re-parsing it each time — a property a purely static API could not express.
 - **`Do` with a name undeclared in `/Resources/XObject` (or no `/Resources` at all), a
   non-stream/missing-`/Subtype` resolved value, or a malformed operand count/type** —
   `InvalidDataException` (a malformed content stream, not merely unsupported).
-- **A font dictionary whose `/Subtype` is `/Type0`, `/Type1`, `/MMType1`, or `/Type3`, or a
-  `/Subtype /TrueType` font lacking an embedded `/FontDescriptor/FontFile2`** —
-  `Codecs.UnsupportedImageFeatureException` (composite/CID-keyed, Type 1/CFF, and Type 3 fonts,
-  and font substitution for a non-embedded font, are all out of this phase's scope by design).
+- **A font dictionary whose `/Subtype` is `/Type0`, `/Type1`, `/MMType1`, or `/Type3`** —
+  `Codecs.UnsupportedImageFeatureException` (composite/CID-keyed, Type 1/CFF, and Type 3 fonts
+  remain entirely out of scope by design). A `/Subtype /TrueType` font lacking an embedded
+  `/FontDescriptor/FontFile2` no longer reaches this list at all as of Phase 6 - it is resolved
+  via fallback substitution instead (see below), except that a `/BaseFont` of `Symbol` or
+  `ZapfDingbats`, or a font whose `/FontDescriptor/Flags` declares `Symbolic` without also
+  declaring `Nonsymbolic`, still throws `Codecs.UnsupportedImageFeatureException` (feature
+  `pdf-font-symbolic-not-embedded`) - a symbol/dingbat glyph set has no meaningful generic-family
+  equivalent and is never substituted with an unrelated system or bundled font.
 - **An `/Encoding` naming an unrecognized base encoding** (anything other than
   `/WinAnsiEncoding`/`/MacRomanEncoding`, or their dictionary form's `/BaseEncoding`) —
   `Codecs.UnsupportedImageFeatureException`.

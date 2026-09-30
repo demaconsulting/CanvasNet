@@ -13,7 +13,7 @@
 // cspell:ignore ogonek onehalf onequarter oslash otilde parenleft parenright partialdiff
 // cspell:ignore plusminus questiondown quotedbl quotedblbase quotedblleft quotedblright
 // cspell:ignore quoteleft quoteright quotesinglbase quotesingle scaron threequarters
-// cspell:ignore uacute yacute ydieresis
+// cspell:ignore uacute yacute ydieresis Zapf Nonsymbolic
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Fonts;
 
@@ -104,7 +104,8 @@ public sealed partial class PdfDocument
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Propagated from <see cref="BuildResolvedFont"/> for an unsupported <c>/Subtype</c>, a
-    ///     missing embedded <c>/FontFile2</c>, or an unrecognized <c>/Encoding</c> base encoding.
+    ///     non-embedded <c>Symbol</c>/<c>ZapfDingbats</c>/symbolic font, or an unrecognized
+    ///     <c>/Encoding</c> base encoding.
     /// </exception>
     private ResolvedFont ResolveFont(string name)
     {
@@ -130,25 +131,30 @@ public sealed partial class PdfDocument
 
     /// <summary>
     ///     Builds a <see cref="ResolvedFont"/> from a font dictionary: validates <c>/Subtype
-    ///     /TrueType</c>, loads the required embedded <c>/FontDescriptor/FontFile2</c>, and
+    ///     /TrueType</c>, loads the embedded <c>/FontDescriptor/FontFile2</c> if present (which
+    ///     always takes priority over any substitute), or else resolves a substitute font via
+    ///     <see cref="ResolveFallbackFont"/> (a Standard-14/system/bundled-Liberation match), and
     ///     resolves <c>/Encoding</c> and <c>/Widths</c>.
     /// </summary>
     /// <remarks>
-    ///     This package never falls back to a substitute/standard-14 font: a simple TrueType font
-    ///     with no embedded <c>/FontFile2</c> fails closed with
-    ///     <see cref="UnsupportedImageFeatureException"/> rather than silently rendering with an
-    ///     unrelated font (a documented, deliberate scope boundary - see the
-    ///     <see cref="PdfDocument"/> class remarks and <c>.agent-logs/planning-pdf-codec-roadmap-
-    ///     revised-b4e91d02.md</c>'s Assumption 3).
+    ///     A simple TrueType font with no embedded <c>/FontFile2</c> no longer fails closed
+    ///     unconditionally: <see cref="ResolveFallbackFont"/> substitutes the closest-matching
+    ///     system font, or - when no system font matches - a bundled Liberation Sans/Serif/Mono
+    ///     font, fully automatically and silently (no new public API, no "fallback occurred"
+    ///     diagnostics). Only a <c>Symbol</c>/<c>ZapfDingbats</c> (or otherwise symbolic, per
+    ///     <c>/FontDescriptor/Flags</c>) font with no embedded <c>/FontFile2</c> still fails
+    ///     closed, since such a font's glyph set has no meaningful generic-family equivalent - see
+    ///     the <see cref="PdfDocument"/> class remarks and <c>PdfDocument.FontFallback.cs</c>.
     /// </remarks>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when <c>/FontDescriptor</c> is missing, or <c>/FontDescriptor/FontFile2</c> does
-    ///     not resolve to a stream.
+    ///     Thrown when <c>/FontDescriptor</c> is missing, <c>/FontDescriptor/FontFile2</c> does
+    ///     not resolve to a stream, or <c>/BaseFont</c> is missing.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when <c>/Subtype</c> is not <c>TrueType</c> (for example <c>Type0</c>,
-    ///     <c>Type1</c>, <c>MMType1</c>, or <c>Type3</c>), or when <c>/FontDescriptor</c> has no
-    ///     <c>/FontFile2</c> entry (a non-embedded/standard-14 font).
+    ///     <c>Type1</c>, <c>MMType1</c>, or <c>Type3</c>), or when a <c>Symbol</c>/
+    ///     <c>ZapfDingbats</c>/symbolic font has no embedded <c>/FontFile2</c> (see
+    ///     <see cref="ResolveFallbackFont"/>).
     /// </exception>
     private ResolvedFont BuildResolvedFont(PdfObject fontDict)
     {
@@ -167,22 +173,24 @@ public sealed partial class PdfDocument
         var descriptor = Resolve(descriptorEntry);
 
         var fontFileEntry = descriptor.Get("FontFile2");
+        TrueTypeFont font;
         if (fontFileEntry is null)
         {
-            throw new UnsupportedImageFeatureException(
-                "pdf-font-not-embedded",
-                "Font has no embedded /FontDescriptor/FontFile2; non-embedded and standard-14 " +
-                "font substitution is not supported.");
+            var baseFontName = GetNameValue(fontDict, "BaseFont")
+                ?? throw new InvalidDataException("Font dictionary is missing required /BaseFont.");
+            font = ResolveFallbackFont(baseFontName, descriptor);
         }
-
-        var fontFileStream = Resolve(fontFileEntry);
-        if (fontFileStream.Kind != PdfKind.Stream)
+        else
         {
-            throw new InvalidDataException("/FontDescriptor/FontFile2 does not resolve to a stream.");
-        }
+            var fontFileStream = Resolve(fontFileEntry);
+            if (fontFileStream.Kind != PdfKind.Stream)
+            {
+                throw new InvalidDataException("/FontDescriptor/FontFile2 does not resolve to a stream.");
+            }
 
-        var fontBytes = GetStreamDecodedBytes(fontFileStream);
-        var font = TrueTypeFont.Load(new MemoryStream(fontBytes));
+            var fontBytes = GetStreamDecodedBytes(fontFileStream);
+            font = TrueTypeFont.Load(new MemoryStream(fontBytes));
+        }
 
         var encoding = ResolveEncoding(fontDict.Get("Encoding"));
         var (widths, missingWidth) = ResolveWidths(fontDict, descriptor);

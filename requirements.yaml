@@ -30,6 +30,7 @@ includes:
   - docs/reqstream/canvas-net/drawing/gradient-paint.yaml
   - docs/reqstream/canvas-net/fonts.yaml
   - docs/reqstream/canvas-net/fonts/true-type-font.yaml
+  - docs/reqstream/canvas-net/fonts/system-font-catalog.yaml
   - docs/reqstream/canvas-net/rendering.yaml
   - docs/reqstream/canvas-net/rendering/canvas.yaml
   - docs/reqstream/canvas-net/rendering/text-renderer.yaml

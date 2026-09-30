@@ -1,4 +1,4 @@
-// cspell:ignore xobject devicergb
+// cspell:ignore xobject devicergb Zapf Nonsymbolic
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Fonts;
 
@@ -300,5 +300,113 @@ public class PdfSystemIntegrationTests
         Assert.Equal(0, surface[199, 0].A);
         Assert.Equal(0, surface[0, 99].A);
         Assert.Equal(0, surface[199, 99].A);
+    }
+
+    /// <summary>
+    ///     Proves <see cref="PdfDocument.Render"/> resolves a Standard-14 simple TrueType font
+    ///     (<c>/BaseFont /Helvetica</c>) with no embedded <c>/FontFile2</c> end to end (Phase 6):
+    ///     a synthetic, in-memory single-page document (no new binary fixture needed) drawing a
+    ///     single glyph. Since the actual substitute font (a matching system font, or the bundled
+    ///     Liberation Sans fallback) genuinely varies across the Windows/Linux/macOS CI matrix,
+    ///     this test asserts the strongest property achievable without hardcoding a
+    ///     platform-specific glyph shape: real, visible glyph ink is painted somewhere on the
+    ///     canvas, proving the fallback path genuinely renders rather than merely not throwing.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_RenderStandard14HelveticaWithoutEmbeddedFont_PaintsVisibleGlyphInk()
+    {
+        // Arrange: a synthetic single-page PDF with a /Helvetica font resource and no /FontFile2
+        var bytes = BuildSyntheticFontFallbackPdf(
+            "/Type /FontDescriptor",
+            "/Type /Font /Subtype /TrueType /BaseFont /Helvetica /FirstChar 65 /LastChar 65 /Widths [600]",
+            "BT /F1 60 Tf 20 30 Td (A) Tj ET");
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var surface = document.Render(0, 100, 100);
+
+        // Assert: at least one visibly-painted (non-transparent) pixel proves a real substitute
+        // glyph was actually rendered, not merely that no exception was thrown.
+        var paintedAnyPixel = false;
+        for (var y = 0; y < surface.Height && !paintedAnyPixel; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                if (surface[x, y].A > 0)
+                {
+                    paintedAnyPixel = true;
+                    break;
+                }
+            }
+        }
+
+        Assert.True(paintedAnyPixel, "Expected the Standard-14 fallback-resolved font to paint visible glyph ink.");
+    }
+
+    /// <summary>
+    ///     Proves <see cref="PdfDocument.Render"/> still fails closed end to end (Phase 6) for a
+    ///     <c>/BaseFont /Symbol</c> font with no embedded <c>/FontFile2</c>: Symbol/ZapfDingbats
+    ///     fonts are never substituted with an unrelated system or bundled font.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_RenderSymbolFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange: a synthetic single-page PDF with a /Symbol font resource and no /FontFile2
+        var bytes = BuildSyntheticFontFallbackPdf(
+            "/Type /FontDescriptor",
+            "/Type /Font /Subtype /TrueType /BaseFont /Symbol",
+            "BT /F1 20 Tf (A) Tj ET");
+
+        // Act & Assert
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(() => document.Render(0, 100, 100));
+        Assert.Equal("pdf-font-symbolic-not-embedded", exception.Feature);
+    }
+
+    /// <summary>
+    ///     Builds a minimal, synthetic, in-memory single-page PDF (100x100 <c>/MediaBox</c>)
+    ///     declaring one <c>/F1</c> simple TrueType font resource (object 5, referencing a
+    ///     <c>/FontDescriptor</c> at object 6, deliberately without any <c>/FontFile2</c> entry)
+    ///     and the given content stream - used by the Phase 6 font-fallback end-to-end tests, so
+    ///     no new binary PDF fixture file is needed for them.
+    /// </summary>
+    private static byte[] BuildSyntheticFontFallbackPdf(string descriptorEntries, string fontDictEntries, string content)
+    {
+        var contentBytes = System.Text.Encoding.ASCII.GetBytes(content);
+        var streamBody = System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Length {contentBytes.Length} >>\nstream\n{content}\nendstream");
+
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>"u8.ToArray(),
+            streamBody,
+            System.Text.Encoding.ASCII.GetBytes($"<< {fontDictEntries} /FontDescriptor 6 0 R >>"),
+            System.Text.Encoding.ASCII.GetBytes($"<< {descriptorEntries} >>"),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        var offsets = new List<int>();
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            offsets.Add(buffer.Count);
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        var xrefOffset = buffer.Count;
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"xref\n0 {bodies.Count + 1}\n"));
+        buffer.AddRange("0000000000 65535 f \n"u8.ToArray());
+        foreach (var offset in offsets)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{offset:D10} 00000 n \n"));
+        }
+
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes(
+            $"trailer\n<< /Size {bodies.Count + 1} /Root 1 0 R >>\nstartxref\n{xrefOffset}\n%%EOF\n"));
+        return [.. buffer];
     }
 }

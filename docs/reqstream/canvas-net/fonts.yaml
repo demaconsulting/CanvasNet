@@ -184,3 +184,28 @@ sections:
               - TrueTypeFont_RealOpenSansFont_ExposesExpectedNameAndStyleMetadata
               - TrueTypeFont_RealSourceSans3OtfFont_ExposesExpectedNameAndStyleMetadata
               - TrueTypeFont_RealTtcContainer_BothFaces_ExposeExpectedNameAndStyleMetadataIndependently
+
+          - id: CanvasNet-Fonts-SystemFontDiscovery
+            title: >-
+              The Fonts subsystem shall provide directory-scan-only discovery of fonts installed
+              on the host operating system, best-effort family-name/style matching against that
+              catalog, and a bundled, always-available Liberation Sans/Serif/Mono last-resort
+              fallback font (the SystemFontCatalog unit), for use by a caller (today,
+              DemaConsulting.CanvasNet.Pdf's PdfDocument) substituting a non-embedded font.
+            justification: |
+              A caller resolving a document's non-embedded font needs to know what fonts are
+              actually installed on the host machine, a best-effort way to match a requested
+              family/style against them, and a deterministic last resort when nothing matches -
+              all format-agnostic capabilities that belong in the Fonts subsystem alongside
+              TrueTypeFont, not duplicated per document-format consumer.
+            children:
+              - CanvasNet-Fonts-SystemFontCatalog-DirectoryScanDiscovery
+              - CanvasNet-Fonts-SystemFontCatalog-LazyProcessLifetimeCache
+              - CanvasNet-Fonts-SystemFontCatalog-ToleratesMissingOrUnparseable
+              - CanvasNet-Fonts-SystemFontCatalog-FindBestMatchExactFamily
+              - CanvasNet-Fonts-SystemFontCatalog-FindBestMatchGenericBucket
+              - CanvasNet-Fonts-SystemFontCatalog-FindBestMatchNoMatch
+              - CanvasNet-Fonts-SystemFontCatalog-LoadBundledFallback
+              - CanvasNet-Fonts-SystemFontCatalog-LoadBundledFallbackMissingResourceGuard
+            tests:
+              - SystemFontCatalog_RealFilesystem_ScanKnownOsDirectories_DiscoversFontsOrIsGracefullyEmpty

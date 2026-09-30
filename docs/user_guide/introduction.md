@@ -3,6 +3,7 @@
 <!-- cspell:ignore glyf sfnt codepoint -->
 <!-- cspell:ignore rasterizing unparseable SMIL renderable -->
 <!-- cspell:ignore unitless -->
+<!-- cspell:ignore Zapf -->
 
 ## Purpose
 
@@ -1089,11 +1090,22 @@ The `PdfDocument` sealed class opens a PDF document, parses its cross-reference 
 page tree, and reports each page's displayed (rotation-adjusted) size and its page count.
 `Render` interprets a page's content stream, painting real path geometry, device color (`rg`/
 `g`/`k`/`cs`/`sc` and related operators), placed image XObjects (`Do`), and text shown with a
-simple, embedded TrueType font (`Tf`/`Td`/`Tj` and the other `BT`/`ET` text operators) onto the
-returned `Surface`. **Documented scope boundaries**: only a `/Subtype /TrueType` font with an
-embedded `/FontDescriptor/FontFile2` is supported (no standard-14/system-font substitution);
-`/Type0` (composite), `/Type1`, `/MMType1`, `/Type3` fonts, Form XObjects, shading/patterns/
-transparency groups, and stroke/clip text-rendering modes all fail closed with
+simple TrueType font (`Tf`/`Td`/`Tj` and the other `BT`/`ET` text operators) onto the returned
+`Surface`. A font with an embedded `/FontDescriptor/FontFile2` stream is always used directly;
+a font with no embedded font data is instead automatically substituted, fully silently (no new
+API, no "fallback occurred" indicator): first with the closest-matching font actually installed
+on the host operating system (matched by family name and bold/italic/serif/fixed-pitch style),
+and, when nothing on the host machine matches, with a bundled Liberation Sans/Serif/Mono font
+that ships with the `DemaConsulting.CanvasNet` package and is therefore always available. A
+recognized Standard-14 name (`Helvetica`, `Times-Roman`, `Courier`, and their bold/italic
+variants, and so on) is classified by a fixed, built-in table; any other non-embedded font's
+style is derived from its `/FontDescriptor` flags/weight/angle. `Symbol` and `ZapfDingbats` (and
+any other font whose `/FontDescriptor` marks it as a symbolic, non-Latin-text glyph set) are
+never substituted this way, since a symbol/dingbat glyph set has no meaningful generic-family
+equivalent - these still fail closed with `UnsupportedImageFeatureException`, exactly as a
+non-embedded font of any kind did before this fallback behavior existed. **Documented scope
+boundaries**: `/Type0` (composite), `/Type1`, `/MMType1`, `/Type3` fonts, Form XObjects,
+shading/patterns/transparency groups, and stroke/clip text-rendering modes all fail closed with
 `UnsupportedImageFeatureException` rather than being silently skipped or mis-rendered.
 
 ```csharp
@@ -1175,9 +1187,10 @@ public Surface Render(int pageIndex, int width, int height)
 
 Returns a new `Surface` of the caller-specified `width` x `height` for the given page, painted
 with the page's interpreted content-stream geometry (path construction/painting with real device
-color, placed image XObjects, and text shown with a resolved embedded TrueType font), or a fully
-transparent surface when the page declares no `/Contents`. The `width`/`height` used is exactly
-as given - it is not clamped or derived from the page's own `/MediaBox` size.
+color, placed image XObjects, and text shown with a resolved TrueType font - embedded when
+present, otherwise automatically substituted, see *PdfDocument* above), or a fully transparent
+surface when the page declares no `/Contents`. The `width`/`height` used is exactly as given - it
+is not clamped or derived from the page's own `/MediaBox` size.
 
 **Exceptions:**
 
@@ -1187,9 +1200,9 @@ as given - it is not clamped or derived from the page's own `/MediaBox` size.
   operand count/type, an unresolvable font resource name, or a text-showing operator invoked with
   no font selected.
 - `UnsupportedImageFeatureException`: Thrown for a well-formed but unsupported color space,
-  stream filter, Form XObject, font subtype (`/Type0`/`/Type1`/`/MMType1`/`/Type3`, or a
-  `/Subtype /TrueType` font lacking an embedded `/FontFile2`), font encoding, or text-rendering
-  mode.
+  stream filter, Form XObject, font subtype (`/Type0`/`/Type1`/`/MMType1`/`/Type3`), a
+  `Symbol`/`ZapfDingbats`/otherwise-symbolic font with no embedded font data, font encoding, or
+  text-rendering mode.
 - `ObjectDisposedException`: Thrown when called after `Dispose()` has been called.
 
 ##### PdfDocument.Dispose()

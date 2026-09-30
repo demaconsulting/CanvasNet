@@ -1,7 +1,7 @@
 ---
 # Software Unit Requirements for PdfDocument
 #
-# cspell:ignore xref startxref endobj endstream ObjStm MediaBox
+# cspell:ignore xref startxref endobj endstream ObjStm MediaBox Zapf Nonsymbolic
 #
 # These requirements describe the design-level behavior of the PdfDocument unit.
 #
@@ -425,20 +425,54 @@ sections:
               /TrueType simple font with an embedded /FontDescriptor/FontFile2 stream, loading it
               via Fonts.TrueTypeFont.Load, and caching the resolved font by font-dictionary object
               identity for the duration of a single Render call; a font whose /Subtype is /Type0,
-              /Type1, /MMType1, or /Type3, or a /Subtype /TrueType font lacking an embedded
-              /FontFile2 (no standard-14/system-font substitution is attempted), shall throw
-              UnsupportedImageFeatureException, and a Tf operator naming a font absent from
-              /Resources/Font shall throw InvalidDataException.
+              /Type1, /MMType1, or /Type3 shall throw UnsupportedImageFeatureException, a
+              /Subtype /TrueType font lacking an embedded /FontFile2 shall instead be resolved via
+              system/bundled font-fallback substitution (see CanvasNetPdf-PdfDocument-FontFallback),
+              and a Tf operator naming a font absent from /Resources/Font shall throw
+              InvalidDataException.
             justification: |
-              Composite/CID-keyed fonts, Type 1/CFF fonts, Type 3 fonts, and any non-embedded
-              simple font are all explicitly out of this phase's scope; a caller must receive a
-              distinguishable, fail-closed exception for each rather than a silently
-              mis-rendered or substituted glyph, and repeatedly selecting the same font resource
+              Composite/CID-keyed fonts, Type 1/CFF fonts, and Type 3 fonts remain explicitly out
+              of this phase's scope and must fail closed with a distinguishable exception; a
+              non-embedded /Subtype /TrueType simple font, however, is common enough in real-world
+              PDFs (referencing a standard-14 name, or an installed system font, without
+              embedding it) that silently refusing to render it is a worse outcome than a
+              best-effort visual substitute, and repeatedly selecting the same font resource
               within one render must not repeatedly re-decode its embedded font bytes.
             tests:
               - PdfDocument_Fonts_UnsupportedSubtype_ThrowsUnsupportedImageFeatureException
-              - PdfDocument_Fonts_MissingFontFile2_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Fonts_UndefinedFontName_ThrowsInvalidDataException
+              - PdfDocument_BuildResolvedFont_EmbeddedFontFileTakesPriorityOverFallback
+
+          - id: CanvasNetPdf-PdfDocument-FontFallback
+            title: >-
+              The PdfDocument class shall, for a /Subtype /TrueType simple font lacking an
+              embedded /FontDescriptor/FontFile2 stream, resolve a substitute font by mapping a
+              recognized Standard-14 /BaseFont name to its documented serif/fixed-pitch/bold/
+              italic flavor, or else deriving that flavor from /FontDescriptor/Flags and
+              /FontWeight/ItalicAngle, matching that flavor and the (subset-tag- and style-
+              suffix-stripped) family name against Fonts.SystemFontCatalog.FindBestMatch and, if
+              no system font matches, against Fonts.SystemFontCatalog.LoadBundledFallback; a
+              /BaseFont of Symbol or ZapfDingbats, or any font whose /FontDescriptor/Flags marks
+              it Symbolic without also marking it Nonsymbolic, shall throw
+              UnsupportedImageFeatureException rather than being substituted, and every resolved
+              fallback TrueTypeFont instance shall be cached by (file path, face index) for the
+              process lifetime.
+            justification: |
+              A symbol/dingbats font's glyphs are not addressed by any standard Latin-text
+              encoding, so silently substituting an unrelated text font for one would render
+              wrong, misleading glyph shapes rather than failing visibly; every other non-embedded
+              simple font, by contrast, can be reasonably approximated by a same-flavor
+              substitute, and resolving a fallback font requires directory-scanning and parsing
+              real font files, which must not be repeated for every occurrence of the same
+              substitute font within or across renders.
+            tests:
+              - PdfDocument_BuildResolvedFont_Standard14NoEmbeddedFont_ResolvesViaFallback
+              - PdfDocument_BuildResolvedFont_NonStandard14FlagsOnlyUnmatchedFamily_ResolvesViaBundledFallback
+              - PdfDocument_BuildResolvedFont_SymbolFont_ThrowsSymbolicNotEmbeddedException
+              - PdfDocument_BuildResolvedFont_ZapfDingbatsFont_ThrowsSymbolicNotEmbeddedException
+              - PdfDocument_BuildResolvedFont_SymbolicFlagWithoutEmbeddedFont_ThrowsSymbolicNotEmbeddedException
+              - CanvasNetPdf_SystemIntegration_RenderStandard14HelveticaWithoutEmbeddedFont_PaintsVisibleGlyphInk
+              - CanvasNetPdf_SystemIntegration_RenderSymbolFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException
 
           - id: CanvasNetPdf-PdfDocument-FontEncoding
             title: >-

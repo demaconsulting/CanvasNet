@@ -2,20 +2,25 @@
 
 <!-- cspell:ignore codepoint codepoints renderable -->
 
-<!-- cspell:ignore Codepoints codepoint renderable charstring charstrings ttcf -->
+<!-- cspell:ignore Codepoints codepoint renderable charstring charstrings ttcf dogfooding -->
 This document describes the subsystem-level verification strategy for the `Fonts` subsystem (the
-`TrueTypeFont` unit, including its CFF/OpenType outline decoding and TrueType Collection support).
+`TrueTypeFont` unit, including its CFF/OpenType outline decoding and TrueType Collection support,
+and, added this phase, the `SystemFontCatalog` unit's OS font discovery, best-effort matching,
+and bundled-fallback loading).
 
 ### Verification Approach
 
 The `Fonts` subsystem is verified through the `TrueTypeFont` unit tests under
 `test/DemaConsulting.CanvasNet.Tests/Fonts/`, through the real-font integration tests in
-`TrueTypeFontRealFontIntegrationTests.cs`, and through the two system-integration tests in
-`CanvasNetTests.cs`. No dedicated subsystem test file exists. Instead, subsystem-level
-requirements reuse the unit tests for parser and decoding behavior, reuse the real-font
-integration tests for end-to-end behavior against genuine production font files (`.ttf`, `.otf`,
-and `.ttc`), and reuse the system tests for the integrated collaboration between `Fonts`,
-`Geometry`, `Drawing`, and `Canvas`.
+`TrueTypeFontRealFontIntegrationTests.cs`, through the two system-integration tests in
+`CanvasNetTests.cs`, and, added this phase, through the `SystemFontCatalog` unit tests
+(`SystemFontCatalogTests.cs`), the gated real-filesystem discovery tests
+(`SystemFontCatalogRealDiscoveryIntegrationTests.cs`), and the bundled-Liberation-font dogfooding
+tests (`BundledLiberationFontsTests.cs`). No dedicated subsystem test file exists. Instead,
+subsystem-level requirements reuse the unit tests for parser/decoding/discovery/matching
+behavior, reuse the real-font integration tests for end-to-end behavior against genuine
+production font files (`.ttf`, `.otf`, and `.ttc`), and reuse the system tests for the integrated
+collaboration between `Fonts`, `Geometry`, `Drawing`, and `Canvas`.
 
 ### Test Environment
 
@@ -53,9 +58,12 @@ and `.ttc`), and reuse the system tests for the integrated collaboration between
 ### Acceptance Criteria
 
 The `Fonts` subsystem's verification passes when every `Fonts` unit test named in the
-`TrueTypeFont` unit verification design passes, when all seven real-fixture integration tests in
-`TrueTypeFontRealFontIntegrationTests.cs` pass, and when both `CanvasNet_SystemIntegration_*`
-font scenarios pass without error or unexpected exception.
+`TrueTypeFont` and `SystemFontCatalog` unit verification designs passes, when all seven
+real-fixture integration tests in `TrueTypeFontRealFontIntegrationTests.cs` pass, when both
+`CanvasNet_SystemIntegration_*` font scenarios pass without error or unexpected exception, and
+when the `SystemFontCatalog`-specific test files (`SystemFontCatalogTests.cs`,
+`SystemFontCatalogRealDiscoveryIntegrationTests.cs`, `BundledLiberationFontsTests.cs`) pass on
+every operating system in this repository's CI matrix.
 
 ### Test Scenarios
 
@@ -124,3 +132,17 @@ correctly against genuine production font data (not merely synthetic fixtures), 
 `GetNameInfo`/`IsBold`/`IsItalic`/`IsFixedPitch` (platform preference, typographic-name
 preference, missing/malformed-record tolerance, OS/2-absent and post-absent fallback) is verified
 by the `TrueTypeFont` unit's own verification design (`fonts/true-type-font.md`).
+
+#### CanvasNet-Fonts-SystemFontDiscovery: OS Font Discovery, Best-Effort Matching, and Bundled Fallback
+
+**Tests**: `SystemFontCatalog_RealFilesystem_ScanKnownOsDirectories_DiscoversFontsOrIsGracefullyEmpty`,
+`SystemFontCatalog_RealFilesystem_KnownPlatformFontFamily_ResolvesToRealFontWhenInstalled`, plus
+every test named in the `SystemFontCatalog` unit's own verification design
+(`fonts/system-font-catalog.md`)
+
+Proves, against the real host filesystem, that scanning this operating system's well-known font
+directories either discovers at least one real font or gracefully returns an empty catalog (never
+throwing), and that a well-known platform font family (for example Arial on Windows, or a common
+Linux/macOS default) resolves to a real, loadable font when it happens to be installed. The full
+unit-level scoring algorithm, tolerance behavior, laziness/caching, and bundled-fallback
+resolution are verified by the `SystemFontCatalog` unit's own verification design.

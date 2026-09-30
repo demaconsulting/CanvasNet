@@ -89,4 +89,21 @@
     <None Include="..\..\Icon.png" Pack="true" PackagePath="\" />
   </ItemGroup>
 
+  <!-- Bundled Fallback Fonts (Fonts.SystemFontCatalog.LoadBundledFallback) -->
+  <ItemGroup>
+    <!-- Embedded as runtime-loadable resources (Assembly.GetManifestResourceStream) so the
+         bundled Liberation Sans/Serif/Mono fallback fonts are always available regardless of a
+         consuming application's working directory or deployment shape (single-file publish
+         included). See Fonts/BundledFonts/README.md for sourcing/licensing provenance. -->
+    <EmbeddedResource Include="Fonts\BundledFonts\*.ttf"
+                       LogicalName="DemaConsulting.CanvasNet.Fonts.BundledFonts.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Fonts\BundledFonts\OFL.txt"
+                       LogicalName="DemaConsulting.CanvasNet.Fonts.BundledFonts.OFL.txt" />
+    <!-- Also packed as a plain, human-readable file at the NuGet package's licenses\ folder,
+         satisfying the SIL OFL's "license text must accompany the font" requirement for anyone
+         inspecting the .nupkg directly, independent of the embedded-resource copy used at
+         runtime. -->
+    <None Include="Fonts\BundledFonts\OFL.txt" Pack="true" PackagePath="licenses\LiberationFonts-OFL.txt" />
+  </ItemGroup>
+
 </Project>

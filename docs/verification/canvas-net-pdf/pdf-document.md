@@ -1,6 +1,6 @@
 ## PdfDocument Unit Verification Design
 
-<!-- cspell:ignore xref startxref endobj endstream ObjStm MediaBox -->
+<!-- cspell:ignore xref startxref endobj endstream ObjStm MediaBox Zapf Nonsymbolic -->
 
 This document describes the unit-level verification strategy for the `PdfDocument` class.
 
@@ -384,18 +384,49 @@ real, hand-authored fixture, asserting specific composited pixel colors at speci
 matching the fixture's known 2x2 source image, and a pixel outside the placed image's
 device-space footprint remains transparent.
 
-#### CanvasNetPdf-PdfDocument-FontResolution: Font Resolution Loads Embedded FontFile2, Fails Closed Otherwise
+#### CanvasNetPdf-PdfDocument-FontResolution: Font Resolution Loads Embedded FontFile2, Fails Closed for Unsupported Subtypes
 
 **Tests**: `PdfDocument_Fonts_UnsupportedSubtype_ThrowsUnsupportedImageFeatureException`,
-`PdfDocument_Fonts_MissingFontFile2_ThrowsUnsupportedImageFeatureException`,
-`PdfDocument_Fonts_UndefinedFontName_ThrowsInvalidDataException`
+`PdfDocument_Fonts_UndefinedFontName_ThrowsInvalidDataException`,
+`PdfDocument_BuildResolvedFont_EmbeddedFontFileTakesPriorityOverFallback`
 
 A `[Theory]` builds a `/Resources/Font` dictionary declaring each excluded subtype
 (`/Type0`/`/Type1`/`/MMType1`/`/Type3`) in turn and selects it via `Tf`, asserting
-`Codecs.UnsupportedImageFeatureException` in every case. Builds a `/Subtype /TrueType` font
-dictionary whose `/FontDescriptor` omits `/FontFile2` entirely, asserting the same exception -
-proving no standard-14/system-font substitution is ever silently attempted. Selects a font name
-absent from `/Resources/Font` via `Tf`, asserting `InvalidDataException`.
+`Codecs.UnsupportedImageFeatureException` in every case. Selects a font name absent from
+`/Resources/Font` via `Tf`, asserting `InvalidDataException`. Builds a `/Subtype /TrueType` font
+dictionary with both an embedded `/FontFile2` stream and a deliberately unmatched `/BaseFont`
+name, asserting the embedded synthetic font's own known glyph shape is what gets rendered - not a
+fallback font's differently-shaped glyph - proving an embedded font always wins over fallback
+substitution. As of Phase 6, a `/Subtype /TrueType` font lacking an embedded `/FontFile2` no
+longer fails closed here at all; see `CanvasNetPdf-PdfDocument-FontFallback` below for its
+resolution.
+
+#### CanvasNetPdf-PdfDocument-FontFallback: Non-Embedded TrueType Fonts Are Substituted, Symbol/ZapfDingbats Fail Closed
+
+**Tests**: `PdfDocument_BuildResolvedFont_Standard14NoEmbeddedFont_ResolvesViaFallback`,
+`PdfDocument_BuildResolvedFont_NonStandard14FlagsOnlyUnmatchedFamily_ResolvesViaBundledFallback`,
+`PdfDocument_BuildResolvedFont_SymbolFont_ThrowsSymbolicNotEmbeddedException`,
+`PdfDocument_BuildResolvedFont_ZapfDingbatsFont_ThrowsSymbolicNotEmbeddedException`,
+`PdfDocument_BuildResolvedFont_SymbolicFlagWithoutEmbeddedFont_ThrowsSymbolicNotEmbeddedException`,
+`CanvasNetPdf_SystemIntegration_RenderStandard14HelveticaWithoutEmbeddedFont_PaintsVisibleGlyphInk`,
+`CanvasNetPdf_SystemIntegration_RenderSymbolFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException`
+
+Builds a `/Subtype /TrueType` font dictionary with a recognized Standard-14 `/BaseFont` (for
+example `Helvetica`) and no `/FontFile2`, asserting `BuildResolvedFont` returns a resolved font
+whose underlying `Fonts.TrueTypeFont` is non-null rather than throwing. Builds a font dictionary
+with a `/BaseFont` unmatched by any Standard-14 name or any plausible system font, relying only on
+`/FontDescriptor/Flags`, asserting resolution still succeeds via the bundled Liberation fallback.
+Builds font dictionaries with `/BaseFont` `Symbol` and, separately, `ZapfDingbats`, and a font
+dictionary whose `/FontDescriptor/Flags` declares the `Symbolic` bit without the `Nonsymbolic`
+bit, asserting `Codecs.UnsupportedImageFeatureException` with `Feature ==
+"pdf-font-symbolic-not-embedded"` in every case, proving the fail-closed check applies both to
+the two named Standard-14 symbol fonts and to the generalized flags-based case. The two
+`CanvasNetPdf_SystemIntegration_*` end-to-end tests render a full synthetic single-page PDF whose
+font resource has no `/FontFile2`: the Standard-14 Helvetica case asserts at least one non-default
+(non-transparent) pixel was painted somewhere in the glyph's expected device-space region
+(a weak, OS-independent assertion, since the actual system/bundled font substituted varies by CI
+operating system), and the Symbol case asserts the render throws
+`Codecs.UnsupportedImageFeatureException` rather than silently painting an unrelated glyph shape.
 
 #### CanvasNetPdf-PdfDocument-FontEncoding: WinAnsi/MacRoman Base Encodings and Differences Overrides Resolve Correctly
 

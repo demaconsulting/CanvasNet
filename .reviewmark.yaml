@@ -448,6 +448,7 @@ reviews:
       - "docs/design/canvas-net/fonts.md"                    # subsystem design
       - "docs/verification/canvas-net/fonts.md"              # subsystem verification
       - "test/DemaConsulting.CanvasNet.Tests/TestSupport/SyntheticFontBuilder.cs"  # shared test helper
+      - "src/DemaConsulting.CanvasNet/Fonts/BundledFonts/README.md"  # bundled-font provenance/licensing documentation
 
   # CanvasNet-Fonts-TrueTypeFont Review (one per unit)
   - id: CanvasNet-Fonts-TrueTypeFont
@@ -486,6 +487,26 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/TrueTypeFontRealFontIntegrationTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/TestSupport/SyntheticFontBuilder.cs"  # shared test helper
       - "test/DemaConsulting.CanvasNet.Tests/FontFixtures/README.md"  # fixture provenance/licensing documentation
+
+  # CanvasNet-Fonts-SystemFontCatalog Review (one per unit)
+  - id: CanvasNet-Fonts-SystemFontCatalog
+    title: Review that CanvasNet Fonts SystemFontCatalog Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/fonts.md"
+      - "docs/reqstream/canvas-net/fonts.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/fonts/system-font-catalog.yaml"  # unit requirements
+      - "docs/design/canvas-net/fonts/system-font-catalog.md"      # unit design
+      - "docs/verification/canvas-net/fonts/system-font-catalog.md"  # unit verification
+      - "docs/sysml2/model/canvas-net/fonts/system-font-catalog.sysml"  # unit model
+      - "src/DemaConsulting.CanvasNet/Fonts/SystemFontCatalog.cs"   # unit source
+      - "src/DemaConsulting.CanvasNet/Fonts/BundledFonts/README.md"  # bundled-font provenance/licensing documentation
+      - "src/DemaConsulting.CanvasNet/DemaConsulting.CanvasNet.csproj"  # embedded-resource/license packaging
+      - "test/DemaConsulting.CanvasNet.Tests/Fonts/SystemFontCatalogTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Fonts/SystemFontCatalogRealDiscoveryIntegrationTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Fonts/BundledLiberationFontsTests.cs"  # unit tests
 
   # CanvasNet-Rendering Review (one per subsystem)
   - id: CanvasNet-Rendering
@@ -688,6 +709,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Filters.cs"        # phase 3 unit source (filter pipeline)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Images.cs"         # phase 3 unit source (image XObjects)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Fonts.cs"          # phase 4 unit source (font resolution)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.FontFallback.cs"  # phase 6 unit source (font fallback)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Text.cs"          # phase 4 unit source (text rendering)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfPageInfo.cs"              # phase 1 unit source (supporting record struct)
       - "src/DemaConsulting.CanvasNet.Pdf/NamespaceDoc.cs"             # Pdf namespace documentation

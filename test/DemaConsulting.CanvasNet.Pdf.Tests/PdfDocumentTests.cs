@@ -1,7 +1,8 @@
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 
-// cspell:ignore agrave
+// cspell:ignore agrave Xyzzy Zapf Nonsymbolic
 
 namespace DemaConsulting.CanvasNet.Pdf.Tests;
 
@@ -1649,20 +1650,154 @@ public class PdfDocumentTests
         Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
     }
 
-    /// <summary>Proves that a simple <c>/Subtype /TrueType</c> font with no embedded <c>/FontFile2</c> throws <see cref="UnsupportedImageFeatureException"/> (no standard-14/substitute-font fallback).</summary>
+    /// <summary>
+    ///     Proves that a Standard-14 simple <c>/Subtype /TrueType</c> font (<c>/BaseFont /Helvetica</c>)
+    ///     with no embedded <c>/FontFile2</c> resolves via <see cref="Fonts.SystemFontCatalog"/>
+    ///     (a matching system font, or the bundled Liberation Sans fallback) rather than throwing,
+    ///     and paints real visible glyph ink.
+    /// </summary>
     [Fact]
-    public void PdfDocument_Fonts_MissingFontFile2_ThrowsUnsupportedImageFeatureException()
+    public void PdfDocument_BuildResolvedFont_Standard14NoEmbeddedFont_ResolvesViaFallback()
+    {
+        // Arrange: /Helvetica, no /FontFile2 - Standard-14, sans-serif, non-bold, non-italic
+        var descriptorObj = "<< /Type /FontDescriptor >>"u8.ToArray();
+        var fontDictObj =
+            "<< /Type /Font /Subtype /TrueType /BaseFont /Helvetica /FirstChar 65 /LastChar 65 /Widths [600] /FontDescriptor 6 0 R >>"u8.ToArray();
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 40 Tf 10 30 Td (A) Tj ET", "/Font << /F1 5 0 R >>",
+            [fontDictObj, descriptorObj]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: no exception, and some glyph ink was actually painted somewhere on the canvas
+        var paintedAnyPixel = false;
+        for (var y = 0; y < surface.Height && !paintedAnyPixel; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                if (surface[x, y].A > 0)
+                {
+                    paintedAnyPixel = true;
+                    break;
+                }
+            }
+        }
+
+        Assert.True(paintedAnyPixel, "Expected the fallback-resolved font to paint at least one visible pixel.");
+    }
+
+    /// <summary>
+    ///     Proves that a non-Standard-14 simple <c>/Subtype /TrueType</c> font with no embedded
+    ///     <c>/FontFile2</c>, no <c>/FontDescriptor</c> flags, and a <c>/BaseFont</c> family name
+    ///     unlikely to be installed on any host resolves via the bundled Liberation Sans fallback
+    ///     (<see cref="Fonts.SystemFontCatalog.LoadBundledFallback"/>) rather than throwing.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_BuildResolvedFont_NonStandard14FlagsOnlyUnmatchedFamily_ResolvesViaBundledFallback()
+    {
+        // Arrange: an unmatched family name, no descriptor flags at all
+        var descriptorObj = "<< /Type /FontDescriptor >>"u8.ToArray();
+        var fontDictObj =
+            "<< /Type /Font /Subtype /TrueType /BaseFont /TotallyUnlikelyFontFamilyXyzzy /FirstChar 65 /LastChar 65 /Widths [600] /FontDescriptor 6 0 R >>"u8.ToArray();
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 40 Tf 10 30 Td (A) Tj ET", "/Font << /F1 5 0 R >>",
+            [fontDictObj, descriptorObj]);
+
+        // Act & Assert: renders without throwing, using the bundled Liberation Sans fallback
+        using var surface = RenderPdfBytes(bytes);
+        Assert.NotNull(surface);
+    }
+
+    /// <summary>
+    ///     Proves that an embedded <c>/FontFile2</c> always takes priority over fallback
+    ///     substitution: even though the <c>/BaseFont</c> name is entirely unmatched, the embedded
+    ///     synthetic font's own known glyph shape is what gets rendered.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_BuildResolvedFont_EmbeddedFontFileTakesPriorityOverFallback()
+    {
+        // Arrange: an embedded font (mapping codepoint 65 to glyph 1's known square)
+        var fontBytes = BuildEmbeddedFontBytes([(65, 1)]);
+        var (resourcesBody, extraObjects) = BuildSimpleTrueTypeFontResources(fontBytes);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf 5 50 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the embedded synthetic font's own known square glyph shape was painted (not a
+        // fallback font's differently-shaped glyph) - matching every other embedded-font test's
+        // own expected-pixel convention (text x [7, 15), text y [52, 60) -> device y [40, 48)).
+        Assert.NotEqual(default, surface[10, 44]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>/BaseFont /Symbol</c> font with no embedded <c>/FontFile2</c> still
+    ///     fails closed with <see cref="UnsupportedImageFeatureException"/> (feature
+    ///     <c>"pdf-font-symbolic-not-embedded"</c>), never substituted with an unrelated system or
+    ///     bundled font.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_BuildResolvedFont_SymbolFont_ThrowsSymbolicNotEmbeddedException()
     {
         // Arrange
         var descriptorObj = "<< /Type /FontDescriptor >>"u8.ToArray();
-        var fontDictObj = "<< /Type /Font /Subtype /TrueType /BaseFont /Test /FontDescriptor 6 0 R >>"u8.ToArray();
+        var fontDictObj = "<< /Type /Font /Subtype /TrueType /BaseFont /Symbol /FontDescriptor 6 0 R >>"u8.ToArray();
 
         var bytes = BuildSinglePagePdfWithResources(
             100, 100, "BT /F1 20 Tf (A) Tj ET", "/Font << /F1 5 0 R >>",
             [fontDictObj, descriptorObj]);
 
         // Act & Assert
-        Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+        var ex = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+        Assert.Equal("pdf-font-symbolic-not-embedded", ex.Feature);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>/BaseFont /ZapfDingbats</c> font with no embedded <c>/FontFile2</c>
+    ///     still fails closed with <see cref="UnsupportedImageFeatureException"/> (feature
+    ///     <c>"pdf-font-symbolic-not-embedded"</c>).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_BuildResolvedFont_ZapfDingbatsFont_ThrowsSymbolicNotEmbeddedException()
+    {
+        // Arrange
+        var descriptorObj = "<< /Type /FontDescriptor >>"u8.ToArray();
+        var fontDictObj = "<< /Type /Font /Subtype /TrueType /BaseFont /ZapfDingbats /FontDescriptor 6 0 R >>"u8.ToArray();
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf (A) Tj ET", "/Font << /F1 5 0 R >>",
+            [fontDictObj, descriptorObj]);
+
+        // Act & Assert
+        var ex = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+        Assert.Equal("pdf-font-symbolic-not-embedded", ex.Feature);
+    }
+
+    /// <summary>
+    ///     Proves that a non-Standard-14 font whose <c>/FontDescriptor/Flags</c> declares the
+    ///     <c>Symbolic</c> bit (bit 3, value 4) without also declaring <c>Nonsymbolic</c> (bit 6,
+    ///     value 32) fails closed exactly like <c>Symbol</c>/<c>ZapfDingbats</c>, even though its
+    ///     <c>/BaseFont</c> name is not one of those two reserved names.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_BuildResolvedFont_SymbolicFlagWithoutEmbeddedFont_ThrowsSymbolicNotEmbeddedException()
+    {
+        // Arrange: Flags = 4 (Symbolic bit only, no Nonsymbolic bit)
+        var descriptorObj = "<< /Type /FontDescriptor /Flags 4 >>"u8.ToArray();
+        var fontDictObj = "<< /Type /Font /Subtype /TrueType /BaseFont /SomeCustomSymbolFont /FontDescriptor 6 0 R >>"u8.ToArray();
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf (A) Tj ET", "/Font << /F1 5 0 R >>",
+            [fontDictObj, descriptorObj]);
+
+        // Act & Assert
+        var ex = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+        Assert.Equal("pdf-font-symbolic-not-embedded", ex.Feature);
     }
 
     /// <summary>Proves that an unrecognized <c>/Encoding</c> base-encoding name throws <see cref="UnsupportedImageFeatureException"/>.</summary>

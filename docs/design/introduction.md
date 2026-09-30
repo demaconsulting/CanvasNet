@@ -48,7 +48,11 @@ software items, specifically:
   `GradientSpread` types and the internal `GradientEvaluator` helper)
 - **Fonts (Subsystem)** — TrueType (`glyf`-based) SFNT font support: the `TrueTypeFont` unit and
   its internal `SfntContainer`/`CmapTable`/`GlyfLocaReader`/`HmtxHheaReader`/`KernTable` helpers,
-  producing `Geometry.Path` glyph outlines plus metrics and kerning
+  producing `Geometry.Path` glyph outlines plus metrics and kerning; and (added Phase 6 of the
+  `CanvasNetPdf` roadmap) the `SystemFontCatalog` unit, providing directory-scan-only discovery
+  of fonts installed on the host operating system, best-effort family-name/style matching against
+  that catalog, and a bundled, always-available Liberation Sans/Serif/Mono last-resort fallback
+  font shipped as an embedded resource of this assembly
 - **Rendering (Subsystem)** — higher-level rendering primitives composing `Canvas`, `Geometry`,
   `Drawing`, and `Fonts`: the transform-aware `Canvas` wrapper, `TextRenderer` (measure and draw
   TrueType text with alignment and kerning), and `Shapes` (rectangle, rounded rectangle, and
@@ -114,8 +118,10 @@ unit, covering the public `Gradient`/`LinearGradient`/`RadialGradient`/`Gradient
 `GradientSpread` types and the internal `GradientEvaluator` helper inline, namespace
 `DemaConsulting.CanvasNet.Drawing`, flat — no further nesting), the `Fonts` subsystem (the
 `TrueTypeFont` unit, covering the internal `SfntContainer`/`CmapTable`/`GlyfLocaReader`/
-`HmtxHheaReader`/`KernTable` helpers inline, namespace `DemaConsulting.CanvasNet.Fonts`, flat —
-no further nesting), and the `Rendering` subsystem (the transform-aware `Canvas` wrapper unit,
+`HmtxHheaReader`/`KernTable` helpers inline, and the `SystemFontCatalog` unit, added Phase 6 of
+the `CanvasNetPdf` roadmap, with no internal helpers of its own, namespace
+`DemaConsulting.CanvasNet.Fonts`, flat — no further nesting), and the `Rendering` subsystem (the
+transform-aware `Canvas` wrapper unit,
 the `TextRenderer` unit, covering the supporting `TextAlign` and `TextMetrics` types inline, and
 the `Shapes` extension-method unit, namespace `DemaConsulting.CanvasNet.Rendering`, flat — no
 further nesting). As additional functionality is added, further subsystems and nested
@@ -194,6 +200,8 @@ src/DemaConsulting.CanvasNet/
 │   ├── GlyfLocaReader.cs          — Glyph location parsing and outline decoding
 │   ├── HmtxHheaReader.cs          — Horizontal metrics parsing and advance-width lookup
 │   ├── KernTable.cs               — Format-0 horizontal kerning lookup
+│   ├── SystemFontCatalog.cs       — OS font discovery, best-effort matching, bundled fallback
+│   ├── BundledFonts/              — Embedded Liberation Sans/Serif/Mono .ttf + OFL.txt license
 │   └── NamespaceDoc.cs            — Namespace-level XML documentation
 ├── Geometry/
 │   ├── Rect.cs                    — Axis-aligned bounding rectangle (position plus size)

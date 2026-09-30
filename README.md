@@ -35,8 +35,9 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
   weight/style-aware font matching, to a surface (ships as the separate
   `DemaConsulting.CanvasNet.Svg` package)
 - 📄 **PDF Document** - Open a PDF, inspect its page count/size/rotation, and rasterize a page's
-  path geometry, device color, image XObjects, and embedded-TrueType-font text to a surface
-  (ships as the separate `DemaConsulting.CanvasNet.Pdf` package)
+  path geometry, device color, image XObjects, and TrueType text to a surface, automatically
+  substituting a matching system font (or a bundled Liberation Sans/Serif/Mono font) for text
+  using a non-embedded font (ships as the separate `DemaConsulting.CanvasNet.Pdf` package)
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
@@ -44,6 +45,9 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 - 🔤 **TrueType/CFF Fonts** - Load TrueType (`glyf`) or CFF/OpenType (`.otf`) fonts and individual
   faces of a TrueType Collection (`.ttc`), map codepoints, extract glyph outlines, and query
   name/style metadata (family/subfamily/full/PostScript name, bold/italic/fixed-pitch)
+- 🗂️ **System Font Discovery** - `Fonts.SystemFontCatalog` discovers fonts installed on the host
+  operating system, best-effort matches a requested family/style against them, and provides a
+  bundled Liberation Sans/Serif/Mono last-resort fallback font
 - 🎬 **Rendering** - Transform-aware canvas with text and shape drawing
 - ⚡ **Span-Based** - Fast, allocation-conscious pixel and row access
 - 🔄 **Multi-Target** - Supports .NET 8, 9, and 10
@@ -354,6 +358,14 @@ standards, and the pull request process.
 Copyright (c) DEMA Consulting. Licensed under the MIT License. See [LICENSE][link-license] for details.
 
 By contributing to this project, you agree that your contributions will be licensed under the MIT License.
+
+The `DemaConsulting.CanvasNet` package bundles the Liberation Sans, Liberation Serif, and
+Liberation Mono TrueType fonts (12 files total) as embedded resources, used as a last-resort
+fallback font by `PdfDocument`'s automatic font-substitution feature. These fonts are Copyright
+(c) 2012 Red Hat, Inc., licensed under the SIL Open Font License, Version 1.1; see
+`src/DemaConsulting.CanvasNet/Fonts/BundledFonts/OFL.txt` and
+`src/DemaConsulting.CanvasNet/Fonts/BundledFonts/README.md` for the full license text and
+sourcing/provenance details.
 
 ## Support
 

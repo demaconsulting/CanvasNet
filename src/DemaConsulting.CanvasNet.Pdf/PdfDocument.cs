@@ -1,4 +1,4 @@
-// cspell:ignore CCITT
+// cspell:ignore CCITT Zapf Nonsymbolic
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 
@@ -38,24 +38,43 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         <c>/Resources/Font</c> entry against <see cref="Fonts.TrueTypeFont"/> (see
 ///         <c>PdfDocument.Fonts.cs</c>) and painting each glyph outline through the composed
 ///         text-rendering matrix (see <c>PdfDocument.Text.cs</c>). <strong>Phase 4 scope
-///         boundary</strong>: only simple (<c>/Subtype /TrueType</c>) fonts with an embedded
-///         <c>/FontDescriptor/FontFile2</c> are supported, and only the <c>/WinAnsiEncoding</c>/
-///         <c>/MacRomanEncoding</c> base encodings (plus <c>/Differences</c> overrides) - a
-///         <c>/Type0</c> (composite), <c>/Type1</c>, <c>/MMType1</c>, or <c>/Type3</c> font, a
-///         font with no embedded <c>/FontFile2</c> (this library never substitutes a standard-14
-///         or system font), an unrecognized base <c>/Encoding</c>, or a stroke/clip text-
-///         rendering mode (<c>1</c>/<c>2</c>/<c>4</c>-<c>7</c>; only fill mode <c>0</c> and
-///         invisible mode <c>3</c> are supported) all fail closed with
-///         <see cref="UnsupportedImageFeatureException"/> rather than silently substituting or
-///         skipping. <strong>Phase 3/4 limitations</strong>: no Form XObject rendering (fails
-///         closed with <see cref="UnsupportedImageFeatureException"/> rather than being silently
-///         skipped), no shading/patterns/transparency groups, no <c>CCITTFax</c>/<c>LZW</c>/
-///         <c>ASCII85</c>/<c>ASCIIHex</c>/<c>JPX</c> filter decoding (fails closed), and no
-///         <c>/SMask</c>/alpha compositing (every decoded image is treated as fully opaque) - a
-///         later phase is expected to add these. Every other keyword not implemented by any
-///         phase is silently skipped, not an error. A page with no <c>/Contents</c> at all still
-///         renders as a fully transparent (blank) <see cref="Surface"/>, exactly as every page
-///         did in Phase 1.
+///         boundary</strong>: only simple (<c>/Subtype /TrueType</c>) fonts are supported
+///         (a <c>/Type0</c> (composite), <c>/Type1</c>, <c>/MMType1</c>, or <c>/Type3</c>
+///         font fails closed), only the <c>/WinAnsiEncoding</c>/<c>/MacRomanEncoding</c>
+///         base encodings (plus <c>/Differences</c> overrides) are recognized (any other
+///         named base <c>/Encoding</c> fails closed), and only fill mode <c>0</c> and
+///         invisible mode <c>3</c> are supported for the text-rendering mode (a stroke/clip
+///         mode, <c>1</c>/<c>2</c>/<c>4</c>-<c>7</c>, fails closed) - all with
+///         <see cref="UnsupportedImageFeatureException"/> rather than silently substituting
+///         or skipping. A font with an embedded <c>/FontDescriptor/FontFile2</c> uses that
+///         embedded font; a font with no embedded <c>/FontFile2</c> is, since Phase 6 (see
+///         below), automatically substituted with a matching system or bundled font rather
+///         than failing closed. <strong>Phase 3/4 limitations</strong>: no Form XObject
+///         rendering (fails closed with <see cref="UnsupportedImageFeatureException"/>
+///         rather than being silently skipped), no shading/patterns/transparency groups, no
+///         <c>CCITTFax</c>/<c>LZW</c>/<c>ASCII85</c>/<c>ASCIIHex</c>/<c>JPX</c> filter
+///         decoding (fails closed), and no <c>/SMask</c>/alpha compositing (every decoded
+///         image is treated as fully opaque) - a later phase is expected to add these.
+///         Every other keyword not implemented by any phase is silently skipped, not an
+///         error. A page with no <c>/Contents</c> at all still renders as a fully
+///         transparent (blank) <see cref="Surface"/>, exactly as every page did in Phase 1.
+///     </para>
+///     <para>
+///         Phase 6 adds automatic, silent font substitution for a simple TrueType font with
+///         no embedded <c>/FontFile2</c>: <see cref="Fonts.SystemFontCatalog"/> is searched
+///         for the closest-matching font installed on the host operating system by family
+///         name and serif/fixed-pitch/bold/italic style (derived from the Standard-14 name
+///         table when <c>/BaseFont</c> is one of the 14 standard names, else from
+///         <c>/FontDescriptor</c> flags/weight/angle and the name itself); when no system
+///         font matches, a bundled Liberation Sans/Serif/Mono font is used instead as a
+///         deterministic last resort (see <c>PdfDocument.FontFallback.cs</c>). This is
+///         fully automatic - there is no new public API and no "fallback occurred"
+///         diagnostics. <c>Symbol</c> and <c>ZapfDingbats</c> (and any other font whose
+///         <c>/FontDescriptor/Flags</c> declares <c>Symbolic</c> without also declaring
+///         <c>Nonsymbolic</c>) are the sole exception: with no embedded <c>/FontFile2</c>
+///         they still fail closed with <see cref="UnsupportedImageFeatureException"/>,
+///         since their symbol/dingbat glyph sets have no meaningful generic-family
+///         equivalent.
 ///     </para>
 ///     <para>
 ///         Encrypted documents (a trailer declaring an <c>/Encrypt</c> key) are rejected with
