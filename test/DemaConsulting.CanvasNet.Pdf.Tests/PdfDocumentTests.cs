@@ -7,7 +7,7 @@ using DemaConsulting.CanvasNet.Tests.TestSupport;
 // cspell:ignore endcodespacerange findresource defineresource currentdict begincmap endcmap
 // cspell:ignore bfchar bfrange nendbfchar nendbfrange tounicode usecmap cidrange cidchar codepoints
 // cspell:ignore OTTO rmoveto rlineto endchar notdef charstring charstrings cidfonttype
-// cspell:ignore functiontype multiinput
+// cspell:ignore functiontype multiinput fitz
 
 namespace DemaConsulting.CanvasNet.Pdf.Tests;
 
@@ -1314,6 +1314,40 @@ public class PdfDocumentTests
 
         // Act & Assert
         Assert.Throws<InvalidDataException>(() => RenderContent(content));
+    }
+
+    /// <summary>
+    ///     Proves that a redundant <c>h</c> issued right after <c>re</c> (which already
+    ///     self-closes its rectangle subpath) is a no-op per PDF 32000-1:2008 &#xA7;8.5.2.1,
+    ///     rather than throwing <see cref="InvalidDataException"/> - a common real-world idiom
+    ///     (for example emitted by MuPDF/fitz).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_PathOps_CloseAfterRectangle_IsNoOp()
+    {
+        // Arrange
+        const string content = "10 10 40 40 re h f";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>Proves that a bare <c>h</c> issued with no path constructed at all is a no-op, not an error.</summary>
+    [Fact]
+    public void PdfDocument_PathOps_CloseWithNoSubpath_IsNoOp()
+    {
+        // Arrange
+        const string content = "h";
+
+        // Act
+        using var surface = RenderContent(content);
+
+        // Assert
+        Assert.Equal(default, surface[5, 5]);
     }
 
     /// <summary>Proves that <c>f</c> fills using the nonzero winding rule.</summary>

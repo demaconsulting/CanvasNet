@@ -1,3 +1,4 @@
+// cspell:ignore fitz
 using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Drawing;
@@ -141,14 +142,25 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>Handles the <c>h</c> operator: closes the current subpath.</summary>
+    /// <remarks>
+    ///     Per PDF 32000-1:2008 &#xA7;8.5.2.1, "If the current subpath is already closed, h shall
+    ///     do nothing" - unlike <c>l</c>/<c>c</c>/<c>v</c>/<c>y</c> (which really do require an
+    ///     open subpath to draw from), <c>h</c> issued with no open subpath (for example
+    ///     immediately after a preceding <c>re</c>, which already self-closes - real-world
+    ///     producers such as MuPDF/fitz routinely emit this redundant <c>re h</c> pairing) is
+    ///     therefore a deliberate no-op, not a malformed-content error.
+    /// </remarks>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when <paramref name="operands"/> is not empty, or when no subpath is currently
-    ///     open.
+    ///     Thrown when <paramref name="operands"/> is not empty.
     /// </exception>
     private void OpClosePath(IReadOnlyList<PdfObject> operands)
     {
         RequireOperandCount(operands, "h", 0);
-        RequireOpenSubpath("h");
+        if (!_hasOpenSubpath)
+        {
+            return;
+        }
+
         _pathBuilder.Close();
         _currentPoint = _subpathStart;
         _hasOpenSubpath = false;
@@ -290,9 +302,10 @@ public sealed partial class PdfDocument
 
     /// <summary>
     ///     Validates that a subpath is currently open, throwing when a path-construction operator
-    ///     that requires one (every operator except <c>m</c> and <c>re</c>) is issued before the
-    ///     first <c>m</c>/<c>re</c>, or after a preceding <c>h</c>/<c>re</c> without an
-    ///     intervening <c>m</c>/<c>re</c>.
+    ///     that requires one (<c>l</c>/<c>c</c>/<c>v</c>/<c>y</c>; not <c>m</c>/<c>re</c>, which
+    ///     each start their own subpath, nor <c>h</c>, which is a no-op rather than an error when
+    ///     no subpath is open) is issued before the first <c>m</c>/<c>re</c>, or after a
+    ///     preceding <c>h</c>/<c>re</c> without an intervening <c>m</c>/<c>re</c>.
     /// </summary>
     /// <exception cref="InvalidDataException">Thrown when no subpath is currently open.</exception>
     private void RequireOpenSubpath(string operatorName)
