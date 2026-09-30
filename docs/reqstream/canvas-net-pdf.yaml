@@ -164,15 +164,20 @@ sections:
           The library shall support setting the current fill/stroke color via the device color
           operators (rg/g/k and their cs/scn color-space-selecting equivalents) and apply that
           color to every subsequently painted path until the next color-setting operator or a
-          graphics-state restore (Q).
+          graphics-state restore (Q); it shall also resolve (but not yet consume at rendering
+          time) a /FunctionType 0 sampled function, in preparation for a future shading-pattern-
+          fill feature.
         tags: [system]
         justification: |
           Callers need paths to render in their document-specified color, not merely as an
           opaque-black silhouette, for the rendered output to be visually faithful to the source
-          document.
+          document. Resolving a /FunctionType 0 sampled function as unconsumed groundwork unblocks
+          a future axial/radial shading-pattern-fill feature without re-deriving sampled-function
+          evaluation later.
         children:
           - CanvasNetPdf-PdfDocument-DeviceColorOperators
           - CanvasNetPdf-PdfDocument-ColorSpaceOperators
+          - CanvasNetPdf-PdfDocument-FunctionType0
         tests:
           - CanvasNetPdf_SystemIntegration_PdfRender_ColoredRectangleFill_PaintsExpectedRgbPixels
 

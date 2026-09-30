@@ -830,3 +830,38 @@ sections:
               - PdfDocument_Images_DoOperator_FormXObject_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Images_DoOperator_MalformedOperandCount_ThrowsInvalidDataException
               - CanvasNetPdf_SystemIntegration_PdfRender_ImageXObjectPlacement_CompositesExpectedPixels
+
+          - id: CanvasNetPdf-PdfDocument-FunctionType0
+            title: >-
+              The PdfDocument class shall resolve a /Function entry restricted to /FunctionType 0
+              (sampled function) with exactly 1 input (a 2-element /Domain) into an Evaluate(input)
+              method that clamps the input into /Domain, maps it into sample-index space via
+              /Encode (defaulting to [0, Size[0] - 1] when /Encode is absent), linearly
+              interpolates between the two nearest samples, and maps each interpolated output
+              through /Decode (defaulting to /Range when /Decode is absent), clipped to /Range;
+              8-bit and 16-bit /BitsPerSample sample widths shall both be supported, decoding the
+              function stream's bytes via the existing filter-aware stream-decoding helper. A
+              /FunctionType other than 0 (2/3/4), and a multi-input /FunctionType 0 function (a
+              /Domain with more than 2 elements) shall both throw
+              UnsupportedImageFeatureException.
+            justification: |
+              Axial/radial (/ShadingType 2/3) shading patterns in real-world PDFs sample a
+              /FunctionType 0 function to derive a gradient's per-position color, and resolving
+              this evaluator as unconsumed groundwork this phase (it is not yet wired into
+              rendering) unblocks the shading-pattern-fill phase of the /Pattern color-space
+              roadmap without re-deriving sampled-function evaluation later; /FunctionType 2
+              (exponential interpolation), 3 (stitching), 4 (PostScript calculator), and a
+              multi-input /FunctionType 0 function (the /DeviceN/Separation tint-transform shape,
+              itself already out of scope) remain explicitly out of this phase's scope and must
+              fail closed with a distinguishable exception rather than being silently
+              mis-evaluated.
+            tests:
+              - PdfDocument_Functions_Type0_InputOutsideDomain_ClampsToBoundary
+              - PdfDocument_Functions_Type0_EncodeAbsent_DefaultsToZeroToSizeMinusOne
+              - PdfDocument_Functions_Type0_ExplicitEncode_MapsDomainToCustomSampleIndexRange
+              - PdfDocument_Functions_Type0_Decode_MapsRawSampleToCustomOutputRange
+              - PdfDocument_Functions_Type0_NonIntegerSampleIndex_InterpolatesBetweenAdjacentSamples
+              - PdfDocument_Functions_Type0_EightBitSamples_EvaluatesCorrectly
+              - PdfDocument_Functions_Type0_SixteenBitSamples_EvaluatesCorrectly
+              - PdfDocument_Functions_Type0_UnsupportedFunctionType_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Functions_Type0_MultiInputDomain_ThrowsUnsupportedImageFeatureException

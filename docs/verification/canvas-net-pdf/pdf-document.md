@@ -3,6 +3,7 @@
 <!-- cspell:ignore xref startxref endobj endstream ObjStm MediaBox Zapf Nonsymbolic -->
 <!-- cspell:ignore bfchar bfrange beginbfchar endbfchar beginbfrange endbfrange codepoints -->
 <!-- cspell:ignore usecmap cidrange cidchar cidfonttype -->
+<!-- cspell:ignore functiontype multiinput -->
 
 This document describes the unit-level verification strategy for the `PdfDocument` class.
 
@@ -753,6 +754,36 @@ A `[Theory]` shows text via each of `Tj`/`'`/`"` with no preceding `Tf` call, as
 to each text operator in turn (including a trailing garbage-operand `ET`, a wrong-arity `Tf`, and
 out-of-range operand counts for `Td`/`Tm`), asserting `InvalidDataException` in every case,
 matching every other operator family's own established convention.
+
+#### CanvasNetPdf-PdfDocument-FunctionType0: /FunctionType 0 Sampled Function Resolves and Evaluates Correctly
+
+**Tests**: `PdfDocument_Functions_Type0_InputOutsideDomain_ClampsToBoundary`,
+`PdfDocument_Functions_Type0_EncodeAbsent_DefaultsToZeroToSizeMinusOne`,
+`PdfDocument_Functions_Type0_ExplicitEncode_MapsDomainToCustomSampleIndexRange`,
+`PdfDocument_Functions_Type0_Decode_MapsRawSampleToCustomOutputRange`,
+`PdfDocument_Functions_Type0_NonIntegerSampleIndex_InterpolatesBetweenAdjacentSamples`,
+`PdfDocument_Functions_Type0_EightBitSamples_EvaluatesCorrectly`,
+`PdfDocument_Functions_Type0_SixteenBitSamples_EvaluatesCorrectly`,
+`PdfDocument_Functions_Type0_UnsupportedFunctionType_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Functions_Type0_MultiInputDomain_ThrowsUnsupportedImageFeatureException`
+
+Every test resolves a hand-built `/FunctionType 0` function stream (an indirect object appended to
+a minimal single-page document, mirroring the `/ToUnicode` CMap tests' own "build a minimal
+document, open it, resolve a reference into it" convention) via `ResolveFunction`, then calls
+`SampledFunction.Evaluate` directly (unit-level, not through the content-stream interpreter - this
+phase's own `Evaluate` is resolved-but-unconsumed groundwork, see the design documentation).
+Asserts an input below/above `/Domain` clamps to the domain boundary before sample-index mapping.
+Asserts an absent `/Encode` defaults to `[0, Size - 1]`, correctly mapping a domain midpoint to a
+fractional sample index. Asserts an explicit `/Encode` overrides that default, selecting a
+different (non-zero-valued) pair of samples than the default would have selected. Asserts
+`/Decode` linearly remaps a raw sample value into its own declared range, distinct from (though
+still clipped to) a wider `/Range`. Asserts a sample-index position that falls between two samples
+linearly interpolates between them. Asserts both 8-bit and 16-bit `/BitsPerSample` widths read
+their raw sample values correctly (16-bit via 2-byte big-endian packing). A `[Theory]` resolves a
+`/FunctionType` `2`/`3`/`4` function, asserting `Codecs.UnsupportedImageFeatureException` (feature
+`pdf-functiontype-{n}`) in every case. Resolves a 2-input `/FunctionType 0` function (a 4-element
+`/Domain`), asserting `Codecs.UnsupportedImageFeatureException` (feature
+`pdf-function-multiinput`).
 
 ## Acceptance Criteria
 

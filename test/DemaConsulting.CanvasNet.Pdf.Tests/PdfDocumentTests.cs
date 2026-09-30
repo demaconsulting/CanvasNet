@@ -7,6 +7,7 @@ using DemaConsulting.CanvasNet.Tests.TestSupport;
 // cspell:ignore endcodespacerange findresource defineresource currentdict begincmap endcmap
 // cspell:ignore bfchar bfrange nendbfchar nendbfrange tounicode usecmap cidrange cidchar codepoints
 // cspell:ignore OTTO rmoveto rlineto endchar notdef charstring charstrings cidfonttype
+// cspell:ignore functiontype multiinput
 
 namespace DemaConsulting.CanvasNet.Pdf.Tests;
 
@@ -3709,6 +3710,192 @@ public class PdfDocumentTests
         // (Tm.x = 5 + 20 = 25), not displaced by any extra Tw - it paints starting at text x
         // ~[27, 35), well short of where an incorrectly-applied 1000 Tw would push it off-canvas.
         Assert.NotEqual(default, surface[31, 89]);
+    }
+
+    #endregion
+
+    #region Functions
+
+    /// <summary>
+    ///     Resolves a single-input <c>/FunctionType 0</c> sampled function whose stream is a
+    ///     new indirect object (number 5, matching <see cref="BuildSinglePagePdfWithResources"/>'s
+    ///     own extra-object numbering) referenced by <paramref name="dictionaryEntries"/>'s own
+    ///     dictionary - mirroring the <c>ResolveToUnicodeMap</c> tests' own "build a minimal
+    ///     document, open it, resolve a reference into it" convention.
+    /// </summary>
+    private static PdfDocument.SampledFunction ResolveTestFunction(string dictionaryEntries, byte[] sampleBytes)
+    {
+        var functionStream = BuildStreamObjectBody(dictionaryEntries, sampleBytes);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [functionStream]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        return document.ResolveFunction(PdfDocument.PdfObject.FromReference(5, 0));
+    }
+
+    /// <summary>Packs <paramref name="values"/> (each in <c>[0, 65535]</c>) as 16-bit big-endian sample bytes.</summary>
+    private static byte[] BuildUInt16SampleBytes(params int[] values)
+    {
+        var bytes = new byte[values.Length * 2];
+        for (var i = 0; i < values.Length; i++)
+        {
+            bytes[i * 2] = (byte)(values[i] >> 8);
+            bytes[(i * 2) + 1] = (byte)values[i];
+        }
+
+        return bytes;
+    }
+
+    /// <summary>Proves that an input outside <c>/Domain</c> is clamped to the nearest domain boundary before being mapped to a sample index.</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type0_InputOutsideDomain_ClampsToBoundary()
+    {
+        // Arrange: Domain [0, 1], 2 samples (0, 255), Range [0, 255] so Decode is an identity
+        // pass-through and the result directly reflects the clamped-then-selected raw sample.
+        var function = ResolveTestFunction(
+            "/FunctionType 0 /Domain [0 1] /Range [0 255] /Size [2] /BitsPerSample 8",
+            [0, 255]);
+
+        // Act
+        var belowDomain = function.Evaluate(-5);
+        var aboveDomain = function.Evaluate(5);
+
+        // Assert: -5 clamps to 0 (selects sample 0); 5 clamps to 1 (selects sample 1).
+        Assert.Equal(0.0, belowDomain[0]);
+        Assert.Equal(255.0, aboveDomain[0]);
+    }
+
+    /// <summary>Proves that an absent <c>/Encode</c> defaults to <c>[0, Size - 1]</c>, mapping the full <c>/Domain</c> onto the full sample-index range.</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type0_EncodeAbsent_DefaultsToZeroToSizeMinusOne()
+    {
+        // Arrange: Domain [0, 10], 6 samples evenly spaced 0..255, no /Encode - the default
+        // [0, Size - 1] = [0, 5] maps input 5 (domain midpoint) to sample index 2.5.
+        var function = ResolveTestFunction(
+            "/FunctionType 0 /Domain [0 10] /Range [0 255] /Size [6] /BitsPerSample 8",
+            [0, 51, 102, 153, 204, 255]);
+
+        // Act
+        var result = function.Evaluate(5);
+
+        // Assert: interpolates halfway between sample 2 (102) and sample 3 (153) -> 127.5.
+        Assert.Equal(127.5, result[0]);
+    }
+
+    /// <summary>Proves that an explicit <c>/Encode</c> overrides the default, mapping <c>/Domain</c> onto a custom sample-index sub-range.</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type0_ExplicitEncode_MapsDomainToCustomSampleIndexRange()
+    {
+        // Arrange: Domain [0, 1], 10 samples, /Encode [2, 5] - without this override, the default
+        // encode ([0, 9]) would select sample 0 at input 0 and sample 9 at input 1, both 0; the
+        // explicit override instead selects samples 2 and 5, which alone carry non-zero values.
+        var function = ResolveTestFunction(
+            "/FunctionType 0 /Domain [0 1] /Range [0 255] /Size [10] /BitsPerSample 8 /Encode [2 5]",
+            [0, 0, 50, 0, 0, 200, 0, 0, 0, 0]);
+
+        // Act
+        var atDomainMin = function.Evaluate(0);
+        var atDomainMax = function.Evaluate(1);
+
+        // Assert: domain 0 -> sample index 2 (50); domain 1 -> sample index 5 (200).
+        Assert.Equal(50.0, atDomainMin[0]);
+        Assert.Equal(200.0, atDomainMax[0]);
+    }
+
+    /// <summary>Proves that <c>/Decode</c> linearly remaps a raw sample value into its own declared range, independent of (though still clipped to) <c>/Range</c>.</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type0_Decode_MapsRawSampleToCustomOutputRange()
+    {
+        // Arrange: Domain [0, 1], 2 samples (0, 255), /Decode [10, 20] (distinct from the wider
+        // /Range [0, 100], so the assertions below isolate /Decode's own mapping, not /Range's
+        // clipping).
+        var function = ResolveTestFunction(
+            "/FunctionType 0 /Domain [0 1] /Range [0 100] /Decode [10 20] /Size [2] /BitsPerSample 8",
+            [0, 255]);
+
+        // Act
+        var atDomainMin = function.Evaluate(0);
+        var atDomainMax = function.Evaluate(1);
+
+        // Assert: raw sample 0 decodes to 10; raw sample 255 decodes to 20.
+        Assert.Equal(10.0, atDomainMin[0]);
+        Assert.Equal(20.0, atDomainMax[0]);
+    }
+
+    /// <summary>Proves that a sample-index position that falls between two samples linearly interpolates between them.</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type0_NonIntegerSampleIndex_InterpolatesBetweenAdjacentSamples()
+    {
+        // Arrange: Domain [0, 1], 3 samples (0, 100, 200), Range [0, 255] (identity Decode).
+        // Default /Encode [0, 2] maps input 0.25 to sample index 0.5 - exactly halfway between
+        // sample 0 and sample 1.
+        var function = ResolveTestFunction(
+            "/FunctionType 0 /Domain [0 1] /Range [0 255] /Size [3] /BitsPerSample 8",
+            [0, 100, 200]);
+
+        // Act
+        var result = function.Evaluate(0.25);
+
+        // Assert
+        Assert.Equal(50.0, result[0]);
+    }
+
+    /// <summary>Proves that 8-bit samples are read and evaluated correctly.</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type0_EightBitSamples_EvaluatesCorrectly()
+    {
+        // Arrange
+        var function = ResolveTestFunction(
+            "/FunctionType 0 /Domain [0 1] /Range [0 255] /Size [2] /BitsPerSample 8",
+            [10, 250]);
+
+        // Act
+        var atDomainMin = function.Evaluate(0);
+        var atDomainMax = function.Evaluate(1);
+
+        // Assert
+        Assert.Equal(10.0, atDomainMin[0]);
+        Assert.Equal(250.0, atDomainMax[0]);
+    }
+
+    /// <summary>Proves that 16-bit samples (big-endian, 2 bytes per sample) are read and evaluated correctly.</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type0_SixteenBitSamples_EvaluatesCorrectly()
+    {
+        // Arrange: Range [0, 65535] matches the 16-bit maximum raw sample value exactly, so
+        // Decode (defaulted to Range) is an identity pass-through.
+        var function = ResolveTestFunction(
+            "/FunctionType 0 /Domain [0 1] /Range [0 65535] /Size [2] /BitsPerSample 16",
+            BuildUInt16SampleBytes(1000, 60000));
+
+        // Act
+        var atDomainMin = function.Evaluate(0);
+        var atDomainMax = function.Evaluate(1);
+
+        // Assert
+        Assert.Equal(1000.0, atDomainMin[0]);
+        Assert.Equal(60000.0, atDomainMax[0]);
+    }
+
+    /// <summary>Proves that a <c>/FunctionType</c> other than <c>0</c> (<c>2</c> exponential, <c>3</c> stitching, <c>4</c> PostScript calculator) throws <see cref="UnsupportedImageFeatureException"/> rather than being evaluated.</summary>
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void PdfDocument_Functions_Type0_UnsupportedFunctionType_ThrowsUnsupportedImageFeatureException(int functionType)
+    {
+        // Act & Assert
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(
+            () => ResolveTestFunction($"/FunctionType {functionType}", []));
+        Assert.Equal($"pdf-functiontype-{functionType}", exception.Feature);
+    }
+
+    /// <summary>Proves that a multi-input <c>/FunctionType 0</c> function (a <c>/Domain</c> with more than 2 elements - the <c>/DeviceN</c>/<c>/Separation</c> tint-transform shape) throws <see cref="UnsupportedImageFeatureException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type0_MultiInputDomain_ThrowsUnsupportedImageFeatureException()
+    {
+        // Act & Assert: a 2-input function's /Domain has 4 elements (a [min, max] pair per input).
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(
+            () => ResolveTestFunction("/FunctionType 0 /Domain [0 1 0 1]", []));
+        Assert.Equal("pdf-function-multiinput", exception.Feature);
     }
 
     #endregion

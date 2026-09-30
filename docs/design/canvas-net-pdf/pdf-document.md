@@ -8,6 +8,7 @@
 <!-- cspell:ignore beginbfchar endbfchar beginbfrange endbfrange codepoints tounicode bfrange -->
 <!-- cspell:ignore begincodespacerange endcodespacerange findresource defineresource currentdict -->
 <!-- cspell:ignore begincmap endcmap bfchar usecmap cidrange cidchar codespacerange -->
+<!-- cspell:ignore functiontype bitspersample multiinput -->
 
 `PdfDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pdf` NuGet package
 (namespace `DemaConsulting.CanvasNet.Pdf`), which references the core
@@ -58,13 +59,16 @@ and `3` (invisible) are supported (stroke/clip modes `1`/`2`/`4`-`7` fail closed
 additional stream filters were added for any of these phases.
 **Phase 3 limitations** (narrowed by Phase 7, see below): no Form XObject rendering (`Do` on a
 `/Subtype /Form` XObject fails closed with `UnsupportedImageFeatureException`, rather than being
-silently skipped), no shading/patterns/transparency groups, no `CCITTFax`/`JPX` filter decoding
-(fails closed; `LZWDecode`/`ASCII85Decode`/`ASCIIHexDecode`/`RunLengthDecode` are supported as of
-Phase 7, see below), and no `/SMask`/alpha compositing (every decoded image is treated as fully
-opaque) — these remain out of scope for this phase and are silently skipped (any other undefined
-keyword) or explicitly rejected (Form XObjects, unsupported color spaces/filters/fonts/encodings/
-render modes), per the operator/exception taxonomy documented below; a later phase is expected to
-add Form XObject and transparency support.
+silently skipped), no shading/pattern fills or transparency groups (a `/FunctionType 0` sampled-
+function evaluator was added as unconsumed groundwork in Phase 1 of the `/Pattern` color-space
+roadmap - see _Sampled Function Evaluation_ below - but is not yet wired into rendering: `scn`/
+`SCN` with a pattern name still throws `UnsupportedImageFeatureException`), no `CCITTFax`/`JPX`
+filter decoding (fails closed; `LZWDecode`/`ASCII85Decode`/`ASCIIHexDecode`/`RunLengthDecode` are
+supported as of Phase 7, see below), and no `/SMask`/alpha compositing (every decoded image is
+treated as fully opaque) — these remain out of scope for this phase and are silently skipped (any
+other undefined keyword) or explicitly rejected (Form XObjects, unsupported color spaces/filters/
+fonts/encodings/render modes), per the operator/exception taxonomy documented below; a later phase
+is expected to add Form XObject and transparency support.
 
 ### Purpose
 
@@ -567,6 +571,33 @@ re-parsing it each time — a property a purely static API could not express.
   count/type via the same `RequireNumbers`/`RequireOperandCount` helpers every other operator
   family uses, throwing `InvalidDataException` on mismatch.
 
+- **Sampled Function Evaluation (`PdfDocument.Functions.cs`, added in Phase 1 of the `/Pattern`
+  color-space roadmap)** — `ResolveFunction` resolves a `/Function` entry restricted to
+  `/FunctionType 0` (sampled function) with exactly 1 input (a 2-element `/Domain`) into a
+  `SampledFunction`, parsing `/Size` (a single element, since this is a 1-input function),
+  `/BitsPerSample` (`8` or `16` only), `/Encode` (defaulting to `[0, Size[0] - 1]` when absent),
+  and `/Decode` (defaulting to `/Range` when absent), and decoding the function stream's own bytes
+  via `GetStreamDecodedBytes` (already filter-aware — no new filter code needed, since every
+  sampled function this evaluator's motivating real-world PDF declares uses `/FlateDecode`).
+  `SampledFunction.Evaluate(input)` clamps `input` into `/Domain`, linearly maps it into
+  sample-index space via `/Encode`, clips the result into `[0, Size - 1]`, linearly interpolates
+  between the two nearest samples (this evaluator never consults `/Order` — it always behaves as
+  though `/Order` were `1`, matching every sampled function this evaluator's motivating PDF
+  declares), reads each output's raw sample value via a generic, bit-width-agnostic big-endian bit
+  reader (`ReadBits`, shared by both the 8-bit and 16-bit cases), and maps each interpolated raw
+  value through `/Decode`, clipped to `/Range`. A `/FunctionType` other than `0` throws
+  `Codecs.UnsupportedImageFeatureException` (feature `pdf-functiontype-{n}`); a multi-input
+  `/FunctionType 0` function (a `/Domain` with more than 2 elements — the `/DeviceN`/`/Separation`
+  tint-transform shape, itself already out of scope, see _Content-Stream Interpreter_'s color-space
+  discussion above) throws the same exception type (feature `pdf-function-multiinput`); a
+  `/BitsPerSample` other than `8`/`16` likewise throws (feature `pdf-function-bitspersample-{n}`).
+  **This is deliberately resolved-but-unconsumed groundwork this phase** — no caller wires
+  `Evaluate` into the content-stream interpreter yet (`scn`/`SCN` with a pattern name still throws
+  `UnsupportedImageFeatureException`, per _Error Handling_ below): a later phase of the `/Pattern`
+  color-space roadmap is expected to sample this evaluator's output into gradient stops for
+  axial/radial shading-pattern fills, mirroring `PdfDocument.Fonts.ToUnicode.cs`'s own precedent of
+  landing a narrowly-scoped parser ahead of the feature that consumes it.
+
 ### Error Handling
 
 - **Null `stream`/`path` argument to `Open`** — `ArgumentNullException`, thrown directly with a
@@ -595,6 +626,11 @@ re-parsing it each time — a property a purely static API could not express.
   `/Resources/ColorSpace` name, or any other unrecognized value) — `Codecs.UnsupportedImageFeatureException`.
 - **`scn`/`SCN` with a trailing pattern name** — `Codecs.UnsupportedImageFeatureException`
   (`/Pattern` color is out of this phase's scope).
+- **`ResolveFunction`'s `/Function` entry** — a `/FunctionType` other than `0`, a multi-input
+  `/FunctionType 0` function (a `/Domain` with more than 2 elements), or a `/BitsPerSample` other
+  than `8`/`16` — `Codecs.UnsupportedImageFeatureException`; a `/Function` that does not resolve
+  to a stream, or a missing/malformed `/Domain`/`/Range`/`/Size`/`/Encode`/`/Decode` entry —
+  `InvalidDataException` instead (malformed, not merely unsupported).
 - **An unsupported stream filter** (anything other than `FlateDecode`, `LZWDecode`,
   `ASCII85Decode`, `ASCIIHexDecode`, `RunLengthDecode`, or `DCTDecode` combined with another
   filter) — `Codecs.UnsupportedImageFeatureException`; an unrecognized `/Predictor` value, a
