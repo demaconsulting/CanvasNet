@@ -2845,6 +2845,29 @@ public class PdfDocumentTests
         Assert.NotNull(surface);
     }
 
+    /// <summary>
+    ///     Proves that <c>/Differences</c> recognizes the <c>nacute</c> (Polish/Czech "ń") glyph
+    ///     name (found via the same real-world pdfLaTeX Computer Modern font from
+    ///     py-pdf/sample-files) - a Latin Extended-A accented letter previously absent from
+    ///     <c>StandardGlyphNames</c>.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Differences_NacuteName_DoesNotThrow()
+    {
+        // Arrange
+        var fontBytes = BuildEmbeddedFontBytes([(65, 1)]);
+        var (resourcesBody, extraObjects) = BuildSimpleTrueTypeFontResources(
+            fontBytes,
+            fontDictExtra: "/FirstChar 65 /LastChar 65 /Widths [600] " +
+                           "/Encoding << /Differences [65 /nacute] >>");
+
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT /F1 20 Tf (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act & Assert: no exception
+        using var surface = RenderPdfBytes(bytes);
+        Assert.NotNull(surface);
+    }
+
     /// <summary>Proves that a <c>/Differences</c> array starting with a glyph name (before any starting code number) throws <see cref="InvalidDataException"/>.</summary>
     [Fact]
     public void PdfDocument_Fonts_Differences_NameBeforeStartingCode_ThrowsInvalidDataException()

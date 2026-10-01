@@ -676,6 +676,7 @@ operating system), and the Symbol case asserts the render throws
 `PdfDocument_Fonts_Differences_Absent_LeavesBaseEncodingCodeUnmapped`,
 `PdfDocument_Fonts_Differences_UnrecognizedGlyphName_ThrowsInvalidDataException`,
 `PdfDocument_Fonts_Differences_FfFfiFflLigatureNames_DoNotThrow`,
+`PdfDocument_Fonts_Differences_NacuteName_DoesNotThrow`,
 `PdfDocument_Fonts_Differences_NameBeforeStartingCode_ThrowsInvalidDataException`,
 `PdfDocument_Fonts_StandardEncoding_DiffersFromWinAnsiEncoding`,
 `PdfDocument_Fonts_StandardEncoding_Absent_DefaultWinAnsiDoesNotPaintQuoteright`
@@ -697,7 +698,10 @@ a `/Differences` array containing an unrecognized glyph name, asserting `Invalid
 pdfLaTeX Computer Modern font - previously only `fi`/`fl` were present in `StandardGlyphNames`),
 asserting no exception; separately declares a
 `/Differences` array beginning with a glyph name before any starting code number, asserting
-`InvalidDataException` for that malformed array shape too. As of Phase B, a font explicitly
+`InvalidDataException` for that malformed array shape too. A further test declares a
+`/Differences` array naming the `nacute` (Polish/Czech "ń") Latin Extended-A accented letter
+(found via the same real-world pdfLaTeX Computer Modern font), asserting no exception. As of
+Phase B, a font explicitly
 declaring `/StandardEncoding` and showing byte code `0x27` (which diverges between the two base
 encodings - `StandardEncoding` maps it to U+2019 "quoteright", `WinAnsiEncoding` maps it to
 U+0027 "quotesingle" instead) through a synthetic font whose `cmap` maps only U+2019 to a real

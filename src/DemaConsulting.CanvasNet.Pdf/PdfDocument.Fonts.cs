@@ -697,6 +697,7 @@ public sealed partial class PdfDocument
         ["mu"] = 0x00B5,
         ["multiply"] = 0x00D7,
         ["n"] = 0x006E,
+        ["nacute"] = 0x0144,
         ["nbspace"] = 0x00A0,
         ["nine"] = 0x0039,
         ["notequal"] = 0x2260,
