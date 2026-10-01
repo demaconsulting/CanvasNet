@@ -82,6 +82,11 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Tests" />
+    <!-- Grants DemaConsulting.CanvasNet.Pdf access to Fonts.SystemFontCatalog's internal
+         LoadBundledFallbackCore, reused (not duplicated) by its Symbol/ZapfDingbats bundled Noto
+         substitute-font resolution path - see PdfDocument.FontFallback.cs's
+         ResolveSymbolicNotoFallback. -->
+    <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Pdf" />
   </ItemGroup>
 
   <ItemGroup>
@@ -104,6 +109,13 @@
          inspecting the .nupkg directly, independent of the embedded-resource copy used at
          runtime. -->
     <None Include="Fonts\BundledFonts\OFL.txt" Pack="true" PackagePath="licenses\LiberationFonts-OFL.txt" />
+    <!-- The 3 bundled Noto substitute fonts used for Symbol/ZapfDingbats fallback (see
+         PdfDocument.FontFallback.cs's ResolveSymbolicNotoFallback) are already covered by the
+         *.ttf glob above; their own OFL license text needs its own EmbeddedResource/Pack entries
+         since it is a differently-named file (NotoFonts-OFL.txt, not OFL.txt). -->
+    <EmbeddedResource Include="Fonts\BundledFonts\NotoFonts-OFL.txt"
+                       LogicalName="DemaConsulting.CanvasNet.Fonts.BundledFonts.NotoFonts-OFL.txt" />
+    <None Include="Fonts\BundledFonts\NotoFonts-OFL.txt" Pack="true" PackagePath="licenses\NotoFonts-OFL.txt" />
   </ItemGroup>
 
 </Project>

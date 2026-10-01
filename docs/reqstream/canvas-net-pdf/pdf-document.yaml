@@ -8,6 +8,7 @@
 # cspell:ignore fontfile stdenc quoteright Quoteright quotesingle hival
 # cspell:ignore charsets
 # cspell:ignore SASLprep
+# cspell:ignore Noto
 #
 # These requirements describe the design-level behavior of the PdfDocument unit.
 #
@@ -997,12 +998,13 @@ sections:
               italic flavor, or else deriving that flavor from /FontDescriptor/Flags and
               /FontWeight/ItalicAngle, matching that flavor and the (subset-tag- and style-
               suffix-stripped) family name against Fonts.SystemFontCatalog.FindBestMatch and, if
-              no system font matches, against Fonts.SystemFontCatalog.LoadBundledFallback; a
-              /BaseFont of Symbol or ZapfDingbats, or any font whose /FontDescriptor/Flags marks
-              it Symbolic without also marking it Nonsymbolic, shall throw
-              UnsupportedImageFeatureException rather than being substituted, and every resolved
-              fallback TrueTypeFont instance shall be cached by (file path, face index) for the
-              process lifetime.
+              no system font matches, against Fonts.SystemFontCatalog.LoadBundledFallback; any
+              other font whose /FontDescriptor/Flags marks it Symbolic without also marking it
+              Nonsymbolic shall throw UnsupportedImageFeatureException rather than being
+              substituted (see CanvasNetPdf-PdfDocument-SymbolZapfDingbatsFallback for the
+              dedicated /BaseFont Symbol/ZapfDingbats substitution path, the sole exception to
+              this fail-closed rule), and every resolved fallback TrueTypeFont instance shall be
+              cached by (file path, face index) for the process lifetime.
             justification: |
               A symbol/dingbats font's glyphs are not addressed by any standard Latin-text
               encoding, so silently substituting an unrelated text font for one would render
@@ -1014,23 +1016,54 @@ sections:
             tests:
               - PdfDocument_BuildResolvedFont_Standard14NoEmbeddedFont_ResolvesViaFallback
               - PdfDocument_BuildResolvedFont_NonStandard14FlagsOnlyUnmatchedFamily_ResolvesViaBundledFallback
-              - PdfDocument_BuildResolvedFont_SymbolFont_ThrowsSymbolicNotEmbeddedException
-              - PdfDocument_BuildResolvedFont_ZapfDingbatsFont_ThrowsSymbolicNotEmbeddedException
               - PdfDocument_BuildResolvedFont_SymbolicFlagWithoutEmbeddedFont_ThrowsSymbolicNotEmbeddedException
               - CanvasNetPdf_SystemIntegration_RenderStandard14HelveticaWithoutEmbeddedFont_PaintsVisibleGlyphInk
-              - CanvasNetPdf_SystemIntegration_RenderSymbolFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException
+              - CanvasNetPdf_SystemIntegration_RenderOtherSymbolicFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-SymbolZapfDingbatsFallback
+            title: >-
+              The PdfDocument class shall, for a /Subtype /TrueType simple font whose /BaseFont is
+              exactly Symbol or ZapfDingbats and which lacks an embedded /FontDescriptor/FontFile2
+              stream, resolve glyphs via a bundled Noto substitute font union (Symbol: an ordered
+              NotoSans-Regular.ttf, NotoSansMath-Regular.ttf, NotoSansSymbols2-Regular.ttf
+              priority list; ZapfDingbats: NotoSansSymbols2-Regular.ttf alone), trying each font's
+              cmap in priority order and using the first one whose glyph coverage includes the
+              code's mapped codepoint (falling back to glyph 0/.notdef when none cover it), using
+              the Symbol/ZapfDingbats built-in Appendix D encoding (rather than /WinAnsiEncoding)
+              as the default /Encoding base table unless an explicit /Encoding/Differences array
+              overrides individual codes.
+            justification: |
+              Symbol and ZapfDingbats glyphs have no meaningful generic Latin-text-font
+              equivalent, so they were previously excluded from font-fallback substitution
+              entirely (see CanvasNetPdf-PdfDocument-FontFallback) and failed closed; a real,
+              redistributable, SIL OFL-licensed font whose glyph repertoire actually covers (most
+              of) the Symbol/ZapfDingbats Adobe/ISO 32000-1 Appendix D character sets can instead
+              be bundled and substituted directly, closing a previously explicit scope boundary
+              without compromising the fail-closed policy for every other symbolic font (which
+              has no such available substitute).
+            tests:
+              - SymbolEncodingTable_RepresentativeSample_MapsToKnownCorrectCodepoints
+              - ZapfDingbatsEncodingTable_RepresentativeSample_MapsToKnownCorrectCodepoints
+              - PdfDocument_BuildResolvedFont_SymbolFont_ResolvesViaNotoSubstituteWithoutThrowing
+              - PdfDocument_BuildResolvedFont_ZapfDingbatsFont_ResolvesViaNotoSubstituteWithoutThrowing
+              - CanvasNetPdf_SystemIntegration_RenderSymbolFontWithoutEmbeddedFont_PaintsVisibleGlyphInk
+              - CanvasNetPdf_SystemIntegration_NotoSansRegularBundledFont_ResolvesSymbolAlphaToNonzeroGlyphIndex
+              - BundledFonts_AllThreeNotoVariants_LoadSuccessfullyAndExposeExpectedName
 
           - id: CanvasNetPdf-PdfDocument-FontEncoding
             title: >-
               The PdfDocument class shall resolve a font dictionary's /Encoding into a full
               256-entry code-to-Unicode-codepoint map, defaulting to /WinAnsiEncoding when
-              /Encoding is absent, supporting /WinAnsiEncoding, /MacRomanEncoding, and
-              /StandardEncoding as named base encodings (throwing UnsupportedImageFeatureException
-              for any other base encoding name), and applying an /Encoding/Differences array's
-              code-then-glyph-name run-length overrides via a standard Adobe-glyph-name-to-
-              Unicode-codepoint mapping, tolerating an unrecognized glyph name (leaving that code
-              at its base-encoding mapping) but throwing InvalidDataException for /Differences
-              beginning with a glyph name before any starting code.
+              /Encoding is absent (or, for a /BaseFont Symbol/ZapfDingbats font resolved via the
+              bundled Noto substitute path, to the Symbol/ZapfDingbats built-in Appendix D
+              encoding instead - see CanvasNetPdf-PdfDocument-SymbolZapfDingbatsFallback),
+              supporting /WinAnsiEncoding, /MacRomanEncoding, and /StandardEncoding as named base
+              encodings (throwing UnsupportedImageFeatureException for any other base encoding
+              name), and applying an /Encoding/Differences array's code-then-glyph-name
+              run-length overrides via a standard Adobe-glyph-name-to-Unicode-codepoint mapping,
+              tolerating an unrecognized glyph name (leaving that code at its base-encoding
+              mapping) but throwing InvalidDataException for /Differences beginning with a glyph
+              name before any starting code.
             justification: |
               WinAnsi and MacRoman are the two base encodings a simple TrueType font's /Encoding
               commonly names, StandardEncoding is the PDF specification's own default built-in

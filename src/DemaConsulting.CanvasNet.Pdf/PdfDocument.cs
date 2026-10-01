@@ -1,4 +1,4 @@
-// cspell:ignore CCITT Zapf Nonsymbolic
+// cspell:ignore CCITT Zapf Nonsymbolic Noto
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 
@@ -90,12 +90,15 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         font matches, a bundled Liberation Sans/Serif/Mono font is used instead as a
 ///         deterministic last resort (see <c>PdfDocument.FontFallback.cs</c>). This is
 ///         fully automatic - there is no new public API and no "fallback occurred"
-///         diagnostics. <c>Symbol</c> and <c>ZapfDingbats</c> (and any other font whose
+///         diagnostics. <c>Symbol</c> and <c>ZapfDingbats</c> resolve instead via a dedicated
+///         bundled Noto substitute font union (see <c>PdfDocument.FontFallback.cs</c>'s
+///         <c>ResolveSymbolicNotoFallback</c>), using the built-in Symbol/ZapfDingbats Appendix
+///         D encoding rather than <c>/WinAnsiEncoding</c>. Any other font whose
 ///         <c>/FontDescriptor/Flags</c> declares <c>Symbolic</c> without also declaring
-///         <c>Nonsymbolic</c>) are the sole exception: with no embedded <c>/FontFile2</c>
-///         they still fail closed with <see cref="UnsupportedImageFeatureException"/>,
-///         since their symbol/dingbat glyph sets have no meaningful generic-family
-///         equivalent.
+///         <c>Nonsymbolic</c> is still the sole remaining exception: with no embedded
+///         <c>/FontFile2</c> it still fails closed with
+///         <see cref="UnsupportedImageFeatureException"/>, since its symbol/dingbat glyph set
+///         has no meaningful generic-family equivalent.
 ///     </para>
 ///     <para>
 ///         Phase 15 adds <c>CCITTFaxDecode</c> image-XObject support: an

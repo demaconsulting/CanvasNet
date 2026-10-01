@@ -4,6 +4,7 @@
 
 <!-- cspell:ignore xref startxref endobj endstream ObjStm MediaBox unresolvable Trise -->
 <!-- cspell:ignore CCITT reimplementation diffability bitstream Zapf Nonsymbolic cidfonttype fontfile -->
+<!-- cspell:ignore Noto -->
 <!-- cspell:ignore Segoe Dejavu Nimbus Consolas ttcf dogfooding LOCALAPPDATA -->
 <!-- cspell:ignore beginbfchar endbfchar beginbfrange endbfrange codepoints tounicode bfrange -->
 <!-- cspell:ignore begincodespacerange endcodespacerange findresource defineresource currentdict -->
@@ -914,17 +915,31 @@ its own distinguishable `Feature` token.
   `usecmap`/`cidrange`/`cidchar` operator, by contrast, is explicitly out of this phase's scope
   and throws `Codecs.UnsupportedImageFeatureException` (feature `pdf-font-tounicode-{operator}`)
   rather than being silently (and incorrectly) ignored.
-- **Font fallback resolution (`PdfDocument.FontFallback.cs`, added in Phase 6)** —
+- **Font fallback resolution (`PdfDocument.FontFallback.cs`, added in Phase 6; revised to add the
+  Symbol/ZapfDingbats Noto substitution path)** —
   `ResolveFallbackFont(baseFontName, descriptor)` is `BuildResolvedSimpleFont`'s sole entry point into
-  this file. It first fails closed with `Codecs.UnsupportedImageFeatureException` (feature
-  `pdf-font-symbolic-not-embedded`) for `/BaseFont` `Symbol` or `ZapfDingbats`, or for any font
-  whose `/FontDescriptor/Flags` declares the `Symbolic` bit (bit 3) without also declaring the
-  `Nonsymbolic` bit (bit 6) - a symbol/dingbat glyph set has no meaningful generic-family
-  equivalent, so it is never substituted rather than being silently mis-rendered. Otherwise,
+  this file, and returns an ordered, non-empty `IReadOnlyList<Fonts.TrueTypeFont>` rather than a
+  single font (see `BuildResolvedSimpleFont`'s own entry below for why). A `/BaseFont` of exactly
+  `Symbol` or `ZapfDingbats` resolves via `ResolveSymbolicNotoFallback`: a bundled Noto substitute
+  font union, reusing `Fonts.SystemFontCatalog.LoadBundledFallbackCore` (made callable
+  cross-assembly via a new `InternalsVisibleTo` grant from `DemaConsulting.CanvasNet` to
+  `DemaConsulting.CanvasNet.Pdf`, rather than duplicating its embedded-resource-loading/caching
+  logic) - `Symbol` returns a 3-element priority list (`NotoSans-Regular.ttf` for Greek letters and
+  general symbols, then `NotoSansMath-Regular.ttf` for mathematical operators, then
+  `NotoSansSymbols2-Regular.ttf` for Private-Use-Area-adjacent/rare symbols), while `ZapfDingbats`
+  returns a single-element list (`NotoSansSymbols2-Regular.ttf` alone). Any other font whose
+  `/FontDescriptor/Flags` declares the `Symbolic` bit (bit 3) without also declaring the
+  `Nonsymbolic` bit (bit 6) still fails closed with `Codecs.UnsupportedImageFeatureException`
+  (feature `pdf-font-symbolic-not-embedded`) exactly as before - a symbol/dingbat glyph set has no
+  meaningful generic-family equivalent, so it is never substituted rather than being silently
+  mis-rendered, and this is now the sole remaining fail-closed case (`Symbol`/`ZapfDingbats`
+  themselves are checked, and diverted to the Noto substitution path, before this check is ever
+  reached). Otherwise,
   `ResolveFallbackFlavor` classifies the requested serif/fixed-pitch/bold/italic flavor: a
   recognized Standard-14 name (the fixed 12-entry `Standard14Flavors` table, covering
   Helvetica/Times/Courier's four style variants each - `Symbol`/`ZapfDingbats` deliberately
-  excluded, since they are rejected above before this table is ever consulted) takes priority and
+  excluded, since they now resolve via `ResolveSymbolicNotoFallback` before this table is ever
+  consulted) takes priority and
   bypasses the descriptor entirely; otherwise the flavor is derived from `/FontDescriptor/Flags`
   bit 1 (`FixedPitch`)/bit 2 (`Serif`), `/FontWeight >= 600` (else a case-insensitive `"Bold"`
   substring in `/BaseFont`) for bold, and `/FontDescriptor/Flags` bit 7 (`Italic`) OR a non-zero
@@ -939,6 +954,23 @@ its own distinguishable `Feature` token.
   `SystemFontCatalog`). This process-lifetime cache is deliberately broader-scoped than
   `_fontCache`'s per-`Render` call scope, since a system or bundled font file's bytes never
   change between calls or between documents.
+
+  `BuildResolvedSimpleFont`'s `ResolvedSimpleFont.Fonts` property (plural, renamed from the
+  earlier single `Font` property) is an ordered, non-empty `IReadOnlyList<Fonts.TrueTypeFont>` -
+  a single-element list for every pre-existing resolution path (embedded `/FontFile2`, a matched
+  system font, or the bundled Liberation fallback), and only ever multi-element for the Symbol
+  Noto-substitute union above. `ResolvedSimpleFont.Resolve(code)` (the sole
+  `IResolvedFont.Resolve` implementation this concerns) tries each font in `Fonts` in priority
+  order, returning the first one whose `GetGlyphIndex` for the code's mapped codepoint is
+  non-zero (its advance width is derived from that winning font), falling back to `Fonts[0]` and
+  glyph `0`/`.notdef` if none of them cover the codepoint - the composite/union glyph-lookup
+  mechanism this feature introduces. `BuildResolvedSimpleFont` additionally selects, for a
+  `/BaseFont` of exactly `Symbol` or `ZapfDingbats` resolved via this fallback path, the matching
+  `SymbolEncodingTable`/`ZapfDingbatsEncodingTable` as `ResolveEncoding`'s new optional
+  `defaultBaseTable` parameter (in place of its `WinAnsiEncodingTable` default for every other
+  font) - an explicit `/Encoding/Differences` array still applies on top, exactly as for any
+  other font.
+
 - **Text rendering (`PdfDocument.Text.cs`, added in Phase 4)** — `OpBeginText`/`OpEndText`
   (`BT`/`ET`) reset only `_textMatrix`/`_lineMatrix` to the identity matrix (every other text-
   state parameter lives on `GraphicsState` and is untouched, per this phase's documented `q`/`Q`-
@@ -1078,10 +1110,13 @@ its own distinguishable `Feature` token.
   entirely out of scope by design). A `/Subtype /TrueType` or `/Subtype /Type1` font lacking an
   embedded `/FontDescriptor/FontFile2`/`/FontFile`/`/FontFile3` no longer reaches this list at all
   as of Phase 6 (widened to `/Type1` in Phase B) - it is resolved
-  via fallback substitution instead (see below), except that a `/BaseFont` of `Symbol` or
-  `ZapfDingbats`, or a font whose `/FontDescriptor/Flags` declares `Symbolic` without also
-  declaring `Nonsymbolic`, still throws `Codecs.UnsupportedImageFeatureException` (feature
-  `pdf-font-symbolic-not-embedded`) - a symbol/dingbat glyph set has no meaningful generic-family
+  via fallback substitution instead (see below). A `/BaseFont` of exactly `Symbol` or
+  `ZapfDingbats` resolves via a bundled Noto substitute font union instead of reaching this list
+  either (see _Font fallback resolution_ above); any other font whose `/FontDescriptor/Flags`
+  declares `Symbolic` without also
+  declaring `Nonsymbolic` still throws `Codecs.UnsupportedImageFeatureException` (feature
+  `pdf-font-symbolic-not-embedded`) - a symbol/dingbat glyph set with no bundled substitute has no
+  meaningful generic-family
   equivalent and is never substituted with an unrelated system or bundled font. As of Phase C, a
   `/Subtype /Type1` descriptor declaring only `/FontFile3` (neither `/FontFile` nor `/FontFile2`)
   is resolved by `LoadType1CFont`: the `/FontFile3` stream's own `/Subtype`, when not the name

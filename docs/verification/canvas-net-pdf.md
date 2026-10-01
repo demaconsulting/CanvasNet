@@ -1,6 +1,6 @@
 # System Verification Design
 
-<!-- cspell:ignore Zapf -->
+<!-- cspell:ignore Zapf Noto -->
 
 This document describes the system-level verification strategy for CanvasNetPdf.
 
@@ -226,16 +226,43 @@ the Windows/Linux/macOS CI matrix, asserts the strongest platform-independent pr
 one visibly-painted (non-transparent) pixel appears somewhere on the canvas, confirming the
 fallback path genuinely renders a substitute glyph rather than merely not throwing.
 
-### Integration: Render Symbol Font Without Embedded Font Throws Unsupported Image Feature Exception
+### Integration: Render Symbol Font Without Embedded Font Paints Visible Glyph Ink
 
-**Test**: `CanvasNetPdf_SystemIntegration_RenderSymbolFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException`
+**Test**: `CanvasNetPdf_SystemIntegration_RenderSymbolFontWithoutEmbeddedFont_PaintsVisibleGlyphInk`
 
-Exercises end-to-end system behavior for the Phase 6 font-fallback fail-closed boundary: calls
-the public `Render` API against a synthetic, in-memory single-page document declaring a
-`/BaseFont /Symbol` font resource with no embedded `/FontFile2`. Asserts
+Exercises end-to-end system behavior for the Phase 6 font-fallback substitution path: calls the
+public `Render` API against a synthetic, in-memory single-page document declaring a
+`/BaseFont /Symbol` font resource with no embedded `/FontFile2` and no `/FontDescriptor` entries
+at all (PDF 32000-1 §9.6.2.2 permits an entirely absent/empty descriptor). Since Symbol/
+ZapfDingbats no longer fail closed and instead resolve via the bundled Noto substitute font
+union, asserts the same platform-independent property as the Standard-14 Helvetica fallback test
+above: at least one visibly-painted (non-transparent) pixel appears somewhere on the canvas,
+confirming the Noto substitute glyph was actually rendered through the system's own public entry
+point.
+
+### Integration: Noto Sans Regular Bundled Font Resolves Symbol Alpha To Nonzero Glyph Index
+
+**Test**: `CanvasNetPdf_SystemIntegration_NotoSansRegularBundledFont_ResolvesSymbolAlphaToNonzeroGlyphIndex`
+
+Proves, via the full production round-trip (`SystemFontCatalog.LoadBundledFallback`'s
+embedded-resource-loading path, loading `NotoSans-Regular.ttf` the same way
+`PdfDocument.FontFallback.cs`'s `ResolveSymbolicNotoFallback` does for the `Symbol` substitute's
+primary font) that Symbol code `0x61` ('alpha', per PDF 32000-1 Appendix D's Symbol encoding,
+mapped to Unicode U+03B1) resolves to a nonzero, valid glyph index, confirming the bundled
+substitute font genuinely carries a real Greek alpha glyph, not merely that the pipeline
+declines to throw.
+
+### Integration: Render Other Symbolic Font Without Embedded Font Throws Unsupported Image Feature Exception
+
+**Test**: `CanvasNetPdf_SystemIntegration_RenderOtherSymbolicFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException`
+
+Regression guard exercising end-to-end system behavior for the Phase 6 font-fallback fail-closed
+boundary: calls the public `Render` API against a synthetic, in-memory single-page document
+declaring a non-Symbol/ZapfDingbats symbolic font resource (`/FontDescriptor/Flags` declaring the
+`Symbolic` bit without also declaring `Nonsymbolic`) with no embedded `/FontFile2`. Asserts
 `Codecs.UnsupportedImageFeatureException` is thrown with `Feature == "pdf-font-symbolic-not-embedded"`,
-confirming Symbol/ZapfDingbats fonts are never substituted with an unrelated system or bundled
-font through the system's own public entry point.
+confirming the new Symbol/ZapfDingbats Noto-substitution path did not loosen the fail-closed
+policy for any other symbolic font through the system's own public entry point.
 
 ### Integration: Pdf Validation Empty Path Empty Path Throws Argument Exception
 

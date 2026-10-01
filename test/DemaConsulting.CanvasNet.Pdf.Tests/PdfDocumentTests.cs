@@ -8,6 +8,7 @@ using DemaConsulting.CanvasNet.Tests.TestSupport;
 // cspell:ignore bfchar bfrange nendbfchar nendbfrange tounicode usecmap cidrange cidchar codepoints
 // cspell:ignore OTTO rmoveto rlineto endchar notdef charstring charstrings cidfonttype
 // cspell:ignore functiontype multiinput fitz
+// cspell:ignore Noto
 // cspell:ignore hsbw closepath fontfile lenIV quoteright Quoteright hival
 
 namespace DemaConsulting.CanvasNet.Pdf.Tests;
@@ -3925,13 +3926,13 @@ public class PdfDocumentTests
     }
 
     /// <summary>
-    ///     Proves that a <c>/BaseFont /Symbol</c> font with no embedded <c>/FontFile2</c> still
-    ///     fails closed with <see cref="UnsupportedImageFeatureException"/> (feature
-    ///     <c>"pdf-font-symbolic-not-embedded"</c>), never substituted with an unrelated system or
-    ///     bundled font.
+    ///     Proves that a <c>/BaseFont /Symbol</c> font with no embedded <c>/FontFile2</c> no
+    ///     longer fails closed: it resolves via the bundled Noto substitute font union (see
+    ///     <c>PdfDocument.FontFallback.cs</c>'s <c>ResolveSymbolicNotoFallback</c>) and renders
+    ///     without throwing.
     /// </summary>
     [Fact]
-    public void PdfDocument_BuildResolvedFont_SymbolFont_ThrowsSymbolicNotEmbeddedException()
+    public void PdfDocument_BuildResolvedFont_SymbolFont_ResolvesViaNotoSubstituteWithoutThrowing()
     {
         // Arrange
         var descriptorObj = "<< /Type /FontDescriptor >>"u8.ToArray();
@@ -3941,18 +3942,18 @@ public class PdfDocumentTests
             100, 100, "BT /F1 20 Tf (A) Tj ET", "/Font << /F1 5 0 R >>",
             [fontDictObj, descriptorObj]);
 
-        // Act & Assert
-        var ex = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
-        Assert.Equal("pdf-font-symbolic-not-embedded", ex.Feature);
+        // Act & Assert: renders without throwing, using the bundled Noto substitute font union
+        using var surface = RenderPdfBytes(bytes);
+        Assert.NotNull(surface);
     }
 
     /// <summary>
     ///     Proves that a <c>/BaseFont /ZapfDingbats</c> font with no embedded <c>/FontFile2</c>
-    ///     still fails closed with <see cref="UnsupportedImageFeatureException"/> (feature
-    ///     <c>"pdf-font-symbolic-not-embedded"</c>).
+    ///     no longer fails closed: it resolves via the bundled
+    ///     <c>NotoSansSymbols2-Regular.ttf</c> substitute font and renders without throwing.
     /// </summary>
     [Fact]
-    public void PdfDocument_BuildResolvedFont_ZapfDingbatsFont_ThrowsSymbolicNotEmbeddedException()
+    public void PdfDocument_BuildResolvedFont_ZapfDingbatsFont_ResolvesViaNotoSubstituteWithoutThrowing()
     {
         // Arrange
         var descriptorObj = "<< /Type /FontDescriptor >>"u8.ToArray();
@@ -3962,9 +3963,9 @@ public class PdfDocumentTests
             100, 100, "BT /F1 20 Tf (A) Tj ET", "/Font << /F1 5 0 R >>",
             [fontDictObj, descriptorObj]);
 
-        // Act & Assert
-        var ex = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
-        Assert.Equal("pdf-font-symbolic-not-embedded", ex.Feature);
+        // Act & Assert: renders without throwing, using the bundled Noto substitute font
+        using var surface = RenderPdfBytes(bytes);
+        Assert.NotNull(surface);
     }
 
     /// <summary>

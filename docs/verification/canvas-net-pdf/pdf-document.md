@@ -4,6 +4,7 @@
 <!-- cspell:ignore bfchar bfrange beginbfchar endbfchar beginbfrange endbfrange codepoints -->
 <!-- cspell:ignore usecmap cidrange cidchar cidfonttype -->
 <!-- cspell:ignore functiontype multiinput hival -->
+<!-- cspell:ignore Noto registerserif radicalex dogfoods dogfooding -->
 <!-- cspell:ignore fontfile quoteright Quoteright quotesingle EOFB -->
 
 This document describes the unit-level verification strategy for the `PdfDocument` class.
@@ -1050,32 +1051,76 @@ explicitly out-of-scope `usecmap`/`cidrange`/`cidchar` operators, asserting
 `Codecs.UnsupportedImageFeatureException` in every case, rather than those operators being
 silently ignored like the CMap's own PostScript resource-management wrapper keywords.
 
-#### CanvasNetPdf-PdfDocument-FontFallback: Non-Embedded TrueType Fonts Are Substituted, Symbol/ZapfDingbats Fail Closed
+#### CanvasNetPdf-PdfDocument-FontFallback: Non-Embedded TrueType Fonts Are Substituted, Other Symbolic Fonts Fail Closed
 
 **Tests**: `PdfDocument_BuildResolvedFont_Standard14NoEmbeddedFont_ResolvesViaFallback`,
 `PdfDocument_BuildResolvedFont_NonStandard14FlagsOnlyUnmatchedFamily_ResolvesViaBundledFallback`,
-`PdfDocument_BuildResolvedFont_SymbolFont_ThrowsSymbolicNotEmbeddedException`,
-`PdfDocument_BuildResolvedFont_ZapfDingbatsFont_ThrowsSymbolicNotEmbeddedException`,
 `PdfDocument_BuildResolvedFont_SymbolicFlagWithoutEmbeddedFont_ThrowsSymbolicNotEmbeddedException`,
 `CanvasNetPdf_SystemIntegration_RenderStandard14HelveticaWithoutEmbeddedFont_PaintsVisibleGlyphInk`,
-`CanvasNetPdf_SystemIntegration_RenderSymbolFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException`
+`CanvasNetPdf_SystemIntegration_RenderOtherSymbolicFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException`
 
 Builds a `/Subtype /TrueType` font dictionary with a recognized Standard-14 `/BaseFont` (for
 example `Helvetica`) and no `/FontFile2`, asserting `BuildResolvedFont` returns a resolved font
 whose underlying `Fonts.TrueTypeFont` is non-null rather than throwing. Builds a font dictionary
 with a `/BaseFont` unmatched by any Standard-14 name or any plausible system font, relying only on
 `/FontDescriptor/Flags`, asserting resolution still succeeds via the bundled Liberation fallback.
-Builds font dictionaries with `/BaseFont` `Symbol` and, separately, `ZapfDingbats`, and a font
+Builds a font
 dictionary whose `/FontDescriptor/Flags` declares the `Symbolic` bit without the `Nonsymbolic`
-bit, asserting `Codecs.UnsupportedImageFeatureException` with `Feature ==
-"pdf-font-symbolic-not-embedded"` in every case, proving the fail-closed check applies both to
-the two named Standard-14 symbol fonts and to the generalized flags-based case. The two
+bit (and whose `/BaseFont` is deliberately not `Symbol`/`ZapfDingbats`, so it cannot divert to the
+Noto substitution path below), asserting `Codecs.UnsupportedImageFeatureException` with `Feature ==
+"pdf-font-symbolic-not-embedded"` - the sole remaining fail-closed case this requirement covers,
+since `Symbol`/`ZapfDingbats` themselves now resolve via
+`CanvasNetPdf-PdfDocument-SymbolZapfDingbatsFallback` below instead. The two
 `CanvasNetPdf_SystemIntegration_*` end-to-end tests render a full synthetic single-page PDF whose
 font resource has no `/FontFile2`: the Standard-14 Helvetica case asserts at least one non-default
 (non-transparent) pixel was painted somewhere in the glyph's expected device-space region
 (a weak, OS-independent assertion, since the actual system/bundled font substituted varies by CI
-operating system), and the Symbol case asserts the render throws
-`Codecs.UnsupportedImageFeatureException` rather than silently painting an unrelated glyph shape.
+operating system), and the other-symbolic-font case asserts the render throws
+`Codecs.UnsupportedImageFeatureException` rather than silently painting an unrelated glyph shape -
+a regression guard proving the new Symbol/ZapfDingbats substitution path did not loosen this
+fail-closed policy for any other symbolic font.
+
+#### CanvasNetPdf-PdfDocument-SymbolZapfDingbatsFallback: Symbol/ZapfDingbats Resolve via a Bundled Noto Union
+
+**Tests**: `SymbolEncodingTable_RepresentativeSample_MapsToKnownCorrectCodepoints`,
+`ZapfDingbatsEncodingTable_RepresentativeSample_MapsToKnownCorrectCodepoints`,
+`PdfDocument_BuildResolvedFont_SymbolFont_ResolvesViaNotoSubstituteWithoutThrowing`,
+`PdfDocument_BuildResolvedFont_ZapfDingbatsFont_ResolvesViaNotoSubstituteWithoutThrowing`,
+`CanvasNetPdf_SystemIntegration_RenderSymbolFontWithoutEmbeddedFont_PaintsVisibleGlyphInk`,
+`CanvasNetPdf_SystemIntegration_NotoSansRegularBundledFont_ResolvesSymbolAlphaToNonzeroGlyphIndex`,
+`BundledFonts_AllThreeNotoVariants_LoadSuccessfullyAndExposeExpectedName`
+
+Two reflection-based unit tests (`PdfDocumentSymbolicEncodingTests`) spot-check representative,
+known-correct entries of the new `SymbolEncodingTable`/`ZapfDingbatsEncodingTable` 256-entry
+code-to-Unicode-codepoint tables, rather than re-asserting the entire table verbatim: Symbol's
+`alpha` (code `0x61`) to U+03B1, `Alpha` (code `0x41`) to U+0391, the Private-Use-Area-fallback
+glyph name `registerserif` (code `0xD2`) to the plain/generic U+00AE rather than a Private-Use-
+Area codepoint, and the deliberately unmapped extensible-delimiter-piece glyph name `radicalex`
+(code `0x60`) to `0`; ZapfDingbats' `space` (code `0x20`) to U+0020, `a1` (code `0x21`) to U+2701,
+and the documented, accepted-fidelity-limitation uncovered case `a120` (circled digit one, code
+`0xAC`) to U+2460 (the table itself still defines this mapping - only the bundled substitute font
+does not cover this particular codepoint). Two unit-level `PdfDocument_BuildResolvedFont_*` tests
+build `/BaseFont /Symbol` and, separately, `/BaseFont /ZapfDingbats` font dictionaries with no
+embedded `/FontFile2` and asserting the render no longer throws (replacing the prior fail-closed
+tests this requirement moved from `CanvasNetPdf-PdfDocument-FontFallback` above). The
+`CanvasNetPdf_SystemIntegration_RenderSymbolFontWithoutEmbeddedFont_PaintsVisibleGlyphInk`
+end-to-end test renders a synthetic single-page PDF with a `/BaseFont /Symbol` font resource, no
+`/FontFile2`, and no `/FontDescriptor` entries at all (PDF 32000-1 §9.6.2.2 permits an entirely
+absent/empty descriptor), asserting at least one visibly-painted pixel - proving the fallback
+path genuinely renders rather than merely not throwing. The
+`CanvasNetPdf_SystemIntegration_NotoSansRegularBundledFont_ResolvesSymbolAlphaToNonzeroGlyphIndex`
+test proves the full production round-trip by loading the exact same embedded resource
+(`NotoSans-Regular.ttf`) `ResolveSymbolicNotoFallback` itself loads, and asserting Symbol code
+`0x61` ('alpha', which the Symbol encoding table maps to Unicode U+03B1) resolves to a nonzero,
+valid glyph index via `Fonts.TrueTypeFont.GetGlyphIndex` - proving the bundled substitute font
+genuinely carries a real Greek alpha glyph, not merely that the pipeline declines to throw.
+Finally, `BundledFonts_AllThreeNotoVariants_LoadSuccessfullyAndExposeExpectedName`
+(`BundledNotoFontsTests`, in `DemaConsulting.CanvasNet.Tests`) dogfoods all 3 new bundled Noto
+embedded-resource font files through `Fonts.TrueTypeFont.Load`
+(via `Fonts.SystemFontCatalog.LoadBundledFallbackCore`, the same embedded-resource-loading path
+production code uses), proving each is a genuine, well-formed, loadable TrueType font exposing a
+sane, expected family name - mirroring `BundledLiberationFontsTests`'s own theory-per-file
+dogfooding shape for the 12 pre-existing Liberation files.
 
 #### CanvasNetPdf-PdfDocument-FontEncoding: Base Encodings and Differences Overrides Resolve Correctly
 

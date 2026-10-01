@@ -1,4 +1,4 @@
-// cspell:ignore Nonsymbolic Oblique Dingbats Zapf
+// cspell:ignore Nonsymbolic Oblique Dingbats Zapf Noto
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Fonts;
 
@@ -13,8 +13,10 @@ public sealed partial class PdfDocument
     ///     also declare - a Standard-14 name's style is a fixed property of that name, not
     ///     something a producer's own (possibly absent, possibly wrong) descriptor should
     ///     override. <c>Symbol</c> and <c>ZapfDingbats</c> are deliberately excluded from this
-    ///     table - see <see cref="ResolveFallbackFont"/>'s fail-closed check, applied before this
-    ///     table is ever consulted.
+    ///     table - they resolve via a dedicated bundled Noto substitute (see
+    ///     <see cref="ResolveFallbackFont"/>'s <see cref="ResolveSymbolicNotoFallback"/> branch)
+    ///     that bypasses serif/fixed-pitch/bold/italic flavor classification entirely, since this
+    ///     table's style tuple has no meaning for a symbol/dingbat glyph set.
     /// </summary>
     private static readonly IReadOnlyDictionary<string, (bool Serif, bool FixedPitch, bool Bold, bool Italic)>
         Standard14Flavors = new Dictionary<string, (bool Serif, bool FixedPitch, bool Bold, bool Italic)>(StringComparer.Ordinal)
@@ -48,11 +50,14 @@ public sealed partial class PdfDocument
     private static readonly object FallbackFontCacheLock = new();
 
     /// <summary>
-    ///     Resolves a <see cref="Fonts.TrueTypeFont"/> to substitute for a simple TrueType font
-    ///     with no embedded <c>/FontDescriptor/FontFile2</c>: fails closed for <c>Symbol</c>/
-    ///     <c>ZapfDingbats</c> (and any font whose <c>/FontDescriptor/Flags</c> declares
-    ///     <c>Symbolic</c> without also declaring <c>Nonsymbolic</c>); otherwise classifies the
-    ///     font's serif/fixed-pitch/bold/italic flavor (via the Standard-14 table, or else
+    ///     Resolves the ordered <see cref="Fonts.TrueTypeFont"/> candidate list to substitute for
+    ///     a simple TrueType font with no embedded <c>/FontDescriptor/FontFile2</c>: a
+    ///     <c>Symbol</c>/<c>ZapfDingbats</c> <c>/BaseFont</c> resolves via a dedicated bundled
+    ///     Noto substitute union (<see cref="ResolveSymbolicNotoFallback"/>); any other font whose
+    ///     <c>/FontDescriptor/Flags</c> declares <c>Symbolic</c> without also declaring
+    ///     <c>Nonsymbolic</c> still fails closed, since such a font's symbol/dingbat glyph set has
+    ///     no meaningful generic-family equivalent; otherwise classifies the font's serif/
+    ///     fixed-pitch/bold/italic flavor (via the Standard-14 table, or else
     ///     <c>/FontDescriptor</c> flags/weight/angle/name heuristics), searches the host
     ///     operating system's installed fonts via <see cref="SystemFontCatalog.FindBestMatch"/>,
     ///     and falls back to a bundled Liberation Sans/Serif/Mono font
@@ -60,24 +65,34 @@ public sealed partial class PdfDocument
     /// </summary>
     /// <param name="baseFontName">The font dictionary's <c>/BaseFont</c> name.</param>
     /// <param name="descriptor">The font dictionary's resolved <c>/FontDescriptor</c>.</param>
-    /// <returns>The resolved substitute <see cref="Fonts.TrueTypeFont"/>.</returns>
+    /// <returns>
+    ///     The ordered, non-empty list of candidate substitute <see cref="Fonts.TrueTypeFont"/>
+    ///     instances - every non-<c>Symbol</c>/<c>ZapfDingbats</c> case returns a single-element
+    ///     list; see <see cref="ResolveSymbolicNotoFallback"/> for the multi-element case.
+    /// </returns>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when <paramref name="baseFontName"/> is <c>Symbol</c> or <c>ZapfDingbats</c>, or
-    ///     when <paramref name="descriptor"/>'s <c>/Flags</c> declares <c>Symbolic</c> without also
-    ///     declaring <c>Nonsymbolic</c> - such fonts' symbol/dingbat glyph sets have no meaningful
-    ///     generic-family equivalent and are never substituted with an unrelated system or bundled
-    ///     font.
+    ///     Thrown when <paramref name="descriptor"/>'s <c>/Flags</c> declares <c>Symbolic</c>
+    ///     without also declaring <c>Nonsymbolic</c> for a <c>/BaseFont</c> other than
+    ///     <c>Symbol</c>/<c>ZapfDingbats</c> - such a font's symbol/dingbat glyph set has no
+    ///     meaningful generic-family equivalent and is never substituted with an unrelated system
+    ///     or bundled font. <c>Symbol</c>/<c>ZapfDingbats</c> itself no longer throws this - see
+    ///     <see cref="ResolveSymbolicNotoFallback"/>.
     /// </exception>
-    private TrueTypeFont ResolveFallbackFont(string baseFontName, PdfObject descriptor)
+    private IReadOnlyList<TrueTypeFont> ResolveFallbackFont(string baseFontName, PdfObject descriptor)
     {
-        if (baseFontName is "Symbol" or "ZapfDingbats" || IsSymbolicWithoutNonsymbolic(descriptor))
+        if (baseFontName is "Symbol" or "ZapfDingbats")
+        {
+            return ResolveSymbolicNotoFallback(baseFontName);
+        }
+
+        if (IsSymbolicWithoutNonsymbolic(descriptor))
         {
             throw new UnsupportedImageFeatureException(
                 "pdf-font-symbolic-not-embedded",
                 $"Font '/BaseFont /{baseFontName}' has no embedded /FontDescriptor/FontFile2; " +
-                "Symbol/ZapfDingbats and other symbolic fonts are never substituted with an " +
-                "unrelated system or bundled font, since their symbol/dingbat glyph sets have " +
-                "no meaningful generic-family equivalent.");
+                "a symbolic font (per /FontDescriptor/Flags) other than Symbol/ZapfDingbats is " +
+                "never substituted with an unrelated system or bundled font, since its " +
+                "symbol/dingbat glyph set has no meaningful generic-family equivalent.");
         }
 
         var (serif, fixedPitch, bold, italic) = ResolveFallbackFlavor(baseFontName, descriptor);
@@ -86,10 +101,35 @@ public sealed partial class PdfDocument
         var match = SystemFontCatalog.FindBestMatch(familyNameHint, bold, italic, serif, fixedPitch);
         if (match is { } found)
         {
-            return LoadFallbackFontFromDisk(found.FilePath, found.FaceIndex);
+            return [LoadFallbackFontFromDisk(found.FilePath, found.FaceIndex)];
         }
 
-        return SystemFontCatalog.LoadBundledFallback(serif, fixedPitch, bold, italic);
+        return [SystemFontCatalog.LoadBundledFallback(serif, fixedPitch, bold, italic)];
+    }
+
+    /// <summary>
+    ///     The bundled Noto substitute font(s) (see <c>Fonts/BundledFonts/README.md</c> for
+    ///     sourcing/licensing provenance), in a fixed glyph-lookup priority order, used in place
+    ///     of the fail-closed policy every other symbolic font still gets: a <c>Symbol</c>
+    ///     <c>/BaseFont</c> tries <c>NotoSans-Regular.ttf</c> (its Greek-letter and general-symbol
+    ///     glyphs) first, then <c>NotoSansMath-Regular.ttf</c> (mathematical operators), then
+    ///     <c>NotoSansSymbols2-Regular.ttf</c> (Private-Use-Area-adjacent/rare symbols); a
+    ///     <c>ZapfDingbats</c> <c>/BaseFont</c> uses only <c>NotoSansSymbols2-Regular.ttf</c>. See
+    ///     <see cref="ResolvedSimpleFont.Resolve"/> for how a multi-font list is searched (first
+    ///     non-zero <see cref="Fonts.TrueTypeFont.GetGlyphIndex"/> wins).
+    /// </summary>
+    /// <param name="baseFontName">Either <c>"Symbol"</c> or <c>"ZapfDingbats"</c>.</param>
+    /// <returns>The ordered Noto substitute font list for <paramref name="baseFontName"/>.</returns>
+    private static IReadOnlyList<TrueTypeFont> ResolveSymbolicNotoFallback(string baseFontName)
+    {
+        return baseFontName == "Symbol"
+            ?
+            [
+                SystemFontCatalog.LoadBundledFallbackCore("NotoSans-Regular.ttf"),
+                SystemFontCatalog.LoadBundledFallbackCore("NotoSansMath-Regular.ttf"),
+                SystemFontCatalog.LoadBundledFallbackCore("NotoSansSymbols2-Regular.ttf"),
+            ]
+            : [SystemFontCatalog.LoadBundledFallbackCore("NotoSansSymbols2-Regular.ttf")];
     }
 
     /// <summary>

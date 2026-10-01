@@ -75,9 +75,6 @@ public sealed partial class PdfDocument
         /// <summary>Gets the font's resolved <c>/FontDescriptor/MissingWidth</c> fallback (in the same glyph-space units as <see cref="Widths"/>), or <c>0</c> when not declared.</summary>
         internal required double MissingWidth { get; init; }
 
-        /// <summary>A Type 3 font has no outline-glyph font program - see this interface member's own remarks.</summary>
-        TrueTypeFont? IResolvedFont.Font => null;
-
         /// <summary>A Type 3 font is always a simple, single-byte-code font per the PDF specification.</summary>
         int IResolvedFont.CodeByteWidth => 1;
 
@@ -91,17 +88,17 @@ public sealed partial class PdfDocument
         ///     vector, not a point), through <see cref="FontMatrix"/> - <em>not</em> divided by a
         ///     fixed <c>1000</c> like <see cref="ResolvedSimpleFont.Resolve"/>, since a Type 3
         ///     font's own <c>/FontMatrix</c> (not a fixed convention) is its documented glyph-
-        ///     space-to-text-space mapping for every glyph-space quantity. Only the transformed
-        ///     vector's horizontal (<c>.X</c>) component is used, matching this codebase's
-        ///     horizontal-writing-mode-only scope. The returned glyph index is always <c>0</c> and
-        ///     is never consulted by <see cref="ShowGlyph"/>'s own <c>ResolvedType3Font</c> branch
-        ///     - see <see cref="PaintType3Glyph"/>'s own glyph-name-keyed lookup instead.
+        ///     space-to-text-space mapping for every glyph-space quantity. The returned font is
+        ///     always <see langword="null"/> (a Type 3 font has no outline-glyph font program at
+        ///     all) and the returned glyph index is always <c>0</c> - neither is ever consulted by
+        ///     <see cref="ShowGlyph"/>'s own <c>ResolvedType3Font</c> branch - see
+        ///     <see cref="PaintType3Glyph"/>'s own glyph-name-keyed lookup instead.
         /// </summary>
-        public (int GlyphIndex, double Width) Resolve(int code)
+        public (TrueTypeFont? Font, int GlyphIndex, double Width) Resolve(int code)
         {
             var glyphSpaceWidth = Widths.TryGetValue(code, out var declaredWidth) ? declaredWidth : MissingWidth;
             var textSpaceWidth = Vector2.TransformNormal(new Vector2((float)glyphSpaceWidth, 0f), FontMatrix).X;
-            return (0, textSpaceWidth);
+            return (null, 0, textSpaceWidth);
         }
     }
 

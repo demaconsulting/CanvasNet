@@ -14,6 +14,8 @@
 // cspell:ignore plusminus questiondown quotedbl quotedblbase quotedblleft quotedblright
 // cspell:ignore quoteleft quoteright quotesinglbase quotesingle scaron threequarters
 // cspell:ignore uacute yacute ydieresis Zapf Nonsymbolic fontfile stdenc
+// cspell:ignore ZapfDingbats Dingbats registerserif registersans copyrightserif copyrightsans
+// cspell:ignore trademarkserif trademarksans radicalex Noto
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Fonts;
 
@@ -39,33 +41,35 @@ public sealed partial class PdfDocument
     private interface IResolvedFont
     {
         /// <summary>
-        ///     Gets the loaded embedded TrueType font backing this resolved font, or
-        ///     <see langword="null"/> for a <c>ResolvedType3Font</c>: a Type 3 font has no
-        ///     outline-glyph font program at all - its glyphs are content-stream procedures (see
-        ///     <c>PdfDocument.Fonts.Type3.cs</c>'s <c>PaintType3Glyph</c>), so this member is
-        ///     never consulted for it. Every non-Type3 concrete implementation declares this as a
-        ///     <see langword="required"/> non-nullable property, so <see cref="ShowGlyph"/>'s own
-        ///     non-Type3 branch may safely null-forgive it.
-        /// </summary>
-        TrueTypeFont? Font { get; }
-
-        /// <summary>
         ///     Gets the number of bytes <see cref="ShowText"/> decodes per character code: <c>1</c>
         ///     for a simple or Type 3 font, <c>2</c> for a composite <c>/Identity-H</c> font.
         /// </summary>
         int CodeByteWidth { get; }
 
         /// <summary>
-        ///     Resolves a single decoded character code to the glyph index <see cref="ShowGlyph"/>
-        ///     paints (meaningless/unused for a <c>ResolvedType3Font</c> - see that type's own
-        ///     remarks), and the code's advance width in text-space units, already converted from
-        ///     the font's own glyph-space convention (1/1000 em for a simple/composite font, via
+        ///     Resolves a single decoded character code to the loaded <see cref="Fonts.TrueTypeFont"/>
+        ///     whose outline <see cref="ShowGlyph"/> paints (<see langword="null"/> for a
+        ///     <c>ResolvedType3Font</c>, since a Type 3 font has no outline-glyph font program at
+        ///     all - its glyphs are content-stream procedures, see
+        ///     <c>PdfDocument.Fonts.Type3.cs</c>'s <c>PaintType3Glyph</c> - so this component is
+        ///     never consulted for it), the resolved glyph index within that font (meaningless/
+        ///     unused for a <c>ResolvedType3Font</c> - see that type's own remarks), and the
+        ///     code's advance width in text-space units, already converted from the font's own
+        ///     glyph-space convention (1/1000 em for a simple/composite font, via
         ///     <c>/FontMatrix</c> for a Type 3 font - see <c>ResolvedType3Font.Resolve</c>'s own
-        ///     remarks), not yet scaled by <see cref="GraphicsState.FontSize"/>.
+        ///     remarks), not yet scaled by <see cref="GraphicsState.FontSize"/>. For a
+        ///     <see cref="ResolvedSimpleFont"/> whose <see cref="ResolvedSimpleFont.Fonts"/> holds
+        ///     more than one candidate font (the <c>Symbol</c>/<c>ZapfDingbats</c> Noto-
+        ///     substitute union - see <c>PdfDocument.FontFallback.cs</c>'s
+        ///     <c>ResolveSymbolicNotoFallback</c>), the returned font is whichever list entry's
+        ///     <see cref="Fonts.TrueTypeFont.GetGlyphIndex"/> first resolves the code's mapped
+        ///     codepoint to a non-zero glyph index, so glyph-outline/advance-width/
+        ///     <see cref="Fonts.TrueTypeFont.UnitsPerEm"/> lookups always stay bound to the same
+        ///     font instance that produced the returned glyph index.
         /// </summary>
         /// <param name="code">The decoded character code (a byte for a simple or Type 3 font, a 16-bit big-endian value for a composite font).</param>
-        /// <returns>The resolved glyph index and text-space advance width.</returns>
-        (int GlyphIndex, double Width) Resolve(int code);
+        /// <returns>The resolved font (or <see langword="null"/> for a Type 3 font), glyph index, and text-space advance width.</returns>
+        (TrueTypeFont? Font, int GlyphIndex, double Width) Resolve(int code);
     }
 
     /// <summary>
@@ -81,10 +85,17 @@ public sealed partial class PdfDocument
     /// </remarks>
     private sealed class ResolvedSimpleFont : IResolvedFont
     {
-        /// <summary>Gets the loaded embedded TrueType font.</summary>
-        internal required TrueTypeFont Font { get; init; }
-
-        TrueTypeFont IResolvedFont.Font => Font;
+        /// <summary>
+        ///     Gets the ordered, non-empty list of candidate loaded TrueType fonts backing this
+        ///     resolved font: every existing resolution path (embedded <c>/FontFile2</c>/
+        ///     <c>/FontFile</c>/<c>/FontFile3</c>, a Standard-14/system-match, or a bundled-
+        ///     Liberation fallback) produces exactly one element here, resolving identically to
+        ///     this type's pre-union single-<c>Font</c> behavior; only the bundled Noto
+        ///     <c>Symbol</c>/<c>ZapfDingbats</c> substitute path (see
+        ///     <c>PdfDocument.FontFallback.cs</c>'s <c>ResolveSymbolicNotoFallback</c>) produces
+        ///     more than one, in a fixed glyph-lookup priority order - see <see cref="Resolve"/>.
+        /// </summary>
+        internal required IReadOnlyList<TrueTypeFont> Fonts { get; init; }
 
         /// <summary>A simple font always decodes exactly one byte per character code.</summary>
         int IResolvedFont.CodeByteWidth => 1;
@@ -96,7 +107,7 @@ public sealed partial class PdfDocument
         ///     "undefined" slot in the base encoding table, never overridden by
         ///     <c>/Differences</c>) - <see cref="ShowText"/> treats such a code as mapping to
         ///     Unicode codepoint <c>0</c>, which almost always resolves to glyph <c>0</c>
-        ///     (<c>.notdef</c>) via <see cref="Fonts.TrueTypeFont.GetGlyphIndex"/>.
+        ///     (<c>.notdef</c>) via <see cref="TrueTypeFont.GetGlyphIndex"/>.
         /// </summary>
         internal required IReadOnlyDictionary<int, int> Encoding { get; init; }
 
@@ -117,29 +128,46 @@ public sealed partial class PdfDocument
         internal required double MissingWidth { get; init; }
 
         /// <summary>
-        ///     Resolves <paramref name="code"/> to a glyph index via <see cref="Encoding"/>/
-        ///     <see cref="Fonts.TrueTypeFont.GetGlyphIndex"/>, and its advance width with the
+        ///     Resolves <paramref name="code"/> to a font and glyph index via <see cref="Encoding"/>/
+        ///     <see cref="TrueTypeFont.GetGlyphIndex"/>, and its advance width with the
         ///     documented priority: an explicit <see cref="Widths"/> entry first, else
-        ///     <see cref="MissingWidth"/> (when nonzero), else the font's own
-        ///     <see cref="Fonts.TrueTypeFont.GetAdvanceWidth"/>/<see cref="Fonts.TrueTypeFont.UnitsPerEm"/>
-        ///     metric.
+        ///     <see cref="MissingWidth"/> (when nonzero), else the winning font's own
+        ///     <see cref="TrueTypeFont.GetAdvanceWidth"/>/<see cref="TrueTypeFont.UnitsPerEm"/>
+        ///     metric. When <see cref="Fonts"/> holds more than one candidate (the <c>Symbol</c>/
+        ///     <c>ZapfDingbats</c> Noto-substitute union), each is tried in list order and the
+        ///     first one whose <see cref="TrueTypeFont.GetGlyphIndex"/> returns a non-zero
+        ///     glyph index wins; when none cover the codepoint, the first font's glyph <c>0</c>
+        ///     (<c>.notdef</c>) is returned instead, exactly matching a single-font resolution's
+        ///     own "no match" behavior.
         /// </summary>
-        public (int GlyphIndex, double Width) Resolve(int code)
+        public (TrueTypeFont? Font, int GlyphIndex, double Width) Resolve(int code)
         {
             var codepoint = Encoding.TryGetValue(code, out var mapped) ? mapped : 0;
-            var glyphIndex = Font.GetGlyphIndex(codepoint);
+
+            var winningFont = Fonts[0];
+            var glyphIndex = 0;
+            foreach (var candidate in Fonts)
+            {
+                var candidateGlyphIndex = candidate.GetGlyphIndex(codepoint);
+                if (candidateGlyphIndex != 0)
+                {
+                    winningFont = candidate;
+                    glyphIndex = candidateGlyphIndex;
+                    break;
+                }
+            }
 
             if (Widths.TryGetValue(code, out var declaredWidth))
             {
-                return (glyphIndex, declaredWidth / 1000.0);
+                return (winningFont, glyphIndex, declaredWidth / 1000.0);
             }
 
             if (MissingWidth != 0)
             {
-                return (glyphIndex, MissingWidth / 1000.0);
+                return (winningFont, glyphIndex, MissingWidth / 1000.0);
             }
 
-            return (glyphIndex, Font.GetAdvanceWidth(glyphIndex) / (double)Font.UnitsPerEm);
+            return (winningFont, glyphIndex, winningFont.GetAdvanceWidth(glyphIndex) / (double)winningFont.UnitsPerEm);
         }
     }
 
@@ -268,8 +296,16 @@ public sealed partial class PdfDocument
     ///     unconditionally: <see cref="ResolveFallbackFont"/> substitutes the closest-matching
     ///     system font, or - when no system font matches - a bundled Liberation Sans/Serif/Mono
     ///     font, fully automatically and silently (no new public API, no "fallback occurred"
-    ///     diagnostics). Only a <c>Symbol</c>/<c>ZapfDingbats</c> (or otherwise symbolic, per
-    ///     <c>/FontDescriptor/Flags</c>) font with no embedded font program still fails
+    ///     diagnostics). A <c>/BaseFont</c> of <c>Symbol</c> or <c>ZapfDingbats</c> resolves
+    ///     instead via a bundled Noto substitute font union (see
+    ///     <c>PdfDocument.FontFallback.cs</c>'s <c>ResolveSymbolicNotoFallback</c>), and that
+    ///     branch's <see cref="ResolvedSimpleFont.Encoding"/> also defaults to
+    ///     <see cref="SymbolEncodingTable"/>/<see cref="ZapfDingbatsEncodingTable"/> (ISO 32000-1
+    ///     Appendix D's own built-in encoding for that font) in place of the usual
+    ///     <see cref="WinAnsiEncodingTable"/> default - an explicit <c>/Encoding</c> dictionary's
+    ///     <c>/Differences</c> still applies on top, exactly as for any other simple font. Any
+    ///     other symbolic font (one whose <c>/FontDescriptor/Flags</c> declares <c>Symbolic</c>
+    ///     without also declaring <c>Nonsymbolic</c>) with no embedded font program still fails
     ///     closed, since such a font's glyph set has no meaningful generic-family equivalent - see
     ///     the <see cref="PdfDocument"/> class remarks and <c>PdfDocument.FontFallback.cs</c>. A
     ///     <c>/Subtype /Type1</c> descriptor's <c>/FontFile3</c> is only ever attempted via
@@ -287,8 +323,8 @@ public sealed partial class PdfDocument
     ///     or Type1C program.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when a <c>Symbol</c>/<c>ZapfDingbats</c>/symbolic font has no embedded font
-    ///     program (see <see cref="ResolveFallbackFont"/>), or propagated from
+    ///     Thrown when a symbolic font other than <c>Symbol</c>/<c>ZapfDingbats</c> has no
+    ///     embedded font program (see <see cref="ResolveFallbackFont"/>), or propagated from
     ///     <see cref="LoadType1CFont"/> when a <c>/Subtype /Type1</c> descriptor's
     ///     <c>/FontFile3</c> stream declares a <c>/Subtype</c> other than <c>Type1C</c>.
     /// </exception>
@@ -304,7 +340,8 @@ public sealed partial class PdfDocument
 
         var fontFile2Entry = descriptor.Get("FontFile2");
         var fontFileEntry = descriptor.Get("FontFile");
-        TrueTypeFont font;
+        IReadOnlyList<TrueTypeFont> fonts;
+        int[]? defaultBaseTable = null;
         if (fontFile2Entry is not null)
         {
             var fontFileStream = Resolve(fontFile2Entry);
@@ -314,29 +351,35 @@ public sealed partial class PdfDocument
             }
 
             var fontBytes = GetStreamDecodedBytes(fontFileStream);
-            font = TrueTypeFont.Load(new MemoryStream(fontBytes));
+            fonts = [TrueTypeFont.Load(new MemoryStream(fontBytes))];
         }
         else if (fontFileEntry is not null)
         {
-            font = LoadType1Font(descriptor);
+            fonts = [LoadType1Font(descriptor)];
         }
         else if (subtype == "Type1" && descriptor.Get("FontFile3") is not null)
         {
-            font = LoadType1CFont(descriptor);
+            fonts = [LoadType1CFont(descriptor)];
         }
         else
         {
             var baseFontName = GetNameValue(fontDict, "BaseFont")
                 ?? throw new InvalidDataException("Font dictionary is missing required /BaseFont.");
-            font = ResolveFallbackFont(baseFontName, descriptor);
+            fonts = ResolveFallbackFont(baseFontName, descriptor);
+            defaultBaseTable = baseFontName switch
+            {
+                "Symbol" => SymbolEncodingTable,
+                "ZapfDingbats" => ZapfDingbatsEncodingTable,
+                _ => null,
+            };
         }
 
-        var encoding = ResolveEncoding(fontDict.Get("Encoding"));
+        var encoding = ResolveEncoding(fontDict.Get("Encoding"), defaultBaseTable);
         var (widths, missingWidth) = ResolveWidths(fontDict, descriptor);
 
         return new ResolvedSimpleFont
         {
-            Font = font,
+            Fonts = fonts,
             Encoding = encoding,
             Widths = widths,
             MissingWidth = missingWidth,
@@ -346,12 +389,24 @@ public sealed partial class PdfDocument
     /// <summary>
     ///     Resolves a font dictionary's <c>/Encoding</c> entry into a full 256-entry code-to-
     ///     Unicode-codepoint map, applying the named base encoding (defaulting to
-    ///     <c>/WinAnsiEncoding</c> when <c>/Encoding</c> is absent) and any <c>/Differences</c>
-    ///     overrides.
+    ///     <paramref name="defaultBaseTable"/>, or <c>/WinAnsiEncoding</c> when
+    ///     <paramref name="defaultBaseTable"/> is <see langword="null"/>, when <c>/Encoding</c> is
+    ///     absent) and any <c>/Differences</c> overrides.
     /// </summary>
     /// <param name="encodingEntry">
     ///     The font dictionary's <c>/Encoding</c> entry (a name, a dictionary, or
     ///     <see langword="null"/> when absent).
+    /// </param>
+    /// <param name="defaultBaseTable">
+    ///     The 256-entry code-to-Unicode-codepoint table to seed the result from when
+    ///     <paramref name="encodingEntry"/> supplies no base encoding name of its own, or
+    ///     <see langword="null"/> (the default for every font other than a bundled-Noto-
+    ///     substituted <c>Symbol</c>/<c>ZapfDingbats</c>) to fall back to
+    ///     <see cref="WinAnsiEncodingTable"/> - see <see cref="SymbolEncodingTable"/>/
+    ///     <see cref="ZapfDingbatsEncodingTable"/> and <see cref="BuildResolvedSimpleFont"/>'s own
+    ///     remarks for the one case that passes a non-null value. An explicit <c>/Encoding</c>
+    ///     dictionary's <c>/BaseEncoding</c> name or <c>/Differences</c> array still applies on
+    ///     top of this default exactly as before, regardless of which table seeds it.
     /// </param>
     /// <returns>A code-to-codepoint map covering every code with a defined mapping.</returns>
     /// <exception cref="InvalidDataException">
@@ -367,9 +422,9 @@ public sealed partial class PdfDocument
     ///     Thrown when the named base encoding is neither <c>/WinAnsiEncoding</c>,
     ///     <c>/MacRomanEncoding</c>, nor <c>/StandardEncoding</c>.
     /// </exception>
-    private IReadOnlyDictionary<int, int> ResolveEncoding(PdfObject? encodingEntry)
+    private IReadOnlyDictionary<int, int> ResolveEncoding(PdfObject? encodingEntry, int[]? defaultBaseTable = null)
     {
-        var table = (int[])WinAnsiEncodingTable.Clone();
+        var table = (int[])(defaultBaseTable ?? WinAnsiEncodingTable).Clone();
         PdfObject? differences = null;
 
         if (encodingEntry is not null)
@@ -960,6 +1015,116 @@ public sealed partial class PdfDocument
         0x0141, 0x00D8, 0x0152, 0x00BA, 0x0000, 0x0000, 0x0000, 0x0000,
         0x0000, 0x00E6, 0x0000, 0x0000, 0x0000, 0x0131, 0x0000, 0x0000,
         0x0142, 0x00F8, 0x0153, 0x00DF, 0x0000, 0x0000, 0x0000, 0x0000,
+    ];
+
+    /// <summary>
+    ///     Implements PDF 32000-1 Appendix D's "Symbol Set and ZapfDingbats Encoding" table (the
+    ///     <c>Symbol</c> column): the built-in encoding of the Standard-14 <c>Symbol</c> font, as
+    ///     a 256-entry code-to-Unicode-codepoint table (<c>0</c> for an undefined code). Used by
+    ///     <see cref="ResolveEncoding"/> as the default base table (in place of
+    ///     <see cref="WinAnsiEncodingTable"/>) only for a <c>/BaseFont /Symbol</c> font resolved
+    ///     via the bundled Noto substitute path - see <see cref="BuildResolvedSimpleFont"/>'s own
+    ///     remarks.
+    /// </summary>
+    /// <remarks>
+    ///     Six Private-Use-Area-only glyph names (<c>registerserif</c>/<c>registersans</c>,
+    ///     <c>copyrightserif</c>/<c>copyrightsans</c>, <c>trademarkserif</c>/<c>trademarksans</c>)
+    ///     are deliberately mapped to their plain/generic Unicode equivalent (U+00AE, U+00A9, and
+    ///     U+2122 respectively) rather than left unmapped, since a generic substitute font has no
+    ///     reason to carry the Symbol font's own Private-Use-Area glyph variants. Roughly 20 other
+    ///     Private-Use-Area-only glyph names (extensible delimiter pieces, for example
+    ///     <c>radicalex</c>) are deliberately left as <c>0x0000</c> (unmapped), since they have no
+    ///     meaningful standalone Unicode equivalent. Of the 163 distinct mapped codepoints this
+    ///     table defines, 161 are covered by the bundled Noto substitute fonts (see
+    ///     <c>Fonts/BundledFonts/README.md</c>) - only U+2329/U+232A (codes <c>0xE1</c>/<c>0xD1</c>)
+    ///     are not - a documented, accepted fidelity limitation.
+    /// </remarks>
+    private static readonly int[] SymbolEncodingTable =
+    [
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0020, 0x0021, 0x2200, 0x0023, 0x2203, 0x0025, 0x0026, 0x220B,
+        0x0028, 0x0029, 0x2217, 0x002B, 0x002C, 0x2212, 0x002E, 0x002F,
+        0x0030, 0x0031, 0x0032, 0x0033, 0x0034, 0x0035, 0x0036, 0x0037,
+        0x0038, 0x0039, 0x003A, 0x003B, 0x003C, 0x003D, 0x003E, 0x003F,
+        0x2245, 0x0391, 0x0392, 0x03A7, 0x2206, 0x0395, 0x03A6, 0x0393,
+        0x0397, 0x0399, 0x03D1, 0x039A, 0x039B, 0x039C, 0x039D, 0x039F,
+        0x03A0, 0x0398, 0x03A1, 0x03A3, 0x03A4, 0x03A5, 0x03C2, 0x2126,
+        0x039E, 0x03A8, 0x0396, 0x005B, 0x2234, 0x005D, 0x22A5, 0x005F,
+        0x0000, 0x03B1, 0x03B2, 0x03C7, 0x03B4, 0x03B5, 0x03C6, 0x03B3,
+        0x03B7, 0x03B9, 0x03D5, 0x03BA, 0x03BB, 0x00B5, 0x03BD, 0x03BF,
+        0x03C0, 0x03B8, 0x03C1, 0x03C3, 0x03C4, 0x03C5, 0x03D6, 0x03C9,
+        0x03BE, 0x03C8, 0x03B6, 0x007B, 0x007C, 0x007D, 0x223C, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x20AC, 0x03D2, 0x2032, 0x2264, 0x2044, 0x221E, 0x0192, 0x2663,
+        0x2666, 0x2665, 0x2660, 0x2194, 0x2190, 0x2191, 0x2192, 0x2193,
+        0x00B0, 0x00B1, 0x2033, 0x2265, 0x00D7, 0x221D, 0x2202, 0x2022,
+        0x00F7, 0x2260, 0x2261, 0x2248, 0x2026, 0x0000, 0x0000, 0x21B5,
+        0x2135, 0x2111, 0x211C, 0x2118, 0x2297, 0x2295, 0x2205, 0x2229,
+        0x222A, 0x2283, 0x2287, 0x2284, 0x2282, 0x2286, 0x2208, 0x2209,
+        0x2220, 0x2207, 0x00AE, 0x00A9, 0x2122, 0x220F, 0x221A, 0x22C5,
+        0x00AC, 0x2227, 0x2228, 0x21D4, 0x21D0, 0x21D1, 0x21D2, 0x21D3,
+        0x25CA, 0x2329, 0x00AE, 0x00A9, 0x2122, 0x2211, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x232A, 0x222B, 0x2320, 0x0000, 0x2321, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+    ];
+
+    /// <summary>
+    ///     Implements PDF 32000-1 Appendix D's "Symbol Set and ZapfDingbats Encoding" table (the
+    ///     <c>ZapfDingbats</c> column): the built-in encoding of the Standard-14
+    ///     <c>ZapfDingbats</c> font, as a 256-entry code-to-Unicode-codepoint table (<c>0</c> for
+    ///     an undefined code). Used by <see cref="ResolveEncoding"/> as the default base table (in
+    ///     place of <see cref="WinAnsiEncodingTable"/>) only for a <c>/BaseFont /ZapfDingbats</c>
+    ///     font resolved via the bundled Noto substitute path - see
+    ///     <see cref="BuildResolvedSimpleFont"/>'s own remarks.
+    /// </summary>
+    /// <remarks>
+    ///     Of the 202 distinct mapped codepoints this table defines, 158 are covered by the
+    ///     bundled <c>NotoSansSymbols2-Regular.ttf</c> substitute font (see
+    ///     <c>Fonts/BundledFonts/README.md</c>) - the circled-digit Dingbats U+2460-U+2469 and
+    ///     U+2776-U+2793, and U+271D/U+271E/U+271F/U+2721, are not - a documented, accepted
+    ///     fidelity limitation.
+    /// </remarks>
+    private static readonly int[] ZapfDingbatsEncodingTable =
+    [
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0020, 0x2701, 0x2702, 0x2703, 0x2704, 0x260E, 0x2706, 0x2707,
+        0x2708, 0x2709, 0x261B, 0x261E, 0x270C, 0x270D, 0x270E, 0x270F,
+        0x2710, 0x2711, 0x2712, 0x2713, 0x2714, 0x2715, 0x2716, 0x2717,
+        0x2718, 0x2719, 0x271A, 0x271B, 0x271C, 0x271D, 0x271E, 0x271F,
+        0x2720, 0x2721, 0x2722, 0x2723, 0x2724, 0x2725, 0x2726, 0x2727,
+        0x2605, 0x2729, 0x272A, 0x272B, 0x272C, 0x272D, 0x272E, 0x272F,
+        0x2730, 0x2731, 0x2732, 0x2733, 0x2734, 0x2735, 0x2736, 0x2737,
+        0x2738, 0x2739, 0x273A, 0x273B, 0x273C, 0x273D, 0x273E, 0x273F,
+        0x2740, 0x2741, 0x2742, 0x2743, 0x2744, 0x2745, 0x2746, 0x2747,
+        0x2748, 0x2749, 0x274A, 0x274B, 0x25CF, 0x274D, 0x25A0, 0x274F,
+        0x2750, 0x2751, 0x2752, 0x25B2, 0x25BC, 0x25C6, 0x2756, 0x25D7,
+        0x2758, 0x2759, 0x275A, 0x275B, 0x275C, 0x275D, 0x275E, 0x0000,
+        0x2768, 0x2769, 0x276A, 0x276B, 0x276C, 0x276D, 0x276E, 0x276F,
+        0x2770, 0x2771, 0x2772, 0x2773, 0x2774, 0x2775, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x2761, 0x2762, 0x2763, 0x2764, 0x2765, 0x2766, 0x2767,
+        0x2663, 0x2666, 0x2665, 0x2660, 0x2460, 0x2461, 0x2462, 0x2463,
+        0x2464, 0x2465, 0x2466, 0x2467, 0x2468, 0x2469, 0x2776, 0x2777,
+        0x2778, 0x2779, 0x277A, 0x277B, 0x277C, 0x277D, 0x277E, 0x277F,
+        0x2780, 0x2781, 0x2782, 0x2783, 0x2784, 0x2785, 0x2786, 0x2787,
+        0x2788, 0x2789, 0x278A, 0x278B, 0x278C, 0x278D, 0x278E, 0x278F,
+        0x2790, 0x2791, 0x2792, 0x2793, 0x2794, 0x2192, 0x2194, 0x2195,
+        0x2798, 0x2799, 0x279A, 0x279B, 0x279C, 0x279D, 0x279E, 0x279F,
+        0x27A0, 0x27A1, 0x27A2, 0x27A3, 0x27A4, 0x27A5, 0x27A6, 0x27A7,
+        0x27A8, 0x27A9, 0x27AA, 0x27AB, 0x27AC, 0x27AD, 0x27AE, 0x27AF,
+        0x0000, 0x27B1, 0x27B2, 0x27B3, 0x27B4, 0x27B5, 0x27B6, 0x27B7,
+        0x27B8, 0x27B9, 0x27BA, 0x27BB, 0x27BC, 0x27BD, 0x27BE, 0x0000,
     ];
 
     /// <summary>

@@ -1,6 +1,6 @@
 # CanvasNet
 
-<!-- cspell:ignore SFNT codepoints -->
+<!-- cspell:ignore SFNT codepoints Noto Zapf -->
 <!-- IMPORTANT: All links in this file must be absolute URLs.
      This file is distributed in packages and relative links will not resolve. -->
 
@@ -366,6 +366,15 @@ fallback font by `PdfDocument`'s automatic font-substitution feature. These font
 `src/DemaConsulting.CanvasNet/Fonts/BundledFonts/OFL.txt` and
 `src/DemaConsulting.CanvasNet/Fonts/BundledFonts/README.md` for the full license text and
 sourcing/provenance details.
+
+The `DemaConsulting.CanvasNet` package also bundles the Noto Sans, Noto Sans Math, and Noto Sans
+Symbols 2 TrueType fonts (`NotoSans-Regular.ttf`, `NotoSansMath-Regular.ttf`,
+`NotoSansSymbols2-Regular.ttf`) as embedded resources, used as the dedicated substitute font for
+`Symbol`/`ZapfDingbats` text by `PdfDocument`'s automatic font-substitution feature. These fonts
+are part of the Noto Project, licensed under the SIL Open Font License, Version 1.1; see
+`src/DemaConsulting.CanvasNet/Fonts/BundledFonts/NotoFonts-OFL.txt` and the "Noto Substitute
+Fonts" section of `src/DemaConsulting.CanvasNet/Fonts/BundledFonts/README.md` for the full license
+text and sourcing/provenance details.
 
 ## Support
 

@@ -1,4 +1,4 @@
-// cspell:ignore xobject devicergb Zapf Nonsymbolic OTTO cidfonttype
+// cspell:ignore xobject devicergb Zapf Nonsymbolic OTTO cidfonttype Noto
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Fonts;
 
@@ -618,17 +618,87 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render"/> still fails closed end to end (Phase 6) for a
-    ///     <c>/BaseFont /Symbol</c> font with no embedded <c>/FontFile2</c>: Symbol/ZapfDingbats
-    ///     fonts are never substituted with an unrelated system or bundled font.
+    ///     Proves <see cref="PdfDocument.Render"/> resolves a <c>/BaseFont /Symbol</c> font with
+    ///     no embedded <c>/FontFile2</c> and no <c>/FontDescriptor</c> entries at all (PDF
+    ///     32000-1 §9.6.2.2 permits an entirely absent/empty descriptor) end to end (Phase 6):
+    ///     Symbol/ZapfDingbats no longer fail closed, instead resolving via the bundled Noto
+    ///     substitute font union and painting real, visible glyph ink - the same
+    ///     "actually painted ink, not merely did not throw" assertion style as the Standard-14
+    ///     Helvetica fallback test above.
     /// </summary>
     [Fact]
-    public void CanvasNetPdf_SystemIntegration_RenderSymbolFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException()
+    public void CanvasNetPdf_SystemIntegration_RenderSymbolFontWithoutEmbeddedFont_PaintsVisibleGlyphInk()
     {
-        // Arrange: a synthetic single-page PDF with a /Symbol font resource and no /FontFile2
+        // Arrange: a synthetic single-page PDF with a /Symbol font resource, no /FontFile2, and
+        // an entirely empty /FontDescriptor
         var bytes = BuildSyntheticFontFallbackPdf(
-            "/Type /FontDescriptor",
-            "/Type /Font /Subtype /TrueType /BaseFont /Symbol",
+            string.Empty,
+            "/Type /Font /Subtype /TrueType /BaseFont /Symbol /FirstChar 97 /LastChar 97 /Widths [600]",
+            "BT /F1 60 Tf 20 30 Td (a) Tj ET");
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var surface = document.Render(0, 100, 100);
+
+        // Assert: at least one visibly-painted (non-transparent) pixel proves a real Noto
+        // substitute glyph was actually rendered, not merely that no exception was thrown.
+        var paintedAnyPixel = false;
+        for (var y = 0; y < surface.Height && !paintedAnyPixel; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                if (surface[x, y].A > 0)
+                {
+                    paintedAnyPixel = true;
+                    break;
+                }
+            }
+        }
+
+        Assert.True(paintedAnyPixel, "Expected the Symbol Noto-substitute-resolved font to paint visible glyph ink.");
+    }
+
+    /// <summary>
+    ///     Proves, via the full production round-trip (<see cref="SystemFontCatalog.LoadBundledFallback"/>'s
+    ///     embedded-resource-loading path, loading <c>NotoSans-Regular.ttf</c> the same way
+    ///     <c>PdfDocument.FontFallback.cs</c>'s <c>ResolveSymbolicNotoFallback</c> does for the
+    ///     <c>Symbol</c> substitute's primary font) that Symbol code <c>0x61</c> ('alpha', per
+    ///     PDF 32000-1 Appendix D's Symbol encoding, mapped to Unicode U+03B1) resolves to a
+    ///     nonzero, valid glyph index - proving the bundled substitute font genuinely carries a
+    ///     real Greek alpha glyph, not merely that the pipeline declines to throw.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_NotoSansRegularBundledFont_ResolvesSymbolAlphaToNonzeroGlyphIndex()
+    {
+        // Arrange: load the exact same embedded resource the Symbol fallback path loads
+        using var stream = typeof(SystemFontCatalog).Assembly.GetManifestResourceStream(
+            "DemaConsulting.CanvasNet.Fonts.BundledFonts.NotoSans-Regular.ttf");
+        Assert.NotNull(stream);
+        var font = TrueTypeFont.Load(stream);
+
+        // Act: Symbol code 0x61 ('alpha') maps to Unicode U+03B1 per the Symbol encoding table
+        var glyphIndex = font.GetGlyphIndex(0x03B1);
+
+        // Assert: a real, non-.notdef glyph exists for Greek alpha in this substitute font
+        Assert.NotEqual(0, glyphIndex);
+    }
+
+    /// <summary>
+    ///     Regression guard: proves <see cref="PdfDocument.Render"/> still fails closed end to
+    ///     end (Phase 6) for a non-Symbol/ZapfDingbats font whose <c>/FontDescriptor/Flags</c>
+    ///     declares the <c>Symbolic</c> bit without also declaring <c>Nonsymbolic</c>, and has no
+    ///     embedded <c>/FontFile2</c> - proving the new Symbol/ZapfDingbats Noto-substitution
+    ///     path introduced by this feature did not loosen the fail-closed policy for any other
+    ///     symbolic font.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_RenderOtherSymbolicFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange: a synthetic single-page PDF with a non-Symbol/ZapfDingbats symbolic font
+        // resource (Flags = 4, Symbolic bit only) and no /FontFile2
+        var bytes = BuildSyntheticFontFallbackPdf(
+            "/Type /FontDescriptor /Flags 4",
+            "/Type /Font /Subtype /TrueType /BaseFont /SomeCustomSymbolFont",
             "BT /F1 20 Tf (A) Tj ET");
 
         // Act & Assert

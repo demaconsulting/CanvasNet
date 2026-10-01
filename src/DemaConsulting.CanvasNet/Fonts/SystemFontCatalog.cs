@@ -1,4 +1,4 @@
-// cspell:ignore Dejavu Nimbus Consolas ttcf rescanned Segoe LOCALAPPDATA
+// cspell:ignore Dejavu Nimbus Consolas ttcf rescanned Segoe LOCALAPPDATA Noto Zapf
 using System.Runtime.InteropServices;
 
 namespace DemaConsulting.CanvasNet.Fonts;
@@ -262,7 +262,12 @@ public static class SystemFontCatalog
     ///     Resolves (and process-lifetime-caches) a bundled embedded-resource font by its bundled
     ///     file name, exposed separately from <see cref="LoadBundledFallback"/> so a test can
     ///     exercise the missing-resource defensive guard with a deliberately-wrong file name
-    ///     without needing to delete a real embedded resource.
+    ///     without needing to delete a real embedded resource. This method is also called
+    ///     directly, cross-assembly (via <c>InternalsVisibleTo</c>), by
+    ///     <c>DemaConsulting.CanvasNet.Pdf</c>'s own <c>PdfDocument.FontFallback.cs</c> to load
+    ///     the bundled Noto substitute font(s) for a <c>Symbol</c>/<c>ZapfDingbats</c>
+    ///     <c>/BaseFont</c> with no embedded font program - this is deliberate reuse of this
+    ///     method's embedded-resource-loading and caching logic, not duplication of it.
     /// </summary>
     /// <param name="bundledFileName">
     ///     The bundled file's name (for example <c>"LiberationSans-Bold.ttf"</c>), used both as

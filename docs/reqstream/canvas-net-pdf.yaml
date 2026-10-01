@@ -1,4 +1,6 @@
 ---
+# cspell:ignore Noto
+#
 # Software System Requirements for CanvasNetPdf
 #
 # These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.Pdf
@@ -220,17 +222,19 @@ sections:
         title: >-
           The library shall render simple (single-byte-encoded) font text: resolving a page's
           referenced fonts (falling back to a matching system or bundled font when no
-          /FontFile2-embedded font data is present, but never substituting a symbolic font such as
-          Symbol/ZapfDingbats with an unrelated font), applying the font's encoding and advance
-          widths (declared /Widths, or the font's own metrics when undeclared), maintaining
-          per-text-object state (Tf/Tr/text-positioning operators), and painting each shown
-          glyph's outline at its correctly positioned/scaled device location.
+          /FontFile2-embedded font data is present, with Symbol/ZapfDingbats instead resolving via
+          a dedicated bundled Noto substitute font rather than an unrelated system/bundled font),
+          applying the font's encoding and advance widths (declared /Widths, or the font's own
+          metrics when undeclared), maintaining per-text-object state (Tf/Tr/text-positioning
+          operators), and painting each shown glyph's outline at its correctly positioned/scaled
+          device location.
         tags: [system]
         justification: |
           Callers need a document's text content to actually appear as recognizable glyph shapes
           in their document-correct position, whether or not the document embeds its own font
-          data, while still failing closed (rather than rendering visually wrong substitute
-          glyphs) for symbolic fonts with no embedded font data.
+          data, with Symbol/ZapfDingbats resolving via a dedicated Noto substitute font, while
+          still failing closed (rather than rendering visually wrong substitute glyphs) for every
+          other symbolic font with no embedded font data.
         children:
           - CanvasNetPdf-PdfDocument-FontResolution
           - CanvasNetPdf-PdfDocument-FontFallback
@@ -246,7 +250,8 @@ sections:
         tests:
           - CanvasNetPdf_SystemIntegration_PdfRender_EmbeddedTrueTypeFontText_PaintsGlyphStrokesNotCounters
           - CanvasNetPdf_SystemIntegration_RenderStandard14HelveticaWithoutEmbeddedFont_PaintsVisibleGlyphInk
-          - CanvasNetPdf_SystemIntegration_RenderSymbolFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException
+          - CanvasNetPdf_SystemIntegration_RenderSymbolFontWithoutEmbeddedFont_PaintsVisibleGlyphInk
+          - CanvasNetPdf_SystemIntegration_RenderOtherSymbolicFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException
 
       - id: CanvasNetPdf-CompositeFontTextRendering
         title: >-

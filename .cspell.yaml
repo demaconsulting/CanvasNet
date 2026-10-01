@@ -318,3 +318,4 @@ ignorePaths:
   - package-lock.json
   - "**/PngSuite/**"
   - "src/DemaConsulting.CanvasNet/Fonts/BundledFonts/OFL.txt"
+  - "src/DemaConsulting.CanvasNet/Fonts/BundledFonts/NotoFonts-OFL.txt"

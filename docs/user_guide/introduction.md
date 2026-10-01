@@ -5,6 +5,7 @@
 <!-- cspell:ignore unitless -->
 <!-- cspell:ignore Zapf -->
 <!-- cspell:ignore SASLprep -->
+<!-- cspell:ignore Noto -->
 
 ## Purpose
 
@@ -1100,10 +1101,20 @@ and, when nothing on the host machine matches, with a bundled Liberation Sans/Se
 that ships with the `DemaConsulting.CanvasNet` package and is therefore always available. A
 recognized Standard-14 name (`Helvetica`, `Times-Roman`, `Courier`, and their bold/italic
 variants, and so on) is classified by a fixed, built-in table; any other non-embedded font's
-style is derived from its `/FontDescriptor` flags/weight/angle. `Symbol` and `ZapfDingbats` (and
-any other font whose `/FontDescriptor` marks it as a symbolic, non-Latin-text glyph set) are
-never substituted this way, since a symbol/dingbat glyph set has no meaningful generic-family
-equivalent - these still fail closed with `UnsupportedImageFeatureException`, exactly as a
+style is derived from its `/FontDescriptor` flags/weight/angle. `Symbol` and `ZapfDingbats`
+(matched by exact `/BaseFont` name) instead resolve via a dedicated, bundled Noto substitute font:
+`Symbol` tries `NotoSans-Regular.ttf` (Greek letters and general symbols), then
+`NotoSansMath-Regular.ttf` (mathematical operators), then `NotoSansSymbols2-Regular.ttf`
+(Private-Use-Area-adjacent/rare symbols), in that priority order; `ZapfDingbats` uses
+`NotoSansSymbols2-Regular.ttf` alone - using the Symbol/ZapfDingbats built-in encoding (PDF
+32000-1 Appendix D) rather than treating them like any other Latin-text font. This is a
+documented, accepted fidelity limitation, not full glyph coverage: of Symbol's 163 distinct
+mapped codepoints, 161 are covered (only U+2329/U+232A are not); of ZapfDingbats' 202 distinct
+mapped codepoints, 158 are covered (the circled-digit Dingbats and a handful of others are not).
+Any other font whose `/FontDescriptor` marks it as a symbolic, non-Latin-text glyph set is
+never substituted this way, since a symbol/dingbat glyph set with no bundled substitute has no
+meaningful generic-family
+equivalent - it still fails closed with `UnsupportedImageFeatureException`, exactly as a
 non-embedded font of any kind did before this fallback behavior existed. **Documented scope
 boundaries**: `/Type0` (composite), `/Type1`, `/MMType1`, `/Type3` fonts, Form XObjects,
 shading/patterns/transparency groups, and stroke/clip text-rendering modes all fail closed with
@@ -1221,8 +1232,9 @@ is not clamped or derived from the page's own `/MediaBox` size.
   operand count/type, an unresolvable font resource name, or a text-showing operator invoked with
   no font selected.
 - `UnsupportedImageFeatureException`: Thrown for a well-formed but unsupported color space,
-  stream filter, Form XObject, font subtype (`/Type0`/`/Type1`/`/MMType1`/`/Type3`), a
-  `Symbol`/`ZapfDingbats`/otherwise-symbolic font with no embedded font data, font encoding, or
+  stream filter, Form XObject, font subtype (`/Type0`/`/Type1`/`/MMType1`/`/Type3`), an
+  otherwise-symbolic font (other than `Symbol`/`ZapfDingbats`, which resolve via a bundled Noto
+  substitute instead) with no embedded font data, font encoding, or
   text-rendering mode.
 - `ObjectDisposedException`: Thrown when called after `Dispose()` has been called.
 

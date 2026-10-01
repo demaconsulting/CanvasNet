@@ -28,8 +28,6 @@ public sealed partial class PdfDocument
         /// <summary>Gets the loaded embedded descendant-font TrueType font.</summary>
         internal required TrueTypeFont Font { get; init; }
 
-        TrueTypeFont IResolvedFont.Font => Font;
-
         /// <summary>
         ///     A composite <c>/Identity-H</c> font always decodes exactly two (big-endian) bytes
         ///     per character code.
@@ -68,15 +66,15 @@ public sealed partial class PdfDocument
 
         /// <summary>
         ///     Resolves a two-byte <c>/Identity-H</c> code (which, per the PDF specification, is
-        ///     the CID directly - no CMap indirection) to a glyph index via
+        ///     the CID directly - no CMap indirection) to this font and a glyph index via
         ///     <see cref="CidToGid"/>, and its advance width from <see cref="CidWidths"/>,
         ///     falling back to <see cref="DefaultWidth"/> when the CID has no declared width.
         /// </summary>
-        public (int GlyphIndex, double Width) Resolve(int code)
+        public (TrueTypeFont? Font, int GlyphIndex, double Width) Resolve(int code)
         {
             var glyphIndex = CidToGid(code);
             var width = CidWidths.TryGetValue(code, out var declaredWidth) ? declaredWidth : DefaultWidth;
-            return (glyphIndex, width / 1000.0);
+            return (Font, glyphIndex, width / 1000.0);
         }
     }
 

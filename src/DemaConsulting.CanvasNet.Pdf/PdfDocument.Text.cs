@@ -336,7 +336,7 @@ public sealed partial class PdfDocument
     ///     for the single-byte code <c>32</c> of a simple font - never for any code decoded from
     ///     a composite font, even one that numerically equals <c>32</c>, since word spacing
     ///     "shall not apply to occurrences of the byte value 32 in multiple-byte codes"). Branches
-    ///     early, before ever touching <see cref="IResolvedFont.Font"/>, on whether
+    ///     early, before using <see cref="IResolvedFont.Resolve"/>'s resolved font, on whether
     ///     <paramref name="font"/> is a <c>ResolvedType3Font</c> (painted via
     ///     <c>PaintType3Glyph</c>'s own content-stream re-entrance - see
     ///     <c>PdfDocument.Fonts.Type3.cs</c>) or any other concrete implementation (painted via
@@ -345,16 +345,16 @@ public sealed partial class PdfDocument
     /// </summary>
     private void ShowGlyph(IResolvedFont font, int code)
     {
-        var (glyphIndex, w0) = font.Resolve(code);
+        var (ttf, glyphIndex, w0) = font.Resolve(code);
 
         if (font is ResolvedType3Font type3Font)
         {
             // A Type 3 font has no outline-glyph font program at all - its glyphs are content-
             // stream procedures, painted via PaintType3Glyph's own Form-XObject-style re-entrant
-            // execution, never via font.Font (which is null for a ResolvedType3Font - see
-            // IResolvedFont.Font's own remarks). Render-mode-3 (invisible) skips glyph-procedure
-            // execution entirely, exactly like the non-Type3 branch below skips
-            // GetGlyphOutline/fill entirely in that mode.
+            // execution, never via the font Resolve returns (which is null for a
+            // ResolvedType3Font - see IResolvedFont.Resolve's own remarks). Render-mode-3
+            // (invisible) skips glyph-procedure execution entirely, exactly like the non-Type3
+            // branch below skips GetGlyphOutline/fill entirely in that mode.
             if (_gs.RenderMode != 3)
             {
                 PaintType3Glyph(type3Font, code);
@@ -362,15 +362,14 @@ public sealed partial class PdfDocument
         }
         else if (_gs.RenderMode != 3)
         {
-            // Every non-Type3 IResolvedFont implementation declares Font as a required,
-            // non-nullable property - see ResolvedSimpleFont/ResolvedCompositeFont - so this
-            // null-forgiving use is safe.
-            var ttf = font.Font!;
-            var outline = ttf.GetGlyphOutline(glyphIndex);
+            // Every non-Type3 IResolvedFont implementation's Resolve returns a non-null font -
+            // see ResolvedSimpleFont/ResolvedCompositeFont - so this null-forgiving use is safe.
+            var resolvedTtf = ttf!;
+            var outline = resolvedTtf.GetGlyphOutline(glyphIndex);
             if (outline.Subpaths.Count > 0)
             {
                 var trm = ComputeTextRenderingMatrix();
-                var glyphMatrix = Matrix3x2.CreateScale(1f / ttf.UnitsPerEm) * trm;
+                var glyphMatrix = Matrix3x2.CreateScale(1f / resolvedTtf.UnitsPerEm) * trm;
                 var builder = new PathBuilder();
                 AppendTransformedGlyphOutline(builder, outline, glyphMatrix);
                 PathFiller.Fill(_surface, builder.Build(), _gs.FillColor, FillRule.NonZero);
