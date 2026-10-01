@@ -4097,9 +4097,15 @@ public class PdfDocumentTests
         Assert.Equal(default, surface[11, 44]);
     }
 
-    /// <summary>Proves that a <c>/Differences</c> array containing an unrecognized glyph name throws <see cref="InvalidDataException"/>.</summary>
+    /// <summary>
+    ///     Proves that a <c>/Differences</c> array referencing an unrecognized glyph name is
+    ///     tolerated rather than rejected: the affected code is simply left at whatever its base
+    ///     encoding already assigned it (here, WinAnsiEncoding's own default mapping of code 65 to
+    ///     <c>U+0041</c>), so the glyph still paints via the embedded font's own <c>cmap</c>
+    ///     mapping for that unchanged codepoint.
+    /// </summary>
     [Fact]
-    public void PdfDocument_Fonts_Differences_UnrecognizedGlyphName_ThrowsInvalidDataException()
+    public void PdfDocument_Fonts_Differences_UnrecognizedGlyphName_FallsBackToBaseEncoding()
     {
         // Arrange
         var fontBytes = BuildEmbeddedFontBytes([(65, 1)]);
@@ -4108,10 +4114,14 @@ public class PdfDocumentTests
             fontDictExtra: "/FirstChar 65 /LastChar 66 /Widths [600 600] " +
                            "/Encoding << /Differences [65 /thisGlyphNameDoesNotExist] >>");
 
-        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT /F1 20 Tf (A) Tj ET", resourcesBody, extraObjects);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT /F1 20 Tf 5 50 Td (A) Tj ET", resourcesBody, extraObjects);
 
-        // Act & Assert
-        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: no exception, and the glyph painted (base encoding's codepoint 65 mapping was
+        // preserved rather than cleared by the unrecognized override).
+        Assert.NotEqual(default, surface[11, 44]);
     }
 
     /// <summary>

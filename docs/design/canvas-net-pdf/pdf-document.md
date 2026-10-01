@@ -655,10 +655,11 @@ standard `/StdCF`, or a document that genuinely requires a non-empty password) f
   (`/PDFDocEncoding`/anything else); `ApplyDifferences` then applies
   an `/Encoding/Differences` array's `code1 name1 name2 ... code2 name1 ...` run-length overrides,
   resolving each glyph name via `StandardGlyphNames` (a ~240-entry Adobe Glyph List subset
-  covering common ASCII/Latin-1 names) - an unrecognized glyph name throws
-  `InvalidDataException` (a fail-closed policy, not a silent mis-mapping to codepoint `0`/
-  `.notdef`), as does a `/Differences` array beginning with a glyph name before any starting code
-  number. A reverse of `StandardGlyphNames` (`CodepointToStandardGlyphName`, first-wins on
+  covering common ASCII/Latin-1 names) - an unrecognized glyph name is tolerated (that one code is
+  simply left at whatever the base encoding already assigned it, rather than rejecting the whole
+  document), while a `/Differences` array beginning with a glyph name before any starting code
+  number still throws `InvalidDataException`. A reverse of `StandardGlyphNames`
+  (`CodepointToStandardGlyphName`, first-wins on
   collision) is built once and reused by both `LoadType1Font` (as `Fonts.TrueTypeFont.LoadType1`'s
   `codepointToGlyphName` argument) and `LoadType1CFont` (as `Fonts.TrueTypeFont.LoadType1C`'s
   identical argument - the exact same resolution, never the PDF font dictionary's own

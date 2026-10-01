@@ -1028,7 +1028,7 @@ operating system), and the Symbol case asserts the render throws
 `PdfDocument_Fonts_MacRomanEncoding_DiffersFromWinAnsiEncoding`,
 `PdfDocument_Fonts_Differences_OverridesBaseEncodingCode`,
 `PdfDocument_Fonts_Differences_Absent_LeavesBaseEncodingCodeUnmapped`,
-`PdfDocument_Fonts_Differences_UnrecognizedGlyphName_ThrowsInvalidDataException`,
+`PdfDocument_Fonts_Differences_UnrecognizedGlyphName_FallsBackToBaseEncoding`,
 `PdfDocument_Fonts_Differences_FfFfiFflLigatureNames_DoNotThrow`,
 `PdfDocument_Fonts_Differences_NacuteName_DoesNotThrow`,
 `PdfDocument_Fonts_Differences_NameBeforeStartingCode_ThrowsInvalidDataException`,
@@ -1046,8 +1046,10 @@ Declares an `/Encoding/Differences` array remapping a code to glyph name `agrave
 shows that code through a font whose `cmap` maps only U+00E0, asserting ink is painted where the
 base encoding alone would not have resolved to that codepoint; separately shows a code with no
 `/Differences` override present, asserting it keeps its base-encoding mapping unchanged. Declares
-a `/Differences` array containing an unrecognized glyph name, asserting `InvalidDataException`
-(a fail-closed policy, not a silent mis-mapping to `.notdef`); a further test declares a
+a `/Differences` array containing an unrecognized glyph name, asserting the affected code is
+tolerated and falls back to its base-encoding mapping rather than rejecting the document (ink
+still paints via the embedded font's own `cmap` mapping for the unchanged codepoint); a further
+test declares a
 `/Differences` array naming the `ff`/`ffi`/`ffl` Latin ligature glyphs (found via a real-world
 pdfLaTeX Computer Modern font - previously only `fi`/`fl` were present in `StandardGlyphNames`),
 asserting no exception; separately declares a

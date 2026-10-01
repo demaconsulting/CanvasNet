@@ -997,24 +997,28 @@ sections:
               /StandardEncoding as named base encodings (throwing UnsupportedImageFeatureException
               for any other base encoding name), and applying an /Encoding/Differences array's
               code-then-glyph-name run-length overrides via a standard Adobe-glyph-name-to-
-              Unicode-codepoint mapping, throwing InvalidDataException for an unrecognized glyph
-              name or for /Differences beginning with a glyph name before any starting code.
+              Unicode-codepoint mapping, tolerating an unrecognized glyph name (leaving that code
+              at its base-encoding mapping) but throwing InvalidDataException for /Differences
+              beginning with a glyph name before any starting code.
             justification: |
               WinAnsi and MacRoman are the two base encodings a simple TrueType font's /Encoding
               commonly names, StandardEncoding is the PDF specification's own default built-in
               encoding for a /Subtype /Type1 font (Appendix D), and /Differences overrides are
               the standard mechanism a PDF producer uses to remap individual codes to
               nonstandard glyphs; every one of these must resolve to the correct Unicode
-              codepoint for painted text to match the document's intent, and any other base
-              encoding or unrecognized glyph name must fail closed rather than be silently
-              mis-mapped.
+              codepoint for painted text to match the document's intent. Any other base encoding
+              must fail closed rather than be silently mis-mapped, but a single unrecognized
+              /Differences glyph name is not evidence of document corruption - real-world
+              producers routinely emit producer-specific names this library does not itself
+              recognize - so that one code is left at its base-encoding mapping instead of
+              rejecting the whole document.
             tests:
               - PdfDocument_Fonts_UnrecognizedEncoding_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Fonts_DefaultEncoding_IsWinAnsiEncoding
               - PdfDocument_Fonts_MacRomanEncoding_DiffersFromWinAnsiEncoding
               - PdfDocument_Fonts_Differences_OverridesBaseEncodingCode
               - PdfDocument_Fonts_Differences_Absent_LeavesBaseEncodingCodeUnmapped
-              - PdfDocument_Fonts_Differences_UnrecognizedGlyphName_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Differences_UnrecognizedGlyphName_FallsBackToBaseEncoding
               - PdfDocument_Fonts_Differences_FfFfiFflLigatureNames_DoNotThrow
               - PdfDocument_Fonts_Differences_NacuteName_DoesNotThrow
               - PdfDocument_Fonts_Differences_NameBeforeStartingCode_ThrowsInvalidDataException

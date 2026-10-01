@@ -357,10 +357,11 @@ public sealed partial class PdfDocument
     /// <exception cref="InvalidDataException">
     ///     Thrown when <c>/Encoding</c> is neither a name nor a dictionary, when
     ///     <c>/Encoding/BaseEncoding</c> is not a name, when <c>/Encoding/Differences</c> is not
-    ///     an array, when a <c>/Differences</c> array entry is neither a number nor a name, when a
-    ///     <c>/Differences</c> name appears before any starting code, or when a
-    ///     <c>/Differences</c> name is not a recognized glyph name (see
-    ///     <see cref="StandardGlyphNames"/>'s own remarks for the covered name set).
+    ///     an array, when a <c>/Differences</c> array entry is neither a number nor a name, or
+    ///     when a <c>/Differences</c> name appears before any starting code. A <c>/Differences</c>
+    ///     name that is not a recognized glyph name (see <see cref="StandardGlyphNames"/>'s own
+    ///     remarks for the covered name set) is tolerated, not an error - see
+    ///     <see cref="ApplyDifferences"/>'s own remarks.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when the named base encoding is neither <c>/WinAnsiEncoding</c>,
@@ -458,21 +459,28 @@ public sealed partial class PdfDocument
     ///     <c>PdfDocument.Fonts.Type3.cs</c>, which reuses <see cref="ParseDifferences"/> directly
     ///     without this codepoint-resolution step).
     /// </summary>
+    /// <remarks>
+    ///     A glyph name not recognized by <see cref="StandardGlyphNames"/> (for example a
+    ///     producer-specific name such as <c>/gXX</c> or <c>/uniXXXX</c>-style name this table
+    ///     does not itself special-case) is tolerated: that one code is simply left at whatever
+    ///     the base encoding already assigned it, rather than rejecting the entire document - a
+    ///     single unrecognized override name is not evidence the document is corrupt, and real-world
+    ///     PDF producers routinely emit such names. <see cref="ShowText"/>'s own "no glyph for this
+    ///     codepoint" fallback (see this class's remarks) still applies to that code if the base
+    ///     encoding also leaves it undefined.
+    /// </remarks>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="differences"/> is not an array, when an array entry is
-    ///     neither a number nor a name, when a name entry appears before any starting code (or
-    ///     after the code has advanced past 255), or when a name is not a recognized glyph name.
+    ///     neither a number nor a name, or when a name entry appears before any starting code (or
+    ///     after the code has advanced past 255).
     /// </exception>
     private void ApplyDifferences(PdfObject differences, int[] table) =>
         ParseDifferences(differences, (code, name) =>
         {
-            if (!StandardGlyphNames.TryGetValue(name, out var codepoint))
+            if (StandardGlyphNames.TryGetValue(name, out var codepoint))
             {
-                throw new InvalidDataException(
-                    $"/Encoding/Differences references unrecognized glyph name '/{name}'.");
+                table[code] = codepoint;
             }
-
-            table[code] = codepoint;
         });
 
     /// <summary>
