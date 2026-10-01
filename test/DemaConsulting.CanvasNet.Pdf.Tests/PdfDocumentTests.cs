@@ -2822,6 +2822,29 @@ public class PdfDocumentTests
         Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
     }
 
+    /// <summary>
+    ///     Proves that <c>/Differences</c> recognizes the <c>ff</c>/<c>ffi</c>/<c>ffl</c> Latin
+    ///     ligature glyph names (found via a real-world pdfLaTeX Computer Modern font from
+    ///     py-pdf/sample-files, which declares them in its own <c>/Differences</c> array) -
+    ///     previously only <c>fi</c>/<c>fl</c> were present in <c>StandardGlyphNames</c>.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Differences_FfFfiFflLigatureNames_DoNotThrow()
+    {
+        // Arrange
+        var fontBytes = BuildEmbeddedFontBytes([(65, 1)]);
+        var (resourcesBody, extraObjects) = BuildSimpleTrueTypeFontResources(
+            fontBytes,
+            fontDictExtra: "/FirstChar 65 /LastChar 68 /Widths [600 600 600 600] " +
+                           "/Encoding << /Differences [65 /ff /ffi /ffl] >>");
+
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT /F1 20 Tf (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act & Assert: no exception
+        using var surface = RenderPdfBytes(bytes);
+        Assert.NotNull(surface);
+    }
+
     /// <summary>Proves that a <c>/Differences</c> array starting with a glyph name (before any starting code number) throws <see cref="InvalidDataException"/>.</summary>
     [Fact]
     public void PdfDocument_Fonts_Differences_NameBeforeStartingCode_ThrowsInvalidDataException()

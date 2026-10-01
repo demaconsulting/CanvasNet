@@ -675,6 +675,7 @@ operating system), and the Symbol case asserts the render throws
 `PdfDocument_Fonts_Differences_OverridesBaseEncodingCode`,
 `PdfDocument_Fonts_Differences_Absent_LeavesBaseEncodingCodeUnmapped`,
 `PdfDocument_Fonts_Differences_UnrecognizedGlyphName_ThrowsInvalidDataException`,
+`PdfDocument_Fonts_Differences_FfFfiFflLigatureNames_DoNotThrow`,
 `PdfDocument_Fonts_Differences_NameBeforeStartingCode_ThrowsInvalidDataException`,
 `PdfDocument_Fonts_StandardEncoding_DiffersFromWinAnsiEncoding`,
 `PdfDocument_Fonts_StandardEncoding_Absent_DefaultWinAnsiDoesNotPaintQuoteright`
@@ -691,7 +692,10 @@ shows that code through a font whose `cmap` maps only U+00E0, asserting ink is p
 base encoding alone would not have resolved to that codepoint; separately shows a code with no
 `/Differences` override present, asserting it keeps its base-encoding mapping unchanged. Declares
 a `/Differences` array containing an unrecognized glyph name, asserting `InvalidDataException`
-(a fail-closed policy, not a silent mis-mapping to `.notdef`); separately declares a
+(a fail-closed policy, not a silent mis-mapping to `.notdef`); a further test declares a
+`/Differences` array naming the `ff`/`ffi`/`ffl` Latin ligature glyphs (found via a real-world
+pdfLaTeX Computer Modern font - previously only `fi`/`fl` were present in `StandardGlyphNames`),
+asserting no exception; separately declares a
 `/Differences` array beginning with a glyph name before any starting code number, asserting
 `InvalidDataException` for that malformed array shape too. As of Phase B, a font explicitly
 declaring `/StandardEncoding` and showing byte code `0x27` (which diverges between the two base

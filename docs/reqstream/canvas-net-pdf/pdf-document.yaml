@@ -740,6 +740,7 @@ sections:
               - PdfDocument_Fonts_Differences_OverridesBaseEncodingCode
               - PdfDocument_Fonts_Differences_Absent_LeavesBaseEncodingCodeUnmapped
               - PdfDocument_Fonts_Differences_UnrecognizedGlyphName_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Differences_FfFfiFflLigatureNames_DoNotThrow
               - PdfDocument_Fonts_Differences_NameBeforeStartingCode_ThrowsInvalidDataException
               - PdfDocument_Fonts_StandardEncoding_DiffersFromWinAnsiEncoding
               - PdfDocument_Fonts_StandardEncoding_Absent_DefaultWinAnsiDoesNotPaintQuoteright
