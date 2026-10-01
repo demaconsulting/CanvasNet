@@ -1,7 +1,7 @@
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Fonts;
 
-// cspell:ignore xobject devicergb
+// cspell:ignore xobject devicergb fontfile
 
 namespace DemaConsulting.CanvasNet.Pdf.Tests;
 
@@ -204,6 +204,42 @@ public class PdfFixtureTests
     {
         // Arrange & Act
         using var document = PdfDocument.Open(Fixture("standard14-font-fallback.pdf"));
+        using var surface = document.Render(0, 100, 100);
+
+        // Assert
+        AssertPaintedSomePixel(surface);
+    }
+
+    /// <summary>
+    ///     Proves the new <c>text-embedded-type1-font.pdf</c> fixture (Phase B) - a
+    ///     hand-authored, entirely synthetic <c>/Subtype /Type1</c> font with a classic
+    ///     PostScript <c>/FontDescriptor/FontFile</c> program - opens and renders visible glyph
+    ///     ink from its embedded Type 1 font program.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Load_TextEmbeddedType1FontFixture_PaintsVisibleGlyphInk()
+    {
+        // Arrange & Act
+        using var document = PdfDocument.Open(Fixture("text-embedded-type1-font.pdf"));
+        using var surface = document.Render(0, 100, 100);
+
+        // Assert
+        AssertPaintedSomePixel(surface);
+    }
+
+    /// <summary>
+    ///     Proves the new <c>text-standard14-type1-no-fontfile.pdf</c> fixture (Phase B) - a
+    ///     <c>/Subtype /Type1</c>, <c>/BaseFont /Helvetica</c> font with no
+    ///     <c>/FontDescriptor/FontFile</c> at all - resolves via the free non-embedded fallback
+    ///     path and renders visible substitute glyph ink, exactly like
+    ///     <see cref="PdfDocument_Load_Standard14FontFallbackFixture_PaintsVisibleSubstituteGlyphInk"/>'s
+    ///     own TrueType-subtype equivalent, now proven reachable for <c>/Type1</c> too.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Load_TextStandard14Type1NoFontFileFixture_PaintsVisibleSubstituteGlyphInk()
+    {
+        // Arrange & Act
+        using var document = PdfDocument.Open(Fixture("text-standard14-type1-no-fontfile.pdf"));
         using var surface = document.Render(0, 100, 100);
 
         // Assert

@@ -13,7 +13,7 @@
 // cspell:ignore ogonek onehalf onequarter oslash otilde parenleft parenright partialdiff
 // cspell:ignore plusminus questiondown quotedbl quotedblbase quotedblleft quotedblright
 // cspell:ignore quoteleft quoteright quotesinglbase quotesingle scaron threequarters
-// cspell:ignore uacute yacute ydieresis Zapf Nonsymbolic
+// cspell:ignore uacute yacute ydieresis Zapf Nonsymbolic fontfile stdenc
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Fonts;
 
@@ -195,73 +195,90 @@ public sealed partial class PdfDocument
 
     /// <summary>
     ///     Builds an <see cref="IResolvedFont"/> from a font dictionary, dispatching on
-    ///     <c>/Subtype</c>: <c>/TrueType</c> resolves a simple font via
-    ///     <see cref="BuildResolvedSimpleFont"/>; <c>/Type0</c> resolves a composite
+    ///     <c>/Subtype</c>: <c>/TrueType</c> and <c>/Type1</c> both resolve a simple font via
+    ///     <see cref="BuildResolvedSimpleFont"/> (see that method's own remarks for how each
+    ///     subtype's embedded-font-program key differs); <c>/Type0</c> resolves a composite
     ///     <c>/Encoding /Identity-H</c>/<c>/CIDFontType2</c> font via
     ///     <see cref="BuildResolvedCompositeFont"/> (see <c>PdfDocument.Fonts.Type0.cs</c>); any
-    ///     other <c>/Subtype</c> (<c>Type1</c>, <c>MMType1</c>, <c>Type3</c>) fails closed.
+    ///     other <c>/Subtype</c> (<c>MMType1</c>, <c>Type3</c>) fails closed.
     /// </summary>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when <c>/Subtype</c> is not <c>TrueType</c> or <c>Type0</c> (for example
-    ///     <c>Type1</c>, <c>MMType1</c>, or <c>Type3</c>).
+    ///     Thrown when <c>/Subtype</c> is not <c>TrueType</c>, <c>Type1</c>, or <c>Type0</c> (for
+    ///     example <c>MMType1</c> or <c>Type3</c>).
     /// </exception>
     private IResolvedFont BuildResolvedFont(PdfObject fontDict)
     {
         var subtype = GetNameValue(fontDict, "Subtype");
         return subtype switch
         {
-            "TrueType" => BuildResolvedSimpleFont(fontDict),
+            "TrueType" or "Type1" => BuildResolvedSimpleFont(fontDict, subtype),
             "Type0" => BuildResolvedCompositeFont(fontDict),
             _ => throw new UnsupportedImageFeatureException(
                 $"pdf-font-subtype-{subtype ?? "missing"}",
                 $"Font /Subtype '{subtype ?? "(missing)"}' is not supported; only simple " +
-                "/Subtype /TrueType fonts and composite /Subtype /Type0 fonts are supported " +
-                "(Type1/CFF, MMType1, and Type3 fonts are not supported)."),
+                "/Subtype /TrueType and /Subtype /Type1 fonts and composite /Subtype /Type0 " +
+                "fonts are supported (MMType1 and Type3 fonts are not supported)."),
         };
     }
 
     /// <summary>
-    ///     Builds a <see cref="ResolvedSimpleFont"/> from a <c>/Subtype /TrueType</c> font
-    ///     dictionary: loads the embedded <c>/FontDescriptor/FontFile2</c> if present (which
-    ///     always takes priority over any substitute), or else resolves a substitute font via
+    ///     Builds a <see cref="ResolvedSimpleFont"/> from a <c>/Subtype /TrueType</c> or
+    ///     <c>/Subtype /Type1</c> font dictionary: loads the embedded
+    ///     <c>/FontDescriptor/FontFile2</c> (a TrueType-outline program) if present, or else the
+    ///     embedded <c>/FontDescriptor/FontFile</c> (a classic PostScript Type 1 program, via
+    ///     <see cref="LoadType1Font"/> - see <c>PdfDocument.Fonts.Type1.cs</c>) if present - either
+    ///     always takes priority over any substitute - or else resolves a substitute font via
     ///     <see cref="ResolveFallbackFont"/> (a Standard-14/system/bundled-Liberation match), and
     ///     resolves <c>/Encoding</c> and <c>/Widths</c>.
     /// </summary>
+    /// <param name="fontDict">The font dictionary being resolved.</param>
+    /// <param name="subtype">
+    ///     The font dictionary's own <c>/Subtype</c> name (<c>"TrueType"</c> or <c>"Type1"</c>),
+    ///     consulted only to decide whether a <c>/FontFile3</c>-only descriptor (with neither
+    ///     <c>/FontFile</c> nor <c>/FontFile2</c>) is a rejected embedded-CFF <c>/Type1</c> font
+    ///     or an (unrelated, pre-existing) <c>/TrueType</c> font that falls back exactly as
+    ///     before <c>/Type1</c> dispatch existed.
+    /// </param>
     /// <remarks>
-    ///     A simple TrueType font with no embedded <c>/FontFile2</c> no longer fails closed
+    ///     A simple font with no embedded <c>/FontFile2</c>/<c>/FontFile</c> no longer fails closed
     ///     unconditionally: <see cref="ResolveFallbackFont"/> substitutes the closest-matching
     ///     system font, or - when no system font matches - a bundled Liberation Sans/Serif/Mono
     ///     font, fully automatically and silently (no new public API, no "fallback occurred"
     ///     diagnostics). Only a <c>Symbol</c>/<c>ZapfDingbats</c> (or otherwise symbolic, per
-    ///     <c>/FontDescriptor/Flags</c>) font with no embedded <c>/FontFile2</c> still fails
+    ///     <c>/FontDescriptor/Flags</c>) font with no embedded font program still fails
     ///     closed, since such a font's glyph set has no meaningful generic-family equivalent - see
-    ///     the <see cref="PdfDocument"/> class remarks and <c>PdfDocument.FontFallback.cs</c>.
+    ///     the <see cref="PdfDocument"/> class remarks and <c>PdfDocument.FontFallback.cs</c>. A
+    ///     <c>/Subtype /Type1</c> descriptor whose only embedded-font key is <c>/FontFile3</c>
+    ///     (an embedded Type1C/CFF program, a fundamentally different, unsupported format from
+    ///     the classic Type 1 <c>/FontFile</c> this method loads) is rejected with
+    ///     <see cref="UnsupportedImageFeatureException"/> rather than silently falling back - this
+    ///     check is gated on <c>subtype == "Type1"</c> specifically, so a pre-existing
+    ///     <c>/Subtype /TrueType</c> font with only a stray <c>/FontFile3</c> is unaffected and
+    ///     continues to resolve via fallback exactly as before this phase.
     /// </remarks>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <c>/FontDescriptor</c> is missing, <c>/FontDescriptor/FontFile2</c> does
-    ///     not resolve to a stream, or <c>/BaseFont</c> is missing.
+    ///     not resolve to a stream, <c>/BaseFont</c> is missing (only consulted on the fallback
+    ///     path), or propagated from <see cref="LoadType1Font"/> for a malformed embedded Type 1
+    ///     program.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when a <c>Symbol</c>/<c>ZapfDingbats</c>/symbolic font has no embedded
-    ///     <c>/FontFile2</c> (see <see cref="ResolveFallbackFont"/>).
+    ///     Thrown when a <c>Symbol</c>/<c>ZapfDingbats</c>/symbolic font has no embedded font
+    ///     program (see <see cref="ResolveFallbackFont"/>), or when a <c>/Subtype /Type1</c>
+    ///     descriptor declares only <c>/FontFile3</c> (feature <c>"pdf-font-type1-fontfile3"</c>).
     /// </exception>
-    private ResolvedSimpleFont BuildResolvedSimpleFont(PdfObject fontDict)
+    private ResolvedSimpleFont BuildResolvedSimpleFont(PdfObject fontDict, string? subtype)
     {
         var descriptorEntry = fontDict.Get("FontDescriptor")
             ?? throw new InvalidDataException("Font dictionary is missing required /FontDescriptor.");
         var descriptor = Resolve(descriptorEntry);
 
-        var fontFileEntry = descriptor.Get("FontFile2");
+        var fontFile2Entry = descriptor.Get("FontFile2");
+        var fontFileEntry = descriptor.Get("FontFile");
         TrueTypeFont font;
-        if (fontFileEntry is null)
+        if (fontFile2Entry is not null)
         {
-            var baseFontName = GetNameValue(fontDict, "BaseFont")
-                ?? throw new InvalidDataException("Font dictionary is missing required /BaseFont.");
-            font = ResolveFallbackFont(baseFontName, descriptor);
-        }
-        else
-        {
-            var fontFileStream = Resolve(fontFileEntry);
+            var fontFileStream = Resolve(fontFile2Entry);
             if (fontFileStream.Kind != PdfKind.Stream)
             {
                 throw new InvalidDataException("/FontDescriptor/FontFile2 does not resolve to a stream.");
@@ -269,6 +286,25 @@ public sealed partial class PdfDocument
 
             var fontBytes = GetStreamDecodedBytes(fontFileStream);
             font = TrueTypeFont.Load(new MemoryStream(fontBytes));
+        }
+        else if (fontFileEntry is not null)
+        {
+            font = LoadType1Font(descriptor);
+        }
+        else if (subtype == "Type1" && descriptor.Get("FontFile3") is not null)
+        {
+            throw new UnsupportedImageFeatureException(
+                "pdf-font-type1-fontfile3",
+                "Embedded Type1C (CFF) simple fonts (/FontFile3 on a /Type1 font) are not " +
+                "supported; this differs from the already-supported composite /Type0/" +
+                "CIDFontType0 (CFF-outline) font path, which uses an /OpenType-wrapped " +
+                "/FontFile3 on a descendant font, not a simple /Type1 font.");
+        }
+        else
+        {
+            var baseFontName = GetNameValue(fontDict, "BaseFont")
+                ?? throw new InvalidDataException("Font dictionary is missing required /BaseFont.");
+            font = ResolveFallbackFont(baseFontName, descriptor);
         }
 
         var encoding = ResolveEncoding(fontDict.Get("Encoding"));
@@ -303,8 +339,8 @@ public sealed partial class PdfDocument
     ///     <see cref="StandardGlyphNames"/>'s own remarks for the covered name set).
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when the named base encoding is neither <c>/WinAnsiEncoding</c> nor
-    ///     <c>/MacRomanEncoding</c>.
+    ///     Thrown when the named base encoding is neither <c>/WinAnsiEncoding</c>,
+    ///     <c>/MacRomanEncoding</c>, nor <c>/StandardEncoding</c>.
     /// </exception>
     private IReadOnlyDictionary<int, int> ResolveEncoding(PdfObject? encodingEntry)
     {
@@ -360,8 +396,8 @@ public sealed partial class PdfDocument
 
     /// <summary>Applies a named base encoding's 256-entry code-to-codepoint table onto <paramref name="table"/>.</summary>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when <paramref name="baseEncodingName"/> is neither <c>WinAnsiEncoding</c> nor
-    ///     <c>MacRomanEncoding</c>.
+    ///     Thrown when <paramref name="baseEncodingName"/> is none of <c>WinAnsiEncoding</c>,
+    ///     <c>MacRomanEncoding</c>, or <c>StandardEncoding</c>.
     /// </exception>
     private static void ApplyBaseEncoding(string baseEncodingName, int[] table)
     {
@@ -375,11 +411,15 @@ public sealed partial class PdfDocument
                 Array.Copy(MacRomanEncodingTable, table, 256);
                 break;
 
+            case "StandardEncoding":
+                Array.Copy(StandardEncodingTable, table, 256);
+                break;
+
             default:
                 throw new UnsupportedImageFeatureException(
                     $"pdf-font-encoding-{baseEncodingName}",
                     $"/Encoding base encoding '/{baseEncodingName}' is not supported; only " +
-                    "/WinAnsiEncoding and /MacRomanEncoding are supported.");
+                    "/WinAnsiEncoding, /MacRomanEncoding, and /StandardEncoding are supported.");
         }
     }
 
@@ -812,4 +852,75 @@ public sealed partial class PdfDocument
         0xF8FF, 0x00D2, 0x00DA, 0x00DB, 0x00D9, 0x0131, 0x02C6, 0x02DC,
         0x00AF, 0x02D8, 0x02D9, 0x02DA, 0x00B8, 0x02DD, 0x02DB, 0x02C7,
     ];
+
+    /// <summary>
+    ///     The PDF specification (Appendix D) <c>/StandardEncoding</c> base encoding (Adobe's
+    ///     original PostScript font encoding, and PDF's own default for a <c>/Subtype /Type1</c>
+    ///     font's built-in encoding), as a 256-entry code-to-Unicode-codepoint table (<c>0</c> for
+    ///     an undefined code) - derived from the Unicode Consortium's own published
+    ///     <c>stdenc.txt</c> cross-reference mapping, the canonical source for this table.
+    /// </summary>
+    private static readonly int[] StandardEncodingTable =
+    [
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0020, 0x0021, 0x0022, 0x0023, 0x0024, 0x0025, 0x0026, 0x2019,
+        0x0028, 0x0029, 0x002A, 0x002B, 0x002C, 0x002D, 0x002E, 0x002F,
+        0x0030, 0x0031, 0x0032, 0x0033, 0x0034, 0x0035, 0x0036, 0x0037,
+        0x0038, 0x0039, 0x003A, 0x003B, 0x003C, 0x003D, 0x003E, 0x003F,
+        0x0040, 0x0041, 0x0042, 0x0043, 0x0044, 0x0045, 0x0046, 0x0047,
+        0x0048, 0x0049, 0x004A, 0x004B, 0x004C, 0x004D, 0x004E, 0x004F,
+        0x0050, 0x0051, 0x0052, 0x0053, 0x0054, 0x0055, 0x0056, 0x0057,
+        0x0058, 0x0059, 0x005A, 0x005B, 0x005C, 0x005D, 0x005E, 0x005F,
+        0x2018, 0x0061, 0x0062, 0x0063, 0x0064, 0x0065, 0x0066, 0x0067,
+        0x0068, 0x0069, 0x006A, 0x006B, 0x006C, 0x006D, 0x006E, 0x006F,
+        0x0070, 0x0071, 0x0072, 0x0073, 0x0074, 0x0075, 0x0076, 0x0077,
+        0x0078, 0x0079, 0x007A, 0x007B, 0x007C, 0x007D, 0x007E, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x00A1, 0x00A2, 0x00A3, 0x2044, 0x00A5, 0x0192, 0x00A7,
+        0x00A4, 0x0027, 0x201C, 0x00AB, 0x2039, 0x203A, 0xFB01, 0xFB02,
+        0x0000, 0x2013, 0x2020, 0x2021, 0x00B7, 0x0000, 0x00B6, 0x2022,
+        0x201A, 0x201E, 0x201D, 0x00BB, 0x2026, 0x2030, 0x0000, 0x00BF,
+        0x0000, 0x0060, 0x00B4, 0x02C6, 0x02DC, 0x00AF, 0x02D8, 0x02D9,
+        0x00A8, 0x0000, 0x02DA, 0x00B8, 0x0000, 0x02DD, 0x02DB, 0x02C7,
+        0x2014, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x00C6, 0x0000, 0x00AA, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0141, 0x00D8, 0x0152, 0x00BA, 0x0000, 0x0000, 0x0000, 0x0000,
+        0x0000, 0x00E6, 0x0000, 0x0000, 0x0000, 0x0131, 0x0000, 0x0000,
+        0x0142, 0x00F8, 0x0153, 0x00DF, 0x0000, 0x0000, 0x0000, 0x0000,
+    ];
+
+    /// <summary>
+    ///     The reverse mapping (Unicode codepoint to glyph name) built once from
+    ///     <see cref="StandardGlyphNames"/>, passed as <see cref="Fonts.TrueTypeFont.LoadType1"/>'s
+    ///     <c>codepointToGlyphName</c> argument by <see cref="LoadType1Font"/> (see
+    ///     <c>PdfDocument.Fonts.Type1.cs</c>) - reusing this class's existing Adobe-glyph-name
+    ///     vocabulary rather than introducing a second, separately-maintained glyph-name table.
+    /// </summary>
+    /// <remarks>
+    ///     When more than one glyph name in <see cref="StandardGlyphNames"/> maps to the same
+    ///     codepoint (for example a hypothetical synonym pair), the first one encountered (in
+    ///     <see cref="StandardGlyphNames"/>'s own declaration order) wins - the same "first-wins
+    ///     on collision" convention <c>Fonts.Type1StandardGlyphNames</c> uses for its own reverse
+    ///     map.
+    /// </remarks>
+    private static readonly IReadOnlyDictionary<int, string> CodepointToStandardGlyphName =
+        BuildCodepointToStandardGlyphName();
+
+    private static IReadOnlyDictionary<int, string> BuildCodepointToStandardGlyphName()
+    {
+        var result = new Dictionary<int, string>();
+        foreach (var (name, codepoint) in StandardGlyphNames)
+        {
+            result.TryAdd(codepoint, name);
+        }
+
+        return result;
+    }
 }

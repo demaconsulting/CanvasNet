@@ -8,6 +8,7 @@ using DemaConsulting.CanvasNet.Tests.TestSupport;
 // cspell:ignore bfchar bfrange nendbfchar nendbfrange tounicode usecmap cidrange cidchar codepoints
 // cspell:ignore OTTO rmoveto rlineto endchar notdef charstring charstrings cidfonttype
 // cspell:ignore functiontype multiinput fitz
+// cspell:ignore hsbw closepath fontfile lenIV quoteright Quoteright
 
 namespace DemaConsulting.CanvasNet.Pdf.Tests;
 
@@ -462,6 +463,98 @@ public class PdfDocumentTests
             $"<< /Type /FontDescriptor /FontName /Test {descriptorExtra} /FontFile2 7 0 R >>");
         var fontDictObj = System.Text.Encoding.ASCII.GetBytes(
             $"<< /Type /Font /Subtype /TrueType /BaseFont /Test {fontDictExtra} /FontDescriptor 6 0 R >>");
+
+        return ($"/Font << /{fontResourceName} 5 0 R >>", [fontDictObj, descriptorObj, fontFileObj]);
+    }
+
+    /// <summary>
+    ///     Builds a classic PostScript Type 1 glyph charstring: <c>hsbw</c> (left side bearing 0,
+    ///     advance <paramref name="width"/>) then an empty-outline <c>endchar</c> - used for the
+    ///     <c>.notdef</c>/<c>space</c> glyphs of <see cref="BuildEmbeddedType1FontResources"/>'s
+    ///     synthetic font, mirroring <c>Type1TableTests.SpaceCharstring</c>'s own shape.
+    /// </summary>
+    private static byte[] BuildEmptyType1Charstring(int width = 300)
+    {
+        var buf = new List<byte>();
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 0);
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, width);
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 13); // hsbw
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 14); // endchar
+        return [.. buf];
+    }
+
+    /// <summary>
+    ///     Builds a classic PostScript Type 1 <c>"A"</c> glyph charstring: <c>hsbw</c> then a
+    ///     filled square outline spanning font-design-space <c>(100, 100)</c>-<c>(500, 500)</c> of
+    ///     a 1000-unit em (matching <see cref="BuildEmbeddedFontBytes"/>'s own TrueType-outline
+    ///     square glyph and <see cref="BuildSquareCffCharstring"/>'s own CFF-outline square glyph,
+    ///     so every embedded-font flavor paints identical ink for its own square glyph), via
+    ///     <c>rmoveto</c> to <c>(100, 100)</c> then three relative <c>rlineto</c> segments and a
+    ///     <c>closepath</c>.
+    /// </summary>
+    private static byte[] BuildSquareType1Charstring(int width = 600)
+    {
+        var buf = new List<byte>();
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 0);
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, width);
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 13); // hsbw
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 100);
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 100);
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 21); // rmoveto
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 400);
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 0);
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 5); // rlineto
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 0);
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 400);
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 5); // rlineto
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, -400);
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 0);
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 5); // rlineto
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 9); // closepath
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 14); // endchar
+        return [.. buf];
+    }
+
+    /// <summary>
+    ///     Builds a <c>/Resources/Font</c> dictionary (as a <see cref="BuildSinglePagePdfWithResources"/>-
+    ///     compatible <c>resourcesBody</c>/<c>extraObjectBodies</c> pair) declaring a single simple
+    ///     <c>/Subtype /Type1</c> font resource named <c>/F1</c>, backed by a synthetic, entirely
+    ///     hand-authored, <c>SyntheticFontBuilder.Type1</c>-built classic PostScript Type 1 font
+    ///     program embedded via <c>/FontDescriptor/FontFile</c> - the Phase B counterpart of
+    ///     <see cref="BuildSimpleTrueTypeFontResources"/>. The synthetic font declares three
+    ///     glyphs (<c>.notdef</c>, <c>space</c>, and <c>A</c> - glyph <c>A</c> being
+    ///     <see cref="BuildSquareType1Charstring"/>'s filled square), matching
+    ///     <c>PdfDocument.Fonts.cs</c>'s own <c>StandardGlyphNames</c> Adobe glyph-name
+    ///     vocabulary so codepoint 65 ('A') resolves to the square glyph via that file's own
+    ///     <c>CodepointToStandardGlyphName</c> reverse map.
+    /// </summary>
+    /// <remarks>
+    ///     Numbered identically to <see cref="BuildSimpleTrueTypeFontResources"/> (font-file
+    ///     object <c>7</c>, descriptor object <c>6</c>, font dictionary object <c>5</c>) - the
+    ///     <c>/FontDescriptor/FontFile</c> stream's own <c>/Length1</c>/<c>/Length2</c> entries
+    ///     (not the descriptor's) are always emitted, matching real PDF producers and
+    ///     <c>PdfDocument.Fonts.Type1.cs</c>'s own <c>LoadType1Font</c> documented requirement.
+    /// </remarks>
+    private static (string ResourcesBody, List<byte[]> ExtraObjects) BuildEmbeddedType1FontResources(
+        string fontDictExtra = "/FirstChar 65 /LastChar 65 /Widths [600]",
+        string descriptorExtra = "",
+        string fontResourceName = "F1",
+        bool omitLength2 = false,
+        string baseFontName = "Test")
+    {
+        var (fontFileBytes, length1, length2) = SyntheticFontBuilder.Type1(
+        [
+            (".notdef", BuildEmptyType1Charstring()),
+            ("space", BuildEmptyType1Charstring()),
+            ("A", BuildSquareType1Charstring()),
+        ]);
+
+        var lengthEntries = omitLength2 ? $"/Length1 {length1}" : $"/Length1 {length1} /Length2 {length2}";
+        var fontFileObj = BuildStreamObjectBody(lengthEntries, fontFileBytes);
+        var descriptorObj = System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Type /FontDescriptor /FontName /{baseFontName} {descriptorExtra} /FontFile 7 0 R >>");
+        var fontDictObj = System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Type /Font /Subtype /Type1 /BaseFont /{baseFontName} {fontDictExtra} /FontDescriptor 6 0 R >>");
 
         return ($"/Font << /{fontResourceName} 5 0 R >>", [fontDictObj, descriptorObj, fontFileObj]);
     }
@@ -2429,9 +2522,13 @@ public class PdfDocumentTests
 
     #region Fonts
 
-    /// <summary>Proves that a non-<c>TrueType</c>/non-<c>Type0</c> simple font <c>/Subtype</c> throws <see cref="UnsupportedImageFeatureException"/> rather than being silently substituted.</summary>
+    /// <summary>
+    ///     Proves that a non-<c>TrueType</c>/non-<c>Type1</c>/non-<c>Type0</c> simple font
+    ///     <c>/Subtype</c> throws <see cref="UnsupportedImageFeatureException"/> rather than
+    ///     being silently substituted (<c>/Type1</c> itself is no longer universally rejected -
+    ///     see the new <c>PdfDocument_Fonts_Type1_*</c> tests below).
+    /// </summary>
     [Theory]
-    [InlineData("Type1")]
     [InlineData("MMType1")]
     [InlineData("Type3")]
     public void PdfDocument_Fonts_UnsupportedSubtype_ThrowsUnsupportedImageFeatureException(string subtype)
@@ -3395,6 +3492,238 @@ public class PdfDocumentTests
         // Act & Assert
         var exception = Assert.Throws<UnsupportedImageFeatureException>(() => document.ResolveToUnicodeMap(fontDict));
         Assert.Equal($"pdf-font-tounicode-{operatorName}", exception.Feature);
+    }
+
+    /// <summary>
+    ///     Proves that <c>/Subtype /Type1</c> dispatches to simple-font resolution
+    ///     (<c>BuildResolvedSimpleFont</c>) and, when the descriptor embeds a classic PostScript
+    ///     <c>/FontDescriptor/FontFile</c> Type 1 font program, resolves and paints that program's
+    ///     own glyph ink - proving the Phase B dispatch widening end to end.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type1_DispatchesToSimpleFontResolution_PaintsGlyphInk()
+    {
+        // Arrange
+        var (resourcesBody, extraObjects) = BuildEmbeddedType1FontResources();
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf 5 5 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: text x [7, 15) holds the painted square glyph (design x [100, 500) of 1000,
+        // scaled by fontSize 20, offset by originX 5, flipped for originY 5 on a 100-tall
+        // MediaBox) - matching every other embedded-font flavor's own pixel-position convention.
+        Assert.NotEqual(default, surface[11, 89]);
+    }
+
+    /// <summary>
+    ///     Proves that an embedded <c>/FontDescriptor/FontFile</c> classic Type 1 program always
+    ///     takes priority over fallback substitution: even though <c>/BaseFont</c> names an
+    ///     entirely unmatched family, the embedded synthetic font's own known square glyph shape
+    ///     is what gets rendered.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type1_EmbeddedFontFileTakesPriorityOverFallback()
+    {
+        // Arrange: /BaseFont names a family unlikely to be installed/matched on any host.
+        var (resourcesBody, extraObjects) = BuildEmbeddedType1FontResources(baseFontName: "TotallyUnlikelyFontFamilyXyzzy");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf 5 5 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the embedded synthetic font's own known square glyph shape was painted (not a
+        // differently-shaped fallback glyph).
+        Assert.NotEqual(default, surface[11, 89]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>/Subtype /Type1</c> font with no embedded <c>/FontFile</c> (and no
+    ///     <c>/FontFile3</c>) resolves via <c>ResolveFallbackFont</c> (a Standard-14/system/
+    ///     bundled-Liberation match) rather than throwing, and paints real visible glyph ink -
+    ///     mirroring <c>PdfDocument_BuildResolvedFont_Standard14NoEmbeddedFont_ResolvesViaFallback</c>'s
+    ///     own TrueType-subtype test, now proven reachable for <c>/Type1</c> too.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type1_NoFontFile_ResolvesViaFallback()
+    {
+        // Arrange: /Helvetica, no /FontFile - Standard-14, sans-serif, non-bold, non-italic
+        var descriptorObj = "<< /Type /FontDescriptor >>"u8.ToArray();
+        var fontDictObj =
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /FirstChar 65 /LastChar 65 /Widths [600] /FontDescriptor 6 0 R >>"u8.ToArray();
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 40 Tf 10 30 Td (A) Tj ET", "/Font << /F1 5 0 R >>",
+            [fontDictObj, descriptorObj]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: no exception, and some glyph ink was actually painted somewhere on the canvas
+        var paintedAnyPixel = false;
+        for (var y = 0; y < surface.Height && !paintedAnyPixel; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                if (surface[x, y].A > 0)
+                {
+                    paintedAnyPixel = true;
+                    break;
+                }
+            }
+        }
+
+        Assert.True(paintedAnyPixel, "Expected the fallback-resolved /Type1 font to paint at least one visible pixel.");
+    }
+
+    /// <summary>
+    ///     Proves that a <c>/Subtype /Type1</c> descriptor declaring only <c>/FontFile3</c>
+    ///     (neither <c>/FontFile</c> nor <c>/FontFile2</c>) throws
+    ///     <see cref="UnsupportedImageFeatureException"/> (feature
+    ///     <c>"pdf-font-type1-fontfile3"</c>) rather than silently falling back - an embedded
+    ///     Type1C/CFF simple font is a fundamentally different, unsupported format from the
+    ///     classic <c>/FontFile</c> Type 1 program this phase adds support for.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type1_FontFile3Only_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange
+        var fontFile3Obj = BuildStreamObjectBody(string.Empty, [0x01, 0x02, 0x03]);
+        var descriptorObj = "<< /Type /FontDescriptor /FontFile3 7 0 R >>"u8.ToArray();
+        var fontDictObj =
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Test /FontDescriptor 6 0 R >>"u8.ToArray();
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf (A) Tj ET", "/Font << /F1 5 0 R >>",
+            [fontDictObj, descriptorObj, fontFile3Obj]);
+
+        // Act & Assert
+        var ex = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+        Assert.Equal("pdf-font-type1-fontfile3", ex.Feature);
+    }
+
+    /// <summary>
+    ///     Proves that an embedded <c>/FontFile</c> stream missing its own required <c>/Length1</c>
+    ///     entry throws <see cref="InvalidDataException"/> (read from the stream itself, not the
+    ///     <c>/FontDescriptor</c>).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type1_FontFileMissingLength1_ThrowsInvalidDataException()
+    {
+        // Arrange: a /FontFile stream declaring only /Length2 (no /Length1 at all).
+        var (fontFileBytes, _, length2) = SyntheticFontBuilder.Type1(
+            [(".notdef", BuildEmptyType1Charstring()), ("A", BuildSquareType1Charstring())]);
+        var fontFileObj = BuildStreamObjectBody($"/Length2 {length2}", fontFileBytes);
+        var descriptorObj = "<< /Type /FontDescriptor /FontFile 7 0 R >>"u8.ToArray();
+        var fontDictObj =
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Test /FirstChar 65 /LastChar 65 /Widths [600] /FontDescriptor 6 0 R >>"u8.ToArray();
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf (A) Tj ET", "/Font << /F1 5 0 R >>",
+            [fontDictObj, descriptorObj, fontFileObj]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>
+    ///     Proves that an embedded <c>/FontFile</c> stream missing its own required <c>/Length2</c>
+    ///     entry throws <see cref="InvalidDataException"/> (read from the stream itself, not the
+    ///     <c>/FontDescriptor</c>).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type1_FontFileMissingLength2_ThrowsInvalidDataException()
+    {
+        // Arrange: BuildEmbeddedType1FontResources(omitLength2: true) declares only /Length1.
+        var (resourcesBody, extraObjects) = BuildEmbeddedType1FontResources(omitLength2: true);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>
+    ///     Proves that an embedded <c>/FontFile</c> stream whose <c>/Length2</c> entry is present
+    ///     but not a number throws <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type1_FontFileNonNumericLength2_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var (fontFileBytes, length1, _) = SyntheticFontBuilder.Type1(
+            [(".notdef", BuildEmptyType1Charstring()), ("A", BuildSquareType1Charstring())]);
+        var fontFileObj = BuildStreamObjectBody($"/Length1 {length1} /Length2 /NotANumber", fontFileBytes);
+        var descriptorObj = "<< /Type /FontDescriptor /FontFile 7 0 R >>"u8.ToArray();
+        var fontDictObj =
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Test /FirstChar 65 /LastChar 65 /Widths [600] /FontDescriptor 6 0 R >>"u8.ToArray();
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf (A) Tj ET", "/Font << /F1 5 0 R >>",
+            [fontDictObj, descriptorObj, fontFileObj]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>
+    ///     Proves that an explicit <c>/Encoding /StandardEncoding</c> resolves code <c>0x27</c>
+    ///     ("quoteright", Unicode <c>U+2019</c>) differently than <c>/WinAnsiEncoding</c> does
+    ///     (which maps the same code to "quotesingle", Unicode <c>U+0027</c>) - the code's mapped
+    ///     codepoint is what actually differs between the two base encodings for this fixture, not
+    ///     merely the glyph name.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_StandardEncoding_DiffersFromWinAnsiEncoding()
+    {
+        // Arrange: the font's only mapped codepoint is U+2019 (quoteright), which /StandardEncoding
+        // maps code 0x27 to, but /WinAnsiEncoding maps code 0x27 to U+0027 (quotesingle) instead.
+        var fontBytes = BuildEmbeddedFontBytes([(0x2019, 1)]);
+        var (resourcesBody, extraObjects) = BuildSimpleTrueTypeFontResources(
+            fontBytes,
+            fontDictExtra: "/FirstChar 0 /LastChar 255 /Widths [" + string.Join(' ', Enumerable.Repeat(600, 256)) + "] /Encoding /StandardEncoding");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf 5 50 Td (') Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: glyph 1's square is painted at the position code 0x27 resolves to under
+        // /StandardEncoding (U+2019), which this font has a mapped glyph for.
+        Assert.NotEqual(default, surface[11, 44]);
+    }
+
+    /// <summary>
+    ///     Proves that, unlike <see cref="PdfDocument_Fonts_StandardEncoding_DiffersFromWinAnsiEncoding"/>,
+    ///     the default (no <c>/Encoding</c> entry) <c>/WinAnsiEncoding</c> base encoding does not
+    ///     paint the same code's glyph, since it resolves code <c>0x27</c> to Unicode <c>U+0027</c>
+    ///     (quotesingle) instead of <c>U+2019</c> (quoteright) - confirming the two base encodings
+    ///     are genuinely different for this code, not merely that some encoding resolved.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_StandardEncoding_Absent_DefaultWinAnsiDoesNotPaintQuoteright()
+    {
+        // Arrange: same font as the /StandardEncoding test (only codepoint U+2019 mapped), but no
+        // /Encoding entry at all, so the default /WinAnsiEncoding applies instead.
+        var fontBytes = BuildEmbeddedFontBytes([(0x2019, 1)]);
+        var (resourcesBody, extraObjects) = BuildSimpleTrueTypeFontResources(
+            fontBytes,
+            fontDictExtra: "/FirstChar 0 /LastChar 255 /Widths [" + string.Join(' ', Enumerable.Repeat(600, 256)) + "]");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf 5 50 Td (') Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: no glyph outline is painted anywhere in the expected region.
+        Assert.Equal(default, surface[11, 44]);
     }
 
     #endregion

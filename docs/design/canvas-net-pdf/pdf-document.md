@@ -391,37 +391,72 @@ re-parsing it each time — a property a purely static API could not express.
   bilinear interpolation, a documented Phase 3 simplification consistent with Phase 2's own
   stroke-width simplification precedent.
 - **Font resolution (`PdfDocument.Fonts.cs`, added in Phase 4, fallback branch rewritten in
-  Phase 6, dispatch generalized to `IResolvedFont` in Phase 9)** — `ResolveFont(PdfObject
-  fontResource)` looks up (and caches, via `_fontCache`) an `IResolvedFont`. `BuildResolvedFont`
-  dispatches on `/Subtype`: `/TrueType` builds a `ResolvedSimpleFont` via
-  `BuildResolvedSimpleFont` (the renamed former `BuildResolvedFont` body, unchanged behavior);
-  `/Type0` builds a `ResolvedCompositeFont` via `BuildResolvedCompositeFont` (see _Composite Font
-  Resolution_ below); any other `/Subtype` (`/Type1`, `/MMType1`, `/Type3`) throws
+  Phase 6, dispatch generalized to `IResolvedFont` in Phase 9, widened to `/Type1` in Phase B)** —
+  `ResolveFont(PdfObject fontResource)` looks up (and caches, via `_fontCache`) an
+  `IResolvedFont`. `BuildResolvedFont` dispatches on `/Subtype`: `/TrueType` and `/Type1` both
+  build a `ResolvedSimpleFont` via `BuildResolvedSimpleFont`; `/Type0` builds a
+  `ResolvedCompositeFont` via `BuildResolvedCompositeFont` (see _Composite Font Resolution_
+  below); any other `/Subtype` (`/MMType1`, `/Type3`) throws
   `Codecs.UnsupportedImageFeatureException` naming the rejected subtype. `IResolvedFont` exposes
   `Font` (the underlying `Fonts.TrueTypeFont`), `CodeByteWidth` (`1` for a simple font, `2` for a
   composite `/Identity-H` font - consulted by `ShowText`'s code-decoding loop), and
   `Resolve(int code)` (returning the code's glyph index and text-space advance width in one call
   - the single entry point `ShowGlyph` uses regardless of which concrete implementation is
-  active). `BuildResolvedSimpleFont` requires `/FontDescriptor`; when its `FontFile2` entry
-  resolves to a stream, that embedded font always wins - decoded via the same
+  active). `BuildResolvedSimpleFont(PdfObject fontDict, string? subtype)` requires
+  `/FontDescriptor`, then checks embedded-font keys in priority order: when `/FontFile2` resolves
+  to a stream, that (TrueType-outline) embedded font always wins - decoded via the same
   `GetStreamDecodedBytes` every other stream in this class uses, then loaded via
-  `Fonts.TrueTypeFont.Load(new MemoryStream(decodedBytes))`. Only when `FontFile2` is absent does
-  `BuildResolvedSimpleFont` call `ResolveFallbackFont` (see _Font Fallback Resolution_ immediately
-  below) instead of failing closed. `ResolveEncoding` builds a full
-  256-entry `int[]` code-to-Unicode-codepoint map: `ApplyBaseEncoding` seeds it from one of two
-  hand-transcribed 256-entry tables (`WinAnsiEncodingTable`/`MacRomanEncodingTable`, the PDF
-  specification's own Appendix D tables), defaulting to `/WinAnsiEncoding` when `/Encoding` is
-  absent entirely and throwing `Codecs.UnsupportedImageFeatureException` for any other named base
-  encoding (`/StandardEncoding`/`/PDFDocEncoding`/anything else); `ApplyDifferences` then applies
+  `Fonts.TrueTypeFont.Load(new MemoryStream(decodedBytes))`; else, when `/FontFile` resolves to a
+  stream, `LoadType1Font` loads the embedded classic PostScript Type 1 program (see _Type 1 Font
+  Resolution_ below); else, when `subtype == "Type1"` and `/FontFile3` is present (with neither
+  `/FontFile` nor `/FontFile2`), `Codecs.UnsupportedImageFeatureException` (feature
+  `pdf-font-type1-fontfile3`) rejects the embedded-Type1C/CFF-simple-font case, distinguishing it
+  from the already-supported composite `CIDFontType0`/`/OpenType`-wrapped-`/FontFile3` path; only
+  when none of those apply does `BuildResolvedSimpleFont` call `ResolveFallbackFont` (see _Font
+  Fallback Resolution_ immediately below) instead of failing closed - reachable for `/Type1` fonts
+  exactly as it already was for `/TrueType` fonts. `ResolveEncoding` builds a full
+  256-entry `int[]` code-to-Unicode-codepoint map: `ApplyBaseEncoding` seeds it from one of three
+  hand-transcribed 256-entry tables (`WinAnsiEncodingTable`/`MacRomanEncodingTable`/
+  `StandardEncodingTable`, the PDF specification's own Appendix D tables), defaulting to
+  `/WinAnsiEncoding` when `/Encoding` is absent entirely and throwing
+  `Codecs.UnsupportedImageFeatureException` for any other named base encoding
+  (`/PDFDocEncoding`/anything else); `ApplyDifferences` then applies
   an `/Encoding/Differences` array's `code1 name1 name2 ... code2 name1 ...` run-length overrides,
   resolving each glyph name via `StandardGlyphNames` (a ~240-entry Adobe Glyph List subset
   covering common ASCII/Latin-1 names) - an unrecognized glyph name throws
   `InvalidDataException` (a fail-closed policy, not a silent mis-mapping to codepoint `0`/
   `.notdef`), as does a `/Differences` array beginning with a glyph name before any starting code
-  number. `ResolveWidths` builds a sparse `code -> width`
+  number. A reverse of `StandardGlyphNames` (`CodepointToStandardGlyphName`, first-wins on
+  collision) is built once and reused by `LoadType1Font` as `Fonts.TrueTypeFont.LoadType1`'s
+  `codepointToGlyphName` argument, rather than introducing a second, separately-maintained
+  glyph-name vocabulary. `ResolveWidths` builds a sparse `code -> width`
   (`/1000`-scaled) map from `/FirstChar`/`/Widths` (missing/malformed entries silently omitted,
   not rejected), plus `/FontDescriptor/MissingWidth` (defaulting to `0`, the specification's own
   documented default) as the fallback for any code absent from that map.
+- **Type 1 font resolution (`PdfDocument.Fonts.Type1.cs`, added in Phase B)** —
+  `LoadType1Font(PdfObject descriptor)` is `BuildResolvedSimpleFont`'s `/FontFile` loader
+  counterpart to `LoadCidFontType2Font`/`LoadCidFontType0Font` (see _Composite Font Resolution_
+  below): it requires `/FontDescriptor/FontFile` to resolve to a stream
+  (`InvalidDataException` otherwise), then reads that stream's own `/Length1`
+  (cleartext-segment byte count) and `/Length2` (`eexec`-encrypted-segment byte count) entries -
+  deliberately read from the `/FontFile` stream dictionary itself, never from the descriptor that
+  references it, per PDF 32000-1 §9.9 - throwing `InvalidDataException` when either is missing or
+  does not resolve to a number. The stream is decoded via the same `GetStreamDecodedBytes` every
+  other embedded font stream in this class uses, then loaded via
+  `Fonts.TrueTypeFont.LoadType1(new MemoryStream(decodedBytes), length1, length2,
+  CodepointToStandardGlyphName)` - any exception the core `Fonts` layer itself throws for a
+  malformed `eexec`-encrypted segment, an unparsable `/CharStrings`/`/Subrs` dictionary, or a
+  rejected `seac` charstring propagates uncaught, consistent with this class's "embedded fonts
+  fail closed on any embedded-font problem, no fallback" convention (matching
+  `LoadCidFontType0Font`'s own documented precedent). **Non-Goals**: a `seac`-based
+  accented-composite charstring is rejected by the core `Fonts` layer itself (not
+  re-implemented or caught here); an embedded Type1C/CFF simple font (`/FontFile3` on a `/Type1`
+  descriptor) is a fundamentally different, unsupported format - see _Error Handling_ below; a
+  non-1000-unit-em `/FontMatrix` is not read or honored at all (a 1000-unit em is assumed,
+  matching every other font format this class resolves); and the Type 1 program's own built-in
+  `/Encoding` array (if any) embedded in the font program itself is never consulted - only the
+  PDF font dictionary's own `/Encoding` entry, resolved via `ResolveEncoding` above, determines
+  which glyph a shown code selects.
 - **Composite font resolution (`PdfDocument.Fonts.Type0.cs`, added in Phase 9, extended in
   Phase 12)** — `BuildResolvedCompositeFont` is `BuildResolvedFont`'s `/Type0` dispatch target. It
   requires `/Encoding` to resolve to the name `Identity-H`; any other name (including
@@ -643,15 +678,25 @@ re-parsing it each time — a property a purely static API could not express.
 - **`Do` with a name undeclared in `/Resources/XObject` (or no `/Resources` at all), a
   non-stream/missing-`/Subtype` resolved value, or a malformed operand count/type** —
   `InvalidDataException` (a malformed content stream, not merely unsupported).
-- **A font dictionary whose `/Subtype` is `/Type1`, `/MMType1`, or `/Type3`** —
-  `Codecs.UnsupportedImageFeatureException` (Type 1/CFF and Type 3 fonts remain entirely out of
-  scope by design). A `/Subtype /TrueType` font lacking an embedded
-  `/FontDescriptor/FontFile2` no longer reaches this list at all as of Phase 6 - it is resolved
+- **A font dictionary whose `/Subtype` is `/MMType1` or `/Type3`** —
+  `Codecs.UnsupportedImageFeatureException` (Multiple Master Type 1 and Type 3 fonts remain
+  entirely out of scope by design). A `/Subtype /TrueType` or `/Subtype /Type1` font lacking an
+  embedded `/FontDescriptor/FontFile2`/`/FontFile` no longer reaches this list at all as of
+  Phase 6 (widened to `/Type1` in Phase B) - it is resolved
   via fallback substitution instead (see below), except that a `/BaseFont` of `Symbol` or
   `ZapfDingbats`, or a font whose `/FontDescriptor/Flags` declares `Symbolic` without also
   declaring `Nonsymbolic`, still throws `Codecs.UnsupportedImageFeatureException` (feature
   `pdf-font-symbolic-not-embedded`) - a symbol/dingbat glyph set has no meaningful generic-family
-  equivalent and is never substituted with an unrelated system or bundled font.
+  equivalent and is never substituted with an unrelated system or bundled font. As of Phase B, a
+  `/Subtype /Type1` descriptor declaring only `/FontFile3` (neither `/FontFile` nor `/FontFile2`)
+  is instead `Codecs.UnsupportedImageFeatureException` (feature `pdf-font-type1-fontfile3`) - an
+  embedded Type1C/CFF simple font is a fundamentally different, unsupported format from the
+  classic `/FontFile` Type 1 program `LoadType1Font` loads, distinct from the already-supported
+  composite `CIDFontType0`/`/OpenType`-wrapped-`/FontFile3` path. A `/FontFile` stream's own
+  missing or non-numeric `/Length1`/`/Length2` entry, or any exception `Fonts.TrueTypeFont.LoadType1`
+  itself throws for a malformed embedded Type 1 program, is `InvalidDataException` (no fallback
+  substitution is ever attempted once an embedded Type 1 program is present, matching the
+  `CIDFontType2`/`CIDFontType0` "embedded fonts fail closed" precedent).
 - **A `/Subtype /Type0` font's `/Encoding`, when not the name `Identity-H`** (for example
   `Identity-V` or a predefined CJK encoding name) — `Codecs.UnsupportedImageFeatureException`
   (feature `pdf-font-type0-encoding-{name}`), as of Phase 9. A `/Type0` font's `/DescendantFonts`
@@ -687,8 +732,8 @@ re-parsing it each time — a property a purely static API could not express.
   bfchar/bfrange mapping semantics of their own. An absent `/ToUnicode` entry resolves to a null
   map, matching `ResolveWidths`'s own "missing optional field" leniency.
 - **An `/Encoding` naming an unrecognized base encoding** (anything other than
-  `/WinAnsiEncoding`/`/MacRomanEncoding`, or their dictionary form's `/BaseEncoding`) —
-  `Codecs.UnsupportedImageFeatureException`.
+  `/WinAnsiEncoding`/`/MacRomanEncoding`/`/StandardEncoding` (the last added in Phase B), or their
+  dictionary form's `/BaseEncoding`) — `Codecs.UnsupportedImageFeatureException`.
 - **`Tr` (text-rendering mode) set to `1`, `2`, or `4`-`7`** (stroke/clip modes) —
   `Codecs.UnsupportedImageFeatureException`; any other numeric value outside `0`-`7` is
   `InvalidDataException` instead.
@@ -715,9 +760,13 @@ re-parsing it each time — a property a purely static API could not express.
 - `Drawing.PathFiller`/`PathStroker`/`StrokeStyle`/`FillRule`/`LineCap`/`LineJoin` (from the core
   `CanvasNet` system) — rasterize the current path onto `_surface` for every path-painting
   operator, and, as of Phase 4, every filled glyph outline
-- `Fonts.TrueTypeFont` (from the core `CanvasNet` system, new as of Phase 4) — loads an embedded
-  `/FontFile2` byte stream and resolves each shown codepoint to a glyph index/outline/advance
-  width, exactly as `SvgCodec.Text.cs` already uses it for SVG `<text>` rendering
+- `Fonts.TrueTypeFont` (from the core `CanvasNet` system, new as of Phase 4, `LoadType1` added in
+  Phase A) — loads an embedded `/FontFile2` byte stream and resolves each shown codepoint to a
+  glyph index/outline/advance width, exactly as `SvgCodec.Text.cs` already uses it for SVG
+  `<text>` rendering; `LoadType1(Stream, int length1, int length2, IReadOnlyDictionary<int,
+  string> codepointToGlyphName)` is used as of Phase B by `LoadType1Font` to load an embedded
+  classic PostScript Type 1 `/FontFile` program, reusing the same `TrueTypeFont` type rather than
+  a separate font representation
 - BCL `System.IO.Compression.DeflateStream` — `FlateDecode` decompression of object streams and,
   as of Phase 3, any other `FlateDecode`-filtered stream (image XObjects included)
 - BCL `System.Numerics.Matrix3x2`/`Vector2` — the current transformation matrix, every

@@ -545,6 +545,38 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Proves <see cref="PdfDocument.Render"/> resolves a <c>/Subtype /Type1</c> simple font
+    ///     with an embedded classic PostScript <c>/FontDescriptor/FontFile</c> program end to end
+    ///     (Phase B): a hand-authored, entirely synthetic fixture (see
+    ///     <c>PdfFixtures\README.md</c>) built via <c>SyntheticFontBuilder.Type1</c> (no
+    ///     third-party font asset), whose <c>A</c> glyph is a filled square spanning
+    ///     font-design-space <c>(100, 100)</c>-<c>(500, 500)</c> of a 1000-unit em - deliberately
+    ///     matching <see cref="CanvasNetPdf_SystemIntegration_RenderCidFontType0CompositeFont_PaintsExpectedGlyphInk"/>'s
+    ///     own glyph design/placement (font size 20, text-space origin <c>(5, 5)</c>, on a 100x100
+    ///     MediaBox), so both share the exact same pixel-assertion convention.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_RenderEmbeddedType1Font_PaintsExpectedGlyphInk()
+    {
+        // Arrange
+        using var document = PdfDocument.Open(Fixture("text-embedded-type1-font.pdf"));
+
+        // Act
+        using var surface = document.Render(0, 100, 100);
+
+        // Assert: text x [7, 15) holds the painted square glyph (design x [100, 500) of 1000,
+        // scaled by fontSize 20, offset by originX 5, flipped against the MediaBox height for
+        // originY 5) - real glyph ink, not merely "did not throw".
+        Assert.NotEqual(0, surface[11, 89].A);
+
+        // Assert: the canvas's far corners, well outside the glyph, remain fully transparent.
+        Assert.Equal(0, surface[0, 0].A);
+        Assert.Equal(0, surface[99, 0].A);
+        Assert.Equal(0, surface[0, 99].A);
+        Assert.Equal(0, surface[99, 99].A);
+    }
+
+    /// <summary>
     ///     Proves <see cref="PdfDocument.Render"/> resolves a Standard-14 simple TrueType font
     ///     (<c>/BaseFont /Helvetica</c>) with no embedded <c>/FontFile2</c> end to end (Phase 6):
     ///     a synthetic, in-memory single-page document (no new binary fixture needed) drawing a

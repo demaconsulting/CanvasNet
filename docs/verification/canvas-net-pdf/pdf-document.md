@@ -4,6 +4,7 @@
 <!-- cspell:ignore bfchar bfrange beginbfchar endbfchar beginbfrange endbfrange codepoints -->
 <!-- cspell:ignore usecmap cidrange cidchar cidfonttype -->
 <!-- cspell:ignore functiontype multiinput -->
+<!-- cspell:ignore fontfile quoteright Quoteright quotesingle -->
 
 This document describes the unit-level verification strategy for the `PdfDocument` class.
 
@@ -468,14 +469,16 @@ real, hand-authored fixture, asserting specific composited pixel colors at speci
 matching the fixture's known 2x2 source image, and a pixel outside the placed image's
 device-space footprint remains transparent.
 
-#### CanvasNetPdf-PdfDocument-FontResolution: Font Resolution Loads Embedded FontFile2, Fails Closed for Unsupported Subtypes
+#### CanvasNetPdf-PdfDocument-FontResolution: Font Resolution Dispatches TrueType/Type1 Simple Fonts
 
 **Tests**: `PdfDocument_Fonts_UnsupportedSubtype_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Fonts_UndefinedFontName_ThrowsInvalidDataException`,
-`PdfDocument_BuildResolvedFont_EmbeddedFontFileTakesPriorityOverFallback`
+`PdfDocument_BuildResolvedFont_EmbeddedFontFileTakesPriorityOverFallback`,
+`PdfDocument_Fonts_Type1_DispatchesToSimpleFontResolution_PaintsGlyphInk`,
+`PdfDocument_Fonts_Type1_NoFontFile_ResolvesViaFallback`
 
 A `[Theory]` builds a `/Resources/Font` dictionary declaring each excluded subtype
-(`/Type1`/`/MMType1`/`/Type3`) in turn and selects it via `Tf`, asserting
+(`/MMType1`/`/Type3`) in turn and selects it via `Tf`, asserting
 `Codecs.UnsupportedImageFeatureException` in every case. Selects a font name absent from
 `/Resources/Font` via `Tf`, asserting `InvalidDataException`. Builds a `/Subtype /TrueType` font
 dictionary with both an embedded `/FontFile2` stream and a deliberately unmatched `/BaseFont`
@@ -485,7 +488,13 @@ substitution. As of Phase 6, a `/Subtype /TrueType` font lacking an embedded `/F
 longer fails closed here at all; see `CanvasNetPdf-PdfDocument-FontFallback` below for its
 resolution. As of Phase 9, a `/Subtype /Type0` composite font no longer fails closed here either;
 see `CanvasNetPdf-PdfDocument-CompositeFontResolution` immediately below for its own resolution
-and remaining fail-closed cases.
+and remaining fail-closed cases. As of Phase B, `/Subtype /Type1` is no longer listed among the
+excluded subtypes at all (only `/MMType1`/`/Type3` remain): a dedicated test proves a `/Type1`
+font dictionary dispatches to `BuildResolvedSimpleFont` and paints its embedded Type 1 program's
+own glyph ink, and a second proves a `/Type1` font with no `/FontFile` resolves via
+`ResolveFallbackFont` exactly like an equivalent `/TrueType` font - see
+`CanvasNetPdf-PdfDocument-Type1FontResolution` below for the full embedded-`/FontFile`
+resolution and its own fail-closed cases.
 
 #### CanvasNetPdf-PdfDocument-CompositeFontResolution: Type0/Identity-H Composite Fonts Resolve, Fail Closed Otherwise
 
@@ -559,6 +568,48 @@ synthetic, non-CID-keyed, `/OpenType`-wrapped CFF program with no `/CIDToGIDMap`
 asserts real glyph ink paints at the analytically-known position of its hand-designed square
 glyph - proving the same end-to-end pipeline for the `/CIDFontType0` shape.
 
+#### CanvasNetPdf-PdfDocument-Type1FontResolution: Embedded Classic Type 1 FontFile Resolves, Fails Closed Otherwise
+
+**Tests**: `PdfDocument_Fonts_Type1_DispatchesToSimpleFontResolution_PaintsGlyphInk`,
+`PdfDocument_Fonts_Type1_EmbeddedFontFileTakesPriorityOverFallback`,
+`PdfDocument_Fonts_Type1_NoFontFile_ResolvesViaFallback`,
+`PdfDocument_Fonts_Type1_FontFile3Only_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Fonts_Type1_FontFileMissingLength1_ThrowsInvalidDataException`,
+`PdfDocument_Fonts_Type1_FontFileMissingLength2_ThrowsInvalidDataException`,
+`PdfDocument_Fonts_Type1_FontFileNonNumericLength2_ThrowsInvalidDataException`,
+`PdfDocument_Load_TextEmbeddedType1FontFixture_PaintsVisibleGlyphInk`,
+`PdfDocument_Load_TextStandard14Type1NoFontFileFixture_PaintsVisibleSubstituteGlyphInk`,
+`CanvasNetPdf_SystemIntegration_RenderEmbeddedType1Font_PaintsExpectedGlyphInk`
+
+Builds a `/Subtype /Type1` font dictionary with an embedded, entirely synthetic, classic
+PostScript `/FontDescriptor/FontFile` program (via `SyntheticFontBuilder.Type1`, declaring
+`.notdef`/`space`/`A` glyphs, `A` a filled square outline), asserting the embedded font's own
+square glyph paints at the position its font-design-space coordinates and text-space
+placement determine - proving `LoadType1Font`'s decode/`Fonts.TrueTypeFont.LoadType1`/
+`ResolveEncoding`-via-`CodepointToStandardGlyphName` pipeline resolves end to end. A second test
+builds the same embedded program under a deliberately unmatched `/BaseFont` family name,
+asserting the embedded font's own known glyph shape (not a fallback font's differently-shaped
+glyph) is what gets painted - proving an embedded `/FontFile` always wins over fallback
+substitution, exactly like the `/FontFile2` precedent. A `/Subtype /Type1` font dictionary with a
+recognized Standard-14 `/BaseFont` and no `/FontFile`/`/FontFile2`/`/FontFile3` at all asserts
+resolution succeeds via `ResolveFallbackFont` and paints visible substitute glyph ink, mirroring
+the `/TrueType` equivalent in `CanvasNetPdf-PdfDocument-FontFallback`. A `/Subtype /Type1`
+descriptor declaring only `/FontFile3` (no `/FontFile`/`/FontFile2`) asserts
+`Codecs.UnsupportedImageFeatureException` with `Feature == "pdf-font-type1-fontfile3"`. An
+embedded `/FontFile` stream declaring only `/Length2` (no `/Length1` at all) asserts
+`InvalidDataException`; separately, a `BuildEmbeddedType1FontResources(omitLength2: true)`
+stream declaring only `/Length1` asserts `InvalidDataException` too; separately, a stream
+declaring a non-numeric `/Length2` value (`/NotANumber`) asserts `InvalidDataException` as well -
+proving all three malformed-length cases fail closed, and that both lengths are read from the
+`/FontFile` stream's own dictionary (never the descriptor's). Two fixture-conformance tests open
+the new hand-authored, entirely synthetic `text-embedded-type1-font.pdf` and
+`text-standard14-type1-no-fontfile.pdf` fixtures (see `PdfFixtures\README.md`) and assert visible
+painted ink from each. The end-to-end system-integration test opens
+`text-embedded-type1-font.pdf` and asserts the analytically-known painted-pixel position of its
+hand-designed square glyph (matching `CanvasNetPdf-PdfDocument-CompositeFontResolution`'s own
+`CIDFontType0` system-integration test's pixel-assertion convention exactly, since both fixtures
+share the identical glyph design/placement), plus fully-transparent canvas corners.
+
 #### CanvasNetPdf-PdfDocument-ToUnicodeCMap: /ToUnicode CMap Resolves to a Code-to-Codepoint Map
 
 **Tests**: `PdfDocument_Fonts_ToUnicode_Absent_ResolvesNull`,
@@ -612,7 +663,7 @@ font resource has no `/FontFile2`: the Standard-14 Helvetica case asserts at lea
 operating system), and the Symbol case asserts the render throws
 `Codecs.UnsupportedImageFeatureException` rather than silently painting an unrelated glyph shape.
 
-#### CanvasNetPdf-PdfDocument-FontEncoding: WinAnsi/MacRoman Base Encodings and Differences Overrides Resolve Correctly
+#### CanvasNetPdf-PdfDocument-FontEncoding: Base Encodings and Differences Overrides Resolve Correctly
 
 **Tests**: `PdfDocument_Fonts_UnrecognizedEncoding_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Fonts_DefaultEncoding_IsWinAnsiEncoding`,
@@ -620,7 +671,9 @@ operating system), and the Symbol case asserts the render throws
 `PdfDocument_Fonts_Differences_OverridesBaseEncodingCode`,
 `PdfDocument_Fonts_Differences_Absent_LeavesBaseEncodingCodeUnmapped`,
 `PdfDocument_Fonts_Differences_UnrecognizedGlyphName_ThrowsInvalidDataException`,
-`PdfDocument_Fonts_Differences_NameBeforeStartingCode_ThrowsInvalidDataException`
+`PdfDocument_Fonts_Differences_NameBeforeStartingCode_ThrowsInvalidDataException`,
+`PdfDocument_Fonts_StandardEncoding_DiffersFromWinAnsiEncoding`,
+`PdfDocument_Fonts_StandardEncoding_Absent_DefaultWinAnsiDoesNotPaintQuoteright`
 
 Selects a font declaring an unrecognized `/Encoding` base-encoding name, asserting
 `Codecs.UnsupportedImageFeatureException`. Selects a font with no `/Encoding` key at all and,
@@ -636,7 +689,14 @@ base encoding alone would not have resolved to that codepoint; separately shows 
 a `/Differences` array containing an unrecognized glyph name, asserting `InvalidDataException`
 (a fail-closed policy, not a silent mis-mapping to `.notdef`); separately declares a
 `/Differences` array beginning with a glyph name before any starting code number, asserting
-`InvalidDataException` for that malformed array shape too.
+`InvalidDataException` for that malformed array shape too. As of Phase B, a font explicitly
+declaring `/StandardEncoding` and showing byte code `0x27` (which diverges between the two base
+encodings - `StandardEncoding` maps it to U+2019 "quoteright", `WinAnsiEncoding` maps it to
+U+0027 "quotesingle" instead) through a synthetic font whose `cmap` maps only U+2019 to a real
+glyph, asserts ink is painted; a companion test proves that without an explicit `/Encoding` entry
+(the default `/WinAnsiEncoding` applies instead), the same code paints nothing against the same
+font - proving `/StandardEncoding` and `/WinAnsiEncoding` genuinely resolve code `0x27`
+differently, not merely that some encoding resolved.
 
 #### CanvasNetPdf-PdfDocument-FontWidths: Advance-Width Resolution Follows the Documented Priority
 

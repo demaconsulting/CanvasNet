@@ -3,6 +3,7 @@
 <!-- cspell:ignore xobject devicergb pdfhost flipperfile qwikpdf -->
 <!-- cspell:ignore bfchar bfrange codepoints -->
 <!-- cspell:ignore cidfonttype OTTO -->
+<!-- cspell:ignore hsbw fontfile -->
 
 Every PDF file in this folder is a small, hand-authored document created specifically for this
 repository to exercise `PdfDocument`'s parsing internals (tokenizer, object model,
@@ -18,7 +19,10 @@ font-fallback substitution (Phase 6), its `LZWDecode`/`ASCII85Decode`/`ASCIIHexD
 descendant font, with a non-identity `/CIDToGIDMap` - Phase 9), its `/ToUnicode` CMap
 resolution (`bfchar`/`bfrange` operators - Phase 10, resolved but unconsumed at rendering time),
 and its `/Type0`/`/CIDFontType0` (CFF-outline) composite-font text support (a non-CID-keyed CFF
-program embedded via an `/OpenType`-wrapped `/FontFile3` - Phase 12)
+program embedded via an `/OpenType`-wrapped `/FontFile3` - Phase 12), and its classic PostScript
+Type 1 simple-font support (`/Subtype /Type1`, either an embedded `/FontDescriptor/FontFile`
+program or the free non-embedded fallback path, plus the `/StandardEncoding` base encoding -
+Phase B)
 end to end via real files on disk.
 There is no third-party source corpus behind any of them (unlike, for example, `PngSuite` in the core test
 project): each was constructed byte-by-byte from scratch for CanvasNet and is licensed under the
@@ -50,6 +54,8 @@ same MIT license as the rest of this repository.
 | `combined-vector-text-image.pdf` | Filled rect + stroked line + image XObject + font text (Phase 8) |
 | `standard14-font-fallback.pdf` | `/BaseFont /Helvetica`, no `/FontFile2` - on-disk fallback (Phase 6) fixture |
 | `malformed-content-stream.pdf` | `re` operator given only 2 of its 4 required operands (malformed) |
+| `text-embedded-type1-font.pdf` | `/Subtype /Type1`, embedded PostScript `/FontFile` (Phase B) - `Tf`/`Td`/`Tj` |
+| `text-standard14-type1-no-fontfile.pdf` | `/Subtype /Type1`, `/BaseFont /Helvetica`, no `/FontFile*` (Phase B) |
 
 For this phase, a real-world third-party PDF sourcing pass was investigated (mirroring
 `SvgFixtures`' Wikimedia Commons CC0 sourcing) to see whether a small, genuinely verifiable,
@@ -91,3 +97,22 @@ with no `/CIDToGIDMap` declared (ignored for this subtype regardless - identity 
 is always used). Its content stream draws Identity-H code `0001` (CID 1, resolving directly to
 GID 1 - a filled square spanning font-design-space `(100, 100)`-`(500, 500)` of a 1000-unit em) at
 font size 20, text-space origin `(5, 5)`, on a 100x100 `/MediaBox`.
+
+`text-embedded-type1-font.pdf` (Phase B) exercises the `/Subtype /Type1` embedded
+`/FontDescriptor/FontFile` classic PostScript Type 1 font path: like the Phase 12 CFF fixture
+above, it is **entirely hand-authored and synthetic, including its embedded font program** - built
+with the same `SyntheticFontBuilder.Type1` helper already proven by
+`DemaConsulting.CanvasNet.Tests\Fonts\Type1TableTests.cs`'s own Type 1 coverage, not derived from
+any real-world font. Its font dictionary declares no `/Encoding` (so the default
+`/WinAnsiEncoding` base encoding applies), and its embedded program declares three glyphs
+(`.notdef`, `space`, and `A` - glyph `A` a filled square spanning font-design-space
+`(100, 100)`-`(500, 500)` of a 1000-unit em, matching the Phase 12 CFF fixture's own glyph
+design/placement so both fixtures' system-integration tests share the exact same pixel-assertion
+convention). Its content stream draws `(A) Tj` at font size 20, text-space origin `(5, 5)`, on a
+100x100 `/MediaBox`.
+
+`text-standard14-type1-no-fontfile.pdf` (Phase B) mirrors `standard14-font-fallback.pdf` exactly,
+except its font dictionary declares `/Subtype /Type1` instead of `/Subtype /TrueType` - proving
+the free non-embedded fallback path (`ResolveFallbackFont`) is reachable for `/Type1` fonts too,
+not only `/TrueType` fonts. Like `standard14-font-fallback.pdf`, it declares no
+`/FontDescriptor/FontFile`/`/FontFile2`/`/FontFile3` at all.
