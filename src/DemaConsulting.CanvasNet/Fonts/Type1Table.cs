@@ -430,6 +430,17 @@ internal sealed class Type1Table : IGlyphOutlineSource
     ///     Peeks a single glyph's charstring for only its leading <c>hsbw</c>/<c>sbw</c> operator
     ///     to resolve its advance width, without running the full charstring interpreter.
     /// </summary>
+    /// <remarks>
+    ///     Tolerates a leading <c>div</c> (escape 12 12) operator interleaved with the number
+    ///     pushes that precede <c>hsbw</c>/<c>sbw</c> - real-world Type 1 fonts commonly encode a
+    ///     fractional side-bearing or width (which plain Type 1 integers cannot represent) as
+    ///     <c>&lt;numerator&gt; &lt;denominator&gt; div</c> immediately before <c>hsbw</c>/<c>sbw</c>
+    ///     (for example <c>0 20225 61 div hsbw</c> to express a width of 331.56...). No other
+    ///     operator (subroutine calls, flex, etc.) is tolerated here - this remains a narrow,
+    ///     stack-only peek, not a general-purpose interpreter; <see cref="GetGlyphOutline"/>'s full
+    ///     <see cref="Type1CharstringInterpreter"/> run is the authoritative source for anything
+    ///     beyond this.
+    /// </remarks>
     private static int PeekAdvanceWidth(byte[] data, (int Offset, int Length) charstring)
     {
         var pos = charstring.Offset;
@@ -463,6 +474,7 @@ internal sealed class Type1Table : IGlyphOutlineSource
                 }
 
                 var escOp = data[pos];
+                pos++;
                 if (escOp == 7) // sbw
                 {
                     if (stack.Count != 4)
@@ -471,6 +483,21 @@ internal sealed class Type1Table : IGlyphOutlineSource
                     }
 
                     return (int)Math.Round(stack[2], MidpointRounding.AwayFromZero);
+                }
+
+                if (escOp == 12) // div - see this method's remarks
+                {
+                    if (stack.Count < 2)
+                    {
+                        throw new InvalidDataException("Type 1 charstring 'div' requires at least two operands.");
+                    }
+
+                    var divisor = stack[^1];
+                    var dividend = stack[^2];
+                    stack.RemoveAt(stack.Count - 1);
+                    stack.RemoveAt(stack.Count - 1);
+                    stack.Add(dividend / divisor);
+                    continue;
                 }
             }
 

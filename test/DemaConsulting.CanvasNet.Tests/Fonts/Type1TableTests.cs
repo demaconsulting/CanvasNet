@@ -203,6 +203,34 @@ public class Type1TableTests
     }
 
     /// <summary>
+    ///     Proves that Type1Table GetAdvanceWidth FractionalWidthViaDiv ReturnsRoundedWidth.
+    /// </summary>
+    /// <remarks>
+    ///     Real-world Type 1 fonts (this exact idiom was found in a pdfLaTeX Computer Modern
+    ///     font) commonly encode a fractional side-bearing/width - which plain Type 1 integers
+    ///     cannot represent - as <c>&lt;numerator&gt; &lt;denominator&gt; div</c> immediately
+    ///     before <c>hsbw</c> (for example <c>0 20225 61 div hsbw</c> for a width of
+    ///     331.56..., here rounded to 332). <see cref="Type1Table"/>'s advance-width peek must
+    ///     tolerate this, not just a literal <c>&lt;sbx&gt; &lt;width&gt; hsbw</c>.
+    /// </remarks>
+    [Fact]
+    public void Type1Table_GetAdvanceWidth_FractionalWidthViaDiv_ReturnsRoundedWidth()
+    {
+        var buf = new List<byte>();
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 0);
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 20225);
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 61);
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 1212); // escape 12 12 = div
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 13); // hsbw
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 14); // endchar
+
+        var program = SyntheticFontBuilder.Type1([(".notdef", [.. buf])]);
+        var table = Parse(program);
+
+        Assert.Equal(332, table.GetAdvanceWidth(0));
+    }
+
+    /// <summary>
     ///     Proves that Type1Table Parse SeacOperator ThrowsInvalidDataException.
     /// </summary>
     [Fact]
