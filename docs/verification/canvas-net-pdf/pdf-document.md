@@ -48,10 +48,17 @@ are all sibling in-house types, not external services, no mocking or stubbing is
 assert on parsed token/object field values, on `PageCount`/`PdfPageInfo` field values, on
 `Surface` pixel/dimension values, and on thrown exception types (and, for
 `UnsupportedImageFeatureException`, its `Feature` token) - never on "no exception thrown" alone,
-so every test can actually fail if the implementation is wrong.
+so every test can actually fail if the implementation is wrong. Encrypted-document tests
+(`PdfDocumentEncryptionTests.cs`, Phase 16) build minimal, valid, encrypted single-page PDFs
+entirely in-memory using test-only helper methods that independently re-derive the ISO 32000-1
+Algorithm 1/2/3/4/5 and ISO 32000-2 Algorithm 2.A steps directly from the specification text
+(a hand-rolled RC4 KSA/PRGA, since RC4 is symmetric and so the same helper both "encrypts" these
+fixtures and is what production decryption itself implements, plus `Aes.Create()`-based AES-CBC
+encryption) - deliberately not copy-pasted from `PdfDocument.Encryption.cs`'s own implementation,
+so that a shared bug could not silently mask itself by passing against its own mirrored mistake.
 
 Unit tests reside in `PdfDocumentTests.cs` within the `DemaConsulting.CanvasNet.Pdf.Tests`
-project.
+project; encryption-specific tests reside in the sibling `PdfDocumentEncryptionTests.cs`.
 
 ### Test Environment
 
@@ -164,12 +171,89 @@ Opens `PdfFixtures/cyclic-page-tree.pdf` (a `/Kids` entry referencing an ancesto
 public API. Asserts `InvalidDataException` is thrown, confirming the unbounded-cycle guard stops
 traversal rather than looping forever.
 
-#### CanvasNetPdf-PdfDocument-EncryptDetection: Encrypted Trailer Throws UnsupportedImageFeatureException
+#### CanvasNetPdf-PdfDocument-EncryptDetection: Unsupported Encrypted-Document Shapes Throw Distinguishable UnsupportedImageFeatureException
 
-**Test**: `PdfDocument_Open_EncryptedTrailer_ThrowsUnsupportedImageFeatureException`
+**Tests**: `PdfDocument_Open_EncryptedTrailer_ThrowsUnsupportedImageFeatureException`,
+`CanvasNetPdf_SystemIntegration_PdfEncryptDetection_EncryptedTrailerThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Open_EncryptedAesV3_R6_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Open_EncryptedRc4_WrongUserPasswordHash_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Open_EncryptedAesV3_WrongValidationHash_ThrowsUnsupportedImageFeatureException`
 
-Opens `PdfFixtures/encrypted-trailer.pdf` (a trailer containing an `/Encrypt` key) through the
-public API. Asserts `UnsupportedImageFeatureException` is thrown with `Feature == "pdf-encrypted"`.
+Opens `PdfFixtures/encrypted-trailer.pdf` (a trailer containing an `/Encrypt` key whose `/Filter`
+is `/Adobe.PubSec`, not `/Standard`) through the public API and asserts
+`UnsupportedImageFeatureException` is thrown with `Feature == "pdf-encrypted-filter-Adobe.PubSec"`
+(both from `PdfDocumentTests.cs` and, identically, from `PdfSystemIntegrationTests.cs`'s own
+end-to-end copy of the same assertion). Separately builds an in-memory `/V 5`/`/R 6` document and
+asserts `Feature == "pdf-encrypted-r6-hardened-hash"` (AES-256's "hardened hash" key derivation is
+out of scope). Separately builds an in-memory RC4 document with a well-formed `/O` but a
+deliberately wrong `/U`, and an in-memory AESV3/R5 document with a deliberately wrong `/U`
+validation hash, asserting both throw with `Feature == "pdf-encrypted-password-required"` (a
+real, non-empty password is genuinely required to open either document).
+
+#### CanvasNetPdf-PdfDocument-EncryptionRc4: RC4-Encrypted Documents With an Empty User Password Open and Render
+
+**Tests**: `PdfDocument_Open_EncryptedRc4_40Bit_DecryptsAndRenders`,
+`PdfDocument_Open_EncryptedRc4_128Bit_DecryptsAndRenders`,
+`PdfDocument_Open_Encrypted_EncryptDictionaryStringsAreNeverDecrypted`,
+`PdfDocument_Open_Encrypted_CatalogOwnStringIsDecrypted`,
+`PdfDocument_Open_Encrypted_ObjStmContainedObjects_AreNeverDoubleDecrypted_DocumentedByDesign`
+
+Builds minimal, in-memory, `/Filter /Standard` encrypted single-page PDFs for `/V 1`/`/R 2`
+(40-bit) and `/V 2`/`/R 3` (128-bit) RC4, each with a test-computed `/O`/`/U` (the `/R 3` case's
+`/U` deliberately carries non-zero, arbitrary trailing padding bytes in its last 16 of 32 bytes,
+proving production authentication compares only the first 16) and an RC4-encrypted `/Contents`
+stream. Opens each through the public API with no password supplied and asserts `Render` produces
+the expected opaque-black/transparent pixels for the plaintext content stream's filled rectangle,
+proving the empty user password authenticated and every string/stream decrypted correctly.
+`PdfDocument_Open_Encrypted_EncryptDictionaryStringsAreNeverDecrypted` re-asserts the same
+RC4 40-bit scenario standalone as a dedicated regression anchor for the invariant that the
+`/Encrypt` dictionary's own `/O`/`/U` strings are never mistakenly decrypted (relying on
+`InitializeEncryption` resolving, and thereby caching, that object before any encryption key is
+ever set - if this ordering were ever broken, the corrupted `/O`/`/U` bytes would make every
+positive encryption test, including this one, fail authentication).
+`PdfDocument_Open_Encrypted_CatalogOwnStringIsDecrypted` embeds an RC4-encrypted `/Lang (en-US)`
+literal string directly in the Catalog's own body (object 1, encrypted with its own per-object
+key exactly like every other string in the document), confirms the document still opens and
+renders correctly, then - via reflection into the private `GetObject` method - re-fetches the
+cached Catalog object and asserts its `/Lang` bytes are the plaintext `"en-US"`, proving that the
+Catalog, resolved and cached pre-key by the constructor's own `IsValidCatalogRoot` check before
+`InitializeEncryption` ever runs, is still correctly decrypted once `InitializeEncryption`'s own
+`InvalidateObjectCacheExceptEncryptDictionary` step discards and forces re-resolution of every
+object cached before the key existed (except the `/Encrypt` dictionary's own).
+`PdfDocument_Open_Encrypted_ObjStmContainedObjects_AreNeverDoubleDecrypted_DocumentedByDesign`
+constructs a synthetic `/Type /XRef` cross-reference-stream-based encrypted PDF whose compressed
+object 6 (`<< /Greeting (Hello, Encrypted World!) >>`) lives inside object 7's `/Type /ObjStm`
+container, itself RC4-encrypted as a whole (never re-encrypted per contained object), and asserts
+both that the document still renders correctly (object 4's own encrypted `/Contents` stream
+decrypts correctly) and - via the same reflection technique - that the compressed object's own
+`/Greeting` string decompresses/decrypts to the correct plaintext, proving `GetObject`'s two
+mutually exclusive code paths (`ParseIndirectObjectAt`, which decrypts strings, for a direct
+cross-reference entry; `LoadCompressedObject`, which never does, for a compressed entry, relying
+instead on the container stream's own single decrypt pass) produce a correct, single-pass result.
+
+#### CanvasNetPdf-PdfDocument-EncryptionAesV2: AES-128 (AESV2) Documents With an Empty Password
+
+**Test**: `PdfDocument_Open_EncryptedAesV2_128Bit_DecryptsAndRenders`
+
+Builds a minimal, in-memory, `/Filter /Standard`/`/V 4`/`/R 4`/`/CF/StdCF/CFM /AESV2` encrypted
+single-page PDF with a test-computed `/O`/`/U` and an AES-128-CBC/PKCS7-encrypted `/Contents`
+stream (a per-object key derived via Algorithm 1's `sAlT`-suffixed branch, with a leading 16-byte
+initialization vector prepended to the ciphertext). Opens it through the public API with no
+password supplied and asserts `Render` produces the expected pixel colors, proving the AES branch
+of Algorithm 1 decrypts correctly end-to-end.
+
+#### CanvasNetPdf-PdfDocument-EncryptionAesV3R5: AES-256 R5 (AESV3) Documents With an Empty Password
+
+**Test**: `PdfDocument_Open_EncryptedAesV3_R5_DecryptsAndRenders`
+
+Builds a minimal, in-memory, `/Filter /Standard`/`/V 5`/`/R 5`/`/CF/StdCF/CFM /AESV3` encrypted
+single-page PDF with a test-computed `/U` (hash/validation-salt/key-salt) and `/UE` (the raw
+32-byte file key, AES-256-CBC-wrapped with a zero initialization vector and no padding under the
+password-derived intermediate key) per ISO 32000-2 Algorithm 2.A, and an AES-256-CBC/PKCS7
+encrypted `/Contents` stream using the file key directly (no further per-object derivation, as R5
+specifies). Opens it through the public API with no password supplied and asserts `Render`
+produces the expected pixel colors, proving Algorithm 2.A's validation-salt authentication,
+`/UE` unwrapping, and direct-file-key stream decryption all work correctly end-to-end.
 
 #### CanvasNetPdf-PdfDocument-Open: Open Validates Null and Empty/Whitespace Arguments
 

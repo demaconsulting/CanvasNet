@@ -155,14 +155,78 @@ sections:
           - id: CanvasNetPdf-PdfDocument-EncryptDetection
             title: >-
               The PdfDocument class shall detect an /Encrypt key in the trailer and throw
-              UnsupportedImageFeatureException with feature token "pdf-encrypted", without
-              attempting to resolve or decrypt the referenced encryption dictionary.
+              UnsupportedImageFeatureException with its own distinguishable feature token (for
+              example "pdf-encrypted-filter-{name}", "pdf-encrypted-r6-hardened-hash",
+              "pdf-encrypted-crypt-filter-{name}", "pdf-encrypted-cfm-{name}", or
+              "pdf-encrypted-password-required") for every encrypted-document shape this phase
+              does not support: a non-/Standard security handler, AES-256 /R 6 "hardened hash"
+              key derivation, a crypt filter other than the standard /StdCF, or a document that
+              genuinely requires a non-empty user password.
             justification: |
               Treating still-encrypted bytes as plaintext would silently produce meaningless
-              results; a clear, well-formed-but-unsupported signal lets callers distinguish this
-              case from a genuinely malformed document.
+              results; a clear, well-formed-but-unsupported signal, distinguishable per rejection
+              reason, lets callers diagnose exactly why a given encrypted document cannot be
+              opened instead of receiving one generic, undifferentiated error.
             tests:
               - PdfDocument_Open_EncryptedTrailer_ThrowsUnsupportedImageFeatureException
+              - CanvasNetPdf_SystemIntegration_PdfEncryptDetection_EncryptedTrailerThrowsUnsupportedImageFeatureException
+              - PdfDocument_Open_EncryptedAesV3_R6_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Open_EncryptedRc4_WrongUserPasswordHash_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Open_EncryptedAesV3_WrongValidationHash_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-EncryptionRc4
+            title: >-
+              The PdfDocument class shall open a /Filter /Standard, /V 1 or /V 2, RC4-encrypted
+              (40 to 128-bit) document with an empty user password: deriving the file encryption
+              key via ISO 32000-1 Algorithm 2, authenticating the empty user password against /U
+              via Algorithm 4 (/R 2) or Algorithm 5 (/R 3/4), and transparently decrypting every
+              indirect object's strings and every stream's raw bytes via Algorithm 1 before any
+              other parsing logic observes them.
+            justification: |
+              RC4 (40 to 128-bit) with an empty user password is the single most common real-world
+              encrypted-PDF shape; supporting it lets CanvasNetPdf open and render the vast
+              majority of permission-restricted PDFs found in the wild without requiring a caller
+              to supply any password.
+            tests:
+              - PdfDocument_Open_EncryptedRc4_40Bit_DecryptsAndRenders
+              - PdfDocument_Open_EncryptedRc4_128Bit_DecryptsAndRenders
+              - PdfDocument_Open_Encrypted_EncryptDictionaryStringsAreNeverDecrypted
+              - PdfDocument_Open_Encrypted_CatalogOwnStringIsDecrypted
+              - PdfDocument_Open_Encrypted_ObjStmContainedObjects_AreNeverDoubleDecrypted_DocumentedByDesign
+
+          - id: CanvasNetPdf-PdfDocument-EncryptionAesV2
+            title: >-
+              The PdfDocument class shall open a /Filter /Standard, /V 4, /R 4,
+              /CF/StdCF/CFM /AESV2 (AES-128) encrypted document with an empty user password:
+              deriving the file encryption key via Algorithm 2, authenticating the empty user
+              password against /U via Algorithm 5, and transparently decrypting every indirect
+              object's strings and every stream's raw bytes via Algorithm 1's AES branch (a
+              per-object key, a leading 16-byte CBC initialization vector, and PKCS#7 padding)
+              before any other parsing logic observes them.
+            justification: |
+              AES-128 (/V 4/AESV2) is a common encrypted-PDF shape produced by modern PDF writers
+              that have moved past plain RC4; supporting it extends empty-user-password coverage
+              to this equally common real-world case.
+            tests:
+              - PdfDocument_Open_EncryptedAesV2_128Bit_DecryptsAndRenders
+
+          - id: CanvasNetPdf-PdfDocument-EncryptionAesV3R5
+            title: >-
+              The PdfDocument class shall open a /Filter /Standard, /V 5, /R 5,
+              /CF/StdCF/CFM /AESV3 (AES-256, R5 key derivation) encrypted document with an empty
+              user password: authenticating the empty user password against /U's validation salt
+              and unwrapping /UE via ISO 32000-2 Algorithm 2.A, then using the resulting 32-byte
+              file encryption key directly (with no further per-object key derivation) to decrypt
+              every indirect object's strings and every stream's raw bytes as a leading 16-byte
+              CBC initialization vector followed by AES-256/PKCS#7-padded ciphertext.
+            justification: |
+              AES-256 using the simpler R5 key derivation is a real-world encrypted-PDF shape
+              found in the wild; supporting it (while deliberately rejecting /R 6's more complex
+              "hardened hash" key derivation, which this phase does not implement) extends
+              empty-user-password coverage to the strongest widely-deployed encryption variant
+              this phase supports.
+            tests:
+              - PdfDocument_Open_EncryptedAesV3_R5_DecryptsAndRenders
 
           - id: CanvasNetPdf-PdfDocument-Open
             title: >-

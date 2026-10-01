@@ -50,8 +50,18 @@ public sealed partial class PdfDocument
         /// <summary>Gets the numeric value, when <see cref="Kind"/> is <see cref="PdfKind.Number"/>.</summary>
         internal double Number { get; private init; }
 
-        /// <summary>Gets the raw string bytes, when <see cref="Kind"/> is <see cref="PdfKind.String"/>.</summary>
-        internal byte[] Bytes { get; private init; } = [];
+        /// <summary>
+        ///     Gets or sets the raw string bytes, when <see cref="Kind"/> is
+        ///     <see cref="PdfKind.String"/>. Settable (rather than <c>private init</c>, unlike
+        ///     every other field on this type) solely so <c>PdfDocument.Encryption.cs</c>'s
+        ///     <c>DecryptStringsInPlace</c> can overwrite already-parsed ciphertext with plaintext
+        ///     in place, without rebuilding the surrounding object tree. This setter must never be
+        ///     called from anywhere else - a cached <see cref="PdfObject"/> instance is shared by
+        ///     every caller that resolves the same object number, so mutating it outside the
+        ///     one-time, pre-cache-return decrypt step would corrupt every other holder's view of
+        ///     the same object.
+        /// </summary>
+        internal byte[] Bytes { get; set; } = [];
 
         /// <summary>Gets the name/keyword text, when <see cref="Kind"/> is <see cref="PdfKind.Name"/>.</summary>
         internal string Text { get; private init; } = string.Empty;
@@ -76,6 +86,27 @@ public sealed partial class PdfDocument
         ///     <see cref="Kind"/> is <see cref="PdfKind.Stream"/>.
         /// </summary>
         internal int StreamDataStart { get; private init; }
+
+        /// <summary>
+        ///     Gets or sets the indirect object number this value was parsed as the top-level
+        ///     value of, or <c>-1</c> when this value was never parsed as a top-level indirect
+        ///     object (for example a nested dictionary entry, or the single shared
+        ///     <see cref="NullValue"/> instance). Deliberately settable, not <c>private init</c>
+        ///     (breaking this type's otherwise-uniform immutability idiom): it is stamped onto an
+        ///     already-constructed value by <c>PdfDocument.Xref.cs</c>'s <c>ParseIndirectObjectAt</c>
+        ///     after <c>ParseValue</c> returns, since the parser itself has no notion of which
+        ///     indirect object it is being invoked for. Used, together with <see cref="Generation"/>,
+        ///     as the per-object key input to ISO 32000-1 Algorithm 1 when decrypting an encrypted
+        ///     document's streams.
+        /// </summary>
+        internal int ObjectNumber { get; set; } = -1;
+
+        /// <summary>
+        ///     Gets or sets the indirect object's generation number, alongside
+        ///     <see cref="ObjectNumber"/> - see its own remarks for why this is settable rather
+        ///     than <c>private init</c>.
+        /// </summary>
+        internal int Generation { get; set; }
 
         /// <summary>The single, shared <see cref="PdfKind.Null"/> instance.</summary>
         internal static readonly PdfObject NullValue = new() { Kind = PdfKind.Null };

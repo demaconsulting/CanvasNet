@@ -1,5 +1,4 @@
 using System.IO.Compression;
-using DemaConsulting.CanvasNet.Codecs;
 
 namespace DemaConsulting.CanvasNet.Pdf;
 
@@ -466,21 +465,6 @@ public sealed partial class PdfDocument
         return last;
     }
 
-    /// <summary>
-    ///     Rejects an encrypted document by inspecting the trailer for an <c>/Encrypt</c> key.
-    /// </summary>
-    /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when the trailer declares an <c>/Encrypt</c> key. The encrypted bytes referenced
-    ///     by that key are never resolved or interpreted as plaintext.
-    /// </exception>
-    private static void CheckForEncryption(PdfObject trailer)
-    {
-        if (trailer.Get("Encrypt") is not null)
-        {
-            throw new UnsupportedImageFeatureException("pdf-encrypted", "Encrypted PDF documents are not supported.");
-        }
-    }
-
     private static string? GetNameValue(PdfObject dictionary, string key) =>
         dictionary.Get(key) is { Kind: PdfKind.Name } name ? name.Text : null;
 
@@ -528,7 +512,20 @@ public sealed partial class PdfDocument
             throw new InvalidDataException($"Malformed indirect object header for object {expectedNumber} at offset {offset}.");
         }
 
-        return ParseValue(tokenizer);
+        var generation = (int)generationToken.Number;
+        var result = ParseValue(tokenizer);
+        result.ObjectNumber = expectedNumber;
+        result.Generation = generation;
+
+        // Decrypt every string found anywhere within this top-level indirect object's value now,
+        // in place, before it is ever cached/returned - see DecryptStringsInPlace's own remarks
+        // for why this never mistakenly decrypts the /Encrypt dictionary's own strings.
+        if (_encryptionKey is not null)
+        {
+            DecryptStringsInPlace(result, expectedNumber, generation);
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -624,7 +621,8 @@ public sealed partial class PdfDocument
             throw new InvalidDataException("Stream data range is out of bounds.");
         }
 
-        return _buffer.AsSpan(streamObject.StreamDataStart, length).ToArray();
+        var raw = _buffer.AsSpan(streamObject.StreamDataStart, length).ToArray();
+        return _encryptionKey is null ? raw : DecryptStreamBytes(raw, streamObject.ObjectNumber, streamObject.Generation);
     }
 
     /// <summary>

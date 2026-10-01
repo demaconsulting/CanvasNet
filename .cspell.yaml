@@ -17,6 +17,7 @@ words:
   - Aabb
   - AABB
   - Adler
+  - AESV
   - AGG
   - apimark
   - ApiMark
@@ -295,6 +296,10 @@ words:
   - Nacute
   - CharProcs
   - Procs
+  - PRGA
+  - decryptor
+  - Decryptor
+  - keystream
 
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:

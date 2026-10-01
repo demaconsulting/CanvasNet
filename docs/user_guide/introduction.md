@@ -1132,7 +1132,14 @@ Reads the entirety of an open, readable stream into an in-memory buffer and pars
   (including when normal cross-reference parsing fails and the linear-scan fallback also cannot
   resolve the document catalog).
 - `UnsupportedImageFeatureException`: Thrown when the document's trailer declares an `/Encrypt`
-  entry; encrypted content is never interpreted as plaintext.
+  entry that this library cannot open: a security handler other than the PDF "Standard" handler,
+  an AES-256 document using the `/R 6` "hardened hash" key derivation, a crypt filter other than
+  the standard `/StdCF` filter (RC4, AES-128/`AESV2`, or AES-256-R5/`AESV3`), or a document that
+  genuinely requires a non-empty password (there is no API surface to supply one). A document
+  encrypted with the Standard security handler using RC4 (40-128 bit), AES-128, or AES-256 (R5)
+  and an empty user password - the vast majority of "owner password"/permission-restricted
+  real-world PDFs - opens and renders normally; its permission flags are not enforced (this
+  library only ever reads for rendering, so copy/print restrictions do not apply).
 
 ##### PdfDocument.Open(string path)
 

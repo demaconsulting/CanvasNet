@@ -98,12 +98,7 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         equivalent.
 ///     </para>
 ///     <para>
-///         Encrypted documents (a trailer declaring an <c>/Encrypt</c> key) are rejected with
-///         <see cref="UnsupportedImageFeatureException"/> - this library never attempts to
-///         interpret encrypted bytes as plaintext.
-///     </para>
-///     <para>
-///         Phase 15 (this release) adds <c>CCITTFaxDecode</c> image-XObject support: an
+///         Phase 15 adds <c>CCITTFaxDecode</c> image-XObject support: an
 ///         image XObject filtered solely with <c>CCITTFaxDecode</c> is decoded by
 ///         <see cref="DecodeCcittFax"/> (see <c>PdfDocument.CcittFax.cs</c>) - a from-scratch
 ///         ITU-T T.6 Group 4 (MMR, two-dimensional) decoder - and its samples are then
@@ -119,6 +114,25 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         XObjects alike); <c>DCTDecode</c> and <c>CCITTFaxDecode</c> (Group 4 only) are
 ///         supported specifically for image XObjects; and only <c>JPXDecode</c> (and any other
 ///         unrecognized filter name) remains entirely unsupported for image XObjects.
+///     </para>
+///     <para>
+///         Phase 16 (this release) adds support for opening a document encrypted with the PDF
+///         <c>/Filter /Standard</c> security handler, for the extremely common real-world case
+///         of an <em>empty user password</em> (a document that is merely permission-
+///         restricted, not actually password-protected to open): RC4 (40/128-bit, <c>/V 1</c>/
+///         <c>/V 2</c>), AES-128 (<c>/V 4</c>, <c>/CFM /AESV2</c>), and AES-256 using the
+///         simpler R5 key derivation (<c>/V 5</c>, <c>/R 5</c>, <c>/CFM /AESV3</c>) are all
+///         transparently decrypted (see <c>PdfDocument.Encryption.cs</c>'s own ISO 32000-1
+///         Algorithm 1/2/4/5, ISO 32000-2 Algorithm 2.A remarks) - a page's content stream,
+///         every string, and every other encrypted stream all decrypt before any other
+///         parsing logic ever sees their bytes, so the rest of this class needs no awareness
+///         that a document was ever encrypted at all. <strong>Phase 16 scope boundary</strong>:
+///         a non-<c>/Standard</c> security handler (for example <c>/Adobe.PubSec</c>), AES-256
+///         <c>/R 6</c> ("hardened hash" key derivation), a crypt filter other than the
+///         standard <c>/StdCF</c> (including <c>/Identity</c>), and a document that genuinely
+///         requires a non-empty password (there is no API surface to supply one) all still
+///         fail closed with <see cref="UnsupportedImageFeatureException"/>, each with its own
+///         distinguishable <see cref="UnsupportedImageFeatureException.Feature"/> token.
 ///     </para>
 /// </remarks>
 public sealed partial class PdfDocument : IDisposable
@@ -168,7 +182,10 @@ public sealed partial class PdfDocument : IDisposable
     ///     structure (trailer, catalog, page tree) is malformed.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when the document's trailer declares an <c>/Encrypt</c> key.
+    ///     Thrown when the document's trailer declares an <c>/Encrypt</c> entry whose security
+    ///     handler, crypt filter, or revision this phase does not support (a non-<c>/Standard</c>
+    ///     security handler, <c>/R 6</c>, a non-<c>/StdCF</c> crypt filter, or a genuinely-required
+    ///     non-empty password), per the class remarks' Phase 16 scope boundary.
     /// </exception>
     private PdfDocument(byte[] buffer)
     {
@@ -194,7 +211,7 @@ public sealed partial class PdfDocument : IDisposable
             trailer = BuildLinearScanFallback();
         }
 
-        CheckForEncryption(trailer);
+        InitializeEncryption(trailer);
         _pages = BuildPageList(trailer);
     }
 
@@ -212,7 +229,8 @@ public sealed partial class PdfDocument : IDisposable
     ///     Thrown when the document cannot be parsed.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when the document's trailer declares an <c>/Encrypt</c> key.
+    ///     Thrown for the same encrypted-document conditions documented on the private
+    ///     constructor above.
     /// </exception>
     public static PdfDocument Open(Stream stream)
     {
@@ -236,7 +254,8 @@ public sealed partial class PdfDocument : IDisposable
     ///     Thrown when the document cannot be parsed.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when the document's trailer declares an <c>/Encrypt</c> key.
+    ///     Thrown for the same encrypted-document conditions documented on the private
+    ///     constructor above.
     /// </exception>
     /// <remarks>
     ///     File-system exceptions (for example <see cref="FileNotFoundException"/>,

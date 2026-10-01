@@ -56,7 +56,14 @@ exactly like a `/FontFile2`-embedded `/TrueType` font; as of Phase C (this phase
 of Phase D (this phase), a `/Subtype /Type3` font (whose glyphs are arbitrary content-stream
 procedures rather than an outline/CFF program) is also resolved and rendered, via its own
 dedicated resolution and glyph-painting path (see _Type 3 Font Resolution_/_Type 3 Glyph Painting_
-below).
+below). As of Phase 16 (this phase), a document encrypted with the PDF "Standard" security
+handler (`/Filter /Standard`) using RC4 (40 to 128-bit), AES-128 (`/CFM /AESV2`), or AES-256 using
+the simpler R5 key derivation (`/CFM /AESV3`/`/R 5`) and an empty user password is also opened and
+rendered transparently, with every indirect object's strings and every stream's raw bytes
+decrypted before any other parsing logic observes them (see _Encryption (Standard Security
+Handler)_ below); every other encrypted-document shape (a non-`/Standard` security handler,
+`/R 6`'s "hardened hash" key derivation, a non-`/StdCF` crypt filter, or a document that genuinely
+requires a non-empty password) still fails closed exactly as before.
 **Phase 4 limitations (narrowed by Phase 6/9/12/B/C/D, see
 above)**: a bare/naked `/CIDFontType0C` CFF `/FontFile3` stream on a _composite_ `/Type0` font (no
 SFNT wrapper - distinct from the now-supported bare Type1C `/FontFile3` on a _simple_ `/Type1`
@@ -180,7 +187,23 @@ re-parsing it each time — a property a purely static API could not express.
   `HexString`, `Name`, `Array`, `Dictionary`, `Stream`, `Reference`); not part of the public API
   surface, but exposed as `internal` (with `InternalsVisibleTo` the test assembly) so the
   tokenizer/object-model parsing logic can be unit tested directly against hand-written token
-  sequences, not only indirectly through full fixture files.
+  sequences, not only indirectly through full fixture files. As of Phase 16, `PdfObject` also
+  carries `ObjectNumber`/`Generation` (`int`, settable, default `-1`/`0`) — stamped onto a
+  top-level indirect object's already-parsed value by `ParseIndirectObjectAt` after the fact,
+  since they are not known until the surrounding `N G obj` header has been read — and `Bytes`
+  (`byte[]`) changed from `private init` to settable, so an encrypted stream/string's ciphertext
+  can be overwritten in place with its decrypted plaintext without rebuilding the object tree.
+  **Design decision**: both deliberately break this class's otherwise-uniform `private init`
+  immutability idiom; this is scoped intentionally to only ever be written by
+  `ParseIndirectObjectAt`/`DecryptStringsInPlace` (see _Encryption (Standard Security Handler)_
+  below), since `_objectCache` shares a single `PdfObject` instance across every caller and
+  mutating it from anywhere else would alias-corrupt every other holder of the same reference.
+- **`_encryptionKey` (`byte[]?`) / `_encryptionCipher` (`EncryptionCipher`, nested enum: `None`/
+  `Rc4`/`Aes128`/`Aes256`)** (`PdfDocument.Encryption.cs`, added in Phase 16) — the resolved file
+  encryption key and crypt method for an encrypted document whose empty user password
+  successfully authenticated, or `null`/`None` for an unencrypted document (the common case,
+  checked by `ParseIndirectObjectAt`/`GetStreamRawBytes` before ever attempting a decrypt). Set
+  exactly once, by `InitializeEncryption`, during construction.
 - **`PdfPageInfo`** (public, `readonly record struct`, `PdfPageInfo.cs`) — the resolved,
   already-rotated per-page result: `Width`/`Height` (already swapped when the effective
   `Rotation` is 90/270) and `Rotation` (the normalized `0`/`90`/`180`/`270` effective rotation).
@@ -204,7 +227,8 @@ re-parsing it each time — a property a purely static API could not express.
   mirroring `PngCodec.Load(string)`'s open/consume/close pattern exactly — then calls the same
   shared private parse implementation the stream overload uses. Parsing runs the tokenizer,
   object model, cross-reference resolution (classic/stream/ObjStm/hybrid, with the linear-scan
-  fallback), `/Encrypt` detection, and page-tree traversal exactly once, producing a fully
+  fallback), `/Encrypt` detection/decryption (see _Encryption (Standard Security Handler)_
+  below, Phase 16), and page-tree traversal exactly once, producing a fully
   resolved `PdfDocument` instance.
 - **`PageCount` (get)** — disposed-check, then returns `_pages.Count`.
 - **`GetPageInfo(int pageIndex)`** — disposed-check, then `ArgumentOutOfRangeException` for
@@ -267,6 +291,90 @@ re-parsing it each time — a property a purely static API could not express.
   `/MediaBox`/`/Rotate`'s own pattern, per the PDF specification's own `/Resources` inheritance
   rule — never merged across ancestors).
   `ResolvePageDetails(int pageIndex)` is `Render`'s own entry point into this data.
+
+### Encryption (Standard Security Handler)
+
+Added in Phase 16, `PdfDocument.Encryption.cs` detects and, for the narrow scope documented
+below, transparently authenticates an encrypted document's empty user password and derives its
+file encryption key, so every subsequent indirect-object string and stream read can
+transparently decrypt its bytes before any of this class's other parsing logic ever sees them.
+
+- **`InitializeEncryption(PdfObject trailer)`** — replaces the previous, unconditional-throw
+  `CheckForEncryption`. Returns immediately (leaving `_encryptionKey` `null`) when the trailer
+  has no `/Encrypt` entry. Otherwise resolves (and thereby caches) the `/Encrypt` dictionary's own
+  object, validates `/Filter` is `/Standard` (else `Codecs.UnsupportedImageFeatureException`,
+  feature `pdf-encrypted-filter-{name}`), reads `/V`/`/R`/`/Length`/`/O`/`/U`/`/P`/
+  `/EncryptMetadata` and the trailer's `/ID` first element, then dispatches on `/V`: `1`/`2` →
+  RC4 via `InitializeRc4OrAesV2Encryption`; `4` → validates `/CF/StdCF/CFM` is `/AESV2` (else
+  feature `pdf-encrypted-cfm-{name}`) then the same RC4/AESV2 initialization path; `5` → rejects
+  `/R 6` (feature `pdf-encrypted-r6-hardened-hash`) and any other `/R` (feature
+  `pdf-encrypted-r-{revision}`), validates `/CF/StdCF/CFM` is `/AESV3`, then derives the file key
+  directly via `ComputeFileKeyAlgorithm2A`; any other `/V` fails with feature
+  `pdf-encrypted-v-{version}`. **Ordering invariant and cache invalidation**: resolving the
+  `/Encrypt` dictionary happens, and is cached by `GetObject`, before `_encryptionKey` is ever
+  set, so its own `/O`/`/U`/`/OE`/`/UE` strings are never mistakenly decrypted — this part is
+  still relied on deliberately, instead of also carrying a redundant "is this the Encrypt
+  dictionary's own object number" guard field, to avoid dead/speculative code (see
+  `PdfDocument_Open_Encrypted_EncryptDictionaryStringsAreNeverDecrypted` for the regression test).
+  However, by the time `InitializeEncryption` runs, _other_ objects may already be cached pre-key
+  too: the trailer's own `/Root` Catalog (resolved by the constructor's own `IsValidCatalogRoot`
+  check before `InitializeEncryption` ever runs) and, on the linear-scan fallback path, _every_
+  object in the document (resolved by `BuildLinearScanFallback`'s own scan looking for a
+  `/Type /Catalog` object) — none of those pre-key cache entries' own strings were decrypted
+  either. Once `_encryptionKey` is established by whichever `/V` branch succeeds, this method
+  calls its own `InvalidateObjectCacheExceptEncryptDictionary(encryptEntry)` helper, which clears
+  `_objectCache` entirely except for the `/Encrypt` dictionary's own already-cached entry (kept
+  exactly as originally cached, pre-key, preserving the invariant above), so every other
+  previously-cached object is correctly re-resolved — and, this time, decrypted — the next time
+  anything asks for it (`_xref`, the offset/compressed-entry table itself, is never cleared, only
+  `_objectCache`, the parsed-value cache, so re-resolution is always possible). See
+  `PdfDocument_Open_Encrypted_CatalogOwnStringIsDecrypted` for the regression test covering the
+  Catalog case.
+- **`ComputeFileKeyAlgorithm2`** (ISO 32000-1 Algorithm 2) — pads the (always empty, per this
+  phase's scope) user password to 32 bytes with the standard padding string, MD5-hashes it with
+  `/O`, `/P` (4-byte little-endian signed integer), the document ID, and (revision ≥ 4 with
+  `/EncryptMetadata` explicitly `false`) four trailing `0xFF` bytes, then — for revision ≥ 3 —
+  re-hashes the first `keyLengthBytes` of the digest 50 more times; the file key is the first
+  `keyLengthBytes` of the final digest (`/Length` in bits ÷ 8, defaulting to 5 bytes/40 bits,
+  except `/V 1` which is always exactly 5 bytes regardless of `/Length`).
+- **`AuthenticateEmptyUserPasswordAlgorithm45`** (ISO 32000-1 Algorithm 4 for revision 2,
+  Algorithm 5 for revision 3/4) — recomputes the expected `/U` value from the file key (Algorithm
+  2 alone never fails; only this comparison can detect a wrong password) and compares it against
+  the document's actual `/U` (only the first 16 of 32 bytes for revision 3/4, since the trailing
+  16 are producer-defined padding), throwing `Codecs.UnsupportedImageFeatureException` (feature
+  `pdf-encrypted-password-required`) on a mismatch.
+- **`ComputeObjectKeyAlgorithm1`** (ISO 32000-1 Algorithm 1, RC4/AESV2 only) — MD5-hashes the file
+  key plus the object's 3-byte little-endian object number and 2-byte little-endian generation
+  number (plus the 4 literal ASCII bytes `sAlT` for AESV2); the per-object key is the first
+  `min(fileKeyLength + 5, 16)` bytes of that digest.
+- **`ComputeFileKeyAlgorithm2A`** (ISO 32000-2 Algorithm 2.A, R5/AESV3 only, simplified for an
+  empty user password) — authenticates by comparing `SHA-256(/U`'s 8-byte validation salt`)`
+  against `/U`'s own embedded 32-byte hash (throwing feature `pdf-encrypted-password-required` on
+  a mismatch), then AES-256-CBC-decrypts `/UE` (zero IV, no padding) using
+  `SHA-256(/U`'s 8-byte key salt`)` as the key, yielding the 32-byte file encryption key directly
+  — used as-is for every string/stream, with no further per-object derivation (unlike RC4/AESV2).
+- **`DecryptStreamBytes`/`DecryptStringsInPlace`** — dispatch on `_encryptionCipher`: RC4
+  re-derives the per-object key and XORs; AES-128 derives the per-object key with the `sAlT`
+  suffix, then AES-128-CBC/PKCS7-decrypts a leading-16-byte-IV-prefixed ciphertext; AES-256
+  (R5) uses `_encryptionKey` directly against the same IV-prefixed wire format. Called,
+  respectively, by `GetStreamRawBytes` (before the generic `/Filter`/`/DecodeParms` pipeline
+  runs) and `ParseIndirectObjectAt` (recursing every `PdfKind.String` found anywhere within a
+  freshly-parsed top-level indirect object's value, never recursing into `PdfKind.Reference`
+  nodes). A compressed (`/Type /ObjStm`-contained) object is never decrypted a second time: it is
+  reached exclusively via `LoadCompressedObject`, which never calls `DecryptStringsInPlace` —
+  its strings were already decrypted once, as part of its containing `/Type /ObjStm` stream's own
+  raw bytes being decrypted by `GetStreamRawBytes` before decompression.
+- **`Rc4Transform`** — a from-scratch, hand-rolled RC4 stream cipher (classic KSA/PRGA), since
+  RC4 is not a built-in .NET primitive; symmetric, so the same implementation both encrypts and
+  decrypts.
+
+**Scope boundary**: only the `/Filter /Standard` security handler is supported, only RC4
+(`/V 1`/`/V 2`), AES-128 (`/V 4`/`/CFM /AESV2`), and AES-256 using the simpler R5 key derivation
+(`/V 5`/`/R 5`/`/CFM /AESV3`) are supported, and only an empty user password is ever
+authenticated — there is no API surface to supply any other password. Every other shape (a
+non-`/Standard` filter, `/R 6`'s "hardened hash" key derivation, a crypt filter other than the
+standard `/StdCF`, or a document that genuinely requires a non-empty password) fails closed with
+`Codecs.UnsupportedImageFeatureException` and its own distinguishable `Feature` token.
 
 ### Content-Stream Interpreter
 
@@ -849,9 +957,17 @@ re-parsing it each time — a property a purely static API could not express.
 - **Malformed/unresolvable document structure** (tokenizer, object model, xref, or page tree,
   after the linear-scan fallback is exhausted) — `InvalidDataException`, mirroring `PngCodec`'s
   exact convention for malformed data.
-- **`/Encrypt` key present in the trailer** — `Codecs.UnsupportedImageFeatureException` (feature
-  `"pdf-encrypted"`), thrown directly; the referenced encryption dictionary is never resolved or
-  decrypted.
+- **`/Encrypt` key present in the trailer, but not the `/Standard` security handler** (feature
+  `pdf-encrypted-filter-{name}`), **a `/CF/StdCF/CFM` other than `/AESV2`/`/AESV3`** (feature
+  `pdf-encrypted-cfm-{name}`), **`/V 5` with `/R 6`'s "hardened hash" key derivation** (feature
+  `pdf-encrypted-r6-hardened-hash`), **`/V 5` with any other unsupported `/R`** (feature
+  `pdf-encrypted-r-{revision}`), **an unsupported `/V`** (feature `pdf-encrypted-v-{version}`), or
+  **an empty user password that fails `/U` (R2-R4) or `/U`'s embedded validation hash (R5)
+  authentication, i.e. the document genuinely requires a non-empty password** (feature
+  `pdf-encrypted-password-required`) — `Codecs.UnsupportedImageFeatureException` for each,
+  thrown directly, each with its own distinguishable `Feature` token (added in Phase 16, see
+  _Encryption (Standard Security Handler)_ above; narrows the previous Phase 1 blanket
+  `"pdf-encrypted"` rejection of every encrypted document regardless of shape).
 - **Out-of-range `pageIndex` to `GetPageInfo`/`Render`** — `ArgumentOutOfRangeException`, thrown
   directly.
 - **Non-positive/too-large `width`/`height` to `Render`** — `ArgumentOutOfRangeException`,
@@ -984,7 +1100,8 @@ re-parsing it each time — a property a purely static API could not express.
   decoded image sample's color representation
 - `Codecs.UnsupportedImageFeatureException` (from the core `CanvasNet` system) — reused,
   unmodified, for `/Encrypt` detection and, as of Phase 3, an unsupported color space/stream
-  filter/image bit depth
+  filter/image bit depth; as of Phase 16, also each of the five distinct narrowed encryption
+  rejection reasons documented under _Error Handling_ above
 - `Codecs.JpegCodec` (from the core `CanvasNet` system, new as of Phase 3) — `Load(Stream)`
   decodes an image XObject's bare `DCTDecode` (JPEG) bitstream directly, without requiring
   APP0/JFIF framing
@@ -1011,6 +1128,14 @@ re-parsing it each time — a property a purely static API could not express.
   `PdfDocument.ObjectModel.cs`) — reused as of Phase 10 by `ResolveToUnicodeMap` to tokenize and
   parse a `/ToUnicode` CMap stream's `bfchar`/`bfrange` operands (hex strings, literal strings,
   and arrays); no second, purpose-built CMap tokenizer was introduced.
+- BCL `System.Security.Cryptography.MD5`/`SHA256`/`Aes` (new as of Phase 16,
+  `PdfDocument.Encryption.cs`) — `MD5.HashData`/`SHA256.HashData` implement ISO 32000-1
+  Algorithm 2/4/5's and ISO 32000-2 Algorithm 2.A's hash steps exactly as the PDF specification
+  itself mandates (not a free security choice — see the file's own `S4790` suppression
+  justification comment); `Aes.Create()` (`CipherMode.CBC`, `PaddingMode.PKCS7`/`None`) decrypts
+  AESV2/AESV3 strings and streams. RC4 has no BCL equivalent and is hand-rolled (`Rc4Transform`),
+  mirroring this codebase's existing convention of hand-rolled standard algorithms elsewhere
+  (e.g. CRC-32/Adler-32/CCITT tables).
 
 ### Callers
 

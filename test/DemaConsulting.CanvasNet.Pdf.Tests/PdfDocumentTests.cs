@@ -1490,14 +1490,14 @@ public class PdfDocumentTests
 
     #region Encryption detection
 
-    /// <summary>Proves that a trailer containing an <c>/Encrypt</c> key throws <see cref="UnsupportedImageFeatureException"/> without decoding any content.</summary>
+    /// <summary>Proves that a non-<c>/Standard</c> security handler (for example <c>/Adobe.PubSec</c>) throws <see cref="UnsupportedImageFeatureException"/> without decoding any content.</summary>
     [Fact]
     public void PdfDocument_Open_EncryptedTrailer_ThrowsUnsupportedImageFeatureException()
     {
         // Arrange, Act & Assert
         var exception = Assert.Throws<UnsupportedImageFeatureException>(
             () => PdfDocument.Open(Fixture("encrypted-trailer.pdf")));
-        Assert.Equal("pdf-encrypted", exception.Feature);
+        Assert.Equal("pdf-encrypted-filter-Adobe.PubSec", exception.Feature);
     }
 
     #endregion

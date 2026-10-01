@@ -36,7 +36,7 @@ same MIT license as the rest of this repository.
 | `hybrid-xref.pdf` | Classic trailer + `/XRefStm` hybrid link to a supplementary xref stream |
 | `multi-page-mixed-mediabox-rotate.pdf` | Three pages, differing/inherited `/MediaBox` and `/Rotate` |
 | `malformed-startxref.pdf` | No `startxref`/`xref`/`trailer` at all - exercises the linear-scan fallback |
-| `encrypted-trailer.pdf` | A trailer containing an `/Encrypt` key - exercises `/Encrypt` detection |
+| `encrypted-trailer.pdf` | Non-`/Standard` handler (`/Filter /Adobe.PubSec`) - rejects unsupported handlers |
 | `cyclic-page-tree.pdf` | A `/Kids` entry referencing an ancestor - exercises page-tree cycle rejection |
 | `path-construction-rect-and-line.pdf` | Filled rectangle (`re f`) plus a stroked line (`m`/`l`/`S`) |
 | `path-construction-rotated-page.pdf` | `/Rotate 90` with an asymmetric filled rectangle - CTM/rotation-sign check |

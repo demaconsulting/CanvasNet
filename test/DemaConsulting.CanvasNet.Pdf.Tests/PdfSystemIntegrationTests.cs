@@ -201,14 +201,14 @@ public class PdfSystemIntegrationTests
         Assert.Throws<ObjectDisposedException>(() => document.Render(0, 10, 10));
     }
 
-    /// <summary>Proves an encrypted document is rejected rather than silently mis-parsed.</summary>
+    /// <summary>Proves a document encrypted with a non-<c>/Standard</c> security handler is rejected rather than silently mis-parsed.</summary>
     [Fact]
     public void CanvasNetPdf_SystemIntegration_PdfEncryptDetection_EncryptedTrailerThrowsUnsupportedImageFeatureException()
     {
         // Arrange, Act & Assert
         var exception = Assert.Throws<UnsupportedImageFeatureException>(
             () => PdfDocument.Open(Fixture("encrypted-trailer.pdf")));
-        Assert.Equal("pdf-encrypted", exception.Feature);
+        Assert.Equal("pdf-encrypted-filter-Adobe.PubSec", exception.Feature);
     }
 
     /// <summary>
