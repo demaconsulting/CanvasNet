@@ -3004,6 +3004,42 @@ public class PdfDocumentTests
         Assert.Equal(new Canvas.Rgba32(192, 192, 192, 255), surface[75, 75]);
     }
 
+    /// <summary>
+    ///     Proves that a <c>FlateDecode</c> stream whose trailing Adler-32 checksum does not match
+    ///     the compressed data still decodes successfully - matching real-world reader tolerance
+    ///     for the wrong/placeholder checksums some PDF producers emit, found via a batch-rendering
+    ///     survey against a public real-world PDF test corpus.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Images_DeviceGrayFlateDecode_CorruptAdlerChecksum_StillDecodes()
+    {
+        // Arrange: a 2x2 DeviceGray image, with the zlib stream's last byte (part of the trailing
+        // Adler-32 checksum) deliberately flipped - the DEFLATE payload itself is untouched.
+        byte[] raw = [0, 255, 64, 192];
+        var compressed = ZlibCompress(raw);
+        compressed[^1] ^= 0xFF;
+
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode",
+            compressed);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: decoded exactly as if the checksum had been correct.
+        Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[25, 25]);
+        Assert.Equal(new Canvas.Rgba32(255, 255, 255, 255), surface[75, 25]);
+        Assert.Equal(new Canvas.Rgba32(64, 64, 64, 255), surface[25, 75]);
+        Assert.Equal(new Canvas.Rgba32(192, 192, 192, 255), surface[75, 75]);
+    }
+
     /// <summary>Proves that <c>Do</c> decodes and places a raw 8-bit <c>DeviceRGB</c> <c>FlateDecode</c> image XObject at the expected device pixels.</summary>
     [Fact]
     public void PdfDocument_Images_DoOperator_DeviceRgbFlateDecode_PlacesExpectedPixels()

@@ -237,8 +237,10 @@ re-parsing it each time — a property a purely static API could not express.
 - **Cross-reference resolution (`PdfDocument.Xref.cs`)** — parses a classic `xref`/`trailer`
   section, a `/Type /XRef` cross-reference stream (`/W`-width-driven binary field decoding), and
   a `/Type /ObjStm` compressed object stream (`FlateDecode`, `System.IO.Compression.DeflateStream`
-  — mirroring `PngCodec.Zlib.cs`'s established zlib-header/Adler-32-trailer/DEFLATE-payload
-  decompression pattern), merges a hybrid `/XRefStm` link's entries with its paired classic
+  — mirroring `PngCodec.Zlib.cs`'s established zlib-header/DEFLATE-payload decompression pattern,
+  except that the trailing Adler-32 checksum is deliberately not validated — several real-world
+  PDF producers emit a wrong/placeholder checksum over an otherwise well-formed DEFLATE payload,
+  and other mainstream PDF readers tolerate this), merges a hybrid `/XRefStm` link's entries with its paired classic
   section's own entries (a hybrid entry fills in an object number the classic section can only
   mark free; classic entries elsewhere are untouched), and walks a `/Prev` incremental-update
   chain (an earlier-processed, more recent section's entry always wins). Falls back to a linear

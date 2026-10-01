@@ -633,10 +633,19 @@ public sealed partial class PdfDocument
     ///     pattern: <see cref="DeflateStream"/> decodes the raw DEFLATE payload once the 2-byte
     ///     header and 4-byte trailer have been stripped off.
     /// </summary>
+    /// <remarks>
+    ///     The trailing Adler-32 checksum is deliberately not validated against the decompressed
+    ///     data: several real-world PDF producers emit a wrong (or placeholder) checksum while the
+    ///     DEFLATE payload itself is perfectly well-formed, and other mainstream PDF readers
+    ///     tolerate this and render the stream anyway. Rejecting such streams here would make this
+    ///     library strictly less tolerant than the ecosystem it has to interoperate with, for a
+    ///     mismatch that - unlike a truncated/corrupt DEFLATE payload, which <see cref="DeflateStream"/>
+    ///     itself already fails on - does not affect the correctness of the bytes actually produced.
+    /// </remarks>
     /// <exception cref="InvalidDataException">
     ///     Thrown when the data is too short to be a valid zlib stream, the header's compression
-    ///     method is not DEFLATE, or the decompressed data's Adler-32 checksum does not match the
-    ///     trailer.
+    ///     method is not DEFLATE, or the DEFLATE payload itself is truncated/corrupt (propagated
+    ///     from <see cref="DeflateStream"/>).
     /// </exception>
     private static byte[] ZlibDecompress(byte[] zlibData)
     {
@@ -653,40 +662,11 @@ public sealed partial class PdfDocument
         }
 
         var deflateData = zlibData.AsSpan(2, zlibData.Length - 2 - 4).ToArray();
-        var expectedAdler = ReadUInt32BigEndian(zlibData, zlibData.Length - 4);
 
-        byte[] decompressed;
-        using (var input = new MemoryStream(deflateData))
-        using (var deflate = new DeflateStream(input, CompressionMode.Decompress))
-        using (var output = new MemoryStream())
-        {
-            deflate.CopyTo(output);
-            decompressed = output.ToArray();
-        }
-
-        if (ComputeAdler32(decompressed) != expectedAdler)
-        {
-            throw new InvalidDataException("Zlib Adler-32 checksum mismatch (corrupt stream data).");
-        }
-
-        return decompressed;
-    }
-
-    private static uint ReadUInt32BigEndian(byte[] buffer, int offset) =>
-        ((uint)buffer[offset] << 24) | ((uint)buffer[offset + 1] << 16) | ((uint)buffer[offset + 2] << 8) | buffer[offset + 3];
-
-    private static uint ComputeAdler32(byte[] data)
-    {
-        const uint modulo = 65521;
-        uint a = 1;
-        uint b = 0;
-
-        foreach (var value in data)
-        {
-            a = (a + value) % modulo;
-            b = (b + a) % modulo;
-        }
-
-        return (b << 16) | a;
+        using var input = new MemoryStream(deflateData);
+        using var deflate = new DeflateStream(input, CompressionMode.Decompress);
+        using var output = new MemoryStream();
+        deflate.CopyTo(output);
+        return output.ToArray();
     }
 }
