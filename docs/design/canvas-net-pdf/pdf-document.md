@@ -52,12 +52,16 @@ Resolution_ below). As of Phase B, a `/Subtype /Type1` simple font with an embed
 `/FontDescriptor/FontFile` (a classic PostScript Type 1 program) is also resolved and rendered,
 exactly like a `/FontFile2`-embedded `/TrueType` font; as of Phase C (this phase), a `/Subtype
 /Type1` simple font with an embedded `/FontDescriptor/FontFile3` whose own `/Subtype` is `Type1C`
-(a bare, un-wrapped CFF program) is resolved identically (see _Type 1C Font Resolution_ below).
-**Phase 4 limitations (narrowed by Phase 6/9/12/B/C, see
+(a bare, un-wrapped CFF program) is resolved identically (see _Type 1C Font Resolution_ below); as
+of Phase D (this phase), a `/Subtype /Type3` font (whose glyphs are arbitrary content-stream
+procedures rather than an outline/CFF program) is also resolved and rendered, via its own
+dedicated resolution and glyph-painting path (see _Type 3 Font Resolution_/_Type 3 Glyph Painting_
+below).
+**Phase 4 limitations (narrowed by Phase 6/9/12/B/C/D, see
 above)**: a bare/naked `/CIDFontType0C` CFF `/FontFile3` stream on a _composite_ `/Type0` font (no
 SFNT wrapper - distinct from the now-supported bare Type1C `/FontFile3` on a _simple_ `/Type1`
 font), CID-keyed CFF (`ROS`/`FDArray`/`FDSelect`), non-`/Identity-H` composite `/Encoding`s
-(including `/Identity-V` and predefined CJK encodings), and `/MMType1`/`/Type3` fonts remain
+(including `/Identity-V` and predefined CJK encodings), and `/MMType1` fonts remain
 entirely unsupported and fail closed with `Codecs.UnsupportedImageFeatureException` (CID-keyed CFF
 instead surfaces as `InvalidDataException` via `Fonts.CffTable.Parse`'s own existing rejection);
 only the `/WinAnsiEncoding` and `/MacRomanEncoding` base encodings (plus `/Differences`) are
@@ -505,15 +509,19 @@ re-parsing it each time — a property a purely static API could not express.
   (transparency group) handling is performed — a documented Phase 13 limitation.
 - **Font resolution (`PdfDocument.Fonts.cs`, added in Phase 4, fallback branch rewritten in
   Phase 6, dispatch generalized to `IResolvedFont` in Phase 9, widened to `/Type1` in Phase B,
-  widened to `/Type1` + bare `/FontFile3` Type1C/CFF in Phase C)** —
-  `ResolveFont(PdfObject fontResource)` looks up (and caches, via `_fontCache`) an
+  widened to `/Type1` + bare `/FontFile3` Type1C/CFF in Phase C, widened to `/Type3` in Phase D)**
+  — `ResolveFont(PdfObject fontResource)` looks up (and caches, via `_fontCache`) an
   `IResolvedFont`. `BuildResolvedFont` dispatches on `/Subtype`: `/TrueType` and `/Type1` both
   build a `ResolvedSimpleFont` via `BuildResolvedSimpleFont`; `/Type0` builds a
   `ResolvedCompositeFont` via `BuildResolvedCompositeFont` (see _Composite Font Resolution_
-  below); any other `/Subtype` (`/MMType1`, `/Type3`) throws
+  below); `/Type3` builds a `ResolvedType3Font` via `BuildResolvedType3Font` (see _Type 3 Font
+  Resolution_ below); any other `/Subtype` (`/MMType1`) throws
   `Codecs.UnsupportedImageFeatureException` naming the rejected subtype. `IResolvedFont` exposes
-  `Font` (the underlying `Fonts.TrueTypeFont`), `CodeByteWidth` (`1` for a simple font, `2` for a
-  composite `/Identity-H` font - consulted by `ShowText`'s code-decoding loop), and
+  `Font` (the underlying `Fonts.TrueTypeFont`, nullable as of Phase D since a `ResolvedType3Font`
+  has no such outline-glyph font program at all - `ShowGlyph` branches on the concrete resolved-
+  font type before ever consulting this property, so the nullability is invisible to every other
+  resolved-font kind's own non-nullable explicit interface implementation), `CodeByteWidth` (`1`
+  for a simple font, `2` for a composite `/Identity-H` font - consulted by `ShowText`'s code-decoding loop), and
   `Resolve(int code)` (returning the code's glyph index and text-space advance width in one call
   - the single entry point `ShowGlyph` uses regardless of which concrete implementation is
   active). `BuildResolvedSimpleFont(PdfObject fontDict, string? subtype)` requires
@@ -589,6 +597,71 @@ re-parsing it each time — a property a purely static API could not express.
   own documented scope boundary, not re-implemented or worked around here) - a font relying on
   either predefined charset to name its glyphs resolves no glyph for any code via `ResolveEncoding`
   and therefore paints no visible ink for that code, without throwing.
+- **Type 3 font resolution (`PdfDocument.Fonts.Type3.cs`, added in Phase D)** —
+  `BuildResolvedType3Font(PdfObject fontDict)` is `BuildResolvedFont`'s `/Type3` dispatch target.
+  It requires and parses `/FontMatrix` as six numbers (`ReadFontMatrix`; `InvalidDataException` if
+  absent, non-array, wrong length, or any element non-numeric) and requires `/CharProcs` to
+  resolve to a dictionary (`InvalidDataException` otherwise) - each entry an indirect reference to
+  a glyph procedure's own content stream, resolved lazily (at paint time, by
+  _Type 3 Glyph Painting_ below) rather than eagerly here. `/Encoding` is resolved via
+  `ResolveType3Encoding`, reusing the same `ParseDifferences` run-length-decoding helper
+  `ApplyDifferences` itself now delegates to (extracted in this phase so both call sites share one
+  implementation): an absent, non-dictionary, or `/Differences`-less `/Encoding` leniently
+  resolves to an empty code-to-glyph-name map (every code paints nothing, not an error) rather
+  than the simple/composite-font path's own base-encoding-table convention, since a Type 3 font
+  has no base encoding concept at all - only explicit `/Differences` entries name its glyphs.
+  `/Widths`/`/FirstChar`/`/LastChar`/`/FontDescriptor/MissingWidth` are resolved with the same
+  missing-entry leniency `ResolveWidths` already established for simple/composite fonts.
+  `ResolvedType3Font.Resolve(int code)` is the one place this font kind's width convention
+  differs from every other resolved font: the `/Widths` entry (glyph-space units) is transformed
+  through `/FontMatrix` via `Vector2.TransformNormal` (the matrix's linear part only, correctly
+  ignoring any translation component for a displacement vector) to obtain the text-space advance
+  width - never divided by `1000`, since a Type 3 font's own `/FontMatrix` is the sole authority
+  on its glyph-space-to-text-space scale (which need not be `0.001` at all - see
+  _Type 3 Glyph Painting_'s own highest-risk geometry proof). `/Resources` is read but not
+  otherwise processed here (optional; its paint-time fallback behavior is also documented in
+  _Type 3 Glyph Painting_ below).
+- **Type 3 glyph painting (`PdfDocument.Fonts.Type3.cs`, added in Phase D)** —
+  `ShowGlyph` branches early, via a `font is ResolvedType3Font type3Font` pattern-matched check -
+  performed before ever consulting `IResolvedFont.Font` (which is `null` for this font kind) - to
+  `PaintType3Glyph(type3Font, code)`, skipping it entirely (while still advancing, via the shared
+  trailing displacement logic every render mode uses) under render mode `3` (invisible), exactly
+  like the outline-glyph path's own fill step. `PaintType3Glyph` looks up `code`'s glyph name via
+  the font's resolved `/Encoding` map, then that name's content-stream reference via
+  `/CharProcs`; either lookup failing (code unmapped, or glyph name absent from `/CharProcs`)
+  paints nothing, with no exception - the code still advances by its declared width, since
+  `Resolve`'s width computation is wholly independent of whether a glyph procedure exists. When
+  both lookups succeed, the glyph procedure's content stream is decoded via the same
+  `GetStreamDecodedBytes` every other stream in this class uses, and executed recursively via
+  `ExecuteOperators` - the exact same re-entrance pattern `OpDrawFormXObject` already established
+  for Form XObjects (see _Form XObjects_ above): `_resources`/`_gs`/`_gsStack` are saved, `_resources`
+  is set to the Type 3 font's own `/Resources` when present else left as the invoking content
+  stream's own (falling back exactly like a `/Subtype /Form` XObject with no `/Resources` of its
+  own), a cloned `GraphicsState` (inheriting the invoking state's fill color/font/etc.) has its
+  `CurrentTransform` overridden to the computed glyph matrix, and everything is restored in a
+  `finally` block regardless of how the glyph procedure's execution completes - so a glyph
+  procedure's own `cm`/color-operator mutations never leak back into the invoking content
+  stream's graphics state. The glyph matrix is `FontMatrix * ComputeTextRenderingMatrix()` -
+  the same left-multiply composition convention used throughout this class - entirely replacing
+  the outline-glyph path's `1/UnitsPerEm`-scale convention for this font kind (there is no
+  `UnitsPerEm` at all for a Type 3 font). Recursion is bounded by a dedicated
+  `_type3NestingDepth`/`MaxType3NestingDepth` (`12`, reset to `0` at the start of each
+  `ExecuteContentStream` call) - independent of `OpDrawFormXObject`'s own
+  `_formNestingDepth`/`MaxFormNestingDepth` counter, so a pathological (self-referencing) glyph
+  procedure and a pathological (self-referencing) Form XObject each fail closed against their own
+  budget rather than one silently exhausting the other's. The `d0`/`d1` glyph-description
+  operators are recognized (`OpType3SetWidth`/`OpType3SetWidthAndBBox`, dispatched from
+  `DispatchOperator` exactly like every other operator) and their operand count/type validated via
+  the same `RequireNumbers` helper every other fixed-arity operator uses, but their result is
+  otherwise discarded: this class's authoritative advance width remains the font's own `/Widths`
+  entry (see _Type 3 Font Resolution_ above), consulted independently of whichever glyph procedure
+  happens to be painted - a stray `d0`/`d1` outside a glyph procedure is therefore a harmless,
+  validated no-op. **Non-Goal (deliberate Phase D scope boundary)**: `d1`'s optional
+  color-operator-suppression behavior (PDF 32000-1 §9.6.5.2 permits, but does not require, a
+  conforming reader to ignore a `d1` glyph procedure's own color-setting operators and always
+  paint with the invoking text's current fill color instead) is not implemented - a `d1` glyph
+  procedure's own `rg`/`g`/`k`/`sc`/`scn` operators are honored normally, exactly as they would be
+  inside any other content stream, rather than suppressed.
 - **Composite font resolution (`PdfDocument.Fonts.Type0.cs`, added in Phase 9, extended in
   Phase 12)** — `BuildResolvedCompositeFont` is `BuildResolvedFont`'s `/Type0` dispatch target. It
   requires `/Encoding` to resolve to the name `Identity-H`; any other name (including
@@ -820,8 +893,8 @@ re-parsing it each time — a property a purely static API could not express.
 - **`Do` with a name undeclared in `/Resources/XObject` (or no `/Resources` at all), a
   non-stream/missing-`/Subtype` resolved value, or a malformed operand count/type** —
   `InvalidDataException` (a malformed content stream, not merely unsupported).
-- **A font dictionary whose `/Subtype` is `/MMType1` or `/Type3`** —
-  `Codecs.UnsupportedImageFeatureException` (Multiple Master Type 1 and Type 3 fonts remain
+- **A font dictionary whose `/Subtype` is `/MMType1`** —
+  `Codecs.UnsupportedImageFeatureException` (Multiple Master Type 1 fonts remain
   entirely out of scope by design). A `/Subtype /TrueType` or `/Subtype /Type1` font lacking an
   embedded `/FontDescriptor/FontFile2`/`/FontFile`/`/FontFile3` no longer reaches this list at all
   as of Phase 6 (widened to `/Type1` in Phase B) - it is resolved
@@ -844,6 +917,17 @@ re-parsing it each time — a property a purely static API could not express.
   `CIDFontType2`/`CIDFontType0` "embedded fonts fail closed" precedent); likewise, any exception
   `Fonts.TrueTypeFont.LoadType1C` itself throws for a malformed or CID-keyed (`ROS`-bearing)
   embedded CFF program is `InvalidDataException`, propagated uncaught under the same convention.
+- **A `/Subtype /Type3` font dictionary missing (or non-array-of-6-numbers) `/FontMatrix`, or
+  missing (or non-dictionary) `/CharProcs`** — `InvalidDataException` (added in Phase D; a
+  malformed/missing required field, not merely unsupported - unlike every other resolved font
+  kind, a Type 3 font has no fallback-substitution path at all, so either condition fails
+  closed unconditionally). A Type 3 glyph procedure's recursion exceeding
+  `MaxType3NestingDepth` (`12`, tracked independently of `MaxFormNestingDepth` - see
+  _Type 3 Glyph Painting_ above) is `InvalidDataException` as well, mirroring
+  `OpDrawFormXObject`'s own nesting-depth precedent. An unmapped character code, or a mapped
+  glyph name absent from `/CharProcs`, is never an exception for a Type 3 font - it paints
+  nothing but still advances (a deliberate leniency, matching `ResolveWidths`'s own established
+  "missing optional field" convention, not this class's "malformed required field" convention).
 - **A `/Subtype /Type0` font's `/Encoding`, when not the name `Identity-H`** (for example
   `Identity-V` or a predefined CJK encoding name) — `Codecs.UnsupportedImageFeatureException`
   (feature `pdf-font-type0-encoding-{name}`), as of Phase 9. A `/Type0` font's `/DescendantFonts`

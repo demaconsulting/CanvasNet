@@ -26,29 +26,44 @@ public sealed partial class PdfDocument
     ///     concrete resolution strategies this class supports: <see cref="ResolvedSimpleFont"/>
     ///     (a single-byte-code <c>/Subtype /TrueType</c> font) and <see cref="ResolvedCompositeFont"/>
     ///     (a two-byte-code <c>/Subtype /Type0</c>/<c>/Encoding /Identity-H</c> composite font, see
-    ///     <c>PdfDocument.Fonts.Type0.cs</c>). <see cref="ShowText"/> decodes each shown string
+    ///     <c>PdfDocument.Fonts.Type0.cs</c>), and (as of this phase) <c>ResolvedType3Font</c> (a
+    ///     single-byte-code <c>/Subtype /Type3</c> procedure-painted font, see
+    ///     <c>PdfDocument.Fonts.Type3.cs</c>). <see cref="ShowText"/> decodes each shown string
     ///     into a sequence of codes using <see cref="CodeByteWidth"/> bytes per code, then resolves
     ///     each code's glyph index and advance width via <see cref="Resolve"/> - the same entry
     ///     point regardless of which concrete implementation is active, so <see cref="ShowGlyph"/>
-    ///     never needs to know which one produced the font currently selected via <c>Tf</c>.
+    ///     never needs to know which one produced the font currently selected via <c>Tf</c>
+    ///     (beyond its own early <c>ResolvedType3Font</c> pattern-match branch - see
+    ///     <see cref="ShowGlyph"/>'s own remarks).
     /// </summary>
     private interface IResolvedFont
     {
-        /// <summary>Gets the loaded embedded TrueType font backing this resolved font.</summary>
-        TrueTypeFont Font { get; }
+        /// <summary>
+        ///     Gets the loaded embedded TrueType font backing this resolved font, or
+        ///     <see langword="null"/> for a <c>ResolvedType3Font</c>: a Type 3 font has no
+        ///     outline-glyph font program at all - its glyphs are content-stream procedures (see
+        ///     <c>PdfDocument.Fonts.Type3.cs</c>'s <c>PaintType3Glyph</c>), so this member is
+        ///     never consulted for it. Every non-Type3 concrete implementation declares this as a
+        ///     <see langword="required"/> non-nullable property, so <see cref="ShowGlyph"/>'s own
+        ///     non-Type3 branch may safely null-forgive it.
+        /// </summary>
+        TrueTypeFont? Font { get; }
 
         /// <summary>
         ///     Gets the number of bytes <see cref="ShowText"/> decodes per character code: <c>1</c>
-        ///     for a simple font, <c>2</c> for a composite <c>/Identity-H</c> font.
+        ///     for a simple or Type 3 font, <c>2</c> for a composite <c>/Identity-H</c> font.
         /// </summary>
         int CodeByteWidth { get; }
 
         /// <summary>
         ///     Resolves a single decoded character code to the glyph index <see cref="ShowGlyph"/>
-        ///     paints, and the code's advance width in text-space units (glyph-space-per-1000,
-        ///     not yet scaled by <see cref="GraphicsState.FontSize"/>).
+        ///     paints (meaningless/unused for a <c>ResolvedType3Font</c> - see that type's own
+        ///     remarks), and the code's advance width in text-space units, already converted from
+        ///     the font's own glyph-space convention (1/1000 em for a simple/composite font, via
+        ///     <c>/FontMatrix</c> for a Type 3 font - see <c>ResolvedType3Font.Resolve</c>'s own
+        ///     remarks), not yet scaled by <see cref="GraphicsState.FontSize"/>.
         /// </summary>
-        /// <param name="code">The decoded character code (a byte for a simple font, a 16-bit big-endian value for a composite font).</param>
+        /// <param name="code">The decoded character code (a byte for a simple or Type 3 font, a 16-bit big-endian value for a composite font).</param>
         /// <returns>The resolved glyph index and text-space advance width.</returns>
         (int GlyphIndex, double Width) Resolve(int code);
     }
@@ -199,12 +214,14 @@ public sealed partial class PdfDocument
     ///     <see cref="BuildResolvedSimpleFont"/> (see that method's own remarks for how each
     ///     subtype's embedded-font-program key differs); <c>/Type0</c> resolves a composite
     ///     <c>/Encoding /Identity-H</c>/<c>/CIDFontType2</c> font via
-    ///     <see cref="BuildResolvedCompositeFont"/> (see <c>PdfDocument.Fonts.Type0.cs</c>); any
-    ///     other <c>/Subtype</c> (<c>MMType1</c>, <c>Type3</c>) fails closed.
+    ///     <see cref="BuildResolvedCompositeFont"/> (see <c>PdfDocument.Fonts.Type0.cs</c>);
+    ///     <c>/Type3</c> resolves a procedure-painted font via
+    ///     <see cref="BuildResolvedType3Font"/> (see <c>PdfDocument.Fonts.Type3.cs</c>); any other
+    ///     <c>/Subtype</c> (for example <c>MMType1</c>) fails closed.
     /// </summary>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when <c>/Subtype</c> is not <c>TrueType</c>, <c>Type1</c>, or <c>Type0</c> (for
-    ///     example <c>MMType1</c> or <c>Type3</c>).
+    ///     Thrown when <c>/Subtype</c> is not <c>TrueType</c>, <c>Type1</c>, <c>Type0</c>, or
+    ///     <c>Type3</c> (for example <c>MMType1</c>).
     /// </exception>
     private IResolvedFont BuildResolvedFont(PdfObject fontDict)
     {
@@ -213,11 +230,13 @@ public sealed partial class PdfDocument
         {
             "TrueType" or "Type1" => BuildResolvedSimpleFont(fontDict, subtype),
             "Type0" => BuildResolvedCompositeFont(fontDict),
+            "Type3" => BuildResolvedType3Font(fontDict),
             _ => throw new UnsupportedImageFeatureException(
                 $"pdf-font-subtype-{subtype ?? "missing"}",
                 $"Font /Subtype '{subtype ?? "(missing)"}' is not supported; only simple " +
-                "/Subtype /TrueType and /Subtype /Type1 fonts and composite /Subtype /Type0 " +
-                "fonts are supported (MMType1 and Type3 fonts are not supported)."),
+                "/Subtype /TrueType and /Subtype /Type1 fonts, composite /Subtype /Type0 " +
+                "fonts, and procedure-painted /Subtype /Type3 fonts are supported (MMType1 " +
+                "fonts are not supported)."),
         };
     }
 
@@ -431,14 +450,50 @@ public sealed partial class PdfDocument
     /// <summary>
     ///     Applies a <c>/Differences</c> array's code/glyph-name pairs onto <paramref name="table"/>,
     ///     per the PDF specification's own alternating "a starting code, then zero or more names
-    ///     assigned to consecutive codes from that starting code" grammar.
+    ///     assigned to consecutive codes from that starting code" grammar - a thin wrapper over
+    ///     <see cref="ParseDifferences"/> that additionally resolves each glyph name to a Unicode
+    ///     codepoint via <see cref="StandardGlyphNames"/> (a simple/composite font's own
+    ///     <c>/Differences</c> entries name Adobe-Glyph-List glyphs, unlike a Type 3 font's own
+    ///     <c>/CharProcs</c>-keyed glyph names - see <c>ResolveType3Encoding</c> in
+    ///     <c>PdfDocument.Fonts.Type3.cs</c>, which reuses <see cref="ParseDifferences"/> directly
+    ///     without this codepoint-resolution step).
     /// </summary>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="differences"/> is not an array, when an array entry is
     ///     neither a number nor a name, when a name entry appears before any starting code (or
     ///     after the code has advanced past 255), or when a name is not a recognized glyph name.
     /// </exception>
-    private void ApplyDifferences(PdfObject differences, int[] table)
+    private void ApplyDifferences(PdfObject differences, int[] table) =>
+        ParseDifferences(differences, (code, name) =>
+        {
+            if (!StandardGlyphNames.TryGetValue(name, out var codepoint))
+            {
+                throw new InvalidDataException(
+                    $"/Encoding/Differences references unrecognized glyph name '/{name}'.");
+            }
+
+            table[code] = codepoint;
+        });
+
+    /// <summary>
+    ///     Parses a <c>/Differences</c> array's code/glyph-name pairs, per the PDF specification's
+    ///     own alternating "a starting code, then zero or more names assigned to consecutive codes
+    ///     from that starting code" grammar, invoking <paramref name="assign"/> once per
+    ///     code/glyph-name pair in array order. Shared by <see cref="ApplyDifferences"/> (a
+    ///     simple/composite font's own codepoint-resolving policy) and <c>ResolveType3Encoding</c>
+    ///     (<c>PdfDocument.Fonts.Type3.cs</c>'s own "keep the glyph name verbatim, as a direct
+    ///     <c>/CharProcs</c> key" policy) - the shared state machine (starting-code tracking,
+    ///     operand-kind/range validation) is identical between both callers; only what each caller
+    ///     does with a resolved <c>(code, name)</c> pair differs.
+    /// </summary>
+    /// <param name="differences">The font dictionary's resolved <c>/Encoding/Differences</c> array.</param>
+    /// <param name="assign">Invoked once per <c>(code, glyphName)</c> pair, in array order.</param>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="differences"/> is not an array, when an array entry is
+    ///     neither a number nor a name, or when a name entry appears before any starting code (or
+    ///     after the code has advanced past 255).
+    /// </exception>
+    private void ParseDifferences(PdfObject differences, Action<int, string> assign)
     {
         if (differences.Kind != PdfKind.Array)
         {
@@ -466,13 +521,7 @@ public sealed partial class PdfDocument
                     "/Encoding/Differences glyph name is not preceded by a valid starting code in [0, 255].");
             }
 
-            if (!StandardGlyphNames.TryGetValue(resolved.Text, out var codepoint))
-            {
-                throw new InvalidDataException(
-                    $"/Encoding/Differences references unrecognized glyph name '/{resolved.Text}'.");
-            }
-
-            table[code] = codepoint;
+            assign(code, resolved.Text);
             code++;
         }
     }

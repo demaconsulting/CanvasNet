@@ -293,6 +293,8 @@ words:
   - asciitilde
   - nacute
   - Nacute
+  - CharProcs
+  - Procs
 
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:

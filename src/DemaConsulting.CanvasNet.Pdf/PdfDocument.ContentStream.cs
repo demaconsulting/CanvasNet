@@ -69,6 +69,7 @@ public sealed partial class PdfDocument
         _textMatrix = Matrix3x2.Identity;
         _lineMatrix = Matrix3x2.Identity;
         _formNestingDepth = 0;
+        _type3NestingDepth = 0;
 
         ExecuteOperators(contentBytes);
     }
@@ -82,7 +83,10 @@ public sealed partial class PdfDocument
     ///     Re-entrant: <see cref="OpDrawFormXObject"/> calls this method recursively (bounded by
     ///     <see cref="MaxFormNestingDepth"/>) to execute a nested <c>/Subtype /Form</c> XObject's
     ///     own content stream against a temporarily swapped-in graphics state/resources, without
-    ///     re-running <see cref="ExecuteContentStream"/>'s full state reset.
+    ///     re-running <see cref="ExecuteContentStream"/>'s full state reset; <c>PaintType3Glyph</c>
+    ///     (<c>PdfDocument.Fonts.Type3.cs</c>) calls it recursively in exactly the same way
+    ///     (bounded by its own, independent <see cref="MaxType3NestingDepth"/>) to execute a
+    ///     <c>/Subtype /Type3</c> glyph procedure's own content stream.
     /// </remarks>
     /// <exception cref="InvalidDataException">
     ///     Thrown when the content stream is not lexically well-formed, or when a recognized
@@ -349,6 +353,16 @@ public sealed partial class PdfDocument
                 break;
             case "TJ":
                 OpShowTextArray(operands);
+                break;
+
+            // Type 3 glyph-description operators (PdfDocument.Fonts.Type3.cs) - parsed/validated
+            // for operand-count/type only; never consulted for layout (see OpType3SetWidth's own
+            // remarks).
+            case "d0":
+                OpType3SetWidth(operands);
+                break;
+            case "d1":
+                OpType3SetWidthAndBBox(operands);
                 break;
 
             default:

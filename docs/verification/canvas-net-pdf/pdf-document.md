@@ -611,7 +611,7 @@ crashing the test process.
 `PdfDocument_Fonts_SimpleFont_NoFontDescriptorAtAll_ResolvesViaFallback`
 
 A `[Theory]` builds a `/Resources/Font` dictionary declaring each excluded subtype
-(`/MMType1`/`/Type3`) in turn and selects it via `Tf`, asserting
+(`/MMType1`) in turn and selects it via `Tf`, asserting
 `Codecs.UnsupportedImageFeatureException` in every case. Selects a font name absent from
 `/Resources/Font` via `Tf`, asserting `InvalidDataException`. Builds a `/Subtype /TrueType` font
 dictionary with both an embedded `/FontFile2` stream and a deliberately unmatched `/BaseFont`
@@ -622,7 +622,7 @@ longer fails closed here at all; see `CanvasNetPdf-PdfDocument-FontFallback` bel
 resolution. As of Phase 9, a `/Subtype /Type0` composite font no longer fails closed here either;
 see `CanvasNetPdf-PdfDocument-CompositeFontResolution` immediately below for its own resolution
 and remaining fail-closed cases. As of Phase B, `/Subtype /Type1` is no longer listed among the
-excluded subtypes at all (only `/MMType1`/`/Type3` remain): a dedicated test proves a `/Type1`
+excluded subtypes at all: a dedicated test proves a `/Type1`
 font dictionary dispatches to `BuildResolvedSimpleFont` and paints its embedded Type 1 program's
 own glyph ink, and a second proves a `/Type1` font with no `/FontFile` resolves via
 `ResolveFallbackFont` exactly like an equivalent `/TrueType` font - see
@@ -630,7 +630,10 @@ own glyph ink, and a second proves a `/Type1` font with no `/FontFile` resolves 
 resolution and its own fail-closed cases. A further test builds a font dictionary with no
 `/FontDescriptor` entry at all (as PDF 32000-1 §9.6.2.2 permits for the standard 14 fonts, and
 several real-world producers - for example ReportLab - emit), asserting it resolves via
-`ResolveFallbackFont` rather than throwing `InvalidDataException`.
+`ResolveFallbackFont` rather than throwing `InvalidDataException`. As of Phase D, `/Subtype
+/Type3` is likewise no longer listed among the excluded subtypes (only `/MMType1` remains) - see
+`CanvasNetPdf-PdfDocument-Type3FontResolution`/`CanvasNetPdf-PdfDocument-Type3GlyphPainting`
+below for its own resolution and glyph-painting tests.
 
 #### CanvasNetPdf-PdfDocument-CompositeFontResolution: Type0/Identity-H Composite Fonts Resolve, Fail Closed Otherwise
 
@@ -769,6 +772,117 @@ test omits `/Subtype` from the `/FontFile3` stream entirely, asserting the same 
 `Feature == "pdf-font-fontfile3-subtype-missing"` (a missing `/Subtype` is not guessed as
 `Type1C`), mirroring `CanvasNetPdf-PdfDocument-CompositeFontResolution`'s own `/FontFile3`-
 `/Subtype`-validation precedent for `/CIDFontType0`.
+
+#### CanvasNetPdf-PdfDocument-Type3FontResolution: Type3 Fonts Resolve Required Fields, Fail Closed on Malformed Ones
+
+**Tests**: `PdfDocument_Fonts_Type3_MinimalFont_DifferencesAndCharProcs_PaintsGlyphInk`,
+`PdfDocument_Fonts_Type3_Widths_ScaledViaFontMatrix_DeterminesAdvance`,
+`PdfDocument_Fonts_Type3_UnmappedCode_NoDifferencesEntry_PaintsNothingButAdvances`,
+`PdfDocument_Fonts_Type3_MappedGlyphNameAbsentFromCharProcs_PaintsNothingButAdvances`,
+`PdfDocument_Fonts_Type3_MissingFontMatrix_ThrowsInvalidDataException`,
+`PdfDocument_Fonts_Type3_MissingCharProcs_ThrowsInvalidDataException`,
+`PdfDocument_Fonts_Type3_FontMatrixWrongArrayLength_ThrowsInvalidDataException`,
+`PdfDocument_Fonts_Type3_FontMatrixNonNumberEntry_ThrowsInvalidDataException`,
+`PdfDocument_Fonts_Type3_CharProcsNotADictionary_ThrowsInvalidDataException`
+
+Builds a minimal synthetic `/Subtype /Type3` font (via the new `BuildType3FontResources` helper,
+mirroring `BuildEmbeddedType1CFontResources`'s own established pattern) declaring a single glyph
+(code `65`/`'A'`, mapped via an inline `/Encoding`/`/Differences` entry to glyph name `/Square`,
+whose `/CharProcs` content stream paints a filled design-space rectangle) and asserts `Tj` paints
+that rectangle's ink at the device location its default `/FontMatrix`
+(`[0.001 0 0 0.001 0 0]`) scales it to - the identical pixel assertion the embedded Type1/
+TrueType font tests already use for the same design-space rectangle, proving `BuildResolvedFont`'s
+`/Type3` dispatch and `PaintType3Glyph`'s basic glyph-procedure execution end to end. A second
+test shows two glyphs in one `Tj` under a deliberately non-conventional `/FontMatrix`
+(`[0.0025 0 0 0.001 0 0]`) and a `/Widths` entry of `1000`, asserting the second glyph's device
+position reflects the first glyph's `/FontMatrix`-scaled advance (`1000 * 0.0025 * 20pt = 50`
+units) and explicitly asserting the second glyph does *not* appear at the position a
+`/1000`-divided-width convention (the simple/composite-font convention) would have produced
+instead - proving `ResolvedType3Font.Resolve`'s width computation is genuinely `/FontMatrix`-
+scaled, not merely accepting and ignoring `/FontMatrix` in favor of the ordinary `/1000`
+convention. Two further tests each show an unmapped glyph (one via a character code entirely
+absent from `/Differences`, one via a code mapped to a glyph name absent from `/CharProcs`)
+followed by a second, correctly-mapped glyph, asserting no exception is thrown, nothing paints
+for the unmapped glyph, and the second glyph's device position still reflects the unmapped code's
+own declared `/Widths` advance - proving both missing-glyph leniency cases advance correctly
+without painting. Two further tests each build a `/Subtype /Type3` font dictionary missing (one)
+`/FontMatrix` or (the other) `/CharProcs` entirely, asserting `InvalidDataException` in both
+cases - proving these two required fields fail closed, unlike every other resolved font kind's
+embedded-font-absent fallback-substitution path (a Type 3 font has no such fallback at all). A
+further `[Theory]` test supplies a `/FontMatrix` array of the wrong length (5 or 7 elements
+instead of exactly 6), and a companion test supplies a `/FontMatrix` array whose entries include a
+name (`/Foo`) in place of a number, each asserting `InvalidDataException` - distinct from the
+"entirely absent" case above, proving `ReadFontMatrix`'s own length and per-entry-type validation
+both fail closed independently. A final test supplies `/CharProcs 42` (a number, not a
+dictionary), asserting `InvalidDataException` - distinct from the "entirely absent" `/CharProcs`
+case above, proving `BuildResolvedType3Font`'s own `charProcs.Kind != PdfKind.Dictionary` check
+fails closed.
+
+#### CanvasNetPdf-PdfDocument-Type3GlyphPainting: Glyph Procedures Execute Recursively and Isolate Graphics State
+
+**Tests**: `PdfDocument_Fonts_Type3_NonDefaultFontMatrix_ScalesGlyphGeometry`,
+`PdfDocument_Fonts_Type3_GlyphProc_GraphicsStateIsolated_DoesNotLeakOut`,
+`PdfDocument_Fonts_Type3_D0Operator_ParsedButDoesNotAffectAdvanceWidth`,
+`PdfDocument_Fonts_Type3_NoOwnResources_FallsBackToOuterPageResources`,
+`PdfDocument_Fonts_Type3_SelfReferencingGlyphProc_ExceedsMaxNestingDepth_ThrowsInvalidDataException`,
+`PdfDocument_Fonts_Type3_RenderMode3_SkipsGlyphProcedureButStillAdvances`,
+`PdfDocument_Fonts_Type3_D1Operator_ParsedButDoesNotAffectAdvanceWidth`,
+`PdfDocument_Fonts_Type3_StrayD0D1OutsideGlyphProc_NoExceptionNoEffect`,
+`PdfDocument_Fonts_Type3_OwnResourcesTakePrecedenceOverPageResources_UsesFontResources`
+
+Builds the same single-glyph filled-rectangle `/Subtype /Type3` font as
+`CanvasNetPdf-PdfDocument-Type3FontResolution`'s own minimal-font test, but under a deliberately
+non-default, anisotropic `/FontMatrix` (`[0.002 0 0 0.0015 0 0]` - different horizontal and
+vertical scales, neither of which is the conventional `0.001`), asserting the rectangle paints at
+the device location this `/FontMatrix` (empirically verified against the implementation's own
+rasterization) scales it to, and explicitly asserting a device pixel that lies inside the region
+the rectangle *would* occupy under the conventional (but, for this font, wrong) `0.001`
+`/FontMatrix` scale - yet outside this font's own correctly-scaled region - is left blank: the
+highest-risk proof in this feature's test suite, per the implementation plan, since it
+distinguishes "`/FontMatrix` genuinely consulted for glyph-matrix composition" from "`/FontMatrix`
+accepted but silently ignored in favor of a hardcoded assumption". A further test uses a glyph
+procedure that applies `2 0 0 2 0 0 cm 1 0 0 rg` before painting its own rectangle (under an
+identity `/FontMatrix`, so the glyph's own content-stream coordinates map 1:1 onto the same
+device space a Form XObject's own BBox-space coordinates would), then asserts the page's own,
+separately-painted rectangle - painted immediately after `Tj` returns, in the page's own default
+black fill color, at its own normal unscaled position - is unaffected by the glyph procedure's
+`cm`/`rg` mutations, mirroring
+`PdfDocument_Images_DoOperator_NestedFormXObjects_RestoresGraphicsStateAfterReturn`'s own Form-
+XObject state-isolation proof applied to `PaintType3Glyph`'s re-entrant execution instead. A
+further test declares a glyph procedure beginning `2000 0 d0` (a `wx` operand wildly different
+from the font's own declared `/Widths` entry) before painting, shows the same glyph twice in one
+`Tj`, and asserts the second glyph's device position reflects the font's `/Widths`-declared
+advance, not a d0-driven one - proving `OpType3SetWidth` validates and discards its operands
+without feeding `wx` back into layout. A final test declares a glyph procedure that invokes a
+Form XObject (`/Fm0`) declared only in the invoking page's own `/Resources` (the Type 3 font
+itself declares no `/Resources` of its own), asserting the Form's own content paints at the
+expected glyph-matrix-transformed location - proving `PaintType3Glyph` falls back to the
+invoking content stream's own `/Resources` exactly like a `/Subtype /Form` XObject with no
+`/Resources` of its own already does.
+
+A further test declares a glyph procedure for code 65 that itself re-shows code 65 via a bare
+`(A) Tj` (legal, since the nested graphics-state clone inherits the outer `Tf`-selected font),
+asserting `InvalidDataException` once the fixed maximum Type3 glyph-procedure nesting depth is
+exceeded - proving the bounded-recursion guard fails closed rather than overflowing the call
+stack or hanging. A companion test selects render mode `3` (invisible) via `Tr` before showing two
+glyphs, then switches back to render mode `0` before showing a third, asserting no ink paints at
+either invisible glyph's own would-be-painted device location while the third, visible glyph
+paints at the origin fully advanced by both invisible glyphs' declared widths - proving
+`ShowGlyph`'s render-mode-3 guard skips `PaintType3Glyph` entirely while the shared, unconditional
+advance logic still runs. A further test declares a glyph procedure using the `d1` operator (6
+operands: `wx wy llx lly urx ury`) with a `wx` wildly different from the font's own declared
+`/Widths` entry, mirroring the existing `d0` test's own structure, and asserts the second of two
+shown glyphs lands at the `/Widths`-correct (not `d1`-driven) advance - proving `d1`'s own
+6-operand path is parsed and discarded exactly like `d0`'s. A companion test issues a stray
+`d0`/`d1` pair directly in an ordinary, non-Type3 page content stream (no font ever selected),
+asserting no exception and that a subsequent filled rectangle paints normally - proving
+`ExecuteOperators`' shared `d0`/`d1` dispatch is unconditional, not gated on "currently inside a
+Type3 glyph procedure". A final test declares both the Type3 font's own `/Resources` and the
+invoking page's own `/Resources` with an XObject of the same name (`/Fm0`) painting different
+colors, asserting the glyph procedure's `/Fm0 Do` paints the font's own color (not the page's) -
+proving `PaintType3Glyph`'s `_resources = font.Resources ?? _resources` fallback's non-null
+branch (the font's own `/Resources` taking precedence) is exercised, distinct from the preceding
+test's null-branch (fallback) proof.
 
 #### CanvasNetPdf-PdfDocument-ToUnicodeCMap: /ToUnicode CMap Resolves to a Code-to-Codepoint Map
 

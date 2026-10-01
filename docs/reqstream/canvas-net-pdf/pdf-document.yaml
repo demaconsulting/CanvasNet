@@ -610,18 +610,20 @@ sections:
               if present, else an embedded /FontDescriptor/FontFile3 bare Type1C/CFF stream (see
               CanvasNetPdf-PdfDocument-Type1CFontResolution) if present, else system/bundled
               font-fallback substitution (see CanvasNetPdf-PdfDocument-FontFallback); a font whose
-              /Subtype is /MMType1 or /Type3 shall throw UnsupportedImageFeatureException, a
-              /Subtype /Type0 composite font shall instead be resolved via
-              CanvasNetPdf-PdfDocument-CompositeFontResolution, and a Tf operator naming a font
-              absent from /Resources/Font shall throw InvalidDataException; caching the resolved
-              font by font-dictionary object identity for the duration of a single Render call.
+              /Subtype is /MMType1 shall throw UnsupportedImageFeatureException, a /Subtype
+              /Type0 composite font shall instead be resolved via
+              CanvasNetPdf-PdfDocument-CompositeFontResolution, a /Subtype /Type3 font shall
+              instead be resolved via CanvasNetPdf-PdfDocument-Type3FontResolution, and a Tf
+              operator naming a font absent from /Resources/Font shall throw
+              InvalidDataException; caching the resolved font by font-dictionary object identity
+              for the duration of a single Render call.
             justification: |
-              Multiple Master Type 1 fonts (/MMType1) and Type 3 (procedure-based) fonts remain
-              explicitly out of scope and must fail closed with a distinguishable exception; a
-              non-embedded simple font (/TrueType or /Type1 alike), however, is common enough in
-              real-world PDFs (referencing a standard-14 name, or an installed system font,
-              without embedding it) that silently refusing to render it is a worse outcome than a
-              best-effort visual substitute - including when the font dictionary declares no
+              Multiple Master Type 1 fonts (/MMType1) remain explicitly out of scope and must
+              fail closed with a distinguishable exception; a non-embedded simple font
+              (/TrueType or /Type1 alike), however, is common enough in real-world PDFs
+              (referencing a standard-14 name, or an installed system font, without embedding
+              it) that silently refusing to render it is a worse outcome than a best-effort
+              visual substitute - including when the font dictionary declares no
               /FontDescriptor at all, as PDF 32000-1 §9.6.2.2 explicitly permits for the standard
               14 fonts and several real-world producers emit - and repeatedly selecting the same
               font resource within one render must not repeatedly re-decode its embedded font
@@ -770,6 +772,92 @@ sections:
               - PdfDocument_Fonts_Type1_FontFile3Type1C_ResolvesEmbeddedFont_PaintsGlyphInk
               - PdfDocument_Fonts_Type1_FontFile3NonType1CSubtype_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Fonts_Type1_FontFile3MissingSubtype_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-Type3FontResolution
+            title: >-
+              The PdfDocument class shall resolve a /Resources/Font entry naming a /Subtype
+              /Type3 font: requiring and parsing its /FontMatrix (six numbers; InvalidDataException
+              if absent or malformed), requiring its /CharProcs dictionary (mapping glyph names to
+              indirect content-stream references; InvalidDataException if absent or not a
+              dictionary), resolving its /Encoding (reusing the same base-encoding/Differences
+              machinery CanvasNetPdf-PdfDocument-FontResolution's simple-font path uses, with an
+              absent, non-dictionary, or Differences-less /Encoding leniently resolving to an
+              empty code-to-glyph-name map rather than an error), and resolving its
+              /Widths/FirstChar/LastChar (reusing the same leniency conventions
+              CanvasNetPdf-PdfDocument-FontResolution's simple-font path uses for an out-of-range
+              or absent entry); unlike every other resolved font kind, a Type 3 font's advance
+              width for a given code is its /Widths entry transformed through /FontMatrix (not
+              divided by 1000), and its glyph outline is painted by
+              CanvasNetPdf-PdfDocument-Type3GlyphPainting rather than any embedded/fallback font
+              program.
+            justification: |
+              Type 3 (procedure-based) fonts - whose glyphs are arbitrary content-stream
+              procedures rather than outline/CFF programs - are a legitimate, if uncommon,
+              real-world PDF construct (commonly emitted by older or specialized producers for
+              bespoke symbol sets); resolving them closes a previously explicit scope boundary
+              (CanvasNetPdf-PdfDocument-FontResolution rejected every /Subtype /Type3 font
+              unconditionally before this phase) without disturbing any other resolved font
+              kind's own behavior, since the resolution and advance-width conventions above are
+              unique to this font kind and gated behind its own concrete
+              type (IResolvedFont.Font is widened to a nullable property precisely so a Type 3
+              font's absent outline-glyph font program does not force a fabricated placeholder).
+            tests:
+              - PdfDocument_Fonts_Type3_MinimalFont_DifferencesAndCharProcs_PaintsGlyphInk
+              - PdfDocument_Fonts_Type3_Widths_ScaledViaFontMatrix_DeterminesAdvance
+              - PdfDocument_Fonts_Type3_UnmappedCode_NoDifferencesEntry_PaintsNothingButAdvances
+              - PdfDocument_Fonts_Type3_MappedGlyphNameAbsentFromCharProcs_PaintsNothingButAdvances
+              - PdfDocument_Fonts_Type3_MissingFontMatrix_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Type3_MissingCharProcs_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Type3_FontMatrixWrongArrayLength_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Type3_FontMatrixNonNumberEntry_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Type3_CharProcsNotADictionary_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-Type3GlyphPainting
+            title: >-
+              The PdfDocument class shall paint a /Subtype /Type3 glyph (resolved per
+              CanvasNetPdf-PdfDocument-Type3FontResolution) by looking up the shown code's glyph
+              name via /Encoding and that name's content-stream reference via /CharProcs -
+              painting nothing (but still advancing the text position by the code's declared
+              width) when either lookup fails - else decoding the glyph procedure's content
+              stream via the generic stream-decoding pipeline and executing it recursively in a
+              re-entrant manner, against a computed glyph matrix (the font's /FontMatrix composed with
+              the current text-rendering matrix, replacing the outline-glyph path's
+              1/UnitsPerEm scale entirely), using the Type3 font's own /Resources when present
+              else falling back to the invoking content stream's /Resources (exactly like a
+              /Subtype /Form XObject with no /Resources of its own), inheriting the invoking
+              graphics state and leaving it (and the invoking stream's /Resources) unaffected
+              once the glyph procedure finishes, whether it finishes normally or via a thrown
+              exception; nested Type3 glyph-procedure invocations exceeding a fixed maximum depth
+              (tracked independently of the Form XObject nesting-depth counter) shall throw
+              InvalidDataException rather than overflowing the call stack; a render mode of 3
+              (invisible) skips glyph-procedure execution entirely (but still advances); the d0
+              and d1 glyph-description operators are recognized (operand count/type validated)
+              but otherwise discarded - a Type 3 font's advance width remains solely determined
+              by its /Widths entry (see CanvasNetPdf-PdfDocument-Type3FontResolution), never by a
+              glyph procedure's own d0/d1 operands, and this phase does not implement d1's
+              optional color-operator-suppression behavior (a d1 glyph procedure's own color-
+              setting operators are honored, not ignored, in this phase - a deliberate, narrower
+              scope boundary).
+            justification: |
+              A Type 3 glyph procedure is itself an arbitrary nested content stream (the same
+              re-entrant execution shape CanvasNetPdf-PdfDocument-FormXObjects already
+              established for Form XObjects); re-using that same save/restore-and-recurse
+              pattern, with its own independent nesting-depth bound, correctly isolates a glyph
+              procedure's own graphics-state/resource mutations from the invoking content stream
+              and fails closed against a pathological (self-referencing) glyph procedure, exactly
+              as Form XObjects already do; the d0/d1 leniency and color-suppression scope
+              boundary are deliberate, narrower-than-full-specification choices, documented here
+              rather than silently under-implemented.
+            tests:
+              - PdfDocument_Fonts_Type3_NonDefaultFontMatrix_ScalesGlyphGeometry
+              - PdfDocument_Fonts_Type3_GlyphProc_GraphicsStateIsolated_DoesNotLeakOut
+              - PdfDocument_Fonts_Type3_D0Operator_ParsedButDoesNotAffectAdvanceWidth
+              - PdfDocument_Fonts_Type3_NoOwnResources_FallsBackToOuterPageResources
+              - PdfDocument_Fonts_Type3_SelfReferencingGlyphProc_ExceedsMaxNestingDepth_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Type3_RenderMode3_SkipsGlyphProcedureButStillAdvances
+              - PdfDocument_Fonts_Type3_D1Operator_ParsedButDoesNotAffectAdvanceWidth
+              - PdfDocument_Fonts_Type3_StrayD0D1OutsideGlyphProc_NoExceptionNoEffect
+              - PdfDocument_Fonts_Type3_OwnResourcesTakePrecedenceOverPageResources_UsesFontResources
 
           - id: CanvasNetPdf-PdfDocument-ToUnicodeCMap
             title: >-

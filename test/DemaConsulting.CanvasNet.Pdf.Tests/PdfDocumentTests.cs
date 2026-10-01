@@ -963,6 +963,56 @@ public class PdfDocumentTests
     /// <summary>
     ///     Builds a <c>/Resources/Font</c> dictionary (as a <see cref="BuildSinglePagePdfWithResources"/>-
     ///     compatible <c>resourcesBody</c>/<c>extraObjectBodies</c> pair) declaring a single
+    ///     synthetic <c>/Subtype /Type3</c> font resource named <c>/F1</c>, with its
+    ///     <c>/CharProcs</c> glyph-procedure content streams supplied verbatim in
+    ///     <paramref name="glyphProcs"/> (each one becomes its own extra object, referenced from
+    ///     an inline <c>/CharProcs</c> dictionary by glyph name), an inline <c>/Encoding</c>
+    ///     <c>/Differences</c> array built from <paramref name="differencesBody"/> (omitted
+    ///     entirely when empty, so callers can exercise the "no <c>/Encoding</c> at all" case),
+    ///     and <paramref name="fontMatrix"/>/<paramref name="fontDictExtra"/>/
+    ///     <paramref name="type3ResourcesBody"/> appended verbatim.
+    /// </summary>
+    /// <remarks>
+    ///     Numbered so the Type3 font dictionary is object <c>5</c> (referenced as <c>5 0 R</c> by
+    ///     the returned <c>/Font</c> resources entry) and each glyph procedure content stream in
+    ///     <paramref name="glyphProcs"/> is object <c>6</c>, <c>7</c>, ... in order - matching
+    ///     every other font-resource helper's own "extra objects start at 5" convention.
+    /// </remarks>
+    private static (string ResourcesBody, List<byte[]> ExtraObjects) BuildType3FontResources(
+        IReadOnlyList<(string GlyphName, byte[] ContentBytes)> glyphProcs,
+        string differencesBody,
+        string fontMatrix = "[0.001 0 0 0.001 0 0]",
+        string fontDictExtra = "/FirstChar 65 /LastChar 65 /Widths [750]",
+        string? type3ResourcesBody = null,
+        string fontResourceName = "F1")
+    {
+        var extraObjects = new List<byte[]>();
+        var charProcEntries = new List<string>();
+        var objNum = 6;
+        foreach (var (glyphName, contentBytes) in glyphProcs)
+        {
+            extraObjects.Add(BuildStreamObjectBody(string.Empty, contentBytes));
+            charProcEntries.Add($"/{glyphName} {objNum} 0 R");
+            objNum++;
+        }
+
+        var encodingClause = string.IsNullOrEmpty(differencesBody)
+            ? string.Empty
+            : $" /Encoding << /Differences [{differencesBody}] >>";
+        var resourcesClause = type3ResourcesBody is null ? string.Empty : $" /Resources << {type3ResourcesBody} >>";
+
+        var fontDictObj = System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Type /Font /Subtype /Type3 /FontMatrix {fontMatrix} " +
+            $"/CharProcs << {string.Join(' ', charProcEntries)} >>{encodingClause}{resourcesClause} {fontDictExtra} >>");
+
+        extraObjects.Insert(0, fontDictObj);
+
+        return ($"/Font << /{fontResourceName} 5 0 R >>", extraObjects);
+    }
+
+    /// <summary>
+    ///     Builds a <c>/Resources/Font</c> dictionary (as a <see cref="BuildSinglePagePdfWithResources"/>-
+    ///     compatible <c>resourcesBody</c>/<c>extraObjectBodies</c> pair) declaring a single
     ///     Type0/CIDFontType2 composite font resource named <c>/F1</c>, with the given embedded
     ///     <c>/FontFile2</c> bytes and <c>/Encoding</c>, descendant <c>/Subtype</c>,
     ///     <c>/CIDToGIDMap</c> stream, and other descendant-dictionary entries appended verbatim.
@@ -3705,14 +3755,15 @@ public class PdfDocumentTests
     #region Fonts
 
     /// <summary>
-    ///     Proves that a non-<c>TrueType</c>/non-<c>Type1</c>/non-<c>Type0</c> simple font
-    ///     <c>/Subtype</c> throws <see cref="UnsupportedImageFeatureException"/> rather than
-    ///     being silently substituted (<c>/Type1</c> itself is no longer universally rejected -
-    ///     see the new <c>PdfDocument_Fonts_Type1_*</c> tests below).
+    ///     Proves that a non-<c>TrueType</c>/non-<c>Type1</c>/non-<c>Type0</c>/non-<c>Type3</c>
+    ///     simple font <c>/Subtype</c> throws <see cref="UnsupportedImageFeatureException"/>
+    ///     rather than being silently substituted (<c>/Type1</c> itself is no longer universally
+    ///     rejected - see the new <c>PdfDocument_Fonts_Type1_*</c> tests below; <c>/Type3</c> is
+    ///     likewise no longer rejected - see the new <c>PdfDocument_Fonts_Type3_*</c> tests
+    ///     below).
     /// </summary>
     [Theory]
     [InlineData("MMType1")]
-    [InlineData("Type3")]
     public void PdfDocument_Fonts_UnsupportedSubtype_ThrowsUnsupportedImageFeatureException(string subtype)
     {
         // Arrange
@@ -5027,6 +5078,556 @@ public class PdfDocumentTests
 
         // Assert: no glyph outline is painted anywhere in the expected region.
         Assert.Equal(default, surface[11, 44]);
+    }
+
+    /// <summary>
+    ///     Proves <c>BuildResolvedFont</c>'s <c>Type3</c> dispatch: a minimal
+    ///     <c>/Subtype /Type3</c> font declaring a single glyph (code <c>65</c> ('A'), mapped via
+    ///     <c>/Encoding</c>/<c>/Differences</c> to glyph name <c>/Square</c>, whose
+    ///     <c>/CharProcs</c> content stream paints a filled design-space rectangle) paints that
+    ///     glyph's ink, at the device location its default <c>/FontMatrix</c>
+    ///     (<c>[0.001 0 0 0.001 0 0]</c>) scales it to - the same location an equivalent
+    ///     <c>/UnitsPerEm 1000</c> TrueType outline glyph would paint at (see
+    ///     <c>PdfDocument_Fonts_Type1_*</c> tests' own, numerically identical, pixel assertions).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type3_MinimalFont_DifferencesAndCharProcs_PaintsGlyphInk()
+    {
+        // Arrange: glyph /Square paints a filled rectangle spanning design (100,100)-(500,500).
+        var (resourcesBody, extraObjects) = BuildType3FontResources(
+            [("Square", "100 100 400 400 re f"u8.ToArray())],
+            "65 /Square");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf 5 5 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: device x [7,15), y [85,93) - identical to the Type1/TrueType embedded-font
+        // tests' own pixel assertions for the same design-space rectangle and /FontMatrix-
+        // equivalent 0.001 scale.
+        Assert.NotEqual(default, surface[11, 89]);
+
+        // Assert: well outside the glyph's painted region, nothing is painted.
+        Assert.Equal(default, surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that a non-default, anisotropic <c>/FontMatrix</c>
+    ///     (<c>[0.002 0 0 0.0015 0 0]</c> - a different horizontal/vertical scale, neither of which
+    ///     is the conventional <c>0.001</c>) is actually consulted to compute the glyph's painted
+    ///     device location - not merely accepted and ignored in favor of a hardcoded
+    ///     <c>0.001</c>/1000-unit-em assumption (the highest-risk area of this feature, per the
+    ///     implementation plan).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type3_NonDefaultFontMatrix_ScalesGlyphGeometry()
+    {
+        // Arrange: same glyph rectangle (100,100)-(500,500) as the minimal-font test, but with
+        // /FontMatrix [0.002 0 0.0015 0 0] instead of the conventional [0.001 0 0 0.001 0 0].
+        var (resourcesBody, extraObjects) = BuildType3FontResources(
+            [("Square", "100 100 400 400 re f"u8.ToArray())],
+            "65 /Square",
+            fontMatrix: "[0.002 0 0 0.0015 0 0]");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf 5 5 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: under this /FontMatrix, the rectangle lands at device x [9,25), y [80,92) -
+        // verified empirically against the implementation's own rasterization.
+        Assert.NotEqual(default, surface[17, 86]);
+
+        // Assert: device (8,92) lies inside the region the rectangle would occupy under the
+        // conventional (but, for this font, wrong) 0.001 /FontMatrix scale (x [7,15), y [85,93))
+        // but outside this font's own, correctly-scaled region (x [9,25), y [80,92)) - proving the
+        // glyph was positioned using this font's actual /FontMatrix, not a hardcoded assumption.
+        Assert.Equal(default, surface[8, 92]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>Resolve</c>'s glyph-advance width is the <c>/Widths</c> entry scaled
+    ///     through <c>/FontMatrix</c> (<c>Vector2.TransformNormal</c>) - not divided by the
+    ///     simple/composite-font convention of <c>1000</c> - by painting two glyphs in a single
+    ///     <c>Tj</c> and asserting the second glyph's device position reflects the first glyph's
+    ///     <c>/FontMatrix</c>-scaled (not <c>/1000</c>-scaled) advance.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type3_Widths_ScaledViaFontMatrix_DeterminesAdvance()
+    {
+        // Arrange: /FontMatrix [0.0025 0 0 0.001 0 0] (a deliberately non-conventional horizontal
+        // scale); code 65 ('A') declares /Widths entry 1000 (glyph-space units). The correct
+        // advance is 1000 * 0.0025 * 20pt = 50 text-space units; a /1000-divided (wrong)
+        // convention would instead advance only 1000/1000 * 20pt = 20 units.
+        var (resourcesBody, extraObjects) = BuildType3FontResources(
+            [("Square", "100 100 400 400 re f"u8.ToArray())],
+            "65 /Square 66 /Square",
+            fontMatrix: "[0.0025 0 0 0.001 0 0]",
+            fontDictExtra: "/FirstChar 65 /LastChar 66 /Widths [1000 1000]");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf 5 5 Td (AB) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the first glyph paints at its own origin (device x [10,30)).
+        Assert.NotEqual(default, surface[20, 89]);
+
+        // Assert: the second glyph paints at the correctly-advanced origin (tx = 5 + 50 = 55,
+        // device x [60,80)) - proving the /FontMatrix-scaled (not /1000-scaled) width was used.
+        Assert.NotEqual(default, surface[70, 89]);
+
+        // Assert: the second glyph does NOT paint at the position a wrong, /1000-divided-width
+        // advance would have produced (tx = 5 + 20 = 25, device x [30,50)).
+        Assert.Equal(default, surface[40, 89]);
+    }
+
+    /// <summary>
+    ///     Proves that a character code with no <c>/Encoding</c>/<c>/Differences</c> mapping at
+    ///     all paints nothing (no exception), but still advances the text position by its declared
+    ///     <c>/Widths</c> entry.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type3_UnmappedCode_NoDifferencesEntry_PaintsNothingButAdvances()
+    {
+        // Arrange: only code 65 ('A') is mapped via /Differences; code 66 ('B') has a declared
+        // /Widths entry (750) but no glyph-name mapping at all. "(BA)" shows B first (unmapped,
+        // paints nothing, but still advances 750 * 0.001 * 20pt = 15 units), then A (mapped,
+        // painted at the resulting, advanced origin).
+        var (resourcesBody, extraObjects) = BuildType3FontResources(
+            [("Square", "100 100 400 400 re f"u8.ToArray())],
+            "65 /Square",
+            fontDictExtra: "/FirstChar 65 /LastChar 66 /Widths [750 750]");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf 5 5 Td (BA) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: 'A' paints at the advanced origin (tx = 5 + 15 = 20, device x [22,30)) - proving
+        // the unmapped 'B' code's declared width was still applied.
+        Assert.NotEqual(default, surface[25, 89]);
+
+        // Assert: nothing paints at the un-advanced origin (tx = 5, device x [7,15)) - proving 'B'
+        // itself painted nothing.
+        Assert.Equal(default, surface[10, 89]);
+    }
+
+    /// <summary>
+    ///     Proves that a character code mapped (via <c>/Differences</c>) to a glyph name absent
+    ///     from <c>/CharProcs</c> paints nothing (no exception), but still advances the text
+    ///     position by its declared <c>/Widths</c> entry - the companion leniency case to
+    ///     <see cref="PdfDocument_Fonts_Type3_UnmappedCode_NoDifferencesEntry_PaintsNothingButAdvances"/>.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type3_MappedGlyphNameAbsentFromCharProcs_PaintsNothingButAdvances()
+    {
+        // Arrange: code 66 ('B') is mapped via /Differences to glyph name /Missing, which has no
+        // corresponding /CharProcs entry (only /Square, for code 65 ('A'), is supplied).
+        var (resourcesBody, extraObjects) = BuildType3FontResources(
+            [("Square", "100 100 400 400 re f"u8.ToArray())],
+            "65 /Square 66 /Missing",
+            fontDictExtra: "/FirstChar 65 /LastChar 66 /Widths [750 750]");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf 5 5 Td (BA) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: 'A' paints at the advanced origin (tx = 5 + 15 = 20, device x [22,30)).
+        Assert.NotEqual(default, surface[25, 89]);
+
+        // Assert: nothing paints at the un-advanced origin (tx = 5, device x [7,15)).
+        Assert.Equal(default, surface[10, 89]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>/Subtype /Type3</c> font dictionary missing its required
+    ///     <c>/FontMatrix</c> entry throws <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type3_MissingFontMatrix_ThrowsInvalidDataException()
+    {
+        // Arrange: a /Subtype /Type3 font dictionary with no /FontMatrix entry at all.
+        var glyphStreamObj = BuildStreamObjectBody(string.Empty, "100 100 400 400 re f"u8.ToArray());
+        var fontDictObj = System.Text.Encoding.ASCII.GetBytes(
+            "<< /Type /Font /Subtype /Type3 /CharProcs << /Square 6 0 R >> " +
+            "/Encoding << /Differences [65 /Square] >> /FirstChar 65 /LastChar 65 /Widths [750] >>");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf (A) Tj ET", "/Font << /F1 5 0 R >>", [fontDictObj, glyphStreamObj]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>
+    ///     Proves that a <c>/Subtype /Type3</c> font dictionary missing its required
+    ///     <c>/CharProcs</c> entry throws <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type3_MissingCharProcs_ThrowsInvalidDataException()
+    {
+        // Arrange: a /Subtype /Type3 font dictionary with no /CharProcs entry at all.
+        var fontDictObj = System.Text.Encoding.ASCII.GetBytes(
+            "<< /Type /Font /Subtype /Type3 /FontMatrix [0.001 0 0 0.001 0 0] " +
+            "/Encoding << /Differences [65 /Square] >> /FirstChar 65 /LastChar 65 /Widths [750] >>");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf (A) Tj ET", "/Font << /F1 5 0 R >>", [fontDictObj]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>
+    ///     Proves that a glyph procedure's own <c>cm</c>/color-operator mutations are fully
+    ///     isolated - they do not leak back into the invoking content stream's graphics state
+    ///     after the glyph finishes painting - mirroring
+    ///     <see cref="PdfDocument_Images_DoOperator_NestedFormXObjects_RestoresGraphicsStateAfterReturn"/>'s
+    ///     own Form-XObject state-isolation proof, applied to a Type3 glyph procedure's re-entrant
+    ///     execution instead.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type3_GlyphProc_GraphicsStateIsolated_DoesNotLeakOut()
+    {
+        // Arrange: /FontMatrix [1 0 0 1 0 0] (identity) with /Tf 1 and no /Td, so the glyph's own
+        // content-stream coordinates map 1:1 onto the same device space a Form XObject's own
+        // BBox-space coordinates would (see the Form XObject test this mirrors). The glyph
+        // procedure applies "2 0 0 2 0 0 cm 1 0 0 rg" before painting its own rectangle; the page
+        // then paints its own rectangle, in its own default (black) fill color, after Tj returns.
+        var (resourcesBody, extraObjects) = BuildType3FontResources(
+            [("Square", "2 0 0 2 0 0 cm 1 0 0 rg 5 5 10 10 re f"u8.ToArray())],
+            "65 /Square",
+            fontMatrix: "[1 0 0 1 0 0]",
+            fontDictExtra: "/FirstChar 65 /LastChar 65 /Widths [0]");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 1 Tf (A) Tj ET 40 10 5 5 re f", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the glyph's own rectangle, scaled 2x and filled red by its own "cm"/"rg", lands
+        // at device (10,70)-(30,90) - its center is painted red.
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[20, 80]);
+
+        // Assert: the page's own rectangle (painted after Tj returns) lands at its own normal,
+        // unscaled device position (40,85)-(45,90), in the page's own default black fill color -
+        // proving the glyph's "cm"/"rg" did not leak back out into the invoking stream's graphics
+        // state.
+        Assert.Equal(Black, surface[42, 87]);
+
+        // Assert: the device position the page's rectangle would occupy if the glyph's 2x scale
+        // had leaked ((80,70)-(90,80)) is left blank.
+        Assert.Equal(default, surface[85, 75]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>d0</c> operator inside a glyph procedure is parsed (operand
+    ///     count/type validated) and then discarded - its <c>wx</c> operand is never fed back into
+    ///     glyph-advance layout, which remains solely determined by the font's own declared
+    ///     <c>/Widths</c> entry (scaled via <c>/FontMatrix</c>).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type3_D0Operator_ParsedButDoesNotAffectAdvanceWidth()
+    {
+        // Arrange: code 65's glyph procedure declares "2000 d0" (a /d0 width wildly different from
+        // the font's own declared /Widths entry of 750) before painting; "(AA)" shows the same
+        // glyph twice. The correct second-glyph advance is 750 * 0.001 * 20pt = 15 units (from
+        // /Widths); a bug that fed d0's wx back into layout would instead advance
+        // 2000 * 0.001 * 20pt = 40 units.
+        var (resourcesBody, extraObjects) = BuildType3FontResources(
+            [("Square", "2000 0 d0 100 100 400 400 re f"u8.ToArray())],
+            "65 /Square",
+            fontDictExtra: "/FirstChar 65 /LastChar 65 /Widths [750]");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf 5 5 Td (AA) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the second glyph paints at the /Widths-correct origin (tx = 5 + 15 = 20, device
+        // x [22,30)).
+        Assert.NotEqual(default, surface[25, 89]);
+
+        // Assert: the second glyph does NOT paint at the position a d0-driven (wrong) advance
+        // would have produced (tx = 5 + 40 = 45, device x [47,55)).
+        Assert.Equal(default, surface[50, 89]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>/Subtype /Type3</c> font with no <c>/Resources</c> entry of its own
+    ///     falls back, at glyph-paint time, to the invoking page's own <c>/Resources</c> - exactly
+    ///     like a <c>/Subtype /Form</c> XObject with no <c>/Resources</c> of its own (per PDF
+    ///     specification section 9.6.5.3) - proven by a glyph procedure that invokes a Form
+    ///     XObject (<c>/Fm0</c>) declared only in the page's own <c>/Resources</c>, not the
+    ///     Type3 font's.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type3_NoOwnResources_FallsBackToOuterPageResources()
+    {
+        // Arrange: the glyph procedure for code 65 ('A') does "/Fm0 Do"; /Fm0 is declared only in
+        // the page's own /Resources (the Type3 font declares no /Resources of its own at all).
+        var formStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Form /BBox [0 0 1000 1000]", "100 100 400 400 re f"u8.ToArray());
+
+        var (fontResourcesBody, fontExtraObjects) = BuildType3FontResources(
+            [("Square", "/Fm0 Do"u8.ToArray())],
+            "65 /Square");
+
+        var resourcesBody = fontResourcesBody + " /XObject << /Fm0 7 0 R >>";
+        var extraObjects = new List<byte[]>(fontExtraObjects) { formStream };
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf 5 5 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the Form XObject's rectangle paints at the same device location the minimal-
+        // font test's own directly-painted rectangle does (device x [7,15), y [85,93)) - proving
+        // /Fm0 was successfully resolved from the page's own /Resources while painting the glyph.
+        Assert.NotEqual(default, surface[11, 89]);
+    }
+
+    /// <summary>
+    ///     Proves that a self-referencing Type 3 glyph procedure - one that re-shows its own code
+    ///     via <c>Tj</c> from inside its own content stream - fails closed with
+    ///     <see cref="InvalidDataException"/> once the fixed maximum Type3 glyph-procedure nesting
+    ///     depth is exceeded, rather than hanging or overflowing the call stack. The nested graphics
+    ///     state clone <c>PaintType3Glyph</c> hands to the recursive <c>ExecuteOperators</c> call
+    ///     inherits the outer <c>Tf</c>-selected font (see that method's own remarks), so a bare
+    ///     <c>(A) Tj</c> inside the glyph procedure's own content bytes legally re-invokes
+    ///     <c>ShowGlyph</c>/<c>PaintType3Glyph</c> recursively without any nested <c>BT</c>/<c>Tf</c>
+    ///     of its own.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type3_SelfReferencingGlyphProc_ExceedsMaxNestingDepth_ThrowsInvalidDataException()
+    {
+        // Arrange: glyph /Square (code 65) re-shows its own code via "(A) Tj" inside its own
+        // content stream - unbounded recursion through PaintType3Glyph until the fixed nesting
+        // depth trips.
+        var (resourcesBody, extraObjects) = BuildType3FontResources(
+            [("Square", "(A) Tj"u8.ToArray())],
+            "65 /Square");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>
+    ///     Proves that a render mode of <c>3</c> (invisible) skips Type3 glyph-procedure execution
+    ///     entirely - <c>ShowGlyph</c>'s <c>ResolvedType3Font</c> branch only calls
+    ///     <c>PaintType3Glyph</c> when <c>_gs.RenderMode != 3</c> - while the shared, unconditional
+    ///     trailing displacement/advance logic still advances the text position by each glyph's
+    ///     declared <c>/Widths</c> entry.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type3_RenderMode3_SkipsGlyphProcedureButStillAdvances()
+    {
+        // Arrange: the same minimal filled-rectangle /Square glyph (code 65, /Widths [750]) as
+        // PdfDocument_Fonts_Type3_MinimalFont_DifferencesAndCharProcs_PaintsGlyphInk. "3 Tr (AA)
+        // Tj" shows two glyphs under render mode 3 (invisible) - each should advance the text
+        // position by its declared width (750 * 0.001 * 20pt = 15 units) without painting
+        // anything. "0 Tr (A) Tj" then shows a third, visible glyph at the now fully-advanced
+        // origin.
+        var (resourcesBody, extraObjects) = BuildType3FontResources(
+            [("Square", "100 100 400 400 re f"u8.ToArray())],
+            "65 /Square");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf 5 5 Td 3 Tr (AA) Tj 0 Tr (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: nothing paints at the first invisible glyph's own, would-be-painted device
+        // location (tx = 5, device x [7,15), y [85,93)) - proving the glyph procedure never
+        // executed.
+        Assert.Equal(default, surface[11, 89]);
+
+        // Assert: nothing paints at the second invisible glyph's own, would-be-painted device
+        // location either (tx = 5 + 15 = 20, device x [22,30)).
+        Assert.Equal(default, surface[25, 89]);
+
+        // Assert: the third, visible glyph paints at the fully-advanced origin (tx = 5 + 15 + 15
+        // = 35, device x [37,45)) - proving both invisible glyphs' declared widths were applied
+        // to the text position even though neither painted.
+        Assert.NotEqual(default, surface[40, 89]);
+    }
+
+    /// <summary>
+    ///     Proves that a malformed <c>/FontMatrix</c> array of the wrong length (5 or 7 elements,
+    ///     instead of exactly 6) throws <see cref="InvalidDataException"/> - distinct from
+    ///     <see cref="PdfDocument_Fonts_Type3_MissingFontMatrix_ThrowsInvalidDataException"/>'s own
+    ///     "entirely absent" case.
+    /// </summary>
+    [Theory]
+    [InlineData("[0.001 0 0 0.001 0]")]
+    [InlineData("[0.001 0 0 0.001 0 0 0]")]
+    public void PdfDocument_Fonts_Type3_FontMatrixWrongArrayLength_ThrowsInvalidDataException(string fontMatrix)
+    {
+        // Arrange: a /Subtype /Type3 font dictionary whose /FontMatrix array has the wrong number
+        // of elements.
+        var glyphStreamObj = BuildStreamObjectBody(string.Empty, "100 100 400 400 re f"u8.ToArray());
+        var fontDictObj = System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Type /Font /Subtype /Type3 /FontMatrix {fontMatrix} /CharProcs << /Square 6 0 R >> " +
+            "/Encoding << /Differences [65 /Square] >> /FirstChar 65 /LastChar 65 /Widths [750] >>");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf (A) Tj ET", "/Font << /F1 5 0 R >>", [fontDictObj, glyphStreamObj]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>
+    ///     Proves that a <c>/FontMatrix</c> array containing a non-number entry (a name, in place
+    ///     of a number) throws <see cref="InvalidDataException"/> - distinct from
+    ///     <see cref="PdfDocument_Fonts_Type3_FontMatrixWrongArrayLength_ThrowsInvalidDataException"/>'s
+    ///     own wrong-length case.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type3_FontMatrixNonNumberEntry_ThrowsInvalidDataException()
+    {
+        // Arrange: /FontMatrix with a name (/Foo) in place of a number for one entry.
+        var (resourcesBody, extraObjects) = BuildType3FontResources(
+            [("Square", "100 100 400 400 re f"u8.ToArray())],
+            "65 /Square",
+            fontMatrix: "[0.001 0 0 0.001 /Foo 0]");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>
+    ///     Proves that a <c>/CharProcs</c> entry resolving to something other than a dictionary
+    ///     (a number, here) throws <see cref="InvalidDataException"/> - distinct from
+    ///     <see cref="PdfDocument_Fonts_Type3_MissingCharProcs_ThrowsInvalidDataException"/>'s own
+    ///     "entirely absent" case.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type3_CharProcsNotADictionary_ThrowsInvalidDataException()
+    {
+        // Arrange: a /Subtype /Type3 font dictionary whose /CharProcs resolves to a number, not a
+        // dictionary.
+        var fontDictObj = System.Text.Encoding.ASCII.GetBytes(
+            "<< /Type /Font /Subtype /Type3 /FontMatrix [0.001 0 0 0.001 0 0] /CharProcs 42 " +
+            "/Encoding << /Differences [65 /Square] >> /FirstChar 65 /LastChar 65 /Widths [750] >>");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf (A) Tj ET", "/Font << /F1 5 0 R >>", [fontDictObj]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>
+    ///     Proves that a <c>d1</c> operator (6 operands: <c>wx wy llx lly urx ury</c>) inside a
+    ///     glyph procedure is parsed (operand count/type validated) and then discarded - its
+    ///     <c>wx</c> operand is never fed back into glyph-advance layout, which remains solely
+    ///     determined by the font's own declared <c>/Widths</c> entry - mirroring
+    ///     <see cref="PdfDocument_Fonts_Type3_D0Operator_ParsedButDoesNotAffectAdvanceWidth"/>'s own
+    ///     <c>d0</c> proof, applied to <c>d1</c>'s own 6-operand path instead.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type3_D1Operator_ParsedButDoesNotAffectAdvanceWidth()
+    {
+        // Arrange: code 65's glyph procedure declares "2000 0 0 0 100 100 d1" (a /d1 wx wildly
+        // different from the font's own declared /Widths entry of 750) before painting; "(AA)"
+        // shows the same glyph twice. The correct second-glyph advance is 750 * 0.001 * 20pt = 15
+        // units (from /Widths); a bug that fed d1's wx back into layout would instead advance
+        // 2000 * 0.001 * 20pt = 40 units.
+        var (resourcesBody, extraObjects) = BuildType3FontResources(
+            [("Square", "2000 0 0 0 100 100 d1 100 100 400 400 re f"u8.ToArray())],
+            "65 /Square",
+            fontDictExtra: "/FirstChar 65 /LastChar 65 /Widths [750]");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf 5 5 Td (AA) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the second glyph paints at the /Widths-correct origin (tx = 5 + 15 = 20, device
+        // x [22,30)).
+        Assert.NotEqual(default, surface[25, 89]);
+
+        // Assert: the second glyph does NOT paint at the position a d1-driven (wrong) advance
+        // would have produced (tx = 5 + 40 = 45, device x [47,55)).
+        Assert.Equal(default, surface[50, 89]);
+    }
+
+    /// <summary>
+    ///     Proves that a stray <c>d0</c>/<c>d1</c> pair issued in an ordinary, non-Type3 page
+    ///     content stream (no font ever selected at all) renders successfully with no exception
+    ///     and no visible effect - proving <c>ExecuteOperators</c>' shared <c>d0</c>/<c>d1</c>
+    ///     dispatch (<c>PdfDocument.ContentStream.cs</c>) is unconditional, not gated on "currently
+    ///     inside a Type3 glyph procedure".
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type3_StrayD0D1OutsideGlyphProc_NoExceptionNoEffect()
+    {
+        // Arrange/Act: a stray d0 (2 operands) and d1 (6 operands) issued directly in an ordinary
+        // page content stream, followed by an ordinary filled rectangle.
+        using var surface = RenderContent("5 5 d0 1 1 2 2 3 3 d1 10 10 20 20 re f");
+
+        // Assert: no exception was thrown (RenderContent above completed), and the rectangle
+        // after the stray d0/d1 painted normally at its expected device location (device x
+        // [10,30), y [70,90)).
+        Assert.Equal(Black, surface[20, 80]);
+    }
+
+    /// <summary>
+    ///     Proves that a Type 3 font's own <c>/Resources</c> takes precedence over the invoking
+    ///     page's own <c>/Resources</c> when both declare an XObject of the same name - the
+    ///     non-null branch of <c>PaintType3Glyph</c>'s <c>_resources = font.Resources ??
+    ///     _resources</c> fallback, distinct from
+    ///     <see cref="PdfDocument_Fonts_Type3_NoOwnResources_FallsBackToOuterPageResources"/>'s own
+    ///     null-branch proof.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type3_OwnResourcesTakePrecedenceOverPageResources_UsesFontResources()
+    {
+        // Arrange: both the Type3 font's own /Resources and the page's own /Resources declare an
+        // XObject named /Fm0 - the font's own paints red, the page's own paints blue. The glyph
+        // procedure for code 65 ('A') does "/Fm0 Do".
+        var redFormStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Form /BBox [0 0 1000 1000]", "1 0 0 rg 0 0 1000 1000 re f"u8.ToArray());
+        var blueFormStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Form /BBox [0 0 1000 1000]", "0 0 1 rg 0 0 1000 1000 re f"u8.ToArray());
+
+        var (fontResourcesBody, fontExtraObjects) = BuildType3FontResources(
+            [("Square", "/Fm0 Do"u8.ToArray())],
+            "65 /Square",
+            type3ResourcesBody: "/XObject << /Fm0 7 0 R >>");
+
+        var resourcesBody = fontResourcesBody + " /XObject << /Fm0 8 0 R >>";
+        var extraObjects = new List<byte[]>(fontExtraObjects) { redFormStream, blueFormStream };
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf 5 5 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the glyph paints red (the font's own /Fm0, not the page's blue /Fm0) at the
+        // expected glyph-matrix-transformed device location (device x [5,25), y [75,95)).
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[15, 85]);
     }
 
     #endregion
