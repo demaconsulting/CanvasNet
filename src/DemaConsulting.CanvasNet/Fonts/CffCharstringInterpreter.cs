@@ -4,6 +4,7 @@
 // cspell:ignore hintmask cntrmask rmoveto hmoveto vmoveto rlineto hlineto vlineto
 // cspell:ignore rrcurveto hhcurveto vvcurveto hvcurveto vhcurveto callsubr callgsubr
 // cspell:ignore endchar seac hstem vstem hstemhm vstemhm rcurveline rlinecurve bchar achar adx ady
+// cspell:ignore hflex flex1 hflex1
 using System.Numerics;
 using DemaConsulting.CanvasNet.Geometry;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
@@ -21,14 +22,16 @@ namespace DemaConsulting.CanvasNet.Fonts;
 ///     <c>vstemhm</c>), hint masks (<c>hintmask</c>/<c>cntrmask</c>), moves (<c>rmoveto</c>/
 ///     <c>hmoveto</c>/<c>vmoveto</c>), lines (<c>rlineto</c>/<c>hlineto</c>/<c>vlineto</c>),
 ///     curves (<c>rrcurveto</c>/<c>hhcurveto</c>/<c>vvcurveto</c>/<c>hvcurveto</c>/<c>vhcurveto</c>),
-///     subroutine calls (<c>callsubr</c>/<c>callgsubr</c>/<c>return</c>), and <c>endchar</c> -
-///     including its deprecated 4-operand <c>seac</c>-style accent composition form (<c>adx ady
-///     bchar achar endchar</c>), which this class composes when a
+///     combined curve-and-line sequences (<c>rcurveline</c>/<c>rlinecurve</c>), the flex shortcuts
+///     (<c>hflex</c>/<c>flex</c>/<c>hflex1</c>/<c>flex1</c>, escape operators <c>12 34</c>/<c>12
+///     35</c>/<c>12 36</c>/<c>12 37</c>), the deprecated no-op <c>dotsection</c> (escape operator
+///     <c>12 0</c>), subroutine calls (<c>callsubr</c>/<c>callgsubr</c>/<c>return</c>), and
+///     <c>endchar</c> - including its deprecated 4-operand <c>seac</c>-style accent composition
+///     form (<c>adx ady bchar achar endchar</c>), which this class composes when a
 ///     <c>resolveStandardEncodedGlyph</c> callback is supplied to <see cref="Decode"/>
-///     (see <see cref="Decode"/>'s remarks). Every other operator - including the two-byte escape
-///     operators (flex, arithmetic/logical, and other Type 1 heritage operators) - is unsupported
-///     and rejected with <see cref="InvalidDataException"/> rather than silently ignored or
-///     mis-decoded.
+///     (see <see cref="Decode"/>'s remarks). Every other two-byte escape operator - arithmetic/
+///     logical and other Type 1 heritage operators - is unsupported and rejected with
+///     <see cref="InvalidDataException"/> rather than silently ignored or mis-decoded.
 ///     </para>
 ///     <para>
 ///     Stem hints only affect hint execution (out of scope for this library, which never rasterizes
@@ -260,7 +263,24 @@ internal static class CffCharstringInterpreter
                         throw new InvalidDataException("CFF charstring escape operator is truncated.");
                     }
 
-                    throw new InvalidDataException($"Unsupported CFF charstring escape operator (12 {_data[pos + 1]}).");
+                    var b1 = _data[pos + 1];
+                    pos += 2;
+                    switch (b1)
+                    {
+                        case 0: // dotsection (deprecated no-op)
+                            _stack.Clear();
+                            break;
+
+                        case 34: HandleHFlex(); break;
+                        case 35: HandleFlex(); break;
+                        case 36: HandleHFlex1(); break;
+                        case 37: HandleFlex1(); break;
+
+                        default:
+                            throw new InvalidDataException($"Unsupported CFF charstring escape operator (12 {b1}).");
+                    }
+
+                    continue;
                 }
 
                 pos++;
@@ -292,6 +312,8 @@ internal static class CffCharstringInterpreter
                     case 6: HandleAltLineTo(startHorizontal: true); break; // hlineto
                     case 7: HandleAltLineTo(startHorizontal: false); break; // vlineto
                     case 8: HandleRRCurveTo(); break;
+                    case 24: HandleRCurveLine(); break;
+                    case 25: HandleRLineCurve(); break;
                     case 26: HandleVVCurveTo(); break;
                     case 27: HandleHHCurveTo(); break;
                     case 31: HandleAltCurveTo(startHorizontal: true); break; // hvcurveto
@@ -550,6 +572,220 @@ internal static class CffCharstringInterpreter
                 _y = c2Y + _stack[i + 5];
                 Builder.CubicBezierTo(Pt(c1X, c1Y), Pt(c2X, c2Y), CurrentPoint());
             }
+
+            _stack.Clear();
+        }
+
+        /// <summary>
+        ///     Handles <c>rcurveline</c>: one or more <c>rrcurveto</c>-style curves followed by
+        ///     exactly one trailing relative line.
+        /// </summary>
+        private void HandleRCurveLine()
+        {
+            if (_stack.Count < 8 || (_stack.Count - 2) % 6 != 0)
+            {
+                throw new InvalidDataException("CFF charstring 'rcurveline' requires a positive multiple-of-six operand count plus two trailing line operands.");
+            }
+
+            var curveCount = _stack.Count - 2;
+            var index = 0;
+            while (index < curveCount)
+            {
+                var c1X = _x + _stack[index];
+                var c1Y = _y + _stack[index + 1];
+                var c2X = c1X + _stack[index + 2];
+                var c2Y = c1Y + _stack[index + 3];
+                _x = c2X + _stack[index + 4];
+                _y = c2Y + _stack[index + 5];
+                Builder.CubicBezierTo(Pt(c1X, c1Y), Pt(c2X, c2Y), CurrentPoint());
+                index += 6;
+            }
+
+            _x += _stack[index];
+            _y += _stack[index + 1];
+            Builder.LineTo(CurrentPoint());
+
+            _stack.Clear();
+        }
+
+        /// <summary>
+        ///     Handles <c>rlinecurve</c>: one or more relative lines followed by exactly one
+        ///     trailing <c>rrcurveto</c>-style curve.
+        /// </summary>
+        private void HandleRLineCurve()
+        {
+            if (_stack.Count < 8 || (_stack.Count - 6) % 2 != 0)
+            {
+                throw new InvalidDataException("CFF charstring 'rlinecurve' requires a positive even operand count plus six trailing curve operands.");
+            }
+
+            var lineCount = _stack.Count - 6;
+            var index = 0;
+            while (index < lineCount)
+            {
+                _x += _stack[index];
+                _y += _stack[index + 1];
+                Builder.LineTo(CurrentPoint());
+                index += 2;
+            }
+
+            var c1X = _x + _stack[index];
+            var c1Y = _y + _stack[index + 1];
+            var c2X = c1X + _stack[index + 2];
+            var c2Y = c1Y + _stack[index + 3];
+            _x = c2X + _stack[index + 4];
+            _y = c2Y + _stack[index + 5];
+            Builder.CubicBezierTo(Pt(c1X, c1Y), Pt(c2X, c2Y), CurrentPoint());
+
+            _stack.Clear();
+        }
+
+        /// <summary>
+        ///     Handles <c>hflex</c>: a flex shortcut whose two curves both start and end with a
+        ///     horizontal-only first/last delta, and whose second curve's control-point vertical
+        ///     offset mirrors the first curve's to net the overall vertical displacement to zero.
+        /// </summary>
+        private void HandleHFlex()
+        {
+            if (_stack.Count != 7)
+            {
+                throw new InvalidDataException("CFF charstring 'hflex' requires exactly seven operands.");
+            }
+
+            var dx1 = _stack[0];
+            var dx2 = _stack[1];
+            var dy2 = _stack[2];
+            var dx3 = _stack[3];
+            var dx4 = _stack[4];
+            var dx5 = _stack[5];
+            var dx6 = _stack[6];
+
+            var c1X = _x + dx1;
+            var c1Y = _y;
+            var c2X = c1X + dx2;
+            var c2Y = c1Y + dy2;
+            var end1X = c2X + dx3;
+            var end1Y = c2Y;
+            Builder.CubicBezierTo(Pt(c1X, c1Y), Pt(c2X, c2Y), Pt(end1X, end1Y));
+
+            var c3X = end1X + dx4;
+            var c3Y = end1Y;
+            var c4X = c3X + dx5;
+            var c4Y = c3Y - dy2;
+            _x = c4X + dx6;
+            _y = c4Y;
+            Builder.CubicBezierTo(Pt(c3X, c3Y), Pt(c4X, c4Y), CurrentPoint());
+
+            _stack.Clear();
+        }
+
+        /// <summary>
+        ///     Handles <c>flex</c>: two full <c>rrcurveto</c>-style curves followed by a trailing
+        ///     flex-height operand that selects between a flex hint and a straight line in
+        ///     hinted rendering (out of scope for this library, so it is simply consumed).
+        /// </summary>
+        private void HandleFlex()
+        {
+            if (_stack.Count != 13)
+            {
+                throw new InvalidDataException("CFF charstring 'flex' requires exactly thirteen operands.");
+            }
+
+            var c1X = _x + _stack[0];
+            var c1Y = _y + _stack[1];
+            var c2X = c1X + _stack[2];
+            var c2Y = c1Y + _stack[3];
+            var end1X = c2X + _stack[4];
+            var end1Y = c2Y + _stack[5];
+            Builder.CubicBezierTo(Pt(c1X, c1Y), Pt(c2X, c2Y), Pt(end1X, end1Y));
+
+            var c3X = end1X + _stack[6];
+            var c3Y = end1Y + _stack[7];
+            var c4X = c3X + _stack[8];
+            var c4Y = c3Y + _stack[9];
+            _x = c4X + _stack[10];
+            _y = c4Y + _stack[11];
+            Builder.CubicBezierTo(Pt(c3X, c3Y), Pt(c4X, c4Y), CurrentPoint());
+
+            _stack.Clear();
+        }
+
+        /// <summary>
+        ///     Handles <c>hflex1</c>: a flex shortcut whose final curve's end point is forced
+        ///     back onto the subpath's vertical position at the start of the operator, regardless
+        ///     of the accumulated vertical deltas.
+        /// </summary>
+        private void HandleHFlex1()
+        {
+            if (_stack.Count != 9)
+            {
+                throw new InvalidDataException("CFF charstring 'hflex1' requires exactly nine operands.");
+            }
+
+            var originalStartY = _y;
+
+            var c1X = _x + _stack[0];
+            var c1Y = _y + _stack[1];
+            var c2X = c1X + _stack[2];
+            var c2Y = c1Y + _stack[3];
+            var end1X = c2X + _stack[4];
+            var end1Y = c2Y;
+            Builder.CubicBezierTo(Pt(c1X, c1Y), Pt(c2X, c2Y), Pt(end1X, end1Y));
+
+            var c3X = end1X + _stack[5];
+            var c3Y = end1Y;
+            var c4X = c3X + _stack[6];
+            var c4Y = c3Y + _stack[7];
+            _x = c4X + _stack[8];
+            _y = originalStartY;
+            Builder.CubicBezierTo(Pt(c3X, c3Y), Pt(c4X, c4Y), CurrentPoint());
+
+            _stack.Clear();
+        }
+
+        /// <summary>
+        ///     Handles <c>flex1</c>: a flex shortcut whose final curve's end point is forced back
+        ///     onto the subpath's starting position along whichever axis (horizontal or vertical)
+        ///     accumulated the smaller total displacement across the operator's first ten
+        ///     operands, with the eleventh operand supplying the larger axis's final delta.
+        /// </summary>
+        private void HandleFlex1()
+        {
+            if (_stack.Count != 11)
+            {
+                throw new InvalidDataException("CFF charstring 'flex1' requires exactly eleven operands.");
+            }
+
+            var originalStartX = _x;
+            var originalStartY = _y;
+
+            var c1X = _x + _stack[0];
+            var c1Y = _y + _stack[1];
+            var c2X = c1X + _stack[2];
+            var c2Y = c1Y + _stack[3];
+            var end1X = c2X + _stack[4];
+            var end1Y = c2Y + _stack[5];
+            Builder.CubicBezierTo(Pt(c1X, c1Y), Pt(c2X, c2Y), Pt(end1X, end1Y));
+
+            var c3X = end1X + _stack[6];
+            var c3Y = end1Y + _stack[7];
+            var c4X = c3X + _stack[8];
+            var c4Y = c3Y + _stack[9];
+
+            var dx = _stack[0] + _stack[2] + _stack[4] + _stack[6] + _stack[8];
+            var dy = _stack[1] + _stack[3] + _stack[5] + _stack[7] + _stack[9];
+            if (Math.Abs(dx) > Math.Abs(dy))
+            {
+                _x = c4X + _stack[10];
+                _y = originalStartY;
+            }
+            else
+            {
+                _x = originalStartX;
+                _y = c4Y + _stack[10];
+            }
+
+            Builder.CubicBezierTo(Pt(c3X, c3Y), Pt(c4X, c4Y), CurrentPoint());
 
             _stack.Clear();
         }

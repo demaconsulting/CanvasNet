@@ -4,6 +4,7 @@
 <!-- cspell:ignore codepoint codepoints subtable charstring charstrings ttcf hintmask cntrmask -->
 <!-- cspell:ignore hstemhm vstemhm callsubr callgsubr hhcurveto vvcurveto hvcurveto vhcurveto -->
 <!-- cspell:ignore rlineto hlineto vlineto rmoveto hmoveto vmoveto rrcurveto endchar seac gsubr -->
+<!-- cspell:ignore hflex flex1 hflex1 -->
 This document describes the unit-level verification strategy for the `TrueTypeFont` class and its
 supporting internal helpers `SfntContainer`, `CmapTable`, `GlyfLocaReader`, `CffTable`,
 `CffCharstringInterpreter`, `HmtxHheaReader`, and `KernTable`.
@@ -376,6 +377,48 @@ axis-constrained-start cubic Beziers (including a leading cross-axis operand app
 first curve), and `hvcurveto`/`vhcurveto` alternate start tangent per curve including a trailing
 operand supplying the final curve's otherwise-implied-zero axis delta.
 
+##### CanvasNet-Fonts-TrueTypeFont-CffRCurveLineRLineCurve: Combined Curve-and-Line Operators
+
+**Tests**: `CffCharstringInterpreter_RCurveLine_OneCurveThenLine_ProducesCurveAndLine`,
+`CffCharstringInterpreter_RCurveLine_TwoCurvesThenLine_ProducesCurvesAndLine`,
+`CffCharstringInterpreter_RCurveLine_WrongOperandCount_OneShort_ThrowsInvalidDataException`,
+`CffCharstringInterpreter_RCurveLine_WrongOperandCount_OneOver_ThrowsInvalidDataException`,
+`CffCharstringInterpreter_RLineCurve_OneLineThenCurve_ProducesLineAndCurve`,
+`CffCharstringInterpreter_RLineCurve_TwoLinesThenCurve_ProducesLinesAndCurve`,
+`CffCharstringInterpreter_RLineCurve_WrongOperandCount_OneShort_ThrowsInvalidDataException`,
+`CffCharstringInterpreter_RLineCurve_WrongOperandCount_OneOver_ThrowsInvalidDataException`
+
+Verifies `rcurveline` appends one or more `rrcurveto`-style curves followed by exactly one
+trailing line, `rlinecurve` appends one or more relative lines followed by exactly one trailing
+`rrcurveto`-style curve (both with one- and two-segment variants), and that each operator rejects
+an operand count that is not exactly `6n + 2` (`rcurveline`) or `2n + 6` (`rlinecurve`) for some
+`n >= 1`, both one short of and one over the nearest valid count.
+
+##### CanvasNet-Fonts-TrueTypeFont-CffFlex: Flex Shortcut Operators and `dotsection`
+
+**Tests**: `CffCharstringInterpreter_HFlex_ProducesTwoCubicBeziersWithHandComputedCoordinates`,
+`CffCharstringInterpreter_HFlex_WrongOperandCount_OneShort_ThrowsInvalidDataException`,
+`CffCharstringInterpreter_HFlex_WrongOperandCount_OneOver_ThrowsInvalidDataException`,
+`CffCharstringInterpreter_Flex_ProducesTwoCubicBeziersWithHandComputedCoordinates`,
+`CffCharstringInterpreter_Flex_WrongOperandCount_OneShort_ThrowsInvalidDataException`,
+`CffCharstringInterpreter_Flex_WrongOperandCount_OneOver_ThrowsInvalidDataException`,
+`CffCharstringInterpreter_HFlex1_ProducesTwoCubicBeziersWithHandComputedCoordinates`,
+`CffCharstringInterpreter_HFlex1_WrongOperandCount_OneShort_ThrowsInvalidDataException`,
+`CffCharstringInterpreter_HFlex1_WrongOperandCount_OneOver_ThrowsInvalidDataException`,
+`CffCharstringInterpreter_Flex1_DxDominant_ProducesHandComputedCoordinates`,
+`CffCharstringInterpreter_Flex1_DyDominant_ProducesHandComputedCoordinates`,
+`CffCharstringInterpreter_Flex1_WrongOperandCount_OneShort_ThrowsInvalidDataException`,
+`CffCharstringInterpreter_Flex1_WrongOperandCount_OneOver_ThrowsInvalidDataException`,
+`CffCharstringInterpreter_DotSection_IsNoOp_MatchesSameCharstringWithoutDotSection`
+
+Verifies the two-byte flex escape operators `hflex`/`flex`/`hflex1`/`flex1` each produce exactly
+two cubic Bezier segments at hand-computed coordinates - including `hflex1`/`flex1`'s "force the
+final point back onto the starting axis" semantics rather than naive running-delta accumulation -
+and that each rejects an operand count other than its own exact required count (one short of and
+one over); and that the deprecated `dotsection` escape operator (`12 0`) is a pure no-op, verified
+by asserting it produces a path identical to the same charstring with its `dotsection` bytes
+omitted.
+
 ##### CanvasNet-Fonts-TrueTypeFont-CffSubroutines: Subroutine Calls, Bias, Recursion, and Depth Bounding
 
 **Tests**: `CffCharstringInterpreter_CallSubr_AppliesBias_AndReturns`,
@@ -427,12 +470,13 @@ codes, and leaves undefined control codes as `null`.
 ##### CanvasNet-Fonts-TrueTypeFont-CffUnsupportedOperatorRejection: Unsupported Operators, Escapes, and Truncation
 
 **Tests**: `CffCharstringInterpreter_UnsupportedOperator_ThrowsInvalidDataException`,
-`CffCharstringInterpreter_FlexEscapeOperator_ThrowsInvalidDataException`,
+`CffCharstringInterpreter_UnsupportedEscapeOperator_ThrowsInvalidDataException`,
 `CffCharstringInterpreter_FixedPointOperand_DecodesCorrectly`,
 `CffCharstringInterpreter_TruncatedCharstring_ThrowsInvalidDataException`
 
-Verifies an operator outside the supported set and a two-byte flex escape operator are both
-rejected, that a 16.16 fixed-point operand decodes to the correct value, and that a charstring
+Verifies an operator outside the supported set and a genuinely unsupported two-byte escape
+operator are both rejected, that a 16.16 fixed-point operand decodes to the correct value, and
+that a charstring
 truncated before its declared operand/operator data is fully read is rejected.
 
 ##### CanvasNet-Fonts-TrueTypeFont-GetFaceCountPlainSfnt: `GetFaceCount` Reports 1 for an Ordinary SFNT Font

@@ -11,6 +11,7 @@
 <!-- cspell:ignore setcurrentpoint closepath pfb pfa cleartomark -->
 <!-- cspell:ignore charsets ISOAdobe isoadobe -->
 <!-- cspell:ignore bchar achar adx ady Agrave -->
+<!-- cspell:ignore hflex flex1 hflex1 -->
 
 The `TrueTypeFont` class is the sole public software unit in the `Fonts` subsystem. It provides
 hand-rolled loading and querying of glyph-based TrueType SFNT fonts, CFF/OpenType
@@ -274,10 +275,13 @@ the operator subset in the table below:
 | `hintmask`, `cntrmask`                 | 19, 20       | Skip `ceil(stemCount / 8)` mask bytes                                     |
 | `hvcurveto`, `vhcurveto`               | 31, 30       | Append cubic Bezier segments, alternating start/end tangent axis          |
 | `callgsubr`                            | 29           | Invoke a global subroutine, biased and depth/step bounded                 |
+| `rcurveline`, `rlinecurve`             | 24, 25       | Curve(s) then a trailing line, or line(s) then a trailing curve           |
+| `hflex`, `flex`, `hflex1`, `flex1`     | 12 34-37     | Flex shortcuts: two cubic Bezier segments, forcing final point onto axis  |
+| `dotsection`                           | 12 0         | Deprecated no-op; clears the operand stack only                           |
 <!-- markdownlint-enable MD013 -->
 
-Any operator outside this set - including the two-byte flex escape operators (`12 34`/`12 35`/
-`12 36`/`12 37`) and `rcurveline`/`rlinecurve` (24/25) - is rejected with `InvalidDataException`,
+Any operator outside this set - including the remaining two-byte escape operators (arithmetic/
+logical and other Type 1 heritage operators) - is rejected with `InvalidDataException`,
 as is a charstring that ends before its declared operand/operator data has been fully read.
 `callsubr`/`callgsubr` apply the CFF-standard bias (`107` for a subroutine count under 1240,
 `1131` for a count under 33900, otherwise `32768`, computed independently per local/global

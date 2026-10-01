@@ -125,6 +125,8 @@ sections:
               - CanvasNet-Fonts-TrueTypeFont-CffMoveTo
               - CanvasNet-Fonts-TrueTypeFont-CffLineTo
               - CanvasNet-Fonts-TrueTypeFont-CffCurveTo
+              - CanvasNet-Fonts-TrueTypeFont-CffRCurveLineRLineCurve
+              - CanvasNet-Fonts-TrueTypeFont-CffFlex
               - CanvasNet-Fonts-TrueTypeFont-CffSubroutines
               - CanvasNet-Fonts-TrueTypeFont-CffEndChar
               - CanvasNet-Fonts-TrueTypeFont-CffUnsupportedOperatorRejection

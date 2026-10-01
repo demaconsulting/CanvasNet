@@ -6,6 +6,7 @@
 # cspell:ignore codepoint codepoints subtable subtables subsetted renderable
 # cspell:ignore charsets ISOAdobe isoadobe
 # cspell:ignore bchar achar Agrave
+# cspell:ignore hflex flex1 hflex1
 
 sections:
   - title: CanvasNet Requirements
@@ -522,6 +523,62 @@ sections:
                   - CffCharstringInterpreter_HVCurveTo_VHCurveTo_AlternateStartTangent
                   - CffCharstringInterpreter_HVCurveTo_TrailingOperand_SuppliesFinalAxisDelta
 
+              - id: CanvasNet-Fonts-TrueTypeFont-CffRCurveLineRLineCurve
+                title: >-
+                  The CffCharstringInterpreter class shall interpret the rcurveline operator as
+                  one or more rrcurveto-style curve segments followed by exactly one trailing
+                  relative line, and the rlinecurve operator as one or more relative line
+                  segments followed by exactly one trailing rrcurveto-style curve segment,
+                  rejecting an operand count other than 6n+2 (rcurveline) or 2n+6 (rlinecurve)
+                  for some n >= 1 with InvalidDataException.
+                justification: |
+                  rcurveline and rlinecurve let a font compactly combine a curve run with a
+                  single trailing line (or vice versa) in one operator rather than two, and are
+                  encountered in real-world CFF fonts; their combined-segment operand packing
+                  must be decoded exactly, including rejecting operand counts that are not of the
+                  required combined form.
+                tests:
+                  - CffCharstringInterpreter_RCurveLine_OneCurveThenLine_ProducesCurveAndLine
+                  - CffCharstringInterpreter_RCurveLine_TwoCurvesThenLine_ProducesCurvesAndLine
+                  - CffCharstringInterpreter_RCurveLine_WrongOperandCount_OneShort_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_RCurveLine_WrongOperandCount_OneOver_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_RLineCurve_OneLineThenCurve_ProducesLineAndCurve
+                  - CffCharstringInterpreter_RLineCurve_TwoLinesThenCurve_ProducesLinesAndCurve
+                  - CffCharstringInterpreter_RLineCurve_WrongOperandCount_OneShort_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_RLineCurve_WrongOperandCount_OneOver_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-CffFlex
+                title: >-
+                  The CffCharstringInterpreter class shall interpret the two-byte escape
+                  operators hflex (12 34), flex (12 35), hflex1 (12 36), and flex1 (12 37) as
+                  flex shortcuts producing two cubic Bezier curve segments per their own reduced-
+                  operand convention - including hflex1/flex1's forcing of their final point back
+                  onto the starting axis where an operand is omitted - and the dotsection escape
+                  operator (12 0) as a deprecated no-op that only clears the operand stack,
+                  each rejecting an operand count other than its own exact required count with
+                  InvalidDataException.
+                justification: |
+                  The flex shortcut operators and the deprecated dotsection operator are part of
+                  the Type 2 charstring operator set and are encountered in real-world CFF fonts;
+                  each flex variant's reduced-operand convention (including the forced-axis
+                  semantics of hflex1/flex1) must be decoded exactly to reproduce the intended
+                  curve geometry, and dotsection must have no effect on the resulting outline.
+                tests:
+                  - CffCharstringInterpreter_HFlex_ProducesTwoCubicBeziersWithHandComputedCoordinates
+                  - CffCharstringInterpreter_HFlex_WrongOperandCount_OneShort_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_HFlex_WrongOperandCount_OneOver_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_Flex_ProducesTwoCubicBeziersWithHandComputedCoordinates
+                  - CffCharstringInterpreter_Flex_WrongOperandCount_OneShort_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_Flex_WrongOperandCount_OneOver_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_HFlex1_ProducesTwoCubicBeziersWithHandComputedCoordinates
+                  - CffCharstringInterpreter_HFlex1_WrongOperandCount_OneShort_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_HFlex1_WrongOperandCount_OneOver_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_Flex1_DxDominant_ProducesHandComputedCoordinates
+                  - CffCharstringInterpreter_Flex1_DyDominant_ProducesHandComputedCoordinates
+                  - CffCharstringInterpreter_Flex1_WrongOperandCount_OneShort_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_Flex1_WrongOperandCount_OneOver_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_DotSection_IsNoOp_MatchesSameCharstringWithoutDotSection
+
               - id: CanvasNet-Fonts-TrueTypeFont-CffSubroutines
                 title: >-
                   The CffCharstringInterpreter class shall interpret the callsubr and callgsubr
@@ -595,9 +652,9 @@ sections:
               - id: CanvasNet-Fonts-TrueTypeFont-CffUnsupportedOperatorRejection
                 title: >-
                   The CffCharstringInterpreter class shall reject any Type 2 charstring operator
-                  outside its supported operator set (including the two-byte flex escape operators)
-                  and any charstring that ends before its declared operator or operand data has been
-                  fully read, with InvalidDataException, while correctly decoding every supported
+                  outside its supported operator set and any charstring that ends before its
+                  declared operator or operand data has been fully read, with
+                  InvalidDataException, while correctly decoding every supported
                   fixed-point and integer operand encoding.
                 justification: |
                   A fixed, well-defined operator subset keeps this interpreter's behavior fully
@@ -606,7 +663,7 @@ sections:
                   charstring must never be read past its own end.
                 tests:
                   - CffCharstringInterpreter_UnsupportedOperator_ThrowsInvalidDataException
-                  - CffCharstringInterpreter_FlexEscapeOperator_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_UnsupportedEscapeOperator_ThrowsInvalidDataException
                   - CffCharstringInterpreter_FixedPointOperand_DecodesCorrectly
                   - CffCharstringInterpreter_TruncatedCharstring_ThrowsInvalidDataException
 
