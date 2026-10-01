@@ -5,7 +5,7 @@
 # cspell:ignore beginbfchar endbfchar beginbfrange endbfrange codepoints begincodespacerange
 # cspell:ignore endcodespacerange findresource defineresource currentdict begincmap endcmap
 # cspell:ignore bfchar bfrange usecmap cidrange cidchar
-# cspell:ignore fontfile stdenc quoteright Quoteright quotesingle
+# cspell:ignore fontfile stdenc quoteright Quoteright quotesingle hival
 #
 # These requirements describe the design-level behavior of the PdfDocument unit.
 #
@@ -363,9 +363,9 @@ sections:
               DeviceRGB/DeviceCMYK directly or via the current page's /Resources/ColorSpace
               dictionary and resetting color to opaque black, and the sc/SC/scn/SCN operators,
               setting color from the current color space's required component count; any other
-              resolved color space (Indexed/Separation/DeviceN/ICCBased/CalRGB/CalGray/Lab, an
-              undeclared name, or a scn/SCN /Pattern name) shall throw
-              UnsupportedImageFeatureException rather than being silently mis-rendered.
+              resolved color space (Separation/DeviceN/CalRGB/CalGray/Lab, an undeclared name, or
+              a scn/SCN /Pattern name) shall throw UnsupportedImageFeatureException rather than
+              being silently mis-rendered.
             justification: |
               A content stream that selects an unsupported color space or a pattern color must be
               rejected explicitly (fail closed), not silently mis-rendered with the wrong number
@@ -379,6 +379,42 @@ sections:
               - PdfDocument_Color_ScnWithPatternName_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Color_UnsupportedNamedColorSpace_ThrowsUnsupportedImageFeatureException
               - CanvasNetPdf_SystemIntegration_PdfRender_ColoredRectangleFill_PaintsExpectedRgbPixels
+
+          - id: CanvasNetPdf-PdfDocument-IccBasedColorSpace
+            title: >-
+              The PdfDocument class shall resolve an /ICCBased color space by preferring its
+              /Alternate entry when present and itself a supported color space, else mapping its
+              stream's /N component count (1/3/4) to DeviceGray/DeviceRGB/DeviceCMYK, and shall
+              throw UnsupportedImageFeatureException when neither /Alternate nor a 1/3/4 /N is
+              usable.
+            justification: |
+              ICC-managed color is out of scope for this phase, but /ICCBased is the most common
+              way real-world PDF producers declare an otherwise ordinary device color space;
+              rejecting it outright would needlessly fail closed on a vast class of well-formed,
+              common PDFs that this phase can render correctly using the device-color
+              approximation it already implements elsewhere.
+            tests:
+              - PdfDocument_Color_IccBasedN3_ResolvesAsDeviceRgb
+              - PdfDocument_Color_IccBasedWithAlternate_PrefersAlternateOverN
+              - PdfDocument_Color_IccBasedUnsupportedN_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-IndexedColorSpace
+            title: >-
+              The PdfDocument class shall resolve an /Indexed color space (base color space,
+              Hival, and a string- or stream-sourced lookup table) as a single-component palette
+              index, usable both as an image XObject's /ColorSpace and via cs/CS/sc/scn, clamping
+              an out-of-range index to the nearest valid (highest) palette entry rather than
+              rejecting it, and shall throw UnsupportedImageFeatureException when the base color
+              space is itself unsupported.
+            justification: |
+              Indexed-color images (palette-based, akin to GIF/indexed PNG) are common in
+              real-world PDF content; without /Indexed support such images would fail closed
+              entirely rather than rendering their already-decodable palette colors.
+            tests:
+              - PdfDocument_Images_DoOperator_IndexedColorSpace_PlacesExpectedPaletteColors
+              - PdfDocument_Color_IndexedColorSpace_Scn_PaintsExpectedPaletteColor
+              - PdfDocument_Color_IndexedColorSpace_OutOfRangeIndex_ClampsToHighestPaletteEntry
+              - PdfDocument_Color_IndexedColorSpace_UnsupportedBase_ThrowsUnsupportedImageFeatureException
 
           - id: CanvasNetPdf-PdfDocument-FilterPipeline
             title: >-

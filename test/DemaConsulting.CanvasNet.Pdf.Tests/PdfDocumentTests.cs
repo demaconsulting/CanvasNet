@@ -8,7 +8,7 @@ using DemaConsulting.CanvasNet.Tests.TestSupport;
 // cspell:ignore bfchar bfrange nendbfchar nendbfrange tounicode usecmap cidrange cidchar codepoints
 // cspell:ignore OTTO rmoveto rlineto endchar notdef charstring charstrings cidfonttype
 // cspell:ignore functiontype multiinput fitz
-// cspell:ignore hsbw closepath fontfile lenIV quoteright Quoteright
+// cspell:ignore hsbw closepath fontfile lenIV quoteright Quoteright hival
 
 namespace DemaConsulting.CanvasNet.Pdf.Tests;
 
@@ -1743,7 +1743,6 @@ public class PdfDocumentTests
 
     /// <summary>Proves that an unsupported named color space (resolved via <c>/Resources/ColorSpace</c>) throws <see cref="UnsupportedImageFeatureException"/> when selected with <c>cs</c>.</summary>
     [Theory]
-    [InlineData("[/Indexed /DeviceRGB 1 <00FFFFFF>]")]
     [InlineData("[/Separation /Spot /DeviceGray 4 0 R]")]
     [InlineData("[/DeviceN [/Spot] /DeviceGray 4 0 R]")]
     [InlineData("[/ICCBased 4 0 R]")]
@@ -1762,6 +1761,121 @@ public class PdfDocumentTests
             "/CS0 cs",
             $"/ColorSpace << /CS0 {colorSpaceArray} >>",
             [functionStream]);
+
+        // Act & Assert
+        Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that an <c>/ICCBased</c> color space with <c>/N 3</c> (and no <c>/Alternate</c>) resolves/paints identically to <c>DeviceRGB</c>.</summary>
+    [Fact]
+    public void PdfDocument_Color_IccBasedN3_ResolvesAsDeviceRgb()
+    {
+        // Arrange: object 5 is an ICC profile stream declaring only /N 3 (no /Alternate).
+        var iccStream = BuildStreamObjectBody("/N 3", [0x00]);
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/CS0 cs 0 0 1 scn 10 10 80 80 re f",
+            "/ColorSpace << /CS0 [/ICCBased 5 0 R] >>",
+            [iccStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: 3 operands were accepted (/N 3 implies DeviceRGB's component count) and the
+        // fill painted blue, exactly like DeviceRGB would.
+        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[50, 50]);
+    }
+
+    /// <summary>Proves that an <c>/ICCBased</c> color space prefers a present, supported <c>/Alternate</c> over its own <c>/N</c>.</summary>
+    [Fact]
+    public void PdfDocument_Color_IccBasedWithAlternate_PrefersAlternateOverN()
+    {
+        // Arrange: object 5 declares /N 1 (DeviceGray, 1 component) but /Alternate /DeviceRGB (3
+        // components). Supplying 3 operands to 'scn' only succeeds if /Alternate won: had /N been
+        // used instead, 3 operands would mismatch the expected 1 and throw InvalidDataException.
+        var iccStream = BuildStreamObjectBody("/N 1 /Alternate /DeviceRGB", [0x00]);
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/CS0 cs 1 0 0 scn 10 10 80 80 re f",
+            "/ColorSpace << /CS0 [/ICCBased 5 0 R] >>",
+            [iccStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>Proves that an <c>/ICCBased</c> color space with an unsupported <c>/N</c> and no usable <c>/Alternate</c> throws <see cref="UnsupportedImageFeatureException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Color_IccBasedUnsupportedN_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange: object 5 declares /N 2, which maps to no device color space, and no /Alternate.
+        var iccStream = BuildStreamObjectBody("/N 2", [0x00]);
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/CS0 cs",
+            "/ColorSpace << /CS0 [/ICCBased 5 0 R] >>",
+            [iccStream]);
+
+        // Act & Assert
+        Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that an <c>/Indexed</c> color space selected via <c>scn</c> paints the expected palette entry.</summary>
+    [Fact]
+    public void PdfDocument_Color_IndexedColorSpace_Scn_PaintsExpectedPaletteColor()
+    {
+        // Arrange: a 2-entry (Hival = 1) DeviceRGB palette: index 0 = red, index 1 = green.
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/CS0 cs 1 scn 10 10 80 80 re f",
+            "/ColorSpace << /CS0 [/Indexed /DeviceRGB 1 <FF000000FF00>] >>",
+            []);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: index 1 selects the green palette entry.
+        Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>Proves that an <c>/Indexed</c> color space clamps an out-of-range index to the highest valid palette entry instead of throwing.</summary>
+    [Fact]
+    public void PdfDocument_Color_IndexedColorSpace_OutOfRangeIndex_ClampsToHighestPaletteEntry()
+    {
+        // Arrange: same 2-entry (Hival = 1) palette as above, but 'scn' selects index 5.
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/CS0 cs 5 scn 10 10 80 80 re f",
+            "/ColorSpace << /CS0 [/Indexed /DeviceRGB 1 <FF000000FF00>] >>",
+            []);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: index 5 clamps to Hival (1), the highest valid (green) palette entry.
+        Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>Proves that an <c>/Indexed</c> color space whose base color space is itself unsupported throws <see cref="UnsupportedImageFeatureException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Color_IndexedColorSpace_UnsupportedBase_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange: the base color space (/Separation) is unsupported, and is rejected before the
+        // /Hival/lookup table are ever consulted.
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/CS0 cs",
+            "/ColorSpace << /CS0 [/Indexed [/Separation /Spot /DeviceGray 4 0 R] 1 <00>] >>",
+            []);
 
         // Act & Assert
         Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
@@ -2388,6 +2502,37 @@ public class PdfDocumentTests
         Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
     }
 
+    /// <summary>Proves that <c>Do</c> decodes and places an <c>/Indexed</c> image XObject's palette colors at the expected device pixels.</summary>
+    [Fact]
+    public void PdfDocument_Images_DoOperator_IndexedColorSpace_PlacesExpectedPaletteColors()
+    {
+        // Arrange: a 2x2 image over a 3-entry (Hival = 2) DeviceRGB palette (red/green/blue).
+        // Raw index samples: row0 = (0, 1), row1 = (2, 2).
+        byte[] raw = [0, 1, 2, 2];
+        var compressed = ZlibCompress(raw);
+
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 "
+            + "/ColorSpace [/Indexed /DeviceRGB 2 <FF000000FF000000FF>] /BitsPerComponent 8 /Filter /FlateDecode",
+            compressed);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[25, 25]);
+        Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[75, 25]);
+        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[25, 75]);
+        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[75, 75]);
+    }
+
     /// <summary>Proves that <c>Do</c> decodes a bare <c>DCTDecode</c> (JPEG) image XObject via <see cref="JpegCodec.Load(Stream)"/> and places the expected (solid-color, lossless-for-flat-blocks) pixels.</summary>
     [Fact]
     public void PdfDocument_Images_DoOperator_DctDecodeJpeg_PlacesExpectedPixels()
@@ -2457,7 +2602,7 @@ public class PdfDocumentTests
     {
         // Arrange
         var imageStream = BuildStreamObjectBody(
-            "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace [/Indexed /DeviceRGB 1 <00FFFFFF>] /BitsPerComponent 8 /Filter /FlateDecode",
+            "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace [/CalRGB << >>] /BitsPerComponent 8 /Filter /FlateDecode",
             ZlibCompress([0x00]));
 
         var bytes = BuildSinglePagePdfWithResources(

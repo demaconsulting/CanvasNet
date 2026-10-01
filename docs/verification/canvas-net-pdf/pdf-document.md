@@ -3,7 +3,7 @@
 <!-- cspell:ignore xref startxref endobj endstream ObjStm MediaBox Zapf Nonsymbolic -->
 <!-- cspell:ignore bfchar bfrange beginbfchar endbfchar beginbfrange endbfrange codepoints -->
 <!-- cspell:ignore usecmap cidrange cidchar cidfonttype -->
-<!-- cspell:ignore functiontype multiinput -->
+<!-- cspell:ignore functiontype multiinput hival -->
 <!-- cspell:ignore fontfile quoteright Quoteright quotesingle -->
 
 This document describes the unit-level verification strategy for the `PdfDocument` class.
@@ -330,7 +330,7 @@ asserting `InvalidDataException` in every case.
 `PdfDocument_Color_SetColorStrokeUsingCurrentColorSpace_SC_PaintsExpectedColor`,
 `PdfDocument_Color_ScnWithPatternName_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Color_UnsupportedNamedColorSpace_ThrowsUnsupportedImageFeatureException` (`[Theory]`:
-Indexed/Separation/DeviceN/ICCBased/CalRGB/CalGray/Lab),
+Separation/DeviceN/ICCBased/CalRGB/CalGray/Lab),
 `CanvasNetPdf_SystemIntegration_PdfRender_ColoredRectangleFill_PaintsExpectedRgbPixels`
 
 Renders a red-filled rectangle, then a `cs`/`CS` device-name switch (asserted, for all three
@@ -340,9 +340,52 @@ color. Renders `scn` with a trailing pattern name, asserting
 `Codecs.UnsupportedImageFeatureException`. A `[Theory]` selects each unsupported named color
 space (declared inline in a `/Resources/ColorSpace` dictionary built via
 `BuildSinglePagePdfWithResources`) via `cs`, asserting
-`Codecs.UnsupportedImageFeatureException` in every case. The end-to-end system-integration test
-independently proves `rg` painting a real, hand-authored fixture, asserting a specific interior
-pixel is opaque red and an exterior pixel remains transparent.
+`Codecs.UnsupportedImageFeatureException` in every case - including an `/ICCBased` array
+referencing object `4` (the page's own content stream, reused as a convenient already-present
+stream object), whose dictionary has neither `/N` nor `/Alternate`. The end-to-end
+system-integration test independently
+proves `rg` painting a real, hand-authored fixture, asserting a specific interior pixel is opaque
+red and an exterior pixel remains transparent.
+
+#### CanvasNetPdf-PdfDocument-IccBasedColorSpace: /ICCBased Resolves via /Alternate or /N, Fails Closed Otherwise
+
+**Tests**: `PdfDocument_Color_IccBasedN3_ResolvesAsDeviceRgb`,
+`PdfDocument_Color_IccBasedWithAlternate_PrefersAlternateOverN`,
+`PdfDocument_Color_IccBasedUnsupportedN_ThrowsUnsupportedImageFeatureException`
+
+Declares `/CS0 [/ICCBased 5 0 R]` in `/Resources/ColorSpace`, where object `5` is a stream whose
+dictionary is `<< /N 3 >>` (no `/Alternate`); selects it via `cs` and paints via `scn` with 3
+operands, asserting the painted pixel matches exactly what `DeviceRGB` would paint - proving `/N
+3` resolves as `DeviceRGB` (including that `scn`'s own operand-count validation reused
+`ComponentCount` correctly for the resolved space, not the array's own shape). Repeats with
+object `5`'s dictionary as `<< /N 1 /Alternate /DeviceRGB >>` (an /N that implies `DeviceGray`,
+1 component, deliberately contradicting the /Alternate): `scn` with 3 operands succeeds and paints
+red, which is only possible if `/Alternate` won over `/N` (had `/N` been used instead, 3 operands
+would mismatch the expected 1 and throw `InvalidDataException`), making the precedence
+deterministically auditable. Declares object `5`'s dictionary as `<< /N 2 >>` (no `/Alternate`,
+and `2` maps to no device color space); asserts `cs` throws
+`Codecs.UnsupportedImageFeatureException`.
+
+#### CanvasNetPdf-PdfDocument-IndexedColorSpace: /Indexed Resolves as a Palette Lookup, Clamps Out-of-Range Indices
+
+**Tests**: `PdfDocument_Images_DoOperator_IndexedColorSpace_PlacesExpectedPaletteColors`,
+`PdfDocument_Color_IndexedColorSpace_Scn_PaintsExpectedPaletteColor`,
+`PdfDocument_Color_IndexedColorSpace_OutOfRangeIndex_ClampsToHighestPaletteEntry`,
+`PdfDocument_Color_IndexedColorSpace_UnsupportedBase_ThrowsUnsupportedImageFeatureException`
+
+Places a 2x2 image XObject whose `/ColorSpace` is `[/Indexed /DeviceRGB 2 <...>]` (a 3-entry
+red/green/blue palette) with `/BitsPerComponent 8` raw index samples (`0, 1, 2, 2`) via `Do`,
+asserting the four composited device pixels match the corresponding palette RGB entries - proving
+an image sample is interpreted as a raw, un-normalized palette index (not a `[0, 1]`-divided
+component like every other supported `/ColorSpace`). Declares `/CS0 [/Indexed /DeviceRGB 1 <...>]`
+(a 2-entry red/green palette) in `/Resources/ColorSpace`, selects it via `cs`, and paints a filled
+rectangle via `scn 1` (1 numeric operand, the index), asserting the painted color is the green
+palette entry - proving the same `/Indexed` resolution is shared identically between the image
+XObject and `cs`/`scn` paths. Repeats with `scn 5` (an index past `Hival = 1`), asserting the
+painted color is still the green (highest valid, `Hival`) palette entry rather than throwing.
+Declares `/CS0 [/Indexed [/Separation /Spot /DeviceGray 4 0 R] 1 <...>]` (an unsupported base
+color space); asserts `cs` throws `Codecs.UnsupportedImageFeatureException`, propagated from the
+base color space's own resolution before `/Hival`/the lookup table are ever consulted.
 
 #### CanvasNetPdf-PdfDocument-FilterPipeline: Filter Pipeline Reverses PNG/TIFF Predictors, Fails Closed Otherwise
 
@@ -458,7 +501,7 @@ XObject (an 8x8 solid-color surface encoded via `Codecs.JpegCodec.Save` at test-
 100 - a flat color block's DCT has only a DC coefficient, so the round-trip reproduces it within
 a small per-channel tolerance), asserting the decoded/composited pixel matches within that
 tolerance. Renders an image XObject with an unsupported `/BitsPerComponent` (`1`) and, separately,
-an unsupported `/ColorSpace` (`Indexed`), each asserting
+an unsupported `/ColorSpace` (`/CalRGB`), each asserting
 `Codecs.UnsupportedImageFeatureException`. Renders `Do` with a name undeclared in
 `/Resources/XObject`, asserting `InvalidDataException`. A `[Theory]`
 renders `Do` with a malformed operand count/type, asserting `InvalidDataException` in every case.

@@ -8,7 +8,7 @@
 <!-- cspell:ignore beginbfchar endbfchar beginbfrange endbfrange codepoints tounicode bfrange -->
 <!-- cspell:ignore begincodespacerange endcodespacerange findresource defineresource currentdict -->
 <!-- cspell:ignore begincmap endcmap bfchar usecmap cidrange cidchar codespacerange -->
-<!-- cspell:ignore functiontype bitspersample multiinput -->
+<!-- cspell:ignore functiontype bitspersample multiinput hival -->
 
 `PdfDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pdf` NuGet package
 (namespace `DemaConsulting.CanvasNet.Pdf`), which references the core
@@ -320,8 +320,11 @@ re-parsing it each time — a property a purely static API could not express.
   rule. Every path-painting operator, including `n`, always clears the current path afterward
   (`_pathBuilder.Clear()`); the surrounding graphics state is entirely unaffected by that clear,
   so a subsequent path in the same content stream still sees the same CTM/stroke style/color.
-- **Device color operators (`PdfDocument.Color.cs`, added in Phase 3)** — a private
-  `PdfColorSpaceKind` enum (`DeviceGray`/`DeviceRGB`/`DeviceCMYK`) tracks
+- **Device color operators (`PdfDocument.Color.cs`, added in Phase 3; color-space model replaced
+  in Phase 14)** — a private, immutable `PdfColorSpace` class (nested `Family` enum:
+  `DeviceGray`/`DeviceRGB`/`DeviceCMYK`/`Indexed`, with shared `DeviceGray`/`DeviceRGB`/
+  `DeviceCMYK` singleton instances and an `Indexed` factory carrying the base color space, the
+  highest valid palette index (`Hival`), and the raw, un-normalized palette bytes) tracks
   `GraphicsState.FillColorSpace`/`StrokeColorSpace`. `OpSetGrayFill`/`OpSetGrayStroke` (`g`/`G`,
   1 operand), `OpSetRgbFill`/`OpSetRgbStroke` (`rg`/`RG`, 3 operands), and
   `OpSetCmykFill`/`OpSetCmykStroke` (`k`/`K`, 4 operands, `R = 255 * (1 - C) * (1 - K)` and the
@@ -332,14 +335,43 @@ re-parsing it each time — a property a purely static API could not express.
   (`cs`/`CS`, exactly 1 name operand) resolve `DeviceGray`/`DeviceRGB`/`DeviceCMYK` directly, or
   else look the name up in the current page's `/Resources/ColorSpace` dictionary
   (`ResolveColorSpaceByName`), resetting color to opaque black (the PDF specification's own
-  documented `cs`/`CS` reset rule) — any other resolved color space (`Indexed`/`Separation`/
-  `DeviceN`/`ICCBased`/`CalRGB`/`CalGray`/`Lab`, or an undeclared name) throws
+  documented `cs`/`CS` reset rule) — an array-shaped color space is dispatched by
+  `ResolveColorSpaceValue` to `ResolveIccBasedColorSpace` (`/ICCBased`) or
+  `ResolveIndexedColorSpace` (`/Indexed`, Phase 14 — see below); any other resolved color space
+  (`Separation`/`DeviceN`/`CalRGB`/`CalGray`/`Lab`, or an undeclared name) throws
   `Codecs.UnsupportedImageFeatureException`, naming the unsupported space. `OpSetColorFill`/
   `OpSetColorStroke` (`sc`/`SC`/`scn`/`SCN`) require exactly `ComponentCount` numeric operands for
   the current color space; a trailing `Name` operand (the `/Pattern` form) throws
   `Codecs.UnsupportedImageFeatureException` rather than being interpreted as a component. Every
   malformed operand count/type throws `InvalidDataException`, matching every other operator in
   this class.
+  - **`/ICCBased`/`/Indexed` color-space resolution (`PdfDocument.Color.cs`, Phase 14 — this
+    phase)** — `ResolveIccBasedColorSpace` validates a 2-element `[/ICCBased streamRef]` array
+    whose 2nd element resolves to a stream (else `Codecs.UnsupportedImageFeatureException` — a
+    malformed-but-still-rejected-as-unsupported case, not `InvalidDataException`, matching this
+    color space's own "well-formed PDF, out-of-scope feature" posture), then prefers the stream's
+    `/Alternate` entry when present and itself resolves (via a recursive `ResolveColorSpaceValue`
+    call) to a supported color space, deliberately catching only
+    `Codecs.UnsupportedImageFeatureException` from that recursive call to fall back to `/N`-based
+    resolution (an `InvalidDataException` from a structurally malformed `/Alternate` is allowed to
+    propagate unmodified — a different, non-swallowed failure class) — falling back maps the
+    stream's `/N` (`1`/`3`/`4`) to `DeviceGray`/`DeviceRGB`/`DeviceCMYK`, else throws
+    `Codecs.UnsupportedImageFeatureException`. `ResolveIndexedColorSpace` validates a 4-element
+    `[/Indexed baseSpace hival lookup]` array (else `InvalidDataException` — a wrong array shape
+    is structurally malformed PDF, unlike `/ICCBased`'s own convention), resolves `baseSpace`
+    recursively via `ResolveColorSpaceValue` (propagating an unsupported base space's own
+    `Codecs.UnsupportedImageFeatureException` unmodified), validates `/Hival` is a non-negative
+    number, resolves `lookup` (a PDF string's raw bytes, or a stream decoded via
+    `GetStreamDecodedBytes`), and validates the resolved palette has at least
+    `(Hival + 1) * ComponentCount(baseSpace)` bytes (else `InvalidDataException` in each case).
+    `ComponentCount` reports `1` for `Indexed` (the palette index itself); `ColorFromComponents`
+    dispatches an `Indexed` color's single raw (not `[0, 1]`-normalized) index component to
+    `IndexedToColor`, which rounds/clamps the index into `[0, Hival]` (an out-of-range index
+    clamps to the nearest valid entry rather than being rejected — a documented leniency mirroring
+    this phase's existing color-component clamping precedent), looks up that palette entry's raw
+    bytes, normalizes each byte to `[0, 1]`, and recurses into the base color space's own
+    `ColorFromComponents` — shared identically by both the `sc`/`scn` color operators and an image
+    XObject's own `/ColorSpace` decoding (see below).
 - **Stream filter pipeline (`PdfDocument.Filters.cs`, added in Phase 3; extended in Phase 7)** —
   generalizes the Phase 1/2 single-filter `GetStreamDecodedBytes` into an ordered
   `/Filter`/`/DecodeParms` pipeline (`ResolveFilterPipeline`), preserving the exact existing
@@ -380,7 +412,9 @@ re-parsing it each time — a property a purely static API could not express.
   `Codecs.JpegCodec.Load(Stream)` (bypassing the general Flate+predictor pipeline entirely,
   trusting `JpegCodec`'s own decoded width/height over the PDF `/Width`/`/Height` as a documented
   leniency); any other supported case decodes via `GetStreamDecodedBytes` and interprets the raw
-  samples per `/ColorSpace` (device spaces only, reusing `ColorFromComponents`) and
+  samples per `/ColorSpace` (device spaces, `/ICCBased`, and `/Indexed` — see above, reusing
+  `ColorFromComponents`; an `/Indexed` sample is passed through `SamplesToColor` as a raw,
+  un-normalized palette index rather than divided by `255.0` like every other color space) and
   `/BitsPerComponent` (`8` only — anything else throws
   `Codecs.UnsupportedImageFeatureException`); `/SMask`/`/Mask` are never consulted (every decoded
   image is treated as fully opaque, a documented Phase 3 limitation).
@@ -674,9 +708,11 @@ re-parsing it each time — a property a purely static API could not express.
   malformed-input convention. An unrecognized operator is never an error (see _Content-Stream
   Interpreter_ above); an unbalanced `Q` with no matching prior `q` is likewise tolerated as a
   documented no-op, not an error.
-- **An unsupported color space** (`cs`/`CS`, or an image XObject's `/ColorSpace`: `Indexed`/
-  `Separation`/`DeviceN`/`ICCBased`/`CalRGB`/`CalGray`/`Lab`, an undeclared
-  `/Resources/ColorSpace` name, or any other unrecognized value) — `Codecs.UnsupportedImageFeatureException`.
+- **An unsupported color space** (`cs`/`CS`, or an image XObject's `/ColorSpace`:
+  `Separation`/`DeviceN`/`CalRGB`/`CalGray`/`Lab`, an undeclared `/Resources/ColorSpace` name, an
+  `/ICCBased` stream whose `/N` is not `1`/`3`/`4` with no usable `/Alternate`, an `/Indexed` color
+  space whose base color space is itself unsupported, or any other unrecognized value) —
+  `Codecs.UnsupportedImageFeatureException`.
 - **`scn`/`SCN` with a trailing pattern name** — `Codecs.UnsupportedImageFeatureException`
   (`/Pattern` color is out of this phase's scope).
 - **`ResolveFunction`'s `/Function` entry** — a `/FunctionType` other than `0`, a multi-input

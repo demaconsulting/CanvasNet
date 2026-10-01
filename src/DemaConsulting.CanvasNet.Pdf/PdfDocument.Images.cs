@@ -223,9 +223,10 @@ public sealed partial class PdfDocument
     ///     <c>/Height</c> entries (a documented leniency: a mismatch is tolerated, not rejected).
     ///     Every other supported case decodes via the general <c>FlateDecode</c>(+predictor)
     ///     pipeline and interprets the resulting raw samples per <c>/ColorSpace</c> (device color
-    ///     spaces only) and <c>/BitsPerComponent</c> (<c>8</c> only). <c>/SMask</c>/<c>/Mask</c>
-    ///     are never consulted - every decoded image is treated as fully opaque, a documented
-    ///     Phase 3 limitation.
+    ///     spaces, <c>/ICCBased</c>, and <c>/Indexed</c> - see <see cref="PdfColorSpace"/>) and
+    ///     <c>/BitsPerComponent</c> (<c>8</c> only). <c>/SMask</c>/<c>/Mask</c> are never
+    ///     consulted - every decoded image is treated as fully opaque, a documented Phase 3
+    ///     limitation.
     /// </remarks>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <c>/Width</c>/<c>/Height</c> is missing, not a number, or not positive,
@@ -261,7 +262,7 @@ public sealed partial class PdfDocument
 
         var colorSpaceObject = stream.Get("ColorSpace")
             ?? throw new InvalidDataException("Image XObject is missing required /ColorSpace.");
-        var colorSpaceKind = ResolveColorSpaceValue(Resolve(colorSpaceObject));
+        var colorSpace = ResolveColorSpaceValue(Resolve(colorSpaceObject));
 
         var bitsPerComponent = RequireIntEntry(stream, "BitsPerComponent");
         if (bitsPerComponent != 8)
@@ -271,7 +272,7 @@ public sealed partial class PdfDocument
                 $"Image XObjects with {bitsPerComponent}-bit components are not supported; only 8 is supported.");
         }
 
-        var componentCount = ComponentCount(colorSpaceKind);
+        var componentCount = ComponentCount(colorSpace);
         var surface = new Surface(width, height);
         var rowBytes = componentCount * width;
         for (var y = 0; y < height; y++)
@@ -280,7 +281,7 @@ public sealed partial class PdfDocument
             for (var x = 0; x < width; x++)
             {
                 var pixelOffset = rowOffset + (x * componentCount);
-                surface[x, y] = SamplesToColor(colorSpaceKind, decoded, pixelOffset, componentCount);
+                surface[x, y] = SamplesToColor(colorSpace, decoded, pixelOffset, componentCount);
             }
         }
 
@@ -293,8 +294,15 @@ public sealed partial class PdfDocument
     ///     <see cref="ColorFromComponents"/> so image decoding and the <c>rg</c>/<c>k</c>/<c>sc</c>
     ///     color operators share exactly the same color-space conversion formulas.
     /// </summary>
-    private static Rgba32 SamplesToColor(PdfColorSpaceKind colorSpace, byte[] decoded, int offset, int count)
+    private static Rgba32 SamplesToColor(PdfColorSpace colorSpace, byte[] decoded, int offset, int count)
     {
+        if (colorSpace.Kind == PdfColorSpace.Family.Indexed)
+        {
+            // An /Indexed sample is a raw palette index, not a [0, 1]-normalized component - do
+            // not divide by 255.0 like every other color space below.
+            return ColorFromComponents(colorSpace, [(double)decoded[offset]]);
+        }
+
         var components = new double[count];
         for (var i = 0; i < count; i++)
         {

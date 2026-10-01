@@ -95,14 +95,14 @@ public sealed partial class PdfDocument
         ///     operands <c>sc</c>/<c>scn</c> requires. The PDF specification's default is
         ///     <c>DeviceGray</c>.
         /// </summary>
-        internal PdfColorSpaceKind FillColorSpace { get; set; } = PdfColorSpaceKind.DeviceGray;
+        internal PdfColorSpace FillColorSpace { get; set; } = PdfColorSpace.DeviceGray;
 
         /// <summary>
         ///     Gets or sets the current stroke color space, used to determine how many numeric
         ///     operands <c>SC</c>/<c>SCN</c> requires. The PDF specification's default is
         ///     <c>DeviceGray</c>.
         /// </summary>
-        internal PdfColorSpaceKind StrokeColorSpace { get; set; } = PdfColorSpaceKind.DeviceGray;
+        internal PdfColorSpace StrokeColorSpace { get; set; } = PdfColorSpace.DeviceGray;
 
         /// <summary>
         ///     Gets or sets the currently selected font, resolved by the most recent <c>Tf</c>
