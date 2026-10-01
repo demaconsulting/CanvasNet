@@ -70,6 +70,7 @@ public sealed partial class PdfDocument
         _lineMatrix = Matrix3x2.Identity;
         _formNestingDepth = 0;
         _type3NestingDepth = 0;
+        _colorSpaceRecursionDepth = 0;
 
         ExecuteOperators(contentBytes);
     }

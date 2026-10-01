@@ -244,11 +244,32 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
+    ///     The maximum number of nested <c>/Resources/ColorSpace</c> name lookups
+    ///     <see cref="ResolveColorSpaceByName"/>/<see cref="ResolveColorSpaceValue"/> allow before
+    ///     failing closed. A malformed or adversarial PDF can declare a color-space name that
+    ///     resolves (directly, or via a cycle of several names) back to itself; without this bound
+    ///     such a document would recurse until the process' call stack is exhausted, raising an
+    ///     unrecoverable <see cref="StackOverflowException"/> that crashes the whole process rather
+    ///     than failing this document open/render call alone.
+    /// </summary>
+    private const int MaxColorSpaceRecursionDepth = 32;
+
+    /// <summary>
+    ///     The current color-space name resolution recursion depth, incremented/decremented around
+    ///     every <see cref="ResolveColorSpaceByName"/> call.
+    /// </summary>
+    private int _colorSpaceRecursionDepth;
+
+    /// <summary>
     ///     Resolves a color-space name to a <see cref="PdfColorSpace"/>: the three device
     ///     names resolve directly; any other name is looked up in the current page's
     ///     <c>/Resources/ColorSpace</c> dictionary and the resolved value is classified via
     ///     <see cref="ResolveColorSpaceValue"/>.
     /// </summary>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the name resolves back to itself (directly or via a cycle of several
+    ///     names), or otherwise nests deeper than <see cref="MaxColorSpaceRecursionDepth"/>.
+    /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when the name is not one of the three device names and either cannot be
     ///     resolved via <c>/Resources/ColorSpace</c> at all, or resolves to an unsupported color
@@ -268,6 +289,12 @@ public sealed partial class PdfDocument
                 return PdfColorSpace.DeviceCMYK;
         }
 
+        if (_colorSpaceRecursionDepth >= MaxColorSpaceRecursionDepth)
+        {
+            throw new InvalidDataException(
+                $"Color space '{name}' resolution exceeds the maximum supported nesting depth of {MaxColorSpaceRecursionDepth}.");
+        }
+
         var colorSpaceDictionary = _resources?.Get("ColorSpace");
         var resolvedDictionary = colorSpaceDictionary is null ? null : Resolve(colorSpaceDictionary);
         var entry = resolvedDictionary?.Get(name);
@@ -278,7 +305,15 @@ public sealed partial class PdfDocument
                 $"Color space '{name}' is not declared in /Resources/ColorSpace and is not a device color space.");
         }
 
-        return ResolveColorSpaceValue(Resolve(entry));
+        _colorSpaceRecursionDepth++;
+        try
+        {
+            return ResolveColorSpaceValue(Resolve(entry));
+        }
+        finally
+        {
+            _colorSpaceRecursionDepth--;
+        }
     }
 
     /// <summary>

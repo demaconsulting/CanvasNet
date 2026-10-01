@@ -2217,6 +2217,29 @@ public class PdfDocumentTests
         Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
     }
 
+    /// <summary>
+    ///     Proves that a color-space name that resolves back to itself (directly, or via a cycle
+    ///     of several names) throws <see cref="InvalidDataException"/> instead of recursing until
+    ///     the process' call stack is exhausted (a regression test for a real-world malformed PDF
+    ///     that crashed the whole process with an unrecoverable <see cref="StackOverflowException"/>).
+    /// </summary>
+    [Theory]
+    [InlineData("/ColorSpace << /CS0 /CS0 >>")]
+    [InlineData("/ColorSpace << /CS0 /CS1 /CS1 /CS0 >>")]
+    public void PdfDocument_Color_SelfReferentialNamedColorSpace_ThrowsInvalidDataException(string colorSpaceDictionary)
+    {
+        // Arrange
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/CS0 cs",
+            colorSpaceDictionary,
+            []);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
     /// <summary>Proves that an <c>/ICCBased</c> color space with <c>/N 3</c> (and no <c>/Alternate</c>) resolves/paints identically to <c>DeviceRGB</c>.</summary>
     [Fact]
     public void PdfDocument_Color_IccBasedN3_ResolvesAsDeviceRgb()
