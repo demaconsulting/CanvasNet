@@ -10,6 +10,7 @@
 <!-- cspell:ignore begincmap endcmap bfchar usecmap cidrange cidchar codespacerange -->
 <!-- cspell:ignore functiontype bitspersample multiinput hival EOFB -->
 <!-- cspell:ignore charsets -->
+<!-- cspell:ignore bchar achar -->
 
 `PdfDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pdf` NuGet package
 (namespace `DemaConsulting.CanvasNet.Pdf`), which references the core
@@ -702,11 +703,16 @@ standard `/StdCF`, or a document that genuinely requires a non-empty password) f
   any exception the core `Fonts` layer itself throws for malformed CFF table data, including a
   CID-keyed (`ROS`-declaring) CFF program, propagates uncaught, consistent with this class's
   "embedded fonts fail closed on any embedded-font problem, no fallback" convention. **Non-Goals**:
-  identical to `LoadType1Font`'s own Non-Goals above, plus the predefined Expert/ExpertSubset CFF
-  charsets are recognized by the core `Fonts` layer but not resolved to glyph names (that layer's
-  own documented scope boundary, not re-implemented or worked around here) - a font relying on
-  either predefined charset to name its glyphs resolves no glyph for any code via `ResolveEncoding`
-  and therefore paints no visible ink for that code, without throwing.
+  unlike `LoadType1Font`'s classic Type 1 `seac` operator (still rejected, see above), the CFF/Type
+  2 charstring format's own deprecated seac-style 4-operand `endchar` composition form (`adx ady
+  bchar achar endchar`) _is_ supported by the core `Fonts` layer (`Fonts.CffCharstringInterpreter`)
+  and therefore renders correctly here too; otherwise identical to `LoadType1Font`'s own Non-Goals
+  above (the non-1000-unit-em `/FontMatrix` and built-in `/Encoding` scope boundaries), plus the
+  predefined Expert/ExpertSubset CFF charsets are recognized by the core `Fonts` layer but not
+  resolved to glyph names (that layer's own documented scope boundary, not re-implemented or
+  worked around here) - a font relying on either predefined charset to name its glyphs resolves no
+  glyph for any code via `ResolveEncoding` and therefore paints no visible ink for that code,
+  without throwing.
 - **Type 3 font resolution (`PdfDocument.Fonts.Type3.cs`, added in Phase D)** —
   `BuildResolvedType3Font(PdfObject fontDict)` is `BuildResolvedFont`'s `/Type3` dispatch target.
   It requires and parses `/FontMatrix` as six numbers (`ReadFontMatrix`; `InvalidDataException` if

@@ -3,7 +3,7 @@
 // cspell:ignore subsetting PPEM OTTO CFF charstring charstrings subr subrs
 // cspell:ignore hintmask cntrmask rmoveto hmoveto vmoveto rlineto hlineto vlineto
 // cspell:ignore rrcurveto hhcurveto vvcurveto hvcurveto vhcurveto callsubr callgsubr
-// cspell:ignore endchar seac hstem vstem hstemhm vstemhm rcurveline rlinecurve
+// cspell:ignore endchar seac hstem vstem hstemhm vstemhm rcurveline rlinecurve bchar achar adx ady
 using System.Numerics;
 using DemaConsulting.CanvasNet.Geometry;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
@@ -21,11 +21,14 @@ namespace DemaConsulting.CanvasNet.Fonts;
 ///     <c>vstemhm</c>), hint masks (<c>hintmask</c>/<c>cntrmask</c>), moves (<c>rmoveto</c>/
 ///     <c>hmoveto</c>/<c>vmoveto</c>), lines (<c>rlineto</c>/<c>hlineto</c>/<c>vlineto</c>),
 ///     curves (<c>rrcurveto</c>/<c>hhcurveto</c>/<c>vvcurveto</c>/<c>hvcurveto</c>/<c>vhcurveto</c>),
-///     subroutine calls (<c>callsubr</c>/<c>callgsubr</c>/<c>return</c>), and <c>endchar</c>. Every
-///     other operator - including the two-byte escape operators (flex, arithmetic/logical, and
-///     other Type 1 heritage operators) and the deprecated 4-operand <c>seac</c>-style accent
-///     composition form of <c>endchar</c> - is unsupported and rejected with
-///     <see cref="InvalidDataException"/> rather than silently ignored or mis-decoded.
+///     subroutine calls (<c>callsubr</c>/<c>callgsubr</c>/<c>return</c>), and <c>endchar</c> -
+///     including its deprecated 4-operand <c>seac</c>-style accent composition form (<c>adx ady
+///     bchar achar endchar</c>), which this class composes when a
+///     <c>resolveStandardEncodedGlyph</c> callback is supplied to <see cref="Decode"/>
+///     (see <see cref="Decode"/>'s remarks). Every other operator - including the two-byte escape
+///     operators (flex, arithmetic/logical, and other Type 1 heritage operators) - is unsupported
+///     and rejected with <see cref="InvalidDataException"/> rather than silently ignored or
+///     mis-decoded.
 ///     </para>
 ///     <para>
 ///     Stem hints only affect hint execution (out of scope for this library, which never rasterizes
@@ -50,6 +53,23 @@ namespace DemaConsulting.CanvasNet.Fonts;
 ///     within one <see cref="Decode"/> invocation) is bounded by <see cref="MaxOperatorSteps"/> -
 ///     mirroring <see cref="GlyfLocaReader"/>'s depth/total-count precedent for bounding malicious
 ///     or pathological font data deterministically rather than by a timer.
+///     </para>
+///     <para>
+///     The deprecated <c>seac</c>-style 4-operand form of <c>endchar</c> (<c>adx ady bchar achar
+///     endchar</c>) composes a "base" glyph and an "accent" glyph - both identified by Adobe
+///     StandardEncoding code, resolved to a glyph name via <see cref="CffStandardEncoding"/> and
+///     then to a glyph index in the <em>same</em> font - into one outline: the accent's own
+///     outline is translated by <c>(adx, ady)</c> (<see cref="Path.Transform"/>) and combined with
+///     the base's own untranslated outline. This class has no knowledge of any font's charset or
+///     glyph-name resolution, so it cannot perform that resolution itself; instead,
+///     <see cref="Decode"/> accepts an optional <c>resolveStandardEncodedGlyph</c>
+///     callback mapping a StandardEncoding code to that code's resolved glyph's own already-
+///     decoded outline. When this callback is <see langword="null"/> - including, deliberately,
+///     when <see cref="CffTable"/> recursively decodes a seac component's own charstring (see
+///     <see cref="CffTable.GetGlyphOutline"/>'s remarks) - a seac-style <c>endchar</c> is rejected
+///     with <see cref="InvalidDataException"/> exactly as before, which is what naturally rejects
+///     a doubly-nested seac composition without needing a separate depth counter: the component
+///     decode's own resolver argument is simply never supplied.
 ///     </para>
 /// </remarks>
 internal static class CffCharstringInterpreter
@@ -94,17 +114,28 @@ internal static class CffCharstringInterpreter
     ///     The font's Private DICT <c>nominalWidthX</c> operand (<c>0</c> if absent) - added to
     ///     the glyph's charstring-encoded width delta when one is present.
     /// </param>
+    /// <param name="resolveStandardEncodedGlyph">
+    ///     When supplied, resolves an Adobe StandardEncoding code to that code's glyph's own
+    ///     already-decoded <see cref="Path"/> outline - enabling this call's charstring to use the
+    ///     deprecated 4-operand <c>seac</c>-style accent composition form of <c>endchar</c> (see
+    ///     this class's remarks). When <see langword="null"/> (the default), a seac-style
+    ///     <c>endchar</c> is rejected with <see cref="InvalidDataException"/> - this is also how
+    ///     <see cref="CffTable"/> naturally rejects a doubly-nested seac composition, by omitting
+    ///     this argument on a component glyph's own recursive <see cref="Decode"/> call.
+    /// </param>
     /// <returns>
-    ///     The decoded glyph outline (<see cref="Path.Empty"/> for an empty charstring) alongside
-    ///     the glyph's resolved advance width - see this class's remarks for the exact width
-    ///     resolution convention.
+    ///     The decoded glyph outline (<see cref="Path.Empty"/> for an empty charstring, or the
+    ///     composed base+accent outline for a seac-style <c>endchar</c>) alongside the glyph's
+    ///     resolved advance width - see this class's remarks for the exact width resolution
+    ///     convention (a seac-style glyph's width still follows that same convention, never the
+    ///     base/accent components' own widths).
     /// </returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when the charstring bytecode is malformed or truncated, uses an operand count an
     ///     operator does not accept, uses an unsupported operator (including any two-byte escape
-    ///     operator), uses the deprecated 4-operand <c>seac</c>-style form of <c>endchar</c>,
-    ///     references an out-of-range subroutine index, or exceeds the call-depth or
-    ///     operator-step bound.
+    ///     operator), uses the deprecated 4-operand <c>seac</c>-style form of <c>endchar</c> with
+    ///     no <paramref name="resolveStandardEncodedGlyph"/> supplied, references an out-of-range
+    ///     subroutine index, or exceeds the call-depth or operator-step bound.
     /// </exception>
     public static (Path Outline, double Width) Decode(
         byte[] data,
@@ -112,13 +143,14 @@ internal static class CffCharstringInterpreter
         IReadOnlyList<(int Offset, int Length)> globalSubrs,
         IReadOnlyList<(int Offset, int Length)> localSubrs,
         double defaultWidthX = 0,
-        double nominalWidthX = 0)
+        double nominalWidthX = 0,
+        Func<int, Path>? resolveStandardEncodedGlyph = null)
     {
-        var state = new InterpreterState(data, globalSubrs, localSubrs);
+        var state = new InterpreterState(data, globalSubrs, localSubrs, resolveStandardEncodedGlyph);
         state.Run(charstring, 0);
         state.CloseIfOpen();
         var width = state.WidthDelta.HasValue ? nominalWidthX + state.WidthDelta.Value : defaultWidthX;
-        return (state.Builder.Build(), width);
+        return (state.SeacOutline ?? state.Builder.Build(), width);
     }
 
     /// <summary>
@@ -131,6 +163,7 @@ internal static class CffCharstringInterpreter
         private readonly byte[] _data;
         private readonly IReadOnlyList<(int Offset, int Length)> _globalSubrs;
         private readonly IReadOnlyList<(int Offset, int Length)> _localSubrs;
+        private readonly Func<int, Path>? _resolveStandardEncodedGlyph;
         private readonly int _globalBias;
         private readonly int _localBias;
         private readonly List<double> _stack = [];
@@ -146,6 +179,14 @@ internal static class CffCharstringInterpreter
         public PathBuilder Builder { get; } = new();
 
         /// <summary>
+        ///     The composed base+accent outline produced by a seac-style <c>endchar</c> (see
+        ///     <see cref="HandleSeacEndChar"/>), or <see langword="null"/> if this charstring
+        ///     used the normal <c>endchar</c> form - in which case <see cref="Decode"/> instead
+        ///     builds the outline from <see cref="Builder"/> as usual.
+        /// </summary>
+        public Path? SeacOutline { get; private set; }
+
+        /// <summary>
         ///     The charstring's leading width operand's raw value, if one was present (see
         ///     <see cref="ConsumeOptionalWidth"/>/<see cref="HandleStems"/>/
         ///     <see cref="HandleEndChar"/>), or <see langword="null"/> if the charstring had none
@@ -157,11 +198,13 @@ internal static class CffCharstringInterpreter
         public InterpreterState(
             byte[] data,
             IReadOnlyList<(int Offset, int Length)> globalSubrs,
-            IReadOnlyList<(int Offset, int Length)> localSubrs)
+            IReadOnlyList<(int Offset, int Length)> localSubrs,
+            Func<int, Path>? resolveStandardEncodedGlyph)
         {
             _data = data;
             _globalSubrs = globalSubrs;
             _localSubrs = localSubrs;
+            _resolveStandardEncodedGlyph = resolveStandardEncodedGlyph;
             _globalBias = Bias(globalSubrs.Count);
             _localBias = Bias(localSubrs.Count);
         }
@@ -649,9 +692,9 @@ internal static class CffCharstringInterpreter
 
         /// <summary>
         ///     Handles <c>endchar</c>: an optional leading width, followed by either zero
-        ///     operands (the normal case) or exactly four operands (the deprecated
-        ///     <c>seac</c>-style accent composition form, rejected with
-        ///     <see cref="InvalidDataException"/> rather than silently ignoring the accent).
+        ///     operands (the normal case, closing and finishing the outline built so far) or
+        ///     exactly four operands (the deprecated <c>seac</c>-style accent composition form -
+        ///     see <see cref="HandleSeacEndChar"/>).
         /// </summary>
         private void HandleEndChar()
         {
@@ -670,8 +713,8 @@ internal static class CffCharstringInterpreter
 
             if (count == 4)
             {
-                throw new InvalidDataException(
-                    "CFF charstring 'endchar' with the deprecated 4-operand seac-style accent composition form is not supported.");
+                HandleSeacEndChar();
+                return;
             }
 
             if (count != 0)
@@ -681,6 +724,69 @@ internal static class CffCharstringInterpreter
 
             CloseIfOpen();
             _stack.Clear();
+        }
+
+        /// <summary>
+        ///     Handles the deprecated 4-operand <c>seac</c>-style form of <c>endchar</c> (<c>adx
+        ///     ady bchar achar endchar</c>): composes a "base" glyph (<c>bchar</c>) and an
+        ///     "accent" glyph (<c>achar</c>) - both identified by Adobe StandardEncoding code via
+        ///     <see cref="_resolveStandardEncodedGlyph"/> - into <see cref="SeacOutline"/>, with
+        ///     the accent translated by <c>(adx, ady)</c> and combined with the base's own
+        ///     untranslated outline.
+        /// </summary>
+        /// <exception cref="InvalidDataException">
+        ///     Thrown when <see cref="_resolveStandardEncodedGlyph"/> is <see langword="null"/> -
+        ///     covering both "no resolver supplied at all" (the normal top-level rejection) and,
+        ///     critically, "this charstring is itself a seac component being decoded without a
+        ///     resolver" (<see cref="CffTable"/> deliberately omits one for that recursive call),
+        ///     which is what naturally rejects a doubly-nested seac composition.
+        /// </exception>
+        private void HandleSeacEndChar()
+        {
+            if (_resolveStandardEncodedGlyph is null)
+            {
+                throw new InvalidDataException(
+                    "CFF charstring 'endchar' with the deprecated 4-operand seac-style accent composition form requires a StandardEncoding glyph resolver, which is not available here (either no resolver was supplied, or this charstring is itself a seac component - nested seac composition is not supported).");
+            }
+
+            var adx = _stack[0];
+            var ady = _stack[1];
+            var bchar = (int)_stack[2];
+            var achar = (int)_stack[3];
+            _stack.Clear();
+
+            var baseOutline = _resolveStandardEncodedGlyph(bchar);
+            var accentOutline = _resolveStandardEncodedGlyph(achar);
+            var translatedAccent = accentOutline.Transform(Matrix3x2.CreateTranslation((float)adx, (float)ady));
+
+            SeacOutline = CombineOutlines(baseOutline, translatedAccent);
+            CloseIfOpen();
+        }
+
+        /// <summary>
+        ///     Combines two already-decoded outlines into one <see cref="Path"/> by concatenating
+        ///     their <see cref="Path.Subpaths"/> lists - the seac-style composite's final outline
+        ///     is simply the base glyph's subpaths followed by the (already translated) accent
+        ///     glyph's subpaths, with no further transform or fill-rule adjustment needed, the
+        ///     same subpath-list-concatenation principle <see cref="GlyfLocaReader"/> applies when
+        ///     combining a composite <c>glyf</c> glyph's components.
+        /// </summary>
+        private static Path CombineOutlines(Path first, Path second)
+        {
+            if (first.Subpaths.Count == 0)
+            {
+                return second;
+            }
+
+            if (second.Subpaths.Count == 0)
+            {
+                return first;
+            }
+
+            var combined = new List<Subpath>(first.Subpaths.Count + second.Subpaths.Count);
+            combined.AddRange(first.Subpaths);
+            combined.AddRange(second.Subpaths);
+            return new Path(combined);
         }
 
         private Vector2 CurrentPoint() => Pt(_x, _y);

@@ -4,7 +4,7 @@
 // cspell:ignore hintmask cntrmask rmoveto hmoveto vmoveto rlineto hlineto vlineto
 // cspell:ignore rrcurveto hhcurveto vvcurveto hvcurveto vhcurveto callsubr callgsubr
 // cspell:ignore endchar seac hstem vstem hstemhm vstemhm nominalWidthX defaultWidthX
-// cspell:ignore ISOAdobe charsets psnames pstables
+// cspell:ignore ISOAdobe charsets psnames pstables bchar achar
 // cspell:ignore quoteright exclamdown quoteleft quotedblleft guillemotleft guilsinglleft guilsinglright
 // cspell:ignore endash daggerdbl periodcentered quotesinglbase quotedblbase quotedblright
 // cspell:ignore guillemotright perthousand questiondown dotaccent hungarumlaut ogonek caron
@@ -102,6 +102,22 @@ namespace DemaConsulting.CanvasNet.Fonts;
 ///     present but the operator itself is absent, per the CFF specification's own documented
 ///     defaults - combine with each glyph's own charstring-encoded width delta (see
 ///     <see cref="CffCharstringInterpreter"/>) to resolve <see cref="GetAdvanceWidth"/>.
+///     </para>
+///     <para>
+///     A glyph whose charstring uses the deprecated 4-operand <c>seac</c>-style form of
+///     <c>endchar</c> is supported: both <see cref="GetGlyphOutline"/> and
+///     <see cref="GetAdvanceWidth"/> pass <see cref="ResolveSeacComponent"/> into
+///     <see cref="CffCharstringInterpreter.Decode"/> as its resolver callback, so
+///     <see cref="CffCharstringInterpreter"/> can compose the base/accent outline itself.
+///     <see cref="ResolveSeacComponent"/> maps an Adobe StandardEncoding code to a glyph name via
+///     <see cref="CffStandardEncoding"/>, resolves that name to a glyph index in <em>this same
+///     font</em> via <see cref="TryGetGlyphIndex"/>, and decodes that glyph's own charstring
+///     <em>without</em> supplying a resolver of its own - so a seac component glyph that is
+///     itself (illegally) seac-style fails with <see cref="InvalidDataException"/> rather than
+///     recursing further; no separate depth counter is needed for this, since the omission is
+///     structural. An undefined StandardEncoding code, or one whose glyph name is not present in
+///     this font's own charset, is likewise rejected with <see cref="InvalidDataException"/>
+///     rather than silently dropping the accent or producing a partial outline.
 ///     </para>
 /// </remarks>
 internal sealed class CffTable : IGlyphOutlineSource
@@ -545,8 +561,11 @@ internal sealed class CffTable : IGlyphOutlineSource
     /// </exception>
     /// <exception cref="InvalidDataException">
     ///     Thrown when the glyph's charstring bytecode is malformed, truncated, uses an
-    ///     unsupported operator, or exceeds an internal recursion/step bound. See
-    ///     <see cref="CffCharstringInterpreter"/> for the complete set of rejection conditions.
+    ///     unsupported operator, or exceeds an internal recursion/step bound; or, for a seac-style
+    ///     glyph, when a StandardEncoding code is undefined, its glyph name is absent from this
+    ///     font's own charset, or the resolved component glyph is itself (illegally) seac-style.
+    ///     See <see cref="CffCharstringInterpreter"/> and <see cref="ResolveSeacComponent"/> for
+    ///     the complete set of rejection conditions.
     /// </exception>
     internal double GetAdvanceWidth(int glyphIndex)
     {
@@ -556,7 +575,8 @@ internal sealed class CffTable : IGlyphOutlineSource
         }
 
         return CffCharstringInterpreter.Decode(
-            _cffData, _charStrings[glyphIndex], _globalSubrs, _localSubrs, _defaultWidthX, _nominalWidthX).Width;
+            _cffData, _charStrings[glyphIndex], _globalSubrs, _localSubrs, _defaultWidthX, _nominalWidthX,
+            ResolveSeacComponent).Width;
     }
 
     /// <summary>
@@ -565,21 +585,69 @@ internal sealed class CffTable : IGlyphOutlineSource
     /// <param name="glyphIndex">The glyph index to decode.</param>
     /// <returns>
     ///     The glyph's outline in raw font design units, or <see cref="Path.Empty"/> for a glyph
-    ///     with no contour data (for example <c>space</c>).
+    ///     with no contour data (for example <c>space</c>), or the composed base+accent outline
+    ///     for a seac-style glyph (see this class's remarks).
     /// </returns>
     /// <exception cref="ArgumentOutOfRangeException">
     ///     Thrown when <paramref name="glyphIndex"/> is outside <c>[0, GlyphCount)</c>.
     /// </exception>
     /// <exception cref="InvalidDataException">
     ///     Thrown when the glyph's charstring bytecode is malformed, truncated, uses an
-    ///     unsupported operator, or exceeds an internal recursion/step bound. See
-    ///     <see cref="CffCharstringInterpreter"/> for the complete set of rejection conditions.
+    ///     unsupported operator, or exceeds an internal recursion/step bound; or, for a seac-style
+    ///     glyph, when a StandardEncoding code is undefined, its glyph name is absent from this
+    ///     font's own charset, or the resolved component glyph is itself (illegally) seac-style.
+    ///     See <see cref="CffCharstringInterpreter"/> and <see cref="ResolveSeacComponent"/> for
+    ///     the complete set of rejection conditions.
     /// </exception>
     public Path GetGlyphOutline(int glyphIndex)
     {
         if (glyphIndex < 0 || glyphIndex >= GlyphCount)
         {
             throw new ArgumentOutOfRangeException(nameof(glyphIndex), glyphIndex, "Glyph index is out of range.");
+        }
+
+        return CffCharstringInterpreter.Decode(
+            _cffData, _charStrings[glyphIndex], _globalSubrs, _localSubrs, _defaultWidthX, _nominalWidthX,
+            ResolveSeacComponent).Outline;
+    }
+
+    /// <summary>
+    ///     Resolves a seac-style <c>endchar</c>'s <c>bchar</c>/<c>achar</c> operand (an Adobe
+    ///     StandardEncoding code) to that code's glyph's own already-decoded outline, for use as
+    ///     <see cref="CffCharstringInterpreter.Decode"/>'s <c>resolveStandardEncodedGlyph</c>
+    ///     callback from both <see cref="GetGlyphOutline"/> and <see cref="GetAdvanceWidth"/>.
+    /// </summary>
+    /// <param name="standardEncodingCode">The Adobe StandardEncoding code (<c>0</c>-<c>255</c>).</param>
+    /// <returns>The resolved component glyph's own decoded outline.</returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="standardEncodingCode"/> is outside <c>0</c>-<c>255</c> or
+    ///     has no defined <see cref="CffStandardEncoding"/> glyph name, when that glyph name is
+    ///     not present in this font's own charset (<see cref="TryGetGlyphIndex"/> returns
+    ///     <see langword="false"/>), or when the resolved component glyph's own charstring is
+    ///     malformed, unsupported, or is itself (illegally) a seac-style <c>endchar</c> - this
+    ///     method deliberately omits a resolver on its own recursive
+    ///     <see cref="CffCharstringInterpreter.Decode"/> call, so a doubly-nested seac composition
+    ///     fails here rather than recursing further.
+    /// </exception>
+    private Path ResolveSeacComponent(int standardEncodingCode)
+    {
+        if (standardEncodingCode < 0 || standardEncodingCode >= CffStandardEncoding.CodeToGlyphName.Length)
+        {
+            throw new InvalidDataException(
+                $"CFF seac-style 'endchar' references an out-of-range StandardEncoding code ({standardEncodingCode}).");
+        }
+
+        var glyphName = CffStandardEncoding.CodeToGlyphName[standardEncodingCode];
+        if (glyphName is null)
+        {
+            throw new InvalidDataException(
+                $"CFF seac-style 'endchar' references a StandardEncoding code ({standardEncodingCode}) with no defined glyph name.");
+        }
+
+        if (!TryGetGlyphIndex(glyphName, out var glyphIndex))
+        {
+            throw new InvalidDataException(
+                $"CFF seac-style 'endchar' references glyph '{glyphName}' (StandardEncoding code {standardEncodingCode}), which is not present in this font's charset.");
         }
 
         return CffCharstringInterpreter.Decode(

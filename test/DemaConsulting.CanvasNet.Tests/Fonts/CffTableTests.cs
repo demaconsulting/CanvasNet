@@ -2,6 +2,7 @@
 // cspell:ignore maxp Maxp notdef codepoint codepoints subtable subtables subsetted
 // cspell:ignore subsetting PPEM OTTO CFF charstring charstrings subr subrs
 // cspell:ignore endchar hstem nosuchglyph charsets isoadobe
+// cspell:ignore seac bchar achar adx ady rmoveto rlineto Agrave
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 
@@ -403,5 +404,175 @@ public class CffTableTests
         var table = Parse(SyntheticFontBuilder.Cff([SimpleCharstring()]));
         Assert.Throws<ArgumentOutOfRangeException>(() => table.GetAdvanceWidth(1));
         Assert.Throws<ArgumentOutOfRangeException>(() => table.GetAdvanceWidth(-1));
+    }
+
+    /// <summary>
+    ///     Builds a small outline charstring: <c>rmoveto</c> to <c>(0, 0)</c>, two <c>rlineto</c>
+    ///     steps of the given size, then <c>endchar</c> - with no leading width operand, so the
+    ///     glyph's resolved width is always the font's <c>defaultWidthX</c>.
+    /// </summary>
+    private static byte[] OutlineCharstring(double dx, double dy)
+    {
+        var buf = new List<byte>();
+        SyntheticFontBuilder.WriteCharstringNumber(buf, 0);
+        SyntheticFontBuilder.WriteCharstringNumber(buf, 0);
+        SyntheticFontBuilder.WriteCharstringOperator(buf, 21); // rmoveto
+        SyntheticFontBuilder.WriteCharstringNumber(buf, dx);
+        SyntheticFontBuilder.WriteCharstringNumber(buf, 0);
+        SyntheticFontBuilder.WriteCharstringOperator(buf, 5); // rlineto
+        SyntheticFontBuilder.WriteCharstringNumber(buf, 0);
+        SyntheticFontBuilder.WriteCharstringNumber(buf, dy);
+        SyntheticFontBuilder.WriteCharstringOperator(buf, 5); // rlineto
+        SyntheticFontBuilder.WriteCharstringOperator(buf, 14); // endchar
+        return [.. buf];
+    }
+
+    /// <summary>
+    ///     Builds a seac-style 4-operand <c>endchar</c> charstring: <c>width? adx ady bchar achar
+    ///     endchar</c> - <paramref name="width"/> is written as a leading width operand only when
+    ///     supplied.
+    /// </summary>
+    private static byte[] SeacCharstring(double adx, double ady, int bchar, int achar, double? width = null)
+    {
+        var buf = new List<byte>();
+        if (width.HasValue)
+        {
+            SyntheticFontBuilder.WriteCharstringNumber(buf, width.Value);
+        }
+
+        SyntheticFontBuilder.WriteCharstringNumber(buf, adx);
+        SyntheticFontBuilder.WriteCharstringNumber(buf, ady);
+        SyntheticFontBuilder.WriteCharstringNumber(buf, bchar);
+        SyntheticFontBuilder.WriteCharstringNumber(buf, achar);
+        SyntheticFontBuilder.WriteCharstringOperator(buf, 14); // endchar
+        return [.. buf];
+    }
+
+    /// <summary>
+    ///     Builds a 4-glyph synthetic font (<c>.notdef</c>, <c>A</c>, <c>grave</c>,
+    ///     <c>Agrave</c>) with a format-0 charset mapping glyph indices to SIDs 34, 124, 174 -
+    ///     "A", "grave", "Agrave" respectively - where <c>Agrave</c> (glyph 3) is defined as a
+    ///     seac-style <c>endchar</c> composing StandardEncoding codes <c>65</c> ("A") and
+    ///     <c>193</c> ("grave") at offset <c>(20, 30)</c>, with its own leading width operand of
+    ///     <c>700</c> (distinct from the font's <c>defaultWidthX</c> of <c>500</c>, which
+    ///     <c>A</c>/<c>grave</c> themselves resolve to, having no leading width operand of their
+    ///     own).
+    /// </summary>
+    private static byte[] SeacFixtureCff()
+    {
+        byte[] charsetTable = [0, 0, 34, 0, 124, 0, 174];
+        return SyntheticFontBuilder.Cff(
+            [
+                SimpleCharstring(),
+                OutlineCharstring(10, 10),
+                OutlineCharstring(5, 5),
+                SeacCharstring(20, 30, bchar: 65, achar: 193, width: 700),
+            ],
+            charsetTable: charsetTable,
+            defaultWidthX: 500,
+            nominalWidthX: 0);
+    }
+
+    /// <summary>
+    ///     Proves that CffTable GetGlyphOutline SeacStyleEndChar ComposesBaseAndTranslatedAccent.
+    /// </summary>
+    [Fact]
+    public void CffTable_GetGlyphOutline_SeacStyleEndChar_ComposesBaseAndTranslatedAccent()
+    {
+        var table = Parse(SeacFixtureCff());
+
+        var baseOutline = table.GetGlyphOutline(1); // A
+        var accentOutline = table.GetGlyphOutline(2); // grave
+        var composite = table.GetGlyphOutline(3); // Agrave
+
+        var expectedAccent = accentOutline.Transform(System.Numerics.Matrix3x2.CreateTranslation(20, 30));
+        Assert.Equal(baseOutline.Subpaths.Count + expectedAccent.Subpaths.Count, composite.Subpaths.Count);
+        Assert.Equal(baseOutline.Subpaths[0].Start, composite.Subpaths[0].Start);
+        Assert.Equal(expectedAccent.Subpaths[0].Start, composite.Subpaths[1].Start);
+    }
+
+    /// <summary>
+    ///     Proves that CffTable GetAdvanceWidth SeacStyleEndChar UsesOwnWidthNotComponentWidths.
+    /// </summary>
+    [Fact]
+    public void CffTable_GetAdvanceWidth_SeacStyleEndChar_UsesOwnWidthNotComponentWidths()
+    {
+        var table = Parse(SeacFixtureCff());
+
+        Assert.Equal(500, table.GetAdvanceWidth(1)); // A -> defaultWidthX
+        Assert.Equal(500, table.GetAdvanceWidth(2)); // grave -> defaultWidthX
+        Assert.Equal(700, table.GetAdvanceWidth(3)); // Agrave -> its own leading width operand
+    }
+
+    /// <summary>
+    ///     Proves that CffTable GetGlyphOutline SeacStyleEndChar
+    ///     UndefinedStandardEncodingCode ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void CffTable_GetGlyphOutline_SeacStyleEndChar_UndefinedStandardEncodingCode_ThrowsInvalidDataException()
+    {
+        byte[] charsetTable = [0, 0, 34, 0, 124, 0, 174];
+        var cff = SyntheticFontBuilder.Cff(
+            [
+                SimpleCharstring(),
+                OutlineCharstring(10, 10),
+                OutlineCharstring(5, 5),
+                SeacCharstring(20, 30, bchar: 65, achar: 127), // code 127 is undefined in StandardEncoding
+            ],
+            charsetTable: charsetTable,
+            defaultWidthX: 500,
+            nominalWidthX: 0);
+        var table = Parse(cff);
+
+        Assert.Throws<InvalidDataException>(() => table.GetGlyphOutline(3));
+    }
+
+    /// <summary>
+    ///     Proves that CffTable GetGlyphOutline SeacStyleEndChar
+    ///     GlyphNameNotInCharset ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void CffTable_GetGlyphOutline_SeacStyleEndChar_GlyphNameNotInCharset_ThrowsInvalidDataException()
+    {
+        byte[] charsetTable = [0, 0, 34, 0, 124, 0, 174];
+        var cff = SyntheticFontBuilder.Cff(
+            [
+                SimpleCharstring(),
+                OutlineCharstring(10, 10),
+                OutlineCharstring(5, 5),
+                SeacCharstring(20, 30, bchar: 66, achar: 193), // code 66 ("B") is not in this font's charset
+            ],
+            charsetTable: charsetTable,
+            defaultWidthX: 500,
+            nominalWidthX: 0);
+        var table = Parse(cff);
+
+        Assert.Throws<InvalidDataException>(() => table.GetGlyphOutline(3));
+    }
+
+    /// <summary>
+    ///     Proves that CffTable GetGlyphOutline SeacStyleEndChar
+    ///     ComponentItselfSeacStyle ThrowsInvalidDataException - a seac component's own charstring
+    ///     being itself a (illegal, nested) seac-style <c>endchar</c> is rejected rather than
+    ///     recursed into, because <see cref="CffTable"/> deliberately omits the resolver on the
+    ///     component's own recursive decode.
+    /// </summary>
+    [Fact]
+    public void CffTable_GetGlyphOutline_SeacStyleEndChar_ComponentItselfSeacStyle_ThrowsInvalidDataException()
+    {
+        byte[] charsetTable = [0, 0, 34, 0, 124, 0, 174];
+        var cff = SyntheticFontBuilder.Cff(
+            [
+                SimpleCharstring(),
+                SeacCharstring(1, 1, bchar: 65, achar: 193), // "A" is itself (illegally) seac-style
+                OutlineCharstring(5, 5),
+                SeacCharstring(20, 30, bchar: 65, achar: 193),
+            ],
+            charsetTable: charsetTable,
+            defaultWidthX: 500,
+            nominalWidthX: 0);
+        var table = Parse(cff);
+
+        Assert.Throws<InvalidDataException>(() => table.GetGlyphOutline(3));
     }
 }

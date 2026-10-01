@@ -10,6 +10,7 @@
 <!-- cspell:ignore eexec lenIV hsbw dotsection hstem vstem callothersubr othersubr -->
 <!-- cspell:ignore setcurrentpoint closepath pfb pfa cleartomark -->
 <!-- cspell:ignore charsets ISOAdobe isoadobe -->
+<!-- cspell:ignore bchar achar adx ady Agrave -->
 
 The `TrueTypeFont` class is the sole public software unit in the `Fonts` subsystem. It provides
 hand-rolled loading and querying of glyph-based TrueType SFNT fonts, CFF/OpenType
@@ -266,7 +267,7 @@ the operator subset in the table below:
 | `vlineto`                              | 7            | Appends line segments, alternating axis with `hlineto`                    |
 | `rrcurveto`, `hhcurveto`, `vvcurveto`  | 8, 27, 26    | Append cubic Bezier segments per operator-specific operand packing        |
 | `callsubr`, `return`                   | 10, 11       | Invoke/resume a local subroutine, biased and depth/step bounded           |
-| `endchar`                              | 14           | Finishes the outline; legacy 4-operand seac-style form is rejected        |
+| `endchar`                              | 14           | Finishes the outline; 4-operand seac-style composes a base/accent pair    |
 | `hmoveto`                              | 22           | Starts a new subpath, horizontal-only offset                              |
 | `vmoveto`                              | 4            | Starts a new subpath, vertical-only offset                                |
 | `rmoveto`                              | 21           | Starts a new subpath, general XY offset                                   |
@@ -817,6 +818,29 @@ converts them directly to `PathBuilder.CubicBezierTo` rather than approximating 
 segments - the reverse of the glyf-flavored decoder's natively-quadratic posture. Every subpath
 opened by a moveto operator is closed either by an explicit path close or by `endchar`, matching
 the fill-rule expectations `Drawing.PathFiller` already applies to `glyf`-flavored outlines.
+
+##### CFF Seac-Style Accent Composition
+
+The deprecated 4-operand form of `endchar` (`adx ady bchar achar endchar`, the Type 2 charstring
+successor to the original Type 1 `seac` operator) composes an accented glyph from a "base" glyph
+(e.g. `A`) and an "accent" glyph (e.g. `grave`), both identified by Adobe StandardEncoding code
+rather than glyph index. `CffCharstringInterpreter.Decode` accepts an optional
+`resolveStandardEncodedGlyph` callback; when supplied, a 4-operand `endchar` resolves `bchar` and
+`achar` through it to obtain each component's own already-decoded outline, translates the accent
+outline by `(adx, ady)`, and combines it with the base outline (at its own origin, untranslated) to
+form the composite glyph's final outline. The composite's own advance width still follows the
+normal width convention (its own leading width operand, or `defaultWidthX` if absent) and never
+inherits the base/accent glyphs' own widths.
+
+`CffTable` supplies this callback (`ResolveSeacComponent`) by mapping `bchar`/`achar` through
+`CffStandardEncoding.CodeToGlyphName` to a glyph name, resolving that name to a glyph index in the
+same font via `TryGetGlyphIndex`, and recursively decoding that glyph's own charstring -
+deliberately *without* passing a resolver of its own. This means a seac component glyph that is
+itself (illegally) defined using the seac-style form is rejected with `InvalidDataException`
+rather than recursed into, structurally bounding seac composition to a single level without a
+separate depth counter. The same exception is thrown when no resolver is supplied at all (the
+form is otherwise unreachable), when `bchar`/`achar` is not a valid StandardEncoding code, or when
+the resolved glyph name is not present in this font's charset.
 
 ##### Type 1 Subroutine Call Bounds and Fail-Closed Unsupported Operators
 

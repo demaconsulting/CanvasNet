@@ -5,6 +5,7 @@
 # cspell:ignore glyf sfnt cmap loca hmtx hhea maxp notdef
 # cspell:ignore codepoint codepoints subtable subtables subsetted renderable
 # cspell:ignore charsets ISOAdobe isoadobe
+# cspell:ignore bchar achar Agrave
 
 sections:
   - title: CanvasNet Requirements
@@ -546,17 +547,50 @@ sections:
                 title: >-
                   The CffCharstringInterpreter class shall interpret the endchar operator to close
                   and finish the glyph's outline, producing an empty path for a charstring
-                  consisting only of endchar, and shall reject the legacy 4-leftover-operand
-                  ("seac-style" accented-character composition) form of endchar, and any other
-                  unexpected leftover operand count, with InvalidDataException.
+                  consisting only of endchar, and shall reject any unexpected leftover operand
+                  count other than zero or the legacy 4-operand seac-style form with
+                  InvalidDataException.
                 justification: |
-                  Every charstring must end with endchar; its legacy seac-style accented-character
-                  composition form is outside this library's supported feature set and must fail
-                  clearly rather than silently produce an incomplete or incorrect outline.
+                  Every charstring must end with endchar; an unexpected leftover operand count
+                  (other than the legacy seac-style form, handled separately) indicates a
+                  malformed charstring and must fail clearly rather than silently produce an
+                  incomplete or incorrect outline.
                 tests:
                   - CffCharstringInterpreter_EmptyCharstring_ProducesEmptyPath
-                  - CffCharstringInterpreter_EndChar_SeacStyleFourOperands_ThrowsInvalidDataException
                   - CffCharstringInterpreter_EndChar_UnexpectedOperandCount_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-CffSeacComposition
+                title: >-
+                  The CffCharstringInterpreter class shall interpret the legacy 4-operand
+                  ("seac-style") form of endchar - adx ady bchar achar endchar - by resolving
+                  bchar and achar as Adobe StandardEncoding codes to glyph names, resolving those
+                  names to glyph indices within the same font, decoding each resolved glyph's own
+                  outline, translating the accent glyph's outline by (adx, ady), and combining it
+                  with the base glyph's untranslated outline to form the composite glyph's final
+                  outline - with the composite's own advance width following the normal width
+                  convention independently of the base/accent glyphs' own widths - and shall
+                  reject with InvalidDataException when no resolver is supplied (including when a
+                  seac component glyph is itself defined using the seac-style form, which is not
+                  supported), when bchar/achar is not a valid StandardEncoding code, or when the
+                  resolved glyph name is not present in this font's charset.
+                justification: |
+                  The seac-style endchar form is a deprecated but still-encountered mechanism for
+                  composing accented characters (e.g. Agrave) from simpler base and accent glyphs
+                  already present in the same font; supporting it lets such fonts render their
+                  accented glyphs correctly instead of failing outright, while nested seac
+                  composition remains intentionally unsupported to bound recursion.
+                tests:
+                  - CffCharstringInterpreter_EndChar_SeacStyleFourOperands_NoResolverSupplied_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_EndChar_SeacStyleFourOperands_WithResolver_ComposesBaseAndTranslatedAccent
+                  - CffCharstringInterpreter_EndChar_SeacStyleFourOperands_ResolverOmittedOnComponentDecode_ThrowsInvalidDataException
+                  - CffTable_GetGlyphOutline_SeacStyleEndChar_ComposesBaseAndTranslatedAccent
+                  - CffTable_GetAdvanceWidth_SeacStyleEndChar_UsesOwnWidthNotComponentWidths
+                  - CffTable_GetGlyphOutline_SeacStyleEndChar_UndefinedStandardEncodingCode_ThrowsInvalidDataException
+                  - CffTable_GetGlyphOutline_SeacStyleEndChar_GlyphNameNotInCharset_ThrowsInvalidDataException
+                  - CffTable_GetGlyphOutline_SeacStyleEndChar_ComponentItselfSeacStyle_ThrowsInvalidDataException
+                  - CffStandardEncoding_CodeToGlyphName_HasExpectedLength
+                  - CffStandardEncoding_CodeToGlyphName_SpotChecksKnownCodes
+                  - CffStandardEncoding_CodeToGlyphName_UndefinedControlCodesAreNull
 
               - id: CanvasNet-Fonts-TrueTypeFont-CffUnsupportedOperatorRejection
                 title: >-

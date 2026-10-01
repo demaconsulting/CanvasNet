@@ -3,7 +3,7 @@
 // cspell:ignore subsetting PPEM OTTO CFF charstring charstrings subr subrs
 // cspell:ignore hintmask cntrmask rmoveto hmoveto vmoveto rlineto hlineto vlineto
 // cspell:ignore rrcurveto hhcurveto vvcurveto hvcurveto vhcurveto callsubr callgsubr
-// cspell:ignore endchar seac hstem vstem hstemhm vstemhm rcurveline rlinecurve
+// cspell:ignore endchar seac hstem vstem hstemhm vstemhm rcurveline rlinecurve bchar achar adx ady
 using System.Numerics;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Geometry;
@@ -599,10 +599,11 @@ public class CffCharstringInterpreterTests
     }
 
     /// <summary>
-    ///     Proves that CffCharstringInterpreter EndChar SeacStyleFourOperands ThrowsInvalidDataException.
+    ///     Proves that CffCharstringInterpreter EndChar SeacStyleFourOperands NoResolverSupplied
+    ///     ThrowsInvalidDataException.
     /// </summary>
     [Fact]
-    public void CffCharstringInterpreter_EndChar_SeacStyleFourOperands_ThrowsInvalidDataException()
+    public void CffCharstringInterpreter_EndChar_SeacStyleFourOperands_NoResolverSupplied_ThrowsInvalidDataException()
     {
         var cs = Build(buf =>
         {
@@ -614,6 +615,79 @@ public class CffCharstringInterpreterTests
         });
 
         Assert.Throws<InvalidDataException>(() => Decode(cs));
+    }
+
+    /// <summary>
+    ///     Proves that CffCharstringInterpreter EndChar SeacStyleFourOperands WithResolver
+    ///     ComposesBaseAndTranslatedAccent.
+    /// </summary>
+    [Fact]
+    public void CffCharstringInterpreter_EndChar_SeacStyleFourOperands_WithResolver_ComposesBaseAndTranslatedAccent()
+    {
+        var basePath = new PathBuilder()
+            .MoveTo(new Vector2(0, 0))
+            .LineTo(new Vector2(10, 0))
+            .LineTo(new Vector2(10, 10))
+            .Close()
+            .Build();
+        var accentPath = new PathBuilder()
+            .MoveTo(new Vector2(0, 0))
+            .LineTo(new Vector2(5, 0))
+            .LineTo(new Vector2(5, 5))
+            .Close()
+            .Build();
+
+        Path Resolver(int code) => code == 65 ? basePath : accentPath;
+
+        var cs = Build(buf =>
+        {
+            Number(buf, 20); // adx
+            Number(buf, 30); // ady
+            Number(buf, 65); // bchar
+            Number(buf, 194); // achar
+            Op(buf, 14); // endchar with 4 leftover operands - seac-style composition
+        });
+
+        var result = CffCharstringInterpreter.Decode(cs, (0, cs.Length), [], [], resolveStandardEncodedGlyph: Resolver).Outline;
+
+        var expectedAccent = accentPath.Transform(Matrix3x2.CreateTranslation(20, 30));
+        Assert.Equal(basePath.Subpaths.Count + expectedAccent.Subpaths.Count, result.Subpaths.Count);
+        Assert.Equal(basePath.Subpaths[0].Start, result.Subpaths[0].Start);
+        Assert.Equal(expectedAccent.Subpaths[0].Start, result.Subpaths[1].Start);
+    }
+
+    /// <summary>
+    ///     Proves that CffCharstringInterpreter EndChar SeacStyleFourOperands
+    ///     ResolverOmittedOnComponentDecode ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void CffCharstringInterpreter_EndChar_SeacStyleFourOperands_ResolverOmittedOnComponentDecode_ThrowsInvalidDataException()
+    {
+        // The component "resolver" itself decodes a nested 4-operand-endchar charstring with no
+        // resolver of its own - proving the "resolver omitted on component decode" guard, rather
+        // than only exercising the "no resolver at all" case.
+        var nestedSeac = Build(buf =>
+        {
+            Number(buf, 0);
+            Number(buf, 0);
+            Number(buf, 1);
+            Number(buf, 2);
+            Op(buf, 14); // endchar with 4 leftover operands - deprecated seac form
+        });
+
+        Path Resolver(int _) => Decode(nestedSeac);
+
+        var cs = Build(buf =>
+        {
+            Number(buf, 20);
+            Number(buf, 30);
+            Number(buf, 65);
+            Number(buf, 194);
+            Op(buf, 14); // endchar with 4 leftover operands - seac-style composition
+        });
+
+        Assert.Throws<InvalidDataException>(() =>
+            CffCharstringInterpreter.Decode(cs, (0, cs.Length), [], [], resolveStandardEncodedGlyph: Resolver));
     }
 
     /// <summary>

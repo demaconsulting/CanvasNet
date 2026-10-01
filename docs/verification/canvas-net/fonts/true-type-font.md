@@ -390,15 +390,39 @@ out-of-range (post-bias) subroutine index is rejected, that a self-recursive sub
 rejected once it exceeds the maximum call depth, and that `CffTable` correctly wires both local
 and global subroutine INDEXes through to the interpreter end to end.
 
-##### CanvasNet-Fonts-TrueTypeFont-CffEndChar: `endchar` and Seac-Style Rejection
+##### CanvasNet-Fonts-TrueTypeFont-CffEndChar: `endchar` and Unexpected Operand Counts
 
 **Tests**: `CffCharstringInterpreter_EmptyCharstring_ProducesEmptyPath`,
-`CffCharstringInterpreter_EndChar_SeacStyleFourOperands_ThrowsInvalidDataException`,
 `CffCharstringInterpreter_EndChar_UnexpectedOperandCount_ThrowsInvalidDataException`
 
-Verifies a charstring consisting only of `endchar` decodes as an empty path, and that both the
-legacy 4-operand seac-style accented-character composition form and any other unexpected leftover
-operand count are rejected with `InvalidDataException`.
+Verifies a charstring consisting only of `endchar` decodes as an empty path, and that an
+unexpected leftover operand count (other than zero or the legacy seac-style 4-operand form,
+verified separately below) is rejected with `InvalidDataException`.
+
+##### CanvasNet-Fonts-TrueTypeFont-CffSeacComposition: Seac-Style Accent Composition
+
+**Tests**: `CffCharstringInterpreter_EndChar_SeacStyleFourOperands_NoResolverSupplied_ThrowsInvalidDataException`,
+`CffCharstringInterpreter_EndChar_SeacStyleFourOperands_WithResolver_ComposesBaseAndTranslatedAccent`,
+`CffCharstringInterpreter_EndChar_SeacStyleFourOperands_ResolverOmittedOnComponentDecode_ThrowsInvalidDataException`,
+`CffTable_GetGlyphOutline_SeacStyleEndChar_ComposesBaseAndTranslatedAccent`,
+`CffTable_GetAdvanceWidth_SeacStyleEndChar_UsesOwnWidthNotComponentWidths`,
+`CffTable_GetGlyphOutline_SeacStyleEndChar_UndefinedStandardEncodingCode_ThrowsInvalidDataException`,
+`CffTable_GetGlyphOutline_SeacStyleEndChar_GlyphNameNotInCharset_ThrowsInvalidDataException`,
+`CffTable_GetGlyphOutline_SeacStyleEndChar_ComponentItselfSeacStyle_ThrowsInvalidDataException`,
+`CffStandardEncoding_CodeToGlyphName_HasExpectedLength`,
+`CffStandardEncoding_CodeToGlyphName_SpotChecksKnownCodes`,
+`CffStandardEncoding_CodeToGlyphName_UndefinedControlCodesAreNull`
+
+Verifies the legacy 4-operand seac-style `endchar` form is rejected with `InvalidDataException`
+when no resolver callback is supplied (including when a seac component glyph is itself defined
+using the seac-style form - nested seac composition is not supported); that, with a resolver
+supplied, the base and (translated) accent outlines are correctly composed; that `CffTable` wires
+its own `CffStandardEncoding`-backed resolver through to the interpreter end to end, correctly
+resolving the composite's outline and advance width (the latter independent of the base/accent
+glyphs' own widths); that an undefined StandardEncoding code and a resolved glyph name absent from
+the font's charset are both rejected with `InvalidDataException`; and that `CffStandardEncoding`'s
+code-to-glyph-name table has the expected 256-entry length, correctly maps a handful of known
+codes, and leaves undefined control codes as `null`.
 
 ##### CanvasNet-Fonts-TrueTypeFont-CffUnsupportedOperatorRejection: Unsupported Operators, Escapes, and Truncation
 
