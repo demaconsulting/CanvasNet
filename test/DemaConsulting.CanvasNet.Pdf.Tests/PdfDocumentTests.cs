@@ -3581,6 +3581,42 @@ public class PdfDocumentTests
     }
 
     /// <summary>
+    ///     Proves that a simple font dictionary with no <c>/FontDescriptor</c> entry at all - as
+    ///     PDF 32000-1 §9.6.2.2 explicitly permits for the standard 14 fonts, and as several
+    ///     real-world producers (for example ReportLab) emit - resolves via
+    ///     <c>ResolveFallbackFont</c> rather than throwing <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_SimpleFont_NoFontDescriptorAtAll_ResolvesViaFallback()
+    {
+        // Arrange: no /FontDescriptor key at all on the font dictionary.
+        var fontDictObj = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"u8.ToArray();
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 40 Tf 10 30 Td (A) Tj ET", "/Font << /F1 5 0 R >>",
+            [fontDictObj]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: no exception, and some glyph ink was actually painted somewhere on the canvas
+        var paintedAnyPixel = false;
+        for (var y = 0; y < surface.Height && !paintedAnyPixel; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                if (surface[x, y].A > 0)
+                {
+                    paintedAnyPixel = true;
+                    break;
+                }
+            }
+        }
+
+        Assert.True(paintedAnyPixel, "Expected the fallback-resolved font (no /FontDescriptor at all) to paint at least one visible pixel.");
+    }
+
+    /// <summary>
     ///     Proves that a <c>/Subtype /Type1</c> descriptor declaring only <c>/FontFile3</c>
     ///     (neither <c>/FontFile</c> nor <c>/FontFile2</c>) throws
     ///     <see cref="UnsupportedImageFeatureException"/> (feature

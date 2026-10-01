@@ -475,7 +475,8 @@ device-space footprint remains transparent.
 `PdfDocument_Fonts_UndefinedFontName_ThrowsInvalidDataException`,
 `PdfDocument_BuildResolvedFont_EmbeddedFontFileTakesPriorityOverFallback`,
 `PdfDocument_Fonts_Type1_DispatchesToSimpleFontResolution_PaintsGlyphInk`,
-`PdfDocument_Fonts_Type1_NoFontFile_ResolvesViaFallback`
+`PdfDocument_Fonts_Type1_NoFontFile_ResolvesViaFallback`,
+`PdfDocument_Fonts_SimpleFont_NoFontDescriptorAtAll_ResolvesViaFallback`
 
 A `[Theory]` builds a `/Resources/Font` dictionary declaring each excluded subtype
 (`/MMType1`/`/Type3`) in turn and selects it via `Tf`, asserting
@@ -494,7 +495,10 @@ font dictionary dispatches to `BuildResolvedSimpleFont` and paints its embedded 
 own glyph ink, and a second proves a `/Type1` font with no `/FontFile` resolves via
 `ResolveFallbackFont` exactly like an equivalent `/TrueType` font - see
 `CanvasNetPdf-PdfDocument-Type1FontResolution` below for the full embedded-`/FontFile`
-resolution and its own fail-closed cases.
+resolution and its own fail-closed cases. A further test builds a font dictionary with no
+`/FontDescriptor` entry at all (as PDF 32000-1 §9.6.2.2 permits for the standard 14 fonts, and
+several real-world producers - for example ReportLab - emit), asserting it resolves via
+`ResolveFallbackFont` rather than throwing `InvalidDataException`.
 
 #### CanvasNetPdf-PdfDocument-CompositeFontResolution: Type0/Identity-H Composite Fonts Resolve, Fail Closed Otherwise
 

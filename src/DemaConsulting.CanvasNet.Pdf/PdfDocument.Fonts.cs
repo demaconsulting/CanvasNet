@@ -240,8 +240,11 @@ public sealed partial class PdfDocument
     ///     before <c>/Type1</c> dispatch existed.
     /// </param>
     /// <remarks>
-    ///     A simple font with no embedded <c>/FontFile2</c>/<c>/FontFile</c> no longer fails closed
-    ///     unconditionally: <see cref="ResolveFallbackFont"/> substitutes the closest-matching
+    ///     A simple font with no <c>/FontDescriptor</c> at all (permitted by PDF 32000-1
+    ///     §9.6.2.2 for the standard 14 fonts, and leniently accepted here regardless of
+    ///     <c>/BaseFont</c>) or with a <c>/FontDescriptor</c> but no embedded
+    ///     <c>/FontFile2</c>/<c>/FontFile</c> no longer fails closed unconditionally:
+    ///     <see cref="ResolveFallbackFont"/> substitutes the closest-matching
     ///     system font, or - when no system font matches - a bundled Liberation Sans/Serif/Mono
     ///     font, fully automatically and silently (no new public API, no "fallback occurred"
     ///     diagnostics). Only a <c>Symbol</c>/<c>ZapfDingbats</c> (or otherwise symbolic, per
@@ -257,10 +260,9 @@ public sealed partial class PdfDocument
     ///     continues to resolve via fallback exactly as before this phase.
     /// </remarks>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when <c>/FontDescriptor</c> is missing, <c>/FontDescriptor/FontFile2</c> does
-    ///     not resolve to a stream, <c>/BaseFont</c> is missing (only consulted on the fallback
-    ///     path), or propagated from <see cref="LoadType1Font"/> for a malformed embedded Type 1
-    ///     program.
+    ///     Thrown when <c>/FontDescriptor/FontFile2</c> does not resolve to a stream,
+    ///     <c>/BaseFont</c> is missing (only consulted on the fallback path), or propagated from
+    ///     <see cref="LoadType1Font"/> for a malformed embedded Type 1 program.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when a <c>Symbol</c>/<c>ZapfDingbats</c>/symbolic font has no embedded font
@@ -269,9 +271,13 @@ public sealed partial class PdfDocument
     /// </exception>
     private ResolvedSimpleFont BuildResolvedSimpleFont(PdfObject fontDict, string? subtype)
     {
-        var descriptorEntry = fontDict.Get("FontDescriptor")
-            ?? throw new InvalidDataException("Font dictionary is missing required /FontDescriptor.");
-        var descriptor = Resolve(descriptorEntry);
+        // Per PDF 32000-1 §9.6.2.2, /FontDescriptor is optional for the standard 14 fonts (and,
+        // leniently here, for any other non-embedded font too - consistent with this method's
+        // existing "substitute automatically, regardless of name" fallback policy): a missing
+        // /FontDescriptor is treated as "no descriptor, no embedded font program", not an error.
+        var descriptorEntry = fontDict.Get("FontDescriptor");
+        var descriptor = descriptorEntry is null ? PdfObject.NullValue : Resolve(descriptorEntry);
+
 
         var fontFile2Entry = descriptor.Get("FontFile2");
         var fontFileEntry = descriptor.Get("FontFile");
