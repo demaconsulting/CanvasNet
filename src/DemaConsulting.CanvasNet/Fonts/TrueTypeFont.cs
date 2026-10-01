@@ -353,6 +353,52 @@ public sealed class TrueTypeFont
     }
 
     /// <summary>
+    ///     Loads a <see cref="TrueTypeFont"/> from a bare (standalone, non-SFNT-wrapped) CFF
+    ///     "Type1C" font program - as opposed to the same CFF table embedded inside an
+    ///     <c>OTTO</c>-tagged SFNT container (see <see cref="Load(Stream)"/>, which parses that
+    ///     case via <see cref="LoadFromBytes"/>'s own <c>CFF </c> branch).
+    /// </summary>
+    /// <remarks>
+    ///     A bare Type1C font program is exactly a <c>CFF </c> table's own bytes with no
+    ///     surrounding SFNT table directory - typically a PDF <c>Type1</c> font's own
+    ///     <c>FontFile3</c> stream (<c>/Subtype /Type1C</c>) - so this overload parses
+    ///     <paramref name="stream"/>'s entire contents directly via <see cref="CffTable.Parse"/>,
+    ///     exactly as <see cref="LoadType1"/> parses a bare Type 1 font program via
+    ///     <see cref="Type1Table.Parse"/>. Like <see cref="LoadType1"/>, the caller already knows
+    ///     the font's own text encoding (a Type1C font associates glyphs with names via its
+    ///     <c>charset</c>, not codepoints, and has no <c>cmap</c>-equivalent table of its own); a
+    ///     CFF table's design space is always 1000 units per em (the format has no
+    ///     <c>unitsPerEm</c>-equivalent operator).
+    /// </remarks>
+    /// <param name="stream">
+    ///     The stream to read the bare CFF font program from. Reading begins at the stream's
+    ///     current position and consumes the remainder of the stream.
+    /// </param>
+    /// <param name="codepointToGlyphName">
+    ///     The font's own codepoint-to-glyph-name encoding, used to build this font's synthesized
+    ///     <c>cmap</c>-equivalent lookup.
+    /// </param>
+    /// <returns>A new <see cref="TrueTypeFont"/> ready to be queried.</returns>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="stream"/> or <paramref name="codepointToGlyphName"/> is null.
+    /// </exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown for the same conditions as <see cref="CffTable.Parse"/> (see its own
+    ///     documentation) - most notably when the CFF header, an INDEX, or a DICT is malformed or
+    ///     truncated, when the Top DICT declares a CID-keyed (<c>ROS</c>) font, or when a glyph's
+    ///     Type 2 charstring bytecode is malformed or uses an unsupported operator.
+    /// </exception>
+    public static TrueTypeFont LoadType1C(Stream stream, IReadOnlyDictionary<int, string> codepointToGlyphName)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        ArgumentNullException.ThrowIfNull(codepointToGlyphName);
+
+        var data = ReadAllBytes(stream);
+        var table = CffTable.Parse(data, 0, data.Length);
+        return BuildFromCffTable(table, codepointToGlyphName);
+    }
+
+    /// <summary>
     ///     Reports how many faces a font file holds, without parsing any face's own table
     ///     directory.
     /// </summary>
@@ -626,6 +672,49 @@ public sealed class TrueTypeFont
 
         return new TrueTypeFont(
             type1UnitsPerEm, table.GlyphCount, metrics, table, cmap, KernTable.Empty, NameTable.Empty,
+            isBold: false, isItalic: false, isFixedPitch: false);
+    }
+
+    /// <summary>
+    ///     Builds a <see cref="TrueTypeFont"/> from an already-parsed bare CFF (Type1C) table,
+    ///     for <see cref="LoadType1C"/>.
+    /// </summary>
+    /// <remarks>
+    ///     Deliberately a separate, non-shared method from <see cref="BuildFromType1Table"/>
+    ///     rather than a forced common helper: <see cref="Type1Table.GetAdvanceWidth"/> already
+    ///     returns <see langword="int"/> while <see cref="CffTable.GetAdvanceWidth"/> returns
+    ///     <see langword="double"/> (per-glyph widths resolved from a <c>defaultWidthX</c>/
+    ///     <c>nominalWidthX</c>/charstring-delta combination that is never guaranteed integral),
+    ///     so this method's own rounding step has no equivalent in <see cref="BuildFromType1Table"/>
+    ///     - sharing a single helper would otherwise force an awkward, unused rounding parameter
+    ///     onto the Type 1 path. Everything else (the per-codepoint glyph-name lookup loop, the
+    ///     1000-units-per-em assumption, and the bold/italic/fixed-pitch/kerning/naming Non-Goal)
+    ///     mirrors <see cref="BuildFromType1Table"/> exactly.
+    /// </remarks>
+    private static TrueTypeFont BuildFromCffTable(CffTable table, IReadOnlyDictionary<int, string> codepointToGlyphName)
+    {
+        const int cffUnitsPerEm = 1000;
+
+        var codepointToGlyphIndex = new Dictionary<int, int>();
+        foreach (var (codepoint, glyphName) in codepointToGlyphName)
+        {
+            if (table.TryGetGlyphIndex(glyphName, out var glyphIndex))
+            {
+                codepointToGlyphIndex[codepoint] = glyphIndex;
+            }
+        }
+
+        var advanceWidths = new int[table.GlyphCount];
+        for (var i = 0; i < table.GlyphCount; i++)
+        {
+            advanceWidths[i] = (int)Math.Round(table.GetAdvanceWidth(i));
+        }
+
+        var metrics = HmtxHheaReader.FromAdvanceWidths(0, 0, 0, advanceWidths);
+        var cmap = CmapTable.FromMap(codepointToGlyphIndex);
+
+        return new TrueTypeFont(
+            cffUnitsPerEm, table.GlyphCount, metrics, table, cmap, KernTable.Empty, NameTable.Empty,
             isBold: false, isItalic: false, isFixedPitch: false);
     }
 

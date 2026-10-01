@@ -24,7 +24,7 @@ public class CffCharstringInterpreterTests
     ///     global/local subroutines.
     /// </summary>
     private static Path Decode(byte[] charstring, IReadOnlyList<(int Offset, int Length)>? globalSubrs = null, IReadOnlyList<(int Offset, int Length)>? localSubrs = null) =>
-        CffCharstringInterpreter.Decode(charstring, (0, charstring.Length), globalSubrs ?? [], localSubrs ?? []);
+        CffCharstringInterpreter.Decode(charstring, (0, charstring.Length), globalSubrs ?? [], localSubrs ?? []).Outline;
 
     private static byte[] Build(Action<List<byte>> write)
     {
@@ -89,6 +89,107 @@ public class CffCharstringInterpreterTests
         var path = Decode(cs);
         var subpath = Assert.Single(path.Subpaths);
         Assert.Equal(new Vector2(10, 20), subpath.Start);
+    }
+
+    /// <summary>
+    ///     Proves that CffCharstringInterpreter Decode RMoveToWithLeadingWidth
+    ///     ReturnsNominalWidthXPlusDelta.
+    /// </summary>
+    [Fact]
+    public void CffCharstringInterpreter_Decode_RMoveToWithLeadingWidth_ReturnsNominalWidthXPlusDelta()
+    {
+        var cs = Build(buf =>
+        {
+            Number(buf, 25); // width delta
+            Number(buf, 10);
+            Number(buf, 20);
+            Op(buf, 21); // rmoveto
+            Op(buf, 14); // endchar
+        });
+
+        var (_, width) = CffCharstringInterpreter.Decode(cs, (0, cs.Length), [], [], defaultWidthX: 500, nominalWidthX: 100);
+
+        Assert.Equal(125, width);
+    }
+
+    /// <summary>
+    ///     Proves that CffCharstringInterpreter Decode NoLeadingWidth ReturnsDefaultWidthX.
+    /// </summary>
+    [Fact]
+    public void CffCharstringInterpreter_Decode_NoLeadingWidth_ReturnsDefaultWidthX()
+    {
+        var cs = Build(buf =>
+        {
+            Number(buf, 10);
+            Number(buf, 20);
+            Op(buf, 21); // rmoveto
+            Op(buf, 14); // endchar
+        });
+
+        var (_, width) = CffCharstringInterpreter.Decode(cs, (0, cs.Length), [], [], defaultWidthX: 500, nominalWidthX: 100);
+
+        Assert.Equal(500, width);
+    }
+
+    /// <summary>
+    ///     Proves that CffCharstringInterpreter Decode HStemWithLeadingWidth
+    ///     ReturnsNominalWidthXPlusDelta.
+    /// </summary>
+    [Fact]
+    public void CffCharstringInterpreter_Decode_HStemWithLeadingWidth_ReturnsNominalWidthXPlusDelta()
+    {
+        var cs = Build(buf =>
+        {
+            Number(buf, 25); // width delta (odd operand count before the stem pairs)
+            Number(buf, 0);
+            Number(buf, 10);
+            Op(buf, 1); // hstem
+            Number(buf, 10);
+            Number(buf, 20);
+            Op(buf, 21); // rmoveto
+            Op(buf, 14); // endchar
+        });
+
+        var (_, width) = CffCharstringInterpreter.Decode(cs, (0, cs.Length), [], [], defaultWidthX: 500, nominalWidthX: 100);
+
+        Assert.Equal(125, width);
+    }
+
+    /// <summary>
+    ///     Proves that CffCharstringInterpreter Decode EndCharWithLeadingWidth
+    ///     ReturnsNominalWidthXPlusDelta.
+    /// </summary>
+    [Fact]
+    public void CffCharstringInterpreter_Decode_EndCharWithLeadingWidth_ReturnsNominalWidthXPlusDelta()
+    {
+        var cs = Build(buf =>
+        {
+            Number(buf, 25); // width delta
+            Op(buf, 14); // endchar
+        });
+
+        var (_, width) = CffCharstringInterpreter.Decode(cs, (0, cs.Length), [], [], defaultWidthX: 500, nominalWidthX: 100);
+
+        Assert.Equal(125, width);
+    }
+
+    /// <summary>
+    ///     Proves that CffCharstringInterpreter Decode DefaultWidthParameters AreBothZero.
+    /// </summary>
+    [Fact]
+    public void CffCharstringInterpreter_Decode_DefaultWidthParameters_AreBothZero()
+    {
+        var cs = Build(buf =>
+        {
+            Number(buf, 10);
+            Number(buf, 20);
+            Op(buf, 21); // rmoveto
+            Op(buf, 14); // endchar
+        });
+
+        var (_, width) = CffCharstringInterpreter.Decode(cs, (0, cs.Length), [], []);
+
+        Assert.Equal(0, width);
     }
 
     /// <summary>
@@ -412,7 +513,7 @@ public class CffCharstringInterpreterTests
         combined.AddRange(main);
 
         var path = CffCharstringInterpreter.Decode(
-            [.. combined], (subr.Length, main.Length), [], localSubrs);
+            [.. combined], (subr.Length, main.Length), [], localSubrs).Outline;
 
         Assert.Equal(new Vector2(10, 20), Assert.Single(path.Subpaths).Start);
     }
@@ -444,7 +545,7 @@ public class CffCharstringInterpreterTests
         combined.AddRange(main);
 
         var path = CffCharstringInterpreter.Decode(
-            [.. combined], (subr.Length, main.Length), globalSubrs, []);
+            [.. combined], (subr.Length, main.Length), globalSubrs, []).Outline;
 
         Assert.Equal(new Vector2(5, 5), Assert.Single(path.Subpaths).Start);
     }

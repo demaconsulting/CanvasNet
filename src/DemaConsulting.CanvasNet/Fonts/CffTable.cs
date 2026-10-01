@@ -4,6 +4,44 @@
 // cspell:ignore hintmask cntrmask rmoveto hmoveto vmoveto rlineto hlineto vlineto
 // cspell:ignore rrcurveto hhcurveto vvcurveto hvcurveto vhcurveto callsubr callgsubr
 // cspell:ignore endchar seac hstem vstem hstemhm vstemhm nominalWidthX defaultWidthX
+// cspell:ignore ISOAdobe charsets psnames pstables
+// cspell:ignore quoteright exclamdown quoteleft quotedblleft guillemotleft guilsinglleft guilsinglright
+// cspell:ignore endash daggerdbl periodcentered quotesinglbase quotedblbase quotedblright
+// cspell:ignore guillemotright perthousand questiondown dotaccent hungarumlaut ogonek caron
+// cspell:ignore emdash ordfeminine Lslash Oslash ordmasculine dotlessi lslash oslash
+// cspell:ignore germandbls onesuperior logicalnot onehalf plusminus onequarter brokenbar
+// cspell:ignore threequarters twosuperior threesuperior Aacute Acircumflex Adieresis Agrave
+// cspell:ignore Aring Atilde Ccedilla Eacute Ecircumflex Edieresis Egrave Iacute Icircumflex
+// cspell:ignore Idieresis Igrave Ntilde Oacute Ocircumflex Odieresis Ograve Otilde Scaron
+// cspell:ignore Uacute Ucircumflex Udieresis Ugrave Yacute Ydieresis Zcaron aacute acircumflex
+// cspell:ignore adieresis agrave aring atilde ccedilla eacute ecircumflex edieresis egrave
+// cspell:ignore iacute icircumflex idieresis igrave ntilde oacute ocircumflex odieresis
+// cspell:ignore ograve otilde scaron uacute ucircumflex udieresis ugrave yacute ydieresis
+// cspell:ignore zcaron exclamsmall Hungarumlautsmall dollaroldstyle dollarsuperior
+// cspell:ignore ampersandsmall Acutesmall parenleftsuperior parenrightsuperior twodotenleader
+// cspell:ignore onedotenleader zerooldstyle oneoldstyle twooldstyle threeoldstyle fouroldstyle
+// cspell:ignore fiveoldstyle sixoldstyle sevenoldstyle eightoldstyle nineoldstyle
+// cspell:ignore commasuperior threequartersemdash periodsuperior questionsmall asuperior
+// cspell:ignore bsuperior centsuperior dsuperior esuperior isuperior lsuperior msuperior
+// cspell:ignore nsuperior osuperior rsuperior ssuperior tsuperior parenleftinferior
+// cspell:ignore parenrightinferior Circumflexsmall hyphensuperior Gravesmall Asmall Bsmall
+// cspell:ignore Csmall Dsmall Esmall Fsmall Gsmall Hsmall Ismall Jsmall Ksmall Lsmall Msmall
+// cspell:ignore Nsmall Osmall Psmall Qsmall Rsmall Ssmall Tsmall Usmall Vsmall Wsmall Xsmall
+// cspell:ignore Ysmall Zsmall colonmonetary onefitted Tildesmall exclamdownsmall centoldstyle
+// cspell:ignore Lslashsmall Scaronsmall Zcaronsmall Dieresissmall Brevesmall Caronsmall
+// cspell:ignore Dotaccentsmall Macronsmall figuredash hypheninferior Ogoneksmall Ringsmall
+// cspell:ignore Cedillasmall questiondownsmall oneeighth threeeighths fiveeighths seveneighths
+// cspell:ignore onethird twothirds zerosuperior foursuperior fivesuperior sixsuperior
+// cspell:ignore sevensuperior eightsuperior ninesuperior zeroinferior oneinferior twoinferior
+// cspell:ignore threeinferior fourinferior fiveinferior sixinferior seveninferior
+// cspell:ignore eightinferior nineinferior centinferior dollarinferior periodinferior
+// cspell:ignore commainferior Agravesmall Aacutesmall Acircumflexsmall Atildesmall
+// cspell:ignore Adieresissmall Aringsmall Ccedillasmall Egravesmall Eacutesmall
+// cspell:ignore Ecircumflexsmall Edieresissmall Igravesmall Iacutesmall Icircumflexsmall
+// cspell:ignore Idieresissmall Ethsmall Ntildesmall Ogravesmall Oacutesmall Ocircumflexsmall
+// cspell:ignore Otildesmall Odieresissmall Oslashsmall Ugravesmall Uacutesmall
+// cspell:ignore Ucircumflexsmall Udieresissmall Yacutesmall Thornsmall Ydieresissmall
+using System.Text;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Fonts;
@@ -34,7 +72,36 @@ namespace DemaConsulting.CanvasNet.Fonts;
 ///     Like <see cref="GlyfLocaReader"/>, no individual glyph's charstring is decoded until
 ///     <see cref="GetGlyphOutline"/> is called for that specific index - one corrupt glyph's
 ///     charstring bytecode does not prevent using every other, otherwise well-formed, glyph in
-///     the font.
+///     the font. <see cref="GetAdvanceWidth"/> is equally lazy (it decodes the same charstring a
+///     second time, discarding the outline), deliberately trading a little redundant work for
+///     keeping this "nothing decoded until asked for" posture uniform across both members.
+///     </para>
+///     <para>
+///     The Top DICT's <c>charset</c> operator (operator <c>15</c>) - which maps each glyph index
+///     to a String ID (SID) identifying its PostScript glyph name - is resolved by
+///     <see cref="TryGetGlyphIndex"/> for exactly three cases: the operator is absent, or its
+///     value is the predefined ID <c>0</c> (both mean the ISOAdobe/Standard charset: glyph
+///     <c>i</c>'s SID is simply <c>i</c>, for <c>i</c> in <c>1..GlyphCount-1</c>); or its value is
+///     greater than <c>2</c>, a byte offset (relative to this table's own start) to a custom
+///     charset table in format <c>0</c> (a flat array of 2-byte SIDs), format <c>1</c> (ranges of
+///     <c>(first SID: 2 bytes, nLeft: 1 byte)</c>), or format <c>2</c> (the same as format
+///     <c>1</c>, but <c>nLeft</c> is 2 bytes). The predefined Expert (<c>1</c>) and ExpertSubset
+///     (<c>2</c>) charsets are a deliberate, documented scope boundary: a glyph index is still
+///     decodable via <see cref="GetGlyphOutline"/>, but <see cref="TryGetGlyphIndex"/> can never
+///     resolve a glyph name against either of them, returning <see langword="false"/> rather than
+///     throwing (the same "absent optional data => benign negative result" contract
+///     <see cref="TrueTypeFont.GetKerning"/> documents for its own optional tables). A custom
+///     charset table in any other format byte is rejected with <see cref="InvalidDataException"/>.
+///     Every SID a resolved charset produces is itself resolved to a glyph name using either the
+///     fixed Standard Strings table (SID <c>0</c>-<c>390</c>, see <see cref="StandardStrings"/>)
+///     or the font's own String INDEX (SID <c>391</c> and above, indexed as <c>SID - 391</c>).
+///     </para>
+///     <para>
+///     The Private DICT's <c>defaultWidthX</c> (operator <c>20</c>) and <c>nominalWidthX</c>
+///     (operator <c>21</c>) operands - both <c>0</c> when no Private DICT is present, or when
+///     present but the operator itself is absent, per the CFF specification's own documented
+///     defaults - combine with each glyph's own charstring-encoded width delta (see
+///     <see cref="CffCharstringInterpreter"/>) to resolve <see cref="GetAdvanceWidth"/>.
 ///     </para>
 /// </remarks>
 internal sealed class CffTable : IGlyphOutlineSource
@@ -43,6 +110,9 @@ internal sealed class CffTable : IGlyphOutlineSource
     private readonly (int Offset, int Length)[] _charStrings;
     private readonly (int Offset, int Length)[] _globalSubrs;
     private readonly (int Offset, int Length)[] _localSubrs;
+    private readonly double _defaultWidthX;
+    private readonly double _nominalWidthX;
+    private readonly IReadOnlyDictionary<string, int> _nameToGlyphIndex;
 
     /// <summary>
     ///     The <c>ROS</c> Top DICT operator (escape operator <c>12 30</c>), identifying a
@@ -69,6 +139,104 @@ internal sealed class CffTable : IGlyphOutlineSource
     private const int SubrsOperator = 19;
 
     /// <summary>
+    ///     The <c>defaultWidthX</c> Private DICT operator - see this class's remarks.
+    /// </summary>
+    private const int DefaultWidthXOperator = 20;
+
+    /// <summary>
+    ///     The <c>nominalWidthX</c> Private DICT operator - see this class's remarks.
+    /// </summary>
+    private const int NominalWidthXOperator = 21;
+
+    /// <summary>
+    ///     The <c>charset</c> Top DICT operator, giving either a predefined charset ID
+    ///     (<c>0</c>/<c>1</c>/<c>2</c>) or a byte offset (relative to the start of the CFF table)
+    ///     to a custom charset table - see this class's remarks.
+    /// </summary>
+    private const int CharsetOperator = 15;
+
+    /// <summary>
+    ///     The predefined ISOAdobe/Standard charset ID: glyph <c>i</c>'s SID is <c>i</c>, for
+    ///     <c>i</c> in <c>1..GlyphCount-1</c> - see this class's remarks.
+    /// </summary>
+    private const int IsoAdobeCharsetId = 0;
+
+    /// <summary>
+    ///     The predefined Expert charset ID - a deliberate, documented scope boundary (see this
+    ///     class's remarks); glyphs using it are decodable by index but never resolvable by name.
+    /// </summary>
+    private const int ExpertCharsetId = 1;
+
+    /// <summary>
+    ///     The predefined ExpertSubset charset ID - see <see cref="ExpertCharsetId"/>'s remarks.
+    /// </summary>
+    private const int ExpertSubsetCharsetId = 2;
+
+    /// <summary>
+    ///     The number of standard (predefined, universally-known) CFF/Type 2 glyph name strings -
+    ///     SIDs <c>0</c>-<c>390</c>. A SID of <see cref="StandardStrings"/>.Length or greater
+    ///     instead indexes the font's own String INDEX, at <c>SID - StandardStrings.Length</c>.
+    /// </summary>
+    /// <remarks>
+    ///     Transcribed from Adobe Technical Note #5176 (The Compact Font Format Specification)
+    ///     Appendix A, "Standard Strings" - cross-checked against FreeType's independently
+    ///     published <c>ft_standard_glyph_names</c>/<c>ft_sid_names</c> tables
+    ///     (<c>src/psnames/pstables.h</c>), itself a direct encoding of the same specification
+    ///     appendix - used here only as a cross-check source, not copied code (these are the
+    ///     specification's own fixed, universally-known string values, not copyrightable
+    ///     expression).
+    /// </remarks>
+    internal static readonly string[] StandardStrings =
+    [
+        ".notdef", "space", "exclam", "quotedbl", "numbersign", "dollar", "percent", "ampersand", "quoteright",
+        "parenleft", "parenright", "asterisk", "plus", "comma", "hyphen", "period", "slash", "zero", "one", "two",
+        "three", "four", "five", "six", "seven", "eight", "nine", "colon", "semicolon", "less", "equal", "greater",
+        "question", "at", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R",
+        "S", "T", "U", "V", "W", "X", "Y", "Z", "bracketleft", "backslash", "bracketright", "asciicircum",
+        "underscore", "quoteleft", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p",
+        "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "braceleft", "bar", "braceright", "asciitilde",
+        "exclamdown", "cent", "sterling", "fraction", "yen", "florin", "section", "currency", "quotesingle",
+        "quotedblleft", "guillemotleft", "guilsinglleft", "guilsinglright", "fi", "fl", "endash", "dagger",
+        "daggerdbl", "periodcentered", "paragraph", "bullet", "quotesinglbase", "quotedblbase", "quotedblright",
+        "guillemotright", "ellipsis", "perthousand", "questiondown", "grave", "acute", "circumflex", "tilde",
+        "macron", "breve", "dotaccent", "dieresis", "ring", "cedilla", "hungarumlaut", "ogonek", "caron", "emdash",
+        "AE", "ordfeminine", "Lslash", "Oslash", "OE", "ordmasculine", "ae", "dotlessi", "lslash", "oslash", "oe",
+        "germandbls", "onesuperior", "logicalnot", "mu", "trademark", "Eth", "onehalf", "plusminus", "Thorn",
+        "onequarter", "divide", "brokenbar", "degree", "thorn", "threequarters", "twosuperior", "registered",
+        "minus", "eth", "multiply", "threesuperior", "copyright", "Aacute", "Acircumflex", "Adieresis", "Agrave",
+        "Aring", "Atilde", "Ccedilla", "Eacute", "Ecircumflex", "Edieresis", "Egrave", "Iacute", "Icircumflex",
+        "Idieresis", "Igrave", "Ntilde", "Oacute", "Ocircumflex", "Odieresis", "Ograve", "Otilde", "Scaron",
+        "Uacute", "Ucircumflex", "Udieresis", "Ugrave", "Yacute", "Ydieresis", "Zcaron", "aacute", "acircumflex",
+        "adieresis", "agrave", "aring", "atilde", "ccedilla", "eacute", "ecircumflex", "edieresis", "egrave",
+        "iacute", "icircumflex", "idieresis", "igrave", "ntilde", "oacute", "ocircumflex", "odieresis", "ograve",
+        "otilde", "scaron", "uacute", "ucircumflex", "udieresis", "ugrave", "yacute", "ydieresis", "zcaron",
+        "exclamsmall", "Hungarumlautsmall", "dollaroldstyle", "dollarsuperior", "ampersandsmall", "Acutesmall",
+        "parenleftsuperior", "parenrightsuperior", "twodotenleader", "onedotenleader", "zerooldstyle",
+        "oneoldstyle", "twooldstyle", "threeoldstyle", "fouroldstyle", "fiveoldstyle", "sixoldstyle",
+        "sevenoldstyle", "eightoldstyle", "nineoldstyle", "commasuperior", "threequartersemdash",
+        "periodsuperior", "questionsmall", "asuperior", "bsuperior", "centsuperior", "dsuperior", "esuperior",
+        "isuperior", "lsuperior", "msuperior", "nsuperior", "osuperior", "rsuperior", "ssuperior", "tsuperior",
+        "ff", "ffi", "ffl", "parenleftinferior", "parenrightinferior", "Circumflexsmall", "hyphensuperior",
+        "Gravesmall", "Asmall", "Bsmall", "Csmall", "Dsmall", "Esmall", "Fsmall", "Gsmall", "Hsmall", "Ismall",
+        "Jsmall", "Ksmall", "Lsmall", "Msmall", "Nsmall", "Osmall", "Psmall", "Qsmall", "Rsmall", "Ssmall",
+        "Tsmall", "Usmall", "Vsmall", "Wsmall", "Xsmall", "Ysmall", "Zsmall", "colonmonetary", "onefitted",
+        "rupiah", "Tildesmall", "exclamdownsmall", "centoldstyle", "Lslashsmall", "Scaronsmall", "Zcaronsmall",
+        "Dieresissmall", "Brevesmall", "Caronsmall", "Dotaccentsmall", "Macronsmall", "figuredash",
+        "hypheninferior", "Ogoneksmall", "Ringsmall", "Cedillasmall", "questiondownsmall", "oneeighth",
+        "threeeighths", "fiveeighths", "seveneighths", "onethird", "twothirds", "zerosuperior", "foursuperior",
+        "fivesuperior", "sixsuperior", "sevensuperior", "eightsuperior", "ninesuperior", "zeroinferior",
+        "oneinferior", "twoinferior", "threeinferior", "fourinferior", "fiveinferior", "sixinferior",
+        "seveninferior", "eightinferior", "nineinferior", "centinferior", "dollarinferior", "periodinferior",
+        "commainferior", "Agravesmall", "Aacutesmall", "Acircumflexsmall", "Atildesmall", "Adieresissmall",
+        "Aringsmall", "AEsmall", "Ccedillasmall", "Egravesmall", "Eacutesmall", "Ecircumflexsmall",
+        "Edieresissmall", "Igravesmall", "Iacutesmall", "Icircumflexsmall", "Idieresissmall", "Ethsmall",
+        "Ntildesmall", "Ogravesmall", "Oacutesmall", "Ocircumflexsmall", "Otildesmall", "Odieresissmall",
+        "OEsmall", "Oslashsmall", "Ugravesmall", "Uacutesmall", "Ucircumflexsmall", "Udieresissmall",
+        "Yacutesmall", "Thornsmall", "Ydieresissmall", "001.000", "001.001", "001.002", "001.003", "Black",
+        "Bold", "Book", "Light", "Medium", "Regular", "Roman", "Semibold",
+    ];
+
+    /// <summary>
     ///     The total number of glyphs described by the CharStrings INDEX.
     /// </summary>
     public int GlyphCount => _charStrings.Length;
@@ -77,12 +245,18 @@ internal sealed class CffTable : IGlyphOutlineSource
         byte[] cffData,
         (int Offset, int Length)[] charStrings,
         (int Offset, int Length)[] globalSubrs,
-        (int Offset, int Length)[] localSubrs)
+        (int Offset, int Length)[] localSubrs,
+        double defaultWidthX,
+        double nominalWidthX,
+        IReadOnlyDictionary<string, int> nameToGlyphIndex)
     {
         _cffData = cffData;
         _charStrings = charStrings;
         _globalSubrs = globalSubrs;
         _localSubrs = localSubrs;
+        _defaultWidthX = defaultWidthX;
+        _nominalWidthX = nominalWidthX;
+        _nameToGlyphIndex = nameToGlyphIndex;
     }
 
     /// <summary>
@@ -129,7 +303,7 @@ internal sealed class CffTable : IGlyphOutlineSource
             throw new InvalidDataException("CFF fonts with other than exactly one Top DICT are not supported.");
         }
 
-        ParseIndex(cffData, ref pos); // String INDEX - parsed only to skip past it; not exposed
+        var stringIndex = ParseIndex(cffData, ref pos);
         var globalSubrs = ParseIndex(cffData, ref pos);
 
         var topDict = ParseDict(cffData, topDictIndex[0].Offset, topDictIndex[0].Length);
@@ -144,6 +318,8 @@ internal sealed class CffTable : IGlyphOutlineSource
         }
 
         var localSubrs = Array.Empty<(int Offset, int Length)>();
+        var defaultWidthX = 0.0;
+        var nominalWidthX = 0.0;
         if (topDict.TryGetValue(PrivateOperator, out var privateOperands))
         {
             if (privateOperands.Count != 2)
@@ -164,6 +340,16 @@ internal sealed class CffTable : IGlyphOutlineSource
                 var localSubrPos = privateOffset + (int)subrsOperands[^1];
                 localSubrs = ParseIndex(cffData, ref localSubrPos);
             }
+
+            if (privateDict.TryGetValue(DefaultWidthXOperator, out var dwxOperands) && dwxOperands.Count > 0)
+            {
+                defaultWidthX = dwxOperands[^1];
+            }
+
+            if (privateDict.TryGetValue(NominalWidthXOperator, out var nwxOperands) && nwxOperands.Count > 0)
+            {
+                nominalWidthX = nwxOperands[^1];
+            }
         }
 
         var charStringsPos = (int)charStringsOperands[^1];
@@ -173,7 +359,204 @@ internal sealed class CffTable : IGlyphOutlineSource
             throw new InvalidDataException("The CFF 'CharStrings' INDEX contains no glyphs.");
         }
 
-        return new CffTable(cffData, charStrings, globalSubrs, localSubrs);
+        var charsetSids = ParseCharset(topDict, cffData, charStrings.Length);
+        var nameToGlyphIndex = BuildNameToGlyphIndex(charsetSids, stringIndex, cffData);
+
+        return new CffTable(cffData, charStrings, globalSubrs, localSubrs, defaultWidthX, nominalWidthX, nameToGlyphIndex);
+    }
+
+    /// <summary>
+    ///     Resolves the Top DICT's <c>charset</c> operator (operator <c>15</c>) to a per-glyph
+    ///     array of String IDs (SIDs) - see this class's remarks for the complete set of
+    ///     supported predefined IDs and custom table formats.
+    /// </summary>
+    /// <param name="topDict">The parsed Top DICT.</param>
+    /// <param name="cffData">The complete CFF table bytes.</param>
+    /// <param name="glyphCount">The number of glyphs declared by the CharStrings INDEX.</param>
+    /// <returns>
+    ///     An array of length <paramref name="glyphCount"/>, where element <c>0</c> is always
+    ///     <c>0</c> (the <c>.notdef</c> SID) and each other element is either the glyph's
+    ///     resolved SID, or <c>-1</c> if the glyph's name cannot be resolved (always and only for
+    ///     the predefined Expert/ExpertSubset charsets - see this class's remarks).
+    /// </returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when a custom charset table's byte offset is out of bounds, or its format byte
+    ///     is not <c>0</c>, <c>1</c>, or <c>2</c>.
+    /// </exception>
+    private static int[] ParseCharset(Dictionary<int, List<double>> topDict, byte[] cffData, int glyphCount)
+    {
+        var sids = new int[glyphCount];
+
+        var charsetId = IsoAdobeCharsetId;
+        if (topDict.TryGetValue(CharsetOperator, out var charsetOperands) && charsetOperands.Count > 0)
+        {
+            charsetId = (int)charsetOperands[^1];
+        }
+
+        switch (charsetId)
+        {
+            case IsoAdobeCharsetId:
+                for (var i = 1; i < glyphCount; i++)
+                {
+                    sids[i] = i;
+                }
+
+                return sids;
+
+            case ExpertCharsetId:
+            case ExpertSubsetCharsetId:
+                // Deliberate, documented scope boundary - see this class's remarks.
+                for (var i = 1; i < glyphCount; i++)
+                {
+                    sids[i] = -1;
+                }
+
+                return sids;
+        }
+
+        var pos = charsetId;
+        EnsureAvailable(cffData, pos, 1);
+        var format = cffData[pos];
+        pos++;
+
+        var glyphIndex = 1;
+        switch (format)
+        {
+            case 0:
+                while (glyphIndex < glyphCount)
+                {
+                    EnsureAvailable(cffData, pos, 2);
+                    sids[glyphIndex] = SfntContainer.ReadUInt16(cffData, pos);
+                    pos += 2;
+                    glyphIndex++;
+                }
+
+                break;
+
+            case 1:
+                while (glyphIndex < glyphCount)
+                {
+                    EnsureAvailable(cffData, pos, 3);
+                    var first = SfntContainer.ReadUInt16(cffData, pos);
+                    var nLeft = cffData[pos + 2];
+                    pos += 3;
+                    for (var i = 0; i <= nLeft && glyphIndex < glyphCount; i++)
+                    {
+                        sids[glyphIndex] = first + i;
+                        glyphIndex++;
+                    }
+                }
+
+                break;
+
+            case 2:
+                while (glyphIndex < glyphCount)
+                {
+                    EnsureAvailable(cffData, pos, 4);
+                    var first = SfntContainer.ReadUInt16(cffData, pos);
+                    var nLeft = SfntContainer.ReadUInt16(cffData, pos + 2);
+                    pos += 4;
+                    for (var i = 0; i <= nLeft && glyphIndex < glyphCount; i++)
+                    {
+                        sids[glyphIndex] = first + i;
+                        glyphIndex++;
+                    }
+                }
+
+                break;
+
+            default:
+                throw new InvalidDataException($"Unsupported CFF charset table format ({format}).");
+        }
+
+        return sids;
+    }
+
+    /// <summary>
+    ///     Builds a map from PostScript glyph name to glyph index, by resolving each glyph's SID
+    ///     (from <paramref name="charsetSids"/>) to a name using either the fixed
+    ///     <see cref="StandardStrings"/> table (SID <c>0</c>-<c>390</c>) or
+    ///     <paramref name="stringIndex"/> (SID <c>391</c> and above). A SID of <c>-1</c> (see
+    ///     <see cref="ParseCharset"/>) is skipped - that glyph simply cannot be resolved by name.
+    /// </summary>
+    private static Dictionary<string, int> BuildNameToGlyphIndex(
+        int[] charsetSids,
+        (int Offset, int Length)[] stringIndex,
+        byte[] cffData)
+    {
+        var nameToGlyphIndex = new Dictionary<string, int>();
+        for (var glyphIndex = 0; glyphIndex < charsetSids.Length; glyphIndex++)
+        {
+            var sid = charsetSids[glyphIndex];
+            if (sid < 0)
+            {
+                continue;
+            }
+
+            string name;
+            if (sid < StandardStrings.Length)
+            {
+                name = StandardStrings[sid];
+            }
+            else
+            {
+                var customIndex = sid - StandardStrings.Length;
+                if (customIndex >= stringIndex.Length)
+                {
+                    continue;
+                }
+
+                var entry = stringIndex[customIndex];
+                name = Encoding.Latin1.GetString(cffData, entry.Offset, entry.Length);
+            }
+
+            nameToGlyphIndex.TryAdd(name, glyphIndex);
+        }
+
+        return nameToGlyphIndex;
+    }
+
+    /// <summary>
+    ///     Attempts to resolve a PostScript glyph name to its glyph index, using the Top DICT's
+    ///     <c>charset</c> operator - see this class's remarks for the complete set of supported
+    ///     predefined IDs and custom table formats.
+    /// </summary>
+    /// <param name="glyphName">The PostScript glyph name to resolve (for example <c>A</c>).</param>
+    /// <param name="glyphIndex">The resolved glyph index, or <c>0</c> if not found.</param>
+    /// <returns>
+    ///     <see langword="true"/> if <paramref name="glyphName"/> was resolved; otherwise
+    ///     <see langword="false"/> (including, always, for any glyph whose charset is the
+    ///     predefined Expert or ExpertSubset charset - see this class's remarks).
+    /// </returns>
+    internal bool TryGetGlyphIndex(string glyphName, out int glyphIndex) =>
+        _nameToGlyphIndex.TryGetValue(glyphName, out glyphIndex);
+
+    /// <summary>
+    ///     Resolves a glyph's advance width, decoding its Type 2 charstring (see
+    ///     <see cref="CffCharstringInterpreter"/>) a second time - deliberately, to keep this
+    ///     table's "nothing decoded until asked for" laziness uniform with
+    ///     <see cref="GetGlyphOutline"/> - and combining its charstring-encoded width delta (if
+    ///     any) with the Private DICT's <c>defaultWidthX</c>/<c>nominalWidthX</c> operands.
+    /// </summary>
+    /// <param name="glyphIndex">The glyph index to resolve.</param>
+    /// <returns>The glyph's advance width, in raw font design units.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <paramref name="glyphIndex"/> is outside <c>[0, GlyphCount)</c>.
+    /// </exception>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the glyph's charstring bytecode is malformed, truncated, uses an
+    ///     unsupported operator, or exceeds an internal recursion/step bound. See
+    ///     <see cref="CffCharstringInterpreter"/> for the complete set of rejection conditions.
+    /// </exception>
+    internal double GetAdvanceWidth(int glyphIndex)
+    {
+        if (glyphIndex < 0 || glyphIndex >= GlyphCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(glyphIndex), glyphIndex, "Glyph index is out of range.");
+        }
+
+        return CffCharstringInterpreter.Decode(
+            _cffData, _charStrings[glyphIndex], _globalSubrs, _localSubrs, _defaultWidthX, _nominalWidthX).Width;
     }
 
     /// <summary>
@@ -199,7 +582,8 @@ internal sealed class CffTable : IGlyphOutlineSource
             throw new ArgumentOutOfRangeException(nameof(glyphIndex), glyphIndex, "Glyph index is out of range.");
         }
 
-        return CffCharstringInterpreter.Decode(_cffData, _charStrings[glyphIndex], _globalSubrs, _localSubrs);
+        return CffCharstringInterpreter.Decode(
+            _cffData, _charStrings[glyphIndex], _globalSubrs, _localSubrs, _defaultWidthX, _nominalWidthX).Outline;
     }
 
     /// <summary>
@@ -270,9 +654,15 @@ internal sealed class CffTable : IGlyphOutlineSource
     /// <summary>
     ///     Parses a CFF DICT (Top DICT or Private DICT) into a map from operator code to its
     ///     operand list. Two-byte escape operators (<c>12 XX</c>) are keyed as <c>1200 + XX</c>.
-    ///     Real-number operands are consumed (so parsing stays correctly positioned) but not
-    ///     interpreted, since no operator this type reads (<c>CharStrings</c>, <c>Private</c>,
-    ///     <c>Subrs</c>, <c>ROS</c>) ever carries a real-number operand.
+    ///     Real-number operands are consumed (so parsing stays correctly positioned) but decoded
+    ///     as <c>0</c> rather than interpreted. Every operator this type reads whose value could
+    ///     be meaningfully non-zero (<c>CharStrings</c>, <c>Private</c>, <c>Subrs</c>,
+    ///     <c>ROS</c>, <c>charset</c>) is always encoded as an integer in practice, never a real
+    ///     number, per the CFF specification. <c>defaultWidthX</c>/<c>nominalWidthX</c> are the
+    ///     one documented exception: the specification permits (but no known font producer uses)
+    ///     a real-number encoding for either, which this method would silently decode as <c>0</c>
+    ///     - a deliberate, narrow scope boundary rather than a silent correctness risk in
+    ///     practice.
     /// </summary>
     /// <exception cref="InvalidDataException">
     ///     Thrown when an operand or escape operator is truncated, or a reserved/invalid DICT byte

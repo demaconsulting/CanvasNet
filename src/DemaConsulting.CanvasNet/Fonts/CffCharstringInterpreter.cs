@@ -12,7 +12,8 @@ namespace DemaConsulting.CanvasNet.Fonts;
 
 /// <summary>
 ///     Executes a single glyph's Type 2 charstring bytecode (as defined by the CFF/Type 2
-///     Charstring Format specification) into <see cref="Path"/> geometry.
+///     Charstring Format specification) into <see cref="Path"/> geometry, alongside the glyph's
+///     resolved advance width.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -32,6 +33,16 @@ namespace DemaConsulting.CanvasNet.Fonts;
 ///     positioned and to compute the correct <c>hintmask</c>/<c>cntrmask</c> byte count from the
 ///     running total of declared stem hints (including any implicit trailing <c>vstem</c> group
 ///     immediately preceding a mask operator).
+///     </para>
+///     <para>
+///     Per the Type 2 Charstring Format specification's own width convention, a glyph's charstring
+///     may carry one extra leading operand - on whichever stack-clearing operator executes first
+///     (a stem-hint operator, a move operator, or <c>endchar</c>) - encoding its advance width as
+///     a delta from the font's Private DICT <c>nominalWidthX</c> operand; if no such extra operand
+///     is present, the glyph's width is instead the Private DICT's <c>defaultWidthX</c> operand.
+///     <see cref="Decode"/> resolves this directly, returning the glyph's final width alongside
+///     its outline, so callers (see <see cref="CffTable.GetAdvanceWidth"/>) never need to
+///     replicate this convention themselves.
 ///     </para>
 ///     <para>
 ///     <c>callsubr</c>/<c>callgsubr</c> nesting is bounded by <see cref="MaxCallDepth"/>, and the
@@ -64,7 +75,8 @@ internal static class CffCharstringInterpreter
     private const int MaxStackSize = 96;
 
     /// <summary>
-    ///     Decodes a single glyph's Type 2 charstring bytecode into <see cref="Path"/> geometry.
+    ///     Decodes a single glyph's Type 2 charstring bytecode into <see cref="Path"/> geometry
+    ///     and its resolved advance width.
     /// </summary>
     /// <param name="data">
     ///     The CFF table's own byte array (see <see cref="CffTable"/>'s remarks) - every
@@ -74,7 +86,19 @@ internal static class CffCharstringInterpreter
     /// <param name="charstring">The target glyph's own charstring byte range.</param>
     /// <param name="globalSubrs">Every global subroutine's byte range, in index order.</param>
     /// <param name="localSubrs">Every local subroutine's byte range, in index order.</param>
-    /// <returns>The decoded glyph outline, or <see cref="Path.Empty"/> for an empty charstring.</returns>
+    /// <param name="defaultWidthX">
+    ///     The font's Private DICT <c>defaultWidthX</c> operand (<c>0</c> if absent) - the
+    ///     glyph's resolved width when its charstring carries no leading width operand.
+    /// </param>
+    /// <param name="nominalWidthX">
+    ///     The font's Private DICT <c>nominalWidthX</c> operand (<c>0</c> if absent) - added to
+    ///     the glyph's charstring-encoded width delta when one is present.
+    /// </param>
+    /// <returns>
+    ///     The decoded glyph outline (<see cref="Path.Empty"/> for an empty charstring) alongside
+    ///     the glyph's resolved advance width - see this class's remarks for the exact width
+    ///     resolution convention.
+    /// </returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when the charstring bytecode is malformed or truncated, uses an operand count an
     ///     operator does not accept, uses an unsupported operator (including any two-byte escape
@@ -82,16 +106,19 @@ internal static class CffCharstringInterpreter
     ///     references an out-of-range subroutine index, or exceeds the call-depth or
     ///     operator-step bound.
     /// </exception>
-    public static Path Decode(
+    public static (Path Outline, double Width) Decode(
         byte[] data,
         (int Offset, int Length) charstring,
         IReadOnlyList<(int Offset, int Length)> globalSubrs,
-        IReadOnlyList<(int Offset, int Length)> localSubrs)
+        IReadOnlyList<(int Offset, int Length)> localSubrs,
+        double defaultWidthX = 0,
+        double nominalWidthX = 0)
     {
         var state = new InterpreterState(data, globalSubrs, localSubrs);
         state.Run(charstring, 0);
         state.CloseIfOpen();
-        return state.Builder.Build();
+        var width = state.WidthDelta.HasValue ? nominalWidthX + state.WidthDelta.Value : defaultWidthX;
+        return (state.Builder.Build(), width);
     }
 
     /// <summary>
@@ -109,6 +136,7 @@ internal static class CffCharstringInterpreter
         private readonly List<double> _stack = [];
         private int _stems;
         private bool _widthParsed;
+        private double? _widthDelta;
         private bool _hasOpenPath;
         private bool _done;
         private double _x;
@@ -116,6 +144,15 @@ internal static class CffCharstringInterpreter
         private int _steps;
 
         public PathBuilder Builder { get; } = new();
+
+        /// <summary>
+        ///     The charstring's leading width operand's raw value, if one was present (see
+        ///     <see cref="ConsumeOptionalWidth"/>/<see cref="HandleStems"/>/
+        ///     <see cref="HandleEndChar"/>), or <see langword="null"/> if the charstring had none
+        ///     - in which case <see cref="Decode"/> resolves the glyph's width to
+        ///     <c>defaultWidthX</c> rather than <c>nominalWidthX + WidthDelta</c>.
+        /// </summary>
+        public double? WidthDelta => _widthDelta;
 
         public InterpreterState(
             byte[] data,
@@ -340,6 +377,7 @@ internal static class CffCharstringInterpreter
 
             if (_stack.Count == expectedCount + 1)
             {
+                _widthDelta = _stack[0];
                 _stack.RemoveAt(0);
             }
 
@@ -359,6 +397,7 @@ internal static class CffCharstringInterpreter
             {
                 if (count % 2 != 0)
                 {
+                    _widthDelta = _stack[0];
                     _stack.RemoveAt(0);
                     count--;
                 }
@@ -621,6 +660,7 @@ internal static class CffCharstringInterpreter
             {
                 if (count == 1 || count == 5)
                 {
+                    _widthDelta = _stack[0];
                     _stack.RemoveAt(0);
                     count--;
                 }

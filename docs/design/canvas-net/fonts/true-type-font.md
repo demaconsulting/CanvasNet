@@ -9,6 +9,7 @@
 <!-- cspell:ignore hmoveto vmoveto rrcurveto endchar seac gsubr subrs subr ttcf numFonts faceIndex -->
 <!-- cspell:ignore eexec lenIV hsbw dotsection hstem vstem callothersubr othersubr -->
 <!-- cspell:ignore setcurrentpoint closepath pfb pfa cleartomark -->
+<!-- cspell:ignore charsets ISOAdobe isoadobe -->
 
 The `TrueTypeFont` class is the sole public software unit in the `Fonts` subsystem. It provides
 hand-rolled loading and querying of glyph-based TrueType SFNT fonts, CFF/OpenType
@@ -187,16 +188,17 @@ and the default (neither flag set) is unscaled.
 ##### `CFF` Table Structure
 
 <!-- markdownlint-disable MD013 -->
-| Region            | Layout                                       | Use in This Unit                                                                              |
-| ----------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Header            | major/minor version, `hdrSize`, `offSize`    | `hdrSize` locates the Name INDEX; unsupported major versions are rejected                     |
-| Name INDEX        | CFF INDEX (see below)                        | Read past but not otherwise interpreted                                                       |
-| Top DICT INDEX    | CFF INDEX of one DICT                        | Supplies `CharStrings` (op `17`), `Private` (op `18`), and `ROS` (op `12 30`) operator values |
-| String INDEX      | CFF INDEX                                    | Read past but not otherwise interpreted                                                       |
-| Global Subr INDEX | CFF INDEX                                    | Global subroutines, addressed by `callgsubr` with bias `32768`/`1131`/`107` by count          |
-| Private DICT      | DICT at the Top DICT's `Private` offset/size | Optional; supplies `Subrs` (op `19`), a Private-DICT-relative Local Subr INDEX offset         |
-| Local Subr INDEX  | CFF INDEX at `Private DICT start + Subrs`    | Local subroutines, addressed by `callsubr` with the same bias scheme                          |
-| CharStrings INDEX | CFF INDEX of Type 2 charstring byte arrays   | One entry per glyph; `CffTable.GlyphCount` is this INDEX's own count                          |
+| Region            | Layout                                                                                                                     | Use in This Unit                                                                                                                            |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Header            | major/minor version, `hdrSize`, `offSize`                                                                                  | `hdrSize` locates the Name INDEX; unsupported major versions are rejected                                                                   |
+| Name INDEX        | CFF INDEX (see below)                                                                                                      | Read past but not otherwise interpreted                                                                                                     |
+| Top DICT INDEX    | CFF INDEX of one DICT                                                                                                      | Supplies `CharStrings` (op `17`), `Private` (op `18`), `ROS` (op `12 30`), and `charset` (op `15`) operator values                          |
+| String INDEX      | CFF INDEX                                                                                                                  | Captured for glyph-name resolution of SIDs `391` and above (see Charset Resolution below)                                                   |
+| Global Subr INDEX | CFF INDEX                                                                                                                  | Global subroutines, addressed by `callgsubr` with bias `32768`/`1131`/`107` by count                                                        |
+| Private DICT      | DICT at the Top DICT's `Private` offset/size                                                                               | Optional; supplies `Subrs` (op `19`), `defaultWidthX` (op `20`), `nominalWidthX` (op `21`), a Private-DICT-relative Local Subr INDEX offset |
+| Local Subr INDEX  | CFF INDEX at `Private DICT start + Subrs`                                                                                  | Local subroutines, addressed by `callsubr` with the same bias scheme                                                                        |
+| CharStrings INDEX | CFF INDEX of Type 2 charstring byte arrays                                                                                 | One entry per glyph; `CffTable.GlyphCount` is this INDEX's own count                                                                        |
+| Charset table     | Format byte plus per-glyph/per-range SID data, at the Top DICT's `charset` byte offset (when present and greater than `2`) | Builds the glyph-name-to-glyph-index map (see Charset Resolution below)                                                                     |
 <!-- markdownlint-enable MD013 -->
 
 ###### CFF INDEX Structure (used for every INDEX above)
@@ -221,6 +223,33 @@ operator `12` is always a two-byte escape (for example `12 30` for `ROS`).
 `FDArray`/`FDSelect`-based per-glyph Private DICT selection this unit does not implement, and
 silently applying the single (non-CID) Private DICT lookup this unit does support would
 misinterpret glyph data under the wrong scheme.
+
+###### Charset Resolution (glyph name to glyph index)
+
+A PDF simple font resolves a character code to a *glyph name* (for example `"A"`), not a glyph
+index directly; `CffTable.TryGetGlyphIndex(string, out int)` resolves that name using the Top
+DICT's `charset` operator (`15`):
+
+<!-- markdownlint-disable MD013 -->
+| `charset` operator value           | Meaning                                                                                                                                                                                                                                                             |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Absent, or explicit `0` (ISOAdobe) | Glyph `i`'s SID equals `i` itself, for every glyph `i` from `1` to `GlyphCount - 1`                                                                                                                                                                                 |
+| `1` (Expert), `2` (ExpertSubset)   | Recognized but not resolved to glyph names: every non-`.notdef` glyph is assigned sentinel SID `-1`, so `TryGetGlyphIndex` returns `false` for every name (never throws) - a deliberate scope boundary, since no caller currently needs Expert-encoding glyph names |
+| Greater than `2`                   | A byte offset (within the CFF table) to a custom charset table, in format `0`, `1`, or `2` below; any other format byte throws `InvalidDataException`                                                                                                               |
+<!-- markdownlint-enable MD013 -->
+
+<!-- markdownlint-disable MD013 -->
+| Custom charset format | Layout | Decoding |
+| ---------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `0` | Format byte, then `GlyphCount - 1` 2-byte SIDs | Glyph `i`'s SID is the `(i - 1)`th entry |
+| `1` | Format byte, then ranges of (2-byte first SID, 1-byte `nLeft`) | Each range covers `nLeft + 1` consecutive glyphs/SIDs starting at `first SID` |
+| `2` | Format byte, then ranges of (2-byte first SID, 2-byte `nLeft`) | Same as format `1`, with a wider `nLeft` for large charsets |
+<!-- markdownlint-enable MD013 -->
+
+Once every glyph's SID is known, its name is resolved via the 391-entry CFF Standard Strings table
+(Adobe Technical Note #5176 Appendix A, transcribed verbatim as `CffTable.StandardStrings`) for SID
+`0`-`390`, or the font's own String INDEX (`stringIndex[SID - 391]`) for SID `391` and above,
+building the combined name-to-glyph-index map `TryGetGlyphIndex` queries.
 
 ###### Type 2 Charstring Structure (`CffCharstringInterpreter`)
 
@@ -254,9 +283,14 @@ as is a charstring that ends before its declared operand/operator data has been 
 subroutine INDEX from that INDEX's own entry count) and are bounded by both a maximum call depth
 and a maximum total executed step count, mirroring `GlyfLocaReader`'s composite-glyph bounding
 posture. The first stack-clearing operator in a charstring may carry one extra leading "width"
-operand (the glyph's CFF-encoded advance width, superseded by this unit's own `hmtx`-based
-`GetAdvanceWidth`); it is recognized by its odd-numbered-out operand count and discarded rather
-than misread as a coordinate.
+operand (recognized by its odd-numbered-out operand count rather than misread as a coordinate);
+`CffCharstringInterpreter.Decode` returns that glyph's resolved advance width alongside its
+outline - `nominalWidthX` plus the leading operand's value when present, else `defaultWidthX` -
+per the Type 2 Charstring specification's width convention. For an SFNT/OpenType (`OTTO`-tagged)
+font loaded via `Load`, this resolved width is superseded by that font's own `hmtx`-based
+`TrueTypeFont.GetAdvanceWidth` and otherwise unused; for a bare Type1C/CFF program loaded via
+`LoadType1C` (no `hmtx` table at all), `CffTable.GetAdvanceWidth(int glyphIndex)` - itself built on
+this same `Decode` call - is the sole advance-width source.
 
 ##### Type 1 Font Program Structure (`Type1Table`)
 
@@ -532,6 +566,28 @@ its `CmapTable` from `codepointToGlyphName` resolved against `Type1Table.TryGetG
   the Type 1 font program data itself (the `/Subrs`/`/CharStrings` structure or any glyph's own
   charstring, including a charstring using `seac` or another unsupported operator) is malformed
 
+##### LoadType1C(Stream stream, codepointToGlyphName)
+
+Loads a bare Type1C/CFF font program (a raw CFF table with no SFNT/OpenType wrapper of its own, as
+would be extracted from a PDF Type1 font's own `FontFile3` stream), together with a
+caller-supplied codepoint-to-glyph-name encoding - the structural counterpart of `LoadType1` for
+fonts whose embedded program is itself CFF-flavored rather than a classic Type 1 program. Copies
+`stream` into memory, parses it with `CffTable.Parse(bytes, tableOffset: 0, tableLength: bytes.Length)`,
+and builds a `TrueTypeFont` around the resulting `CffTable` (via the dedicated internal
+`BuildFromCffTable` helper - deliberately not shared with `BuildFromType1Table`, since
+`CffTable.GetAdvanceWidth` returns `double` while `Type1Table.GetAdvanceWidth` returns `int`,
+requiring a rounding step this helper owns), synthesizing its `CmapTable` from
+`codepointToGlyphName` resolved against `CffTable.TryGetGlyphIndex` and its `HmtxHheaReader` from
+every glyph's own `GetAdvanceWidth`, with a fixed 1000-unit em square (`CffTable` carries no
+`head`/`unitsPerEm` table of its own).
+
+**Throws:**
+
+- `ArgumentNullException` — `stream` or `codepointToGlyphName` is null
+- `InvalidDataException` — the CFF table data is malformed (see `CffTable.Parse`), including a
+  CID-keyed (`ROS`-declaring) CFF program, which `CffTable.Parse`'s existing CID-keyed rejection
+  surfaces uncaught through this path with no new translation code
+
 ##### GetFaceCount(Stream stream) / GetFaceCount(string path)
 
 Reads only enough of the stream to distinguish a `ttcf` container from an ordinary SFNT font: the
@@ -577,7 +633,13 @@ charstring.
 ##### GetAdvanceWidth(int glyphIndex)
 
 Validates `glyphIndex`, then returns the glyph's horizontal advance width from `hmtx`, reusing
-the last explicit advance-width entry for any tail glyph beyond `numOfLongHorMetrics`.
+the last explicit advance-width entry for any tail glyph beyond `numOfLongHorMetrics`. For a font
+loaded via `Load` (SFNT/OpenType, including CFF-flavored `OTTO`), `hmtx` is the font's own parsed
+table (even for a CFF-flavored font, the CFF-native width resolved by `CffTable.GetAdvanceWidth`
+described under Type 2 Charstring Structure above is unused, superseded by this required `hmtx`
+table). For a font loaded via `LoadType1` or `LoadType1C` (neither of which carries its own
+`hmtx`), `hmtx` is instead synthesized at load time via `HmtxHheaReader.FromAdvanceWidths` from
+every glyph's own `Type1Table.GetAdvanceWidth`/`CffTable.GetAdvanceWidth`.
 
 **Throws:**
 
@@ -622,10 +684,13 @@ per the derivation rules described under the `OS/2` and `post` table-layout subs
 - `CmapTable` selects one supported format-4 or format-12 subtable and exposes a lookup delegate
 - `GlyfLocaReader` (an `IGlyphOutlineSource`) eagerly parses `loca`, then lazily decodes simple
   and composite `glyf` glyphs
-- `CffTable` (an `IGlyphOutlineSource`) parses the CFF Header/INDEXes/Private DICT, then lazily
-  decodes each glyph's Type 2 charstring via `CffCharstringInterpreter`
+- `CffTable` (an `IGlyphOutlineSource`) parses the CFF Header/INDEXes/Private DICT/charset, then
+  lazily decodes each glyph's Type 2 charstring via `CffCharstringInterpreter`, exposing
+  `TryGetGlyphIndex` (glyph-name resolution via the parsed charset) and `GetAdvanceWidth` (the
+  CFF-native `defaultWidthX`/`nominalWidthX`-resolved width)
 - `CffCharstringInterpreter` executes a single glyph's Type 2 charstring bytecode against the
-  supported operator subset
+  supported operator subset, returning both the decoded outline and the glyph's resolved advance
+  width
 - `Type1Table` (an `IGlyphOutlineSource`) decrypts the `eexec` region, scans it for `/Subrs` and
   `/CharStrings` entries in a procedure-name-agnostic way, then lazily decodes each glyph's Type 1
   charstring via `Type1CharstringInterpreter`
@@ -639,7 +704,7 @@ per the derivation rules described under the `OS/2` and `post` table-layout subs
 - `Type1StandardGlyphNames` supplies the small, curated, built-in codepoint-to-glyph-name
   vocabulary used as the default encoding for standalone `.pfb`/`.pfa` auto-detection
 - `HmtxHheaReader` parses top-level typographic metrics and advance widths (from `hmtx`, or
-  synthesized via `FromAdvanceWidths` for a Type 1 font program)
+  synthesized via `FromAdvanceWidths` for a Type 1 font program or a bare Type1C/CFF program)
 - `KernTable` tolerantly parses the first qualifying horizontal format-0 subtable, if any
 - `NameTable` tolerantly parses the `name` table's records and resolves the platform/nameID
   preference order into `FamilyName`/`SubfamilyName`/`FullName`/`PostScriptName`
@@ -666,6 +731,8 @@ per the derivation rules described under the `OS/2` and `post` table-layout subs
 | `Load(string, int)`    | `InvalidDataException`                      | As `Load(Stream, int)`                                                                                           |
 | `LoadType1(...)`       | `ArgumentNullException`                     | `stream` or `codepointToGlyphName` is null                                                                       |
 | `LoadType1(...)`       | `InvalidDataException`                      | `length1`/`length2` negative or exceed stream length, or Type 1 data (including `seac`) is malformed             |
+| `LoadType1C(...)`      | `ArgumentNullException`                     | `stream` or `codepointToGlyphName` is null                                                                       |
+| `LoadType1C(...)`      | `InvalidDataException`                      | Malformed CFF table data, including a CID-keyed (`ROS`-declaring) CFF program                                    |
 | `GetFaceCount(Stream)` | `ArgumentNullException`                     | `stream` is null                                                                                                 |
 | `GetFaceCount(Stream)` | `InvalidDataException`                      | Stream too short for a tag, or a malformed `ttcf` header                                                         |
 | `GetFaceCount(string)` | `ArgumentNullException`/`ArgumentException` | Null/empty `path`                                                                                                |

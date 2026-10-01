@@ -4,6 +4,7 @@
 # These requirements describe the design-level behavior of the TrueTypeFont unit.
 # cspell:ignore glyf sfnt cmap loca hmtx hhea maxp notdef
 # cspell:ignore codepoint codepoints subtable subtables subsetted renderable
+# cspell:ignore charsets ISOAdobe isoadobe
 
 sections:
   - title: CanvasNet Requirements
@@ -932,3 +933,82 @@ sections:
                   - Type1PfaReader_Read_NonHexByteBeforeAnyHexDigit_ThrowsInvalidDataException
                   - Type1PfaReader_Read_ZeroBytesAfterTrim_ThrowsInvalidDataException
                   - Type1PfaReader_Read_LowercaseAndUppercaseHexDigits_AreBothAccepted
+
+              - id: CanvasNet-Fonts-TrueTypeFont-CffCharsetResolution
+                title: >-
+                  The CffTable class shall resolve a CFF Top DICT's charset operator (an absent
+                  operator, or an explicit value of 0, both meaning the predefined ISOAdobe/
+                  Standard charset, assigning each glyph's SID equal to its own glyph index) to a
+                  glyph-name-to-glyph-index map using the CFF Standard Strings (SID 0-390) and the
+                  font's own String INDEX (SID 391 and above), and shall support a custom charset
+                  table (charset operator value greater than 2, a byte offset into the CFF table)
+                  in formats 0 (a flat array of 2-byte SIDs), 1 (ranges of a 2-byte first SID plus
+                  a 1-byte count of following SIDs), and 2 (the same ranges with a 2-byte count),
+                  rejecting any other format byte with InvalidDataException; the predefined Expert
+                  (charset operator value 1) and ExpertSubset (value 2) charsets are recognized but
+                  not resolved to glyph names (TryGetGlyphIndex returns false for every glyph name
+                  rather than throwing), since no caller currently needs Expert-encoding glyph
+                  names.
+                justification: |
+                  A PDF simple font's /Encoding maps character codes to glyph names (for example
+                  "A", "space"), not glyph indices directly; the embedded Type1C/CFF program's own
+                  charset is the only way to resolve those names back to glyph indices, mirroring
+                  Type1Table's own name-to-glyph-index resolution for classic Type 1 programs.
+                tests:
+                  - CffTable_Parse_AbsentCharset_DefaultsToIsoAdobeAndResolvesByName
+                  - CffTable_Parse_PredefinedIsoAdobeCharsetId_MatchesAbsentCharset
+                  - CffTable_Parse_PredefinedExpertOrExpertSubsetCharset_NeverResolvesByNameButNeverThrows
+                  - CffTable_Parse_CustomCharsetFormat0_ResolvesEachGlyphBySid
+                  - CffTable_Parse_CustomCharsetFormat1_ResolvesRangesOfGlyphs
+                  - CffTable_Parse_CustomCharsetFormat2_ResolvesRangesWithTwoByteNLeft
+                  - CffTable_Parse_CustomCharsetUnsupportedFormat_ThrowsInvalidDataException
+                  - CffTable_Parse_CharsetOffsetOutOfBounds_ThrowsInvalidDataException
+                  - CffTable_Parse_CustomStringIndex_ResolvesCustomGlyphNameBySid
+                  - CffTable_StandardStrings_HasExpectedLengthAndSpotCheckedEntries
+
+              - id: CanvasNet-Fonts-TrueTypeFont-CffWidthResolution
+                title: >-
+                  The CffTable class shall parse a CFF Private DICT's defaultWidthX (operator 20)
+                  and nominalWidthX (operator 21) operators, and the CffCharstringInterpreter class
+                  shall return each glyph's own advance width alongside its outline (the Type 2
+                  charstring's optional leading width operand, present on the first stack-clearing
+                  operator of a charstring, resolving to nominalWidthX plus that operand's value
+                  when present, else defaultWidthX), exposed as GetAdvanceWidth on CffTable.
+                justification: |
+                  A glyph's own advance width - not merely its outline - is required metrics data;
+                  the Type 2 charstring format encodes it as an optional leading operand rather
+                  than a separate structure, so decoding it correctly requires surfacing it from
+                  the same charstring interpretation pass that already decodes the outline.
+                tests:
+                  - CffCharstringInterpreter_Decode_RMoveToWithLeadingWidth_ReturnsNominalWidthXPlusDelta
+                  - CffCharstringInterpreter_Decode_NoLeadingWidth_ReturnsDefaultWidthX
+                  - CffCharstringInterpreter_Decode_HStemWithLeadingWidth_ReturnsNominalWidthXPlusDelta
+                  - CffCharstringInterpreter_Decode_EndCharWithLeadingWidth_ReturnsNominalWidthXPlusDelta
+                  - CffCharstringInterpreter_Decode_DefaultWidthParameters_AreBothZero
+                  - CffTable_GetAdvanceWidth_NoWidthOperand_UsesDefaultWidthX
+                  - CffTable_GetAdvanceWidth_WithWidthOperand_UsesNominalWidthXPlusDelta
+                  - CffTable_GetAdvanceWidth_OutOfRangeIndex_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-LoadType1C
+                title: >-
+                  The TrueTypeFont class shall load a bare Type1C/CFF font program (a raw CFF
+                  table with no SFNT/OpenType wrapper, as embedded via a PDF Type1 font's
+                  FontDescriptor/FontFile3 stream) from a stream and a caller-supplied
+                  codepoint-to-glyph-name encoding, exposing GlyphCount, GetGlyphIndex,
+                  GetGlyphOutline, and GetAdvanceWidth behavior equivalent to every other
+                  supported outline flavor, using a fixed 1000-unit em square, and shall reject
+                  malformed CFF table data, or a CID-keyed (ROS-declaring) CFF program, with
+                  InvalidDataException.
+                justification: |
+                  A PDF Type1 font's FontDescriptor may declare only a FontFile3 stream holding a
+                  bare Type1C/CFF program with no SFNT/OpenType wrapper of its own; a caller
+                  already holding that stream and the font's own text encoding must be able to
+                  load and query it through the same TrueTypeFont API used for every other
+                  supported outline flavor, mirroring LoadType1's own classic Type 1 program
+                  support.
+                tests:
+                  - TrueTypeFont_LoadType1C_WellFormedCff_ExposesGlyphsAndMetrics
+                  - TrueTypeFont_LoadType1C_NullStream_ThrowsArgumentNullException
+                  - TrueTypeFont_LoadType1C_NullEncoding_ThrowsArgumentNullException
+                  - TrueTypeFont_LoadType1C_MalformedCff_ThrowsInvalidDataException
+                  - TrueTypeFont_LoadType1C_CidKeyedCff_ThrowsInvalidDataException

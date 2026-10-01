@@ -918,6 +918,50 @@ public class PdfDocumentTests
 
     /// <summary>
     ///     Builds a <c>/Resources/Font</c> dictionary (as a <see cref="BuildSinglePagePdfWithResources"/>-
+    ///     compatible <c>resourcesBody</c>/<c>extraObjectBodies</c> pair) declaring a single simple
+    ///     <c>/Subtype /Type1</c> font resource named <c>/F1</c>, backed by a synthetic, bare
+    ///     Type1C/CFF (no SFNT/OpenType wrapper) font program embedded via
+    ///     <c>/FontDescriptor/FontFile3</c> (the <c>/FontFile3</c> stream's own <c>/Subtype</c> set
+    ///     to <paramref name="fontFileSubtype"/>) - the simple-font counterpart of
+    ///     <see cref="BuildCidFontType0FontResources"/>'s composite-font bare-CFF pattern. The
+    ///     synthetic CFF program declares two glyphs (<c>.notdef</c> and, via a custom charset
+    ///     format 0 table, glyph 1 resolved to Standard String SID <c>34</c> i.e. <c>A</c> -
+    ///     <see cref="BuildSquareCffCharstring"/>'s filled square), matching
+    ///     <c>PdfDocument.Fonts.cs</c>'s own <c>CodepointToStandardGlyphName</c> reverse map so
+    ///     codepoint 65 ('A') resolves to the square glyph exactly like
+    ///     <see cref="BuildEmbeddedType1FontResources"/>'s classic <c>/FontFile</c> counterpart.
+    /// </summary>
+    /// <remarks>
+    ///     Numbered identically to <see cref="BuildSimpleTrueTypeFontResources"/>/
+    ///     <see cref="BuildEmbeddedType1FontResources"/> (font-file object <c>7</c>, descriptor
+    ///     object <c>6</c>, font dictionary object <c>5</c>).
+    /// </remarks>
+    private static (string ResourcesBody, List<byte[]> ExtraObjects) BuildEmbeddedType1CFontResources(
+        string fontFileSubtype = "/Type1C",
+        string fontDictExtra = "/FirstChar 65 /LastChar 65 /Widths [600]",
+        string descriptorExtra = "",
+        string fontResourceName = "F1")
+    {
+        var notdefCharstring = new List<byte>();
+        SyntheticFontBuilder.WriteCharstringOperator(notdefCharstring, 14); // endchar
+
+        byte[] charsetTable = [0, 0, 34]; // format 0: glyph 1 -> SID 34 (A)
+        var cff = SyntheticFontBuilder.Cff(
+            [[.. notdefCharstring], BuildSquareCffCharstring()],
+            charsetTable: charsetTable);
+
+        var fontFileDictEntries = string.IsNullOrEmpty(fontFileSubtype) ? string.Empty : $"/Subtype {fontFileSubtype}";
+        var fontFileObj = BuildStreamObjectBody(fontFileDictEntries, cff);
+        var descriptorObj = System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Type /FontDescriptor /FontName /Test {descriptorExtra} /FontFile3 7 0 R >>");
+        var fontDictObj = System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Type /Font /Subtype /Type1 /BaseFont /Test {fontDictExtra} /FontDescriptor 6 0 R >>");
+
+        return ($"/Font << /{fontResourceName} 5 0 R >>", [fontDictObj, descriptorObj, fontFileObj]);
+    }
+
+    /// <summary>
+    ///     Builds a <c>/Resources/Font</c> dictionary (as a <see cref="BuildSinglePagePdfWithResources"/>-
     ///     compatible <c>resourcesBody</c>/<c>extraObjectBodies</c> pair) declaring a single
     ///     Type0/CIDFontType2 composite font resource named <c>/F1</c>, with the given embedded
     ///     <c>/FontFile2</c> bytes and <c>/Encoding</c>, descendant <c>/Subtype</c>,
@@ -4802,28 +4846,67 @@ public class PdfDocumentTests
 
     /// <summary>
     ///     Proves that a <c>/Subtype /Type1</c> descriptor declaring only <c>/FontFile3</c>
-    ///     (neither <c>/FontFile</c> nor <c>/FontFile2</c>) throws
-    ///     <see cref="UnsupportedImageFeatureException"/> (feature
-    ///     <c>"pdf-font-type1-fontfile3"</c>) rather than silently falling back - an embedded
-    ///     Type1C/CFF simple font is a fundamentally different, unsupported format from the
-    ///     classic <c>/FontFile</c> Type 1 program this phase adds support for.
+    ///     (neither <c>/FontFile</c> nor <c>/FontFile2</c>), whose <c>/FontFile3</c> stream is a
+    ///     bare Type1C/CFF program (<c>/Subtype /Type1C</c>, no SFNT/OpenType wrapper), resolves
+    ///     and paints that program's own glyph ink - the Type1C counterpart of
+    ///     <see cref="PdfDocument_Fonts_Type1_DispatchesToSimpleFontResolution_PaintsGlyphInk"/>.
     /// </summary>
     [Fact]
-    public void PdfDocument_Fonts_Type1_FontFile3Only_ThrowsUnsupportedImageFeatureException()
+    public void PdfDocument_Fonts_Type1_FontFile3Type1C_ResolvesEmbeddedFont_PaintsGlyphInk()
     {
         // Arrange
-        var fontFile3Obj = BuildStreamObjectBody(string.Empty, [0x01, 0x02, 0x03]);
-        var descriptorObj = "<< /Type /FontDescriptor /FontFile3 7 0 R >>"u8.ToArray();
-        var fontDictObj =
-            "<< /Type /Font /Subtype /Type1 /BaseFont /Test /FontDescriptor 6 0 R >>"u8.ToArray();
+        var (resourcesBody, extraObjects) = BuildEmbeddedType1CFontResources();
 
         var bytes = BuildSinglePagePdfWithResources(
-            100, 100, "BT /F1 20 Tf (A) Tj ET", "/Font << /F1 5 0 R >>",
-            [fontDictObj, descriptorObj, fontFile3Obj]);
+            100, 100, "BT /F1 20 Tf 5 5 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: text x [7, 15) holds the painted square glyph - matching every other
+        // embedded-font flavor's own pixel-position convention.
+        Assert.NotEqual(default, surface[11, 89]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>/Subtype /Type1</c> descriptor's <c>/FontFile3</c> stream declaring any
+    ///     <c>/Subtype</c> other than <c>/Type1C</c> (for example <c>/OpenType</c> or
+    ///     <c>/CIDFontType0C</c>) throws <see cref="UnsupportedImageFeatureException"/> rather than
+    ///     silently falling back - the simple-font counterpart of
+    ///     <see cref="PdfDocument_Fonts_Type0_CidFontType0_NonOpenTypeFontFile3Subtype_ThrowsUnsupportedImageFeatureException"/>.
+    /// </summary>
+    [Theory]
+    [InlineData("/OpenType")]
+    [InlineData("/CIDFontType0C")]
+    public void PdfDocument_Fonts_Type1_FontFile3NonType1CSubtype_ThrowsUnsupportedImageFeatureException(string fontFileSubtype)
+    {
+        // Arrange
+        var (resourcesBody, extraObjects) = BuildEmbeddedType1CFontResources(fontFileSubtype: fontFileSubtype);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf (A) Tj ET", resourcesBody, extraObjects);
 
         // Act & Assert
-        var ex = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
-        Assert.Equal("pdf-font-type1-fontfile3", ex.Feature);
+        Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>
+    ///     Proves that a <c>/Subtype /Type1</c> descriptor's <c>/FontFile3</c> stream with no
+    ///     <c>/Subtype</c> key at all also throws <see cref="UnsupportedImageFeatureException"/> -
+    ///     a missing <c>/Subtype</c> is treated the same as any other unsupported value, not
+    ///     guessed as <c>/Type1C</c> from the stream's own bare-CFF content.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type1_FontFile3MissingSubtype_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange
+        var (resourcesBody, extraObjects) = BuildEmbeddedType1CFontResources(fontFileSubtype: "");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act & Assert
+        Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
     }
 
     /// <summary>

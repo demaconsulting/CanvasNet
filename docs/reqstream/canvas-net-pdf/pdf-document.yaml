@@ -6,6 +6,7 @@
 # cspell:ignore endcodespacerange findresource defineresource currentdict begincmap endcmap
 # cspell:ignore bfchar bfrange usecmap cidrange cidchar
 # cspell:ignore fontfile stdenc quoteright Quoteright quotesingle hival
+# cspell:ignore charsets
 #
 # These requirements describe the design-level behavior of the PdfDocument unit.
 #
@@ -606,10 +607,11 @@ sections:
               simple-font resolution: an embedded /FontDescriptor/FontFile2 stream (loaded via
               Fonts.TrueTypeFont.Load) if present, else an embedded /FontDescriptor/FontFile
               classic PostScript Type 1 stream (see CanvasNetPdf-PdfDocument-Type1FontResolution)
-              if present, else system/bundled font-fallback substitution (see
-              CanvasNetPdf-PdfDocument-FontFallback); a font whose /Subtype is /MMType1 or
-              /Type3 shall throw UnsupportedImageFeatureException, a /Subtype /Type0 composite
-              font shall instead be resolved via
+              if present, else an embedded /FontDescriptor/FontFile3 bare Type1C/CFF stream (see
+              CanvasNetPdf-PdfDocument-Type1CFontResolution) if present, else system/bundled
+              font-fallback substitution (see CanvasNetPdf-PdfDocument-FontFallback); a font whose
+              /Subtype is /MMType1 or /Type3 shall throw UnsupportedImageFeatureException, a
+              /Subtype /Type0 composite font shall instead be resolved via
               CanvasNetPdf-PdfDocument-CompositeFontResolution, and a Tf operator naming a font
               absent from /Resources/Font shall throw InvalidDataException; caching the resolved
               font by font-dictionary object identity for the duration of a single Render call.
@@ -710,10 +712,9 @@ sections:
               reverse map (built from the same StandardGlyphNames vocabulary
               CanvasNetPdf-PdfDocument-FontEncoding's /Differences resolution already uses) as
               the codepoint-to-glyph-name argument; a /Subtype /Type1 descriptor declaring only
-              /FontFile3 (no /FontFile and no /FontFile2) shall throw
-              UnsupportedImageFeatureException with a message distinguishing this rejection from
-              the supported composite /CIDFontType0 (CFF-outline) /FontFile3 path, and a missing
-              or non-numeric /Length1 or /Length2 entry, or any exception propagated from
+              /FontFile3 (no /FontFile and no /FontFile2) shall resolve via
+              CanvasNetPdf-PdfDocument-Type1CFontResolution instead, and a missing or non-numeric
+              /Length1 or /Length2 entry, or any exception propagated from
               Fonts.TrueTypeFont.LoadType1 for a malformed embedded Type 1 program, shall throw
               InvalidDataException.
             justification: |
@@ -725,26 +726,50 @@ sections:
               closed for composite fonts. This phase's scope is deliberately narrower than the
               full Type 1 Font Format: a seac-based accented-composite charstring is not
               supported (Fonts.TrueTypeFont.LoadType1's own core-layer scope, not re-implemented
-              here), an embedded Type1C/CFF simple font (/FontFile3 on a /Subtype /Type1
-              descriptor, a fundamentally different format from the classic /FontFile this phase
-              loads) is not supported and must fail closed with a message distinct from the
-              already-supported composite CIDFontType0/CFF path's own rejection messages, a
-              non-1000-unit-em /FontMatrix is not supported (a 1000-unit em is assumed, matching
-              every other supported font format this class resolves), and the Type 1 program's
-              own built-in /Encoding (if any) embedded in the font program itself is never
-              consulted - only the PDF font dictionary's own /Encoding entry (resolved via
+              here), a non-1000-unit-em /FontMatrix is not supported (a 1000-unit em is assumed,
+              matching every other supported font format this class resolves), and the Type 1
+              program's own built-in /Encoding (if any) embedded in the font program itself is
+              never consulted - only the PDF font dictionary's own /Encoding entry (resolved via
               CanvasNetPdf-PdfDocument-FontEncoding) determines which glyph a code selects.
             tests:
               - PdfDocument_Fonts_Type1_DispatchesToSimpleFontResolution_PaintsGlyphInk
               - PdfDocument_Fonts_Type1_EmbeddedFontFileTakesPriorityOverFallback
               - PdfDocument_Fonts_Type1_NoFontFile_ResolvesViaFallback
-              - PdfDocument_Fonts_Type1_FontFile3Only_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Fonts_Type1_FontFileMissingLength1_ThrowsInvalidDataException
               - PdfDocument_Fonts_Type1_FontFileMissingLength2_ThrowsInvalidDataException
               - PdfDocument_Fonts_Type1_FontFileNonNumericLength2_ThrowsInvalidDataException
               - PdfDocument_Load_TextEmbeddedType1FontFixture_PaintsVisibleGlyphInk
               - PdfDocument_Load_TextStandard14Type1NoFontFileFixture_PaintsVisibleSubstituteGlyphInk
               - CanvasNetPdf_SystemIntegration_RenderEmbeddedType1Font_PaintsExpectedGlyphInk
+
+          - id: CanvasNetPdf-PdfDocument-Type1CFontResolution
+            title: >-
+              The PdfDocument class shall resolve a /Subtype /Type1 simple font's embedded
+              /FontDescriptor/FontFile3 stream (present whenever /FontFile is absent) as a bare
+              Type1C/CFF font program (a raw CFF table with no SFNT/OpenType wrapper of its own),
+              requiring the /FontFile3 stream's own /Subtype to be the name /Type1C (rejecting any
+              other value, including a missing /Subtype, with UnsupportedImageFeatureException),
+              decoding the stream, and loading it via Fonts.TrueTypeFont.LoadType1C, passing the
+              same Unicode-codepoint-to-Adobe-glyph-name reverse map
+              CanvasNetPdf-PdfDocument-Type1FontResolution's classic /FontFile path already uses.
+            justification: |
+              An embedded Type1C/CFF simple font (/FontFile3 on a /Subtype /Type1 descriptor, a
+              fundamentally different format from the classic /FontFile program
+              CanvasNetPdf-PdfDocument-Type1FontResolution loads) is common enough in real-world
+              PDF producers (many embed a bare CFF program rather than a classic Type 1 program
+              to save space) that rejecting it unconditionally (this phase's immediately-preceding
+              behavior) is a real-world compatibility gap comparable to the one
+              CanvasNetPdf-PdfDocument-CompositeFontResolution already closed for the composite
+              /CIDFontType0 CFF-outline path; this phase's scope is deliberately narrower than the
+              full CFF specification - the predefined Expert and ExpertSubset charsets are
+              recognized but not resolved to glyph names (Fonts.CffTable's own documented scope
+              boundary, not re-implemented here), and a CID-keyed (ROS-declaring) Type1C/CFF
+              program is rejected (Fonts.CffTable.Parse's existing CID-keyed rejection surfaces
+              uncaught through this new path, with no new translation code).
+            tests:
+              - PdfDocument_Fonts_Type1_FontFile3Type1C_ResolvesEmbeddedFont_PaintsGlyphInk
+              - PdfDocument_Fonts_Type1_FontFile3NonType1CSubtype_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Fonts_Type1_FontFile3MissingSubtype_ThrowsUnsupportedImageFeatureException
 
           - id: CanvasNetPdf-PdfDocument-ToUnicodeCMap
             title: >-

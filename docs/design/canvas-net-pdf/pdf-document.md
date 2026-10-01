@@ -9,6 +9,7 @@
 <!-- cspell:ignore begincodespacerange endcodespacerange findresource defineresource currentdict -->
 <!-- cspell:ignore begincmap endcmap bfchar usecmap cidrange cidchar codespacerange -->
 <!-- cspell:ignore functiontype bitspersample multiinput hival EOFB -->
+<!-- cspell:ignore charsets -->
 
 `PdfDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pdf` NuGet package
 (namespace `DemaConsulting.CanvasNet.Pdf`), which references the core
@@ -47,10 +48,16 @@ Resolution_ below, and `Fonts.SystemFontCatalog`'s own unit design,
 decoding each shown string as 2-byte-per-code (CID) values rather than 1-byte-per-code; as of
 Phase 12 (this phase), a `/CIDFontType0` descendant font (with its own embedded, non-CID-keyed-
 CFF, `/OpenType`-wrapped `/FontDescriptor/FontFile3`) is resolved identically (see _Composite Font
-Resolution_ below). **Phase 4 limitations (narrowed by Phase 6/9/12, see
-above)**: a bare/naked `/CIDFontType0C` CFF `/FontFile3` stream (no SFNT wrapper), CID-keyed CFF
-(`ROS`/`FDArray`/`FDSelect`), non-`/Identity-H` composite `/Encoding`s (including
-`/Identity-V` and predefined CJK encodings), `/Type1`, `/MMType1`, and `/Type3` fonts remain
+Resolution_ below). As of Phase B, a `/Subtype /Type1` simple font with an embedded
+`/FontDescriptor/FontFile` (a classic PostScript Type 1 program) is also resolved and rendered,
+exactly like a `/FontFile2`-embedded `/TrueType` font; as of Phase C (this phase), a `/Subtype
+/Type1` simple font with an embedded `/FontDescriptor/FontFile3` whose own `/Subtype` is `Type1C`
+(a bare, un-wrapped CFF program) is resolved identically (see _Type 1C Font Resolution_ below).
+**Phase 4 limitations (narrowed by Phase 6/9/12/B/C, see
+above)**: a bare/naked `/CIDFontType0C` CFF `/FontFile3` stream on a _composite_ `/Type0` font (no
+SFNT wrapper - distinct from the now-supported bare Type1C `/FontFile3` on a _simple_ `/Type1`
+font), CID-keyed CFF (`ROS`/`FDArray`/`FDSelect`), non-`/Identity-H` composite `/Encoding`s
+(including `/Identity-V` and predefined CJK encodings), and `/MMType1`/`/Type3` fonts remain
 entirely unsupported and fail closed with `Codecs.UnsupportedImageFeatureException` (CID-keyed CFF
 instead surfaces as `InvalidDataException` via `Fonts.CffTable.Parse`'s own existing rejection);
 only the `/WinAnsiEncoding` and `/MacRomanEncoding` base encodings (plus `/Differences`) are
@@ -497,7 +504,8 @@ re-parsing it each time — a property a purely static API could not express.
   persist exactly like any other painting operator's. No `/BBox` clipping and no `/Group`
   (transparency group) handling is performed — a documented Phase 13 limitation.
 - **Font resolution (`PdfDocument.Fonts.cs`, added in Phase 4, fallback branch rewritten in
-  Phase 6, dispatch generalized to `IResolvedFont` in Phase 9, widened to `/Type1` in Phase B)** —
+  Phase 6, dispatch generalized to `IResolvedFont` in Phase 9, widened to `/Type1` in Phase B,
+  widened to `/Type1` + bare `/FontFile3` Type1C/CFF in Phase C)** —
   `ResolveFont(PdfObject fontResource)` looks up (and caches, via `_fontCache`) an
   `IResolvedFont`. `BuildResolvedFont` dispatches on `/Subtype`: `/TrueType` and `/Type1` both
   build a `ResolvedSimpleFont` via `BuildResolvedSimpleFont`; `/Type0` builds a
@@ -515,12 +523,11 @@ re-parsing it each time — a property a purely static API could not express.
   `Fonts.TrueTypeFont.Load(new MemoryStream(decodedBytes))`; else, when `/FontFile` resolves to a
   stream, `LoadType1Font` loads the embedded classic PostScript Type 1 program (see _Type 1 Font
   Resolution_ below); else, when `subtype == "Type1"` and `/FontFile3` is present (with neither
-  `/FontFile` nor `/FontFile2`), `Codecs.UnsupportedImageFeatureException` (feature
-  `pdf-font-type1-fontfile3`) rejects the embedded-Type1C/CFF-simple-font case, distinguishing it
-  from the already-supported composite `CIDFontType0`/`/OpenType`-wrapped-`/FontFile3` path; only
-  when none of those apply does `BuildResolvedSimpleFont` call `ResolveFallbackFont` (see _Font
-  Fallback Resolution_ immediately below) instead of failing closed - reachable for `/Type1` fonts
-  exactly as it already was for `/TrueType` fonts. `ResolveEncoding` builds a full
+  `/FontFile` nor `/FontFile2`), `LoadType1CFont` loads the embedded bare Type1C/CFF program (see
+  _Type 1C Font Resolution_ below); only when none of those apply does `BuildResolvedSimpleFont`
+  call `ResolveFallbackFont` (see _Font Fallback Resolution_ immediately below) instead of failing
+  closed - reachable for `/Type1` fonts exactly as it already was for `/TrueType` fonts.
+  `ResolveEncoding` builds a full
   256-entry `int[]` code-to-Unicode-codepoint map: `ApplyBaseEncoding` seeds it from one of three
   hand-transcribed 256-entry tables (`WinAnsiEncodingTable`/`MacRomanEncodingTable`/
   `StandardEncodingTable`, the PDF specification's own Appendix D tables), defaulting to
@@ -533,9 +540,11 @@ re-parsing it each time — a property a purely static API could not express.
   `InvalidDataException` (a fail-closed policy, not a silent mis-mapping to codepoint `0`/
   `.notdef`), as does a `/Differences` array beginning with a glyph name before any starting code
   number. A reverse of `StandardGlyphNames` (`CodepointToStandardGlyphName`, first-wins on
-  collision) is built once and reused by `LoadType1Font` as `Fonts.TrueTypeFont.LoadType1`'s
-  `codepointToGlyphName` argument, rather than introducing a second, separately-maintained
-  glyph-name vocabulary. `ResolveWidths` builds a sparse `code -> width`
+  collision) is built once and reused by both `LoadType1Font` (as `Fonts.TrueTypeFont.LoadType1`'s
+  `codepointToGlyphName` argument) and `LoadType1CFont` (as `Fonts.TrueTypeFont.LoadType1C`'s
+  identical argument - the exact same resolution, never the PDF font dictionary's own
+  `/Encoding`), rather than introducing a second, separately-maintained glyph-name vocabulary.
+  `ResolveWidths` builds a sparse `code -> width`
   (`/1000`-scaled) map from `/FirstChar`/`/Widths` (missing/malformed entries silently omitted,
   not rejected), plus `/FontDescriptor/MissingWidth` (defaulting to `0`, the specification's own
   documented default) as the fallback for any code absent from that map.
@@ -556,13 +565,30 @@ re-parsing it each time — a property a purely static API could not express.
   fail closed on any embedded-font problem, no fallback" convention (matching
   `LoadCidFontType0Font`'s own documented precedent). **Non-Goals**: a `seac`-based
   accented-composite charstring is rejected by the core `Fonts` layer itself (not
-  re-implemented or caught here); an embedded Type1C/CFF simple font (`/FontFile3` on a `/Type1`
-  descriptor) is a fundamentally different, unsupported format - see _Error Handling_ below; a
-  non-1000-unit-em `/FontMatrix` is not read or honored at all (a 1000-unit em is assumed,
-  matching every other font format this class resolves); and the Type 1 program's own built-in
-  `/Encoding` array (if any) embedded in the font program itself is never consulted - only the
-  PDF font dictionary's own `/Encoding` entry, resolved via `ResolveEncoding` above, determines
-  which glyph a shown code selects.
+  re-implemented or caught here); a non-1000-unit-em `/FontMatrix` is not read or honored at all
+  (a 1000-unit em is assumed, matching every other font format this class resolves); and the
+  Type 1 program's own built-in `/Encoding` array (if any) embedded in the font program itself is
+  never consulted - only the PDF font dictionary's own `/Encoding` entry, resolved via
+  `ResolveEncoding` above, determines which glyph a shown code selects.
+- **Type 1C font resolution (`PdfDocument.Fonts.Type1.cs`, added in Phase C)** —
+  `LoadType1CFont(PdfObject descriptor)` is `BuildResolvedSimpleFont`'s `/FontFile3` loader
+  counterpart (reached only when `/FontFile` is absent, per the priority order above), mirroring
+  `LoadCidFontType0Font`'s own `/FontFile3`-`/Subtype`-validation precedent (see _Composite Font
+  Resolution_ below): it requires `/FontDescriptor/FontFile3` to resolve to a stream
+  (`InvalidDataException` otherwise), then requires that stream's own `/Subtype` to be the name
+  `Type1C`, rejecting any other value (including a missing `/Subtype`) with
+  `Codecs.UnsupportedImageFeatureException` rather than guessing the format from the stream's own
+  bare-CFF magic bytes. The stream is decoded via the same `GetStreamDecodedBytes` every other
+  embedded font stream in this class uses, then loaded via
+  `Fonts.TrueTypeFont.LoadType1C(new MemoryStream(decodedBytes), CodepointToStandardGlyphName)` -
+  any exception the core `Fonts` layer itself throws for malformed CFF table data, including a
+  CID-keyed (`ROS`-declaring) CFF program, propagates uncaught, consistent with this class's
+  "embedded fonts fail closed on any embedded-font problem, no fallback" convention. **Non-Goals**:
+  identical to `LoadType1Font`'s own Non-Goals above, plus the predefined Expert/ExpertSubset CFF
+  charsets are recognized by the core `Fonts` layer but not resolved to glyph names (that layer's
+  own documented scope boundary, not re-implemented or worked around here) - a font relying on
+  either predefined charset to name its glyphs resolves no glyph for any code via `ResolveEncoding`
+  and therefore paints no visible ink for that code, without throwing.
 - **Composite font resolution (`PdfDocument.Fonts.Type0.cs`, added in Phase 9, extended in
   Phase 12)** — `BuildResolvedCompositeFont` is `BuildResolvedFont`'s `/Type0` dispatch target. It
   requires `/Encoding` to resolve to the name `Identity-H`; any other name (including
@@ -797,22 +823,27 @@ re-parsing it each time — a property a purely static API could not express.
 - **A font dictionary whose `/Subtype` is `/MMType1` or `/Type3`** —
   `Codecs.UnsupportedImageFeatureException` (Multiple Master Type 1 and Type 3 fonts remain
   entirely out of scope by design). A `/Subtype /TrueType` or `/Subtype /Type1` font lacking an
-  embedded `/FontDescriptor/FontFile2`/`/FontFile` no longer reaches this list at all as of
-  Phase 6 (widened to `/Type1` in Phase B) - it is resolved
+  embedded `/FontDescriptor/FontFile2`/`/FontFile`/`/FontFile3` no longer reaches this list at all
+  as of Phase 6 (widened to `/Type1` in Phase B) - it is resolved
   via fallback substitution instead (see below), except that a `/BaseFont` of `Symbol` or
   `ZapfDingbats`, or a font whose `/FontDescriptor/Flags` declares `Symbolic` without also
   declaring `Nonsymbolic`, still throws `Codecs.UnsupportedImageFeatureException` (feature
   `pdf-font-symbolic-not-embedded`) - a symbol/dingbat glyph set has no meaningful generic-family
-  equivalent and is never substituted with an unrelated system or bundled font. As of Phase B, a
+  equivalent and is never substituted with an unrelated system or bundled font. As of Phase C, a
   `/Subtype /Type1` descriptor declaring only `/FontFile3` (neither `/FontFile` nor `/FontFile2`)
-  is instead `Codecs.UnsupportedImageFeatureException` (feature `pdf-font-type1-fontfile3`) - an
-  embedded Type1C/CFF simple font is a fundamentally different, unsupported format from the
-  classic `/FontFile` Type 1 program `LoadType1Font` loads, distinct from the already-supported
-  composite `CIDFontType0`/`/OpenType`-wrapped-`/FontFile3` path. A `/FontFile` stream's own
+  is resolved by `LoadType1CFont`: the `/FontFile3` stream's own `/Subtype`, when not the name
+  `Type1C` (for example `OpenType`, or when the key is absent entirely), is
+  `Codecs.UnsupportedImageFeatureException` (feature `pdf-font-fontfile3-subtype-{subtype}`,
+  reusing the exact feature-key pattern `LoadCidFontType0Font`'s own `/FontFile3`-`/Subtype`
+  validation below already establishes) - an SFNT-wrapped `/OpenType` CFF stream on a simple
+  `/Type1` font is not supported here, distinct from the already-supported composite
+  `CIDFontType0`/`/OpenType`-wrapped-`/FontFile3` path. A `/FontFile` stream's own
   missing or non-numeric `/Length1`/`/Length2` entry, or any exception `Fonts.TrueTypeFont.LoadType1`
   itself throws for a malformed embedded Type 1 program, is `InvalidDataException` (no fallback
   substitution is ever attempted once an embedded Type 1 program is present, matching the
-  `CIDFontType2`/`CIDFontType0` "embedded fonts fail closed" precedent).
+  `CIDFontType2`/`CIDFontType0` "embedded fonts fail closed" precedent); likewise, any exception
+  `Fonts.TrueTypeFont.LoadType1C` itself throws for a malformed or CID-keyed (`ROS`-bearing)
+  embedded CFF program is `InvalidDataException`, propagated uncaught under the same convention.
 - **A `/Subtype /Type0` font's `/Encoding`, when not the name `Identity-H`** (for example
   `Identity-V` or a predefined CJK encoding name) — `Codecs.UnsupportedImageFeatureException`
   (feature `pdf-font-type0-encoding-{name}`), as of Phase 9. A `/Type0` font's `/DescendantFonts`
@@ -882,7 +913,9 @@ re-parsing it each time — a property a purely static API could not express.
   `<text>` rendering; `LoadType1(Stream, int length1, int length2, IReadOnlyDictionary<int,
   string> codepointToGlyphName)` is used as of Phase B by `LoadType1Font` to load an embedded
   classic PostScript Type 1 `/FontFile` program, reusing the same `TrueTypeFont` type rather than
-  a separate font representation
+  a separate font representation; `LoadType1C(Stream stream, IReadOnlyDictionary<int, string>
+  codepointToGlyphName)` is used as of Phase C by `LoadType1CFont` to load an embedded bare
+  Type1C/CFF `/FontFile3` program, again reusing the same `TrueTypeFont` type
 - BCL `System.IO.Compression.DeflateStream` — `FlateDecode` decompression of object streams and,
   as of Phase 3, any other `FlateDecode`-filtered stream (image XObjects included)
 - BCL `System.Numerics.Matrix3x2`/`Vector2` — the current transformation matrix, every

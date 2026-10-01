@@ -1,7 +1,7 @@
 // cspell:ignore SFNT Sfnt sfnt glyf Glyf cmap Cmap loca Loca hmtx Hmtx hhea Hhea
 // cspell:ignore maxp Maxp notdef codepoint codepoints subtable subtables subsetted
 // cspell:ignore subsetting PPEM OTTO CFF charstring charstrings subr subrs
-// cspell:ignore endchar hstem
+// cspell:ignore endchar hstem nosuchglyph charsets isoadobe
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 
@@ -190,5 +190,218 @@ public class CffTableTests
     {
         var cff = SyntheticFontBuilder.Cff([]);
         Assert.Throws<InvalidDataException>(() => Parse(cff));
+    }
+
+    /// <summary>
+    ///     Proves that CffTable's transcribed Standard Strings table has the exact length and
+    ///     spot-checked entries documented by Adobe Technical Note #5176 Appendix A.
+    /// </summary>
+    [Fact]
+    public void CffTable_StandardStrings_HasExpectedLengthAndSpotCheckedEntries()
+    {
+        Assert.Equal(391, CffTable.StandardStrings.Length);
+        Assert.Equal(".notdef", CffTable.StandardStrings[0]);
+        Assert.Equal("space", CffTable.StandardStrings[1]);
+        Assert.Equal("A", CffTable.StandardStrings[34]);
+        Assert.Equal("Z", CffTable.StandardStrings[59]);
+        Assert.Equal("a", CffTable.StandardStrings[66]);
+        Assert.Equal("z", CffTable.StandardStrings[91]);
+        Assert.Equal("copyright", CffTable.StandardStrings[170]);
+        Assert.Equal("001.000", CffTable.StandardStrings[379]);
+        Assert.Equal("Semibold", CffTable.StandardStrings[390]);
+    }
+
+    /// <summary>
+    ///     Proves that CffTable Parse AbsentCharset DefaultsToIsoAdobeAndResolvesByName.
+    /// </summary>
+    [Fact]
+    public void CffTable_Parse_AbsentCharset_DefaultsToIsoAdobeAndResolvesByName()
+    {
+        // No 'charset' operator at all: glyph i's SID is i, so glyph 1 is SID 1 ("space") and
+        // glyph 2 is SID 2 ("exclam"), per the Standard Strings table.
+        var cff = SyntheticFontBuilder.Cff([SimpleCharstring(), SimpleCharstring(), SimpleCharstring()]);
+        var table = Parse(cff);
+
+        Assert.True(table.TryGetGlyphIndex("space", out var spaceIndex));
+        Assert.Equal(1, spaceIndex);
+        Assert.True(table.TryGetGlyphIndex("exclam", out var exclamIndex));
+        Assert.Equal(2, exclamIndex);
+        Assert.False(table.TryGetGlyphIndex("nosuchglyph", out _));
+    }
+
+    /// <summary>
+    ///     Proves that CffTable Parse PredefinedIsoAdobeCharsetId MatchesAbsentCharset.
+    /// </summary>
+    [Fact]
+    public void CffTable_Parse_PredefinedIsoAdobeCharsetId_MatchesAbsentCharset()
+    {
+        var cff = SyntheticFontBuilder.Cff([SimpleCharstring(), SimpleCharstring()], charsetId: 0);
+        var table = Parse(cff);
+
+        Assert.True(table.TryGetGlyphIndex("space", out var spaceIndex));
+        Assert.Equal(1, spaceIndex);
+    }
+
+    /// <summary>
+    ///     Proves that CffTable Parse PredefinedExpertOrExpertSubsetCharset
+    ///     NeverResolvesByNameButNeverThrows - a deliberate, documented scope boundary.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void CffTable_Parse_PredefinedExpertOrExpertSubsetCharset_NeverResolvesByNameButNeverThrows(int charsetId)
+    {
+        var cff = SyntheticFontBuilder.Cff([SimpleCharstring(), SimpleCharstring()], charsetId: charsetId);
+        var table = Parse(cff);
+
+        Assert.False(table.TryGetGlyphIndex("space", out _));
+        Assert.False(table.TryGetGlyphIndex("A", out _));
+        // Outline decoding is unaffected by the charset at all - only name resolution is scoped out.
+        Assert.Single(table.GetGlyphOutline(1).Subpaths);
+    }
+
+    /// <summary>
+    ///     Proves that CffTable Parse CustomCharsetFormat0 ResolvesEachGlyphBySid.
+    /// </summary>
+    [Fact]
+    public void CffTable_Parse_CustomCharsetFormat0_ResolvesEachGlyphBySid()
+    {
+        // Format 0: a flat array of 2-byte SIDs, one per non-.notdef glyph. Glyph 1 -> SID 34
+        // ("A"), glyph 2 -> SID 66 ("a").
+        byte[] charsetTable = [0, 0, 34, 0, 66];
+        var cff = SyntheticFontBuilder.Cff(
+            [SimpleCharstring(), SimpleCharstring(), SimpleCharstring()], charsetTable: charsetTable);
+        var table = Parse(cff);
+
+        Assert.True(table.TryGetGlyphIndex("A", out var aIndex));
+        Assert.Equal(1, aIndex);
+        Assert.True(table.TryGetGlyphIndex("a", out var lowerAIndex));
+        Assert.Equal(2, lowerAIndex);
+    }
+
+    /// <summary>
+    ///     Proves that CffTable Parse CustomCharsetFormat1 ResolvesRangesOfGlyphs.
+    /// </summary>
+    [Fact]
+    public void CffTable_Parse_CustomCharsetFormat1_ResolvesRangesOfGlyphs()
+    {
+        // Format 1: ranges of (first SID: 2 bytes, nLeft: 1 byte). A single range starting at SID
+        // 34 ("A") with nLeft=2 covers glyphs 1, 2, 3 as SIDs 34, 35, 36 ("A", "B", "C").
+        byte[] charsetTable = [1, 0, 34, 2];
+        var cff = SyntheticFontBuilder.Cff(
+            [SimpleCharstring(), SimpleCharstring(), SimpleCharstring(), SimpleCharstring()], charsetTable: charsetTable);
+        var table = Parse(cff);
+
+        Assert.True(table.TryGetGlyphIndex("A", out var aIndex));
+        Assert.Equal(1, aIndex);
+        Assert.True(table.TryGetGlyphIndex("B", out var bIndex));
+        Assert.Equal(2, bIndex);
+        Assert.True(table.TryGetGlyphIndex("C", out var cIndex));
+        Assert.Equal(3, cIndex);
+    }
+
+    /// <summary>
+    ///     Proves that CffTable Parse CustomCharsetFormat2 ResolvesRangesWithTwoByteNLeft.
+    /// </summary>
+    [Fact]
+    public void CffTable_Parse_CustomCharsetFormat2_ResolvesRangesWithTwoByteNLeft()
+    {
+        // Format 2: identical to format 1, but nLeft is 2 bytes - exercised with a small nLeft
+        // value (1) to keep the test glyph count small, proving the wider field is read correctly.
+        byte[] charsetTable = [2, 0, 34, 0, 1];
+        var cff = SyntheticFontBuilder.Cff(
+            [SimpleCharstring(), SimpleCharstring(), SimpleCharstring()], charsetTable: charsetTable);
+        var table = Parse(cff);
+
+        Assert.True(table.TryGetGlyphIndex("A", out var aIndex));
+        Assert.Equal(1, aIndex);
+        Assert.True(table.TryGetGlyphIndex("B", out var bIndex));
+        Assert.Equal(2, bIndex);
+    }
+
+    /// <summary>
+    ///     Proves that CffTable Parse CustomCharsetUnsupportedFormat ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void CffTable_Parse_CustomCharsetUnsupportedFormat_ThrowsInvalidDataException()
+    {
+        byte[] charsetTable = [3, 0, 0];
+        var cff = SyntheticFontBuilder.Cff([SimpleCharstring(), SimpleCharstring()], charsetTable: charsetTable);
+
+        Assert.Throws<InvalidDataException>(() => Parse(cff));
+    }
+
+    /// <summary>
+    ///     Proves that CffTable Parse CharsetOffsetOutOfBounds ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void CffTable_Parse_CharsetOffsetOutOfBounds_ThrowsInvalidDataException()
+    {
+        var cff = SyntheticFontBuilder.Cff([SimpleCharstring()], charsetId: 999_999);
+        Assert.Throws<InvalidDataException>(() => Parse(cff));
+    }
+
+    /// <summary>
+    ///     Proves that CffTable Parse CustomStringIndex ResolvesCustomGlyphNameBySid.
+    /// </summary>
+    [Fact]
+    public void CffTable_Parse_CustomStringIndex_ResolvesCustomGlyphNameBySid()
+    {
+        // SID 391 is the first entry of the font's own String INDEX (391 = StandardStrings.Length).
+        byte[] charsetTable = [0, 1, 135]; // glyph 1 -> SID 391 (0x0187)
+        var cff = SyntheticFontBuilder.Cff(
+            [SimpleCharstring(), SimpleCharstring()],
+            stringIndexEntries: [System.Text.Encoding.ASCII.GetBytes("Alpha")],
+            charsetTable: charsetTable);
+        var table = Parse(cff);
+
+        Assert.True(table.TryGetGlyphIndex("Alpha", out var alphaIndex));
+        Assert.Equal(1, alphaIndex);
+    }
+
+    /// <summary>
+    ///     Proves that CffTable GetAdvanceWidth NoWidthOperand UsesDefaultWidthX.
+    /// </summary>
+    [Fact]
+    public void CffTable_GetAdvanceWidth_NoWidthOperand_UsesDefaultWidthX()
+    {
+        // 'endchar' with zero operands (the width-parsed flag consumes nothing, since the operand
+        // count is already 0): the glyph's width is the Private DICT's defaultWidthX unchanged.
+        var cs = new List<byte>();
+        SyntheticFontBuilder.WriteCharstringOperator(cs, 14); // endchar
+
+        var cff = SyntheticFontBuilder.Cff([[.. cs]], defaultWidthX: 500, nominalWidthX: 100);
+        var table = Parse(cff);
+
+        Assert.Equal(500, table.GetAdvanceWidth(0));
+    }
+
+    /// <summary>
+    ///     Proves that CffTable GetAdvanceWidth WithWidthOperand UsesNominalWidthXPlusDelta.
+    /// </summary>
+    [Fact]
+    public void CffTable_GetAdvanceWidth_WithWidthOperand_UsesNominalWidthXPlusDelta()
+    {
+        // 'endchar' with a single leading operand: that operand is the width delta, so the
+        // glyph's resolved width is nominalWidthX + delta, not defaultWidthX.
+        var cs = new List<byte>();
+        SyntheticFontBuilder.WriteCharstringNumber(cs, 30); // width delta
+        SyntheticFontBuilder.WriteCharstringOperator(cs, 14); // endchar
+
+        var cff = SyntheticFontBuilder.Cff([[.. cs]], defaultWidthX: 500, nominalWidthX: 100);
+        var table = Parse(cff);
+
+        Assert.Equal(130, table.GetAdvanceWidth(0));
+    }
+
+    /// <summary>
+    ///     Proves that CffTable GetAdvanceWidth OutOfRangeIndex ThrowsArgumentOutOfRangeException.
+    /// </summary>
+    [Fact]
+    public void CffTable_GetAdvanceWidth_OutOfRangeIndex_ThrowsArgumentOutOfRangeException()
+    {
+        var table = Parse(SyntheticFontBuilder.Cff([SimpleCharstring()]));
+        Assert.Throws<ArgumentOutOfRangeException>(() => table.GetAdvanceWidth(1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => table.GetAdvanceWidth(-1));
     }
 }

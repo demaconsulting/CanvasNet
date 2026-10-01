@@ -1289,4 +1289,118 @@ public class TrueTypeFontTests
 
         Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(ms));
     }
+
+    /// <summary>
+    ///     Builds a minimal, well-formed bare CFF (Type1C) table with three glyphs
+    ///     (<c>.notdef</c>, <c>space</c>, <c>A</c>) resolved via a custom charset format 0 table
+    ///     mapping glyph 1 to SID 1 (<c>space</c>) and glyph 2 to SID 34 (<c>A</c>), and widths
+    ///     resolved via the Private DICT's <c>defaultWidthX</c>/<c>nominalWidthX</c> operators.
+    /// </summary>
+    private static byte[] BuildType1CProgram()
+    {
+        var notdef = new List<byte>();
+        SyntheticFontBuilder.WriteCharstringOperator(notdef, 14); // endchar
+
+        var space = new List<byte>();
+        SyntheticFontBuilder.WriteCharstringOperator(space, 14); // endchar (width = defaultWidthX)
+
+        var a = new List<byte>();
+        SyntheticFontBuilder.WriteCharstringNumber(a, 600); // width delta: nominalWidthX(100) + 600 = 700
+        SyntheticFontBuilder.WriteCharstringNumber(a, 0);
+        SyntheticFontBuilder.WriteCharstringNumber(a, 0);
+        SyntheticFontBuilder.WriteCharstringOperator(a, 21); // rmoveto
+        SyntheticFontBuilder.WriteCharstringNumber(a, 10);
+        SyntheticFontBuilder.WriteCharstringNumber(a, 0);
+        SyntheticFontBuilder.WriteCharstringOperator(a, 5); // rlineto
+        SyntheticFontBuilder.WriteCharstringOperator(a, 14); // endchar
+
+        byte[] charsetTable = [0, 0, 1, 0, 34]; // format 0: glyph 1 -> SID 1 (space), glyph 2 -> SID 34 (A)
+
+        return SyntheticFontBuilder.Cff(
+            [[.. notdef], [.. space], [.. a]],
+            charsetTable: charsetTable,
+            defaultWidthX: 300,
+            nominalWidthX: 100);
+    }
+
+    private static readonly Dictionary<int, string> Type1CTestEncoding = new()
+    {
+        [' '] = "space",
+        ['A'] = "A",
+    };
+
+    /// <summary>
+    ///     Proves that TrueTypeFont LoadType1C WellFormedCff ExposesGlyphsAndMetrics.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_LoadType1C_WellFormedCff_ExposesGlyphsAndMetrics()
+    {
+        var data = BuildType1CProgram();
+
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.LoadType1C(ms, Type1CTestEncoding);
+
+        Assert.Equal(3, font.GlyphCount);
+
+        var glyphIndexA = font.GetGlyphIndex('A');
+        Assert.NotEqual(0, glyphIndexA);
+        Assert.Equal(700, font.GetAdvanceWidth(glyphIndexA));
+
+        var outline = font.GetGlyphOutline(glyphIndexA);
+        Assert.Single(outline.Subpaths);
+        Assert.Contains(outline.Subpaths[0].Commands, c => c.Type == PathCommandType.LineTo);
+
+        var glyphIndexSpace = font.GetGlyphIndex(' ');
+        Assert.NotEqual(0, glyphIndexSpace);
+        Assert.Equal(300, font.GetAdvanceWidth(glyphIndexSpace));
+        Assert.Empty(font.GetGlyphOutline(glyphIndexSpace).Subpaths);
+
+        // An unmapped codepoint resolves to .notdef (glyph 0), matching LoadType1's convention.
+        Assert.Equal(0, font.GetGlyphIndex('Z'));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont LoadType1C NullStream ThrowsArgumentNullException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_LoadType1C_NullStream_ThrowsArgumentNullException() =>
+        Assert.Throws<ArgumentNullException>(() => TrueTypeFont.LoadType1C(null!, Type1CTestEncoding));
+
+    /// <summary>
+    ///     Proves that TrueTypeFont LoadType1C NullEncoding ThrowsArgumentNullException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_LoadType1C_NullEncoding_ThrowsArgumentNullException()
+    {
+        var data = BuildType1CProgram();
+        using var ms = new MemoryStream(data);
+
+        Assert.Throws<ArgumentNullException>(() => TrueTypeFont.LoadType1C(ms, null!));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont LoadType1C MalformedCff ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_LoadType1C_MalformedCff_ThrowsInvalidDataException()
+    {
+        byte[] garbage = [1, 2, 3, 4, 5, 6, 7, 8];
+        using var ms = new MemoryStream(garbage);
+
+        Assert.Throws<InvalidDataException>(() => TrueTypeFont.LoadType1C(ms, Type1CTestEncoding));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont LoadType1C CidKeyedCff ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_LoadType1C_CidKeyedCff_ThrowsInvalidDataException()
+    {
+        var cs = new List<byte>();
+        SyntheticFontBuilder.WriteCharstringOperator(cs, 14); // endchar
+        var data = SyntheticFontBuilder.Cff([[.. cs]], includeRos: true);
+
+        using var ms = new MemoryStream(data);
+        Assert.Throws<InvalidDataException>(() => TrueTypeFont.LoadType1C(ms, Type1CTestEncoding));
+    }
 }

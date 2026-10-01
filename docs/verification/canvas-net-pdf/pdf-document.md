@@ -709,7 +709,6 @@ glyph - proving the same end-to-end pipeline for the `/CIDFontType0` shape.
 **Tests**: `PdfDocument_Fonts_Type1_DispatchesToSimpleFontResolution_PaintsGlyphInk`,
 `PdfDocument_Fonts_Type1_EmbeddedFontFileTakesPriorityOverFallback`,
 `PdfDocument_Fonts_Type1_NoFontFile_ResolvesViaFallback`,
-`PdfDocument_Fonts_Type1_FontFile3Only_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Fonts_Type1_FontFileMissingLength1_ThrowsInvalidDataException`,
 `PdfDocument_Fonts_Type1_FontFileMissingLength2_ThrowsInvalidDataException`,
 `PdfDocument_Fonts_Type1_FontFileNonNumericLength2_ThrowsInvalidDataException`,
@@ -729,10 +728,11 @@ glyph) is what gets painted - proving an embedded `/FontFile` always wins over f
 substitution, exactly like the `/FontFile2` precedent. A `/Subtype /Type1` font dictionary with a
 recognized Standard-14 `/BaseFont` and no `/FontFile`/`/FontFile2`/`/FontFile3` at all asserts
 resolution succeeds via `ResolveFallbackFont` and paints visible substitute glyph ink, mirroring
-the `/TrueType` equivalent in `CanvasNetPdf-PdfDocument-FontFallback`. A `/Subtype /Type1`
-descriptor declaring only `/FontFile3` (no `/FontFile`/`/FontFile2`) asserts
-`Codecs.UnsupportedImageFeatureException` with `Feature == "pdf-font-type1-fontfile3"`. An
-embedded `/FontFile` stream declaring only `/Length2` (no `/Length1` at all) asserts
+the `/TrueType` equivalent in `CanvasNetPdf-PdfDocument-FontFallback`. As of Phase C, a `/Subtype
+/Type1` descriptor declaring only `/FontFile3` (no `/FontFile`/`/FontFile2`) no longer fails
+closed here at all; see `CanvasNetPdf-PdfDocument-Type1CFontResolution` immediately below for its
+own resolution and fail-closed cases. An embedded `/FontFile` stream declaring only `/Length2` (no
+`/Length1` at all) asserts
 `InvalidDataException`; separately, a `BuildEmbeddedType1FontResources(omitLength2: true)`
 stream declaring only `/Length1` asserts `InvalidDataException` too; separately, a stream
 declaring a non-numeric `/Length2` value (`/NotANumber`) asserts `InvalidDataException` as well -
@@ -745,6 +745,30 @@ painted ink from each. The end-to-end system-integration test opens
 hand-designed square glyph (matching `CanvasNetPdf-PdfDocument-CompositeFontResolution`'s own
 `CIDFontType0` system-integration test's pixel-assertion convention exactly, since both fixtures
 share the identical glyph design/placement), plus fully-transparent canvas corners.
+
+#### CanvasNetPdf-PdfDocument-Type1CFontResolution: Embedded Bare Type1C/CFF FontFile3 Resolves, Fails Closed Otherwise
+
+**Tests**: `PdfDocument_Fonts_Type1_FontFile3Type1C_ResolvesEmbeddedFont_PaintsGlyphInk`,
+`PdfDocument_Fonts_Type1_FontFile3NonType1CSubtype_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Fonts_Type1_FontFile3MissingSubtype_ThrowsUnsupportedImageFeatureException`
+
+Builds a `/Subtype /Type1` font dictionary with an embedded, entirely synthetic, bare Type1C/CFF
+`/FontDescriptor/FontFile3` stream (via `SyntheticFontBuilder.Cff`, declaring a `/Subtype
+/Type1C` stream dictionary, a custom charset mapping a filled-square `A` glyph, and no SFNT/
+OpenType wrapper of any kind), asserting the embedded font's own square glyph paints at the
+position its font-design-space coordinates and text-space placement determine - proving
+`LoadType1CFont`'s decode/`Fonts.TrueTypeFont.LoadType1C`/`ResolveEncoding`-via-
+`CodepointToStandardGlyphName` pipeline resolves end to end, reached only because `/FontFile` is
+absent (`LoadType1Font`'s own loader never runs). A `[Theory]` declares the `/FontFile3` stream's
+own `/Subtype` as `/OpenType` and, separately, `/CIDFontType0C`, asserting
+`Codecs.UnsupportedImageFeatureException` with `Feature ==
+"pdf-font-fontfile3-subtype-{subtype}"` in both cases - an SFNT-wrapped CFF stream is rejected
+here exactly as firmly as any other non-`Type1C` value, since this simple-font path never
+attempts to unwrap an SFNT container the way the composite `CIDFontType0` path does. A further
+test omits `/Subtype` from the `/FontFile3` stream entirely, asserting the same exception with
+`Feature == "pdf-font-fontfile3-subtype-missing"` (a missing `/Subtype` is not guessed as
+`Type1C`), mirroring `CanvasNetPdf-PdfDocument-CompositeFontResolution`'s own `/FontFile3`-
+`/Subtype`-validation precedent for `/CIDFontType0`.
 
 #### CanvasNetPdf-PdfDocument-ToUnicodeCMap: /ToUnicode CMap Resolves to a Code-to-Codepoint Map
 

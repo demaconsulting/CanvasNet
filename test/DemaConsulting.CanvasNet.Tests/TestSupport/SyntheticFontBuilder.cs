@@ -558,9 +558,10 @@ internal sealed class SyntheticFontBuilder
     /// <summary>
     ///     Builds a minimal, well-formed raw CFF table byte array (Header, Name INDEX, Top DICT
     ///     INDEX, String INDEX, Global Subr INDEX, an optional Private DICT + Local Subr INDEX,
-    ///     and the CharStrings INDEX) directly from already-encoded Type 2 charstring bytecode for
-    ///     each glyph - used to exercise <see cref="CffTable"/> and
-    ///     <see cref="CffCharstringInterpreter"/> without any third-party font fixture.
+    ///     the CharStrings INDEX, and an optional custom charset table) directly from
+    ///     already-encoded Type 2 charstring bytecode for each glyph - used to exercise
+    ///     <see cref="CffTable"/> and <see cref="CffCharstringInterpreter"/> without any
+    ///     third-party font fixture.
     /// </summary>
     /// <param name="charStrings">Every glyph's raw Type 2 charstring bytecode, glyph 0 first.</param>
     /// <param name="globalSubrs">Every global subroutine's raw bytecode, index order.</param>
@@ -574,32 +575,76 @@ internal sealed class SyntheticFontBuilder
     /// <param name="includePrivate">
     ///     When <see langword="false"/>, the Top DICT omits the <c>Private</c> operator entirely
     ///     (a legitimate CFF font may have no Private DICT at all), so no local subroutines are
-    ///     reachable regardless of <paramref name="localSubrs"/>.
+    ///     reachable regardless of <paramref name="localSubrs"/>, and
+    ///     <paramref name="defaultWidthX"/>/<paramref name="nominalWidthX"/> are not written.
+    /// </param>
+    /// <param name="stringIndexEntries">
+    ///     The font's own custom String INDEX entries (SID <c>391</c> and above, in index order) -
+    ///     empty (the default) when the test has no custom glyph names to resolve.
+    /// </param>
+    /// <param name="charsetId">
+    ///     When set, the Top DICT's <c>charset</c> operator is written with this predefined
+    ///     charset ID (<c>0</c>/<c>1</c>/<c>2</c>). Mutually exclusive with
+    ///     <paramref name="charsetTable"/>; when both are <see langword="null"/> (the default),
+    ///     the <c>charset</c> operator is omitted entirely (the ISOAdobe/Standard default).
+    /// </param>
+    /// <param name="charsetTable">
+    ///     When set, a custom charset table's already-encoded raw bytes (format byte plus data),
+    ///     appended after every other section; the Top DICT's <c>charset</c> operator is written
+    ///     with this table's own computed byte offset. Mutually exclusive with
+    ///     <paramref name="charsetId"/>.
+    /// </param>
+    /// <param name="defaultWidthX">
+    ///     When set (and <paramref name="includePrivate"/> is <see langword="true"/>), the Private
+    ///     DICT's <c>defaultWidthX</c> operator (<c>20</c>) is written with this value.
+    /// </param>
+    /// <param name="nominalWidthX">
+    ///     When set (and <paramref name="includePrivate"/> is <see langword="true"/>), the Private
+    ///     DICT's <c>nominalWidthX</c> operator (<c>21</c>) is written with this value.
     /// </param>
     public static byte[] Cff(
         IReadOnlyList<byte[]> charStrings,
         IReadOnlyList<byte[]>? globalSubrs = null,
         IReadOnlyList<byte[]>? localSubrs = null,
         bool includeRos = false,
-        bool includePrivate = true)
+        bool includePrivate = true,
+        IReadOnlyList<byte[]>? stringIndexEntries = null,
+        int? charsetId = null,
+        byte[]? charsetTable = null,
+        int? defaultWidthX = null,
+        int? nominalWidthX = null)
     {
         globalSubrs ??= [];
         localSubrs ??= [];
+        stringIndexEntries ??= [];
 
         byte[] header = [1, 0, 4, 4]; // major, minor, hdrSize, offSize (offSize is advisory only)
         var nameIndex = WriteCffIndex([System.Text.Encoding.ASCII.GetBytes("Synthetic")]);
-        var stringIndex = WriteCffIndex([]);
+        var stringIndex = WriteCffIndex(stringIndexEntries);
         var globalSubrIndex = WriteCffIndex(globalSubrs);
         var charStringsIndex = WriteCffIndex(charStrings);
 
-        // The Private DICT's own content is fixed at exactly 6 bytes (a 5-byte integer operand
-        // plus the 1-byte 'Subrs' operator) whenever local subroutines are present, so the Local
-        // Subr INDEX's offset relative to the Private DICT's own start - the 'Subrs' operand - is
-        // always exactly 6, regardless of any other value in this synthetic layout.
+        // The Private DICT's own content is built up operator-by-operator (every operand always
+        // using the fixed 5-byte integer encoding, so each operator contributes a fixed 6 bytes),
+        // so the Local Subr INDEX's offset relative to the Private DICT's own start - the 'Subrs'
+        // operand - is always exactly "bytes already written", computed as each operator is added
+        // rather than hardcoded, now that defaultWidthX/nominalWidthX may also be present.
         var privateDict = new List<byte>();
-        if (localSubrs.Count > 0)
+        if (includePrivate && defaultWidthX.HasValue)
         {
-            WriteDictInt(privateDict, 6);
+            WriteDictInt(privateDict, defaultWidthX.Value);
+            WriteDictOperator(privateDict, 20); // defaultWidthX
+        }
+
+        if (includePrivate && nominalWidthX.HasValue)
+        {
+            WriteDictInt(privateDict, nominalWidthX.Value);
+            WriteDictOperator(privateDict, 21); // nominalWidthX
+        }
+
+        if (includePrivate && localSubrs.Count > 0)
+        {
+            WriteDictInt(privateDict, privateDict.Count + 6);
             WriteDictOperator(privateDict, 19); // Subrs
         }
 
@@ -608,18 +653,22 @@ internal sealed class SyntheticFontBuilder
 
         // Two-pass layout: the Top DICT's own byte length is fixed by which operators it
         // contains (every operand uses the fixed 5-byte integer encoding), independent of the
-        // operand *values* - so a placeholder Top DICT (all offsets 0) has the exact same length
-        // as the final one, letting every other section's position be computed from it before
-        // the Top DICT's real offset values are known.
-        var topDictPlaceholder = BuildTopDict(0, 0, 0, includePrivate, includeRos);
+        // operand *values* - so a placeholder Top DICT (all offsets 0, but with a placeholder
+        // 'charset' operand present whenever the real one will be) has the exact same length as
+        // the final one, letting every other section's position be computed from it before the
+        // Top DICT's real offset values are known.
+        var hasCharsetOperator = charsetId.HasValue || charsetTable is not null;
+        var topDictPlaceholder = BuildTopDict(0, 0, 0, hasCharsetOperator ? 0 : null, includePrivate, includeRos);
         var topDictIndexPlaceholder = WriteCffIndex([topDictPlaceholder]);
 
         var prefixLength = header.Length + nameIndex.Length + topDictIndexPlaceholder.Length + stringIndex.Length + globalSubrIndex.Length;
         var charStringsOffset = prefixLength;
         var privateOffset = charStringsOffset + charStringsIndex.Length;
         var privateSize = privateDictBytes.Length;
+        var charsetTableOffset = privateOffset + privateSize + localSubrIndex.Length;
 
-        var topDict = BuildTopDict(charStringsOffset, privateOffset, privateSize, includePrivate, includeRos);
+        var charsetOperand = charsetTable is not null ? charsetTableOffset : charsetId;
+        var topDict = BuildTopDict(charStringsOffset, privateOffset, privateSize, charsetOperand, includePrivate, includeRos);
         var topDictIndex = WriteCffIndex([topDict]);
 
         var buf = new List<byte>();
@@ -631,17 +680,24 @@ internal sealed class SyntheticFontBuilder
         buf.AddRange(charStringsIndex);
         buf.AddRange(privateDictBytes);
         buf.AddRange(localSubrIndex);
+        if (charsetTable is not null)
+        {
+            buf.AddRange(charsetTable);
+        }
+
         return [.. buf];
     }
 
     /// <summary>
     ///     Builds a Top DICT's raw bytes, including the <c>CharStrings</c> operator, an optional
-    ///     <c>Private</c> operator, and (for CID-rejection tests) an optional <c>ROS</c> operator -
-    ///     every operand encoded with the fixed 5-byte integer form, so this method's return
-    ///     length depends only on <paramref name="includePrivate"/>/<paramref name="includeRos"/>,
-    ///     never on the operand values themselves.
+    ///     <c>Private</c> operator, an optional <c>charset</c> operator, and (for CID-rejection
+    ///     tests) an optional <c>ROS</c> operator - every operand encoded with the fixed 5-byte
+    ///     integer form, so this method's return length depends only on
+    ///     <paramref name="includePrivate"/>/<paramref name="charsetOperand"/>'s null-ness/
+    ///     <paramref name="includeRos"/>, never on the operand values themselves.
     /// </summary>
-    private static byte[] BuildTopDict(int charStringsOffset, int privateOffset, int privateSize, bool includePrivate, bool includeRos)
+    private static byte[] BuildTopDict(
+        int charStringsOffset, int privateOffset, int privateSize, int? charsetOperand, bool includePrivate, bool includeRos)
     {
         var buf = new List<byte>();
         if (includeRos)
@@ -650,6 +706,12 @@ internal sealed class SyntheticFontBuilder
             WriteDictInt(buf, 0);
             WriteDictInt(buf, 0);
             WriteDictOperator(buf, 1230); // ROS
+        }
+
+        if (charsetOperand.HasValue)
+        {
+            WriteDictInt(buf, charsetOperand.Value);
+            WriteDictOperator(buf, 15); // charset
         }
 
         WriteDictInt(buf, charStringsOffset);

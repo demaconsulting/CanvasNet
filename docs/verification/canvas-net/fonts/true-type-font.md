@@ -670,3 +670,68 @@ and trailing-zero-padding cases), and both readers' fail-closed behavior on trun
 payloads, unrecognized segment types, a missing binary segment or end-of-file marker, a missing
 `eexec` keyword, an odd hex-digit count, a non-hex byte before any hex digit, and zero decoded
 bytes after trim.
+
+##### CanvasNet-Fonts-TrueTypeFont-CffCharsetResolution: CFF Charset Resolves Glyph Names to Glyph Indices
+
+**Tests**: `CffTable_Parse_AbsentCharset_DefaultsToIsoAdobeAndResolvesByName`,
+`CffTable_Parse_PredefinedIsoAdobeCharsetId_MatchesAbsentCharset`,
+`CffTable_Parse_PredefinedExpertOrExpertSubsetCharset_NeverResolvesByNameButNeverThrows`,
+`CffTable_Parse_CustomCharsetFormat0_ResolvesEachGlyphBySid`,
+`CffTable_Parse_CustomCharsetFormat1_ResolvesRangesOfGlyphs`,
+`CffTable_Parse_CustomCharsetFormat2_ResolvesRangesWithTwoByteNLeft`,
+`CffTable_Parse_CustomCharsetUnsupportedFormat_ThrowsInvalidDataException`,
+`CffTable_Parse_CharsetOffsetOutOfBounds_ThrowsInvalidDataException`,
+`CffTable_Parse_CustomStringIndex_ResolvesCustomGlyphNameBySid`,
+`CffTable_StandardStrings_HasExpectedLengthAndSpotCheckedEntries`
+
+Verifies that an absent `charset` operator and an explicit predefined-ISOAdobe (`0`) value both
+resolve every glyph's SID to its own glyph index and that `TryGetGlyphIndex` then resolves a
+Standard-Strings glyph name (for example `"space"`) back to the correct glyph index; that the
+predefined Expert (`1`) and ExpertSubset (`2`) charset IDs are recognized but deliberately never
+resolve any glyph name - `TryGetGlyphIndex` returns `false`, never throws - a documented scope
+boundary covered explicitly rather than left implicit; that a custom charset table (a byte offset
+greater than `2`) correctly decodes format 0 (flat 2-byte SID array), format 1 (2-byte-first-SID/
+1-byte-count ranges), and format 2 (2-byte-first-SID/2-byte-count ranges) into the expected
+per-glyph SID assignments; that an unrecognized format byte and an out-of-bounds charset offset
+are both rejected with `InvalidDataException`; that a glyph name resolved via the font's own
+String INDEX (SID 391 and above, not only the built-in Standard Strings) round-trips correctly;
+and that the transcribed 391-entry CFF Standard Strings table itself has the documented length and
+spot-checked entries (including SID `0` = `.notdef`, SID `1` = `space`, and SID `34` = `A`) match
+Adobe Technical Note #5176 Appendix A.
+
+##### CanvasNet-Fonts-TrueTypeFont-CffWidthResolution: CFF Glyph Advance Widths Resolve Through the Type 2 Width Convention
+
+**Tests**: `CffCharstringInterpreter_Decode_RMoveToWithLeadingWidth_ReturnsNominalWidthXPlusDelta`,
+`CffCharstringInterpreter_Decode_NoLeadingWidth_ReturnsDefaultWidthX`,
+`CffCharstringInterpreter_Decode_HStemWithLeadingWidth_ReturnsNominalWidthXPlusDelta`,
+`CffCharstringInterpreter_Decode_EndCharWithLeadingWidth_ReturnsNominalWidthXPlusDelta`,
+`CffCharstringInterpreter_Decode_DefaultWidthParameters_AreBothZero`,
+`CffTable_GetAdvanceWidth_NoWidthOperand_UsesDefaultWidthX`,
+`CffTable_GetAdvanceWidth_WithWidthOperand_UsesNominalWidthXPlusDelta`,
+`CffTable_GetAdvanceWidth_OutOfRangeIndex_ThrowsArgumentOutOfRangeException`
+
+Exercises `CffCharstringInterpreter.Decode`'s width-returning overload directly across every
+stack-clearing operator that can carry the optional leading width operand (`rmoveto`, `hstem`,
+`endchar`), asserting the returned width is `nominalWidthX` plus the leading operand's value when
+present, and `defaultWidthX` when absent, including the case where both Private DICT width
+operators are left at their own zero defaults. Separately verifies `CffTable.GetAdvanceWidth`
+correctly surfaces that same per-glyph resolved width end to end for both the with-operand and
+without-operand cases, and rejects an out-of-range glyph index with
+`ArgumentOutOfRangeException`.
+
+##### CanvasNet-Fonts-TrueTypeFont-LoadType1C: Bare Type1C/CFF Font Programs Load Through a Dedicated Entry Point
+
+**Tests**: `TrueTypeFont_LoadType1C_WellFormedCff_ExposesGlyphsAndMetrics`,
+`TrueTypeFont_LoadType1C_NullStream_ThrowsArgumentNullException`,
+`TrueTypeFont_LoadType1C_NullEncoding_ThrowsArgumentNullException`,
+`TrueTypeFont_LoadType1C_MalformedCff_ThrowsInvalidDataException`,
+`TrueTypeFont_LoadType1C_CidKeyedCff_ThrowsInvalidDataException`
+
+Exercises `TrueTypeFont.LoadType1C` end-to-end against a hand-authored synthetic bare-CFF program
+(via `SyntheticFontBuilder.Cff`, with a custom charset mapping glyph names to glyph indices and a
+caller-supplied codepoint-to-glyph-name encoding), asserting `GlyphCount`/`GetGlyphIndex`/
+`GetGlyphOutline`/`GetAdvanceWidth` behave equivalently to every other supported outline flavor
+under a fixed 1000-unit em square; and asserts null `stream`/`codepointToGlyphName` arguments, a
+structurally malformed CFF table, and a CID-keyed (`ROS`-declaring) CFF program are all rejected
+as documented (the last two both surfacing as `InvalidDataException`, the CID-keyed case via
+`CffTable.Parse`'s own existing `ROS` rejection, not a second, separately-implemented check).

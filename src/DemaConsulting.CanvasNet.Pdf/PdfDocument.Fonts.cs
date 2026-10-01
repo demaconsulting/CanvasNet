@@ -226,48 +226,52 @@ public sealed partial class PdfDocument
     ///     <c>/Subtype /Type1</c> font dictionary: loads the embedded
     ///     <c>/FontDescriptor/FontFile2</c> (a TrueType-outline program) if present, or else the
     ///     embedded <c>/FontDescriptor/FontFile</c> (a classic PostScript Type 1 program, via
-    ///     <see cref="LoadType1Font"/> - see <c>PdfDocument.Fonts.Type1.cs</c>) if present - either
-    ///     always takes priority over any substitute - or else resolves a substitute font via
-    ///     <see cref="ResolveFallbackFont"/> (a Standard-14/system/bundled-Liberation match), and
-    ///     resolves <c>/Encoding</c> and <c>/Widths</c>.
+    ///     <see cref="LoadType1Font"/> - see <c>PdfDocument.Fonts.Type1.cs</c>) if present, or else
+    ///     the embedded <c>/FontDescriptor/FontFile3</c> (a bare Type1C/CFF program, via
+    ///     <see cref="LoadType1CFont"/> - see <c>PdfDocument.Fonts.Type1.cs</c>) if present - each
+    ///     always takes priority over any later-checked key or substitute - or else resolves a
+    ///     substitute font via <see cref="ResolveFallbackFont"/> (a Standard-14/system/bundled-
+    ///     Liberation match), and resolves <c>/Encoding</c> and <c>/Widths</c>.
     /// </summary>
     /// <param name="fontDict">The font dictionary being resolved.</param>
     /// <param name="subtype">
     ///     The font dictionary's own <c>/Subtype</c> name (<c>"TrueType"</c> or <c>"Type1"</c>),
-    ///     consulted only to decide whether a <c>/FontFile3</c>-only descriptor (with neither
-    ///     <c>/FontFile</c> nor <c>/FontFile2</c>) is a rejected embedded-CFF <c>/Type1</c> font
-    ///     or an (unrelated, pre-existing) <c>/TrueType</c> font that falls back exactly as
-    ///     before <c>/Type1</c> dispatch existed.
+    ///     consulted only to decide whether a <c>/FontFile3</c>-only descriptor resolves via
+    ///     <see cref="LoadType1CFont"/> (a <c>/Type1</c> font's embedded Type1C/CFF program) or
+    ///     falls back exactly as before <c>/Type1</c> dispatch existed (an unrelated, pre-existing
+    ///     <c>/TrueType</c> font with a stray <c>/FontFile3</c>).
     /// </param>
     /// <remarks>
     ///     A simple font with no <c>/FontDescriptor</c> at all (permitted by PDF 32000-1
     ///     §9.6.2.2 for the standard 14 fonts, and leniently accepted here regardless of
     ///     <c>/BaseFont</c>) or with a <c>/FontDescriptor</c> but no embedded
-    ///     <c>/FontFile2</c>/<c>/FontFile</c> no longer fails closed unconditionally:
-    ///     <see cref="ResolveFallbackFont"/> substitutes the closest-matching
+    ///     <c>/FontFile2</c>/<c>/FontFile</c>/<c>/FontFile3</c> no longer fails closed
+    ///     unconditionally: <see cref="ResolveFallbackFont"/> substitutes the closest-matching
     ///     system font, or - when no system font matches - a bundled Liberation Sans/Serif/Mono
     ///     font, fully automatically and silently (no new public API, no "fallback occurred"
     ///     diagnostics). Only a <c>Symbol</c>/<c>ZapfDingbats</c> (or otherwise symbolic, per
     ///     <c>/FontDescriptor/Flags</c>) font with no embedded font program still fails
     ///     closed, since such a font's glyph set has no meaningful generic-family equivalent - see
     ///     the <see cref="PdfDocument"/> class remarks and <c>PdfDocument.FontFallback.cs</c>. A
-    ///     <c>/Subtype /Type1</c> descriptor whose only embedded-font key is <c>/FontFile3</c>
-    ///     (an embedded Type1C/CFF program, a fundamentally different, unsupported format from
-    ///     the classic Type 1 <c>/FontFile</c> this method loads) is rejected with
-    ///     <see cref="UnsupportedImageFeatureException"/> rather than silently falling back - this
-    ///     check is gated on <c>subtype == "Type1"</c> specifically, so a pre-existing
-    ///     <c>/Subtype /TrueType</c> font with only a stray <c>/FontFile3</c> is unaffected and
-    ///     continues to resolve via fallback exactly as before this phase.
+    ///     <c>/Subtype /Type1</c> descriptor's <c>/FontFile3</c> is only ever attempted via
+    ///     <see cref="LoadType1CFont"/> - which itself fails closed with
+    ///     <see cref="UnsupportedImageFeatureException"/> for any <c>/Subtype</c> other than
+    ///     <c>Type1C</c> on that stream (see that method's own remarks) - gated on
+    ///     <c>subtype == "Type1"</c> specifically, so a pre-existing <c>/Subtype /TrueType</c>
+    ///     font with only a stray <c>/FontFile3</c> is unaffected and continues to resolve via
+    ///     fallback exactly as before this phase.
     /// </remarks>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <c>/FontDescriptor/FontFile2</c> does not resolve to a stream,
     ///     <c>/BaseFont</c> is missing (only consulted on the fallback path), or propagated from
-    ///     <see cref="LoadType1Font"/> for a malformed embedded Type 1 program.
+    ///     <see cref="LoadType1Font"/>/<see cref="LoadType1CFont"/> for a malformed embedded Type 1
+    ///     or Type1C program.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when a <c>Symbol</c>/<c>ZapfDingbats</c>/symbolic font has no embedded font
-    ///     program (see <see cref="ResolveFallbackFont"/>), or when a <c>/Subtype /Type1</c>
-    ///     descriptor declares only <c>/FontFile3</c> (feature <c>"pdf-font-type1-fontfile3"</c>).
+    ///     program (see <see cref="ResolveFallbackFont"/>), or propagated from
+    ///     <see cref="LoadType1CFont"/> when a <c>/Subtype /Type1</c> descriptor's
+    ///     <c>/FontFile3</c> stream declares a <c>/Subtype</c> other than <c>Type1C</c>.
     /// </exception>
     private ResolvedSimpleFont BuildResolvedSimpleFont(PdfObject fontDict, string? subtype)
     {
@@ -299,12 +303,7 @@ public sealed partial class PdfDocument
         }
         else if (subtype == "Type1" && descriptor.Get("FontFile3") is not null)
         {
-            throw new UnsupportedImageFeatureException(
-                "pdf-font-type1-fontfile3",
-                "Embedded Type1C (CFF) simple fonts (/FontFile3 on a /Type1 font) are not " +
-                "supported; this differs from the already-supported composite /Type0/" +
-                "CIDFontType0 (CFF-outline) font path, which uses an /OpenType-wrapped " +
-                "/FontFile3 on a descendant font, not a simple /Type1 font.");
+            font = LoadType1CFont(descriptor);
         }
         else
         {
