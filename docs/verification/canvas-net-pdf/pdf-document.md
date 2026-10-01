@@ -4,7 +4,7 @@
 <!-- cspell:ignore bfchar bfrange beginbfchar endbfchar beginbfrange endbfrange codepoints -->
 <!-- cspell:ignore usecmap cidrange cidchar cidfonttype -->
 <!-- cspell:ignore functiontype multiinput hival -->
-<!-- cspell:ignore fontfile quoteright Quoteright quotesingle -->
+<!-- cspell:ignore fontfile quoteright Quoteright quotesingle EOFB -->
 
 This document describes the unit-level verification strategy for the `PdfDocument` class.
 
@@ -402,8 +402,9 @@ merely re-deriving the implementation's own output). Repeats the PNG-predictor c
 bytes compressed via `LZWDecode` instead of `FlateDecode` (using a test-only classic-LZW encoder,
 never shipped in `src/`), proving predictor reversal is gated on filter name (`FlateDecode` or
 `LZWDecode`) rather than merely on `/DecodeParms` presence. Renders an image XObject declaring an
-unsupported filter (`/CCITTFaxDecode` - still genuinely unsupported after Phase 7, unlike
-`/LZWDecode`), asserting `Codecs.UnsupportedImageFeatureException`.
+unsupported filter (`/JPXDecode` - still genuinely unsupported, unlike `/LZWDecode`/
+`/CCITTFaxDecode`, both of which this and a later phase respectively implement), asserting
+`Codecs.UnsupportedImageFeatureException`.
 
 #### CanvasNetPdf-PdfDocument-LzwDecodeFilter: LZWDecode Decodes the PDF-Variant Algorithm, Fails Closed on Malformed Input
 
@@ -480,6 +481,67 @@ byte stops decoding and ignores any trailing bytes after it, and asserts `Invali
 for a literal run that declares more bytes than remain (truncated, no EOD reached). The
 end-to-end system-integration test independently proves `RunLengthDecode` decoding a real page
 `/Contents` stream, asserting the expected filled-rectangle pixels.
+
+#### CanvasNetPdf-PdfDocument-CcittFaxDecodeFilter: CCITTFaxDecode Implements T.6 Group 4 MMR, Fails Closed Otherwise
+
+**Tests**: `PdfDocument_Images_DoOperator_CcittFaxGroup4_PlacesExpectedPixels`,
+`PdfDocument_Images_DoOperator_CcittFaxBlackIs1Default_MapsZeroBitToBlack`,
+`PdfDocument_Images_DoOperator_CcittFaxBlackIs1True_InvertsPolarity`,
+`PdfDocument_Images_DoOperator_CcittFaxNonByteAlignedColumns_DecodesExpectedRowPadding`,
+`PdfDocument_Images_CcittFaxGroup3K_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Images_CcittFaxCombinedWithAnotherFilter_ThrowsInvalidDataException`,
+`PdfDocument_Images_CcittFaxEndOfLineTrue_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Filters_CcittFaxRunLengthTables_RoundTripEveryCode`,
+`PdfDocument_Filters_CcittFaxModeCodeTable_RoundTripEveryCode`,
+`PdfDocument_Images_DoOperator_CcittFaxPassModeElement_PlacesExpectedPixels`,
+`PdfDocument_Images_DoOperator_CcittFaxEncodedByteAlignTrue_SkipsRowPaddingBits`
+
+Uses a small test-only Group 4 (T.6) MMR encoder (parameterized over an arbitrary `bool[,]` pixel
+grid, mirroring the existing test-only classic-LZW encoder's precedent) to produce trustworthy
+encoded bytes, cross-checked against a hand-derived, bit-level-documented literal encoding of a
+known small pattern (see the code comment at the literal byte array's declaration for the full
+worked-through reasoning) so that the round-trip tests cannot merely be checking an encoder bug
+against a matching decoder bug. `PdfDocument_Images_DoOperator_CcittFaxGroup4_PlacesExpectedPixels`
+places a Group-4-encoded image XObject via `cm`/`Do` and asserts the full-page-rendered device
+pixels match the known source black/white pattern at specific `(x, y)` coordinates.
+`PdfDocument_Images_DoOperator_CcittFaxBlackIs1Default_MapsZeroBitToBlack` and
+`..._CcittFaxBlackIs1True_InvertsPolarity` assert the default (`/BlackIs1` absent or `false`) and
+explicit `/BlackIs1 true` cases each produce the opposite pixel polarity for the identical encoded
+bit stream, proving `/BlackIs1` is honored rather than ignored.
+`..._CcittFaxNonByteAlignedColumns_DecodesExpectedRowPadding` uses `/Columns` values (`10`, `20`)
+that do not divide evenly into whole bytes, asserting every decoded row is still exactly
+`(Columns + 7) / 8` packed bytes and that the unused trailing padding bits of the final byte do
+not leak into the next row's pixels. `..._CcittFaxGroup3K_ThrowsUnsupportedImageFeatureException`
+asserts a non-negative `/K` (Group 3, including the `/K` default of `0` when `/DecodeParms` omits
+it entirely) throws `UnsupportedImageFeatureException` with a clear message rather than being
+misdecoded as Group 4. `..._CcittFaxCombinedWithAnotherFilter_ThrowsInvalidDataException` asserts
+a `/Filter` array naming `CCITTFaxDecode` alongside another filter throws `InvalidDataException`,
+mirroring the equivalent `DCTDecode`-combined-with-another-filter check.
+`..._CcittFaxEndOfLineTrue_ThrowsUnsupportedImageFeatureException` asserts an explicit
+`/EndOfLine true` is rejected rather than silently ignored (this implementation never scans for
+EOL/EOFB/RTC bit patterns at all). `PdfDocument_Filters_CcittFaxRunLengthTables_RoundTripEveryCode`
+is an internals-only table self-consistency test (enabled by `InternalsVisibleTo`): for every
+(run length, code bits, code length) entry in both the White and Black Modified Huffman
+run-length code tables, it writes the code's bits through `CcittBitReader` and asserts
+`ReadVariableLengthCode` recovers the exact same run length, proving the prefix-free code tables
+are internally consistent (no entry is a prefix of, or shares a prefix with a different length
+than, another) independently of whether any single encoded test image happens to exercise that
+particular code. `PdfDocument_Filters_CcittFaxModeCodeTable_RoundTripEveryCode` mirrors that same
+internals-only table self-consistency pattern for `ModeCodeTable` (also made `internal` for this
+purpose): for all nine `(mode code bits, code length)` entries (Pass, Horizontal, V0, VR1-3,
+VL1-3), it writes the code's bits through `CcittBitReader` and asserts `ReadMode` recovers the
+exact same mode, closing the gap that `VR1`, `VR3`, `VL2`, and `VL3` were otherwise never
+exercised by any rendered test image.
+`PdfDocument_Images_DoOperator_CcittFaxPassModeElement_PlacesExpectedPixels` uses a dedicated,
+hand-derived literal encoded byte array (independently re-verified via a from-scratch Python
+re-implementation of `ReadMode`/`FindB1B2`/`DecodeCcittRow`, stepped through to confirm it
+actually decodes a `Pass` mode element) for an 8x2 pattern whose second row has no changing
+element of its own, forcing the decoder down the `Pass` branch, and asserts the rendered pixels
+match the known pattern. `PdfDocument_Images_DoOperator_CcittFaxEncodedByteAlignTrue_SkipsRowPaddingBits`
+reuses that same pattern's bit encoding but inserts deliberately non-zero garbage padding bits
+between row 0 and row 1 and sets `/EncodedByteAlign true`, asserting the decoder still recovers
+the exact same expected pixels - proving `AlignToByte` is actually invoked to skip the garbage
+bits before each row, rather than the implementation coincidentally tolerating zero padding only.
 
 #### CanvasNetPdf-PdfDocument-ImageXObjects: Do Composites Images, Fails Closed on Unsupported Features
 

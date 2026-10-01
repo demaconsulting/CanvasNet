@@ -8,7 +8,7 @@
 <!-- cspell:ignore beginbfchar endbfchar beginbfrange endbfrange codepoints tounicode bfrange -->
 <!-- cspell:ignore begincodespacerange endcodespacerange findresource defineresource currentdict -->
 <!-- cspell:ignore begincmap endcmap bfchar usecmap cidrange cidchar codespacerange -->
-<!-- cspell:ignore functiontype bitspersample multiinput hival -->
+<!-- cspell:ignore functiontype bitspersample multiinput hival EOFB -->
 
 `PdfDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pdf` NuGet package
 (namespace `DemaConsulting.CanvasNet.Pdf`), which references the core
@@ -61,9 +61,10 @@ additional stream filters were added for any of these phases.
 transparency groups (a `/FunctionType 0` sampled-function evaluator was added as unconsumed
 groundwork in Phase 1 of the `/Pattern` color-space roadmap - see _Sampled Function Evaluation_
 below - but is not yet wired into rendering: `scn`/`SCN` with a pattern name still throws
-`UnsupportedImageFeatureException`), no `CCITTFax`/`JPX` filter decoding (fails closed;
-`LZWDecode`/`ASCII85Decode`/`ASCIIHexDecode`/`RunLengthDecode` are supported as of Phase 7, see
-below), and no `/SMask`/alpha compositing (every decoded image is treated as fully opaque) — these
+`UnsupportedImageFeatureException`), no `JPX` filter decoding (fails closed;
+`LZWDecode`/`ASCII85Decode`/`ASCIIHexDecode`/`RunLengthDecode` are supported as of Phase 7, and
+`CCITTFaxDecode` - Group 4 (T.6 MMR) only - is supported as of Phase 15, see below), and no
+`/SMask`/alpha compositing (every decoded image is treated as fully opaque) — these
 remain out of scope for this phase and are silently skipped (any other undefined keyword) or
 explicitly rejected (unsupported color spaces/filters/fonts/encodings/render modes), per the
 operator/exception taxonomy documented below; a later phase is expected to add transparency
@@ -396,14 +397,15 @@ re-parsing it each time — a property a purely static API could not express.
   reimplementation, named identically for diffability, of
   `Codecs/Png/PngCodec.Filtering.cs`'s `DefilterRow`/`Sub`/`Up`/`Average`/`Paeth`/Paeth-predictor
   algorithm, since those methods are `private` in a different assembly and cannot be reused
-  directly). Any other filter name (including `DCTDecode`, which `PdfDocument.Images.cs` always
-  detects and bypasses before calling this pipeline; and `CCITTFaxDecode`/`JPXDecode`/
-  `JBIG2Decode`/`Crypt`, which remain out of scope) throws
+  directly).   Any other filter name (including `DCTDecode`/`CCITTFaxDecode`, which `PdfDocument.Images.cs`
+  always detects and bypasses before calling this pipeline; and `JPXDecode`/`JBIG2Decode`/
+  `Crypt`, which remain out of scope) throws
   `Codecs.UnsupportedImageFeatureException`; a malformed `/Filter`/`/DecodeParms` shape, an
   unrecognized `/Predictor` value, or malformed bytes for any of the five supported filters
   (missing EOD marker, invalid/out-of-range code or character, truncated run, or an out-of-range
   ASCII85 group value) throws `InvalidDataException`.
-- **Image XObjects (`PdfDocument.Images.cs`, added in Phase 3)** — `OpDrawXObject` (`Do`)
+- **Image XObjects (`PdfDocument.Images.cs`, added in Phase 3; extended in Phase 15)** —
+  `OpDrawXObject` (`Do`)
   resolves a named XObject from the current page's `/Resources/XObject` dictionary; a
   `/Subtype /Form` XObject is dispatched to `OpDrawFormXObject` (see below, added in Phase 13); a
   `/Subtype /Image` XObject is decoded (`DecodeImageXObject`) and composited onto `_surface`
@@ -411,7 +413,14 @@ re-parsing it each time — a property a purely static API could not express.
   bare `/Filter /DCTDecode` image and decodes its raw bytes directly via
   `Codecs.JpegCodec.Load(Stream)` (bypassing the general Flate+predictor pipeline entirely,
   trusting `JpegCodec`'s own decoded width/height over the PDF `/Width`/`/Height` as a documented
-  leniency); any other supported case decodes via `GetStreamDecodedBytes` and interprets the raw
+  leniency); a bare `/Filter /CCITTFaxDecode` image is likewise detected and dispatched to
+  `DecodeCcittFaxImageXObject` (new in Phase 15), which resolves `/K`/`/Columns`/`/Rows`/
+  `/BlackIs1`/`/EncodedByteAlign`/`/EndOfLine` from the (possibly absent) sole `/DecodeParms`
+  entry, decodes via `PdfDocument.CcittFax.cs`'s `DecodeCcittFax` (see below), and — mirroring
+  `DCTDecode`'s own leniency — trusts `/Columns`/the resolved `/Rows` (not `/Width`/`/Height`) as
+  the authoritative surface dimensions; `CCITTFaxDecode` combined with any other filter throws
+  `InvalidDataException`, mirroring the equivalent `DCTDecode` check; any other supported case
+  decodes via `GetStreamDecodedBytes` and interprets the raw
   samples per `/ColorSpace` (device spaces, `/ICCBased`, and `/Indexed` — see above, reusing
   `ColorFromComponents`; an `/Indexed` sample is passed through `SamplesToColor` as a raw,
   un-normalized palette index rather than divided by `255.0` like every other color space) and
@@ -425,6 +434,51 @@ re-parsing it each time — a property a purely static API could not express.
   specification's image-space convention, the opposite of user-space's y-up convention) — no
   bilinear interpolation, a documented Phase 3 simplification consistent with Phase 2's own
   stroke-width simplification precedent.
+- **CCITT Group 4 fax decoding (`PdfDocument.CcittFax.cs`, added in Phase 15)** — a from-scratch
+  ITU-T T.6 decoder, implementing two-dimensional MMR coding only (`/K` must be negative;
+  non-negative `/K`, i.e. Group 3, and `/EndOfLine true` are rejected up front by the top-level
+  `DecodeCcittFax` entry point with `Codecs.UnsupportedImageFeatureException`, before any bits are
+  read). `CcittBitReader` (nested, `internal` rather than `private` specifically so the test
+  project's `InternalsVisibleTo` can exercise it directly for a table self-consistency test — see
+  verification) is an MSB-first bit reader with an `AlignToByte` method for `/EncodedByteAlign`.
+  `ModeCodeTable` holds the nine two-dimensional mode codes (Pass `0001`, Horizontal `001`,
+  vertical `V0` `1`/`VR1` `011`/`VL1` `010`/`VR2` `000011`/`VL2` `000010`/`VR3` `0000011`/`VL3`
+  `0000010`) as a prefix-free `(bit length, code value) → CcittMode` lookup, read bit-by-bit via
+  `ReadMode` (safe because no valid mode code is a bit-prefix of another, so the first table match
+  at the shortest accumulated length is always correct — the same reasoning applies to the
+  run-length tables below). `ModeCodeTable`/`CcittMode`/`ReadMode` are themselves `internal`
+  rather than `private`, for the same cross-assembly table self-consistency test reason as
+  `CcittBitReader` above. `WhiteCodeTable`/`BlackCodeTable` (`internal`, for the same
+  cross-assembly test reason) are built by `BuildRunLengthCodeTable` from literal
+  (run length, code bits, code length) triples transcribed from the ITU-T T.4 Modified Huffman
+  terminating-code (`0`-`63`) and makeup-code (`64`-`1728`, plus the extended makeup codes
+  `1792`-`2560` shared identically between the White and Black tables) tables, cross-checked
+  against libtiff's long-trusted, independently maintained `t4.h` table values (used only as
+  transcribed numeric facts from the published ITU-T recommendation, not as copied code);
+  `ReadVariableLengthCode` (`internal`) reads one such code bit-by-bit, and `ReadRun` chains zero
+  or more makeup codes (run `≥ 64`) followed by exactly one terminating code (run `< 64`) to
+  assemble a full run length, since a single run can exceed the largest single code's value.
+  `DecodeCcittRow` implements the per-row two-dimensional reference-line decode loop: starting
+  from an imaginary all-white line for row `0` (so the first row's changing-element lookups
+  default to `Columns`), it tracks the coding position `a0` (`-1` before the first element) and
+  current color, reads one mode code per coding element via `ReadMode`, computes the reference
+  line's changing elements `(b1, b2)` via `FindB1B2` (the first element on the reference line past
+  `a0` with color opposite the current coding color, and the one after it), and branches: Pass
+  mode advances `a0` to `b2` without recording a changing element; Horizontal mode reads two
+  run-length codes (current color, then the opposite) via `ReadRun`/`ReadVariableLengthCode` and
+  records two changing elements; each vertical mode (`V0`/`VR1`-`VR3`/`VL1`-`VL3`) computes the
+  new changing element as `b1 + delta` (`VerticalDelta`, `delta` in `-3`..`+3`), records one
+  changing element, and toggles color. `PackRow`/`SetBitRange` assemble each row's changing
+  elements into packed-1-bit-per-pixel bytes of exactly `(Columns + 7) / 8` bytes — the same
+  `rowBytes` convention `ApplyTiffPredictor`/`ApplyPngPredictor` already use — honoring
+  `/BlackIs1` (default `false`: packed bit `1` means black, per ISO 32000-1/2 Table 11, the
+  opposite of this library's black`=0`/white`=max` `DeviceGray` convention, so the packed-bit
+  polarity is deliberately inverted from `DeviceGray` and only normalized back during expansion);
+  `ExpandPackedBitsToGrayBytes` then expands each packed row into one 8-bit gray byte (`0` or
+  `255`) per pixel for the shared `/ColorSpace` pipeline (see above) to consume identically to
+  every other image XObject's raw samples. A malformed/truncated stream (an unrecognized mode
+  code, a changing-element search that runs past `Columns`, or running out of bits mid-row) throws
+  `InvalidDataException` rather than producing a corrupt or out-of-bounds row.
 - **Form XObjects (`PdfDocument.Images.cs`, added in Phase 13)** — `OpDrawFormXObject` checks
   `_formNestingDepth` against `MaxFormNestingDepth` (`12`, throwing `InvalidDataException` when
   reached), reads the Form's optional `/Matrix` via `ReadFormMatrix` (identity when absent,
@@ -721,12 +775,18 @@ re-parsing it each time — a property a purely static API could not express.
   to a stream, or a missing/malformed `/Domain`/`/Range`/`/Size`/`/Encode`/`/Decode` entry —
   `InvalidDataException` instead (malformed, not merely unsupported).
 - **An unsupported stream filter** (anything other than `FlateDecode`, `LZWDecode`,
-  `ASCII85Decode`, `ASCIIHexDecode`, `RunLengthDecode`, or `DCTDecode` combined with another
-  filter) — `Codecs.UnsupportedImageFeatureException`; an unrecognized `/Predictor` value, a
-  malformed `/Filter`/`/DecodeParms` shape, or malformed bytes for any of the five supported
-  filters is `InvalidDataException` instead (malformed, not merely unsupported).
+  `ASCII85Decode`, `ASCIIHexDecode`, `RunLengthDecode`, or `DCTDecode`/`CCITTFaxDecode` combined
+  with another filter) — `Codecs.UnsupportedImageFeatureException`; an unrecognized `/Predictor`
+  value, a malformed `/Filter`/`/DecodeParms` shape, or malformed bytes for any of the five
+  supported filters is `InvalidDataException` instead (malformed, not merely unsupported).
 - **An unsupported image `/BitsPerComponent`** (anything other than `8`), or a TIFF predictor
   combined with a non-`8` `/BitsPerComponent` — `Codecs.UnsupportedImageFeatureException`.
+- **`CCITTFaxDecode` with a non-negative `/K` (Group 3), or with `/EndOfLine true`** —
+  `Codecs.UnsupportedImageFeatureException` (added in Phase 15; this decoder implements Group 4
+  (T.6 MMR) only and never scans for EOL/EOFB/RTC bit patterns); **`CCITTFaxDecode` whose
+  resolved `/ColorSpace` has more than 1 component** — `Codecs.UnsupportedImageFeatureException`;
+  a malformed/truncated CCITT bit stream (an unrecognized mode code, a changing-element search
+  that runs past `/Columns`, or running out of bits mid-row) — `InvalidDataException` instead.
 - **`Do` on a `/Subtype /Form` XObject whose nesting depth already equals
   `MaxFormNestingDepth` (`12`), or whose own `/Matrix` is present but is not an array of exactly
   6 numbers** — `InvalidDataException` (added in Phase 13; see _Image XObjects_/_Form XObjects_

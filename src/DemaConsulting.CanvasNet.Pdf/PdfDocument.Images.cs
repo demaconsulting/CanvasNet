@@ -1,4 +1,4 @@
-// cspell:ignore xobject bitdepth
+// cspell:ignore xobject bitdepth ccittfax EOFB
 using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
@@ -221,21 +221,40 @@ public sealed partial class PdfDocument
     ///     <see cref="Codecs.JpegCodec.Load(Stream)"/> against the stream's raw bytes, trusting
     ///     the decoded <see cref="Surface"/>'s own width/height over the PDF <c>/Width</c>/
     ///     <c>/Height</c> entries (a documented leniency: a mismatch is tolerated, not rejected).
-    ///     Every other supported case decodes via the general <c>FlateDecode</c>(+predictor)
-    ///     pipeline and interprets the resulting raw samples per <c>/ColorSpace</c> (device color
-    ///     spaces, <c>/ICCBased</c>, and <c>/Indexed</c> - see <see cref="PdfColorSpace"/>) and
-    ///     <c>/BitsPerComponent</c> (<c>8</c> only). <c>/SMask</c>/<c>/Mask</c> are never
-    ///     consulted - every decoded image is treated as fully opaque, a documented Phase 3
-    ///     limitation.
+    ///     A <c>/Filter /CCITTFaxDecode</c> image (and no other filter) is likewise decoded
+    ///     directly via <see cref="DecodeCcittFax"/> against the stream's raw bytes: only Group 4
+    ///     (<c>/DecodeParms /K</c> negative) ITU-T T.6 two-dimensional (MMR) coding is supported -
+    ///     Group 3 (<c>/K</c> <c>0</c> or greater) and an explicit <c>/EndOfLine true</c> both
+    ///     fail closed - and the decoded samples are still routed through the general
+    ///     <c>/ColorSpace</c> pipeline below (unlike <c>DCTDecode</c>, which never touches it),
+    ///     using <c>/DecodeParms</c>'s own <c>/Columns</c>/<c>/Rows</c> (not <c>/Width</c>/
+    ///     <c>/Height</c>) as the authoritative surface dimensions, mirroring <c>DCTDecode</c>'s
+    ///     own "trust the decoder's own dimensions" leniency; <c>/ColorSpace</c> defaults to
+    ///     <c>DeviceGray</c> when absent (CCITT images conventionally omit it), and any resolved
+    ///     color space with more than 1 component is rejected. <c>/EndOfBlock</c> is never
+    ///     consulted - decoding always stops after exactly the resolved row count, so any
+    ///     trailing <c>EOFB</c>/<c>RTC</c> marker bits (or a partial final block truncated before
+    ///     the full row count) are never specially detected or reported. Every other supported
+    ///     case decodes via the general <c>FlateDecode</c>(+predictor) pipeline and interprets
+    ///     the resulting raw samples per <c>/ColorSpace</c> (device color spaces, <c>/ICCBased</c>,
+    ///     and <c>/Indexed</c> - see <see cref="PdfColorSpace"/>) and <c>/BitsPerComponent</c>
+    ///     (<c>8</c> only). <c>/SMask</c>/<c>/Mask</c> are never consulted - every decoded image
+    ///     is treated as fully opaque, a documented Phase 3 limitation.
     /// </remarks>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <c>/Width</c>/<c>/Height</c> is missing, not a number, or not positive,
-    ///     when <c>/ColorSpace</c> is missing, or when <c>DCTDecode</c> is combined with any
-    ///     other filter.
+    ///     when <c>/ColorSpace</c> is missing (for a non-<c>CCITTFaxDecode</c> image), when
+    ///     <c>DCTDecode</c> is combined with any other filter, when <c>CCITTFaxDecode</c> is
+    ///     combined with any other filter, or propagated from <see cref="DecodeCcittFax"/> for a
+    ///     malformed/truncated CCITT bit stream.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when <c>/ColorSpace</c> names an unsupported color space, or when
-    ///     <c>/BitsPerComponent</c> is not <c>8</c> (for a non-<c>DCTDecode</c> image).
+    ///     Thrown when <c>/ColorSpace</c> names an unsupported color space, when
+    ///     <c>/BitsPerComponent</c> is not <c>8</c> (for a non-<c>DCTDecode</c>/non-
+    ///     <c>CCITTFaxDecode</c> image), when a <c>CCITTFaxDecode</c> image's resolved
+    ///     <c>/ColorSpace</c> has more than 1 component, or propagated from
+    ///     <see cref="DecodeCcittFax"/> when <c>/DecodeParms /K</c> is <c>0</c> or greater
+    ///     (Group 3) or <c>/EndOfLine</c> is <see langword="true"/>.
     /// </exception>
     private Surface DecodeImageXObject(PdfObject stream)
     {
@@ -246,7 +265,7 @@ public sealed partial class PdfDocument
             throw new InvalidDataException("Image XObject /Width and /Height must be positive integers.");
         }
 
-        var (filterNames, _) = ResolveFilterPipeline(stream);
+        var (filterNames, filterParms) = ResolveFilterPipeline(stream);
         if (filterNames.Count == 1 && filterNames[0] == "DCTDecode")
         {
             var rawBytes = GetStreamRawBytes(stream);
@@ -256,6 +275,16 @@ public sealed partial class PdfDocument
         if (filterNames.Contains("DCTDecode"))
         {
             throw new InvalidDataException("DCTDecode combined with another filter is not supported.");
+        }
+
+        if (filterNames.Count == 1 && filterNames[0] == "CCITTFaxDecode")
+        {
+            return DecodeCcittFaxImageXObject(stream, filterParms[0], height);
+        }
+
+        if (filterNames.Contains("CCITTFaxDecode"))
+        {
+            throw new InvalidDataException("CCITTFaxDecode combined with another filter is not supported.");
         }
 
         var decoded = GetStreamDecodedBytes(stream);
@@ -282,6 +311,65 @@ public sealed partial class PdfDocument
             {
                 var pixelOffset = rowOffset + (x * componentCount);
                 surface[x, y] = SamplesToColor(colorSpace, decoded, pixelOffset, componentCount);
+            }
+        }
+
+        return surface;
+    }
+
+    /// <summary>
+    ///     Decodes a bare <c>/Filter /CCITTFaxDecode</c> image XObject (<see cref="DecodeImageXObject"/>'s
+    ///     own dedicated branch): resolves <c>/K</c>/<c>/Columns</c>/<c>/Rows</c>/<c>/BlackIs1</c>/
+    ///     <c>/EncodedByteAlign</c>/<c>/EndOfLine</c> from <paramref name="parm"/> (the pipeline's
+    ///     sole, possibly-<see langword="null"/> <c>/DecodeParms</c> entry), defaulting
+    ///     <c>/Rows</c> to <paramref name="imageHeight"/> when absent or <c>0</c>, then decodes via
+    ///     <see cref="DecodeCcittFax"/> and composites the result through the shared
+    ///     <c>/ColorSpace</c> pipeline (<see cref="SamplesToColor"/>), using <c>/Columns</c>/the
+    ///     resolved <c>/Rows</c> - not <c>/Width</c>/<c>/Height</c> - as the authoritative surface
+    ///     dimensions.
+    /// </summary>
+    /// <exception cref="InvalidDataException">
+    ///     Propagated from <see cref="DecodeCcittFax"/> for a malformed/truncated CCITT bit
+    ///     stream.
+    /// </exception>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown when the resolved <c>/ColorSpace</c> has more than 1 component, or propagated
+    ///     from <see cref="DecodeCcittFax"/> when <c>/K</c> is <c>0</c> or greater or
+    ///     <c>/EndOfLine</c> is <see langword="true"/>.
+    /// </exception>
+    private Surface DecodeCcittFaxImageXObject(PdfObject stream, PdfObject? parm, int imageHeight)
+    {
+        var rawBytes = GetStreamRawBytes(stream);
+        var k = parm is null ? 0 : GetIntEntry(parm, "K", 0);
+        var columns = parm is null ? 1728 : GetIntEntry(parm, "Columns", 1728);
+        var rowsParam = parm is null ? 0 : GetIntEntry(parm, "Rows", 0);
+        var rows = rowsParam > 0 ? rowsParam : imageHeight;
+        var blackIs1 = parm is not null && GetBoolEntry(parm, "BlackIs1", false);
+        var encodedByteAlign = parm is not null && GetBoolEntry(parm, "EncodedByteAlign", false);
+        var endOfLine = parm is not null && GetBoolEntry(parm, "EndOfLine", false);
+
+        var decoded = DecodeCcittFax(rawBytes, k, columns, rows, blackIs1, encodedByteAlign, endOfLine);
+
+        var colorSpaceObject = stream.Get("ColorSpace");
+        var colorSpace = colorSpaceObject is null
+            ? PdfColorSpace.DeviceGray
+            : ResolveColorSpaceValue(Resolve(colorSpaceObject));
+
+        var componentCount = ComponentCount(colorSpace);
+        if (componentCount != 1)
+        {
+            throw new UnsupportedImageFeatureException(
+                "pdf-ccittfax-colorspace",
+                "CCITTFaxDecode images require a single-component /ColorSpace.");
+        }
+
+        var surface = new Surface(columns, rows);
+        for (var y = 0; y < rows; y++)
+        {
+            var rowOffset = y * columns;
+            for (var x = 0; x < columns; x++)
+            {
+                surface[x, y] = SamplesToColor(colorSpace, decoded, rowOffset + x, 1);
             }
         }
 

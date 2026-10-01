@@ -104,9 +104,10 @@ public sealed partial class PdfDocument
     ///     predictor reversal), plus <c>ASCII85Decode</c>, <c>ASCIIHexDecode</c>, and
     ///     <c>RunLengthDecode</c> (none of which carry a predictor: PDF only ever declares
     ///     <c>/Predictor</c> alongside the two image-compression filters). Any other filter name
-    ///     (including <c>DCTDecode</c>/<c>CCITTFaxDecode</c>/<c>JPXDecode</c>, which
-    ///     <c>PdfDocument.Images.cs</c> always detects and bypasses - for <c>DCTDecode</c> - or
-    ///     rejects before ever calling this method) is rejected with
+    ///     (including <c>DCTDecode</c> and <c>CCITTFaxDecode</c>, both of which
+    ///     <c>PdfDocument.Images.cs</c> always detects and bypasses - decoding each directly via
+    ///     <c>Codecs.JpegCodec</c>/<see cref="DecodeCcittFax"/> respectively - before ever calling
+    ///     this method; and <c>JPXDecode</c>, which remains unsupported) is rejected with
     ///     <see cref="UnsupportedImageFeatureException"/>. This is the same behavior Phase 1/2
     ///     already relied on for cross-reference streams, object streams, and page
     ///     <c>/Contents</c> (all of which only ever use a bare <c>FlateDecode</c> filter with no
@@ -381,5 +382,24 @@ public sealed partial class PdfDocument
         }
 
         return (int)resolved.Number;
+    }
+
+    /// <summary>Reads a boolean dictionary entry (resolving an indirect reference), or a default when absent.</summary>
+    /// <exception cref="InvalidDataException">Thrown when the entry is present but not a boolean.</exception>
+    private bool GetBoolEntry(PdfObject dictionary, string key, bool defaultValue)
+    {
+        var entry = dictionary.Get(key);
+        if (entry is null)
+        {
+            return defaultValue;
+        }
+
+        var resolved = Resolve(entry);
+        if (resolved.Kind != PdfKind.Boolean)
+        {
+            throw new InvalidDataException($"/{key} must be a boolean.");
+        }
+
+        return resolved.Boolean;
     }
 }

@@ -7,7 +7,7 @@ This document provides the system-level design for CanvasNetPdf.
 ![CanvasNetPdf Structure](CanvasNetPdfView.svg)
 
 <!-- cspell:ignore xref startxref CCITT bitstream Zapf unembedded bitdepth xobject Annots cidfonttype -->
-<!-- cspell:ignore AcroForms -->
+<!-- cspell:ignore AcroForms ccittfax -->
 
 ## Architecture
 
@@ -79,7 +79,8 @@ values other than `/CIDFontType2` (including `/CIDFontType0`) fail closed too; o
 `/Differences`) are supported (an unrecognized base encoding fails closed); only fill (`Tr 0`)
 and invisible (`Tr 3`) text-rendering modes are supported (stroke/clip modes fail closed); no
 Form XObject rendering (fails closed, rather than being silently skipped); no shading/patterns/
-transparency groups; no `CCITTFaxDecode`/`JPXDecode` filter decoding (fails closed); no
+transparency groups; no `JPXDecode` filter decoding (fails closed; `CCITTFaxDecode` - Group 4
+(T.6 MMR) only - is supported); no
 `/SMask`/alpha compositing (every decoded image is treated as fully opaque); and encrypted
 documents (`/Encrypt` present in the trailer) are rejected outright rather than decrypted. These
 remain out of scope and are planned for later phases (see Risk Control Measures below for the
@@ -232,13 +233,16 @@ currently-thrown `Codecs.UnsupportedImageFeatureException` carries a distinct,
 descriptive `Feature` string so a caller (or this repository's own tests) can distinguish exactly
 which unsupported construct was encountered — the complete current set is: `pdf-encrypted`,
 `pdf-pattern-color`, `pdf-colorspace-{name}` (`Indexed`/`Separation`/`DeviceN`/`ICCBased`/
-`CalRGB`/`CalGray`/`Lab`), `pdf-filter-{name}` (`CCITTFaxDecode`/`JPXDecode` and any other
+`CalRGB`/`CalGray`/`Lab`), `pdf-filter-{name}` (`JPXDecode` and any other
 unrecognized filter), `pdf-tiff-predictor-bitdepth-{n}`, `pdf-image-bitdepth-{n}`,
 `pdf-form-xobject`, `pdf-font-subtype-{subtype}` (`Type1`/`MMType1`/`Type3`),
 `pdf-font-symbolic-not-embedded` (`Symbol`/`ZapfDingbats`), `pdf-font-encoding-{name}`,
 `pdf-font-type0-encoding-{name}` (a `/Type0` `/Encoding` other than `/Identity-H`),
 `pdf-font-cidfonttype-{subtype}` (a descendant `/Subtype` other than `/CIDFontType2`), and
-`pdf-text-render-mode-{mode}` (stroke/clip). `/Annots` (annotations) and AcroForms are simply not
+`pdf-text-render-mode-{mode}` (stroke/clip), `pdf-ccittfax-group3` (`CCITTFaxDecode` with a
+non-negative `/K`), `pdf-ccittfax-endofline` (`CCITTFaxDecode` with `/EndOfLine true`), and
+`pdf-ccittfax-colorspace` (a `CCITTFaxDecode` image whose resolved `/ColorSpace` has more than 1
+component). `/Annots` (annotations) and AcroForms are simply not
 processed at all — page rendering silently ignores `/Annots` rather than throwing — since this is
 an unimplemented feature, not a fail-closed scope boundary. No other segregation is required at
 the system level:

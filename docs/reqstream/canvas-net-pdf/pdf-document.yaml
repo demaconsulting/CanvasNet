@@ -513,6 +513,42 @@ sections:
               - PdfDocument_Filters_RunLengthDecode_TruncatedRun_ThrowsInvalidDataException
               - CanvasNetPdf_SystemIntegration_PdfRender_RunLengthDecodeContentStream_PaintsExpectedPixels
 
+          - id: CanvasNetPdf-PdfDocument-CcittFaxDecodeFilter
+            title: >-
+              The PdfDocument class shall implement the CCITTFaxDecode image filter's ITU-T T.6
+              Group 4 (two-dimensional MMR) coding only: a prefix-free two-dimensional mode code
+              (Pass/Horizontal/vertical V0/VR1-3/VL1-3) per coding element, White/Black Modified
+              Huffman run-length codes (terminating 0-63, makeup 64-1728, and the shared extended
+              makeup 1792-2560) per ITU-T T.4, and a reference-line changing-element (b1/b2)
+              decode loop, honoring /DecodeParms /Columns (default 1728), /Rows (defaulting to
+              the image's own /Height when 0 or absent), /BlackIs1 (default false, per ISO
+              32000-1/2 Table 11's bit-to-color mapping), and /EncodedByteAlign (default false);
+              /K 0 or greater (Group 3) and /EndOfLine true shall each throw
+              UnsupportedImageFeatureException, and CCITTFaxDecode combined with any other filter,
+              or a resolved /ColorSpace with more than 1 component, shall likewise fail closed
+              (the latter with UnsupportedImageFeatureException, the former with
+              InvalidDataException).
+            justification: |
+              CCITTFaxDecode (Group 4) is a common, highly compact encoding for monochrome
+              scanned-document images; without it, such images would either fail closed
+              unnecessarily or (if misinterpreted) silently render incorrect pixel data - the
+              mode/run-length code tables and reference-line algorithm must be implemented
+              exactly per the ITU-T recommendations, and remain explicitly scoped to Group 4 only
+              (Group 3 and explicit /EndOfLine both fail closed rather than being silently
+              misdecoded).
+            tests:
+              - PdfDocument_Images_DoOperator_CcittFaxGroup4_PlacesExpectedPixels
+              - PdfDocument_Images_DoOperator_CcittFaxBlackIs1Default_MapsZeroBitToBlack
+              - PdfDocument_Images_DoOperator_CcittFaxBlackIs1True_InvertsPolarity
+              - PdfDocument_Images_DoOperator_CcittFaxNonByteAlignedColumns_DecodesExpectedRowPadding
+              - PdfDocument_Images_CcittFaxGroup3K_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Images_CcittFaxCombinedWithAnotherFilter_ThrowsInvalidDataException
+              - PdfDocument_Images_CcittFaxEndOfLineTrue_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Filters_CcittFaxRunLengthTables_RoundTripEveryCode
+              - PdfDocument_Filters_CcittFaxModeCodeTable_RoundTripEveryCode
+              - PdfDocument_Images_DoOperator_CcittFaxPassModeElement_PlacesExpectedPixels
+              - PdfDocument_Images_DoOperator_CcittFaxEncodedByteAlignTrue_SkipsRowPaddingBits
+
           - id: CanvasNetPdf-PdfDocument-ImageXObjects
             title: >-
               The PdfDocument class shall implement the Do operator for a /Subtype /Image

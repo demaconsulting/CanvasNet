@@ -50,10 +50,13 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         embedded font; a font with no embedded <c>/FontFile2</c> is, since Phase 6 (see
 ///         below), automatically substituted with a matching system or bundled font rather
 ///         than failing closed. <strong>Phase 3/4 limitations</strong>: no
-///         shading/patterns/transparency groups, no
-///         <c>CCITTFax</c>/<c>LZW</c>/<c>ASCII85</c>/<c>ASCIIHex</c>/<c>JPX</c> filter
-///         decoding (fails closed), and no <c>/SMask</c>/alpha compositing (every decoded
-///         image is treated as fully opaque) - a later phase is expected to add these.
+///         shading/patterns/transparency groups, and no <c>/SMask</c>/alpha compositing
+///         (every decoded image is treated as fully opaque) - a later phase is expected to
+///         add these. (<c>LZWDecode</c>/<c>ASCII85Decode</c>/<c>ASCIIHexDecode</c>/
+///         <c>RunLengthDecode</c> are supported for any stream as of Phase 7;
+///         <c>CCITTFaxDecode</c>, Group 4 only, is supported for image XObjects as of
+///         Phase 15; only <c>JPXDecode</c> remains unsupported for image XObjects - see
+///         Phase 15's own remarks above.)
 ///         Every other keyword not implemented by any phase is silently skipped, not an
 ///         error. A page with no <c>/Contents</c> at all still renders as a fully
 ///         transparent (blank) <see cref="Surface"/>, exactly as every page did in Phase 1.
@@ -98,6 +101,24 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         Encrypted documents (a trailer declaring an <c>/Encrypt</c> key) are rejected with
 ///         <see cref="UnsupportedImageFeatureException"/> - this library never attempts to
 ///         interpret encrypted bytes as plaintext.
+///     </para>
+///     <para>
+///         Phase 15 (this release) adds <c>CCITTFaxDecode</c> image-XObject support: an
+///         image XObject filtered solely with <c>CCITTFaxDecode</c> is decoded by
+///         <see cref="DecodeCcittFax"/> (see <c>PdfDocument.CcittFax.cs</c>) - a from-scratch
+///         ITU-T T.6 Group 4 (MMR, two-dimensional) decoder - and its samples are then
+///         composited through the same <c>/ColorSpace</c> pipeline every other image XObject
+///         uses. <strong>Phase 15 scope boundary</strong>: only Group 4 (<c>/DecodeParms /K</c>
+///         negative) is supported - Group 3 (<c>/K</c> <c>0</c> or greater, one- or
+///         two-dimensional) and an explicit <c>/EndOfLine true</c> both fail closed with
+///         <see cref="UnsupportedImageFeatureException"/> rather than being misinterpreted.
+///         The accurate current filter picture, correcting earlier phases' own stale remarks
+///         above: <c>FlateDecode</c>/<c>LZWDecode</c>/<c>ASCII85Decode</c>/
+///         <c>ASCIIHexDecode</c>/<c>RunLengthDecode</c> are supported for any stream
+///         (cross-reference/object streams, page <c>/Contents</c>, Form XObjects, and image
+///         XObjects alike); <c>DCTDecode</c> and <c>CCITTFaxDecode</c> (Group 4 only) are
+///         supported specifically for image XObjects; and only <c>JPXDecode</c> (and any other
+///         unrecognized filter name) remains entirely unsupported for image XObjects.
 ///     </para>
 /// </remarks>
 public sealed partial class PdfDocument : IDisposable

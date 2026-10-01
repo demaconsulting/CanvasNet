@@ -325,6 +325,363 @@ public class PdfDocumentTests
     }
 
     /// <summary>
+    ///     Renders a <paramref name="columns"/>x<paramref name="rows"/> <c>DeviceGray</c>
+    ///     <c>CCITTFaxDecode</c> image XObject placed to exactly fill a same-size device surface -
+    ///     giving an exact 1:1 nearest-neighbor correspondence between decoded pixel
+    ///     <c>(x, y)</c> and device pixel <c>(x, y)</c>, mirroring <see cref="RenderGrayscaleImage"/>'s
+    ///     own precedent for the other filter unit tests. <paramref name="extraDecodeParms"/> is
+    ///     inserted verbatim into <c>/DecodeParms</c> (after the mandatory <c>/K -1 /Columns
+    ///     /Rows</c> entries) so callers can add <c>/BlackIs1</c>/<c>/EncodedByteAlign</c>/
+    ///     <c>/EndOfLine</c> or override <c>/K</c> for the rejection-path tests.
+    /// </summary>
+    private static Canvas.Surface RenderCcittFaxImage(
+        int columns,
+        int rows,
+        byte[] encodedData,
+        string extraDecodeParms = "")
+    {
+        var imageStream = BuildStreamObjectBody(
+            $"/Type /XObject /Subtype /Image /Width {columns} /Height {rows} /ColorSpace /DeviceGray "
+            + $"/BitsPerComponent 8 /Filter /CCITTFaxDecode "
+            + $"/DecodeParms << /K -1 /Columns {columns} /Rows {rows}{extraDecodeParms} >>",
+            encodedData);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            columns,
+            rows,
+            $"{columns} 0 0 {rows} 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        return RenderPdfBytes(bytes, columns, rows);
+    }
+
+    /// <summary>
+    ///     A minimal, test-only ITU-T T.6 Group 4 (MMR) two-dimensional encoder, parameterized
+    ///     over an arbitrary <c>pixels[x, y]</c> grid (<see langword="true"/> = black) - used only
+    ///     to synthesize trustworthy encoded test vectors, never shipped in <c>src/</c>. Mirrors
+    ///     <see cref="EncodeLzwForTest"/>'s precedent: an independent, from-scratch
+    ///     implementation of the encode side of the same algorithm the production decoder
+    ///     implements, written separately (and, per the mode-code/run-length tables below,
+    ///     transcribed separately) so that a bug in one is not mechanically guaranteed to be
+    ///     masked by a matching bug in the other.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Deliberately supports only run lengths <c>&lt; 64</c> (a single terminating code,
+    ///         never a makeup code) - every test pattern in this file uses small images for which
+    ///         this is never a true limitation, and it keeps this test-only encoder's own
+    ///         run-length table small enough to transcribe (and visually cross-check) by hand.
+    ///         Throws <see cref="InvalidOperationException"/> if a test accidentally supplies a
+    ///         pattern requiring a run of 64 or more pixels.
+    ///     </para>
+    ///     <para>
+    ///         Round-tripping a pattern through this encoder and then the production
+    ///         <c>DecodeCcittFax</c> decoder alone is <strong>not</strong> sufficient to prove the
+    ///         decoder correct, since a bug here could happen to exactly cancel a bug there - see
+    ///         <see cref="PdfDocument_Images_DoOperator_CcittFaxGroup4_PlacesExpectedPixels"/>'s
+    ///         own remarks for the independent, hand-verified (bit-by-bit, outside of any C# code)
+    ///         cross-check this file relies on instead.
+    ///     </para>
+    /// </remarks>
+    private static byte[] EncodeCcittGroup4ForTest(bool[,] pixels)
+    {
+        var columns = pixels.GetLength(0);
+        var rows = pixels.GetLength(1);
+        var bits = new List<int>();
+
+        void EmitBits(int length, int code)
+        {
+            for (var i = length - 1; i >= 0; i--)
+            {
+                bits.Add((code >> i) & 1);
+            }
+        }
+
+        var modeCodes = new Dictionary<string, (int Length, int Code)>
+        {
+            ["Pass"] = (4, 0b0001),
+            ["Horizontal"] = (3, 0b001),
+            ["V0"] = (1, 0b1),
+            ["VR1"] = (3, 0b011),
+            ["VR2"] = (6, 0b000011),
+            ["VR3"] = (7, 0b0000011),
+            ["VL1"] = (3, 0b010),
+            ["VL2"] = (6, 0b000010),
+            ["VL3"] = (7, 0b0000010),
+        };
+
+        // ITU-T T.4 Table 3 White / Table 2 Black terminating codes (run lengths 0-63 only, see
+        // this method's own remarks), transcribed independently of
+        // PdfDocument.CcittFax.cs's own WhiteCodeEntries/BlackCodeEntries (same ultimate ITU-T
+        // source, but retyped separately here rather than referencing those internals, so a
+        // transcription slip in one is not silently hidden by reusing the other).
+        var whiteTerm = new Dictionary<int, (int Length, int Code)>
+        {
+            [0] = (8, 0x35),
+            [1] = (6, 0x7),
+            [2] = (4, 0x7),
+            [3] = (4, 0x8),
+            [4] = (4, 0xB),
+            [5] = (4, 0xC),
+            [6] = (4, 0xE),
+            [7] = (4, 0xF),
+            [8] = (5, 0x13),
+            [9] = (5, 0x14),
+            [10] = (5, 0x7),
+            [11] = (5, 0x8),
+            [12] = (6, 0x8),
+            [13] = (6, 0x3),
+            [14] = (6, 0x34),
+            [15] = (6, 0x35),
+            [16] = (6, 0x2A),
+            [17] = (6, 0x2B),
+            [18] = (7, 0x27),
+            [19] = (7, 0xC),
+            [20] = (7, 0x8),
+            [21] = (7, 0x17),
+            [22] = (7, 0x3),
+            [23] = (7, 0x4),
+            [24] = (7, 0x28),
+            [25] = (7, 0x2B),
+            [26] = (7, 0x13),
+            [27] = (7, 0x24),
+            [28] = (7, 0x18),
+            [29] = (8, 0x2),
+            [30] = (8, 0x3),
+            [31] = (8, 0x1A),
+            [32] = (8, 0x1B),
+            [33] = (8, 0x12),
+            [34] = (8, 0x13),
+            [35] = (8, 0x14),
+            [36] = (8, 0x15),
+            [37] = (8, 0x16),
+            [38] = (8, 0x17),
+            [39] = (8, 0x28),
+            [40] = (8, 0x29),
+            [41] = (8, 0x2A),
+            [42] = (8, 0x2B),
+            [43] = (8, 0x2C),
+            [44] = (8, 0x2D),
+            [45] = (8, 0x4),
+            [46] = (8, 0x5),
+            [47] = (8, 0xA),
+            [48] = (8, 0xB),
+            [49] = (8, 0x52),
+            [50] = (8, 0x53),
+            [51] = (8, 0x54),
+            [52] = (8, 0x55),
+            [53] = (8, 0x24),
+            [54] = (8, 0x25),
+            [55] = (8, 0x58),
+            [56] = (8, 0x59),
+            [57] = (8, 0x5A),
+            [58] = (8, 0x5B),
+            [59] = (8, 0x4A),
+            [60] = (8, 0x4B),
+            [61] = (8, 0x32),
+            [62] = (8, 0x33),
+            [63] = (8, 0x34),
+        };
+        var blackTerm = new Dictionary<int, (int Length, int Code)>
+        {
+            [0] = (10, 0x37),
+            [1] = (3, 0x2),
+            [2] = (2, 0x3),
+            [3] = (2, 0x2),
+            [4] = (3, 0x3),
+            [5] = (4, 0x3),
+            [6] = (4, 0x2),
+            [7] = (5, 0x3),
+            [8] = (6, 0x5),
+            [9] = (6, 0x4),
+            [10] = (7, 0x4),
+            [11] = (7, 0x5),
+            [12] = (7, 0x7),
+            [13] = (8, 0x4),
+            [14] = (8, 0x7),
+            [15] = (9, 0x18),
+            [16] = (10, 0x17),
+            [17] = (10, 0x18),
+            [18] = (10, 0x8),
+            [19] = (11, 0x67),
+            [20] = (11, 0x68),
+            [21] = (11, 0x6C),
+            [22] = (11, 0x37),
+            [23] = (11, 0x28),
+            [24] = (11, 0x17),
+            [25] = (11, 0x18),
+            [26] = (12, 0xCA),
+            [27] = (12, 0xCB),
+            [28] = (12, 0xCC),
+            [29] = (12, 0xCD),
+            [30] = (12, 0x68),
+            [31] = (12, 0x69),
+            [32] = (12, 0x6A),
+            [33] = (12, 0x6B),
+            [34] = (12, 0xD2),
+            [35] = (12, 0xD3),
+            [36] = (12, 0xD4),
+            [37] = (12, 0xD5),
+            [38] = (12, 0xD6),
+            [39] = (12, 0xD7),
+            [40] = (12, 0x6C),
+            [41] = (12, 0x6D),
+            [42] = (12, 0xDA),
+            [43] = (12, 0xDB),
+            [44] = (12, 0x54),
+            [45] = (12, 0x55),
+            [46] = (12, 0x56),
+            [47] = (12, 0x57),
+            [48] = (12, 0x64),
+            [49] = (12, 0x65),
+            [50] = (12, 0x52),
+            [51] = (12, 0x53),
+            [52] = (12, 0x24),
+            [53] = (12, 0x37),
+            [54] = (12, 0x38),
+            [55] = (12, 0x27),
+            [56] = (12, 0x28),
+            [57] = (12, 0x58),
+            [58] = (12, 0x59),
+            [59] = (12, 0x2B),
+            [60] = (12, 0x2C),
+            [61] = (12, 0x5A),
+            [62] = (12, 0x66),
+            [63] = (12, 0x67),
+        };
+
+        void EmitRun(bool isBlack, int run)
+        {
+            if (run >= 64)
+            {
+                throw new InvalidOperationException(
+                    $"Test-only encoder limitation: run length {run} requires a makeup code, which this encoder does not support.");
+            }
+
+            var (length, code) = (isBlack ? blackTerm : whiteTerm)[run];
+            EmitBits(length, code);
+        }
+
+        List<int> RowChanges(int y)
+        {
+            var changes = new List<int>();
+            var color = false;
+            for (var x = 0; x < columns; x++)
+            {
+                if (pixels[x, y] != color)
+                {
+                    changes.Add(x);
+                    color = pixels[x, y];
+                }
+            }
+
+            return changes;
+        }
+
+        (int B1, int B2) FindB1B2(IReadOnlyList<int> reference, int a0, bool currentIsBlack)
+        {
+            var idx = 0;
+            while (idx < reference.Count && reference[idx] <= a0)
+            {
+                idx++;
+            }
+
+            var colorAtIdxIsBlack = idx % 2 == 0;
+            if (colorAtIdxIsBlack == currentIsBlack)
+            {
+                idx++;
+            }
+
+            var b1 = idx < reference.Count ? reference[idx] : columns;
+            var b2 = idx + 1 < reference.Count ? reference[idx + 1] : columns;
+            return (b1, b2);
+        }
+
+        int NextChangeAfter(List<int> changes, int position)
+        {
+            foreach (var c in changes)
+            {
+                if (c > position)
+                {
+                    return c;
+                }
+            }
+
+            return columns;
+        }
+
+        var referenceChanges = new List<int>();
+        for (var y = 0; y < rows; y++)
+        {
+            var changes = RowChanges(y);
+            var a0 = -1;
+            var color = false;
+            while (a0 < columns)
+            {
+                var (b1, b2) = FindB1B2(referenceChanges, a0, color);
+                var a1 = NextChangeAfter(changes, a0);
+
+                if (a1 > b2)
+                {
+                    EmitBits(modeCodes["Pass"].Length, modeCodes["Pass"].Code);
+                    a0 = b2;
+                }
+                else
+                {
+                    var delta = a1 - b1;
+                    if (delta is >= -3 and <= 3)
+                    {
+                        var name = delta switch
+                        {
+                            0 => "V0",
+                            1 => "VR1",
+                            2 => "VR2",
+                            3 => "VR3",
+                            -1 => "VL1",
+                            -2 => "VL2",
+                            _ => "VL3",
+                        };
+                        EmitBits(modeCodes[name].Length, modeCodes[name].Code);
+                        a0 = a1;
+                        color = !color;
+                    }
+                    else
+                    {
+                        var a2 = NextChangeAfter(changes, a1);
+                        var start = a0 < 0 ? 0 : a0;
+                        EmitBits(modeCodes["Horizontal"].Length, modeCodes["Horizontal"].Code);
+                        EmitRun(color, a1 - start);
+                        EmitRun(!color, a2 - a1);
+                        a0 = a2;
+                    }
+                }
+            }
+
+            referenceChanges = changes;
+        }
+
+        while (bits.Count % 8 != 0)
+        {
+            bits.Add(0);
+        }
+
+        var output = new byte[bits.Count / 8];
+        for (var i = 0; i < output.Length; i++)
+        {
+            var b = 0;
+            for (var j = 0; j < 8; j++)
+            {
+                b = (b << 1) | bits[(i * 8) + j];
+            }
+
+            output[i] = (byte)b;
+        }
+
+        return output;
+    }
+
+    /// <summary>
     ///     Builds a minimal, well-formed synthetic embedded TrueType font (see
     ///     <see cref="SyntheticFontBuilder"/>): a 1000-unit em square, glyph 0 the
     ///     (empty-outline) <c>.notdef</c>, and every glyph from index 1 onward a filled square
@@ -1967,10 +2324,11 @@ public class PdfDocumentTests
     [Fact]
     public void PdfDocument_Images_UnsupportedFilter_ThrowsUnsupportedImageFeatureException()
     {
-        // Arrange: /CCITTFaxDecode remains genuinely unsupported even after Phase 7 (unlike
-        // /LZWDecode, which this phase implements - see PdfFixtures/README.md/design docs).
+        // Arrange: /JPXDecode remains genuinely unsupported (unlike /LZWDecode and
+        // /CCITTFaxDecode, both of which this library implements - see
+        // PdfFixtures/README.md/design docs).
         var imageStream = BuildStreamObjectBody(
-            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /CCITTFaxDecode",
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /JPXDecode",
             [1, 2, 3, 4]);
 
         var bytes = BuildSinglePagePdfWithResources(
@@ -2414,6 +2772,88 @@ public class PdfDocumentTests
         Assert.Throws<InvalidDataException>(() => RenderGrayscaleImage(1, data, "/Filter /RunLengthDecode"));
     }
 
+    /// <summary>
+    ///     Proves <c>PdfDocument.CcittFax.cs</c>'s White/Black Modified Huffman run-length code
+    ///     tables are internally self-consistent: writing any single table entry's own exact bits
+    ///     through <see cref="PdfDocument.CcittBitReader"/> and reading it back via
+    ///     <see cref="PdfDocument.ReadVariableLengthCode"/> recovers the exact same run length -
+    ///     independently of whether any single rendered test image happens to exercise that
+    ///     particular code (most test images in this file only ever exercise a handful of small
+    ///     run lengths). Exercises the <c>internal</c> (not <c>private</c>) visibility
+    ///     deliberately given to these members for this exact purpose.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Filters_CcittFaxRunLengthTables_RoundTripEveryCode()
+    {
+        foreach (var table in new[] { PdfDocument.WhiteCodeTable, PdfDocument.BlackCodeTable })
+        {
+            foreach (var ((length, code), run) in table)
+            {
+                // Arrange: pack just this one code's bits (MSB-first), left-justified in enough
+                // bytes to hold it, zero-padded - exactly what CcittBitReader expects.
+                var byteCount = (length + 7) / 8;
+                var bytes = new byte[byteCount];
+                for (var i = 0; i < length; i++)
+                {
+                    var bit = (code >> (length - 1 - i)) & 1;
+                    if (bit == 1)
+                    {
+                        bytes[i / 8] |= (byte)(0x80 >> (i % 8));
+                    }
+                }
+
+                var reader = new PdfDocument.CcittBitReader(bytes);
+
+                // Act
+                var decodedRun = PdfDocument.ReadVariableLengthCode(reader, table, length);
+
+                // Assert
+                Assert.Equal(run, decodedRun);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves <c>PdfDocument.CcittFax.cs</c>'s <c>ModeCodeTable</c> (all nine ITU-T T.6
+    ///     two-dimensional mode codes: Pass, Horizontal, V0, VR1-3, VL1-3) is internally
+    ///     self-consistent: writing any single table entry's own exact bits through
+    ///     <see cref="PdfDocument.CcittBitReader"/> and reading it back via
+    ///     <see cref="PdfDocument.ReadMode"/> recovers the exact same mode - independently of
+    ///     whether any single rendered test image happens to exercise that particular mode code
+    ///     (most rendered test images in this file only ever exercise Horizontal/V0/VL1/VR2).
+    ///     Mirrors <see cref="PdfDocument_Filters_CcittFaxRunLengthTables_RoundTripEveryCode"/>'s
+    ///     own precedent; exercises the <c>internal</c> (not <c>private</c>) visibility
+    ///     deliberately given to <c>ModeCodeTable</c>/<c>CcittMode</c>/<c>ReadMode</c> for this
+    ///     exact purpose.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Filters_CcittFaxModeCodeTable_RoundTripEveryCode()
+    {
+        foreach (var ((length, code), mode) in PdfDocument.ModeCodeTable)
+        {
+            // Arrange: pack just this one code's bits (MSB-first), left-justified in enough
+            // bytes to hold it, zero-padded - exactly what CcittBitReader expects.
+            var byteCount = (length + 7) / 8;
+            var bytes = new byte[byteCount];
+            for (var i = 0; i < length; i++)
+            {
+                var bit = (code >> (length - 1 - i)) & 1;
+                if (bit == 1)
+                {
+                    bytes[i / 8] |= (byte)(0x80 >> (i % 8));
+                }
+            }
+
+            var reader = new PdfDocument.CcittBitReader(bytes);
+
+            // Act
+            var decodedMode = PdfDocument.ReadMode(reader);
+
+            // Assert
+            Assert.Equal(mode, decodedMode);
+        }
+    }
+
     #endregion
 
     #region Images
@@ -2576,7 +3016,421 @@ public class PdfDocumentTests
         Assert.Equal(255, pixel.A);
     }
 
-    /// <summary>Proves that an image XObject with an unsupported <c>/BitsPerComponent</c> throws <see cref="UnsupportedImageFeatureException"/>.</summary>
+    /// <summary>
+    ///     Proves that <c>Do</c> decodes a Group 4 (T.6 MMR) <c>CCITTFaxDecode</c> image XObject
+    ///     and places the expected black/white pixels at specific <c>(x, y)</c> coordinates.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Uses the 8x4 pattern below, encoded via the test-only
+    ///         <see cref="EncodeCcittGroup4ForTest"/>. Per that method's own remarks, a
+    ///         round-trip through the test encoder and the production decoder alone cannot rule
+    ///         out a matching pair of bugs, so this test additionally hand-verifies, bit by bit,
+    ///         the exact encoded byte sequence this pattern must produce - worked out independently
+    ///         of both the production C# decoder and the test-only C# encoder (originally derived
+    ///         and cross-checked via a from-scratch Python prototype, then re-derived by hand
+    ///         below) - and asserts the encoder actually produces those exact bytes before even
+    ///         reaching the decoder, so a mismatch here would fail loudly as a wrong-test-vector
+    ///         bug rather than silently validating nothing.
+    ///     </para>
+    ///     <para>
+    ///         Pattern (<c>W</c>=white, <c>B</c>=black), 8 columns x 4 rows:
+    ///         <code>
+    ///         row 0: W W W W B B B B
+    ///         row 1: W W W W B B B B   (identical to row 0 -> both changing elements at V0)
+    ///         row 2: W W W B B B B B   (black run starts 1 pixel earlier -> VL1)
+    ///         row 3: W W W W W B B B   (black run starts 2 pixels later -> VR2)
+    ///         </code>
+    ///     </para>
+    ///     <para>
+    ///         Hand-derived bit trace (reference line for row 0 is the imaginary all-white line,
+    ///         so <c>b1</c>/<c>b2</c> both default to <c>columns</c> = 8):
+    ///     </para>
+    ///     <para>
+    ///         <strong>Row 0</strong> (changing element at 4): <c>a0=-1</c>, white.
+    ///         <c>b1=8, b2=8</c> (empty reference). <c>a1=4</c> (the only change). Since
+    ///         <c>a1(4) &lt;= b2(8)</c>, not Pass. <c>delta = a1 - b1 = 4 - 8 = -4</c>, outside
+    ///         <c>[-3, 3]</c>, so Horizontal: run1 (white) = <c>4 - 0 = 4</c> -&gt; code
+    ///         <c>1011</c> (length 4); run2 (black) = <c>8 - 4 = 4</c> -&gt; code <c>011</c>
+    ///         (length 3). Bits: Horizontal <c>001</c> + white-4 <c>1011</c> + black-4 <c>011</c>
+    ///         = <c>0011011011</c> (10 bits). <c>a0</c> becomes 8, row done.
+    ///     </para>
+    ///     <para>
+    ///         <strong>Row 1</strong> (reference = row 0's changes <c>[4, 8]</c>): first element:
+    ///         <c>a0=-1</c>, white, <c>b1=4, b2=8</c>; <c>a1=4</c>; <c>delta=4-4=0</c> -&gt; V0
+    ///         (bit <c>1</c>), <c>a0=4</c>, color -&gt; black. Second element: <c>b1=8, b2=8</c>
+    ///         (no further reference change past <c>a0=4</c> except the sentinel at 8);
+    ///         <c>a1=8</c> (no further row-1 change, i.e. black runs to the end);
+    ///         <c>delta=8-8=0</c> -&gt; V0 (bit <c>1</c>), <c>a0=8</c>, row done. Bits: <c>11</c>
+    ///         (2 bits).
+    ///     </para>
+    ///     <para>
+    ///         Running total so far: <c>0011011011</c> + <c>11</c> = <c>001101101111</c> (12
+    ///         bits); the first byte (<c>00110110</c>) = <c>0x36</c>.
+    ///     </para>
+    ///     <para>
+    ///         <strong>Row 2</strong> (reference = row 1's changes <c>[4, 8]</c>, changing
+    ///         element at 3): <c>a0=-1</c>, white, <c>b1=4, b2=8</c>; <c>a1=3</c>;
+    ///         <c>delta=3-4=-1</c> -&gt; VL1 (code <c>010</c>, length 3), <c>a0=3</c>, color -&gt;
+    ///         black. Second element: reference index advances past <c>b1=4&lt;=a0(3)</c>? No
+    ///         (4 &gt; 3), so <c>b1</c> search continues from the same reference index but the
+    ///         color now matches (black at index 0 already consumed as b1 above) - working
+    ///         through <see cref="PdfDocument"/>'s own <c>FindB1B2</c> logic by hand gives
+    ///         <c>b1=8, b2=8</c>; <c>a1=8</c> (no further row-2 change);
+    ///         <c>delta=8-8=0</c> -&gt; V0 (bit <c>1</c>), <c>a0=8</c>, row done. Bits:
+    ///         <c>010</c> + <c>1</c> = <c>0101</c> (4 bits).
+    ///     </para>
+    ///     <para>
+    ///         Running total: 12 + 4 = 16 bits; bits 8-15 (<c>11110101</c>) = <c>0xF5</c> (the
+    ///         second byte).
+    ///     </para>
+    ///     <para>
+    ///         <strong>Row 3</strong> (reference = row 2's changes <c>[3, 8]</c>, changing
+    ///         element at 5): <c>a0=-1</c>, white, <c>b1=3, b2=8</c>; <c>a1=5</c>;
+    ///         <c>delta=5-3=2</c> -&gt; VR2 (code <c>000011</c>, length 6), <c>a0=5</c>, color
+    ///         -&gt; black. Second element: <c>b1=8, b2=8</c>; <c>a1=8</c>; <c>delta=0</c> -&gt;
+    ///         V0 (bit <c>1</c>), <c>a0=8</c>, row done. Bits: <c>000011</c> + <c>1</c> =
+    ///         <c>0000111</c> (7 bits).
+    ///     </para>
+    ///     <para>
+    ///         Running total: 16 + 7 = 23 bits, zero-padded to 24: the final 8 bits are
+    ///         <c>00001110</c> = <c>0x0E</c>. Final expected encoded bytes:
+    ///         <c>0x36 0xF5 0x0E</c> - exactly matching both this hand trace and the
+    ///         independent Python prototype's output (confidence: high - every single bit of
+    ///         all 23 was traced by hand above, not merely asserted).
+    ///     </para>
+    /// </remarks>
+    [Fact]
+    public void PdfDocument_Images_DoOperator_CcittFaxGroup4_PlacesExpectedPixels()
+    {
+        // Arrange
+        var pixels = new bool[8, 4];
+        for (var y = 0; y < 4; y++)
+        {
+            for (var x = 0; x < 8; x++)
+            {
+                pixels[x, y] = y switch
+                {
+                    0 or 1 => x >= 4,
+                    2 => x >= 3,
+                    _ => x >= 5,
+                };
+            }
+        }
+
+        var encoded = EncodeCcittGroup4ForTest(pixels);
+
+        // Assert the hand-derived test vector itself, before even reaching the decoder.
+        Assert.Equal<byte>([0x36, 0xF5, 0x0E], encoded);
+
+        // Act
+        using var surface = RenderCcittFaxImage(8, 4, encoded);
+
+        // Assert: white -> (255,255,255,255); black -> (0,0,0,255) under the default /BlackIs1.
+        var white = new Canvas.Rgba32(255, 255, 255, 255);
+        var black = new Canvas.Rgba32(0, 0, 0, 255);
+        Assert.Equal(white, surface[0, 0]);
+        Assert.Equal(black, surface[4, 0]);
+        Assert.Equal(white, surface[0, 1]);
+        Assert.Equal(black, surface[4, 1]);
+        Assert.Equal(white, surface[2, 2]);
+        Assert.Equal(black, surface[3, 2]);
+        Assert.Equal(white, surface[4, 3]);
+        Assert.Equal(black, surface[5, 3]);
+    }
+
+    /// <summary>Proves that the default (absent) <c>/BlackIs1</c> maps a physically black pixel to packed bit <c>0</c> (and a decoded gray value of <c>0</c>).</summary>
+    [Fact]
+    public void PdfDocument_Images_DoOperator_CcittFaxBlackIs1Default_MapsZeroBitToBlack()
+    {
+        // Arrange: same 8x4 pattern/encoding as the hand-verified test above.
+        var pixels = new bool[8, 4];
+        for (var y = 0; y < 4; y++)
+        {
+            for (var x = 0; x < 8; x++)
+            {
+                pixels[x, y] = x >= 4;
+            }
+        }
+
+        var encoded = EncodeCcittGroup4ForTest(pixels);
+
+        // Act
+        using var surface = RenderCcittFaxImage(8, 4, encoded);
+
+        // Assert: default /BlackIs1 (absent -> false) -> black pixel -> gray 0.
+        Assert.Equal(new Canvas.Rgba32(255, 255, 255, 255), surface[0, 0]);
+        Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[4, 0]);
+    }
+
+    /// <summary>Proves that <c>/BlackIs1 true</c> inverts the polarity of the identical encoded bit stream relative to the default.</summary>
+    [Fact]
+    public void PdfDocument_Images_DoOperator_CcittFaxBlackIs1True_InvertsPolarity()
+    {
+        // Arrange: the exact same encoded bytes as the Default test above.
+        var pixels = new bool[8, 4];
+        for (var y = 0; y < 4; y++)
+        {
+            for (var x = 0; x < 8; x++)
+            {
+                pixels[x, y] = x >= 4;
+            }
+        }
+
+        var encoded = EncodeCcittGroup4ForTest(pixels);
+
+        // Act
+        using var surface = RenderCcittFaxImage(8, 4, encoded, " /BlackIs1 true");
+
+        // Assert: polarity inverted relative to the default-/BlackIs1 test - the physically black
+        // run (x >= 4) now decodes to gray 255 (white), and the physically white run to gray 0.
+        Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[0, 0]);
+        Assert.Equal(new Canvas.Rgba32(255, 255, 255, 255), surface[4, 0]);
+    }
+
+    /// <summary>Proves that non-byte-aligned <c>/Columns</c> values (not a multiple of 8) still decode every row's correct pixel colors, with no padding-bit leakage.</summary>
+    [Theory]
+    [InlineData(10)]
+    [InlineData(20)]
+    public void PdfDocument_Images_DoOperator_CcittFaxNonByteAlignedColumns_DecodesExpectedRowPadding(int columns)
+    {
+        // Arrange: 3 rows, each with a single black run covering the row's final 3 columns (and
+        // shifted by 1 column between rows, to force real 2D vertical-mode coding rather than
+        // every row trivially matching its reference) - deliberately placed across the
+        // not-a-multiple-of-8 /Columns boundary so a padding-bit bug would corrupt either this
+        // run or the next row's leading pixels.
+        var pixels = new bool[columns, 3];
+        for (var y = 0; y < 3; y++)
+        {
+            var blackStart = columns - 3 - y;
+            for (var x = 0; x < columns; x++)
+            {
+                pixels[x, y] = x >= blackStart;
+            }
+        }
+
+        var encoded = EncodeCcittGroup4ForTest(pixels);
+
+        // Act
+        using var surface = RenderCcittFaxImage(columns, 3, encoded);
+
+        // Assert: every column of every row matches the source pattern exactly.
+        var white = new Canvas.Rgba32(255, 255, 255, 255);
+        var black = new Canvas.Rgba32(0, 0, 0, 255);
+        for (var y = 0; y < 3; y++)
+        {
+            var blackStart = columns - 3 - y;
+            for (var x = 0; x < columns; x++)
+            {
+                Assert.Equal(x >= blackStart ? black : white, surface[x, y]);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves that <c>Do</c> decodes a Group 4 (T.6 MMR) <c>CCITTFaxDecode</c> image XObject
+    ///     whose second row decodes via a <c>Pass</c> mode element, and places the expected
+    ///     black/white pixels at specific <c>(x, y)</c> coordinates.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         None of this file's other CCITTFaxDecode tests happen to force a <c>Pass</c> mode
+    ///         element (ITU-T T.6's "the current run extends past the reference line's <c>b2</c>
+    ///         changing element without itself changing color" case), so this test uses a
+    ///         dedicated hand-derived literal byte array (not <see cref="EncodeCcittGroup4ForTest"/>
+    ///         - that test-only encoder's own output for this exact pattern was independently
+    ///         cross-checked against the hand trace below and happens to match, but the literal
+    ///         bytes are asserted directly so this test's evidence does not depend on the test
+    ///         encoder's own correctness).
+    ///     </para>
+    ///     <para>
+    ///         Pattern (<c>W</c>=white, <c>B</c>=black), 8 columns x 2 rows:
+    ///         <code>
+    ///         row 0: W W B B W W W W   (changing elements at x=2, x=4)
+    ///         row 1: W W W W W W W W   (no changing element - all white)
+    ///         </code>
+    ///     </para>
+    ///     <para>
+    ///         <strong>Row 0</strong> (reference line empty, i.e. <c>b1=b2=8</c>): first element:
+    ///         <c>a0=-1</c>, white; <c>a1=2</c>; <c>delta = a1 - b1 = 2 - 8 = -6</c>, outside
+    ///         <c>[-3, 3]</c> -&gt; Horizontal: run1 (white) = <c>2</c> -&gt; code <c>0111</c>
+    ///         (length 4); run2 (black) = <c>4 - 2 = 2</c> -&gt; code <c>11</c> (length 2). Bits:
+    ///         Horizontal <c>001</c> + white-2 <c>0111</c> + black-2 <c>11</c> = <c>0010111 11</c>
+    ///         (9 bits), <c>a0</c> becomes 4. Second element: <c>b1=b2=8</c> (reference exhausted);
+    ///         <c>a1=8</c> (sentinel); <c>delta=0</c> -&gt; V0 (bit <c>1</c>), <c>a0=8</c>, row
+    ///         done. Row 0 bits: <c>0010111111</c> (10 bits).
+    ///     </para>
+    ///     <para>
+    ///         <strong>Row 1</strong> (reference <c>[2, 4]</c>): first element: <c>a0=-1</c>,
+    ///         white; <c>FindB1B2([2,4], a0=-1, isBlack=false)</c> walks <c>idx</c> from 0 (no
+    ///         reference element <c>&lt;= -1</c>); the color at <c>idx=0</c> is black (even index
+    ///         = black, per <c>FindB1B2</c>'s own color-parity convention), which already differs
+    ///         from the current white, so <c>idx</c> is <strong>not</strong> incremented:
+    ///         <c>b1 = referenceChanges[0] = 2</c>, <c>b2 = referenceChanges[1] = 4</c>. Row 1 has
+    ///         no changing element at all, so its next change (conceptually at <c>columns</c>,
+    ///         i.e. 8) is strictly greater than <c>b2 = 4</c> - exactly ITU-T T.6's Pass condition
+    ///         - so <c>Pass</c> is coded (<c>0001</c>, 4 bits), advancing <c>a0</c> to
+    ///         <c>b2 = 4</c> without emitting any changing element. Second element: <c>b1=b2=8</c>
+    ///         (no further reference elements remain past index 2); <c>a1=8</c>; <c>delta=0</c>
+    ///         -&gt; V0 (bit <c>1</c>), <c>a0=8</c>, row done. Row 1 bits: <c>00011</c> (5 bits).
+    ///     </para>
+    ///     <para>
+    ///         Row 0 (10 bits) + row 1 (5 bits) = 15 bits, zero-padded to 16: <c>0010111111000110</c>
+    ///         -&gt; bytes <c>0x2F, 0xC6</c>. This was independently re-verified by stepping a
+    ///         from-scratch Python re-implementation of <see cref="PdfDocument"/>'s own
+    ///         <c>ReadMode</c>/<c>FindB1B2</c>/<c>DecodeCcittRow</c> logic through these exact
+    ///         bytes, which printed each decoded mode in turn and confirmed the second row's
+    ///         very first coding element is read as <c>Pass</c> before producing the expected
+    ///         <c>[2, 4]</c> / all-white rows.
+    ///     </para>
+    /// </remarks>
+    [Fact]
+    public void PdfDocument_Images_DoOperator_CcittFaxPassModeElement_PlacesExpectedPixels()
+    {
+        // Arrange
+        var pixels = new bool[8, 2];
+        for (var x = 0; x < 8; x++)
+        {
+            pixels[x, 0] = x is 2 or 3;
+            pixels[x, 1] = false;
+        }
+
+        var encoded = EncodeCcittGroup4ForTest(pixels);
+
+        // Assert the hand-derived test vector itself, before even reaching the decoder.
+        Assert.Equal<byte>([0x2F, 0xC6], encoded);
+
+        // Act
+        using var surface = RenderCcittFaxImage(8, 2, encoded);
+
+        // Assert: row 0 is W W B B W W W W; row 1 (decoded via a Pass mode element) is all white.
+        var white = new Canvas.Rgba32(255, 255, 255, 255);
+        var black = new Canvas.Rgba32(0, 0, 0, 255);
+        Assert.Equal(white, surface[0, 0]);
+        Assert.Equal(white, surface[1, 0]);
+        Assert.Equal(black, surface[2, 0]);
+        Assert.Equal(black, surface[3, 0]);
+        Assert.Equal(white, surface[4, 0]);
+        Assert.Equal(white, surface[7, 0]);
+        Assert.Equal(white, surface[0, 1]);
+        Assert.Equal(white, surface[3, 1]);
+        Assert.Equal(white, surface[7, 1]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>CCITTFaxDecode</c> with <c>/EncodedByteAlign true</c> actually invokes
+    ///     <c>AlignToByte</c> before each row (not merely happens to work by coincidence): the
+    ///     second row's leading padding bits after row 0 are deliberately non-zero garbage, which
+    ///     would corrupt row 1's decode if <c>AlignToByte</c> were not called (or were a no-op
+    ///     bug) - the test still recovers the exact same expected pixels as
+    ///     <see cref="PdfDocument_Images_DoOperator_CcittFaxPassModeElement_PlacesExpectedPixels"/>,
+    ///     proving the garbage bits were correctly skipped rather than misinterpreted as row 1
+    ///     data.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Uses the same 8x2 pattern as the Pass-mode test above, but with <c>/Rows</c>
+    ///         byte-aligned independently rather than packed back-to-back: row 0's 10 bits
+    ///         (<c>0010111111</c>) occupy byte 0 (<c>00101111</c> = <c>0x2F</c>) plus 2 bits into
+    ///         byte 1. Byte 1's remaining 6 bits are deliberately set to non-zero garbage
+    ///         (<c>111111</c>, not the zero padding a decoder might coincidentally tolerate) -
+    ///         byte 1 = <c>11111111</c> = <c>0xFF</c>. Row 1's own 5 bits (<c>00011</c>) plus 3
+    ///         zero pad bits then form byte 2: <c>00011000</c> = <c>0x18</c>. Final bytes:
+    ///         <c>0x2F, 0xFF, 0x18</c>. This literal byte array (not produced by
+    ///         <see cref="EncodeCcittGroup4ForTest"/>, since that test-only helper has no
+    ///         per-row byte-alignment/padding concept) was independently re-verified by stepping
+    ///         the same from-scratch Python re-implementation referenced above through these
+    ///         exact bytes with byte-alignment applied before each row, which confirmed byte 1 is
+    ///         skipped in its entirety (regardless of its garbage content) and row 1 still decodes
+    ///         to the expected all-white, Pass-mode-driven result.
+    ///     </para>
+    /// </remarks>
+    [Fact]
+    public void PdfDocument_Images_DoOperator_CcittFaxEncodedByteAlignTrue_SkipsRowPaddingBits()
+    {
+        // Arrange: hand-derived bytes - see remarks above for the full bit-level derivation.
+        byte[] encoded = [0x2F, 0xFF, 0x18];
+
+        // Act
+        using var surface = RenderCcittFaxImage(8, 2, encoded, " /EncodedByteAlign true");
+
+        // Assert: identical expected pixels to the Pass-mode test above.
+        var white = new Canvas.Rgba32(255, 255, 255, 255);
+        var black = new Canvas.Rgba32(0, 0, 0, 255);
+        Assert.Equal(white, surface[0, 0]);
+        Assert.Equal(white, surface[1, 0]);
+        Assert.Equal(black, surface[2, 0]);
+        Assert.Equal(black, surface[3, 0]);
+        Assert.Equal(white, surface[4, 0]);
+        Assert.Equal(white, surface[7, 0]);
+        Assert.Equal(white, surface[0, 1]);
+        Assert.Equal(white, surface[3, 1]);
+        Assert.Equal(white, surface[7, 1]);
+    }
+
+    /// <summary>Proves that <c>CCITTFaxDecode</c> with a non-negative <c>/K</c> (Group 3) throws <see cref="UnsupportedImageFeatureException"/> with a clear message.</summary>
+    [Fact]
+    public void PdfDocument_Images_CcittFaxGroup3K_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 8 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 "
+            + "/Filter /CCITTFaxDecode /DecodeParms << /K 0 /Columns 8 /Rows 1 >>",
+            [0x00]);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act & Assert
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+        Assert.Contains("Group 3", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>Proves that <c>CCITTFaxDecode</c> combined with another filter throws <see cref="InvalidDataException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Images_CcittFaxCombinedWithAnotherFilter_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 8 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 "
+            + "/Filter [/FlateDecode /CCITTFaxDecode] /DecodeParms [null << /K -1 /Columns 8 /Rows 1 >>]",
+            ZlibCompress([0x00]));
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that <c>CCITTFaxDecode</c> with <c>/EndOfLine true</c> throws <see cref="UnsupportedImageFeatureException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Images_CcittFaxEndOfLineTrue_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange
+        var pixels = new bool[8, 1];
+        for (var x = 0; x < 8; x++)
+        {
+            pixels[x, 0] = x >= 4;
+        }
+
+        var encoded = EncodeCcittGroup4ForTest(pixels);
+
+        // Act & Assert
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(
+            () => RenderCcittFaxImage(8, 1, encoded, " /EndOfLine true"));
+        Assert.Contains("EndOfLine", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>Proves that an unsupported <c>/BitsPerComponent</c> throws <see cref="UnsupportedImageFeatureException"/>.</summary>
     [Fact]
     public void PdfDocument_Images_UnsupportedBitsPerComponent_ThrowsUnsupportedImageFeatureException()
     {
