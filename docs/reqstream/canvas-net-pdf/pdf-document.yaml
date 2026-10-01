@@ -483,15 +483,15 @@ sections:
               XObject, decoding a bare /Filter /DCTDecode image via Codecs.JpegCodec.Load or
               interpreting raw DeviceGray/DeviceRGB/DeviceCMYK 8-bit samples, and compositing the
               decoded image onto the destination surface through the current transformation
-              matrix (nearest-neighbor sampling, treating every image as fully opaque); Do on a
-              /Subtype /Form XObject, an unsupported /ColorSpace, or an unsupported
-              /BitsPerComponent shall throw UnsupportedImageFeatureException rather than being
-              silently skipped or mis-rendered, and a malformed operand count/type or an
-              undeclared XObject name shall throw InvalidDataException.
+              matrix (nearest-neighbor sampling, treating every image as fully opaque); an
+              unsupported /ColorSpace or an unsupported /BitsPerComponent shall throw
+              UnsupportedImageFeatureException rather than being silently skipped or
+              mis-rendered, and a malformed operand count/type or an undeclared XObject name
+              shall throw InvalidDataException.
             justification: |
               Image XObjects are a common, visually significant PDF content type; callers need
               them decoded and correctly positioned, and need every explicitly out-of-scope
-              construct (Form XObjects, unsupported color spaces/bit depths) to fail closed with a
+              construct (unsupported color spaces/bit depths) to fail closed with a
               distinguishable exception rather than being silently skipped or mis-rendered.
             tests:
               - PdfDocument_Images_DoOperator_DeviceGrayFlateDecode_PlacesExpectedPixels
@@ -500,6 +500,32 @@ sections:
               - PdfDocument_Images_DoOperator_DctDecodeJpeg_PlacesExpectedPixels
               - PdfDocument_Images_UnsupportedBitsPerComponent_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Images_UnsupportedColorSpace_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-FormXObjects
+            title: >-
+              The PdfDocument class shall implement the Do operator for a /Subtype /Form
+              XObject: decode its content stream via the generic stream-decoding pipeline,
+              concatenate an optional /Matrix into the current transformation matrix using the
+              same left-multiply convention as the cm operator, use the Form's own /Resources
+              when present else fall back to the invoking content stream's /Resources, and
+              execute the decoded bytes as a nested content stream that inherits the invoking
+              stream's current graphics state and leaves it (and the invoking stream's
+              /Resources) unaffected once Do returns, whether successfully or via a thrown
+              exception; nested Form XObject invocations exceeding a fixed maximum depth shall
+              throw InvalidDataException rather than overflowing the call stack.
+            justification: |
+              Form XObjects (reusable nested content streams) are a common PDF construct for
+              shared graphics; callers need their content actually rendered at the correct,
+              matrix-adjusted position, with correct resource scoping and without corrupting the
+              invoking content stream's own graphics state, and need a pathological
+              (self-referencing) Form to fail closed deterministically rather than hang or crash.
+            tests:
+              - PdfDocument_Images_DoOperator_FormXObject_PaintsNestedContentStream
+              - PdfDocument_Images_DoOperator_FormXObjectWithMatrix_AppliesMatrixToNestedContent
+              - PdfDocument_Images_DoOperator_FormXObjectWithoutOwnResources_FallsBackToInvokingResources
+              - PdfDocument_Images_DoOperator_FormXObjectWithOwnResources_TakesPrecedenceOverInvokingResources
+              - PdfDocument_Images_DoOperator_NestedFormXObjects_RestoresGraphicsStateAfterReturn
+              - PdfDocument_Images_DoOperator_FormXObjectExceedsMaxRecursionDepth_ThrowsInvalidDataException
 
           - id: CanvasNetPdf-PdfDocument-FontResolution
             title: >-
@@ -888,7 +914,6 @@ sections:
               - PdfDocument_Text_ShowText_NoFontSelected_ThrowsInvalidDataException
               - PdfDocument_Text_MalformedOperandCount_ThrowsInvalidDataException
               - PdfDocument_Images_DoOperator_UndefinedXObjectName_ThrowsInvalidDataException
-              - PdfDocument_Images_DoOperator_FormXObject_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Images_DoOperator_MalformedOperandCount_ThrowsInvalidDataException
               - CanvasNetPdf_SystemIntegration_PdfRender_ImageXObjectPlacement_CompositesExpectedPixels
 

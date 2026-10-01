@@ -438,7 +438,7 @@ for a literal run that declares more bytes than remain (truncated, no EOD reache
 end-to-end system-integration test independently proves `RunLengthDecode` decoding a real page
 `/Contents` stream, asserting the expected filled-rectangle pixels.
 
-#### CanvasNetPdf-PdfDocument-ImageXObjects: Do Composites Images, Fails Closed on Form XObjects/Unsupported Features
+#### CanvasNetPdf-PdfDocument-ImageXObjects: Do Composites Images, Fails Closed on Unsupported Features
 
 **Tests**: `PdfDocument_Images_DoOperator_DeviceGrayFlateDecode_PlacesExpectedPixels`,
 `PdfDocument_Images_DoOperator_DeviceRgbFlateDecode_PlacesExpectedPixels`,
@@ -447,7 +447,6 @@ end-to-end system-integration test independently proves `RunLengthDecode` decodi
 `PdfDocument_Images_UnsupportedBitsPerComponent_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Images_UnsupportedColorSpace_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Images_DoOperator_UndefinedXObjectName_ThrowsInvalidDataException`,
-`PdfDocument_Images_DoOperator_FormXObject_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Images_DoOperator_MalformedOperandCount_ThrowsInvalidDataException`,
 `CanvasNetPdf_SystemIntegration_PdfRender_ImageXObjectPlacement_CompositesExpectedPixels`
 
@@ -461,13 +460,41 @@ a small per-channel tolerance), asserting the decoded/composited pixel matches w
 tolerance. Renders an image XObject with an unsupported `/BitsPerComponent` (`1`) and, separately,
 an unsupported `/ColorSpace` (`Indexed`), each asserting
 `Codecs.UnsupportedImageFeatureException`. Renders `Do` with a name undeclared in
-`/Resources/XObject`, asserting `InvalidDataException`. Renders `Do` on a `/Subtype /Form`
-XObject, asserting `Codecs.UnsupportedImageFeatureException` (not silently skipped). A `[Theory]`
+`/Resources/XObject`, asserting `InvalidDataException`. A `[Theory]`
 renders `Do` with a malformed operand count/type, asserting `InvalidDataException` in every case.
 The end-to-end system-integration test independently proves the same `Do` compositing against a
 real, hand-authored fixture, asserting specific composited pixel colors at specific coordinates
 matching the fixture's known 2x2 source image, and a pixel outside the placed image's
 device-space footprint remains transparent.
+
+#### CanvasNetPdf-PdfDocument-FormXObjects: Do Executes Nested Form XObject Content Streams
+
+**Tests**: `PdfDocument_Images_DoOperator_FormXObject_PaintsNestedContentStream`,
+`PdfDocument_Images_DoOperator_FormXObjectWithMatrix_AppliesMatrixToNestedContent`,
+`PdfDocument_Images_DoOperator_FormXObjectWithoutOwnResources_FallsBackToInvokingResources`,
+`PdfDocument_Images_DoOperator_FormXObjectWithOwnResources_TakesPrecedenceOverInvokingResources`,
+`PdfDocument_Images_DoOperator_NestedFormXObjects_RestoresGraphicsStateAfterReturn`,
+`PdfDocument_Images_DoOperator_FormXObjectExceedsMaxRecursionDepth_ThrowsInvalidDataException`
+
+Places a `/Subtype /Form` XObject whose own content stream fills a rectangle, asserting the
+rectangle's device footprint is painted and a pixel outside it remains blank - proving the Form's
+decoded content bytes are actually executed, not skipped. Places a Form XObject declaring its own
+`/Matrix` (a translation), asserting the rectangle lands at the matrix-translated device position
+and that its un-translated position is left unpainted - proving `/Matrix` is concatenated into the
+CTM using the same left-multiply convention as `cm`. Places a Form XObject with no `/Resources` of
+its own that references a `/ColorSpace` name declared only in the invoking page's `/Resources`,
+asserting the expected color is painted - proving resource-scope fallback. Places a Form XObject
+whose own `/Resources` declares the same color-space name differently (a different
+component-count color space) than the invoking page's `/Resources`, asserting the Form's own
+definition is used (a wrong-arity `sc` would otherwise throw `InvalidDataException`) - proving
+resource-scope precedence. Places a two-level-deep nested Form XObject (an outer Form invoked by
+the page, itself invoking an inner Form, with a `cm` scale applied along the way), asserting the
+inner Form's content paints at the correctly compounded transform and that the invoking page's own
+painting performed after the outer `Do` returns lands at its own normal, unscaled position -
+proving the nested CTM mutations do not leak back out. Renders a Form XObject that invokes itself
+by name (falling back to the invoking page's `/Resources/XObject`), asserting
+`InvalidDataException` once nesting exceeds the maximum supported depth, rather than hanging or
+crashing the test process.
 
 #### CanvasNetPdf-PdfDocument-FontResolution: Font Resolution Dispatches TrueType/Type1 Simple Fonts
 

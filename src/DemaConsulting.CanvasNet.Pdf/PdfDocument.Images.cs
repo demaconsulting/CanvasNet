@@ -13,20 +13,20 @@ public sealed partial class PdfDocument
     ///     it onto the destination surface through the current transformation matrix.
     /// </summary>
     /// <remarks>
-    ///     A <c>/Subtype /Form</c> XObject is explicitly rejected with
-    ///     <see cref="UnsupportedImageFeatureException"/> - not silently skipped - since Form
-    ///     XObject rendering (a nested content stream with its own resources) is out of this
-    ///     phase's scope.
+    ///     A <c>/Subtype /Form</c> XObject is decoded and executed as a nested content stream by
+    ///     <see cref="OpDrawFormXObject"/> - see that method's own remarks for exactly what is
+    ///     (and is not) supported.
     /// </remarks>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="operands"/> is not exactly 1 name operand, when the name
     ///     is not declared in the current page's <c>/Resources/XObject</c> dictionary (or no
-    ///     <c>/Resources</c> exists at all), when the resolved value is not a stream, or when the
-    ///     stream's <c>/Subtype</c> is missing or is neither <c>Image</c> nor <c>Form</c>.
+    ///     <c>/Resources</c> exists at all), when the resolved value is not a stream, when the
+    ///     stream's <c>/Subtype</c> is missing or is neither <c>Image</c> nor <c>Form</c>, or
+    ///     propagated from <see cref="OpDrawFormXObject"/> (recursion-depth exceeded, or a
+    ///     malformed Form <c>/Matrix</c>).
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown for a <c>/Subtype /Form</c> XObject, or propagated from
-    ///     <see cref="DecodeImageXObject"/> for an unsupported image feature.
+    ///     Propagated from <see cref="DecodeImageXObject"/> for an unsupported image feature.
     /// </exception>
     private void OpDrawXObject(IReadOnlyList<PdfObject> operands)
     {
@@ -56,9 +56,8 @@ public sealed partial class PdfDocument
         switch (subtype)
         {
             case "Form":
-                throw new UnsupportedImageFeatureException(
-                    "pdf-form-xobject",
-                    "Form XObjects (nested content streams) are not supported in this phase.");
+                OpDrawFormXObject(xObject);
+                break;
 
             case "Image":
                 var image = DecodeImageXObject(xObject);
@@ -68,6 +67,149 @@ public sealed partial class PdfDocument
             default:
                 throw new InvalidDataException($"XObject '/{name}' has a missing or unrecognized /Subtype.");
         }
+    }
+
+    /// <summary>
+    ///     The maximum number of nested <c>/Subtype /Form</c> XObject invocations
+    ///     <see cref="OpDrawFormXObject"/> allows before failing closed, bounding both pathological
+    ///     (self-referencing) Form content and the native C# call-stack depth this interpreter
+    ///     uses to execute nested content streams.
+    /// </summary>
+    private const int MaxFormNestingDepth = 12;
+
+    /// <summary>
+    ///     The current <c>/Subtype /Form</c> XObject nesting depth, incremented/decremented around
+    ///     every <see cref="OpDrawFormXObject"/> call. Reset to <c>0</c> at the start of every
+    ///     top-level <see cref="ExecuteContentStream"/> call.
+    /// </summary>
+    private int _formNestingDepth;
+
+    /// <summary>
+    ///     Handles a <c>/Subtype /Form</c> XObject resolved by <see cref="OpDrawXObject"/>:
+    ///     decodes its content stream and executes it as a nested content stream, implicitly
+    ///     bracketed like <c>q</c> ... <c>Q</c> around the invoking stream's own graphics state
+    ///     and <c>/Resources</c>.
+    /// </summary>
+    /// <param name="formStream">The already-resolved <c>/Subtype /Form</c> stream object.</param>
+    /// <remarks>
+    ///     <para>
+    ///         The Form's optional <c>/Matrix</c> (read by <see cref="ReadFormMatrix"/>; identity
+    ///         when absent) is concatenated into the current transformation matrix using exactly
+    ///         the same left-multiply convention as the <c>cm</c> operator (see
+    ///         <see cref="OpConcatMatrix"/>): the Form's matrix is applied first/innermost, the
+    ///         CTM in effect when <c>Do</c> was invoked is applied second/outermost. The Form's
+    ///         own <c>/Resources</c> dictionary is used when present; otherwise the invoking
+    ///         stream's current <see cref="_resources"/> is used unchanged (resource-scope
+    ///         fallback).
+    ///     </para>
+    ///     <para>
+    ///         The nested content stream inherits the invoking stream's current graphics state
+    ///         (colors, line style, font, etc.) as its own starting state, and a fresh, empty
+    ///         graphics-state stack (so an unbalanced <c>q</c>/<c>Q</c> inside the Form can never
+    ///         touch the invoking stream's own saved states - see <see cref="OpPopGraphicsState"/>'s
+    ///         own documented leniency toward a bare <c>Q</c>). Once the nested execution returns
+    ///         (successfully or via a thrown exception), the invoking stream's own
+    ///         <see cref="_resources"/>, graphics state, and graphics-state stack are restored
+    ///         exactly as they were before this method ran - mutations made inside the Form (CTM,
+    ///         colors, font selection, etc.) never leak back out, matching an implicit <c>q</c>
+    ///         ... <c>Q</c> bracketing. Path-construction state (<see cref="_pathBuilder"/>,
+    ///         <see cref="_currentPoint"/>, etc.) and <see cref="_fontCache"/> are deliberately
+    ///         <em>not</em> saved/restored: they are not part of the PDF graphics-state stack, and
+    ///         any path-painting/surface side effects performed by the Form's content must persist
+    ///         exactly like any other painting operator's side effects.
+    ///     </para>
+    ///     <para>
+    ///         <strong>Phase 13 limitations</strong>: no <c>/BBox</c> clipping is applied (the
+    ///         Form's content paints without being clipped to its declared bounding box), and no
+    ///         <c>/Group</c> (transparency group) handling is performed - the Form's content
+    ///         simply paints directly onto the destination surface exactly like the invoking
+    ///         stream's own content.
+    ///     </para>
+    /// </remarks>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the current nesting depth already equals <see cref="MaxFormNestingDepth"/>,
+    ///     when <c>/Matrix</c> is present but is not an array of exactly 6 numbers (propagated
+    ///     from <see cref="ReadFormMatrix"/>), or propagated from nested execution of the Form's
+    ///     own content stream.
+    /// </exception>
+    private void OpDrawFormXObject(PdfObject formStream)
+    {
+        if (_formNestingDepth >= MaxFormNestingDepth)
+        {
+            throw new InvalidDataException(
+                $"Form XObject nesting exceeds the maximum supported depth of {MaxFormNestingDepth}.");
+        }
+
+        var formMatrix = ReadFormMatrix(formStream);
+        var ownResources = formStream.Get("Resources");
+        var resolvedFormResources = ownResources is null ? _resources : Resolve(ownResources);
+        var contentBytes = GetStreamDecodedBytes(formStream);
+
+        var savedResources = _resources;
+        var savedGs = _gs;
+        var savedGsStack = _gsStack;
+        _formNestingDepth++;
+        try
+        {
+            _resources = resolvedFormResources;
+            var nestedGs = savedGs.Clone();
+            nestedGs.CurrentTransform = formMatrix * savedGs.CurrentTransform;
+            _gs = nestedGs;
+            _gsStack = new Stack<GraphicsState>();
+            ExecuteOperators(contentBytes);
+        }
+        finally
+        {
+            _formNestingDepth--;
+            _resources = savedResources;
+            _gs = savedGs;
+            _gsStack = savedGsStack;
+        }
+    }
+
+    /// <summary>
+    ///     Reads a <c>/Subtype /Form</c> XObject's optional <c>/Matrix</c> entry: the identity
+    ///     matrix when absent, otherwise an array of exactly 6 numbers interpreted exactly like
+    ///     the <c>cm</c> operator's 6 operands.
+    /// </summary>
+    /// <param name="formStream">The already-resolved <c>/Subtype /Form</c> stream object.</param>
+    /// <returns>The Form's declared matrix, or <see cref="Matrix3x2.Identity"/> when absent.</returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <c>/Matrix</c> is present but is not an array of exactly 6 numbers.
+    /// </exception>
+    private Matrix3x2 ReadFormMatrix(PdfObject formStream)
+    {
+        var matrixEntry = formStream.Get("Matrix");
+        if (matrixEntry is null)
+        {
+            return Matrix3x2.Identity;
+        }
+
+        var resolved = Resolve(matrixEntry);
+        if (resolved.Kind != PdfKind.Array || resolved.Items.Count != 6)
+        {
+            throw new InvalidDataException("Form XObject /Matrix must be an array of exactly 6 numbers.");
+        }
+
+        var values = new double[6];
+        for (var i = 0; i < 6; i++)
+        {
+            var item = Resolve(resolved.Items[i]);
+            if (item.Kind != PdfKind.Number)
+            {
+                throw new InvalidDataException("Form XObject /Matrix entries must all be numbers.");
+            }
+
+            values[i] = item.Number;
+        }
+
+        return new Matrix3x2(
+            (float)values[0],
+            (float)values[1],
+            (float)values[2],
+            (float)values[3],
+            (float)values[4],
+            (float)values[5]);
     }
 
     /// <summary>

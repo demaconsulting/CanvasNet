@@ -57,18 +57,20 @@ only the `/WinAnsiEncoding` and `/MacRomanEncoding` base encodings (plus `/Diffe
 supported (an unrecognized base encoding also fails closed); only text-rendering modes `0` (fill)
 and `3` (invisible) are supported (stroke/clip modes `1`/`2`/`4`-`7` fail closed); and no
 additional stream filters were added for any of these phases.
-**Phase 3 limitations** (narrowed by Phase 7, see below): no Form XObject rendering (`Do` on a
-`/Subtype /Form` XObject fails closed with `UnsupportedImageFeatureException`, rather than being
-silently skipped), no shading/pattern fills or transparency groups (a `/FunctionType 0` sampled-
-function evaluator was added as unconsumed groundwork in Phase 1 of the `/Pattern` color-space
-roadmap - see _Sampled Function Evaluation_ below - but is not yet wired into rendering: `scn`/
-`SCN` with a pattern name still throws `UnsupportedImageFeatureException`), no `CCITTFax`/`JPX`
-filter decoding (fails closed; `LZWDecode`/`ASCII85Decode`/`ASCIIHexDecode`/`RunLengthDecode` are
-supported as of Phase 7, see below), and no `/SMask`/alpha compositing (every decoded image is
-treated as fully opaque) — these remain out of scope for this phase and are silently skipped (any
-other undefined keyword) or explicitly rejected (Form XObjects, unsupported color spaces/filters/
-fonts/encodings/render modes), per the operator/exception taxonomy documented below; a later phase
-is expected to add Form XObject and transparency support.
+**Phase 3 limitations** (narrowed by Phase 7/13, see below): no shading/pattern fills or
+transparency groups (a `/FunctionType 0` sampled-function evaluator was added as unconsumed
+groundwork in Phase 1 of the `/Pattern` color-space roadmap - see _Sampled Function Evaluation_
+below - but is not yet wired into rendering: `scn`/`SCN` with a pattern name still throws
+`UnsupportedImageFeatureException`), no `CCITTFax`/`JPX` filter decoding (fails closed;
+`LZWDecode`/`ASCII85Decode`/`ASCIIHexDecode`/`RunLengthDecode` are supported as of Phase 7, see
+below), and no `/SMask`/alpha compositing (every decoded image is treated as fully opaque) — these
+remain out of scope for this phase and are silently skipped (any other undefined keyword) or
+explicitly rejected (unsupported color spaces/filters/fonts/encodings/render modes), per the
+operator/exception taxonomy documented below; a later phase is expected to add transparency
+support. As of Phase 13 (see below), `Do` on a `/Subtype /Form` XObject is no longer one of these
+rejected constructs: it decodes and executes the Form's content stream, subject to its own
+documented Phase 13 limitations (no `/BBox` clipping, no `/Group` transparency-group handling, and
+a hard recursion-depth limit of 12).
 
 ### Purpose
 
@@ -371,8 +373,7 @@ re-parsing it each time — a property a purely static API could not express.
   ASCII85 group value) throws `InvalidDataException`.
 - **Image XObjects (`PdfDocument.Images.cs`, added in Phase 3)** — `OpDrawXObject` (`Do`)
   resolves a named XObject from the current page's `/Resources/XObject` dictionary; a
-  `/Subtype /Form` XObject throws `Codecs.UnsupportedImageFeatureException` (explicit fail-closed,
-  not silently skipped — Form XObject rendering is out of this phase's scope); a
+  `/Subtype /Form` XObject is dispatched to `OpDrawFormXObject` (see below, added in Phase 13); a
   `/Subtype /Image` XObject is decoded (`DecodeImageXObject`) and composited onto `_surface`
   through `_gs.CurrentTransform` (`CompositeImageOntoSurface`). `DecodeImageXObject` detects a
   bare `/Filter /DCTDecode` image and decodes its raw bytes directly via
@@ -390,6 +391,23 @@ re-parsing it each time — a property a purely static API could not express.
   specification's image-space convention, the opposite of user-space's y-up convention) — no
   bilinear interpolation, a documented Phase 3 simplification consistent with Phase 2's own
   stroke-width simplification precedent.
+- **Form XObjects (`PdfDocument.Images.cs`, added in Phase 13)** — `OpDrawFormXObject` checks
+  `_formNestingDepth` against `MaxFormNestingDepth` (`12`, throwing `InvalidDataException` when
+  reached), reads the Form's optional `/Matrix` via `ReadFormMatrix` (identity when absent,
+  `InvalidDataException` for a present-but-malformed array) and concatenates it into the CTM
+  using exactly the same left-multiply convention `OpConcatMatrix` uses for `cm`
+  (`formMatrix * _gs.CurrentTransform`), resolves the Form's own `/Resources` when present (else
+  reuses the invoking stream's current `_resources` unchanged), decodes the Form's stream bytes
+  via the same `GetStreamDecodedBytes` pipeline every other stream uses, and re-enters
+  `ExecuteOperators` directly (not `ExecuteContentStream`) against a cloned graphics state and a
+  fresh, empty `_gsStack` — so an unbalanced `q`/`Q` inside the Form can never touch the invoking
+  stream's own saved states. A `try`/`finally` around the nested call unconditionally restores the
+  invoking stream's own `_resources`/`_gs`/`_gsStack` (success or exception), implementing an
+  implicit `q` ... `Q` bracketing around the Form's own CTM/color/font-selection mutations, while
+  deliberately leaving `_pathBuilder`/`_currentPoint`/`_fontCache` (not part of the PDF graphics-
+  state stack) untouched, so path-painting/surface side effects performed by the Form's content
+  persist exactly like any other painting operator's. No `/BBox` clipping and no `/Group`
+  (transparency group) handling is performed — a documented Phase 13 limitation.
 - **Font resolution (`PdfDocument.Fonts.cs`, added in Phase 4, fallback branch rewritten in
   Phase 6, dispatch generalized to `IResolvedFont` in Phase 9, widened to `/Type1` in Phase B)** —
   `ResolveFont(PdfObject fontResource)` looks up (and caches, via `_fontCache`) an
@@ -673,8 +691,10 @@ re-parsing it each time — a property a purely static API could not express.
   filters is `InvalidDataException` instead (malformed, not merely unsupported).
 - **An unsupported image `/BitsPerComponent`** (anything other than `8`), or a TIFF predictor
   combined with a non-`8` `/BitsPerComponent` — `Codecs.UnsupportedImageFeatureException`.
-- **`Do` on a `/Subtype /Form` XObject** — `Codecs.UnsupportedImageFeatureException`, thrown
-  explicitly (not silently skipped, per this phase's hard scope boundary).
+- **`Do` on a `/Subtype /Form` XObject whose nesting depth already equals
+  `MaxFormNestingDepth` (`12`), or whose own `/Matrix` is present but is not an array of exactly
+  6 numbers** — `InvalidDataException` (added in Phase 13; see _Image XObjects_/_Form XObjects_
+  above).
 - **`Do` with a name undeclared in `/Resources/XObject` (or no `/Resources` at all), a
   non-stream/missing-`/Subtype` resolved value, or a malformed operand count/type** —
   `InvalidDataException` (a malformed content stream, not merely unsupported).
@@ -751,7 +771,7 @@ re-parsing it each time — a property a purely static API could not express.
   decoded image sample's color representation
 - `Codecs.UnsupportedImageFeatureException` (from the core `CanvasNet` system) — reused,
   unmodified, for `/Encrypt` detection and, as of Phase 3, an unsupported color space/stream
-  filter/image bit depth/Form XObject
+  filter/image bit depth
 - `Codecs.JpegCodec` (from the core `CanvasNet` system, new as of Phase 3) — `Load(Stream)`
   decodes an image XObject's bare `DCTDecode` (JPEG) bitstream directly, without requiring
   APP0/JFIF framing

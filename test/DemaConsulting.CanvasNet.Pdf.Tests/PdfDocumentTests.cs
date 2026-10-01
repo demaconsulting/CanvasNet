@@ -2487,14 +2487,14 @@ public class PdfDocumentTests
         Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
     }
 
-    /// <summary>Proves that <c>Do</c> on a <c>/Subtype /Form</c> XObject throws <see cref="UnsupportedImageFeatureException"/> rather than being silently skipped.</summary>
+    /// <summary>Proves that <c>Do</c> on a <c>/Subtype /Form</c> XObject executes its nested content stream, painting at the expected device pixel and leaving pixels outside the painted rectangle untouched.</summary>
     [Fact]
-    public void PdfDocument_Images_DoOperator_FormXObject_ThrowsUnsupportedImageFeatureException()
+    public void PdfDocument_Images_DoOperator_FormXObject_PaintsNestedContentStream()
     {
-        // Arrange
+        // Arrange: a Form whose own content stream fills a centered rectangle.
         var formStream = BuildStreamObjectBody(
-            "/Type /XObject /Subtype /Form /BBox [0 0 1 1]",
-            "q Q"u8.ToArray());
+            "/Type /XObject /Subtype /Form /BBox [0 0 100 100]",
+            "10 10 80 80 re f"u8.ToArray());
 
         var bytes = BuildSinglePagePdfWithResources(
             100,
@@ -2503,8 +2503,147 @@ public class PdfDocumentTests
             "/XObject << /Fm0 5 0 R >>",
             [formStream]);
 
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the rectangle's device footprint is painted; outside it is left blank.
+        Assert.Equal(Black, surface[50, 50]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>Proves that a Form XObject's own <c>/Matrix</c> is concatenated into the CTM using the same left-multiply convention as <c>cm</c>, before the CTM in effect when <c>Do</c> was invoked.</summary>
+    [Fact]
+    public void PdfDocument_Images_DoOperator_FormXObjectWithMatrix_AppliesMatrixToNestedContent()
+    {
+        // Arrange: the Form's own /Matrix translates its content by (40, 40) user-space units.
+        var formStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Form /BBox [0 0 100 100] /Matrix [1 0 0 1 40 40]",
+            "0 0 10 10 re f"u8.ToArray());
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Fm0 Do",
+            "/XObject << /Fm0 5 0 R >>",
+            [formStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the translated rectangle (device x:40-50, y:50-60) is painted; the
+        // un-translated rectangle's device position (x:0-10, y:90-100) is left blank, proving
+        // the /Matrix was actually applied (not silently ignored).
+        Assert.Equal(Black, surface[45, 55]);
+        Assert.Equal(default, surface[5, 95]);
+    }
+
+    /// <summary>Proves that a Form XObject with no <c>/Resources</c> entry of its own falls back to (and successfully resolves against) the invoking content stream's <c>/Resources</c>.</summary>
+    [Fact]
+    public void PdfDocument_Images_DoOperator_FormXObjectWithoutOwnResources_FallsBackToInvokingResources()
+    {
+        // Arrange: the Form declares no /Resources of its own, so its "/CS1 cs" must resolve
+        // against the invoking page's /Resources/ColorSpace.
+        var formStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Form /BBox [0 0 100 100]",
+            "/CS1 cs 1 0 0 sc 10 10 80 80 re f"u8.ToArray());
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Fm0 Do",
+            "/ColorSpace << /CS1 /DeviceRGB >> /XObject << /Fm0 5 0 R >>",
+            [formStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: /CS1 resolved to DeviceRGB (3 operands accepted by "sc"), painting red.
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>Proves that a Form XObject's own <c>/Resources</c> takes precedence over the invoking content stream's <c>/Resources</c> when both declare the same color-space name.</summary>
+    [Fact]
+    public void PdfDocument_Images_DoOperator_FormXObjectWithOwnResources_TakesPrecedenceOverInvokingResources()
+    {
+        // Arrange: the page declares /CS1 as DeviceGray (1 component); the Form declares its own
+        // /CS1 as DeviceRGB (3 components). "/CS1 cs 1 0 0 sc" supplies 3 numeric operands -
+        // this only succeeds (rather than throwing for a wrong operand count) if the Form's own
+        // /Resources definition is consulted, not the page's.
+        var formStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Form /BBox [0 0 100 100] /Resources << /ColorSpace << /CS1 /DeviceRGB >> >>",
+            "/CS1 cs 1 0 0 sc 10 10 80 80 re f"u8.ToArray());
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Fm0 Do",
+            "/ColorSpace << /CS1 /DeviceGray >> /XObject << /Fm0 5 0 R >>",
+            [formStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>Proves that a two-level-deep nested Form XObject paints at the correctly compounded transform, and that the invoking content stream's own painting after <c>Do</c> returns is unaffected by the nested Forms' CTM mutations.</summary>
+    [Fact]
+    public void PdfDocument_Images_DoOperator_NestedFormXObjects_RestoresGraphicsStateAfterReturn()
+    {
+        // Arrange: the page invokes an outer Form (/Fm0), which applies "2 0 0 2 0 0 cm" and
+        // invokes an inner Form (/Fm1), which paints a rectangle in its own content stream; the
+        // page then paints its own rectangle after /Fm0's Do returns.
+        var outerFormStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Form /BBox [0 0 100 100]",
+            "2 0 0 2 0 0 cm /Fm1 Do"u8.ToArray());
+        var innerFormStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Form /BBox [0 0 100 100]",
+            "5 5 10 10 re f"u8.ToArray());
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Fm0 Do 40 10 5 5 re f",
+            "/XObject << /Fm0 5 0 R /Fm1 6 0 R >>",
+            [outerFormStream, innerFormStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the inner Form's rectangle, scaled 2x by the outer Form's "cm", lands at
+        // device (10,70)-(30,90) - its center is painted.
+        Assert.Equal(Black, surface[20, 80]);
+
+        // Assert: the page's own rectangle (painted after /Fm0's Do returns) lands at its own
+        // normal, unscaled device position (40,85)-(45,90) - proving the outer Form's "cm" did
+        // not leak back out into the invoking stream's graphics state.
+        Assert.Equal(Black, surface[42, 87]);
+
+        // Assert: the device position the page's rectangle would occupy if the 2x scale had
+        // leaked ((80,70)-(90,80)) is left blank.
+        Assert.Equal(default, surface[85, 75]);
+    }
+
+    /// <summary>Proves that a Form XObject nesting beyond the maximum supported depth throws <see cref="InvalidDataException"/> rather than hanging or crashing the process.</summary>
+    [Fact]
+    public void PdfDocument_Images_DoOperator_FormXObjectExceedsMaxRecursionDepth_ThrowsInvalidDataException()
+    {
+        // Arrange: a Form XObject that invokes itself by name, falling back to the invoking
+        // page's /Resources/XObject (which declares it).
+        var selfReferencingFormStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Form /BBox [0 0 100 100]",
+            "/FmSelf Do"u8.ToArray());
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/FmSelf Do",
+            "/XObject << /FmSelf 5 0 R >>",
+            [selfReferencingFormStream]);
+
         // Act & Assert
-        Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
     }
 
     /// <summary>Proves that <c>Do</c> with a malformed (non-1, non-name) operand count/type throws <see cref="InvalidDataException"/>.</summary>

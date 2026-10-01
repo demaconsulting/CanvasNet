@@ -24,10 +24,14 @@ public sealed partial class PdfDocument
     private PdfObject? _resources;
 
     /// <summary>
-    ///     Tokenizes and executes <paramref name="contentBytes"/> as a page content stream,
-    ///     painting recognized path-construction/painting operators onto <paramref name="surface"/>
-    ///     and ignoring every other operator, starting from <paramref name="baseCtm"/> as the
-    ///     initial graphics state's current transformation matrix.
+    ///     Resets every piece of per-render content-stream state (destination surface, resources,
+    ///     graphics state/stack, path-construction state, font cache, text matrices, and the Form
+    ///     XObject nesting-depth counter) and then tokenizes and executes
+    ///     <paramref name="contentBytes"/> as the page's top-level content stream via
+    ///     <see cref="ExecuteOperators"/>, painting recognized path-construction/painting
+    ///     operators onto <paramref name="surface"/> and ignoring every other operator, starting
+    ///     from <paramref name="baseCtm"/> as the initial graphics state's current transformation
+    ///     matrix.
     /// </summary>
     /// <param name="contentBytes">The already-decoded (filter-applied) content-stream bytes.</param>
     /// <param name="surface">The destination surface every painting operator draws onto.</param>
@@ -39,6 +43,14 @@ public sealed partial class PdfDocument
     ///     The current page's resolved <c>/Resources</c> dictionary, or <see langword="null"/>
     ///     when none is declared anywhere in the page's ancestry.
     /// </param>
+    /// <remarks>
+    ///     This method is the single entry point called once per <see cref="Render(int, int, int)"/>
+    ///     call. A nested <c>/Subtype /Form</c> XObject (see <see cref="OpDrawFormXObject"/>) does
+    ///     <em>not</em> call this method again - it re-enters <see cref="ExecuteOperators"/>
+    ///     directly, so that only the Form-specific state it explicitly saves/swaps/restores is
+    ///     affected, and every other piece of state reset here is left untouched by nested
+    ///     execution.
+    /// </remarks>
     /// <exception cref="InvalidDataException">
     ///     Thrown when the content stream is not lexically well-formed, or when a recognized
     ///     operator's operand count/type does not match its documented requirement.
@@ -56,7 +68,28 @@ public sealed partial class PdfDocument
         _fontCache = new Dictionary<PdfObject, IResolvedFont>();
         _textMatrix = Matrix3x2.Identity;
         _lineMatrix = Matrix3x2.Identity;
+        _formNestingDepth = 0;
 
+        ExecuteOperators(contentBytes);
+    }
+
+    /// <summary>
+    ///     Tokenizes and executes <paramref name="contentBytes"/> against the currently active
+    ///     graphics state/resources/surface, dispatching each recognized keyword operator in turn.
+    /// </summary>
+    /// <param name="contentBytes">The already-decoded (filter-applied) content-stream bytes.</param>
+    /// <remarks>
+    ///     Re-entrant: <see cref="OpDrawFormXObject"/> calls this method recursively (bounded by
+    ///     <see cref="MaxFormNestingDepth"/>) to execute a nested <c>/Subtype /Form</c> XObject's
+    ///     own content stream against a temporarily swapped-in graphics state/resources, without
+    ///     re-running <see cref="ExecuteContentStream"/>'s full state reset.
+    /// </remarks>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the content stream is not lexically well-formed, or when a recognized
+    ///     operator's operand count/type does not match its documented requirement.
+    /// </exception>
+    private void ExecuteOperators(byte[] contentBytes)
+    {
         var tokenizer = new PdfTokenizer(contentBytes);
         var operands = new List<PdfObject>();
         while (true)
@@ -110,8 +143,8 @@ public sealed partial class PdfDocument
     /// <summary>
     ///     Dispatches one recognized content-stream keyword operator (per the fixed set this
     ///     phase implements) against its accumulated operand stack, silently ignoring any other
-    ///     keyword (clipping, ExtGState, shading, inline images, Form XObjects, and every other
-    ///     operator not yet implemented).
+    ///     keyword (clipping, ExtGState, shading, inline images, and every other operator not yet
+    ///     implemented).
     /// </summary>
     /// <param name="operatorName">The operator keyword.</param>
     /// <param name="operands">The operands accumulated since the previous operator.</param>
@@ -321,8 +354,8 @@ public sealed partial class PdfDocument
             default:
                 // Any other keyword (gs, W/W*, sh, BI/ID/EI, Tc/Td/.../TJ's own undefined
                 // siblings, or any other undefined keyword) is silently skipped - out of this
-                // phase's scope (Form XObjects, shading/patterns, ExtGState, clipping) per this
-                // phase's documented lenient-consumer posture toward unrecognized operators.
+                // phase's scope (shading/patterns, ExtGState, clipping) per this phase's
+                // documented lenient-consumer posture toward unrecognized operators.
                 break;
         }
     }

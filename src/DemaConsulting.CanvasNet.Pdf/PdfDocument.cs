@@ -49,15 +49,33 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///         or skipping. A font with an embedded <c>/FontDescriptor/FontFile2</c> uses that
 ///         embedded font; a font with no embedded <c>/FontFile2</c> is, since Phase 6 (see
 ///         below), automatically substituted with a matching system or bundled font rather
-///         than failing closed. <strong>Phase 3/4 limitations</strong>: no Form XObject
-///         rendering (fails closed with <see cref="UnsupportedImageFeatureException"/>
-///         rather than being silently skipped), no shading/patterns/transparency groups, no
+///         than failing closed. <strong>Phase 3/4 limitations</strong>: no
+///         shading/patterns/transparency groups, no
 ///         <c>CCITTFax</c>/<c>LZW</c>/<c>ASCII85</c>/<c>ASCIIHex</c>/<c>JPX</c> filter
 ///         decoding (fails closed), and no <c>/SMask</c>/alpha compositing (every decoded
 ///         image is treated as fully opaque) - a later phase is expected to add these.
 ///         Every other keyword not implemented by any phase is silently skipped, not an
 ///         error. A page with no <c>/Contents</c> at all still renders as a fully
 ///         transparent (blank) <see cref="Surface"/>, exactly as every page did in Phase 1.
+///     </para>
+///     <para>
+///         Phase 13 (this release) adds <c>/Subtype /Form</c> XObject rendering: <c>Do</c>
+///         on a Form XObject decodes its content stream (via the same generic
+///         <c>/Filter</c>/<c>/DecodeParms</c> pipeline every other stream uses), concatenates
+///         its optional <c>/Matrix</c> into the current transformation matrix (the same
+///         left-multiply convention the <c>cm</c> operator uses), resolves its own
+///         <c>/Resources</c> when present (else falling back to the invoking stream's
+///         resources), and executes the decoded bytes as a nested content stream that
+///         inherits the invoking stream's current graphics state and is implicitly bracketed
+///         like <c>q</c> ... <c>Q</c> (CTM/color/font-selection mutations made inside the
+///         Form never leak back out once <c>Do</c> returns, while path-painting/surface side
+///         effects persist, exactly like any other painting operator). <strong>Phase 13
+///         limitations</strong>: the Form's <c>/BBox</c> is never used to clip its content,
+///         its <c>/Group</c> (transparency group) entry is never consulted, and a hard
+///         recursion-depth limit of 12 nested Form XObject invocations is enforced (a Form
+///         that invokes itself, directly or via a longer cycle, beyond that depth throws
+///         <see cref="System.IO.InvalidDataException"/> rather than overflowing the native
+///         call stack).
 ///     </para>
 ///     <para>
 ///         Phase 6 adds automatic, silent font substitution for a simple TrueType font with
@@ -274,8 +292,10 @@ public sealed partial class PdfDocument : IDisposable
     /// <exception cref="System.IO.InvalidDataException">
     ///     Thrown when <c>/Contents</c> is malformed (neither a stream nor an array of streams,
     ///     or an array entry that does not resolve to a stream), when the content stream is not
-    ///     lexically well-formed, or when a recognized operator's operand count/type does not
-    ///     match its documented requirement.
+    ///     lexically well-formed, when a recognized operator's operand count/type does not match
+    ///     its documented requirement, when a <c>/Subtype /Form</c> XObject's own
+    ///     <c>/Matrix</c> is malformed, or when nested <c>/Subtype /Form</c> XObject invocations
+    ///     exceed the maximum supported nesting depth.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when a <c>Tf</c> operator selects a font this library does not support (a
