@@ -7,6 +7,7 @@
 # cspell:ignore bfchar bfrange usecmap cidrange cidchar
 # cspell:ignore fontfile stdenc quoteright Quoteright quotesingle hival
 # cspell:ignore charsets
+# cspell:ignore SASLprep
 #
 # These requirements describe the design-level behavior of the PdfDocument unit.
 #
@@ -157,11 +158,14 @@ sections:
               The PdfDocument class shall detect an /Encrypt key in the trailer and throw
               UnsupportedImageFeatureException with its own distinguishable feature token (for
               example "pdf-encrypted-filter-{name}", "pdf-encrypted-r6-hardened-hash",
-              "pdf-encrypted-crypt-filter-{name}", "pdf-encrypted-cfm-{name}", or
-              "pdf-encrypted-password-required") for every encrypted-document shape this phase
+              "pdf-encrypted-crypt-filter-{name}", "pdf-encrypted-cfm-{name}",
+              "pdf-encrypted-password-required", "pdf-encrypted-incorrect-password", or
+              "pdf-encrypted-password-non-ascii") for every encrypted-document shape this phase
               does not support: a non-/Standard security handler, AES-256 /R 6 "hardened hash"
-              key derivation, a crypt filter other than the standard /StdCF, or a document that
-              genuinely requires a non-empty user password.
+              key derivation, a crypt filter other than the standard /StdCF, a document that
+              genuinely requires a non-empty password, a supplied password that authenticates
+              as neither the user nor the owner password, or an R2-R4 password containing a
+              non-ASCII character.
             justification: |
               Treating still-encrypted bytes as plaintext would silently produce meaningless
               results; a clear, well-formed-but-unsupported signal, distinguishable per rejection
@@ -227,6 +231,33 @@ sections:
               this phase supports.
             tests:
               - PdfDocument_Open_EncryptedAesV3_R5_DecryptsAndRenders
+
+          - id: CanvasNetPdf-PdfDocument-EncryptionPasswordAuthentication
+            title: >-
+              The PdfDocument class shall accept an optional caller-supplied password (default
+              null, preserving today's empty-user-password-only behavior byte-for-byte) on both
+              Open overloads and try it first as the user password (Algorithm 2 plus Algorithm
+              4/5 for R2-R4, or Algorithm 2.A for R5), then - if that does not authenticate - as
+              the owner password (ISO 32000-1 Algorithm 3 for R2-R4, recovering the padded user
+              password from /O; the owner-password variant of ISO 32000-2 Algorithm 2.A for R5,
+              recovering the file key directly from /OE using the full 48-byte /U value). R2-R4
+              passwords are encoded via Latin-1 (ASCII only; a non-ASCII character throws
+              "pdf-encrypted-password-non-ascii"), R5 passwords via UTF-8 (no SASLprep
+              normalization), and both encodings truncate to a maximum of 127 bytes before any
+              hashing. A password that authenticates as neither role throws
+              UnsupportedImageFeatureException with feature "pdf-encrypted-incorrect-password".
+            justification: |
+              Several real-world password-protected PDFs cannot be opened at all without a way to
+              supply their actual password; this unblocks that entire class of document while
+              keeping every existing empty-password caller's behavior unchanged.
+            tests:
+              - PdfDocument_Open_EncryptedRc4_CorrectUserPassword_DecryptsAndRenders
+              - PdfDocument_Open_EncryptedAesV2_CorrectUserPassword_DecryptsAndRenders
+              - PdfDocument_Open_EncryptedAesV3_CorrectUserPassword_DecryptsAndRenders
+              - PdfDocument_Open_EncryptedRc4_CorrectOwnerPassword_DecryptsAndRenders
+              - PdfDocument_Open_EncryptedAesV3_CorrectOwnerPassword_DecryptsAndRenders
+              - PdfDocument_Open_Encrypted_IncorrectPassword_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Open_Encrypted_NonAsciiPassword_ThrowsUnsupportedImageFeatureException
 
           - id: CanvasNetPdf-PdfDocument-Open
             title: >-

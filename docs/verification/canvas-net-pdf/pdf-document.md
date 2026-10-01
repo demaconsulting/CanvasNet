@@ -49,13 +49,17 @@ assert on parsed token/object field values, on `PageCount`/`PdfPageInfo` field v
 `Surface` pixel/dimension values, and on thrown exception types (and, for
 `UnsupportedImageFeatureException`, its `Feature` token) - never on "no exception thrown" alone,
 so every test can actually fail if the implementation is wrong. Encrypted-document tests
-(`PdfDocumentEncryptionTests.cs`, Phase 16) build minimal, valid, encrypted single-page PDFs
+(`PdfDocumentEncryptionTests.cs`, Phase 16/17) build minimal, valid, encrypted single-page PDFs
 entirely in-memory using test-only helper methods that independently re-derive the ISO 32000-1
 Algorithm 1/2/3/4/5 and ISO 32000-2 Algorithm 2.A steps directly from the specification text
 (a hand-rolled RC4 KSA/PRGA, since RC4 is symmetric and so the same helper both "encrypts" these
 fixtures and is what production decryption itself implements, plus `Aes.Create()`-based AES-CBC
 encryption) - deliberately not copy-pasted from `PdfDocument.Encryption.cs`'s own implementation,
 so that a shared bug could not silently mask itself by passing against its own mirrored mistake.
+Most fixtures still use the empty user password (Phase 16's original scope), but Phase 17 added
+sibling fixture variants built from real, non-empty, and - for the two owner-password tests -
+distinct user/owner passwords, exercising the production try-user-then-owner authentication order
+end-to-end rather than only the empty-password shortcut.
 
 Unit tests reside in `PdfDocumentTests.cs` within the `DemaConsulting.CanvasNet.Pdf.Tests`
 project; encryption-specific tests reside in the sibling `PdfDocumentEncryptionTests.cs`.
@@ -187,8 +191,11 @@ end-to-end copy of the same assertion). Separately builds an in-memory `/V 5`/`/
 asserts `Feature == "pdf-encrypted-r6-hardened-hash"` (AES-256's "hardened hash" key derivation is
 out of scope). Separately builds an in-memory RC4 document with a well-formed `/O` but a
 deliberately wrong `/U`, and an in-memory AESV3/R5 document with a deliberately wrong `/U`
-validation hash, asserting both throw with `Feature == "pdf-encrypted-password-required"` (a
-real, non-empty password is genuinely required to open either document).
+validation hash, asserting both throw with `Feature == "pdf-encrypted-password-required"` when no
+password is supplied (a real, non-empty password is genuinely required to open either document;
+see `CanvasNetPdf-PdfDocument-EncryptionPasswordAuthentication` below for the distinguishable
+`"pdf-encrypted-incorrect-password"`/`"pdf-encrypted-password-non-ascii"` tokens thrown when a
+password *is* supplied but still fails to authenticate, or is malformed).
 
 #### CanvasNetPdf-PdfDocument-EncryptionRc4: RC4-Encrypted Documents With an Empty User Password Open and Render
 
@@ -254,6 +261,55 @@ encrypted `/Contents` stream using the file key directly (no further per-object 
 specifies). Opens it through the public API with no password supplied and asserts `Render`
 produces the expected pixel colors, proving Algorithm 2.A's validation-salt authentication,
 `/UE` unwrapping, and direct-file-key stream decryption all work correctly end-to-end.
+
+#### CanvasNetPdf-PdfDocument-EncryptionPasswordAuthentication: Caller-Supplied Password Tried as User, Then Owner
+
+**Tests**: `PdfDocument_Open_EncryptedRc4_CorrectUserPassword_DecryptsAndRenders`,
+`PdfDocument_Open_EncryptedAesV2_CorrectUserPassword_DecryptsAndRenders`,
+`PdfDocument_Open_EncryptedAesV3_CorrectUserPassword_DecryptsAndRenders`,
+`PdfDocument_Open_EncryptedRc4_CorrectOwnerPassword_DecryptsAndRenders`,
+`PdfDocument_Open_EncryptedAesV3_CorrectOwnerPassword_DecryptsAndRenders`,
+`PdfDocument_Open_Encrypted_IncorrectPassword_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Open_Encrypted_NonAsciiPassword_ThrowsUnsupportedImageFeatureException`
+
+The three `*_CorrectUserPassword_*` tests build RC4 (`/V 2`/`/R 3`), AES-128 (`/V 4`/`/R 4`/
+`/CFM /AESV2`), and AES-256 R5 (`/V 5`/`/R 5`/`/CFM /AESV3`) fixtures whose `/O`/`/U` (or `/U`/
+`/UE`) are derived from a real, non-empty password (`"test"`) rather than the empty-password
+padding constant, then call `PdfDocument.Open(stream, "test")` and assert `Render` produces the
+expected pixel colors - proving the user-password authentication path correctly encodes/pads a
+real password's bytes (Latin-1 for R2-R4, UTF-8 for R5) instead of always using the empty-password
+constant.
+
+`PdfDocument_Open_EncryptedRc4_CorrectOwnerPassword_DecryptsAndRenders` builds an `/R 3` RC4
+fixture whose `/O` is computed from a distinct owner password and a different real user password
+(ISO 32000-1 Algorithm 3's encrypt direction) while `/U` and the content stream are derived from
+the real user password only; calling `Open(stream, ownerPassword)` necessarily fails the
+user-password attempt first (the supplied string is not the real user password), then succeeds
+via `RecoverPaddedUserPasswordAlgorithm3` recovering the padded user password from `/O` and
+re-deriving/re-authenticating a candidate file key - proving the R2-R4 owner-password recovery
+path end-to-end. `PdfDocument_Open_EncryptedAesV3_CorrectOwnerPassword_DecryptsAndRenders` builds
+an R5 fixture whose `/U`/`/UE` are derived from an unrelated, empty user password (so the supplied
+owner password fails the user-password attempt first) and whose `/O`/`/OE` are built via the
+owner-password variant of ISO 32000-2 Algorithm 2.A - hashing/encrypting over
+`password ‖ salt ‖ U` where `U` is the full 48-byte `/U` value - proving
+`TryComputeFileKeyAlgorithm2AOwnerPassword` recovers the file key directly from `/OE` and that the
+document then renders correctly.
+
+`PdfDocument_Open_Encrypted_IncorrectPassword_ThrowsUnsupportedImageFeatureException` builds a
+well-formed `/R 3` RC4 fixture with real, distinct, correct owner and user passwords, then calls
+`Open(stream, "wrong-password")` and asserts `UnsupportedImageFeatureException` is thrown with
+`Feature == "pdf-encrypted-incorrect-password"` - proving that a password which authenticates as
+neither role is rejected with the new, distinguishable token (not the null-password
+`"pdf-encrypted-password-required"` token, and not a silent wrong-key decrypt).
+
+`PdfDocument_Open_Encrypted_NonAsciiPassword_ThrowsUnsupportedImageFeatureException` builds a
+well-formed `/R 2` RC4 fixture (empty-user-password `/O`/`/U`, irrelevant to this test) and calls
+`Open(stream, "caf\u00e9")` (containing `é`, outside ASCII 0-127), asserting
+`UnsupportedImageFeatureException` is thrown with `Feature == "pdf-encrypted-password-non-ascii"`
+
+- proving `EncodeR2R4PasswordBytes` rejects non-ASCII R2-R4 passwords before any RC4/MD5
+authentication work is attempted, rather than silently deriving wrong key material from a
+truncated or mis-encoded byte sequence.
 
 #### CanvasNetPdf-PdfDocument-Open: Open Validates Null and Empty/Whitespace Arguments
 

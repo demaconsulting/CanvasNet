@@ -1504,7 +1504,7 @@ public class PdfDocumentTests
 
     #region Open validation
 
-    /// <summary>Proves that <see cref="PdfDocument.Open(System.IO.Stream)"/> rejects a null stream.</summary>
+    /// <summary>Proves that <see cref="PdfDocument.Open(System.IO.Stream, string?)"/> rejects a null stream.</summary>
     [Fact]
     public void PdfDocument_Open_NullStream_ThrowsArgumentNullException()
     {
@@ -1512,7 +1512,7 @@ public class PdfDocumentTests
         Assert.Throws<ArgumentNullException>(() => PdfDocument.Open((Stream)null!));
     }
 
-    /// <summary>Proves that <see cref="PdfDocument.Open(string)"/> rejects a null path.</summary>
+    /// <summary>Proves that <see cref="PdfDocument.Open(string, string?)"/> rejects a null path.</summary>
     [Fact]
     public void PdfDocument_Open_NullPath_ThrowsArgumentNullException()
     {
@@ -1520,7 +1520,7 @@ public class PdfDocumentTests
         Assert.Throws<ArgumentNullException>(() => PdfDocument.Open((string)null!));
     }
 
-    /// <summary>Proves that <see cref="PdfDocument.Open(string)"/> rejects an empty or whitespace-only path.</summary>
+    /// <summary>Proves that <see cref="PdfDocument.Open(string, string?)"/> rejects an empty or whitespace-only path.</summary>
     /// <param name="path">The invalid path under test.</param>
     [Theory]
     [InlineData("")]

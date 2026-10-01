@@ -1,5 +1,6 @@
-// cspell:ignore AESV StdCF PubSec sAlT
+// cspell:ignore AESV StdCF PubSec sAlT SASLprep
 using System.Security.Cryptography;
+using System.Text;
 using DemaConsulting.CanvasNet.Codecs;
 
 namespace DemaConsulting.CanvasNet.Pdf;
@@ -14,7 +15,7 @@ public sealed partial class PdfDocument
 {
     /// <summary>
     ///     The crypt method this document's strings and streams are encrypted with, once
-    ///     <see cref="InitializeEncryption(PdfObject)"/> has determined a supported shape and
+    ///     <see cref="InitializeEncryption(PdfObject, string?)"/> has determined a supported shape and
     ///     derived a file encryption key. <see cref="EncryptionCipher.None"/> (the default) means
     ///     the document is not encrypted at all, in which case <see cref="_encryptionKey"/> is
     ///     always <see langword="null"/> and no decryption is ever attempted.
@@ -40,9 +41,9 @@ public sealed partial class PdfDocument
 
     /// <summary>
     ///     The 32-byte "standard password padding string" ISO 32000-1 Algorithm 2 step (a)
-    ///     requires every password to be padded/truncated against before hashing. For the empty
-    ///     user password this phase exclusively supports, the padded password is simply this
-    ///     constant, verbatim.
+    ///     requires every password to be padded/truncated against before hashing. For an empty
+    ///     password (the default, null-password path), the padded password is simply this
+    ///     constant, verbatim; see <see cref="PadPasswordBytes"/> for the general case.
     /// </summary>
     private static readonly byte[] PasswordPadding =
     [
@@ -58,8 +59,84 @@ public sealed partial class PdfDocument
     private static readonly byte[] AesV2KeySalt = [0x73, 0x41, 0x6C, 0x54];
 
     /// <summary>
+    ///     Pads/truncates <paramref name="passwordBytes"/> to exactly 32 bytes per ISO 32000-1
+    ///     Algorithm 2 step (a): the password's own bytes, followed by as many leading bytes of
+    ///     <see cref="PasswordPadding"/> as are needed to reach 32 (or the password's own bytes
+    ///     truncated to 32, if it is already that long or longer). When
+    ///     <paramref name="passwordBytes"/> is empty, this reproduces <see cref="PasswordPadding"/>
+    ///     verbatim - preserving byte-for-byte identical behavior for the null-password path.
+    /// </summary>
+    /// <param name="passwordBytes">The already-encoded (and, for a real password, already
+    /// 127-byte-truncated) password bytes to pad/truncate.</param>
+    /// <returns>The resulting exactly-32-byte padded password.</returns>
+    private static byte[] PadPasswordBytes(byte[] passwordBytes)
+    {
+        var padded = new byte[32];
+        var copyLength = Math.Min(passwordBytes.Length, 32);
+        passwordBytes.AsSpan(0, copyLength).CopyTo(padded);
+        if (copyLength < 32)
+        {
+            PasswordPadding.AsSpan(0, 32 - copyLength).CopyTo(padded.AsSpan(copyLength));
+        }
+
+        return padded;
+    }
+
+    /// <summary>
+    ///     Encodes <paramref name="password"/> for an <c>/R 2</c>-<c>4</c> document per
+    ///     PDFDocEncoding's ASCII-range subset (ISO 32000-1 7.6.3.3): each character is encoded as
+    ///     a single Latin-1 byte, which is identical to PDFDocEncoding for every character in the
+    ///     ASCII range (0-127).
+    /// </summary>
+    /// <remarks>
+    ///     <strong>Scope boundary</strong>: full PDFDocEncoding (which remaps several bytes in the
+    ///     128-255 range to specific Unicode characters outside Latin-1's own mapping) is not
+    ///     implemented - a password containing any character outside ASCII therefore cannot be
+    ///     correctly encoded, so this method fails closed with
+    ///     <see cref="UnsupportedImageFeatureException"/> rather than silently producing wrong key
+    ///     material from an incorrect encoding.
+    /// </remarks>
+    /// <param name="password">The caller-supplied password.</param>
+    /// <returns>The password's Latin-1-encoded bytes, truncated to at most 127 bytes.</returns>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown when <paramref name="password"/> contains any character outside ASCII (0-127).
+    /// </exception>
+    private static byte[] EncodeR2R4PasswordBytes(string password)
+    {
+        if (password.Any(c => c > 0x7F))
+        {
+            throw new UnsupportedImageFeatureException(
+                "pdf-encrypted-password-non-ascii",
+                "The supplied password contains a character outside ASCII (0-127), which is not supported for an /R 2-4 encrypted document (only PDFDocEncoding's ASCII-range subset is supported).");
+        }
+
+        var bytes = Encoding.Latin1.GetBytes(password);
+        return bytes.Length > 127 ? bytes[..127] : bytes;
+    }
+
+    /// <summary>
+    ///     Encodes <paramref name="password"/> for an <c>/R 5</c> document per ISO 32000-2
+    ///     Algorithm 2.A step (a): UTF-8, truncated to at most 127 bytes.
+    /// </summary>
+    /// <remarks>
+    ///     <strong>Scope boundary</strong>: SASLprep/Unicode normalization (ISO 32000-2 7.6.4.3.4)
+    ///     is not applied - an ordinary ASCII password is unaffected (UTF-8 and SASLprep agree for
+    ///     every ASCII character), but a password containing combining characters or other
+    ///     normalization-sensitive Unicode may not authenticate against a document produced by a
+    ///     writer that does apply SASLprep. This is an intentional, narrower scope than the full
+    ///     specification, not a defect.
+    /// </remarks>
+    /// <param name="password">The caller-supplied password.</param>
+    /// <returns>The password's UTF-8-encoded bytes, truncated to at most 127 bytes.</returns>
+    private static byte[] EncodeR5PasswordBytes(string password)
+    {
+        var bytes = Encoding.UTF8.GetBytes(password);
+        return bytes.Length > 127 ? bytes[..127] : bytes;
+    }
+
+    /// <summary>
     ///     The resolved file (or, for AES-256/R5, directly-usable) encryption key, set once by
-    ///     <see cref="InitializeEncryption(PdfObject)"/> when the trailer declares a supported
+    ///     <see cref="InitializeEncryption(PdfObject, string?)"/> when the trailer declares a supported
     ///     <c>/Encrypt</c> shape, or left <see langword="null"/> for an unencrypted document.
     /// </summary>
     private byte[]? _encryptionKey;
@@ -72,9 +149,9 @@ public sealed partial class PdfDocument
     private EncryptionCipher _encryptionCipher;
 
     /// <summary>
-    ///     Detects and, for the narrow scope this phase supports, transparently authenticates an
-    ///     encrypted document's empty user password and derives its file encryption key, so every
-    ///     subsequent indirect-object string and stream read (see <c>PdfDocument.Xref.cs</c>'s
+    ///     Detects and, when a supported shape is declared, authenticates an encrypted document's
+    ///     user or owner password and derives its file encryption key, so every subsequent
+    ///     indirect-object string and stream read (see <c>PdfDocument.Xref.cs</c>'s
     ///     <c>ParseIndirectObjectAt</c>/<c>GetStreamRawBytes</c>) can transparently decrypt its
     ///     bytes before any of this class's other parsing logic ever sees them.
     /// </summary>
@@ -97,19 +174,45 @@ public sealed partial class PdfDocument
     ///         covering this.
     ///     </para>
     ///     <para>
+    ///         <strong>Password authentication</strong>: when <paramref name="password"/> is
+    ///         <see langword="null"/>, only the empty user password is authenticated - byte-for-byte
+    ///         the same behavior as before this parameter existed. When
+    ///         <paramref name="password"/> is non-null, it is tried first as the user password
+    ///         (the same Algorithm 2 + Algorithm 4/5/2.A path, except the password's own encoded
+    ///         bytes are padded/truncated and hashed instead of always the empty-password padding
+    ///         constant); if that does not authenticate, the same supplied password is tried as
+    ///         the owner password instead - ISO 32000-1 Algorithm 3 for <c>/R 2</c>-<c>4</c>
+    ///         (recovering the padded user password from <c>/O</c>, then deriving and
+    ///         authenticating a candidate file key from it), or the owner-password variant of ISO
+    ///         32000-2 Algorithm 2.A for <c>/R 5</c> (validating against, and unwrapping <c>/OE</c>
+    ///         instead of <c>/UE</c>). A password is encoded via Latin-1 (PDFDocEncoding's ASCII
+    ///         subset) for <c>/R 2</c>-<c>4</c> documents - throwing
+    ///         <see cref="UnsupportedImageFeatureException"/> with feature
+    ///         <c>pdf-encrypted-password-non-ascii</c> for any non-ASCII character, since full
+    ///         PDFDocEncoding is out of this phase's scope - or via UTF-8 (no SASLprep/Unicode
+    ///         normalization, also an intentional scope boundary) for <c>/R 5</c> documents; either
+    ///         way the encoded bytes are truncated to at most 127 bytes before any hashing. If
+    ///         neither the user nor the owner attempt authenticates, this method throws
+    ///         <see cref="UnsupportedImageFeatureException"/> with feature
+    ///         <c>pdf-encrypted-incorrect-password</c>.
+    ///     </para>
+    ///     <para>
     ///         <strong>Scope boundary</strong>: only the <c>/Filter /Standard</c> security handler
-    ///         is supported, only RC4 (<c>/V 1</c>/<c>/V 2</c>), AES-128 (<c>/V 4</c>/
+    ///         is supported, and only RC4 (<c>/V 1</c>/<c>/V 2</c>), AES-128 (<c>/V 4</c>/
     ///         <c>/CFM /AESV2</c>), and AES-256 using the simpler R5 key derivation (<c>/V 5</c>/
-    ///         <c>/R 5</c>/<c>/CFM /AESV3</c>) are supported, and only an empty user password is
-    ///         ever authenticated - there is no API surface to supply any other password. Every
-    ///         other shape (a non-<c>/Standard</c> filter, <c>/R 6</c>'s "hardened hash" key
-    ///         derivation, a crypt filter other than the standard <c>/StdCF</c>, or a document that
-    ///         genuinely requires a non-empty password) fails closed with
+    ///         <c>/R 5</c>/<c>/CFM /AESV3</c>) are supported. Every other shape (a
+    ///         non-<c>/Standard</c> filter, <c>/R 6</c>'s "hardened hash" key derivation, a crypt
+    ///         filter other than the standard <c>/StdCF</c>) fails closed with
     ///         <see cref="UnsupportedImageFeatureException"/> and its own distinguishable
     ///         <see cref="UnsupportedImageFeatureException.Feature"/> token.
     ///     </para>
     /// </remarks>
     /// <param name="trailer">The document's resolved trailer dictionary.</param>
+    /// <param name="password">
+    ///     An optional password to authenticate with - see this method's own remarks above for the
+    ///     full user-then-owner attempt order and encoding scope boundaries. <see langword="null"/>
+    ///     (the default) authenticates only the empty user password.
+    /// </param>
     /// <exception cref="InvalidDataException">
     ///     Thrown when the <c>/Encrypt</c> dictionary (or a required entry within it, or the
     ///     trailer's own <c>/ID</c>) is malformed - present but not the shape the specification
@@ -117,10 +220,15 @@ public sealed partial class PdfDocument
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when the document declares a security handler, crypt filter, or revision this
-    ///     phase does not support, or when the empty user password does not authenticate (a real,
-    ///     non-empty password is required to open the document).
+    ///     phase does not support; when <paramref name="password"/> is <see langword="null"/> and
+    ///     the empty user password does not authenticate (feature
+    ///     <c>pdf-encrypted-password-required</c>); when <paramref name="password"/> is non-null
+    ///     and authenticates as neither the user nor the owner password (feature
+    ///     <c>pdf-encrypted-incorrect-password</c>); or when <paramref name="password"/> is
+    ///     non-null, contains a non-ASCII character, and the document is <c>/R 2</c>-<c>4</c>
+    ///     (feature <c>pdf-encrypted-password-non-ascii</c>).
     /// </exception>
-    private void InitializeEncryption(PdfObject trailer)
+    private void InitializeEncryption(PdfObject trailer, string? password = null)
     {
         var encryptEntry = trailer.Get("Encrypt");
         if (encryptEntry is null)
@@ -169,7 +277,8 @@ public sealed partial class PdfDocument
                     uBytes,
                     permissions,
                     encryptMetadata,
-                    idBytes);
+                    idBytes,
+                    password);
                 break;
 
             case 4:
@@ -182,7 +291,8 @@ public sealed partial class PdfDocument
                     uBytes,
                     permissions,
                     encryptMetadata,
-                    idBytes);
+                    idBytes,
+                    password);
                 break;
 
             case 5:
@@ -202,7 +312,25 @@ public sealed partial class PdfDocument
 
                 ValidateStandardCryptFilterName(encryptDict, "AESV3");
                 var ueBytes = GetRequiredBytesEntry(encryptDict, "UE");
-                _encryptionKey = ComputeFileKeyAlgorithm2A(uBytes, ueBytes);
+
+                byte[] r5PasswordBytes = password is null ? [] : EncodeR5PasswordBytes(password);
+                var r5FileKey = TryComputeFileKeyAlgorithm2A(r5PasswordBytes, uBytes, ueBytes);
+                if (r5FileKey is null && password is not null)
+                {
+                    var oeBytes = GetRequiredBytesEntry(encryptDict, "OE");
+                    r5FileKey = TryComputeFileKeyAlgorithm2AOwnerPassword(r5PasswordBytes, oBytes, oeBytes, uBytes);
+                }
+
+                if (r5FileKey is null)
+                {
+                    throw new UnsupportedImageFeatureException(
+                        password is null ? "pdf-encrypted-password-required" : "pdf-encrypted-incorrect-password",
+                        password is null
+                            ? "This encrypted PDF document requires a non-empty user password, which was not supplied."
+                            : "The supplied password does not authenticate as either the user or the owner password for this encrypted PDF document.");
+                }
+
+                _encryptionKey = r5FileKey;
                 _encryptionCipher = EncryptionCipher.Aes256;
                 break;
 
@@ -248,11 +376,34 @@ public sealed partial class PdfDocument
 
     /// <summary>
     ///     Shared RC4/AES-128 initialization path for <c>/V 1</c>/<c>/V 2</c> (RC4) and <c>/V 4</c>
-    ///     (AESV2): derives the file encryption key via ISO 32000-1 Algorithm 2, then authenticates
-    ///     the empty user password against <c>/U</c> via Algorithm 4 (revision 2) or Algorithm 5
-    ///     (revision 3/4), throwing <see cref="UnsupportedImageFeatureException"/> when a real,
-    ///     non-empty password is actually required.
+    ///     (AESV2): derives a file key candidate via ISO 32000-1 Algorithm 2 and authenticates it
+    ///     against <c>/U</c> via Algorithm 4 (revision 2) or Algorithm 5 (revision 3/4), first
+    ///     treating <paramref name="password"/> as the user password, then - if that does not
+    ///     authenticate and <paramref name="password"/> is non-null - recovering the padded user
+    ///     password from <c>/O</c> via ISO 32000-1 Algorithm 3 (treating <paramref name="password"/>
+    ///     as the owner password) and re-deriving/re-authenticating a second candidate from that.
+    ///     Throws <see cref="UnsupportedImageFeatureException"/> when neither attempt authenticates.
     /// </summary>
+    /// <param name="cipher">The resolved cipher to use for every subsequent string/stream decrypt.</param>
+    /// <param name="revision">The Encrypt dictionary's <c>/R</c> entry.</param>
+    /// <param name="keyLengthBytes">The file key length in bytes.</param>
+    /// <param name="oBytes">The Encrypt dictionary's raw <c>/O</c> entry bytes.</param>
+    /// <param name="uBytes">The Encrypt dictionary's raw <c>/U</c> entry bytes.</param>
+    /// <param name="permissions">The Encrypt dictionary's <c>/P</c> entry.</param>
+    /// <param name="encryptMetadata">The Encrypt dictionary's <c>/EncryptMetadata</c> entry.</param>
+    /// <param name="idBytes">The trailer's <c>/ID</c> array's first element's raw bytes.</param>
+    /// <param name="password">
+    ///     An optional password to authenticate with - see <see cref="InitializeEncryption(PdfObject, string?)"/>'s
+    ///     own remarks for the full user-then-owner attempt order and encoding scope boundaries.
+    /// </param>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown when <paramref name="password"/> is <see langword="null"/> and the empty user
+    ///     password does not authenticate (feature <c>pdf-encrypted-password-required</c>), or
+    ///     when <paramref name="password"/> is non-null and authenticates as neither the user nor
+    ///     the owner password (feature <c>pdf-encrypted-incorrect-password</c>), or when
+    ///     <paramref name="password"/> contains a non-ASCII character (feature
+    ///     <c>pdf-encrypted-password-non-ascii</c>).
+    /// </exception>
     private void InitializeRc4OrAesV2Encryption(
         EncryptionCipher cipher,
         int revision,
@@ -261,10 +412,38 @@ public sealed partial class PdfDocument
         byte[] uBytes,
         int permissions,
         bool encryptMetadata,
-        byte[] idBytes)
+        byte[] idBytes,
+        string? password)
     {
-        var fileKey = ComputeFileKeyAlgorithm2(oBytes, permissions, idBytes, keyLengthBytes, revision, encryptMetadata);
-        AuthenticateEmptyUserPasswordAlgorithm45(fileKey, uBytes, idBytes, revision);
+        var paddedPasswordBytes = password is null ? PasswordPadding : PadPasswordBytes(EncodeR2R4PasswordBytes(password));
+
+        var fileKey = ComputeFileKeyAlgorithm2(paddedPasswordBytes, oBytes, permissions, idBytes, keyLengthBytes, revision, encryptMetadata);
+        var authenticated = TryAuthenticateUserPasswordAlgorithm45(fileKey, uBytes, idBytes, revision);
+
+        if (!authenticated && password is not null)
+        {
+            // The same supplied password did not authenticate as the user password - try it as
+            // the owner password instead: recover the padded user password from /O (Algorithm 3),
+            // then re-derive and re-authenticate a candidate file key from it. The recovered
+            // bytes are already exactly 32 bytes (Algorithm 3's own output) - do not re-pad them.
+            var recoveredPaddedUserPassword = RecoverPaddedUserPasswordAlgorithm3(paddedPasswordBytes, oBytes, keyLengthBytes, revision);
+            var ownerFileKey = ComputeFileKeyAlgorithm2(recoveredPaddedUserPassword, oBytes, permissions, idBytes, keyLengthBytes, revision, encryptMetadata);
+            if (TryAuthenticateUserPasswordAlgorithm45(ownerFileKey, uBytes, idBytes, revision))
+            {
+                fileKey = ownerFileKey;
+                authenticated = true;
+            }
+        }
+
+        if (!authenticated)
+        {
+            throw new UnsupportedImageFeatureException(
+                password is null ? "pdf-encrypted-password-required" : "pdf-encrypted-incorrect-password",
+                password is null
+                    ? "This encrypted PDF document requires a non-empty user password, which was not supplied."
+                    : "The supplied password does not authenticate as either the user or the owner password for this encrypted PDF document.");
+        }
+
         _encryptionKey = fileKey;
         _encryptionCipher = cipher;
     }
@@ -310,16 +489,22 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
-    ///     Computes the document's file encryption key per ISO 32000-1 Algorithm 2, for the empty
-    ///     user password this phase exclusively supports (so the "pad or truncate the password"
-    ///     step always yields <see cref="PasswordPadding"/> verbatim).
+    ///     Computes the document's file encryption key per ISO 32000-1 Algorithm 2 steps (b)-(e),
+    ///     given an already-padded 32-byte password (step (a) - see <see cref="PadPasswordBytes"/>).
     /// </summary>
     /// <remarks>
     ///     Algorithm 2 alone never fails - it always produces <em>a</em> key, regardless of
-    ///     whether the (here: empty) password is actually correct; only Algorithm 4/5/2.A's
-    ///     separate comparison against <c>/U</c> can detect a wrong password (see
-    ///     <see cref="AuthenticateEmptyUserPasswordAlgorithm45"/>).
+    ///     whether <paramref name="paddedPasswordBytes"/> is actually correct; only Algorithm
+    ///     4/5/2.A's separate comparison against <c>/U</c> can detect a wrong password (see
+    ///     <see cref="TryAuthenticateUserPasswordAlgorithm45"/>).
     /// </remarks>
+    /// <param name="paddedPasswordBytes">
+    ///     The already-padded/truncated-to-32-bytes password (step (a)): either
+    ///     <see cref="PasswordPadding"/> verbatim for an empty password, the result of
+    ///     <see cref="PadPasswordBytes"/> for a real supplied password, or - for the owner-password
+    ///     recovery path - <see cref="RecoverPaddedUserPasswordAlgorithm3"/>'s own already-32-byte
+    ///     output (which must not be re-padded).
+    /// </param>
     /// <param name="oBytes">The Encrypt dictionary's raw <c>/O</c> entry bytes.</param>
     /// <param name="permissions">The Encrypt dictionary's <c>/P</c> entry, as a signed 32-bit integer.</param>
     /// <param name="idBytes">The trailer's <c>/ID</c> array's first element's raw bytes.</param>
@@ -328,6 +513,7 @@ public sealed partial class PdfDocument
     /// <param name="encryptMetadata">The Encrypt dictionary's <c>/EncryptMetadata</c> entry (default <see langword="true"/>).</param>
     /// <returns>The <paramref name="keyLengthBytes"/>-byte file encryption key.</returns>
     private static byte[] ComputeFileKeyAlgorithm2(
+        byte[] paddedPasswordBytes,
         byte[] oBytes,
         int permissions,
         byte[] idBytes,
@@ -335,15 +521,11 @@ public sealed partial class PdfDocument
         int revision,
         bool encryptMetadata)
     {
-        // Step (a): pad/truncate the password to exactly 32 bytes - for the empty password this
-        // phase supports, that is simply the standard padding string, verbatim.
-        var padded = PasswordPadding;
-
         // Step (b)-(c): build the MD5 input (padded password + /O + /P as 4-byte little-endian
         // signed integer + the first /ID element's raw bytes + 0xFFFFFFFF when revision >= 4 and
         // /EncryptMetadata is explicitly false) and hash it.
         using var input = new MemoryStream();
-        input.Write(padded);
+        input.Write(paddedPasswordBytes);
         input.Write(oBytes);
         input.Write([(byte)permissions, (byte)(permissions >> 8), (byte)(permissions >> 16), (byte)(permissions >> 24)]);
         input.Write(idBytes);
@@ -356,6 +538,24 @@ public sealed partial class PdfDocument
 
         // Step (d): revision 3 and above additionally re-hashes the first keyLengthBytes of the
         // previous digest, 50 times over.
+        digest = Rehash50RoundsIfRevisionAtLeast3(digest, keyLengthBytes, revision);
+
+        // Step (e): the file encryption key is the first keyLengthBytes of the final digest.
+        return digest.AsSpan(0, keyLengthBytes).ToArray();
+    }
+
+    /// <summary>
+    ///     Shared "re-hash the first <paramref name="keyLengthBytes"/> of <paramref name="digest"/>
+    ///     50 times over" step used identically by both ISO 32000-1 Algorithm 2 step (d) (file key
+    ///     derivation) and Algorithm 3 step (c) (owner-password recovery) for revision 3 and above
+    ///     - revision 2 never re-hashes, returning <paramref name="digest"/> unchanged.
+    /// </summary>
+    /// <param name="digest">The initial MD5 digest.</param>
+    /// <param name="keyLengthBytes">The number of leading bytes of <paramref name="digest"/> re-hashed each round.</param>
+    /// <param name="revision">The Encrypt dictionary's <c>/R</c> entry.</param>
+    /// <returns><paramref name="digest"/>, unchanged for revision 2, or re-hashed 50 times for revision 3 and above.</returns>
+    private static byte[] Rehash50RoundsIfRevisionAtLeast3(byte[] digest, int keyLengthBytes, int revision)
+    {
         if (revision >= 3)
         {
             for (var i = 0; i < 50; i++)
@@ -364,31 +564,45 @@ public sealed partial class PdfDocument
             }
         }
 
-        // Step (e): the file encryption key is the first keyLengthBytes of the final digest.
-        return digest.AsSpan(0, keyLengthBytes).ToArray();
+        return digest;
     }
 
+
     /// <summary>
-    ///     Authenticates the empty user password for revisions 2-4 by recomputing the expected
-    ///     <c>/U</c> value from the file encryption key (ISO 32000-1 Algorithm 4 for revision 2,
-    ///     Algorithm 5 for revision 3/4) and comparing it against the document's actual <c>/U</c>
-    ///     entry, throwing when they do not match (a real, non-empty password is required).
+    ///     Checks whether <paramref name="fileKey"/> authenticates as the user password for
+    ///     revisions 2-4 by recomputing the expected <c>/U</c> value from it (ISO 32000-1
+    ///     Algorithm 4 for revision 2, Algorithm 5 for revision 3/4) and comparing it against the
+    ///     document's actual <c>/U</c> entry.
     /// </summary>
     /// <remarks>
-    ///     Per the specification, only the first 16 of <c>/U</c>'s 32 bytes are compared for
-    ///     revision 3/4 (the trailing 16 bytes are producer-defined padding, not a deterministic
-    ///     function of the key) - comparing all 32 would reject documents produced by a conforming
-    ///     writer using a different padding convention.
+    ///     <para>
+    ///         Algorithm 4/5 always hashes/encrypts the literal 32-byte padding string
+    ///         (<see cref="PasswordPadding"/>), never the actual supplied password's own bytes -
+    ///         per ISO 32000-1 7.6.3.3/7.6.3.4, the password's own bytes only ever feed into
+    ///         Algorithm 2's file-key derivation (<see cref="ComputeFileKeyAlgorithm2"/>), not into
+    ///         this comparison. This method therefore needs no password-bytes parameter of its
+    ///         own - only the candidate <paramref name="fileKey"/> to verify.
+    ///     </para>
+    ///     <para>
+    ///         Per the specification, only the first 16 of <c>/U</c>'s 32 bytes are compared for
+    ///         revision 3/4 (the trailing 16 bytes are producer-defined padding, not a
+    ///         deterministic function of the key) - comparing all 32 would reject documents
+    ///         produced by a conforming writer using a different padding convention.
+    ///     </para>
     /// </remarks>
+    /// <param name="fileKey">The candidate file encryption key to verify.</param>
+    /// <param name="uBytes">The Encrypt dictionary's raw <c>/U</c> entry bytes.</param>
+    /// <param name="idBytes">The trailer's <c>/ID</c> array's first element's raw bytes.</param>
+    /// <param name="revision">The Encrypt dictionary's <c>/R</c> entry.</param>
+    /// <returns>
+    ///     <see langword="true"/> when <paramref name="fileKey"/> authenticates against
+    ///     <paramref name="uBytes"/>; <see langword="false"/> otherwise.
+    /// </returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="uBytes"/> is shorter than the specification requires
     ///     (32 bytes for revision 2, 16 bytes for revision 3/4).
     /// </exception>
-    /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when the recomputed value does not match <paramref name="uBytes"/> - a real,
-    ///     non-empty password is required to open this document.
-    /// </exception>
-    private static void AuthenticateEmptyUserPasswordAlgorithm45(byte[] fileKey, byte[] uBytes, byte[] idBytes, int revision)
+    private static bool TryAuthenticateUserPasswordAlgorithm45(byte[] fileKey, byte[] uBytes, byte[] idBytes, int revision)
     {
         bool authenticated;
         if (revision == 2)
@@ -432,35 +646,82 @@ public sealed partial class PdfDocument
             authenticated = result.AsSpan().SequenceEqual(uBytes.AsSpan(0, 16));
         }
 
-        if (!authenticated)
-        {
-            throw new UnsupportedImageFeatureException(
-                "pdf-encrypted-password-required",
-                "This encrypted PDF document requires a non-empty user password, which is not supported.");
-        }
+        return authenticated;
     }
 
     /// <summary>
-    ///     Computes the file encryption key for AES-256/R5 (ISO 32000-2 Algorithm 2.A, simplified
-    ///     to the empty-user-password case this phase exclusively supports): validates the empty
-    ///     password against <c>/U</c>'s embedded validation salt, then unwraps <c>/UE</c> using a
-    ///     key derived from <c>/U</c>'s embedded key salt.
+    ///     Recovers the padded user password from <c>/O</c> per ISO 32000-1 Algorithm 3's decrypt
+    ///     direction, treating <paramref name="paddedOwnerPasswordBytes"/> as the padded owner
+    ///     password: MD5-hashes it (re-hashing 50 rounds for revision 3 and above, via the same
+    ///     <see cref="Rehash50RoundsIfRevisionAtLeast3"/> helper Algorithm 2 step (d) uses) to
+    ///     derive the owner RC4 key, then RC4-decrypts <c>/O</c> with it - a single pass for
+    ///     revision 2, or 20 rounds (round 19 down to round 0, round 0 using the unmodified owner
+    ///     key, each other round's key XORed byte-wise with its own round number) for revision 3/4.
     /// </summary>
+    /// <param name="paddedOwnerPasswordBytes">The padded (32-byte) candidate owner password.</param>
+    /// <param name="oBytes">The Encrypt dictionary's raw <c>/O</c> entry bytes (32 bytes).</param>
+    /// <param name="keyLengthBytes">The file key length in bytes.</param>
+    /// <param name="revision">The Encrypt dictionary's <c>/R</c> entry.</param>
+    /// <returns>
+    ///     The recovered 32-byte padded user password - already exactly 32 bytes (Algorithm 3's
+    ///     own output), so callers must feed it directly into
+    ///     <see cref="ComputeFileKeyAlgorithm2"/> without re-padding it via
+    ///     <see cref="PadPasswordBytes"/>.
+    /// </returns>
+    private static byte[] RecoverPaddedUserPasswordAlgorithm3(byte[] paddedOwnerPasswordBytes, byte[] oBytes, int keyLengthBytes, int revision)
+    {
+        var digest = MD5.HashData(paddedOwnerPasswordBytes);
+        digest = Rehash50RoundsIfRevisionAtLeast3(digest, keyLengthBytes, revision);
+        var ownerKey = digest.AsSpan(0, keyLengthBytes).ToArray();
+
+        var result = oBytes;
+        if (revision == 2)
+        {
+            result = Rc4Transform(ownerKey, result);
+        }
+        else
+        {
+            for (var round = 19; round >= 0; round--)
+            {
+                var roundKey = new byte[ownerKey.Length];
+                for (var i = 0; i < ownerKey.Length; i++)
+                {
+                    roundKey[i] = (byte)(ownerKey[i] ^ round);
+                }
+
+                result = Rc4Transform(roundKey, result);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    ///     Computes the file encryption key for AES-256/R5 by trying <paramref name="passwordBytes"/>
+    ///     as the user password (ISO 32000-2 Algorithm 2.A): validates it against <c>/U</c>'s
+    ///     embedded validation salt, then - on success - unwraps <c>/UE</c> using a key derived
+    ///     from <c>/U</c>'s embedded key salt.
+    /// </summary>
+    /// <param name="passwordBytes">
+    ///     The UTF-8-encoded, 127-byte-truncated candidate user password (empty for the
+    ///     null-password path, in which case the hash/intermediate-key computation below reduces
+    ///     to simply <c>SHA-256(salt)</c>).
+    /// </param>
     /// <param name="uBytes">
     ///     The Encrypt dictionary's 48-byte <c>/U</c> entry: 32 bytes of hash, 8 bytes of
     ///     validation salt, 8 bytes of key salt.
     /// </param>
     /// <param name="ueBytes">The Encrypt dictionary's 32-byte <c>/UE</c> entry.</param>
-    /// <returns>The 32-byte file encryption key, used directly (no further per-object derivation).</returns>
+    /// <returns>
+    ///     The 32-byte file encryption key (used directly, with no further per-object derivation)
+    ///     when <paramref name="passwordBytes"/> authenticates against <c>/U</c>'s validation
+    ///     salt; <see langword="null"/> when it does not.
+    /// </returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="uBytes"/>/<paramref name="ueBytes"/> are not the lengths
     ///     the specification requires.
     /// </exception>
-    /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when the empty password does not authenticate against <c>/U</c>'s validation
-    ///     salt - a real, non-empty password is required to open this document.
-    /// </exception>
-    private static byte[] ComputeFileKeyAlgorithm2A(byte[] uBytes, byte[] ueBytes)
+    private static byte[]? TryComputeFileKeyAlgorithm2A(byte[] passwordBytes, byte[] uBytes, byte[] ueBytes)
     {
         if (uBytes.Length < 48)
         {
@@ -476,19 +737,16 @@ public sealed partial class PdfDocument
         var validationSalt = uBytes.AsSpan(32, 8);
         var keySalt = uBytes.AsSpan(40, 8);
 
-        // Step 1: for an empty password, SHA-256(password + validationSalt) is simply
-        // SHA-256(validationSalt) - authenticate by comparing against /U's own embedded hash.
-        var computedHash = SHA256.HashData(validationSalt);
+        // Step 1: SHA-256(password + validationSalt) - authenticate by comparing against /U's
+        // own embedded hash.
+        var computedHash = SHA256.HashData([.. passwordBytes, .. validationSalt]);
         if (!computedHash.AsSpan().SequenceEqual(hash))
         {
-            throw new UnsupportedImageFeatureException(
-                "pdf-encrypted-password-required",
-                "This encrypted PDF document requires a non-empty user password, which is not supported.");
+            return null;
         }
 
-        // Step 2: the intermediate key is SHA-256(password + keySalt) - again just
-        // SHA-256(keySalt) for an empty password.
-        var intermediateKey = SHA256.HashData(keySalt);
+        // Step 2: the intermediate key is SHA-256(password + keySalt).
+        var intermediateKey = SHA256.HashData([.. passwordBytes, .. keySalt]);
 
         // Step 3: the file encryption key is AES-256-CBC-decrypt(/UE) using the intermediate key,
         // a zero IV, and no padding (/UE decrypts to exactly the raw 32-byte file key).
@@ -496,9 +754,74 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
+    ///     Computes the file encryption key for AES-256/R5 by trying <paramref name="passwordBytes"/>
+    ///     as the owner password - the owner-password variant of ISO 32000-2 Algorithm 2.A: the
+    ///     hash/intermediate-key computation is the same shape as
+    ///     <see cref="TryComputeFileKeyAlgorithm2A"/>'s user-password version, except the salts
+    ///     come from <c>/O</c> instead of <c>/U</c>, the full 48-byte <c>/U</c> value (not a
+    ///     sub-slice) is appended after the salt in both hash inputs, the validation hash is
+    ///     compared against <c>/O</c>'s own embedded hash instead of <c>/U</c>'s, and <c>/OE</c>
+    ///     (not <c>/UE</c>) is unwrapped to recover the file key.
+    /// </summary>
+    /// <param name="passwordBytes">
+    ///     The UTF-8-encoded, 127-byte-truncated candidate owner password.
+    /// </param>
+    /// <param name="oBytes">
+    ///     The Encrypt dictionary's 48-byte <c>/O</c> entry: 32 bytes of hash, 8 bytes of
+    ///     validation salt, 8 bytes of key salt.
+    /// </param>
+    /// <param name="oeBytes">The Encrypt dictionary's 32-byte <c>/OE</c> entry.</param>
+    /// <param name="uBytes">The Encrypt dictionary's full, raw 48-byte <c>/U</c> entry.</param>
+    /// <returns>
+    ///     The 32-byte file encryption key when <paramref name="passwordBytes"/> authenticates
+    ///     against <c>/O</c>'s validation hash; <see langword="null"/> when it does not.
+    /// </returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="oBytes"/>/<paramref name="oeBytes"/>/<paramref name="uBytes"/>
+    ///     are not the lengths the specification requires.
+    /// </exception>
+    private static byte[]? TryComputeFileKeyAlgorithm2AOwnerPassword(byte[] passwordBytes, byte[] oBytes, byte[] oeBytes, byte[] uBytes)
+    {
+        if (oBytes.Length < 48)
+        {
+            throw new InvalidDataException("Encrypt dictionary's /O entry must be at least 48 bytes for /V 5.");
+        }
+
+        if (oeBytes.Length != 32)
+        {
+            throw new InvalidDataException("Encrypt dictionary's /OE entry must be exactly 32 bytes for /V 5.");
+        }
+
+        if (uBytes.Length < 48)
+        {
+            throw new InvalidDataException("Encrypt dictionary's /U entry must be at least 48 bytes for /V 5.");
+        }
+
+        var hash = oBytes.AsSpan(0, 32);
+        var validationSalt = oBytes.AsSpan(32, 8);
+        var keySalt = oBytes.AsSpan(40, 8);
+        var fullU = uBytes.AsSpan(0, 48);
+
+        // Step 1: SHA-256(password + validationSalt + U(48 bytes)) - authenticate by comparing
+        // against /O's own embedded hash.
+        var computedHash = SHA256.HashData([.. passwordBytes, .. validationSalt, .. fullU]);
+        if (!computedHash.AsSpan().SequenceEqual(hash))
+        {
+            return null;
+        }
+
+        // Step 2: the intermediate key is SHA-256(password + keySalt + U(48 bytes)).
+        var intermediateKey = SHA256.HashData([.. passwordBytes, .. keySalt, .. fullU]);
+
+        // Step 3: the file encryption key is AES-256-CBC-decrypt(/OE) using the intermediate key,
+        // a zero IV, and no padding (/OE decrypts to exactly the raw 32-byte file key).
+        return DecryptAesCbc(intermediateKey, new byte[16], oeBytes, 0, oeBytes.Length, CipherMode.CBC, PaddingMode.None);
+    }
+
+    /// <summary>
     ///     Computes a per-object encryption key per ISO 32000-1 Algorithm 1, used by RC4 and
     ///     AES-128/AESV2 (revisions 2-4). AES-256/R5 does not use this - it uses the file
-    ///     encryption key directly for every object (see <see cref="ComputeFileKeyAlgorithm2A"/>'s
+    ///     encryption key directly for every object (see <see cref="TryComputeFileKeyAlgorithm2A"/>'s
     ///     own remarks).
     /// </summary>
     /// <param name="fileKey">The file encryption key from <see cref="ComputeFileKeyAlgorithm2"/>.</param>

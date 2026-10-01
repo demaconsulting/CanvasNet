@@ -11,6 +11,7 @@
 <!-- cspell:ignore functiontype bitspersample multiinput hival EOFB -->
 <!-- cspell:ignore charsets -->
 <!-- cspell:ignore bchar achar -->
+<!-- cspell:ignore SASLprep -->
 
 `PdfDocument` is distributed as the separate `DemaConsulting.CanvasNet.Pdf` NuGet package
 (namespace `DemaConsulting.CanvasNet.Pdf`), which references the core
@@ -295,23 +296,44 @@ re-parsing it each time — a property a purely static API could not express.
 
 ### Encryption (Standard Security Handler)
 
-Added in Phase 16, `PdfDocument.Encryption.cs` detects and, for the narrow scope documented
-below, transparently authenticates an encrypted document's empty user password and derives its
-file encryption key, so every subsequent indirect-object string and stream read can
-transparently decrypt its bytes before any of this class's other parsing logic ever sees them.
+Added in Phase 16, `PdfDocument.Encryption.cs` detects an encrypted document and derives its file
+encryption key, so every subsequent indirect-object string and stream read can transparently
+decrypt its bytes before any of this class's other parsing logic ever sees them. Phase 17 extends
+this to accept an optional caller-supplied `password`, threaded from both `Open` overloads and the
+private constructor into `InitializeEncryption`: when `password` is `null` (the default), behavior
+is byte-for-byte unchanged from Phase 16 (empty-user-password authentication only). When a
+non-`null` password is supplied, it is first tried as the **user password** (the same Algorithm
+2/4/5 or 2.A authentication path, now parameterized on the real password's encoded/padded bytes
+instead of always the empty-password padding constant); if that does not authenticate, the same
+supplied string is tried as the **owner password** — ISO 32000-1 Algorithm 3 (R2-R4: recovers the
+padded user password from `/O`, then re-derives and re-authenticates a candidate file key) or the
+owner-password variant of ISO 32000-2 Algorithm 2.A (R5: recovers the file key directly from
+`/OE`). If neither attempt authenticates, `Codecs.UnsupportedImageFeatureException` is thrown with
+the new `pdf-encrypted-incorrect-password` feature token (distinguishable from the null-password
+`pdf-encrypted-password-required` token, which is unchanged). **Encoding scope boundary**: R2-R4
+passwords are encoded via Latin-1 (≈ PDFDocEncoding for the ASCII range) — any character outside
+ASCII 0-127 throws `pdf-encrypted-password-non-ascii` rather than silently deriving wrong key
+material; R5 passwords are encoded via UTF-8 with no SASLprep/Unicode normalization (an
+intentional, documented scope boundary that does not affect ordinary ASCII passwords). Both
+encodings truncate to a maximum of 127 bytes before any hashing, per ISO 32000-1/2's own password
+truncation rule.
 
-- **`InitializeEncryption(PdfObject trailer)`** — replaces the previous, unconditional-throw
-  `CheckForEncryption`. Returns immediately (leaving `_encryptionKey` `null`) when the trailer
-  has no `/Encrypt` entry. Otherwise resolves (and thereby caches) the `/Encrypt` dictionary's own
-  object, validates `/Filter` is `/Standard` (else `Codecs.UnsupportedImageFeatureException`,
-  feature `pdf-encrypted-filter-{name}`), reads `/V`/`/R`/`/Length`/`/O`/`/U`/`/P`/
-  `/EncryptMetadata` and the trailer's `/ID` first element, then dispatches on `/V`: `1`/`2` →
-  RC4 via `InitializeRc4OrAesV2Encryption`; `4` → validates `/CF/StdCF/CFM` is `/AESV2` (else
-  feature `pdf-encrypted-cfm-{name}`) then the same RC4/AESV2 initialization path; `5` → rejects
-  `/R 6` (feature `pdf-encrypted-r6-hardened-hash`) and any other `/R` (feature
-  `pdf-encrypted-r-{revision}`), validates `/CF/StdCF/CFM` is `/AESV3`, then derives the file key
-  directly via `ComputeFileKeyAlgorithm2A`; any other `/V` fails with feature
-  `pdf-encrypted-v-{version}`. **Ordering invariant and cache invalidation**: resolving the
+- **`InitializeEncryption(PdfObject trailer, string? password = null)`** — replaces the previous,
+  unconditional-throw `CheckForEncryption`. Returns immediately (leaving `_encryptionKey` `null`)
+  when the trailer has no `/Encrypt` entry. Otherwise resolves (and thereby caches) the
+  `/Encrypt` dictionary's own object, validates `/Filter` is `/Standard` (else
+  `Codecs.UnsupportedImageFeatureException`, feature `pdf-encrypted-filter-{name}`), reads
+  `/V`/`/R`/`/Length`/`/O`/`/U`/`/P`/`/EncryptMetadata` and the trailer's `/ID` first element,
+  then dispatches on `/V`: `1`/`2` → RC4 via `InitializeRc4OrAesV2Encryption(…, password)`; `4` →
+  validates `/CF/StdCF/CFM` is `/AESV2` (else feature `pdf-encrypted-cfm-{name}`) then the same
+  RC4/AESV2 initialization path; `5` → rejects `/R 6` (feature `pdf-encrypted-r6-hardened-hash`)
+  and any other `/R` (feature `pdf-encrypted-r-{revision}`), validates `/CF/StdCF/CFM` is
+  `/AESV3`, computes `passwordBytes` (empty, or `EncodeR5PasswordBytes(password)`), tries
+  `TryComputeFileKeyAlgorithm2A` first and — when `password is not null` and that returns `null`
+  — falls back to `TryComputeFileKeyAlgorithm2AOwnerPassword` (reading `/OE`), throwing the
+  appropriate token (`pdf-encrypted-password-required` or `pdf-encrypted-incorrect-password`) if
+  both fail; any other `/V` fails with feature `pdf-encrypted-v-{version}`. **Ordering invariant
+  and cache invalidation**: resolving the
   `/Encrypt` dictionary happens, and is cached by `GetObject`, before `_encryptionKey` is ever
   set, so its own `/O`/`/U`/`/OE`/`/UE` strings are never mistakenly decrypted — this part is
   still relied on deliberately, instead of also carrying a redundant "is this the Encrypt
@@ -331,29 +353,57 @@ transparently decrypt its bytes before any of this class's other parsing logic e
   `_objectCache`, the parsed-value cache, so re-resolution is always possible). See
   `PdfDocument_Open_Encrypted_CatalogOwnStringIsDecrypted` for the regression test covering the
   Catalog case.
-- **`ComputeFileKeyAlgorithm2`** (ISO 32000-1 Algorithm 2) — pads the (always empty, per this
-  phase's scope) user password to 32 bytes with the standard padding string, MD5-hashes it with
-  `/O`, `/P` (4-byte little-endian signed integer), the document ID, and (revision ≥ 4 with
-  `/EncryptMetadata` explicitly `false`) four trailing `0xFF` bytes, then — for revision ≥ 3 —
-  re-hashes the first `keyLengthBytes` of the digest 50 more times; the file key is the first
-  `keyLengthBytes` of the final digest (`/Length` in bits ÷ 8, defaulting to 5 bytes/40 bits,
-  except `/V 1` which is always exactly 5 bytes regardless of `/Length`).
-- **`AuthenticateEmptyUserPasswordAlgorithm45`** (ISO 32000-1 Algorithm 4 for revision 2,
-  Algorithm 5 for revision 3/4) — recomputes the expected `/U` value from the file key (Algorithm
-  2 alone never fails; only this comparison can detect a wrong password) and compares it against
-  the document's actual `/U` (only the first 16 of 32 bytes for revision 3/4, since the trailing
-  16 are producer-defined padding), throwing `Codecs.UnsupportedImageFeatureException` (feature
-  `pdf-encrypted-password-required`) on a mismatch.
+- **`PadPasswordBytes(byte[] passwordBytes)`** — pads/truncates arbitrary password bytes to
+  exactly 32 bytes using `PasswordPadding`'s own bytes for the remainder; for an empty input this
+  reproduces `PasswordPadding` verbatim, preserving byte-for-byte null-password behavior.
+  **`EncodeR2R4PasswordBytes(string password)`** — Latin-1-encodes the password (≈ PDFDocEncoding
+  for ASCII), throwing `Codecs.UnsupportedImageFeatureException` (feature
+  `pdf-encrypted-password-non-ascii`) if any character is outside ASCII 0-127, then truncates the
+  encoded bytes to 127. **`EncodeR5PasswordBytes(string password)`** — UTF-8-encodes the password
+  (no SASLprep/Unicode normalization — an intentional scope boundary) then truncates to 127 bytes.
+- **`ComputeFileKeyAlgorithm2(byte[] paddedPasswordBytes, …)`** (ISO 32000-1 Algorithm 2) — takes
+  an already-padded 32-byte password (`PadPasswordBytes`'s own output for the empty/user-password
+  case, or Algorithm 3's recovered bytes directly for the owner-password case, which must **not**
+  be re-padded), MD5-hashes it with `/O`, `/P` (4-byte little-endian signed integer), the document
+  ID, and (revision ≥ 4 with `/EncryptMetadata` explicitly `false`) four trailing `0xFF` bytes,
+  then — for revision ≥ 3 — re-hashes the first `keyLengthBytes` of the digest 50 more times via
+  the shared `Rehash50RoundsIfRevisionAtLeast3` helper; the file key is the first `keyLengthBytes`
+  of the final digest (`/Length` in bits ÷ 8, defaulting to 5 bytes/40 bits, except `/V 1` which is
+  always exactly 5 bytes regardless of `/Length`).
+- **`TryAuthenticateUserPasswordAlgorithm45`** (ISO 32000-1 Algorithm 4 for revision 2, Algorithm
+  5 for revision 3/4) — recomputes the expected `/U` value from the file key (Algorithm 2 alone
+  never fails; only this comparison can detect a wrong password) and compares it against the
+  document's actual `/U` (only the first 16 of 32 bytes for revision 3/4, since the trailing 16
+  are producer-defined padding), returning `bool` instead of throwing (Algorithm 4/5 always
+  hashes the literal 32-byte `PasswordPadding` constant, never the actual supplied password, per
+  ISO 32000-1 §7.6.3.4/7.6.3.3 — this comparison is identical regardless of which password role is
+  being tested).
+- **`RecoverPaddedUserPasswordAlgorithm3(byte[] paddedOwnerPasswordBytes, byte[] oBytes, …)`** (ISO
+  32000-1 Algorithm 3, decrypt direction, R2-R4 owner-password path only) — MD5-hashes the padded
+  owner-password guess, re-hashes 50 rounds for revision ≥ 3 via the shared helper, then RC4-
+  decrypts `/O`: a single pass for revision 2, or 20 rounds from round 19 down to round 0 (round 0
+  using the unmodified owner key, rounds 1-19 using the key XORed with the round number) for
+  revision 3/4 — returning the recovered 32-byte padded user password, which `InitializeRc4OrAesV2Encryption`
+  feeds directly (without re-padding) into `ComputeFileKeyAlgorithm2` to derive a candidate file
+  key, re-verified via `TryAuthenticateUserPasswordAlgorithm45`.
 - **`ComputeObjectKeyAlgorithm1`** (ISO 32000-1 Algorithm 1, RC4/AESV2 only) — MD5-hashes the file
   key plus the object's 3-byte little-endian object number and 2-byte little-endian generation
   number (plus the 4 literal ASCII bytes `sAlT` for AESV2); the per-object key is the first
   `min(fileKeyLength + 5, 16)` bytes of that digest.
-- **`ComputeFileKeyAlgorithm2A`** (ISO 32000-2 Algorithm 2.A, R5/AESV3 only, simplified for an
-  empty user password) — authenticates by comparing `SHA-256(/U`'s 8-byte validation salt`)`
-  against `/U`'s own embedded 32-byte hash (throwing feature `pdf-encrypted-password-required` on
-  a mismatch), then AES-256-CBC-decrypts `/UE` (zero IV, no padding) using
-  `SHA-256(/U`'s 8-byte key salt`)` as the key, yielding the 32-byte file encryption key directly
-  — used as-is for every string/stream, with no further per-object derivation (unlike RC4/AESV2).
+- **`TryComputeFileKeyAlgorithm2A(byte[] passwordBytes, …)`** (ISO 32000-2 Algorithm 2.A, R5/AESV3
+  only, user-password path) — authenticates by comparing `SHA-256(passwordBytes ‖ /U`'s 8-byte
+  validation salt`)` against `/U`'s own embedded 32-byte hash, returning `null` (instead of
+  throwing) on a mismatch, otherwise AES-256-CBC-decrypts `/UE` (zero IV, no padding) using
+  `SHA-256(passwordBytes ‖ /U`'s 8-byte key salt`)` as the key, yielding the 32-byte file
+  encryption key directly — used as-is for every string/stream, with no further per-object
+  derivation (unlike RC4/AESV2).
+- **`TryComputeFileKeyAlgorithm2AOwnerPassword(byte[] passwordBytes, byte[] oBytes, byte[] oeBytes, byte[] uBytes)`**
+  (owner-password variant of ISO 32000-2 Algorithm 2.A, R5/AESV3 only) — hashes/encrypts over
+  `passwordBytes ‖ salt ‖ U` where `U` is the **full 48-byte** `/U` value (not a sub-slice):
+  compares `SHA-256(passwordBytes ‖ /O`'s 8-byte validation salt ‖ fullU`)` against `/O`'s own
+  32-byte hash, returning `null` on a mismatch, otherwise AES-256-CBC-decrypts `/OE` (not `/UE`,
+  zero IV, no padding) using `SHA-256(passwordBytes ‖ /O`'s 8-byte key salt ‖ fullU`)` as the key,
+  yielding the 32-byte file encryption key directly.
 - **`DecryptStreamBytes`/`DecryptStringsInPlace`** — dispatch on `_encryptionCipher`: RC4
   re-derives the per-object key and XORs; AES-128 derives the per-object key with the `sAlT`
   suffix, then AES-128-CBC/PKCS7-decrypts a leading-16-byte-IV-prefixed ciphertext; AES-256
@@ -369,13 +419,15 @@ transparently decrypt its bytes before any of this class's other parsing logic e
   RC4 is not a built-in .NET primitive; symmetric, so the same implementation both encrypts and
   decrypts.
 
-**Scope boundary**: only the `/Filter /Standard` security handler is supported, only RC4
+**Scope boundary**: only the `/Filter /Standard` security handler is supported, and only RC4
 (`/V 1`/`/V 2`), AES-128 (`/V 4`/`/CFM /AESV2`), and AES-256 using the simpler R5 key derivation
-(`/V 5`/`/R 5`/`/CFM /AESV3`) are supported, and only an empty user password is ever
-authenticated — there is no API surface to supply any other password. Every other shape (a
-non-`/Standard` filter, `/R 6`'s "hardened hash" key derivation, a crypt filter other than the
-standard `/StdCF`, or a document that genuinely requires a non-empty password) fails closed with
-`Codecs.UnsupportedImageFeatureException` and its own distinguishable `Feature` token.
+(`/V 5`/`/R 5`/`/CFM /AESV3`) are supported. A caller-supplied password (R2-R4: Latin-1/ASCII only;
+R5: UTF-8, no SASLprep normalization; both: 127-byte truncation) is tried as the user password
+then the owner password, as described above. Every other shape (a non-`/Standard` filter, `/R 6`'s
+"hardened hash" key derivation, a crypt filter other than the standard `/StdCF`, a document whose
+user/owner password does not match the supplied (or default empty) password, or an R2-4 password
+containing a non-ASCII character) fails closed with `Codecs.UnsupportedImageFeatureException` and
+its own distinguishable `Feature` token.
 
 ### Content-Stream Interpreter
 
@@ -968,11 +1020,14 @@ standard `/StdCF`, or a document that genuinely requires a non-empty password) f
   `pdf-encrypted-filter-{name}`), **a `/CF/StdCF/CFM` other than `/AESV2`/`/AESV3`** (feature
   `pdf-encrypted-cfm-{name}`), **`/V 5` with `/R 6`'s "hardened hash" key derivation** (feature
   `pdf-encrypted-r6-hardened-hash`), **`/V 5` with any other unsupported `/R`** (feature
-  `pdf-encrypted-r-{revision}`), **an unsupported `/V`** (feature `pdf-encrypted-v-{version}`), or
-  **an empty user password that fails `/U` (R2-R4) or `/U`'s embedded validation hash (R5)
+  `pdf-encrypted-r-{revision}`), **an unsupported `/V`** (feature `pdf-encrypted-v-{version}`),
+  **a `null` password that fails `/U` (R2-R4) or `/U`'s embedded validation hash (R5)
   authentication, i.e. the document genuinely requires a non-empty password** (feature
-  `pdf-encrypted-password-required`) — `Codecs.UnsupportedImageFeatureException` for each,
-  thrown directly, each with its own distinguishable `Feature` token (added in Phase 16, see
+  `pdf-encrypted-password-required`), **a non-`null` password that authenticates as neither the
+  user nor the owner password** (feature `pdf-encrypted-incorrect-password`), or **a non-`null`
+  password containing a character outside ASCII 0-127 for an R2-R4 document** (feature
+  `pdf-encrypted-password-non-ascii`) — `Codecs.UnsupportedImageFeatureException` for each,
+  thrown directly, each with its own distinguishable `Feature` token (added in Phase 16/17, see
   _Encryption (Standard Security Handler)_ above; narrows the previous Phase 1 blanket
   `"pdf-encrypted"` rejection of every encrypted document regardless of shape).
 - **Out-of-range `pageIndex` to `GetPageInfo`/`Render`** — `ArgumentOutOfRangeException`, thrown

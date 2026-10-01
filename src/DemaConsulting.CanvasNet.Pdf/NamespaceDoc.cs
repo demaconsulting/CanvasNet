@@ -20,7 +20,7 @@ namespace DemaConsulting.CanvasNet.Pdf;
 /// <remarks>
 ///     Phase 1 of this package's implementation establishes document parsing (tokenizer, object
 ///     model, cross-reference resolution, page-tree traversal) and the public
-///     <see cref="PdfDocument"/> API surface (<see cref="PdfDocument.Open(System.IO.Stream)"/>,
+///     <see cref="PdfDocument"/> API surface (<see cref="PdfDocument.Open(System.IO.Stream, string?)"/>,
 ///     <see cref="PdfDocument.PageCount"/>, <see cref="PdfDocument.GetPageInfo(int)"/>,
 ///     <see cref="PdfDocument.Render(int, int, int)"/>, <see cref="PdfDocument.Dispose"/>), but
 ///     does not yet interpret page content streams: <see cref="PdfDocument.Render(int, int, int)"/>

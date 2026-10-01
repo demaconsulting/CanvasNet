@@ -4,6 +4,7 @@
 <!-- cspell:ignore rasterizing unparseable SMIL renderable -->
 <!-- cspell:ignore unitless -->
 <!-- cspell:ignore Zapf -->
+<!-- cspell:ignore SASLprep -->
 
 ## Purpose
 
@@ -1116,14 +1117,23 @@ using var surface = doc.Render(0, info.Width, info.Height);
 
 #### PdfDocument Methods
 
-##### PdfDocument.Open(Stream stream)
+##### PdfDocument.Open(Stream stream, string? password = null)
 
 ```csharp
-public static PdfDocument Open(Stream stream)
+public static PdfDocument Open(Stream stream, string? password = null)
 ```
 
 Reads the entirety of an open, readable stream into an in-memory buffer and parses it into a new
 `PdfDocument`. Does not take ownership of, and does not dispose, the caller's `stream`.
+
+The optional `password` parameter defaults to `null`, which preserves the library's original
+empty-user-password-only behavior byte-for-byte. When a non-`null` password is supplied, it is
+tried first as the **user password**, then - if that does not authenticate - as the **owner
+password** (ISO 32000-1 Algorithm 3 for RC4/AES-128 documents; the owner-password variant of
+ISO 32000-2 Algorithm 2.A for AES-256/R5 documents). R2-R4 (RC4/AES-128) passwords are encoded as
+Latin-1 (the ASCII range of PDFDocEncoding); R5 (AES-256) passwords are encoded as UTF-8 with no
+SASLprep/Unicode normalization applied - both are intentional scope boundaries. Both encodings
+truncate the password's encoded bytes to a maximum of 127 bytes before any hashing.
 
 **Exceptions:**
 
@@ -1134,29 +1144,33 @@ Reads the entirety of an open, readable stream into an in-memory buffer and pars
 - `UnsupportedImageFeatureException`: Thrown when the document's trailer declares an `/Encrypt`
   entry that this library cannot open: a security handler other than the PDF "Standard" handler,
   an AES-256 document using the `/R 6` "hardened hash" key derivation, a crypt filter other than
-  the standard `/StdCF` filter (RC4, AES-128/`AESV2`, or AES-256-R5/`AESV3`), or a document that
-  genuinely requires a non-empty password (there is no API surface to supply one). A document
-  encrypted with the Standard security handler using RC4 (40-128 bit), AES-128, or AES-256 (R5)
-  and an empty user password - the vast majority of "owner password"/permission-restricted
-  real-world PDFs - opens and renders normally; its permission flags are not enforced (this
+  the standard `/StdCF` filter (RC4, AES-128/`AESV2`, or AES-256-R5/`AESV3`), a document that
+  requires a password but `password` was not supplied (`null`), or a supplied `password` that
+  does not authenticate as either the user or the owner password (feature
+  `pdf-encrypted-incorrect-password`), or - for an R2-R4 document - contains a character outside
+  ASCII 0-127 (feature `pdf-encrypted-password-non-ascii`). A document encrypted with the Standard
+  security handler using RC4 (40-128 bit), AES-128, or AES-256 (R5) and an empty user password -
+  the vast majority of "owner password"/permission-restricted real-world PDFs - opens and renders
+  normally with `password` left at its default `null`; its permission flags are not enforced (this
   library only ever reads for rendering, so copy/print restrictions do not apply).
 
-##### PdfDocument.Open(string path)
+##### PdfDocument.Open(string path, string? password = null)
 
 ```csharp
-public static PdfDocument Open(string path)
+public static PdfDocument Open(string path, string? password = null)
 ```
 
 Opens its own internal `FileStream` for the file at `path`, reads it fully, closes that stream
 synchronously within `Open` (mirroring `PngCodec.Load(string)`'s open/consume/close pattern), then
-parses the buffered content identically to the `Stream` overload above.
+parses the buffered content identically to the `Stream` overload above, with the same `password`
+parameter and semantics.
 
 **Exceptions:**
 
 - `ArgumentNullException`: Thrown when `path` is null.
 - `ArgumentException`: Thrown when `path` is an empty or whitespace-only string.
-- `InvalidDataException`: Thrown for the same conditions as `Open(Stream)`.
-- `UnsupportedImageFeatureException`: Thrown for the same reason as `Open(Stream)`.
+- `InvalidDataException`: Thrown for the same conditions as `Open(Stream, string?)`.
+- `UnsupportedImageFeatureException`: Thrown for the same reasons as `Open(Stream, string?)`.
 
 ##### PdfDocument.PageCount
 

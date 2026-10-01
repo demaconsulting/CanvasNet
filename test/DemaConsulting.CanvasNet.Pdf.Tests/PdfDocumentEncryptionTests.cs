@@ -72,13 +72,14 @@ public class PdfDocumentEncryptionTests
     }
 
     /// <summary>
-    ///     Computes the Encrypt dictionary's <c>/O</c> entry per ISO 32000-1 Algorithm 3, for the
-    ///     case this phase exclusively exercises where both the owner and user passwords are
-    ///     empty (so every padded-password step below is simply <see cref="PasswordPadding"/>).
+    ///     Computes the Encrypt dictionary's <c>/O</c> entry per ISO 32000-1 Algorithm 3's encrypt
+    ///     direction, given explicit padded owner and user passwords (both
+    ///     <see cref="PasswordPadding"/> for the shared empty-password case most existing tests
+    ///     still exercise).
     /// </summary>
-    private static byte[] ComputeOwnerEntryAlgorithm3(int keyLengthBytes, int revision)
+    private static byte[] ComputeOwnerEntryAlgorithm3(int keyLengthBytes, int revision, byte[] paddedOwnerPasswordBytes, byte[] paddedUserPasswordBytes)
     {
-        var digest = MD5.HashData(PasswordPadding);
+        var digest = MD5.HashData(paddedOwnerPasswordBytes);
         if (revision >= 3)
         {
             for (var i = 0; i < 50; i++)
@@ -88,7 +89,7 @@ public class PdfDocumentEncryptionTests
         }
 
         var ownerKey = digest.AsSpan(0, keyLengthBytes).ToArray();
-        var result = Rc4(ownerKey, PasswordPadding);
+        var result = Rc4(ownerKey, paddedUserPasswordBytes);
 
         if (revision >= 3)
         {
@@ -107,11 +108,11 @@ public class PdfDocumentEncryptionTests
         return result;
     }
 
-    /// <summary>Computes the file encryption key per ISO 32000-1 Algorithm 2, for the empty user password this phase exclusively supports.</summary>
-    private static byte[] ComputeFileKeyAlgorithm2(byte[] oBytes, int permissions, byte[] idBytes, int keyLengthBytes, int revision)
+    /// <summary>Computes the file encryption key per ISO 32000-1 Algorithm 2, given an already-padded 32-byte password.</summary>
+    private static byte[] ComputeFileKeyAlgorithm2(byte[] paddedPasswordBytes, byte[] oBytes, int permissions, byte[] idBytes, int keyLengthBytes, int revision)
     {
         using var input = new MemoryStream();
-        input.Write(PasswordPadding);
+        input.Write(paddedPasswordBytes);
         input.Write(oBytes);
         input.Write([(byte)permissions, (byte)(permissions >> 8), (byte)(permissions >> 16), (byte)(permissions >> 24)]);
         input.Write(idBytes);
@@ -127,6 +128,23 @@ public class PdfDocumentEncryptionTests
 
         return digest.AsSpan(0, keyLengthBytes).ToArray();
     }
+
+    /// <summary>Encodes (Latin-1) and pads/truncates a real password to exactly 32 bytes, independently re-derived from (not copy-pasted from) production's own <c>PadPasswordBytes</c>/<c>EncodeR2R4PasswordBytes</c> helpers.</summary>
+    private static byte[] EncodeAndPadPassword(string password)
+    {
+        var encoded = Encoding.Latin1.GetBytes(password);
+        var padded = new byte[32];
+        var copyLength = Math.Min(encoded.Length, 32);
+        encoded.AsSpan(0, copyLength).CopyTo(padded);
+        if (copyLength < 32)
+        {
+            PasswordPadding.AsSpan(0, 32 - copyLength).CopyTo(padded.AsSpan(copyLength));
+        }
+
+        return padded;
+    }
+
+
 
     /// <summary>
     ///     Computes the Encrypt dictionary's <c>/U</c> entry per ISO 32000-1 Algorithm 4
@@ -208,6 +226,27 @@ public class PdfDocumentEncryptionTests
         aes.Padding = PaddingMode.None;
         using var encryptor = aes.CreateEncryptor();
         return encryptor.TransformFinalBlock(data, 0, data.Length);
+    }
+
+    /// <summary>
+    ///     Builds an R5 <c>/O</c>/<c>/OE</c> owner-password pair per the owner-password variant of
+    ///     ISO 32000-2 Algorithm 2.A: hashes/encrypts over <c>ownerPassword + salt + fullU</c>
+    ///     (the full 48-byte <c>/U</c> value, not a sub-slice), independently re-derived from (not
+    ///     copy-pasted from) production's own <c>TryComputeFileKeyAlgorithm2AOwnerPassword</c>.
+    /// </summary>
+    private static (byte[] OBytes, byte[] OeBytes) BuildOwnerEntryAndOeAlgorithm2AOwnerPassword(string ownerPassword, byte[] fileKey, byte[] fullUBytes)
+    {
+        var ownerPasswordBytes = Encoding.UTF8.GetBytes(ownerPassword);
+        var validationSalt = (byte[])[.. Enumerable.Range(0, 8).Select(i => (byte)(0x80 + i))];
+        var keySalt = (byte[])[.. Enumerable.Range(0, 8).Select(i => (byte)(0x90 + i))];
+
+        var hash = SHA256.HashData([.. ownerPasswordBytes, .. validationSalt, .. fullUBytes]);
+        var oBytes = (byte[])[.. hash, .. validationSalt, .. keySalt];
+
+        var intermediateKey = SHA256.HashData([.. ownerPasswordBytes, .. keySalt, .. fullUBytes]);
+        var oeBytes = AesCbcEncryptNoIv(intermediateKey, fileKey);
+
+        return (oBytes, oeBytes);
     }
 
     #endregion
@@ -407,8 +446,8 @@ public class PdfDocumentEncryptionTests
         const int revision = 2;
         const int permissions = -3904;
 
-        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision);
-        var fileKey = ComputeFileKeyAlgorithm2(oBytes, permissions, TestIdBytes, keyLengthBytes, revision);
+        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision, PasswordPadding, PasswordPadding);
+        var fileKey = ComputeFileKeyAlgorithm2(PasswordPadding, oBytes, permissions, TestIdBytes, keyLengthBytes, revision);
         var uBytes = ComputeUserEntryAlgorithm45(fileKey, TestIdBytes, revision);
 
         var objectKey = ComputeObjectKeyAlgorithm1(fileKey, 4, 0, isAes: false);
@@ -436,8 +475,8 @@ public class PdfDocumentEncryptionTests
         const int revision = 3;
         const int permissions = -3904;
 
-        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision);
-        var fileKey = ComputeFileKeyAlgorithm2(oBytes, permissions, TestIdBytes, keyLengthBytes, revision);
+        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision, PasswordPadding, PasswordPadding);
+        var fileKey = ComputeFileKeyAlgorithm2(PasswordPadding, oBytes, permissions, TestIdBytes, keyLengthBytes, revision);
         var uBytes = ComputeUserEntryAlgorithm45(fileKey, TestIdBytes, revision);
 
         var objectKey = ComputeObjectKeyAlgorithm1(fileKey, 4, 0, isAes: false);
@@ -462,8 +501,8 @@ public class PdfDocumentEncryptionTests
         const int revision = 4;
         const int permissions = -3904;
 
-        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision);
-        var fileKey = ComputeFileKeyAlgorithm2(oBytes, permissions, TestIdBytes, keyLengthBytes, revision);
+        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision, PasswordPadding, PasswordPadding);
+        var fileKey = ComputeFileKeyAlgorithm2(PasswordPadding, oBytes, permissions, TestIdBytes, keyLengthBytes, revision);
         var uBytes = ComputeUserEntryAlgorithm45(fileKey, TestIdBytes, revision);
 
         var objectKey = ComputeObjectKeyAlgorithm1(fileKey, 4, 0, isAes: true);
@@ -515,6 +554,232 @@ public class PdfDocumentEncryptionTests
         Assert.Equal(default, surface[5, 5]);
     }
 
+    /// <summary>Proves an RC4 128-bit (<c>/V 2</c>/<c>/R 3</c>) encrypted document with a correct, non-empty, real user password opens and renders correctly when that password is supplied to <see cref="PdfDocument.Open(Stream, string?)"/>.</summary>
+    [Fact]
+    public void PdfDocument_Open_EncryptedRc4_CorrectUserPassword_DecryptsAndRenders()
+    {
+        const int keyLengthBytes = 16;
+        const int revision = 3;
+        const int permissions = -3904;
+        const string userPassword = "test";
+
+        var paddedUserPassword = EncodeAndPadPassword(userPassword);
+        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision, PasswordPadding, paddedUserPassword);
+        var fileKey = ComputeFileKeyAlgorithm2(paddedUserPassword, oBytes, permissions, TestIdBytes, keyLengthBytes, revision);
+        var uBytes = ComputeUserEntryAlgorithm45(fileKey, TestIdBytes, revision);
+
+        var objectKey = ComputeObjectKeyAlgorithm1(fileKey, 4, 0, isAes: false);
+        var encryptedContent = Rc4(objectKey, Encoding.ASCII.GetBytes(PlaintextContent));
+
+        var encryptDictBody =
+            $"<< /Filter /Standard /V 2 /R {revision} /Length 128 /O <{ToHex(oBytes)}> /U <{ToHex(uBytes)}> /P {permissions} >>";
+        var pdfBytes = BuildEncryptedPdf(encryptDictBody, TestIdBytes, encryptedContent);
+
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes), userPassword);
+        using var surface = document.Render(0, 100, 100);
+
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>Proves an AES-128 (<c>/V 4</c>/<c>/R 4</c>/<c>/CFM /AESV2</c>) encrypted document with a correct, non-empty, real user password opens and renders correctly when that password is supplied to <see cref="PdfDocument.Open(Stream, string?)"/>.</summary>
+    [Fact]
+    public void PdfDocument_Open_EncryptedAesV2_CorrectUserPassword_DecryptsAndRenders()
+    {
+        const int keyLengthBytes = 16;
+        const int revision = 4;
+        const int permissions = -3904;
+        const string userPassword = "test";
+
+        var paddedUserPassword = EncodeAndPadPassword(userPassword);
+        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision, PasswordPadding, paddedUserPassword);
+        var fileKey = ComputeFileKeyAlgorithm2(paddedUserPassword, oBytes, permissions, TestIdBytes, keyLengthBytes, revision);
+        var uBytes = ComputeUserEntryAlgorithm45(fileKey, TestIdBytes, revision);
+
+        var objectKey = ComputeObjectKeyAlgorithm1(fileKey, 4, 0, isAes: true);
+        var contentIv = (byte[])[.. Enumerable.Range(0, 16).Select(i => (byte)(0x31 + i))];
+        var encryptedContent = AesCbcEncryptIvPrefixed(objectKey, contentIv, Encoding.ASCII.GetBytes(PlaintextContent));
+
+        var encryptDictBody =
+            $"<< /Filter /Standard /V 4 /R {revision} /Length 128 /O <{ToHex(oBytes)}> /U <{ToHex(uBytes)}> /P {permissions} " +
+            "/CF << /StdCF << /CFM /AESV2 /Length 16 >> >> /StmF /StdCF /StrF /StdCF >>";
+        var pdfBytes = BuildEncryptedPdf(encryptDictBody, TestIdBytes, encryptedContent);
+
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes), userPassword);
+        using var surface = document.Render(0, 100, 100);
+
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>Proves an AES-256 R5 (<c>/V 5</c>/<c>/R 5</c>/<c>/CFM /AESV3</c>) encrypted document with a correct, non-empty, real user password opens and renders correctly when that password is supplied to <see cref="PdfDocument.Open(Stream, string?)"/>.</summary>
+    [Fact]
+    public void PdfDocument_Open_EncryptedAesV3_CorrectUserPassword_DecryptsAndRenders()
+    {
+        const int permissions = -3904;
+        const string userPassword = "test";
+        var userPasswordBytes = Encoding.UTF8.GetBytes(userPassword);
+
+        var fileKey = (byte[])[.. Enumerable.Range(0, 32).Select(i => (byte)(0x41 + i))];
+        var validationSalt = (byte[])[.. Enumerable.Range(0, 8).Select(i => (byte)(0x51 + i))];
+        var keySalt = (byte[])[.. Enumerable.Range(0, 8).Select(i => (byte)(0x61 + i))];
+
+        var hash = SHA256.HashData([.. userPasswordBytes, .. validationSalt]);
+        var uBytes = (byte[])[.. hash, .. validationSalt, .. keySalt];
+        var intermediateKey = SHA256.HashData([.. userPasswordBytes, .. keySalt]);
+        var ueBytes = AesCbcEncryptNoIv(intermediateKey, fileKey);
+        var oBytes = new byte[32];
+        var oeBytes = new byte[32];
+
+        var contentIv = (byte[])[.. Enumerable.Range(0, 16).Select(i => (byte)(0x71 + i))];
+        var encryptedContent = AesCbcEncryptIvPrefixed(fileKey, contentIv, Encoding.ASCII.GetBytes(PlaintextContent));
+
+        var encryptDictBody =
+            $"<< /Filter /Standard /V 5 /R 5 /Length 256 /O <{ToHex(oBytes)}> /U <{ToHex(uBytes)}> " +
+            $"/OE <{ToHex(oeBytes)}> /UE <{ToHex(ueBytes)}> /P {permissions} " +
+            "/CF << /StdCF << /CFM /AESV3 /Length 32 >> >> /StmF /StdCF /StrF /StdCF >>";
+        var pdfBytes = BuildEncryptedPdf(encryptDictBody, TestIdBytes, encryptedContent);
+
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes), userPassword);
+        using var surface = document.Render(0, 100, 100);
+
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves an RC4 128-bit (<c>/V 2</c>/<c>/R 3</c>) encrypted document - created with a
+    ///     real, distinct owner password and a different, real user password - opens and renders
+    ///     correctly when the owner password is supplied to <see cref="PdfDocument.Open(Stream, string?)"/>,
+    ///     via the ISO 32000-1 Algorithm 3 owner-password-recovery path (the supplied password
+    ///     fails to authenticate as the user password first, exactly as required).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_EncryptedRc4_CorrectOwnerPassword_DecryptsAndRenders()
+    {
+        const int keyLengthBytes = 16;
+        const int revision = 3;
+        const int permissions = -3904;
+        const string ownerPassword = "owner-secret";
+        const string userPassword = "user-secret";
+
+        var paddedOwnerPassword = EncodeAndPadPassword(ownerPassword);
+        var paddedUserPassword = EncodeAndPadPassword(userPassword);
+        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision, paddedOwnerPassword, paddedUserPassword);
+        var fileKey = ComputeFileKeyAlgorithm2(paddedUserPassword, oBytes, permissions, TestIdBytes, keyLengthBytes, revision);
+        var uBytes = ComputeUserEntryAlgorithm45(fileKey, TestIdBytes, revision);
+
+        var objectKey = ComputeObjectKeyAlgorithm1(fileKey, 4, 0, isAes: false);
+        var encryptedContent = Rc4(objectKey, Encoding.ASCII.GetBytes(PlaintextContent));
+
+        var encryptDictBody =
+            $"<< /Filter /Standard /V 2 /R {revision} /Length 128 /O <{ToHex(oBytes)}> /U <{ToHex(uBytes)}> /P {permissions} >>";
+        var pdfBytes = BuildEncryptedPdf(encryptDictBody, TestIdBytes, encryptedContent);
+
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes), ownerPassword);
+        using var surface = document.Render(0, 100, 100);
+
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves an AES-256 R5 (<c>/V 5</c>/<c>/R 5</c>/<c>/CFM /AESV3</c>) encrypted document -
+    ///     created with a real, distinct owner password and an empty (unrelated) user password -
+    ///     opens and renders correctly when the owner password is supplied to
+    ///     <see cref="PdfDocument.Open(Stream, string?)"/>, via
+    ///     <c>TryComputeFileKeyAlgorithm2AOwnerPassword</c> (the supplied password fails to
+    ///     authenticate as the user password first, exactly as required).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_EncryptedAesV3_CorrectOwnerPassword_DecryptsAndRenders()
+    {
+        const int permissions = -3904;
+        const string ownerPassword = "owner-test";
+
+        var fileKey = (byte[])[.. Enumerable.Range(0, 32).Select(i => (byte)(0x42 + i))];
+        var userValidationSalt = (byte[])[.. Enumerable.Range(0, 8).Select(i => (byte)(0x52 + i))];
+        var userKeySalt = (byte[])[.. Enumerable.Range(0, 8).Select(i => (byte)(0x62 + i))];
+
+        // /U/UE are built from an unrelated, empty user password, so the supplied owner password
+        // necessarily fails the user-password attempt first.
+        var userHash = SHA256.HashData(userValidationSalt);
+        var uBytes = (byte[])[.. userHash, .. userValidationSalt, .. userKeySalt];
+        var userIntermediateKey = SHA256.HashData(userKeySalt);
+        var ueBytes = AesCbcEncryptNoIv(userIntermediateKey, fileKey);
+
+        var (oBytes, oeBytes) = BuildOwnerEntryAndOeAlgorithm2AOwnerPassword(ownerPassword, fileKey, uBytes);
+
+        var contentIv = (byte[])[.. Enumerable.Range(0, 16).Select(i => (byte)(0x72 + i))];
+        var encryptedContent = AesCbcEncryptIvPrefixed(fileKey, contentIv, Encoding.ASCII.GetBytes(PlaintextContent));
+
+        var encryptDictBody =
+            $"<< /Filter /Standard /V 5 /R 5 /Length 256 /O <{ToHex(oBytes)}> /U <{ToHex(uBytes)}> " +
+            $"/OE <{ToHex(oeBytes)}> /UE <{ToHex(ueBytes)}> /P {permissions} " +
+            "/CF << /StdCF << /CFM /AESV3 /Length 32 >> >> /StmF /StdCF /StrF /StdCF >>";
+        var pdfBytes = BuildEncryptedPdf(encryptDictBody, TestIdBytes, encryptedContent);
+
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes), ownerPassword);
+        using var surface = document.Render(0, 100, 100);
+
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves that a well-formed, real-password-protected document throws
+    ///     <see cref="UnsupportedImageFeatureException"/> with the distinguishable
+    ///     <c>pdf-encrypted-incorrect-password</c> feature token when the supplied password is
+    ///     wrong for both the user and the owner role - distinct from the null-password
+    ///     <c>pdf-encrypted-password-required</c> token.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_Encrypted_IncorrectPassword_ThrowsUnsupportedImageFeatureException()
+    {
+        const int keyLengthBytes = 16;
+        const int revision = 3;
+        const int permissions = -3904;
+
+        var paddedOwnerPassword = EncodeAndPadPassword("owner-secret");
+        var paddedUserPassword = EncodeAndPadPassword("user-secret");
+        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision, paddedOwnerPassword, paddedUserPassword);
+        var fileKey = ComputeFileKeyAlgorithm2(paddedUserPassword, oBytes, permissions, TestIdBytes, keyLengthBytes, revision);
+        var uBytes = ComputeUserEntryAlgorithm45(fileKey, TestIdBytes, revision);
+
+        var encryptDictBody =
+            $"<< /Filter /Standard /V 2 /R {revision} /Length 128 /O <{ToHex(oBytes)}> /U <{ToHex(uBytes)}> /P {permissions} >>";
+        var pdfBytes = BuildEncryptedPdf(encryptDictBody, TestIdBytes, Encoding.ASCII.GetBytes(PlaintextContent));
+
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(
+            () => PdfDocument.Open(new MemoryStream(pdfBytes), "wrong-password"));
+        Assert.Equal("pdf-encrypted-incorrect-password", exception.Feature);
+    }
+
+    /// <summary>
+    ///     Proves that supplying a password containing a character outside ASCII (0-127) for an
+    ///     <c>/R 2</c>-<c>4</c> document throws <see cref="UnsupportedImageFeatureException"/>
+    ///     with the distinguishable <c>pdf-encrypted-password-non-ascii</c> feature token, before
+    ///     any RC4/MD5 authentication work is attempted.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_Encrypted_NonAsciiPassword_ThrowsUnsupportedImageFeatureException()
+    {
+        const int keyLengthBytes = 5;
+        const int revision = 2;
+        const int permissions = -3904;
+
+        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision, PasswordPadding, PasswordPadding);
+        var fileKey = ComputeFileKeyAlgorithm2(PasswordPadding, oBytes, permissions, TestIdBytes, keyLengthBytes, revision);
+        var uBytes = ComputeUserEntryAlgorithm45(fileKey, TestIdBytes, revision);
+
+        var encryptDictBody = $"<< /Filter /Standard /V 1 /R {revision} /O <{ToHex(oBytes)}> /U <{ToHex(uBytes)}> /P {permissions} >>";
+        var pdfBytes = BuildEncryptedPdf(encryptDictBody, TestIdBytes, Encoding.ASCII.GetBytes(PlaintextContent));
+
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(
+            () => PdfDocument.Open(new MemoryStream(pdfBytes), "caf\u00e9"));
+        Assert.Equal("pdf-encrypted-password-non-ascii", exception.Feature);
+    }
+
     /// <summary>Proves <c>/R 6</c> (AES-256 "hardened hash" key derivation) throws <see cref="UnsupportedImageFeatureException"/> with its own distinguishable feature token, instead of being silently mishandled as a regular R5 document.</summary>
     [Fact]
     public void PdfDocument_Open_EncryptedAesV3_R6_ThrowsUnsupportedImageFeatureException()
@@ -541,7 +806,7 @@ public class PdfDocumentEncryptionTests
         // A well-formed /O (so the file key derives without error) paired with a deliberately
         // wrong /U (all zero bytes, which cannot be the real RC4(fileKey, padding) result) -
         // simulating a document that genuinely requires a non-empty password to open.
-        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision);
+        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision, PasswordPadding, PasswordPadding);
         var wrongUBytes = new byte[32];
 
         var encryptDictBody =
@@ -591,8 +856,8 @@ public class PdfDocumentEncryptionTests
         const int permissions = -44;
         var idBytes = (byte[])[.. Enumerable.Range(0, 16).Select(i => (byte)(0xC0 + i))];
 
-        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision);
-        var fileKey = ComputeFileKeyAlgorithm2(oBytes, permissions, idBytes, keyLengthBytes, revision);
+        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision, PasswordPadding, PasswordPadding);
+        var fileKey = ComputeFileKeyAlgorithm2(PasswordPadding, oBytes, permissions, idBytes, keyLengthBytes, revision);
         var uBytes = ComputeUserEntryAlgorithm45(fileKey, idBytes, revision);
 
         var objectKey = ComputeObjectKeyAlgorithm1(fileKey, 4, 0, isAes: false);
@@ -629,8 +894,8 @@ public class PdfDocumentEncryptionTests
         const int revision = 2;
         const int permissions = -3904;
 
-        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision);
-        var fileKey = ComputeFileKeyAlgorithm2(oBytes, permissions, TestIdBytes, keyLengthBytes, revision);
+        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision, PasswordPadding, PasswordPadding);
+        var fileKey = ComputeFileKeyAlgorithm2(PasswordPadding, oBytes, permissions, TestIdBytes, keyLengthBytes, revision);
         var uBytes = ComputeUserEntryAlgorithm45(fileKey, TestIdBytes, revision);
 
         var contentObjectKey = ComputeObjectKeyAlgorithm1(fileKey, 4, 0, isAes: false);
@@ -687,8 +952,8 @@ public class PdfDocumentEncryptionTests
         const int permissions = -3904;
         var idBytes = (byte[])[.. Enumerable.Range(0, 16).Select(i => (byte)(0x80 + i))];
 
-        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision);
-        var fileKey = ComputeFileKeyAlgorithm2(oBytes, permissions, idBytes, keyLengthBytes, revision);
+        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision, PasswordPadding, PasswordPadding);
+        var fileKey = ComputeFileKeyAlgorithm2(PasswordPadding, oBytes, permissions, idBytes, keyLengthBytes, revision);
         var uBytes = ComputeUserEntryAlgorithm45(fileKey, idBytes, revision);
 
         var contentObjectKey = ComputeObjectKeyAlgorithm1(fileKey, 4, 0, isAes: false);

@@ -10,8 +10,8 @@ namespace DemaConsulting.CanvasNet.Pdf;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         An instance is created by <see cref="Open(System.IO.Stream)"/> or
-///         <see cref="Open(string)"/>, which read and parse the entire document exactly once (the
+///         An instance is created by <see cref="Open(System.IO.Stream, string?)"/> or
+///         <see cref="Open(string, string?)"/>, which read and parse the entire document exactly once (the
 ///         resolved page list and cross-reference data are cached for the lifetime of the
 ///         instance, so <see cref="PageCount"/>/<see cref="GetPageInfo(int)"/>/
 ///         <see cref="Render(int, int, int)"/> are cheap, repeatable operations against the same
@@ -138,8 +138,8 @@ namespace DemaConsulting.CanvasNet.Pdf;
 public sealed partial class PdfDocument : IDisposable
 {
     /// <summary>
-    ///     The entire document's bytes, buffered once at <see cref="Open(System.IO.Stream)"/>/
-    ///     <see cref="Open(string)"/> time. Every offset recorded in <see cref="_xref"/> and every
+    ///     The entire document's bytes, buffered once at <see cref="Open(System.IO.Stream, string?)"/>/
+    ///     <see cref="Open(string, string?)"/> time. Every offset recorded in <see cref="_xref"/> and every
     ///     <see cref="PdfObject"/> parsed from this document indexes into this same array.
     /// </summary>
     private readonly byte[] _buffer;
@@ -176,6 +176,15 @@ public sealed partial class PdfDocument : IDisposable
     ///     supplied, already fully-buffered document bytes.
     /// </summary>
     /// <param name="buffer">The complete document bytes.</param>
+    /// <param name="password">
+    ///     An optional password to authenticate an encrypted document with. When
+    ///     <see langword="null"/> (the default), only the empty user password is authenticated -
+    ///     byte-for-byte the same behavior as before this parameter existed. When non-null, it is
+    ///     tried first as the user password, then - if that does not authenticate - as the owner
+    ///     password; see <see cref="InitializeEncryption(PdfObject, string?)"/>'s own remarks for
+    ///     the full authentication and password-encoding details. Ignored entirely when the
+    ///     document is not encrypted.
+    /// </param>
     /// <exception cref="System.IO.InvalidDataException">
     ///     Thrown when the document cannot be parsed at all (no cross-reference data or document
     ///     catalog could be located, even via the linear-scan fallback), or when a required
@@ -184,10 +193,12 @@ public sealed partial class PdfDocument : IDisposable
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when the document's trailer declares an <c>/Encrypt</c> entry whose security
     ///     handler, crypt filter, or revision this phase does not support (a non-<c>/Standard</c>
-    ///     security handler, <c>/R 6</c>, a non-<c>/StdCF</c> crypt filter, or a genuinely-required
-    ///     non-empty password), per the class remarks' Phase 16 scope boundary.
+    ///     security handler, <c>/R 6</c>, a non-<c>/StdCF</c> crypt filter, a genuinely-required
+    ///     password that was not supplied, a supplied password that does not authenticate as
+    ///     either the user or the owner password, or a non-ASCII password supplied for an
+    ///     <c>/R 2</c>-<c>4</c> document), per the class remarks' Phase 16 scope boundary.
     /// </exception>
-    private PdfDocument(byte[] buffer)
+    private PdfDocument(byte[] buffer, string? password)
     {
         _buffer = buffer;
         _xref = [];
@@ -211,7 +222,7 @@ public sealed partial class PdfDocument : IDisposable
             trailer = BuildLinearScanFallback();
         }
 
-        InitializeEncryption(trailer);
+        InitializeEncryption(trailer, password);
         _pages = BuildPageList(trailer);
     }
 
@@ -223,6 +234,14 @@ public sealed partial class PdfDocument : IDisposable
     ///     buffer; this method does not take ownership of, and never disposes or closes,
     ///     <paramref name="stream"/>.
     /// </param>
+    /// <param name="password">
+    ///     An optional password to authenticate an encrypted document with. When
+    ///     <see langword="null"/> (the default), only the empty user password is authenticated -
+    ///     byte-for-byte the same behavior as before this parameter existed. When non-null, it is
+    ///     tried first as the user password, then as the owner password; see the private
+    ///     constructor's own remarks for the full authentication and password-encoding details.
+    ///     Ignored entirely when the document is not encrypted.
+    /// </param>
     /// <returns>A new <see cref="PdfDocument"/> instance representing the parsed document.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
     /// <exception cref="System.IO.InvalidDataException">
@@ -232,19 +251,24 @@ public sealed partial class PdfDocument : IDisposable
     ///     Thrown for the same encrypted-document conditions documented on the private
     ///     constructor above.
     /// </exception>
-    public static PdfDocument Open(Stream stream)
+    public static PdfDocument Open(Stream stream, string? password = null)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
         using var buffered = new MemoryStream();
         stream.CopyTo(buffered);
-        return new PdfDocument(buffered.ToArray());
+        return new PdfDocument(buffered.ToArray(), password);
     }
 
     /// <summary>
     ///     Opens and parses a PDF document from a file path.
     /// </summary>
     /// <param name="path">The path of the PDF file to read.</param>
+    /// <param name="password">
+    ///     An optional password to authenticate an encrypted document with. See
+    ///     <see cref="Open(Stream, string?)"/>'s own remarks for the full authentication and
+    ///     password-encoding details.
+    /// </param>
     /// <returns>A new <see cref="PdfDocument"/> instance representing the parsed document.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is null.</exception>
     /// <exception cref="ArgumentException">
@@ -254,8 +278,7 @@ public sealed partial class PdfDocument : IDisposable
     ///     Thrown when the document cannot be parsed.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown for the same encrypted-document conditions documented on the private
-    ///     constructor above.
+    ///     Thrown for the same reason as <see cref="Open(Stream, string?)"/>.
     /// </exception>
     /// <remarks>
     ///     File-system exceptions (for example <see cref="FileNotFoundException"/>,
@@ -263,7 +286,7 @@ public sealed partial class PdfDocument : IDisposable
     ///     <see cref="IOException"/>) raised while opening <paramref name="path"/> propagate
     ///     uncaught to the caller.
     /// </remarks>
-    public static PdfDocument Open(string path)
+    public static PdfDocument Open(string path, string? password = null)
     {
         ArgumentNullException.ThrowIfNull(path);
         if (string.IsNullOrWhiteSpace(path))
@@ -272,7 +295,7 @@ public sealed partial class PdfDocument : IDisposable
         }
 
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
-        return Open(stream);
+        return Open(stream, password);
     }
 
     /// <summary>
