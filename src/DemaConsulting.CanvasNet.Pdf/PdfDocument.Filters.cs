@@ -230,7 +230,7 @@ public sealed partial class PdfDocument
 
         if (predictor is >= 10 and <= 15)
         {
-            return ApplyPngPredictor(data, colors, bitsPerComponent, columns);
+            return ApplyPngPredictor(data, colors, bitsPerComponent, columns, predictor);
         }
 
         throw new InvalidDataException($"Unsupported /Predictor value {predictor}.");
@@ -271,27 +271,64 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
-    ///     Reverses a PNG (<c>/Predictor</c> <c>10</c>-<c>15</c>) predictor: every row is prefixed
-    ///     with its own filter-type byte (<c>0</c>-<c>4</c>), reconstructed via
+    ///     Reverses a PNG (<c>/Predictor</c> <c>10</c>-<c>15</c>) predictor. Only predictor
+    ///     <c>15</c> ("optimum") is adaptive per ISO 32000-1 Table 8, with every row prefixed by
+    ///     its own filter-type tag byte (<c>0</c>-<c>4</c>); predictors <c>10</c>-<c>14</c> are
+    ///     each a single fixed filter (<c>10</c> = None through <c>14</c> = Paeth) applied to
+    ///     every row uniformly, with no per-row tag byte at all - a row is exactly
+    ///     <paramref name="columns"/>' worth of payload bytes. Each row is reconstructed via
     ///     <see cref="DefilterRow"/> - an independent reimplementation of
     ///     <c>Codecs/Png/PngCodec.Filtering.cs</c>'s exact algorithm (not reusable across
     ///     assemblies: those methods are <see langword="private"/>), named identically for direct
     ///     diffability against the original.
     /// </summary>
-    private static byte[] ApplyPngPredictor(byte[] data, int colors, int bitsPerComponent, int columns)
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="data"/>'s length is not an exact multiple of the row
+    ///     stride implied by <paramref name="predictor"/> (one tag byte plus <c>rowBytes</c> for
+    ///     predictor <c>15</c>, or exactly <c>rowBytes</c> for a fixed predictor <c>10</c>-<c>14</c>) -
+    ///     a partial trailing row would otherwise be silently dropped by integer-division
+    ///     truncation rather than rejected.
+    /// </exception>
+    private static byte[] ApplyPngPredictor(byte[] data, int colors, int bitsPerComponent, int columns, int predictor)
     {
         var bpp = Math.Max(1, colors * bitsPerComponent / 8);
         var rowBytes = (colors * bitsPerComponent * columns + 7) / 8;
-        var stride = rowBytes + 1;
-        var rowCount = stride == 0 ? 0 : data.Length / stride;
+        if (rowBytes == 0)
+        {
+            return [];
+        }
+
+        // Predictor 15 is the only adaptive form (a per-row filter-type tag byte); predictors
+        // 10-14 are each a single fixed filter applied uniformly, with no tag byte present at
+        // all, per ISO 32000-1 Table 8.
+        var stride = predictor == 15 ? rowBytes + 1 : rowBytes;
+        if (data.Length % stride != 0)
+        {
+            throw new InvalidDataException(
+                $"PNG predictor data length ({data.Length}) is not a multiple of the row stride ({stride}).");
+        }
+
+        var rowCount = data.Length / stride;
         var result = new byte[rowCount * rowBytes];
         var previousRow = new byte[rowBytes];
+        var fixedFilterType = (byte)(predictor - 10);
 
         for (var row = 0; row < rowCount; row++)
         {
             var srcOffset = row * stride;
-            var filterType = data[srcOffset];
-            var filteredRow = data.AsSpan(srcOffset + 1, rowBytes);
+            byte filterType;
+            ReadOnlySpan<byte> filteredRow;
+            if (predictor == 15)
+            {
+                filterType = data[srcOffset];
+                filteredRow = data.AsSpan(srcOffset + 1, rowBytes);
+            }
+            else
+            {
+                filterType = fixedFilterType;
+                filteredRow = data.AsSpan(srcOffset, rowBytes);
+            }
+
             var outputRow = result.AsSpan(row * rowBytes, rowBytes);
             DefilterRow(filterType, filteredRow, previousRow, outputRow, bpp);
             outputRow.CopyTo(previousRow);

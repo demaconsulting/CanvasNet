@@ -1388,6 +1388,41 @@ public class PdfDocumentTests
         Assert.Equal(12, value.Number);
     }
 
+    /// <summary>
+    ///     Proves that an array nested within itself well beyond the <c>MaxObjectNestingDepth</c>
+    ///     guard throws <see cref="InvalidDataException"/> instead of exhausting the native call
+    ///     stack with an uncatchable <see cref="StackOverflowException"/> (a deeply/adversarially
+    ///     nested array or dictionary is otherwise unbounded recursive-descent input).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_ObjectModel_Array_NestingDepthExceeded_ThrowsInvalidDataException()
+    {
+        // Arrange: 200 levels of nested arrays, far beyond any realistic legitimate document
+        // structure and well beyond the guard's threshold.
+        var source = string.Concat(Enumerable.Repeat("[", 200)) + "1" + string.Concat(Enumerable.Repeat("]", 200));
+        var tokenizer = new PdfDocument.PdfTokenizer(System.Text.Encoding.ASCII.GetBytes(source));
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.ParseValue(tokenizer));
+    }
+
+    /// <summary>
+    ///     Proves that a dictionary nested within itself well beyond the
+    ///     <c>MaxObjectNestingDepth</c> guard throws <see cref="InvalidDataException"/>, mirroring
+    ///     <see cref="PdfDocument_ObjectModel_Array_NestingDepthExceeded_ThrowsInvalidDataException"/>
+    ///     for the dictionary recursion path.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_ObjectModel_Dictionary_NestingDepthExceeded_ThrowsInvalidDataException()
+    {
+        // Arrange: 200 levels of nested dictionaries.
+        var source = string.Concat(Enumerable.Repeat("<< /A ", 200)) + "1" + string.Concat(Enumerable.Repeat(" >>", 200));
+        var tokenizer = new PdfDocument.PdfTokenizer(System.Text.Encoding.ASCII.GetBytes(source));
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.ParseValue(tokenizer));
+    }
+
     #endregion
 
     #region Cross-reference forms
@@ -1503,6 +1538,47 @@ public class PdfDocumentTests
     {
         // Arrange
         var pdfBytes = BuildXrefStreamPdfWithWidths("[0 0 0]");
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+    }
+
+    /// <summary>
+    ///     Rewrites the trailing <c>startxref\n&lt;offset&gt;\n%%EOF</c> marker of an otherwise
+    ///     well-formed PDF (built via <see cref="BuildXrefStreamPdfWithWidths"/>, with its catalog
+    ///     hidden inside an <c>/Type /ObjStm</c> object stream so <c>BuildLinearScanFallback</c>'s
+    ///     raw-byte-header scan cannot recover it either) with an attacker-controlled literal
+    ///     offset, to exercise the bounds validation applied to a <c>startxref</c> value before it
+    ///     is ever used to position a <see cref="PdfDocument.PdfTokenizer"/>.
+    /// </summary>
+    private static byte[] CorruptStartXrefOffset(string offsetLiteral)
+    {
+        var pdfBytes = BuildXrefStreamPdfWithWidths("[1 2 1]");
+        var text = System.Text.Encoding.ASCII.GetString(pdfBytes);
+        var markerIndex = text.LastIndexOf("startxref\n", StringComparison.Ordinal);
+        var valueStart = markerIndex + "startxref\n".Length;
+        var valueEnd = text.IndexOf('\n', valueStart);
+        var corrupted = text[..valueStart] + offsetLiteral + text[valueEnd..];
+        return System.Text.Encoding.ASCII.GetBytes(corrupted);
+    }
+
+    /// <summary>Proves that a negative <c>startxref</c> offset (which would otherwise index the tokenizer's buffer negatively, leaking an <see cref="IndexOutOfRangeException"/>) throws <see cref="InvalidDataException"/> instead.</summary>
+    [Fact]
+    public void PdfDocument_Open_NegativeStartXrefOffset_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var pdfBytes = CorruptStartXrefOffset("-1");
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+    }
+
+    /// <summary>Proves that a <c>startxref</c> offset far beyond the end of the buffer throws <see cref="InvalidDataException"/> instead of being used as-is.</summary>
+    [Fact]
+    public void PdfDocument_Open_OutOfRangeStartXrefOffset_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var pdfBytes = CorruptStartXrefOffset("999999999");
 
         // Act & Assert
         Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
@@ -3210,6 +3286,79 @@ public class PdfDocumentTests
         Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[75, 25]);
         Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[25, 75]);
         Assert.Equal(new Canvas.Rgba32(255, 255, 0, 255), surface[75, 75]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>FlateDecode</c>+PNG fixed-predictor (<c>/Predictor 12</c>, "Up")
+    ///     image XObject decodes correctly: unlike the adaptive <c>/Predictor 15</c> form, a
+    ///     fixed predictor has no per-row filter-type tag byte at all - every row is exactly
+    ///     <c>/Columns * /Colors * /BitsPerComponent / 8</c> payload bytes, with the single
+    ///     declared filter type (here, "Up") applied uniformly to every row.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Images_FlateDecodePngFixedPredictor_DecodesExpectedPixels()
+    {
+        // Arrange: a 2x2 DeviceGray image. Row 0 raw: (10, 200); "Up" filtered against an
+        // implicit all-zero previous row leaves it unchanged. Row 1 raw: (50, 90); "Up" filtered
+        // against row 0 stores the difference. No per-row tag byte precedes either row.
+        byte[] row0Raw = [10, 200];
+        byte[] row1Raw = [50, 90];
+        byte[] row0Filtered = [.. row0Raw];
+        var row1Filtered = new byte[] { (byte)(row1Raw[0] - row0Raw[0]), (byte)(row1Raw[1] - row0Raw[1]) };
+        var rawRows = new List<byte>();
+        rawRows.AddRange(row0Filtered);
+        rawRows.AddRange(row1Filtered);
+        var compressed = ZlibCompress([.. rawRows]);
+
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 "
+            + "/Filter /FlateDecode /DecodeParms << /Predictor 12 /Colors 1 /BitsPerComponent 8 /Columns 2 >>",
+            compressed);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: row 0 (top of unit square) -> device top half; row 1 -> device bottom half.
+        Assert.Equal(new Canvas.Rgba32(10, 10, 10, 255), surface[25, 25]);
+        Assert.Equal(new Canvas.Rgba32(200, 200, 200, 255), surface[75, 25]);
+        Assert.Equal(new Canvas.Rgba32(50, 50, 50, 255), surface[25, 75]);
+        Assert.Equal(new Canvas.Rgba32(90, 90, 90, 255), surface[75, 75]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>FlateDecode</c>+PNG fixed-predictor (<c>/Predictor 11</c>, "Sub")
+    ///     stream whose decoded length is not an exact multiple of the fixed row stride (no tag
+    ///     byte, so the stride is exactly <c>rowBytes</c>) throws <see cref="InvalidDataException"/>
+    ///     rather than silently truncating the incomplete trailing row via integer-division.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Images_FlateDecodePngFixedPredictor_LengthNotMultipleOfRowStride_ThrowsInvalidDataException()
+    {
+        // Arrange: rowBytes is 2 (1 colors * 8 bits * 2 columns / 8), but only 3 bytes of decoded
+        // payload are supplied for 2 declared rows (needs 4) - not a multiple of the stride.
+        var compressed = ZlibCompress([10, 20, 30]);
+
+        var imageStream = BuildStreamObjectBody(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 "
+            + "/Filter /FlateDecode /DecodeParms << /Predictor 11 /Colors 1 /BitsPerComponent 8 /Columns 2 >>",
+            compressed);
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "100 0 0 100 0 0 cm /Im0 Do",
+            "/XObject << /Im0 5 0 R >>",
+            [imageStream]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
     }
 
     /// <summary>Proves that a <c>FlateDecode</c>+TIFF-predictor image XObject decodes the expected raw pixels.</summary>
