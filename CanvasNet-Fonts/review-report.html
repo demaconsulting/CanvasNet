@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="dcterms.date" content="2026-10-02" />
+  <meta name="keywords" content="id=CanvasNet-Fonts
+fingerprint=01a08639bd6086fedfcda8c010419ecc3787df55fa6fce525b6f269a670fa46f
+date=2026-10-02 result=fail" />
+  <title>Review that CanvasNet Fonts Subsystem Implementation is Correct</title>
+  <style>
+/* 
+ * This template uses CSS Paged Media Level 3 features (@page, string-set, target-counter)
+ * which require a compatible PDF generator such as Weasyprint or Prince.
+ * These features may not work with other tools like wkhtmltopdf or Puppeteer.
+ */
+
+/* General styling */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.6;
+  color: #333;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+  font-size: 10pt;
+}
+
+/* Title block */
+#title-block-header {
+  text-align: center;
+  margin-bottom: 3rem;
+  padding-bottom: 2rem;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.title {
+  font-size: 2.5rem;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+  color: #1a1a1a;
+}
+
+.subtitle {
+  font-size: 1.5rem;
+  color: #666;
+  margin-bottom: 1rem;
+}
+
+.version {
+  font-size: 1rem;
+  color: #888;
+  margin-bottom: 1rem;
+  font-style: italic;
+}
+
+.author, .date {
+  font-size: 1rem;
+  color: #888;
+}
+
+/* Table of Contents */
+#TOC {
+  background-color: #f8f9fa;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  border-radius: 4px;
+}
+
+#TOC h2 {
+  margin-top: 0;
+}
+
+#TOC ul {
+  list-style-type: none;
+  padding-left: 0;
+}
+
+#TOC ul ul {
+  padding-left: 1.5rem;
+}
+
+#TOC li {
+  margin: 0.5rem 0;
+}
+
+#TOC a {
+  color: #0066cc;
+  text-decoration: none;
+}
+
+#TOC a:hover {
+  text-decoration: underline;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+  line-height: 1.25;
+  page-break-after: avoid;
+}
+
+h1 {
+  font-size: 16pt;
+  border-bottom: 2px solid #e0e0e0;
+  padding-bottom: 0.5rem;
+}
+
+h2 {
+  font-size: 14pt;
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 0.5rem;
+}
+
+h3 {
+  font-size: 12pt;
+}
+
+h4 {
+  font-size: 11pt;
+}
+
+h5 {
+  font-size: 10pt;
+}
+
+h6 {
+  font-size: 10pt;
+}
+
+/* Paragraphs */
+p {
+  margin-bottom: 1rem;
+}
+
+/* Lists */
+ul, ol {
+  margin-bottom: 1rem;
+  padding-left: 2rem;
+}
+
+li {
+  margin-bottom: 0.1rem;
+}
+
+/* Code blocks */
+pre {
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 1rem;
+  overflow: auto;
+  margin-bottom: 1rem;
+  page-break-inside: avoid;
+}
+
+code {
+  background-color: #f5f5f5;
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.9em;
+}
+
+pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+/* Tables */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 1rem;
+  page-break-inside: avoid;
+}
+
+th, td {
+  border: 1px solid #ddd;
+  padding: 0.15rem 0.3rem;
+  text-align: left;
+}
+
+th {
+  background-color: #f5f5f5;
+  font-weight: 600;
+}
+
+tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+/* Links */
+a {
+  color: #0066cc;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Blockquotes */
+blockquote {
+  border-left: 4px solid #ddd;
+  padding-left: 1rem;
+  margin-left: 0;
+  color: #666;
+  font-style: italic;
+}
+
+/* Images */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1rem auto;
+}
+
+/* Print styles for PDF generation */
+@media print {
+  body {
+    max-width: 100%;
+    padding: 0;
+  }
+
+  #TOC {
+    page-break-after: always;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+  }
+
+  pre, table, blockquote {
+    page-break-inside: avoid;
+  }
+
+  a {
+    color: #000;
+  }
+}
+
+/* PDF-specific styles for headers and footers */
+@page {
+  size: letter;
+  margin: 1in 0.75in;
+  
+  @top-left {
+    content: string(doctitle);
+    font-size: 10pt;
+    color: #666;
+  }
+  
+  @top-right {
+    content: string(docversion);
+    font-size: 10pt;
+    color: #666;
+  }
+  
+  @bottom-center {
+    content: "Page " counter(page) " of " counter(pages);
+    font-size: 10pt;
+    color: #666;
+  }
+}
+
+/* Don't show header/footer on title page */
+@page :first {
+  @top-left {
+    content: none;
+  }
+  
+  @top-right {
+    content: none;
+  }
+  
+  @bottom-center {
+    content: none;
+  }
+}
+
+/* Set the document title for the header */
+.title {
+  string-set: doctitle content();
+}
+
+/* Set the document version for the header */
+.version {
+  string-set: docversion content();
+}
+
+/* Add page numbers to TOC entries using target-counter */
+#TOC a::after {
+  content: leader('.') target-counter(attr(href), page);
+  float: right;
+}
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Review that CanvasNet Fonts Subsystem Implementation
+is Correct</h1>
+<p class="date">2026-10-02</p>
+</header>
+<h1
+id="review-that-canvasnet-fonts-subsystem-implementation-is-correct">Review
+that CanvasNet Fonts Subsystem Implementation is Correct</h1>
+<h2 id="introduction">1. Introduction</h2>
+<h3 id="purpose">1.1 Purpose</h3>
+<p>This document records the formal review of a set of project
+files.</p>
+<h3 id="scope">1.2 Scope</h3>
+<p>This review covers the CanvasNet <code>Fonts</code> subsystem at the
+<strong>subsystem level only</strong>. The <code>Fonts</code> subsystem
+is entirely new this effort and comprises two units,
+<code>TrueTypeFont</code> and <code>SystemFontCatalog</code>, each of
+which has its own separate unit-level review-set
+(<code>CanvasNet-Fonts-TrueTypeFont</code>,
+<code>CanvasNet-Fonts-SystemFontCatalog</code>). Per the
+hierarchical-scope principle in <code>software-items.md</code>,
+unit-level implementation detail is excluded from this review; this
+review instead relies on the subsystem design document’s description of
+what the two units provide, and verifies that the subsystem’s own
+requirements, design, verification-design, bundled third-party asset
+documentation, and shared test infrastructure are internally correct,
+mutually consistent, and consistent with the surrounding system-level
+context.</p>
+<p>Files under review (per <code>.reviewmark.yaml</code> review-set
+<code>CanvasNet-Fonts</code>):</p>
+<ul>
+<li><code>docs/reqstream/canvas-net/fonts.yaml</code> (subsystem
+requirements)</li>
+<li><code>docs/design/canvas-net/fonts.md</code> (subsystem design)</li>
+<li><code>docs/verification/canvas-net/fonts.md</code> (subsystem
+verification design)</li>
+<li><code>test/DemaConsulting.CanvasNet.Tests/TestSupport/SyntheticFontBuilder.cs</code>
+(shared test fixture helper)</li>
+<li><code>src/DemaConsulting.CanvasNet/Fonts/BundledFonts/README.md</code>
+(bundled third-party font licensing/provenance)</li>
+</ul>
+<p>Context (not under review, used to understand intended role/scope
+only):</p>
+<ul>
+<li><code>docs/design/canvas-net.md</code> (system-level design)</li>
+<li><code>docs/design/introduction.md</code> (document conventions)</li>
+<li><code>docs/reqstream/canvas-net.yaml</code> (system-level
+requirements)</li>
+</ul>
+<p>This is the <strong>first formal review ever conducted</strong> for
+this review-set in this repository; the <code>reviews</code> evidence
+branch contained no prior evidence to compare against or supersede.</p>
+<h3 id="outcomes">1.3 Outcomes</h3>
+<p>Each check must be recorded with one of the following outcomes:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Outcome</th>
+<th style="text-align: left;">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">The check was performed and the criterion
+is satisfied</td>
+</tr>
+<tr>
+<td style="text-align: left;">Fail</td>
+<td style="text-align: left;">The check was performed and the criterion
+is not satisfied</td>
+</tr>
+<tr>
+<td style="text-align: left;">N/A</td>
+<td style="text-align: left;">The check does not apply; justification is
+required</td>
+</tr>
+</tbody>
+</table>
+<h3 id="review-details">1.4 Review Details</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">Field</th>
+<th style="text-align: left;">Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Project</td>
+<td style="text-align: left;">CanvasNet</td>
+</tr>
+<tr>
+<td style="text-align: left;">Review ID</td>
+<td style="text-align: left;">CanvasNet-Fonts</td>
+</tr>
+<tr>
+<td style="text-align: left;">Review Title</td>
+<td style="text-align: left;">Review that CanvasNet Fonts Subsystem
+Implementation is Correct</td>
+</tr>
+<tr>
+<td style="text-align: left;">Fingerprint</td>
+<td
+style="text-align: left;"><code>01a08639bd6086fedfcda8c010419ecc3787df55fa6fce525b6f269a670fa46f</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Review Date</td>
+<td style="text-align: left;">2026-10-02</td>
+</tr>
+</tbody>
+</table>
+<h3 id="reviewers">1.5 Reviewers</h3>
+<table>
+<colgroup>
+<col style="width: 12%" />
+<col style="width: 12%" />
+<col style="width: 36%" />
+<col style="width: 27%" />
+<col style="width: 12%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">Name</th>
+<th style="text-align: left;">Role</th>
+<th style="text-align: left;">Organization</th>
+<th style="text-align: left;">Signature</th>
+<th style="text-align: left;">Date</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Formal Review Agent (GitHub Copilot
+CLI)</td>
+<td style="text-align: left;">Automated Reviewer</td>
+<td style="text-align: left;">DEMA Consulting</td>
+<td style="text-align: left;"><em>(automated)</em></td>
+<td style="text-align: left;">2026-10-02</td>
+</tr>
+</tbody>
+</table>
+<h3 id="files-under-review">1.6 Files Under Review</h3>
+<table>
+<colgroup>
+<col style="width: 100%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">File</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td
+style="text-align: left;"><code>docs/reqstream/canvas-net/fonts.yaml</code></td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><code>docs/design/canvas-net/fonts.md</code></td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><code>docs/verification/canvas-net/fonts.md</code></td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><code>test/DemaConsulting.CanvasNet.Tests/TestSupport/SyntheticFontBuilder.cs</code></td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><code>src/DemaConsulting.CanvasNet/Fonts/BundledFonts/README.md</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="review-checklist">2. Review Checklist</h2>
+<h3 id="requirements-checks">2.1 Requirements Checks</h3>
+<p><strong>Applicable:</strong> Yes</p>
+<table>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 17%" />
+<col style="width: 25%" />
+<col style="width: 46%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">#</th>
+<th style="text-align: left;">Check</th>
+<th style="text-align: left;">Outcome</th>
+<th style="text-align: left;">Justification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">REQ-01</td>
+<td style="text-align: left;">All requirements have a unique
+identifier</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Every requirement in
+<code>fonts.yaml</code> has a unique <code>CanvasNet-Fonts-*</code> id;
+<code>dotnet reqstream --lint</code> confirms no duplicates.</td>
+</tr>
+<tr>
+<td style="text-align: left;">REQ-02</td>
+<td style="text-align: left;">All requirements are unambiguous</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Requirement text is specific and scoped
+per capability (e.g. CFF outline decoding, TTC support, system font
+discovery).</td>
+</tr>
+<tr>
+<td style="text-align: left;">REQ-03</td>
+<td style="text-align: left;">All requirements are testable</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Each requirement lists a
+<code>tests:</code> entry naming concrete automated tests.</td>
+</tr>
+<tr>
+<td style="text-align: left;">REQ-04</td>
+<td style="text-align: left;">All requirements are consistent</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">No contradictions found between sibling
+requirements.</td>
+</tr>
+<tr>
+<td style="text-align: left;">REQ-05</td>
+<td style="text-align: left;">All requirements are complete (no
+TBDs)</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">No TBD/placeholder markers found.</td>
+</tr>
+<tr>
+<td style="text-align: left;">REQ-06</td>
+<td style="text-align: left;">All requirements are verifiable</td>
+<td style="text-align: left;">Fail</td>
+<td style="text-align: left;"><code>CanvasNet-Fonts-TtcSupport</code>’s
+linked test
+<code>TrueTypeFont_RealTtcContainer_FaceZero_RendersGlyfGlyphOutlineAsVisibleInk</code>
+does not exist anywhere in the test tree, so this requirement cannot
+actually be objectively confirmed met by the cited evidence. See Finding
+F2.</td>
+</tr>
+<tr>
+<td style="text-align: left;">REQ-07</td>
+<td style="text-align: left;">No compound requirements are present</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Each requirement expresses a single
+testable capability.</td>
+</tr>
+<tr>
+<td style="text-align: left;">REQ-08</td>
+<td style="text-align: left;">No requirements are missing</td>
+<td style="text-align: left;">Fail</td>
+<td
+style="text-align: left;"><code>CanvasNet-Fonts-CffOutlineDecoding</code>
+and <code>CanvasNet-Fonts-Type1OutlineDecoding</code> omit four
+unit-level capabilities (<code>CffSeacComposition</code>,
+<code>CffCharsetResolution</code>, <code>CffWidthResolution</code>,
+<code>LoadType1C</code>) from their <code>children:</code> lists,
+leaving those unit requirements orphaned/untraceable from the subsystem
+down to the system root. See Finding F3.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="design-documentation-checks">2.2 Design Documentation
+Checks</h3>
+<p><strong>Applicable:</strong> Yes</p>
+<table>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 17%" />
+<col style="width: 25%" />
+<col style="width: 46%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">#</th>
+<th style="text-align: left;">Check</th>
+<th style="text-align: left;">Outcome</th>
+<th style="text-align: left;">Justification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">DES-01</td>
+<td style="text-align: left;">Design documentation clearly describes the
+purpose of the component</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;"><code>fonts.md</code>’s Purpose section
+clearly states the subsystem’s responsibility (font parsing/matching for
+text rendering).</td>
+</tr>
+<tr>
+<td style="text-align: left;">DES-02</td>
+<td style="text-align: left;">Design documentation covers the necessary
+implementation details</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">At subsystem level, <code>fonts.md</code>
+appropriately describes each unit’s public role without unit-internal
+detail, consistent with hierarchical scope.</td>
+</tr>
+<tr>
+<td style="text-align: left;">DES-03</td>
+<td style="text-align: left;">Design documentation describes how the
+code is interfaced</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Units section documents
+<code>TrueTypeFont</code> and <code>SystemFontCatalog</code> public
+surfaces; Dependencies/Callers sections describe inbound/outbound
+interfaces.</td>
+</tr>
+<tr>
+<td style="text-align: left;">DES-04</td>
+<td style="text-align: left;">Design documentation describes the
+expected normal operation</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Purpose/Units sections describe the normal
+font-loading/matching flow.</td>
+</tr>
+<tr>
+<td style="text-align: left;">DES-05</td>
+<td style="text-align: left;">Design documentation describes the
+expected error handling</td>
+<td style="text-align: left;">N/A</td>
+<td style="text-align: left;">At the subsystem level this repository’s
+convention (consistent with <code>drawing.md</code>,
+<code>geometry.md</code>) defers error-handling detail to unit-level
+design documents; no subsystem-level error-handling claims are made that
+could be checked here.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="technical-documentation-checks">2.3 Technical Documentation
+Checks</h3>
+<p><strong>Applicable:</strong> Yes</p>
+<table>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 17%" />
+<col style="width: 25%" />
+<col style="width: 46%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">#</th>
+<th style="text-align: left;">Check</th>
+<th style="text-align: left;">Outcome</th>
+<th style="text-align: left;">Justification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">DOC-01</td>
+<td style="text-align: left;">Documentation is free of technical
+inaccuracies</td>
+<td style="text-align: left;">Fail</td>
+<td
+style="text-align: left;"><code>docs/verification/canvas-net/fonts.md</code>
+cites a non-existent test
+(<code>TrueTypeFont_RealTtcContainer_FaceZero_RendersGlyfGlyphOutlineAsVisibleInk</code>)
+as acceptance-criteria proof for TTC support. See Finding F2. All other
+reviewed documentation, including <code>BundledFonts/README.md</code>’s
+licensing/provenance claims, was empirically verified accurate (see
+Finding F1 narrative in section 3.1).</td>
+</tr>
+<tr>
+<td style="text-align: left;">DOC-02</td>
+<td style="text-align: left;">Documentation is consistent with the
+current implementation and requirements</td>
+<td style="text-align: left;">Fail</td>
+<td style="text-align: left;">Same phantom-test inconsistency as DOC-01;
+additionally the parent system-level design doc
+(<code>docs/design/canvas-net.md</code>, context) is stale with respect
+to the subsystem doc under review (omits <code>SystemFontCatalog</code>
+entirely). See Finding F4.</td>
+</tr>
+<tr>
+<td style="text-align: left;">DOC-03</td>
+<td style="text-align: left;">All referenced external documents and
+dependencies are correctly identified</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;"><code>BundledFonts/README.md</code>
+correctly identifies Liberation Fonts v2.1.5 (SIL OFL 1.1) and the Noto
+Project substitute fonts (SIL OFL 1.1); verified against actual embedded
+font binaries and <code>.csproj</code> packaging — see Finding F1.</td>
+</tr>
+<tr>
+<td style="text-align: left;">DOC-04</td>
+<td style="text-align: left;">Documentation is free of spelling and
+grammar errors</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;"><code>markdownlint-cli2</code> and
+<code>cspell</code> ran clean against all in-scope Markdown/YAML
+files.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="code-checks">2.4 Code Checks</h3>
+<p><strong>Applicable:</strong> Yes (limited to the one source file in
+scope: the test-support helper; no production source files are in this
+review-set’s paths)</p>
+<table>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 17%" />
+<col style="width: 25%" />
+<col style="width: 46%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">#</th>
+<th style="text-align: left;">Check</th>
+<th style="text-align: left;">Outcome</th>
+<th style="text-align: left;">Justification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">CODE-01</td>
+<td style="text-align: left;">Code conforms to the project coding
+standards and style guide</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;"><code>SyntheticFontBuilder.cs</code>
+follows repository C# conventions (naming, XmlDoc, internal
+visibility).</td>
+</tr>
+<tr>
+<td style="text-align: left;">CODE-02</td>
+<td style="text-align: left;">No obvious resource leaks are present</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Pure in-memory byte-array construction; no
+unmanaged resources, file handles, or streams held.</td>
+</tr>
+<tr>
+<td style="text-align: left;">CODE-03</td>
+<td style="text-align: left;">No hardcoded values are present that
+should be configurable</td>
+<td style="text-align: left;">N/A</td>
+<td style="text-align: left;">This is a test-fixture builder; the
+hardcoded SFNT/CFF/Type1 structural constants it uses are
+specification-mandated binary layout values, not configuration.</td>
+</tr>
+<tr>
+<td style="text-align: left;">CODE-04</td>
+<td style="text-align: left;">Each unit or function has a single,
+well-defined responsibility</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Each of the 41 public/private methods
+builds exactly one font-table/structure.</td>
+</tr>
+<tr>
+<td style="text-align: left;">CODE-05</td>
+<td style="text-align: left;">Code is written at the appropriate level
+of abstraction</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Stateless static-style builder methods per
+table, composed by instance methods; appropriate for a test
+fixture.</td>
+</tr>
+<tr>
+<td style="text-align: left;">CODE-06</td>
+<td style="text-align: left;">Code has an appropriate amount of
+extensibility for its context</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">New table/variant builders can be added
+following the existing pattern without touching unrelated code.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="logic-error-checks">2.5 Logic Error Checks</h3>
+<p><strong>Applicable:</strong> Yes
+(<code>SyntheticFontBuilder.cs</code> only)</p>
+<table>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 17%" />
+<col style="width: 25%" />
+<col style="width: 46%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">#</th>
+<th style="text-align: left;">Check</th>
+<th style="text-align: left;">Outcome</th>
+<th style="text-align: left;">Justification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">LOGIC-01</td>
+<td style="text-align: left;">Code does only what is intended</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">No side effects beyond returning
+constructed byte arrays; no static/shared mutable state across
+invocations.</td>
+</tr>
+<tr>
+<td style="text-align: left;">LOGIC-02</td>
+<td style="text-align: left;">All significant inputs and boundary
+conditions are handled correctly</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Reviewed CFF/Type1 two-pass layout logic;
+offsets and lengths are computed consistently with documented
+invariants.</td>
+</tr>
+<tr>
+<td style="text-align: left;">LOGIC-03</td>
+<td style="text-align: left;">Concurrency and threading concerns are
+identified and addressed</td>
+<td style="text-align: left;">N/A</td>
+<td style="text-align: left;">Each <code>SyntheticFontBuilder</code>
+instance is independent, locally-scoped, single-threaded test fixture
+construction; no concurrency concern applies.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="error-handling-logging-checks">2.6 Error Handling &amp; Logging
+Checks</h3>
+<p><strong>Applicable:</strong> No</p>
+<p><em>Not applicable: the files under review contain no production
+error-handling or logging logic. <code>SyntheticFontBuilder.cs</code> is
+a test-only helper that, by design, is expected to throw on genuinely
+malformed builder usage (programmer error in a test), not to perform
+production-grade error handling.</em></p>
+<h3 id="usability-accessibility-checks">2.7 Usability / Accessibility
+Checks</h3>
+<p><strong>Applicable:</strong> Yes (documentation usability only)</p>
+<table>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 17%" />
+<col style="width: 25%" />
+<col style="width: 46%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">#</th>
+<th style="text-align: left;">Check</th>
+<th style="text-align: left;">Outcome</th>
+<th style="text-align: left;">Justification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">USE-01</td>
+<td style="text-align: left;">The feature or API is easy to use
+correctly</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;"><code>SyntheticFontBuilder</code>’s
+fluent/explicit per-table methods are discoverable and self-describing
+for test authors.</td>
+</tr>
+<tr>
+<td style="text-align: left;">USE-02</td>
+<td style="text-align: left;">All public APIs are well documented</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Every public and private member of
+<code>SyntheticFontBuilder.cs</code> carries WHY-focused XmlDoc, not
+just signature restatement.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="test-checks">2.8 Test Checks</h3>
+<p><strong>Applicable:</strong> Yes
+(<code>SyntheticFontBuilder.cs</code> as shared test infrastructure)</p>
+<table>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 17%" />
+<col style="width: 25%" />
+<col style="width: 46%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">#</th>
+<th style="text-align: left;">Check</th>
+<th style="text-align: left;">Outcome</th>
+<th style="text-align: left;">Justification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">TEST-01</td>
+<td style="text-align: left;">Tests cover expected (happy-path)
+behavior</td>
+<td style="text-align: left;">N/A</td>
+<td style="text-align: left;"><code>SyntheticFontBuilder.cs</code> is
+test <em>infrastructure</em> (a fixture builder), not a test suite
+itself; it has no test cases of its own to assess for happy-path
+coverage.</td>
+</tr>
+<tr>
+<td style="text-align: left;">TEST-02</td>
+<td style="text-align: left;">Tests cover error conditions and boundary
+cases</td>
+<td style="text-align: left;">N/A</td>
+<td style="text-align: left;">Same reasoning as TEST-01;
+boundary/error-condition coverage is a property of the unit test suites
+that consume this helper, which are out of scope for this
+subsystem-level review.</td>
+</tr>
+<tr>
+<td style="text-align: left;">TEST-03</td>
+<td style="text-align: left;">Tests are independent and repeatable (no
+shared mutable state, no ordering dependency)</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Each <code>SyntheticFontBuilder</code>
+instance owns its own <code>_tables</code>/<code>_sfntVersion</code>
+state; no static or shared mutable state exists that could create
+inter-test ordering dependencies.</td>
+</tr>
+<tr>
+<td style="text-align: left;">TEST-04</td>
+<td style="text-align: left;">Test names clearly describe the behavior
+being verified</td>
+<td style="text-align: left;">N/A</td>
+<td style="text-align: left;"><code>SyntheticFontBuilder.cs</code>
+contains builder methods, not test methods; naming of actual test
+methods is assessed under the respective unit review-sets.</td>
+</tr>
+<tr>
+<td style="text-align: left;">TEST-05</td>
+<td style="text-align: left;">New test cases are added for new
+functionality or defect fixes</td>
+<td style="text-align: left;">N/A</td>
+<td style="text-align: left;">Not assessable from the helper file alone
+at subsystem scope; however see Finding F2, which shows that for at
+least one subsystem requirement
+(<code>CanvasNet-Fonts-TtcSupport</code>) a planned test case was never
+actually implemented, even though it is cited as satisfying
+evidence.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="security-checks">2.9 Security Checks</h3>
+<p><strong>Applicable:</strong> No</p>
+<p><em>Not applicable: no authentication, authorization, or
+externally-sourced untrusted input handling is present in the files
+under review. (Bundled font binaries are reviewed under Technical
+Documentation / licensing checks, not security checks.)</em></p>
+<h3 id="code-readability-checks">2.10 Code Readability Checks</h3>
+<p><strong>Applicable:</strong> Yes
+(<code>SyntheticFontBuilder.cs</code> only)</p>
+<table>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 17%" />
+<col style="width: 25%" />
+<col style="width: 46%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">#</th>
+<th style="text-align: left;">Check</th>
+<th style="text-align: left;">Outcome</th>
+<th style="text-align: left;">Justification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">READ-01</td>
+<td style="text-align: left;">Code is easy to understand</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Clear separation of per-table builder
+methods; consistent structure throughout.</td>
+</tr>
+<tr>
+<td style="text-align: left;">READ-02</td>
+<td style="text-align: left;">Methods and functions are small enough to
+be easily understood</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Methods are scoped to a single
+table/structure each.</td>
+</tr>
+<tr>
+<td style="text-align: left;">READ-03</td>
+<td style="text-align: left;">Symbols are well named</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Method/field names directly mirror the
+SFNT/CFF/Type1 spec terminology they implement (<code>Head</code>,
+<code>Maxp</code>, <code>Hhea</code>, <code>Loca</code>,
+<code>Cff</code>, <code>Ttc</code>, etc.).</td>
+</tr>
+<tr>
+<td style="text-align: left;">READ-04</td>
+<td style="text-align: left;">Code is located in the correct place in
+the codebase</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Resides under
+<code>test/.../TestSupport/</code>, correctly scoped as shared
+cross-subsystem test infrastructure rather than inside any one unit’s
+test folder.</td>
+</tr>
+<tr>
+<td style="text-align: left;">READ-05</td>
+<td style="text-align: left;">Flow of control can be easily
+followed</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Builder pattern with explicit two-pass
+layout clearly documented inline.</td>
+</tr>
+<tr>
+<td style="text-align: left;">READ-06</td>
+<td style="text-align: left;">Data flow is understandable</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Byte-array construction flow is linear and
+documented at each step.</td>
+</tr>
+<tr>
+<td style="text-align: left;">READ-07</td>
+<td style="text-align: left;">Comments are provided where the code is
+non-obvious</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">Non-obvious binary-layout invariants
+(e.g., CFF two-pass offset computation) are explicitly explained.</td>
+</tr>
+<tr>
+<td style="text-align: left;">READ-08</td>
+<td style="text-align: left;">No debug artifacts or commented-out code
+have been left in the codebase</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">None found.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="requirements-vs-documentation-checks">2.11 Requirements vs
+Documentation Checks</h3>
+<p><strong>Applicable:</strong> Yes</p>
+<table>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 17%" />
+<col style="width: 25%" />
+<col style="width: 46%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">#</th>
+<th style="text-align: left;">Check</th>
+<th style="text-align: left;">Outcome</th>
+<th style="text-align: left;">Justification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">REQDOC-01</td>
+<td style="text-align: left;">All reviewed requirements are addressed in
+the general technical documentation</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;"><code>fonts.md</code> (design) and
+<code>fonts.md</code> (verification) address all requirement groups in
+<code>fonts.yaml</code>.</td>
+</tr>
+<tr>
+<td style="text-align: left;">REQDOC-02</td>
+<td style="text-align: left;">No reviewed requirement is contradicted by
+the general technical documentation</td>
+<td style="text-align: left;">Fail</td>
+<td style="text-align: left;">The parent system-level design doc
+(<code>docs/design/canvas-net.md</code>, context)
+contradicts-by-omission the subsystem requirements/design: it describes
+the Fonts subsystem as exposing a single public unit
+(<code>TrueTypeFont</code>) and lists Fonts’ only dependency as
+Geometry, while the in-scope requirements
+(<code>CanvasNet-Fonts-SystemFontDiscovery</code> et al.) and subsystem
+design document both describe a second public unit,
+<code>SystemFontCatalog</code>, with its own dependencies
+(<code>RuntimeInformation</code>, embedded <code>BundledFonts</code>
+resources). See Finding F4.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="requirements-vs-implementation-checks">2.12 Requirements vs
+Implementation Checks</h3>
+<p><strong>Applicable:</strong> No</p>
+<p><em>Not applicable at this review’s scope: per the hierarchical-scope
+principle, unit-level implementation (<code>TrueTypeFont</code>,
+<code>SystemFontCatalog</code> source code) is excluded from this
+subsystem-level review-set and is instead the subject of the separate
+unit-level review-sets <code>CanvasNet-Fonts-TrueTypeFont</code> and
+<code>CanvasNet-Fonts-SystemFontCatalog</code>. No production
+implementation source files are listed in this review-set’s
+<code>paths:</code>.</em></p>
+<h3 id="requirements-vs-testing-checks">2.13 Requirements vs Testing
+Checks</h3>
+<p><strong>Applicable:</strong> Yes</p>
+<table>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 17%" />
+<col style="width: 25%" />
+<col style="width: 46%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">#</th>
+<th style="text-align: left;">Check</th>
+<th style="text-align: left;">Outcome</th>
+<th style="text-align: left;">Justification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">REQTEST-01</td>
+<td style="text-align: left;">Every requirement under review is covered
+by at least one test</td>
+<td style="text-align: left;">Fail</td>
+<td style="text-align: left;"><code>dotnet reqstream --enforce</code>
+(root-tags <code>system,quality</code>) reports
+<code>CanvasNet-Fonts-TtcSupport</code> and its ancestor
+<code>CanvasNet-Lib-FontsTtcSupport</code> as unsatisfied, because one
+of the two tests cited as its evidence does not exist. See Finding
+F2.</td>
+</tr>
+<tr>
+<td style="text-align: left;">REQTEST-02</td>
+<td style="text-align: left;">Tests verify the behavior described in
+each requirement</td>
+<td style="text-align: left;">Fail</td>
+<td style="text-align: left;">Same finding: the verification-design’s
+Test Scenarios section for TTC support names a non-existent test as
+proof of glyf-flavored face-0 rendering, so the described behavior is
+not actually verified by any test. See Finding F2.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="code-vs-design-documentation-checks">2.14 Code vs Design
+Documentation Checks</h3>
+<p><strong>Applicable:</strong> No</p>
+<p><em>Not applicable at this review’s scope: the only source file under
+review, <code>SyntheticFontBuilder.cs</code>, is test infrastructure
+with no corresponding design document of its own (test helpers are not
+design-documented units per
+<code>design-documentation.md</code>/<code>software-items.md</code>); no
+production source code is in scope for this subsystem-level
+review.</em></p>
+<hr />
+<h2 id="conclusion">3. Conclusion</h2>
+<h3 id="summary-of-findings">3.1 Summary of Findings</h3>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 33%" />
+<col style="width: 46%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">#</th>
+<th style="text-align: left;">Check</th>
+<th style="text-align: left;">Finding</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">F1</td>
+<td style="text-align: left;">DOC-03 (Pass — recorded for completeness
+given explicit review focus)</td>
+<td style="text-align: left;"><strong>Bundled font licensing/provenance
+is accurate.</strong>
+<code>src/DemaConsulting.CanvasNet/Fonts/BundledFonts/README.md</code>
+claims the bundled fonts are Liberation Fonts v2.1.5 (SIL OFL 1.1) plus
+Noto Project substitute fonts for Symbol/ZapfDingbats fallback (also SIL
+OFL 1.1). This was independently verified by inspecting the actual
+embedded <code>.ttf</code> binaries with <code>fontTools</code> (all 12
+Liberation fonts report exactly <code>Version 2.1.5</code> in their
+<code>name</code> table; the 3 Noto fonts report matching family
+names/versions) and by cross-checking
+<code>DemaConsulting.CanvasNet.csproj</code>’s
+<code>EmbeddedResource</code>/<code>Pack</code> entries, which embed and
+pack <code>OFL.txt</code> →
+<code>licenses\LiberationFonts-OFL.txt</code> and
+<code>NotoFonts-OFL.txt</code> → <code>licenses\NotoFonts-OFL.txt</code>
+exactly as the README describes. No inaccuracy found.
+<strong>Confidence: High</strong> (direct binary inspection plus
+<code>.csproj</code> cross-check). <strong>Low/informational
+note:</strong> the package’s top-level
+<code>PackageLicenseExpression</code> is <code>MIT</code>; this is a
+legitimate and OFL-compliant pattern (bundled OFL license texts are
+redistributed alongside the binaries), but a consumer who inspects only
+the NuGet package’s license expression — without opening the package
+contents or reading this README — would not learn that two sets of
+embedded binary assets carry a separate SIL OFL 1.1 license. Recommend
+(optional, not a compliance failure) a one-line pointer from the
+top-level repository <code>README.md</code>/package notes to this
+file.</td>
+</tr>
+<tr>
+<td style="text-align: left;">F2</td>
+<td style="text-align: left;">REQ-06, REQTEST-01, REQTEST-02, DOC-01,
+DOC-02</td>
+<td style="text-align: left;"><strong>A cited test for TTC support does
+not exist.</strong> <code>docs/verification/canvas-net/fonts.md</code>’s
+Test Scenarios for <code>CanvasNet-Fonts-TtcSupport</code> name two
+tests as proof:
+<code>TrueTypeFont_RealTtcContainer_FaceOne_RendersCffGlyphOutlineAsVisibleInk</code>
+(exists, passes) and
+<code>TrueTypeFont_RealTtcContainer_FaceZero_RendersGlyfGlyphOutlineAsVisibleInk</code>
+(does <strong>not</strong> exist anywhere in <code>test/</code> —
+confirmed by exhaustive grep across the whole test tree). The same
+phantom test name is also listed in the in-scope subsystem requirement
+<code>CanvasNet-Fonts-TtcSupport</code>
+(<code>docs/reqstream/canvas-net/fonts.yaml</code>) and in the
+out-of-scope unit requirement
+<code>CanvasNet-Fonts-TrueTypeFont-LoadTtcExplicitFaceIndex</code>.
+Fresh TRX results (generated same day against a clean git tree) confirm
+the trace matrix (<code>dotnet reqstream --matrix</code>) shows 0
+passed/0 failed executions for this test name, and as a direct
+consequence <code>dotnet reqstream --enforce</code> (root-tags
+<code>system,quality</code>) reports
+<code>CanvasNet-Lib-FontsTtcSupport</code>,
+<code>CanvasNet-Fonts-TtcSupport</code>, and
+<code>CanvasNet-Fonts-TrueTypeFont-LoadTtcExplicitFaceIndex</code> as
+unsatisfied/unproven. This means the glyf-outline (non-CFF) rendering
+path for TTC face 0 has no actual automated proof despite being
+documented as verified. <strong>Confidence: High</strong> (directly
+verified via exhaustive grep of <code>test/</code> plus
+<code>reqstream</code> trace-matrix evidence against a clean,
+same-day-built working tree).</td>
+</tr>
+<tr>
+<td style="text-align: left;">F3</td>
+<td style="text-align: left;">REQ-08</td>
+<td style="text-align: left;"><strong>Four unit requirements are
+orphaned from the subsystem’s own decomposition.</strong>
+<code>dotnet reqstream --enforce</code> (root-tags
+<code>system,quality</code>) reports
+<code>CanvasNet-Fonts-TrueTypeFont-CffSeacComposition</code>,
+<code>CanvasNet-Fonts-TrueTypeFont-CffCharsetResolution</code>,
+<code>CanvasNet-Fonts-TrueTypeFont-CffWidthResolution</code>, and
+<code>CanvasNet-Fonts-TrueTypeFont-LoadType1C</code> as orphaned
+(unreachable from any root-tagged requirement). These exist as
+unit-level requirements (out-of-scope <code>true-type-font.yaml</code>)
+but the in-scope subsystem requirements file
+<code>docs/reqstream/canvas-net/fonts.yaml</code> does not list them in
+the <code>children:</code> of
+<code>CanvasNet-Fonts-CffOutlineDecoding</code> or
+<code>CanvasNet-Fonts-Type1OutlineDecoding</code> — i.e. the subsystem
+requirements file does not fully decompose/trace every capability the
+unit beneath it actually provides, per
+<code>requirements-principles.md</code>’s unidirectional-flow
+expectation that unit requirements trace up through their parent.
+<strong>Confidence: High</strong> (directly observed in both
+requirements files and in reqstream’s own orphan-detection output).</td>
+</tr>
+<tr>
+<td style="text-align: left;">F4</td>
+<td style="text-align: left;">REQDOC-02, DES-02 (context
+cross-check)</td>
+<td style="text-align: left;"><strong>Parent (context) system-level
+design doc is stale relative to the subsystem doc under review.</strong>
+<code>docs/design/canvas-net.md</code> (context, not itself under
+review) describes the Fonts subsystem’s “External Interfaces” and
+dependency list as if <code>TrueTypeFont</code> were its only public
+unit and Geometry its only dependency. It contains zero mentions of
+<code>SystemFontCatalog</code> anywhere (confirmed by grep), even though
+the in-scope <code>docs/design/canvas-net/fonts.md</code> explicitly
+documents <code>SystemFontCatalog</code> as “the second public unit of
+the subsystem, added this phase,” with its own public API
+(<code>Fonts</code>, <code>FindBestMatch</code>,
+<code>LoadBundledFallback</code>) and its own dependencies
+(<code>RuntimeInformation</code>, embedded <code>BundledFonts</code>).
+The in-scope requirements (<code>docs/reqstream/canvas-net.yaml</code> →
+<code>CanvasNet-Fonts-SystemFontDiscovery</code>) correctly trace down
+to the new unit, so only the <strong>parent design document</strong> is
+out of sync — it was not updated when <code>SystemFontCatalog</code> was
+added this phase. Because <code>canvas-net.md</code> is context rather
+than a file under review in this review-set, this is reported as an
+informational/process finding (not a Fail against a specific in-scope
+checklist row) but it should be corrected because it is read by this
+subsystem’s own stakeholders as its authoritative parent description.
+<strong>Confidence: High</strong> (directly verified by grep: zero
+occurrences of “SystemFontCatalog” in
+<code>docs/design/canvas-net.md</code>).</td>
+</tr>
+<tr>
+<td style="text-align: left;">F5</td>
+<td style="text-align: left;">(Process/tooling, informational)</td>
+<td style="text-align: left;"><strong><code>.reviewmark.yaml</code>’s
+<code>needs-review</code> glob patterns silently exclude
+<code>BundledFonts/README.md</code> from automated
+elaboration/enforcement</strong>, despite it being explicitly listed in
+this review-set’s (and <code>CanvasNet-Fonts-SystemFontCatalog</code>’s)
+<code>paths:</code>. The root <code>needs-review</code> patterns match
+<code>README.md</code> only at the repository root,
+<code>**/*.cs</code>, and various
+<code>docs/**/*.md</code>/<code>.yaml</code> patterns — none match an
+arbitrary non-root <code>README.md</code> under <code>src/</code>.
+Consequently <code>dotnet reviewmark --elaborate CanvasNet-Fonts</code>
+lists only 4 files (omitting the README), and
+<code>dotnet reviewmark --plan --enforce</code> does not fingerprint or
+track this file as part of any review-set’s compliance evidence, even
+though it was explicitly singled out in this review’s commissioning
+instructions as a point of particular licensing concern.
+<code>dotnet reviewmark --lint</code> does not flag this gap. The same
+glob gap also silently drops
+<code>src/DemaConsulting.CanvasNet/DemaConsulting.CanvasNet.csproj</code>
+from <code>CanvasNet-Fonts-SystemFontCatalog</code>’s elaborated file
+list for the identical reason. This was reviewed manually per the task’s
+explicit instruction (see Finding F1), but the automated tooling’s
+enforcement pipeline does not currently cover it.
+<strong>Recommendation:</strong> add a <code>needs-review</code> pattern
+covering non-root <code>README.md</code> files (and/or
+<code>.csproj</code> files) that are referenced by any review-set’s
+<code>paths:</code>. <code>.reviewmark.yaml</code> is a protected
+configuration file and was not modified by this review.
+<strong>Confidence: High</strong> (directly reproduced: elaborate output
+verified to list only 4 of the 5 configured files; pattern list
+inspected directly).</td>
+</tr>
+<tr>
+<td style="text-align: left;">F6</td>
+<td style="text-align: left;">(Informational, out of scope)</td>
+<td style="text-align: left;">A repository-wide
+<code>dotnet reviewmark --plan --enforce</code> run reports 8 globally
+uncovered files, three of which are in the Fonts area:
+<code>src/DemaConsulting.CanvasNet/Fonts/CffStandardEncoding.cs</code>,
+<code>test/DemaConsulting.CanvasNet.Tests/Fonts/BundledNotoFontsTests.cs</code>,
+and
+<code>test/DemaConsulting.CanvasNet.Tests/Fonts/CffStandardEncodingTests.cs</code>.
+These are unit-level files, correctly out of scope for this
+subsystem-level review per the hierarchical-scope principle; flagged
+here only for the orchestrator’s awareness, to be addressed (if
+appropriate) under the relevant unit-level review-sets or a
+<code>.reviewmark.yaml</code> coverage update.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="overall-outcome">3.2 Overall Outcome</h3>
+<p><strong>Overall Outcome:</strong> Fail</p>
+<p>The <code>Fonts</code> subsystem’s design, requirements, and
+verification documentation are substantially well-constructed (clear
+subsystem design following the repository’s established
+Purpose/Units/Dependencies/Callers convention, no spelling/lint issues,
+and — of particular note given this review’s explicit focus — fully
+accurate bundled third-party font licensing and provenance claims,
+empirically verified against the actual embedded binaries). The shared
+test-fixture helper <code>SyntheticFontBuilder.cs</code> is
+well-designed, well-documented, and trustworthy shared test
+infrastructure with no significant findings.</p>
+<p>However, the review identifies two substantive, objectively-verified
+compliance gaps that must be resolved before this review-set can be
+approved:</p>
+<ol type="1">
+<li><strong>(F2)</strong> The verification design and subsystem
+requirements both cite a test
+(<code>TrueTypeFont_RealTtcContainer_FaceZero_RendersGlyfGlyphOutlineAsVisibleInk</code>)
+that does not exist, meaning the TTC-support requirement chain
+(<code>CanvasNet-Lib-FontsTtcSupport</code> →
+<code>CanvasNet-Fonts-TtcSupport</code> →
+<code>CanvasNet-Fonts-TrueTypeFont-LoadTtcExplicitFaceIndex</code>) is
+not actually proven satisfied as documented.</li>
+<li><strong>(F3)</strong> The subsystem requirements file fails to
+decompose four unit-level CFF/Type1 capabilities into its
+<code>children:</code> lists, leaving them orphaned from the
+system/quality root tags.</li>
+</ol>
+<p>Follow-up actions required before approval:</p>
+<ul>
+<li>Either implement the missing TTC face-0 glyf-rendering test, or
+correct the verification design and requirements to cite only tests that
+actually exist (F2).</li>
+<li>Add the four missing unit requirement IDs to the appropriate
+<code>children:</code> lists in
+<code>docs/reqstream/canvas-net/fonts.yaml</code> (F3).</li>
+<li>Update <code>docs/design/canvas-net.md</code> (parent/system-level
+design) to document <code>SystemFontCatalog</code> as the Fonts
+subsystem’s second public unit (F4).</li>
+<li>Consider adding a <code>needs-review</code> glob pattern so
+<code>BundledFonts/README.md</code> (and similarly-situated non-root
+README/<code>.csproj</code> files referenced by <code>paths:</code>) are
+not silently excluded from ReviewMark’s automated elaboration and
+enforcement (F5).</li>
+</ul>
+<p>No corrections were made by this review; all findings are reported
+for the orchestrator to act on, per this review’s read-only audit
+mandate.</p>
+</body>
+</html>
