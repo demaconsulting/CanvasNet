@@ -4,9 +4,11 @@
 # These requirements decompose the CanvasNet system's TrueType font support into the Fonts
 # subsystem's own responsibility: loading a TrueType (glyf-based) SFNT font, mapping Unicode
 # codepoints to glyph indices, extracting glyph outlines as DemaConsulting.CanvasNet.Geometry.Path
-# geometry, and reporting metrics/advance widths/kerning (the TrueTypeFont unit). Each requirement
-# here links down to the unit requirements that implement it.
-# cspell:ignore glyf sfnt codepoint codepoints formedness renderable
+# geometry, and reporting metrics/advance widths/kerning (the TrueTypeFont unit). It also covers
+# decoding CFF/OpenType (glyf-free, Type 2 charstring) outline data, and loading an individual face
+# out of a TrueType Collection (ttcf) container. Each requirement here links down to the unit
+# requirements that implement it.
+# cspell:ignore glyf sfnt codepoint codepoints formedness renderable charstring charstrings ttcf
 
 sections:
   - title: CanvasNet Requirements
@@ -29,7 +31,7 @@ sections:
               - CanvasNet-Fonts-TrueTypeFont-LoadNullPath
               - CanvasNet-Fonts-TrueTypeFont-LoadEmptyPath
               - CanvasNet-Fonts-TrueTypeFont-RejectUnrecognizedVersion
-              - CanvasNet-Fonts-TrueTypeFont-RejectCffOutlines
+              - CanvasNet-Fonts-TrueTypeFont-RejectOttoWithoutCffTable
               - CanvasNet-Fonts-TrueTypeFont-RejectMissingRequiredTable
               - CanvasNet-Fonts-TrueTypeFont-RejectUnsupportedGlyphOutlineVersion
               - CanvasNet-Fonts-TrueTypeFont-RejectInvalidUnitsPerEm
@@ -100,3 +102,140 @@ sections:
               - CanvasNet-Fonts-TrueTypeFont-KerningMalformedTableTolerant
             tests:
               - CanvasNet_SystemIntegration_LoadFontAndQueryMetrics_ReturnsExpectedValues
+
+          - id: CanvasNet-Fonts-CffOutlineDecoding
+            title: >-
+              The Fonts subsystem shall load a CFF/OpenType (OTTO-flavored) font and decode its
+              glyph outlines from Type 2 charstring bytecode into the same vector path geometry as
+              a glyf-flavored font, supporting a fixed, well-defined subset of the Type 2 charstring
+              operator set, rejecting CID-keyed CFF data, and never allowing one corrupt glyph's
+              charstring to prevent any other glyph in the same font from decoding.
+            justification: |
+              Real-world production fonts (in particular most professionally produced Latin, and
+              nearly all "Pro"/"Premium" commercial font families) commonly ship as CFF-flavored
+              OpenType rather than glyf-flavored TrueType; callers need the same TrueTypeFont API to
+              load and render either flavor's glyph outlines interchangeably.
+            children:
+              - CanvasNet-Fonts-TrueTypeFont-LoadCffOutlines
+              - CanvasNet-Fonts-TrueTypeFont-RejectOttoWithoutCffTable
+              - CanvasNet-Fonts-TrueTypeFont-RejectCffGlyphCountMismatch
+              - CanvasNet-Fonts-TrueTypeFont-RejectCidKeyedCff
+              - CanvasNet-Fonts-TrueTypeFont-CffTableParsing
+              - CanvasNet-Fonts-TrueTypeFont-CffStemHints
+              - CanvasNet-Fonts-TrueTypeFont-CffMoveTo
+              - CanvasNet-Fonts-TrueTypeFont-CffLineTo
+              - CanvasNet-Fonts-TrueTypeFont-CffCurveTo
+              - CanvasNet-Fonts-TrueTypeFont-CffRCurveLineRLineCurve
+              - CanvasNet-Fonts-TrueTypeFont-CffFlex
+              - CanvasNet-Fonts-TrueTypeFont-CffSubroutines
+              - CanvasNet-Fonts-TrueTypeFont-CffEndChar
+              - CanvasNet-Fonts-TrueTypeFont-CffUnsupportedOperatorRejection
+              - CanvasNet-Fonts-TrueTypeFont-CffSeacComposition
+              - CanvasNet-Fonts-TrueTypeFont-CffCharsetResolution
+              - CanvasNet-Fonts-TrueTypeFont-CffWidthResolution
+              - CanvasNet-Fonts-TrueTypeFont-LoadType1C
+            tests:
+              - TrueTypeFont_RealSourceSans3OtfFont_RendersCffGlyphOutlineAsVisibleInk
+              - TrueTypeFont_LoadType1C_WellFormedCff_ExposesGlyphsAndMetrics
+
+          - id: CanvasNet-Fonts-TtcSupport
+            title: >-
+              The Fonts subsystem shall report the number of faces in a TrueType Collection (ttcf)
+              container or an ordinary single-face SFNT font, load a specific face by index from
+              either kind of file, and default to the first face when no index is given, validating
+              the face index argument and the container's own header.
+            justification: |
+              A TrueType Collection bundles multiple font faces (commonly weight/style variants
+              sharing glyph outline data) inside one file; callers need to discover how many faces
+              a file contains and select any one of them by index, while an ordinary single-face
+              font continues to behave exactly as before by default.
+            children:
+              - CanvasNet-Fonts-TrueTypeFont-GetFaceCountPlainSfnt
+              - CanvasNet-Fonts-TrueTypeFont-GetFaceCountTtc
+              - CanvasNet-Fonts-TrueTypeFont-LoadTtcDefaultsFaceZero
+              - CanvasNet-Fonts-TrueTypeFont-LoadTtcExplicitFaceIndex
+              - CanvasNet-Fonts-TrueTypeFont-RejectFaceIndexOutOfRange
+              - CanvasNet-Fonts-TrueTypeFont-FaceIndexZeroBehavesAsLoad
+              - CanvasNet-Fonts-TrueTypeFont-RejectMalformedTtcHeader
+            tests:
+              - TrueTypeFont_RealTtcContainer_FaceOne_RendersCffGlyphOutlineAsVisibleInk
+              - TrueTypeFont_RealTtcContainer_FaceZero_RendersGlyfGlyphOutlineAsVisibleInk
+              - CanvasNet_SystemIntegration_LoadFaceFromTtcContainerByIndex_ReturnsExpectedFace
+
+          - id: CanvasNet-Fonts-NameStyleMetadata
+            title: >-
+              The Fonts subsystem shall expose each loaded font's name-table strings (family,
+              subfamily, full name, PostScript name) and derived bold/italic/fixed-pitch style
+              metadata, applying documented OpenType platform-preference and table-fallback
+              rules, and tolerating absent or malformed optional tables without throwing.
+            justification: |
+              Callers selecting or labeling a loaded font (for example choosing a system fallback
+              font, or displaying a font picker) need its human-readable name and basic style
+              classification, resolved consistently from whichever name/style tables a real-world
+              font actually supplies, without the caller re-implementing OpenType's own
+              platform-preference and table-fallback rules itself.
+            children:
+              - CanvasNet-Fonts-TrueTypeFont-GetNameInfoResolvesTypographicNames
+              - CanvasNet-Fonts-TrueTypeFont-GetNameInfoFallsBackToStandardNames
+              - CanvasNet-Fonts-TrueTypeFont-GetNameInfoPlatformPreference
+              - CanvasNet-Fonts-TrueTypeFont-GetNameInfoMacintoshFallback
+              - CanvasNet-Fonts-TrueTypeFont-GetNameInfoMissingRecordTolerant
+              - CanvasNet-Fonts-TrueTypeFont-GetNameInfoNoNameTableTolerant
+              - CanvasNet-Fonts-TrueTypeFont-GetNameInfoMalformedRecordTolerant
+              - CanvasNet-Fonts-TrueTypeFont-StyleFromOs2FsSelection
+              - CanvasNet-Fonts-TrueTypeFont-StyleFromOs2WeightClass
+              - CanvasNet-Fonts-TrueTypeFont-StyleFromPostItalicAngle
+              - CanvasNet-Fonts-TrueTypeFont-StyleFallsBackToMacStyleWhenOs2Absent
+              - CanvasNet-Fonts-TrueTypeFont-IsFixedPitchFromPostTable
+              - CanvasNet-Fonts-TrueTypeFont-IsFixedPitchAbsentPostTableTolerant
+            tests:
+              - TrueTypeFont_RealOpenSansFont_ExposesExpectedNameAndStyleMetadata
+              - TrueTypeFont_RealSourceSans3OtfFont_ExposesExpectedNameAndStyleMetadata
+              - TrueTypeFont_RealTtcContainer_BothFaces_ExposeExpectedNameAndStyleMetadataIndependently
+
+          - id: CanvasNet-Fonts-Type1OutlineDecoding
+            title: >-
+              The Fonts subsystem shall load a classic PostScript Type 1 font program - either
+              from caller-supplied cleartext/eexec-encrypted byte segments or auto-detected from
+              a standalone .pfb/.pfa file - and decode its glyph outlines from Type 1 charstring
+              bytecode into the same vector path geometry as a glyf/CFF-flavored font, supporting
+              a fixed, well-defined subset of the Type 1 charstring operator set (including real
+              flex geometry and hint-replacement pass-through), and rejecting seac-based
+              composite glyphs and malformed/truncated font program data.
+            justification: |
+              Classic PostScript Type 1 fonts remain common as embedded fonts in legacy PDF
+              documents and as standalone .pfb/.pfa font files; callers need the same TrueTypeFont
+              API to load and render Type 1 glyph outlines interchangeably with the glyf/CFF
+              flavors this subsystem already supports.
+            children:
+              - CanvasNet-Fonts-TrueTypeFont-LoadType1FromSegments
+              - CanvasNet-Fonts-TrueTypeFont-LoadType1Outlines
+            tests:
+              - TrueTypeFont_LoadType1_WellFormedProgram_ExposesGlyphsAndMetrics
+              - TrueTypeFont_Load_StandalonePfbFile_AutoDetectsAndRoundTrips
+              - TrueTypeFont_Load_StandalonePfaFile_AutoDetectsAndRoundTrips
+
+          - id: CanvasNet-Fonts-SystemFontDiscovery
+            title: >-
+              The Fonts subsystem shall provide directory-scan-only discovery of fonts installed
+              on the host operating system, best-effort family-name/style matching against that
+              catalog, and a bundled, always-available Liberation Sans/Serif/Mono last-resort
+              fallback font (the SystemFontCatalog unit), for use by a caller (today,
+              DemaConsulting.CanvasNet.Pdf's PdfDocument) substituting a non-embedded font.
+            justification: |
+              A caller resolving a document's non-embedded font needs to know what fonts are
+              actually installed on the host machine, a best-effort way to match a requested
+              family/style against them, and a deterministic last resort when nothing matches -
+              all format-agnostic capabilities that belong in the Fonts subsystem alongside
+              TrueTypeFont, not duplicated per document-format consumer.
+            children:
+              - CanvasNet-Fonts-SystemFontCatalog-DirectoryScanDiscovery
+              - CanvasNet-Fonts-SystemFontCatalog-LazyProcessLifetimeCache
+              - CanvasNet-Fonts-SystemFontCatalog-ToleratesMissingOrUnparseable
+              - CanvasNet-Fonts-SystemFontCatalog-FindBestMatchExactFamily
+              - CanvasNet-Fonts-SystemFontCatalog-FindBestMatchGenericBucket
+              - CanvasNet-Fonts-SystemFontCatalog-FindBestMatchNoMatch
+              - CanvasNet-Fonts-SystemFontCatalog-LoadBundledFallback
+              - CanvasNet-Fonts-SystemFontCatalog-LoadBundledFallbackMissingResourceGuard
+            tests:
+              - SystemFontCatalog_RealFilesystem_ScanKnownOsDirectories_DiscoversFontsOrIsGracefullyEmpty

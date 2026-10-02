@@ -17,6 +17,7 @@ words:
   - Aabb
   - AABB
   - Adler
+  - AESV
   - AGG
   - apimark
   - ApiMark
@@ -24,6 +25,24 @@ words:
   - Beziers
   - BGRA
   - Blinn
+  - closepath
+  - componentwise
+  - renderable
+  - unparseable
+  - endobj
+  - endstream
+  - Flate
+  - fonttools
+  - MACROMAN
+  - mediabox
+  - MCID
+  - Parms
+  - panose
+  - rasterizing
+  - startxref
+  - Startxref
+  - SYNT
+  - undecoded
   - BITMAPCOREHEADER
   - BITMAPFILEHEADER
   - BITMAPINFOHEADER
@@ -39,6 +58,7 @@ words:
   - Casteljau
   - chokepoint
   - CMYK
+  - CCITT
   - coeffs
   - combinators
   - CSUM
@@ -57,6 +77,7 @@ words:
   - deinterleaved
   - desaturated
   - desaturates
+  - desyncs
   - downsamples
   - DEMA
   - Dema
@@ -79,7 +100,9 @@ words:
   - IEND
   - IHDR
   - Inkscape
+  - inspectable
   - interoperating
+  - JBIG
   - JFIF
   - Lambertian
   - lerp
@@ -91,6 +114,7 @@ words:
   - misdecoded
   - nameof
   - nonzero
+  - NOTAFONT
   - NOTAGIF
   - Outliner
   - Plte
@@ -165,6 +189,8 @@ words:
   - Unstroked
   - unduplicated
   - rects
+  - asciihex
+  - runlength
   - letterboxing
   - Unpremultiply
   - unioning
@@ -202,6 +228,80 @@ words:
   - stylesheet
   - Stylesheet
   - tryparse
+  - callgsubr
+  - callsubr
+  - Charstring
+  - charstring
+  - cntrmask
+  - Endchar
+  - endchar
+  - hhcurveto
+  - hintmask
+  - hlineto
+  - hmoveto
+  - hstem
+  - hstemhm
+  - hvcurveto
+  - lineto
+  - Lineto
+  - misalign
+  - moveto
+  - Moveto
+  - rcurveline
+  - rlinecurve
+  - rlineto
+  - rmoveto
+  - rrcurveto
+  - Seac
+  - seac
+  - Sfnt
+  - SFNT
+  - Subr
+  - Subrs
+  - ttcf
+  - vhcurveto
+  - vlineto
+  - vmoveto
+  - vstem
+  - vstemhm
+  - vvcurveto
+  - hflex
+  - eexec
+  - Eexec
+  - hsbw
+  - Hsbw
+  - sbw
+  - dotsection
+  - Dotsection
+  - lenIV
+  - cleartomark
+  - ncleartomark
+  - ncurrentfile
+  - congruential
+  - codepoints
+  - charstrings
+  - ciphertext
+  - reindexing
+  - exclam
+  - quotedbl
+  - numbersign
+  - quotesingle
+  - parenleft
+  - parenright
+  - bracketleft
+  - bracketright
+  - asciicircum
+  - braceleft
+  - braceright
+  - asciitilde
+  - nacute
+  - Nacute
+  - CharProcs
+  - Procs
+  - PRGA
+  - decryptor
+  - Decryptor
+  - keystream
 
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
@@ -219,3 +319,5 @@ ignorePaths:
   - "**/obj/**"
   - package-lock.json
   - "**/PngSuite/**"
+  - "src/DemaConsulting.CanvasNet/Fonts/BundledFonts/OFL.txt"
+  - "src/DemaConsulting.CanvasNet/Fonts/BundledFonts/NotoFonts-OFL.txt"

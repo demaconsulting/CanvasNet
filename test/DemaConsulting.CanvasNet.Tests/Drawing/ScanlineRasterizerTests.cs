@@ -561,5 +561,65 @@ public class ScanlineRasterizerTests
 
         Assert.Equal(new Rgba32(1, 2, 3, 4), surface[0, 0]);
     }
+
+    /// <summary>
+    ///     Proves that the <see cref="TilePaint"/> overload of Fill evaluates a genuinely
+    ///     repeating tile (not a single constant color) - a fully covered 1x4 row filled with a
+    ///     2-color, 2-wide tile paint produces alternating colors across its width.
+    /// </summary>
+    [Fact]
+    public void ScanlineRasterizer_Fill_TilePaint_FullCoverageRow_RepeatsAcrossWidth()
+    {
+        using var tileSurface = new Surface(2, 1);
+        tileSurface[0, 0] = new Rgba32(255, 0, 0, 255);
+        tileSurface[1, 0] = new Rgba32(0, 0, 255, 255);
+        var tilePaint = new TilePaint(tileSurface, Matrix3x2.Identity, 2f, 1f);
+
+        using var surface = new Surface(4, 1);
+        var polygon = new List<Vector2>
+        {
+            new(0, 0), new(4, 0), new(4, 1), new(0, 1), new(0, 0)
+        };
+        var clipBounds = new Rect(0, 0, 4, 1);
+
+        ScanlineRasterizer.Fill(surface, [polygon], tilePaint, FillRule.NonZero, clipBounds);
+
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[0, 0]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[1, 0]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[2, 0]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[3, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that the <see cref="TilePaint"/> overload is a no-op when given no polygons,
+    ///     matching the solid-color and gradient overloads' documented behavior.
+    /// </summary>
+    [Fact]
+    public void ScanlineRasterizer_Fill_TilePaint_NoPolygons_NoOp()
+    {
+        using var tileSurface = new Surface(1, 1);
+        tileSurface[0, 0] = new Rgba32(9, 9, 9, 9);
+        var tilePaint = new TilePaint(tileSurface, Matrix3x2.Identity, 1f, 1f);
+
+        using var surface = new Surface(2, 2);
+        surface[0, 0] = new Rgba32(1, 2, 3, 4);
+
+        ScanlineRasterizer.Fill(surface, [], tilePaint, FillRule.NonZero, new Rect(0, 0, 2, 2));
+
+        Assert.Equal(new Rgba32(1, 2, 3, 4), surface[0, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that the <see cref="TilePaint"/> overload throws ArgumentNullException when the
+    ///     paint argument is <see langword="null"/>.
+    /// </summary>
+    [Fact]
+    public void ScanlineRasterizer_Fill_TilePaint_NullPaint_ThrowsArgumentNullException()
+    {
+        using var surface = new Surface(2, 2);
+
+        Assert.Throws<ArgumentNullException>(
+            () => ScanlineRasterizer.Fill(surface, [], (TilePaint)null!, FillRule.NonZero, new Rect(0, 0, 2, 2)));
+    }
 }
 

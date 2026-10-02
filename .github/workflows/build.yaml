@@ -229,6 +229,8 @@ jobs:
             src/DemaConsulting.CanvasNet/bin/Release/*.snupkg
             src/DemaConsulting.CanvasNet.Svg/bin/Release/*.nupkg
             src/DemaConsulting.CanvasNet.Svg/bin/Release/*.snupkg
+            src/DemaConsulting.CanvasNet.Pdf/bin/Release/*.nupkg
+            src/DemaConsulting.CanvasNet.Pdf/bin/Release/*.snupkg
 
   # Runs CodeQL security and quality analysis, gathering results to include
   # in the code quality report.

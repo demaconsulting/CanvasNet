@@ -1,4 +1,4 @@
-## PngCodec
+### PngCodec
 
 ![Codecs Structure](CodecsView.svg)
 
@@ -8,7 +8,7 @@ Truecolor or Truecolor-with-alpha, non-interlaced) and hand-rolled loading of ev
 non-interlaced, spec-valid PNG color type/bit depth combination, to and from `Surface` pixel
 buffers.
 
-### Purpose
+#### Purpose
 
 `PngCodec` lets callers persist a `Surface` as a PNG file (or stream) and load a PNG file (or
 stream) back into a `Surface`. It is implemented entirely against the .NET base class library's
@@ -42,22 +42,22 @@ this case before ever calling `Load`.
 utility shape was chosen over an object with nothing to construct or configure, matching
 `BmpCodec`'s precedent.
 
-### Data Model
+#### Data Model
 
-#### PngColorType enum
+##### PngColorType enum
 
 | Value  | Numeric Value | Description                                                          |
 | ------ | ------------- | -------------------------------------------------------------------- |
 | `Rgb`  | 2             | 8 bits each for red, green, blue. Alpha is dropped when saving.      |
 | `Rgba` | 6             | 8 bits each for red, green, blue, alpha. Alpha is preserved exactly. |
 
-#### PNG signature (8 bytes)
+##### PNG signature (8 bytes)
 
 | Byte Offset | Value                      |
 | ----------- | -------------------------- |
 | 0-7         | `137 80 78 71 13 10 26 10` |
 
-#### Chunk layout (all multi-byte fields big-endian)
+##### Chunk layout (all multi-byte fields big-endian)
 
 | Field  | Size           | Description                                               |
 | ------ | -------------- | --------------------------------------------------------- |
@@ -66,7 +66,7 @@ utility shape was chosen over an object with nothing to construct or configure, 
 | Data   | `Length` bytes | The chunk's payload                                       |
 | CRC-32 | 4              | CRC-32 of `Type` + `Data` (not `Length`)                  |
 
-#### IHDR chunk (13 bytes)
+##### IHDR chunk (13 bytes)
 
 | Offset | Size | Field                | Value Written (Save)                     |
 | ------ | ---- | -------------------- | ---------------------------------------- |
@@ -100,7 +100,7 @@ capability):
 | 4 (Grayscale+alpha)  | 8, 16                   |
 | 6 (Truecolor+alpha)  | 8, 16                   |
 
-#### Zlib wrapper layout (the `IDAT` payload, concatenated across chunks)
+##### Zlib wrapper layout (the `IDAT` payload, concatenated across chunks)
 
 | Field            | Size         | Description                                                                        |
 | ---------------- | ------------ | ---------------------------------------------------------------------------------- |
@@ -108,7 +108,7 @@ capability):
 | DEFLATE data     | variable     | Compressed scanline bytes, via `System.IO.Compression.DeflateStream`               |
 | Adler-32 trailer | 4 bytes (BE) | Checksum of the decompressed scanline bytes, hand-computed                         |
 
-#### Scanline filter types
+##### Scanline filter types
 
 | Type | Name    | Reconstruction (raw byte = filtered byte + ...)                 |
 | ---- | ------- | --------------------------------------------------------------- |
@@ -132,7 +132,7 @@ All multi-byte PNG fields (chunk length, CRC-32, IHDR width/height, Adler-32 tra
 and written by explicit byte composition (bit shifting), never `BitConverter` or
 `BinaryPrimitives`, so behavior is identical regardless of host CPU endianness.
 
-#### PLTE and tRNS chunks (Load only; never written by Save)
+##### PLTE and tRNS chunks (Load only; never written by Save)
 
 | Chunk  | Required when                       | Payload shape                                   |
 | ------ | ----------------------------------- | ----------------------------------------------- |
@@ -220,9 +220,9 @@ concatenating the later `IDAT` chunk's bytes anyway would risk assembling a corr
 stream. A payload split across any number of directly consecutive `IDAT` chunks (the common case
 for streaming encoders) remains fully supported and unaffected by this check.
 
-### Key Methods
+#### Key Methods
 
-#### Load(Stream stream)
+##### Load(Stream stream)
 
 Reads a PNG image from an open stream. Validates the 8-byte PNG signature, then reads chunks
 until `IEND` is found: each chunk's CRC-32 is validated regardless of type; `IHDR` is parsed and
@@ -308,7 +308,7 @@ rationale, including why it derives from `IOException` rather than `InvalidDataE
   `"png-adam7-interlace"`); this is a distinct type from `InvalidDataException` — see the design
   decision above
 
-#### Load(string path)
+##### Load(string path)
 
 Opens `path` as a read-only `FileStream` and delegates to `Load(Stream)`.
 
@@ -320,7 +320,7 @@ Opens `path` as a read-only `FileStream` and delegates to `Load(Stream)`.
 * Underlying file-system exceptions (`FileNotFoundException`, `DirectoryNotFoundException`,
   `UnauthorizedAccessException`, `IOException`) propagate uncaught
 
-#### Save(Surface surface, Stream stream, PngColorType colorType = PngColorType.Rgba)
+##### Save(Surface surface, Stream stream, PngColorType colorType = PngColorType.Rgba)
 
 Writes `surface` to `stream` as a PNG image. Writes the signature and `IHDR` chunk, then builds a
 single in-memory buffer containing every scanline (a filter-type byte of 0, followed by the
@@ -346,7 +346,7 @@ a smaller, alpha-free file pass `PngColorType.Rgb` explicitly.
 * `ArgumentNullException` — `surface` or `stream` is null
 * `ArgumentOutOfRangeException` — `colorType` is not a defined `PngColorType` value
 
-#### Save(Surface surface, string path, PngColorType colorType = PngColorType.Rgba)
+##### Save(Surface surface, string path, PngColorType colorType = PngColorType.Rgba)
 
 Creates (or overwrites) `path` as a `FileStream` and delegates to `Save(Surface, Stream, PngColorType)`.
 
@@ -358,7 +358,7 @@ Creates (or overwrites) `path` as a `FileStream` and delegates to `Save(Surface,
 * Underlying file-system exceptions (`UnauthorizedAccessException`, `DirectoryNotFoundException`,
   `IOException`) propagate uncaught
 
-#### GetInfo(Stream stream)
+##### GetInfo(Stream stream)
 
 Reads only the 8-byte PNG signature and the first (`IHDR`) chunk — never any subsequent chunk,
 and in particular never any `IDAT` chunk — and returns an `ImageInfo` describing the file. `Load`
@@ -525,7 +525,7 @@ fully-resolved 4-channel `Surface` regardless of source color type.
   contract as `Load`, except the `Surface.MaxDimension` check is skipped and Adam7 interlacing is
   not rejected — instead reported via the returned `ImageInfo.CanDecode = false`)
 
-#### GetInfo(string path)
+##### GetInfo(string path)
 
 Opens `path` as a read-only `FileStream` and delegates to `GetInfo(Stream)`.
 
@@ -536,7 +536,7 @@ Opens `path` as a read-only `FileStream` and delegates to `GetInfo(Stream)`.
 * `InvalidDataException` — see `GetInfo(Stream)`
 * Underlying file-system exceptions propagate uncaught
 
-### Design Decisions
+#### Design Decisions
 
 **Sub-byte sample scaling**: for Grayscale bit depths 1, 2, and 4, each sample is scaled to the
 full 0-255 range as `sample * 255 / ((1 << bitDepth) - 1)` (for example a 4-bit sample of 15
@@ -553,7 +553,7 @@ sample occupies `bitDepth` bits within its row, packed most-significant-bit-firs
 each byte's high bit, with the final byte of a row zero-padded if `width * bitDepth` is not a
 multiple of 8. This padding is discarded, never written to any pixel.
 
-### Error Handling
+#### Error Handling
 
 All argument validation happens at the start of each public method, before any header or pixel
 data is read or written. `Load` performs incremental format validation as each chunk is read,
@@ -564,7 +564,7 @@ the actual invalid value found. There is no local recovery or retry logic anywhe
 never mutates the destination stream/file if an argument validation fails, because all argument
 checks precede any byte write.
 
-### Dependencies
+#### Dependencies
 
 `PngCodec` depends on `Surface` (constructing surfaces in `Load` and reading/writing rows via
 `Surface.GetRowSpanBytes` in `Save`), using only `Surface`'s existing public API exactly as
@@ -579,7 +579,7 @@ every one of CanvasNet's target frameworks with no new runtime NuGet dependency)
 wrapper (2-byte header, Adler-32 trailer) and every PNG chunk's CRC-32 are computed by hand-rolled
 algorithms rather than any third-party library.
 
-### Conformance Testing
+#### Conformance Testing
 
 In addition to the hand-built positive/negative unit tests above, `PngCodec` is validated against
 the industry-standard [PngSuite](http://www.schaik.com/pngsuite/) conformance corpus (Willem van
@@ -598,7 +598,7 @@ and report correct dimensions via `GetInfo`, exactly like the Adam7-interlaced f
 `CanvasNet-Codecs-PngCodec-PngSuiteUnsupported`, `CanvasNet-Codecs-PngCodec-PngSuiteCorrupt`, and
 `CanvasNet-Codecs-PngCodec-PngSuiteCorruptAfterIhdr` for the corresponding requirements.
 
-### Callers
+#### Callers
 
 `PngCodec` is a public API entry point invoked directly by consumers of the CanvasNet package; it
 is not called by any other unit within this system. It calls into `Surface` (see _Dependencies_

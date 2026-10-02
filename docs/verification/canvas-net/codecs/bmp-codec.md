@@ -1,9 +1,9 @@
-## BmpCodec Unit Verification Design
+### BmpCodec Unit Verification Design
 
 This document describes the unit-level verification strategy for the `BmpCodec` class (and the
 supporting `BmpBitDepth` enum).
 
-### Verification Approach
+#### Verification Approach
 
 The `BmpCodec` unit is verified through unit tests that exercise `Load` and `Save` in isolation,
 using `MemoryStream` for all in-memory round-trip, padding, and orientation checks, and
@@ -15,7 +15,7 @@ exception types.
 
 Unit tests reside in `BmpCodecTests.cs` within the `DemaConsulting.CanvasNet.Tests` project.
 
-### Test Environment
+#### Test Environment
 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
@@ -24,9 +24,9 @@ Unit tests reside in `BmpCodecTests.cs` within the `DemaConsulting.CanvasNet.Tes
   use a uniquely generated temporary file deleted in a `finally` block; no shared state between
   tests
 
-### Unit-Level Test Scenarios
+#### Unit-Level Test Scenarios
 
-#### CanvasNet-Codecs-BmpCodec-SaveLoad24Bit: 24-bit Round-Trip Preserves RGB and Forces Opaque Alpha
+##### CanvasNet-Codecs-BmpCodec-SaveLoad24Bit: 24-bit Round-Trip Preserves RGB and Forces Opaque Alpha
 
 **Test**: `BmpCodec_SaveThenLoad_24Bit_ReturnsExpectedPixelsWithOpaqueAlpha`
 
@@ -34,14 +34,14 @@ Builds a surface with varied, non-opaque per-pixel values, saves it at `BmpBitDe
 `MemoryStream`, loads it back, and asserts every pixel's R/G/B values match the source exactly
 and every pixel's alpha is 255, regardless of the source alpha.
 
-#### CanvasNet-Codecs-BmpCodec-SaveLoad32Bit: 32-bit Round-Trip Preserves RGBA Exactly
+##### CanvasNet-Codecs-BmpCodec-SaveLoad32Bit: 32-bit Round-Trip Preserves RGBA Exactly
 
 **Test**: `BmpCodec_SaveThenLoad_32Bit_ReturnsExpectedPixelsIncludingAlpha`
 
 Builds a surface with varied pixel values, saves it at `BmpBitDepth.Bit32` to a `MemoryStream`,
 loads it back, and asserts every pixel (including alpha) matches the source exactly.
 
-#### CanvasNet-Codecs-BmpCodec-RowPadding: Rows Are Padded to a Multiple of Four Bytes
+##### CanvasNet-Codecs-BmpCodec-RowPadding: Rows Are Padded to a Multiple of Four Bytes
 
 **Test**: `BmpCodec_Save_WidthRequiringPadding_ProducesCorrectlyPaddedRows`
 
@@ -50,7 +50,7 @@ next multiple of four) and asserts, directly on the raw saved bytes: the pixel-d
 length equals `paddedRowBytes * height`, and the three trailing bytes of every row are zero.
 Also confirms the surface still round-trips correctly through `Load` despite the padding.
 
-#### CanvasNet-Codecs-BmpCodec-BottomUpOrientation: Rows Are Written Bottom-Up
+##### CanvasNet-Codecs-BmpCodec-BottomUpOrientation: Rows Are Written Bottom-Up
 
 **Test**: `BmpCodec_Save_DistinctTopAndBottomRows_WritesBottomRowFirstInFile`
 
@@ -60,72 +60,72 @@ Builds a 2x2 surface with distinct, known pixel values in its top and bottom row
 *last* (bottom) row in BGRA order — proving bottom-up orientation independently of the `Load`
 path, which could otherwise mask a symmetric orientation bug.
 
-#### CanvasNet-Codecs-BmpCodec-LoadFromPath / CanvasNet-Codecs-BmpCodec-SaveToPath: File Path Overloads Round-Trip
+##### CanvasNet-Codecs-BmpCodec-LoadFromPath / CanvasNet-Codecs-BmpCodec-SaveToPath: File Path Overloads Round-Trip
 
 **Test**: `BmpCodec_Load_FromFilePath_ReturnsExpectedPixels`
 
 Saves a surface to a temporary file via `Save(Surface, string, BmpBitDepth)`, loads it back via
 `Load(string)`, asserts every pixel matches, and deletes the temporary file in a `finally` block.
 
-#### CanvasNet-Codecs-BmpCodec-SaveNullCanvas: Save Rejects a Null Surface
+##### CanvasNet-Codecs-BmpCodec-SaveNullCanvas: Save Rejects a Null Surface
 
 **Test**: `BmpCodec_Save_NullCanvas_ThrowsArgumentNullException`
 
 Calls `Save` with a null `surface` and a valid stream, and asserts `ArgumentNullException` is
 thrown.
 
-#### CanvasNet-Codecs-BmpCodec-SaveNullStream: Save Rejects a Null Stream
+##### CanvasNet-Codecs-BmpCodec-SaveNullStream: Save Rejects a Null Stream
 
 **Test**: `BmpCodec_Save_NullStream_ThrowsArgumentNullException`
 
 Calls `Save` with a valid surface and a null stream, and asserts `ArgumentNullException` is
 thrown.
 
-#### CanvasNet-Codecs-BmpCodec-SaveNullPath: Save Rejects a Null Path
+##### CanvasNet-Codecs-BmpCodec-SaveNullPath: Save Rejects a Null Path
 
 **Test**: `BmpCodec_Save_NullPath_ThrowsArgumentNullException`
 
 Calls `Save` with a valid surface and a null path, and asserts `ArgumentNullException` is thrown.
 
-#### CanvasNet-Codecs-BmpCodec-SaveEmptyPath: Save Rejects an Empty Path
+##### CanvasNet-Codecs-BmpCodec-SaveEmptyPath: Save Rejects an Empty Path
 
 **Test**: `BmpCodec_Save_EmptyPath_ThrowsArgumentException`
 
 Calls `Save` with a valid surface and an empty path, and asserts `ArgumentException` is thrown.
 
-#### CanvasNet-Codecs-BmpCodec-SaveInvalidBitDepth: Save Rejects an Undefined Bit Depth
+##### CanvasNet-Codecs-BmpCodec-SaveInvalidBitDepth: Save Rejects an Undefined Bit Depth
 
 **Test**: `BmpCodec_Save_UndefinedBitDepth_ThrowsArgumentOutOfRangeException`
 
 Calls `Save` with a valid surface and stream but an undefined `BmpBitDepth` value cast from an
 out-of-range integer, and asserts `ArgumentOutOfRangeException` is thrown.
 
-#### CanvasNet-Codecs-BmpCodec-LoadNullStream: Load Rejects a Null Stream
+##### CanvasNet-Codecs-BmpCodec-LoadNullStream: Load Rejects a Null Stream
 
 **Test**: `BmpCodec_Load_NullStream_ThrowsArgumentNullException`
 
 Calls `Load` with a null stream and asserts `ArgumentNullException` is thrown.
 
-#### CanvasNet-Codecs-BmpCodec-LoadNullPath: Load Rejects a Null Path
+##### CanvasNet-Codecs-BmpCodec-LoadNullPath: Load Rejects a Null Path
 
 **Test**: `BmpCodec_Load_NullPath_ThrowsArgumentNullException`
 
 Calls `Load` with a null path and asserts `ArgumentNullException` is thrown.
 
-#### CanvasNet-Codecs-BmpCodec-LoadEmptyPath: Load Rejects an Empty Path
+##### CanvasNet-Codecs-BmpCodec-LoadEmptyPath: Load Rejects an Empty Path
 
 **Test**: `BmpCodec_Load_EmptyPath_ThrowsArgumentException`
 
 Calls `Load` with an empty path and asserts `ArgumentException` is thrown.
 
-#### CanvasNet-Codecs-BmpCodec-LoadBadSignature: Load Rejects a Missing "BM" Signature
+##### CanvasNet-Codecs-BmpCodec-LoadBadSignature: Load Rejects a Missing "BM" Signature
 
 **Test**: `BmpCodec_Load_BadSignature_ThrowsInvalidDataException`
 
 Builds a 14-byte header with an incorrect signature and asserts `Load` throws
 `InvalidDataException`.
 
-#### CanvasNet-Codecs-BmpCodec-LoadUnsupportedHeaderSize: Load Rejects Non-BITMAPINFOHEADER Sizes
+##### CanvasNet-Codecs-BmpCodec-LoadUnsupportedHeaderSize: Load Rejects Non-BITMAPINFOHEADER Sizes
 
 **Tests**: `BmpCodec_Load_Bitmapcoreheader12Bytes_ThrowsInvalidDataException`,
 `BmpCodec_Load_UnsupportedHeaderSizeV4_ThrowsInvalidDataException`
@@ -133,26 +133,26 @@ Builds a 14-byte header with an incorrect signature and asserts `Load` throws
 Builds a header declaring `biSize = 12` (BITMAPCOREHEADER), and separately `biSize = 108`
 (BITMAPV4HEADER), and asserts `Load` throws `InvalidDataException` for each.
 
-#### CanvasNet-Codecs-BmpCodec-LoadUnsupportedCompression: Load Rejects Non-BI_RGB Compression
+##### CanvasNet-Codecs-BmpCodec-LoadUnsupportedCompression: Load Rejects Non-BI_RGB Compression
 
 **Test**: `BmpCodec_Load_RleCompression_ThrowsInvalidDataException`
 
 Builds a header declaring `biCompression = 1` (BI_RLE8) and asserts `Load` throws
 `InvalidDataException`.
 
-#### CanvasNet-Codecs-BmpCodec-LoadUnsupportedBitDepth: Load Rejects Palette-Based Bit Depths
+##### CanvasNet-Codecs-BmpCodec-LoadUnsupportedBitDepth: Load Rejects Palette-Based Bit Depths
 
 **Test**: `BmpCodec_Load_8BitPaletteDepth_ThrowsInvalidDataException`
 
 Builds a header declaring `biBitCount = 8` and asserts `Load` throws `InvalidDataException`.
 
-#### CanvasNet-Codecs-BmpCodec-LoadUnsupportedTopDown: Load Rejects Negative Height
+##### CanvasNet-Codecs-BmpCodec-LoadUnsupportedTopDown: Load Rejects Negative Height
 
 **Test**: `BmpCodec_Load_TopDownNegativeHeight_ThrowsInvalidDataException`
 
 Builds a header declaring `biHeight = -1` and asserts `Load` throws `InvalidDataException`.
 
-#### CanvasNet-Codecs-BmpCodec-LoadExceedsMaxDimension: Load Rejects Dimensions Exceeding Surface.MaxDimension
+##### CanvasNet-Codecs-BmpCodec-LoadExceedsMaxDimension: Load Rejects Dimensions Exceeding Surface.MaxDimension
 
 **Tests**: `BmpCodec_Load_WidthExceedsMaxDimension_ThrowsInvalidDataException`,
 `BmpCodec_Load_HeightExceedsMaxDimension_ThrowsInvalidDataException`
@@ -163,14 +163,14 @@ separately `biHeight` one greater, and asserts `Load` throws `InvalidDataExcepti
 cases, confirming the dimension check happens before any row/stride arithmetic performed later in
 `Load`.
 
-#### CanvasNet-Codecs-BmpCodec-LoadTruncatedStream: Load Rejects a Truncated Stream
+##### CanvasNet-Codecs-BmpCodec-LoadTruncatedStream: Load Rejects a Truncated Stream
 
 **Test**: `BmpCodec_Load_TruncatedStream_ThrowsInvalidDataException`
 
 Builds a valid header for a 1x1, 24-bit image but omits the pixel data that should follow it, and
 asserts `Load` throws `InvalidDataException`.
 
-#### CanvasNet-Codecs-BmpCodec-GetInfo: GetInfo Reports Dimensions/Channels/Alpha Without Decoding Pixels
+##### CanvasNet-Codecs-BmpCodec-GetInfo: GetInfo Reports Dimensions/Channels/Alpha Without Decoding Pixels
 
 **Tests**: `BmpCodec_GetInfo_24Bit_ReturnsExpectedInfoWithoutAlpha`,
 `BmpCodec_GetInfo_32Bit_ReturnsExpectedInfoWithAlpha`, `BmpCodec_GetInfo_NeverReadsPixelData`,
@@ -185,7 +185,7 @@ succeeds. Proves `GetInfo` does not enforce `Surface.MaxDimension` by building a
 width without throwing, and then asserting `Load` on the exact same bytes still throws
 `InvalidDataException`.
 
-#### CanvasNet-Codecs-BmpCodec-GetInfoValidation: GetInfo Rejects Invalid Arguments and Malformed Headers
+##### CanvasNet-Codecs-BmpCodec-GetInfoValidation: GetInfo Rejects Invalid Arguments and Malformed Headers
 
 **Tests**: `BmpCodec_GetInfo_NullStream_ThrowsArgumentNullException`,
 `BmpCodec_GetInfo_NullPath_ThrowsArgumentNullException`,
@@ -197,7 +197,7 @@ empty path, and `GetInfo(Stream)` with a 14-byte header carrying an incorrect si
 `ArgumentNullException`, `ArgumentNullException`, `ArgumentException`, and `InvalidDataException`
 respectively — the same exception contract as the corresponding `Load` scenarios.
 
-### Acceptance Criteria
+#### Acceptance Criteria
 
 A unit test run passes when all thirty test methods above pass without error or unexpected
 exception; any unexpected exception type or wrong return/byte value constitutes a failure.

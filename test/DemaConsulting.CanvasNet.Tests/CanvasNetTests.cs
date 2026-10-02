@@ -914,4 +914,279 @@ public class CanvasNetTests
 
         Assert.True(coveredPixelCount > 0, "DrawText produced no rendered pixels");
     }
+
+    /// <summary>
+    ///     Proves that the system can load a real CFF/OpenType (OTTO-flavored) production font
+    ///     through <see cref="TrueTypeFont.Load(string)"/>, decode one of its glyphs from Type 2
+    ///     charstring bytecode, and render it as real visible ink through the public
+    ///     <see cref="PathFiller"/> API - confirming the system integrates CFF outline decoding
+    ///     with vector rasterization end to end, not merely glyf-flavored TrueType outlines.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_LoadCffOtfFontAndFillGlyphOutline_ReturnsExpectedPixels()
+    {
+        // Arrange: load the real "Source Sans 3" CFF/OpenType (.otf) fixture and resolve capital
+        // 'H' (a straight-line-only glyph verified to decode with this library's supported Type 2
+        // charstring operator subset - see FontFixtures/README.md) to a real glyph index
+        var fontPath = System.IO.Path.Join(AppContext.BaseDirectory, "FontFixtures", "SourceSans3-Regular.otf");
+        var font = TrueTypeFont.Load(fontPath);
+        var glyphIndex = font.GetGlyphIndex('H');
+        Assert.NotEqual(0, glyphIndex);
+
+        var outline = font.GetGlyphOutline(glyphIndex);
+        Assert.NotEmpty(outline.Subpaths);
+
+        // Act: transform the glyph's font-design-unit outline into a small pixel-space canvas
+        // and fill it through the public PathFiller API
+        const int canvasSize = 64;
+        const float margin = 8f;
+        var rawBounds = outline.GetBounds(0.25f);
+        Assert.False(rawBounds.IsEmpty);
+        var maxExtent = Math.Max(rawBounds.Width, rawBounds.Height);
+        var scale = (canvasSize - 2 * margin) / maxExtent;
+
+        Vector2 Map(Vector2 p) => new(
+            (p.X - rawBounds.Left) * scale + margin,
+            (rawBounds.Bottom - p.Y) * scale + margin);
+
+        var builder = new PathBuilder();
+        foreach (var subpath in outline.Subpaths)
+        {
+            builder.MoveTo(Map(subpath.Start));
+            foreach (var command in subpath.Commands)
+            {
+                switch (command.Type)
+                {
+                    case PathCommandType.LineTo:
+                        builder.LineTo(Map(command.EndPoint));
+                        break;
+                    case PathCommandType.QuadraticBezierTo:
+                        builder.QuadraticBezierTo(Map(command.Control1), Map(command.EndPoint));
+                        break;
+                    case PathCommandType.CubicBezierTo:
+                        builder.CubicBezierTo(Map(command.Control1), Map(command.Control2), Map(command.EndPoint));
+                        break;
+                    case PathCommandType.Close:
+                        builder.Close();
+                        break;
+                }
+            }
+        }
+
+        var transformed = builder.Build();
+        var surface = new Surface(canvasSize, canvasSize);
+        PathFiller.Fill(surface, transformed, new Rgba32(0, 0, 0, 255));
+
+        // Assert: at least one pixel was actually painted (real ink), and the surface's far
+        // corners remain fully transparent background
+        var foundInk = false;
+        for (var y = 0; y < canvasSize && !foundInk; y++)
+        {
+            for (var x = 0; x < canvasSize; x++)
+            {
+                if (surface[x, y].A > 0)
+                {
+                    foundInk = true;
+                    break;
+                }
+            }
+        }
+
+        Assert.True(foundInk, "Expected at least one filled (non-transparent) pixel from the decoded CFF glyph outline.");
+        Assert.Equal(0, surface[0, 0].A);
+        Assert.Equal(0, surface[canvasSize - 1, canvasSize - 1].A);
+    }
+
+    /// <summary>
+    ///     Proves that the system can load a classic PostScript Type 1 font program through the
+    ///     public <see cref="TrueTypeFont.LoadType1"/> API, decode one of its glyphs from Type 1
+    ///     charstring bytecode, and render it as real visible ink through the public
+    ///     <see cref="PathFiller"/> API - confirming the system integrates Type 1 outline decoding
+    ///     with vector rasterization end to end, alongside the glyf and CFF outline flavors.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_LoadType1FontAndFillGlyphOutline_ReturnsExpectedPixels()
+    {
+        // Arrange: a hand-authored synthetic Type 1 font program (a required ".notdef" glyph plus
+        // a single triangular glyph) built from hsbw/rmoveto/rlineto/closepath/endchar (this
+        // library's supported Type 1 charstring operator subset)
+        var notdef = new List<byte>();
+        SyntheticFontBuilder.WriteType1CharstringNumber(notdef, 0);
+        SyntheticFontBuilder.WriteType1CharstringNumber(notdef, 600);
+        SyntheticFontBuilder.WriteType1CharstringOperator(notdef, 13); // hsbw
+        SyntheticFontBuilder.WriteType1CharstringOperator(notdef, 14); // endchar
+
+        var triangle = new List<byte>();
+        SyntheticFontBuilder.WriteType1CharstringNumber(triangle, 0);
+        SyntheticFontBuilder.WriteType1CharstringNumber(triangle, 700);
+        SyntheticFontBuilder.WriteType1CharstringOperator(triangle, 13); // hsbw
+        SyntheticFontBuilder.WriteType1CharstringNumber(triangle, 0);
+        SyntheticFontBuilder.WriteType1CharstringNumber(triangle, 0);
+        SyntheticFontBuilder.WriteType1CharstringOperator(triangle, 21); // rmoveto
+        SyntheticFontBuilder.WriteType1CharstringNumber(triangle, 600);
+        SyntheticFontBuilder.WriteType1CharstringNumber(triangle, 0);
+        SyntheticFontBuilder.WriteType1CharstringOperator(triangle, 5); // rlineto
+        SyntheticFontBuilder.WriteType1CharstringNumber(triangle, -300);
+        SyntheticFontBuilder.WriteType1CharstringNumber(triangle, 600);
+        SyntheticFontBuilder.WriteType1CharstringOperator(triangle, 5); // rlineto
+        SyntheticFontBuilder.WriteType1CharstringOperator(triangle, 9); // closepath
+        SyntheticFontBuilder.WriteType1CharstringOperator(triangle, 14); // endchar
+
+        var program = SyntheticFontBuilder.Type1([(".notdef", [.. notdef]), ("T", [.. triangle])]);
+        using var fontStream = new MemoryStream(program.FontFileBytes);
+        var font = TrueTypeFont.LoadType1(
+            fontStream,
+            program.Length1,
+            program.Length2,
+            new Dictionary<int, string> { ['T'] = "T" });
+
+        var glyphIndex = font.GetGlyphIndex('T');
+        Assert.NotEqual(0, glyphIndex);
+
+        var outline = font.GetGlyphOutline(glyphIndex);
+        Assert.Single(outline.Subpaths);
+
+        // Act: transform the glyph's font-design-unit outline into a small pixel-space canvas
+        // and fill it through the public PathFiller API
+        const int canvasSize = 64;
+        const float margin = 8f;
+        var rawBounds = outline.GetBounds(0.25f);
+        Assert.False(rawBounds.IsEmpty);
+        var maxExtent = Math.Max(rawBounds.Width, rawBounds.Height);
+        var scale = (canvasSize - 2 * margin) / maxExtent;
+
+        Vector2 Map(Vector2 p) => new(
+            (p.X - rawBounds.Left) * scale + margin,
+            (rawBounds.Bottom - p.Y) * scale + margin);
+
+        var builder = new PathBuilder();
+        foreach (var subpath in outline.Subpaths)
+        {
+            builder.MoveTo(Map(subpath.Start));
+            foreach (var command in subpath.Commands)
+            {
+                switch (command.Type)
+                {
+                    case PathCommandType.LineTo:
+                        builder.LineTo(Map(command.EndPoint));
+                        break;
+                    case PathCommandType.QuadraticBezierTo:
+                        builder.QuadraticBezierTo(Map(command.Control1), Map(command.EndPoint));
+                        break;
+                    case PathCommandType.CubicBezierTo:
+                        builder.CubicBezierTo(Map(command.Control1), Map(command.Control2), Map(command.EndPoint));
+                        break;
+                    case PathCommandType.Close:
+                        builder.Close();
+                        break;
+                }
+            }
+        }
+
+        var transformed = builder.Build();
+        var surface = new Surface(canvasSize, canvasSize);
+        PathFiller.Fill(surface, transformed, new Rgba32(0, 0, 0, 255));
+
+        // Assert: at least one pixel was actually painted (real ink), and the surface's far
+        // corners remain fully transparent background
+        var foundInk = false;
+        for (var y = 0; y < canvasSize && !foundInk; y++)
+        {
+            for (var x = 0; x < canvasSize; x++)
+            {
+                if (surface[x, y].A > 0)
+                {
+                    foundInk = true;
+                    break;
+                }
+            }
+        }
+
+        Assert.True(foundInk, "Expected at least one filled (non-transparent) pixel from the decoded Type 1 glyph outline.");
+        Assert.Equal(0, surface[0, 0].A);
+        Assert.Equal(0, surface[canvasSize - 1, canvasSize - 1].A);
+    }
+
+    /// <summary>
+    ///     Proves that the system can report a TrueType Collection (<c>ttcf</c>) container's face
+    ///     count and load either of its faces independently by index through the public
+    ///     <see cref="TrueTypeFont.GetFaceCount(string)"/>/<see cref="TrueTypeFont.Load(string, int)"/>
+    ///     API, and that omitting the face index defaults to face zero - confirming the system's
+    ///     multi-face collection support integrates end to end against a real <c>ttcf</c>
+    ///     container.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_LoadFaceFromTtcContainerByIndex_ReturnsExpectedFace()
+    {
+        // Arrange: the locally-assembled 2-face ttcf fixture (see FontFixtures/README.md)
+        var ttcPath = System.IO.Path.Join(AppContext.BaseDirectory, "FontFixtures", "OpenSans-SourceSans3.ttc");
+
+        // Act: report the face count, load both faces explicitly by index, and once more with
+        // no index at all
+        var faceCount = TrueTypeFont.GetFaceCount(ttcPath);
+        var faceZero = TrueTypeFont.Load(ttcPath, 0);
+        var faceOne = TrueTypeFont.Load(ttcPath, 1);
+        var defaultFace = TrueTypeFont.Load(ttcPath);
+
+        // Assert: the container reports 2 faces, face 0 is "Open Sans", face 1 is "Source Sans
+        // 3", and loading with no explicit face index behaves exactly like requesting face 0
+        Assert.Equal(2, faceCount);
+        Assert.Equal("Open Sans", faceZero.GetNameInfo().FamilyName);
+        Assert.Equal("Source Sans 3", faceOne.GetNameInfo().FamilyName);
+        Assert.Equal("Open Sans", defaultFace.GetNameInfo().FamilyName);
+    }
+
+    /// <summary>
+    ///     Proves that the system exposes a real, loaded production font's name-table strings and
+    ///     derived style metadata through <see cref="TrueTypeFont.GetNameInfo"/>/
+    ///     <see cref="TrueTypeFont.IsBold"/>/<see cref="TrueTypeFont.IsItalic"/>/
+    ///     <see cref="TrueTypeFont.IsFixedPitch"/>, confirming the system integrates
+    ///     <c>name</c>/<c>OS/2</c>/<c>post</c> table parsing end to end against real font data
+    ///     (values independently confirmed against this fixture via <c>fonttools</c> - see
+    ///     <see cref="Fonts.TrueTypeFontRealFontIntegrationTests"/>'s remarks).
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_LoadFontAndQueryNameAndStyleMetadata_ReturnsExpectedValues()
+    {
+        // Arrange/Act: load the real "Open Sans" production font and resolve its name/style
+        // metadata through the public API
+        var fontPath = System.IO.Path.Join(AppContext.BaseDirectory, "FontFixtures", "OpenSans-Regular.ttf");
+        var font = TrueTypeFont.Load(fontPath);
+        var info = font.GetNameInfo();
+
+        // Assert: the exact name-table values and derived style metadata for this fixture
+        Assert.Equal("Open Sans", info.FamilyName);
+        Assert.Equal("Regular", info.SubfamilyName);
+        Assert.Equal("Open Sans Regular", info.FullName);
+        Assert.Equal("OpenSans-Regular", info.PostScriptName);
+        Assert.False(font.IsBold);
+        Assert.False(font.IsItalic);
+        Assert.False(font.IsFixedPitch);
+    }
+
+    /// <summary>
+    ///     Proves that the system's bundled, always-available Liberation Sans last-resort
+    ///     fallback font loads successfully and exposes a real, usable font through the public
+    ///     <see cref="SystemFontCatalog.LoadBundledFallback"/> API, deterministically regardless
+    ///     of what (if anything) is actually installed on the machine running the test -
+    ///     confirming the system-font-discovery boundary's fallback path integrates end to end
+    ///     even in a CI environment with zero discoverable OS fonts.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_ResolveSystemFontFallback_ReturnsBundledFallbackFont()
+    {
+        // Act: request the bundled Liberation Sans Regular fallback through the public API -
+        // this never consults the host operating system's installed fonts at all
+        var font = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+        var info = font.GetNameInfo();
+        var glyphIndex = font.GetGlyphIndex('A');
+
+        // Assert: a genuine, well-formed, usable font was loaded - real glyph data, not a stub
+        Assert.StartsWith("Liberation Sans", info.FamilyName, StringComparison.Ordinal);
+        Assert.False(font.IsBold);
+        Assert.False(font.IsItalic);
+        Assert.False(font.IsFixedPitch);
+        Assert.NotEqual(0, glyphIndex);
+        Assert.True(font.GlyphCount > 0);
+    }
 }

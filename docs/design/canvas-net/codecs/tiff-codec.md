@@ -1,4 +1,4 @@
-## TiffCodec
+### TiffCodec
 
 ![Codecs Structure](CodecsView.svg)
 
@@ -7,7 +7,7 @@ The `TiffCodec` class is the fifth software unit in CanvasNet, and depends on `S
 TIFF 6.0 files (8-bit-per-sample RGB, RGBA, and Grayscale, Chunky planar configuration,
 strip-based layout) to and from `Surface` pixel buffers.
 
-### Purpose
+#### Purpose
 
 `TiffCodec` lets callers persist a `Surface` as a TIFF file (or stream) and load a TIFF file (or
 stream) back into a `Surface`. It is implemented entirely against the .NET base class library's
@@ -25,9 +25,9 @@ silently producing incorrect pixels.
 static utility shape was chosen over an object with nothing to construct or configure, matching
 `BmpCodec`'s and `PngCodec`'s precedent.
 
-### Data Model
+#### Data Model
 
-#### TiffCompression enum
+##### TiffCompression enum
 
 | Value      | Numeric Value | Description                                                   |
 | ---------- | ------------- | ------------------------------------------------------------- |
@@ -36,7 +36,7 @@ static utility shape was chosen over an object with nothing to construct or conf
 | `Deflate`  | 8             | zlib-wrapped DEFLATE, matching `PngCodec`'s own IDAT wrapper. |
 | `PackBits` | 32773         | Apple/TIFF PackBits run-length encoding (TIFF 6.0 Section 9). |
 
-#### TIFF header (8 bytes)
+##### TIFF header (8 bytes)
 
 | Offset | Size | Field            | Value                                               |
 | ------ | ---- | ---------------- | --------------------------------------------------- |
@@ -44,7 +44,7 @@ static utility shape was chosen over an object with nothing to construct or conf
 | 2      | 2    | Magic number     | 42                                                  |
 | 4      | 4    | First IFD offset | Byte offset of the (only) Image File Directory read |
 
-#### IFD layout
+##### IFD layout
 
 | Field           | Size               | Description                                        |
 | --------------- | ------------------ | -------------------------------------------------- |
@@ -59,7 +59,7 @@ value/offset, and every value read from an external location) are read and writt
 byte composition using the byte order determined from the file's own byte-order mark, never
 `BitConverter` or `BinaryPrimitives`, exactly as `BmpCodec`/`PngCodec` do internally.
 
-#### Untrusted-input hardening in tag/value resolution
+##### Untrusted-input hardening in tag/value resolution
 
 `ReadTagValues` (the single method that turns an `IfdEntry` into a `uint[]` of resolved values,
 used by both `Load` and `GetInfo`) applies three checks before ever allocating the
@@ -88,7 +88,7 @@ without risking a denial-of-service from a crafted file:
   legitimately scale with image size) are read only by `Load`'s strip-decoding path and are not
   subject to this cap.
 
-#### Recognized TIFF tags
+##### Recognized TIFF tags
 
 | Tag Number | Name                      | Required | Notes                                              |
 | ---------- | ------------------------- | -------- | -------------------------------------------------- |
@@ -111,14 +111,14 @@ The tiled-TIFF rejection (`TileWidth`/`TileLength` presence) lives in the shared
 `ReadTiffImageInfo` helper, so `Load` and `GetInfo` reject a tiled image identically
 rather than only when `Load` is used.
 
-#### Horizontal-differencing predictor (Predictor tag = 2)
+##### Horizontal-differencing predictor (Predictor tag = 2)
 
 For each row, independently per sample plane: `raw[i] = decoded[i] - decoded[i - samplesPerPixel]`
 for `i >= samplesPerPixel`, with the first `samplesPerPixel` bytes of the row left unchanged.
 Decoding reverses this with a running sum. The predictor never carries across row boundaries and
 is applied strictly after decompression (on load) or strictly before compression (on save).
 
-#### Zlib wrapper layout (used only for `TiffCompression.Deflate`)
+##### Zlib wrapper layout (used only for `TiffCompression.Deflate`)
 
 | Field            | Size         | Description                                                       |
 | ---------------- | ------------ | ----------------------------------------------------------------- |
@@ -130,9 +130,9 @@ This is structurally identical to `PngCodec`'s own `IDAT` zlib wrapper, but reim
 privately within `TiffCodec` (in `Tiff/TiffCodec.Utils.cs`) rather than shared, since no unit in
 CanvasNet currently shares internal helper code between codecs.
 
-### Key Methods
+#### Key Methods
 
-#### Load(Stream stream)
+##### Load(Stream stream)
 
 Reads a TIFF image from an open stream (buffered entirely into memory first, since TIFF's IFD and
 value-array offsets require random access, unlike `BmpCodec`'s and `PngCodec`'s purely sequential
@@ -170,7 +170,7 @@ if `Predictor` is 2, and unpacks each row into the destination `Surface`'s rows 
   does not cover the declared image height; or the stream ends before all header, IFD, or strip
   data has been read
 
-#### Load(string path)
+##### Load(string path)
 
 Opens `path` as a read-only `FileStream` and delegates to `Load(Stream)`.
 
@@ -182,7 +182,7 @@ Opens `path` as a read-only `FileStream` and delegates to `Load(Stream)`.
 - Underlying file-system exceptions (`FileNotFoundException`, `DirectoryNotFoundException`,
   `UnauthorizedAccessException`, `IOException`) propagate uncaught
 
-#### Save(Surface surface, Stream stream, TiffCompression compression = TiffCompression.None)
+##### Save(Surface surface, Stream stream, TiffCompression compression = TiffCompression.None)
 
 Writes `surface` to `stream` as a little-endian ("II") TIFF file containing a single IFD
 describing an 8-bit-per-sample, 4-samples-per-pixel (RGBA) RGB image (photometric interpretation
@@ -208,7 +208,7 @@ fidelity with no extra effort.
 - `ArgumentNullException` — `surface` or `stream` is null
 - `ArgumentOutOfRangeException` — `compression` is not a defined `TiffCompression` value
 
-#### Save(Surface surface, string path, TiffCompression compression = TiffCompression.None)
+##### Save(Surface surface, string path, TiffCompression compression = TiffCompression.None)
 
 Creates (or overwrites) `path` as a `FileStream` and delegates to
 `Save(Surface, Stream, TiffCompression)`.
@@ -221,7 +221,7 @@ Creates (or overwrites) `path` as a `FileStream` and delegates to
 - Underlying file-system exceptions (`UnauthorizedAccessException`, `DirectoryNotFoundException`,
   `IOException`) propagate uncaught
 
-#### GetInfo(Stream stream)
+##### GetInfo(Stream stream)
 
 Reports a TIFF's width, height, samples-per-pixel-derived channel count, and alpha presence
 without ever decoding strip/pixel data, by resolving every tag through the exact same validating
@@ -296,7 +296,7 @@ count, identically to `Load`. `GetInfo` does not enforce `Surface.MaxDimension` 
   **except** that the `Surface.MaxDimension` check is always skipped (an oversized declared
   width/height is returned, not rejected)
 
-#### GetInfo(string path)
+##### GetInfo(string path)
 
 Opens `path` as a read-only `FileStream` and delegates to `GetInfo(Stream)`. Note that a
 `FileStream` is always seekable, so opening by path always exercises `GetInfo`'s seek-based fast
@@ -309,7 +309,7 @@ path rather than its non-seekable buffering fallback.
 - `InvalidDataException` — see `GetInfo(Stream)`
 - Underlying file-system exceptions propagate uncaught
 
-### Error Handling
+#### Error Handling
 
 All argument validation happens at the start of each public method, before any header or pixel
 data is read or written. `Load` performs incremental format validation as each tag is inspected,
@@ -321,7 +321,7 @@ anywhere in `TiffCodec` - every validation failure results in an exception that 
 directly to the caller. `Save` never mutates the destination stream/file if argument validation
 fails, because all argument checks precede any byte write.
 
-### Dependencies
+#### Dependencies
 
 `TiffCodec` depends on `Surface` (constructing surfaces in `Load` and reading/writing rows via
 `Surface.GetRowSpanBytes` in `Save`), using only `Surface`'s existing public API exactly as
@@ -334,7 +334,7 @@ every one of CanvasNet's target frameworks with no new runtime NuGet dependency)
 TIFF-flavor LZW, the horizontal-differencing predictor, and the zlib wrapper (2-byte header,
 Adler-32 trailer) are all computed by hand-rolled algorithms rather than any third-party library.
 
-### Conformance Testing
+#### Conformance Testing
 
 In addition to the hand-built positive/negative unit tests above, `TiffCodec` is validated against
 the `TiffFixtures` corpus (see `test/DemaConsulting.CanvasNet.Tests/TiffFixtures/README.md`): nine
@@ -347,7 +347,7 @@ they have no alpha channel); the grayscale fixtures (a lossy conversion relative
 source) are only checked for successful loading, correct dimensions, and R == G == B per pixel.
 See `CanvasNet-Codecs-TiffCodec-FixtureSupported` for the corresponding requirement.
 
-### Callers
+#### Callers
 
 `TiffCodec` is a public API entry point invoked directly by consumers of the CanvasNet package; it
 is not called by any other unit within this system. It calls into `Surface` (see *Dependencies*

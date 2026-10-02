@@ -3,6 +3,9 @@
 <!-- cspell:ignore glyf sfnt codepoint -->
 <!-- cspell:ignore rasterizing unparseable SMIL renderable -->
 <!-- cspell:ignore unitless -->
+<!-- cspell:ignore Zapf -->
+<!-- cspell:ignore SASLprep -->
+<!-- cspell:ignore Noto -->
 
 ## Purpose
 
@@ -1079,48 +1082,344 @@ Parses an SVG file at the specified path and returns an `ImageInfo`.
 - `ArgumentException`: Thrown when `path` is an empty string.
 - `InvalidDataException`: Thrown for the same conditions as `GetInfo(Stream)`.
 
+### PdfDocument
+
+`PdfDocument` is distributed via the separate `DemaConsulting.CanvasNet.Pdf` NuGet package
+(namespace `DemaConsulting.CanvasNet.Pdf`), which references the core `DemaConsulting.CanvasNet`
+package - see the Installation section of the project README.
+
+The `PdfDocument` sealed class opens a PDF document, parses its cross-reference table/stream and
+page tree, and reports each page's displayed (rotation-adjusted) size and its page count.
+`Render` interprets a page's content stream, painting real path geometry, device color (`rg`/
+`g`/`k`/`cs`/`sc` and related operators, including `/Pattern`-color-space shading and tiling
+pattern fills/strokes - axial/radial (`/ShadingType 2`/`3`) shading patterns driven by
+`/FunctionType 0`/`2`/`3` functions, and colored/uncolored (`/PaintType 1`/`2`) tiling patterns
+rendering a repeating tile), placed image XObjects (`Do`), and text shown with a simple TrueType
+font (`Tf`/`Td`/`Tj` and the other `BT`/`ET` text operators) onto the returned `Surface`. A font
+with an embedded `/FontDescriptor/FontFile2` stream is always used directly;
+a font with no embedded font data is instead automatically substituted, fully silently (no new
+API, no "fallback occurred" indicator): first with the closest-matching font actually installed
+on the host operating system (matched by family name and bold/italic/serif/fixed-pitch style),
+and, when nothing on the host machine matches, with a bundled Liberation Sans/Serif/Mono font
+that ships with the `DemaConsulting.CanvasNet` package and is therefore always available. A
+recognized Standard-14 name (`Helvetica`, `Times-Roman`, `Courier`, and their bold/italic
+variants, and so on) is classified by a fixed, built-in table; any other non-embedded font's
+style is derived from its `/FontDescriptor` flags/weight/angle. `Symbol` and `ZapfDingbats`
+(matched by exact `/BaseFont` name) instead resolve via a dedicated, bundled Noto substitute font:
+`Symbol` tries `NotoSans-Regular.ttf` (Greek letters and general symbols), then
+`NotoSansMath-Regular.ttf` (mathematical operators), then `NotoSansSymbols2-Regular.ttf`
+(Private-Use-Area-adjacent/rare symbols), in that priority order; `ZapfDingbats` uses
+`NotoSansSymbols2-Regular.ttf` alone - using the Symbol/ZapfDingbats built-in encoding (PDF
+32000-1 Appendix D) rather than treating them like any other Latin-text font. This is a
+documented, accepted fidelity limitation, not full glyph coverage: of Symbol's 163 distinct
+mapped codepoints, 161 are covered (only U+2329/U+232A are not); of ZapfDingbats' 202 distinct
+mapped codepoints, 158 are covered (the circled-digit Dingbats and a handful of others are not).
+Any other font whose `/FontDescriptor` marks it as a symbolic, non-Latin-text glyph set is
+never substituted this way, since a symbol/dingbat glyph set with no bundled substitute has no
+meaningful generic-family
+equivalent - it still fails closed with `UnsupportedImageFeatureException`, exactly as a
+non-embedded font of any kind did before this fallback behavior existed. A shading pattern's
+`/Extend` is approximated as always-padded (never fully transparent outside the defining
+geometry), a documented, narrower-than-spec simplification; the `sh` operator and generic path
+clipping (`W`/`W*`) remain unsupported and are silently skipped. **Documented scope
+boundaries**: `/MMType1` fonts, mesh shadings (`/ShadingType 1`/`4`-`7`), `/FunctionType 4`
+(PostScript calculator) functions, the `sh` operator, generic path clipping, transparency groups,
+and clip text-rendering modes all fail closed with `UnsupportedImageFeatureException`
+rather than being silently skipped or mis-rendered.
+
+```csharp
+using var doc = PdfDocument.Open("file.pdf");
+var info = doc.GetPageInfo(0);
+using var surface = doc.Render(0, info.Width, info.Height);
+```
+
+#### PdfDocument Methods
+
+##### PdfDocument.Open(Stream stream, string? password = null)
+
+```csharp
+public static PdfDocument Open(Stream stream, string? password = null)
+```
+
+Reads the entirety of an open, readable stream into an in-memory buffer and parses it into a new
+`PdfDocument`. Does not take ownership of, and does not dispose, the caller's `stream`.
+
+The optional `password` parameter defaults to `null`, which preserves the library's original
+empty-user-password-only behavior byte-for-byte. When a non-`null` password is supplied, it is
+tried first as the **user password**, then - if that does not authenticate - as the **owner
+password** (ISO 32000-1 Algorithm 3 for RC4/AES-128 documents; the owner-password variant of
+ISO 32000-2 Algorithm 2.A for AES-256/R5 documents). R2-R4 (RC4/AES-128) passwords are encoded as
+Latin-1 (the ASCII range of PDFDocEncoding); R5 (AES-256) passwords are encoded as UTF-8 with no
+SASLprep/Unicode normalization applied - both are intentional scope boundaries. Both encodings
+truncate the password's encoded bytes to a maximum of 127 bytes before any hashing.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `stream` is null.
+- `InvalidDataException`: Thrown when the stream does not contain valid, supported PDF content
+  (including when normal cross-reference parsing fails and the linear-scan fallback also cannot
+  resolve the document catalog).
+- `UnsupportedImageFeatureException`: Thrown when the document's trailer declares an `/Encrypt`
+  entry that this library cannot open: a security handler other than the PDF "Standard" handler,
+  an AES-256 document using the `/R 6` "hardened hash" key derivation, a crypt filter other than
+  the standard `/StdCF` filter (RC4, AES-128/`AESV2`, or AES-256-R5/`AESV3`), a document that
+  requires a password but `password` was not supplied (`null`), or a supplied `password` that
+  does not authenticate as either the user or the owner password (feature
+  `pdf-encrypted-incorrect-password`), or - for an R2-R4 document - contains a character outside
+  ASCII 0-127 (feature `pdf-encrypted-password-non-ascii`). A document encrypted with the Standard
+  security handler using RC4 (40-128 bit), AES-128, or AES-256 (R5) and an empty user password -
+  the vast majority of "owner password"/permission-restricted real-world PDFs - opens and renders
+  normally with `password` left at its default `null`; its permission flags are not enforced (this
+  library only ever reads for rendering, so copy/print restrictions do not apply).
+
+##### PdfDocument.Open(string path, string? password = null)
+
+```csharp
+public static PdfDocument Open(string path, string? password = null)
+```
+
+Opens its own internal `FileStream` for the file at `path`, reads it fully, closes that stream
+synchronously within `Open` (mirroring `PngCodec.Load(string)`'s open/consume/close pattern), then
+parses the buffered content identically to the `Stream` overload above, with the same `password`
+parameter and semantics.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `path` is null.
+- `ArgumentException`: Thrown when `path` is an empty or whitespace-only string.
+- `InvalidDataException`: Thrown for the same conditions as `Open(Stream, string?)`.
+- `UnsupportedImageFeatureException`: Thrown for the same reasons as `Open(Stream, string?)`.
+
+##### PdfDocument.PageCount
+
+```csharp
+public int PageCount { get; }
+```
+
+The total number of pages in the document's page tree.
+
+**Exceptions:**
+
+- `ObjectDisposedException`: Thrown when accessed after `Dispose()` has been called.
+
+##### PdfDocument.GetPageInfo(int pageIndex)
+
+```csharp
+public PdfPageInfo GetPageInfo(int pageIndex)
+```
+
+Returns the specified page's displayed (rotation-adjusted) width/height, plus its normalized
+clockwise rotation (0/90/180/270). Width and height are swapped relative to the page's raw
+`/MediaBox` when rotation is 90 or 270. A leaf page inherits `/MediaBox`/`/Rotate` from its
+page-tree ancestors when it does not declare its own.
+
+**Exceptions:**
+
+- `ArgumentOutOfRangeException`: Thrown when `pageIndex` is negative or `>= PageCount`.
+- `ObjectDisposedException`: Thrown when called after `Dispose()` has been called.
+
+##### PdfDocument.Render(int pageIndex, int width, int height)
+
+```csharp
+public Surface Render(int pageIndex, int width, int height)
+```
+
+Returns a new `Surface` of the caller-specified `width` x `height` for the given page, painted
+with the page's interpreted content-stream geometry (path construction/painting with real device
+color, placed image XObjects, and text shown with a resolved TrueType font - embedded when
+present, otherwise automatically substituted, see *PdfDocument* above), or a fully transparent
+surface when the page declares no `/Contents`. The `width`/`height` used is exactly as given - it
+is not clamped or derived from the page's own `/MediaBox` size.
+
+**Exceptions:**
+
+- `ArgumentOutOfRangeException`: Thrown when `pageIndex` is negative or `>= PageCount`, or when
+  `width`/`height` is not a valid `Surface` size (propagates from `new Surface(width, height)`).
+- `InvalidDataException`: Thrown for malformed `/Contents`, a malformed recognized operator's
+  operand count/type, an unresolvable font resource name, or a text-showing operator invoked with
+  no font selected.
+- `UnsupportedImageFeatureException`: Thrown for a well-formed but unsupported color space,
+  stream filter, font subtype (`/MMType1`; `/TrueType`, `/Type0`, `/Type1`, and `/Type3` are all
+  supported), an otherwise-symbolic font (other than `Symbol`/`ZapfDingbats`, which resolve via a
+  bundled Noto substitute instead) with no embedded font data, font encoding, or
+  text-rendering mode.
+- `ObjectDisposedException`: Thrown when called after `Dispose()` has been called.
+
+##### PdfDocument.Render(int pageIndex, float dpi)
+
+```csharp
+public Surface Render(int pageIndex, float dpi)
+```
+
+Convenience overload of `Render(int, int, int)` for the common "render at a given resolution"
+case: reads `GetPageInfo(pageIndex)`'s rotation-adjusted width/height (in points, 1/72 inch),
+scales both by `dpi / 72`, rounds to the nearest pixel, and renders at that size - preserving the
+page's own aspect ratio, unlike the three-argument overload. Use `Render(int, int, int)` directly
+instead when independent X/Y scaling (non-square pixels, or an exact pixel size regardless of
+aspect ratio) is needed.
+
+**Exceptions:**
+
+- `ArgumentOutOfRangeException`: Thrown when `pageIndex` is negative or `>= PageCount`, when
+  `dpi` is not a positive, finite number, or when the computed pixel width/height is not a valid
+  `Surface` size.
+- Also throws every exception `Render(int, int, int)` itself can throw.
+
+##### PdfDocument.Dispose()
+
+```csharp
+public void Dispose()
+```
+
+Releases the document's in-memory buffer and parsed state. Idempotent - safe to call more than
+once. Every other public member throws `ObjectDisposedException` once called.
+
 ### TrueTypeFont
 
-The `TrueTypeFont` class loads glyph-based TrueType (`glyf`-based) SFNT fonts and exposes raw
-font-design-unit outlines, metrics, advance widths, and basic pairwise kerning.
+The `TrueTypeFont` class loads glyph-based TrueType (`glyf`-based) SFNT fonts and CFF/OpenType
+(`OTTO`-flavored, Type 2 charstring-based) fonts - including selecting an individual face out of
+a TrueType Collection (`.ttc`) container - and exposes raw font-design-unit outlines, metrics,
+advance widths, and basic pairwise kerning through one uniform API regardless of outline flavor.
 
 ```csharp
 public sealed class TrueTypeFont
 {
     public static TrueTypeFont Load(Stream stream);
     public static TrueTypeFont Load(string path);
+    public static TrueTypeFont Load(Stream stream, int faceIndex);
+    public static TrueTypeFont Load(string path, int faceIndex);
+    public static int GetFaceCount(Stream stream);
+    public static int GetFaceCount(string path);
 
     public int UnitsPerEm { get; }
     public int Ascender { get; }
     public int Descender { get; }
     public int LineGap { get; }
     public int GlyphCount { get; }
+    public bool IsBold { get; }
+    public bool IsItalic { get; }
+    public bool IsFixedPitch { get; }
 
     public int GetGlyphIndex(int codepoint);
     public Path GetGlyphOutline(int glyphIndex);
     public int GetAdvanceWidth(int glyphIndex);
     public int GetKerning(int leftGlyphIndex, int rightGlyphIndex);
+    public FontNameInfo GetNameInfo();
 }
+```
+
+`IsBold`/`IsItalic`/`IsFixedPitch` report the font's derived bold/italic/fixed-pitch
+classification, resolved from the `OS/2` table's `fsSelection`/`usWeightClass`, the `head` table's
+`macStyle`, and the `post` table's `isFixedPitch` flag (whichever of these tables the font
+provides). `GetNameInfo` resolves the font's `name`-table strings into a `FontNameInfo` - the
+typographic (or, failing that, standard) family and subfamily names, the full name, and the
+PostScript name - returning `null` for any field the font's `name` table does not provide, rather
+than throwing:
+
+```csharp
+public readonly record struct FontNameInfo(
+    string? FamilyName,
+    string? SubfamilyName,
+    string? FullName,
+    string? PostScriptName);
 ```
 
 `GetGlyphOutline` returns `Geometry.Path` in raw font-design-unit coordinates with Y increasing
 upward, per the TrueType convention. Callers typically scale that path by the desired point size
-and flip Y before rendering it through `PathFiller` or `PathStroker`.
+and flip Y before rendering it through `PathFiller` or `PathStroker`. A glyf-flavored font's
+outline uses `LineTo`/`QuadraticBezierTo` segments; a CFF/OpenType font's outline uses
+`LineTo`/`CubicBezierTo` segments instead - callers that support both must handle both command
+kinds (see Example 12 below).
 
 ```csharp
-var font = TrueTypeFont.Load("font.ttf");
+var font = TrueTypeFont.Load("font.ttf");   // also accepts a CFF/OpenType .otf file
 var glyphIndex = font.GetGlyphIndex('A');
 var outline = font.GetGlyphOutline(glyphIndex);
 var advanceWidth = font.GetAdvanceWidth(glyphIndex);
 ```
 
+`Load(Stream, int)` / `Load(string, int)` select a specific zero-based face out of a `.ttc`
+(TrueType Collection) container; `GetFaceCount` reports how many faces a file contains (`1` for
+an ordinary single-face font) without parsing any face's own table directory:
+
+```csharp
+var faceCount = TrueTypeFont.GetFaceCount("collection.ttc"); // e.g. 2
+var secondFace = TrueTypeFont.Load("collection.ttc", faceIndex: 1);
+```
+
+`Load(Stream)`/`Load(string)` (without an explicit `faceIndex`) transparently default to face 0
+when given a `.ttc` file, so existing callers that only ever loaded single-face fonts continue to
+work unchanged against the first face of a collection.
+
 **Exceptions:**
 
-- `ArgumentNullException`: Thrown when `Load` receives a null stream or path.
-- `ArgumentException`: Thrown when `Load(string)` receives an empty path.
-- `InvalidDataException`: Thrown when the font data is malformed, truncated, or unsupported.
+- `ArgumentNullException`: Thrown when `Load`/`GetFaceCount` receives a null stream or path.
+- `ArgumentException`: Thrown when the `string`-path overload of `Load`/`GetFaceCount` receives an
+  empty path.
+- `InvalidDataException`: Thrown when the font data is malformed, truncated, or unsupported
+  (including CFF-specific failures such as CID-keyed CFF data, and `.ttc`-specific failures such
+  as a malformed collection header).
 - `ArgumentOutOfRangeException`: Thrown when `GetGlyphOutline` or `GetAdvanceWidth` receives an
-  out-of-range glyph index.
+  out-of-range glyph index, or when `Load(Stream, int)`/`Load(string, int)` receives a `faceIndex`
+  that is negative or not less than the file's own face count.
+
+### SystemFontCatalog
+
+The `SystemFontCatalog` static class discovers fonts installed on the host operating system,
+best-effort matches a requested family-name hint and style (bold/italic/serif/fixed-pitch) against
+that discovered catalog, and - when no suitable system font can be found - provides a bundled
+Liberation Sans/Serif/Mono `TrueTypeFont` as a last-resort fallback.
+
+```csharp
+public static class SystemFontCatalog
+{
+    public static IReadOnlyList<SystemFontInfo> Fonts { get; }
+
+    public static SystemFontInfo? FindBestMatch(
+        string familyNameHint,
+        bool bold,
+        bool italic,
+        bool serif,
+        bool fixedPitch);
+
+    public static TrueTypeFont LoadBundledFallback(bool serif, bool fixedPitch, bool bold, bool italic);
+}
+```
+
+`Fonts` lazily enumerates the host operating system's installed fonts (platform-specific font
+directories/registries) on first access, caching the result for the process lifetime; each entry
+is a `SystemFontInfo` describing the font's family/subfamily name, derived bold/italic/fixed-pitch
+style, and the file path/face index needed to load it via `TrueTypeFont.Load`:
+
+```csharp
+public readonly record struct SystemFontInfo(
+    string FamilyName,
+    string SubfamilyName,
+    bool Bold,
+    bool Italic,
+    bool FixedPitch,
+    string FilePath,
+    int FaceIndex);
+```
+
+`FindBestMatch` follows a two-tier strategy: it first looks for an exact (case-insensitive)
+family-name match against `Fonts`; if none exists, it falls back to searching a small,
+hand-maintained list of well-known generic family names (sans-serif, serif, or monospace,
+selected by the `serif`/`fixedPitch` hints) for the first one actually present on the host system.
+It returns `null` when neither tier finds a match.
+
+`LoadBundledFallback` selects one of the library's twelve embedded Liberation Sans/Serif/Mono
+TrueType fonts (by the requested `serif`/`fixedPitch`/`bold`/`italic` combination) and loads it via
+`TrueTypeFont.Load`, guaranteeing a usable font is always available even when the host system has
+no suitable installed font (or no accessible font directory at all):
+
+```csharp
+// Best-effort match against installed system fonts, falling back to a bundled font
+var match = SystemFontCatalog.FindBestMatch("Helvetica", bold: false, italic: false, serif: false, fixedPitch: false);
+var font = match is { } info
+    ? TrueTypeFont.Load(info.FilePath, info.FaceIndex)
+    : SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+```
 
 ### PathFiller
 
@@ -1169,6 +1468,29 @@ gradient once per pixel and scaling the result by that pixel's antialiased cover
 curve-flattening, clip-bounds, argument validation, `FillRule`, and empty/out-of-bounds no-op
 behavior with the solid-color overload above - see `GradientPaint` below for gradient-specific
 behavior.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `surface`, `path`, or `paint` is null.
+- `ArgumentOutOfRangeException`: Thrown when `fillRule` is not a defined `FillRule` value, when
+  `flattenTolerance` is less than or equal to zero, or is not a finite value (NaN or infinity).
+
+##### PathFiller.Fill(Surface surface, Path path, TilePaint paint, FillRule fillRule, float flattenTolerance)
+
+```csharp
+public static void Fill(
+    Surface surface,
+    Path path,
+    TilePaint paint,
+    FillRule fillRule = FillRule.NonZero,
+    float flattenTolerance = 0.25f)
+```
+
+Fills `path` with `paint` (a repeating tile bitmap) onto `surface`, sampling the tile once per
+pixel at its wrapped-around pattern-space offset and scaling the result by that pixel's
+antialiased coverage. Shares curve-flattening, clip-bounds, argument validation, `FillRule`, and
+empty/out-of-bounds no-op behavior with the solid-color overload above - see `TilePaint` below for
+tile-specific behavior.
 
 **Exceptions:**
 
@@ -1417,6 +1739,46 @@ explicitly-supplied value - including the all-zero matrix - is preserved exactly
 - `ArgumentOutOfRangeException`: Thrown when `startCenter`/`endCenter` has a non-finite component;
   when `startRadius`/`endRadius` is not finite or is negative; when `spread` is not a defined
   `GradientSpread` value; or when any component of `transform` is not finite.
+
+### TilePaint
+
+`TilePaint` is the tiling-pattern analogue of `GradientPaint`: a resolved, renderable tile paint
+pairing a pre-rendered one-cell tile bitmap (a `Surface`) with a `Transform` mapping the tile's
+own pattern-space coordinates into the same coordinate space a filled `Path` already uses, and an
+`XStep`/`YStep` pitch describing how far apart successive tile repetitions are spaced in
+pattern-space units. A caller paints a filled path with a repeating tile via
+`PathFiller.Fill(Surface, Path, TilePaint, FillRule, float)` above.
+
+```csharp
+public sealed class TilePaint
+{
+    public TilePaint(Surface surface, Matrix3x2 transform, float xStep, float yStep);
+
+    public Surface Surface { get; }
+    public Matrix3x2 Transform { get; }
+    public float XStep { get; }
+    public float YStep { get; }
+
+    public TilePaint WithTransform(Matrix3x2 transform);
+}
+```
+
+`TilePaint` does not own `Surface`'s lifetime: it does not dispose it, and the caller that
+constructed the `TilePaint` remains responsible for disposing the underlying `Surface` once it is
+no longer needed - mirroring how `Gradient` similarly owns no disposable resource of its own.
+`XStep`/`YStep` may be negative (a legitimate PDF tiling-pattern value meaning the tile repeats in
+the negative pattern-space axis direction) - only zero or a non-finite value is rejected.
+`WithTransform` returns a new `TilePaint` with the same `Surface`/`XStep`/`YStep` whose `Transform`
+is this tile paint's own `Transform` composed with the supplied transform (this tile paint's
+existing `Transform` is applied first, then the supplied transform is applied on top of that) -
+the same row-vector composition convention as `Gradient.WithTransform`.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown by the constructor when `surface` is null.
+- `ArgumentOutOfRangeException`: Thrown by the constructor when any component of `transform` is
+  not finite, or when `xStep`/`yStep` is not finite or is zero; thrown by `WithTransform` when the
+  composed transform has a non-finite component.
 
 # Examples
 
@@ -1704,6 +2066,9 @@ using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Geometry;
 using System.Numerics;
 
+// glyf-flavored (.ttf) fonts produce QuadraticBezierTo segments; CFF/OpenType
+// (.otf) fonts produce CubicBezierTo segments instead - both are handled here
+// so this helper works for either outline flavor.
 static Path TransformGlyph(Path glyph, float scale, float baselineY)
 {
     var builder = new PathBuilder();
@@ -1725,6 +2090,12 @@ static Path TransformGlyph(Path glyph, float scale, float baselineY)
                         ToCanvas(command.Control1),
                         ToCanvas(command.EndPoint));
                     break;
+                case PathCommandType.CubicBezierTo:
+                    builder.CubicBezierTo(
+                        ToCanvas(command.Control1),
+                        ToCanvas(command.Control2),
+                        ToCanvas(command.EndPoint));
+                    break;
                 case PathCommandType.Close:
                     builder.Close();
                     break;
@@ -1735,7 +2106,7 @@ static Path TransformGlyph(Path glyph, float scale, float baselineY)
     return builder.Build();
 }
 
-var font = TrueTypeFont.Load("font.ttf");
+var font = TrueTypeFont.Load("font.ttf"); // also accepts .otf, or a .ttc via the faceIndex overload
 var glyphIndex = font.GetGlyphIndex('A');
 var glyphOutline = font.GetGlyphOutline(glyphIndex);
 var scale = 48f / font.UnitsPerEm;

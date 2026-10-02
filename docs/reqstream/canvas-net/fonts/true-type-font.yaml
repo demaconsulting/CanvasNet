@@ -4,6 +4,10 @@
 # These requirements describe the design-level behavior of the TrueTypeFont unit.
 # cspell:ignore glyf sfnt cmap loca hmtx hhea maxp notdef
 # cspell:ignore codepoint codepoints subtable subtables subsetted renderable
+# cspell:ignore charsets ISOAdobe isoadobe
+# cspell:ignore bchar achar Agrave
+# cspell:ignore hflex flex1 hflex1
+# cspell:ignore misparse
 
 sections:
   - title: CanvasNet Requirements
@@ -65,13 +69,14 @@ sections:
                 tests:
                   - SfntContainer_Parse_UnrecognizedVersion_ThrowsInvalidDataException
 
-              - id: CanvasNet-Fonts-TrueTypeFont-RejectCffOutlines
+              - id: CanvasNet-Fonts-TrueTypeFont-RejectOttoWithoutCffTable
                 title: >-
-                  The TrueTypeFont class shall reject a font that declares CFF/OpenType outlines with
-                  InvalidDataException.
+                  The TrueTypeFont class shall reject a font that declares CFF/OpenType outlines but
+                  does not contain the required CFF table with InvalidDataException.
                 justification: |
-                  CFF-based outlines use an entirely different, unsupported outline representation;
-                  failing clearly here prevents silently producing empty or incorrect glyph outlines.
+                  An OTTO-flavored font without its required CFF table has no glyph outline data
+                  this class can read under either supported outline representation; failing
+                  clearly here prevents silently producing empty or incorrect glyph outlines.
                 tests:
                   - TrueTypeFont_Load_OttoFont_ThrowsInvalidDataException
                   - SfntContainer_Parse_OttoVersion_ThrowsInvalidDataException
@@ -336,6 +341,7 @@ sections:
                 tests:
                   - HmtxHheaReader_Parse_ExposesMetrics
                   - HmtxHheaReader_GetAdvanceWidth_TailGlyph_ReusesLastEntry
+                  - HmtxHheaReader_Parse_MissingTrailingLsbTail_ParsesSuccessfully
                   - TrueTypeFont_Load_EndToEnd_GlyphIndexOutlineAdvanceAndKerning
 
               - id: CanvasNet-Fonts-TrueTypeFont-AdvanceWidthValidation
@@ -391,3 +397,713 @@ sections:
                   - KernTable_MalformedPairCount_IsTolerant_ReturnsZero
                   - KernTable_UnsupportedFormat2Subtable_IsTolerant_ReturnsZero
                   - KernTable_CrossStreamCoverage_IsSkipped_ReturnsZero
+
+              - id: CanvasNet-Fonts-TrueTypeFont-LoadCffOutlines
+                title: >-
+                  The TrueTypeFont class shall load a CFF/OpenType (OTTO-flavored) font that
+                  contains a well-formed CFF table, exposing the same UnitsPerEm, Ascender,
+                  Descender, LineGap, GlyphCount, GetGlyphIndex, GetGlyphOutline, GetAdvanceWidth,
+                  and GetKerning behavior as a glyf-flavored font.
+                justification: |
+                  Callers must be able to use the exact same TrueTypeFont API against either
+                  supported outline flavor without any type-checking or flavor-specific handling of
+                  their own.
+                tests:
+                  - TrueTypeFont_Load_OttoFontWithCffTable_Succeeds
+                  - SfntContainer_Parse_OttoVersionWithCffTable_Succeeds
+                  - TrueTypeFont_RealSourceSans3OtfFont_RendersCffGlyphOutlineAsVisibleInk
+
+              - id: CanvasNet-Fonts-TrueTypeFont-RejectCffGlyphCountMismatch
+                title: >-
+                  The TrueTypeFont class shall reject a CFF-flavored font whose CFF CharStrings
+                  INDEX glyph count disagrees with the glyph-count table's declared GlyphCount with
+                  InvalidDataException.
+                justification: |
+                  A disagreement between the two glyph counts indicates the font's tables are
+                  internally inconsistent; failing clearly here prevents glyph indices resolved
+                  against one count from silently reading past or short of the other table's data.
+                tests:
+                  - TrueTypeFont_Load_CffGlyphCountMismatchesMaxp_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-RejectCidKeyedCff
+                title: >-
+                  The TrueTypeFont class shall reject a CID-keyed CFF font (one whose Top DICT
+                  declares a ROS operator) with InvalidDataException.
+                justification: |
+                  CID-keyed CFF data uses a different (FDArray/FDSelect-based) private-DICT and
+                  subroutine addressing scheme than the name-keyed layout this class supports;
+                  failing clearly here prevents misinterpreting glyph data under the wrong scheme.
+                tests:
+                  - CffTable_Parse_CidKeyedRos_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-CffTableParsing
+                title: >-
+                  The CffTable class shall parse a CFF table's Header, Name INDEX, Top DICT INDEX,
+                  String INDEX, Global Subr INDEX, Private DICT, Local Subr INDEX, and CharStrings
+                  INDEX, exposing a glyph count and per-glyph outline access, decoding each glyph
+                  lazily so that one corrupt glyph's charstring does not prevent any other glyph in
+                  the same font from decoding, and rejecting structurally malformed or truncated
+                  CFF data with InvalidDataException.
+                justification: |
+                  Every one of these CFF structures must be correctly located and decoded before any
+                  glyph outline can be extracted, and a single corrupt or malicious glyph must never
+                  be allowed to prevent every other (otherwise well-formed) glyph in the same font
+                  from being used, mirroring GlyfLocaReader's equivalent per-glyph isolation.
+                tests:
+                  - CffTable_Parse_WellFormedFont_ExposesGlyphCountAndOutlines
+                  - CffTable_Parse_NoPrivateDict_SucceedsWithNoLocalSubrs
+                  - CffTable_GetGlyphOutline_OutOfRangeIndex_ThrowsArgumentOutOfRangeException
+                  - CffTable_GetGlyphOutline_OneCorruptGlyph_DoesNotBreakOtherGlyphs
+                  - CffTable_Parse_MissingCharStringsOperator_ThrowsInvalidDataException
+                  - CffTable_Parse_UnsupportedMajorVersion_ThrowsInvalidDataException
+                  - CffTable_Parse_TruncatedTable_ThrowsInvalidDataException
+                  - CffTable_Parse_EmptyCharStringsIndex_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-CffStemHints
+                title: >-
+                  The CffCharstringInterpreter class shall interpret the hstem, vstem, hstemhm, and
+                  vstemhm operators to accumulate the glyph's total stem-hint count, and the
+                  hintmask and cntrmask operators to skip exactly one mask byte per every 8 stems
+                  (rounded up), including stems declared implicitly by operand pairs left on the
+                  stack before the first mask operator.
+                justification: |
+                  A hintmask/cntrmask operator's variable-length mask byte count depends entirely on
+                  the number of stem hints declared so far; miscounting it would misalign every
+                  subsequent operator's byte offset in the charstring, corrupting the rest of the
+                  glyph's decode.
+                tests:
+                  - CffCharstringInterpreter_HStem_VStem_AccumulateStemCountForHintMask
+                  - CffCharstringInterpreter_HintMask_ImplicitVStem_CountsTowardMaskBytes
+                  - CffCharstringInterpreter_HintMask_TruncatedMaskBytes_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-CffMoveTo
+                title: >-
+                  The CffCharstringInterpreter class shall interpret the rmoveto, hmoveto, and
+                  vmoveto operators to start a new subpath at a relative offset from the current
+                  point, correctly consuming an optional leading width operand only on the first
+                  stack-clearing operator in the charstring, and rejecting an operand count that
+                  does not match the operator's expected arity with InvalidDataException.
+                justification: |
+                  Every subpath in a Type 2 charstring begins with exactly one of these three
+                  moveto operators, and the first one may carry an extra leading glyph-width operand
+                  that must be recognized and discarded rather than misread as a coordinate.
+                tests:
+                  - CffCharstringInterpreter_RMoveTo_LineTo_Endchar_ProducesClosedContour
+                  - CffCharstringInterpreter_RMoveTo_WithLeadingWidth_IgnoresWidthOperand
+                  - CffCharstringInterpreter_HMoveTo_VMoveTo_MoveAlongSingleAxis
+                  - CffCharstringInterpreter_RMoveTo_WrongOperandCount_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-CffLineTo
+                title: >-
+                  The CffCharstringInterpreter class shall interpret the rlineto, hlineto, and
+                  vlineto operators to append straight line segments to the current subpath,
+                  alternating axis on each successive operand pair or value for hlineto/vlineto, and
+                  rejecting an operand count incompatible with the operator's expected arity with
+                  InvalidDataException.
+                justification: |
+                  Straight-line glyph segments are one of the two path segment kinds a Type 2
+                  charstring can produce; hlineto/vlineto's alternating-axis operand packing must be
+                  decoded correctly to reproduce the intended zig-zag polyline.
+                tests:
+                  - CffCharstringInterpreter_HLineTo_VLineTo_AlternateAxes
+                  - CffCharstringInterpreter_RLineTo_OddOperandCount_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-CffCurveTo
+                title: >-
+                  The CffCharstringInterpreter class shall interpret the rrcurveto, hhcurveto,
+                  vvcurveto, hvcurveto, and vhcurveto operators to append cubic Bezier curve
+                  segments to the current subpath, correctly applying each operator's own leading-
+                  operand and alternating-tangent conventions.
+                justification: |
+                  Curved glyph segments are the other of the two path segment kinds a Type 2
+                  charstring can produce; each curve operator packs its operands under a distinct
+                  convention that must be decoded exactly to reproduce the intended curve geometry.
+                tests:
+                  - CffCharstringInterpreter_RRCurveTo_ProducesCubicBezier
+                  - CffCharstringInterpreter_HHCurveTo_VVCurveTo_ProduceCubicBeziers
+                  - CffCharstringInterpreter_HHCurveTo_LeadingOperand_AppliesToFirstCurveOnly
+                  - CffCharstringInterpreter_HVCurveTo_VHCurveTo_AlternateStartTangent
+                  - CffCharstringInterpreter_HVCurveTo_TrailingOperand_SuppliesFinalAxisDelta
+
+              - id: CanvasNet-Fonts-TrueTypeFont-CffRCurveLineRLineCurve
+                title: >-
+                  The CffCharstringInterpreter class shall interpret the rcurveline operator as
+                  one or more rrcurveto-style curve segments followed by exactly one trailing
+                  relative line, and the rlinecurve operator as one or more relative line
+                  segments followed by exactly one trailing rrcurveto-style curve segment,
+                  rejecting an operand count other than 6n+2 (rcurveline) or 2n+6 (rlinecurve)
+                  for some n >= 1 with InvalidDataException.
+                justification: |
+                  rcurveline and rlinecurve let a font compactly combine a curve run with a
+                  single trailing line (or vice versa) in one operator rather than two, and are
+                  encountered in real-world CFF fonts; their combined-segment operand packing
+                  must be decoded exactly, including rejecting operand counts that are not of the
+                  required combined form.
+                tests:
+                  - CffCharstringInterpreter_RCurveLine_OneCurveThenLine_ProducesCurveAndLine
+                  - CffCharstringInterpreter_RCurveLine_TwoCurvesThenLine_ProducesCurvesAndLine
+                  - CffCharstringInterpreter_RCurveLine_WrongOperandCount_OneShort_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_RCurveLine_WrongOperandCount_OneOver_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_RLineCurve_OneLineThenCurve_ProducesLineAndCurve
+                  - CffCharstringInterpreter_RLineCurve_TwoLinesThenCurve_ProducesLinesAndCurve
+                  - CffCharstringInterpreter_RLineCurve_WrongOperandCount_OneShort_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_RLineCurve_WrongOperandCount_OneOver_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-CffFlex
+                title: >-
+                  The CffCharstringInterpreter class shall interpret the two-byte escape
+                  operators hflex (12 34), flex (12 35), hflex1 (12 36), and flex1 (12 37) as
+                  flex shortcuts producing two cubic Bezier curve segments per their own reduced-
+                  operand convention - including hflex1/flex1's forcing of their final point back
+                  onto the starting axis where an operand is omitted - and the dotsection escape
+                  operator (12 0) as a deprecated no-op that only clears the operand stack,
+                  each rejecting an operand count other than its own exact required count with
+                  InvalidDataException.
+                justification: |
+                  The flex shortcut operators and the deprecated dotsection operator are part of
+                  the Type 2 charstring operator set and are encountered in real-world CFF fonts;
+                  each flex variant's reduced-operand convention (including the forced-axis
+                  semantics of hflex1/flex1) must be decoded exactly to reproduce the intended
+                  curve geometry, and dotsection must have no effect on the resulting outline.
+                tests:
+                  - CffCharstringInterpreter_HFlex_ProducesTwoCubicBeziersWithHandComputedCoordinates
+                  - CffCharstringInterpreter_HFlex_WrongOperandCount_OneShort_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_HFlex_WrongOperandCount_OneOver_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_Flex_ProducesTwoCubicBeziersWithHandComputedCoordinates
+                  - CffCharstringInterpreter_Flex_WrongOperandCount_OneShort_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_Flex_WrongOperandCount_OneOver_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_HFlex1_ProducesTwoCubicBeziersWithHandComputedCoordinates
+                  - CffCharstringInterpreter_HFlex1_WrongOperandCount_OneShort_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_HFlex1_WrongOperandCount_OneOver_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_Flex1_DxDominant_ProducesHandComputedCoordinates
+                  - CffCharstringInterpreter_Flex1_DyDominant_ProducesHandComputedCoordinates
+                  - CffCharstringInterpreter_Flex1_WrongOperandCount_OneShort_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_Flex1_WrongOperandCount_OneOver_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_DotSection_IsNoOp_MatchesSameCharstringWithoutDotSection
+
+              - id: CanvasNet-Fonts-TrueTypeFont-CffSubroutines
+                title: >-
+                  The CffCharstringInterpreter class shall interpret the callsubr and callgsubr
+                  operators to invoke a local or global subroutine respectively (applying the
+                  correct bias of 107, 1131, or 32768 depending on that subroutine INDEX's own
+                  count) and the return operator to resume the calling charstring, bounding
+                  recursion by both call depth and total executed step count, and rejecting an
+                  out-of-range subroutine index with InvalidDataException.
+                justification: |
+                  Subroutine calls let a font compactly reuse common charstring fragments across
+                  many glyphs; the bias formula must be applied correctly for the interpreter to
+                  resolve the intended subroutine, and both depth and step bounding are required to
+                  prevent a malicious or corrupt font from causing unbounded recursion or looping.
+                tests:
+                  - CffCharstringInterpreter_CallSubr_AppliesBias_AndReturns
+                  - CffCharstringInterpreter_CallGSubr_AppliesGlobalBias
+                  - CffCharstringInterpreter_CallSubr_OutOfRangeIndex_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_CallSubr_ExceedsMaxDepth_ThrowsInvalidDataException
+                  - CffTable_Parse_WithLocalSubrs_DecodesGlyphUsingCallSubr
+                  - CffTable_Parse_WithGlobalSubrs_DecodesGlyphUsingCallGSubr
+
+              - id: CanvasNet-Fonts-TrueTypeFont-CffEndChar
+                title: >-
+                  The CffCharstringInterpreter class shall interpret the endchar operator to close
+                  and finish the glyph's outline, producing an empty path for a charstring
+                  consisting only of endchar, and shall reject any unexpected leftover operand
+                  count other than zero or the legacy 4-operand seac-style form with
+                  InvalidDataException.
+                justification: |
+                  Every charstring must end with endchar; an unexpected leftover operand count
+                  (other than the legacy seac-style form, handled separately) indicates a
+                  malformed charstring and must fail clearly rather than silently produce an
+                  incomplete or incorrect outline.
+                tests:
+                  - CffCharstringInterpreter_EmptyCharstring_ProducesEmptyPath
+                  - CffCharstringInterpreter_EndChar_UnexpectedOperandCount_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-CffSeacComposition
+                title: >-
+                  The CffCharstringInterpreter class shall interpret the legacy 4-operand
+                  ("seac-style") form of endchar - adx ady bchar achar endchar - by resolving
+                  bchar and achar as Adobe StandardEncoding codes to glyph names, resolving those
+                  names to glyph indices within the same font, decoding each resolved glyph's own
+                  outline, translating the accent glyph's outline by (adx, ady), and combining it
+                  with the base glyph's untranslated outline to form the composite glyph's final
+                  outline - with the composite's own advance width following the normal width
+                  convention independently of the base/accent glyphs' own widths - and shall
+                  reject with InvalidDataException when no resolver is supplied (including when a
+                  seac component glyph is itself defined using the seac-style form, which is not
+                  supported), when bchar/achar is not a valid StandardEncoding code, or when the
+                  resolved glyph name is not present in this font's charset.
+                justification: |
+                  The seac-style endchar form is a deprecated but still-encountered mechanism for
+                  composing accented characters (e.g. Agrave) from simpler base and accent glyphs
+                  already present in the same font; supporting it lets such fonts render their
+                  accented glyphs correctly instead of failing outright, while nested seac
+                  composition remains intentionally unsupported to bound recursion.
+                tests:
+                  - CffCharstringInterpreter_EndChar_SeacStyleFourOperands_NoResolverSupplied_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_EndChar_SeacStyleFourOperands_WithResolver_ComposesBaseAndTranslatedAccent
+                  - CffCharstringInterpreter_EndChar_SeacStyleFourOperands_ResolverOmittedOnComponentDecode_ThrowsInvalidDataException
+                  - CffTable_GetGlyphOutline_SeacStyleEndChar_ComposesBaseAndTranslatedAccent
+                  - CffTable_GetAdvanceWidth_SeacStyleEndChar_UsesOwnWidthNotComponentWidths
+                  - CffTable_GetGlyphOutline_SeacStyleEndChar_UndefinedStandardEncodingCode_ThrowsInvalidDataException
+                  - CffTable_GetGlyphOutline_SeacStyleEndChar_GlyphNameNotInCharset_ThrowsInvalidDataException
+                  - CffTable_GetGlyphOutline_SeacStyleEndChar_ComponentItselfSeacStyle_ThrowsInvalidDataException
+                  - CffStandardEncoding_CodeToGlyphName_HasExpectedLength
+                  - CffStandardEncoding_CodeToGlyphName_SpotChecksKnownCodes
+                  - CffStandardEncoding_CodeToGlyphName_UndefinedControlCodesAreNull
+
+              - id: CanvasNet-Fonts-TrueTypeFont-CffUnsupportedOperatorRejection
+                title: >-
+                  The CffCharstringInterpreter class shall reject any Type 2 charstring operator
+                  outside its supported operator set and any charstring that ends before its
+                  declared operator or operand data has been fully read, with
+                  InvalidDataException, while correctly decoding every supported
+                  fixed-point and integer operand encoding.
+                justification: |
+                  A fixed, well-defined operator subset keeps this interpreter's behavior fully
+                  specified and auditable; any operator or operand encoding outside that subset must
+                  fail clearly rather than be silently ignored or misinterpreted, and a truncated
+                  charstring must never be read past its own end.
+                tests:
+                  - CffCharstringInterpreter_UnsupportedOperator_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_UnsupportedEscapeOperator_ThrowsInvalidDataException
+                  - CffCharstringInterpreter_FixedPointOperand_DecodesCorrectly
+                  - CffCharstringInterpreter_TruncatedCharstring_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GetFaceCountPlainSfnt
+                title: >-
+                  The TrueTypeFont class shall report a face count of 1 via GetFaceCount for an
+                  ordinary (non-ttcf) single-face SFNT font, from both a stream and a file path,
+                  without parsing that font's full table directory.
+                justification: |
+                  Callers need a single, uniform way to discover a file's face count regardless of
+                  whether it is a collection, without paying the cost of a full font load just to
+                  find out there is only one face.
+                tests:
+                  - TrueTypeFont_GetFaceCount_PlainSfnt_ReturnsOne
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GetFaceCountTtc
+                title: >-
+                  The TrueTypeFont class shall report the actual number of faces declared by a
+                  ttcf container's header via GetFaceCount, from both a stream and a file path,
+                  parsing only the container's tag and face count rather than its full table
+                  directories.
+                justification: |
+                  Callers need to discover how many faces a TrueType Collection contains before
+                  deciding which face index (or indices) to load, as cheaply as possible.
+                tests:
+                  - TrueTypeFont_GetFaceCount_TtcContainer_ReturnsFaceCount
+                  - TrueTypeFont_GetFaceCount_Path_ReadsFromFile
+                  - SfntContainer_TryReadTtcHeader_WellFormedContainer_ReturnsFaceOffsets
+                  - SfntContainer_TryReadTtcHeader_EachFaceIndependentlyParsable
+
+              - id: CanvasNet-Fonts-TrueTypeFont-LoadTtcDefaultsFaceZero
+                title: >-
+                  The TrueTypeFont class shall transparently select face 0 when Load(Stream) or
+                  Load(string) is given a file whose tag is ttcf.
+                justification: |
+                  Most callers loading a collection only want its first (typically Regular-weight)
+                  face; defaulting to face 0 lets the existing Load overloads keep working unchanged
+                  against a ttcf file without requiring every caller to learn the new face-index API.
+                tests:
+                  - TrueTypeFont_Load_TtcContainer_DefaultsToFaceZero
+                  - SfntContainer_TryReadTtcHeader_NonTtcFont_ReturnsFalse
+
+              - id: CanvasNet-Fonts-TrueTypeFont-LoadTtcExplicitFaceIndex
+                title: >-
+                  The TrueTypeFont class shall load a specific face from a ttcf container given its
+                  zero-based face index via the new Load(Stream, int) and Load(string, int)
+                  overloads.
+                justification: |
+                  Callers that need a specific non-default face of a collection (for example a Bold
+                  or Italic variant sharing the same container) must be able to select it explicitly
+                  by index.
+                tests:
+                  - TrueTypeFont_Load_TtcContainer_ExplicitFaceIndex_SelectsThatFace
+                  - TrueTypeFont_Load_TtcContainer_Path_FaceIndex_ReadsFromFile
+                  - TrueTypeFont_RealTtcContainer_FaceOne_RendersCffGlyphOutlineAsVisibleInk
+                  - TrueTypeFont_RealTtcContainer_FaceZero_RendersGlyfGlyphOutlineAsVisibleInk
+
+              - id: CanvasNet-Fonts-TrueTypeFont-RejectFaceIndexOutOfRange
+                title: >-
+                  The TrueTypeFont class shall reject a faceIndex argument to Load(Stream, int) or
+                  Load(string, int) that is negative, or is not less than the file's own face count
+                  (1 for an ordinary SFNT font, or the ttcf header's declared face count for a
+                  collection), with ArgumentOutOfRangeException.
+                justification: |
+                  A face index outside the file's actual range does not identify any real face;
+                  rejecting it immediately with a precise exception prevents a caller from silently
+                  receiving the wrong face or an obscure downstream parsing failure.
+                tests:
+                  - TrueTypeFont_Load_TtcContainer_FaceIndexOutOfRange_ThrowsArgumentOutOfRangeException
+                  - TrueTypeFont_Load_NonTtcFont_FaceIndexOne_ThrowsArgumentOutOfRangeException
+                  - TrueTypeFont_Load_NegativeFaceIndex_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-FaceIndexZeroBehavesAsLoad
+                title: >-
+                  The TrueTypeFont class shall make Load(Stream, 0) and Load(string, 0) against an
+                  ordinary (non-ttcf) font behave identically to the existing Load(Stream) and
+                  Load(string) overloads.
+                justification: |
+                  Callers that always pass an explicit face index (for example because they do not
+                  know in advance whether a file is a collection) must get exactly the same result
+                  for an ordinary single-face font as they would from the original Load overloads.
+                tests:
+                  - TrueTypeFont_Load_NonTtcFont_FaceIndexZero_BehavesIdenticallyToLoad
+
+              - id: CanvasNet-Fonts-TrueTypeFont-RejectMalformedTtcHeader
+                title: >-
+                  The TrueTypeFont class shall reject a file whose ttcf header is truncated,
+                  declares zero fonts, or whose per-face offset table is truncated, with
+                  InvalidDataException.
+                justification: |
+                  A malformed ttcf header cannot reliably identify any real face's start offset;
+                  failing clearly here prevents reading a table directory from an arbitrary,
+                  attacker- or corruption-controlled byte offset.
+                tests:
+                  - TrueTypeFont_Load_MalformedTtcHeader_ThrowsInvalidDataException
+                  - SfntContainer_TryReadTtcHeader_TruncatedHeader_ThrowsInvalidDataException
+                  - SfntContainer_TryReadTtcHeader_ZeroFonts_ThrowsInvalidDataException
+                  - SfntContainer_TryReadTtcHeader_TruncatedFaceOffsetTable_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GetNameInfoResolvesTypographicNames
+                title: >-
+                  The TrueTypeFont class shall prefer the name table's typographic family
+                  (nameID 16) and typographic subfamily (nameID 17) records over the standard
+                  family (nameID 1) and subfamily (nameID 2) records when both are present, when
+                  resolving GetNameInfo's FamilyName and SubfamilyName.
+                justification: |
+                  The typographic name records exist specifically to carry the font's preferred
+                  display family/subfamily (for example distinguishing a full weight axis from the
+                  coarser legacy four-style model); callers asking for a font's name should get the
+                  more accurate typographic value whenever the font author has supplied one.
+                tests:
+                  - TrueTypeFont_GetNameInfo_TypographicNamesPresent_PrefersNameId16And17
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GetNameInfoFallsBackToStandardNames
+                title: >-
+                  The TrueTypeFont class shall fall back to the name table's standard family
+                  (nameID 1) and subfamily (nameID 2) records when resolving GetNameInfo's
+                  FamilyName and SubfamilyName if the typographic (nameID 16/17) records are
+                  absent.
+                justification: |
+                  Most real-world fonts (including every fixture bundled with this repository) only
+                  supply the standard name records; GetNameInfo must still resolve a usable
+                  family/subfamily name for them.
+                tests:
+                  - TrueTypeFont_GetNameInfo_TypographicNamesAbsent_FallsBackToNameId1And2
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GetNameInfoPlatformPreference
+                title: >-
+                  The TrueTypeFont class shall prefer a Windows platform (platformID 3) name
+                  record over a Macintosh platform (platformID 1) name record for the same nameID
+                  when both are present, when resolving GetNameInfo.
+                justification: |
+                  Windows platform records use Unicode (UTF-16BE) encoding, which unambiguously
+                  round-trips any codepoint, whereas Macintosh platform records use a legacy 8-bit
+                  encoding whose repertoire is far more limited; preferring the Windows record
+                  yields a more faithful string whenever both are available.
+                tests:
+                  - TrueTypeFont_GetNameInfo_WindowsAndMacintoshRecordsPresent_PrefersWindowsRecord
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GetNameInfoMacintoshFallback
+                title: >-
+                  The TrueTypeFont class shall resolve GetNameInfo's name strings from a
+                  Macintosh platform (platformID 1, encoding 0, Mac Roman) name record when no
+                  Windows platform record exists for that nameID.
+                justification: |
+                  Some fonts (particularly older ones) only supply Macintosh platform name records;
+                  GetNameInfo must still decode and expose their strings correctly rather than
+                  treating the font as nameless.
+                tests:
+                  - TrueTypeFont_GetNameInfo_OnlyMacintoshRecordPresent_ResolvesFromMacintoshRecord
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GetNameInfoMissingRecordTolerant
+                title: >-
+                  The TrueTypeFont class shall return null for any single FontNameInfo member
+                  (for example PostScriptName) whose corresponding nameID has no resolvable
+                  record in the name table, without affecting resolution of the other members.
+                justification: |
+                  Not every font supplies every name string (a PostScript name record in
+                  particular is optional); a missing individual record must not prevent the other,
+                  present name strings from being resolved and returned.
+                tests:
+                  - TrueTypeFont_GetNameInfo_PostScriptNameRecordMissing_ReturnsNullPostScriptName
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GetNameInfoNoNameTableTolerant
+                title: >-
+                  The TrueTypeFont class shall return a FontNameInfo with every member null,
+                  rather than throwing, when GetNameInfo is called on a font that has no name
+                  table at all.
+                justification: |
+                  The name table is optional per the OpenType specification; a font's absence of
+                  this table must degrade gracefully to an all-null result rather than being
+                  treated as a load-time or query-time error.
+                tests:
+                  - TrueTypeFont_GetNameInfo_NoNameTable_ReturnsAllNullFontNameInfo
+
+              - id: CanvasNet-Fonts-TrueTypeFont-GetNameInfoMalformedRecordTolerant
+                title: >-
+                  The TrueTypeFont class shall ignore an individual name table record whose
+                  declared string offset/length falls outside the table's own bounds, rather than
+                  throwing or discarding the entire name table's other well-formed records.
+                justification: |
+                  A single corrupted or truncated record must not prevent every other, independently
+                  well-formed record in the same name table from being resolved and returned.
+                tests:
+                  - TrueTypeFont_GetNameInfo_MalformedNameRecord_IgnoresRecordWithoutThrowing
+
+              - id: CanvasNet-Fonts-TrueTypeFont-StyleFromOs2FsSelection
+                title: >-
+                  The TrueTypeFont class shall derive IsBold true from the OS/2 table's
+                  fsSelection bold bit (bit 5) and IsItalic true from its italic bit (bit 0) when
+                  the OS/2 table is present and long enough to contain fsSelection.
+                justification: |
+                  The OS/2 table's fsSelection field is the OpenType specification's primary,
+                  purpose-built source for a font's bold/italic classification; callers need
+                  IsBold/IsItalic to reflect it directly.
+                tests:
+                  - TrueTypeFont_IsBold_Os2FsSelectionBoldBitSet_ReturnsTrue
+                  - TrueTypeFont_IsItalic_Os2FsSelectionItalicBitSet_ReturnsTrue
+
+              - id: CanvasNet-Fonts-TrueTypeFont-StyleFromOs2WeightClass
+                title: >-
+                  The TrueTypeFont class shall derive IsBold true from the OS/2 table's
+                  usWeightClass being at least 600 (Semibold or heavier) when fsSelection's own
+                  bold bit is not set.
+                justification: |
+                  Some fonts convey boldness only through usWeightClass rather than the
+                  fsSelection bold bit; a heavier weight class is itself evidence of a visually
+                  bold font and should also be reflected in IsBold.
+                tests:
+                  - TrueTypeFont_IsBold_Os2WeightClassAtLeast600_ReturnsTrue
+
+              - id: CanvasNet-Fonts-TrueTypeFont-StyleFromPostItalicAngle
+                title: >-
+                  The TrueTypeFont class shall derive IsItalic true from the post table's
+                  italicAngle being non-zero when the post table is present and long enough to
+                  contain italicAngle.
+                justification: |
+                  A non-zero slant angle recorded in the post table is itself direct, independent
+                  evidence that a font is italic/oblique, and should be reflected in IsItalic even
+                  when other sources are silent or absent.
+                tests:
+                  - TrueTypeFont_IsItalic_PostItalicAngleNonZero_ReturnsTrue
+
+              - id: CanvasNet-Fonts-TrueTypeFont-StyleFallsBackToMacStyleWhenOs2Absent
+                title: >-
+                  The TrueTypeFont class shall derive IsBold and IsItalic from the head table's
+                  macStyle bits 0 and 1 respectively when the OS/2 table is absent, and shall
+                  always OR the macStyle-derived booleans into IsBold/IsItalic even when OS/2 is
+                  present.
+                justification: |
+                  The head table's macStyle field is mandatory (head is always present), making it
+                  a reliable fallback when the optional OS/2 table is missing; because either
+                  source can independently indicate a bold or italic font, combining both with OR
+                  avoids a false negative when only one of the two sources reflects the truth.
+                tests:
+                  - TrueTypeFont_Style_Os2TableAbsent_FallsBackToHeadMacStyle
+
+              - id: CanvasNet-Fonts-TrueTypeFont-IsFixedPitchFromPostTable
+                title: >-
+                  The TrueTypeFont class shall derive IsFixedPitch true from the post table's
+                  isFixedPitch field being non-zero when the post table is present and long
+                  enough to contain that field.
+                justification: |
+                  The post table's isFixedPitch field is the OpenType specification's dedicated
+                  source for a font's fixed-pitch (monospace) classification.
+                tests:
+                  - TrueTypeFont_IsFixedPitch_PostIsFixedPitchNonZero_ReturnsTrue
+
+              - id: CanvasNet-Fonts-TrueTypeFont-IsFixedPitchAbsentPostTableTolerant
+                title: >-
+                  The TrueTypeFont class shall return IsFixedPitch false, rather than throwing,
+                  when the post table is absent or too short to contain isFixedPitch.
+                justification: |
+                  The post table is optional per the OpenType specification and has no reliable
+                  alternate source for fixed-pitch classification; a font lacking it must default
+                  to IsFixedPitch false rather than the query failing.
+                tests:
+                  - TrueTypeFont_IsFixedPitch_PostTableAbsent_ReturnsFalseWithoutThrowing
+
+              - id: CanvasNet-Fonts-TrueTypeFont-LoadType1FromSegments
+                title: >-
+                  The TrueTypeFont class shall load a classic PostScript Type 1 font program from
+                  its raw cleartext/eexec-encrypted byte segments (a caller-supplied Length1 and
+                  Length2, as typically extracted from a PDF Type1 font's own FontFile stream) and
+                  a caller-supplied codepoint-to-glyph-name encoding, exposing GlyphCount,
+                  GetGlyphIndex, GetGlyphOutline, and GetAdvanceWidth behavior equivalent to a
+                  glyf/CFF-flavored font, and shall reject malformed or truncated Type 1 font
+                  program data, or a glyph charstring using an unsupported operator (including
+                  seac), with InvalidDataException.
+                justification: |
+                  A PDF Type1 font's embedded FontFile stream carries a Type 1 font program as raw
+                  Length1/Length2-delimited byte segments with no SFNT/OpenType wrapper of its
+                  own; a caller already holding those segments and the font's own text encoding
+                  must be able to load and query it through the same TrueTypeFont API used for
+                  every other supported outline flavor.
+                tests:
+                  - TrueTypeFont_LoadType1_WellFormedProgram_ExposesGlyphsAndMetrics
+                  - TrueTypeFont_LoadType1_NegativeLength1_ThrowsInvalidDataException
+                  - TrueTypeFont_LoadType1_Length2ExceedsStreamBounds_ThrowsInvalidDataException
+                  - TrueTypeFont_LoadType1_NullStream_ThrowsArgumentNullException
+                  - TrueTypeFont_LoadType1_NullEncoding_ThrowsArgumentNullException
+                  - Type1Table_Parse_WellFormedFont_ExposesGlyphCountAndOutlines
+                  - Type1Table_Parse_NotdefNotFirst_ReindexesToGlyphZero
+                  - Type1Table_GetAdvanceWidth_ReturnsHsbwWidth
+                  - Type1Table_TryGetGlyphIndex_UnknownName_ReturnsFalse
+                  - Type1Table_GetGlyphOutline_OutOfRangeIndex_ThrowsArgumentOutOfRangeException
+                  - Type1Table_Parse_WithLocalSubrs_DecodesGlyphUsingCallSubr
+                  - Type1Table_Parse_VariousProcNameTokens_ScannerIsProcedureNameAgnostic
+                  - Type1Table_Parse_CustomLenIv_DecodesCorrectly
+                  - Type1Table_Parse_SeacOperator_ThrowsInvalidDataException
+                  - Type1Table_Parse_MissingCharStrings_ThrowsInvalidDataException
+                  - Type1Table_Parse_NegativeLength_ThrowsInvalidDataException
+                  - Type1Table_Parse_LengthsExceedFileBounds_ThrowsInvalidDataException
+                  - Type1Table_Parse_EmptyCharStrings_ThrowsInvalidDataException
+                  - Type1Table_Parse_CharStringsLengthNearIntMaxValue_ThrowsInvalidDataException
+                  - Type1Table_Parse_TrailingBoilerplateAfterCharStringsEnd_DoesNotMisparse
+                  - Type1CharstringInterpreter_EmptyCharstring_ProducesEmptyPathAndZeroWidth
+                  - Type1CharstringInterpreter_Hsbw_CapturesWidthAndSideBearing
+                  - Type1CharstringInterpreter_Sbw_CapturesWidthAndBothSideBearings
+                  - Type1CharstringInterpreter_RLineTo_HLineTo_VLineTo_ProduceLines
+                  - Type1CharstringInterpreter_RRCurveTo_ProducesCubicBezier
+                  - Type1CharstringInterpreter_VhCurveTo_HvCurveTo_AlternateStartTangent
+                  - Type1CharstringInterpreter_ClosePath_ClosesSubpath
+                  - Type1CharstringInterpreter_HStem_VStem_Hstem3_Vstem3_Dotsection_ConsumedWithoutError
+                  - Type1CharstringInterpreter_CallSubr_Return_NoBias_DirectIndex
+                  - Type1CharstringInterpreter_CallSubr_OutOfRangeIndex_ThrowsInvalidDataException
+                  - Type1CharstringInterpreter_CallSubr_ExceedsMaxDepth_ThrowsInvalidDataException
+                  - Type1CharstringInterpreter_Div_ResultFeedsSubsequentOperator
+                  - Type1CharstringInterpreter_Flex_EndToEnd_ProducesTwoRealCubicBeziers
+                  - Type1CharstringInterpreter_HintReplacement_OtherSubr3_IsTransparentPassThrough
+                  - Type1CharstringInterpreter_Seac_ThrowsInvalidDataException
+                  - Type1CharstringInterpreter_UnsupportedOperator_ThrowsInvalidDataException
+                  - Type1CharstringInterpreter_UnsupportedEscapeOperator_ThrowsInvalidDataException
+                  - Type1CharstringInterpreter_CallOtherSubr_UnsupportedIndex_ThrowsInvalidDataException
+                  - Type1CharstringInterpreter_RLineTo_WrongOperandCount_ThrowsInvalidDataException
+                  - Type1CharstringInterpreter_FiveByteInteger_DecodesAsPlainInt32
+                  - Type1CharstringInterpreter_TruncatedCharstring_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-LoadType1Outlines
+                title: >-
+                  The TrueTypeFont class shall auto-detect a standalone classic PostScript Type 1
+                  font program framed as either a PFB (binary segment-header) or PFA
+                  (plain-ASCII, hex-encoded encrypted region) file passed to Load, parsing it using
+                  a small, curated, built-in codepoint-to-glyph-name encoding covering common
+                  Latin/ASCII characters as its default encoding, and shall report GetFaceCount as
+                  1 and reject a face index other than 0 for such a file, and shall continue to
+                  reject any input recognized as neither a supported SFNT/OpenType font nor a
+                  PFB/PFA-framed Type 1 font program with InvalidDataException.
+                justification: |
+                  A standalone .pfb/.pfa font file (as opposed to a PDF-embedded FontFile stream)
+                  has no caller-supplied Length1/Length2 segmentation or text encoding available;
+                  Load must still be able to recognize and load it directly, exactly as it already
+                  does for SFNT/OpenType/TrueType Collection files, without requiring the caller to
+                  pre-parse the file's own framing or supply an encoding of their own.
+                tests:
+                  - TrueTypeFont_Load_StandalonePfbFile_AutoDetectsAndRoundTrips
+                  - TrueTypeFont_Load_StandalonePfaFile_AutoDetectsAndRoundTrips
+                  - TrueTypeFont_Load_StandalonePfbFile_Path_ReadsFromFile
+                  - TrueTypeFont_GetFaceCount_StandaloneType1File_ReturnsOne
+                  - TrueTypeFont_Load_StandaloneType1File_FaceIndexOne_ThrowsArgumentOutOfRangeException
+                  - TrueTypeFont_Load_NonType1NonSfntGarbage_ThrowsInvalidDataException
+                  - Type1PfbReader_TrySniff_RecognizesPfbHeader
+                  - Type1PfbReader_TrySniff_NonPfbData_ReturnsFalse
+                  - Type1PfbReader_Read_TwoSegmentFile_ReassemblesLength1AndLength2
+                  - Type1PfbReader_Read_MultiSegmentFile_ConcatenatesLikeTypedSegments
+                  - Type1PfbReader_Read_TrailingAsciiSegment_DiscardsItAsTrailer
+                  - Type1PfbReader_Read_NoBinarySegment_ThrowsInvalidDataException
+                  - Type1PfbReader_Read_MissingEndOfFileMarker_ThrowsInvalidDataException
+                  - Type1PfbReader_Read_UnrecognizedSegmentType_ThrowsInvalidDataException
+                  - Type1PfbReader_Read_TruncatedHeader_ThrowsInvalidDataException
+                  - Type1PfbReader_Read_TruncatedPayload_ThrowsInvalidDataException
+                  - Type1PfbReader_Read_MissingSegmentMarkerByte_ThrowsInvalidDataException
+                  - Type1PfaReader_TrySniff_RecognizesPercentBangPrefix
+                  - Type1PfaReader_TrySniff_NonPfaData_ReturnsFalse
+                  - Type1PfaReader_Read_WellFormedFile_ReassemblesLength1AndLength2
+                  - Type1PfaReader_Read_MultiLineWhitespaceWrappedHex_ToleratesEmbeddedWhitespace
+                  - Type1PfaReader_Read_TrailingZeroPadding_IsTrimmed
+                  - Type1PfaReader_Read_MissingEexecKeyword_ThrowsInvalidDataException
+                  - Type1PfaReader_Read_OddHexDigitCount_ThrowsInvalidDataException
+                  - Type1PfaReader_Read_NonHexByteBeforeAnyHexDigit_ThrowsInvalidDataException
+                  - Type1PfaReader_Read_ZeroBytesAfterTrim_ThrowsInvalidDataException
+                  - Type1PfaReader_Read_LowercaseAndUppercaseHexDigits_AreBothAccepted
+
+              - id: CanvasNet-Fonts-TrueTypeFont-CffCharsetResolution
+                title: >-
+                  The CffTable class shall resolve a CFF Top DICT's charset operator (an absent
+                  operator, or an explicit value of 0, both meaning the predefined ISOAdobe/
+                  Standard charset, assigning each glyph's SID equal to its own glyph index) to a
+                  glyph-name-to-glyph-index map using the CFF Standard Strings (SID 0-390) and the
+                  font's own String INDEX (SID 391 and above), and shall support a custom charset
+                  table (charset operator value greater than 2, a byte offset into the CFF table)
+                  in formats 0 (a flat array of 2-byte SIDs), 1 (ranges of a 2-byte first SID plus
+                  a 1-byte count of following SIDs), and 2 (the same ranges with a 2-byte count),
+                  rejecting any other format byte with InvalidDataException; the predefined Expert
+                  (charset operator value 1) and ExpertSubset (value 2) charsets are recognized but
+                  not resolved to glyph names (TryGetGlyphIndex returns false for every glyph name
+                  rather than throwing), since no caller currently needs Expert-encoding glyph
+                  names.
+                justification: |
+                  A PDF simple font's /Encoding maps character codes to glyph names (for example
+                  "A", "space"), not glyph indices directly; the embedded Type1C/CFF program's own
+                  charset is the only way to resolve those names back to glyph indices, mirroring
+                  Type1Table's own name-to-glyph-index resolution for classic Type 1 programs.
+                tests:
+                  - CffTable_Parse_AbsentCharset_DefaultsToIsoAdobeAndResolvesByName
+                  - CffTable_Parse_PredefinedIsoAdobeCharsetId_MatchesAbsentCharset
+                  - CffTable_Parse_PredefinedExpertOrExpertSubsetCharset_NeverResolvesByNameButNeverThrows
+                  - CffTable_Parse_CustomCharsetFormat0_ResolvesEachGlyphBySid
+                  - CffTable_Parse_CustomCharsetFormat1_ResolvesRangesOfGlyphs
+                  - CffTable_Parse_CustomCharsetFormat2_ResolvesRangesWithTwoByteNLeft
+                  - CffTable_Parse_CustomCharsetUnsupportedFormat_ThrowsInvalidDataException
+                  - CffTable_Parse_CharsetOffsetOutOfBounds_ThrowsInvalidDataException
+                  - CffTable_Parse_CustomStringIndex_ResolvesCustomGlyphNameBySid
+                  - CffTable_StandardStrings_HasExpectedLengthAndSpotCheckedEntries
+
+              - id: CanvasNet-Fonts-TrueTypeFont-CffWidthResolution
+                title: >-
+                  The CffTable class shall parse a CFF Private DICT's defaultWidthX (operator 20)
+                  and nominalWidthX (operator 21) operators, and the CffCharstringInterpreter class
+                  shall return each glyph's own advance width alongside its outline (the Type 2
+                  charstring's optional leading width operand, present on the first stack-clearing
+                  operator of a charstring, resolving to nominalWidthX plus that operand's value
+                  when present, else defaultWidthX), exposed as GetAdvanceWidth on CffTable.
+                justification: |
+                  A glyph's own advance width - not merely its outline - is required metrics data;
+                  the Type 2 charstring format encodes it as an optional leading operand rather
+                  than a separate structure, so decoding it correctly requires surfacing it from
+                  the same charstring interpretation pass that already decodes the outline.
+                tests:
+                  - CffCharstringInterpreter_Decode_RMoveToWithLeadingWidth_ReturnsNominalWidthXPlusDelta
+                  - CffCharstringInterpreter_Decode_NoLeadingWidth_ReturnsDefaultWidthX
+                  - CffCharstringInterpreter_Decode_HStemWithLeadingWidth_ReturnsNominalWidthXPlusDelta
+                  - CffCharstringInterpreter_Decode_EndCharWithLeadingWidth_ReturnsNominalWidthXPlusDelta
+                  - CffCharstringInterpreter_Decode_DefaultWidthParameters_AreBothZero
+                  - CffTable_GetAdvanceWidth_NoWidthOperand_UsesDefaultWidthX
+                  - CffTable_GetAdvanceWidth_WithWidthOperand_UsesNominalWidthXPlusDelta
+                  - CffTable_GetAdvanceWidth_OutOfRangeIndex_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-LoadType1C
+                title: >-
+                  The TrueTypeFont class shall load a bare Type1C/CFF font program (a raw CFF
+                  table with no SFNT/OpenType wrapper, as embedded via a PDF Type1 font's
+                  FontDescriptor/FontFile3 stream) from a stream and a caller-supplied
+                  codepoint-to-glyph-name encoding, exposing GlyphCount, GetGlyphIndex,
+                  GetGlyphOutline, and GetAdvanceWidth behavior equivalent to every other
+                  supported outline flavor, using a fixed 1000-unit em square, and shall reject
+                  malformed CFF table data, or a CID-keyed (ROS-declaring) CFF program, with
+                  InvalidDataException.
+                justification: |
+                  A PDF Type1 font's FontDescriptor may declare only a FontFile3 stream holding a
+                  bare Type1C/CFF program with no SFNT/OpenType wrapper of its own; a caller
+                  already holding that stream and the font's own text encoding must be able to
+                  load and query it through the same TrueTypeFont API used for every other
+                  supported outline flavor, mirroring LoadType1's own classic Type 1 program
+                  support.
+                tests:
+                  - TrueTypeFont_LoadType1C_WellFormedCff_ExposesGlyphsAndMetrics
+                  - TrueTypeFont_LoadType1C_NullStream_ThrowsArgumentNullException
+                  - TrueTypeFont_LoadType1C_NullEncoding_ThrowsArgumentNullException
+                  - TrueTypeFont_LoadType1C_MalformedCff_ThrowsInvalidDataException
+                  - TrueTypeFont_LoadType1C_CidKeyedCff_ThrowsInvalidDataException

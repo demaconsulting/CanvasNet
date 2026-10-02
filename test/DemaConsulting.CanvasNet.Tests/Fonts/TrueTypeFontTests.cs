@@ -2,6 +2,7 @@
 // cspell:ignore maxp Maxp notdef codepoint codepoints subtable subtables subsetted
 // cspell:ignore subsetting PPEM OTTO
 using DemaConsulting.CanvasNet.Fonts;
+using DemaConsulting.CanvasNet.Geometry;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 
 namespace DemaConsulting.CanvasNet.Tests.Fonts;
@@ -454,5 +455,952 @@ public class TrueTypeFontTests
         // Act/Assert: loading the truncated stream throws
         using var ms438 = new MemoryStream(truncated);
         Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(ms438));
+    }
+
+    /// <summary>
+    ///     Builds a minimal, well-formed synthetic CFF/OTTO font with a single glyph, glyph 0
+    ///     being a 10x10 square outline via a Type 2 charstring.
+    /// </summary>
+    private static byte[] BuildWellFormedCffFont()
+    {
+        var cs = new List<byte>();
+        SyntheticFontBuilder.WriteCharstringNumber(cs, 0);
+        SyntheticFontBuilder.WriteCharstringNumber(cs, 0);
+        SyntheticFontBuilder.WriteCharstringOperator(cs, 21); // rmoveto
+        SyntheticFontBuilder.WriteCharstringNumber(cs, 10);
+        SyntheticFontBuilder.WriteCharstringNumber(cs, 0);
+        SyntheticFontBuilder.WriteCharstringNumber(cs, 0);
+        SyntheticFontBuilder.WriteCharstringNumber(cs, 10);
+        SyntheticFontBuilder.WriteCharstringNumber(cs, -10);
+        SyntheticFontBuilder.WriteCharstringNumber(cs, 0);
+        SyntheticFontBuilder.WriteCharstringOperator(cs, 5); // rlineto
+        SyntheticFontBuilder.WriteCharstringOperator(cs, 14); // endchar
+
+        var cff = SyntheticFontBuilder.Cff([[.. cs]]);
+
+        return new SyntheticFontBuilder()
+            .WithSfntVersion(0x4F54544F) // 'OTTO'
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(1, version: 0x00005000))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 50, 1))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([500]))
+            .AddTable("CFF ", cff)
+            .Build();
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load OttoFontWithCffTable Succeeds.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_OttoFontWithCffTable_Succeeds()
+    {
+        // Arrange: build a well-formed synthetic OTTO/CFF font
+        var data = BuildWellFormedCffFont();
+
+        // Act: load the font and decode its single glyph's outline
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+        var outline = font.GetGlyphOutline(0);
+
+        // Assert: the font loads successfully and the CFF outline is decoded
+        Assert.Equal(1, font.GlyphCount);
+        Assert.Single(outline.Subpaths);
+        Assert.Contains(outline.Subpaths[0].Commands, c => c.Type == PathCommandType.LineTo);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load CffGlyphCountMismatchesMaxp ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_CffGlyphCountMismatchesMaxp_ThrowsInvalidDataException()
+    {
+        // Arrange: build an OTTO/CFF font whose maxp.numGlyphs (2) does not match the CFF
+        // CharStrings INDEX's actual glyph count (1)
+        var cs = new List<byte>();
+        SyntheticFontBuilder.WriteCharstringOperator(cs, 14); // endchar
+        var cff = SyntheticFontBuilder.Cff([[.. cs]]);
+
+        var data = new SyntheticFontBuilder()
+            .WithSfntVersion(0x4F54544F)
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(2, version: 0x00005000))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 50, 2))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([500, 500]))
+            .AddTable("CFF ", cff)
+            .Build();
+
+        // Act/Assert: loading the font with the mismatched glyph count throws
+        using var ms = new MemoryStream(data);
+        Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(ms));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont GetFaceCount PlainSfnt ReturnsOne.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetFaceCount_PlainSfnt_ReturnsOne()
+    {
+        // Arrange: a well-formed, single-face (non-collection) font
+        var data = BuildWellFormedFont();
+
+        // Act: query the face count
+        using var ms = new MemoryStream(data);
+        var faceCount = TrueTypeFont.GetFaceCount(ms);
+
+        // Assert: an ordinary SFNT font always reports exactly one face
+        Assert.Equal(1, faceCount);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont GetFaceCount TtcContainer ReturnsFaceCount.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetFaceCount_TtcContainer_ReturnsFaceCount()
+    {
+        // Arrange: a synthetic 2-face ttcf container wrapping two independent, well-formed fonts
+        var ttc = SyntheticFontBuilder.Ttc([BuildWellFormedFont(), BuildWellFormedCffFont()]);
+
+        // Act: query the face count
+        using var ms = new MemoryStream(ttc);
+        var faceCount = TrueTypeFont.GetFaceCount(ms);
+
+        // Assert: both faces are reported
+        Assert.Equal(2, faceCount);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont GetFaceCount Path ReadsFromFile.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetFaceCount_Path_ReadsFromFile()
+    {
+        // Arrange: write a well-formed font to a temporary file
+        var data = BuildWellFormedFont();
+        var path = System.IO.Path.GetTempFileName();
+        try
+        {
+            File.WriteAllBytes(path, data);
+
+            // Act: query the face count from the file path
+            var faceCount = TrueTypeFont.GetFaceCount(path);
+
+            // Assert: an ordinary SFNT font always reports exactly one face
+            Assert.Equal(1, faceCount);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load TtcContainer DefaultsToFaceZero.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_TtcContainer_DefaultsToFaceZero()
+    {
+        // Arrange: a synthetic 2-face ttcf container; face 0 is the TrueType font, face 1 is CFF
+        var ttc = SyntheticFontBuilder.Ttc([BuildWellFormedFont(), BuildWellFormedCffFont()]);
+
+        // Act: load without an explicit face index
+        using var ms = new MemoryStream(ttc);
+        var font = TrueTypeFont.Load(ms);
+
+        // Assert: face 0 (the TrueType font, GlyphCount 2) was selected, not face 1
+        Assert.Equal(2, font.GlyphCount);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load TtcContainer ExplicitFaceIndex SelectsThatFace.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_TtcContainer_ExplicitFaceIndex_SelectsThatFace()
+    {
+        // Arrange: a synthetic 2-face ttcf container; face 0 is the TrueType font, face 1 is CFF
+        var ttc = SyntheticFontBuilder.Ttc([BuildWellFormedFont(), BuildWellFormedCffFont()]);
+
+        // Act: load face 1 explicitly
+        using var ms = new MemoryStream(ttc);
+        var font = TrueTypeFont.Load(ms, 1);
+
+        // Assert: face 1 (the CFF font, GlyphCount 1) was selected
+        Assert.Equal(1, font.GlyphCount);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load TtcContainer FaceIndexOutOfRange ThrowsArgumentOutOfRangeException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_TtcContainer_FaceIndexOutOfRange_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange: a synthetic 2-face ttcf container
+        var ttc = SyntheticFontBuilder.Ttc([BuildWellFormedFont(), BuildWellFormedCffFont()]);
+
+        // Act/Assert: an out-of-range face index throws
+        using var ms = new MemoryStream(ttc);
+        Assert.Throws<ArgumentOutOfRangeException>(() => TrueTypeFont.Load(ms, 2));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load NonTtcFont FaceIndexOne ThrowsArgumentOutOfRangeException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_NonTtcFont_FaceIndexOne_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange: an ordinary, single-face (non-collection) font
+        var data = BuildWellFormedFont();
+
+        // Act/Assert: requesting face index 1 on a single-face file throws
+        using var ms = new MemoryStream(data);
+        Assert.Throws<ArgumentOutOfRangeException>(() => TrueTypeFont.Load(ms, 1));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load NonTtcFont FaceIndexZero BehavesIdenticallyToLoad.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_NonTtcFont_FaceIndexZero_BehavesIdenticallyToLoad()
+    {
+        // Arrange: an ordinary, single-face (non-collection) font
+        var data = BuildWellFormedFont();
+
+        // Act: load with explicit face index 0
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms, 0);
+
+        // Assert: behaves identically to the parameterless Load
+        Assert.Equal(1000, font.UnitsPerEm);
+        Assert.Equal(2, font.GlyphCount);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load TtcContainer Path FaceIndex ReadsFromFile.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_TtcContainer_Path_FaceIndex_ReadsFromFile()
+    {
+        // Arrange: write a synthetic 2-face ttcf container to a temporary file
+        var ttc = SyntheticFontBuilder.Ttc([BuildWellFormedFont(), BuildWellFormedCffFont()]);
+        var path = System.IO.Path.GetTempFileName();
+        try
+        {
+            File.WriteAllBytes(path, ttc);
+
+            // Act: load face 1 explicitly from the file path
+            var font = TrueTypeFont.Load(path, 1);
+
+            // Assert: face 1 (the CFF font, GlyphCount 1) was selected
+            Assert.Equal(1, font.GlyphCount);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load NegativeFaceIndex ThrowsArgumentOutOfRangeException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_NegativeFaceIndex_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange: an ordinary, well-formed font
+        var data = BuildWellFormedFont();
+
+        // Act/Assert: a negative face index throws
+        using var ms = new MemoryStream(data);
+        Assert.Throws<ArgumentOutOfRangeException>(() => TrueTypeFont.Load(ms, -1));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load MalformedTtcHeader ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_MalformedTtcHeader_ThrowsInvalidDataException()
+    {
+        // Arrange: a 'ttcf'-tagged file too short to contain its declared face offset table
+        var buf = new List<byte>();
+        SyntheticFontBuilder.WriteUInt32(buf, 0x74746366); // 'ttcf'
+        SyntheticFontBuilder.WriteUInt16(buf, 1);
+        SyntheticFontBuilder.WriteUInt16(buf, 0);
+        SyntheticFontBuilder.WriteUInt32(buf, 2); // numFonts = 2, but no offsets follow
+
+        // Act/Assert: loading the malformed ttcf header throws
+        using var ms = new MemoryStream(buf.ToArray());
+        Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(ms));
+    }
+
+    /// <summary>
+    ///     Builds a well-formed synthetic font (as <see cref="BuildWellFormedFont"/>) that also
+    ///     carries the given optional <c>name</c>/<c>OS/2</c>/<c>post</c> tables and
+    ///     <c>head.macStyle</c> value, for exercising <see cref="TrueTypeFont.GetNameInfo"/> and
+    ///     the <see cref="TrueTypeFont.IsBold"/>/<see cref="TrueTypeFont.IsItalic"/>/
+    ///     <see cref="TrueTypeFont.IsFixedPitch"/> properties end to end.
+    /// </summary>
+    private static byte[] BuildFontWithNameAndStyle(
+        byte[]? name = null, byte[]? os2 = null, byte[]? post = null, int macStyle = 0)
+    {
+        var glyph = SyntheticFontBuilder.SimpleGlyph(
+        [
+            [(0, 0, true), (10, 0, true), (10, 10, true), (0, 10, true)]
+        ]);
+
+        var builder = new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0, macStyle))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(1))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 50, 1))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([500]))
+            .AddTable("loca", SyntheticFontBuilder.Loca([glyph.Length], longFormat: false))
+            .AddTable("glyf", glyph);
+
+        if (name != null)
+        {
+            builder.AddTable("name", name);
+        }
+
+        if (os2 != null)
+        {
+            builder.AddTable("OS/2", os2);
+        }
+
+        if (post != null)
+        {
+            builder.AddTable("post", post);
+        }
+
+        return builder.Build();
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont GetNameInfo TypographicNamesPresent PrefersNameId16And17.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetNameInfo_TypographicNamesPresent_PrefersNameId16And17()
+    {
+        // Arrange: a font whose name table has both standard (1/2) and typographic (16/17) names
+        var name = SyntheticFontBuilder.Name(
+        [
+            new SyntheticFontBuilder.NameRecord(3, 1, 0x0409, 1, "Standard Family"),
+            new SyntheticFontBuilder.NameRecord(3, 1, 0x0409, 2, "Standard Subfamily"),
+            new SyntheticFontBuilder.NameRecord(3, 1, 0x0409, 16, "Typographic Family"),
+            new SyntheticFontBuilder.NameRecord(3, 1, 0x0409, 17, "Typographic Subfamily"),
+        ]);
+        var data = BuildFontWithNameAndStyle(name: name);
+
+        // Act: load the font and resolve its name info
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+        var info = font.GetNameInfo();
+
+        // Assert: the typographic names are preferred over the standard names
+        Assert.Equal("Typographic Family", info.FamilyName);
+        Assert.Equal("Typographic Subfamily", info.SubfamilyName);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont GetNameInfo TypographicNamesAbsent FallsBackToNameId1And2.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetNameInfo_TypographicNamesAbsent_FallsBackToNameId1And2()
+    {
+        // Arrange: a font whose name table has only standard (1/2) names
+        var name = SyntheticFontBuilder.Name(
+        [
+            new SyntheticFontBuilder.NameRecord(3, 1, 0x0409, 1, "Standard Family"),
+            new SyntheticFontBuilder.NameRecord(3, 1, 0x0409, 2, "Standard Subfamily"),
+        ]);
+        var data = BuildFontWithNameAndStyle(name: name);
+
+        // Act: load the font and resolve its name info
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+        var info = font.GetNameInfo();
+
+        // Assert: the standard names are resolved
+        Assert.Equal("Standard Family", info.FamilyName);
+        Assert.Equal("Standard Subfamily", info.SubfamilyName);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont GetNameInfo WindowsAndMacintoshRecordsPresent PrefersWindowsRecord.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetNameInfo_WindowsAndMacintoshRecordsPresent_PrefersWindowsRecord()
+    {
+        // Arrange: a font whose name table has both a Windows and a Macintosh record for nameID 1
+        var name = SyntheticFontBuilder.Name(
+        [
+            new SyntheticFontBuilder.NameRecord(3, 1, 0x0409, 1, "Windows Family"),
+            new SyntheticFontBuilder.NameRecord(1, 0, 0, 1, "Macintosh Family"),
+        ]);
+        var data = BuildFontWithNameAndStyle(name: name);
+
+        // Act: load the font and resolve its name info
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+        var info = font.GetNameInfo();
+
+        // Assert: the Windows record is preferred
+        Assert.Equal("Windows Family", info.FamilyName);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont GetNameInfo OnlyMacintoshRecordPresent ResolvesFromMacintoshRecord.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetNameInfo_OnlyMacintoshRecordPresent_ResolvesFromMacintoshRecord()
+    {
+        // Arrange: a font whose name table has only a Macintosh record for nameID 1
+        var name = SyntheticFontBuilder.Name(
+        [
+            new SyntheticFontBuilder.NameRecord(1, 0, 0, 1, "Macintosh Only Family"),
+        ]);
+        var data = BuildFontWithNameAndStyle(name: name);
+
+        // Act: load the font and resolve its name info
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+        var info = font.GetNameInfo();
+
+        // Assert: the Macintosh record resolves as a fallback
+        Assert.Equal("Macintosh Only Family", info.FamilyName);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont GetNameInfo PostScriptNameRecordMissing ReturnsNullPostScriptName.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetNameInfo_PostScriptNameRecordMissing_ReturnsNullPostScriptName()
+    {
+        // Arrange: a font whose name table has a family name but no PostScript name (nameID 6)
+        var name = SyntheticFontBuilder.Name(
+        [
+            new SyntheticFontBuilder.NameRecord(3, 1, 0x0409, 1, "Some Family"),
+        ]);
+        var data = BuildFontWithNameAndStyle(name: name);
+
+        // Act: load the font and resolve its name info
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+        var info = font.GetNameInfo();
+
+        // Assert: the present field resolves, and the missing field is null
+        Assert.Equal("Some Family", info.FamilyName);
+        Assert.Null(info.PostScriptName);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont GetNameInfo NoNameTable ReturnsAllNullFontNameInfo.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetNameInfo_NoNameTable_ReturnsAllNullFontNameInfo()
+    {
+        // Arrange: a well-formed font with no name table at all
+        var data = BuildFontWithNameAndStyle();
+
+        // Act: load the font and resolve its name info
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+        var info = font.GetNameInfo();
+
+        // Assert: every field is null
+        Assert.Equal(default, info);
+        Assert.Null(info.FamilyName);
+        Assert.Null(info.SubfamilyName);
+        Assert.Null(info.FullName);
+        Assert.Null(info.PostScriptName);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont GetNameInfo MalformedNameRecord IgnoresRecordWithoutThrowing.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetNameInfo_MalformedNameRecord_IgnoresRecordWithoutThrowing()
+    {
+        // Arrange: hand-build a name table with one well-formed record and one record whose
+        // string bytes fall outside the table's bounds
+        var buf = new List<byte>();
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // format
+        SyntheticFontBuilder.WriteUInt16(buf, 2); // count
+        SyntheticFontBuilder.WriteUInt16(buf, 6 + 2 * 12); // stringOffset
+
+        SyntheticFontBuilder.WriteUInt16(buf, 3); // platformID
+        SyntheticFontBuilder.WriteUInt16(buf, 1); // encodingID
+        SyntheticFontBuilder.WriteUInt16(buf, 0x0409); // languageID
+        SyntheticFontBuilder.WriteUInt16(buf, 1); // nameID
+        SyntheticFontBuilder.WriteUInt16(buf, 4); // length
+        SyntheticFontBuilder.WriteUInt16(buf, 0); // offset
+
+        SyntheticFontBuilder.WriteUInt16(buf, 3); // platformID
+        SyntheticFontBuilder.WriteUInt16(buf, 1); // encodingID
+        SyntheticFontBuilder.WriteUInt16(buf, 0x0409); // languageID
+        SyntheticFontBuilder.WriteUInt16(buf, 4); // nameID (full name)
+        SyntheticFontBuilder.WriteUInt16(buf, 0xFFFF); // length: absurdly large
+        SyntheticFontBuilder.WriteUInt16(buf, 0xFFFF); // offset: absurdly large
+
+        buf.AddRange(System.Text.Encoding.BigEndianUnicode.GetBytes("OK"));
+        var name = buf.ToArray();
+        var data = BuildFontWithNameAndStyle(name: name);
+
+        // Act: load the font and resolve its name info - never throws despite the malformed
+        // second record
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+        var info = font.GetNameInfo();
+
+        // Assert: the well-formed record still resolves, and the malformed record is ignored
+        Assert.Equal("OK", info.FamilyName);
+        Assert.Null(info.FullName);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont IsBold Os2FsSelectionBoldBitSet ReturnsTrue.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_IsBold_Os2FsSelectionBoldBitSet_ReturnsTrue()
+    {
+        // Arrange: a font whose OS/2 table sets only the BOLD fsSelection bit
+        var os2 = SyntheticFontBuilder.Os2(usWeightClass: 400, fsSelection: 0x20);
+        var data = BuildFontWithNameAndStyle(os2: os2);
+
+        // Act: load the font
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+
+        // Assert: IsBold is true, IsItalic is false
+        Assert.True(font.IsBold);
+        Assert.False(font.IsItalic);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont IsItalic Os2FsSelectionItalicBitSet ReturnsTrue.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_IsItalic_Os2FsSelectionItalicBitSet_ReturnsTrue()
+    {
+        // Arrange: a font whose OS/2 table sets only the ITALIC fsSelection bit
+        var os2 = SyntheticFontBuilder.Os2(usWeightClass: 400, fsSelection: 0x1);
+        var data = BuildFontWithNameAndStyle(os2: os2);
+
+        // Act: load the font
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+
+        // Assert: IsItalic is true, IsBold is false
+        Assert.True(font.IsItalic);
+        Assert.False(font.IsBold);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont IsBold Os2WeightClassAtLeast600 ReturnsTrue.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_IsBold_Os2WeightClassAtLeast600_ReturnsTrue()
+    {
+        // Arrange: a font whose OS/2 table declares a heavy usWeightClass with no fsSelection bits
+        var os2 = SyntheticFontBuilder.Os2(usWeightClass: 700, fsSelection: 0);
+        var data = BuildFontWithNameAndStyle(os2: os2);
+
+        // Act: load the font
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+
+        // Assert: IsBold is true purely from the weight class
+        Assert.True(font.IsBold);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont IsItalic PostItalicAngleNonZero ReturnsTrue.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_IsItalic_PostItalicAngleNonZero_ReturnsTrue()
+    {
+        // Arrange: a font with a post table declaring a nonzero italicAngle and no OS/2 table
+        var post = SyntheticFontBuilder.Post(isFixedPitch: 0, italicAngle: -12.0);
+        var data = BuildFontWithNameAndStyle(post: post);
+
+        // Act: load the font
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+
+        // Assert: IsItalic is true purely from the post table's italic angle
+        Assert.True(font.IsItalic);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Style Os2TableAbsent FallsBackToHeadMacStyle.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Style_Os2TableAbsent_FallsBackToHeadMacStyle()
+    {
+        // Arrange: a font with no OS/2 or post table at all, but head.macStyle's Bold and Italic
+        // bits both set
+        const int macStyle = 0x1 | 0x2;
+        var data = BuildFontWithNameAndStyle(macStyle: macStyle);
+
+        // Act: load the font
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+
+        // Assert: both IsBold and IsItalic are true, derived purely from head.macStyle
+        Assert.True(font.IsBold);
+        Assert.True(font.IsItalic);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont IsFixedPitch PostIsFixedPitchNonZero ReturnsTrue.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_IsFixedPitch_PostIsFixedPitchNonZero_ReturnsTrue()
+    {
+        // Arrange: a font whose post table declares isFixedPitch
+        var post = SyntheticFontBuilder.Post(isFixedPitch: 1);
+        var data = BuildFontWithNameAndStyle(post: post);
+
+        // Act: load the font
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+
+        // Assert: IsFixedPitch is true
+        Assert.True(font.IsFixedPitch);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont IsFixedPitch PostTableAbsent ReturnsFalseWithoutThrowing.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_IsFixedPitch_PostTableAbsent_ReturnsFalseWithoutThrowing()
+    {
+        // Arrange: a well-formed font with no post table at all
+        var data = BuildFontWithNameAndStyle();
+
+        // Act: load the font (never throws over the missing post table)
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.Load(ms);
+
+        // Assert: IsFixedPitch is false
+        Assert.False(font.IsFixedPitch);
+    }
+
+    /// <summary>
+    ///     Builds a minimal, well-formed synthetic Type 1 font program (not SFNT-wrapped, not
+    ///     PFB/PFA-framed) with <c>.notdef</c>, <c>space</c>, and <c>A</c> glyphs.
+    /// </summary>
+    private static (byte[] FontFileBytes, int Length1, int Length2) BuildSimpleType1Program()
+    {
+        var notdef = new List<byte>();
+        SyntheticFontBuilder.WriteType1CharstringNumber(notdef, 0);
+        SyntheticFontBuilder.WriteType1CharstringNumber(notdef, 600);
+        SyntheticFontBuilder.WriteType1CharstringOperator(notdef, 13); // hsbw
+        SyntheticFontBuilder.WriteType1CharstringOperator(notdef, 14); // endchar
+
+        var space = new List<byte>();
+        SyntheticFontBuilder.WriteType1CharstringNumber(space, 0);
+        SyntheticFontBuilder.WriteType1CharstringNumber(space, 300);
+        SyntheticFontBuilder.WriteType1CharstringOperator(space, 13); // hsbw
+        SyntheticFontBuilder.WriteType1CharstringOperator(space, 14); // endchar
+
+        var a = new List<byte>();
+        SyntheticFontBuilder.WriteType1CharstringNumber(a, 50);
+        SyntheticFontBuilder.WriteType1CharstringNumber(a, 700);
+        SyntheticFontBuilder.WriteType1CharstringOperator(a, 13); // hsbw
+        SyntheticFontBuilder.WriteType1CharstringNumber(a, 0);
+        SyntheticFontBuilder.WriteType1CharstringNumber(a, 0);
+        SyntheticFontBuilder.WriteType1CharstringOperator(a, 21); // rmoveto
+        SyntheticFontBuilder.WriteType1CharstringNumber(a, 10);
+        SyntheticFontBuilder.WriteType1CharstringNumber(a, 0);
+        SyntheticFontBuilder.WriteType1CharstringOperator(a, 5); // rlineto
+        SyntheticFontBuilder.WriteType1CharstringOperator(a, 9); // closepath
+        SyntheticFontBuilder.WriteType1CharstringOperator(a, 14); // endchar
+
+        return SyntheticFontBuilder.Type1([(".notdef", [.. notdef]), ("space", [.. space]), ("A", [.. a])]);
+    }
+
+    private static readonly Dictionary<int, string> Type1TestEncoding = new()
+    {
+        [' '] = "space",
+        ['A'] = "A",
+    };
+
+    /// <summary>
+    ///     Proves that TrueTypeFont LoadType1 WellFormedProgram ExposesGlyphsAndMetrics.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_LoadType1_WellFormedProgram_ExposesGlyphsAndMetrics()
+    {
+        var program = BuildSimpleType1Program();
+
+        using var ms = new MemoryStream(program.FontFileBytes);
+        var font = TrueTypeFont.LoadType1(ms, program.Length1, program.Length2, Type1TestEncoding);
+
+        Assert.Equal(3, font.GlyphCount);
+
+        var glyphIndexA = font.GetGlyphIndex('A');
+        Assert.NotEqual(0, glyphIndexA);
+        Assert.Equal(700, font.GetAdvanceWidth(glyphIndexA));
+
+        var outline = font.GetGlyphOutline(glyphIndexA);
+        Assert.Single(outline.Subpaths);
+
+        var glyphIndexSpace = font.GetGlyphIndex(' ');
+        Assert.Equal(300, font.GetAdvanceWidth(glyphIndexSpace));
+        Assert.Empty(font.GetGlyphOutline(glyphIndexSpace).Subpaths);
+
+        // An unmapped codepoint resolves to .notdef (glyph 0), matching the SFNT cmap convention.
+        Assert.Equal(0, font.GetGlyphIndex('Z'));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont LoadType1 NegativeLength1 ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_LoadType1_NegativeLength1_ThrowsInvalidDataException()
+    {
+        var program = BuildSimpleType1Program();
+        using var ms = new MemoryStream(program.FontFileBytes);
+
+        Assert.Throws<InvalidDataException>(() => TrueTypeFont.LoadType1(ms, -1, program.Length2, Type1TestEncoding));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont LoadType1 Length2ExceedsStreamBounds ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_LoadType1_Length2ExceedsStreamBounds_ThrowsInvalidDataException()
+    {
+        var program = BuildSimpleType1Program();
+        using var ms = new MemoryStream(program.FontFileBytes);
+
+        Assert.Throws<InvalidDataException>(() => TrueTypeFont.LoadType1(ms, program.Length1, program.Length2 + 10_000, Type1TestEncoding));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont LoadType1 NullStream ThrowsArgumentNullException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_LoadType1_NullStream_ThrowsArgumentNullException() =>
+        Assert.Throws<ArgumentNullException>(() => TrueTypeFont.LoadType1(null!, 0, 0, Type1TestEncoding));
+
+    /// <summary>
+    ///     Proves that TrueTypeFont LoadType1 NullEncoding ThrowsArgumentNullException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_LoadType1_NullEncoding_ThrowsArgumentNullException()
+    {
+        var program = BuildSimpleType1Program();
+        using var ms = new MemoryStream(program.FontFileBytes);
+
+        Assert.Throws<ArgumentNullException>(() => TrueTypeFont.LoadType1(ms, program.Length1, program.Length2, null!));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load StandalonePfbFile AutoDetectsAndRoundTrips.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_StandalonePfbFile_AutoDetectsAndRoundTrips()
+    {
+        var program = BuildSimpleType1Program();
+        var pfb = SyntheticFontBuilder.Type1Pfb(program.FontFileBytes, program.Length1, program.Length2);
+
+        using var ms = new MemoryStream(pfb);
+        var font = TrueTypeFont.Load(ms);
+
+        Assert.Equal(3, font.GlyphCount);
+        var glyphIndex = font.GetGlyphIndex('A');
+        Assert.NotEqual(0, glyphIndex);
+        Assert.Single(font.GetGlyphOutline(glyphIndex).Subpaths);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load StandalonePfaFile AutoDetectsAndRoundTrips.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_StandalonePfaFile_AutoDetectsAndRoundTrips()
+    {
+        var program = BuildSimpleType1Program();
+        var pfa = SyntheticFontBuilder.Type1Pfa(program.FontFileBytes, program.Length1, program.Length2);
+
+        using var ms = new MemoryStream(pfa);
+        var font = TrueTypeFont.Load(ms);
+
+        Assert.Equal(3, font.GlyphCount);
+        var glyphIndex = font.GetGlyphIndex('A');
+        Assert.NotEqual(0, glyphIndex);
+        Assert.Single(font.GetGlyphOutline(glyphIndex).Subpaths);
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load StandalonePfbFile Path ReadsFromFile.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_StandalonePfbFile_Path_ReadsFromFile()
+    {
+        var program = BuildSimpleType1Program();
+        var pfb = SyntheticFontBuilder.Type1Pfb(program.FontFileBytes, program.Length1, program.Length2);
+
+        var path = System.IO.Path.GetTempFileName();
+        try
+        {
+            File.WriteAllBytes(path, pfb);
+            var font = TrueTypeFont.Load(path);
+
+            Assert.Equal(3, font.GlyphCount);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont GetFaceCount StandaloneType1File ReturnsOne.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_GetFaceCount_StandaloneType1File_ReturnsOne()
+    {
+        var program = BuildSimpleType1Program();
+        var pfb = SyntheticFontBuilder.Type1Pfb(program.FontFileBytes, program.Length1, program.Length2);
+
+        using var ms = new MemoryStream(pfb);
+        Assert.Equal(1, TrueTypeFont.GetFaceCount(ms));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load StandaloneType1File FaceIndexOne ThrowsArgumentOutOfRangeException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_StandaloneType1File_FaceIndexOne_ThrowsArgumentOutOfRangeException()
+    {
+        var program = BuildSimpleType1Program();
+        var pfb = SyntheticFontBuilder.Type1Pfb(program.FontFileBytes, program.Length1, program.Length2);
+
+        using var ms = new MemoryStream(pfb);
+        Assert.Throws<ArgumentOutOfRangeException>(() => TrueTypeFont.Load(ms, 1));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont Load NonType1NonSfntGarbage ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_NonType1NonSfntGarbage_ThrowsInvalidDataException()
+    {
+        byte[] garbage = [1, 2, 3, 4, 5, 6, 7, 8];
+        using var ms = new MemoryStream(garbage);
+
+        Assert.Throws<InvalidDataException>(() => TrueTypeFont.Load(ms));
+    }
+
+    /// <summary>
+    ///     Builds a minimal, well-formed bare CFF (Type1C) table with three glyphs
+    ///     (<c>.notdef</c>, <c>space</c>, <c>A</c>) resolved via a custom charset format 0 table
+    ///     mapping glyph 1 to SID 1 (<c>space</c>) and glyph 2 to SID 34 (<c>A</c>), and widths
+    ///     resolved via the Private DICT's <c>defaultWidthX</c>/<c>nominalWidthX</c> operators.
+    /// </summary>
+    private static byte[] BuildType1CProgram()
+    {
+        var notdef = new List<byte>();
+        SyntheticFontBuilder.WriteCharstringOperator(notdef, 14); // endchar
+
+        var space = new List<byte>();
+        SyntheticFontBuilder.WriteCharstringOperator(space, 14); // endchar (width = defaultWidthX)
+
+        var a = new List<byte>();
+        SyntheticFontBuilder.WriteCharstringNumber(a, 600); // width delta: nominalWidthX(100) + 600 = 700
+        SyntheticFontBuilder.WriteCharstringNumber(a, 0);
+        SyntheticFontBuilder.WriteCharstringNumber(a, 0);
+        SyntheticFontBuilder.WriteCharstringOperator(a, 21); // rmoveto
+        SyntheticFontBuilder.WriteCharstringNumber(a, 10);
+        SyntheticFontBuilder.WriteCharstringNumber(a, 0);
+        SyntheticFontBuilder.WriteCharstringOperator(a, 5); // rlineto
+        SyntheticFontBuilder.WriteCharstringOperator(a, 14); // endchar
+
+        byte[] charsetTable = [0, 0, 1, 0, 34]; // format 0: glyph 1 -> SID 1 (space), glyph 2 -> SID 34 (A)
+
+        return SyntheticFontBuilder.Cff(
+            [[.. notdef], [.. space], [.. a]],
+            charsetTable: charsetTable,
+            defaultWidthX: 300,
+            nominalWidthX: 100);
+    }
+
+    private static readonly Dictionary<int, string> Type1CTestEncoding = new()
+    {
+        [' '] = "space",
+        ['A'] = "A",
+    };
+
+    /// <summary>
+    ///     Proves that TrueTypeFont LoadType1C WellFormedCff ExposesGlyphsAndMetrics.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_LoadType1C_WellFormedCff_ExposesGlyphsAndMetrics()
+    {
+        var data = BuildType1CProgram();
+
+        using var ms = new MemoryStream(data);
+        var font = TrueTypeFont.LoadType1C(ms, Type1CTestEncoding);
+
+        Assert.Equal(3, font.GlyphCount);
+
+        var glyphIndexA = font.GetGlyphIndex('A');
+        Assert.NotEqual(0, glyphIndexA);
+        Assert.Equal(700, font.GetAdvanceWidth(glyphIndexA));
+
+        var outline = font.GetGlyphOutline(glyphIndexA);
+        Assert.Single(outline.Subpaths);
+        Assert.Contains(outline.Subpaths[0].Commands, c => c.Type == PathCommandType.LineTo);
+
+        var glyphIndexSpace = font.GetGlyphIndex(' ');
+        Assert.NotEqual(0, glyphIndexSpace);
+        Assert.Equal(300, font.GetAdvanceWidth(glyphIndexSpace));
+        Assert.Empty(font.GetGlyphOutline(glyphIndexSpace).Subpaths);
+
+        // An unmapped codepoint resolves to .notdef (glyph 0), matching LoadType1's convention.
+        Assert.Equal(0, font.GetGlyphIndex('Z'));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont LoadType1C NullStream ThrowsArgumentNullException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_LoadType1C_NullStream_ThrowsArgumentNullException() =>
+        Assert.Throws<ArgumentNullException>(() => TrueTypeFont.LoadType1C(null!, Type1CTestEncoding));
+
+    /// <summary>
+    ///     Proves that TrueTypeFont LoadType1C NullEncoding ThrowsArgumentNullException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_LoadType1C_NullEncoding_ThrowsArgumentNullException()
+    {
+        var data = BuildType1CProgram();
+        using var ms = new MemoryStream(data);
+
+        Assert.Throws<ArgumentNullException>(() => TrueTypeFont.LoadType1C(ms, null!));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont LoadType1C MalformedCff ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_LoadType1C_MalformedCff_ThrowsInvalidDataException()
+    {
+        byte[] garbage = [1, 2, 3, 4, 5, 6, 7, 8];
+        using var ms = new MemoryStream(garbage);
+
+        Assert.Throws<InvalidDataException>(() => TrueTypeFont.LoadType1C(ms, Type1CTestEncoding));
+    }
+
+    /// <summary>
+    ///     Proves that TrueTypeFont LoadType1C CidKeyedCff ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_LoadType1C_CidKeyedCff_ThrowsInvalidDataException()
+    {
+        var cs = new List<byte>();
+        SyntheticFontBuilder.WriteCharstringOperator(cs, 14); // endchar
+        var data = SyntheticFontBuilder.Cff([[.. cs]], includeRos: true);
+
+        using var ms = new MemoryStream(data);
+        Assert.Throws<InvalidDataException>(() => TrueTypeFont.LoadType1C(ms, Type1CTestEncoding));
     }
 }

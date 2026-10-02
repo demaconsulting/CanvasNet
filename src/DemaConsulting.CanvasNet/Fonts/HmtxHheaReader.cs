@@ -9,10 +9,13 @@ namespace DemaConsulting.CanvasNet.Fonts;
 /// </summary>
 /// <remarks>
 ///     <c>hmtx</c>'s array holds <c>numOfLongHorMetrics</c> (from <c>hhea</c>)
-///     <c>(advanceWidth, leftSideBearing)</c> pairs, followed by
+///     <c>(advanceWidth, leftSideBearing)</c> pairs, optionally followed by
 ///     <c>(numGlyphs - numOfLongHorMetrics)</c> left-side-bearing-only entries; a glyph index at
 ///     or beyond <c>numOfLongHorMetrics</c> reuses the <em>last</em> explicit <c>advanceWidth</c>
-///     entry, per the OpenType <c>hmtx</c> "monospaced tail" convention.
+///     entry, per the OpenType <c>hmtx</c> "monospaced tail" convention. This reader never reads
+///     any byte of that trailing left-side-bearing-only tail - it is spec-optional reuse data,
+///     not consumed data - so its complete omission (a shape produced by some real-world font
+///     subsetting tools) is tolerated rather than rejected.
 /// </remarks>
 internal sealed class HmtxHheaReader
 {
@@ -57,13 +60,19 @@ internal sealed class HmtxHheaReader
     /// <param name="hheaOffset">The offset of the <c>hhea</c> table.</param>
     /// <param name="hheaLength">The length of the <c>hhea</c> table.</param>
     /// <param name="hmtxOffset">The offset of the <c>hmtx</c> table.</param>
-    /// <param name="hmtxLength">The length of the <c>hmtx</c> table.</param>
+    /// <param name="hmtxLength">
+    ///     The length of the <c>hmtx</c> table. Only the leading <c>numOfLongHorMetrics * 4</c>
+    ///     bytes (the explicit <c>(advanceWidth, leftSideBearing)</c> pairs) are required to be
+    ///     present and are ever read; any trailing left-side-bearing-only tail is optional and,
+    ///     if present, is not inspected.
+    /// </param>
     /// <param name="numGlyphs">The font's total glyph count, from <c>maxp</c>.</param>
     /// <returns>A new <see cref="HmtxHheaReader"/> exposing the parsed metrics.</returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <c>hhea</c> is too short, when <c>numOfLongHorMetrics</c> is not in the
-    ///     range <c>(0, numGlyphs]</c>, or when <c>hmtx</c> is too short to contain the declared
-    ///     number of entries.
+    ///     range <c>(0, numGlyphs]</c>, or when <c>hmtx</c> is too short to contain the
+    ///     <c>numOfLongHorMetrics</c> explicit <c>(advanceWidth, leftSideBearing)</c> pairs
+    ///     actually read (the optional trailing left-side-bearing-only tail is never required).
     /// </exception>
     public static HmtxHheaReader Parse(byte[] data, int hheaOffset, int hheaLength, int hmtxOffset, int hmtxLength, int numGlyphs)
     {
@@ -83,8 +92,7 @@ internal sealed class HmtxHheaReader
                 $"'hhea.numOfLongHorMetrics' ({numOfLongHorMetrics}) must be in the range (0, {numGlyphs}].");
         }
 
-        var tailCount = numGlyphs - numOfLongHorMetrics;
-        var requiredBytes = checked((long)numOfLongHorMetrics * 4 + (long)tailCount * 2);
+        var requiredBytes = checked((long)numOfLongHorMetrics * 4);
         if (requiredBytes > hmtxLength)
         {
             throw new InvalidDataException("The 'hmtx' table is too short for its declared metric counts.");
@@ -96,6 +104,27 @@ internal sealed class HmtxHheaReader
             advanceWidths[i] = SfntContainer.ReadUInt16(data, hmtxOffset + i * 4);
         }
 
+        return new HmtxHheaReader(ascender, descender, lineGap, advanceWidths);
+    }
+
+    /// <summary>
+    ///     Builds an <see cref="HmtxHheaReader"/> directly from an already-resolved per-glyph
+    ///     advance-width array, bypassing <see cref="Parse"/>'s binary <c>hhea</c>/<c>hmtx</c>
+    ///     table format entirely.
+    /// </summary>
+    /// <remarks>
+    ///     Used for font formats with no <c>hhea</c>/<c>hmtx</c> tables of their own - a classic
+    ///     PostScript Type 1 font program instead declares each glyph's own advance width via its
+    ///     charstring's <c>hsbw</c>/<c>sbw</c> operator (see <see cref="Type1Table.GetAdvanceWidth"/>).
+    /// </remarks>
+    /// <param name="ascender">The typographic ascender.</param>
+    /// <param name="descender">The typographic descender.</param>
+    /// <param name="lineGap">The typographic line gap.</param>
+    /// <param name="advanceWidths">Every glyph's advance width, indexed by glyph index.</param>
+    /// <returns>A new <see cref="HmtxHheaReader"/> exposing the supplied metrics.</returns>
+    internal static HmtxHheaReader FromAdvanceWidths(int ascender, int descender, int lineGap, int[] advanceWidths)
+    {
+        ArgumentNullException.ThrowIfNull(advanceWidths);
         return new HmtxHheaReader(ascender, descender, lineGap, advanceWidths);
     }
 

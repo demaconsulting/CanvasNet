@@ -1,4 +1,4 @@
-## SvgArcConverter
+### SvgArcConverter
 
 ![Geometry Structure](GeometryView.svg)
 
@@ -6,7 +6,7 @@ The `SvgArcConverter` class is a software unit in the `Geometry` subsystem. It c
 SVG-style endpoint-parameterized elliptical arcs into one or more cubic Bezier curves, following
 the SVG 1.1 Appendix F "Elliptical arc implementation notes" algorithm.
 
-### Purpose
+#### Purpose
 
 `PathBuilder.ArcTo` always stores the raw SVG arc parameters supplied by the caller, without
 pre-inspecting or pre-converting them (see _Path Unit Design_, `path.md`). `SvgArcConverter` is
@@ -15,9 +15,17 @@ documented degenerate cases, so a consumer that never needs Bezier segments (for
 hit-testing implementation with its own arc math) never pays for the conversion; conversion
 happens lazily, only when a consumer actually calls `ToBeziers`.
 
-### Key Method
+#### Data Model
 
-#### ToBeziers(...)
+`SvgArcConverter` is a stateless static class with no instance fields and no supporting types of
+its own - both the input (a `Vector2 start`, `Vector2 radius`, `float rotationDegrees`, two
+`bool` flags, and a `Vector2 end`) and output (a caller-supplied
+`IList<(Vector2 Control1, Vector2 Control2, Vector2 End)> output` collection of cubic Bezier
+segments) are plain BCL/tuple types. There is no other data model to document.
+
+#### Key Methods
+
+##### ToBeziers(...)
 
 Signature:
 
@@ -69,19 +77,19 @@ the `start`-`end` chord distance, which forces the `lambda > 1` scale-up path an
 resulting Bezier chain both reaches the declared `end` point and follows the corrected
 (scaled-up), not the originally requested, ellipse geometry.
 
-### Error Handling
+#### Error Handling
 
 `ToBeziers` performs no argument validation and never throws; every documented degenerate case
 (zero-length arc, zero radius) is handled by producing a geometrically sensible result rather
 than raising an exception, per this unit's contract.
 
-### Dependencies
+#### Dependencies
 
 `SvgArcConverter` depends only on `System.Numerics.Vector2` (in-box BCL type, no new NuGet
 package) and `System.MathF`/`System.Collections.Generic.IList<T>` from the .NET Base Class
 Library.
 
-### Callers
+#### Callers
 
 `SvgArcConverter` is a public API entry point, invoked externally by consumers of the CanvasNet
 package. It is also invoked internally by `Path.GetBounds`, to convert any `ArcTo` command to

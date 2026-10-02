@@ -1,4 +1,4 @@
-## BezierFlattening
+### BezierFlattening
 
 ![Geometry Structure](GeometryView.svg)
 
@@ -6,7 +6,7 @@ The `BezierFlattening` class is a software unit in the `Geometry` subsystem. It 
 adaptive, tolerance-driven flattening of quadratic and cubic Bezier curves into polylines,
 writing the resulting points into a caller-supplied output collection.
 
-### Purpose
+#### Purpose
 
 Rendering, precise bounds computation, and other consumers of vector geometry frequently need to
 convert a smooth curve into a sequence of straight-line segments within a controllable accuracy
@@ -14,11 +14,20 @@ budget. `BezierFlattening` provides this for both quadratic and cubic Bezier cur
 recursive adaptive subdivision so flatter regions of a curve receive fewer segments than sharply
 curved regions, for a given error tolerance.
 
-### Key Methods
+#### Data Model
 
-#### FlattenCubic(Vector2 p0, Vector2 p1, Vector2 p2, Vector2 p3, float tolerance, IList\<Vector2\> output)
+`BezierFlattening` is a stateless static class with no instance fields. Its only internal state
+is the `private const int MaxRecursionDepth = 20` termination bound (see Key Methods below); it
+holds no other fields, properties, or invariants. Both entry points take and return plain
+`System.Numerics.Vector2` control points and a caller-supplied `IList<Vector2> output` collection
 
-#### FlattenQuadratic(Vector2 p0, Vector2 p1, Vector2 p2, float tolerance, IList\<Vector2\> output)
+- there is no other data model to document.
+
+#### Key Methods
+
+##### FlattenCubic(Vector2 p0, Vector2 p1, Vector2 p2, Vector2 p3, float tolerance, IList\<Vector2\> output)
+
+##### FlattenQuadratic(Vector2 p0, Vector2 p1, Vector2 p2, float tolerance, IList\<Vector2\> output)
 
 Appends the flattened polyline points for the given cubic (`p0`-`p1`-`p2`-`p3`) or quadratic
 (`p0`-`p1`-`p2`) Bezier curve to `output`, via recursive adaptive subdivision (de Casteljau
@@ -92,17 +101,17 @@ decision above: `MaxRecursionDepth` bounds worst-case output size and guarantees
 every input, but for the rare pathological input that hits the limit, the tolerance contract does
 not apply.
 
-### Error Handling
+#### Error Handling
 
 The single `tolerance <= 0` guard above is this unit's only validation; every other combination
 of finite `Vector2` control points is accepted.
 
-### Dependencies
+#### Dependencies
 
 `BezierFlattening` depends only on `System.Numerics.Vector2` (in-box BCL type, no new NuGet
 package) and `System.Collections.Generic.IList<T>` from the .NET Base Class Library.
 
-### Callers
+#### Callers
 
 `BezierFlattening` is a public API entry point, invoked externally by consumers of the CanvasNet
 package. It is also invoked internally by `Path.GetBounds`'s flattening mode (a positive

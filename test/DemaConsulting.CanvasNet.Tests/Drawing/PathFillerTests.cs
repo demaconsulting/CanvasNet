@@ -570,5 +570,107 @@ public class PathFillerTests
         Assert.NotEqual((byte)0, surface1[2, 2].A);
         Assert.Equal((byte)0, surface2[2, 2].A);
     }
+
+    /// <summary>
+    ///     Builds a 2x2 tile surface split into a red/blue 2-color checkerboard (red at (0,0)
+    ///     and (1,1), blue at (1,0) and (0,1)), used by the <see cref="TilePaint"/> overload
+    ///     tests below.
+    /// </summary>
+    private static Surface CreateCheckerboardTileSurface()
+    {
+        var tileSurface = new Surface(2, 2);
+        tileSurface[0, 0] = new Rgba32(255, 0, 0, 255);
+        tileSurface[1, 0] = new Rgba32(0, 0, 255, 255);
+        tileSurface[0, 1] = new Rgba32(0, 0, 255, 255);
+        tileSurface[1, 1] = new Rgba32(255, 0, 0, 255);
+        return tileSurface;
+    }
+
+    /// <summary>
+    ///     Proves that the <see cref="TilePaint"/> overload of Fill paints a repeating tile
+    ///     pattern: filling a region larger than a single tile with a 2-color checkerboard tile
+    ///     paint produces both of the tile's own colors in the filled result.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_TilePaint_CheckerboardTile_FillsWithBothTileColors()
+    {
+        using var tileSurface = CreateCheckerboardTileSurface();
+        var tilePaint = new TilePaint(tileSurface, Matrix3x2.Identity, 2f, 2f);
+
+        using var surface = new Surface(8, 8);
+        var path = new PathBuilder()
+            .MoveTo(new Vector2(0, 0)).LineTo(new Vector2(8, 0)).LineTo(new Vector2(8, 8)).LineTo(new Vector2(0, 8))
+            .Close()
+            .Build();
+
+        PathFiller.Fill(surface, path, tilePaint);
+
+        var distinctColors = new HashSet<Rgba32>();
+        for (var y = 0; y < 8; y++)
+        {
+            for (var x = 0; x < 8; x++)
+            {
+                distinctColors.Add(surface[x, y]);
+            }
+        }
+
+        Assert.Contains(new Rgba32(255, 0, 0, 255), distinctColors);
+        Assert.Contains(new Rgba32(0, 0, 255, 255), distinctColors);
+    }
+
+    /// <summary>
+    ///     Proves that the <see cref="TilePaint"/> overload throws ArgumentNullException when the
+    ///     surface argument is <see langword="null"/>.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_TilePaint_NullSurface_ThrowsArgumentNullException()
+    {
+        using var tileSurface = CreateCheckerboardTileSurface();
+        var tilePaint = new TilePaint(tileSurface, Matrix3x2.Identity, 2f, 2f);
+
+        Assert.Throws<ArgumentNullException>(() => PathFiller.Fill(null!, Path.Empty, tilePaint));
+    }
+
+    /// <summary>
+    ///     Proves that the <see cref="TilePaint"/> overload throws ArgumentNullException when the
+    ///     path argument is <see langword="null"/>.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_TilePaint_NullPath_ThrowsArgumentNullException()
+    {
+        using var tileSurface = CreateCheckerboardTileSurface();
+        var tilePaint = new TilePaint(tileSurface, Matrix3x2.Identity, 2f, 2f);
+        using var surface = new Surface(1, 1);
+
+        Assert.Throws<ArgumentNullException>(() => PathFiller.Fill(surface, null!, tilePaint));
+    }
+
+    /// <summary>
+    ///     Proves that the <see cref="TilePaint"/> overload throws ArgumentNullException when the
+    ///     paint argument is <see langword="null"/>.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_TilePaint_NullPaint_ThrowsArgumentNullException()
+    {
+        using var surface = new Surface(1, 1);
+
+        Assert.Throws<ArgumentNullException>(() => PathFiller.Fill(surface, Path.Empty, (TilePaint)null!));
+    }
+
+    /// <summary>
+    ///     Proves that the <see cref="TilePaint"/> overload is a no-op on an empty path, matching
+    ///     the solid-color and gradient overloads' own documented behavior.
+    /// </summary>
+    [Fact]
+    public void PathFiller_Fill_TilePaint_EmptyPath_NoOpLeavesSurfaceUnchanged()
+    {
+        using var tileSurface = CreateCheckerboardTileSurface();
+        var tilePaint = new TilePaint(tileSurface, Matrix3x2.Identity, 2f, 2f);
+        using var surface = new Surface(2, 2);
+
+        PathFiller.Fill(surface, Path.Empty, tilePaint);
+
+        Assert.Equal((byte)0, surface[0, 0].A);
+    }
 }
 

@@ -1,4 +1,4 @@
-## BmpCodec
+### BmpCodec
 
 ![Codecs Structure](CodecsView.svg)
 
@@ -7,7 +7,7 @@ dependency on another in-house unit. It provides hand-rolled loading and saving 
 Windows BMP files (BITMAPFILEHEADER + BITMAPINFOHEADER, BI_RGB, 24-bit or 32-bit) to and from
 `Surface` pixel buffers.
 
-### Purpose
+#### Purpose
 
 `BmpCodec` lets callers persist a `Surface` as a BMP file (or stream) and load a BMP file (or
 stream) back into a `Surface`. It is implemented entirely against the .NET base class library's
@@ -20,16 +20,16 @@ info-header variants (`BITMAPCOREHEADER`, `BITMAPV4HEADER`/`BITMAPV5HEADER`), an
 `BmpCodec` is a `static` class: BMP encoding/decoding has no instance state to carry, so a static
 utility shape was chosen over an object with nothing to construct or configure.
 
-### Data Model
+#### Data Model
 
-#### BmpBitDepth enum
+##### BmpBitDepth enum
 
 | Value   | Numeric Value | Description                                                          |
 | ------- | ------------- | -------------------------------------------------------------------- |
 | `Bit24` | 24            | 8 bits each for blue, green, red. Alpha is dropped when saving.      |
 | `Bit32` | 32            | 8 bits each for blue, green, red, alpha. Alpha is preserved exactly. |
 
-#### BITMAPFILEHEADER (14 bytes, little-endian)
+##### BITMAPFILEHEADER (14 bytes, little-endian)
 
 | Offset | Size | Field         | Value Written                      |
 | ------ | ---- | ------------- | ---------------------------------- |
@@ -39,7 +39,7 @@ utility shape was chosen over an object with nothing to construct or configure.
 | 8      | 2    | `bfReserved2` | 0                                  |
 | 10     | 4    | `bfOffBits`   | 54 (14 + 40; offset to pixel data) |
 
-#### BITMAPINFOHEADER (40 bytes, little-endian) — the only info-header variant supported
+##### BITMAPINFOHEADER (40 bytes, little-endian) — the only info-header variant supported
 
 | Offset | Size | Field             | Value Written                                |
 | ------ | ---- | ----------------- | -------------------------------------------- |
@@ -59,9 +59,9 @@ All multi-byte header fields are read and written by explicit byte composition (
 never `BitConverter` or `BinaryPrimitives`, so behavior is identical regardless of host CPU
 endianness.
 
-### Key Methods
+#### Key Methods
 
-#### Load(Stream stream)
+##### Load(Stream stream)
 
 Reads a BMP image from an open stream. Validates the `"BM"` signature, that `biSize == 40`
 (rejecting both `BITMAPCOREHEADER` and V4/V5 headers in one check), that `biCompression == 0`
@@ -83,7 +83,7 @@ data.
   `biHeight` exceeding `Surface.MaxDimension`; the stream ends before all header or pixel data has
   been read
 
-#### Load(string path)
+##### Load(string path)
 
 Opens `path` as a read-only `FileStream` and delegates to `Load(Stream)`.
 
@@ -95,7 +95,7 @@ Opens `path` as a read-only `FileStream` and delegates to `Load(Stream)`.
 - Underlying file-system exceptions (`FileNotFoundException`, `DirectoryNotFoundException`,
   `UnauthorizedAccessException`, `IOException`) propagate uncaught
 
-#### Save(Surface surface, Stream stream, BmpBitDepth bitDepth = BmpBitDepth.Bit32)
+##### Save(Surface surface, Stream stream, BmpBitDepth bitDepth = BmpBitDepth.Bit32)
 
 Writes `surface` to `stream` as an uncompressed BMP. Computes the padded row size
 (`(width * bytesPerPixel + 3) & ~3`) and total pixel-data size, writes the file and info headers,
@@ -113,7 +113,7 @@ want a smaller, alpha-free file pass `BmpBitDepth.Bit24` explicitly.
 - `ArgumentNullException` — `surface` or `stream` is null
 - `ArgumentOutOfRangeException` — `bitDepth` is not a defined `BmpBitDepth` value
 
-#### Save(Surface surface, string path, BmpBitDepth bitDepth = BmpBitDepth.Bit32)
+##### Save(Surface surface, string path, BmpBitDepth bitDepth = BmpBitDepth.Bit32)
 
 Creates (or overwrites) `path` as a `FileStream` and delegates to `Save(Surface, Stream, BmpBitDepth)`.
 
@@ -125,7 +125,7 @@ Creates (or overwrites) `path` as a `FileStream` and delegates to `Save(Surface,
 - Underlying file-system exceptions (`UnauthorizedAccessException`, `DirectoryNotFoundException`,
   `IOException`) propagate uncaught
 
-#### GetInfo(Stream stream)
+##### GetInfo(Stream stream)
 
 Reads only the 54-byte BMP header (`BITMAPFILEHEADER` + `BITMAPINFOHEADER`) and returns an
 `ImageInfo` describing the file, without reading any pixel data. Internally, `Load` and `GetInfo`
@@ -144,7 +144,7 @@ header and 4 for a 32-bit header; `HasAlpha` is `false` for 24-bit and `true` fo
   ends before the 54-byte header has been fully read (same contract as `Load`, except the
   `Surface.MaxDimension` check is skipped)
 
-#### GetInfo(string path)
+##### GetInfo(string path)
 
 Opens `path` as a read-only `FileStream` and delegates to `GetInfo(Stream)`.
 
@@ -155,7 +155,7 @@ Opens `path` as a read-only `FileStream` and delegates to `GetInfo(Stream)`.
 - `InvalidDataException` — see `GetInfo(Stream)`
 - Underlying file-system exceptions propagate uncaught
 
-### Error Handling
+#### Error Handling
 
 All argument validation happens at the start of each public method, before any header or pixel
 data is read or written. `Load` performs incremental format validation as each header field is
@@ -165,7 +165,7 @@ anywhere in `BmpCodec` — every validation failure results in an exception that
 directly to the caller. `Save` never mutates the destination stream/file if an argument
 validation fails, because all argument checks precede any header write.
 
-### Dependencies
+#### Dependencies
 
 `BmpCodec` depends on `Surface` (constructing surfaces in `Load` and reading rows via
 `Surface.GetRowSpanBytes` in `Save`) — this is the first documented inter-unit dependency in
@@ -177,7 +177,7 @@ the .NET base class library's `System.IO` namespace (`Stream`, `FileStream`,
 `InvalidDataException`), available on every one of CanvasNet's target frameworks with no new
 runtime NuGet dependency.
 
-### Callers
+#### Callers
 
 `BmpCodec` is a public API entry point invoked directly by consumers of the CanvasNet package; it
 is not called by any other unit within this system. It calls into `Surface` (see _Dependencies_

@@ -1,15 +1,19 @@
-## PathFiller
+### PathFiller
 
 ![Drawing Structure](DrawingView.svg)
 
-The `PathFiller` class is the sole software unit in the `Drawing` subsystem. It provides a
-single public entry point, `Fill(Surface, Path, Rgba32, FillRule, float)`, that rasterizes a
-closed `Geometry.Path` onto a `Canvas.Surface` with a solid color, using an antialiased
+The `PathFiller` class is one of four sibling software units in the `Drawing` subsystem
+(alongside `PathStroker`, `GradientPaint`, and `TilePaint`). It provides a
+single public entry point family, `Fill(Surface, Path, Rgba32, FillRule, float)`,
+`Fill(Surface, Path, Gradient, FillRule, float)`, and
+`Fill(Surface, Path, TilePaint, FillRule, float)`, that rasterizes a
+closed `Geometry.Path` onto a `Canvas.Surface` with a solid color, a linear/radial gradient, or a
+repeating tiled pattern, using an antialiased
 signed-area/coverage-accumulation scanline algorithm. The supporting `FillRule` enum and the
 internal `EdgeFlattener`/`ScanlineRasterizer` helpers are documented inline here, because none of
 them has any independent behavior beyond supporting `PathFiller.Fill`.
 
-### Purpose
+#### Purpose
 
 `PathFiller` turns vector path geometry into rendered pixels: it flattens every subpath's lines,
 curves, and arcs into a closed polygon, then rasterizes those polygons with analytically computed
@@ -21,11 +25,14 @@ every subpath as implicitly closed regardless of whether the path explicitly cal
 Alongside the original solid-color `Fill` overload, `PathFiller` also exposes a gradient-paint
 `Fill(Surface, Path, Gradient, FillRule, float)` overload that shares every bit of this unit's
 flattening, clip-bounds, and validation logic - see _GradientPaint Unit Design_
-(`gradient-paint.md`) for the gradient-specific evaluation algorithm it delegates to. Font parsing
+(`gradient-paint.md`) for the gradient-specific evaluation algorithm it delegates to - and a
+tile-paint `Fill(Surface, Path, TilePaint, FillRule, float)` overload that shares the same
+flattening, clip-bounds, and validation logic again - see _TilePaint Unit Design_
+(`tile-paint.md`) for the tile-specific evaluation algorithm it delegates to. Font parsing
 remains outside this unit: callers supply ordinary `Geometry.Path` instances whether they came
 from handwritten geometry or from `Fonts.TrueTypeFont`.
 
-### Coordinate Convention
+#### Coordinate Convention
 
 **This is the first unit in CanvasNet that produces actual rendered pixel output from path-space
 coordinates, so its coordinate convention is stated explicitly and applies throughout this
@@ -36,7 +43,7 @@ falls exactly at the center of pixel `(2, 1)`. This convention is what makes the
 math well-defined: "how much of pixel `(x, y)`'s unit cell lies inside the filled region" is a
 precise geometric question once cell boundaries are pinned to integer path coordinates this way.
 
-### Data Model
+#### Data Model
 
 | Type                 | Description                                                           |
 | -------------------- | --------------------------------------------------------------------- |
@@ -54,9 +61,9 @@ fill state, which is what makes a self-intersecting shape (for example a five-po
 without lifting the pen, or two overlapping same-wound rectangles) render with alternating
 filled/unfilled regions rather than a single solid union.
 
-### Key Methods
+#### Key Methods
 
-#### PathFiller.Fill(Surface surface, Path path, Rgba32 color, FillRule fillRule, float flattenTolerance)
+##### PathFiller.Fill(Surface surface, Path path, Rgba32 color, FillRule fillRule, float flattenTolerance)
 
 Fills `path` with the solid `color` onto `surface`, using `fillRule` to resolve overlapping
 windings and `flattenTolerance` to bound curve-flattening error (see `BezierFlattening`'s own
@@ -101,7 +108,7 @@ subsystem grows a dedicated transform concept.
   zero (matching `BezierFlattening`'s own tolerance-validation convention, extended to also reject
   `NaN`/`Infinity` explicitly rather than relying on comparison operators alone)
 
-#### PathFiller.Fill(Surface surface, Path path, Gradient paint, FillRule fillRule, float flattenTolerance)
+##### PathFiller.Fill(Surface surface, Path path, Gradient paint, FillRule fillRule, float flattenTolerance)
 
 Fills `path` onto `surface` with a linear or radial `Gradient` (see _GradientPaint Unit Design_,
 `gradient-paint.md`) instead of a solid color, evaluated once per pixel and scaled by that pixel's
@@ -112,7 +119,19 @@ difference is that `ScanlineRasterizer.Fill`'s gradient-aware overload is invoke
 solid-color overload, and it additionally rejects a `null` `paint` argument with
 `ArgumentNullException`.
 
-#### EdgeFlattener.Flatten(Path path, float tolerance) (internal)
+##### PathFiller.Fill(Surface surface, Path path, TilePaint paint, FillRule fillRule, float flattenTolerance)
+
+Fills `path` onto `surface` with a repeating tiled pattern supplied by a `TilePaint` (see
+_TilePaint Unit Design_, `tile-paint.md`) instead of a solid color or gradient, evaluated once per
+pixel and scaled by that pixel's antialiased fill coverage exactly like the other two overloads.
+It shares the same private `TryFlattenForFill`/`ValidateFillArgs` helpers as the solid-color and
+gradient overloads for flattening, clip-bounds computation, and `fillRule`/`flattenTolerance`
+validation - the only difference is that `ScanlineRasterizer.Fill`'s tile-paint-aware overload is
+invoked instead, and it additionally rejects a `null` `paint` argument with
+`ArgumentNullException`. `TilePaint` itself does not own the lifetime of the `Surface` it wraps;
+this overload neither disposes nor otherwise mutates that `Surface` - it only samples it.
+
+##### EdgeFlattener.Flatten(Path path, float tolerance) (internal)
 
 Converts every one of `path`'s subpaths into a closed polygon (a `List<Vector2>`), returning one
 polygon per subpath in the same order. For each subpath, walks its `Commands` starting from
@@ -147,7 +166,7 @@ fewer than 3) are passed through as-is with no special-casing here - `ScanlineRa
 independently treats any polygon with fewer than 2 usable edges as contributing zero coverage
 (see below), so no upstream filtering is required.
 
-#### ScanlineRasterizer.Fill(Surface surface, IReadOnlyList\<List\<Vector2\>\> polygons, ...) (internal)
+##### ScanlineRasterizer.Fill(Surface surface, IReadOnlyList\<List\<Vector2\>\> polygons, ...) (internal)
 
 Rasterizes `polygons` (already-flattened, already-closed polygons from `EdgeFlattener`) onto
 `surface`, restricted to `clipBounds`, using the AGG/FreeType-style **analytic**
@@ -261,7 +280,7 @@ the implementation against it, not by automated runtime performance tests - a de
 decision, since wall-clock assertions are unreliable guards for algorithmic complexity on
 heterogeneous CI hardware.
 
-### Error Handling
+#### Error Handling
 
 All argument validation is performed by `PathFiller.Fill` itself, at the very start of the
 method, before any bounds computation or rasterization begins (see above). `EdgeFlattener` and
@@ -269,7 +288,7 @@ method, before any bounds computation or rasterization begins (see above). `Edge
 `PathFiller.Fill` and perform no further validation of their own; they are only ever reached after
 `PathFiller.Fill`'s guards and the empty/out-of-bounds no-op check have already passed.
 
-### Dependencies
+#### Dependencies
 
 `PathFiller` (and its internal `EdgeFlattener`/`ScanlineRasterizer` helpers) depend on
 `System.Numerics.Vector2` (in-box BCL type), the `Geometry` subsystem's `Path`, `Subpath`,
@@ -277,13 +296,15 @@ method, before any bounds computation or rasterization begins (see above). `Edge
 `Canvas` subsystem's `Surface`, `Rgba32`, and `Surface.CompositeOverSpan` (via
 `ScanlineRasterizer`; see _Surface Unit Design_, `../canvas/surface.md`, for that method's own
 documentation). The gradient-paint overload additionally depends on the `Gradient` public type and
-the internal `GradientEvaluator` helper (see _GradientPaint Unit Design_, `gradient-paint.md`). No
+the internal `GradientEvaluator` helper (see _GradientPaint Unit Design_, `gradient-paint.md`).
+The tile-paint overload additionally depends on the `TilePaint` public type and the internal
+`TilePaintEvaluator` helper (see _TilePaint Unit Design_, `tile-paint.md`). No
 new runtime NuGet package is introduced.
 
-### Callers
+#### Callers
 
 `PathFiller.Fill` is a public API entry point, invoked externally by consumers of the CanvasNet
 package. It is exercised end to end by this unit's own tests (`PathFillerTests`,
-`EdgeFlattenerTests`, `ScanlineRasterizerTests`) and by a system-integration test that builds a
-`Path` via `PathBuilder` and fills it onto a `Surface` (see `CanvasNetTests.cs`). `PathFiller` has
+`EdgeFlattenerTests`, `ScanlineRasterizerTests`) and by system-integration tests that build a
+`Path` via `PathBuilder` and fill it onto a `Surface` (see `CanvasNetTests.cs`). `PathFiller` has
 no dependency on any consumer, and no other unit in this library depends on `PathFiller`.

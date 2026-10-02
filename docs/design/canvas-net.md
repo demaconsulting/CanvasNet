@@ -18,44 +18,56 @@ DEMA Consulting best practices. The system consists of six implemented subsystem
   span-based row access and independent-copy cropping) and the `Rgba32` unit (a single-pixel
   value type, documented inline within `Surface`). See _Canvas Subsystem Design_ (`canvas.md`).
 - **Codecs subsystem** (namespace `DemaConsulting.CanvasNet.Codecs`, folder
-  `src/DemaConsulting.CanvasNet/Codecs/`, flat — no further nesting): four hand-rolled image
+  `src/DemaConsulting.CanvasNet/Codecs/`, flat — no further nesting): five hand-rolled image
   format codecs, each converting to and from a `DemaConsulting.CanvasNet.Canvas.Surface` pixel buffer —
   `BmpCodec` (uncompressed 24-bit/32-bit Windows BMP), `PngCodec` (saves 8-bit-per-channel
   Truecolor and Truecolor-with-alpha, non-interlaced PNG; loads every non-interlaced, spec-valid
   PNG color type/bit depth combination), `TiffCodec` (8-bit-per-sample RGB, RGBA, and
   Grayscale, strip-based TIFF 6.0 with None/PackBits/LZW/Deflate compression, either byte order),
-  and `JpegCodec` (a common real-world subset of JPEG: baseline/progressive decode with
-  4:4:4/4:2:2/4:2:0 support, baseline 4:2:0 encode). See _Codecs Subsystem Design_ (`codecs.md`).
+  `JpegCodec` (a common real-world subset of JPEG: baseline/progressive decode with
+  4:4:4/4:2:2/4:2:0 support, baseline 4:2:0 encode), and `GifCodec` (decode-only load of a GIF's
+  first image frame, including LZW decompression and deinterlacing, plus a `GetInfo` that reports
+  the file's true total frame count without resolving later frames into a `Surface`). See
+  _Codecs Subsystem Design_ (`codecs.md`).
 - **Geometry subsystem** (namespace `DemaConsulting.CanvasNet.Geometry`, folder
   `src/DemaConsulting.CanvasNet/Geometry/`, flat — no further nesting): vector-geometry
   primitives, built directly on `System.Numerics.Vector2`/`Matrix3x2` — the `Rect` unit (an
   axis-aligned bounding rectangle with a union-identity `Empty` sentinel), the `Path` unit (an
   immutable vector path and its fluent `PathBuilder`, together with the supporting `Subpath`,
   `PathCommand`, and `PathCommandType` types documented inline), the `BezierFlattening` unit
-  (adaptive quadratic/cubic Bezier curve flattening), and the `SvgArcConverter` unit
-  (SVG-style elliptical arc to cubic Bezier conversion). `Geometry` has no dependency on `Canvas`
+  (adaptive quadratic/cubic Bezier curve flattening), the `SvgArcConverter` unit
+  (SVG-style elliptical arc to cubic Bezier conversion), and the `CornerRoundEffect` unit
+  (path-level pre-processing that rounds polyline corners into tangent-radius arcs via
+  `PathBuilder.TangentArcTo`). `Geometry` has no dependency on `Canvas`
   or `Codecs`, and neither of those subsystems depends on `Geometry`. See
   _Geometry Subsystem Design_ (`geometry.md`).
 - **Drawing subsystem** (namespace `DemaConsulting.CanvasNet.Drawing`, folder
   `src/DemaConsulting.CanvasNet/Drawing/`, flat — no further nesting): vector rendering for
   `Geometry.Path` geometry through three public entry points — the `PathFiller` unit
-  (a public static `Fill` entry point supporting both solid-color and gradient paint, with the
+  (a public static `Fill` entry point supporting solid-color, gradient, and tile paint, with the
   supporting `FillRule` enum and the internal
   `EdgeFlattener`/`ScanlineRasterizer` helpers documented inline), the `PathStroker` unit (a
   public static `Stroke` entry point, with the supporting `LineCap`/`LineJoin`/`StrokeStyle`
   types and the internal `StrokePathFlattener`/`DashSplitter`/`StrokeOutliner` helpers documented
-  inline), and the `GradientPaint` unit (the public `Gradient`/`LinearGradient`/`RadialGradient`/
+  inline), the `GradientPaint` unit (the public `Gradient`/`LinearGradient`/`RadialGradient`/
   `GradientStop`/`GradientSpread` types and the internal `GradientEvaluator` helper that
-  `PathFiller`'s gradient overload evaluates). `Drawing` consumes both the `Canvas` subsystem's `Surface` unit (via
+  `PathFiller`'s gradient overload evaluates), and the `TilePaint` unit (a public sealed type
+  pairing a pre-rendered one-cell tile `Surface` with a pattern-space transform and `XStep`/
+  `YStep` pitch, and the internal `TilePaintEvaluator` helper that `PathFiller`'s tile overload
+  evaluates). `Drawing` consumes both the `Canvas` subsystem's `Surface` unit (via
   `Surface.CompositeOverSpan`) and the `Geometry` subsystem's `Path`/`PathBuilder`/
   `BezierFlattening`/`SvgArcConverter` units; neither `Canvas` nor `Geometry` depends on
   `Drawing`. `Geometry` is deliberately distinct from `Drawing`: `Geometry` describes shape
   geometry (paths, bounds, curve math) with no notion of pixels, color, or rasterization, while
   `Drawing` turns that geometry into pixels. See _Drawing Subsystem Design_ (`drawing.md`).
 - **Fonts subsystem** (namespace `DemaConsulting.CanvasNet.Fonts`, folder
-  `src/DemaConsulting.CanvasNet/Fonts/`, flat — no further nesting): TrueType (`glyf`-based)
-  SFNT font loading through the `TrueTypeFont` unit, which fronts the internal `SfntContainer`/
-  `CmapTable`/`GlyfLocaReader`/`HmtxHheaReader`/`KernTable` helpers documented inline. `Fonts`
+  `src/DemaConsulting.CanvasNet/Fonts/`, flat — no further nesting): TrueType (`glyf`-based) and
+  CFF/OpenType font loading through the `TrueTypeFont` unit, which fronts the internal
+  `SfntContainer`/`CmapTable`/`GlyfLocaReader`/`CffTable`/`CffCharstringInterpreter`/
+  `HmtxHheaReader`/`KernTable` helpers documented inline, and host system font discovery through
+  the `SystemFontCatalog` unit, which best-effort matches a requested family/style against the
+  host operating system's installed fonts and provides a bundled Liberation Sans/Serif/Mono
+  last-resort fallback `TrueTypeFont`. `Fonts`
   depends only on the `Geometry` subsystem (`Path`, `PathBuilder`, and path-command semantics)
   because it produces vector outlines and scalar metrics, not pixels. It does not depend on
   `Canvas`, `Drawing`, or `Codecs`; callers combine its output with `Drawing` and `Canvas` when
@@ -70,53 +82,75 @@ DEMA Consulting best practices. The system consists of six implemented subsystem
 
 The `Codecs` subsystem depends on the `Canvas` subsystem's `Surface` unit (constructing surfaces
 and reading/writing rows via `Surface.GetRowSpanBytes`); the `Canvas` subsystem has no dependency
-on `Codecs` or on any other subsystem. Within the `Codecs` subsystem, its four units are flat and
-mutually independent — none of `BmpCodec`, `PngCodec`, `TiffCodec`, or `JpegCodec` depends on any
-other codec. Each codec also exposes a pair of `GetInfo(Stream)`/`GetInfo(string)` overloads
+on `Codecs` or on any other subsystem. Within the `Codecs` subsystem, its five units are flat and
+mutually independent — none of `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, or `GifCodec`
+depends on any other codec. Each codec also exposes a pair of `GetInfo(Stream)`/`GetInfo(string)` overloads
 returning the shared `ImageInfo` record struct (width, height, channel count, and alpha presence)
 without fully decoding pixel data and without enforcing `Surface.MaxDimension` (now a public
-constant, so callers can perform this comparison themselves before ever calling `Load`) — see
+constant, so callers can perform this comparison themselves before ever calling `Load`) — except
+`GifCodec.GetInfo`, which decodes the first frame's LZW-compressed pixel data to validate
+`CanDecode` (but never resolves those pixels into a rendered `Surface`) while scanning, without
+decoding, every later frame's block structure purely to report the file's true total frame count
+— see
 _Codecs Subsystem Design_ (`codecs.md`) for the shared `ImageInfo` type and header-only-probing
 pattern, and _Surface Unit Design_ (`canvas/surface.md`) for `MaxDimension`. See
 _Surface Unit Design_ (`canvas/surface.md`), _BmpCodec Unit Design_
 (`codecs/bmp-codec.md`), _PngCodec Unit Design_ (`codecs/png-codec.md`),
-_TiffCodec Unit Design_ (`codecs/tiff-codec.md`), and _JpegCodec Unit Design_
-(`codecs/jpeg-codec.md`) for each unit's internal collaboration.
+_TiffCodec Unit Design_ (`codecs/tiff-codec.md`), _JpegCodec Unit Design_
+(`codecs/jpeg-codec.md`), and _GifCodec Unit Design_ (`codecs/gif-codec.md`) for each unit's
+internal collaboration.
 
-The `Geometry` subsystem's four units collaborate as follows: `PathBuilder` records raw drawing
+The `Geometry` subsystem's five units collaborate as follows: `PathBuilder` records raw drawing
 commands (including raw, unconverted SVG arc parameters) and produces immutable `Path` snapshots;
 `Path.GetBounds` is the primary internal consumer of both `BezierFlattening` (to flatten curves
 when a tighter, tolerance-based bound is requested) and `SvgArcConverter` (to convert any `ArcTo`
 command to cubic Bezier segments before applying either bounds mode, since arcs carry no control
-points of their own). `Rect` has no dependency on the other three units, but is the return type of
-`Path.GetBounds` and is used throughout as the common bounding-box representation. See
+points of their own). `Rect` has no dependency on the other units, but is the return type of
+`Path.GetBounds` and is used throughout as the common bounding-box representation.
+`CornerRoundEffect` consumes an existing `Path` and produces a new `Path` with eligible corners
+replaced by tangent-radius arcs (via `PathBuilder.TangentArcTo`); it has no dependency on
+`BezierFlattening` or `SvgArcConverter`, and none of the other four units depends on it. See
 _Geometry Subsystem Design_ (`geometry.md`), _Rect Unit Design_ (`geometry/rect.md`),
 _Path Unit Design_ (`geometry/path.md`), _BezierFlattening Unit Design_
-(`geometry/bezier-flattening.md`), and _SvgArcConverter Unit Design_
-(`geometry/svg-arc-converter.md`) for each unit's internal collaboration.
+(`geometry/bezier-flattening.md`), _SvgArcConverter Unit Design_
+(`geometry/svg-arc-converter.md`), and _CornerRoundEffect Unit Design_
+(`geometry/corner-round-effect.md`) for each unit's internal collaboration.
 
-The `Drawing` subsystem's two units collaborate as follows. `PathFiller.Fill` first delegates to
+The `Drawing` subsystem's four units collaborate as follows. `PathFiller.Fill` first delegates to
 the internal `EdgeFlattener` (which converts the target `Geometry.Path`'s subpaths to closed
 polygons, flattening curves via `Geometry.BezierFlattening` and arcs via
 `Geometry.SvgArcConverter`), then computes the flattened polygons' bounds and intersects them with
 the `Canvas.Surface`'s pixel extent (a no-op if the path is empty or the intersection is empty),
 then delegates to the internal `ScanlineRasterizer` (which rasterizes those polygons into per-row
-antialiased coverage and composites each row directly via `Canvas.Surface.CompositeOverSpan`).
+antialiased coverage and composites each row directly via `Canvas.Surface.CompositeOverSpan`),
+resolving each covered pixel's color either directly from the caller-supplied solid `Rgba32`, from
+`GradientPaint`'s internal `GradientEvaluator` (for the gradient overload), or from `TilePaint`'s
+internal `TilePaintEvaluator` (for the tile overload).
 `PathStroker.Stroke` runs earlier in the pipeline: it flattens each source subpath while
 preserving `Subpath.IsClosed`, applies optional dash-array and dash-offset semantics, offsets the
 visible polyline segments into closed outline polygons with cap and join geometry, and assembles
 those polygons into a new `Geometry.Path` via `PathBuilder`; callers render the returned outline
-path through `PathFiller.Fill`. See _Drawing Subsystem Design_ (`drawing.md`), _PathFiller Unit
-Design_ (`drawing/path-filler.md`), and _PathStroker Unit Design_ (`drawing/path-stroker.md`) for
+path through `PathFiller.Fill`. `GradientPaint` and `TilePaint` are both pure paint-description
+data types with no dependency on `PathFiller`, `PathStroker`, or each other; `PathFiller` is the
+sole consumer of either. See _Drawing Subsystem Design_ (`drawing.md`), _PathFiller Unit
+Design_ (`drawing/path-filler.md`), _PathStroker Unit Design_ (`drawing/path-stroker.md`),
+_GradientPaint Unit Design_ (`drawing/gradient-paint.md`), and _TilePaint Unit Design_
+(`drawing/tile-paint.md`) for
 full detail.
 
-The `Fonts` subsystem's single public unit collaborates with its internal helpers as follows.
+The `Fonts` subsystem's two public units collaborate with their own internal helpers as follows.
 `TrueTypeFont.Load` delegates to `SfntContainer` for SFNT offset-table and table-directory
-parsing, validates the required `head`/`maxp`/`hhea`/`hmtx`/`loca`/`glyf` tables, then delegates
+parsing, validates the required `head`/`maxp`/`hhea`/`hmtx`/`loca`/`glyf` tables (or, for a
+CFF/OpenType font, delegates to `CffTable`/`CffCharstringInterpreter` for charstring-based outline
+decoding instead), then delegates
 to `HmtxHheaReader` for top-level metrics and advance widths, `GlyfLocaReader` for eager `loca`
 parsing plus lazy glyph decoding, `CmapTable` for Unicode codepoint lookup, and `KernTable` for
 basic pairwise kerning. `GetGlyphOutline` returns `Geometry.Path` in raw font-design-unit space,
-so callers who want pixels scale and flip that path before rendering it through `Drawing`. See
+so callers who want pixels scale and flip that path before rendering it through `Drawing`.
+`SystemFontCatalog` has no dependency on `TrueTypeFont`'s internal parsing helpers, but
+`LoadBundledFallback` constructs a `TrueTypeFont` from one of the library's bundled Liberation
+font embedded resources via `TrueTypeFont.Load`, making `TrueTypeFont` the sole unit
+`SystemFontCatalog` depends on within this subsystem. See
 _Fonts Subsystem Design_ (`fonts.md`) and _TrueTypeFont Unit Design_
 (`fonts/true-type-font.md`) for full detail.
 
@@ -197,6 +231,14 @@ The system exposes the following public API to external consumers:
   range 1-100. Throws `ArgumentNullException` for a null `surface`/`stream`/`path`,
   `ArgumentException` for an empty `path`, and `ArgumentOutOfRangeException` for an out-of-range
   `quality`.
+- **GifCodec.Load(Stream stream)** / **GifCodec.Load(string path)**: Loads a `Surface` from a
+  GIF stream or file's first image frame (decode-only - no save support). Throws
+  `ArgumentNullException` for a null `stream`/`path`, `ArgumentException` for an empty `path`,
+  and `InvalidDataException` for malformed or unsupported GIF data.
+- **GifCodec.GetInfo(Stream stream)** / **GifCodec.GetInfo(string path)**: Returns the shared
+  `ImageInfo` record struct, additionally reporting the file's true total frame count; unlike
+  every other codec's `GetInfo`, this decodes the first frame's LZW-compressed pixel data to
+  validate `CanDecode` (but never resolves it into a rendered `Surface`).
 - **Rect(float x, float y, float width, float height)**: Constructor; an axis-aligned rectangle in
   position-plus-size form. `Rect.Empty` is a static, publicly readable union-identity sentinel.
 - **Rect.Union(Rect)** / **Rect.Union(Rect, Rect)**: Returns the smallest rectangle enclosing both
@@ -228,6 +270,12 @@ The system exposes the following public API to external consumers:
 - **SvgArcConverter.ToBeziers(...)**: Appends the cubic Bezier segments equivalent to an SVG-style
   elliptical arc to a caller-supplied output list, in end-to-end order. Never throws for any
   SVG-valid input.
+- **CornerRoundEffect.Apply(Path, float, float)**: Returns a new `Path` with eligible polyline
+  corners replaced by tangent-radius arcs of the given radius (flattening tolerance controls arc
+  smoothness); corners where the radius does not fit the available segment length are left
+  unrounded. Throws `ArgumentNullException` for a null `path`, and
+  `ArgumentOutOfRangeException` for a negative or non-finite radius or a non-positive or
+  non-finite flattening tolerance.
 - **PathFiller.Fill(Surface, Path, Rgba32, FillRule, float)**: Fills a closed `Path` with a solid
   color onto a `Surface` using an antialiased scanline-coverage rasterizer, with a fill rule
   (`FillRule.NonZero` by default, or `FillRule.EvenOdd`) and a curve-flattening tolerance
@@ -235,6 +283,14 @@ The system exposes the following public API to external consumers:
   Throws `ArgumentNullException` for a null `surface`/`path`, and
   `ArgumentOutOfRangeException` for an undefined `fillRule` value or a non-finite or
   non-positive `flattenTolerance`.
+- **PathFiller.Fill(Surface, Path, Gradient, FillRule, float)**: As above, but resolves each
+  covered pixel's color from a `GradientPaint` `Gradient` (`LinearGradient` or `RadialGradient`)
+  instead of a single solid color. Throws the same exceptions as the solid-color overload, plus
+  `ArgumentNullException` for a null `paint`.
+- **PathFiller.Fill(Surface, Path, TilePaint, FillRule, float)**: As above, but resolves each
+  covered pixel's color by sampling a repeating `TilePaint` tile bitmap at the corresponding
+  wrapped-around pattern-space offset. Throws the same exceptions as the solid-color overload,
+  plus `ArgumentNullException` for a null `paint`.
 - **LineCap** / **LineJoin**: Public enums selecting stroke end-cap and corner-join geometry.
 - **StrokeStyle(float width, LineCap cap, LineJoin join, float miterLimit, IReadOnlyList<float>? dashArray, float dashOffset)**:
   Immutable public stroke-style snapshot. Throws `ArgumentOutOfRangeException` for invalid width,
@@ -264,44 +320,60 @@ The system exposes the following public API to external consumers:
 - **TrueTypeFont.GetKerning(int leftGlyphIndex, int rightGlyphIndex)**: Returns the pairwise
   kerning adjustment for the glyph pair, or `0` when no pair or no usable `kern` table exists.
   Never throws.
+- **SystemFontCatalog.Fonts**: Read-only property lazily enumerating the host operating system's
+  installed fonts on first access (caching the result for the process lifetime) as a list of
+  `SystemFontInfo` records. Never throws.
+- **SystemFontCatalog.FindBestMatch(string familyNameHint, bool bold, bool italic, bool serif, bool fixedPitch)**:
+  Returns the closest-matching `SystemFontInfo?` for the requested family-name hint and style, or
+  `null` if neither an exact family match nor a well-known generic-family fallback is found.
+  Never throws.
+- **SystemFontCatalog.LoadBundledFallback(bool serif, bool fixedPitch, bool bold, bool italic)**:
+  Returns a ready-to-query `TrueTypeFont` loaded from one of the library's twelve embedded
+  Liberation Sans/Serif/Mono resources, selected by the requested style combination.
 
 <!-- markdownlint-disable MD013 -->
-| Interface                           | Direction        | Format                         | Constraints                   |
-| ----------------------------------- | ---------------- | ------------------------------ | ----------------------------- |
-| `Surface(int, int)`                 | Inbound          | Constructor call               | `width`, `height` in 1-8192   |
-| `Surface[int, int]`                 | Inbound/Outbound | Indexer get/set                | `x`, `y` within bounds        |
-| `Surface.GetRowSpanBytes(int)`      | Outbound         | `Span<byte>` return            | `y` within bounds             |
-| `Surface.GetRowSpan(int)`           | Outbound         | `Span<Rgba32>` return          | `y` within bounds             |
-| `Surface.Crop(int,int,int,int)`     | Inbound/Outbound | Method call / `Surface` return | Region within source bounds   |
-| `Surface.PremultiplyAlpha()`        | Inbound          | Method call                    | None                          |
-| `Surface.UnpremultiplyAlpha()`      | Inbound          | Method call                    | None                          |
-| `Surface.CompositeOver(Surface)`    | Inbound          | Method call                    | Equal dimensions, non-null    |
-| `Surface.CompositeOver(Rgba32)`     | Inbound          | Method call                    | None                          |
-| `Surface.CompositeOverSpan(...)`    | Inbound          | Method call                    | `y`, `x`+run within bounds    |
-| `BmpCodec.Load(...)`                | Inbound/Outbound | Method call / `Surface` return | Valid BMP stream or path      |
-| `BmpCodec.Save(...)`                | Inbound          | Method call                    | `surface` non-null            |
-| `PngCodec.Load(...)`                | Inbound/Outbound | Method call / `Surface` return | Valid PNG stream or path      |
-| `PngCodec.Save(...)`                | Inbound          | Method call                    | `surface` non-null            |
-| `TiffCodec.Load(...)`               | Inbound/Outbound | Method call / `Surface` return | Valid TIFF stream or path     |
-| `TiffCodec.Save(...)`               | Inbound          | Method call                    | `surface` non-null            |
-| `JpegCodec.Load(...)`               | Inbound/Outbound | Method call / `Surface` return | Valid JPEG stream or path     |
-| `JpegCodec.Save(...)`               | Inbound          | Method call                    | `surface` non-null            |
-| `Rect.Union(...)`                   | Inbound/Outbound | Method call / `Rect` return    | None                          |
-| `Rect.Intersect(...)`               | Inbound/Outbound | Method call / `Rect` return    | None                          |
-| `Rect.Transform(Matrix3x2)`         | Inbound/Outbound | Method call / `Rect` return    | None                          |
-| `PathBuilder.*To(...)`              | Inbound/Outbound | Method call / `this` return    | Called after `MoveTo`         |
-| `PathBuilder.Build()`               | Outbound         | Method call / `Path` return    | None                          |
-| `Path.GetBounds(float)`             | Outbound         | Method call / `Rect` return    | None                          |
-| `BezierFlattening.Flatten*(...)`    | Inbound/Outbound | Method call / list append      | `tolerance` greater than zero |
-| `SvgArcConverter.ToBeziers(...)`    | Inbound/Outbound | Method call / list append      | None                          |
-| `PathFiller.Fill(...)`              | Inbound          | Method call                    | Non-null; fillRule ok; tol>0  |
-| `StrokeStyle(...)`                  | Inbound          | Constructor call               | Width > 0; valid style data   |
-| `PathStroker.Stroke(...)`           | Inbound/Outbound | Method call / `Path` return    | Non-null; tol > 0             |
-| `TrueTypeFont.Load(...)`            | Inbound/Outbound | Method / `TrueTypeFont`        | Valid TrueType stream or path |
-| `TrueTypeFont.GetGlyphIndex(int)`   | Outbound         | Method / `int`                 | Any Unicode codepoint         |
-| `TrueTypeFont.GetGlyphOutline(int)` | Outbound         | Method / `Path`                | `glyphIndex` within range     |
-| `TrueTypeFont.GetAdvanceWidth(int)` | Outbound         | Method / `int`                 | `glyphIndex` within range     |
-| `TrueTypeFont.GetKerning(int,int)`  | Outbound         | Method / `int`                 | Any glyph indices             |
+| Interface                                    | Direction        | Format                         | Constraints                   |
+|----------------------------------------------|------------------|--------------------------------|-------------------------------|
+| `Surface(int, int)`                          | Inbound          | Constructor call               | `width`, `height` in 1-8192   |
+| `Surface[int, int]`                          | Inbound/Outbound | Indexer get/set                | `x`, `y` within bounds        |
+| `Surface.GetRowSpanBytes(int)`               | Outbound         | `Span<byte>` return            | `y` within bounds             |
+| `Surface.GetRowSpan(int)`                    | Outbound         | `Span<Rgba32>` return          | `y` within bounds             |
+| `Surface.Crop(int,int,int,int)`              | Inbound/Outbound | Method call / `Surface` return | Region within source bounds   |
+| `Surface.PremultiplyAlpha()`                 | Inbound          | Method call                    | None                          |
+| `Surface.UnpremultiplyAlpha()`               | Inbound          | Method call                    | None                          |
+| `Surface.CompositeOver(Surface)`             | Inbound          | Method call                    | Equal dimensions, non-null    |
+| `Surface.CompositeOver(Rgba32)`              | Inbound          | Method call                    | None                          |
+| `Surface.CompositeOverSpan(...)`             | Inbound          | Method call                    | `y`, `x`+run within bounds    |
+| `BmpCodec.Load(...)`                         | Inbound/Outbound | Method call / `Surface` return | Valid BMP stream or path      |
+| `BmpCodec.Save(...)`                         | Inbound          | Method call                    | `surface` non-null            |
+| `PngCodec.Load(...)`                         | Inbound/Outbound | Method call / `Surface` return | Valid PNG stream or path      |
+| `PngCodec.Save(...)`                         | Inbound          | Method call                    | `surface` non-null            |
+| `TiffCodec.Load(...)`                        | Inbound/Outbound | Method call / `Surface` return | Valid TIFF stream or path     |
+| `TiffCodec.Save(...)`                        | Inbound          | Method call                    | `surface` non-null            |
+| `JpegCodec.Load(...)`                        | Inbound/Outbound | Method call / `Surface` return | Valid JPEG stream or path     |
+| `JpegCodec.Save(...)`                        | Inbound          | Method call                    | `surface` non-null            |
+| `GifCodec.Load(...)`                         | Inbound/Outbound | Method call / `Surface` return | Valid GIF stream or path      |
+| `GifCodec.GetInfo(...)`                      | Inbound/Outbound | Method call / `ImageInfo`      | Valid GIF stream or path      |
+| `Rect.Union(...)`                            | Inbound/Outbound | Method call / `Rect` return    | None                          |
+| `Rect.Intersect(...)`                        | Inbound/Outbound | Method call / `Rect` return    | None                          |
+| `Rect.Transform(Matrix3x2)`                  | Inbound/Outbound | Method call / `Rect` return    | None                          |
+| `PathBuilder.*To(...)`                       | Inbound/Outbound | Method call / `this` return    | Called after `MoveTo`         |
+| `PathBuilder.Build()`                        | Outbound         | Method call / `Path` return    | None                          |
+| `Path.GetBounds(float)`                      | Outbound         | Method call / `Rect` return    | None                          |
+| `BezierFlattening.Flatten*(...)`             | Inbound/Outbound | Method call / list append      | `tolerance` greater than zero |
+| `SvgArcConverter.ToBeziers(...)`             | Inbound/Outbound | Method call / list append      | None                          |
+| `CornerRoundEffect.Apply(...)`               | Inbound/Outbound | Method call / `Path` return    | Non-null; radius/tol >= 0     |
+| `PathFiller.Fill(...)`                       | Inbound          | Method call                    | Non-null; fillRule ok; tol>0  |
+| `StrokeStyle(...)`                           | Inbound          | Constructor call               | Width > 0; valid style data   |
+| `PathStroker.Stroke(...)`                    | Inbound/Outbound | Method call / `Path` return    | Non-null; tol > 0             |
+| `TrueTypeFont.Load(...)`                     | Inbound/Outbound | Method / `TrueTypeFont`        | Valid TrueType stream or path |
+| `TrueTypeFont.GetGlyphIndex(int)`            | Outbound         | Method / `int`                 | Any Unicode codepoint         |
+| `TrueTypeFont.GetGlyphOutline(int)`          | Outbound         | Method / `Path`                | `glyphIndex` within range     |
+| `TrueTypeFont.GetAdvanceWidth(int)`          | Outbound         | Method / `int`                 | `glyphIndex` within range     |
+| `TrueTypeFont.GetKerning(int,int)`           | Outbound         | Method / `int`                 | Any glyph indices             |
+| `SystemFontCatalog.Fonts`                    | Outbound         | Property / list return         | None                          |
+| `SystemFontCatalog.FindBestMatch(...)`       | Outbound         | Method / `SystemFontInfo?`     | None                          |
+| `SystemFontCatalog.LoadBundledFallback(...)` | Outbound         | Method / `TrueTypeFont`        | None                          |
 <!-- markdownlint-enable MD013 -->
 
 ## Dependencies
@@ -310,28 +382,31 @@ CanvasNet has one runtime NuGet dependency: `System.Numerics.Tensors`, used by t
 unit's vectorized bulk pixel operations (`PremultiplyAlpha`, `UnpremultiplyAlpha`,
 `CompositeOver`) for their `TensorPrimitives`-based numeric work — see _Surface Unit Design_
 (`canvas/surface.md`) for details. Every other member of `Surface`, and all of `BmpCodec`,
-`PngCodec`, `TiffCodec`, and `JpegCodec`, are implemented exclusively against the .NET Base Class
+`PngCodec`, `TiffCodec`, `JpegCodec`, and `GifCodec`, are implemented exclusively against the
+.NET Base Class
 Library (`Surface`'s remaining use of `Span<T>` and `MemoryMarshal` are BCL APIs available
 natively on every target framework; `BmpCodec` uses only `System.IO` types; `PngCodec` and
 `TiffCodec` additionally use `System.IO.Compression.DeflateStream`; `JpegCodec` additionally uses
-`System.Numerics.Vector<T>` for optional SIMD acceleration; all of these are BCL APIs available on
+`System.Numerics.Vector<T>` for optional SIMD acceleration; `GifCodec` uses only `System.IO`
+types; all of these are BCL APIs available on
 every target framework, with no additional runtime NuGet package required). The `Geometry`
 subsystem introduces zero new runtime NuGet dependencies: it is implemented entirely against
 `System.Numerics.Vector2` and `System.Numerics.Matrix3x2`, which are in-box BCL types available
 natively on every target framework this library supports (net8.0, net9.0, net10.0) — no custom
-point/vector wrapper types were introduced. The `Drawing` subsystem likewise introduces zero new
-runtime NuGet dependencies: `PathFiller`, `FillRule`, `EdgeFlattener`, `ScanlineRasterizer`,
-`PathStroker`, `LineCap`, `LineJoin`, `StrokeStyle`, `StrokePathFlattener`, `DashSplitter`, and
-`StrokeOutliner` are implemented entirely against `System.Numerics.Vector2`, in-box `List<T>`/
-array types, and the existing `Geometry` and `Canvas` subsystem APIs (`Path`, `PathBuilder`,
-`BezierFlattening`, `SvgArcConverter`, `Surface.CompositeOverSpan`) — no new package reference
-was added to the project file. The `Fonts` subsystem likewise introduces zero new runtime NuGet
-dependencies: `TrueTypeFont`, `SfntContainer`, `CmapTable`, `GlyfLocaReader`, `HmtxHheaReader`,
-and `KernTable` are implemented entirely against `System.IO`, in-box array/list types, and the
-existing `Geometry` subsystem's `Path`/`PathBuilder` abstractions, with no dependency on
-`Canvas`, `Drawing`, or `Codecs`. The following OTS items are used for building and verifying
-this system (not consumed at runtime); see
-_OTS Integration Design_ (`docs/design/ots.md`) and each item's dedicated design document for
+point/vector wrapper types were introduced; this includes `CornerRoundEffect`, which is
+implemented entirely in terms of `Geometry.Path`/`PathBuilder`. The `Drawing` subsystem likewise introduces zero new
+runtime NuGet dependencies: `PathFiller`, `FillRule`, `EdgeFlattener`, `ScanlineRasterizer`, `PathStroker`, `LineCap`,
+`LineJoin`, `StrokeStyle`, `StrokePathFlattener`, `DashSplitter`, `StrokeOutliner`, `GradientPaint`'s types, and
+`TilePaint` are implemented entirely against `System.Numerics.Vector2`, in-box `List<T>`/ array types, and the existing
+`Geometry` and `Canvas` subsystem APIs (`Path`, `PathBuilder`, `BezierFlattening`, `SvgArcConverter`,
+`Surface.CompositeOverSpan`) — no new package reference was added to the project file. The `Fonts` subsystem likewise
+introduces zero new runtime NuGet dependencies: `TrueTypeFont`, `SfntContainer`, `CmapTable`, `GlyfLocaReader`,
+`CffTable`, `CffCharstringInterpreter`, `HmtxHheaReader`, `KernTable`, and `SystemFontCatalog` are implemented entirely
+against `System.IO`, in-box array/list types, and the existing `Geometry` subsystem's `Path`/`PathBuilder` abstractions,
+with no dependency on `Canvas`, `Drawing`, or `Codecs` (`SystemFontCatalog`'s host-font-directory enumeration uses only
+`System.IO`/`System.Environment` BCL APIs, with no platform-specific NuGet package). The following OTS items are used
+for building and verifying this system (not consumed at runtime); see _OTS Integration Design_ (`docs/design/ots.md`)
+and each item's dedicated design document for
 details:
 
 - **BuildMark** — generates build-notes documentation; see _BuildMark Design_
@@ -485,6 +560,23 @@ measures (IEC 62304 §5.3.3).
    pixels into the destination `Surface`
 4. **Output**: A new `Surface` containing the decoded pixels
 
+**GIF load path:**
+
+1. **Input**: Method parameter `stream`/`path`
+2. **Validation**: `Load` rejects a null `stream`/`path` with `ArgumentNullException`, an empty
+   `path` with `ArgumentException`, and malformed/unsupported GIF data (bad signature, an
+   unsupported logical-screen/color-table configuration, or a truncated/malformed LZW-compressed
+   first-frame data stream) with `InvalidDataException`
+3. **Processing**: Parses the GIF header, logical screen descriptor, and global/local color
+   tables, then decodes only the first image frame's LZW-compressed pixel data (deinterlacing it
+   if the frame declares an interlaced layout), mapping indexed pixels through the applicable
+   color table (honoring a Graphic Control Extension transparent-color index, if present) directly
+   into the destination `Surface`
+4. **Output**: A new `Surface` containing the decoded first frame's pixels; `GetInfo` additionally
+   reports the file's true total frame count (by decoding the first frame to validate `CanDecode`,
+   then scanning, without fully decoding, every subsequent frame's own block structure) without
+   ever resolving those later frames into a rendered `Surface`
+
 **TrueType font load and glyph-query path:**
 
 1. **Input**: A font stream or file path, followed by caller-supplied codepoints or glyph indices
@@ -496,6 +588,56 @@ measures (IEC 62304 §5.3.3).
    queries decode only the glyph requested
 4. **Output**: A `TrueTypeFont` object exposing metrics, codepoint-to-glyph lookup, glyph
    outlines, advance widths, and kerning adjustments
+
+**System font discovery and fallback path:**
+
+1. **Input**: `SystemFontCatalog.FindBestMatch`'s `familyNameHint`/`bold`/`italic`/`serif`/
+   `fixedPitch` parameters, or `LoadBundledFallback`'s `serif`/`fixedPitch`/`bold`/`italic`
+   parameters
+2. **Validation**: Neither method throws for any input; `FindBestMatch` simply returns `null` when
+   no match is found at either tier
+3. **Processing**: `Fonts` lazily enumerates the host operating system's installed fonts on first
+   access (platform-specific font directories/registries), caching the result for the process
+   lifetime; `FindBestMatch` first searches for an exact (case-insensitive) family-name match, then
+   falls back to a small, hand-maintained list of well-known generic-family names (sans-serif,
+   serif, or monospace); `LoadBundledFallback` instead selects one of the twelve bundled Liberation
+   Sans/Serif/Mono TrueType fonts (embedded resources) by the requested style combination and
+   loads it via `TrueTypeFont.Load`
+4. **Output**: `FindBestMatch` returns a `SystemFontInfo?` (family/subfamily name, derived
+   bold/italic/fixed-pitch style, and the file path/face index needed to load it);
+   `LoadBundledFallback` returns a ready-to-query `TrueTypeFont`
+
+**Corner-rounding path:**
+
+1. **Input**: A source `Path` plus a corner radius (and, for `Geometry.CornerRoundEffect`'s
+   method, a flattening tolerance)
+2. **Validation**: Rejects a null `path` with `ArgumentNullException`, and a negative or
+   non-finite radius/tolerance with `ArgumentOutOfRangeException`
+3. **Processing**: Walks each subpath's vertices, and - where two adjacent segments meet at an
+   angle sharp enough for the requested radius to fit - replaces the vertex with a
+   tangent-radius arc via `PathBuilder.TangentArcTo`, leaving vertices where no arc fits (the
+   radius is too large for the available segment length) unrounded
+4. **Output**: A new `Path` with eligible corners replaced by tangent-radius arcs, suitable for
+   filling through `PathFiller.Fill` exactly like any other `Path`
+
+**Tile-paint fill path:**
+
+1. **Input**: Method parameters `surface`, `path`, a `TilePaint` (itself composed of a pre-rendered
+   tile `Surface`, a `Transform`, and an `XStep`/`YStep` pitch), `fillRule`, and
+   `flattenTolerance`
+2. **Validation**: `PathFiller.Fill`'s tile overload rejects a null `surface`/`path`/`paint` with
+   `ArgumentNullException`, and an undefined `fillRule` or a non-finite/non-positive
+   `flattenTolerance` with `ArgumentOutOfRangeException`; `TilePaint`'s constructor itself already
+   validated its `transform`/`xStep`/`yStep` at construction time
+3. **Processing**: Shares `EdgeFlattener`/`ScanlineRasterizer` with the solid-color and gradient
+   overloads, but resolves each covered pixel's color via `TilePaintEvaluator`, which maps the
+   pixel's path-space coordinate through the inverse of `TilePaint.Transform` into pattern space,
+   wraps that pattern-space coordinate into the tile's `[0, XStep) x [0, YStep)` cell (correctly
+   handling a negative `XStep`/`YStep` via its absolute value), and samples the wrapped coordinate
+   from `TilePaint.Surface`
+4. **Output**: `surface`'s pixels within `path`'s bounds composited with the repeating tile
+   pattern, via `Surface.CompositeOverSpan`, exactly as the solid-color and gradient overloads
+   composite their own per-pixel colors
 
 **Path stroke conversion path:**
 

@@ -1,4 +1,4 @@
-## GifCodec
+### GifCodec
 
 ![Codecs Structure](CodecsView.svg)
 
@@ -6,7 +6,7 @@ The `GifCodec` class is the sixth software unit in CanvasNet's `Codecs` subsyste
 hand-rolled, decode-only loading of a common real-world subset of GIF (GIF87a/GIF89a) files into
 `Surface` pixel buffers.
 
-### Purpose
+#### Purpose
 
 `GifCodec` lets callers load a GIF file (or stream) into a `Surface`. It is implemented entirely
 against the .NET base class library's `System.IO` types, with no third-party GIF or imaging
@@ -36,14 +36,14 @@ call that would in fact throw (see *Codecs Subsystem Design*, `../codecs.md`, fo
 `GifCodec` is a `static` class: GIF decoding has no instance state to carry, so a static utility
 shape was chosen over an object with nothing to construct or configure.
 
-### Data Model
+#### Data Model
 
-#### Signature (6 bytes)
+##### Signature (6 bytes)
 
 The first 6 bytes of a GIF file must be the ASCII string `"GIF87a"` or `"GIF89a"`; any other value
 is rejected.
 
-#### Logical Screen Descriptor (7 bytes, little-endian, immediately following the signature)
+##### Logical Screen Descriptor (7 bytes, little-endian, immediately following the signature)
 
 | Offset | Size | Field                  | Notes                    |
 | ------ | ---- | ---------------------- | ------------------------ |
@@ -56,7 +56,7 @@ is rejected.
 The Packed Fields byte's bit 7 is the global color table flag; bits 4-6 are the color resolution
 (ignored); bit 3 is the sort flag (ignored); bits 0-2 are the global color table size exponent.
 
-#### Color Table entry (3 bytes per entry — used for both the Global and any Local Color Table)
+##### Color Table entry (3 bytes per entry — used for both the Global and any Local Color Table)
 
 | Offset | Size | Field | Notes                          |
 | ------ | ---- | ----- | ------------------------------ |
@@ -66,7 +66,7 @@ The Packed Fields byte's bit 7 is the global color table flag; bits 4-6 are the 
 
 A color table's entry count is `2 << (packed & 0x07)` (2 to 256 entries).
 
-#### Graphic Control Extension data (4 bytes, following the `0x21 0xF9` introducer/label and a size byte)
+##### Graphic Control Extension data (4 bytes, following the `0x21 0xF9` introducer/label and a size byte)
 
 | Offset | Size | Field                   | Notes                                 |
 | ------ | ---- | ----------------------- | ------------------------------------- |
@@ -81,7 +81,7 @@ The Packed Fields byte's bit 0 is the transparency flag; bits 1-3 are the dispos
 of the extension's data, not byte 1 (byte 1 is the low byte of the ignored, little-endian Delay
 Time field). `GifCodec` reads it from `data[3]`.
 
-#### Image Descriptor (9 bytes, little-endian, following the `0x2C` Image Separator)
+##### Image Descriptor (9 bytes, little-endian, following the `0x2C` Image Separator)
 
 | Offset | Size | Field         | Notes                                                  |
 | ------ | ---- | ------------- | ------------------------------------------------------ |
@@ -98,13 +98,13 @@ Immediately following the Image Descriptor (and any Local Color Table) is a sing
 LZW-minimum-code-size byte, then the frame's compressed image data as a sub-block chain (see
 below).
 
-#### Sub-block chain
+##### Sub-block chain
 
 A sequence of length-prefixed data blocks: each block is preceded by a 1-byte size, and a
 zero-length size byte terminates the chain. Used for both Extension block payloads and Image
 Descriptor compressed data.
 
-#### GIF-native LZW code-table state
+##### GIF-native LZW code-table state
 
 A `List<byte[]>` of dynamically learned code-table entries (mirroring `TiffCodec`'s `DecodeLzw`
 table shape), a `byte[]?` "previous entry" used for KwKwK reconstruction, and a `codeSize` that
@@ -114,9 +114,9 @@ convention), capped at 12 bits. Special code values are declared relative to the
 `minCodeSize`: Clear code = `1 << minCodeSize`; end-of-information code = Clear code + 1; the
 first code eligible for table assignment is end-of-information + 1.
 
-### Key Methods
+#### Key Methods
 
-#### Load(Stream stream)
+##### Load(Stream stream)
 
 Reads a GIF image from an open stream. Calls the shared `ReadLogicalScreenDescriptor` helper
 (see below), validates the canvas width/height are positive and do not exceed
@@ -167,7 +167,7 @@ was seen.
   `MaxTotalSubBlockBytes` (a 64 MiB resource-safety ceiling); the stream ending before all header,
   color-table, or block data has been read
 
-#### Load(string path)
+##### Load(string path)
 
 Opens `path` as a read-only `FileStream` and delegates to `Load(Stream)`.
 
@@ -179,7 +179,7 @@ Opens `path` as a read-only `FileStream` and delegates to `Load(Stream)`.
 - Underlying file-system exceptions (`FileNotFoundException`, `DirectoryNotFoundException`,
   `UnauthorizedAccessException`, `IOException`) propagate uncaught
 
-#### GetInfo(Stream stream)
+##### GetInfo(Stream stream)
 
 Calls the shared `ReadLogicalScreenDescriptor` helper, validates the declared width/height are
 positive (the identical non-positive check `Load` performs, but without `Load`'s additional
@@ -261,7 +261,7 @@ present in the input stream.
   a well-formed container whose first frame's compressed data merely fails to LZW-decode is
   reported via `CanDecode == false` instead of throwing (see the remarks above).
 
-#### GetInfo(string path)
+##### GetInfo(string path)
 
 Opens `path` as a read-only `FileStream` and delegates to `GetInfo(Stream)`.
 
@@ -272,7 +272,7 @@ Opens `path` as a read-only `FileStream` and delegates to `GetInfo(Stream)`.
 - `InvalidDataException` — see `GetInfo(Stream)`
 - Underlying file-system exceptions propagate uncaught
 
-#### ReadLogicalScreenDescriptor(Stream stream) — shared, private
+##### ReadLogicalScreenDescriptor(Stream stream) — shared, private
 
 Reads and validates the 6-byte signature and 7-byte Logical Screen Descriptor, returning the
 decoded width, height, and packed byte. Called identically, as the literal first statement, by
@@ -280,7 +280,7 @@ both `GetInfo(Stream)` and `Load(Stream)` — the same parity guarantee document
 four raster codecs' shared header helpers (see *Codecs Subsystem Design*, `../codecs.md`'s
 Header-Only Probing section).
 
-#### ReadImageDescriptorHeader(Stream stream) — shared, private
+##### ReadImageDescriptorHeader(Stream stream) — shared, private
 
 Reads a single Image Descriptor's 9-byte fixed header, any Local Color Table, and the LZW minimum
 code size byte (with its 2-8 range check), without reading the descriptor's compressed image data
@@ -288,7 +288,7 @@ sub-block chain. Called identically by `Load(Stream)`'s `ImageSeparator` case an
 so both walk an Image Descriptor's fixed-size fields in exactly the same order and with exactly
 the same validation.
 
-#### ValidateFrameRegionAndResolveColorTable(...) — shared, private
+##### ValidateFrameRegionAndResolveColorTable(...) — shared, private
 
 Validates that an Image Descriptor's declared size is positive and its placement lies entirely
 within the logical screen, then resolves its active color table (its own Local Color Table if
@@ -297,7 +297,7 @@ identically by `Load(Stream)`'s `ImageSeparator` case and `CountFrames`, so both
 same per-frame structural validation — not merely to the first frame, whose pixel data is the
 only one either method ever actually decodes or counts pixels for.
 
-#### CountFrames(Stream stream, int canvasWidth, int canvasHeight, Rgba32[]? globalColorTable) — shared, private
+##### CountFrames(Stream stream, int canvasWidth, int canvasHeight, Rgba32[]? globalColorTable) — shared, private
 
 Walks a GIF file's blocks, from the current stream position (immediately after any Global Color
 Table) through and including the Trailer, counting every Image Descriptor encountered, and
@@ -317,7 +317,7 @@ accepted — see `GetInfo(Stream)`'s remarks for the full design rationale. Thro
 Trailer is reached having counted zero Image Descriptors, matching `Load`'s identical "GIF stream
 contains no Image Descriptor" rejection.
 
-### Error Handling
+#### Error Handling
 
 All argument validation happens at the start of each public method, before any header, color
 table, or block data is read. `Load` performs incremental format validation as each block is
@@ -325,7 +325,7 @@ parsed, failing at the first invalid field or block with a message naming the ac
 value or byte found. There is no local recovery or retry logic anywhere in `GifCodec` — every
 validation failure results in an exception that propagates directly to the caller.
 
-### Dependencies
+#### Dependencies
 
 `GifCodec` depends on `Surface` (constructing a canvas-sized surface and writing rows via
 `Surface.GetRowSpan` in `Load`) and the `Codecs` subsystem's shared `ImageInfo` record struct (the
@@ -334,7 +334,7 @@ return type of `GetInfo`) — see *Codecs Subsystem Design* (`../codecs.md`). Be
 `FileStream`, `MemoryStream`, `InvalidDataException`), available on every one of CanvasNet's
 target frameworks with no new runtime NuGet dependency.
 
-### Callers
+#### Callers
 
 `GifCodec` is a public API entry point invoked directly by consumers of the CanvasNet package; it
 is not called by any other unit within this system. It calls into `Surface` (see *Dependencies*

@@ -4,7 +4,22 @@ The `Shapes` class is a stateless static class of extension methods on `Renderin
 provide convenience fills and strokes for the three most common shapes: rectangles, rounded
 rectangles, and circles.
 
-#### Entry points
+#### Purpose
+
+`Shapes` saves callers from hand-building a `Geometry.Path` for the most common primitive shapes.
+Every helper builds its path via the corresponding `Geometry.Path` factory and dispatches the
+fill or stroke through a given `Rendering.Canvas`, so callers get the same transform-aware
+behavior as building the path manually.
+
+#### Data Model
+
+`Shapes` is a stateless static class with no instance fields and no supporting types of its own;
+every helper takes plain `float` geometry parameters, an `Rgba32` fill color, and (for stroke
+helpers) a `Drawing.StrokeStyle`.
+
+#### Key Methods
+
+##### Entry points
 
 - `FillRect(this Canvas, float x, float y, float width, float height, Rgba32)` — fills an
   axis-aligned rectangle.
@@ -18,7 +33,7 @@ rectangles, and circles.
 - `StrokeCircle(this Canvas, float centerX, float centerY, float radius, StrokeStyle, Rgba32)` —
   strokes a circle.
 
-#### Behavior
+##### Behavior
 
 Every helper builds its path via the corresponding `Geometry.Path` factory
 (`Path.Rectangle`, `Path.RoundRectangle`, `Path.Circle`) and dispatches the fill or stroke
@@ -35,8 +50,19 @@ factory:
   whenever `radius` itself is non-positive, since a circle has no other dimension to fall back
   to.
 
-#### Validation
+#### Error Handling
 
 Every helper throws `ArgumentNullException` on a null `Canvas` argument. Radius clamping
 happens inside the underlying `Path.RoundRectangle` factory; the helpers themselves do not
 validate `radius` further.
+
+#### Dependencies
+
+`Shapes` depends on this subsystem's own `Canvas` unit, the `Geometry` subsystem's `Path` unit
+(`Rectangle`/`RoundRectangle`/`Circle` factories), and the `Canvas` (pixel-buffer) subsystem's
+`Rgba32` unit, plus the `Drawing` subsystem's `StrokeStyle` unit for its stroke overloads.
+
+#### Callers
+
+`Shapes` is a public API entry point, invoked directly by consumers of the CanvasNet package as
+extension methods on `Rendering.Canvas`. No unit within CanvasNet calls `Shapes` internally.

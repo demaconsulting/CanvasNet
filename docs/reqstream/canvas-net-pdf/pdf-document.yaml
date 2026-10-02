@@ -1,0 +1,1552 @@
+---
+# Software Unit Requirements for PdfDocument
+#
+# cspell:ignore xref startxref endobj endstream ObjStm MediaBox Zapf Nonsymbolic subsetted
+# cspell:ignore beginbfchar endbfchar beginbfrange endbfrange codepoints begincodespacerange
+# cspell:ignore endcodespacerange findresource defineresource currentdict begincmap endcmap
+# cspell:ignore bfchar bfrange usecmap cidrange cidchar
+# cspell:ignore fontfile stdenc quoteright Quoteright quotesingle hival
+# cspell:ignore charsets
+# cspell:ignore SASLprep
+# cspell:ignore Noto
+# cspell:ignore functiontype
+#
+# These requirements describe the design-level behavior of the PdfDocument unit.
+#
+# Packaging note: PdfDocument is distributed as the separate DemaConsulting.CanvasNet.Pdf NuGet
+# package (namespace DemaConsulting.CanvasNet.Pdf), which references the core
+# DemaConsulting.CanvasNet package. PdfDocument is the sole unit of the CanvasNetPdf system.
+
+sections:
+  - title: CanvasNetPdf Requirements
+    sections:
+      - title: PdfDocument Requirements
+        requirements:
+          - id: CanvasNetPdf-PdfDocument-Tokenizer
+            title: >-
+              The PdfDocument class shall tokenize a PDF byte stream into numbers (integer and
+              real, including leading-plus and bare-dot forms), literal strings (including nested
+              parentheses and backslash/octal escapes), hexadecimal strings (padding an odd digit
+              count with a trailing zero nibble), names (decoding  # xx hash escapes), array and
+              dictionary delimiters, and the reserved keywords, while skipping %-comments.
+            justification: |
+              Every later parsing stage (object model, cross-reference tables/streams, page tree)
+              depends on a correct, spec-conformant token stream; a tokenizer defect would corrupt
+              every downstream feature silently.
+            tests:
+              - PdfDocument_Tokenizer_Numbers_ParsesIntegerAndRealForms
+              - PdfDocument_Tokenizer_LiteralString_HandlesNestedParensAndEscapes
+              - PdfDocument_Tokenizer_HexString_DecodesFullBytes
+              - PdfDocument_Tokenizer_HexString_PadsOddDigitCountWithTrailingZero
+              - PdfDocument_Tokenizer_Name_DecodesHashEscapes
+              - PdfDocument_Tokenizer_Delimiters_RecognizesArrayAndDictionaryBrackets
+              - PdfDocument_Tokenizer_Comments_AreSkipped
+              - PdfDocument_Tokenizer_Keywords_AreRecognizedVerbatim
+              - PdfDocument_Tokenizer_EndOfInput_ReturnsEndOfFileToken
+
+          - id: CanvasNetPdf-PdfDocument-ObjectModel
+            title: >-
+              The PdfDocument class shall parse a token stream into its internal object model
+              (dictionaries with nested entries, arrays of mixed element kinds, and indirect
+              references), distinguishing a bare number followed by an object-definition header
+              from an indirect reference.
+            justification: |
+              PDF's dictionary/array/reference object model is the structural backbone every
+              cross-reference and page-tree feature is built on; it must be parsed correctly and
+              distinctly from a superficially similar bare-number-then-keyword sequence.
+            tests:
+              - PdfDocument_ObjectModel_Dictionary_ParsesNestedEntries
+              - PdfDocument_ObjectModel_Array_ParsesMixedElementTypes
+              - PdfDocument_ObjectModel_IndirectReference_ParsesObjectAndGenerationNumbers
+              - PdfDocument_ObjectModel_BareNumber_IsNotMisreadAsReference
+
+          - id: CanvasNetPdf-PdfDocument-ClassicXref
+            title: >-
+              The PdfDocument class shall parse a classic xref table and trailer dictionary,
+              resolving the catalog and every page object it references.
+            justification: |
+              The classic xref/trailer form is the original, still-common cross-reference format
+              and must be supported for broad real-world document compatibility.
+            tests:
+              - PdfDocument_Open_ClassicXref_ResolvesRootAndPage
+
+          - id: CanvasNetPdf-PdfDocument-XrefStream
+            title: >-
+              The PdfDocument class shall parse a /Type /XRef cross-reference stream (with no
+              classic table present), decoding its /W width-triplet-driven binary fields, and
+              resolve the catalog and every page object it references.
+            justification: |
+              Modern PDF producers commonly emit cross-reference streams instead of classic
+              tables; without this support, a large class of real-world documents would fail to
+              open.
+            tests:
+              - PdfDocument_Open_XrefStream_ResolvesRootAndPage
+
+          - id: CanvasNetPdf-PdfDocument-ObjectStream
+            title: >-
+              The PdfDocument class shall decompress a /Type /ObjStm object stream (FlateDecode)
+              and resolve an indirect object compressed within it, using the stream's /N and
+              /First header fields.
+            justification: |
+              Object streams let producers compactly store many small objects (such as page
+              dictionaries) inside one compressed stream; without support for resolving objects
+              compressed this way, many modern documents' pages would be unreachable.
+            tests:
+              - PdfDocument_Open_ObjectStream_DecompressesAndResolvesCompressedPage
+
+          - id: CanvasNetPdf-PdfDocument-HybridXref
+            title: >-
+              The PdfDocument class shall resolve an object described only by a hybrid document's
+              supplementary /XRefStm cross-reference stream, even though the document's classic
+              trailer marks that object number as free.
+            justification: |
+              Hybrid-reference files let old readers use the classic table while modern readers
+              use the supplementary stream to reach objects (such as ones compressed in an object
+              stream) the classic table cannot describe; without this, such documents would appear
+              to be missing objects a modern reader should be able to find.
+            tests:
+              - PdfDocument_Open_HybridXref_ResolvesCompressedEntryViaXRefStm
+
+          - id: CanvasNetPdf-PdfDocument-LinearScanFallback
+            title: >-
+              The PdfDocument class shall fall back to a linear scan of the document for "N G obj"
+              markers, reconstructing an object-offset table directly, when startxref is absent,
+              unreadable, or the parsed cross-reference chain does not resolve to a valid catalog.
+            justification: |
+              Real-world PDF producers occasionally emit documents with a missing or corrupt
+              startxref/cross-reference section; a linear-scan fallback lets such otherwise
+              well-formed documents still be opened instead of always failing outright.
+            tests:
+              - PdfDocument_Open_MalformedStartxref_FallsBackToLinearScan
+
+          - id: CanvasNetPdf-PdfDocument-PageTreeTraversal
+            title: >-
+              The PdfDocument class shall traverse the document's page tree, from the catalog's
+              /Pages root through recursively nested /Kids arrays, reporting every /Type /Page
+              leaf found, in document order.
+            justification: |
+              Callers need every page in a document reported, regardless of how deeply the
+              document's own page tree happens to be nested.
+            tests:
+              - PdfDocument_PageTree_Traversal_ReportsAllPagesInDocumentOrder
+
+          - id: CanvasNetPdf-PdfDocument-PageTreeInheritance
+            title: >-
+              The PdfDocument class shall inherit a page's /MediaBox and /Rotate from the nearest
+              ancestor page-tree node that declares one (defaulting to US Letter [0 0 612 792] and
+              rotation 0 when wholly undeclared in the ancestry), and shall swap the reported
+              width and height when the normalized effective rotation is 90 or 270 degrees.
+            justification: |
+              PDF pages routinely omit their own /MediaBox/Rotate, relying on an ancestor /Pages
+              node's declaration; callers need the correct, already-inherited and rotation-adjusted
+              size without independently re-implementing this inheritance and swap logic.
+            tests:
+              - PdfDocument_PageTree_Inheritance_ExplicitMediaBoxAndNoRotationIsUnchanged
+              - PdfDocument_PageTree_Inheritance_Rotation90SwapsDisplayedWidthAndHeight
+              - PdfDocument_PageTree_Inheritance_MediaBoxInheritedFromPagesNodeWhenPageOmitsIt
+
+          - id: CanvasNetPdf-PdfDocument-PageTreeCycleRejection
+            title: >-
+              The PdfDocument class shall detect and reject an unbounded page-tree reference cycle
+              (a /Kids entry referencing one of its own ancestors) with InvalidDataException.
+            justification: |
+              A malformed or adversarial document's page tree could otherwise cause an unbounded
+              traversal loop; rejecting the cycle keeps parsing bounded and predictable.
+            tests:
+              - PdfDocument_PageTree_CycleRejection_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-EncryptDetection
+            title: >-
+              The PdfDocument class shall detect an /Encrypt key in the trailer and throw
+              UnsupportedImageFeatureException with its own distinguishable feature token (for
+              example "pdf-encrypted-filter-{name}", "pdf-encrypted-r6-hardened-hash",
+              "pdf-encrypted-crypt-filter-{name}", "pdf-encrypted-cfm-{name}",
+              "pdf-encrypted-password-required", "pdf-encrypted-incorrect-password", or
+              "pdf-encrypted-password-non-ascii") for every encrypted-document shape this phase
+              does not support: a non-/Standard security handler, AES-256 /R 6 "hardened hash"
+              key derivation, a crypt filter other than the standard /StdCF, a document that
+              genuinely requires a non-empty password, a supplied password that authenticates
+              as neither the user nor the owner password, or an R2-R4 password containing a
+              non-ASCII character.
+            justification: |
+              Treating still-encrypted bytes as plaintext would silently produce meaningless
+              results; a clear, well-formed-but-unsupported signal, distinguishable per rejection
+              reason, lets callers diagnose exactly why a given encrypted document cannot be
+              opened instead of receiving one generic, undifferentiated error.
+            tests:
+              - PdfDocument_Open_EncryptedTrailer_ThrowsUnsupportedImageFeatureException
+              - CanvasNetPdf_SystemIntegration_PdfEncryptDetection_EncryptedTrailerThrowsUnsupportedImageFeatureException
+              - PdfDocument_Open_EncryptedAesV3_R6_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Open_EncryptedRc4_WrongUserPasswordHash_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Open_EncryptedAesV3_WrongValidationHash_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-EncryptionRc4
+            title: >-
+              The PdfDocument class shall open a /Filter /Standard, /V 1 or /V 2, RC4-encrypted
+              (40 to 128-bit) document with an empty user password: deriving the file encryption
+              key via ISO 32000-1 Algorithm 2, authenticating the empty user password against /U
+              via Algorithm 4 (/R 2) or Algorithm 5 (/R 3/4), and transparently decrypting every
+              indirect object's strings and every stream's raw bytes via Algorithm 1 before any
+              other parsing logic observes them.
+            justification: |
+              RC4 (40 to 128-bit) with an empty user password is the single most common real-world
+              encrypted-PDF shape; supporting it lets CanvasNetPdf open and render the vast
+              majority of permission-restricted PDFs found in the wild without requiring a caller
+              to supply any password.
+            tests:
+              - PdfDocument_Open_EncryptedRc4_40Bit_DecryptsAndRenders
+              - PdfDocument_Open_EncryptedRc4_128Bit_DecryptsAndRenders
+              - PdfDocument_Open_Encrypted_EncryptDictionaryStringsAreNeverDecrypted
+              - PdfDocument_Open_Encrypted_CatalogOwnStringIsDecrypted
+              - PdfDocument_Open_Encrypted_ObjStmContainedObjects_AreNeverDoubleDecrypted_DocumentedByDesign
+
+          - id: CanvasNetPdf-PdfDocument-EncryptionAesV2
+            title: >-
+              The PdfDocument class shall open a /Filter /Standard, /V 4, /R 4,
+              /CF/StdCF/CFM /AESV2 (AES-128) encrypted document with an empty user password:
+              deriving the file encryption key via Algorithm 2, authenticating the empty user
+              password against /U via Algorithm 5, and transparently decrypting every indirect
+              object's strings and every stream's raw bytes via Algorithm 1's AES branch (a
+              per-object key, a leading 16-byte CBC initialization vector, and PKCS#7 padding)
+              before any other parsing logic observes them.
+            justification: |
+              AES-128 (/V 4/AESV2) is a common encrypted-PDF shape produced by modern PDF writers
+              that have moved past plain RC4; supporting it extends empty-user-password coverage
+              to this equally common real-world case.
+            tests:
+              - PdfDocument_Open_EncryptedAesV2_128Bit_DecryptsAndRenders
+
+          - id: CanvasNetPdf-PdfDocument-EncryptionAesV3R5
+            title: >-
+              The PdfDocument class shall open a /Filter /Standard, /V 5, /R 5,
+              /CF/StdCF/CFM /AESV3 (AES-256, R5 key derivation) encrypted document with an empty
+              user password: authenticating the empty user password against /U's validation salt
+              and unwrapping /UE via ISO 32000-2 Algorithm 2.A, then using the resulting 32-byte
+              file encryption key directly (with no further per-object key derivation) to decrypt
+              every indirect object's strings and every stream's raw bytes as a leading 16-byte
+              CBC initialization vector followed by AES-256/PKCS#7-padded ciphertext.
+            justification: |
+              AES-256 using the simpler R5 key derivation is a real-world encrypted-PDF shape
+              found in the wild; supporting it (while deliberately rejecting /R 6's more complex
+              "hardened hash" key derivation, which this phase does not implement) extends
+              empty-user-password coverage to the strongest widely-deployed encryption variant
+              this phase supports.
+            tests:
+              - PdfDocument_Open_EncryptedAesV3_R5_DecryptsAndRenders
+
+          - id: CanvasNetPdf-PdfDocument-UserPasswordAuthentication
+            title: >-
+              The PdfDocument class shall accept an optional caller-supplied password (default
+              null, preserving today's empty-user-password-only behavior byte-for-byte) on both
+              Open overloads and authenticate it as the user password (Algorithm 2 plus Algorithm
+              4/5 for R2-R4, or Algorithm 2.A for R5) when it is the document's correct user
+              password, decrypting and rendering the document normally, regardless of which
+              supported cipher (RC4, AESV2, or AESV3/R5) the document uses.
+            justification: |
+              Several real-world password-protected PDFs cannot be opened at all without a way to
+              supply their actual user password; this unblocks that entire class of document
+              while keeping every existing empty-password caller's behavior unchanged.
+            tests:
+              - PdfDocument_Open_EncryptedRc4_CorrectUserPassword_DecryptsAndRenders
+              - PdfDocument_Open_EncryptedAesV2_CorrectUserPassword_DecryptsAndRenders
+              - PdfDocument_Open_EncryptedAesV3_CorrectUserPassword_DecryptsAndRenders
+
+          - id: CanvasNetPdf-PdfDocument-OwnerPasswordAuthentication
+            title: >-
+              The PdfDocument class shall, when a caller-supplied password does not authenticate
+              as the user password, next try it as the owner password (ISO 32000-1 Algorithm 3
+              for R2-R4, recovering the padded user password from /O; the owner-password variant
+              of ISO 32000-2 Algorithm 2.A for R5, recovering the file key directly from /OE
+              using the full 48-byte /U value), decrypting and rendering the document normally
+              when it is the document's correct owner password.
+            justification: |
+              A caller may only know a password-protected PDF's owner password (not its separate
+              user password); falling back to owner-password authentication lets that caller
+              still open and render the document instead of being unconditionally rejected.
+            tests:
+              - PdfDocument_Open_EncryptedRc4_CorrectOwnerPassword_DecryptsAndRenders
+              - PdfDocument_Open_EncryptedAesV3_CorrectOwnerPassword_DecryptsAndRenders
+
+          - id: CanvasNetPdf-PdfDocument-IncorrectPasswordRejection
+            title: >-
+              The PdfDocument class shall throw UnsupportedImageFeatureException with feature
+              "pdf-encrypted-incorrect-password" when a caller-supplied password authenticates as
+              neither the user nor the owner password, rather than silently decrypting with
+              wrong key material or reporting the null-password "pdf-encrypted-password-required"
+              feature.
+            justification: |
+              Callers need a clear, distinguishable signal that the password they supplied is
+              simply wrong, not that the document is unsupported for some other reason or that no
+              password was supplied at all.
+            tests:
+              - PdfDocument_Open_Encrypted_IncorrectPassword_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-PasswordNonAsciiRejection
+            title: >-
+              The PdfDocument class shall throw UnsupportedImageFeatureException with feature
+              "pdf-encrypted-password-non-ascii" when a caller-supplied password for an R2-R4
+              (Latin-1-encoded) encrypted document contains a character outside ASCII (0-127),
+              rather than silently deriving wrong key material from a truncated or mis-encoded
+              byte sequence.
+            justification: |
+              R2-R4's Latin-1 password encoding has no well-defined behavior for non-ASCII
+              characters; rejecting them explicitly prevents a caller from being misled by a
+              silent authentication failure traceable to encoding, not an actually-wrong password.
+            tests:
+              - PdfDocument_Open_Encrypted_NonAsciiPassword_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-Open
+            title: >-
+              The PdfDocument class shall expose Open(Stream) and Open(string) overloads that
+              fully buffer their input and parse it identically, rejecting a null stream or path
+              with ArgumentNullException and an empty or whitespace-only path with
+              ArgumentException, without taking ownership of (or disposing) a caller-supplied
+              stream.
+            justification: |
+              Callers need a predictable, symmetric entry point regardless of whether their PDF
+              data already lives in a stream or only exists as a file on disk, and must retain
+              ownership of any stream they pass in themselves.
+            tests:
+              - PdfDocument_Open_NullStream_ThrowsArgumentNullException
+              - PdfDocument_Open_NullPath_ThrowsArgumentNullException
+              - PdfDocument_Open_EmptyOrWhitespacePath_ThrowsArgumentException
+
+          - id: CanvasNetPdf-PdfDocument-GetPageInfo
+            title: >-
+              The PdfDocument class shall reject a GetPageInfo call with a negative page index or
+              one greater than or equal to PageCount with ArgumentOutOfRangeException.
+            justification: |
+              Callers need a clear, standard validation error rather than an out-of-bounds crash
+              or a silently wrong result when passing an invalid page index.
+            tests:
+              - PdfDocument_GetPageInfo_OutOfRangeIndex_ThrowsArgumentOutOfRangeException
+
+          - id: CanvasNetPdf-PdfDocument-Render
+            title: >-
+              The PdfDocument class shall return a Surface of the caller-specified width and
+              height for a valid page index, painting it with the page's interpreted content-
+              stream geometry (see CanvasNetPdf-PdfDocument-ContentStreamDispatch and its sibling
+              requirements below) or, when the page declares no /Contents at all, a fully
+              transparent surface; it shall validate the page index the same way GetPageInfo does,
+              and propagate Surface's own width/height validation unwrapped rather than
+              duplicating it.
+            justification: |
+              Phase 1 established Render's final call shape (page index plus caller-chosen output
+              size) so Phase 2's real content-stream rendering could be added without a breaking
+              API change; callers need a correctly sized, correctly painted result.
+            tests:
+              - PdfDocument_Render_ValidPageIndex_ReturnsCorrectlySizedBlankSurface
+              - PdfDocument_Render_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException
+              - PdfDocument_Render_InvalidWidth_PropagatesSurfaceArgumentOutOfRangeException
+              - PdfDocument_ContentStream_NoContents_RendersBlankSurface
+
+          - id: CanvasNetPdf-PdfDocument-RenderWithDpi
+            title: >-
+              The PdfDocument class shall provide a Render overload that renders a page at a
+              caller-specified resolution (in pixels per inch) rather than requiring the caller to
+              compute an output width/height in pixels themselves, scaling the page's own
+              rotation-adjusted point-space size by dpi/72, preserving its aspect ratio, and
+              rounding the result to the nearest pixel before producing the same painted Surface
+              as the width/height overload; it shall reject a dpi that is not a positive, finite
+              number, and validate the page index the same way the width/height overload does.
+            justification: |
+              Callers frequently think in terms of a target resolution (dots per inch) rather than
+              an absolute pixel size, and computing a page's correctly aspect-ratio-preserving
+              pixel dimensions from its point-space size themselves duplicates logic this class
+              already has one correct, centralized place to provide (see
+              CanvasNetPdf-PdfDocument-Render, which this overload delegates to).
+            tests:
+              - PdfDocument_RenderWithDpi_ScalesPageSizeByDpiOver72
+              - PdfDocument_RenderWithDpi_InvalidDpi_ThrowsArgumentOutOfRangeException
+              - PdfDocument_RenderWithDpi_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException
+              - PdfDocument_RenderWithDpi_AfterDispose_ThrowsObjectDisposedException
+
+          - id: CanvasNetPdf-PdfDocument-ContentStreamDispatch
+            title: >-
+              The PdfDocument class shall tokenize and dispatch a page's resolved content-stream
+              bytes over a fixed set of recognized path-construction/painting and graphics-state
+              operators, silently skipping any other keyword (color, text, image, clipping, and
+              any other operator not yet implemented) rather than throwing, and shall throw
+              InvalidDataException when a recognized operator's own operand count/type does not
+              match its documented requirement.
+            justification: |
+              Real-world content streams routinely contain operators outside this phase's scope
+              (color, text, images, clipping); a lenient-toward-the-unrecognized, strict-toward-
+              the-malformed-recognized dispatch loop lets such streams still render their in-scope
+              geometry instead of failing outright.
+            tests:
+              - PdfDocument_ContentStream_UnknownOperator_IsSkippedWithoutThrowing
+              - CanvasNetPdf_SystemIntegration_PdfRender_FilledRectangleAndStrokedLine_PaintsExpectedPixels
+
+          - id: CanvasNetPdf-PdfDocument-ContentsResolution
+            title: >-
+              The PdfDocument class shall resolve a page's /Contents entry to fully decoded
+              content-stream bytes whether declared as a single stream or as an array of streams,
+              concatenating array entries with a single space byte between each so adjacent tokens
+              from different streams can never merge into one, and shall throw
+              InvalidDataException when /Contents is neither a stream nor an array of streams, or
+              when an array entry does not itself resolve to a stream.
+            justification: |
+              The PDF specification explicitly requires the space separator between concatenated
+              /Contents array entries; omitting it can silently corrupt otherwise well-formed
+              geometry by merging two numeric operands from adjacent streams into one.
+            tests:
+              - PdfDocument_ContentStream_ContentsArray_ConcatenatesStreamsWithSpaceSeparator
+
+          - id: CanvasNetPdf-PdfDocument-GraphicsStateStack
+            title: >-
+              The PdfDocument class shall maintain a graphics-state stack via the q/Q operators
+              (tolerating an unbalanced Q with no matching prior q as a no-op), compose the
+              current transformation matrix via the cm operator by right-multiplying the supplied
+              matrix onto the current transform, and store the line width/cap/join/miter-limit/
+              dash-pattern operands of w/J/j/M/d on the current graphics state, all with
+              InvalidDataException thrown for a malformed operand count.
+            justification: |
+              Nested q/cm/Q blocks are the standard PDF idiom for scoping a coordinate-space or
+              stroke-style change to one part of a content stream; without a correctly composing,
+              correctly restoring stack, every subsequently drawn path's position/appearance could
+              be silently wrong.
+            tests:
+              - PdfDocument_GraphicsState_QPushCmThenQPop_RestoresPriorTransform
+              - PdfDocument_GraphicsState_NestedQQ_ComposesTransformsInOrder
+              - PdfDocument_GraphicsState_UnbalancedQWithNoMatchingPush_DoesNotThrow
+              - PdfDocument_GraphicsState_MalformedCmOperandCount_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-CtmDerivation
+            title: >-
+              The PdfDocument class shall derive each page's base (pre-content-stream) current
+              transformation matrix from its raw /MediaBox origin, effective /Rotate, and the
+              caller's requested render width/height, mapping PDF user-space coordinates (origin
+              bottom-left, y-axis up) to device pixel-space coordinates (origin top-left, y-axis
+              down) with the correct rotation and independent X/Y scaling to the requested size.
+            justification: |
+              An incorrect CTM derivation would silently misplace every rendered page's geometry;
+              this is most reliably proven with a deliberately asymmetric fixture at a non-zero
+              rotation, where any rotation-sign or origin-offset error produces a detectably wrong
+              pixel position rather than a merely-shifted-but-plausible one.
+            tests:
+              - CanvasNetPdf_SystemIntegration_PdfRender_RotatedPage_MapsGeometryToCorrectPixelPosition
+
+          - id: CanvasNetPdf-PdfDocument-PathConstruction
+            title: >-
+              The PdfDocument class shall build the current path from the m/l/c/v/y/h/re path-
+              construction operators exactly as the PDF specification documents (v's first control
+              point defaults to the current point; y's second control point defaults to the
+              curve's own endpoint; re appends an independently closed rectangular subpath), baking
+              the current transformation matrix into every emitted point, requiring an already-open
+              subpath for every operator except m/re, and throwing InvalidDataException for a
+              malformed operand count or a draw operator issued before the first m/re.
+            justification: |
+              Path construction is the geometric foundation every fill/stroke operator paints;
+              each operator (especially the v/y curve shorthands, whose control-point defaulting
+              rules are easy to get backwards) must build exactly the curve/line/rectangle the
+              specification documents.
+            tests:
+              - PdfDocument_PathOps_MoveLineRectCurve_BuildExpectedGeometry
+              - PdfDocument_PathOps_MalformedOperandCount_ThrowsInvalidDataException
+              - PdfDocument_PathOps_DrawBeforeMoveTo_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-PathPainting
+            title: >-
+              The PdfDocument class shall paint the current path via the f/F/f*/S/s/B/B*/b/b*/n
+              path-painting operators (choosing the nonzero or even-odd fill rule as documented,
+              closing the current subpath first for s/b/b*, and never painting anything for n)
+              using the current graphics state's fill/stroke color, and shall always clear the
+              current path afterward while leaving the surrounding graphics state, including its
+              CTM, stroke style, and color, unaffected by that clear.
+            justification: |
+              Callers need every documented fill-rule/stroke/close-first combination and the
+              path-clearing-but-state-preserving behavior between consecutive painted paths to
+              behave exactly as the specification requires, or subsequent paths in the same
+              content stream could silently paint with a stale path or a reset graphics state.
+            tests:
+              - PdfDocument_PathOps_FillNonZero_PaintsExpectedPixels
+              - PdfDocument_PathOps_FillEvenOdd_PaintsExpectedPixels
+              - PdfDocument_PathOps_Stroke_PaintsExpectedPixels
+              - PdfDocument_PathOps_CloseAndFillAndStroke_PaintsExpectedPixels
+              - PdfDocument_PathOps_NoOp_DiscardsPathWithoutPainting
+              - PdfDocument_PathOps_PaintOperator_ClearsPathButPreservesGraphicsState
+
+          - id: CanvasNetPdf-PdfDocument-Dispose
+            title: >-
+              The PdfDocument class shall make Dispose idempotent, safe to call more than once
+              without throwing.
+            justification: |
+              Callers commonly combine a using declaration with manual disposal (or dispose more
+              than once for other reasons); Dispose must tolerate this without throwing.
+            tests:
+              - PdfDocument_Dispose_CalledTwice_DoesNotThrow
+
+          - id: CanvasNetPdf-PdfDocument-ObjectDisposedException
+            title: >-
+              The PdfDocument class shall throw ObjectDisposedException from PageCount,
+              GetPageInfo, and Render once the document has been disposed.
+            justification: |
+              Callers must not be able to read stale or released parsed state through a disposed
+              PdfDocument instance.
+            tests:
+              - PdfDocument_PageCount_AfterDispose_ThrowsObjectDisposedException
+              - PdfDocument_GetPageInfo_AfterDispose_ThrowsObjectDisposedException
+              - PdfDocument_Render_AfterDispose_ThrowsObjectDisposedException
+
+          - id: CanvasNetPdf-PdfDocument-DeviceColorOperators
+            title: >-
+              The PdfDocument class shall implement the g/G/rg/RG/k/K device color operators,
+              setting the current fill/stroke color from clamped-to-[0,1] gray/RGB/CMYK
+              components (CMYK converted via R = 255 * (1 - C) * (1 - K), and the equivalent
+              formulas for G/B), clamping any component outside [0,1] rather than rejecting it,
+              and throwing InvalidDataException for a malformed operand count or type.
+            justification: |
+              Real device color is the direct Phase 3 successor to Phase 2's fixed opaque-black
+              painting; every filled/stroked path must reflect the color a content stream
+              actually requests, converted per the PDF specification's own documented formulas.
+            tests:
+              - PdfDocument_Color_SetGrayFill_SetsExpectedRgbaColor
+              - PdfDocument_Color_SetGrayStroke_SetsExpectedRgbaColor
+              - PdfDocument_Color_SetRgbFill_SetsExpectedRgbaColor
+              - PdfDocument_Color_SetRgbStroke_SetsExpectedRgbaColor
+              - PdfDocument_Color_SetCmykFill_ConvertsToExpectedRgbaColor
+              - PdfDocument_Color_SetCmykStroke_ConvertsToExpectedRgbaColor
+              - PdfDocument_Color_ComponentValuesOutsideZeroToOne_AreClamped
+              - PdfDocument_Color_MalformedOperandCount_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-ColorSpaceOperators
+            title: >-
+              The PdfDocument class shall implement the cs/CS operators, resolving DeviceGray/
+              DeviceRGB/DeviceCMYK directly or via the current page's /Resources/ColorSpace
+              dictionary and resetting color to opaque black, and the sc/SC/scn/SCN operators,
+              setting color from the current color space's required component count; any other
+              resolved color space (Separation/DeviceN/CalGray/Lab, or an undeclared name) shall
+              throw UnsupportedImageFeatureException rather than being silently mis-rendered; a
+              scn/SCN operand against a /Pattern color space is instead resolved per
+              CanvasNetPdf-PdfDocument-PatternColorSpace (see also
+              CanvasNetPdf-PdfDocument-ShadingPatternFill and
+              CanvasNetPdf-PdfDocument-TilingPatternFill for how the resolved pattern is
+              ultimately painted).
+            justification: |
+              A content stream that selects an unsupported color space must be rejected
+              explicitly (fail closed), not silently mis-rendered with the wrong number of
+              components or an incorrect color, so a caller can detect the unsupported feature
+              rather than receiving a plausible-looking but wrong image; a /Pattern color space
+              selection, by contrast, is now a fully supported fill/stroke source (shading and
+              tiling pattern fills), not a fail-closed case.
+            tests:
+              - PdfDocument_Color_SetColorSpaceFill_DeviceNames_ResetsColorToBlack
+              - PdfDocument_Color_SetColorSpaceStroke_DeviceNames_ResetsColorToBlack
+              - PdfDocument_Color_SetColorFillUsingCurrentColorSpace_Sc_PaintsExpectedColor
+              - PdfDocument_Color_SetColorStrokeUsingCurrentColorSpace_SC_PaintsExpectedColor
+              - PdfDocument_Color_Scn_ColoredPatternOperand_NameAlone_ResolvesPattern
+              - PdfDocument_Color_UnsupportedNamedColorSpace_ThrowsUnsupportedImageFeatureException
+              - CanvasNetPdf_SystemIntegration_PdfRender_ColoredRectangleFill_PaintsExpectedRgbPixels
+
+          - id: CanvasNetPdf-PdfDocument-IccBasedColorSpace
+            title: >-
+              The PdfDocument class shall resolve an /ICCBased color space by preferring its
+              /Alternate entry when present and itself a supported color space, else mapping its
+              stream's /N component count (1/3/4) to DeviceGray/DeviceRGB/DeviceCMYK, and shall
+              throw UnsupportedImageFeatureException when neither /Alternate nor a 1/3/4 /N is
+              usable.
+            justification: |
+              ICC-managed color is out of scope for this phase, but /ICCBased is the most common
+              way real-world PDF producers declare an otherwise ordinary device color space;
+              rejecting it outright would needlessly fail closed on a vast class of well-formed,
+              common PDFs that this phase can render correctly using the device-color
+              approximation it already implements elsewhere.
+            tests:
+              - PdfDocument_Color_IccBasedN3_ResolvesAsDeviceRgb
+              - PdfDocument_Color_IccBasedWithAlternate_PrefersAlternateOverN
+              - PdfDocument_Color_IccBasedUnsupportedN_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-IndexedColorSpace
+            title: >-
+              The PdfDocument class shall resolve an /Indexed color space (base color space,
+              Hival, and a string- or stream-sourced lookup table) as a single-component palette
+              index, usable both as an image XObject's /ColorSpace and via cs/CS/sc/scn, clamping
+              an out-of-range index to the nearest valid (highest) palette entry rather than
+              rejecting it, and shall throw UnsupportedImageFeatureException when the base color
+              space is itself unsupported.
+            justification: |
+              Indexed-color images (palette-based, akin to GIF/indexed PNG) are common in
+              real-world PDF content; without /Indexed support such images would fail closed
+              entirely rather than rendering their already-decodable palette colors.
+            tests:
+              - PdfDocument_Images_DoOperator_IndexedColorSpace_PlacesExpectedPaletteColors
+              - PdfDocument_Color_IndexedColorSpace_Scn_PaintsExpectedPaletteColor
+              - PdfDocument_Color_IndexedColorSpace_OutOfRangeIndex_ClampsToHighestPaletteEntry
+              - PdfDocument_Color_IndexedColorSpace_UnsupportedBase_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-FilterPipeline
+            title: >-
+              The PdfDocument class shall generalize stream decoding into an ordered /Filter/
+              /DecodeParms pipeline, supporting FlateDecode and LZWDecode (each optionally
+              followed by a PNG /Predictor 10-15 or TIFF /Predictor 2 predictor reversal) and
+              ASCII85Decode/ASCIIHexDecode/RunLengthDecode (which never accept a predictor),
+              while preserving the existing bare-FlateDecode behavior for cross-reference
+              streams, object streams, and page /Contents; any other filter name shall throw
+              UnsupportedImageFeatureException, and a malformed /Filter//DecodeParms shape or an
+              unrecognized /Predictor value shall throw InvalidDataException.
+            justification: |
+              Image XObjects commonly use a PNG or TIFF predictor alongside FlateDecode or
+              LZWDecode to improve compression; without predictor reversal, such an image would
+              decode to incorrect pixel data rather than failing closed or decoding correctly,
+              and every existing Phase 1/2 stream-decoding call site must continue to behave
+              identically.
+            tests:
+              - PdfDocument_Images_FlateDecodePngPredictor_DecodesExpectedPixels
+              - PdfDocument_Images_FlateDecodeTiffPredictor_DecodesExpectedPixels
+              - PdfDocument_Images_LzwDecodePngPredictor_DecodesExpectedPixels
+              - PdfDocument_Images_UnsupportedFilter_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-LzwDecodeFilter
+            title: >-
+              The PdfDocument class shall implement the PDF-variant LZWDecode filter per ISO
+              32000-1/2 section 7.4.4: an initial 258-entry table (codes 0-255 literal, 256
+              Clear, 257 EOD), MSB-first variable 9-12 bit code packing, code-width growth timing
+              controlled by /DecodeParms /EarlyChange (default 1, one code early; 0, one code
+              later), and mid-stream Clear-code table reinitialization; a missing EOD marker, an
+              invalid or out-of-range code, or a truncated bit stream shall throw
+              InvalidDataException rather than silently producing truncated or incorrect output.
+            justification: |
+              LZWDecode is a commonly produced PDF stream filter (content streams and image
+              XObjects alike); an incorrect early-change interpretation, code-width growth
+              timing, or truncation-tolerant decoder would silently corrupt decoded data rather
+              than failing closed or decoding correctly, matching ISO 32000-1's own worked Table
+              7/Example 2 vector.
+            tests:
+              - PdfDocument_Filters_LzwDecode_SpecExampleTable7_DecodesExpectedBytes
+              - PdfDocument_Filters_LzwDecode_EarlyChangeDefault_GrowsCodeWidthOneCodeEarly
+              - PdfDocument_Filters_LzwDecode_EarlyChangeZero_GrowsCodeWidthOneCodeLater
+              - PdfDocument_Filters_LzwDecode_ClearCodeMidStream_ReinitializesTable
+              - PdfDocument_Filters_LzwDecode_MissingEodCode_ThrowsInvalidDataException
+              - PdfDocument_Filters_LzwDecode_InvalidCode_ThrowsInvalidDataException
+              - PdfDocument_Images_DoOperator_DeviceGrayLzwDecode_PlacesExpectedPixels
+              - CanvasNetPdf_SystemIntegration_PdfRender_LzwDecodeContentStream_PaintsExpectedPixels
+
+          - id: CanvasNetPdf-PdfDocument-AsciiDecodeFilters
+            title: >-
+              The PdfDocument class shall implement the ASCII85Decode filter (base-85 groups of
+              5 characters decoding to 4 bytes, the z shorthand for an all-zero 4-byte group at a
+              group boundary only, the final-partial-group n+1-character padding rule, and the
+              ~> EOD marker) and the ASCIIHexDecode filter (hex-digit pairs decoding to bytes,
+              ignoring whitespace, the > EOD marker, and an odd trailing digit implicitly padded
+              with a zero nibble) per ISO 32000-1/2 sections 7.4.2/7.4.3; an invalid character, a
+              z occurring mid-group, an out-of-range 5-character group value, a final partial
+              group of exactly one character, or a missing EOD marker shall throw
+              InvalidDataException.
+            justification: |
+              ASCII85Decode and ASCIIHexDecode are the two ASCII-armoring filters PDF producers
+              commonly layer over a binary compression filter (frequently LZWDecode); decoding
+              either incorrectly would corrupt every stream layered beneath it, and malformed
+              input must fail closed rather than silently decode to the wrong bytes.
+            tests:
+              - PdfDocument_Filters_Ascii85Decode_ZeroGroup_DecodesToFourZeroBytes
+              - PdfDocument_Filters_Ascii85Decode_FullGroup_DecodesExpectedBytes
+              - PdfDocument_Filters_Ascii85Decode_PartialFinalGroup_AppliesPaddingRule
+              - PdfDocument_Filters_Ascii85Decode_WhitespaceIgnored_DecodesExpectedBytes
+              - PdfDocument_Filters_Ascii85Decode_ZInMiddleOfGroup_ThrowsInvalidDataException
+              - PdfDocument_Filters_Ascii85Decode_ValueExceedsRange_ThrowsInvalidDataException
+              - PdfDocument_Filters_Ascii85Decode_MissingEodMarker_ThrowsInvalidDataException
+              - PdfDocument_Filters_AsciiHexDecode_HexDigitPairs_DecodesExpectedBytes
+              - PdfDocument_Filters_AsciiHexDecode_OddTrailingDigit_PadsWithZeroNibble
+              - PdfDocument_Filters_AsciiHexDecode_WhitespaceIgnored_DecodesExpectedBytes
+              - PdfDocument_Filters_AsciiHexDecode_InvalidCharacter_ThrowsInvalidDataException
+              - PdfDocument_Filters_AsciiHexDecode_MissingEodMarker_ThrowsInvalidDataException
+              - CanvasNetPdf_SystemIntegration_PdfRender_Ascii85DecodeContentStream_PaintsExpectedPixels
+              - CanvasNetPdf_SystemIntegration_PdfRender_AsciiHexDecodeContentStream_PaintsExpectedPixels
+
+          - id: CanvasNetPdf-PdfDocument-RunLengthDecodeFilter
+            title: >-
+              The PdfDocument class shall implement the RunLengthDecode filter per ISO 32000-1/2
+              section 7.4.5: a length byte 0-127 copies the following length+1 bytes literally,
+              a length byte 129-255 repeats the following single byte 257-length times, and a
+              length byte of 128 denotes EOD; a run requiring more source bytes than remain shall
+              throw InvalidDataException rather than silently producing truncated output.
+            justification: |
+              RunLengthDecode is a simple, commonly used filter for monochrome image data; a
+              truncated or malformed run must fail closed, not silently decode to the wrong byte
+              count.
+            tests:
+              - PdfDocument_Filters_RunLengthDecode_LiteralRun_CopiesBytesVerbatim
+              - PdfDocument_Filters_RunLengthDecode_RepeatRun_RepeatsSingleByte
+              - PdfDocument_Filters_RunLengthDecode_EodMarker_StopsDecoding
+              - PdfDocument_Filters_RunLengthDecode_TruncatedRun_ThrowsInvalidDataException
+              - CanvasNetPdf_SystemIntegration_PdfRender_RunLengthDecodeContentStream_PaintsExpectedPixels
+
+          - id: CanvasNetPdf-PdfDocument-RunLengthDecodeOutputCap
+            title: >-
+              The PdfDocument class shall throw InvalidDataException when decoding a
+              RunLengthDecode-filtered stream whose expanded output would exceed a fixed maximum
+              size, checking the remaining budget before appending each run rather than only
+              after the full stream has been decoded.
+            justification: |
+              Each 2-byte "repeat" run can expand to up to 128 output bytes (a 64x amplification),
+              so a tiny, crafted RunLengthDecode-filtered stream could otherwise force an enormous
+              allocation (a decompression-bomb-style denial of service); bounding the decoded
+              output size closes that attack surface while remaining generous enough for any
+              legitimate PDF image/content stream.
+            tests:
+              - PdfDocument_Filters_RunLengthDecode_OutputExceedsMaxSize_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-CcittFaxDecodeFilter
+            title: >-
+              The PdfDocument class shall implement the CCITTFaxDecode image filter's ITU-T T.6
+              Group 4 (two-dimensional MMR) coding only: a prefix-free two-dimensional mode code
+              (Pass/Horizontal/vertical V0/VR1-3/VL1-3) per coding element, White/Black Modified
+              Huffman run-length codes (terminating 0-63, makeup 64-1728, and the shared extended
+              makeup 1792-2560) per ITU-T T.4, and a reference-line changing-element (b1/b2)
+              decode loop, honoring /DecodeParms /Columns (default 1728), /Rows (defaulting to
+              the image's own /Height when 0 or absent), /BlackIs1 (default false, per ISO
+              32000-1/2 Table 11's bit-to-color mapping), and /EncodedByteAlign (default false);
+              /K 0 or greater (Group 3) and /EndOfLine true shall each throw
+              UnsupportedImageFeatureException, and CCITTFaxDecode combined with any other filter,
+              or a resolved /ColorSpace with more than 1 component, shall likewise fail closed
+              (the latter with UnsupportedImageFeatureException, the former with
+              InvalidDataException).
+            justification: |
+              CCITTFaxDecode (Group 4) is a common, highly compact encoding for monochrome
+              scanned-document images; without it, such images would either fail closed
+              unnecessarily or (if misinterpreted) silently render incorrect pixel data - the
+              mode/run-length code tables and reference-line algorithm must be implemented
+              exactly per the ITU-T recommendations, and remain explicitly scoped to Group 4 only
+              (Group 3 and explicit /EndOfLine both fail closed rather than being silently
+              misdecoded).
+            tests:
+              - PdfDocument_Images_DoOperator_CcittFaxGroup4_PlacesExpectedPixels
+              - PdfDocument_Images_DoOperator_CcittFaxBlackIs1Default_MapsZeroBitToBlack
+              - PdfDocument_Images_DoOperator_CcittFaxBlackIs1True_InvertsPolarity
+              - PdfDocument_Images_DoOperator_CcittFaxNonByteAlignedColumns_DecodesExpectedRowPadding
+              - PdfDocument_Images_CcittFaxGroup3K_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Images_CcittFaxCombinedWithAnotherFilter_ThrowsInvalidDataException
+              - PdfDocument_Images_CcittFaxEndOfLineTrue_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Filters_CcittFaxRunLengthTables_RoundTripEveryCode
+              - PdfDocument_Filters_CcittFaxModeCodeTable_RoundTripEveryCode
+              - PdfDocument_Images_DoOperator_CcittFaxPassModeElement_PlacesExpectedPixels
+              - PdfDocument_Images_DoOperator_CcittFaxEncodedByteAlignTrue_SkipsRowPaddingBits
+
+          - id: CanvasNetPdf-PdfDocument-ImageXObjects
+            title: >-
+              The PdfDocument class shall implement the Do operator for a /Subtype /Image
+              XObject, decoding a bare /Filter /DCTDecode image via Codecs.JpegCodec.Load or
+              interpreting raw DeviceGray/DeviceRGB/DeviceCMYK 8-bit samples, and compositing the
+              decoded image onto the destination surface through the current transformation
+              matrix (nearest-neighbor sampling, treating every image as fully opaque); an
+              unsupported /ColorSpace or an unsupported /BitsPerComponent shall throw
+              UnsupportedImageFeatureException rather than being silently skipped or
+              mis-rendered, and a malformed operand count/type or an undeclared XObject name
+              shall throw InvalidDataException.
+            justification: |
+              Image XObjects are a common, visually significant PDF content type; callers need
+              them decoded and correctly positioned, and need every explicitly out-of-scope
+              construct (unsupported color spaces/bit depths) to fail closed with a
+              distinguishable exception rather than being silently skipped or mis-rendered.
+            tests:
+              - PdfDocument_Images_DoOperator_DeviceGrayFlateDecode_PlacesExpectedPixels
+              - PdfDocument_Images_DoOperator_DeviceRgbFlateDecode_PlacesExpectedPixels
+              - PdfDocument_Images_DoOperator_DeviceCmykFlateDecode_PlacesExpectedPixels
+              - PdfDocument_Images_DoOperator_DctDecodeJpeg_PlacesExpectedPixels
+              - PdfDocument_Images_UnsupportedBitsPerComponent_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Images_UnsupportedColorSpace_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-FormXObjects
+            title: >-
+              The PdfDocument class shall implement the Do operator for a /Subtype /Form
+              XObject: decode its content stream via the generic stream-decoding pipeline,
+              concatenate an optional /Matrix into the current transformation matrix using the
+              same left-multiply convention as the cm operator, use the Form's own /Resources
+              when present else fall back to the invoking content stream's /Resources, and
+              execute the decoded bytes as a nested content stream that inherits the invoking
+              stream's current graphics state and leaves it (and the invoking stream's
+              /Resources) unaffected once Do returns, whether successfully or via a thrown
+              exception; nested Form XObject invocations exceeding a fixed maximum depth shall
+              throw InvalidDataException rather than overflowing the call stack.
+            justification: |
+              Form XObjects (reusable nested content streams) are a common PDF construct for
+              shared graphics; callers need their content actually rendered at the correct,
+              matrix-adjusted position, with correct resource scoping and without corrupting the
+              invoking content stream's own graphics state, and need a pathological
+              (self-referencing) Form to fail closed deterministically rather than hang or crash.
+            tests:
+              - PdfDocument_Images_DoOperator_FormXObject_PaintsNestedContentStream
+              - PdfDocument_Images_DoOperator_FormXObjectWithMatrix_AppliesMatrixToNestedContent
+              - PdfDocument_Images_DoOperator_FormXObjectWithoutOwnResources_FallsBackToInvokingResources
+              - PdfDocument_Images_DoOperator_FormXObjectWithOwnResources_TakesPrecedenceOverInvokingResources
+              - PdfDocument_Images_DoOperator_NestedFormXObjects_RestoresGraphicsStateAfterReturn
+              - PdfDocument_Images_DoOperator_FormXObjectExceedsMaxRecursionDepth_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-FontResolution
+            title: >-
+              The PdfDocument class shall resolve a /Resources/Font entry naming a /Subtype
+              /TrueType or /Subtype /Type1 simple font, dispatching either subtype to the same
+              simple-font resolution: an embedded /FontDescriptor/FontFile2 stream (loaded via
+              Fonts.TrueTypeFont.Load) if present, else an embedded /FontDescriptor/FontFile
+              classic PostScript Type 1 stream (see CanvasNetPdf-PdfDocument-Type1FontResolution)
+              if present, else an embedded /FontDescriptor/FontFile3 bare Type1C/CFF stream (see
+              CanvasNetPdf-PdfDocument-Type1CFontResolution) if present, else system/bundled
+              font-fallback substitution (see CanvasNetPdf-PdfDocument-FontFallback); a font whose
+              /Subtype is /MMType1 shall throw UnsupportedImageFeatureException, a /Subtype
+              /Type0 composite font shall instead be resolved via
+              CanvasNetPdf-PdfDocument-CompositeFontDispatch, a /Subtype /Type3 font shall
+              instead be resolved via CanvasNetPdf-PdfDocument-Type3FontResolution, and a Tf
+              operator naming a font absent from /Resources/Font shall throw
+              InvalidDataException; caching the resolved font by font-dictionary object identity
+              for the duration of a single Render call.
+            justification: |
+              Multiple Master Type 1 fonts (/MMType1) remain explicitly out of scope and must
+              fail closed with a distinguishable exception; a non-embedded simple font
+              (/TrueType or /Type1 alike), however, is common enough in real-world PDFs
+              (referencing a standard-14 name, or an installed system font, without embedding
+              it) that silently refusing to render it is a worse outcome than a best-effort
+              visual substitute - including when the font dictionary declares no
+              /FontDescriptor at all, as PDF 32000-1 §9.6.2.2 explicitly permits for the standard
+              14 fonts and several real-world producers emit - and repeatedly selecting the same
+              font resource within one render must not repeatedly re-decode its embedded font
+              bytes.
+            tests:
+              - PdfDocument_Fonts_UnsupportedSubtype_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Fonts_UndefinedFontName_ThrowsInvalidDataException
+              - PdfDocument_BuildResolvedFont_EmbeddedFontFileTakesPriorityOverFallback
+              - PdfDocument_Fonts_Type1_DispatchesToSimpleFontResolution_PaintsGlyphInk
+              - PdfDocument_Fonts_Type1_NoFontFile_ResolvesViaFallback
+              - PdfDocument_Fonts_SimpleFont_NoFontDescriptorAtAll_ResolvesViaFallback
+
+          - id: CanvasNetPdf-PdfDocument-CompositeFontDispatch
+            title: >-
+              The PdfDocument class shall resolve a /Resources/Font entry naming a /Subtype
+              /Type0 composite font by requiring /Encoding to be the name /Identity-H and
+              /DescendantFonts to be a single-element array naming a descendant font dictionary,
+              dispatching the descendant to CIDFontType2 or CIDFontType0 resolution by its own
+              /Subtype, and decoding each shown string as a sequence of 2-byte codes (each a CID
+              directly, per /Identity-H); any other /Encoding (including /Identity-V and
+              predefined CJK encodings) shall throw UnsupportedImageFeatureException, a
+              missing/malformed /DescendantFonts or an odd-byte-length shown string shall throw
+              InvalidDataException.
+            justification: |
+              Type0/Identity-H composite fonts are the encoding real-world PDF producers
+              (Microsoft Word, LibreOffice, and browser print-to-PDF among them) overwhelmingly
+              emit for embedded subsetted text, so continuing to reject every /Type0 font
+              unconditionally is a significant real-world compatibility gap. Vertical writing
+              (/Identity-V), predefined CJK encodings, and custom CMap-based /Encoding streams
+              remain explicitly out of this phase's scope and must fail closed with a
+              distinguishable exception rather than being silently mis-rendered.
+            tests:
+              - PdfDocument_Fonts_Type0_NonIdentityHEncoding_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Fonts_Type0_MissingDescendantFonts_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Type0_DescendantFontsNotSingleElement_ThrowsInvalidDataException
+              - PdfDocument_ShowText_Type0_OddByteLengthString_ThrowsInvalidDataException
+              - PdfDocument_ShowText_Type0_TwoByteCodes_ShowsEachGlyphAtCorrectPosition
+
+          - id: CanvasNetPdf-PdfDocument-CidFontType2FontResolution
+            title: >-
+              The PdfDocument class shall resolve a /Type0 font's /Subtype /CIDFontType2
+              descendant by loading its embedded /FontDescriptor/FontFile2 TrueType-outline
+              program, mapping each shown CID to a glyph index via the descendant's
+              /CIDToGIDMap (the identity map when absent or the name /Identity, or an explicit
+              big-endian uint16-per-CID lookup table for a stream, with an out-of-range CID
+              mapping to glyph 0/.notdef); a missing/non-embedded /FontFile2 shall throw
+              InvalidDataException (a composite font has no fallback substitution path, unlike a
+              simple TrueType font).
+            justification: |
+              /CIDFontType2 (TrueType-outline) is the composite-font descendant shape real-world
+              PDF producers emit when embedding a subset of a TrueType source font, so resolving it and its
+              /CIDToGIDMap correctly is required for that common case to render correctly rather
+              than with wrong or missing glyphs.
+            tests:
+              - PdfDocument_Fonts_Type0_IdentityHCidFontType2_ResolvesEmbeddedFont
+              - PdfDocument_Fonts_Type0_CidToGidMapIdentity_UsesCidAsGid
+              - PdfDocument_Fonts_Type0_CidToGidMapStream_RemapsCidToGid
+              - PdfDocument_Fonts_Type0_CidToGidMapStream_OutOfRangeCid_MapsToNotdef
+              - PdfDocument_Fonts_Type0_NoEmbeddedFontFile_ThrowsInvalidDataException
+              - CanvasNetPdf_SystemIntegration_RenderType0CompositeFont_PaintsExpectedGlyphInk
+
+          - id: CanvasNetPdf-PdfDocument-CidFontType0FontResolution
+            title: >-
+              The PdfDocument class shall resolve a /Type0 font's /Subtype /CIDFontType0
+              descendant by loading its embedded, non-CID-keyed-CFF /FontDescriptor/FontFile3
+              stream - either a recognized SFNT container or a structurally plausible bare CFF
+              header, sniffed from the stream's own decoded bytes rather than trusted from its
+              declared /Subtype name - and mapping each shown CID directly to the identical glyph
+              index (per PDF 32000-1 §9.7.4.2, since the supported CFF programs are not
+              CID-keyed), ignoring any /CIDToGIDMap entry present (not a valid key for this
+              subtype). A missing/non-embedded /FontFile3 or an unparsable embedded CID-keyed CFF
+              program shall throw InvalidDataException, and a /FontFile3 stream whose decoded
+              bytes match neither a recognized SFNT container nor a structurally plausible bare
+              CFF header shall throw UnsupportedImageFeatureException.
+            justification: |
+              /CIDFontType0 (non-CID-keyed-CFF-outline) is the composite-font descendant shape
+              real-world PDF producers emit when embedding a subset of a CFF/OpenType-CFF source font
+              interchangeably with /CIDFontType2, so continuing to reject it unconditionally
+              would be a real-world compatibility gap as significant as the one already closed
+              for /CIDFontType2. The /FontFile3 stream is resolved by sniffing its own decoded
+              bytes for a recognized SFNT container or a structurally plausible bare CFF header,
+              rather than requiring the stream's declared /Subtype to be exactly /OpenType or
+              /CIDFontType0C, because PDF 32000-1 permits (and real-world producers sometimes
+              emit) a mismatch between the declared /Subtype name and the font program's actual
+              byte container shape. CID-keyed CFF (ROS/FDArray/FDSelect) remains a separately-
+              scoped future phase and must fail closed with a distinguishable exception rather
+              than being silently mis-rendered.
+            tests:
+              - PdfDocument_Fonts_Type0_CidFontType0_NoFontFile3_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Type0_CidFontType0_OpenTypeCff_ResolvesEmbeddedFont
+              - PdfDocument_Fonts_Type0_CidFontType0_NonStandardCidToGidMap_IsIgnored
+              - PdfDocument_Fonts_Type0_CidFontType0_MismatchedSubtype_SfntBytes_ResolvesEmbeddedFont
+              - PdfDocument_Fonts_Type0_CidFontType0_MissingFontFile3Subtype_ResolvesEmbeddedFont
+              - PdfDocument_Fonts_Type0_CidFontType0_UnrecognizedFontFile3Bytes_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Fonts_Type0_CidFontType0_CidKeyedCff_ThrowsInvalidDataException
+              - CanvasNetPdf_SystemIntegration_RenderCidFontType0CompositeFont_PaintsExpectedGlyphInk
+
+          - id: CanvasNetPdf-PdfDocument-CompositeFontWidths
+            title: >-
+              The PdfDocument class shall resolve a /Type0 font's descendant's advance width from
+              its /DW entry (defaulting to 1000 when absent) and /W entry (supporting both the
+              "c [w1 w2 ... wn]" individual-width sub-form and the "cFirst cLast w" range
+              sub-form), identically regardless of whether the descendant is /CIDFontType2 or
+              /CIDFontType0; a malformed /W array shall throw InvalidDataException.
+            justification: |
+              Correct advance widths are required for correctly-spaced composite-font text
+              regardless of which descendant-font outline flavor a document uses, and the width-
+              resolution logic itself is shared, outline-flavor-independent code whose
+              correctness is a single, independently verifiable behavior.
+            tests:
+              - PdfDocument_Fonts_Type0_Widths_DwDefault1000_DeterminesAdvance
+              - PdfDocument_Fonts_Type0_Widths_WArrayIndividualForm_DeterminesAdvance
+              - PdfDocument_Fonts_Type0_Widths_WArrayRangeForm_DeterminesAdvance
+              - PdfDocument_Fonts_Type0_Widths_MalformedWArray_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Type0_CidFontType0_Widths_WArrayIndividualForm_DeterminesAdvance
+
+          - id: CanvasNetPdf-PdfDocument-Type1FontResolution
+            title: >-
+              The PdfDocument class shall resolve a /Subtype /Type1 simple font's embedded
+              /FontDescriptor/FontFile stream as a classic PostScript Type 1 font program: reading
+              the stream's own /Length1 (cleartext byte count) and /Length2 (eexec-encrypted byte
+              count) entries (not the /FontDescriptor's), decoding the stream, and loading it via
+              Fonts.TrueTypeFont.LoadType1, passing a Unicode-codepoint-to-Adobe-glyph-name
+              reverse map (built from the same StandardGlyphNames vocabulary
+              CanvasNetPdf-PdfDocument-FontEncoding's /Differences resolution already uses) as
+              the codepoint-to-glyph-name argument; a /Subtype /Type1 descriptor declaring only
+              /FontFile3 (no /FontFile and no /FontFile2) shall resolve via
+              CanvasNetPdf-PdfDocument-Type1CFontResolution instead, and a missing or non-numeric
+              /Length1 or /Length2 entry, or any exception propagated from
+              Fonts.TrueTypeFont.LoadType1 for a malformed embedded Type 1 program, shall throw
+              InvalidDataException.
+            justification: |
+              Classic PostScript Type 1 fonts (declared via /Subtype /Type1 with an embedded
+              /FontDescriptor/FontFile stream, per PDF 32000-1 §9.9) remain common in
+              PostScript-heritage PDF producers, and rejecting every /Subtype /Type1 font
+              unconditionally (this phase's pre-existing behavior) is a real-world compatibility
+              gap comparable to the one CanvasNetPdf-PdfDocument-CompositeFontDispatch already
+              closed for composite fonts. This phase's scope is deliberately narrower than the
+              full Type 1 Font Format: a seac-based accented-composite charstring is not
+              supported (Fonts.TrueTypeFont.LoadType1's own core-layer scope, not re-implemented
+              here), a non-1000-unit-em /FontMatrix is not supported (a 1000-unit em is assumed,
+              matching every other supported font format this class resolves), and the Type 1
+              program's own built-in /Encoding (if any) embedded in the font program itself is
+              never consulted - only the PDF font dictionary's own /Encoding entry (resolved via
+              CanvasNetPdf-PdfDocument-FontEncoding) determines which glyph a code selects.
+            tests:
+              - PdfDocument_Fonts_Type1_DispatchesToSimpleFontResolution_PaintsGlyphInk
+              - PdfDocument_Fonts_Type1_EmbeddedFontFileTakesPriorityOverFallback
+              - PdfDocument_Fonts_Type1_NoFontFile_ResolvesViaFallback
+              - PdfDocument_Fonts_Type1_FontFileMissingLength1_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Type1_FontFileMissingLength2_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Type1_FontFileNonNumericLength2_ThrowsInvalidDataException
+              - PdfDocument_Load_TextEmbeddedType1FontFixture_PaintsVisibleGlyphInk
+              - PdfDocument_Load_TextStandard14Type1NoFontFileFixture_PaintsVisibleSubstituteGlyphInk
+              - CanvasNetPdf_SystemIntegration_RenderEmbeddedType1Font_PaintsExpectedGlyphInk
+
+          - id: CanvasNetPdf-PdfDocument-Type1CFontResolution
+            title: >-
+              The PdfDocument class shall resolve a /Subtype /Type1 simple font's embedded
+              /FontDescriptor/FontFile3 stream (present whenever /FontFile is absent) as either a
+              bare Type1C/CFF font program (a raw CFF table with no SFNT/OpenType wrapper of its
+              own) or an SFNT-wrapped (/OpenType) CFF program, by sniffing the stream's own
+              decoded bytes for a recognized SFNT container or a structurally plausible bare CFF
+              header rather than requiring the stream's declared /Subtype to be exactly
+              /Type1C: a bare CFF program is loaded via Fonts.TrueTypeFont.LoadType1C, passing
+              the same Unicode-codepoint-to-Adobe-glyph-name reverse map
+              CanvasNetPdf-PdfDocument-Type1FontResolution's classic /FontFile path already uses;
+              an SFNT-wrapped CFF program is loaded via Fonts.TrueTypeFont.Load; bytes matching
+              neither recognized shape shall throw UnsupportedImageFeatureException, regardless
+              of the stream's own declared /Subtype (including a missing /Subtype).
+            justification: |
+              An embedded Type1C/CFF simple font (/FontFile3 on a /Subtype /Type1 descriptor, a
+              fundamentally different format from the classic /FontFile program
+              CanvasNetPdf-PdfDocument-Type1FontResolution loads) is common enough in real-world
+              PDF producers (many embed a bare CFF program rather than a classic Type 1 program
+              to save space) that rejecting it unconditionally (this phase's immediately-preceding
+              behavior) is a real-world compatibility gap comparable to the one
+              CanvasNetPdf-PdfDocument-CidFontType0FontResolution already closed for the composite
+              /CIDFontType0 CFF-outline path. PDF 32000-1 permits (and real-world producers
+              sometimes emit) a mismatch between a /FontFile3 stream's declared /Subtype name and
+              the font program's actual byte container shape - for example an SFNT-wrapped
+              (/OpenType) CFF program declared on a simple font, or a bare CFF program declared
+              /OpenType or /CIDFontType0C - so the declared /Subtype is no longer consulted for
+              dispatch at all; only the stream's own decoded bytes determine which loader runs,
+              mirroring the shape-sniffing dispatch CanvasNetPdf-PdfDocument-CidFontType0FontResolution
+              already establishes for the composite /CIDFontType0 path. This phase's scope is
+              deliberately narrower than the full CFF specification - the predefined Expert and
+              ExpertSubset charsets are
+              recognized but not resolved to glyph names (Fonts.CffTable's own documented scope
+              boundary, not re-implemented here), and a CID-keyed (ROS-declaring) Type1C/CFF
+              program is rejected (Fonts.CffTable.Parse's existing CID-keyed rejection surfaces
+              uncaught through this path, with no new translation code).
+            tests:
+              - PdfDocument_Fonts_Type1_FontFile3Type1C_ResolvesEmbeddedFont_PaintsGlyphInk
+              - PdfDocument_Fonts_Type1_MismatchedSubtype_BareCffBytes_ResolvesEmbeddedFont
+              - PdfDocument_Fonts_Type1_MissingFontFile3Subtype_ResolvesEmbeddedFont
+              - PdfDocument_Fonts_Type1_UnrecognizedFontFile3Bytes_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-Type3FontResolution
+            title: >-
+              The PdfDocument class shall resolve a /Resources/Font entry naming a /Subtype
+              /Type3 font: requiring and parsing its /FontMatrix (six numbers; InvalidDataException
+              if absent or malformed), requiring its /CharProcs dictionary (mapping glyph names to
+              indirect content-stream references; InvalidDataException if absent or not a
+              dictionary), resolving its /Encoding (reusing the same base-encoding/Differences
+              machinery CanvasNetPdf-PdfDocument-FontResolution's simple-font path uses, with an
+              absent, non-dictionary, or Differences-less /Encoding leniently resolving to an
+              empty code-to-glyph-name map rather than an error), and resolving its
+              /Widths/FirstChar/LastChar (reusing the same leniency conventions
+              CanvasNetPdf-PdfDocument-FontResolution's simple-font path uses for an out-of-range
+              or absent entry); unlike every other resolved font kind, a Type 3 font's advance
+              width for a given code is its /Widths entry transformed through /FontMatrix (not
+              divided by 1000), and its glyph outline is painted by
+              CanvasNetPdf-PdfDocument-Type3GlyphPainting rather than any embedded/fallback font
+              program.
+            justification: |
+              Type 3 (procedure-based) fonts - whose glyphs are arbitrary content-stream
+              procedures rather than outline/CFF programs - are a legitimate, if uncommon,
+              real-world PDF construct (commonly emitted by older or specialized producers for
+              bespoke symbol sets); resolving them closes a previously explicit scope boundary
+              (CanvasNetPdf-PdfDocument-FontResolution rejected every /Subtype /Type3 font
+              unconditionally before this phase) without disturbing any other resolved font
+              kind's own behavior, since the resolution and advance-width conventions above are
+              unique to this font kind and gated behind its own concrete
+              type (IResolvedFont.Font is widened to a nullable property precisely so a Type 3
+              font's absent outline-glyph font program does not force a fabricated placeholder).
+            tests:
+              - PdfDocument_Fonts_Type3_MinimalFont_DifferencesAndCharProcs_PaintsGlyphInk
+              - PdfDocument_Fonts_Type3_Widths_ScaledViaFontMatrix_DeterminesAdvance
+              - PdfDocument_Fonts_Type3_UnmappedCode_NoDifferencesEntry_PaintsNothingButAdvances
+              - PdfDocument_Fonts_Type3_MappedGlyphNameAbsentFromCharProcs_PaintsNothingButAdvances
+              - PdfDocument_Fonts_Type3_MissingFontMatrix_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Type3_MissingCharProcs_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Type3_FontMatrixWrongArrayLength_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Type3_FontMatrixNonNumberEntry_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Type3_CharProcsNotADictionary_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-Type3GlyphPainting
+            title: >-
+              The PdfDocument class shall paint a /Subtype /Type3 glyph (resolved per
+              CanvasNetPdf-PdfDocument-Type3FontResolution) by looking up the shown code's glyph
+              name via /Encoding and that name's content-stream reference via /CharProcs -
+              painting nothing (but still advancing the text position by the code's declared
+              width) when either lookup fails - else decoding the glyph procedure's content
+              stream via the generic stream-decoding pipeline and executing it against a computed
+              glyph matrix (the font's /FontMatrix composed with the current text-rendering
+              matrix, replacing the outline-glyph path's 1/UnitsPerEm scale entirely), using the
+              Type3 font's own /Resources when present else falling back to the invoking content
+              stream's /Resources (exactly like a /Subtype /Form XObject with no /Resources of
+              its own).
+            justification: |
+              A Type 3 glyph procedure is itself an arbitrary nested content stream whose geometry
+              must be placed correctly via the font's own /FontMatrix rather than the outline-font
+              1/UnitsPerEm convention, and must be able to use the font's own resources exactly
+              like a Form XObject does, for the painted glyph shape and any resources it
+              references to appear in the correct place.
+            tests:
+              - PdfDocument_Fonts_Type3_NonDefaultFontMatrix_ScalesGlyphGeometry
+              - PdfDocument_Fonts_Type3_NoOwnResources_FallsBackToOuterPageResources
+              - PdfDocument_Fonts_Type3_OwnResourcesTakePrecedenceOverPageResources_UsesFontResources
+
+          - id: CanvasNetPdf-PdfDocument-Type3GlyphStateIsolation
+            title: >-
+              The PdfDocument class shall execute a Type3 glyph procedure (see
+              CanvasNetPdf-PdfDocument-Type3GlyphPainting) in a re-entrant manner, inheriting the invoking
+              graphics state and leaving it (and the invoking stream's /Resources) unaffected
+              once the glyph procedure finishes, whether it finishes normally or via a thrown
+              exception.
+            justification: |
+              A glyph procedure's own graphics-state/resource mutations (for example its own
+              `cm`/color-operator calls) must not leak into the page's own subsequent painting,
+              exactly as a Form XObject's own re-entrant execution already guarantees -
+              independently verifiable by painting content immediately after the glyph and
+              asserting it is unaffected.
+            tests:
+              - PdfDocument_Fonts_Type3_GlyphProc_GraphicsStateIsolated_DoesNotLeakOut
+
+          - id: CanvasNetPdf-PdfDocument-Type3GlyphNestingDepthGuard
+            title: >-
+              The PdfDocument class shall throw InvalidDataException when nested Type3
+              glyph-procedure invocations (see CanvasNetPdf-PdfDocument-Type3GlyphPainting)
+              exceed a fixed maximum depth, tracked independently of the Form XObject
+              nesting-depth counter, rather than overflowing the call stack.
+            justification: |
+              A pathological (self-referencing) glyph procedure must fail closed deterministically
+              rather than hang or crash, exactly as the equivalent Form XObject recursion guard
+              already does.
+            tests:
+              - PdfDocument_Fonts_Type3_SelfReferencingGlyphProc_ExceedsMaxNestingDepth_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-Type3RenderMode3Invisible
+            title: >-
+              The PdfDocument class shall skip Type3 glyph-procedure execution entirely (see
+              CanvasNetPdf-PdfDocument-Type3GlyphPainting) when the current text render mode is 3
+              (invisible), while still advancing the text position by the shown code's declared
+              width.
+            justification: |
+              Render mode 3 is used by PDF producers for invisible text layered over an image
+              (for example OCR text layers); a Type3 glyph must honor that convention identically
+              to every other resolved font kind, painting nothing while still reserving its
+              layout space for subsequent glyphs.
+            tests:
+              - PdfDocument_Fonts_Type3_RenderMode3_SkipsGlyphProcedureButStillAdvances
+
+          - id: CanvasNetPdf-PdfDocument-Type3D0D1Operators
+            title: >-
+              The PdfDocument class shall recognize the d0 and d1 glyph-description operators
+              (validating operand count/type) inside and outside a Type3 glyph procedure without
+              throwing, but discard their operands entirely: a Type 3 font's advance width remains
+              solely determined by its /Widths entry (see
+              CanvasNetPdf-PdfDocument-Type3FontResolution), never by a glyph procedure's own
+              d0/d1 operands, and this phase does not implement d1's optional
+              color-operator-suppression behavior (a d1 glyph procedure's own color-setting
+              operators are honored, not ignored, in this phase - a deliberate, narrower scope
+              boundary).
+            justification: |
+              d0/d1 are legal PDF content-stream operators that real-world Type3 glyph procedures
+              emit; recognizing and validating them (without crashing) while deliberately not
+              feeding their operands back into layout keeps advance-width resolution single-
+              sourced from /Widths, documented here as a deliberate, narrower-than-full-
+              specification scope boundary rather than silently under-implemented.
+            tests:
+              - PdfDocument_Fonts_Type3_D0Operator_ParsedButDoesNotAffectAdvanceWidth
+              - PdfDocument_Fonts_Type3_D1Operator_ParsedButDoesNotAffectAdvanceWidth
+              - PdfDocument_Fonts_Type3_StrayD0D1OutsideGlyphProc_NoExceptionNoEffect
+
+          - id: CanvasNetPdf-PdfDocument-ToUnicodeCMap
+            title: >-
+              The PdfDocument class shall, when resolving a /Subtype /Type0 composite font,
+              additionally resolve its /ToUnicode entry (when present) as a CMap stream mapping
+              each shown code to a Unicode codepoint: tokenizing the decoded stream with the
+              content-stream tokenizer/parser primitives, parsing "beginbfchar"/"endbfchar" code-
+              to-destination pairs and "beginbfrange"/"endbfrange" srcLo/srcHi/destination
+              triples (a single hex/literal-string destination mapping consecutive codes to
+              consecutive incrementing codepoints, or an array-of-hex-strings destination mapping
+              each code to its own corresponding array element), decoding a multi-codepoint
+              destination to only its first UTF-16BE codepoint, and silently ignoring
+              "begincodespacerange"/"endcodespacerange" and the CMap's PostScript resource-
+              management wrapper keywords ("begin"/"end"/"dict"/"def"/"findresource"/
+              "defineresource"/"pop"/"currentdict"/"begincmap"/"endcmap"); an absent /ToUnicode
+              entry shall resolve to a null map, a "usecmap"/"cidrange"/"cidchar" operator shall
+              throw UnsupportedImageFeatureException, and a bfrange destination array containing
+              a nested array (the CIDSystemInfo-style "array of arrays" destination sub-form)
+              shall likewise throw UnsupportedImageFeatureException.
+            justification: |
+              A /ToUnicode CMap is the sole spec-defined mechanism for recovering the Unicode
+              text a composite font's opaque CID-based codes represent, and resolving it as
+              unconsumed groundwork this phase (it is not yet wired into rendering) unblocks a
+              future text-extraction feature and Phase 11's composite-font fallback-substitution
+              decision without re-deriving CMap-parsing primitives later; the CIDSystemInfo-style
+              array-of-arrays bfrange destination sub-form and the usecmap/cidrange/cidchar
+              operators remain explicitly out of this phase's scope and must fail closed with a
+              distinguishable exception rather than being silently mis-parsed.
+            tests:
+              - PdfDocument_Fonts_ToUnicode_Absent_ResolvesNull
+              - PdfDocument_Fonts_ToUnicode_BfChar_MapsSingleCode
+              - PdfDocument_Fonts_ToUnicode_BfRangeHexForm_MapsConsecutiveCodes
+              - PdfDocument_Fonts_ToUnicode_BfRangeArrayForm_MapsEachCodeIndividually
+              - PdfDocument_Fonts_ToUnicode_UnsupportedArrayDestinationBfRange_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Fonts_ToUnicode_UnsupportedOperator_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-FontFallback
+            title: >-
+              The PdfDocument class shall, for a /Subtype /TrueType simple font lacking an
+              embedded /FontDescriptor/FontFile2 stream, resolve a substitute font by mapping a
+              recognized Standard-14 /BaseFont name to its documented serif/fixed-pitch/bold/
+              italic flavor, or else deriving that flavor from /FontDescriptor/Flags and
+              /FontWeight/ItalicAngle, matching that flavor and the (subset-tag- and style-
+              suffix-stripped) family name against Fonts.SystemFontCatalog.FindBestMatch and, if
+              no system font matches, against Fonts.SystemFontCatalog.LoadBundledFallback; any
+              other font whose /FontDescriptor/Flags marks it Symbolic without also marking it
+              Nonsymbolic shall throw UnsupportedImageFeatureException rather than being
+              substituted (see CanvasNetPdf-PdfDocument-SymbolZapfDingbatsFallback for the
+              dedicated /BaseFont Symbol/ZapfDingbats substitution path, the sole exception to
+              this fail-closed rule), and every resolved fallback TrueTypeFont instance shall be
+              cached by (file path, face index) for the process lifetime.
+            justification: |
+              A symbol/dingbats font's glyphs are not addressed by any standard Latin-text
+              encoding, so silently substituting an unrelated text font for one would render
+              wrong, misleading glyph shapes rather than failing visibly; every other non-embedded
+              simple font, by contrast, can be reasonably approximated by a same-flavor
+              substitute, and resolving a fallback font requires directory-scanning and parsing
+              real font files, which must not be repeated for every occurrence of the same
+              substitute font within or across renders.
+            tests:
+              - PdfDocument_BuildResolvedFont_Standard14NoEmbeddedFont_ResolvesViaFallback
+              - PdfDocument_BuildResolvedFont_NonStandard14FlagsOnlyUnmatchedFamily_ResolvesViaBundledFallback
+              - PdfDocument_BuildResolvedFont_SymbolicFlagWithoutEmbeddedFont_ThrowsSymbolicNotEmbeddedException
+              - CanvasNetPdf_SystemIntegration_RenderStandard14HelveticaWithoutEmbeddedFont_PaintsVisibleGlyphInk
+              - CanvasNetPdf_SystemIntegration_RenderOtherSymbolicFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-SymbolZapfDingbatsFallback
+            title: >-
+              The PdfDocument class shall, for a /Subtype /TrueType simple font whose /BaseFont is
+              exactly Symbol or ZapfDingbats and which lacks an embedded /FontDescriptor/FontFile2
+              stream, resolve glyphs via a bundled Noto substitute font union (Symbol: an ordered
+              NotoSans-Regular.ttf, NotoSansMath-Regular.ttf, NotoSansSymbols2-Regular.ttf
+              priority list; ZapfDingbats: NotoSansSymbols2-Regular.ttf alone), trying each font's
+              cmap in priority order and using the first one whose glyph coverage includes the
+              code's mapped codepoint (falling back to glyph 0/.notdef when none cover it), using
+              the Symbol/ZapfDingbats built-in Appendix D encoding (rather than /WinAnsiEncoding)
+              as the default /Encoding base table unless an explicit /Encoding/Differences array
+              overrides individual codes.
+            justification: |
+              Symbol and ZapfDingbats glyphs have no meaningful generic Latin-text-font
+              equivalent, so they were previously excluded from font-fallback substitution
+              entirely (see CanvasNetPdf-PdfDocument-FontFallback) and failed closed; a real,
+              redistributable, SIL OFL-licensed font whose glyph repertoire actually covers (most
+              of) the Symbol/ZapfDingbats Adobe/ISO 32000-1 Appendix D character sets can instead
+              be bundled and substituted directly, closing a previously explicit scope boundary
+              without compromising the fail-closed policy for every other symbolic font (which
+              has no such available substitute).
+            tests:
+              - SymbolEncodingTable_RepresentativeSample_MapsToKnownCorrectCodepoints
+              - ZapfDingbatsEncodingTable_RepresentativeSample_MapsToKnownCorrectCodepoints
+              - PdfDocument_BuildResolvedFont_SymbolFont_ResolvesViaNotoSubstituteWithoutThrowing
+              - PdfDocument_BuildResolvedFont_ZapfDingbatsFont_ResolvesViaNotoSubstituteWithoutThrowing
+              - CanvasNetPdf_SystemIntegration_RenderSymbolFontWithoutEmbeddedFont_PaintsVisibleGlyphInk
+              - CanvasNetPdf_SystemIntegration_NotoSansRegularBundledFont_ResolvesSymbolAlphaToNonzeroGlyphIndex
+              - BundledFonts_AllThreeNotoVariants_LoadSuccessfullyAndExposeExpectedName
+
+          - id: CanvasNetPdf-PdfDocument-FontEncoding
+            title: >-
+              The PdfDocument class shall resolve a font dictionary's /Encoding into a full
+              256-entry code-to-Unicode-codepoint map, defaulting to /WinAnsiEncoding when
+              /Encoding is absent (or, for a /BaseFont Symbol/ZapfDingbats font resolved via the
+              bundled Noto substitute path, to the Symbol/ZapfDingbats built-in Appendix D
+              encoding instead - see CanvasNetPdf-PdfDocument-SymbolZapfDingbatsFallback),
+              supporting /WinAnsiEncoding, /MacRomanEncoding, and /StandardEncoding as named base
+              encodings (throwing UnsupportedImageFeatureException for any other base encoding
+              name), and applying an /Encoding/Differences array's code-then-glyph-name
+              run-length overrides via a standard Adobe-glyph-name-to-Unicode-codepoint mapping,
+              tolerating an unrecognized glyph name (leaving that code at its base-encoding
+              mapping) but throwing InvalidDataException for /Differences beginning with a glyph
+              name before any starting code.
+            justification: |
+              WinAnsi and MacRoman are the two base encodings a simple TrueType font's /Encoding
+              commonly names, StandardEncoding is the PDF specification's own default built-in
+              encoding for a /Subtype /Type1 font (Appendix D), and /Differences overrides are
+              the standard mechanism a PDF producer uses to remap individual codes to
+              nonstandard glyphs; every one of these must resolve to the correct Unicode
+              codepoint for painted text to match the document's intent. Any other base encoding
+              must fail closed rather than be silently mis-mapped, but a single unrecognized
+              /Differences glyph name is not evidence of document corruption - real-world
+              producers routinely emit producer-specific names this library does not itself
+              recognize - so that one code is left at its base-encoding mapping instead of
+              rejecting the whole document.
+            tests:
+              - PdfDocument_Fonts_UnrecognizedEncoding_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Fonts_DefaultEncoding_IsWinAnsiEncoding
+              - PdfDocument_Fonts_MacRomanEncoding_DiffersFromWinAnsiEncoding
+              - PdfDocument_Fonts_Differences_OverridesBaseEncodingCode
+              - PdfDocument_Fonts_Differences_Absent_LeavesBaseEncodingCodeUnmapped
+              - PdfDocument_Fonts_Differences_UnrecognizedGlyphName_FallsBackToBaseEncoding
+              - PdfDocument_Fonts_Differences_FfFfiFflLigatureNames_DoNotThrow
+              - PdfDocument_Fonts_Differences_NacuteName_DoesNotThrow
+              - PdfDocument_Fonts_Differences_NameBeforeStartingCode_ThrowsInvalidDataException
+              - PdfDocument_Fonts_StandardEncoding_DiffersFromWinAnsiEncoding
+              - PdfDocument_Fonts_StandardEncoding_Absent_DefaultWinAnsiDoesNotPaintQuoteright
+
+          - id: CanvasNetPdf-PdfDocument-FontWidths
+            title: >-
+              The PdfDocument class shall resolve each shown code's advance width with a
+              documented priority: an explicit /FirstChar-/Widths array entry for that code
+              first, else the font descriptor's /MissingWidth, else (when the font declares
+              neither) the embedded font's own GetAdvanceWidth/UnitsPerEm metric.
+            justification: |
+              A PDF producer may declare per-glyph widths explicitly, fall back to a single
+              /MissingWidth default, or omit width information entirely and expect the font's own
+              metrics to be used; painted text must advance by the mathematically correct amount
+              in every case for subsequent glyphs (and any caller measuring text) to land in the
+              correct position. The same declared/default-width priority also applies to
+              composite fonts, using the shown code's CID as the lookup key and /DW as the
+              default width instead of /MissingWidth - see
+              CanvasNetPdf-PdfDocument-CompositeFontWidths for its own dedicated width tests.
+            tests:
+              - PdfDocument_Fonts_Widths_ExplicitEntry_DeterminesAdvance
+              - PdfDocument_Fonts_Widths_MissingWidthFallback_DeterminesAdvance
+              - PdfDocument_Fonts_Widths_FontOwnAdvanceFallback_DeterminesAdvance
+
+          - id: CanvasNetPdf-PdfDocument-TextObjectState
+            title: >-
+              The PdfDocument class shall implement BT/ET, resetting only the text matrix (Tm)
+              and line matrix (Tlm) to identity while leaving every other text-state parameter
+              (font, size, character/word spacing, horizontal scaling, leading, render mode, text
+              rise) unaffected as part of the persistent graphics state, so that state is saved
+              and restored by q/Q exactly like every other graphics-state parameter.
+            justification: |
+              The PDF specification defines Tm/Tlm as local to a text object while every other
+              text parameter persists as ordinary graphics state; painting a second text object
+              in the same content stream must not silently lose the first text object's font,
+              size, or other text-state configuration, and a q/Q pair must save/restore text
+              state exactly like line width or color.
+            tests:
+              - PdfDocument_Text_BeginText_ResetsTextMatrixButPreservesFontAndTextState
+              - PdfDocument_Text_PushPopGraphicsState_RestoresFontSize
+
+          - id: CanvasNetPdf-PdfDocument-TextStateOperators
+            title: >-
+              The PdfDocument class shall implement the Tc, Tw, Tz, TL, and Ts text-state
+              operators, storing character spacing, word spacing (applied only to the
+              single-byte code 32 of a simple font, never to any code decoded from a composite
+              font even one numerically equal to 32), horizontal scaling percentage, leading, and
+              text rise respectively, each affecting subsequent glyph placement/advance as
+              documented by the PDF specification.
+            justification: |
+              These parameters directly control inter-character spacing, word spacing, horizontal
+              stretch, line-to-line displacement, and vertical baseline offset; each must be
+              applied with the specification's own exact formula for painted text layout to match
+              the document's intent. Word spacing in particular must be gated on the selected
+              font's code-byte-width, not just the decoded code's numeric value, since a
+              composite /Identity-H font's 2-byte code can numerically equal 32 without being the
+              single-byte space code the specification's word-spacing rule addresses.
+            tests:
+              - PdfDocument_Text_Tc_AddsToGlyphAdvance
+              - PdfDocument_Text_Tw_AppliesOnlyToCode32
+              - PdfDocument_Text_Tz_ScalesHorizontalShapeAndAdvance
+              - PdfDocument_ShowText_Type0_WordSpacingCode32_IsNotAppliedToCompositeFont
+
+          - id: CanvasNetPdf-PdfDocument-Tf
+            title: >-
+              The PdfDocument class shall implement the Tf operator (a font resource name then a
+              size), resolving the named font resource via font resolution and storing it
+              alongside the requested size as the currently selected font for subsequent
+              text-showing operators.
+            justification: |
+              Tf is the sole mechanism a content stream uses to select which embedded font and
+              size subsequent glyphs are painted with; it must correctly resolve the named
+              resource and reject an undeclared name.
+            tests:
+              - PdfDocument_Text_ShowText_PaintsGlyphAtComposedTextRenderingMatrix
+
+          - id: CanvasNetPdf-PdfDocument-Tr
+            title: >-
+              The PdfDocument class shall implement the Tr (text-rendering mode) operator,
+              supporting mode 0 (fill, the default), mode 1 (stroke), mode 2 (fill, then stroke),
+              and mode 3 (invisible - glyphs still advance the text position but are not painted),
+              throwing UnsupportedImageFeatureException for the clip modes 4-7, and
+              InvalidDataException for any other numeric value.
+            justification: |
+              Clip text-rendering modes are explicitly out of this phase's scope; a content
+              stream requesting one must fail closed rather than being silently mis-rendered as a
+              fill, while invisible text (commonly used for an OCR text layer beneath a scanned
+              image) must still correctly advance the text position without painting any ink.
+              Stroke and fill+stroke modes are real-world-prevalent (for example, outlined
+              headings) and are supported by reusing the existing path-stroking paint logic
+              against the glyph's own outline.
+            tests:
+              - PdfDocument_Text_RenderMode3_Invisible_DoesNotPaintGlyph
+              - PdfDocument_Text_RenderMode3_Invisible_StillAdvancesTextPosition
+              - PdfDocument_Text_RenderMode1_Stroke_PaintsStrokedOutlineNotSolidFill
+              - PdfDocument_Text_RenderMode2_FillAndStroke_PaintsBothFillAndStroke
+              - PdfDocument_Text_RenderMode1_StrokePattern_PaintsPatternStroke
+              - PdfDocument_Fonts_Type3_RenderMode1Or2_BehavesLikeRenderMode0
+              - PdfDocument_Text_RenderMode_UnsupportedDefinedMode_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Text_RenderMode_OutOfDefinedRange_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-TextPositioning
+            title: >-
+              The PdfDocument class shall implement the Td, TD, Tm, and T* text-positioning
+              operators, per the PDF specification's line-matrix-relative displacement (Td/TD, TD
+              additionally setting leading to -ty) versus direct-replacement (Tm) semantics, with
+              T* equivalent to "0 -TL Td".
+            justification: |
+              Correct line/paragraph layout depends entirely on these operators composing the
+              text and line matrices exactly per specification; an incorrect composition would
+              silently misplace every subsequent line of text.
+            tests:
+              - PdfDocument_Text_Td_OffsetsLineMatrixNotLastTextMatrix
+              - PdfDocument_Text_TD_SetsLeadingToNegativeTy
+              - PdfDocument_Text_Tm_ReplacesTextAndLineMatrix
+              - PdfDocument_Text_TStar_UsesCurrentLeading
+
+          - id: CanvasNetPdf-PdfDocument-TextShowing
+            title: >-
+              The PdfDocument class shall implement the Tj, ' (quote), " (double-quote), and TJ
+              text-showing operators - Tj shows a string as-is; ' performs T* then Tj; " sets Tw
+              and Tc then performs ' ; and TJ shows an array of strings interleaved with
+              thousandths-of-text-space position adjustments applied between glyphs - painting
+              each resolved glyph's outline via the composed text-rendering matrix and
+              Drawing.PathFiller.Fill with the current fill color (mode 0) or skipping painting
+              entirely (mode 3), and advancing the text matrix by each glyph's resolved width.
+            justification: |
+              These are the operators that actually place visible ink on the page; each must
+              resolve every shown byte through the selected font's encoding, paint the correct
+              glyph outline at the correct position, and advance by the mathematically correct
+              amount, including TJ's per-adjustment position correction.
+            tests:
+              - PdfDocument_Text_ShowText_PaintsGlyphAtComposedTextRenderingMatrix
+              - PdfDocument_Text_TJ_AppliesPositionAdjustments
+              - PdfDocument_Text_TJ_ArrayEntryNotStringOrNumber_ThrowsInvalidDataException
+              - PdfDocument_Text_QuoteOperator_MovesToNextLineThenShows
+              - PdfDocument_Text_DoubleQuoteOperator_SetsSpacingThenMovesAndShows
+              - CanvasNetPdf_SystemIntegration_PdfRender_EmbeddedTrueTypeFontText_PaintsGlyphStrokesNotCounters
+
+          - id: CanvasNetPdf-PdfDocument-TextErrorHandling
+            title: >-
+              The PdfDocument class shall throw InvalidDataException for a text-showing operator
+              (Tj/'/"/TJ) invoked with no font currently selected, or for a malformed operand
+              count/type for any text operator.
+            justification: |
+              A content stream that attempts to show text before any Tf call, or that supplies a
+              malformed operand list to a text operator, is malformed input and must be rejected
+              explicitly rather than silently ignored or causing an unhandled internal exception.
+            tests:
+              - PdfDocument_Text_ShowText_NoFontSelected_ThrowsInvalidDataException
+              - PdfDocument_Text_MalformedOperandCount_ThrowsInvalidDataException
+              - PdfDocument_Images_DoOperator_UndefinedXObjectName_ThrowsInvalidDataException
+              - PdfDocument_Images_DoOperator_MalformedOperandCount_ThrowsInvalidDataException
+              - CanvasNetPdf_SystemIntegration_PdfRender_ImageXObjectPlacement_CompositesExpectedPixels
+
+          - id: CanvasNetPdf-PdfDocument-FunctionType0
+            title: >-
+              The PdfDocument class shall resolve a /Function entry restricted to /FunctionType 0
+              (sampled function) with exactly 1 input (a 2-element /Domain) into an Evaluate(input)
+              method that clamps the input into /Domain, maps it into sample-index space via
+              /Encode (defaulting to [0, Size[0] - 1] when /Encode is absent), linearly
+              interpolates between the two nearest samples, and maps each interpolated output
+              through /Decode (defaulting to /Range when /Decode is absent), clipped to /Range;
+              8-bit and 16-bit /BitsPerSample sample widths shall both be supported, decoding the
+              function stream's bytes via the existing filter-aware stream-decoding helper. A
+              /FunctionType other than 0, 2, or 3 (e.g. 4), and a multi-input /FunctionType 0
+              function (a /Domain with more than 2 elements) shall both throw
+              UnsupportedImageFeatureException.
+            justification: |
+              Axial/radial (/ShadingType 2/3) shading patterns in real-world PDFs sample a
+              /FunctionType 0 function to derive a gradient's per-position color, and resolving
+              this evaluator unblocks the shading-pattern-fill phase of the /Pattern color-space
+              roadmap (see CanvasNetPdf-PdfDocument-ShadingPatternFill) without re-deriving
+              sampled-function evaluation later; /FunctionType 2 (exponential interpolation) and
+              3 (stitching) are now also supported (see
+              CanvasNetPdf-PdfDocument-FunctionType2And3); /FunctionType 4 (PostScript
+              calculator) and a multi-input /FunctionType 0 function (the /DeviceN/Separation
+              tint-transform shape, itself already out of scope) remain explicitly out of scope
+              and must fail closed with a distinguishable exception rather than being silently
+              mis-evaluated.
+            tests:
+              - PdfDocument_Functions_Type0_InputOutsideDomain_ClampsToBoundary
+              - PdfDocument_Functions_Type0_EncodeAbsent_DefaultsToZeroToSizeMinusOne
+              - PdfDocument_Functions_Type0_ExplicitEncode_MapsDomainToCustomSampleIndexRange
+              - PdfDocument_Functions_Type0_Decode_MapsRawSampleToCustomOutputRange
+              - PdfDocument_Functions_Type0_NonIntegerSampleIndex_InterpolatesBetweenAdjacentSamples
+              - PdfDocument_Functions_Type0_EightBitSamples_EvaluatesCorrectly
+              - PdfDocument_Functions_Type0_SixteenBitSamples_EvaluatesCorrectly
+              - PdfDocument_Functions_Type0_UnsupportedFunctionType_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Functions_Type0_MultiInputDomain_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-FunctionType2And3
+            title: >-
+              The PdfDocument class shall evaluate /FunctionType 2 (exponential interpolation:
+              Domain, C0/C1 defaulting to [0.0]/[1.0] when absent, and N, computing
+              C0[i] + (input^N * (C1[i] - C0[i])) component-wise after clamping input to Domain)
+              and /FunctionType 3 (stitching: Domain, Functions - an array of independently
+              resolved sub-functions of any supported type, including a nested /FunctionType 3 -
+              Bounds, and Encode) functions through a single, uniform ResolveFunctionGeneric
+              entry point also used by shading-pattern function resolution; resolution is bounded
+              by a MaxFunctionRecursionDepth (32) guard, throwing InvalidDataException when a
+              self-referencing or excessively deep /Functions chain would otherwise recurse
+              without bound. /FunctionType 4 (PostScript calculator functions) shall continue to
+              throw UnsupportedImageFeatureException with feature pdf-functiontype-4.
+            justification: |
+              Axial/radial shading patterns commonly drive their color ramp with a /FunctionType
+              2 exponential function (optionally combined via a /FunctionType 3 stitching
+              function for multi-segment gradients); without evaluating these function types,
+              the majority of real-world shading patterns could not be rendered at all.
+            tests:
+              - PdfDocument_Functions_Type2_Exponential_EvaluatesExpectedInterpolatedOutput
+              - PdfDocument_Functions_Type3_Stitching_EvaluatesExpectedSubFunctionOutput
+              - PdfDocument_Functions_Type4_PostScriptCalculator_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Functions_Type3_Stitching_NestingDepthExceeded_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-PatternColorSpace
+            title: >-
+              The PdfDocument class shall recognize /Pattern (bare name, or a 2-element
+              [/Pattern baseSpace] array form carrying an underlying color space) as a selectable
+              cs/CS color space, and shall parse scn/SCN operands against an active /Pattern
+              color space as zero or more leading numeric components (exactly matching the
+              declared base color space's component count, or zero when no base space was
+              declared) followed by a trailing pattern Name operand, resolving the named pattern
+              from the current page's /Resources/Pattern dictionary. A malformed operand shape
+              (wrong leading numeric count, or a missing trailing Name) shall throw
+              InvalidDataException; an undeclared pattern name shall throw
+              UnsupportedImageFeatureException with feature pdf-pattern-not-declared; an
+              unsupported /PatternType (other than 1 or 2) shall throw
+              UnsupportedImageFeatureException with feature pdf-pattern-type-{n}; an array color
+              space with an element count other than 1 or 2 shall throw
+              UnsupportedImageFeatureException with feature pdf-colorspace-Pattern.
+            justification: |
+              Real-world PDFs commonly use the /Pattern color space to select shading or tiling
+              pattern fills for backgrounds and vector art; today every such document throws
+              UnsupportedImageFeatureException (feature pdf-pattern-color) and cannot be rendered
+              at all.
+            tests:
+              - PdfDocument_Color_PatternColorSpace_Cs_ResolvesToPatternFamily
+              - PdfDocument_Color_PatternColorSpace_ArrayWithBase_ResolvesPatternBase
+              - PdfDocument_Color_PatternColorSpace_TooManyArrayElements_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Color_Scn_ColoredPatternOperand_NameAlone_ResolvesPattern
+              - PdfDocument_Color_Scn_UncoloredPatternOperand_WrongComponentCount_ThrowsInvalidDataException
+              - PdfDocument_Color_Scn_PatternOperand_MissingTrailingName_ThrowsInvalidDataException
+              - PdfDocument_Color_Scn_PatternOperand_UndeclaredPatternName_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Color_Scn_PatternOperand_UnsupportedPatternType_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-ShadingPatternFill
+            title: >-
+              The PdfDocument class shall fill or stroke a path using a /PatternType 2 (shading)
+              pattern whose /ShadingType is 2 (axial) or 3 (radial), sampling the shading's
+              /Function (or array of 1-output-component functions) at evenly spaced points across
+              /Domain, converting each sample through the shading's own /ColorSpace (restricted to
+              DeviceGray/DeviceRGB/DeviceCMYK), and painting a smoothly varying color gradient
+              whose geometry is positioned by the pattern's own /Matrix composed with the page's
+              initial (pre-cm) coordinate transform. An unsupported /ShadingType (other than 2 or
+              3) shall throw UnsupportedImageFeatureException with feature
+              pdf-shading-type-{n}; an unsupported shading /ColorSpace shall throw
+              UnsupportedImageFeatureException with feature pdf-shading-colorspace-{family}.
+              /Extend is approximated as an always-padded (never fully transparent) gradient
+              extent, a documented, narrower-than-spec simplification.
+            justification: |
+              Axial and radial shading-pattern fills are a common way real-world PDFs render
+              smooth-color backgrounds and vector-art gradients; today every such fill throws and
+              the document cannot be rendered at all.
+            tests:
+              - PdfDocument_Patterns_ShadingPattern_AxialFunctionType2_FillsVisiblyVaryingGradient
+              - PdfDocument_Patterns_ShadingPattern_RadialFunctionType2_FillsVisiblyVaryingGradient
+              - PdfDocument_Patterns_ShadingPattern_UnsupportedShadingType_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Patterns_ShadingPattern_UnsupportedFunctionType4_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Patterns_ShadingPattern_FunctionArrayForm_ThreeOneOutputFunctions_BuildsRgbGradient
+              - CanvasNetPdf_SystemIntegration_AxialShadingPatternFill_PaintsVisiblyVaryingColors
+
+          - id: CanvasNetPdf-PdfDocument-TilingPatternFill
+            title: >-
+              The PdfDocument class shall fill or stroke a path using a /PatternType 1 (tiling)
+              pattern, rendering the pattern's own content stream once into an offscreen tile
+              surface (sized from /XStep/YStep scaled by the pattern-to-device transform) and
+              repeating that tile across the painted region, nearest-neighbor sampled. A
+              /PaintType 1 (colored) pattern paints its own content stream's colors unmodified; a
+              /PaintType 2 (uncolored) pattern recolors every painted pixel to the scn/SCN-supplied
+              tint while preserving each pixel's own painted alpha. A zero or non-finite
+              /XStep/YStep, or a /PaintType other than 1 or 2, shall throw InvalidDataException;
+              a device-pixel tile surface that would exceed the safety bound shall throw
+              UnsupportedImageFeatureException with feature pdf-pattern-tile-too-large; nested
+              tiling-pattern-cell rendering shares the existing Form-XObject nesting-depth guard
+              and shall throw InvalidDataException when that bound is exceeded.
+            justification: |
+              Tiling pattern fills are a common way real-world PDFs render repeating textures,
+              hatching, and decorative backgrounds; today every such fill throws and the document
+              cannot be rendered at all.
+            tests:
+              - PdfDocument_Patterns_TilingPattern_ColoredPaintType1_FillsRepeatingTile
+              - PdfDocument_Patterns_TilingPattern_UncoloredPaintType2_AppliesSuppliedTintPreservingAlpha
+              - PdfDocument_Patterns_TilingPattern_OversizedTileDimensions_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Patterns_TilingPattern_ZeroXStep_ThrowsInvalidDataException
+              - PdfDocument_Patterns_TilingPattern_NestingDepthExceeded_ThrowsInvalidDataException
+              - CanvasNetPdf_SystemIntegration_ColoredTilingPatternFill_PaintsRepeatingTileColors

@@ -141,6 +141,61 @@ public static class PathFiller
     }
 
     /// <summary>
+    ///     Fills <paramref name="path"/> onto <paramref name="surface"/> with <paramref name="paint"/>,
+    ///     a repeating tile bitmap evaluated once per pixel and scaled by that pixel's
+    ///     antialiased fill coverage.
+    /// </summary>
+    /// <param name="surface">The surface to fill into. Must not be <see langword="null"/>.</param>
+    /// <param name="path">The path to fill. Must not be <see langword="null"/>.</param>
+    /// <param name="paint">The tile paint to sample. Must not be <see langword="null"/>.</param>
+    /// <param name="fillRule">
+    ///     The rule used to resolve overlapping or self-intersecting geometry. Defaults to
+    ///     <see cref="FillRule.NonZero"/>.
+    /// </param>
+    /// <param name="flattenTolerance">
+    ///     The maximum allowed perpendicular deviation between each curve in <paramref name="path"/>
+    ///     and the polyline used to approximate it for filling. Must be greater than zero.
+    ///     Defaults to <c>0.25f</c>.
+    /// </param>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="surface"/>, <paramref name="path"/>, or <paramref name="paint"/>
+    ///     is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <paramref name="fillRule"/> is not a defined <see cref="FillRule"/> value,
+    ///     or when <paramref name="flattenTolerance"/> is not a finite value greater than zero.
+    /// </exception>
+    /// <remarks>
+    ///     See <see cref="Fill(Surface, Path, Gradient, FillRule, float)"/>'s remarks - this
+    ///     overload shares every bit of flattening, clip-bounds computation, and argument
+    ///     validation the same way; the only difference is which <c>ScanlineRasterizer.Fill</c>
+    ///     entry point (and therefore per-row compositing behavior) is invoked. The shared
+    ///     "every subpath is treated as implicitly closed", "no-op on an empty/out-of-bounds path",
+    ///     and "no transform parameter" documentation on the solid-color
+    ///     <see cref="Fill(Surface, Path, Rgba32, FillRule, float)"/> overload applies identically
+    ///     here too.
+    /// </remarks>
+    public static void Fill(
+        Surface surface,
+        Path path,
+        TilePaint paint,
+        FillRule fillRule = FillRule.NonZero,
+        float flattenTolerance = 0.25f)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(paint);
+        ValidateFillArgs(fillRule, flattenTolerance);
+
+        if (!TryFlattenForFill(surface, path, flattenTolerance, out var polygons, out var clipBounds))
+        {
+            return;
+        }
+
+        ScanlineRasterizer.Fill(surface, polygons, paint, fillRule, clipBounds);
+    }
+
+    /// <summary>
     ///     Validates the <paramref name="fillRule"/>/<paramref name="flattenTolerance"/> arguments
     ///     shared by every <c>Fill</c> overload.
     /// </summary>

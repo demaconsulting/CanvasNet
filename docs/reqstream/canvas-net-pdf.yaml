@@ -1,0 +1,357 @@
+---
+# cspell:ignore Noto
+#
+# Software System Requirements for CanvasNetPdf
+#
+# These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.Pdf
+# package (namespace DemaConsulting.CanvasNet.Pdf) from the perspective of its consumers, without
+# specifying implementation details.
+#
+# CanvasNetPdf is an independent software system, distributed as its own NuGet package, depending
+# on the core CanvasNet system (docs/reqstream/canvas-net.yaml) for its Canvas.Surface pixel
+# buffer and Codecs.UnsupportedImageFeatureException type - see docs/design/canvas-net-pdf.md's
+# Dependencies section for details.
+#
+# CanvasNetPdf parses a PDF document's structure (cross-references in all supported forms,
+# trailer, page tree with inheritance) and reports page count/size/rotation, then renders each
+# page's content stream end to end: path construction/painting, device color, image XObjects,
+# embedded-TrueType text (with Standard-14/system-font fallback substitution when no font is
+# embedded), and a stream-filter set (FlateDecode/LZWDecode/ASCII85Decode/ASCIIHexDecode/
+# RunLengthDecode) - see docs/design/canvas-net-pdf.md for the full current feature set and its
+# documented, still-unsupported-feature boundary.
+#
+# cspell:ignore xref startxref devicergb Zapf subsetted
+
+sections:
+  - title: CanvasNetPdf Requirements
+    requirements:
+      - id: CanvasNetPdf-Open
+        title: >-
+          The library shall parse a well-formed PDF document exactly once, from either a stream or
+          a file path, resolving its cross-reference data (classic table, cross-reference stream,
+          object stream, and hybrid combinations of these, falling back to a linear scan of the
+          document when normal cross-reference parsing fails or does not resolve to a valid
+          catalog) and reject a null stream/path, an empty or whitespace-only path, or malformed
+          document structure per the documented exception contract.
+        tags: [system]
+        justification: |
+          Callers need a single, reliable entry point that turns raw PDF bytes into a usable,
+          in-memory document regardless of which cross-reference form a given producer used, and
+          must be able to distinguish a programming error (null/empty argument) from malformed
+          input (corrupt document structure).
+        children:
+          - CanvasNetPdf-PdfDocument-Open
+          - CanvasNetPdf-PdfDocument-Tokenizer
+          - CanvasNetPdf-PdfDocument-ObjectModel
+          - CanvasNetPdf-PdfDocument-ClassicXref
+          - CanvasNetPdf-PdfDocument-XrefStream
+          - CanvasNetPdf-PdfDocument-ObjectStream
+          - CanvasNetPdf-PdfDocument-HybridXref
+          - CanvasNetPdf-PdfDocument-LinearScanFallback
+          - CanvasNetPdf-PdfDocument-PageTreeCycleRejection
+        tests:
+          - CanvasNetPdf_SystemIntegration_PdfOpen_ReturnsExpectedPageCount
+          - CanvasNetPdf_SystemIntegration_PdfValidationNull_NullStreamThrowsArgumentNullException
+          - CanvasNetPdf_SystemIntegration_PdfValidationEmptyPath_EmptyPathThrowsArgumentException
+
+      - id: CanvasNetPdf-PageCount
+        title: >-
+          The library shall report the document's true resolved page count after traversing its
+          page tree (including nested Kids arrays), regardless of which cross-reference form was
+          used to locate the underlying objects.
+        tags: [system]
+        justification: |
+          Callers need to know how many pages a document has before deciding which pages to
+          inspect or render.
+        children:
+          - CanvasNetPdf-PdfDocument-PageTreeTraversal
+        tests:
+          - CanvasNetPdf_SystemIntegration_PdfOpen_ReturnsExpectedPageCount
+
+      - id: CanvasNetPdf-GetPageInfo
+        title: >-
+          The library shall report each page's own display (rotation-adjusted) width and height
+          plus its normalized effective rotation, inheriting an undeclared MediaBox/Rotate from
+          the nearest ancestor that declares one, and shall reject an out-of-range page index with
+          ArgumentOutOfRangeException.
+        tags: [system]
+        justification: |
+          Callers need each page's actual displayed dimensions (already accounting for rotation)
+          to size a render target correctly, without independently re-implementing PDF's
+          MediaBox/Rotate inheritance and rotation-swap rules themselves.
+        children:
+          - CanvasNetPdf-PdfDocument-GetPageInfo
+          - CanvasNetPdf-PdfDocument-PageTreeInheritance
+        tests:
+          - CanvasNetPdf_SystemIntegration_PdfGetPageInfo_ReportsRotatedDimensions
+          - CanvasNetPdf_SystemIntegration_PdfGetPageInfoValidation_OutOfRangePageIndexThrowsArgumentOutOfRangeException
+
+      - id: CanvasNetPdf-Render
+        title: >-
+          The library shall return a correctly width x height-sized Surface for a valid page
+          index, propagating Surface's own dimension contract unwrapped, and shall rasterize the
+          page's own content stream (path geometry, device color, image XObjects, and text) onto
+          that Surface, rejecting a lexically malformed content stream (an operator given the
+          wrong operand count, or issued out of its required sequence) with InvalidDataException
+          rather than silently mis-rendering it.
+        tags: [system]
+        justification: |
+          Callers need a Surface-shaped render target sized to their own request (not derived from
+          the page's MediaBox) that actually reflects the page's real visual content, and must be
+          able to distinguish a genuinely malformed content stream from a well-formed one that
+          simply renders as expected.
+        children:
+          - CanvasNetPdf-PdfDocument-Render
+          - CanvasNetPdf-PdfDocument-RenderWithDpi
+        tests:
+          - CanvasNetPdf_SystemIntegration_PdfRender_ReturnsBlankSizedSurface
+          - CanvasNetPdf_SystemIntegration_PdfUnsupportedFormatValidation_MalformedContentStreamThrowsInvalidDataException
+
+      - id: CanvasNetPdf-Dispose
+        title: >-
+          The library shall make Dispose idempotent (safe to call more than once) and shall throw
+          ObjectDisposedException from every other public member once the document has been
+          disposed.
+        tags: [system]
+        justification: |
+          Callers need standard, predictable IDisposable behavior - matching every other
+          disposable type in CanvasNet - so that double-disposing (a common pattern with using
+          declarations and manual disposal both present) never throws.
+        children:
+          - CanvasNetPdf-PdfDocument-Dispose
+          - CanvasNetPdf-PdfDocument-ObjectDisposedException
+        tests:
+          - CanvasNetPdf_SystemIntegration_PdfDispose_ObjectDisposedExceptionAfterDispose
+
+      - id: CanvasNetPdf-EncryptDetection
+        title: >-
+          The library shall detect an encrypted document (an /Encrypt key present in the trailer)
+          and, for a supported encryption handler/filter shape (/Filter /Standard RC4 /V 1 or 2,
+          AES-128 /V 4/CFM AESV2, or AES-256 /V 5/R 5/CFM AESV3) with a correct (or, when none is
+          required, absent) password, transparently decrypt every indirect object's strings and
+          every stream's raw bytes before any other parsing logic observes them, so the document
+          opens and renders exactly as its plaintext equivalent would; it shall instead reject the
+          document with UnsupportedImageFeatureException (its own distinguishable feature token)
+          when the encryption handler/filter shape itself is unsupported (for example a non-
+          /Standard security handler, AES-256 /R 6 "hardened hash" key derivation, or a crypt
+          filter other than the standard /StdCF), or when a password is required but absent or
+          does not authenticate as either the user or owner password, rather than silently
+          mis-parsing still-encrypted bytes as plaintext content.
+        tags: [system]
+        justification: |
+          Real-world encrypted PDFs (most commonly RC4/AES-128/AES-256 with an empty or known
+          user password) must actually open and render, not merely be detected and rejected;
+          however, decrypting an unsupported handler/filter shape, or a document whose required
+          password is missing or wrong, remains out of scope, and silently treating still-
+          encrypted bytes as plaintext in either case would produce garbage results
+          indistinguishable from a real (but malformed) document, so callers need a clear,
+          well-formed-but-unsupported (or incorrect-password) signal instead.
+        children:
+          - CanvasNetPdf-PdfDocument-EncryptDetection
+          - CanvasNetPdf-PdfDocument-EncryptionRc4
+          - CanvasNetPdf-PdfDocument-EncryptionAesV2
+          - CanvasNetPdf-PdfDocument-EncryptionAesV3R5
+          - CanvasNetPdf-PdfDocument-UserPasswordAuthentication
+          - CanvasNetPdf-PdfDocument-OwnerPasswordAuthentication
+          - CanvasNetPdf-PdfDocument-IncorrectPasswordRejection
+          - CanvasNetPdf-PdfDocument-PasswordNonAsciiRejection
+        tests:
+          - CanvasNetPdf_SystemIntegration_PdfEncryptDetection_EncryptedTrailerThrowsUnsupportedImageFeatureException
+          - CanvasNetPdf_SystemIntegration_PdfOpen_EncryptedRc4_CorrectUserPassword_DecryptsAndRendersExpectedPixels
+
+      - id: CanvasNetPdf-ContentStreamInterpreter
+        title: >-
+          The library shall dispatch every recognized content-stream operator through a single
+          interpreter loop that maintains a graphics-state stack (q/Q), derives the current
+          transformation matrix from the page's base CTM composed with any cm operators and the
+          page's effective rotation, resolves a page's /Contents (whether a single stream or an
+          array of streams concatenated with an intervening space), and constructs/paints path
+          geometry via the path-construction and path-painting operators.
+        tags: [system]
+        justification: |
+          Callers need a page's real drawn geometry to end up in the correct final device-pixel
+          position regardless of how many nested q/Q save/restore pairs, cm transforms, or /Rotate
+          value the page declares, and regardless of whether its content is one stream or several.
+        children:
+          - CanvasNetPdf-PdfDocument-ContentStreamDispatch
+          - CanvasNetPdf-PdfDocument-ContentsResolution
+          - CanvasNetPdf-PdfDocument-GraphicsStateStack
+          - CanvasNetPdf-PdfDocument-CtmDerivation
+          - CanvasNetPdf-PdfDocument-PathConstruction
+          - CanvasNetPdf-PdfDocument-PathPainting
+        tests:
+          - CanvasNetPdf_SystemIntegration_PdfRender_FilledRectangleAndStrokedLine_PaintsExpectedPixels
+          - CanvasNetPdf_SystemIntegration_PdfRender_RotatedPage_MapsGeometryToCorrectPixelPosition
+
+      - id: CanvasNetPdf-DeviceColor
+        title: >-
+          The library shall support setting the current fill/stroke color via the device color
+          operators (rg/g/k and their cs/scn color-space-selecting equivalents) and apply that
+          color to every subsequently painted path until the next color-setting operator or a
+          graphics-state restore (Q); it shall also resolve and consume a /FunctionType 0 sampled
+          function at rendering time, as used by axial/radial shading-pattern fills.
+        tags: [system]
+        justification: |
+          Callers need paths to render in their document-specified color, not merely as an
+          opaque-black silhouette, for the rendered output to be visually faithful to the source
+          document. Resolving and consuming a /FunctionType 0 sampled function underpins the
+          axial/radial shading-pattern-fill feature's own color-at-parametric-position evaluation.
+        children:
+          - CanvasNetPdf-PdfDocument-DeviceColorOperators
+          - CanvasNetPdf-PdfDocument-ColorSpaceOperators
+          - CanvasNetPdf-PdfDocument-FunctionType0
+          - CanvasNetPdf-PdfDocument-FunctionType2And3
+          - CanvasNetPdf-PdfDocument-IccBasedColorSpace
+          - CanvasNetPdf-PdfDocument-IndexedColorSpace
+        tests:
+          - CanvasNetPdf_SystemIntegration_PdfRender_ColoredRectangleFill_PaintsExpectedRgbPixels
+
+      - id: CanvasNetPdf-StreamFilters
+        title: >-
+          The library shall decode a stream (content stream or image XObject) through its declared
+          /Filter chain, supporting FlateDecode, LZWDecode, ASCII85Decode, ASCIIHexDecode, and
+          RunLengthDecode (individually or composed), before interpreting the decoded bytes.
+        tags: [system]
+        justification: |
+          Real-world PDF producers routinely compress or ASCII-armor stream data with any of these
+          filters; callers need the library to transparently decode whichever filter(s) a given
+          producer chose, rather than requiring uncompressed input.
+        children:
+          - CanvasNetPdf-PdfDocument-FilterPipeline
+          - CanvasNetPdf-PdfDocument-LzwDecodeFilter
+          - CanvasNetPdf-PdfDocument-AsciiDecodeFilters
+          - CanvasNetPdf-PdfDocument-RunLengthDecodeFilter
+          - CanvasNetPdf-PdfDocument-RunLengthDecodeOutputCap
+          - CanvasNetPdf-PdfDocument-CcittFaxDecodeFilter
+        tests:
+          - CanvasNetPdf_SystemIntegration_PdfRender_LzwDecodeContentStream_PaintsExpectedPixels
+          - CanvasNetPdf_SystemIntegration_PdfRender_Ascii85DecodeContentStream_PaintsExpectedPixels
+          - CanvasNetPdf_SystemIntegration_PdfRender_AsciiHexDecodeContentStream_PaintsExpectedPixels
+          - CanvasNetPdf_SystemIntegration_PdfRender_RunLengthDecodeContentStream_PaintsExpectedPixels
+
+      - id: CanvasNetPdf-ImageXObjects
+        title: >-
+          The library shall decode a /Subtype /Image XObject (DeviceRGB, filtered per its declared
+          /Filter chain) and composite it into the current path/CTM-derived device-space footprint
+          when placed via the Do operator, per the current graphics state's CTM.
+        tags: [system]
+        justification: |
+          Callers need embedded raster images to actually appear in their document-correct
+          position/size in the rendered output, not merely be silently skipped.
+        children:
+          - CanvasNetPdf-PdfDocument-ImageXObjects
+        tests:
+          - CanvasNetPdf_SystemIntegration_PdfRender_ImageXObjectPlacement_CompositesExpectedPixels
+
+      - id: CanvasNetPdf-FormXObjects
+        title: >-
+          The library shall execute a /Subtype /Form XObject placed via the Do operator as a
+          nested content stream, concatenating its optional /Matrix into the current
+          transformation matrix and using its own /Resources when declared (else the invoking
+          content stream's /Resources), while leaving the invoking content stream's graphics
+          state and /Resources unaffected once the Form returns, and shall reject excessive
+          nested Form XObject recursion rather than overflow the call stack.
+        tags: [system]
+        justification: |
+          Form XObjects are a common PDF construct for reusable nested graphics content; callers
+          need that content actually rendered at its document-correct, matrix-adjusted position
+          without corrupting the invoking content stream's own graphics state, and a
+          pathological (self-referencing) Form must fail closed deterministically.
+        children:
+          - CanvasNetPdf-PdfDocument-FormXObjects
+        tests:
+          - CanvasNetPdf_SystemIntegration_PdfRender_FormXObject_PaintsNestedContentStream
+
+      - id: CanvasNetPdf-TextRendering
+        title: >-
+          The library shall render simple (single-byte-encoded) font text: resolving a page's
+          referenced fonts (falling back to a matching system or bundled font when no
+          /FontFile2-embedded font data is present, with Symbol/ZapfDingbats instead resolving via
+          a dedicated bundled Noto substitute font rather than an unrelated system/bundled font),
+          applying the font's encoding and advance widths (declared /Widths, or the font's own
+          metrics when undeclared), maintaining per-text-object state (Tf/Tr/text-positioning
+          operators), and painting each shown glyph's outline at its correctly positioned/scaled
+          device location.
+        tags: [system]
+        justification: |
+          Callers need a document's text content to actually appear as recognizable glyph shapes
+          in their document-correct position, whether or not the document embeds its own font
+          data, with Symbol/ZapfDingbats resolving via a dedicated Noto substitute font, while
+          still failing closed (rather than rendering visually wrong substitute glyphs) for every
+          other symbolic font with no embedded font data.
+        children:
+          - CanvasNetPdf-PdfDocument-FontResolution
+          - CanvasNetPdf-PdfDocument-FontFallback
+          - CanvasNetPdf-PdfDocument-FontEncoding
+          - CanvasNetPdf-PdfDocument-FontWidths
+          - CanvasNetPdf-PdfDocument-TextObjectState
+          - CanvasNetPdf-PdfDocument-TextStateOperators
+          - CanvasNetPdf-PdfDocument-Tf
+          - CanvasNetPdf-PdfDocument-Tr
+          - CanvasNetPdf-PdfDocument-TextPositioning
+          - CanvasNetPdf-PdfDocument-TextShowing
+          - CanvasNetPdf-PdfDocument-TextErrorHandling
+          - CanvasNetPdf-PdfDocument-Type1FontResolution
+          - CanvasNetPdf-PdfDocument-Type1CFontResolution
+          - CanvasNetPdf-PdfDocument-Type3FontResolution
+          - CanvasNetPdf-PdfDocument-Type3GlyphPainting
+          - CanvasNetPdf-PdfDocument-Type3GlyphStateIsolation
+          - CanvasNetPdf-PdfDocument-Type3GlyphNestingDepthGuard
+          - CanvasNetPdf-PdfDocument-Type3RenderMode3Invisible
+          - CanvasNetPdf-PdfDocument-Type3D0D1Operators
+          - CanvasNetPdf-PdfDocument-SymbolZapfDingbatsFallback
+        tests:
+          - CanvasNetPdf_SystemIntegration_PdfRender_EmbeddedTrueTypeFontText_PaintsGlyphStrokesNotCounters
+          - CanvasNetPdf_SystemIntegration_RenderStandard14HelveticaWithoutEmbeddedFont_PaintsVisibleGlyphInk
+          - CanvasNetPdf_SystemIntegration_RenderSymbolFontWithoutEmbeddedFont_PaintsVisibleGlyphInk
+          - CanvasNetPdf_SystemIntegration_RenderOtherSymbolicFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException
+          - CanvasNetPdf_SystemIntegration_RenderEmbeddedType1Font_PaintsExpectedGlyphInk
+
+      - id: CanvasNetPdf-CompositeFontTextRendering
+        title: >-
+          The library shall render Type0/Identity-H composite-font (2-byte-encoded CID) text:
+          resolving a page's referenced Type0/CIDFontType2 composite fonts (requiring an embedded
+          /FontFile2 on the descendant font, with no fallback substitution path), mapping each
+          decoded CID to a glyph index via the descendant font's /CIDToGIDMap, and applying the
+          descendant font's declared /DW/W advance widths, then painting each shown glyph's
+          outline at its correctly positioned/scaled device location; it shall also resolve (but
+          not yet consume at rendering time) a composite font's optional /ToUnicode CMap as a
+          code-to-Unicode-codepoint map.
+        tags: [system]
+        justification: |
+          Type0/Identity-H/CIDFontType2 composite fonts are the encoding real-world PDF producers
+          (Microsoft Word, LibreOffice, and browser print-to-PDF among them) overwhelmingly emit
+          for embedded subsetted TrueType text, so callers need this document text to actually
+          appear as recognizable glyph shapes in their document-correct position, not merely be
+          rejected as an unsupported font subtype. Resolving /ToUnicode as unconsumed groundwork
+          unblocks a future text-extraction feature without re-deriving CMap-parsing primitives.
+        children:
+          - CanvasNetPdf-PdfDocument-CompositeFontDispatch
+          - CanvasNetPdf-PdfDocument-CidFontType2FontResolution
+          - CanvasNetPdf-PdfDocument-CidFontType0FontResolution
+          - CanvasNetPdf-PdfDocument-CompositeFontWidths
+          - CanvasNetPdf-PdfDocument-ToUnicodeCMap
+        tests:
+          - CanvasNetPdf_SystemIntegration_RenderType0CompositeFont_PaintsExpectedGlyphInk
+
+      - id: CanvasNetPdf-PatternFills
+        title: >-
+          The library shall recognize /Pattern as a selectable cs/CS color space and fill/stroke
+          a path using the named pattern resolved from the current page's /Resources/Pattern
+          dictionary: a /PatternType 2 (shading) pattern sampling its /Function to paint an
+          axial (/ShadingType 2) or radial (/ShadingType 3) color gradient, and a /PatternType 1
+          (tiling) pattern rendering its own content stream once into an offscreen tile and
+          repeating it (colored or recolored per its /PaintType) across the painted region.
+        tags: [system]
+        justification: |
+          Real-world PDFs commonly use the /Pattern color space to render smooth-color gradient
+          backgrounds/vector art (shading patterns) and repeating textures/hatching/decorative
+          backgrounds (tiling patterns); without this support, every such fill previously failed
+          closed and the document could not be rendered at all.
+        children:
+          - CanvasNetPdf-PdfDocument-PatternColorSpace
+          - CanvasNetPdf-PdfDocument-ShadingPatternFill
+          - CanvasNetPdf-PdfDocument-TilingPatternFill
+        tests:
+          - CanvasNetPdf_SystemIntegration_AxialShadingPatternFill_PaintsVisiblyVaryingColors
+          - CanvasNetPdf_SystemIntegration_ColoredTilingPatternFill_PaintsRepeatingTileColors

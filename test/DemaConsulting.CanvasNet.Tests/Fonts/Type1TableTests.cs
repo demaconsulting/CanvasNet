@@ -1,0 +1,365 @@
+// cspell:ignore charstring charstrings subr subrs notdef hsbw rlineto closepath endchar
+// cspell:ignore lenIV rmoveto noaccess definefont currentfile closefile misparse nnoaccess
+using DemaConsulting.CanvasNet.Fonts;
+using DemaConsulting.CanvasNet.Tests.TestSupport;
+
+namespace DemaConsulting.CanvasNet.Tests.Fonts;
+
+/// <summary>
+///     Unit tests for <see cref="Type1Table"/>.
+/// </summary>
+public class Type1TableTests
+{
+    /// <summary>
+    ///     Builds a simple charstring: <c>hsbw</c> then <c>rmoveto</c> to <c>(10, 10)</c>, a line
+    ///     to <c>(20, 10)</c>, <c>closepath</c>, then <c>endchar</c>.
+    /// </summary>
+    private static byte[] SimpleCharstring(int sbx = 0, int width = 600)
+    {
+        var buf = new List<byte>();
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, sbx);
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, width);
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 13); // hsbw
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 10);
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 10);
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 21); // rmoveto
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 10);
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 0);
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 5); // rlineto
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 9); // closepath
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 14); // endchar
+        return [.. buf];
+    }
+
+    /// <summary>
+    ///     Builds an empty-outline charstring (a <c>space</c> glyph): just <c>hsbw</c> then
+    ///     <c>endchar</c>, with no path operators.
+    /// </summary>
+    private static byte[] SpaceCharstring(int width = 300)
+    {
+        var buf = new List<byte>();
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 0);
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, width);
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 13); // hsbw
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 14); // endchar
+        return [.. buf];
+    }
+
+    private static Type1Table Parse((byte[] FontFileBytes, int Length1, int Length2) program) =>
+        Type1Table.Parse(program.FontFileBytes, program.Length1, program.Length2);
+
+    /// <summary>
+    ///     Proves that Type1Table Parse WellFormedFont ExposesGlyphCountAndOutlines.
+    /// </summary>
+    [Fact]
+    public void Type1Table_Parse_WellFormedFont_ExposesGlyphCountAndOutlines()
+    {
+        var program = SyntheticFontBuilder.Type1(
+            [(".notdef", SpaceCharstring()), ("space", SpaceCharstring()), ("A", SimpleCharstring())]);
+        var table = Parse(program);
+
+        Assert.Equal(3, table.GlyphCount);
+        Assert.Empty(table.GetGlyphOutline(1).Subpaths); // space - no contour
+        Assert.Single(table.GetGlyphOutline(2).Subpaths); // A - one contour
+    }
+
+    /// <summary>
+    ///     Proves that Type1Table Parse NotdefNotFirst ReindexesToGlyphZero.
+    /// </summary>
+    [Fact]
+    public void Type1Table_Parse_NotdefNotFirst_ReindexesToGlyphZero()
+    {
+        var program = SyntheticFontBuilder.Type1(
+            [("space", SpaceCharstring()), ("A", SimpleCharstring()), (".notdef", SpaceCharstring(width: 999))]);
+        var table = Parse(program);
+
+        Assert.True(table.TryGetGlyphIndex(".notdef", out var notdefIndex));
+        Assert.Equal(0, notdefIndex);
+        Assert.Equal(999, table.GetAdvanceWidth(0));
+
+        Assert.True(table.TryGetGlyphIndex("space", out var spaceIndex));
+        Assert.Equal(1, spaceIndex);
+
+        Assert.True(table.TryGetGlyphIndex("A", out var aIndex));
+        Assert.Equal(2, aIndex);
+    }
+
+    /// <summary>
+    ///     Proves that Type1Table GetAdvanceWidth ReturnsHsbwWidth.
+    /// </summary>
+    [Fact]
+    public void Type1Table_GetAdvanceWidth_ReturnsHsbwWidth()
+    {
+        var program = SyntheticFontBuilder.Type1([(".notdef", SimpleCharstring(width: 742))]);
+        var table = Parse(program);
+
+        Assert.Equal(742, table.GetAdvanceWidth(0));
+    }
+
+    /// <summary>
+    ///     Proves that Type1Table TryGetGlyphIndex UnknownName ReturnsFalse.
+    /// </summary>
+    [Fact]
+    public void Type1Table_TryGetGlyphIndex_UnknownName_ReturnsFalse()
+    {
+        var program = SyntheticFontBuilder.Type1([(".notdef", SimpleCharstring())]);
+        var table = Parse(program);
+
+        Assert.False(table.TryGetGlyphIndex("nonexistent", out _));
+    }
+
+    /// <summary>
+    ///     Proves that Type1Table GetGlyphOutline OutOfRangeIndex ThrowsArgumentOutOfRangeException.
+    /// </summary>
+    [Fact]
+    public void Type1Table_GetGlyphOutline_OutOfRangeIndex_ThrowsArgumentOutOfRangeException()
+    {
+        var table = Parse(SyntheticFontBuilder.Type1([(".notdef", SimpleCharstring())]));
+        Assert.Throws<ArgumentOutOfRangeException>(() => table.GetGlyphOutline(1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => table.GetGlyphOutline(-1));
+    }
+
+    /// <summary>
+    ///     Proves that Type1Table Parse WithLocalSubrs DecodesGlyphUsingCallSubr.
+    /// </summary>
+    [Fact]
+    public void Type1Table_Parse_WithLocalSubrs_DecodesGlyphUsingCallSubr()
+    {
+        var subr = new List<byte>();
+        SyntheticFontBuilder.WriteType1CharstringNumber(subr, 5);
+        SyntheticFontBuilder.WriteType1CharstringNumber(subr, 5);
+        SyntheticFontBuilder.WriteType1CharstringOperator(subr, 5); // rlineto
+        SyntheticFontBuilder.WriteType1CharstringOperator(subr, 11); // return
+
+        var main = new List<byte>();
+        SyntheticFontBuilder.WriteType1CharstringNumber(main, 0);
+        SyntheticFontBuilder.WriteType1CharstringNumber(main, 600);
+        SyntheticFontBuilder.WriteType1CharstringOperator(main, 13); // hsbw
+        SyntheticFontBuilder.WriteType1CharstringNumber(main, 10);
+        SyntheticFontBuilder.WriteType1CharstringNumber(main, 10);
+        SyntheticFontBuilder.WriteType1CharstringOperator(main, 21); // rmoveto
+        SyntheticFontBuilder.WriteType1CharstringNumber(main, 0); // subr index - no bias in Type 1
+        SyntheticFontBuilder.WriteType1CharstringOperator(main, 10); // callsubr
+        SyntheticFontBuilder.WriteType1CharstringOperator(main, 9); // closepath
+        SyntheticFontBuilder.WriteType1CharstringOperator(main, 14); // endchar
+
+        var program = SyntheticFontBuilder.Type1([(".notdef", [.. main])], subrs: [[.. subr]]);
+        var table = Parse(program);
+
+        Assert.Single(table.GetGlyphOutline(0).Subpaths);
+    }
+
+    /// <summary>
+    ///     Proves that Type1Table Parse RdNdNpTokens ScannerIsProcedureNameAgnostic.
+    /// </summary>
+    [Theory]
+    [InlineData("RD", "ND", "NP")]
+    [InlineData("-|", "|-", "|-")]
+    [InlineData("Foo123", "Bar456", "Baz789")]
+    public void Type1Table_Parse_VariousProcNameTokens_ScannerIsProcedureNameAgnostic(string readToken, string defToken, string subrDefToken)
+    {
+        var subr = new List<byte>();
+        SyntheticFontBuilder.WriteType1CharstringNumber(subr, 5);
+        SyntheticFontBuilder.WriteType1CharstringNumber(subr, 5);
+        SyntheticFontBuilder.WriteType1CharstringOperator(subr, 5); // rlineto
+        SyntheticFontBuilder.WriteType1CharstringOperator(subr, 11); // return
+
+        var main = new List<byte>();
+        SyntheticFontBuilder.WriteType1CharstringNumber(main, 0);
+        SyntheticFontBuilder.WriteType1CharstringNumber(main, 600);
+        SyntheticFontBuilder.WriteType1CharstringOperator(main, 13); // hsbw
+        SyntheticFontBuilder.WriteType1CharstringNumber(main, 10);
+        SyntheticFontBuilder.WriteType1CharstringNumber(main, 10);
+        SyntheticFontBuilder.WriteType1CharstringOperator(main, 21); // rmoveto
+        SyntheticFontBuilder.WriteType1CharstringNumber(main, 0);
+        SyntheticFontBuilder.WriteType1CharstringOperator(main, 10); // callsubr
+        SyntheticFontBuilder.WriteType1CharstringOperator(main, 14); // endchar
+
+        // Subrs use 'defToken' for its own dedicated (font-specific) define-procedure token
+        // (conventionally 'NP'/'|-'), which may differ from CharStrings' own 'ND'/'|-' token -
+        // both are passed through the same 'defToken' parameter here since Type1's own builder
+        // applies one token uniformly, but the scanner never inspects either spelling regardless.
+        _ = subrDefToken;
+        var program = SyntheticFontBuilder.Type1([(".notdef", [.. main])], subrs: [[.. subr]], readToken: readToken, defToken: defToken);
+        var table = Parse(program);
+
+        Assert.Single(table.GetGlyphOutline(0).Subpaths);
+    }
+
+    /// <summary>
+    ///     Proves that Type1Table Parse CustomLenIv DecodesCorrectly.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(4)]
+    [InlineData(8)]
+    public void Type1Table_Parse_CustomLenIv_DecodesCorrectly(int lenIv)
+    {
+        var program = SyntheticFontBuilder.Type1([(".notdef", SimpleCharstring())], lenIv: lenIv);
+        var table = Parse(program);
+
+        Assert.Single(table.GetGlyphOutline(0).Subpaths);
+    }
+
+    /// <summary>
+    ///     Proves that Type1Table GetAdvanceWidth FractionalWidthViaDiv ReturnsRoundedWidth.
+    /// </summary>
+    /// <remarks>
+    ///     Real-world Type 1 fonts (this exact idiom was found in a pdfLaTeX Computer Modern
+    ///     font) commonly encode a fractional side-bearing/width - which plain Type 1 integers
+    ///     cannot represent - as <c>&lt;numerator&gt; &lt;denominator&gt; div</c> immediately
+    ///     before <c>hsbw</c> (for example <c>0 20225 61 div hsbw</c> for a width of
+    ///     331.56..., here rounded to 332). <see cref="Type1Table"/>'s advance-width peek must
+    ///     tolerate this, not just a literal <c>&lt;sbx&gt; &lt;width&gt; hsbw</c>.
+    /// </remarks>
+    [Fact]
+    public void Type1Table_GetAdvanceWidth_FractionalWidthViaDiv_ReturnsRoundedWidth()
+    {
+        var buf = new List<byte>();
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 0);
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 20225);
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 61);
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 1212); // escape 12 12 = div
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 13); // hsbw
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 14); // endchar
+
+        var program = SyntheticFontBuilder.Type1([(".notdef", [.. buf])]);
+        var table = Parse(program);
+
+        Assert.Equal(332, table.GetAdvanceWidth(0));
+    }
+
+    /// <summary>
+    ///     Proves that Type1Table Parse SeacOperator ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void Type1Table_Parse_SeacOperator_ThrowsInvalidDataException()
+    {
+        // 'seac' is rejected while Type1Table.Parse itself peeks the glyph's advance width (the
+        // peek requires the charstring to begin with 'hsbw'/'sbw', which a 'seac'-based
+        // accented-composite glyph never does), so the rejection surfaces at Parse time here
+        // rather than at GetGlyphOutline time - Type1CharstringInterpreterTests covers the
+        // interpreter's own direct 'seac' rejection for a well-formed (hsbw-prefixed) charstring.
+        var buf = new List<byte>();
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 0);
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 0);
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 0);
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 65);
+        SyntheticFontBuilder.WriteType1CharstringNumber(buf, 66);
+        SyntheticFontBuilder.WriteType1CharstringOperator(buf, 1206); // escape 12 6 = seac
+
+        var program = SyntheticFontBuilder.Type1([(".notdef", [.. buf])]);
+
+        Assert.Throws<InvalidDataException>(() => Parse(program));
+    }
+
+    /// <summary>
+    ///     Proves that Type1Table Parse MissingCharStrings ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void Type1Table_Parse_MissingCharStrings_ThrowsInvalidDataException()
+    {
+        var fontFileBytes = System.Text.Encoding.ASCII.GetBytes("%!PS-AdobeFont\ncurrentfile eexec\n");
+        Assert.Throws<InvalidDataException>(() => Type1Table.Parse(fontFileBytes, fontFileBytes.Length, 0));
+    }
+
+    /// <summary>
+    ///     Proves that Type1Table Parse NegativeLength ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void Type1Table_Parse_NegativeLength_ThrowsInvalidDataException()
+    {
+        var program = SyntheticFontBuilder.Type1([(".notdef", SimpleCharstring())]);
+        Assert.Throws<InvalidDataException>(() => Type1Table.Parse(program.FontFileBytes, -1, program.Length2));
+        Assert.Throws<InvalidDataException>(() => Type1Table.Parse(program.FontFileBytes, program.Length1, -1));
+    }
+
+    /// <summary>
+    ///     Proves that Type1Table Parse LengthsExceedFileBounds ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void Type1Table_Parse_LengthsExceedFileBounds_ThrowsInvalidDataException()
+    {
+        var program = SyntheticFontBuilder.Type1([(".notdef", SimpleCharstring())]);
+        Assert.Throws<InvalidDataException>(() => Type1Table.Parse(program.FontFileBytes, program.Length1, program.Length2 + 1000));
+    }
+
+    /// <summary>
+    ///     Proves that Type1Table Parse EmptyCharStrings ThrowsInvalidDataException.
+    /// </summary>
+    [Fact]
+    public void Type1Table_Parse_EmptyCharStrings_ThrowsInvalidDataException()
+    {
+        var program = SyntheticFontBuilder.Type1([]);
+        Assert.Throws<InvalidDataException>(() => Parse(program));
+    }
+
+    /// <summary>
+    ///     Proves that Type1Table Parse CharStringsLengthNearIntMaxValue ThrowsInvalidDataException.
+    /// </summary>
+    /// <remarks>
+    ///     A crafted font can declare a '/CharStrings' entry length near int.MaxValue; 'pos' (the
+    ///     plaintext scan cursor) plus that length overflows ordinary 32-bit arithmetic. The scanner
+    ///     must widen to long before adding (see HmtxHheaReader's and this file's own Length1+Length2
+    ///     check for the established convention) so this is reported as the documented
+    ///     InvalidDataException rather than an unhandled OverflowException.
+    /// </remarks>
+    [Fact]
+    public void Type1Table_Parse_CharStringsLengthNearIntMaxValue_ThrowsInvalidDataException()
+    {
+        var program = SyntheticFontBuilder.Type1(
+            [(".notdef", SimpleCharstring())],
+            charStringLengthOverrides: new Dictionary<string, int> { [".notdef"] = int.MaxValue - 16 });
+
+        Assert.Throws<InvalidDataException>(() => Parse(program));
+    }
+
+    /// <summary>
+    ///     Proves that Type1Table Parse SubrIndexExceedsMaximum ThrowsInvalidDataException.
+    /// </summary>
+    /// <remarks>
+    ///     A crafted font's '/Subrs' dictionary can declare a single entry with a huge, sparse
+    ///     <c>dup &lt;index&gt;</c> (for example near <see cref="int.MaxValue"/>); naively sizing a
+    ///     dense array from that index as its length would risk an out-of-memory allocation driven
+    ///     entirely by untrusted font data. The parser must reject an index beyond its supported
+    ///     bound instead.
+    /// </remarks>
+    [Fact]
+    public void Type1Table_Parse_SubrIndexExceedsMaximum_ThrowsInvalidDataException()
+    {
+        var program = SyntheticFontBuilder.Type1(
+            [(".notdef", SimpleCharstring())],
+            subrs: [SimpleCharstring()],
+            subrIndices: [1_000_000_000]);
+
+        Assert.Throws<InvalidDataException>(() => Parse(program));
+    }
+
+    /// <summary>
+    ///     Proves that Type1Table Parse TrailingBoilerplateAfterCharStringsEnd DoesNotMisparse.
+    /// </summary>
+    /// <remarks>
+    ///     Real-world Type 1 fonts (this exact idiom was found in a pdfLaTeX Computer Modern
+    ///     font) commonly follow the <c>/CharStrings</c> dictionary's own closing <c>end</c> with
+    ///     standard font-closing PostScript boilerplate in the very same decrypted plaintext
+    ///     (<c>end readonly put noaccess put dup /FontName get exch definefont pop mark
+    ///     currentfile closefile</c>). An unbounded scanner mistakes the boilerplate's
+    ///     <c>/FontName</c> token for a further glyph-name entry, then fails trying to parse its
+    ///     next token (<c>get</c>) as an integer length. <see cref="Type1Table"/>'s scanner must
+    ///     stop at the dictionary's own matching closing <c>end</c> instead.
+    /// </remarks>
+    [Fact]
+    public void Type1Table_Parse_TrailingBoilerplateAfterCharStringsEnd_DoesNotMisparse()
+    {
+        var program = SyntheticFontBuilder.Type1(
+            [(".notdef", SpaceCharstring()), ("space", SpaceCharstring()), ("A", SimpleCharstring())],
+            trailer: "readonly put\nnoaccess put\ndup /FontName get exch definefont pop\nmark currentfile closefile\n");
+
+        var table = Parse(program);
+
+        Assert.Equal(3, table.GlyphCount);
+        Assert.Empty(table.GetGlyphOutline(1).Subpaths); // space - no contour
+        Assert.Single(table.GetGlyphOutline(2).Subpaths); // A - one contour
+    }
+}

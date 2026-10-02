@@ -18,6 +18,52 @@ The `Shapes` unit is verified by
 - **Validation**: `Shapes_NullCanvas_ThrowsArgumentNullException` covers the null-Canvas
   contract across all helpers.
 
+### Test Environment
+
+- **Framework**: xUnit v3 running under the .NET SDK
+- **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
+- **Mocking**: None required; every test uses only in-process `Canvas`/`Surface` public APIs
+- **Isolation**: Each test constructs its own `Surface`/`Canvas` fixture, with no shared state
+  between tests
+
+### Acceptance Criteria
+
+A unit test run passes when every scenario below passes without error or unexpected exception,
+and when every named test method listed for each requirement ID passes across every target
+framework.
+
+### Test Scenarios
+
+#### CanvasNet-Rendering-Shapes-Rect: FillRect/StrokeRect Draw an Axis-Aligned Rectangle
+
+**Tests**: `Shapes_FillRect_WithSolidColor_PaintsRegion`,
+`Shapes_StrokeRect_WithSolidStyle_PaintsPixels`, `Shapes_FillRect_RespectsCanvasCurrentTransform`
+
+Verifies `FillRect` and `StrokeRect` paint the expected rectangular region using the `Canvas`
+current transform.
+
+#### CanvasNet-Rendering-Shapes-RoundRect: FillRoundRect/StrokeRoundRect Draw a Rounded Rectangle With a Clamped Radius
+
+**Tests**: `Shapes_FillRoundRect_RadiusClampedAndPaintsPixels`,
+`Shapes_StrokeRoundRect_WithSolidStyle_PaintsPixels`,
+`Shapes_StrokeRoundRect_RadiusLargerThanHalfShorterSide_ClampsAndPaintsPixels`
+
+Verifies `FillRoundRect` and `StrokeRoundRect` paint non-empty output and clamp the requested
+corner radius to half of the shorter side whenever the requested radius exceeds that bound.
+
+#### CanvasNet-Rendering-Shapes-Circle: FillCircle/StrokeCircle Draw a Circle at a Given Center and Radius
+
+**Tests**: `Shapes_FillCircle_ProducesRoundRegion`, `Shapes_StrokeCircle_ProducesRing`
+
+Verifies `FillCircle` and `StrokeCircle` paint a round filled region and a ring-shaped stroked
+outline respectively.
+
+#### CanvasNet-Rendering-Shapes-Validation: A Null Canvas Argument Is Rejected
+
+**Test**: `Shapes_NullCanvas_ThrowsArgumentNullException`
+
+Verifies every `Shapes` helper rejects a `null` `Canvas` argument with `ArgumentNullException`.
+
 ### Traceability
 
 Every requirement in `docs/reqstream/canvas-net/rendering/shapes.yaml` links to one or more of

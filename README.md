@@ -1,6 +1,6 @@
 # CanvasNet
 
-<!-- cspell:ignore SFNT codepoints -->
+<!-- cspell:ignore SFNT codepoints Noto Zapf -->
 <!-- IMPORTANT: All links in this file must be absolute URLs.
      This file is distributed in packages and relative links will not resolve. -->
 
@@ -34,11 +34,23 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 - 📐 **SVG Codec** - Rasterize a common SVG subset, including markers/filters/clip-paths/masks and
   weight/style-aware font matching, to a surface (ships as the separate
   `DemaConsulting.CanvasNet.Svg` package)
+- 📄 **PDF Document** - Open a PDF, inspect its page count/size/rotation, and rasterize a page's
+  path geometry, device color (including shading and tiling pattern fills), image XObjects, and
+  TrueType text to a surface, automatically substituting a matching system font (or a bundled
+  Liberation Sans/Serif/Mono font) for text using a non-embedded font (ships as the separate
+  `DemaConsulting.CanvasNet.Pdf` package)
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
 - 🌅 **Gradient Paint** - Linear or radial gradient fills with spread
-- 🔤 **TrueType Fonts** - Load fonts, map codepoints, extract glyph outlines
+- 🧱 **Tile Paint** - Fill a path by repeating a pre-rendered tile bitmap at a configurable
+  pattern-space pitch and transform
+- 🔤 **TrueType/CFF Fonts** - Load TrueType (`glyf`) or CFF/OpenType (`.otf`) fonts and individual
+  faces of a TrueType Collection (`.ttc`), map codepoints, extract glyph outlines, and query
+  name/style metadata (family/subfamily/full/PostScript name, bold/italic/fixed-pitch)
+- 🗂️ **System Font Discovery** - `Fonts.SystemFontCatalog` discovers fonts installed on the host
+  operating system, best-effort matches a requested family/style against them, and provides a
+  bundled Liberation Sans/Serif/Mono last-resort fallback font
 - 🎬 **Rendering** - Transform-aware canvas with text and shape drawing
 - ⚡ **Span-Based** - Fast, allocation-conscious pixel and row access
 - 🔄 **Multi-Target** - Supports .NET 8, 9, and 10
@@ -68,12 +80,25 @@ Or via Package Manager Console:
 Install-Package DemaConsulting.CanvasNet.Svg
 ```
 
+PDF document parsing requires the separate `DemaConsulting.CanvasNet.Pdf` package:
+
+```bash
+dotnet add package DemaConsulting.CanvasNet.Pdf
+```
+
+Or via Package Manager Console:
+
+```powershell
+Install-Package DemaConsulting.CanvasNet.Pdf
+```
+
 ## Usage
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Svg;
+using DemaConsulting.CanvasNet.Pdf;
 using System.IO;
 
 // Create a surface, set a pixel, and crop an independent copy
@@ -108,6 +133,14 @@ Console.WriteLine($"Frames: {gifInfo.FrameCount}");
 
 // Decode/rasterize an SVG into a 256x256 surface
 using var rasterized = SvgCodec.Load("icon.svg", 256, 256);
+
+// Open a PDF, inspect its (rotation-adjusted) page size, and render it. Render paints the
+// page's real content-stream geometry: path fills/strokes with device color, placed image
+// XObjects, and text (using the page's embedded font, or an automatically substituted
+// system/bundled fallback font when none is embedded).
+using var pdfDoc = PdfDocument.Open("document.pdf");
+var pageInfo = pdfDoc.GetPageInfo(0);
+using var pdfSurface = pdfDoc.Render(0, pageInfo.Width, pageInfo.Height);
 
 // Triage an untrusted file's header before decoding pixel data
 var info = PngCodec.GetInfo("untrusted.png");
@@ -214,7 +247,7 @@ var gradient = new LinearGradient(
 PathFiller.Fill(canvas, rectangle, gradient, FillRule.NonZero, 1f);
 ```
 
-Loading a TrueType font and filling a glyph outline:
+Loading a TrueType (or CFF/OpenType) font and filling a glyph outline:
 
 ```csharp
 using DemaConsulting.CanvasNet.Canvas;
@@ -223,7 +256,9 @@ using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Geometry;
 using System.Numerics;
 
-// Convert a glyph outline from font units (Y up) to canvas space (Y down)
+// Convert a glyph outline from font units (Y up) to canvas space (Y down).
+// glyf-flavored fonts produce QuadraticBezierTo segments; CFF/OpenType (.otf)
+// fonts produce CubicBezierTo segments - both are handled here.
 static Path TransformGlyph(Path glyph, float scale, float baselineY)
 {
     var builder = new PathBuilder();
@@ -245,6 +280,12 @@ static Path TransformGlyph(Path glyph, float scale, float baselineY)
                         ToCanvas(command.Control1),
                         ToCanvas(command.EndPoint));
                     break;
+                case PathCommandType.CubicBezierTo:
+                    builder.CubicBezierTo(
+                        ToCanvas(command.Control1),
+                        ToCanvas(command.Control2),
+                        ToCanvas(command.EndPoint));
+                    break;
                 case PathCommandType.Close:
                     builder.Close();
                     break;
@@ -255,7 +296,8 @@ static Path TransformGlyph(Path glyph, float scale, float baselineY)
     return builder.Build();
 }
 
-// Load the font and get glyph 'A' scaled to a 48px em size
+// Load the font (accepts .ttf, .otf, or a specific face of a .ttc) and get
+// glyph 'A' scaled to a 48px em size
 var font = TrueTypeFont.Load("font.ttf");
 var glyphIndex = font.GetGlyphIndex('A');
 var glyphOutline = font.GetGlyphOutline(glyphIndex);
@@ -265,6 +307,32 @@ var canvasOutline = TransformGlyph(glyphOutline, scale, baselineY: 56f);
 // Fill the transformed glyph outline
 using var surface = new Surface(64, 64);
 PathFiller.Fill(surface, canvasOutline, new Rgba32(20, 120, 255, 255));
+```
+
+Selecting a face from a TrueType Collection (`.ttc`):
+
+```csharp
+// Discover how many faces the collection contains
+var faceCount = TrueTypeFont.GetFaceCount("collection.ttc"); // e.g. 2
+
+// Load a specific face by index (face 0 is used when Load is called without
+// an index, matching an ordinary single-face font's default behavior)
+var boldFace = TrueTypeFont.Load("collection.ttc", faceIndex: 1);
+```
+
+Querying a font's name and style metadata:
+
+```csharp
+// Resolve the font's family/subfamily/full/PostScript name from its name table
+var nameInfo = font.GetNameInfo();
+Console.WriteLine($"{nameInfo.FamilyName} {nameInfo.SubfamilyName}"); // e.g. "Open Sans Regular"
+
+// Derived bold/italic/fixed-pitch classification (from OS/2, head.macStyle, and post)
+if (font.IsBold || font.IsItalic || font.IsFixedPitch)
+{
+    Console.WriteLine("Bold: {0}, Italic: {1}, Fixed-pitch: {2}",
+        font.IsBold, font.IsItalic, font.IsFixedPitch);
+}
 ```
 
 ## Building
@@ -293,6 +361,23 @@ standards, and the pull request process.
 Copyright (c) DEMA Consulting. Licensed under the MIT License. See [LICENSE][link-license] for details.
 
 By contributing to this project, you agree that your contributions will be licensed under the MIT License.
+
+The `DemaConsulting.CanvasNet` package bundles the Liberation Sans, Liberation Serif, and
+Liberation Mono TrueType fonts (12 files total) as embedded resources, used as a last-resort
+fallback font by `PdfDocument`'s automatic font-substitution feature. These fonts are Copyright
+(c) 2012 Red Hat, Inc., licensed under the SIL Open Font License, Version 1.1; see
+`src/DemaConsulting.CanvasNet/Fonts/BundledFonts/OFL.txt` and
+`src/DemaConsulting.CanvasNet/Fonts/BundledFonts/README.md` for the full license text and
+sourcing/provenance details.
+
+The `DemaConsulting.CanvasNet` package also bundles the Noto Sans, Noto Sans Math, and Noto Sans
+Symbols 2 TrueType fonts (`NotoSans-Regular.ttf`, `NotoSansMath-Regular.ttf`,
+`NotoSansSymbols2-Regular.ttf`) as embedded resources, used as the dedicated substitute font for
+`Symbol`/`ZapfDingbats` text by `PdfDocument`'s automatic font-substitution feature. These fonts
+are part of the Noto Project, licensed under the SIL Open Font License, Version 1.1; see
+`src/DemaConsulting.CanvasNet/Fonts/BundledFonts/NotoFonts-OFL.txt` and the "Noto Substitute
+Fonts" section of `src/DemaConsulting.CanvasNet/Fonts/BundledFonts/README.md` for the full license
+text and sourcing/provenance details.
 
 ## Support
 

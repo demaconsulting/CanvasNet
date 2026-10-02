@@ -1,10 +1,10 @@
-## PathStroker Unit Verification Design
+### PathStroker Unit Verification Design
 
 This document describes the unit-level verification strategy for the `PathStroker` class and the
 supporting `StrokeStyle`, `LineCap`, `LineJoin`, `StrokePathFlattener`, `DashSplitter`, and
 `StrokeOutliner` types it covers inline.
 
-### Verification Approach
+#### Verification Approach
 
 The `PathStroker` unit is verified through a mix of end-to-end rendering assertions and narrower
 internal geometry tests:
@@ -24,20 +24,20 @@ internal geometry tests:
 No mocks are required. The helpers are accessible to the test project through the existing
 `InternalsVisibleTo` configuration already used elsewhere in the repository.
 
-### Test Environment
+#### Test Environment
 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required; the unit has no injectable dependencies
 
-### Acceptance Criteria
+#### Acceptance Criteria
 
 The unit passes verification when every scenario below passes without unexpected exception and
 every expected pixel alpha or geometry assertion matches exactly.
 
-### Test Scenarios
+#### Test Scenarios
 
-#### Stroke Conversion and Cap Shapes
+##### Stroke Conversion and Cap Shapes
 
 - `PathStroker_Stroke_HorizontalLineButtCap_FillsExactRectangleNoExtension`
 - `PathStroker_Stroke_HorizontalLineRoundCap_FillsRectanglePlusSemicircularEnds`
@@ -48,7 +48,7 @@ verify that butt caps stop exactly at the endpoints, square caps extend by half 
 round caps contribute the expected partial-coverage end pixels rather than a rectangular
 extension.
 
-#### Join Shapes and Miter Limit
+##### Join Shapes and Miter Limit
 
 - `PathStroker_Stroke_RightAngleCornerMiterJoin_FillsSharpMiteredCorner`
 - `PathStroker_Stroke_RightAngleCornerRoundJoin_FillsRoundedCorner`
@@ -59,7 +59,7 @@ These tests use the same right-angle polyline with width 4 so the corner-only pi
 clearly between join styles. The miter-limit scenario uses the same path with a deliberately small
 limit, proving that the rendered result matches the bevel case rather than the unrestricted miter.
 
-#### Closed Contours, Dashing, and Degenerate Subpaths
+##### Closed Contours, Dashing, and Degenerate Subpaths
 
 - `PathStroker_Stroke_ClosedRectangle_FillsRingLeavingInteriorAndExteriorUnfilled`
 - `PathStroker_Stroke_OverlappingLineAndPointCapOutlines_FillsOverlapRegionSolid`
@@ -77,7 +77,7 @@ region solidly filled rather than as a winding-cancellation hole; dashed lines m
 visible runs; degenerate subpaths must follow cap semantics exactly; and an empty path must remain
 a no-op.
 
-#### Concave/Collinear Closed Contours
+##### Concave/Collinear Closed Contours
 
 - `PathStroker_Stroke_ClosedRectangleBevelJoin_InnerCornerMatchesExactIntersectionNotBevel`
 - `PathStroker_Stroke_ClosedRectangleRoundJoin_InnerCornerMatchesExactIntersectionNotArc`
@@ -97,7 +97,7 @@ along the contour; and that a degenerate closed contour - a 2-point subpath, a 3
 whose distinct points are all collinear, or a collinear subpath containing duplicate points - still
 renders a visible stroke rather than vanishing to nothing.
 
-#### Robustness Against Extreme and Degenerate Numeric Input
+##### Robustness Against Extreme and Degenerate Numeric Input
 
 - `PathStroker_Stroke_OverflowProneDashArrayWithNegativeOffset_CompletesWithoutHanging`
 - `DashSplitter_Split_OverflowProneDashArrayWithNegativeOffset_CompletesWithoutHanging`
@@ -132,7 +132,7 @@ interval is materialized), and a round join/cap tessellated at extreme geometric
 than hanging, misclassifying the contour as degenerate, producing `NaN`/`Infinity` coordinates, or
 materializing an impractical number of retained intervals/segments.
 
-#### Public API Validation
+##### Public API Validation
 
 - `PathStroker_Stroke_NullPath_ThrowsArgumentNullException`
 - `PathStroker_Stroke_NullStrokeStyle_ThrowsArgumentNullException`
@@ -141,7 +141,7 @@ materializing an impractical number of retained intervals/segments.
 These tests prove that the public entry point rejects invalid reference and tolerance arguments
 before attempting any geometry conversion.
 
-#### StrokeStyle Constructor Validation
+##### StrokeStyle Constructor Validation
 
 - `StrokeStyle_Constructor_NonPositiveWidth_ThrowsArgumentOutOfRangeException`
 - `StrokeStyle_Constructor_MiterLimitBelowOne_ThrowsArgumentOutOfRangeException`
@@ -154,7 +154,7 @@ before attempting any geometry conversion.
 These tests verify that style validation is front-loaded at construction time and that valid
 public styling values are preserved exactly.
 
-#### Internal Helper Semantics
+##### Internal Helper Semantics
 
 - `StrokePathFlattener_Flatten_OpenSubpath_PreservesIsClosedFalse`
 - `StrokePathFlattener_Flatten_ClosedSubpath_PreservesIsClosedTrueWithNoImplicitDuplicatePoint`
@@ -185,7 +185,7 @@ source authoring order, tolerating segments spanning near-extreme float32 coordi
 overflowing to a degenerate outline, and producing shell rings with opposite winding for
 `FillRule.NonZero`.
 
-### Complexity Verification Policy
+#### Complexity Verification Policy
 
 Complexity expectations for dash splitting and outline generation are established in
 _PathStroker Unit Design_ (`../../../design/canvas-net/drawing/path-stroker.md`) through design

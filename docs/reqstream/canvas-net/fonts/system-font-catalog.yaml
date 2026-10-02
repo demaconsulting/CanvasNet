@@ -1,0 +1,126 @@
+---
+# Software Unit Requirements for SystemFontCatalog
+#
+# These requirements describe the design-level behavior of the SystemFontCatalog unit.
+# cspell:ignore Dejavu Nimbus Consolas ttcf
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Fonts Requirements
+        sections:
+          - title: SystemFontCatalog Requirements
+            requirements:
+              - id: CanvasNet-Fonts-SystemFontCatalog-DirectoryScanDiscovery
+                title: >-
+                  The SystemFontCatalog type shall discover every font file installed on the host
+                  operating system by directory-scanning a documented set of well-known font
+                  directories (Windows/macOS/Linux, no Windows registry), loading every face of
+                  every candidate .ttf/.ttc/.otf file found.
+                justification: |
+                  Callers substituting a non-embedded font need to know what fonts are actually
+                  installed on the host machine; a directory scan is portable across every
+                  operating system this library targets without depending on a platform-specific
+                  registry API.
+                tests:
+                  - SystemFontCatalog_RealFilesystem_ScanKnownOsDirectories_DiscoversFontsOrIsGracefullyEmpty
+                  - SystemFontCatalog_RealFilesystem_KnownPlatformFontFamily_ResolvesToRealFontWhenInstalled
+
+              - id: CanvasNet-Fonts-SystemFontCatalog-LazyProcessLifetimeCache
+                title: >-
+                  The SystemFontCatalog type shall build its font catalog exactly once per
+                  process, on first access to Fonts, and return the same cached instance on every
+                  subsequent access for the lifetime of the process.
+                justification: |
+                  Scanning every font directory and parsing every candidate file is expensive;
+                  callers that resolve fallback fonts repeatedly (once per distinct font
+                  dictionary, potentially many times per rendered document) must not pay that cost
+                  more than once per process.
+                tests:
+                  - SystemFontCatalog_Fonts_IsLazilyBuiltOnceAndCachedForProcessLifetime
+
+              - id: CanvasNet-Fonts-SystemFontCatalog-ToleratesMissingOrUnparseable
+                title: >-
+                  The SystemFontCatalog type shall silently skip a missing or inaccessible scan
+                  directory and any candidate font file that fails to parse (including a single
+                  corrupt face within an otherwise well-formed collection), never aborting the
+                  whole catalog build or throwing from Fonts itself.
+                justification: |
+                  A locked-down, missing, or partially corrupt font directory or file is common in
+                  real-world deployments (minimal container images, restrictive file permissions);
+                  callers need every other well-formed font still discovered rather than the
+                  entire catalog failing.
+                tests:
+                  - SystemFontCatalog_Fonts_MissingScanDirectory_SkippedWithoutThrowing
+                  - SystemFontCatalog_Fonts_UnparseableCandidateFile_SkippedWithoutThrowing
+
+              - id: CanvasNet-Fonts-SystemFontCatalog-FindBestMatchExactFamily
+                title: >-
+                  The SystemFontCatalog type shall resolve FindBestMatch's tier-1 exact-family-name
+                  match case-insensitively, and among multiple style variants of the same matched
+                  family, prefer the variant minimizing mismatched bold/italic flags.
+                justification: |
+                  A caller substituting a font whose intended family is actually installed on the
+                  host machine (case aside) should receive that exact family - and the style
+                  variant of it closest to what was requested - rather than an unrelated
+                  generic-bucket font.
+                tests:
+                  - SystemFontCatalog_FindBestMatch_ExactFamilyNameCaseInsensitive_ReturnsMatch
+                  - SystemFontCatalog_FindBestMatch_ExactFamilyStyleMismatch_PrefersClosestStyleVariant
+
+              - id: CanvasNet-Fonts-SystemFontCatalog-FindBestMatchGenericBucket
+                title: >-
+                  The SystemFontCatalog type shall, only when no exact family match exists, search
+                  a small hand-maintained list of well-known sans/serif/monospace family names (in
+                  a documented priority order) for the first one actually present in the catalog,
+                  selecting the fixed-pitch bucket over the serif bucket when both are requested.
+                justification: |
+                  When a document's intended font family is not installed on the host machine, a
+                  generic same-category substitute (a sans-serif font for a sans-serif request, a
+                  monospace font for a fixed-pitch request, and so on) is a far better visual
+                  approximation than an arbitrary unrelated font.
+                tests:
+                  - SystemFontCatalog_FindBestMatch_NoExactFamily_FallsBackToGenericSansBucket
+                  - SystemFontCatalog_FindBestMatch_NoExactFamily_FallsBackToGenericSerifBucket
+                  - SystemFontCatalog_FindBestMatch_NoExactFamily_FallsBackToGenericFixedPitchBucket
+
+              - id: CanvasNet-Fonts-SystemFontCatalog-FindBestMatchNoMatch
+                title: >-
+                  The SystemFontCatalog type shall return null from FindBestMatch when the catalog
+                  is empty, or genuinely has no exact family match and no generic-bucket match
+                  either, without ever consulting LoadBundledFallback itself.
+                justification: |
+                  FindBestMatch is a pure "what does the host operating system have installed"
+                  query; composing "system match, else bundled fallback" is deliberately left to
+                  the caller, which needs a well-defined null result to know when to fall through
+                  to LoadBundledFallback.
+                tests:
+                  - SystemFontCatalog_FindBestMatch_EmptyCandidateList_ReturnsNull
+                  - SystemFontCatalog_FindBestMatch_NoFamilyAndNoBucketMatch_ReturnsNull
+
+              - id: CanvasNet-Fonts-SystemFontCatalog-LoadBundledFallback
+                title: >-
+                  The SystemFontCatalog type shall load (and process-lifetime-cache) the
+                  closest-matching bundled Liberation Sans/Serif/Mono style for a requested
+                  serif/fixed-pitch/bold/italic combination from this assembly's embedded
+                  resources, never consulting the host operating system's installed fonts.
+                justification: |
+                  A caller needs a deterministic, always-available last-resort font when no
+                  system font matches at all (for example a minimal container image with no fonts
+                  installed), so that font substitution never fails outright for an otherwise
+                  unsupported document.
+                tests:
+                  - BundledFonts_AllTwelveLiberationVariants_LoadSuccessfullyAndExposeExpectedNameAndStyle
+
+              - id: CanvasNet-Fonts-SystemFontCatalog-LoadBundledFallbackMissingResourceGuard
+                title: >-
+                  The SystemFontCatalog type shall throw InvalidOperationException if the expected
+                  embedded bundled-font resource is unexpectedly absent, as a defensive
+                  packaging-integrity guard.
+                justification: |
+                  If this assembly's own shipped embedded resources were ever missing or
+                  misnamed, that is a library packaging defect, not a caller-facing "unsupported
+                  document feature" condition, and must surface as a distinct, loud failure rather
+                  than being silently reclassified or swallowed.
+                tests:
+                  - SystemFontCatalog_LoadBundledFallback_MissingEmbeddedResource_ThrowsInvalidOperationException
