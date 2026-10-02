@@ -343,6 +343,23 @@ pixel is the default (fully transparent) value. Calls `Render` with an out-of-ra
 and a non-positive width, asserting `ArgumentOutOfRangeException` in both cases (the latter
 propagated unwrapped from `Surface`'s own constructor).
 
+#### CanvasNetPdf-PdfDocument-RenderWithDpi: Render(int, float) Scales Page Size by DPI/72 and Validates Arguments
+
+**Tests**: `PdfDocument_RenderWithDpi_ScalesPageSizeByDpiOver72`,
+`PdfDocument_RenderWithDpi_InvalidDpi_ThrowsArgumentOutOfRangeException`,
+`PdfDocument_RenderWithDpi_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException`,
+`PdfDocument_RenderWithDpi_AfterDispose_ThrowsObjectDisposedException`
+
+Calls `Render(int, float)` with several DPI values (`[Theory]`: 72, 36, and 144) against a
+single-page fixture and asserts the returned `Surface`'s width/height exactly match the page's
+own point-space size scaled by `dpi / 72` and rounded to the nearest pixel, confirming the
+overload preserves the page's aspect ratio rather than requiring the caller to compute pixel
+dimensions itself. Calls `Render(int, float)` with a non-positive and a non-finite (`NaN`,
+`PositiveInfinity`) DPI (`[Theory]`), an out-of-range page index, and after the document has been
+disposed, asserting `ArgumentOutOfRangeException` for the first two cases and
+`ObjectDisposedException` for the last, matching the validation contract already proven for
+`Render(int, int, int)`.
+
 #### CanvasNetPdf-PdfDocument-ContentStreamDispatch: Unknown Operators Are Skipped, Malformed Recognized Operators Throw
 
 **Tests**: `PdfDocument_ContentStream_UnknownOperator_IsSkippedWithoutThrowing`,

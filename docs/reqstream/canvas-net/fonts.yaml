@@ -159,6 +159,7 @@ sections:
               - CanvasNet-Fonts-TrueTypeFont-RejectMalformedTtcHeader
             tests:
               - TrueTypeFont_RealTtcContainer_FaceOne_RendersCffGlyphOutlineAsVisibleInk
+              - TrueTypeFont_RealTtcContainer_FaceZero_RendersGlyfGlyphOutlineAsVisibleInk
               - CanvasNet_SystemIntegration_LoadFaceFromTtcContainerByIndex_ReturnsExpectedFace
 
           - id: CanvasNet-Fonts-NameStyleMetadata

@@ -98,10 +98,12 @@ public static class SystemFontCatalog
         new(BuildCatalog, LazyThreadSafetyMode.ExecutionAndPublication);
 
     /// <summary>
-    ///     Caches every <see cref="TrueTypeFont"/> loaded so far by <see cref="LoadBundledFallback"/>,
-    ///     keyed by the embedded resource's bundled file name (for example
-    ///     <c>"LiberationSans-Bold.ttf"</c>) - at most 12 entries are ever created, each created
-    ///     at most once, for the lifetime of the process.
+    ///     Caches every <see cref="TrueTypeFont"/> loaded so far by <see cref="LoadBundledFallback"/>
+    ///     or, cross-assembly, by <c>DemaConsulting.CanvasNet.Pdf</c>'s own Noto symbolic-font
+    ///     fallback (see <see cref="LoadBundledFallbackCore"/>'s remarks), keyed by the embedded
+    ///     resource's bundled file name (for example <c>"LiberationSans-Bold.ttf"</c>) - at most
+    ///     15 entries are ever created (12 Liberation Sans/Serif/Mono style variants plus 3 Noto
+    ///     substitute fonts), each created at most once, for the lifetime of the process.
     /// </summary>
     private static readonly Dictionary<string, TrueTypeFont> BundledFontCache = new(StringComparer.Ordinal);
 
@@ -178,7 +180,8 @@ public static class SystemFontCatalog
     /// <exception cref="InvalidOperationException">
     ///     Thrown only when the expected embedded resource is unexpectedly absent - a defensive,
     ///     effectively-unreachable packaging-integrity guard under normal operation, since all 12
-    ///     bundled files are guaranteed present at build time.
+    ///     Liberation Sans/Serif/Mono style-variant bundled files this method can request are
+    ///     guaranteed present at build time.
     /// </exception>
     public static TrueTypeFont LoadBundledFallback(bool serif, bool fixedPitch, bool bold, bool italic)
     {

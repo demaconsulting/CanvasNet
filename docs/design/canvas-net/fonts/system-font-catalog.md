@@ -1,7 +1,7 @@
 ### SystemFontCatalog
 
 <!-- cspell:ignore Dejavu Nimbus Consolas ttcf rescanned Segoe LOCALAPPDATA dogfood dogfooding -->
-<!-- cspell:ignore Zapf -->
+<!-- cspell:ignore Zapf Noto -->
 
 `SystemFontCatalog` is the second public software unit in the `Fonts` subsystem, added this
 phase alongside the unchanged `TrueTypeFont`. It provides directory-scan-only discovery of fonts
@@ -42,8 +42,11 @@ reference to a plain family-name hint and a set of style booleans before calling
 - **`BundledFontCache`** - a `Dictionary<string, TrueTypeFont>` (guarded by a plain
   `private static readonly object` lock, since the core package multi-targets `net8.0` and
   therefore cannot rely on the newer `System.Threading.Lock` type) caching every bundled Liberation
-  style loaded so far by its bundled file name (for example `"LiberationSans-Bold.ttf"`) - at
-  most 12 entries are ever created, each created at most once, for the process lifetime.
+  style loaded so far by its bundled file name (for example `"LiberationSans-Bold.ttf"`), plus
+  every bundled Noto substitute font loaded cross-assembly by `DemaConsulting.CanvasNet.Pdf`'s own
+  symbolic-font fallback (see `LoadBundledFallbackCore` below) - at most 15 entries are ever
+  created (12 Liberation Sans/Serif/Mono style variants plus 3 Noto substitute fonts), each
+  created at most once, for the process lifetime.
 
 #### Key Methods
 
@@ -96,8 +99,9 @@ even when the host machine has no fonts installed whatsoever.
   the tests.
 - **`LoadBundledFallbackCore(bundledFileName)`** - the embedded-resource load/cache logic above,
   exposed by explicit bundled file name so a test can exercise the missing-resource defensive
-  guard with a deliberately wrong name, and so a test can dogfood every one of the 12 real bundled
-  files individually.
+  guard with a deliberately wrong name, and so a test can dogfood every one of the 15 real bundled
+  files individually (the 12 Liberation style variants plus the 3 Noto substitute fonts reused
+  cross-assembly by `DemaConsulting.CanvasNet.Pdf`).
 - **`BuildCatalogFromRoots(roots)`** - the directory-scan/tolerance logic above, exposed over an
   explicit, caller-supplied set of directory roots so the "missing root"/"unparseable file"
   tolerance behavior can be tested against controlled temporary directories, without depending on
@@ -115,7 +119,10 @@ installed" outcome - `Fonts` returns an empty list, and `FindBestMatch` returns 
 exception this unit ever throws is `InvalidOperationException` from `LoadBundledFallback` (via
 `LoadBundledFallbackCore`), and only when the expected embedded resource is unexpectedly absent -
 a defensive, effectively-unreachable packaging-integrity guard under normal operation, since all
-12 bundled files are guaranteed present at build time as embedded resources of this assembly.
+15 bundled files (the 12 Liberation Sans/Serif/Mono style variants `LoadBundledFallback` itself
+can request, plus the 3 Noto substitute fonts `DemaConsulting.CanvasNet.Pdf` requests
+cross-assembly through the same `LoadBundledFallbackCore` entry point) are guaranteed present at
+build time as embedded resources of this assembly.
 
 #### Dependencies
 

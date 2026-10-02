@@ -306,6 +306,27 @@ sections:
               - PdfDocument_Render_InvalidWidth_PropagatesSurfaceArgumentOutOfRangeException
               - PdfDocument_ContentStream_NoContents_RendersBlankSurface
 
+          - id: CanvasNetPdf-PdfDocument-RenderWithDpi
+            title: >-
+              The PdfDocument class shall provide a Render overload that renders a page at a
+              caller-specified resolution (in pixels per inch) rather than requiring the caller to
+              compute an output width/height in pixels themselves, scaling the page's own
+              rotation-adjusted point-space size by dpi/72, preserving its aspect ratio, and
+              rounding the result to the nearest pixel before producing the same painted Surface
+              as the width/height overload; it shall reject a dpi that is not a positive, finite
+              number, and validate the page index the same way the width/height overload does.
+            justification: |
+              Callers frequently think in terms of a target resolution (dots per inch) rather than
+              an absolute pixel size, and computing a page's correctly aspect-ratio-preserving
+              pixel dimensions from its point-space size themselves duplicates logic this class
+              already has one correct, centralized place to provide (see
+              CanvasNetPdf-PdfDocument-Render, which this overload delegates to).
+            tests:
+              - PdfDocument_RenderWithDpi_ScalesPageSizeByDpiOver72
+              - PdfDocument_RenderWithDpi_InvalidDpi_ThrowsArgumentOutOfRangeException
+              - PdfDocument_RenderWithDpi_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException
+              - PdfDocument_RenderWithDpi_AfterDispose_ThrowsObjectDisposedException
+
           - id: CanvasNetPdf-PdfDocument-ContentStreamDispatch
             title: >-
               The PdfDocument class shall tokenize and dispatch a page's resolved content-stream

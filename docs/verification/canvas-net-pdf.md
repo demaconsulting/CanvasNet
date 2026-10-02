@@ -114,6 +114,19 @@ against a fixture whose trailer contains an `/Encrypt` key. Asserts
 an encrypted document is rejected rather than silently mis-parsed at the system's own public
 entry point.
 
+### Integration: Pdf Open Encrypted Rc4 Correct User Password Decrypts And Renders Expected Pixels
+
+**Test**: `CanvasNetPdf_SystemIntegration_PdfOpen_EncryptedRc4_CorrectUserPassword_DecryptsAndRendersExpectedPixels`
+
+Exercises end-to-end system behavior for genuinely successful decryption: a synthetic, in-memory
+RC4 128-bit (`/V 2`/`/R 3`) encrypted PDF is built with a file key derived from a real, non-empty
+user password, then opened through the public `Open(Stream, string?)` API with that correct
+password supplied and rendered through the public `Render` API. Asserts the encrypted content
+stream's rectangle-fill operator actually painted the expected opaque-black device pixel (and a
+pixel outside its footprint remains transparent), confirming the encrypted bytes were genuinely
+decrypted to real plaintext content and rendered - not merely that `Open` accepted the password
+without throwing.
+
 ### Integration: Pdf Render Colored Rectangle Fill Paints Expected Rgb Pixels
 
 **Test**: `CanvasNetPdf_SystemIntegration_PdfRender_ColoredRectangleFill_PaintsExpectedRgbPixels`
@@ -134,6 +147,18 @@ XObject via `cm`/`Do`. Asserts the four composited device pixels match the fixtu
 image quadrants, and a pixel outside the placed image's device-space footprint remains
 transparent, confirming stream decoding, sample-to-color conversion, and unit-square-to-device
 compositing all integrate correctly through the system's own public entry point.
+
+### Integration: Pdf Render Form X Object Paints Nested Content Stream
+
+**Test**: `CanvasNetPdf_SystemIntegration_PdfRender_FormXObject_PaintsNestedContentStream`
+
+Exercises end-to-end system behavior for the `/Subtype /Form` XObject pipeline: calls the public
+`Render` API against a synthetic, in-memory fixture whose page content stream invokes `/Fm0 Do`,
+where `/Fm0` is a genuine `/Type /XObject /Subtype /Form` XObject carrying its own nested
+rectangle-filling content stream. Asserts the Form's nested content actually painted the expected
+opaque-black device pixel (and a pixel outside its footprint remains transparent), confirming the
+Form XObject is genuinely executed end-to-end through the system's own public entry point - not
+merely that `Do` fails to throw.
 
 ### Integration: Pdf Render Embedded True Type Font Text Paints Glyph Strokes Not Counters
 
@@ -173,6 +198,37 @@ canvas's far corners remain transparent, confirming Type0 font-dictionary resolu
 `/CIDToGIDMap` remapping, `/W`-declared advance widths, 2-byte code decoding, glyph-outline
 transformation, and glyph painting all integrate correctly through the system's own public entry
 point with a real font file (not a hand-rolled synthetic one).
+
+### Integration: Render Cid Font Type0 Composite Font Paints Expected Glyph Ink
+
+**Test**: `CanvasNetPdf_SystemIntegration_RenderCidFontType0CompositeFont_PaintsExpectedGlyphInk`
+
+Exercises end-to-end system behavior for the Phase 12 `/CIDFontType0` composite-font text-
+rendering pipeline: calls the public `Render` API against a hand-authored, entirely synthetic
+fixture whose descendant font's `/FontDescriptor/FontFile3` is a synthetic, non-CID-keyed,
+`/OpenType`-wrapped CFF program (built via `SyntheticFontBuilder.Cff` - no third-party font
+asset), with no `/CIDToGIDMap` declared (identity CID-to-glyph-index is used unconditionally for
+this subtype). The content stream draws the 2-byte Identity-H code `0001` (CID 1, resolving to
+GID 1, a filled square glyph) at font size 20 on a 100x100 `/MediaBox`. Asserts the glyph's
+expected design-space square is painted as real ink at its correctly transformed device-pixel
+position, and the canvas's far corners remain transparent, confirming `/CIDFontType0` resolution
+and CFF/Type2-charstring outline decoding integrate correctly through the system's own public
+entry point.
+
+### Integration: Render Embedded Type1 Font Paints Expected Glyph Ink
+
+**Test**: `CanvasNetPdf_SystemIntegration_RenderEmbeddedType1Font_PaintsExpectedGlyphInk`
+
+Exercises end-to-end system behavior for the Phases B/C/D `/Subtype /Type1` simple-font text-
+rendering pipeline: calls the public `Render` API against a hand-authored, entirely synthetic
+fixture built via `SyntheticFontBuilder.Type1` (no third-party font asset), whose embedded
+classic PostScript `/FontDescriptor/FontFile` program's `A` glyph is a filled square, drawn at
+font size 20 on a 100x100 `/MediaBox` - deliberately matching the `/CIDFontType0` composite-font
+scenario's own glyph design/placement convention. Asserts the glyph's expected design-space
+square is painted as real ink at its correctly transformed device-pixel position, and the
+canvas's far corners remain transparent, confirming embedded classic Type 1 font-program
+resolution and Type 1 charstring outline decoding integrate correctly through the system's own
+public entry point.
 
 ### Integration: Pdf Render Lzw Decode Content Stream Paints Expected Pixels
 
@@ -294,12 +350,42 @@ Exercises end-to-end system behavior for out-of-range-page-index validation: cal
 `ArgumentOutOfRangeException` is thrown, confirming the documented validation contract is honored
 at the system's own public entry point.
 
+### Integration: Axial Shading Pattern Fill Paints Visibly Varying Colors
+
+**Test**: `CanvasNetPdf_SystemIntegration_AxialShadingPatternFill_PaintsVisiblyVaryingColors`
+
+Exercises end-to-end system behavior for the Phase 14 `/Pattern` color-space axial-shading
+pipeline: calls the public `Render` API against a synthetic, in-memory single-page PDF (no binary
+fixture) declaring a `/Pattern`-color-space fill driven by a `/ShadingType 2` shading with a
+`/FunctionType 2` (exponential interpolation) function interpolating black to white along its
+axis. Asserts the painted gradient is near-black at the axis's start coordinate and near-white at
+its end coordinate, confirming `/Pattern` color-space resolution, axial-shading coordinate
+mapping, and function evaluation all integrate correctly through the system's own public entry
+point (not merely a single solid fill color).
+
+### Integration: Colored Tiling Pattern Fill Paints Repeating Tile Colors
+
+**Test**: `CanvasNetPdf_SystemIntegration_ColoredTilingPatternFill_PaintsRepeatingTileColors`
+
+Exercises end-to-end system behavior for the Phase 14 `/Pattern` color-space colored-tiling
+pipeline: calls the public `Render` API against a synthetic, in-memory single-page PDF (no binary
+fixture) declaring a `/Pattern`-color-space fill driven by a `/PatternType 1`/`/PaintType 1`
+10x10 pattern cell (left half opaque red, right half opaque blue) tiled across a 100x100 fill.
+Asserts both tile colors appear at multiple repeated tile offsets at their exactly expected
+device pixels, confirming tiling-pattern cell execution, `/XStep`/`/YStep` tile-offset repetition,
+and the nested-execution machinery shared with `/Subtype /Form` XObjects all integrate correctly
+through the system's own public entry point.
+
 ## Acceptance Criteria
 
 A system-level test run passes when all scenarios above pass without error or exception beyond
 those explicitly asserted. Any unexpected exception, wrong exception type, or wrong return value
 constitutes a failure. Collectively, these scenarios cover the complete current CanvasNetPdf
-feature set: document structure parsing, the content-stream interpreter, device color, image
-XObjects, the full `FlateDecode`/`LZWDecode`/`ASCII85Decode`/`ASCIIHexDecode`/`RunLengthDecode`
-stream-filter set, embedded-TrueType and automatically-substituted-fallback text rendering, and
-the documented validation-contract/fail-closed exception boundaries.
+feature set: document structure parsing, the content-stream interpreter, device color (including
+`/CalRGB`, `/ICCBased`, and `/Indexed` color spaces), image XObjects, `/Subtype /Form` XObjects,
+the full `FlateDecode`/`LZWDecode`/`ASCII85Decode`/`ASCIIHexDecode`/`RunLengthDecode`/
+`CCITTFaxDecode`/`DCTDecode` stream-filter and image-decoding set, embedded-TrueType/Type1/Type1C/
+Type3 and Type0/CIDFontType2/CIDFontType0 composite-font text rendering with automatic
+system/bundled-fallback substitution, `/Pattern` color-space axial/radial shading and
+colored/uncolored tiling pattern fills, RC4/AES-encrypted document decryption, and the documented
+validation-contract/fail-closed exception boundaries.

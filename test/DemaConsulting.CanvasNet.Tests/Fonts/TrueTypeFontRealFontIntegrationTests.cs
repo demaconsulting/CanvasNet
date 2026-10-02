@@ -113,6 +113,31 @@ public class TrueTypeFontRealFontIntegrationTests
     }
 
     /// <summary>
+    ///     Proves that the locally-assembled <c>ttcf</c> container's first face (the glyf-flavored
+    ///     "Open Sans" font) is independently loadable and decodable via
+    ///     <see cref="TrueTypeFont.Load(string, int)"/> with an explicit face index of
+    ///     <c>0</c>, with its glyph outline rendering as real visible ink exactly as it does when
+    ///     loaded as a standalone <c>.ttf</c> file - complementing
+    ///     <see cref="TrueTypeFont_RealTtcContainer_FaceOne_RendersCffGlyphOutlineAsVisibleInk"/>'s
+    ///     coverage of the container's second (CFF-flavored) face, so both faces of the real
+    ///     <c>.ttc</c> fixture are proven independently renderable through the explicit
+    ///     face-index API, not merely the default/no-index overload.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_RealTtcContainer_FaceZero_RendersGlyfGlyphOutlineAsVisibleInk()
+    {
+        // Arrange: the ttcf container's face count and explicit face-0 selection
+        var faceCount = TrueTypeFont.GetFaceCount(TtcFontPath);
+        Assert.Equal(2, faceCount);
+
+        var font = TrueTypeFont.Load(TtcFontPath, 0);
+        var glyphIndex = font.GetGlyphIndex('A');
+        Assert.NotEqual(0, glyphIndex);
+
+        AssertGlyphRendersAsVisibleInk(font, glyphIndex);
+    }
+
+    /// <summary>
     ///     Proves that the real "Open Sans" production font exposes the exact family/subfamily/
     ///     full/PostScript name and bold/italic/fixed-pitch style metadata confirmed directly
     ///     against the fixture via <c>fonttools</c> (see this class's remarks): a font with no

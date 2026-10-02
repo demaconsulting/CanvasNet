@@ -1,4 +1,5 @@
 // cspell:ignore xobject devicergb Zapf Nonsymbolic OTTO cidfonttype Noto
+using System.Security.Cryptography;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Fonts;
 
@@ -212,6 +213,47 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Proves <see cref="PdfDocument.Open(Stream, string?)"/> genuinely decrypts and renders an
+    ///     RC4 128-bit (<c>/V 2</c>/<c>/R 3</c>) encrypted document end-to-end when the correct,
+    ///     non-empty, real user password is supplied: a synthetic, in-memory encrypted PDF (no
+    ///     binary fixture) whose <c>/Contents</c> stream is RC4-encrypted with a file key derived
+    ///     from a real (not empty) user password, proving the painted rectangle's device pixel is
+    ///     actually opaque black (i.e. the content stream was genuinely decrypted to its real
+    ///     plaintext operators and rendered, not merely that <c>Open</c> fails to throw).
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_PdfOpen_EncryptedRc4_CorrectUserPassword_DecryptsAndRendersExpectedPixels()
+    {
+        // Arrange: RC4 128-bit, correct real (non-empty) user password "test".
+        const int keyLengthBytes = 16;
+        const int revision = 3;
+        const int permissions = -3904;
+        const string userPassword = "test";
+        const string plaintextContent = "10 10 40 40 re f";
+        byte[] idBytes = [.. Enumerable.Range(0, 16).Select(i => (byte)(0x10 + i))];
+
+        var paddedUserPassword = EncodeAndPadRc4Password(userPassword);
+        var oBytes = ComputeOwnerEntryRc4Algorithm3(keyLengthBytes, revision, PasswordPadding, paddedUserPassword);
+        var fileKey = ComputeFileKeyRc4Algorithm2(paddedUserPassword, oBytes, permissions, idBytes, keyLengthBytes, revision);
+        var uBytes = ComputeUserEntryRc4Algorithm45(fileKey, idBytes);
+
+        var objectKey = ComputeObjectKeyRc4Algorithm1(fileKey, 4, 0);
+        var encryptedContent = Rc4(objectKey, System.Text.Encoding.ASCII.GetBytes(plaintextContent));
+
+        var encryptDictBody =
+            $"<< /Filter /Standard /V 2 /R {revision} /Length 128 /O <{Convert.ToHexString(oBytes)}> /U <{Convert.ToHexString(uBytes)}> /P {permissions} >>";
+        var pdfBytes = BuildEncryptedPdf(encryptDictBody, idBytes, encryptedContent);
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes), userPassword);
+        using var surface = document.Render(0, 100, 100);
+
+        // Assert: the rectangle's device footprint is painted; outside it is left blank.
+        Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
     ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> paints real device color end-to-end (Phase 3):
     ///     a hand-authored fixture using <c>rg</c> to fill a rectangle red, asserting a specific
     ///     interior pixel is opaque red and an exterior pixel remains transparent.
@@ -257,6 +299,37 @@ public class PdfSystemIntegrationTests
         Assert.Equal(new Canvas.Rgba32(255, 255, 0, 255), surface[55, 75]);
 
         // Assert: a pixel outside the placed image's device-space footprint remains transparent.
+        Assert.Equal(default, surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> executes a <c>/Subtype /Form</c> XObject
+    ///     placed via the <c>Do</c> operator end-to-end: a synthetic, in-memory single-page PDF
+    ///     (no binary fixture) whose page content stream invokes <c>/Fm0 Do</c>, where <c>/Fm0</c>
+    ///     is a genuine Form XObject (<c>/Type /XObject /Subtype /Form</c>) with its own nested
+    ///     content stream filling a rectangle, proving the Form's nested content is actually
+    ///     painted at the correct device pixels (not merely that <c>Do</c> fails to throw).
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_PdfRender_FormXObject_PaintsNestedContentStream()
+    {
+        // Arrange: the Form's own content stream fills a centered rectangle.
+        const string formContent = "10 10 80 80 re f";
+        var formStreamBytes = System.Text.Encoding.ASCII.GetBytes(formContent);
+        var formStreamBody = System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Type /XObject /Subtype /Form /BBox [0 0 100 100] /Length {formStreamBytes.Length} >>\nstream\n{formContent}\nendstream");
+
+        var bytes = BuildSyntheticPatternPdf(
+            "/Fm0 Do",
+            "/XObject << /Fm0 5 0 R >>",
+            [formStreamBody]);
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var surface = document.Render(0, 100, 100);
+
+        // Assert: the rectangle's device footprint is painted; outside it is left blank.
+        Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[50, 50]);
         Assert.Equal(default, surface[5, 5]);
     }
 
@@ -867,4 +940,215 @@ public class PdfSystemIntegrationTests
             $"trailer\n<< /Size {bodies.Count + 1} /Root 1 0 R >>\nstartxref\n{xrefOffset}\n%%EOF\n"));
         return [.. buffer];
     }
+
+    #region RC4 encryption test-only helpers
+
+    /// <summary>
+    ///     The standard 32-byte password padding string (ISO 32000-1 7.6.3.3). Duplicated
+    ///     (rather than shared) from <see cref="PdfDocumentEncryptionTests"/>'s own identical
+    ///     constant/helpers below, consistent with that file's own "independently re-derived, not
+    ///     copy-pasted" philosophy for test-only cryptographic helpers - this system-level test
+    ///     only needs the single RC4-with-a-real-password path, not that file's full RC4/AES
+    ///     matrix, so the subset is re-derived here rather than exposed as shared production- or
+    ///     test-internal surface.
+    /// </summary>
+    private static readonly byte[] PasswordPadding =
+    [
+        0x28, 0xBF, 0x4E, 0x5E, 0x4E, 0x75, 0x8A, 0x41, 0x64, 0x00, 0x4E, 0x56, 0xFF, 0xFA, 0x01, 0x08,
+        0x2E, 0x2E, 0x00, 0xB6, 0xD0, 0x68, 0x3E, 0x80, 0x2F, 0x0C, 0xA9, 0xFE, 0x64, 0x53, 0x69, 0x7A,
+    ];
+
+    /// <summary>A from-scratch, hand-rolled RC4 stream cipher (classic KSA/PRGA) - symmetric, so this single method both "encrypts" the test fixture and would decrypt it.</summary>
+    private static byte[] Rc4(byte[] key, byte[] data)
+    {
+        var state = new byte[256];
+        for (var i = 0; i < 256; i++)
+        {
+            state[i] = (byte)i;
+        }
+
+        var j = 0;
+        for (var i = 0; i < 256; i++)
+        {
+            j = (j + state[i] + key[i % key.Length]) & 0xFF;
+            (state[i], state[j]) = (state[j], state[i]);
+        }
+
+        var output = new byte[data.Length];
+        var x = 0;
+        j = 0;
+        for (var n = 0; n < data.Length; n++)
+        {
+            x = (x + 1) & 0xFF;
+            j = (j + state[x]) & 0xFF;
+            (state[x], state[j]) = (state[j], state[x]);
+            var keystreamByte = state[(state[x] + state[j]) & 0xFF];
+            output[n] = (byte)(data[n] ^ keystreamByte);
+        }
+
+        return output;
+    }
+
+    /// <summary>Encodes (Latin-1) and pads/truncates a real password to exactly 32 bytes per ISO 32000-1 7.6.3.3.</summary>
+    private static byte[] EncodeAndPadRc4Password(string password)
+    {
+        var encoded = System.Text.Encoding.Latin1.GetBytes(password);
+        var padded = new byte[32];
+        var copyLength = Math.Min(encoded.Length, 32);
+        encoded.AsSpan(0, copyLength).CopyTo(padded);
+        if (copyLength < 32)
+        {
+            PasswordPadding.AsSpan(0, 32 - copyLength).CopyTo(padded.AsSpan(copyLength));
+        }
+
+        return padded;
+    }
+
+    /// <summary>Computes the Encrypt dictionary's <c>/O</c> entry per ISO 32000-1 Algorithm 3's encrypt direction.</summary>
+    private static byte[] ComputeOwnerEntryRc4Algorithm3(int keyLengthBytes, int revision, byte[] paddedOwnerPasswordBytes, byte[] paddedUserPasswordBytes)
+    {
+        var digest = MD5.HashData(paddedOwnerPasswordBytes);
+        if (revision >= 3)
+        {
+            for (var i = 0; i < 50; i++)
+            {
+                digest = MD5.HashData(digest.AsSpan(0, keyLengthBytes).ToArray());
+            }
+        }
+
+        var ownerKey = digest.AsSpan(0, keyLengthBytes).ToArray();
+        var result = Rc4(ownerKey, paddedUserPasswordBytes);
+
+        if (revision >= 3)
+        {
+            for (var round = 1; round <= 19; round++)
+            {
+                var roundKey = new byte[ownerKey.Length];
+                for (var i = 0; i < ownerKey.Length; i++)
+                {
+                    roundKey[i] = (byte)(ownerKey[i] ^ round);
+                }
+
+                result = Rc4(roundKey, result);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>Computes the file encryption key per ISO 32000-1 Algorithm 2, given an already-padded 32-byte password.</summary>
+    private static byte[] ComputeFileKeyRc4Algorithm2(byte[] paddedPasswordBytes, byte[] oBytes, int permissions, byte[] idBytes, int keyLengthBytes, int revision)
+    {
+        using var input = new MemoryStream();
+        input.Write(paddedPasswordBytes);
+        input.Write(oBytes);
+        input.Write([(byte)permissions, (byte)(permissions >> 8), (byte)(permissions >> 16), (byte)(permissions >> 24)]);
+        input.Write(idBytes);
+
+        var digest = MD5.HashData(input.ToArray());
+        if (revision >= 3)
+        {
+            for (var i = 0; i < 50; i++)
+            {
+                digest = MD5.HashData(digest.AsSpan(0, keyLengthBytes).ToArray());
+            }
+        }
+
+        return digest.AsSpan(0, keyLengthBytes).ToArray();
+    }
+
+    /// <summary>Computes the Encrypt dictionary's <c>/U</c> entry per ISO 32000-1 Algorithm 5 (revision 3/4).</summary>
+    private static byte[] ComputeUserEntryRc4Algorithm45(byte[] fileKey, byte[] idBytes)
+    {
+        using var hashInput = new MemoryStream();
+        hashInput.Write(PasswordPadding);
+        hashInput.Write(idBytes);
+        var result = MD5.HashData(hashInput.ToArray());
+        result = Rc4(fileKey, result);
+        for (var round = 1; round <= 19; round++)
+        {
+            var roundKey = new byte[fileKey.Length];
+            for (var i = 0; i < fileKey.Length; i++)
+            {
+                roundKey[i] = (byte)(fileKey[i] ^ round);
+            }
+
+            result = Rc4(roundKey, result);
+        }
+
+        var padded = new byte[32];
+        result.CopyTo(padded, 0);
+        for (var i = 16; i < 32; i++)
+        {
+            padded[i] = (byte)(0xAA + i);
+        }
+
+        return padded;
+    }
+
+    /// <summary>Computes a per-object encryption key per ISO 32000-1 Algorithm 1 (RC4 only).</summary>
+    private static byte[] ComputeObjectKeyRc4Algorithm1(byte[] fileKey, int objectNumber, int generation)
+    {
+        using var input = new MemoryStream();
+        input.Write(fileKey);
+        input.Write([(byte)objectNumber, (byte)(objectNumber >> 8), (byte)(objectNumber >> 16)]);
+        input.Write([(byte)generation, (byte)(generation >> 8)]);
+
+        var digest = MD5.HashData(input.ToArray());
+        var keyLength = Math.Min(fileKey.Length + 5, 16);
+        return digest.AsSpan(0, keyLength).ToArray();
+    }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page (<c>/MediaBox [0 0 100 100]</c>), classic-xref,
+    ///     encrypted PDF: objects 1-3 are the Catalog/Pages/Page, object 4 is the RC4-encrypted
+    ///     <c>/Contents</c> stream holding <paramref name="encryptedContentBytes"/> verbatim,
+    ///     object 5 is the Encrypt dictionary (<paramref name="encryptDictBody"/>), and the
+    ///     trailer declares <c>/Encrypt 5 0 R</c> plus a two-element <c>/ID</c> array (both
+    ///     elements set to <paramref name="idBytes"/>).
+    /// </summary>
+    private static byte[] BuildEncryptedPdf(string encryptDictBody, byte[] idBytes, byte[] encryptedContentBytes)
+    {
+        var header = System.Text.Encoding.ASCII.GetBytes($"<< /Length {encryptedContentBytes.Length} >>\nstream\n");
+        var footer = "\nendstream"u8.ToArray();
+        var contentStreamBody = new byte[header.Length + encryptedContentBytes.Length + footer.Length];
+        header.CopyTo(contentStreamBody, 0);
+        encryptedContentBytes.CopyTo(contentStreamBody, header.Length);
+        footer.CopyTo(contentStreamBody, header.Length + encryptedContentBytes.Length);
+
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            contentStreamBody,
+            System.Text.Encoding.ASCII.GetBytes(encryptDictBody),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        var offsets = new List<int>();
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            offsets.Add(buffer.Count);
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        var xrefOffset = buffer.Count;
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"xref\n0 {bodies.Count + 1}\n"));
+        buffer.AddRange("0000000000 65535 f \n"u8.ToArray());
+        foreach (var offset in offsets)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{offset:D10} 00000 n \n"));
+        }
+
+        var idHex = Convert.ToHexString(idBytes);
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes(
+            $"trailer\n<< /Size {bodies.Count + 1} /Root 1 0 R /Encrypt 5 0 R /ID [<{idHex}> <{idHex}>] >>\nstartxref\n{xrefOffset}\n%%EOF\n"));
+        return [.. buffer];
+    }
+
+    #endregion
 }

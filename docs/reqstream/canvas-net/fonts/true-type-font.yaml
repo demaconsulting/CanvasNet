@@ -721,7 +721,7 @@ sections:
                   - TrueTypeFont_Load_TtcContainer_ExplicitFaceIndex_SelectsThatFace
                   - TrueTypeFont_Load_TtcContainer_Path_FaceIndex_ReadsFromFile
                   - TrueTypeFont_RealTtcContainer_FaceOne_RendersCffGlyphOutlineAsVisibleInk
-                  - TrueTypeFont_RealOpenSansFont_RendersGlyphOutlineAsVisibleInk
+                  - TrueTypeFont_RealTtcContainer_FaceZero_RendersGlyfGlyphOutlineAsVisibleInk
 
               - id: CanvasNet-Fonts-TrueTypeFont-RejectFaceIndexOutOfRange
                 title: >-

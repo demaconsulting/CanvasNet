@@ -102,6 +102,7 @@ sections:
           simply renders as expected.
         children:
           - CanvasNetPdf-PdfDocument-Render
+          - CanvasNetPdf-PdfDocument-RenderWithDpi
         tests:
           - CanvasNetPdf_SystemIntegration_PdfRender_ReturnsBlankSizedSurface
           - CanvasNetPdf_SystemIntegration_PdfUnsupportedFormatValidation_MalformedContentStreamThrowsInvalidDataException
@@ -153,6 +154,7 @@ sections:
           - CanvasNetPdf-PdfDocument-EncryptionPasswordAuthentication
         tests:
           - CanvasNetPdf_SystemIntegration_PdfEncryptDetection_EncryptedTrailerThrowsUnsupportedImageFeatureException
+          - CanvasNetPdf_SystemIntegration_PdfOpen_EncryptedRc4_CorrectUserPassword_DecryptsAndRendersExpectedPixels
 
       - id: CanvasNetPdf-ContentStreamInterpreter
         title: >-
@@ -183,16 +185,14 @@ sections:
           The library shall support setting the current fill/stroke color via the device color
           operators (rg/g/k and their cs/scn color-space-selecting equivalents) and apply that
           color to every subsequently painted path until the next color-setting operator or a
-          graphics-state restore (Q); it shall also resolve (but not yet consume at rendering
-          time) a /FunctionType 0 sampled function, in preparation for a future shading-pattern-
-          fill feature.
+          graphics-state restore (Q); it shall also resolve and consume a /FunctionType 0 sampled
+          function at rendering time, as used by axial/radial shading-pattern fills.
         tags: [system]
         justification: |
           Callers need paths to render in their document-specified color, not merely as an
           opaque-black silhouette, for the rendered output to be visually faithful to the source
-          document. Resolving a /FunctionType 0 sampled function as unconsumed groundwork unblocks
-          a future axial/radial shading-pattern-fill feature without re-deriving sampled-function
-          evaluation later.
+          document. Resolving and consuming a /FunctionType 0 sampled function underpins the
+          axial/radial shading-pattern-fill feature's own color-at-parametric-position evaluation.
         children:
           - CanvasNetPdf-PdfDocument-DeviceColorOperators
           - CanvasNetPdf-PdfDocument-ColorSpaceOperators
@@ -256,7 +256,7 @@ sections:
         children:
           - CanvasNetPdf-PdfDocument-FormXObjects
         tests:
-          - CanvasNetPdf_SystemIntegration_PdfRender_ImageXObjectPlacement_CompositesExpectedPixels
+          - CanvasNetPdf_SystemIntegration_PdfRender_FormXObject_PaintsNestedContentStream
 
       - id: CanvasNetPdf-TextRendering
         title: >-
