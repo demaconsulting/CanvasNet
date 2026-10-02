@@ -1165,19 +1165,25 @@ sections:
           - id: CanvasNetPdf-PdfDocument-Tr
             title: >-
               The PdfDocument class shall implement the Tr (text-rendering mode) operator,
-              supporting mode 0 (fill, the default) and mode 3 (invisible - glyphs still advance
-              the text position but are not painted), throwing UnsupportedImageFeatureException
-              for stroke/clip modes 1, 2, and 4-7, and InvalidDataException for any other numeric
-              value.
+              supporting mode 0 (fill, the default), mode 1 (stroke), mode 2 (fill, then stroke),
+              and mode 3 (invisible - glyphs still advance the text position but are not painted),
+              throwing UnsupportedImageFeatureException for the clip modes 4-7, and
+              InvalidDataException for any other numeric value.
             justification: |
-              Stroke and clip text-rendering modes are explicitly out of this phase's scope; a
-              content stream requesting one must fail closed rather than being silently
-              mis-rendered as a fill, while invisible text (commonly used for an OCR text layer
-              beneath a scanned image) must still correctly advance the text position without
-              painting any ink.
+              Clip text-rendering modes are explicitly out of this phase's scope; a content
+              stream requesting one must fail closed rather than being silently mis-rendered as a
+              fill, while invisible text (commonly used for an OCR text layer beneath a scanned
+              image) must still correctly advance the text position without painting any ink.
+              Stroke and fill+stroke modes are real-world-prevalent (for example, outlined
+              headings) and are supported by reusing the existing path-stroking paint logic
+              against the glyph's own outline.
             tests:
               - PdfDocument_Text_RenderMode3_Invisible_DoesNotPaintGlyph
               - PdfDocument_Text_RenderMode3_Invisible_StillAdvancesTextPosition
+              - PdfDocument_Text_RenderMode1_Stroke_PaintsStrokedOutlineNotSolidFill
+              - PdfDocument_Text_RenderMode2_FillAndStroke_PaintsBothFillAndStroke
+              - PdfDocument_Text_RenderMode1_StrokePattern_PaintsPatternStroke
+              - PdfDocument_Fonts_Type3_RenderMode1Or2_BehavesLikeRenderMode0
               - PdfDocument_Text_RenderMode_UnsupportedDefinedMode_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Text_RenderMode_OutOfDefinedRange_ThrowsInvalidDataException
 

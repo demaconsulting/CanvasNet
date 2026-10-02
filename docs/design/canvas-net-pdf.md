@@ -76,8 +76,9 @@ a missing embedded font still fails closed. **Current limitations**: `/Type1`, `
 `/Identity-H` (including `/Identity-V` and predefined CJK encodings) and descendant `/Subtype`
 values other than `/CIDFontType2` (including `/CIDFontType0`) fail closed too; only the
 `/WinAnsiEncoding`/`/MacRomanEncoding` base encodings (plus
-`/Differences`) are supported (an unrecognized base encoding fails closed); only fill (`Tr 0`)
-and invisible (`Tr 3`) text-rendering modes are supported (stroke/clip modes fail closed); no
+`/Differences`) are supported (an unrecognized base encoding fails closed); fill (`Tr 0`),
+stroke (`Tr 1`), fill+stroke (`Tr 2`), and invisible (`Tr 3`) text-rendering modes are
+supported (clip modes fail closed); no
 Form XObject rendering (fails closed, rather than being silently skipped); no shading/patterns/
 transparency groups; no `JPXDecode` filter decoding (fails closed; `CCITTFaxDecode` - Group 4
 (T.6 MMR) only - is supported); no
@@ -210,7 +211,7 @@ an unsupported image `/BitsPerComponent`, and a `/Subtype /Form` XObject are all
 `Codecs.UnsupportedImageFeatureException` rather than being silently skipped or mis-rendered.
 Phase 4 extended the same posture to text/font constructs: a font dictionary's `/Type1`/
 `/MMType1`/`/Type3` subtype, an `/Encoding` naming an unrecognized base encoding, and a
-stroke/clip text-rendering mode (`Tr 1`/`2`/`4`-`7`) are all likewise rejected with
+clip text-rendering mode (`Tr 4`-`7`) are all likewise rejected with
 `Codecs.UnsupportedImageFeatureException`. Phase 6 narrowed (but did not remove) the font-subtype
 fail-closed boundary: a `/Subtype /TrueType` font lacking an embedded `/FontFile2` is now resolved
 via automatic system/bundled-font substitution rather than rejected outright, except that a
@@ -239,7 +240,7 @@ unrecognized filter), `pdf-tiff-predictor-bitdepth-{n}`, `pdf-image-bitdepth-{n}
 `pdf-font-symbolic-not-embedded` (`Symbol`/`ZapfDingbats`), `pdf-font-encoding-{name}`,
 `pdf-font-type0-encoding-{name}` (a `/Type0` `/Encoding` other than `/Identity-H`),
 `pdf-font-cidfonttype-{subtype}` (a descendant `/Subtype` other than `/CIDFontType2`), and
-`pdf-text-render-mode-{mode}` (stroke/clip), `pdf-ccittfax-group3` (`CCITTFaxDecode` with a
+`pdf-text-render-mode-{mode}` (clip), `pdf-ccittfax-group3` (`CCITTFaxDecode` with a
 non-negative `/K`), `pdf-ccittfax-endofline` (`CCITTFaxDecode` with `/EndOfLine true`), and
 `pdf-ccittfax-colorspace` (a `CCITTFaxDecode` image whose resolved `/ColorSpace` has more than 1
 component). `/Annots` (annotations) and AcroForms are simply not

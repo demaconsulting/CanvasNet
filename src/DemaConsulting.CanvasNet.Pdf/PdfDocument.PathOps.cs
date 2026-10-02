@@ -233,28 +233,48 @@ public sealed partial class PdfDocument
 
         if (stroke)
         {
-            var style = new StrokeStyle(
-                DeviceLineWidth(),
-                _gs.LineCap,
-                _gs.LineJoin,
-                Math.Max(_gs.MiterLimit, 1f),
-                ScaledDashArray(),
-                ScaledDashPhase());
-            var outline = PathStroker.Stroke(path, style);
-            if (_gs.StrokeColorSpace.Kind == PdfColorSpace.Family.Pattern && _gs.StrokePattern is not null)
-            {
-                PaintPatternFill(outline, FillRule.NonZero, _gs.StrokePattern, _gs.StrokeColor);
-            }
-            else
-            {
-                PathFiller.Fill(_surface, outline, _gs.StrokeColor, FillRule.NonZero);
-            }
+            PaintStroke(path);
         }
 
         // Per spec, every path-painting operator (including 'n') always clears the current
         // path. The surrounding graphics state is entirely unaffected by this clear.
         _pathBuilder.Clear();
         _hasOpenSubpath = false;
+    }
+
+    /// <summary>
+    ///     Strokes <paramref name="path"/> with the current graphics state's stroke style
+    ///     (<see cref="GraphicsState.LineWidth"/>/<see cref="GraphicsState.LineCap"/>/
+    ///     <see cref="GraphicsState.LineJoin"/>/<see cref="GraphicsState.MiterLimit"/>/dash
+    ///     pattern, all scaled to device space), painting the resulting outline via a resolved
+    ///     <c>/Pattern</c> stroke color space when one is set, or the plain
+    ///     <see cref="GraphicsState.StrokeColor"/> otherwise.
+    /// </summary>
+    /// <remarks>
+    ///     Shared by <see cref="PaintCurrentPath"/> (for the path-painting operators'
+    ///     <c>S</c>/<c>s</c>/<c>B</c>/<c>b</c>/<c>B*</c>/<c>b*</c> stroke step) and by
+    ///     <see cref="ShowGlyph"/> (for <c>Tr</c> text-rendering modes 1/2, which stroke a
+    ///     glyph's own device-space outline using this identical stroke style/paint logic).
+    /// </remarks>
+    /// <param name="path">The already device-space-baked path (or glyph outline) to stroke.</param>
+    private void PaintStroke(Geometry.Path path)
+    {
+        var style = new StrokeStyle(
+            DeviceLineWidth(),
+            _gs.LineCap,
+            _gs.LineJoin,
+            Math.Max(_gs.MiterLimit, 1f),
+            ScaledDashArray(),
+            ScaledDashPhase());
+        var outline = PathStroker.Stroke(path, style);
+        if (_gs.StrokeColorSpace.Kind == PdfColorSpace.Family.Pattern && _gs.StrokePattern is not null)
+        {
+            PaintPatternFill(outline, FillRule.NonZero, _gs.StrokePattern, _gs.StrokeColor);
+        }
+        else
+        {
+            PathFiller.Fill(_surface, outline, _gs.StrokeColor, FillRule.NonZero);
+        }
     }
 
     /// <summary>

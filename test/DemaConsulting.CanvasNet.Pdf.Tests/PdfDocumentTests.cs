@@ -5748,6 +5748,41 @@ public class PdfDocumentTests
     }
 
     /// <summary>
+    ///     Proves that Type3 glyphs behave identically under <c>Tr</c> modes <c>1</c> (stroke) and
+    ///     <c>2</c> (fill+stroke) as they do under mode <c>0</c> (fill) - a Type3 glyph is an
+    ///     arbitrary re-executed content-stream procedure, not an outline, so
+    ///     <c>PaintType3Glyph</c>/<c>ShowGlyph</c>'s <c>ResolvedType3Font</c> branch has no
+    ///     fill/stroke distinction at all (only the shared <c>!= 3</c> invisible-mode gate applies);
+    ///     the new mode-aware outline fill/stroke logic added to <c>ShowGlyph</c>'s non-Type3
+    ///     branch is therefore never reached for a Type3 font, and the glyph procedure's own ink
+    ///     paints exactly as it does for <see cref="PdfDocument_Fonts_Type3_MinimalFont_DifferencesAndCharProcs_PaintsGlyphInk"/>.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void PdfDocument_Fonts_Type3_RenderMode1Or2_BehavesLikeRenderMode0(int mode)
+    {
+        // Arrange: the same minimal filled-rectangle /Square glyph (code 65) as
+        // PdfDocument_Fonts_Type3_MinimalFont_DifferencesAndCharProcs_PaintsGlyphInk.
+        var (resourcesBody, extraObjects) = BuildType3FontResources(
+            [("Square", "100 100 400 400 re f"u8.ToArray())],
+            "65 /Square");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf {mode} Tr 5 5 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: device x [7,15), y [85,93) - identical to mode 0's own pixel assertions; the
+        // glyph procedure's ink paints regardless of the (irrelevant, for Type3) render mode.
+        Assert.NotEqual(default, surface[11, 89]);
+
+        // Assert: well outside the glyph's painted region, nothing is painted.
+        Assert.Equal(default, surface[50, 50]);
+    }
+
+    /// <summary>
     ///     Proves that a malformed <c>/FontMatrix</c> array of the wrong length (5 or 7 elements,
     ///     instead of exactly 6) throws <see cref="InvalidDataException"/> - distinct from
     ///     <see cref="PdfDocument_Fonts_Type3_MissingFontMatrix_ThrowsInvalidDataException"/>'s own
@@ -5984,10 +6019,103 @@ public class PdfDocumentTests
         Assert.NotEqual(default, surface[23, 89]);
     }
 
+    /// <summary>
+    ///     Proves that render mode <c>1</c> (stroke) paints a stroked glyph outline without
+    ///     filling the glyph's interior - the stroke color (red) appears along the outline's edge,
+    ///     while the glyph's geometric center (which mode <c>0</c>/<c>2</c> would fill) remains
+    ///     unpainted.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Text_RenderMode1_Stroke_PaintsStrokedOutlineNotSolidFill()
+    {
+        // Arrange: square glyph (device x [7,15), y [40,48) - see
+        // PdfDocument_Text_ShowText_PaintsGlyphAtComposedTextRenderingMatrix) stroked red with a
+        // thick (2 device pixel) line width, so the stroke reliably covers its edge pixels. Fill
+        // color (black, the default) would paint the center under mode 0/2, but must NOT appear
+        // here under mode 1.
+        var fontBytes = BuildEmbeddedFontBytes([(65, 1)]);
+        var (resourcesBody, extraObjects) = BuildSimpleTrueTypeFontResources(fontBytes);
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf 2 w 1 Tr 1 0 0 RG 5 50 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the left edge of the glyph's outline (device x = 7) is stroked red.
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[7, 44]);
+
+        // Assert: the glyph's geometric center (device x = 11, equidistant from all four edges)
+        // is not painted at all - only the outline was stroked, not the interior filled.
+        Assert.Equal(default, surface[11, 44]);
+    }
+
+    /// <summary>
+    ///     Proves that render mode <c>2</c> (fill, then stroke) paints both the glyph's solid
+    ///     interior fill and its stroked outline, with the stroke painted on top of (and thus
+    ///     visible over) the fill at the outline's edge - matching the path-painting operators'
+    ///     own fill-then-stroke paint order (<c>B</c>/<c>b</c>).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Text_RenderMode2_FillAndStroke_PaintsBothFillAndStroke()
+    {
+        // Arrange: distinct fill (green) and stroke (red) colors, so the center (fill-only) and
+        // edge (stroke-over-fill) pixels are unambiguously distinguishable.
+        var fontBytes = BuildEmbeddedFontBytes([(65, 1)]);
+        var (resourcesBody, extraObjects) = BuildSimpleTrueTypeFontResources(fontBytes);
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "BT /F1 20 Tf 2 w 2 Tr 0 1 0 rg 1 0 0 RG 5 50 Td (A) Tj ET",
+            resourcesBody,
+            extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the center is filled green (proving the fill still happened under mode 2).
+        Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[11, 44]);
+
+        // Assert: the left edge is stroked red, painted on top of the green fill.
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[7, 44]);
+    }
+
+    /// <summary>
+    ///     Proves that a glyph stroke (<c>Tr</c> mode <c>1</c>) painted under a <c>/Pattern</c>
+    ///     stroke color space uses the resolved tiling pattern's own tile colors - exercising
+    ///     <c>PaintStroke</c>'s <c>/Pattern</c>-aware branch (shared, via the <c>PaintCurrentPath</c>
+    ///     extraction, with ordinary path stroking) for a glyph outline for the first time.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Text_RenderMode1_StrokePattern_PaintsPatternStroke()
+    {
+        // Arrange: a colored (/PaintType 1) checkerboard tiling pattern (left half of each 10x10
+        // cell red, right half blue - see BuildCheckerboardTilingPatternStream), selected as the
+        // stroke color space via '/Pattern CS'/'SCN'. At 1:1 device scale, device column x = 7
+        // (the glyph outline's left edge - see
+        // PdfDocument_Text_RenderMode1_Stroke_PaintsStrokedOutlineNotSolidFill) falls in the
+        // pattern cell's right (blue) half (7 mod 10 = 7, which is >= 5).
+        var fontBytes = BuildEmbeddedFontBytes([(65, 1)]);
+        var (fontResourcesBody, fontExtraObjects) = BuildSimpleTrueTypeFontResources(fontBytes);
+        var resourcesBody = fontResourcesBody + " /Pattern << /P1 8 0 R >>";
+        var extraObjects = new List<byte[]>(fontExtraObjects) { BuildCheckerboardTilingPatternStream() };
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "BT /F1 20 Tf 2 w 1 Tr /Pattern CS /P1 SCN 5 50 Td (A) Tj ET",
+            resourcesBody,
+            extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the stroked left edge takes the pattern's blue tile color - not a flat
+        // StrokeColor (which defaults to opaque black).
+        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[7, 44]);
+    }
+
     /// <summary>Proves that a defined but unsupported text-rendering mode throws <see cref="UnsupportedImageFeatureException"/>.</summary>
     [Theory]
-    [InlineData(1)]
-    [InlineData(2)]
     [InlineData(4)]
     [InlineData(5)]
     [InlineData(6)]

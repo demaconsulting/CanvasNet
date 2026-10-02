@@ -112,18 +112,20 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
-    ///     Handles the <c>Tr</c> operator: sets the text-rendering mode. Only mode <c>0</c> (fill,
-    ///     the PDF specification's default) and mode <c>3</c> (invisible - glyphs are laid out and
-    ///     advance the text position, but nothing is painted) are supported; every other defined
-    ///     mode (<c>1</c>/<c>2</c> stroke/fill+stroke, <c>4</c>-<c>7</c> the clipping variants of
-    ///     modes <c>0</c>-<c>3</c>) fails closed rather than being silently treated as mode <c>0</c>.
+    ///     Handles the <c>Tr</c> operator: sets the text-rendering mode. Modes <c>0</c> (fill, the
+    ///     PDF specification's default), <c>1</c> (stroke), <c>2</c> (fill, then stroke), and
+    ///     <c>3</c> (invisible - glyphs are laid out and advance the text position, but nothing is
+    ///     painted) are all supported; the four clipping variants (<c>4</c>-<c>7</c>, which add a
+    ///     glyph outline to the clipping path alongside modes <c>0</c>-<c>3</c>'s own fill/stroke/
+    ///     invisible behavior) fail closed rather than being silently treated as their non-clipping
+    ///     counterpart.
     /// </summary>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="operands"/> does not contain exactly 1 number, or when that
     ///     number is not one of the PDF specification's seven defined render modes (<c>0</c>-<c>7</c>).
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when the mode is a defined but unsupported mode (<c>1</c>, <c>2</c>, or <c>4</c>-<c>7</c>).
+    ///     Thrown when the mode is a defined but unsupported clipping mode (<c>4</c>-<c>7</c>).
     /// </exception>
     private void OpSetTextRenderMode(IReadOnlyList<PdfObject> operands)
     {
@@ -131,15 +133,18 @@ public sealed partial class PdfDocument
         switch (mode)
         {
             case 0:
+            case 1:
+            case 2:
             case 3:
                 _gs.RenderMode = mode;
                 break;
 
-            case 1 or 2 or 4 or 5 or 6 or 7:
+            case 4 or 5 or 6 or 7:
                 throw new UnsupportedImageFeatureException(
                     $"pdf-text-render-mode-{mode}",
-                    $"Text-rendering mode {mode} is not supported; only mode 0 (fill) and mode 3 " +
-                    "(invisible) are supported. Stroke and clipping render modes are not implemented.");
+                    $"Text-rendering mode {mode} is not supported; only modes 0 (fill), 1 (stroke), " +
+                    "2 (fill+stroke), and 3 (invisible) are supported. Clipping render modes are not " +
+                    "implemented.");
 
             default:
                 throw new InvalidDataException(
@@ -339,9 +344,13 @@ public sealed partial class PdfDocument
     ///     early, before using <see cref="IResolvedFont.Resolve"/>'s resolved font, on whether
     ///     <paramref name="font"/> is a <c>ResolvedType3Font</c> (painted via
     ///     <c>PaintType3Glyph</c>'s own content-stream re-entrance - see
-    ///     <c>PdfDocument.Fonts.Type3.cs</c>) or any other concrete implementation (painted via
-    ///     the outline-fill path below, unchanged since before Type 3 support) - the shared
-    ///     trailing displacement/advance logic runs unconditionally either way.
+    ///     <c>PdfDocument.Fonts.Type3.cs</c>; a Type 3 glyph procedure has no outline, so it has no
+    ///     fill/stroke distinction and paints identically for render modes <c>0</c>-<c>2</c>) or any
+    ///     other concrete implementation (painted via the outline-based path below, mode-aware
+    ///     since the addition of <c>Tr</c> modes <c>1</c>/<c>2</c>: fill for modes <c>0</c>/<c>2</c>,
+    ///     then stroke - via the same <see cref="PaintStroke"/> helper shared with the
+    ///     path-painting operators - for modes <c>1</c>/<c>2</c>) - the shared trailing
+    ///     displacement/advance logic runs unconditionally either way.
     /// </summary>
     private void ShowGlyph(IResolvedFont font, int code)
     {
@@ -372,7 +381,22 @@ public sealed partial class PdfDocument
                 var glyphMatrix = Matrix3x2.CreateScale(1f / resolvedTtf.UnitsPerEm) * trm;
                 var builder = new PathBuilder();
                 AppendTransformedGlyphOutline(builder, outline, glyphMatrix);
-                PathFiller.Fill(_surface, builder.Build(), _gs.FillColor, FillRule.NonZero);
+                var path = builder.Build();
+
+                if (_gs.RenderMode is 0 or 2)
+                {
+                    // Known pre-existing simplification, out of scope for this change: unlike
+                    // the glyph-stroke step below (which does mirror a Pattern stroke color
+                    // space, via the shared PaintStroke helper), this glyph fill always uses the
+                    // flat fill color and does not mirror a Pattern fill color space the way the
+                    // ordinary path-painting operators do.
+                    PathFiller.Fill(_surface, path, _gs.FillColor, FillRule.NonZero);
+                }
+
+                if (_gs.RenderMode is 1 or 2)
+                {
+                    PaintStroke(path);
+                }
             }
         }
 

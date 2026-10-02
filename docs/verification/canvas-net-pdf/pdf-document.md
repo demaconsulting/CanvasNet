@@ -1222,20 +1222,35 @@ position/size matches the composed text-rendering matrix formula independently r
 the same font's own metrics (see this class's own pixel-math derivation, confirmed empirically
 against the real rasterizer before being fixed into every position-dependent test's assertions).
 
-#### CanvasNetPdf-PdfDocument-Tr: Tr Supports Fill/Invisible Modes, Fails Closed for Stroke/Clip Modes
+#### CanvasNetPdf-PdfDocument-Tr: Tr Supports Fill/Stroke/Fill+Stroke/Invisible Modes, Fails Closed for Clip Modes
 
 **Tests**: `PdfDocument_Text_RenderMode3_Invisible_DoesNotPaintGlyph`,
 `PdfDocument_Text_RenderMode3_Invisible_StillAdvancesTextPosition`,
+`PdfDocument_Text_RenderMode1_Stroke_PaintsStrokedOutlineNotSolidFill`,
+`PdfDocument_Text_RenderMode2_FillAndStroke_PaintsBothFillAndStroke`,
+`PdfDocument_Text_RenderMode1_StrokePattern_PaintsPatternStroke`,
+`PdfDocument_Fonts_Type3_RenderMode1Or2_BehavesLikeRenderMode0`,
 `PdfDocument_Text_RenderMode_UnsupportedDefinedMode_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Text_RenderMode_OutOfDefinedRange_ThrowsInvalidDataException`
 
 Sets `Tr 3` (invisible) and shows a glyph, asserting no ink is painted at its expected position.
 Sets `Tr 3`, shows a first glyph, then shows a second glyph with `Tr 0` (fill), asserting the
 second glyph's position reflects the first (invisible) glyph's own advance - proving invisible
-text still moves the text position. A `[Theory]` sets `Tr` to each of the defined stroke/clip
-modes (`1`/`2`/`4`/`5`/`6`/`7`) in turn, asserting `Codecs.UnsupportedImageFeatureException` in
-every case; a separate `[Theory]` sets `Tr` to a value outside the specification's defined
-`0`-`7` range, asserting `InvalidDataException`.
+text still moves the text position. Sets `Tr 1` (stroke) with distinct fill/stroke colors and
+shows a glyph, asserting a stroke-colored pixel appears along the outline's edge while the
+glyph's geometric center (which fill would otherwise paint) remains unpainted - proving mode `1`
+strokes without filling. Sets `Tr 2` (fill, then stroke) with distinct fill/stroke colors and
+shows a glyph, asserting the center is filled and the edge is stroked on top of the fill,
+matching the path-painting operators' own fill-then-stroke paint order. Sets `Tr 1` with a
+`/Pattern` stroke color space resolving to a colored tiling pattern and shows a glyph, asserting
+the stroked edge takes the pattern's own tile color rather than a flat stroke color - proving the
+glyph stroke step shares the path-painting operators' own `/Pattern`-aware stroke-paint logic. A
+`[Theory]` shows a Type3 glyph under `Tr 1` and `Tr 2` in turn, asserting its own content-stream
+procedure's ink paints identically to `Tr 0` - proving Type3 glyphs (which have no outline and so
+no fill/stroke distinction) are unaffected by the new mode-aware outline paint logic. A
+`[Theory]` sets `Tr` to each of the defined clip modes (`4`/`5`/`6`/`7`) in turn, asserting
+`Codecs.UnsupportedImageFeatureException` in every case; a separate `[Theory]` sets `Tr` to a
+value outside the specification's defined `0`-`7` range, asserting `InvalidDataException`.
 
 #### CanvasNetPdf-PdfDocument-TextPositioning: Td/TD/Tm/T* Compose the Text and Line Matrices Correctly
 

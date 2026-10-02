@@ -1124,7 +1124,7 @@ geometry), a documented, narrower-than-spec simplification; the `sh` operator an
 clipping (`W`/`W*`) remain unsupported and are silently skipped. **Documented scope
 boundaries**: `/MMType1` fonts, mesh shadings (`/ShadingType 1`/`4`-`7`), `/FunctionType 4`
 (PostScript calculator) functions, the `sh` operator, generic path clipping, transparency groups,
-and stroke/clip text-rendering modes all fail closed with `UnsupportedImageFeatureException`
+and clip text-rendering modes all fail closed with `UnsupportedImageFeatureException`
 rather than being silently skipped or mis-rendered.
 
 ```csharp

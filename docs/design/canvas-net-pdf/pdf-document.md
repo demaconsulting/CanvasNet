@@ -75,9 +75,9 @@ font), CID-keyed CFF (`ROS`/`FDArray`/`FDSelect`), non-`/Identity-H` composite `
 entirely unsupported and fail closed with `Codecs.UnsupportedImageFeatureException` (CID-keyed CFF
 instead surfaces as `InvalidDataException` via `Fonts.CffTable.Parse`'s own existing rejection);
 only the `/WinAnsiEncoding` and `/MacRomanEncoding` base encodings (plus `/Differences`) are
-supported (an unrecognized base encoding also fails closed); only text-rendering modes `0` (fill)
-and `3` (invisible) are supported (stroke/clip modes `1`/`2`/`4`-`7` fail closed); and no
-additional stream filters were added for any of these phases.
+supported (an unrecognized base encoding also fails closed); text-rendering modes `0` (fill), `1`
+(stroke), `2` (fill, then stroke), and `3` (invisible) are supported (clip modes `4`-`7` fail
+closed); and no additional stream filters were added for any of these phases.
 **Phase 3 limitations** (narrowed by Phase 7/13 and the `/Pattern` color-space phase, see below):
 no transparency groups; shading/tiling pattern fills were added (`/ShadingType 2`/`3`,
 `/PatternType 1`/`2` — see _`/Pattern` Color Space (Shading and Tiling Patterns)_ below, reusing
@@ -485,7 +485,9 @@ its own distinguishable `Feature` token.
 - **Path-painting operators (`PdfDocument.PathOps.cs`)** — a single shared `PaintCurrentPath`
   method parameterized by `fill`/`fillRule`/`stroke`/`closeFirst`, covering all ten operators
   (`f`/`F`/`f*`/`S`/`s`/`B`/`B*`/`b`/`b*`/`n`): fills via `Drawing.PathFiller.Fill` with the
-  current graphics state's `FillColor` and the operator's documented fill rule; strokes via
+  current graphics state's `FillColor` and the operator's documented fill rule; strokes via a
+  shared `PaintStroke` helper (extracted so it is also reusable by `PdfDocument.Text.cs`'s
+  `ShowGlyph`, for `Tr` modes `1`/`2` - see _Text Rendering_ below), which runs
   `Drawing.PathStroker.Stroke` then fills the resulting outline with `StrokeColor`, using a
   `Drawing.StrokeStyle` built from the current graphics state's line width/cap/join/miter-limit/
   dash pattern — every `StrokeStyle` field is passed explicitly (the PDF specification's own
@@ -981,10 +983,10 @@ its own distinguishable `Feature` token.
   `OpSetWordSpacing`/`OpSetHorizontalScaling`/`OpSetLeading`/`OpSetTextRise` (`Tc`/`Tw`/`Tz`/`TL`/
   `Ts`) store their one operand verbatim; `OpSetFont` (`Tf`, a name then a number) resolves the
   named font resource via `ResolveFont` and stores it alongside the requested size;
-  `OpSetTextRenderMode` (`Tr`) accepts only mode `0` (fill, the default) and `3` (invisible —
-  painted with zero-area geometry, i.e. skipped entirely), throwing
-  `Codecs.UnsupportedImageFeatureException` for stroke/clip modes `1`/`2`/`4`-`7` (out of this
-  phase's scope) or `InvalidDataException` for any other numeric value. `OpTextMoveTo`/
+  `OpSetTextRenderMode` (`Tr`) accepts modes `0` (fill, the default), `1` (stroke), `2`
+  (fill, then stroke), and `3` (invisible — painted with zero-area geometry, i.e. skipped
+  entirely), throwing `Codecs.UnsupportedImageFeatureException` for the clip modes `4`-`7` (out
+  of this phase's scope) or `InvalidDataException` for any other numeric value. `OpTextMoveTo`/
   `OpTextMoveToSetLeading`/`OpTextNextLine` (`Td`/`TD`/`T*`) and `OpSetTextMatrix` (`Tm`)
   manipulate `_textMatrix`/`_lineMatrix` per the specification's own line-matrix-relative-
   displacement (`Td`/`TD`, `TD` additionally setting `Leading = -ty`) versus direct-replacement
@@ -1004,8 +1006,14 @@ its own distinguishable `Feature` token.
   combines it with a `1/UnitsPerEm` glyph-space scale, transforms every glyph outline point
   through the result (`AppendTransformedGlyphOutline`, reimplementing - since it is `private` in
   a different assembly - the exact glyph-outline-to-`Geometry.Path` re-issuing pattern
-  `SvgCodec.Text.cs` established), and fills the transformed outline via `Drawing.PathFiller.Fill`
-  with `_gs.FillColor` (skipped entirely for render mode `3`), then advances `Tm.x` by
+  `SvgCodec.Text.cs` established), then paints the transformed outline per the current render
+  mode (skipped entirely for render mode `3`): fills via `Drawing.PathFiller.Fill` with
+  `_gs.FillColor` for modes `0`/`2` (a known, documented pre-existing simplification: unlike the
+  stroke step below, this fill does not mirror a `/Pattern` fill color space - out of this
+  change's scope), then, for modes `1`/`2`, strokes via the same `PaintStroke` helper
+  `PdfDocument.PathOps.cs`'s path-painting operators use (see below), painting a resolved
+  `/Pattern` stroke color space's tile colors when one is set. Mode `2`'s fill-then-stroke order
+  matches the path-painting operators' own `B`/`b` order. `ShowGlyph` then advances `Tm.x` by
   `((w0 - Tj/1000) × Tfs + Tc + (code == 32 && CodeByteWidth == 1 ? Tw : 0)) × Th` per the
   specification, where `w0` is `IResolvedFont.Resolve(code)`'s returned advance width (the
   `Tj/1000` term only applies within `TJ`'s array form, via `ApplyTextSpaceAdjustment`) - word
@@ -1312,7 +1320,7 @@ its own distinguishable `Feature` token.
 - **An `/Encoding` naming an unrecognized base encoding** (anything other than
   `/WinAnsiEncoding`/`/MacRomanEncoding`/`/StandardEncoding` (the last added in Phase B), or their
   dictionary form's `/BaseEncoding`) — `Codecs.UnsupportedImageFeatureException`.
-- **`Tr` (text-rendering mode) set to `1`, `2`, or `4`-`7`** (stroke/clip modes) —
+- **`Tr` (text-rendering mode) set to `4`-`7`** (the clip modes) —
   `Codecs.UnsupportedImageFeatureException`; any other numeric value outside `0`-`7` is
   `InvalidDataException` instead.
 - **A text-showing operator (`Tj`/`'`/`"`/`TJ`) with no font currently selected** (`Tf` was never
