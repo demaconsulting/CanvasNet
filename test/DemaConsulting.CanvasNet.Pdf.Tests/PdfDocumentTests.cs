@@ -1568,6 +1568,84 @@ public class PdfDocumentTests
         Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
     }
 
+    /// <summary>
+    ///     Builds an in-memory, <c>/Type /XRef</c> cross-reference-stream-only PDF whose object 1
+    ///     - an object-stream (<c>/Type /ObjStm</c>) container - declares its own <c>/Length</c>
+    ///     as an indirect reference to object 2, a compressed object that lives inside object 1
+    ///     itself. Decoding object 1's own stream bytes (to in turn decompress and resolve object
+    ///     2) therefore requires first resolving object 1's <c>/Length</c>, which requires
+    ///     resolving object 2, which requires decoding object 1's stream bytes - a resolution
+    ///     cycle reachable entirely through <em>direct</em>-then-<em>compressed</em>
+    ///     <see cref="InvalidDataException"/> dependency (not a container marking itself
+    ///     compressed, as in <see cref="BuildCompressedObjectSelfCyclePdf"/>), exercising the
+    ///     general-purpose <c>GetObject</c> resolution-stack guard rather than overflowing the
+    ///     stack.
+    /// </summary>
+    private static byte[] BuildContainerLengthReferencesOwnCompressedObjectCyclePdf()
+    {
+        // The object-stream header declares one entry: object 2 at relative offset 0.
+        var objStmHeader = "2 0\n"u8.ToArray();
+        var objStmContent = new List<byte>();
+        objStmContent.AddRange(objStmHeader);
+        objStmContent.AddRange("<< /Type /Catalog >>"u8.ToArray());
+        var compressedObjStm = ZlibCompress([.. objStmContent]);
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+
+        var object1Offset = buffer.Count;
+        buffer.AddRange("1 0 obj\n"u8.ToArray());
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Type /ObjStm /N 1 /First {objStmHeader.Length} /Filter /FlateDecode /Length 2 0 R >>\nstream\n"));
+        buffer.AddRange(compressedObjStm);
+        buffer.AddRange("\nendstream\nendobj\n"u8.ToArray());
+
+        // Object 3: the self-referential, /Filter-less cross-reference stream, declaring 4 raw
+        // 6-byte entries (/W [1 4 1]): object 0 (free), object 1 (direct, the ObjStm container),
+        // object 2 (compressed, inside object stream "1" at index 0 - the crafted /Length
+        // target), and object 3 (this very xref stream, direct, at its own real offset).
+        var xrefStreamOffset = buffer.Count;
+
+        static byte[] Entry(byte type, int field2, byte field3) =>
+        [
+            type,
+            (byte)(field2 >> 24), (byte)(field2 >> 16), (byte)(field2 >> 8), (byte)field2,
+            field3,
+        ];
+
+        var entryBytes = new List<byte>();
+        entryBytes.AddRange(Entry(0, 0, 0));
+        entryBytes.AddRange(Entry(1, object1Offset, 0));
+        entryBytes.AddRange(Entry(2, 1, 0));
+        entryBytes.AddRange(Entry(1, xrefStreamOffset, 0));
+
+        buffer.AddRange("3 0 obj\n"u8.ToArray());
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Type /XRef /Size 4 /W [1 4 1] /Root 2 0 R /Length {entryBytes.Count} >>\nstream\n"));
+        buffer.AddRange(entryBytes);
+        buffer.AddRange("\nendstream\nendobj\n"u8.ToArray());
+
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"startxref\n{xrefStreamOffset}\n%%EOF\n"));
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that a crafted object-stream container whose own <c>/Length</c> indirectly
+    ///     references a compressed object living inside itself (a resolution cycle reachable via
+    ///     the general-purpose, not compressed-object-specific, <c>GetObject</c> guard) throws
+    ///     <see cref="InvalidDataException"/> instead of recursing indefinitely into an
+    ///     uncatchable <see cref="StackOverflowException"/>.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_ContainerLengthReferencesOwnCompressedObjectCycle_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var pdfBytes = BuildContainerLengthReferencesOwnCompressedObjectCyclePdf();
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+    }
+
     /// <summary>Proves that a page object compressed inside a <c>/Type /ObjStm</c> object stream is decompressed and resolved correctly.</summary>
     [Fact]
     public void PdfDocument_Open_ObjectStream_DecompressesAndResolvesCompressedPage()

@@ -170,15 +170,17 @@ public sealed partial class PdfDocument : IDisposable
     private readonly Dictionary<int, PdfObject> _objectCache = new();
 
     /// <summary>
-    ///     Tracks the object numbers currently being resolved via the compressed-object-stream
-    ///     path (<see cref="LoadCompressedObject(int, int, int)"/>), so a crafted cross-reference
-    ///     table that marks an object stream's own container object as itself compressed (living
-    ///     inside another, or the same, object stream) is rejected with an
+    ///     Tracks the object numbers currently being resolved via <see cref="GetObject(int)"/>
+    ///     (whether direct or compressed), so a crafted cross-reference table that creates a
+    ///     resolution cycle - whether through compressed-object containment (an object stream
+    ///     whose container is itself compressed, possibly inside the same stream) or through two
+    ///     direct objects whose values reference each other (for example a stream's indirect
+    ///     <c>/Length</c> forming a cycle back to the stream itself) - is rejected with an
     ///     <see cref="InvalidDataException"/> instead of recursing indefinitely into an
     ///     uncatchable <see cref="StackOverflowException"/>. Mirrors the page-tree cycle guard in
     ///     <c>TraversePageTree</c>.
     /// </summary>
-    private readonly HashSet<int> _compressedObjectResolutionStack = new();
+    private readonly HashSet<int> _objectResolutionStack = new();
 
     /// <summary>
     ///     Every page's pre-resolved, rotation-adjusted <see cref="PdfPageInfo"/>, in document

@@ -514,34 +514,35 @@ public sealed partial class PdfDocument
             throw new InvalidDataException($"Indirect object {number} is not defined.");
         }
 
-        PdfObject result;
-        if (entry.Type == XrefEntryType.Direct)
+        // Guard against a crafted cross-reference table/object graph that forms a resolution
+        // cycle - whether via compressed-object containment or via two direct objects whose
+        // values reference each other (for example a stream's indirect /Length referring back to
+        // the stream itself) - before either object can be cached. Without this, GetObject would
+        // recurse indefinitely and crash with an uncatchable StackOverflowException.
+        if (!_objectResolutionStack.Add(number))
         {
-            result = ParseIndirectObjectAt((int)entry.Offset, number);
+            throw new InvalidDataException($"Indirect object {number} contains a resolution cycle.");
         }
-        else
-        {
-            // Guard against a crafted cross-reference table that marks an object stream's own
-            // container (or one of its ancestors in the resolution chain) as itself a compressed
-            // object - without this check, LoadCompressedObject's own call back into GetObject
-            // would recurse indefinitely and crash with an uncatchable StackOverflowException.
-            if (!_compressedObjectResolutionStack.Add(number))
-            {
-                throw new InvalidDataException("Object stream contains a reference cycle.");
-            }
 
-            try
+        try
+        {
+            PdfObject result;
+            if (entry.Type == XrefEntryType.Direct)
+            {
+                result = ParseIndirectObjectAt((int)entry.Offset, number);
+            }
+            else
             {
                 result = LoadCompressedObject(entry.StreamNumber, entry.IndexInStream, number);
             }
-            finally
-            {
-                _compressedObjectResolutionStack.Remove(number);
-            }
-        }
 
-        _objectCache[number] = result;
-        return result;
+            _objectCache[number] = result;
+            return result;
+        }
+        finally
+        {
+            _objectResolutionStack.Remove(number);
+        }
     }
 
     private PdfObject ParseIndirectObjectAt(int offset, int expectedNumber)
