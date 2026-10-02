@@ -1,0 +1,85 @@
+---
+# cspell:ignore ooxml pptx
+#
+# Software System Requirements for CanvasNetPptx
+#
+# These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.Pptx
+# package (namespace DemaConsulting.CanvasNet.Pptx) from the perspective of its consumers, without
+# specifying implementation details.
+#
+# CanvasNetPptx is an independent software system, distributed as its own NuGet package,
+# depending on the core CanvasNet system (docs/reqstream/canvas-net.yaml) - see
+# docs/design/canvas-net-pptx.md's Dependencies section for details. No dependency on the core
+# system is actually exercised yet as of Phase 1a (only BCL System.IO.Compression/System.Xml.Linq
+# types are used); the ProjectReference exists ahead of actual use, matching this repository's
+# architecture mandate for a package-bounded system's dependency direction.
+#
+# CanvasNetPptx is being delivered incrementally. Phase 1a (this release) implements only the
+# underlying OOXML (Office Open XML) package layer: opening a .pptx file as a ZIP archive,
+# resolving [Content_Types].xml (default extension mappings and part-specific overrides), and
+# resolving package-level (_rels/.rels) and per-part relationships, including relative-target
+# resolution. No presentation-specific content (ppt/presentation.xml, slides, slide
+# layouts/masters, or any rendering) is implemented yet - see docs/design/canvas-net-pptx.md for
+# the full current feature set and its documented, still-unimplemented scope.
+
+sections:
+  - title: CanvasNetPptx Requirements
+    requirements:
+      - id: CanvasNetPptx-Open
+        title: >-
+          The library shall parse a well-formed OOXML/.pptx package exactly once, from either a
+          stream or a file path, resolving its [Content_Types].xml content-type mappings and its
+          package-level relationships, and reject a null stream/path, an empty or whitespace-only
+          path, or a malformed package structure (an unreadable/corrupt ZIP, or a package missing
+          [Content_Types].xml or _rels/.rels) with the documented exception contract.
+        tags: [system]
+        justification: |
+          Callers need a single, reliable entry point that turns raw .pptx bytes into a usable,
+          in-memory package representation, and must be able to distinguish a programming error
+          (null/empty argument) from malformed input (corrupt or incomplete package structure).
+        children:
+          - CanvasNetPptx-PptxDocument-OpenStream
+          - CanvasNetPptx-PptxDocument-OpenPath
+          - CanvasNetPptx-PptxDocument-ZipValidation
+          - CanvasNetPptx-PptxDocument-ContentTypesValidation
+          - CanvasNetPptx-PptxDocument-PackageRelationshipsValidation
+        tests:
+          - CanvasNetPptx_SystemIntegration_PptxOpen_SucceedsOnWellFormedPackage
+          - CanvasNetPptx_SystemIntegration_PptxOpenValidationNull_NullStreamThrowsArgumentNullException
+          - CanvasNetPptx_SystemIntegration_PptxOpenValidationEmptyPath_EmptyPathThrowsArgumentException
+
+      - id: CanvasNetPptx-ResolvePart
+        title: >-
+          The library shall resolve any part's content type, giving a part-specific
+          [Content_Types].xml override precedence over the default extension-based mapping, and
+          shall reject a request for a part the package does not contain or whose content type
+          cannot be resolved by either mapping.
+        tags: [system]
+        justification: |
+          Later phases need a reliable way to discover what kind of content a given package part
+          holds before attempting to parse it, honoring the same override-wins precedence rule
+          every OPC-consuming tool must apply.
+        children:
+          - CanvasNetPptx-PptxDocument-ContentTypeOverride
+          - CanvasNetPptx-PptxDocument-ContentTypeDefault
+        tests:
+          - CanvasNetPptx_SystemIntegration_PptxOpen_SucceedsOnWellFormedPackage
+
+      - id: CanvasNetPptx-ResolveRelationship
+        title: >-
+          The library shall resolve a named relationship from a given source part (or the package
+          root) to its target part path, correctly applying OPC's relative-target resolution rules
+          (including a "../" parent-directory traversal segment), and shall reject an unknown
+          relationship ID, an external-target relationship, or a target that would escape the
+          package root.
+        tags: [system]
+        justification: |
+          Every OOXML presentation part is discovered by following a chain of relationships
+          (package root -> ppt/presentation.xml -> each slide -> its layout, and so on); this
+          resolution must be correct, including the common case of a part referencing a sibling
+          part via a relative, parent-traversing path.
+        children:
+          - CanvasNetPptx-PptxDocument-RelationshipResolution
+          - CanvasNetPptx-PptxDocument-RelativeTargetTraversal
+        tests:
+          - CanvasNetPptx_SystemIntegration_PptxOpen_SucceedsOnWellFormedPackage

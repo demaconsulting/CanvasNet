@@ -86,6 +86,18 @@ software items, specifically:
   system/bundled fallback font when none is embedded. `CanvasNetPdf` depends on this
   `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, and `Codecs` subsystems — see
   _CanvasNetPdf System Design_ (`canvas-net-pdf.md`)
+- **CanvasNetPptx (System)** — A separate, independently-distributed software system providing
+  PowerPoint (`.pptx`) presentation-rendering support, containing a single unit, `PptxDocument`.
+  This is an in-progress, multi-phase feature: Phase 1a (the current release) implements only
+  the underlying OOXML (Office Open XML) package layer — opening a `.pptx` file as a ZIP archive,
+  resolving `[Content_Types].xml`'s default and part-specific override content-type mappings, and
+  resolving package-level and per-part relationships (including relative-target traversal). No
+  presentation-specific content (the slide list, slide layouts/masters, shape/text content, or
+  any rendering) is parsed or rendered yet — later phases will build on this package layer. As of
+  Phase 1a, `CanvasNetPptx` depends only on the .NET base class library (no `CanvasNet` subsystem
+  is used yet), though it references the core `CanvasNet` system's package ahead of actual use,
+  matching this family's architecture convention — see _CanvasNetPptx System Design_
+  (`canvas-net-pptx.md`)
 
 The following OTS items are also covered:
 
