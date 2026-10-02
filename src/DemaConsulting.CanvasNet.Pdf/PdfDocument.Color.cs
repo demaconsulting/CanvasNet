@@ -265,10 +265,24 @@ public sealed partial class PdfDocument
     /// <summary>
     ///     Validates and resolves a <c>scn</c>/<c>SCN</c> pattern-color-space operand list: the
     ///     trailing operand must be a pattern <c>Name</c>; every operand before it must be
-    ///     numeric, with count exactly <c>ComponentCount(colorSpace.PatternBase)</c> when
-    ///     <paramref name="colorSpace"/> declared an underlying tint base, or exactly <c>0</c>
+    ///     numeric, with count exactly <c>ComponentCount(colorSpace.PatternBase)</c> when the
+    ///     <em>resolved pattern itself</em> is an uncolored (<c>/PaintType 2</c>) tiling pattern
+    ///     and <paramref name="colorSpace"/> declared an underlying tint base, or exactly <c>0</c>
     ///     otherwise.
     /// </summary>
+    /// <remarks>
+    ///     Deliberately does not key the expected leading-operand count off
+    ///     <paramref name="colorSpace"/>'s own declared base alone: many real-world PDF
+    ///     producers declare a <c>[/Pattern baseSpace]</c> color space (with an underlying tint
+    ///     base) and then use it with <em>colored</em> (<c>/PaintType 1</c>) tiling patterns or
+    ///     shading patterns too, supplying only the pattern name with no leading tint
+    ///     components - which Acrobat (and every other mainstream viewer) tolerates, since a
+    ///     colored pattern/shading pattern never actually needs a tint. Matching that tolerance
+    ///     requires resolving the named pattern <em>first</em>, then deciding the expected
+    ///     component count from the resolved pattern's own <see cref="ResolvedPattern.PaintType"/>
+    ///     (only meaningful for a tiling pattern), not merely from the color space's declared
+    ///     shape.
+    /// </remarks>
     /// <exception cref="InvalidDataException">
     ///     Thrown when the last operand is not a <c>Name</c>, or when the leading numeric operand
     ///     count does not match the expected shape above.
@@ -284,7 +298,12 @@ public sealed partial class PdfDocument
                 $"Operator '{operatorName}' against a /Pattern color space requires a trailing pattern name operand.");
         }
 
-        var expectedComponentCount = colorSpace.PatternBase is null ? 0 : ComponentCount(colorSpace.PatternBase);
+        var pattern = ResolvePattern(operands[^1].Text);
+        var isUncoloredTiling = pattern.Kind == ResolvedPattern.PatternKind.Tiling && pattern.PaintType == 2;
+        var expectedComponentCount = isUncoloredTiling && colorSpace.PatternBase is not null
+            ? ComponentCount(colorSpace.PatternBase)
+            : 0;
+
         var componentOperands = operands.Take(operands.Count - 1).ToArray();
         if (componentOperands.Length != expectedComponentCount)
         {
@@ -294,9 +313,8 @@ public sealed partial class PdfDocument
         }
 
         var components = RequireNumbers(componentOperands, operatorName, expectedComponentCount);
-        var tint = colorSpace.PatternBase is null ? (Rgba32?)null : ColorFromComponents(colorSpace.PatternBase, components);
+        var tint = expectedComponentCount == 0 ? (Rgba32?)null : ColorFromComponents(colorSpace.PatternBase!, components);
 
-        var pattern = ResolvePattern(operands[^1].Text);
         return new PatternOperand(pattern, tint);
     }
 

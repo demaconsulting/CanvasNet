@@ -2211,24 +2211,26 @@ public class PdfDocumentTests
     [Fact]
     public void PdfDocument_Color_PatternColorSpace_ArrayWithBase_ResolvesPatternBase()
     {
-        // Arrange: a flat (single-color) axial shading pattern (identical Coords endpoints'
-        // colors) selected against a /Pattern color space with an underlying /DeviceRGB base.
-        // Object numbering: 5 = patternDict, 6 = shadingDict, 7 = functionStream.
-        var patternDict = "<< /PatternType 2 /Shading 6 0 R >>"u8.ToArray();
-        var shadingDict = "<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Function 7 0 R >>"u8.ToArray();
-        var functionStream = BuildStreamObjectBody(
-            "/FunctionType 2 /Domain [0 1] /C0 [0 1 0] /C1 [0 1 0] /N 1", []);
+        // Arrange: an uncolored (/PaintType 2) tiling pattern selected against a /Pattern color
+        // space with an underlying /DeviceRGB base - the base is only actually consulted for an
+        // uncolored tiling pattern (see ResolvePatternOperand's own remarks: a shading pattern or
+        // a colored tiling pattern takes 0 leading operands regardless of the declared base).
+        var cellContent = "0 0 0 rg 0 0 10 10 re f";
+        var patternStream = BuildStreamObjectBody(
+            "/PatternType 1 /PaintType 2 /TilingType 1 /BBox [0 0 10 10] /XStep 10 /YStep 10",
+            System.Text.Encoding.ASCII.GetBytes(cellContent));
         var bytes = BuildSinglePagePdfWithResources(
             100,
             100,
-            "/CS0 cs 0 0 0 /P1 scn 10 10 80 80 re f",
+            "/CS0 cs 0 1 0 /P1 scn 10 10 80 80 re f",
             "/ColorSpace << /CS0 [/Pattern /DeviceRGB] >> /Pattern << /P1 5 0 R >>",
-            [patternDict, shadingDict, functionStream]);
+            [patternStream]);
 
         // Act
         using var surface = RenderPdfBytes(bytes);
 
-        // Assert: the flat shading pattern paints solid green everywhere it fills.
+        // Assert: the supplied (0, 1, 0) tint (green) is resolved via the declared /DeviceRGB
+        // base and applied to the uncolored tile's painted pixels.
         Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[50, 50]);
     }
 
@@ -2275,6 +2277,39 @@ public class PdfDocumentTests
         using var surface = RenderPdfBytes(bytes);
 
         // Assert
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>scn</c> selecting a <em>colored</em> (<c>/PaintType 1</c>) tiling
+    ///     pattern with name alone (no leading tint operands) succeeds even when the active
+    ///     color space was declared with an underlying <c>/DeviceRGB</c> base - a common
+    ///     real-world PDF producer pattern (declaring <c>[/Pattern baseSpace]</c> regardless of
+    ///     the referenced pattern's own <c>/PaintType</c>) that every mainstream viewer
+    ///     tolerates, since a colored pattern never actually needs a tint - regression test for
+    ///     a corpus-observed failure.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Color_Scn_ColoredPatternOperand_DeclaredBaseIgnored_ResolvesPattern()
+    {
+        // Arrange: /CS0 declares [/Pattern /DeviceRGB], but /P1 is a colored (/PaintType 1)
+        // tiling pattern - 'scn' supplies only the pattern name, no leading tint components.
+        var cellContent = "1 0 0 rg 0 0 10 10 re f";
+        var patternStream = BuildStreamObjectBody(
+            "/PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 10 10] /XStep 10 /YStep 10",
+            System.Text.Encoding.ASCII.GetBytes(cellContent));
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/CS0 cs /P1 scn 10 10 80 80 re f",
+            "/ColorSpace << /CS0 [/Pattern /DeviceRGB] >> /Pattern << /P1 5 0 R >>",
+            [patternStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the colored tile's own declared red paints through, unaffected by the
+        // declared-but-unused /DeviceRGB base.
         Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
     }
 
