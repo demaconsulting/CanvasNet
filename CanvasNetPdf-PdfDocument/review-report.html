@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc 3.11" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <meta name="keywords" content="id=CanvasNetPdf-PdfDocument fingerprint=5cf74b0dc492fcbb9e778f2041e3457412e0e011ba4a00a0381bdc73dbfd8140 date=2026-10-02 result=Fail" />
-  <title>CanvasNet Formal Review Report - CanvasNetPdf-PdfDocument</title>
+  <meta name="keywords" content="id=CanvasNetPdf-PdfDocument fingerprint=9520193085947d55d155221fac5c7c7f385a49aad33b458db27ab375680dd88c date=2026-10-02 result=Fail" />
+  <title>CanvasNet Formal Review Report - CanvasNetPdf-PdfDocument (Re-Review)</title>
   <style>
     /* Default styles provided by pandoc.
     ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -176,15 +176,22 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">CanvasNet Formal Review Report - CanvasNetPdf-PdfDocument</h1>
+<h1 class="title">CanvasNet Formal Review Report - CanvasNetPdf-PdfDocument (Re-Review)</h1>
 </header>
 <h1 id="review-that-canvasnetpdf-pdfdocument-implementation-is-correct">Review that CanvasNetPdf PdfDocument Implementation is Correct</h1>
+<blockquote>
+<p><strong>Revision note</strong>: This is the consolidated RE-REVIEW performed after a documentation-sync pass on <code>feature/pdf-document-support</code> (commit <code>bc86abc</code>), superseding the prior review captured at <code>review-report-CanvasNetPdf-PdfDocument.full-unit-prior.md</code> in this same directory. Every file in the review-set was re-read fresh from disk for this pass; no prior conclusion was assumed without re-verification. (A partial, single-area re-review was transiently written to this same filename by a delegated sub-agent mid-session; this document replaces that partial content with the full, consolidated review across all seven areas.)</p>
+</blockquote>
 <h2 id="introduction">1. Introduction</h2>
 <h3 id="purpose">1.1 Purpose</h3>
-<p>This document records the formal review of a set of project files.</p>
+<p>This document records the formal RE-REVIEW of the <code>PdfDocument</code> software unit — CanvasNetPdf’s sole direct unit, implementing the entire PDF tokenizer, object model, xref resolution, page-tree traversal, content-stream interpreter, graphics state, path operations, device color spaces, filter pipeline, image XObjects, CCITT G4 fax decoding, font resolution (Type0/Type1/Type3/ToUnicode/fallback), encryption (RC4/AES), patterns (shading/tiling)/functions, and text rendering — following a consolidated documentation-sync pass intended to remediate every finding from the prior formal review of this review-set.</p>
 <h3 id="scope">1.2 Scope</h3>
-<p>This review covers the <code>PdfDocument</code> software unit of the <code>CanvasNetPdf</code> system — a brand-new, from-scratch PDF tokenizer/parser/content-stream interpreter/renderer delivered across 42 commits on branch <code>feature/pdf-document-support</code>. It is the sole direct unit of <code>CanvasNetPdf</code> and has never previously been formally reviewed. The review covers file-structure parsing (tokenizer, object model, xref, page tree), content-stream interpretation (graphics state, path ops), device color, the filter pipeline (LZW/ASCII85/ASCIIHex/RunLength/CCITT G4), image and form XObjects, font resolution (Type0/Type1/Type1C/Type3/ToUnicode/fallback), sampled functions, shading and tiling patterns, and text rendering (including this session’s new stroke/ fill+stroke render-mode support). Because this unit parses untrusted/adversarial PDF byte streams, the review places particular emphasis on bounds-checking discipline, integer-overflow safety, and whether malformed/adversarial input paths fail closed with a specific typed exception.</p>
-<p><strong>Scope caveat (reported separately as a Critical finding, see §3.1):</strong> two files that are part of the same <code>PdfDocument</code> unit and implement requirements inside <code>docs/reqstream/canvas-net-pdf/pdf-document.yaml</code> — <code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Encryption.cs</code> and <code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Fonts.Type3.cs</code> (plus their test files <code>PdfDocumentEncryptionTests.cs</code> and <code>PdfDocumentSymbolicEncodingTests.cs</code>) — are <strong>not</strong> listed in the <code>CanvasNetPdf-PdfDocument</code> review-set’s <code>paths:</code> in <code>.reviewmark.yaml</code>, confirmed via <code>dotnet reviewmark --elaborate CanvasNetPdf-PdfDocument</code> and <code>dotnet reviewmark --plan --enforce</code> (which lists both source files as globally uncovered by any review-set). They were reviewed anyway, per explicit task instruction, to give complete coverage; findings for them are included below but they are <strong>not covered by this review-set’s cryptographic fingerprint</strong> and therefore remain formally “uncovered” until <code>.reviewmark.yaml</code> is corrected.</p>
+<ul>
+<li><strong>Project</strong>: CanvasNet (<code>demaconsulting/CanvasNet</code>)</li>
+<li><strong>Branch</strong>: <code>feature/pdf-document-support</code></li>
+<li><strong>Commit</strong>: <code>bc86abc</code></li>
+<li><strong>Review set</strong>: <code>CanvasNetPdf-PdfDocument</code></li>
+</ul>
 <h3 id="outcomes">1.3 Outcomes</h3>
 <table>
 <thead>
@@ -235,11 +242,15 @@
 </tr>
 <tr>
 <td style="text-align: left;">Fingerprint</td>
-<td style="text-align: left;"><code>5cf74b0dc492fcbb9e778f2041e3457412e0e011ba4a00a0381bdc73dbfd8140</code></td>
+<td style="text-align: left;"><code>9520193085947d55d155221fac5c7c7f385a49aad33b458db27ab375680dd88c</code></td>
 </tr>
 <tr>
 <td style="text-align: left;">Review Date</td>
 <td style="text-align: left;">2026-10-02</td>
+</tr>
+<tr>
+<td style="text-align: left;">Baseline</td>
+<td style="text-align: left;"><code>dotnet build -c Release</code>: 0 warnings/0 errors. <code>dotnet test</code> (Pdf test project, all TFMs): 1293/1293 passing, 0 skipped.</td>
 </tr>
 </tbody>
 </table>
@@ -263,814 +274,441 @@
 </thead>
 <tbody>
 <tr>
-<td style="text-align: left;">Formal Review Agent (Copilot CLI)</td>
-<td style="text-align: left;">Automated Formal Reviewer</td>
+<td style="text-align: left;">Formal Review Agent</td>
+<td style="text-align: left;">Automated Reviewer</td>
 <td style="text-align: left;">DEMA Consulting</td>
-<td style="text-align: left;"><em>(automated — no handwritten signature)</em></td>
+<td style="text-align: left;">(automated)</td>
 <td style="text-align: left;">2026-10-02</td>
 </tr>
 </tbody>
 </table>
 <h3 id="files-under-review">1.6 Files Under Review</h3>
+<p>Context (reference only): <code>docs/design/canvas-net-pdf.md</code>, <code>docs/design/introduction.md</code>, <code>docs/reqstream/canvas-net-pdf.yaml</code>.</p>
+<p>Files (per <code>dotnet reviewmark --elaborate CanvasNetPdf-PdfDocument</code>, re-run this session): <code>docs/design/canvas-net-pdf/pdf-document.md</code>, <code>docs/reqstream/canvas-net-pdf/pdf-document.yaml</code>, <code>docs/sysml2/model/canvas-net-pdf/pdf-document.sysml</code>, <code>docs/verification/canvas-net-pdf/pdf-document.md</code>, <code>src/DemaConsulting.CanvasNet.Pdf/NamespaceDoc.cs</code>, <code>PdfDocument.CcittFax.cs</code>, <code>PdfDocument.Color.cs</code>, <code>PdfDocument.ContentStream.cs</code>, <code>PdfDocument.Encryption.cs</code>, <code>PdfDocument.Filters.Ascii.cs</code>, <code>PdfDocument.Filters.Lzw.cs</code>, <code>PdfDocument.Filters.RunLength.cs</code>, <code>PdfDocument.Filters.cs</code>, <code>PdfDocument.FontFallback.cs</code>, <code>PdfDocument.Fonts.ToUnicode.cs</code>, <code>PdfDocument.Fonts.Type0.cs</code>, <code>PdfDocument.Fonts.Type1.cs</code>, <code>PdfDocument.Fonts.Type3.cs</code>, <code>PdfDocument.Fonts.cs</code>, <code>PdfDocument.Functions.cs</code>, <code>PdfDocument.GraphicsState.cs</code>, <code>PdfDocument.Images.cs</code>, <code>PdfDocument.ObjectModel.cs</code>, <code>PdfDocument.PageTree.cs</code>, <code>PdfDocument.PathOps.cs</code>, <code>PdfDocument.Patterns.Shading.cs</code>, <code>PdfDocument.Patterns.Tiling.cs</code>, <code>PdfDocument.Patterns.cs</code>, <code>PdfDocument.Text.cs</code>, <code>PdfDocument.Tokenizer.cs</code>, <code>PdfDocument.Xref.cs</code>, <code>PdfDocument.cs</code>, <code>PdfPageInfo.cs</code>, <code>test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentTests.cs</code>, <code>PdfFixtureTests.cs</code>, <code>PdfSystemIntegrationTests.cs</code>.</p>
+<p><strong>Note</strong>: <code>PdfDocument.Encryption.cs</code> and <code>PdfDocument.Fonts.Type3.cs</code> are now in-scope (fixed since the prior review). <code>test/.../PdfDocumentEncryptionTests.cs</code> and <code>PdfDocumentSymbolicEncodingTests.cs</code> remain <strong>outside</strong> this review-set’s file list — see Finding F0 (downgraded from Critical to Medium).</p>
+<h2 id="status-of-prior-reviews-findings">2. Status of Prior Review’s Findings</h2>
 <table>
 <colgroup>
-<col style="width: 100%" />
-</colgroup>
-<thead>
-<tr>
-<th style="text-align: left;">File</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;"><code>docs/design/canvas-net-pdf/pdf-document.md</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>docs/reqstream/canvas-net-pdf/pdf-document.yaml</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>docs/sysml2/model/canvas-net-pdf/pdf-document.sysml</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>docs/verification/canvas-net-pdf/pdf-document.md</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/NamespaceDoc.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.CcittFax.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Color.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.ContentStream.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Filters.Ascii.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Filters.Lzw.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Filters.RunLength.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Filters.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.FontFallback.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Fonts.ToUnicode.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Fonts.Type0.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Fonts.Type1.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Fonts.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Functions.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.GraphicsState.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Images.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.ObjectModel.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.PageTree.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.PathOps.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Patterns.Shading.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Patterns.Tiling.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Patterns.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Text.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Tokenizer.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Xref.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfPageInfo.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentTests.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>test/DemaConsulting.CanvasNet.Pdf.Tests/PdfFixtureTests.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>test/DemaConsulting.CanvasNet.Pdf.Tests/PdfSystemIntegrationTests.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><em>(reviewed additionally, outside configured review-set scope — see §1.2 caveat)</em></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Encryption.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Fonts.Type3.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentEncryptionTests.cs</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentSymbolicEncodingTests.cs</code></td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="review-checklist">2. Review Checklist</h2>
-<h3 id="requirements-checks">2.1 Requirements Checks</h3>
-<p><strong>Applicable:</strong> Yes</p>
-<table>
-<colgroup>
-<col style="width: 10%" />
-<col style="width: 17%" />
-<col style="width: 25%" />
-<col style="width: 46%" />
-</colgroup>
-<thead>
-<tr>
-<th style="text-align: left;">#</th>
-<th style="text-align: left;">Check</th>
-<th style="text-align: left;">Outcome</th>
-<th style="text-align: left;">Justification</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;">REQ-01</td>
-<td style="text-align: left;">All requirements have a unique identifier</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">All 60 requirement entries in <code>pdf-document.yaml</code> use unique <code>CanvasNetPdf-PdfDocument-*</code> IDs (verified by grep; no duplicates).</td>
-</tr>
-<tr>
-<td style="text-align: left;">REQ-02</td>
-<td style="text-align: left;">All requirements are unambiguous</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">Each requirement maps to exactly one implementation and one verification subsection with no conflicting interpretation found by any area reviewer.</td>
-</tr>
-<tr>
-<td style="text-align: left;">REQ-03</td>
-<td style="text-align: left;">All requirements are testable</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">Every requirement has at least one named, existing, passing test (see §2.13).</td>
-</tr>
-<tr>
-<td style="text-align: left;">REQ-04</td>
-<td style="text-align: left;">All requirements are consistent</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">No contradictions found between requirements across areas.</td>
-</tr>
-<tr>
-<td style="text-align: left;">REQ-05</td>
-<td style="text-align: left;">All requirements are complete (no TBDs)</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">No TBD/undefined terms found in the requirements file.</td>
-</tr>
-<tr>
-<td style="text-align: left;">REQ-06</td>
-<td style="text-align: left;">All requirements are verifiable</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">Verification doc provides a dedicated, objectively-checkable subsection per requirement ID.</td>
-</tr>
-<tr>
-<td style="text-align: left;">REQ-07</td>
-<td style="text-align: left;">No compound requirements are present</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">Each requirement expresses a single testable criterion (spot-checked across all seven areas).</td>
-</tr>
-<tr>
-<td style="text-align: left;">REQ-08</td>
-<td style="text-align: left;">No requirements are missing</td>
-<td style="text-align: left;">Fail</td>
-<td style="text-align: left;">Several confirmed, reachable failure modes have <strong>no corresponding requirement or test</strong>: unbounded xref-stream <code>/W</code>/<code>/Index</code> validation (file-structure area), unbounded operand-stack/<code>q</code>-stack growth and non-finite <code>cm</code>/path-coordinate operands (content-stream area), unbounded image/CCITT dimensions and LZW output growth (color/filter area), unbounded composite-font <code>/W</code> CID-range width loop (fonts area), <code>int32</code> overflow in sampled-function bit-offset arithmetic (patterns/functions area), and encryption <code>/Length</code> bounds validation (encryption area). These are documented below as Critical/High/Medium code findings; the requirements set does not currently obligate a “fails closed on resource-exhaustion/overflow” behavior for these specific inputs, so there is no regression test to catch them.</td>
-</tr>
-</tbody>
-</table>
-<h3 id="design-documentation-checks">2.2 Design Documentation Checks</h3>
-<p><strong>Applicable:</strong> Yes</p>
-<table>
-<colgroup>
-<col style="width: 10%" />
-<col style="width: 17%" />
-<col style="width: 25%" />
-<col style="width: 46%" />
-</colgroup>
-<thead>
-<tr>
-<th style="text-align: left;">#</th>
-<th style="text-align: left;">Check</th>
-<th style="text-align: left;">Outcome</th>
-<th style="text-align: left;">Justification</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;">DES-01</td>
-<td style="text-align: left;">Design documentation clearly describes the purpose</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;"><code>pdf-document.md</code> “Purpose” section is clear and matches the unit’s actual role.</td>
-</tr>
-<tr>
-<td style="text-align: left;">DES-02</td>
-<td style="text-align: left;">Design documentation covers necessary implementation details</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">Covers data model, key methods, encryption, content-stream interpreter (including color/filter/image/font/text/pattern subsections), and <code>/Pattern</code> color space in detail; all spot-checked subsections matched current source.</td>
-</tr>
-<tr>
-<td style="text-align: left;">DES-03</td>
-<td style="text-align: left;">Design documentation describes how the code is interfaced</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">Public API (<code>Open</code>/<code>GetPageInfo</code>/<code>Render</code>/<code>Dispose</code>) documented with inputs/outputs/exceptions.</td>
-</tr>
-<tr>
-<td style="text-align: left;">DES-04</td>
-<td style="text-align: left;">Design documentation describes expected normal operation</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">Confirmed across all seven reviewed areas; documented leniency behaviors (shape-sniffing, fallback) match source.</td>
-</tr>
-<tr>
-<td style="text-align: left;">DES-05</td>
-<td style="text-align: left;">Design documentation describes expected error handling</td>
-<td style="text-align: left;">Fail</td>
-<td style="text-align: left;">The “Error Handling” section’s fail-closed guarantees are not fully honored by the implementation in several places — see Critical/High findings in §3.1 (xref <code>/W</code> validation, page-tree/object-model recursion depth, sampled-function overflow, encryption <code>/Length</code> validation) where the actual exception type/behavior diverges from the documented contract.</td>
-</tr>
-</tbody>
-</table>
-<h3 id="technical-documentation-checks">2.3 Technical Documentation Checks</h3>
-<p><strong>Applicable:</strong> No — this review-set contains no general/user-facing technical documentation (README, user guide, API reference); those are covered by the <code>Purpose</code> and <code>{System}-Architecture</code> review-sets.</p>
-<h3 id="code-checks">2.4 Code Checks</h3>
-<p><strong>Applicable:</strong> Yes</p>
-<table>
-<colgroup>
-<col style="width: 10%" />
-<col style="width: 17%" />
-<col style="width: 25%" />
-<col style="width: 46%" />
-</colgroup>
-<thead>
-<tr>
-<th style="text-align: left;">#</th>
-<th style="text-align: left;">Check</th>
-<th style="text-align: left;">Outcome</th>
-<th style="text-align: left;">Justification</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;">CODE-01</td>
-<td style="text-align: left;">Code conforms to project coding standards and style guide</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;"><code>dotnet build -c Release</code> for the full solution: 0 warnings, 0 errors (verified directly). XmlDoc present on all members sampled across all seven areas.</td>
-</tr>
-<tr>
-<td style="text-align: left;">CODE-02</td>
-<td style="text-align: left;">No obvious resource leaks</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">No file-handle/stream/memory-leak findings reported by any area reviewer; <code>Dispose</code> is idempotent and tested.</td>
-</tr>
-<tr>
-<td style="text-align: left;">CODE-03</td>
-<td style="text-align: left;">No hardcoded values that should be configurable</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">Constants such as <code>MaxFormNestingDepth</code>, <code>MaxType3NestingDepth</code> (12), <code>MaxFunctionRecursionDepth</code> (32), <code>MaxTileSurfaceDimension</code> (2048) are intentional, documented safety bounds, not configuration smells.</td>
-</tr>
-<tr>
-<td style="text-align: left;">CODE-04</td>
-<td style="text-align: left;">Each unit/function has a single, well-defined responsibility</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">File-per-concern partial-class organization (Tokenizer/ObjectModel/Xref/PageTree/ContentStream/GraphicsState/PathOps/Color/Filters/Images/CcittFax/Fonts.<em>/FontFallback/Functions/Patterns.</em>/Text) cleanly separates responsibilities.</td>
-</tr>
-<tr>
-<td style="text-align: left;">CODE-05</td>
-<td style="text-align: left;">Code is written at an appropriate level of abstraction</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">Shared dispatch helpers (<code>PaintCurrentPath</code>, <code>PaintStroke</code>, <code>ResolvePattern</code>) are reused consistently across painting/text/pattern call sites rather than duplicated.</td>
-</tr>
-<tr>
-<td style="text-align: left;">CODE-06</td>
-<td style="text-align: left;">Code has appropriate extensibility</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">New font/filter/function types are added via clear switch-based dispatch points; no over-engineering observed.</td>
-</tr>
-</tbody>
-</table>
-<h3 id="logic-error-checks">2.5 Logic Error Checks</h3>
-<p><strong>Applicable:</strong> Yes</p>
-<table>
-<colgroup>
-<col style="width: 10%" />
-<col style="width: 17%" />
-<col style="width: 25%" />
-<col style="width: 46%" />
-</colgroup>
-<thead>
-<tr>
-<th style="text-align: left;">#</th>
-<th style="text-align: left;">Check</th>
-<th style="text-align: left;">Outcome</th>
-<th style="text-align: left;">Justification</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;">LOGIC-01</td>
-<td style="text-align: left;">Code does only what is intended</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">No unintended side effects found; e.g., <code>q</code>/<code>Q</code> state isolation, cache-before-key encryption ordering, and Type3 nesting-depth isolation are all correctly scoped.</td>
-</tr>
-<tr>
-<td style="text-align: left;">LOGIC-02</td>
-<td style="text-align: left;">All significant inputs and boundary conditions are handled correctly</td>
-<td style="text-align: left;">Fail</td>
-<td style="text-align: left;">Multiple confirmed boundary-condition defects (see §3.1): negative/overflowing xref-stream <code>/W</code> widths causing an unhandled <code>IndexOutOfRangeException</code>; unbounded page-tree and object-model recursion risking <code>StackOverflowException</code>; <code>int32</code> multiplication overflow in sampled-function bit-offset arithmetic producing a negative index; unbounded CID-width-range loop; unvalidated encryption <code>/Length</code> producing unhandled exceptions.</td>
-</tr>
-<tr>
-<td style="text-align: left;">LOGIC-03</td>
-<td style="text-align: left;">Concurrency and threading concerns are identified and addressed</td>
-<td style="text-align: left;">N/A</td>
-<td style="text-align: left;"><code>PdfDocument</code> is documented and used as a single-threaded, non-reentrant parse/render pipeline per call; no area reviewer identified any shared mutable static state accessed concurrently other than the documented process-lifetime <code>FallbackFontCache</code>, which is a read-mostly cache outside this review’s concurrency-sensitive scope.</td>
-</tr>
-</tbody>
-</table>
-<h3 id="error-handling-logging-checks">2.6 Error Handling &amp; Logging Checks</h3>
-<p><strong>Applicable:</strong> Yes</p>
-<table>
-<colgroup>
-<col style="width: 10%" />
-<col style="width: 17%" />
-<col style="width: 25%" />
-<col style="width: 46%" />
-</colgroup>
-<thead>
-<tr>
-<th style="text-align: left;">#</th>
-<th style="text-align: left;">Check</th>
-<th style="text-align: left;">Outcome</th>
-<th style="text-align: left;">Justification</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;">ERR-01</td>
-<td style="text-align: left;">Error handling follows the design documentation</td>
-<td style="text-align: left;">Fail</td>
-<td style="text-align: left;">The documented “fail closed with a specific typed exception” contract is violated by several confirmed paths that instead throw undocumented framework exceptions (<code>IndexOutOfRangeException</code> from malformed xref-stream <code>/W</code>; <code>IndexOutOfRangeException</code> from sampled-function overflow; <code>ArgumentOutOfRangeException</code>/<code>DivideByZeroException</code>/<code>CryptographicException</code> from malformed encryption <code>/Length</code>) rather than the class’s own <code>InvalidDataException</code>/<code>UnsupportedImageFeatureException</code> conventions used everywhere else.</td>
-</tr>
-<tr>
-<td style="text-align: left;">ERR-02</td>
-<td style="text-align: left;">Logging volume/detail is appropriate</td>
-<td style="text-align: left;">N/A</td>
-<td style="text-align: left;">This unit does not perform logging (no <code>ILogger</code>/tracing dependency); error signaling is exclusively via typed exceptions, which is the documented and appropriate approach for a synchronous parsing/rendering library.</td>
-</tr>
-<tr>
-<td style="text-align: left;">ERR-03</td>
-<td style="text-align: left;">Error messages are user-friendly and actionable</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">Sampled exception messages name the offending structural field/feature (e.g., <code>/Length</code>, <code>/O</code>, <code>/U</code>, unsupported feature tokens) rather than generic text.</td>
-</tr>
-<tr>
-<td style="text-align: left;">ERR-04</td>
-<td style="text-align: left;">Error messages/logs do not leak sensitive data</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">Verified directly for the encryption area: no password, derived key, or key material appears in any exception message in <code>PdfDocument.Encryption.cs</code> (every <code>throw</code> site inspected).</td>
-</tr>
-</tbody>
-</table>
-<h3 id="usability-accessibility-checks">2.7 Usability / Accessibility Checks</h3>
-<p><strong>Applicable:</strong> Yes (public API ergonomics only — no UI/accessibility surface)</p>
-<table>
-<colgroup>
-<col style="width: 10%" />
-<col style="width: 17%" />
-<col style="width: 25%" />
-<col style="width: 46%" />
-</colgroup>
-<thead>
-<tr>
-<th style="text-align: left;">#</th>
-<th style="text-align: left;">Check</th>
-<th style="text-align: left;">Outcome</th>
-<th style="text-align: left;">Justification</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;">USE-01</td>
-<td style="text-align: left;">The feature/API is easy to use correctly</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;"><code>Open</code>/<code>GetPageInfo</code>/<code>Render</code>/<code>Dispose</code> form a small, conventional <code>IDisposable</code> surface with clear argument validation and <code>ObjectDisposedException</code> guards, confirmed by the file-structure area review.</td>
-</tr>
-<tr>
-<td style="text-align: left;">USE-02</td>
-<td style="text-align: left;">All public APIs are well documented</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">XmlDoc present and substantive on all public members sampled.</td>
-</tr>
-</tbody>
-</table>
-<h3 id="test-checks">2.8 Test Checks</h3>
-<p><strong>Applicable:</strong> Yes</p>
-<table>
-<colgroup>
-<col style="width: 10%" />
-<col style="width: 17%" />
-<col style="width: 25%" />
-<col style="width: 46%" />
-</colgroup>
-<thead>
-<tr>
-<th style="text-align: left;">#</th>
-<th style="text-align: left;">Check</th>
-<th style="text-align: left;">Outcome</th>
-<th style="text-align: left;">Justification</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;">TEST-01</td>
-<td style="text-align: left;">Tests cover expected (happy-path) behavior</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">Every requirement has at least one happy-path test; <code>dotnet test</code> of the Pdf test project: 412/412 pass (net10.0; also confirmed by area reviewers across net8.0/net9.0).</td>
-</tr>
-<tr>
-<td style="text-align: left;">TEST-02</td>
-<td style="text-align: left;">Tests cover error conditions and boundary cases</td>
-<td style="text-align: left;">Fail</td>
-<td style="text-align: left;">Confirmed gaps: no test exists for malformed/negative xref-stream <code>/W</code> or <code>/Index</code>, non-finite <code>cm</code>/path-coordinate operands, pathological operand-stack/<code>q</code>-stack growth, the sampled-function <code>int32</code> overflow, the unbounded composite-font CID-width-range loop, or the encryption <code>/Length</code> validation gap — all identified as reachable, untested failure modes in §3.1.</td>
-</tr>
-<tr>
-<td style="text-align: left;">TEST-03</td>
-<td style="text-align: left;">Tests are independent and repeatable</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">Every area reviewer confirmed tests build their own isolated fixtures with no shared mutable state.</td>
-</tr>
-<tr>
-<td style="text-align: left;">TEST-04</td>
-<td style="text-align: left;">Test names clearly describe the behavior being verified</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">Hierarchical <code>{ClassName}_{Method}_{Scenario}_{Expected}</code> naming followed consistently across all four test files, confirmed in every area.</td>
-</tr>
-<tr>
-<td style="text-align: left;">TEST-05</td>
-<td style="text-align: left;">New test cases are added for new functionality/defect fixes</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">The newest-landed feature (Tr stroke/fill+stroke render modes) has dedicated, rigorous pixel-level tests (not just exception-absence checks).</td>
-</tr>
-</tbody>
-</table>
-<h3 id="security-checks">2.9 Security Checks</h3>
-<p><strong>Applicable:</strong> Yes</p>
-<table>
-<colgroup>
-<col style="width: 10%" />
-<col style="width: 17%" />
-<col style="width: 25%" />
-<col style="width: 46%" />
-</colgroup>
-<thead>
-<tr>
-<th style="text-align: left;">#</th>
-<th style="text-align: left;">Check</th>
-<th style="text-align: left;">Outcome</th>
-<th style="text-align: left;">Justification</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;">SEC-01</td>
-<td style="text-align: left;">No obvious security vulnerabilities</td>
-<td style="text-align: left;">Fail</td>
-<td style="text-align: left;">Multiple confirmed denial-of-service-class vulnerabilities against untrusted PDF input: unbounded image/CCITT <code>/Width</code>×<code>/Height</code> allocation, unbounded LZW output growth (decompression-bomb class), an unhandled <code>DivideByZeroException</code> in the PNG predictor for malformed <code>/Columns</code>/<code>/Colors</code>, <code>int32</code> overflow in sampled-function bit-offset arithmetic, and an unvalidated encryption <code>/Length</code> field causing unhandled exceptions. None are key-recovery/code-execution vulnerabilities, but they are reachable crash/resource-exhaustion vectors from a malicious/malformed file, which is the primary threat model for a PDF-parsing library. See §3.1/§3.3 for full detail.</td>
-</tr>
-<tr>
-<td style="text-align: left;">SEC-02</td>
-<td style="text-align: left;">Authentication/authorization handled correctly</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">Password authentication (user-then-owner dual-attempt, per PDF spec) is implemented correctly for RC4/AESV2/AESV3-R5 per the encryption area’s dedicated security review; empty-password and wrong-password paths correctly fail closed.</td>
-</tr>
-<tr>
-<td style="text-align: left;">SEC-03</td>
-<td style="text-align: left;">Sensitive data stored/transmitted securely</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">RC4 KSA/PRGA independently verified algorithmically correct; AES/MD5/SHA-256 use real BCL primitives (no hand-rolled crypto besides the spec-mandated RC4, no obsolete APIs, no insecure randomness); no password/key material logged or leaked in exceptions. Minor informational notes (non-constant-time comparison, no explicit key-material zeroing) recorded as Low-severity findings, not blocking.</td>
-</tr>
-</tbody>
-</table>
-<h3 id="code-readability-checks">2.10 Code Readability Checks</h3>
-<p><strong>Applicable:</strong> Yes</p>
-<table>
-<colgroup>
-<col style="width: 10%" />
-<col style="width: 17%" />
-<col style="width: 25%" />
-<col style="width: 46%" />
-</colgroup>
-<thead>
-<tr>
-<th style="text-align: left;">#</th>
-<th style="text-align: left;">Check</th>
-<th style="text-align: left;">Outcome</th>
-<th style="text-align: left;">Justification</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;">READ-01</td>
-<td style="text-align: left;">Code is easy to understand</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">Consistently clear across all seven areas.</td>
-</tr>
-<tr>
-<td style="text-align: left;">READ-02</td>
-<td style="text-align: left;">Methods/functions are small enough to be understood</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">Shared helpers keep painting/dispatch logic compact; no oversized-method findings reported.</td>
-</tr>
-<tr>
-<td style="text-align: left;">READ-03</td>
-<td style="text-align: left;">Symbols are well named</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">No naming issues reported.</td>
-</tr>
-<tr>
-<td style="text-align: left;">READ-04</td>
-<td style="text-align: left;">Code is located in the correct place in the codebase</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">File-per-concern partial-class layout matches the <code>.reviewmark.yaml</code> phase annotations exactly.</td>
-</tr>
-<tr>
-<td style="text-align: left;">READ-05</td>
-<td style="text-align: left;">Flow of control can be easily followed</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">Dispatch-table/switch patterns used consistently; no convoluted control flow reported.</td>
-</tr>
-<tr>
-<td style="text-align: left;">READ-06</td>
-<td style="text-align: left;">Data flow is understandable</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">No data-flow confusion reported by any area reviewer.</td>
-</tr>
-<tr>
-<td style="text-align: left;">READ-07</td>
-<td style="text-align: left;">Comments provided where code is non-obvious</td>
-<td style="text-align: left;">Fail</td>
-<td style="text-align: left;"><code>PdfDocument.Fonts.cs</code> (<code>StandardGlyphNames</code> field, ~lines 643-646) contains an XmlDoc <code>&lt;remarks&gt;</code> comment that <strong>self-contradicts</strong> the adjacent, correct <code>ApplyDifferences</code> remarks and the actual lenient (no-op, not throw) behavior at <code>Fonts.cs:532-539</code> — a misleading non-obvious-code comment is worse than no comment. See finding in §3.1 (Fonts area).</td>
-</tr>
-<tr>
-<td style="text-align: left;">READ-08</td>
-<td style="text-align: left;">No debug artifacts or commented-out code left in codebase</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">None found by any area reviewer.</td>
-</tr>
-</tbody>
-</table>
-<h3 id="requirements-vs-documentation-checks">2.11 Requirements vs Documentation Checks</h3>
-<p><strong>Applicable:</strong> Yes</p>
-<table>
-<colgroup>
-<col style="width: 10%" />
-<col style="width: 17%" />
-<col style="width: 25%" />
-<col style="width: 46%" />
-</colgroup>
-<thead>
-<tr>
-<th style="text-align: left;">#</th>
-<th style="text-align: left;">Check</th>
-<th style="text-align: left;">Outcome</th>
-<th style="text-align: left;">Justification</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;">REQDOC-01</td>
-<td style="text-align: left;">All reviewed requirements are addressed in the general technical documentation</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">The unit design doc addresses every requirement area; no system-level user-facing doc claims were in scope for this unit review.</td>
-</tr>
-<tr>
-<td style="text-align: left;">REQDOC-02</td>
-<td style="text-align: left;">No reviewed requirement is contradicted by the general technical documentation</td>
-<td style="text-align: left;">Fail</td>
-<td style="text-align: left;"><code>NamespaceDoc.cs</code> (lines ~18-23) and a stale XML-doc remark on the <code>PdfDocument_Render_ValidPageIndex_ReturnsCorrectlySizedBlankSurface</code> test still describe <code>Render</code> as “renders no content”/always blank — contradicted by the <code>Render</code>/<code>ContentStreamDispatch</code>/every subsequent content-stream requirement, all of which document and implement full content-stream interpretation. The test still passes only because its own fixture happens to have no <code>/Contents</code>; the comment, not the behavior, is wrong.</td>
-</tr>
-</tbody>
-</table>
-<h3 id="requirements-vs-implementation-checks">2.12 Requirements vs Implementation Checks</h3>
-<p><strong>Applicable:</strong> Yes</p>
-<table>
-<colgroup>
-<col style="width: 10%" />
-<col style="width: 17%" />
-<col style="width: 25%" />
-<col style="width: 46%" />
-</colgroup>
-<thead>
-<tr>
-<th style="text-align: left;">#</th>
-<th style="text-align: left;">Check</th>
-<th style="text-align: left;">Outcome</th>
-<th style="text-align: left;">Justification</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;">REQIMP-01</td>
-<td style="text-align: left;">All requirements under review are addressed by the implementation</td>
-<td style="text-align: left;">Fail</td>
-<td style="text-align: left;">Within the <strong>formally configured file set</strong> for this review-set, 7 of the 60 requirements in <code>pdf-document.yaml</code> (<code>EncryptDetection</code>, <code>EncryptionRc4</code>, <code>EncryptionAesV2</code>, <code>EncryptionAesV3R5</code>, <code>EncryptionPasswordAuthentication</code>, <code>Type3FontResolution</code>, <code>Type3GlyphPainting</code>) are <strong>not</strong> addressed by any file in the <code>paths:</code> list — their sole implementing files (<code>PdfDocument.Encryption.cs</code>, <code>PdfDocument.Fonts.Type3.cs</code>) are absent from the review-set. (Reviewed anyway per task instruction; implementation itself was found credible — see §3.1/§3.5 — but this is a Fail against the strict requirement-to-<em>reviewed</em>-file traceability check, and a configuration defect in <code>.reviewmark.yaml</code> that should be corrected.)</td>
-</tr>
-<tr>
-<td style="text-align: left;">REQIMP-02</td>
-<td style="text-align: left;">No requirement is contradicted by the implementation</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">Within the files actually reviewed (including the two out-of-scope files, reviewed anyway), no requirement is contradicted by current source.</td>
-</tr>
-</tbody>
-</table>
-<h3 id="requirements-vs-testing-checks">2.13 Requirements vs Testing Checks</h3>
-<p><strong>Applicable:</strong> Yes</p>
-<table>
-<colgroup>
-<col style="width: 10%" />
-<col style="width: 17%" />
-<col style="width: 25%" />
-<col style="width: 46%" />
-</colgroup>
-<thead>
-<tr>
-<th style="text-align: left;">#</th>
-<th style="text-align: left;">Check</th>
-<th style="text-align: left;">Outcome</th>
-<th style="text-align: left;">Justification</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;">REQTEST-01</td>
-<td style="text-align: left;">Every requirement under review is covered by at least one test</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">All 60 requirement IDs trace to at least one named, existing, non-skipped, passing test, confirmed by direct execution (<code>dotnet test</code>: 412/412 for the in-scope project; targeted <code>--filter</code> subsets of 32-120 tests per area all green) and by reading each named test’s body (not just its name) to confirm it exercises the claimed behavior.</td>
-</tr>
-<tr>
-<td style="text-align: left;">REQTEST-02</td>
-<td style="text-align: left;">Tests verify the behavior described in each requirement</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">Sampled tests consistently assert concrete outcomes (rendered pixel colors/positions, specific exception types) rather than vague “no exception thrown” checks — notably strong for the new Tr stroke/fill+stroke tests and the encryption tests (which assert actual decrypted/rendered pixels, not mocks).</td>
-</tr>
-</tbody>
-</table>
-<h3 id="code-vs-design-documentation-checks">2.14 Code vs Design Documentation Checks</h3>
-<p><strong>Applicable:</strong> Yes</p>
-<table>
-<colgroup>
-<col style="width: 10%" />
-<col style="width: 17%" />
-<col style="width: 25%" />
-<col style="width: 46%" />
-</colgroup>
-<thead>
-<tr>
-<th style="text-align: left;">#</th>
-<th style="text-align: left;">Check</th>
-<th style="text-align: left;">Outcome</th>
-<th style="text-align: left;">Justification</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;">CODEDOC-01</td>
-<td style="text-align: left;">The code correctly implements the design documentation</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">Every spot-checked design claim (CTM derivation matrices, dash/line-width device scaling, Type3 nesting guard, Tr render-mode dispatch, shape-sniffing leniencies, encryption algorithm sequencing) matched current source exactly, across all seven areas.</td>
-</tr>
-<tr>
-<td style="text-align: left;">CODEDOC-02</td>
-<td style="text-align: left;">All public APIs/interfaces are documented in the design documentation</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;"><code>Open</code>/<code>GetPageInfo</code>/<code>Render</code>/<code>Dispose</code> and the <code>/Pattern</code> color-space dispatch are documented with inputs/outputs/exceptions.</td>
-</tr>
-<tr>
-<td style="text-align: left;">CODEDOC-03</td>
-<td style="text-align: left;">Non-obvious algorithms and significant design decisions are explained</td>
-<td style="text-align: left;">Pass</td>
-<td style="text-align: left;">Encryption key-derivation algorithms, shape-sniffing rationale, and recursion-depth guard rationale are all explained in the design doc.</td>
-</tr>
-<tr>
-<td style="text-align: left;">CODEDOC-04</td>
-<td style="text-align: left;">No important code details are missing from the design documentation</td>
-<td style="text-align: left;">Fail</td>
-<td style="text-align: left;">The design doc’s “Error Handling” section claims a uniform fail-closed typed-exception contract for malformed input that is not actually upheld for the specific boundary cases identified in §3.1 (this is a documentation-accuracy issue layered on top of the code defect itself: the doc asserts a guarantee the code does not fully provide).</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="conclusion">3. Conclusion</h2>
-<h3 id="summary-of-findings">3.1 Summary of Findings</h3>
-<table>
-<colgroup>
-<col style="width: 20%" />
+<col style="width: 2%" />
 <col style="width: 33%" />
-<col style="width: 46%" />
+<col style="width: 40%" />
+<col style="width: 23%" />
 </colgroup>
 <thead>
 <tr>
-<th style="text-align: left;">#</th>
-<th style="text-align: left;">Check</th>
-<th style="text-align: left;">Finding</th>
+<th>#</th>
+<th>Prior Finding</th>
+<th style="text-align: center;">Severity (prior)</th>
+<th style="text-align: left;">Status now</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td style="text-align: left;">F0</td>
-<td style="text-align: left;">REQIMP-01 (Critical — process/config)</td>
-<td style="text-align: left;"><code>.reviewmark.yaml</code>’s <code>CanvasNetPdf-PdfDocument</code> review-set omits <code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Encryption.cs</code>, <code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Fonts.Type3.cs</code>, and their test files (<code>PdfDocumentEncryptionTests.cs</code>, <code>PdfDocumentSymbolicEncodingTests.cs</code>), despite the requirements they implement being inside the reviewed <code>pdf-document.yaml</code>. Confirmed authoritatively via <code>dotnet reviewmark --plan docs/code_review_plan/generated/plan.md --enforce</code>, which reports both source files as globally uncovered by <strong>any</strong> review-set in the repository (alongside <code>docs/reqstream/quality.yaml</code>, <code>src/DemaConsulting.CanvasNet/Fonts/CffStandardEncoding.cs</code>, <code>temptest/Program.cs</code>, and two <code>CanvasNet.Tests</code> files — a broader repo-wide coverage gap, not unique to this review). <strong>Recommendation</strong>: add the four missing paths to the <code>CanvasNetPdf-PdfDocument</code> entry in <code>.reviewmark.yaml</code>.</td>
+<td>F0</td>
+<td>Scope gap: Encryption/Type3 source + test files uncovered by any review-set</td>
+<td style="text-align: center;">Critical</td>
+<td style="text-align: left;"><strong>Partially fixed</strong> — both source files now listed; both test files still unlisted (downgraded to Medium)</td>
 </tr>
 <tr>
-<td style="text-align: left;">F1</td>
-<td style="text-align: left;">LOGIC-02/ERR-01/SEC-01 (Critical)</td>
-<td style="text-align: left;"><code>PdfDocument.Xref.cs</code> (<code>ParseXrefStreamSection</code>, ~lines 221-284): <code>/W</code> width-triplet values are cast from attacker-controlled PDF numbers with no non-negativity validation. A crafted <code>/W [-1000000 2 1]</code> xref stream drives a negative buffer offset into <code>ReadBigEndian</code>, throwing an unhandled <code>IndexOutOfRangeException</code> instead of the documented <code>InvalidDataException</code>; the constructor’s exception handling does not catch this type, so <code>Open</code> crashes outright rather than falling back to linear scan. No test exists for this input.</td>
+<td>1</td>
+<td>Xref-stream <code>/W</code> negative width → unhandled <code>IndexOutOfRangeException</code></td>
+<td style="text-align: center;">Critical</td>
+<td style="text-align: left;"><strong>Fixed</strong> — <code>PdfDocument.Xref.cs:215-224</code>, validates <code>0&lt;=w&lt;=8</code>, throws <code>InvalidDataException</code>; regression test passes</td>
 </tr>
 <tr>
-<td style="text-align: left;">F2</td>
-<td style="text-align: left;">LOGIC-02/SEC-01 (High)</td>
-<td style="text-align: left;"><code>PdfDocument.PageTree.cs</code> (<code>TraversePageTree</code>, ~lines 61-100): cycle rejection only triggers on a <em>repeated</em> object number; there is no maximum recursion-depth limit (unlike the Form XObject interpreter’s documented hard limit of 12). A page tree built from thousands of distinct single-child nodes recurses unbounded and can trigger an uncatchable <code>StackOverflowException</code>. <code>PdfDocument.ObjectModel.cs</code>’s mutually recursive array/dictionary parsers have the same unbounded-recursion gap (Medium confidence/severity).</td>
+<td>2</td>
+<td>Unbounded page-tree <code>/Kids</code> recursion → <code>StackOverflowException</code> risk</td>
+<td style="text-align: center;">High</td>
+<td style="text-align: left;"><strong>Fixed</strong> — visited-ObjNum set (cycle) + <code>MaxPageTreeNestingDepth=32</code> counter (depth), both <code>InvalidDataException</code>, both tested</td>
 </tr>
 <tr>
-<td style="text-align: left;">F3</td>
-<td style="text-align: left;">LOGIC-02/SEC-01 (High)</td>
-<td style="text-align: left;"><code>PdfDocument.Functions.cs</code> (<code>SampledFunction.ReadSample</code>/<code>ReadBits</code>, ~lines 121-153): <code>sampleGroupIndex * outputCount</code> is computed in 32-bit <code>int</code> arithmetic before widening to <code>long</code>. A malformed <code>/FunctionType 0</code> function with a large (individually legal) <code>/Size</code> and multi-output <code>/Range</code> overflows to a large negative bit offset, bypassing the length guard and throwing <code>IndexOutOfRangeException</code> instead of <code>InvalidDataException</code>. Reproduced by static trace (<code>sampleGroupIndex=600000000, outputCount=4</code> → negative <code>bitOffset</code>). No test covers this.</td>
+<td>3</td>
+<td>Image Width×Height/CCITT Columns×Rows unbounded allocation</td>
+<td style="text-align: center;">High</td>
+<td style="text-align: left;"><strong>Partially fixed</strong> — ordinary images bounded (<code>Images.cs:284-288</code>); <strong>CCITT path still allocates before its bound check</strong> (<code>Images.cs:367-389</code>) — see new Finding G1</td>
 </tr>
 <tr>
-<td style="text-align: left;">F4</td>
-<td style="text-align: left;">LOGIC-02/SEC-01 (High, memory/DoS)</td>
-<td style="text-align: left;">Color/filter/image area (per dedicated sub-review): unbounded <code>/Width</code>×<code>/Height</code> (and CCITT <code>/Columns</code>/<code>/Rows</code>) allocation enabling memory-exhaustion DoS; an unhandled <code>DivideByZeroException</code> in the PNG predictor for a malformed <code>/Columns</code>/<code>/Colors</code> combination; unbounded LZW output growth (decompression-bomb class); unchecked <code>double→int</code> casts from PDF numbers; <code>int</code> overflow in <code>/Hival</code>-based palette-length checks; a raw <code>IndexOutOfRangeException</code> leaking from image pixel decoding on truncated streams. All violate the documented “fail closed with a typed exception” contract for this area.</td>
+<td>4</td>
+<td>PNG-predictor <code>DivideByZeroException</code></td>
+<td style="text-align: center;">High</td>
+<td style="text-align: left;"><strong>Fixed</strong> (<code>Filters.cs:182,187,192</code>)</td>
 </tr>
 <tr>
-<td style="text-align: left;">F5</td>
-<td style="text-align: left;">LOGIC-02/SEC-01 (Medium)</td>
-<td style="text-align: left;"><code>PdfDocument.Fonts.Type0.cs</code> (<code>ResolveCompositeWidths</code>, ~lines 391-404): the <code>/W</code> array’s <code>cFirst cLast w</code> range form has no upper bound on <code>cLast - firstCid</code>; a malformed <code>/W [0 2147483647 500]</code> entry drives an unbounded dictionary-population loop — a resource-exhaustion vector, not memory-unsafe, but untested.</td>
+<td>5</td>
+<td>LZW unbounded decompressed output</td>
+<td style="text-align: center;">High</td>
+<td style="text-align: left;"><strong>Fixed</strong> — 64 MiB cap (<code>Filters.Lzw.cs:24,117-121</code>)</td>
 </tr>
 <tr>
-<td style="text-align: left;">F6</td>
-<td style="text-align: left;">ERR-01/SEC-01 (Medium)</td>
-<td style="text-align: left;"><code>PdfDocument.Encryption.cs</code> (~lines 259-260, 544, 563, 675): the encryption dictionary’s <code>/Length</code> field is used to derive <code>keyLengthBytes</code> with no range validation before slicing a 16-byte MD5 digest; malformed <code>/Length</code> values throw an unhandled <code>ArgumentOutOfRangeException</code> or <code>DivideByZeroException</code> instead of the file’s otherwise-consistent <code>InvalidDataException</code> convention. A related, lower-severity issue: <code>Aes.Key</code> is assigned outside the <code>try</code>/<code>catch(CryptographicException)</code> block in <code>DecryptAesCbc</code> (~line 978), so an invalid key size throws an uncaught <code>CryptographicException</code>.</td>
+<td>6</td>
+<td>Indexed <code>/Hival</code> int-overflow</td>
+<td style="text-align: center;">High</td>
+<td style="text-align: left;"><strong>Fixed</strong> (<code>Color.cs:659,665</code>)</td>
 </tr>
 <tr>
-<td style="text-align: left;">F7</td>
-<td style="text-align: left;">LOGIC-01/Medium (content-stream area)</td>
-<td style="text-align: left;"><code>PdfDocument.GraphicsState.cs</code>/<code>PdfDocument.PathOps.cs</code>: numeric operands for <code>cm</code>, <code>w</code>, <code>M</code>, and path-construction operators are not checked for finiteness (<code>NaN</code>/<code>Infinity</code>); a crafted huge-digit-run token can produce <code>double.PositiveInfinity</code>, poisoning the CTM or <code>MiterLimit</code> silently rather than failing closed, inconsistent with the finite-check already applied to dash-array entries elsewhere in the same file. Unbounded content-stream operand-stack and <code>q</code>-stack growth (no cap) are related, lower-severity findings in the same area.</td>
+<td>7</td>
+<td>Truncated image stream → raw <code>IndexOutOfRangeException</code></td>
+<td style="text-align: center;">High</td>
+<td style="text-align: left;"><strong>Fixed</strong> for ordinary images (<code>Images.cs:417</code>); CCITT shares risk with #3</td>
 </tr>
 <tr>
-<td style="text-align: left;">F8</td>
-<td style="text-align: left;">READ-07/REQDOC-02 (Low-Medium, documentation-only)</td>
-<td style="text-align: left;">Two stale/self-contradicting doc comments found: (a) <code>NamespaceDoc.cs</code> and a test’s XmlDoc still describe <code>Render</code> as rendering no content (“Phase 1” blank-only behavior), contradicted by the fully-implemented content-stream interpreter; (b) <code>PdfDocument.Fonts.cs</code>’s <code>StandardGlyphNames</code> remarks claim unrecognized <code>/Differences</code> glyph names throw <code>InvalidDataException</code>, contradicting the actual (and correctly designed) lenient no-op behavior in <code>ApplyDifferences</code> and that same method’s own correct remarks. Neither is a behavioral defect — both are misleading comments that should be corrected for maintainability.</td>
+<td>8</td>
+<td>Composite-font (Type0) <code>/W</code> CID-range unbounded loop</td>
+<td style="text-align: center;">Medium</td>
+<td style="text-align: left;"><strong>Fixed</strong> — <code>MaxCompositeWidthRangeSpan=65536</code> (<code>Fonts.Type0.cs:335,412</code>), <code>long</code> arithmetic, <code>InvalidDataException</code></td>
 </tr>
 <tr>
-<td style="text-align: left;">F9</td>
-<td style="text-align: left;">SEC-03 (Low, informational)</td>
-<td style="text-align: left;">Encryption area: password/MAC comparisons use non-constant-time <code>Span.SequenceEqual</code> (low real-world risk for a local-file reader with no timing oracle); derived key material is not explicitly zeroed after use (standard managed-crypto limitation). Recorded for completeness, not blocking.</td>
+<td>9</td>
+<td>Encryption <code>/Length</code> unvalidated</td>
+<td style="text-align: center;">Medium</td>
+<td style="text-align: left;"><strong>Fixed</strong> (<code>Encryption.cs:259-269</code>), range-checked, typed exception</td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>Aes.Key</code> assignment outside try/catch</td>
+<td style="text-align: center;">Medium</td>
+<td style="text-align: left;"><strong>Fixed</strong> — now inside try/catch translating <code>CryptographicException</code> → <code>InvalidDataException</code></td>
+</tr>
+<tr>
+<td>11</td>
+<td>Non-finite (NaN/Infinity) operands unvalidated for <code>cm</code>/path ops</td>
+<td style="text-align: center;">Medium</td>
+<td style="text-align: left;"><strong>Still present</strong> — <code>RequireNumbers</code> (<code>GraphicsState.cs</code> ~L300-318) checks count/kind only, not finiteness; reproduced via a 400-digit numeral parsing to <code>Infinity</code></td>
+</tr>
+<tr>
+<td>12</td>
+<td>Unbounded <code>q</code>-stack / operand-stack growth</td>
+<td style="text-align: center;">Medium</td>
+<td style="text-align: left;"><strong>Still present</strong> — no depth/size cap on <code>_gsStack</code> or per-operator operand list</td>
+</tr>
+<tr>
+<td>13</td>
+<td>Sampled-function (FunctionType 0) <code>int32</code> bit-offset overflow</td>
+<td style="text-align: center;">High</td>
+<td style="text-align: left;"><strong>Fixed</strong> — <code>checked</code> <code>long</code> arithmetic + <code>try/catch(OverflowException)</code> → <code>InvalidDataException</code>, plus explicit bounds check before indexing (<code>Functions.cs</code> ~L108-148)</td>
+</tr>
+<tr>
+<td>14</td>
+<td>Non-constant-time crypto comparisons / no key zeroing</td>
+<td style="text-align: center;">Low</td>
+<td style="text-align: left;"><strong>Still present</strong> (acceptable risk, unchanged)</td>
+</tr>
+<tr>
+<td>15</td>
+<td>Misleading <code>StandardGlyphNames</code> XmlDoc remarks</td>
+<td style="text-align: center;">Low</td>
+<td style="text-align: left;"><strong>Still present</strong> (<code>Fonts.cs:640-645</code>)</td>
+</tr>
+<tr>
+<td>16</td>
+<td>Stale “Phase 1 — blank-only” <code>NamespaceDoc.cs</code> claim</td>
+<td style="text-align: center;">Low</td>
+<td style="text-align: left;"><strong>Still present</strong> (<code>NamespaceDoc.cs:21-28</code>)</td>
 </tr>
 </tbody>
 </table>
-<h3 id="overall-outcome">3.2 Overall Outcome</h3>
-<p><strong>Overall Outcome:</strong> Fail</p>
-<p>This review finds the <code>PdfDocument</code> unit to be an impressively thorough, well-tested, and largely spec-correct implementation — requirements traceability is excellent (all 60 requirements map to credible implementations and genuinely-assertive, passing, non-disabled tests), the cryptographic algorithms are independently verified correct, and the newest-landed feature (Tr stroke/fill+stroke render modes) is rigorously tested at the pixel level. However, the overall outcome is <strong>Fail</strong> because:</p>
-<ol type="1">
-<li>A <strong>Critical</strong> review-set configuration gap (F0) means two in-unit source files implementing seven requirements (encryption and Type3 fonts) are not formally covered by this or any review-set — a <code>.reviewmark.yaml</code> fix is required before this unit’s coverage claim is accurate.</li>
-<li>Multiple <strong>Critical/High</strong> confirmed boundary-condition and integer-overflow defects (F1-F6) allow malformed/adversarial PDF input to crash the process with an undocumented, untyped exception (or exhaust memory/stack) rather than failing closed with the class’s own documented <code>InvalidDataException</code>/ <code>UnsupportedImageFeatureException</code> conventions — a direct violation of this project’s own stated untrusted-input-parser standard, and of the design documentation’s own “Error Handling” guarantees. None of these are exploitable for code execution or key recovery, but all are reachable denial-of-service-class defects against a library whose entire purpose is processing untrusted files.</li>
-</ol>
-<p><strong>Conditions required before this review can be considered approved:</strong></p>
+<p><strong>Net assessment</strong>: of 16 carried-forward items, <strong>10 are now fully fixed with regression tests</strong>, 2 are partially fixed (F0, CCITT allocation-ordering), and 4 remain unaddressed (non-finite operands, unbounded stack growth, 3 Low-severity documentation items). This confirms the documentation-sync pass’s claims were <strong>accurate for documentation changes</strong> but, as expected (it was explicitly scoped as a documentation pass), did <strong>not</strong> address the pre-existing code-quality findings that are not purely documentation — some of which (Xref <code>/W</code>, page tree, PNG predictor, LZW, Hival, Type0 <code>/W</code>, <code>/Length</code>, <code>Aes.Key</code>, sampled-function overflow) were evidently <em>also</em> fixed in commits alongside or around the documentation-sync pass, while others (non-finite operands, stack bounds, CCITT ordering, F0’s test-file gap) were not.</p>
+<h2 id="verification-of-user-claimed-documentation-sync-items">3. Verification of User-Claimed Documentation-Sync Items</h2>
+<p>All items below were independently re-verified against current source/docs, not assumed:</p>
+<table>
+<colgroup>
+<col style="width: 26%" />
+<col style="width: 31%" />
+<col style="width: 42%" />
+</colgroup>
+<thead>
+<tr>
+<th>Claim</th>
+<th style="text-align: center;">Status</th>
+<th>Evidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Removed stale “unsupported” claims: encryption RC4/AES-128/AES-256-R5</td>
+<td style="text-align: center;"><strong>True</strong></td>
+<td>Design doc + <code>Encryption.cs</code> consistent; R6 correctly still documented/rejected (see §6)</td>
+</tr>
+<tr>
+<td>Removed stale “unsupported” claims: Type1/Type1C/Type3 fonts</td>
+<td style="text-align: center;"><strong>True</strong></td>
+<td>No remaining stale claims found in design doc</td>
+</tr>
+<tr>
+<td>Removed stale “unsupported” claims: Symbol/ZapfDingbats fallback</td>
+<td style="text-align: center;"><strong>True</strong></td>
+<td>Matches <code>FontFallback.cs</code> behavior</td>
+</tr>
+<tr>
+<td>Removed stale “unsupported” claims: Pattern (shading+tiling)</td>
+<td style="text-align: center;"><strong>True</strong></td>
+<td>Matches <code>Patterns.Shading.cs</code>/<code>Patterns.Tiling.cs</code></td>
+</tr>
+<tr>
+<td>Removed stale “unsupported” claims: Function Types 2/3</td>
+<td style="text-align: center;"><strong>True</strong></td>
+<td><code>Functions.cs:179-266</code> implements both; FunctionType 4 still correctly rejected</td>
+</tr>
+<tr>
+<td>Removed stale “unsupported” claims: CalRGB/ICCBased/Indexed color spaces</td>
+<td style="text-align: center;"><strong>True</strong></td>
+<td><code>Color.cs:503-509,588-631,649-686</code>, all implemented + tested</td>
+</tr>
+<tr>
+<td>Removed stale “unsupported” claims: TilePaint, GifCodec, SystemFontCatalog</td>
+<td style="text-align: center;"><strong>True (TilePaint, in Drawing subsystem doc)</strong></td>
+<td><code>docs/design/canvas-net/drawing.md</code> correctly states “four sibling units” including <code>TilePaint</code>; GifCodec/SystemFontCatalog are outside this unit’s own docs (not applicable to <code>pdf-document.md</code> directly)</td>
+</tr>
+<tr>
+<td>Orphaned requirements 21→0, unsatisfied 5→0</td>
+<td style="text-align: center;"><strong>True for this unit</strong></td>
+<td><code>dotnet reqstream --enforce</code>-style check shows 0 PdfDocument-prefixed unsatisfied/orphaned requirements; all 60 requirement IDs map 1:1 to verification-doc scenarios</td>
+</tr>
+<tr>
+<td>Added missing mandatory verification sections (6 docs)</td>
+<td style="text-align: center;"><strong>True for this unit, with a defect</strong></td>
+<td><code>## Acceptance Criteria</code> section <strong>does exist</strong> (line 1453) — contradicts this agent’s own earlier quick-grep finding, which is retracted — but it is at the <strong>wrong heading depth</strong> (<code>##</code> instead of <code>###</code>, inconsistent with its three sibling sections); see Finding G7</td>
+</tr>
+<tr>
+<td>Fixed stale CFF-operator-exclusion claims</td>
+<td style="text-align: center;"><strong>True</strong></td>
+<td>Matches <code>CffCharstringInterpreter.cs</code>/<code>CffTable.cs</code> exclusions</td>
+</tr>
+<tr>
+<td>Fixed stale <code>scn</code>-pattern test reference</td>
+<td style="text-align: center;"><strong>True</strong></td>
+<td>Confirmed via <code>git show 6727343</code>; new test name exists and passes</td>
+</tr>
+<tr>
+<td>Documented password-overload signatures consistently</td>
+<td style="text-align: center;"><strong>Mostly true, one stale remark remains</strong></td>
+<td><code>Open(Stream/string, string? password = null)</code> doc matches API exactly; but <code>PdfDocument.cs</code>’s class-level “Phase 16” remarks paragraph still implies no password API exists, uncorrected for Phase 17 — see Finding G8</td>
+</tr>
+<tr>
+<td>Added missing source/test file coverage in <code>.reviewmark.yaml</code></td>
+<td style="text-align: center;"><strong>Partially true</strong></td>
+<td>Both source files (<code>Encryption.cs</code>, <code>Fonts.Type3.cs</code>) added; both companion test files (<code>PdfDocumentEncryptionTests.cs</code>, <code>PdfDocumentSymbolicEncodingTests.cs</code>) still missing — Finding F0</td>
+</tr>
+<tr>
+<td>Added missing source/test file coverage in SysML2 model comments</td>
+<td style="text-align: center;"><strong>True</strong></td>
+<td><code>pdf-document.sysml</code>’s <code>sourceRef</code>/<code>testRef</code> comments now list all 27 actual source files and all 5 actual test files, 1:1, including Encryption.cs/Type3.cs and both previously-uncommented test files</td>
+</tr>
+<tr>
+<td>Corrected “three sibling units” → “four” (TilePaint)</td>
+<td style="text-align: center;"><strong>True</strong></td>
+<td><code>docs/design/canvas-net/drawing.md:5-14</code></td>
+</tr>
+<tr>
+<td>Added missing Architecture/Interfaces/Dependencies/Callers entries</td>
+<td style="text-align: center;"><strong>True, with a scope clarification</strong></td>
+<td>Architecture/Interfaces are System-level sections (present, complete, in <code>canvas-net-pdf.md</code>); Dependencies/Callers are Unit-level sections (present, complete, in <code>pdf-document.md</code>) — both doc levels fully populated per <code>design-documentation.md</code>’s actual per-level mandatory-section matrix</td>
+</tr>
+</tbody>
+</table>
+<h2 id="requirements-traceability-req-reqimp-reqtest">4. Requirements Traceability (REQ / REQIMP / REQTEST)</h2>
+<p>All 60 requirement IDs in <code>docs/reqstream/canvas-net-pdf/pdf-document.yaml</code> trace to a named, existing, non-skipped, currently-passing test, confirmed by direct inspection of test source (not the verification doc’s claims alone) across all seven delegated areas. Full test run: <strong>1293/1293 passed, 0 failed, 0 skipped</strong> (<code>dotnet test</code>, net8.0/net9.0/net10.0).</p>
+<p><strong>Outcome: Pass</strong>, with two Low-severity traceability-hygiene gaps (new regression tests for the two now-fixed Critical findings — xref <code>/W</code> validation and page-tree depth-guard — are not yet referenced in the requirement/verification-doc <code>tests:</code>/<code>**Test(s)**:</code> entries; see Finding G9).</p>
+<h2 id="design-documentation-consistency-des-codedoc">5. Design Documentation Consistency (DES / CODEDOC)</h2>
+<p><strong>Outcome: Pass</strong>, with the following residual gaps (all Low except where noted):</p>
 <ul>
-<li>Correct the <code>.reviewmark.yaml</code> <code>CanvasNetPdf-PdfDocument</code> path list to include <code>PdfDocument.Encryption.cs</code>, <code>PdfDocument.Fonts.Type3.cs</code>, and their test files (F0).</li>
-<li>Add explicit non-negativity/overflow/upper-bound validation and ensure a typed <code>InvalidDataException</code> is thrown for: xref-stream <code>/W</code>/<code>/Index</code> fields (F1), sampled-function bit-offset arithmetic (F3), image/CCITT dimensions and LZW output growth and the PNG predictor divide (F4), composite-font <code>/W</code> CID-range width loops (F5), and the encryption <code>/Length</code> field (F6). Add a recursion-depth guard to page-tree traversal and object-model array/dictionary parsing consistent with the existing <code>MaxFormNestingDepth</code>/<code>MaxType3NestingDepth</code> pattern (F2). Add regression tests for each.</li>
-<li>Correct the two misleading/stale documentation comments (F8).</li>
+<li>G2 (Low): page-tree nesting-depth guard (<code>MaxPageTreeNestingDepth</code>) not mentioned in the design doc’s page-tree-traversal/Error-Handling prose (only the visited-set cycle guard is described).</li>
+<li>G3 (Low): xref-stream <code>/W</code> bounds validation (<code>0&lt;=w&lt;=8</code>) not mentioned in the design doc’s cross-reference-resolution/Error-Handling prose.</li>
+<li>G7 (Low/Medium): verification doc’s <code>## Acceptance Criteria</code> heading is at the wrong depth (see Finding G7 below) — a structural, not content, defect.</li>
+<li>G8 (Low): <code>PdfDocument.cs</code> class-level “Phase 16” remarks paragraph is stale relative to the Phase 17 password-parameter addition (per-member docs are correct; the class-level narrative was not updated).</li>
+<li>Fonts area: G4/G5 (Low) — <code>StandardGlyphNames</code> XmlDoc and <code>NamespaceDoc.cs</code> “Phase 1” claim remain stale (carried forward from the prior review, unaddressed by this pass).</li>
 </ul>
-<p>No source code or documentation was modified as part of this review; all findings are reported for the orchestrator/maintainers to triage and remediate.</p>
+<p>No stale claims were found regarding any of the specific feature areas the user’s sync pass targeted (encryption, Type1/Type3/fallback, patterns/functions, color spaces, CFF exclusions, <code>scn</code> test reference) — all verified accurate against current code.</p>
+<h2 id="code-quality-error-handling-and-security-code-logic-err-sec">6. Code Quality, Error Handling, and Security (CODE / LOGIC / ERR / SEC)</h2>
+<p><strong>Outcome: Fail.</strong> Two Critical and one High finding remain or were newly identified; these are untrusted-input-parser robustness gaps consistent with the unit’s fail-closed design goal, not regressions introduced by the documentation-sync pass (which did not touch this code).</p>
+<h3 id="new-still-open-critical-findings">New / Still-Open Critical Findings</h3>
+<ul>
+<li><p><strong>G1 (Critical)</strong> — <code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Images.cs:367-389</code>: CCITT Group 4 fax decoding allocates its output buffer (sized from <code>/Columns</code>×<code>/Rows</code>) <strong>before</strong> validating those dimensions are within a sane bound (the bound check runs later, at line ~389, after the allocation at ~line 374). A crafted <code>/Columns</code>/<code>/Rows</code> pair can therefore (a) trigger an unbounded-memory-allocation DoS before any check fires, or (b) overflow during the size computation, surfacing a raw <code>OverflowException</code> instead of a typed exception. <strong>Confidence: High</strong> (direct code read). <strong>Fix</strong>: move the dimension bound-check (matching the one already applied to ordinary image XObjects at <code>Images.cs:284-288</code>) to <strong>before</strong> the buffer allocation, and perform the multiplication in <code>checked</code> context.</p></li>
+<li><p><strong>G6 (Critical)</strong> — <code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Xref.cs:653-672</code> (<code>ZlibDecompress</code>, the FlateDecode filter implementation): has <strong>no cap on decompressed output size</strong>. FlateDecode is the single most commonly used PDF stream filter (content streams, object streams, most image data); a small crafted FlateDecode stream can decompress to an effectively unbounded size in memory (a textbook “decompression bomb”), with no typed-exception circuit breaker, unlike the LZW decoder which now has a 64 MiB cap (fixed per Finding 5 above). <strong>Confidence: High</strong>. <strong>Fix</strong>: apply an analogous output-size cap (e.g. 64–128 MiB, consistent with the LZW cap) to <code>ZlibDecompress</code>, throwing <code>InvalidDataException</code> when exceeded.</p></li>
+</ul>
+<h3 id="new-high-finding">New High Finding</h3>
+<ul>
+<li><strong>G0 (High)</strong> — <code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Xref.cs</code>, <code>GetObject</code>/ <code>LoadCompressedObject</code> (~lines 489-534): <code>GetObject(number)</code> only populates <code>_objectCache</code> <strong>after</strong> it finishes resolving. A crafted xref stream where a compressed-object entry’s container-stream number resolves back to itself (directly, <code>N→N</code>, or via a longer <code>A→B→A</code> chain) causes unbounded mutual recursion between <code>GetObject</code> and <code>LoadCompressedObject</code>, with <strong>no cycle or depth guard</strong> — unlike the page-tree traversal (fixed, Finding 2 above) and Form-XObject/Type3/color-space/ function recursion limits that exist elsewhere in this same codebase (<code>MaxFormNestingDepth</code>, <code>MaxType3NestingDepth</code>, <code>MaxColorSpaceRecursionDepth</code>, <code>MaxFunctionRecursionDepth</code>, <code>MaxPageTreeNestingDepth</code>). This risks an uncatchable <code>StackOverflowException</code> that terminates the host process — the same severity class as the page-tree bug this re-review was specifically asked to confirm fixed, but present in a sibling resolution path that was not covered by that fix. <strong>Confidence: High</strong> (static trace; not reproduced live, consistent with the conservative-execution posture used elsewhere in this review, since triggering it would crash the process uncontrollably). <strong>Fix</strong>: add an “in-progress” <code>HashSet&lt;int&gt;</code> of object numbers currently being resolved inside <code>GetObject</code>, mirroring the page-tree <code>visited</code> set pattern — throw <code>InvalidDataException("Object stream contains a compressed-object reference cycle.")</code> on re-entry, add/remove via <code>try/finally</code>. Add a regression test with a self-referential compressed-object xref entry.</li>
+</ul>
+<h3 id="carried-forward-medium-findings-unaddressed-by-the-documentation-sync-pass">Carried-Forward Medium Findings (unaddressed by the documentation-sync pass)</h3>
+<ul>
+<li><strong>(= prior #11, Medium)</strong> Non-finite (<code>NaN</code>/<code>Infinity</code>) numeric operands are not validated for <code>cm</code> and path-construction operators (<code>GraphicsState.cs</code>/<code>PathOps.cs</code> <code>RequireNumbers</code>), while the sibling <code>d</code> (dash-pattern) operator and <code>Patterns.Tiling.cs</code> already validate finiteness — an inconsistently-applied fix pattern. Reproduced: a 400-digit content-stream numeral parses via <code>double.TryParse</code> to <code>PositiveInfinity</code> without error and folds into the CTM. <strong>Fix</strong>: add <code>double.IsFinite</code> validation inside the shared <code>RequireNumbers</code> helper (used by <code>cm</code>, <code>m</code>/<code>l</code>/<code>c</code>/<code>v</code>/<code>y</code>/<code>re</code>, <code>w</code>, <code>M</code>), throwing <code>InvalidDataException</code>.</li>
+<li><strong>(= prior #12, Medium)</strong> No bound on <code>q</code>/<code>Q</code> graphics-state-stack depth or per-operator operand-stack size (<code>ContentStream.cs</code>/<code>GraphicsState.cs</code>), unlike every other nesting/recursion vector in this codebase (Form XObjects, Type3, color-space, function, page-tree — all capped). <strong>Fix</strong>: add a <code>MaxGraphicsStateDepth</code> constant analogous to the existing nesting-depth constants, checked in <code>OpPushGraphicsState</code>.</li>
+<li><strong>G10 (Medium, new)</strong> — <code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Fonts.ToUnicode.cs:226</code>: the <code>bfrange</code> single-destination-array loop has the same unbounded-CID-range-span DoS pattern that was just fixed for Type0 <code>/W</code> (Finding 8 above), but the fix was not applied here. <strong>Fix</strong>: add an analogous <code>MaxToUnicodeBfRangeSpan</code> bound + <code>InvalidDataException</code>, mirroring <code>MaxCompositeWidthRangeSpan</code>.</li>
+<li><strong>G11 (Medium, new)</strong> — <code>src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Filters.RunLength.cs</code>: RunLengthDecode has no output-size cap, unlike LZW (64 MiB cap) and (once fixed) the recommended FlateDecode cap. Lower severity than LZW/Flate since RunLength’s worst-case expansion ratio is far smaller (≈127:1 vs. effectively unbounded), but still an inconsistently-applied control. <strong>Fix</strong>: apply the same output-size cap pattern used for LZW.</li>
+</ul>
+<h3 id="low-findings-carried-forward-unaddressed">Low Findings (carried forward, unaddressed)</h3>
+<ul>
+<li>Non-constant-time password/MAC byte-array comparisons (<code>SequenceEqual</code>, not <code>CryptographicOperations.FixedTimeEquals</code>) and no explicit key-material zeroing in <code>PdfDocument.Encryption.cs</code>. Real-world risk remains Low (local file reader, not a network-exposed oracle).</li>
+<li>Misleading <code>StandardGlyphNames</code> XmlDoc remarks (<code>Fonts.cs:640-645</code>) describing stricter behavior than the actual (correct) lenient fallback.</li>
+<li>Stale “Phase 1 — blank-only <code>Render</code>” XmlDoc claim in <code>NamespaceDoc.cs:21-28</code>.</li>
+<li><code>GetIntEntry</code>/<code>Color.cs</code> helpers used for <code>/Columns</code>/<code>/Rows</code> lack their own range validation, which is what allows Finding G1’s CCITT allocation-before-check gap to be reachable in the first place (noted as contributing cause, not a separate defect).</li>
+</ul>
+<h3 id="confirmed-fixed-verified-good-no-action-needed">Confirmed-Fixed / Verified-Good (no action needed)</h3>
+<p>RC4 KSA/PRGA re-verified algorithmically correct; AES/MD5/SHA-256 via real BCL primitives only; no password/key material in any exception message; AES-256 R5 vs R6 correctly and consistently distinguished (R6/“hardened hash” deliberately rejected, matching docs); <code>/Length</code> and <code>Aes.Key</code> issues fixed with regression tests; Type3 nesting-guard, FunctionType 4 rejection, and Tr stroke/fill+stroke pixel-level tests all confirmed solid; indexed-palette, PNG-predictor, LZW-cap, Type0-<code>/W</code>-cap, and sampled-function-overflow fixes all independently confirmed via direct code+test inspection, not merely trusted from the prior review or the user’s claims.</p>
+<h2 id="testing-standards-test">7. Testing Standards (TEST)</h2>
+<p><strong>Outcome: Pass.</strong> All sampled tests across all seven areas follow Arrange-Act-Assert, use descriptive <code>MethodUnderTest_Scenario_ExpectedBehavior</code>-style names, and assert concrete values (parsed fields, pixel colors, exception types/tokens) rather than only “no exception thrown.” No skipped/disabled tests were found anywhere in the review-set’s test files. Full suite: 1293/1293 passing across net8.0/net9.0/net10.0.</p>
+<h2 id="readability-usability-read-use">8. Readability / Usability (READ / USE)</h2>
+<p><strong>Outcome: Pass.</strong> No material findings beyond the documentation-staleness items already captured in §5.</p>
+<h2 id="summary-of-findings">9. Summary of Findings</h2>
+<table>
+<colgroup>
+<col style="width: 7%" />
+<col style="width: 29%" />
+<col style="width: 14%" />
+<col style="width: 22%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th>ID</th>
+<th style="text-align: center;">Severity</th>
+<th>Area</th>
+<th style="text-align: center;">Status</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>F0</td>
+<td style="text-align: center;">Medium (↓ from Critical)</td>
+<td>Scope/traceability</td>
+<td style="text-align: center;">Open</td>
+<td>Encryption/Type3 test files still uncovered by any review-set</td>
+</tr>
+<tr>
+<td>G0</td>
+<td style="text-align: center;">High (new)</td>
+<td>File structure</td>
+<td style="text-align: center;">Open</td>
+<td>Self-referential compressed-object chain → uncatchable <code>StackOverflowException</code></td>
+</tr>
+<tr>
+<td>G1</td>
+<td style="text-align: center;">Critical</td>
+<td>Images/CCITT</td>
+<td style="text-align: center;">Open</td>
+<td>CCITT buffer allocated before dimension bound-check</td>
+</tr>
+<tr>
+<td>G6</td>
+<td style="text-align: center;">Critical (new)</td>
+<td>Filters</td>
+<td style="text-align: center;">Open</td>
+<td>FlateDecode (<code>ZlibDecompress</code>) has no decompression-bomb cap</td>
+</tr>
+<tr>
+<td>#11</td>
+<td style="text-align: center;">Medium</td>
+<td>Content-stream</td>
+<td style="text-align: center;">Open</td>
+<td>Non-finite numeric operands unvalidated for <code>cm</code>/path ops</td>
+</tr>
+<tr>
+<td>#12</td>
+<td style="text-align: center;">Medium</td>
+<td>Content-stream</td>
+<td style="text-align: center;">Open</td>
+<td>Unbounded <code>q</code>-stack / operand-stack growth</td>
+</tr>
+<tr>
+<td>G10</td>
+<td style="text-align: center;">Medium (new)</td>
+<td>Fonts</td>
+<td style="text-align: center;">Open</td>
+<td>ToUnicode <code>bfrange</code> unbounded-span DoS (same pattern as fixed Type0 <code>/W</code>)</td>
+</tr>
+<tr>
+<td>G11</td>
+<td style="text-align: center;">Medium (new)</td>
+<td>Filters</td>
+<td style="text-align: center;">Open</td>
+<td>RunLengthDecode has no output-size cap</td>
+</tr>
+<tr>
+<td>G2</td>
+<td style="text-align: center;">Low</td>
+<td>Design doc</td>
+<td style="text-align: center;">Open</td>
+<td>Page-tree depth-guard undocumented</td>
+</tr>
+<tr>
+<td>G3</td>
+<td style="text-align: center;">Low</td>
+<td>Design doc</td>
+<td style="text-align: center;">Open</td>
+<td>Xref <code>/W</code> bounds-validation undocumented</td>
+</tr>
+<tr>
+<td>G7</td>
+<td style="text-align: center;">Low/Medium</td>
+<td>Verification doc</td>
+<td style="text-align: center;">Open</td>
+<td><code>## Acceptance Criteria</code> heading at wrong depth</td>
+</tr>
+<tr>
+<td>G8</td>
+<td style="text-align: center;">Low</td>
+<td>Design doc</td>
+<td style="text-align: center;">Open</td>
+<td>Stale Phase-16 class remarks re: password API</td>
+</tr>
+<tr>
+<td>G9</td>
+<td style="text-align: center;">Low</td>
+<td>Reqstream traceability</td>
+<td style="text-align: center;">Open</td>
+<td>New regression tests (xref <code>/W</code>, page-tree depth) not yet cross-referenced in reqstream/verification docs</td>
+</tr>
+<tr>
+<td>(prior #14)</td>
+<td style="text-align: center;">Low</td>
+<td>Encryption</td>
+<td style="text-align: center;">Open</td>
+<td>Non-constant-time comparisons, no key zeroing</td>
+</tr>
+<tr>
+<td>(prior #15)</td>
+<td style="text-align: center;">Low</td>
+<td>Fonts</td>
+<td style="text-align: center;">Open</td>
+<td>Misleading <code>StandardGlyphNames</code> XmlDoc</td>
+</tr>
+<tr>
+<td>(prior #16)</td>
+<td style="text-align: center;">Low</td>
+<td>Fonts/Namespace</td>
+<td style="text-align: center;">Open</td>
+<td>Stale “Phase 1” <code>NamespaceDoc.cs</code> claim</td>
+</tr>
+<tr>
+<td>—</td>
+<td style="text-align: center;">—</td>
+<td>—</td>
+<td style="text-align: center;"><strong>Fixed (10)</strong></td>
+<td>Xref <code>/W</code>, page-tree recursion, image bounds (non-CCITT), PNG predictor, LZW cap, <code>/Hival</code> overflow, truncated-image exception, Type0 <code>/W</code> span, <code>/Length</code> validation, <code>Aes.Key</code> try/catch, sampled-function overflow</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Totals</strong>: 2 Critical (open), 1 High (open), 4 Medium (open), 7 Low (open); 10 prior findings fully fixed with regression-test evidence; all documentation-sync claims verified true except the still-partial F0 fix.</p>
+<h2 id="overall-outcome">10. Overall Outcome</h2>
+<p><strong>FAIL.</strong></p>
+<p>The documentation-sync pass was executed accurately and in good faith: every specific documentation claim made by the user was independently verified true (with one partial exception — F0’s test-file coverage gap), requirements traceability is now complete (0 orphaned/unsatisfied for this unit), and roughly two-thirds of the prior review’s code-level findings were also fixed with proper regression-test coverage in the same window. This represents substantial, verifiable progress.</p>
+<p>However, the unit still does not meet the bar for a Pass:</p>
+<ol type="1">
+<li><strong>Finding F0</strong> (review-set scope) remains open: <code>PdfDocumentEncryptionTests.cs</code> and <code>PdfDocumentSymbolicEncodingTests.cs</code> are still outside <code>.reviewmark.yaml</code>’s file list for this review-set, so their 20+ security-sensitive test methods are not formally subject to review enforcement.</li>
+<li><strong>Two Critical and one High code-quality finding</strong> remain or were newly identified in this pass (G1 CCITT allocation-ordering, G6 FlateDecode decompression-bomb, G0 object-stream self-reference stack overflow) — all in the same “untrusted input must fail closed with a typed exception” category this review-set exists to enforce, and all independently reproducible/traceable via static code analysis.</li>
+<li>Several Medium-severity DoS/robustness gaps remain (non-finite operands, unbounded graphics-state stack, ToUnicode bfrange span, RunLength output size).</li>
+</ol>
+<h3 id="required-remediation-for-a-future-pass">Required Remediation for a Future Pass</h3>
+<ul>
+<li>Fix G1 (reorder CCITT bounds check before allocation) and G6 (cap FlateDecode output) — both Critical.</li>
+<li>Fix G0 (add cycle guard to <code>GetObject</code>/<code>LoadCompressedObject</code>) — High.</li>
+<li>Add <code>.reviewmark.yaml</code> entries for <code>PdfDocumentEncryptionTests.cs</code> and <code>PdfDocumentSymbolicEncodingTests.cs</code> (F0).</li>
+<li>Address the four open Medium findings (#11, #12, G10, G11) or provide an explicit, documented risk-acceptance rationale for each.</li>
+<li>Recommended but not blocking: fix the Low-severity documentation/traceability items (G2, G3, G7, G8, G9) and the three carried-forward Low findings.</li>
+</ul>
+<h2 id="approval-status">11. Approval Status</h2>
+<p><strong>Rejected</strong>, pending the remediation above. Re-review recommended once the Critical/ High findings are addressed.</p>
 </body>
 </html>
