@@ -1,3 +1,4 @@
+// cspell:ignore uncatchable
 namespace DemaConsulting.CanvasNet.Pdf;
 
 public sealed partial class PdfDocument
@@ -140,23 +141,49 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
+    ///     The maximum depth <see cref="ParseValue(PdfTokenizer, PdfToken, int)"/> allows nested
+    ///     arrays/dictionaries to descend before failing closed with
+    ///     <see cref="InvalidDataException"/>. A PDF is untrusted input, so an unbounded recursive
+    ///     descent parser risks exhausting the native call stack - which raises an uncatchable
+    ///     <see cref="StackOverflowException"/> - on a deeply/adversarially nested array or
+    ///     dictionary. 64 comfortably exceeds any realistic legitimate document structure while
+    ///     remaining far below a stack-exhausting depth.
+    /// </summary>
+    private const int MaxObjectNestingDepth = 64;
+
+    /// <summary>
     ///     Parses a single PDF value (of any kind) starting at the tokenizer's current position.
     /// </summary>
     /// <param name="tokenizer">The tokenizer to read from.</param>
     /// <returns>The parsed value.</returns>
     /// <exception cref="InvalidDataException">Thrown when the input is not a well-formed value.</exception>
-    internal static PdfObject ParseValue(PdfTokenizer tokenizer) => ParseValue(tokenizer, tokenizer.NextToken());
+    internal static PdfObject ParseValue(PdfTokenizer tokenizer) => ParseValue(tokenizer, tokenizer.NextToken(), 0);
 
-    private static PdfObject ParseValue(PdfTokenizer tokenizer, PdfToken token) => token.Kind switch
+    private static PdfObject ParseValue(PdfTokenizer tokenizer, PdfToken token) => ParseValue(tokenizer, token, 0);
+
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the input is not a well-formed value, or when <paramref name="depth"/>
+    ///     exceeds <see cref="MaxObjectNestingDepth"/>.
+    /// </exception>
+    private static PdfObject ParseValue(PdfTokenizer tokenizer, PdfToken token, int depth)
     {
-        PdfTokenKind.Number => ParseNumberOrReference(tokenizer, token),
-        PdfTokenKind.LiteralString or PdfTokenKind.HexString => PdfObject.FromString(token.Bytes ?? []),
-        PdfTokenKind.Name => PdfObject.FromName(token.Text ?? string.Empty),
-        PdfTokenKind.ArrayStart => ParseArray(tokenizer),
-        PdfTokenKind.DictStart => ParseDictionaryOrStream(tokenizer),
-        PdfTokenKind.Keyword => ParseKeywordValue(token),
-        _ => throw new InvalidDataException("Unexpected end of PDF content while parsing a value."),
-    };
+        if (depth > MaxObjectNestingDepth)
+        {
+            throw new InvalidDataException(
+                $"PDF object nesting depth exceeds the maximum supported depth of {MaxObjectNestingDepth}.");
+        }
+
+        return token.Kind switch
+        {
+            PdfTokenKind.Number => ParseNumberOrReference(tokenizer, token),
+            PdfTokenKind.LiteralString or PdfTokenKind.HexString => PdfObject.FromString(token.Bytes ?? []),
+            PdfTokenKind.Name => PdfObject.FromName(token.Text ?? string.Empty),
+            PdfTokenKind.ArrayStart => ParseArray(tokenizer, depth + 1),
+            PdfTokenKind.DictStart => ParseDictionaryOrStream(tokenizer, depth + 1),
+            PdfTokenKind.Keyword => ParseKeywordValue(token),
+            _ => throw new InvalidDataException("Unexpected end of PDF content while parsing a value."),
+        };
+    }
 
     private static PdfObject ParseKeywordValue(PdfToken token) => token.Text switch
     {
@@ -188,7 +215,7 @@ public sealed partial class PdfDocument
         return PdfObject.FromNumber(first.Number);
     }
 
-    private static PdfObject ParseArray(PdfTokenizer tokenizer)
+    private static PdfObject ParseArray(PdfTokenizer tokenizer, int depth)
     {
         var items = new List<PdfObject>();
         while (true)
@@ -204,13 +231,13 @@ public sealed partial class PdfDocument
                 throw new InvalidDataException("Unterminated array in PDF content.");
             }
 
-            items.Add(ParseValue(tokenizer, token));
+            items.Add(ParseValue(tokenizer, token, depth));
         }
 
         return PdfObject.FromArray(items);
     }
 
-    private static Dictionary<string, PdfObject> ParseDictionaryEntries(PdfTokenizer tokenizer)
+    private static Dictionary<string, PdfObject> ParseDictionaryEntries(PdfTokenizer tokenizer, int depth)
     {
         var entries = new Dictionary<string, PdfObject>();
         while (true)
@@ -231,7 +258,7 @@ public sealed partial class PdfDocument
                 throw new InvalidDataException("Dictionary keys must be names.");
             }
 
-            entries[keyToken.Text ?? string.Empty] = ParseValue(tokenizer);
+            entries[keyToken.Text ?? string.Empty] = ParseValue(tokenizer, tokenizer.NextToken(), depth);
         }
 
         return entries;
@@ -248,9 +275,9 @@ public sealed partial class PdfDocument
     ///     documented exception to this) - so only the data's <em>start</em> offset is recorded
     ///     here; the length is resolved lazily, on first access to the stream's bytes.
     /// </remarks>
-    private static PdfObject ParseDictionaryOrStream(PdfTokenizer tokenizer)
+    private static PdfObject ParseDictionaryOrStream(PdfTokenizer tokenizer, int depth)
     {
-        var entries = ParseDictionaryEntries(tokenizer);
+        var entries = ParseDictionaryEntries(tokenizer, depth);
 
         var savedPosition = tokenizer.Position;
         var next = tokenizer.NextToken();
