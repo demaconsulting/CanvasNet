@@ -15,6 +15,13 @@
       "file": "CanvasNet-Fonts/review-report.pdf"
     },
     {
+      "id": "CanvasNetPdf-PdfDocument",
+      "fingerprint": "5cf74b0dc492fcbb9e778f2041e3457412e0e011ba4a00a0381bdc73dbfd8140",
+      "date": "2026-10-02",
+      "result": "Fail",
+      "file": "CanvasNetPdf-PdfDocument/review-report.pdf"
+    },
+    {
       "id": "Purpose",
       "fingerprint": "b76be037bfea1c603ebd0e130abbf5d947f16bb88c7cf30bb27df0f063b6cd2a",
       "date": "2026-10-02",
