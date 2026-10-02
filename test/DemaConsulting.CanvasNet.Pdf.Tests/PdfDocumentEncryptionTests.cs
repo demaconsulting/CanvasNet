@@ -1139,4 +1139,104 @@ public class PdfDocumentEncryptionTests
         Assert.Equal(Black, surface[30, 70]);
         Assert.Equal(default, surface[5, 5]);
     }
+
+    /// <summary>
+    ///     Builds an in-memory, single-page, classic-xref, encrypted PDF whose classic
+    ///     cross-reference table deliberately records the <em>wrong</em> offset for object 1 (the
+    ///     Catalog) - pointing instead at object 2's (the Pages dictionary's) own real location,
+    ///     so normal cross-reference-based resolution of <c>/Root</c> parses successfully but
+    ///     yields a <c>/Type /Pages</c> object rather than a <c>/Type /Catalog</c> one, failing
+    ///     catalog-root validation and forcing the linear-scan fallback. The buffer also carries
+    ///     a second, decoy <c>trailer</c> dictionary near the end - with a valid <c>/Root</c> but
+    ///     no <c>/Encrypt</c> entry at all - that is never linked via <c>startxref</c>/<c>/Prev</c>
+    ///     and so is invisible to normal parsing, but which <c>ScanForTrailerDictionary</c> (used
+    ///     only by the fallback) finds by tokenizing the whole buffer for every <c>trailer</c>
+    ///     keyword occurrence and keeping the last one seen. The fallback therefore recovers a
+    ///     trailer with no <c>/Encrypt</c> entry even though the document is genuinely encrypted -
+    ///     exactly the scenario that would leave a stale <c>_encryptionKey</c> from the abandoned
+    ///     normal-path attempt in place without this fix. Object 4's <c>/Contents</c> stream is
+    ///     stored as plain, unencrypted bytes (<see cref="PlaintextContent"/> verbatim), proving
+    ///     the fallback path treats it as genuinely unencrypted rather than incorrectly RC4
+    ///     "decrypting" it with the stale key.
+    /// </summary>
+    private static byte[] BuildEncryptedPdfWithBrokenCatalogOffsetAndNoEncryptDecoyTrailer(string encryptDictBody, byte[] idBytes)
+    {
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"u8.ToArray(),
+            BuildStreamBody(Encoding.ASCII.GetBytes(PlaintextContent)),
+            Encoding.ASCII.GetBytes(encryptDictBody),
+        };
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        var offsets = new List<int>();
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            offsets.Add(buffer.Count);
+            buffer.AddRange(Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        var xrefOffset = buffer.Count;
+        buffer.AddRange(Encoding.ASCII.GetBytes($"xref\n0 {bodies.Count + 1}\n"));
+        buffer.AddRange("0000000000 65535 f \n"u8.ToArray());
+
+        // Object 1's recorded offset is deliberately wrong - object 2's real location - so the
+        // normal cross-reference path resolves /Root to a non-Catalog dictionary instead of
+        // throwing outright, failing IsValidCatalogRoot cleanly.
+        buffer.AddRange(Encoding.ASCII.GetBytes($"{offsets[1]:D10} 00000 n \n"));
+        for (var i = 1; i < offsets.Count; i++)
+        {
+            buffer.AddRange(Encoding.ASCII.GetBytes($"{offsets[i]:D10} 00000 n \n"));
+        }
+
+        var idHex = ToHex(idBytes);
+        buffer.AddRange(Encoding.ASCII.GetBytes(
+            $"trailer\n<< /Size {bodies.Count + 1} /Root 1 0 R /Encrypt 5 0 R /ID [<{idHex}> <{idHex}>] >>\nstartxref\n{xrefOffset}\n%%EOF\n"));
+
+        // The decoy trailer: valid /Root, no /Encrypt, unreachable via startxref/Prev - only the
+        // linear-scan fallback's raw "trailer" keyword scan ever sees this one.
+        buffer.AddRange(Encoding.ASCII.GetBytes($"trailer\n<< /Size {bodies.Count + 1} /Root 1 0 R >>\n"));
+
+        return [.. buffer];
+    }
+
+    /// <summary>
+    ///     Proves that when normal cross-reference parsing establishes a genuine encryption key
+    ///     but catalog-root validation then fails, triggering the linear-scan fallback, and the
+    ///     fallback's own recovered trailer has no <c>/Encrypt</c> entry, the stale encryption key
+    ///     from the abandoned normal-path attempt is discarded rather than reused - so a plain,
+    ///     unencrypted <c>/Contents</c> stream in the fallback-resolved document renders correctly
+    ///     instead of being incorrectly RC4 "decrypted" with a key that does not actually apply.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Open_FallbackTrailerWithoutEncrypt_DiscardsStaleEncryptionKey()
+    {
+        const int keyLengthBytes = 5;
+        const int revision = 2;
+        const int permissions = -3904;
+        var idBytes = (byte[])[.. Enumerable.Range(0, 16).Select(i => (byte)(0xC0 + i))];
+
+        var oBytes = ComputeOwnerEntryAlgorithm3(keyLengthBytes, revision, PasswordPadding, PasswordPadding);
+        var fileKey = ComputeFileKeyAlgorithm2(PasswordPadding, oBytes, permissions, idBytes, keyLengthBytes, revision);
+        var uBytes = ComputeUserEntryAlgorithm45(fileKey, idBytes, revision);
+        var encryptDictBody = $"<< /Filter /Standard /V 1 /R {revision} /O <{ToHex(oBytes)}> /U <{ToHex(uBytes)}> /P {permissions} >>";
+
+        var pdfBytes = BuildEncryptedPdfWithBrokenCatalogOffsetAndNoEncryptDecoyTrailer(encryptDictBody, idBytes);
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(pdfBytes));
+
+        // Assert: the plain, unencrypted "10 10 40 40 re f" content stream rendered correctly -
+        // without the fix, the stale RC4 key would have garbled these already-plaintext bytes
+        // before content-stream parsing ever saw them.
+        Assert.Equal(1, document.PageCount);
+        using var surface = document.Render(0, 100, 100);
+        Assert.Equal(Black, surface[30, 70]);
+        Assert.Equal(default, surface[5, 5]);
+    }
 }

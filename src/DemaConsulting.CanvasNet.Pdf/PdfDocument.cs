@@ -252,7 +252,17 @@ public sealed partial class PdfDocument : IDisposable
             // corrupt/missing startxref, or offsets that do not point at real objects) - fall back
             // to a linear scan for "N G obj" markers, discarding any partially-cached objects
             // resolved against the abandoned cross-reference table or encryption state.
+            //
+            // The encryption state itself must also be reset here: InitializeEncryption above may
+            // already have succeeded and populated _encryptionKey/_encryptionCipher before the
+            // later catalog-validation check failed. If the linear-scan fallback's recovered
+            // trailer has no /Encrypt entry of its own, InitializeEncryption below returns
+            // immediately as a no-op - leaving the stale key from the abandoned attempt in place
+            // and causing every object parsed from the fallback path to be incorrectly
+            // "decrypted" with a key that does not actually apply to it.
             _objectCache.Clear();
+            _encryptionKey = null;
+            _encryptionCipher = EncryptionCipher.None;
             trailer = BuildLinearScanFallback();
             InitializeEncryption(trailer, password);
         }
