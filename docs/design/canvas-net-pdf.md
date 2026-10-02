@@ -205,7 +205,7 @@ never attempts to interpret the (still-encrypted) bytes of an encrypted document
 content, instead throwing `Codecs.UnsupportedImageFeatureException` (feature `"pdf-encrypted"`)
 immediately upon detection. Phase 3 extended this same fail-closed posture to every well-formed
 but out-of-scope construct it could then encounter: an unsupported color space (`Indexed`/
-`Separation`/`DeviceN`/`ICCBased`/`CalRGB`/`CalGray`/`Lab`/patterns), an unsupported stream filter,
+`Separation`/`DeviceN`/`ICCBased`/`CalGray`/`Lab`/patterns), an unsupported stream filter,
 an unsupported image `/BitsPerComponent`, and a `/Subtype /Form` XObject are all rejected with
 `Codecs.UnsupportedImageFeatureException` rather than being silently skipped or mis-rendered.
 Phase 4 extended the same posture to text/font constructs: a font dictionary's `/Type1`/
@@ -233,7 +233,7 @@ currently-thrown `Codecs.UnsupportedImageFeatureException` carries a distinct,
 descriptive `Feature` string so a caller (or this repository's own tests) can distinguish exactly
 which unsupported construct was encountered — the complete current set is: `pdf-encrypted`,
 `pdf-pattern-color`, `pdf-colorspace-{name}` (`Indexed`/`Separation`/`DeviceN`/`ICCBased`/
-`CalRGB`/`CalGray`/`Lab`), `pdf-filter-{name}` (`JPXDecode` and any other
+`CalGray`/`Lab`), `pdf-filter-{name}` (`JPXDecode` and any other
 unrecognized filter), `pdf-tiff-predictor-bitdepth-{n}`, `pdf-image-bitdepth-{n}`,
 `pdf-form-xobject`, `pdf-font-subtype-{subtype}` (`Type1`/`MMType1`/`Type3`),
 `pdf-font-symbolic-not-embedded` (`Symbol`/`ZapfDingbats`), `pdf-font-encoding-{name}`,

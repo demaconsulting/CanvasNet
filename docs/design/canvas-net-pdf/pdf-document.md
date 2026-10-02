@@ -513,8 +513,9 @@ its own distinguishable `Feature` token.
   (`ResolveColorSpaceByName`), resetting color to opaque black (the PDF specification's own
   documented `cs`/`CS` reset rule) — an array-shaped color space is dispatched by
   `ResolveColorSpaceValue` to `ResolveIccBasedColorSpace` (`/ICCBased`) or
-  `ResolveIndexedColorSpace` (`/Indexed`, Phase 14 — see below); any other resolved color space
-  (`Separation`/`DeviceN`/`CalRGB`/`CalGray`/`Lab`, or an undeclared name) throws
+  `ResolveIndexedColorSpace` (`/Indexed`, Phase 14 — see below), or resolved directly to
+  `DeviceRGB` for `[/CalRGB dict]` (ignoring its own `/WhitePoint`/`/Gamma`/`/Matrix` entries); any
+  other resolved color space (`Separation`/`DeviceN`/`CalGray`/`Lab`, or an undeclared name) throws
   `Codecs.UnsupportedImageFeatureException`, naming the unsupported space; a `/Pattern` array
   form is dispatched instead to `PdfColorSpace.Pattern` (see _`/Pattern` Color Space (Shading and
   Tiling Patterns)_ below). `OpSetColorFill`/`OpSetColorStroke` (`sc`/`SC`/`scn`/`SCN`) require
@@ -1192,7 +1193,7 @@ its own distinguishable `Feature` token.
   Interpreter_ above); an unbalanced `Q` with no matching prior `q` is likewise tolerated as a
   documented no-op, not an error.
 - **An unsupported color space** (`cs`/`CS`, or an image XObject's `/ColorSpace`:
-  `Separation`/`DeviceN`/`CalRGB`/`CalGray`/`Lab`, an undeclared `/Resources/ColorSpace` name, an
+  `Separation`/`DeviceN`/`CalGray`/`Lab`, an undeclared `/Resources/ColorSpace` name, an
   `/ICCBased` stream whose `/N` is not `1`/`3`/`4` with no usable `/Alternate`, an `/Indexed` color
   space whose base color space is itself unsupported, a `/Pattern` array form with an element
   count other than 1 or 2 (feature `pdf-colorspace-Pattern`), or any other unrecognized value) —

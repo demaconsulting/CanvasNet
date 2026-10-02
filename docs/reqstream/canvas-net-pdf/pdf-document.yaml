@@ -461,7 +461,7 @@ sections:
               DeviceRGB/DeviceCMYK directly or via the current page's /Resources/ColorSpace
               dictionary and resetting color to opaque black, and the sc/SC/scn/SCN operators,
               setting color from the current color space's required component count; any other
-              resolved color space (Separation/DeviceN/CalRGB/CalGray/Lab, an undeclared name, or
+              resolved color space (Separation/DeviceN/CalGray/Lab, an undeclared name, or
               a scn/SCN /Pattern name) shall throw UnsupportedImageFeatureException rather than
               being silently mis-rendered.
             justification: |

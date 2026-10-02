@@ -2381,7 +2381,6 @@ public class PdfDocumentTests
     [InlineData("[/Separation /Spot /DeviceGray 4 0 R]")]
     [InlineData("[/DeviceN [/Spot] /DeviceGray 4 0 R]")]
     [InlineData("[/ICCBased 4 0 R]")]
-    [InlineData("[/CalRGB << >>]")]
     [InlineData("[/CalGray << >>]")]
     [InlineData("[/Lab << >>]")]
     public void PdfDocument_Color_UnsupportedNamedColorSpace_ThrowsUnsupportedImageFeatureException(string colorSpaceArray)
@@ -2442,6 +2441,33 @@ public class PdfDocumentTests
 
         // Assert: 3 operands were accepted (/N 3 implies DeviceRGB's component count) and the
         // fill painted blue, exactly like DeviceRGB would.
+        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>[/CalRGB dict]</c> color space resolves/paints identically to
+    ///     <c>DeviceRGB</c>, ignoring its own <c>/WhitePoint</c>/<c>/Gamma</c>/<c>/Matrix</c>
+    ///     entries entirely - a corpus-observed gap (PDFTest's <c>sample01</c>-<c>sample08.pdf</c>
+    ///     and <c>pdf-sample.pdf</c> all declare page content color spaces this way).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Color_CalRgbColorSpace_ResolvesToDeviceRgb()
+    {
+        // Arrange: a /CalRGB color space declaring a non-trivial /WhitePoint/Gamma/Matrix, which
+        // this renderer deliberately ignores (see ResolveColorSpaceValue's own remarks).
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/CS0 cs 0 0 1 scn 10 10 80 80 re f",
+            "/ColorSpace << /CS0 [/CalRGB << /WhitePoint [0.9505 1.0 1.089] " +
+            "/Gamma [2.2 2.2 2.2] /Matrix [0.41 0.21 0.019 0.36 0.72 0.12 0.18 0.07 0.95] >>] >>",
+            []);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: 3 operands were accepted (CalRGB's component count matches DeviceRGB's) and
+        // the fill painted blue, exactly like DeviceRGB would.
         Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[50, 50]);
     }
 
@@ -3791,9 +3817,10 @@ public class PdfDocumentTests
     [Fact]
     public void PdfDocument_Images_UnsupportedColorSpace_ThrowsUnsupportedImageFeatureException()
     {
-        // Arrange
+        // Arrange: /Lab remains unsupported (unlike /CalRGB - see
+        // PdfDocument_Color_CalRgbColorSpace_ResolvesToDeviceRgb).
         var imageStream = BuildStreamObjectBody(
-            "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace [/CalRGB << >>] /BitsPerComponent 8 /Filter /FlateDecode",
+            "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace [/Lab << >>] /BitsPerComponent 8 /Filter /FlateDecode",
             ZlibCompress([0x00]));
 
         var bytes = BuildSinglePagePdfWithResources(

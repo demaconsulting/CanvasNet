@@ -414,9 +414,9 @@ public sealed partial class PdfDocument
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when the name is not one of the three device names and either cannot be
     ///     resolved via <c>/Resources/ColorSpace</c> at all, or resolves to an unsupported color
-    ///     space (<c>Separation</c>/<c>DeviceN</c>/<c>CalRGB</c>/<c>CalGray</c>/<c>Lab</c>/
-    ///     anything else, or an <c>/ICCBased</c>/<c>/Indexed</c> edge case documented on
-    ///     <see cref="PdfColorSpace"/>).
+    ///     space (<c>Separation</c>/<c>DeviceN</c>/<c>CalGray</c>/<c>Lab</c>/anything else, or an
+    ///     <c>/ICCBased</c>/<c>/Indexed</c> edge case documented on <see cref="PdfColorSpace"/>) -
+    ///     <c>CalRGB</c> is supported, see <see cref="ResolveColorSpaceValue"/>'s own remarks.
     /// </exception>
     private PdfColorSpace ResolveColorSpaceByName(string name)
     {
@@ -464,6 +464,16 @@ public sealed partial class PdfDocument
     ///     for example an image XObject's own <c>/ColorSpace</c> entry) into a
     ///     <see cref="PdfColorSpace"/>.
     /// </summary>
+    /// <remarks>
+    ///     <c>[/CalRGB dict]</c> (PDF 32000-1 §8.6.5.3) is mapped directly to
+    ///     <see cref="PdfColorSpace.DeviceRGB"/>, ignoring <paramref name="value"/>'s own
+    ///     <c>/WhitePoint</c>/<c>/Gamma</c>/<c>/Matrix</c> entries entirely - a documented
+    ///     simplification matching this method's own existing <c>/ICCBased</c> precedent
+    ///     (<see cref="ResolveIccBasedColorSpace"/>'s own "map to the nearest Device* space,
+    ///     ignore the actual colorimetric transform" posture), rather than performing the real
+    ///     CIE-based chromatic-adaptation/gamma conversion the PDF specification describes.
+    ///     <c>CalGray</c> and <c>Lab</c> remain unsupported (thrown below).
+    /// </remarks>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="value"/> is neither a <c>Name</c> nor an <c>Array</c>, or
     ///     propagated from <see cref="ResolveIndexedColorSpace"/> for a malformed <c>/Indexed</c>
@@ -471,9 +481,9 @@ public sealed partial class PdfDocument
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
     ///     Thrown when the value names/represents a color space other than <c>DeviceGray</c>/
-    ///     <c>DeviceRGB</c>/<c>DeviceCMYK</c>/<c>ICCBased</c>/<c>Indexed</c>, or propagated from
-    ///     <see cref="ResolveIccBasedColorSpace"/>/<see cref="ResolveIndexedColorSpace"/> for the
-    ///     documented edge cases of those two color spaces.
+    ///     <c>DeviceRGB</c>/<c>DeviceCMYK</c>/<c>ICCBased</c>/<c>Indexed</c>/<c>CalRGB</c>, or
+    ///     propagated from <see cref="ResolveIccBasedColorSpace"/>/<see cref="ResolveIndexedColorSpace"/>
+    ///     for the documented edge cases of those two color spaces.
     /// </exception>
     private PdfColorSpace ResolveColorSpaceValue(PdfObject value)
     {
@@ -496,6 +506,8 @@ public sealed partial class PdfDocument
                     return ResolveIndexedColorSpace(value);
                 case "Pattern":
                     return ResolvePatternColorSpace(value);
+                case "CalRGB":
+                    return PdfColorSpace.DeviceRGB;
             }
 
             throw new UnsupportedImageFeatureException(

@@ -471,7 +471,8 @@ asserting `InvalidDataException` in every case.
 `PdfDocument_Color_SetColorStrokeUsingCurrentColorSpace_SC_PaintsExpectedColor`,
 `PdfDocument_Color_ScnWithPatternName_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Color_UnsupportedNamedColorSpace_ThrowsUnsupportedImageFeatureException` (`[Theory]`:
-Separation/DeviceN/ICCBased/CalRGB/CalGray/Lab),
+Separation/DeviceN/ICCBased/CalGray/Lab),
+`PdfDocument_Color_CalRgbColorSpace_ResolvesToDeviceRgb`,
 `CanvasNetPdf_SystemIntegration_PdfRender_ColoredRectangleFill_PaintsExpectedRgbPixels`
 
 Renders a red-filled rectangle, then a `cs`/`CS` device-name switch (asserted, for all three
@@ -704,7 +705,7 @@ XObject (an 8x8 solid-color surface encoded via `Codecs.JpegCodec.Save` at test-
 100 - a flat color block's DCT has only a DC coefficient, so the round-trip reproduces it within
 a small per-channel tolerance), asserting the decoded/composited pixel matches within that
 tolerance. Renders an image XObject with an unsupported `/BitsPerComponent` (`1`) and, separately,
-an unsupported `/ColorSpace` (`/CalRGB`), each asserting
+an unsupported `/ColorSpace` (`/Lab`), each asserting
 `Codecs.UnsupportedImageFeatureException`. Renders `Do` with a name undeclared in
 `/Resources/XObject`, asserting `InvalidDataException`. A `[Theory]`
 renders `Do` with a malformed operand count/type, asserting `InvalidDataException` in every case.
