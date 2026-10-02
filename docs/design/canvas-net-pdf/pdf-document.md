@@ -1205,6 +1205,69 @@ its own distinguishable `Feature` token.
   `MaxFormNestingDepth` guard (no dedicated correctness test of deep nested rendering itself, only
   that the guard still fires through this new call path).
 
+### Resource and Input Bounds
+
+`PdfDocument` parses an externally-supplied, potentially adversarial PDF document, so several of
+its decoders and interpreter loops cap a resource (decoded-output size, stack depth, or expansion
+factor) that an otherwise well-formed but maliciously crafted input could otherwise drive
+unboundedly large, closing a class of decompression-bomb/resource-exhaustion denial-of-service
+risks without rejecting any legitimate, real-world PDF document:
+
+- **`FlateDecode` output cap** — `DecompressFlateStream`'s chunked read loop rejects a decoded
+  stream once its accumulated output exceeds `FlateMaxOutputBytes` (64 MiB) with
+  `InvalidDataException`, rather than continuing to inflate an unbounded (or deliberately
+  self-referential/highly-compressible) `zlib` stream into memory. 64 MiB is generous for any
+  legitimate PDF image or content stream while still bounding a single decode's worst-case
+  allocation.
+- **`RunLengthDecode` output cap** — each repeat/literal run is checked against the remaining
+  budget under `RunLengthMaxOutputBytes` (64 MiB) _before_ the run's bytes are appended, throwing
+  `InvalidDataException` rather than only detecting the overrun after the full (already expanded)
+  output has been materialized; a single 2-byte repeat run can expand to up to 128 output bytes (a
+  64x amplification), so checking the budget first closes the window where a tiny crafted stream
+  could otherwise force a large allocation before the cap is ever observed.
+- **`ASCII85Decode` output cap** — mirrors the `RunLengthDecode` convention exactly:
+  `Ascii85MaxOutputBytes` (64 MiB) is checked before each decoded group is appended, throwing
+  `InvalidDataException` once exceeded, bounding a filter whose encoded form is otherwise only
+  mildly larger than its decoded output but still unbounded in principle.
+- **Graphics-state stack depth cap** — `OpPushGraphicsState` (`q`) throws `InvalidDataException`
+  once the graphics-state stack already holds `MaxGraphicsStateStackDepth` (256) entries, rather
+  than allowing a content stream with deeply/unboundedly nested `q` operators (never matched by a
+  corresponding `Q`) to grow the stack without limit. 256 comfortably exceeds any nesting depth a
+  legitimate content stream's own `q`/`Q`-balanced structure is expected to reach.
+- **`/ToUnicode` `bfrange` span cap** — `ParseBfRangeBlock`'s hex-string destination form throws
+  `InvalidDataException` when a single `bfrange` entry's code span (`srcHi - srcLo + 1`) exceeds
+  `ToUnicodeMaxBfRangeSpan` (65536 codes), rather than materializing one map entry per code for an
+  entry whose declared source range is enormous (or malformed to appear so).
+- **Compressed object-stream cycle guard** — `GetObject`/`LoadCompressedObject` track the set of
+  compressed-object numbers currently being resolved in `_compressedObjectResolutionStack`,
+  throwing `InvalidDataException` when a compressed object's own resolution would re-enter itself
+  (directly or transitively via another compressed object naming it as its own containing object
+  stream), rather than recursing indefinitely into a genuine cycle and eventually raising an
+  `StackOverflowException` that cannot be caught - mirroring the page-tree reference-cycle guard
+  `TraversePageTree` already applies to `/Kids`.
+- **Non-finite numeric operand rejection** — `RequireNumbers` (the shared operand-parsing helper
+  used by every numeric content-stream operator, including `cm`, path-construction operators, and
+  color operators) throws `InvalidDataException` when any parsed operand is `NaN` or an infinity,
+  rejecting a non-finite value before it can propagate into a transform matrix or path coordinate
+  and corrupt unrelated, subsequently-painted geometry.
+- **CCITT dimension/bounds validation ordering** — `DecodeCcittFaxImageXObject` validates a
+  non-positive (zero or negative) `/Columns`/`/Rows` value, and performs its row/column bounds
+  check, _before_ invoking the Group 4 (T.6 MMR) decoder, rather than after: validating first
+  prevents an oversized allocation from being attempted ahead of the existing bounds check ever
+  running.
+- **Xref stream-data-length overflow fix** — `GetStreamRawBytes` computes a compressed object
+  stream's `StreamDataStart + length` bound using `long` arithmetic rather than `int`, preventing
+  a maliciously large declared `/Length` from wrapping an `int` sum around to a small or negative
+  value that would otherwise defeat the subsequent bounds check entirely.
+- **Unterminated literal-string rejection** — the tokenizer throws `InvalidDataException` when a
+  PDF literal string (`(...)`) reaches end-of-file while its paren-nesting depth is still nonzero,
+  rather than silently treating the truncated remainder of the file as the string's own content.
+
+Each of these limits is an approximate, deliberately generous bound chosen to comfortably exceed
+any legitimate, real-world PDF document's own requirements while still closing the unbounded-
+resource attack surface a malicious or malformed document could otherwise exploit; none of them
+change behavior for any document within normal real-world limits.
+
 ### Error Handling
 
 - **Null `stream`/`path` argument to `Open`** — `ArgumentNullException`, thrown directly with a

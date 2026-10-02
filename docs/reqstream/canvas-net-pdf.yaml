@@ -151,7 +151,10 @@ sections:
           - CanvasNetPdf-PdfDocument-EncryptionRc4
           - CanvasNetPdf-PdfDocument-EncryptionAesV2
           - CanvasNetPdf-PdfDocument-EncryptionAesV3R5
-          - CanvasNetPdf-PdfDocument-EncryptionPasswordAuthentication
+          - CanvasNetPdf-PdfDocument-UserPasswordAuthentication
+          - CanvasNetPdf-PdfDocument-OwnerPasswordAuthentication
+          - CanvasNetPdf-PdfDocument-IncorrectPasswordRejection
+          - CanvasNetPdf-PdfDocument-PasswordNonAsciiRejection
         tests:
           - CanvasNetPdf_SystemIntegration_PdfEncryptDetection_EncryptedTrailerThrowsUnsupportedImageFeatureException
           - CanvasNetPdf_SystemIntegration_PdfOpen_EncryptedRc4_CorrectUserPassword_DecryptsAndRendersExpectedPixels
@@ -218,6 +221,7 @@ sections:
           - CanvasNetPdf-PdfDocument-LzwDecodeFilter
           - CanvasNetPdf-PdfDocument-AsciiDecodeFilters
           - CanvasNetPdf-PdfDocument-RunLengthDecodeFilter
+          - CanvasNetPdf-PdfDocument-RunLengthDecodeOutputCap
           - CanvasNetPdf-PdfDocument-CcittFaxDecodeFilter
         tests:
           - CanvasNetPdf_SystemIntegration_PdfRender_LzwDecodeContentStream_PaintsExpectedPixels
@@ -291,6 +295,10 @@ sections:
           - CanvasNetPdf-PdfDocument-Type1CFontResolution
           - CanvasNetPdf-PdfDocument-Type3FontResolution
           - CanvasNetPdf-PdfDocument-Type3GlyphPainting
+          - CanvasNetPdf-PdfDocument-Type3GlyphStateIsolation
+          - CanvasNetPdf-PdfDocument-Type3GlyphNestingDepthGuard
+          - CanvasNetPdf-PdfDocument-Type3RenderMode3Invisible
+          - CanvasNetPdf-PdfDocument-Type3D0D1Operators
           - CanvasNetPdf-PdfDocument-SymbolZapfDingbatsFallback
         tests:
           - CanvasNetPdf_SystemIntegration_PdfRender_EmbeddedTrueTypeFontText_PaintsGlyphStrokesNotCounters
@@ -318,7 +326,10 @@ sections:
           rejected as an unsupported font subtype. Resolving /ToUnicode as unconsumed groundwork
           unblocks a future text-extraction feature without re-deriving CMap-parsing primitives.
         children:
-          - CanvasNetPdf-PdfDocument-CompositeFontResolution
+          - CanvasNetPdf-PdfDocument-CompositeFontDispatch
+          - CanvasNetPdf-PdfDocument-CidFontType2FontResolution
+          - CanvasNetPdf-PdfDocument-CidFontType0FontResolution
+          - CanvasNetPdf-PdfDocument-CompositeFontWidths
           - CanvasNetPdf-PdfDocument-ToUnicodeCMap
         tests:
           - CanvasNetPdf_SystemIntegration_RenderType0CompositeFont_PaintsExpectedGlyphInk

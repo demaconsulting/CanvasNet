@@ -194,7 +194,8 @@ out of scope). Separately builds an in-memory RC4 document with a well-formed `/
 deliberately wrong `/U`, and an in-memory AESV3/R5 document with a deliberately wrong `/U`
 validation hash, asserting both throw with `Feature == "pdf-encrypted-password-required"` when no
 password is supplied (a real, non-empty password is genuinely required to open either document;
-see `CanvasNetPdf-PdfDocument-EncryptionPasswordAuthentication` below for the distinguishable
+see `CanvasNetPdf-PdfDocument-IncorrectPasswordRejection` and
+`CanvasNetPdf-PdfDocument-PasswordNonAsciiRejection` below for the distinguishable
 `"pdf-encrypted-incorrect-password"`/`"pdf-encrypted-password-non-ascii"` tokens thrown when a
 password *is* supplied but still fails to authenticate, or is malformed).
 
@@ -263,23 +264,24 @@ specifies). Opens it through the public API with no password supplied and assert
 produces the expected pixel colors, proving Algorithm 2.A's validation-salt authentication,
 `/UE` unwrapping, and direct-file-key stream decryption all work correctly end-to-end.
 
-#### CanvasNetPdf-PdfDocument-EncryptionPasswordAuthentication: Caller-Supplied Password Tried as User, Then Owner
+#### CanvasNetPdf-PdfDocument-UserPasswordAuthentication: Correct User Password Decrypts and Renders
 
 **Tests**: `PdfDocument_Open_EncryptedRc4_CorrectUserPassword_DecryptsAndRenders`,
 `PdfDocument_Open_EncryptedAesV2_CorrectUserPassword_DecryptsAndRenders`,
-`PdfDocument_Open_EncryptedAesV3_CorrectUserPassword_DecryptsAndRenders`,
-`PdfDocument_Open_EncryptedRc4_CorrectOwnerPassword_DecryptsAndRenders`,
-`PdfDocument_Open_EncryptedAesV3_CorrectOwnerPassword_DecryptsAndRenders`,
-`PdfDocument_Open_Encrypted_IncorrectPassword_ThrowsUnsupportedImageFeatureException`,
-`PdfDocument_Open_Encrypted_NonAsciiPassword_ThrowsUnsupportedImageFeatureException`
+`PdfDocument_Open_EncryptedAesV3_CorrectUserPassword_DecryptsAndRenders`
 
-The three `*_CorrectUserPassword_*` tests build RC4 (`/V 2`/`/R 3`), AES-128 (`/V 4`/`/R 4`/
-`/CFM /AESV2`), and AES-256 R5 (`/V 5`/`/R 5`/`/CFM /AESV3`) fixtures whose `/O`/`/U` (or `/U`/
-`/UE`) are derived from a real, non-empty password (`"test"`) rather than the empty-password
-padding constant, then call `PdfDocument.Open(stream, "test")` and assert `Render` produces the
-expected pixel colors - proving the user-password authentication path correctly encodes/pads a
-real password's bytes (Latin-1 for R2-R4, UTF-8 for R5) instead of always using the empty-password
-constant.
+The three tests build RC4 (`/V 2`/`/R 3`), AES-128 (`/V 4`/`/R 4`/`/CFM /AESV2`), and AES-256 R5
+(`/V 5`/`/R 5`/`/CFM /AESV3`) fixtures whose `/O`/`/U` (or `/U`/`/UE`) are derived from a real,
+non-empty password (`"test"`) rather than the empty-password padding constant, then call
+`PdfDocument.Open(stream, "test")` and assert `Render` produces the expected pixel colors -
+proving the user-password authentication path correctly encodes/pads a real password's bytes
+(Latin-1 for R2-R4, UTF-8 for R5) instead of always using the empty-password constant, across
+every supported cipher.
+
+#### CanvasNetPdf-PdfDocument-OwnerPasswordAuthentication: Correct Owner Password Decrypts and Renders
+
+**Tests**: `PdfDocument_Open_EncryptedRc4_CorrectOwnerPassword_DecryptsAndRenders`,
+`PdfDocument_Open_EncryptedAesV3_CorrectOwnerPassword_DecryptsAndRenders`
 
 `PdfDocument_Open_EncryptedRc4_CorrectOwnerPassword_DecryptsAndRenders` builds an `/R 3` RC4
 fixture whose `/O` is computed from a distinct owner password and a different real user password
@@ -296,16 +298,22 @@ owner-password variant of ISO 32000-2 Algorithm 2.A - hashing/encrypting over
 `TryComputeFileKeyAlgorithm2AOwnerPassword` recovers the file key directly from `/OE` and that the
 document then renders correctly.
 
-`PdfDocument_Open_Encrypted_IncorrectPassword_ThrowsUnsupportedImageFeatureException` builds a
-well-formed `/R 3` RC4 fixture with real, distinct, correct owner and user passwords, then calls
-`Open(stream, "wrong-password")` and asserts `UnsupportedImageFeatureException` is thrown with
-`Feature == "pdf-encrypted-incorrect-password"` - proving that a password which authenticates as
-neither role is rejected with the new, distinguishable token (not the null-password
-`"pdf-encrypted-password-required"` token, and not a silent wrong-key decrypt).
+#### CanvasNetPdf-PdfDocument-IncorrectPasswordRejection: Wrong Password Rejected With Distinguishable Feature
 
-`PdfDocument_Open_Encrypted_NonAsciiPassword_ThrowsUnsupportedImageFeatureException` builds a
-well-formed `/R 2` RC4 fixture (empty-user-password `/O`/`/U`, irrelevant to this test) and calls
-`Open(stream, "caf\u00e9")` (containing `é`, outside ASCII 0-127), asserting
+**Test**: `PdfDocument_Open_Encrypted_IncorrectPassword_ThrowsUnsupportedImageFeatureException`
+
+Builds a well-formed `/R 3` RC4 fixture with real, distinct, correct owner and user passwords,
+then calls `Open(stream, "wrong-password")` and asserts `UnsupportedImageFeatureException` is
+thrown with `Feature == "pdf-encrypted-incorrect-password"` - proving that a password which
+authenticates as neither role is rejected with the new, distinguishable token (not the
+null-password `"pdf-encrypted-password-required"` token, and not a silent wrong-key decrypt).
+
+#### CanvasNetPdf-PdfDocument-PasswordNonAsciiRejection: Non-ASCII R2-R4 Password Rejected Before Authentication
+
+**Test**: `PdfDocument_Open_Encrypted_NonAsciiPassword_ThrowsUnsupportedImageFeatureException`
+
+Builds a well-formed `/R 2` RC4 fixture (empty-user-password `/O`/`/U`, irrelevant to this test)
+and calls `Open(stream, "caf\u00e9")` (containing `é`, outside ASCII 0-127), asserting
 `UnsupportedImageFeatureException` is thrown with `Feature == "pdf-encrypted-password-non-ascii"`
 
 - proving `EncodeR2R4PasswordBytes` rejects non-ASCII R2-R4 passwords before any RC4/MD5
@@ -643,6 +651,16 @@ for a literal run that declares more bytes than remain (truncated, no EOD reache
 end-to-end system-integration test independently proves `RunLengthDecode` decoding a real page
 `/Contents` stream, asserting the expected filled-rectangle pixels.
 
+#### CanvasNetPdf-PdfDocument-RunLengthDecodeOutputCap: Oversized Expansion Fails Closed Before Full Decode
+
+**Test**: `PdfDocument_Filters_RunLengthDecode_OutputExceedsMaxSize_ThrowsInvalidDataException`
+
+Builds a RunLengthDecode-filtered stream of crafted repeat runs whose fully-expanded output would
+exceed the fixed maximum decoded-output size, asserting `InvalidDataException` is thrown -
+proving the output-size budget is checked before appending each run (not only after the entire
+stream has already been expanded into memory), closing the decompression-bomb-style resource-
+exhaustion attack surface a 64x-amplifying filter like RunLengthDecode would otherwise expose.
+
 #### CanvasNetPdf-PdfDocument-CcittFaxDecodeFilter: CCITTFaxDecode Implements T.6 Group 4 MMR, Fails Closed Otherwise
 
 **Tests**: `PdfDocument_Images_DoOperator_CcittFaxGroup4_PlacesExpectedPixels`,
@@ -781,7 +799,7 @@ fallback font's differently-shaped glyph - proving an embedded font always wins 
 substitution. As of Phase 6, a `/Subtype /TrueType` font lacking an embedded `/FontFile2` no
 longer fails closed here at all; see `CanvasNetPdf-PdfDocument-FontFallback` below for its
 resolution. As of Phase 9, a `/Subtype /Type0` composite font no longer fails closed here either;
-see `CanvasNetPdf-PdfDocument-CompositeFontResolution` immediately below for its own resolution
+see `CanvasNetPdf-PdfDocument-CompositeFontDispatch` immediately below for its own resolution
 and remaining fail-closed cases. As of Phase B, `/Subtype /Type1` is no longer listed among the
 excluded subtypes at all: a dedicated test proves a `/Type1`
 font dictionary dispatches to `BuildResolvedSimpleFont` and paints its embedded Type 1 program's
@@ -796,32 +814,31 @@ several real-world producers - for example ReportLab - emit), asserting it resol
 `CanvasNetPdf-PdfDocument-Type3FontResolution`/`CanvasNetPdf-PdfDocument-Type3GlyphPainting`
 below for its own resolution and glyph-painting tests.
 
-#### CanvasNetPdf-PdfDocument-CompositeFontResolution: Type0/Identity-H Composite Fonts Resolve, Fail Closed Otherwise
+#### CanvasNetPdf-PdfDocument-CompositeFontDispatch: Type0/Identity-H Dispatch and Encoding Validation
+
+**Tests**: `PdfDocument_Fonts_Type0_NonIdentityHEncoding_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Fonts_Type0_MissingDescendantFonts_ThrowsInvalidDataException`,
+`PdfDocument_Fonts_Type0_DescendantFontsNotSingleElement_ThrowsInvalidDataException`,
+`PdfDocument_ShowText_Type0_OddByteLengthString_ThrowsInvalidDataException`,
+`PdfDocument_ShowText_Type0_TwoByteCodes_ShowsEachGlyphAtCorrectPosition`
+
+A `[Theory]` declares `/Encoding` as an arbitrary other name and, separately, `/Identity-V`,
+asserting `Codecs.UnsupportedImageFeatureException` in both cases. Declares a Type0 font
+dictionary with no `/DescendantFonts` and, separately, a `/DescendantFonts` array with two
+elements, asserting `InvalidDataException` in both cases. Shows an odd-byte-length string
+against a composite font via `Tj`, asserting `InvalidDataException`. Shows two 2-byte codes via
+`Tj`, asserting each glyph is painted at the position its own declared/default width determines -
+proving the shared `/Identity-H` 2-byte decode and descendant-font dispatch is validated and
+exercised independently of which descendant font subtype is ultimately resolved.
+
+#### CanvasNetPdf-PdfDocument-CidFontType2FontResolution: CIDFontType2 TrueType Descendant Resolves via CIDToGIDMap
 
 **Tests**: `PdfDocument_Fonts_Type0_IdentityHCidFontType2_ResolvesEmbeddedFont`,
 `PdfDocument_Fonts_Type0_CidToGidMapIdentity_UsesCidAsGid`,
 `PdfDocument_Fonts_Type0_CidToGidMapStream_RemapsCidToGid`,
 `PdfDocument_Fonts_Type0_CidToGidMapStream_OutOfRangeCid_MapsToNotdef`,
-`PdfDocument_Fonts_Type0_NonIdentityHEncoding_ThrowsUnsupportedImageFeatureException`,
-`PdfDocument_Fonts_Type0_CidFontType0_NoFontFile3_ThrowsInvalidDataException`,
-`PdfDocument_Fonts_Type0_CidFontType0_OpenTypeCff_ResolvesEmbeddedFont`,
-`PdfDocument_Fonts_Type0_CidFontType0_NonStandardCidToGidMap_IsIgnored`,
-`PdfDocument_Fonts_Type0_CidFontType0_Widths_WArrayIndividualForm_DeterminesAdvance`,
-`PdfDocument_Fonts_Type0_CidFontType0_MismatchedSubtype_SfntBytes_ResolvesEmbeddedFont`,
-`PdfDocument_Fonts_Type0_CidFontType0_MissingFontFile3Subtype_ResolvesEmbeddedFont`,
-`PdfDocument_Fonts_Type0_CidFontType0_UnrecognizedFontFile3Bytes_ThrowsUnsupportedImageFeatureException`,
-`PdfDocument_Fonts_Type0_CidFontType0_CidKeyedCff_ThrowsInvalidDataException`,
-`PdfDocument_Fonts_Type0_MissingDescendantFonts_ThrowsInvalidDataException`,
-`PdfDocument_Fonts_Type0_DescendantFontsNotSingleElement_ThrowsInvalidDataException`,
 `PdfDocument_Fonts_Type0_NoEmbeddedFontFile_ThrowsInvalidDataException`,
-`PdfDocument_Fonts_Type0_Widths_DwDefault1000_DeterminesAdvance`,
-`PdfDocument_Fonts_Type0_Widths_WArrayIndividualForm_DeterminesAdvance`,
-`PdfDocument_Fonts_Type0_Widths_WArrayRangeForm_DeterminesAdvance`,
-`PdfDocument_Fonts_Type0_Widths_MalformedWArray_ThrowsInvalidDataException`,
-`PdfDocument_ShowText_Type0_OddByteLengthString_ThrowsInvalidDataException`,
-`PdfDocument_ShowText_Type0_TwoByteCodes_ShowsEachGlyphAtCorrectPosition`,
-`CanvasNetPdf_SystemIntegration_RenderType0CompositeFont_PaintsExpectedGlyphInk`,
-`CanvasNetPdf_SystemIntegration_RenderCidFontType0CompositeFont_PaintsExpectedGlyphInk`
+`CanvasNetPdf_SystemIntegration_RenderType0CompositeFont_PaintsExpectedGlyphInk`
 
 Builds a `/Subtype /Type0`/`/Encoding /Identity-H` font dictionary naming a single
 `/Subtype /CIDFontType2` descendant font with an embedded `/FontFile2`, asserting resolution
@@ -829,54 +846,71 @@ succeeds and the embedded font is what gets used. Declares a descendant `/CIDToG
 name `/Identity`, asserting a shown CID maps to the identical glyph index; separately declares a
 `/CIDToGIDMap` stream remapping a CID to a different glyph index, asserting the remapped (not
 identical) glyph index is used, and that a CID beyond the stream's own table length maps to glyph
-`0`/`.notdef`. A `[Theory]` declares `/Encoding` as an arbitrary other name and, separately,
-`/Identity-V`, asserting `Codecs.UnsupportedImageFeatureException` in both cases. Declares a
-`/Subtype /CIDFontType0` descendant whose `/FontDescriptor` has only `/FontFile2` (no
-`/FontFile3`), asserting `InvalidDataException` (not `UnsupportedImageFeatureException` - the
-subtype itself is now supported; only the missing embedded font program fails). Builds a
-synthetic, non-CID-keyed, `/OpenType`-wrapped CFF `/FontFile3` (via `SyntheticFontBuilder.Cff`)
-on a `/CIDFontType0` descendant, asserting resolution succeeds and real glyph ink paints via
-identity CID-to-glyph-index (Phase 12); separately declares a non-standard `/CIDToGIDMap
-/Identity` entry on such a descendant, asserting it is ignored (the identity map is used
-regardless); separately proves the same `/DW`/`/W` width-resolution logic applies identically to
-a `/CIDFontType0` descendant. As of Phase 18, `LoadCidFontType0Font` sniffs the `/FontFile3`
-stream's own decoded bytes for a recognized SFNT container or a structurally plausible bare CFF
-header rather than gating on the stream's declared `/Subtype`: a `[Theory]` builds a
-well-formed, SFNT-wrapped (`'OTTO'`) CFF program and declares the `/FontFile3` stream's own
-`/Subtype` as `/Type1C` and, separately, `/CIDFontType0C` - a deliberate mismatch between the
-declared name and the stream's actual SFNT-wrapped shape - asserting resolution still succeeds
-and real glyph ink paints; a further test omits the `/Subtype` key from the `/FontFile3` stream
-entirely (same SFNT-wrapped bytes), asserting the same successful resolution (a missing
-`/Subtype` is no longer treated any differently than a mismatched one, since the declared name is
-never consulted for dispatch). A separate test supplies decoded bytes that are neither a
-recognized SFNT container nor a structurally plausible bare CFF header (a short synthetic literal
-byte sequence, not derived from any real-world font), asserting
-`Codecs.UnsupportedImageFeatureException` - the one shape genuinely still rejected. Builds an
-`/OpenType`-wrapped `/FontFile3` whose embedded CFF program's
-Top DICT declares `ROS` (CID-keyed CFF, via `SyntheticFontBuilder.Cff(..., includeRos: true)`),
-asserting `InvalidDataException` (surfaced uncaught from `Fonts.CffTable.Parse`'s own existing
-CID-keyed rejection, with no new translation code in the `Pdf` subsystem). Declares a Type0 font
-dictionary with no `/DescendantFonts` and, separately, a `/DescendantFonts` array with two
-elements, asserting `InvalidDataException` in both cases. Declares a descendant font with no
-embedded `/FontFile2` (still `/CIDFontType2`), asserting `InvalidDataException` (not
-`UnsupportedImageFeatureException` - a composite font has no fallback substitution path).
-Declares a descendant font with no `/W` array, asserting the shown code's advance matches the
-default `/DW` of `1000`; separately declares a `/W` array using the `c [w1 w2 ... wn]`
-individual-width sub-form and, separately, the `cFirst cLast w` range sub-form, asserting the
-shown code's advance matches the declared width in each case; declares a malformed `/W` array
-shape, asserting `InvalidDataException`. Shows an odd-byte-length string against a composite
-font via `Tj`, asserting `InvalidDataException`. Shows two 2-byte codes via `Tj`, asserting each
-glyph is painted at the position its own declared/default width determines. The first
-end-to-end system-integration test opens a hand-authored fixture
+`0`/`.notdef`. Declares a descendant font with no embedded `/FontFile2` (still `/CIDFontType2`),
+asserting `InvalidDataException` (not `UnsupportedImageFeatureException` - a composite font has
+no fallback substitution path). The system-integration test opens a hand-authored fixture
 (`text-composite-truetype-identity-h.pdf`) declaring a real embedded Open Sans descendant font
 with a deliberately non-identity `/CIDToGIDMap`, independently reloads the same font, and asserts
 specific stroke/counter/corner pixels - proving the full 2-byte Identity-H code → CID → GID (via
 the non-identity `/CIDToGIDMap`) → TrueType glyph outline → painted-pixel pipeline end to end.
-The second (Phase 12) opens an entirely synthetic fixture
+
+#### CanvasNetPdf-PdfDocument-CidFontType0FontResolution: CIDFontType0 CFF Descendant Resolves via Shape Sniffing
+
+**Tests**: `PdfDocument_Fonts_Type0_CidFontType0_NoFontFile3_ThrowsInvalidDataException`,
+`PdfDocument_Fonts_Type0_CidFontType0_OpenTypeCff_ResolvesEmbeddedFont`,
+`PdfDocument_Fonts_Type0_CidFontType0_NonStandardCidToGidMap_IsIgnored`,
+`PdfDocument_Fonts_Type0_CidFontType0_MismatchedSubtype_SfntBytes_ResolvesEmbeddedFont`,
+`PdfDocument_Fonts_Type0_CidFontType0_MissingFontFile3Subtype_ResolvesEmbeddedFont`,
+`PdfDocument_Fonts_Type0_CidFontType0_UnrecognizedFontFile3Bytes_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Fonts_Type0_CidFontType0_CidKeyedCff_ThrowsInvalidDataException`,
+`CanvasNetPdf_SystemIntegration_RenderCidFontType0CompositeFont_PaintsExpectedGlyphInk`
+
+Declares a `/Subtype /CIDFontType0` descendant whose `/FontDescriptor` has only `/FontFile2` (no
+`/FontFile3`), asserting `InvalidDataException` (not `UnsupportedImageFeatureException` - the
+subtype itself is supported; only the missing embedded font program fails). Builds a synthetic,
+non-CID-keyed, `/OpenType`-wrapped CFF `/FontFile3` (via `SyntheticFontBuilder.Cff`) on a
+`/CIDFontType0` descendant, asserting resolution succeeds and real glyph ink paints via identity
+CID-to-glyph-index; separately declares a non-standard `/CIDToGIDMap /Identity` entry on such a
+descendant, asserting it is ignored (the identity map is used regardless, since `/CIDToGIDMap`
+is not a valid key for this subtype). `LoadCidFontType0Font` sniffs the `/FontFile3` stream's own
+decoded bytes for a recognized SFNT container or a structurally plausible bare CFF header rather
+than gating on the stream's declared `/Subtype`: a `[Theory]` builds a well-formed, SFNT-wrapped
+(`'OTTO'`) CFF program and declares the `/FontFile3` stream's own `/Subtype` as `/Type1C` and,
+separately, `/CIDFontType0C` - a deliberate mismatch between the declared name and the stream's
+actual SFNT-wrapped shape - asserting resolution still succeeds and real glyph ink paints; a
+further test omits the `/Subtype` key from the `/FontFile3` stream entirely (same SFNT-wrapped
+bytes), asserting the same successful resolution (a missing `/Subtype` is no longer treated any
+differently than a mismatched one, since the declared name is never consulted for dispatch). A
+separate test supplies decoded bytes that are neither a recognized SFNT container nor a
+structurally plausible bare CFF header (a short synthetic literal byte sequence, not derived from
+any real-world font), asserting `Codecs.UnsupportedImageFeatureException` - the one shape
+genuinely still rejected. Builds an `/OpenType`-wrapped `/FontFile3` whose embedded CFF program's
+Top DICT declares `ROS` (CID-keyed CFF, via `SyntheticFontBuilder.Cff(..., includeRos: true)`),
+asserting `InvalidDataException` (surfaced uncaught from `Fonts.CffTable.Parse`'s own existing
+CID-keyed rejection, with no new translation code in the `Pdf` subsystem). The
+system-integration test opens an entirely synthetic fixture
 (`text-composite-cff-cidfonttype0-identity-h.pdf`) whose `/CIDFontType0` descendant embeds a
 synthetic, non-CID-keyed, `/OpenType`-wrapped CFF program with no `/CIDToGIDMap` declared, and
 asserts real glyph ink paints at the analytically-known position of its hand-designed square
-glyph - proving the same end-to-end pipeline for the `/CIDFontType0` shape.
+glyph - proving the full end-to-end pipeline for the `/CIDFontType0` shape; this is the
+dedicated `/CIDFontType0` composite-font requirement closing the previously undocumented
+`/CIDFontType0` gap.
+
+#### CanvasNetPdf-PdfDocument-CompositeFontWidths: Shared /DW//W Width Resolution Across Descendant Subtypes
+
+**Tests**: `PdfDocument_Fonts_Type0_Widths_DwDefault1000_DeterminesAdvance`,
+`PdfDocument_Fonts_Type0_Widths_WArrayIndividualForm_DeterminesAdvance`,
+`PdfDocument_Fonts_Type0_Widths_WArrayRangeForm_DeterminesAdvance`,
+`PdfDocument_Fonts_Type0_Widths_MalformedWArray_ThrowsInvalidDataException`,
+`PdfDocument_Fonts_Type0_CidFontType0_Widths_WArrayIndividualForm_DeterminesAdvance`
+
+Declares a descendant font with no `/W` array, asserting the shown code's advance matches the
+default `/DW` of `1000`; separately declares a `/W` array using the `c [w1 w2 ... wn]`
+individual-width sub-form and, separately, the `cFirst cLast w` range sub-form, asserting the
+shown code's advance matches the declared width in each case; declares a malformed `/W` array
+shape, asserting `InvalidDataException`. A further test repeats the individual-width sub-form
+assertion against a `/CIDFontType0` descendant - proving the same `/DW`/`/W` width-resolution
+logic applies identically regardless of which descendant-font outline flavor is resolved.
 
 #### CanvasNetPdf-PdfDocument-Type1FontResolution: Embedded Classic Type 1 FontFile Resolves, Fails Closed Otherwise
 
@@ -916,7 +950,7 @@ the new hand-authored, entirely synthetic `text-embedded-type1-font.pdf` and
 `text-standard14-type1-no-fontfile.pdf` fixtures (see `PdfFixtures\README.md`) and assert visible
 painted ink from each. The end-to-end system-integration test opens
 `text-embedded-type1-font.pdf` and asserts the analytically-known painted-pixel position of its
-hand-designed square glyph (matching `CanvasNetPdf-PdfDocument-CompositeFontResolution`'s own
+hand-designed square glyph (matching `CanvasNetPdf-PdfDocument-CidFontType0FontResolution`'s own
 `CIDFontType0` system-integration test's pixel-assertion convention exactly, since both fixtures
 share the identical glyph design/placement), plus fully-transparent canvas corners.
 
@@ -944,7 +978,7 @@ succeeds and the embedded square glyph's own ink paints, exactly like the matchi
 above; a further test omits `/Subtype` from the `/FontFile3` stream entirely (same bare-CFF
 bytes), asserting the same successful resolution (a missing `/Subtype` is no longer treated any
 differently than a mismatched one, since the declared name is never consulted for dispatch) -
-mirroring `CanvasNetPdf-PdfDocument-CompositeFontResolution`'s own shape-sniffing tests for
+mirroring `CanvasNetPdf-PdfDocument-CidFontType0FontResolution`'s own shape-sniffing tests for
 `/CIDFontType0`. A separate test supplies decoded bytes that are neither a recognized SFNT
 container nor a structurally plausible bare CFF header (a short synthetic literal byte sequence,
 not derived from any real-world font), asserting
@@ -997,16 +1031,10 @@ dictionary), asserting `InvalidDataException` - distinct from the "entirely abse
 case above, proving `BuildResolvedType3Font`'s own `charProcs.Kind != PdfKind.Dictionary` check
 fails closed.
 
-#### CanvasNetPdf-PdfDocument-Type3GlyphPainting: Glyph Procedures Execute Recursively and Isolate Graphics State
+#### CanvasNetPdf-PdfDocument-Type3GlyphPainting: Glyph Procedures Paint via FontMatrix and Font-Scoped Resources
 
 **Tests**: `PdfDocument_Fonts_Type3_NonDefaultFontMatrix_ScalesGlyphGeometry`,
-`PdfDocument_Fonts_Type3_GlyphProc_GraphicsStateIsolated_DoesNotLeakOut`,
-`PdfDocument_Fonts_Type3_D0Operator_ParsedButDoesNotAffectAdvanceWidth`,
 `PdfDocument_Fonts_Type3_NoOwnResources_FallsBackToOuterPageResources`,
-`PdfDocument_Fonts_Type3_SelfReferencingGlyphProc_ExceedsMaxNestingDepth_ThrowsInvalidDataException`,
-`PdfDocument_Fonts_Type3_RenderMode3_SkipsGlyphProcedureButStillAdvances`,
-`PdfDocument_Fonts_Type3_D1Operator_ParsedButDoesNotAffectAdvanceWidth`,
-`PdfDocument_Fonts_Type3_StrayD0D1OutsideGlyphProc_NoExceptionNoEffect`,
 `PdfDocument_Fonts_Type3_OwnResourcesTakePrecedenceOverPageResources_UsesFontResources`
 
 Builds the same single-glyph filled-rectangle `/Subtype /Type3` font as
@@ -1019,49 +1047,70 @@ the rectangle *would* occupy under the conventional (but, for this font, wrong) 
 `/FontMatrix` scale - yet outside this font's own correctly-scaled region - is left blank: the
 highest-risk proof in this feature's test suite, per the implementation plan, since it
 distinguishes "`/FontMatrix` genuinely consulted for glyph-matrix composition" from "`/FontMatrix`
-accepted but silently ignored in favor of a hardcoded assumption". A further test uses a glyph
-procedure that applies `2 0 0 2 0 0 cm 1 0 0 rg` before painting its own rectangle (under an
-identity `/FontMatrix`, so the glyph's own content-stream coordinates map 1:1 onto the same
-device space a Form XObject's own BBox-space coordinates would), then asserts the page's own,
-separately-painted rectangle - painted immediately after `Tj` returns, in the page's own default
-black fill color, at its own normal unscaled position - is unaffected by the glyph procedure's
-`cm`/`rg` mutations, mirroring
+accepted but silently ignored in favor of a hardcoded assumption". A further test declares a
+glyph procedure that invokes a Form XObject (`/Fm0`) declared only in the invoking page's own
+`/Resources` (the Type 3 font itself declares no `/Resources` of its own), asserting the Form's
+own content paints at the expected glyph-matrix-transformed location - proving `PaintType3Glyph`
+falls back to the invoking content stream's own `/Resources` exactly like a `/Subtype /Form`
+XObject with no `/Resources` of its own already does. A final test declares both the Type3 font's
+own `/Resources` and the invoking page's own `/Resources` with an XObject of the same name
+(`/Fm0`) painting different colors, asserting the glyph procedure's `/Fm0 Do` paints the font's
+own color (not the page's) - proving `PaintType3Glyph`'s `_resources = font.Resources ?? _resources`
+fallback's non-null branch (the font's own `/Resources` taking precedence) is exercised, distinct
+from the preceding test's null-branch (fallback) proof.
+
+#### CanvasNetPdf-PdfDocument-Type3GlyphStateIsolation: Glyph Procedure Graphics State Does Not Leak Out
+
+**Test**: `PdfDocument_Fonts_Type3_GlyphProc_GraphicsStateIsolated_DoesNotLeakOut`
+
+Uses a glyph procedure that applies `2 0 0 2 0 0 cm 1 0 0 rg` before painting its own rectangle
+(under an identity `/FontMatrix`, so the glyph's own content-stream coordinates map 1:1 onto the
+same device space a Form XObject's own BBox-space coordinates would), then asserts the page's
+own, separately-painted rectangle - painted immediately after `Tj` returns, in the page's own
+default black fill color, at its own normal unscaled position - is unaffected by the glyph
+procedure's `cm`/`rg` mutations, mirroring
 `PdfDocument_Images_DoOperator_NestedFormXObjects_RestoresGraphicsStateAfterReturn`'s own Form-
-XObject state-isolation proof applied to `PaintType3Glyph`'s re-entrant execution instead. A
-further test declares a glyph procedure beginning `2000 0 d0` (a `wx` operand wildly different
-from the font's own declared `/Widths` entry) before painting, shows the same glyph twice in one
+XObject state-isolation proof applied to `PaintType3Glyph`'s re-entrant execution instead.
+
+#### CanvasNetPdf-PdfDocument-Type3GlyphNestingDepthGuard: Self-Referencing Glyph Procedures Fail Closed
+
+**Test**: `PdfDocument_Fonts_Type3_SelfReferencingGlyphProc_ExceedsMaxNestingDepth_ThrowsInvalidDataException`
+
+Declares a glyph procedure for code 65 that itself re-shows code 65 via a bare `(A) Tj` (legal,
+since the nested graphics-state clone inherits the outer `Tf`-selected font), asserting
+`InvalidDataException` once the fixed maximum Type3 glyph-procedure nesting depth is exceeded -
+proving the bounded-recursion guard fails closed rather than overflowing the call stack or
+hanging.
+
+#### CanvasNetPdf-PdfDocument-Type3RenderMode3Invisible: Render Mode 3 Skips Painting but Still Advances
+
+**Test**: `PdfDocument_Fonts_Type3_RenderMode3_SkipsGlyphProcedureButStillAdvances`
+
+Selects render mode `3` (invisible) via `Tr` before showing two glyphs, then switches back to
+render mode `0` before showing a third, asserting no ink paints at either invisible glyph's own
+would-be-painted device location while the third, visible glyph paints at the origin fully
+advanced by both invisible glyphs' declared widths - proving `ShowGlyph`'s render-mode-3 guard
+skips `PaintType3Glyph` entirely while the shared, unconditional advance logic still runs.
+
+#### CanvasNetPdf-PdfDocument-Type3D0D1Operators: d0/d1 Operands Parsed and Discarded, Never Affect Advance
+
+**Tests**: `PdfDocument_Fonts_Type3_D0Operator_ParsedButDoesNotAffectAdvanceWidth`,
+`PdfDocument_Fonts_Type3_D1Operator_ParsedButDoesNotAffectAdvanceWidth`,
+`PdfDocument_Fonts_Type3_StrayD0D1OutsideGlyphProc_NoExceptionNoEffect`
+
+A test declares a glyph procedure beginning `2000 0 d0` (a `wx` operand wildly different from
+the font's own declared `/Widths` entry) before painting, shows the same glyph twice in one
 `Tj`, and asserts the second glyph's device position reflects the font's `/Widths`-declared
 advance, not a d0-driven one - proving `OpType3SetWidth` validates and discards its operands
-without feeding `wx` back into layout. A final test declares a glyph procedure that invokes a
-Form XObject (`/Fm0`) declared only in the invoking page's own `/Resources` (the Type 3 font
-itself declares no `/Resources` of its own), asserting the Form's own content paints at the
-expected glyph-matrix-transformed location - proving `PaintType3Glyph` falls back to the
-invoking content stream's own `/Resources` exactly like a `/Subtype /Form` XObject with no
-`/Resources` of its own already does.
-
-A further test declares a glyph procedure for code 65 that itself re-shows code 65 via a bare
-`(A) Tj` (legal, since the nested graphics-state clone inherits the outer `Tf`-selected font),
-asserting `InvalidDataException` once the fixed maximum Type3 glyph-procedure nesting depth is
-exceeded - proving the bounded-recursion guard fails closed rather than overflowing the call
-stack or hanging. A companion test selects render mode `3` (invisible) via `Tr` before showing two
-glyphs, then switches back to render mode `0` before showing a third, asserting no ink paints at
-either invisible glyph's own would-be-painted device location while the third, visible glyph
-paints at the origin fully advanced by both invisible glyphs' declared widths - proving
-`ShowGlyph`'s render-mode-3 guard skips `PaintType3Glyph` entirely while the shared, unconditional
-advance logic still runs. A further test declares a glyph procedure using the `d1` operator (6
-operands: `wx wy llx lly urx ury`) with a `wx` wildly different from the font's own declared
-`/Widths` entry, mirroring the existing `d0` test's own structure, and asserts the second of two
-shown glyphs lands at the `/Widths`-correct (not `d1`-driven) advance - proving `d1`'s own
-6-operand path is parsed and discarded exactly like `d0`'s. A companion test issues a stray
-`d0`/`d1` pair directly in an ordinary, non-Type3 page content stream (no font ever selected),
-asserting no exception and that a subsequent filled rectangle paints normally - proving
-`ExecuteOperators`' shared `d0`/`d1` dispatch is unconditional, not gated on "currently inside a
-Type3 glyph procedure". A final test declares both the Type3 font's own `/Resources` and the
-invoking page's own `/Resources` with an XObject of the same name (`/Fm0`) painting different
-colors, asserting the glyph procedure's `/Fm0 Do` paints the font's own color (not the page's) -
-proving `PaintType3Glyph`'s `_resources = font.Resources ?? _resources` fallback's non-null
-branch (the font's own `/Resources` taking precedence) is exercised, distinct from the preceding
-test's null-branch (fallback) proof.
+without feeding `wx` back into layout. A further test declares a glyph procedure using the `d1`
+operator (6 operands: `wx wy llx lly urx ury`) with a `wx` wildly different from the font's own
+declared `/Widths` entry, mirroring the existing `d0` test's own structure, and asserts the
+second of two shown glyphs lands at the `/Widths`-correct (not `d1`-driven) advance - proving
+`d1`'s own 6-operand path is parsed and discarded exactly like `d0`'s. A companion test issues a
+stray `d0`/`d1` pair directly in an ordinary, non-Type3 page content stream (no font ever
+selected), asserting no exception and that a subsequent filled rectangle paints normally -
+proving `ExecuteOperators`' shared `d0`/`d1` dispatch is unconditional, not gated on "currently
+inside a Type3 glyph procedure".
 
 #### CanvasNetPdf-PdfDocument-ToUnicodeCMap: /ToUnicode CMap Resolves to a Code-to-Codepoint Map
 

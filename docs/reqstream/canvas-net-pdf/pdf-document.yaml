@@ -234,31 +234,65 @@ sections:
             tests:
               - PdfDocument_Open_EncryptedAesV3_R5_DecryptsAndRenders
 
-          - id: CanvasNetPdf-PdfDocument-EncryptionPasswordAuthentication
+          - id: CanvasNetPdf-PdfDocument-UserPasswordAuthentication
             title: >-
               The PdfDocument class shall accept an optional caller-supplied password (default
               null, preserving today's empty-user-password-only behavior byte-for-byte) on both
-              Open overloads and try it first as the user password (Algorithm 2 plus Algorithm
-              4/5 for R2-R4, or Algorithm 2.A for R5), then - if that does not authenticate - as
-              the owner password (ISO 32000-1 Algorithm 3 for R2-R4, recovering the padded user
-              password from /O; the owner-password variant of ISO 32000-2 Algorithm 2.A for R5,
-              recovering the file key directly from /OE using the full 48-byte /U value). R2-R4
-              passwords are encoded via Latin-1 (ASCII only; a non-ASCII character throws
-              "pdf-encrypted-password-non-ascii"), R5 passwords via UTF-8 (no SASLprep
-              normalization), and both encodings truncate to a maximum of 127 bytes before any
-              hashing. A password that authenticates as neither role throws
-              UnsupportedImageFeatureException with feature "pdf-encrypted-incorrect-password".
+              Open overloads and authenticate it as the user password (Algorithm 2 plus Algorithm
+              4/5 for R2-R4, or Algorithm 2.A for R5) when it is the document's correct user
+              password, decrypting and rendering the document normally, regardless of which
+              supported cipher (RC4, AESV2, or AESV3/R5) the document uses.
             justification: |
               Several real-world password-protected PDFs cannot be opened at all without a way to
-              supply their actual password; this unblocks that entire class of document while
-              keeping every existing empty-password caller's behavior unchanged.
+              supply their actual user password; this unblocks that entire class of document
+              while keeping every existing empty-password caller's behavior unchanged.
             tests:
               - PdfDocument_Open_EncryptedRc4_CorrectUserPassword_DecryptsAndRenders
               - PdfDocument_Open_EncryptedAesV2_CorrectUserPassword_DecryptsAndRenders
               - PdfDocument_Open_EncryptedAesV3_CorrectUserPassword_DecryptsAndRenders
+
+          - id: CanvasNetPdf-PdfDocument-OwnerPasswordAuthentication
+            title: >-
+              The PdfDocument class shall, when a caller-supplied password does not authenticate
+              as the user password, next try it as the owner password (ISO 32000-1 Algorithm 3
+              for R2-R4, recovering the padded user password from /O; the owner-password variant
+              of ISO 32000-2 Algorithm 2.A for R5, recovering the file key directly from /OE
+              using the full 48-byte /U value), decrypting and rendering the document normally
+              when it is the document's correct owner password.
+            justification: |
+              A caller may only know a password-protected PDF's owner password (not its separate
+              user password); falling back to owner-password authentication lets that caller
+              still open and render the document instead of being unconditionally rejected.
+            tests:
               - PdfDocument_Open_EncryptedRc4_CorrectOwnerPassword_DecryptsAndRenders
               - PdfDocument_Open_EncryptedAesV3_CorrectOwnerPassword_DecryptsAndRenders
+
+          - id: CanvasNetPdf-PdfDocument-IncorrectPasswordRejection
+            title: >-
+              The PdfDocument class shall throw UnsupportedImageFeatureException with feature
+              "pdf-encrypted-incorrect-password" when a caller-supplied password authenticates as
+              neither the user nor the owner password, rather than silently decrypting with
+              wrong key material or reporting the null-password "pdf-encrypted-password-required"
+              feature.
+            justification: |
+              Callers need a clear, distinguishable signal that the password they supplied is
+              simply wrong, not that the document is unsupported for some other reason or that no
+              password was supplied at all.
+            tests:
               - PdfDocument_Open_Encrypted_IncorrectPassword_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-PasswordNonAsciiRejection
+            title: >-
+              The PdfDocument class shall throw UnsupportedImageFeatureException with feature
+              "pdf-encrypted-password-non-ascii" when a caller-supplied password for an R2-R4
+              (Latin-1-encoded) encrypted document contains a character outside ASCII (0-127),
+              rather than silently deriving wrong key material from a truncated or mis-encoded
+              byte sequence.
+            justification: |
+              R2-R4's Latin-1 password encoding has no well-defined behavior for non-ASCII
+              characters; rejecting them explicitly prevents a caller from being misled by a
+              silent authentication failure traceable to encoding, not an actually-wrong password.
+            tests:
               - PdfDocument_Open_Encrypted_NonAsciiPassword_ThrowsUnsupportedImageFeatureException
 
           - id: CanvasNetPdf-PdfDocument-Open
@@ -638,6 +672,21 @@ sections:
               - PdfDocument_Filters_RunLengthDecode_TruncatedRun_ThrowsInvalidDataException
               - CanvasNetPdf_SystemIntegration_PdfRender_RunLengthDecodeContentStream_PaintsExpectedPixels
 
+          - id: CanvasNetPdf-PdfDocument-RunLengthDecodeOutputCap
+            title: >-
+              The PdfDocument class shall throw InvalidDataException when decoding a
+              RunLengthDecode-filtered stream whose expanded output would exceed a fixed maximum
+              size, checking the remaining budget before appending each run rather than only
+              after the full stream has been decoded.
+            justification: |
+              Each 2-byte "repeat" run can expand to up to 128 output bytes (a 64x amplification),
+              so a tiny, crafted RunLengthDecode-filtered stream could otherwise force an enormous
+              allocation (a decompression-bomb-style denial of service); bounding the decoded
+              output size closes that attack surface while remaining generous enough for any
+              legitimate PDF image/content stream.
+            tests:
+              - PdfDocument_Filters_RunLengthDecode_OutputExceedsMaxSize_ThrowsInvalidDataException
+
           - id: CanvasNetPdf-PdfDocument-CcittFaxDecodeFilter
             title: >-
               The PdfDocument class shall implement the CCITTFaxDecode image filter's ITU-T T.6
@@ -736,7 +785,7 @@ sections:
               font-fallback substitution (see CanvasNetPdf-PdfDocument-FontFallback); a font whose
               /Subtype is /MMType1 shall throw UnsupportedImageFeatureException, a /Subtype
               /Type0 composite font shall instead be resolved via
-              CanvasNetPdf-PdfDocument-CompositeFontResolution, a /Subtype /Type3 font shall
+              CanvasNetPdf-PdfDocument-CompositeFontDispatch, a /Subtype /Type3 font shall
               instead be resolved via CanvasNetPdf-PdfDocument-Type3FontResolution, and a Tf
               operator naming a font absent from /Resources/Font shall throw
               InvalidDataException; caching the resolved font by font-dictionary object identity
@@ -760,83 +809,109 @@ sections:
               - PdfDocument_Fonts_Type1_NoFontFile_ResolvesViaFallback
               - PdfDocument_Fonts_SimpleFont_NoFontDescriptorAtAll_ResolvesViaFallback
 
-          - id: CanvasNetPdf-PdfDocument-CompositeFontResolution
+          - id: CanvasNetPdf-PdfDocument-CompositeFontDispatch
             title: >-
               The PdfDocument class shall resolve a /Resources/Font entry naming a /Subtype
-              /Type0 composite font whose /Encoding is the name /Identity-H and whose
-              /DescendantFonts is a single-element array naming either a /Subtype /CIDFontType2
-              descendant font with an embedded /FontDescriptor/FontFile2 stream, or a /Subtype
-              /CIDFontType0 descendant font with an embedded, non-CID-keyed-CFF,
-              /FontDescriptor/FontFile3 stream whose decoded bytes form either a recognized SFNT
-              container or a structurally plausible bare CFF header, regardless of the stream's
-              own declared /Subtype name: decoding each shown 2-byte code directly as a CID,
-              mapping it to a glyph index -
-              for a /CIDFontType2 descendant, via the descendant's /CIDToGIDMap (the identity map
-              when absent or the name /Identity, or an explicit big-endian uint16-per-CID lookup
-              table for a stream, with an out-of-range CID mapping to glyph 0/.notdef); for a
-              /CIDFontType0 descendant, always the identity map (the CID used directly as the
-              glyph index per PDF 32000-1 §9.7.4.2, since the supported CFF programs are not
-              CID-keyed), ignoring any /CIDToGIDMap entry present (not a valid key for this
-              subtype) - and resolving its advance width from the descendant's /DW (defaulting to
-              1000) and /W (supporting both the "c [w1 w2 ... wn]" individual-width sub-form and
-              the "cFirst cLast w" range sub-form) entries, identically regardless of descendant
-              subtype; any other /Encoding (including /Identity-V and predefined CJK encodings)
-              or descendant /Subtype (other than /CIDFontType2 or /CIDFontType0) shall throw
-              UnsupportedImageFeatureException, as shall a /CIDFontType0 descendant's /FontFile3
-              stream whose decoded bytes match neither a recognized SFNT container nor a
-              structurally plausible bare CFF header, and a
-              missing/malformed /DescendantFonts, /CIDToGIDMap, /W array, missing/non-embedded
-              descendant /FontFile2 or /FontFile3, an unparsable embedded font program (for
-              example a CID-keyed CFF program), or an odd-byte-length shown string shall throw
+              /Type0 composite font by requiring /Encoding to be the name /Identity-H and
+              /DescendantFonts to be a single-element array naming a descendant font dictionary,
+              dispatching the descendant to CIDFontType2 or CIDFontType0 resolution by its own
+              /Subtype, and decoding each shown string as a sequence of 2-byte codes (each a CID
+              directly, per /Identity-H); any other /Encoding (including /Identity-V and
+              predefined CJK encodings) shall throw UnsupportedImageFeatureException, a
+              missing/malformed /DescendantFonts or an odd-byte-length shown string shall throw
               InvalidDataException.
             justification: |
               Type0/Identity-H composite fonts are the encoding real-world PDF producers
               (Microsoft Word, LibreOffice, and browser print-to-PDF among them) overwhelmingly
               emit for embedded subsetted text, so continuing to reject every /Type0 font
-              unconditionally is a significant real-world compatibility gap; both the
-              /CIDFontType2 (TrueType-outline) and the /CIDFontType0 (non-CID-keyed-CFF-outline)
-              shapes are now supported, since real-world PDF producers emit both interchangeably
-              depending on the source font's own outline flavor. A /CIDFontType0 descendant's
-              /FontFile3 stream is resolved by sniffing its own decoded bytes for a recognized
-              SFNT container or a structurally plausible bare CFF header, rather than requiring
-              the stream's declared /Subtype to be exactly /OpenType: PDF 32000-1 permits (and
-              real-world producers sometimes emit) a mismatch between the declared /Subtype name
-              and the font program's actual byte container shape, so both a bare, non-SFNT-wrapped
-              CFF program (however its /Subtype is declared, or when /Subtype is absent entirely)
-              and an SFNT-wrapped CFF program are now accepted identically, as long as the bytes
-              themselves are well-formed. CID-keyed CFF (ROS/FDArray/FDSelect - a larger,
-              separately-scoped future phase), vertical writing
+              unconditionally is a significant real-world compatibility gap. Vertical writing
               (/Identity-V), predefined CJK encodings, and custom CMap-based /Encoding streams
               remain explicitly out of this phase's scope and must fail closed with a
-              distinguishable exception rather than being silently mis-rendered, and a composite
-              font with no embedded descendant font has no fallback substitution path (unlike a
-              simple TrueType font - see CanvasNetPdf-PdfDocument-FontFallback), so it must fail
-              closed too.
+              distinguishable exception rather than being silently mis-rendered.
+            tests:
+              - PdfDocument_Fonts_Type0_NonIdentityHEncoding_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Fonts_Type0_MissingDescendantFonts_ThrowsInvalidDataException
+              - PdfDocument_Fonts_Type0_DescendantFontsNotSingleElement_ThrowsInvalidDataException
+              - PdfDocument_ShowText_Type0_OddByteLengthString_ThrowsInvalidDataException
+              - PdfDocument_ShowText_Type0_TwoByteCodes_ShowsEachGlyphAtCorrectPosition
+
+          - id: CanvasNetPdf-PdfDocument-CidFontType2FontResolution
+            title: >-
+              The PdfDocument class shall resolve a /Type0 font's /Subtype /CIDFontType2
+              descendant by loading its embedded /FontDescriptor/FontFile2 TrueType-outline
+              program, mapping each shown CID to a glyph index via the descendant's
+              /CIDToGIDMap (the identity map when absent or the name /Identity, or an explicit
+              big-endian uint16-per-CID lookup table for a stream, with an out-of-range CID
+              mapping to glyph 0/.notdef); a missing/non-embedded /FontFile2 shall throw
+              InvalidDataException (a composite font has no fallback substitution path, unlike a
+              simple TrueType font).
+            justification: |
+              /CIDFontType2 (TrueType-outline) is the composite-font descendant shape real-world
+              PDF producers emit when embedding a subset of a TrueType source font, so resolving it and its
+              /CIDToGIDMap correctly is required for that common case to render correctly rather
+              than with wrong or missing glyphs.
             tests:
               - PdfDocument_Fonts_Type0_IdentityHCidFontType2_ResolvesEmbeddedFont
               - PdfDocument_Fonts_Type0_CidToGidMapIdentity_UsesCidAsGid
               - PdfDocument_Fonts_Type0_CidToGidMapStream_RemapsCidToGid
               - PdfDocument_Fonts_Type0_CidToGidMapStream_OutOfRangeCid_MapsToNotdef
-              - PdfDocument_Fonts_Type0_NonIdentityHEncoding_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Fonts_Type0_NoEmbeddedFontFile_ThrowsInvalidDataException
+              - CanvasNetPdf_SystemIntegration_RenderType0CompositeFont_PaintsExpectedGlyphInk
+
+          - id: CanvasNetPdf-PdfDocument-CidFontType0FontResolution
+            title: >-
+              The PdfDocument class shall resolve a /Type0 font's /Subtype /CIDFontType0
+              descendant by loading its embedded, non-CID-keyed-CFF /FontDescriptor/FontFile3
+              stream - either a recognized SFNT container or a structurally plausible bare CFF
+              header, sniffed from the stream's own decoded bytes rather than trusted from its
+              declared /Subtype name - and mapping each shown CID directly to the identical glyph
+              index (per PDF 32000-1 §9.7.4.2, since the supported CFF programs are not
+              CID-keyed), ignoring any /CIDToGIDMap entry present (not a valid key for this
+              subtype). A missing/non-embedded /FontFile3 or an unparsable embedded CID-keyed CFF
+              program shall throw InvalidDataException, and a /FontFile3 stream whose decoded
+              bytes match neither a recognized SFNT container nor a structurally plausible bare
+              CFF header shall throw UnsupportedImageFeatureException.
+            justification: |
+              /CIDFontType0 (non-CID-keyed-CFF-outline) is the composite-font descendant shape
+              real-world PDF producers emit when embedding a subset of a CFF/OpenType-CFF source font
+              interchangeably with /CIDFontType2, so continuing to reject it unconditionally
+              would be a real-world compatibility gap as significant as the one already closed
+              for /CIDFontType2. The /FontFile3 stream is resolved by sniffing its own decoded
+              bytes for a recognized SFNT container or a structurally plausible bare CFF header,
+              rather than requiring the stream's declared /Subtype to be exactly /OpenType or
+              /CIDFontType0C, because PDF 32000-1 permits (and real-world producers sometimes
+              emit) a mismatch between the declared /Subtype name and the font program's actual
+              byte container shape. CID-keyed CFF (ROS/FDArray/FDSelect) remains a separately-
+              scoped future phase and must fail closed with a distinguishable exception rather
+              than being silently mis-rendered.
+            tests:
               - PdfDocument_Fonts_Type0_CidFontType0_NoFontFile3_ThrowsInvalidDataException
               - PdfDocument_Fonts_Type0_CidFontType0_OpenTypeCff_ResolvesEmbeddedFont
               - PdfDocument_Fonts_Type0_CidFontType0_NonStandardCidToGidMap_IsIgnored
-              - PdfDocument_Fonts_Type0_CidFontType0_Widths_WArrayIndividualForm_DeterminesAdvance
               - PdfDocument_Fonts_Type0_CidFontType0_MismatchedSubtype_SfntBytes_ResolvesEmbeddedFont
               - PdfDocument_Fonts_Type0_CidFontType0_MissingFontFile3Subtype_ResolvesEmbeddedFont
               - PdfDocument_Fonts_Type0_CidFontType0_UnrecognizedFontFile3Bytes_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Fonts_Type0_CidFontType0_CidKeyedCff_ThrowsInvalidDataException
-              - PdfDocument_Fonts_Type0_MissingDescendantFonts_ThrowsInvalidDataException
-              - PdfDocument_Fonts_Type0_DescendantFontsNotSingleElement_ThrowsInvalidDataException
-              - PdfDocument_Fonts_Type0_NoEmbeddedFontFile_ThrowsInvalidDataException
+              - CanvasNetPdf_SystemIntegration_RenderCidFontType0CompositeFont_PaintsExpectedGlyphInk
+
+          - id: CanvasNetPdf-PdfDocument-CompositeFontWidths
+            title: >-
+              The PdfDocument class shall resolve a /Type0 font's descendant's advance width from
+              its /DW entry (defaulting to 1000 when absent) and /W entry (supporting both the
+              "c [w1 w2 ... wn]" individual-width sub-form and the "cFirst cLast w" range
+              sub-form), identically regardless of whether the descendant is /CIDFontType2 or
+              /CIDFontType0; a malformed /W array shall throw InvalidDataException.
+            justification: |
+              Correct advance widths are required for correctly-spaced composite-font text
+              regardless of which descendant-font outline flavor a document uses, and the width-
+              resolution logic itself is shared, outline-flavor-independent code whose
+              correctness is a single, independently verifiable behavior.
+            tests:
               - PdfDocument_Fonts_Type0_Widths_DwDefault1000_DeterminesAdvance
               - PdfDocument_Fonts_Type0_Widths_WArrayIndividualForm_DeterminesAdvance
               - PdfDocument_Fonts_Type0_Widths_WArrayRangeForm_DeterminesAdvance
               - PdfDocument_Fonts_Type0_Widths_MalformedWArray_ThrowsInvalidDataException
-              - PdfDocument_ShowText_Type0_OddByteLengthString_ThrowsInvalidDataException
-              - PdfDocument_ShowText_Type0_TwoByteCodes_ShowsEachGlyphAtCorrectPosition
-              - CanvasNetPdf_SystemIntegration_RenderType0CompositeFont_PaintsExpectedGlyphInk
-              - CanvasNetPdf_SystemIntegration_RenderCidFontType0CompositeFont_PaintsExpectedGlyphInk
+              - PdfDocument_Fonts_Type0_CidFontType0_Widths_WArrayIndividualForm_DeterminesAdvance
 
           - id: CanvasNetPdf-PdfDocument-Type1FontResolution
             title: >-
@@ -858,7 +933,7 @@ sections:
               /FontDescriptor/FontFile stream, per PDF 32000-1 §9.9) remain common in
               PostScript-heritage PDF producers, and rejecting every /Subtype /Type1 font
               unconditionally (this phase's pre-existing behavior) is a real-world compatibility
-              gap comparable to the one CanvasNetPdf-PdfDocument-CompositeFontResolution already
+              gap comparable to the one CanvasNetPdf-PdfDocument-CompositeFontDispatch already
               closed for composite fonts. This phase's scope is deliberately narrower than the
               full Type 1 Font Format: a seac-based accented-composite charstring is not
               supported (Fonts.TrueTypeFont.LoadType1's own core-layer scope, not re-implemented
@@ -899,14 +974,14 @@ sections:
               PDF producers (many embed a bare CFF program rather than a classic Type 1 program
               to save space) that rejecting it unconditionally (this phase's immediately-preceding
               behavior) is a real-world compatibility gap comparable to the one
-              CanvasNetPdf-PdfDocument-CompositeFontResolution already closed for the composite
+              CanvasNetPdf-PdfDocument-CidFontType0FontResolution already closed for the composite
               /CIDFontType0 CFF-outline path. PDF 32000-1 permits (and real-world producers
               sometimes emit) a mismatch between a /FontFile3 stream's declared /Subtype name and
               the font program's actual byte container shape - for example an SFNT-wrapped
               (/OpenType) CFF program declared on a simple font, or a bare CFF program declared
               /OpenType or /CIDFontType0C - so the declared /Subtype is no longer consulted for
               dispatch at all; only the stream's own decoded bytes determine which loader runs,
-              mirroring the shape-sniffing dispatch CanvasNetPdf-PdfDocument-CompositeFontResolution
+              mirroring the shape-sniffing dispatch CanvasNetPdf-PdfDocument-CidFontType0FontResolution
               already establishes for the composite /CIDFontType0 path. This phase's scope is
               deliberately narrower than the full CFF specification - the predefined Expert and
               ExpertSubset charsets are
@@ -966,45 +1041,87 @@ sections:
               name via /Encoding and that name's content-stream reference via /CharProcs -
               painting nothing (but still advancing the text position by the code's declared
               width) when either lookup fails - else decoding the glyph procedure's content
-              stream via the generic stream-decoding pipeline and executing it recursively in a
-              re-entrant manner, against a computed glyph matrix (the font's /FontMatrix composed with
-              the current text-rendering matrix, replacing the outline-glyph path's
-              1/UnitsPerEm scale entirely), using the Type3 font's own /Resources when present
-              else falling back to the invoking content stream's /Resources (exactly like a
-              /Subtype /Form XObject with no /Resources of its own), inheriting the invoking
-              graphics state and leaving it (and the invoking stream's /Resources) unaffected
-              once the glyph procedure finishes, whether it finishes normally or via a thrown
-              exception; nested Type3 glyph-procedure invocations exceeding a fixed maximum depth
-              (tracked independently of the Form XObject nesting-depth counter) shall throw
-              InvalidDataException rather than overflowing the call stack; a render mode of 3
-              (invisible) skips glyph-procedure execution entirely (but still advances); the d0
-              and d1 glyph-description operators are recognized (operand count/type validated)
-              but otherwise discarded - a Type 3 font's advance width remains solely determined
-              by its /Widths entry (see CanvasNetPdf-PdfDocument-Type3FontResolution), never by a
-              glyph procedure's own d0/d1 operands, and this phase does not implement d1's
-              optional color-operator-suppression behavior (a d1 glyph procedure's own color-
-              setting operators are honored, not ignored, in this phase - a deliberate, narrower
-              scope boundary).
+              stream via the generic stream-decoding pipeline and executing it against a computed
+              glyph matrix (the font's /FontMatrix composed with the current text-rendering
+              matrix, replacing the outline-glyph path's 1/UnitsPerEm scale entirely), using the
+              Type3 font's own /Resources when present else falling back to the invoking content
+              stream's /Resources (exactly like a /Subtype /Form XObject with no /Resources of
+              its own).
             justification: |
-              A Type 3 glyph procedure is itself an arbitrary nested content stream (the same
-              re-entrant execution shape CanvasNetPdf-PdfDocument-FormXObjects already
-              established for Form XObjects); re-using that same save/restore-and-recurse
-              pattern, with its own independent nesting-depth bound, correctly isolates a glyph
-              procedure's own graphics-state/resource mutations from the invoking content stream
-              and fails closed against a pathological (self-referencing) glyph procedure, exactly
-              as Form XObjects already do; the d0/d1 leniency and color-suppression scope
-              boundary are deliberate, narrower-than-full-specification choices, documented here
-              rather than silently under-implemented.
+              A Type 3 glyph procedure is itself an arbitrary nested content stream whose geometry
+              must be placed correctly via the font's own /FontMatrix rather than the outline-font
+              1/UnitsPerEm convention, and must be able to use the font's own resources exactly
+              like a Form XObject does, for the painted glyph shape and any resources it
+              references to appear in the correct place.
             tests:
               - PdfDocument_Fonts_Type3_NonDefaultFontMatrix_ScalesGlyphGeometry
-              - PdfDocument_Fonts_Type3_GlyphProc_GraphicsStateIsolated_DoesNotLeakOut
-              - PdfDocument_Fonts_Type3_D0Operator_ParsedButDoesNotAffectAdvanceWidth
               - PdfDocument_Fonts_Type3_NoOwnResources_FallsBackToOuterPageResources
+              - PdfDocument_Fonts_Type3_OwnResourcesTakePrecedenceOverPageResources_UsesFontResources
+
+          - id: CanvasNetPdf-PdfDocument-Type3GlyphStateIsolation
+            title: >-
+              The PdfDocument class shall execute a Type3 glyph procedure (see
+              CanvasNetPdf-PdfDocument-Type3GlyphPainting) in a re-entrant manner, inheriting the invoking
+              graphics state and leaving it (and the invoking stream's /Resources) unaffected
+              once the glyph procedure finishes, whether it finishes normally or via a thrown
+              exception.
+            justification: |
+              A glyph procedure's own graphics-state/resource mutations (for example its own
+              `cm`/color-operator calls) must not leak into the page's own subsequent painting,
+              exactly as a Form XObject's own re-entrant execution already guarantees -
+              independently verifiable by painting content immediately after the glyph and
+              asserting it is unaffected.
+            tests:
+              - PdfDocument_Fonts_Type3_GlyphProc_GraphicsStateIsolated_DoesNotLeakOut
+
+          - id: CanvasNetPdf-PdfDocument-Type3GlyphNestingDepthGuard
+            title: >-
+              The PdfDocument class shall throw InvalidDataException when nested Type3
+              glyph-procedure invocations (see CanvasNetPdf-PdfDocument-Type3GlyphPainting)
+              exceed a fixed maximum depth, tracked independently of the Form XObject
+              nesting-depth counter, rather than overflowing the call stack.
+            justification: |
+              A pathological (self-referencing) glyph procedure must fail closed deterministically
+              rather than hang or crash, exactly as the equivalent Form XObject recursion guard
+              already does.
+            tests:
               - PdfDocument_Fonts_Type3_SelfReferencingGlyphProc_ExceedsMaxNestingDepth_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-Type3RenderMode3Invisible
+            title: >-
+              The PdfDocument class shall skip Type3 glyph-procedure execution entirely (see
+              CanvasNetPdf-PdfDocument-Type3GlyphPainting) when the current text render mode is 3
+              (invisible), while still advancing the text position by the shown code's declared
+              width.
+            justification: |
+              Render mode 3 is used by PDF producers for invisible text layered over an image
+              (for example OCR text layers); a Type3 glyph must honor that convention identically
+              to every other resolved font kind, painting nothing while still reserving its
+              layout space for subsequent glyphs.
+            tests:
               - PdfDocument_Fonts_Type3_RenderMode3_SkipsGlyphProcedureButStillAdvances
+
+          - id: CanvasNetPdf-PdfDocument-Type3D0D1Operators
+            title: >-
+              The PdfDocument class shall recognize the d0 and d1 glyph-description operators
+              (validating operand count/type) inside and outside a Type3 glyph procedure without
+              throwing, but discard their operands entirely: a Type 3 font's advance width remains
+              solely determined by its /Widths entry (see
+              CanvasNetPdf-PdfDocument-Type3FontResolution), never by a glyph procedure's own
+              d0/d1 operands, and this phase does not implement d1's optional
+              color-operator-suppression behavior (a d1 glyph procedure's own color-setting
+              operators are honored, not ignored, in this phase - a deliberate, narrower scope
+              boundary).
+            justification: |
+              d0/d1 are legal PDF content-stream operators that real-world Type3 glyph procedures
+              emit; recognizing and validating them (without crashing) while deliberately not
+              feeding their operands back into layout keeps advance-width resolution single-
+              sourced from /Widths, documented here as a deliberate, narrower-than-full-
+              specification scope boundary rather than silently under-implemented.
+            tests:
+              - PdfDocument_Fonts_Type3_D0Operator_ParsedButDoesNotAffectAdvanceWidth
               - PdfDocument_Fonts_Type3_D1Operator_ParsedButDoesNotAffectAdvanceWidth
               - PdfDocument_Fonts_Type3_StrayD0D1OutsideGlyphProc_NoExceptionNoEffect
-              - PdfDocument_Fonts_Type3_OwnResourcesTakePrecedenceOverPageResources_UsesFontResources
 
           - id: CanvasNetPdf-PdfDocument-ToUnicodeCMap
             title: >-
@@ -1154,7 +1271,7 @@ sections:
               correct position. The same declared/default-width priority also applies to
               composite fonts, using the shown code's CID as the lookup key and /DW as the
               default width instead of /MissingWidth - see
-              CanvasNetPdf-PdfDocument-CompositeFontResolution for its own dedicated width tests.
+              CanvasNetPdf-PdfDocument-CompositeFontWidths for its own dedicated width tests.
             tests:
               - PdfDocument_Fonts_Widths_ExplicitEntry_DeterminesAdvance
               - PdfDocument_Fonts_Widths_MissingWidthFallback_DeterminesAdvance

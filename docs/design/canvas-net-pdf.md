@@ -352,6 +352,13 @@ the system level:
 `CanvasNetPdf` contains exactly one unit, so this risk control is inherently contained within it
 (IEC 62304 §5.3.3).
 
+Beyond rejecting out-of-scope constructs, several decoders and interpreter loops also bound a
+resource (decoded-output size, stack depth, or expansion factor) that an otherwise well-formed
+but adversarially crafted document could otherwise drive unboundedly large, closing a class of
+decompression-bomb/resource-exhaustion risks without rejecting any legitimate document; see
+_Resource and Input Bounds_ in `PdfDocument`'s own unit design for the complete set of caps and
+guards.
+
 ## Data Flow
 
 **PDF open/parse path:**

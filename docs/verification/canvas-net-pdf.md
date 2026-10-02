@@ -110,9 +110,9 @@ honored across every other public member.
 
 Exercises end-to-end system behavior for `/Encrypt` detection: calls the public `Open` API
 against a fixture whose trailer contains an `/Encrypt` key. Asserts
-`Codecs.UnsupportedImageFeatureException` is thrown with `Feature == "pdf-encrypted"`, confirming
-an encrypted document is rejected rather than silently mis-parsed at the system's own public
-entry point.
+`Codecs.UnsupportedImageFeatureException` is thrown with
+`Feature == "pdf-encrypted-filter-Adobe.PubSec"`, confirming an encrypted document is rejected
+rather than silently mis-parsed at the system's own public entry point.
 
 ### Integration: Pdf Open Encrypted Rc4 Correct User Password Decrypts And Renders Expected Pixels
 
