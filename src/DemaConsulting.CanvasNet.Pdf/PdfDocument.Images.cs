@@ -177,9 +177,25 @@ public sealed partial class PdfDocument
     /// <exception cref="InvalidDataException">
     ///     Thrown when <c>/Matrix</c> is present but is not an array of exactly 6 numbers.
     /// </exception>
-    private Matrix3x2 ReadFormMatrix(PdfObject formStream)
+    private Matrix3x2 ReadFormMatrix(PdfObject formStream) => ReadOptionalMatrix(formStream);
+
+    /// <summary>
+    ///     Reads a dictionary's optional <c>/Matrix</c>-style entry: the identity matrix when
+    ///     absent, otherwise an array of exactly 6 numbers interpreted exactly like the
+    ///     <c>cm</c> operator's 6 operands. Shared by <see cref="ReadFormMatrix"/> (a Form
+    ///     XObject's own <c>/Matrix</c>) and the Pattern-space <c>/Matrix</c> resolution in
+    ///     <c>PdfDocument.Patterns.cs</c>, so both parse the exact same array shape via one
+    ///     implementation.
+    /// </summary>
+    /// <param name="dictionary">The already-resolved dictionary (or stream) object.</param>
+    /// <param name="key">The dictionary key to read. Defaults to <c>"Matrix"</c>.</param>
+    /// <returns>The declared matrix, or <see cref="Matrix3x2.Identity"/> when absent.</returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the entry is present but is not an array of exactly 6 numbers.
+    /// </exception>
+    private Matrix3x2 ReadOptionalMatrix(PdfObject dictionary, string key = "Matrix")
     {
-        var matrixEntry = formStream.Get("Matrix");
+        var matrixEntry = dictionary.Get(key);
         if (matrixEntry is null)
         {
             return Matrix3x2.Identity;
@@ -188,7 +204,7 @@ public sealed partial class PdfDocument
         var resolved = Resolve(matrixEntry);
         if (resolved.Kind != PdfKind.Array || resolved.Items.Count != 6)
         {
-            throw new InvalidDataException("Form XObject /Matrix must be an array of exactly 6 numbers.");
+            throw new InvalidDataException($"/{key} must be an array of exactly 6 numbers.");
         }
 
         var values = new double[6];
@@ -197,7 +213,7 @@ public sealed partial class PdfDocument
             var item = Resolve(resolved.Items[i]);
             if (item.Kind != PdfKind.Number)
             {
-                throw new InvalidDataException("Form XObject /Matrix entries must all be numbers.");
+                throw new InvalidDataException($"/{key} entries must all be numbers.");
             }
 
             values[i] = item.Number;

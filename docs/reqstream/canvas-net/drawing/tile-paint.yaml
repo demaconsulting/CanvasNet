@@ -1,0 +1,123 @@
+---
+# cspell:ignore Rgba
+# Software Unit Requirements for TilePaint
+#
+# These requirements describe the design-level behavior of the TilePaint unit within the Drawing
+# subsystem. TilePaint is the public TilePaint type (a pre-rendered one-cell tile Surface plus a
+# device-space Transform and a pattern-space XStep/YStep pitch) and the internal
+# TilePaintEvaluator helper documented here as one unit, together with the tile-aware
+# PathFiller.Fill/ScanlineRasterizer.Fill overloads that let a caller paint a filled path by
+# repeating a pre-rendered tile bitmap instead of a single solid color or a gradient ramp.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Drawing Requirements
+        sections:
+          - title: TilePaint Requirements
+            requirements:
+              - id: CanvasNet-Drawing-TilePaint-Definition
+                title: >-
+                  A tile paint shall be defined by a pre-rendered one-cell tile surface, a
+                  transform mapping the tile's own defining (pattern-space) coordinates into the
+                  caller's path coordinate space, and a horizontal/vertical repeat pitch; the
+                  tile paint shall reject a missing surface, a transform with a non-finite
+                  component, and a non-finite or zero repeat pitch, while accepting a negative
+                  repeat pitch as a legitimate value meaning the tile repeats in the negative
+                  pattern-space axis direction.
+                justification: |
+                  A tile paint cannot sample any bitmap without a surface to sample, a non-finite
+                  transform component cannot place the tile anywhere sensible in path space, and a
+                  zero or non-finite repeat pitch has no meaningful tile spacing; a negative pitch
+                  is a legitimate PDF tiling-pattern value (PDF 32000-1 §8.7.3.1) and must be
+                  accepted, not rejected.
+                tests:
+                  - TilePaint_Constructor_NullSurface_ThrowsArgumentNullException
+                  - TilePaint_Constructor_TransformWithNaNComponent_ThrowsArgumentOutOfRangeException
+                  - TilePaint_Constructor_TransformWithInfinityComponent_ThrowsArgumentOutOfRangeException
+                  - TilePaint_Constructor_ZeroXStep_ThrowsArgumentOutOfRangeException
+                  - TilePaint_Constructor_ZeroYStep_ThrowsArgumentOutOfRangeException
+                  - TilePaint_Constructor_NonFiniteStep_ThrowsArgumentOutOfRangeException
+                  - TilePaint_Constructor_NegativeSteps_Succeeds
+                  - TilePaint_Constructor_ValidValues_PropertiesRoundTrip
+
+              - id: CanvasNet-Drawing-TilePaint-WithTransform
+                title: >-
+                  A tile paint shall expose a WithTransform operation returning a new tile paint
+                  with the same surface/repeat pitch, whose transform is this tile paint's own
+                  existing transform composed with the supplied transform (this tile paint's
+                  transform applied first, then the supplied transform), without mutating the
+                  original instance.
+                justification: |
+                  A caller that composes a tile-painted fill with an outer coordinate-space
+                  transform needs a way to fold that outer transform into the tile paint's own
+                  coordinate mapping, mirroring Gradient.WithTransform's equivalent role for
+                  gradient paints, so the two paint kinds compose identically from a caller's
+                  perspective.
+                tests:
+                  - TilePaint_WithTransform_ComposesTransformPreservingOtherProperties
+
+              - id: CanvasNet-Drawing-TilePaint-Sampling
+                title: >-
+                  TilePaintEvaluator shall map a device-space point back into pattern space via
+                  the tile paint's transform, wrap the result modulo the absolute value of the
+                  horizontal/vertical repeat pitch, and sample the tile surface by
+                  nearest-neighbor at the corresponding wrapped tile-pixel coordinate, repeating
+                  identically for every subsequent tile repetition regardless of the sign of the
+                  repeat pitch.
+                justification: |
+                  Tiling-pattern rendering must reproduce the same tile content at every
+                  repetition across the filled region, including when a caller supplies a negative
+                  repeat pitch, matching PDF tiling-pattern semantics exactly.
+                tests:
+                  - CreatePlan_NullTile_ThrowsArgumentNullException
+                  - EvaluateRow_IdentityTransform_SamplesExpectedTilePixels
+                  - EvaluateRow_WrapAroundBeyondOneTile_MatchesFirstTileRepetition
+                  - EvaluateRow_NegativeSteps_SamplesUsingAbsoluteValueWraparound
+
+              - id: CanvasNet-Drawing-TilePaint-DegenerateTransparent
+                title: >-
+                  TilePaintEvaluator shall leave every pixel in the affected fill fully
+                  transparent, rather than throwing or flat-filling with any color, when the tile
+                  paint's transform cannot be inverted - a deliberate divergence from Gradient's
+                  own degenerate-transform flat-fill-with-last-stop-color policy, since a tile
+                  paint has no equivalent fallback color.
+                justification: |
+                  A tile paint has no stop/last-color concept to flat-fill with, unlike a
+                  gradient; leaving affected pixels transparent mirrors GradientEvaluator's own
+                  separate "no valid root" radial case and keeps rendering well-defined for every
+                  valid tile paint whose transform happens to become singular (for example,
+                  mid-animation).
+                tests:
+                  - EvaluateRow_NonInvertibleTransform_WritesFullyTransparentRow
+
+              - id: CanvasNet-Drawing-TilePaint-Paint
+                title: >-
+                  Filling a path with a tile paint shall evaluate the tile paint once per pixel
+                  and scale the result by that pixel's antialiased fill coverage, honoring the
+                  same fill rule, curve-flattening, implicit-subpath-closing, and empty/
+                  out-of-bounds no-op behavior already established for solid-color and gradient
+                  fills.
+                justification: |
+                  Tile-painted fills must be visually and behaviorally consistent with
+                  solid-color and gradient fills in every respect except color source, so callers
+                  can switch between paint styles without any other change in rendering behavior.
+                tests:
+                  - PathFiller_Fill_TilePaint_CheckerboardTile_FillsWithBothTileColors
+                  - PathFiller_Fill_TilePaint_EmptyPath_NoOpLeavesSurfaceUnchanged
+                  - ScanlineRasterizer_Fill_TilePaint_FullCoverageRow_RepeatsAcrossWidth
+                  - ScanlineRasterizer_Fill_TilePaint_NoPolygons_NoOp
+
+              - id: CanvasNet-Drawing-TilePaint-PaintValidation
+                title: >-
+                  Filling a path with a tile paint shall reject a null surface, path, or tile
+                  paint argument with ArgumentNullException.
+                justification: |
+                  A null reference argument cannot supply a valid fill target, geometry, or
+                  paint; all such invalid input must fail fast and consistently with the
+                  equivalent solid-color/gradient fill validation.
+                tests:
+                  - PathFiller_Fill_TilePaint_NullSurface_ThrowsArgumentNullException
+                  - PathFiller_Fill_TilePaint_NullPath_ThrowsArgumentNullException
+                  - PathFiller_Fill_TilePaint_NullPaint_ThrowsArgumentNullException
+                  - ScanlineRasterizer_Fill_TilePaint_NullPaint_ThrowsArgumentNullException

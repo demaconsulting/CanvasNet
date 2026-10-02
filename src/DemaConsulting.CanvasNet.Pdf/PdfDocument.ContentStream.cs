@@ -24,6 +24,18 @@ public sealed partial class PdfDocument
     private PdfObject? _resources;
 
     /// <summary>
+    ///     The page's own initial current transformation matrix (the base CTM the top-level
+    ///     render call was invoked with), captured once per top-level <see cref="Render(int, int, int)"/>
+    ///     call and never mutated by any subsequent <c>cm</c>/Form-XObject-matrix composition -
+    ///     used by <c>PdfDocument.Patterns.cs</c>'s <c>PatternToDeviceTransform</c> to anchor a
+    ///     pattern's own <c>/Matrix</c> against the page's default coordinate system, per
+    ///     PDF 32000-1 §8.7.3.1 ("the pattern matrix maps pattern space to the default
+    ///     (initial) coordinate system of the page"), rather than against whatever CTM happens to
+    ///     be active when the pattern is actually painted with.
+    /// </summary>
+    private Matrix3x2 _pageInitialCtm;
+
+    /// <summary>
     ///     Resets every piece of per-render content-stream state (destination surface, resources,
     ///     graphics state/stack, path-construction state, font cache, text matrices, and the Form
     ///     XObject nesting-depth counter) and then tokenizes and executes
@@ -61,6 +73,7 @@ public sealed partial class PdfDocument
         _resources = resources;
         _gsStack = new Stack<GraphicsState>();
         _gs = new GraphicsState { CurrentTransform = baseCtm };
+        _pageInitialCtm = baseCtm;
         _pathBuilder = new PathBuilder();
         _currentPoint = default;
         _subpathStart = default;
@@ -71,6 +84,7 @@ public sealed partial class PdfDocument
         _formNestingDepth = 0;
         _type3NestingDepth = 0;
         _colorSpaceRecursionDepth = 0;
+        _functionRecursionDepth = 0;
 
         ExecuteOperators(contentBytes);
     }

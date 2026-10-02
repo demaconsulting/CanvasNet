@@ -3,9 +3,10 @@
 #
 # These requirements decompose the CanvasNet system's Drawing API responsibilities into the
 # Drawing subsystem's own responsibility: antialiased scanline-coverage filling of closed
-# Geometry.Path geometry with a solid color onto a Canvas.Surface (the PathFiller unit, which
-# also covers the supporting FillRule, EdgeFlattener, and ScanlineRasterizer types). Each
-# requirement here links down to the unit requirement that implements it.
+# Geometry.Path geometry with a solid color, a linear/radial gradient, or a repeating tile bitmap
+# onto a Canvas.Surface (the PathFiller unit, which also covers the supporting FillRule,
+# EdgeFlattener, and ScanlineRasterizer types, the GradientPaint unit, and the TilePaint unit).
+# Each requirement here links down to the unit requirement that implements it.
 
 sections:
   - title: CanvasNet Requirements
@@ -198,3 +199,43 @@ sections:
               - PathFiller_Fill_Gradient_NullPaint_ThrowsArgumentNullException
               - PathFiller_Fill_Gradient_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException
               - PathFiller_Fill_Gradient_UndefinedFillRule_ThrowsArgumentOutOfRangeException
+
+          - id: CanvasNet-Drawing-TilePaint
+            title: >-
+              The Drawing subsystem shall fill a closed Path with a repeating pre-rendered tile
+              bitmap onto a Surface, sampling the tile at each pixel according to the tile
+              paint's transform and horizontal/vertical repeat pitch, while honoring the same
+              fill rule, antialiasing, curve-flattening, and no-op behavior already established
+              for solid-color and gradient fills.
+            justification: |
+              Repeating a pre-rendered tile bitmap across a filled area is standard tiling-pattern
+              vector-graphics paint functionality - in particular, the rendering primitive needed
+              by CanvasNetPdf's PDF `/Pattern` PatternType 1 (tiling pattern) support; callers need
+              it available directly on a Surface, consistent in every other respect with the
+              existing solid-color and gradient fills.
+            children:
+              - CanvasNet-Drawing-TilePaint-Definition
+              - CanvasNet-Drawing-TilePaint-WithTransform
+              - CanvasNet-Drawing-TilePaint-Sampling
+              - CanvasNet-Drawing-TilePaint-DegenerateTransparent
+              - CanvasNet-Drawing-TilePaint-Paint
+              - CanvasNet-Drawing-PathFiller-TileFill
+            tests:
+              - PathFiller_Fill_TilePaint_CheckerboardTile_FillsWithBothTileColors
+              - EvaluateRow_WrapAroundBeyondOneTile_MatchesFirstTileRepetition
+
+          - id: CanvasNet-Drawing-TilePaintValidation
+            title: >-
+              The Drawing subsystem shall reject a null Surface, Path, or tile paint argument
+              with ArgumentNullException when filling a Path with a tile paint.
+            justification: |
+              Tile fill validation must fail exactly as consistently and predictably as
+              solid-color and gradient fill validation, so callers do not need to learn a third
+              set of invalid-input rules for the tile-paint overload.
+            children:
+              - CanvasNet-Drawing-TilePaint-PaintValidation
+              - CanvasNet-Drawing-PathFiller-TileFillValidation
+            tests:
+              - PathFiller_Fill_TilePaint_NullSurface_ThrowsArgumentNullException
+              - PathFiller_Fill_TilePaint_NullPath_ThrowsArgumentNullException
+              - PathFiller_Fill_TilePaint_NullPaint_ThrowsArgumentNullException

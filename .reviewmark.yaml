@@ -437,6 +437,31 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/Drawing/ScanlineRasterizerTests.cs"  # gradient rasterization tests
       - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceTests.cs"  # per-pixel-color CompositeOverSpan tests
 
+  # CanvasNet-Drawing-TilePaint Review (one per unit)
+  - id: CanvasNet-Drawing-TilePaint
+    title: Review that CanvasNet Drawing TilePaint Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/drawing.md"
+      - "docs/reqstream/canvas-net/drawing.yaml"
+      - "docs/design/canvas-net/drawing/path-filler.md"
+      - "docs/reqstream/canvas-net/drawing/path-filler.yaml"
+      - "docs/design/canvas-net/drawing/gradient-paint.md"
+      - "docs/reqstream/canvas-net/drawing/gradient-paint.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/drawing/tile-paint.yaml"  # unit requirements
+      - "docs/design/canvas-net/drawing/tile-paint.md"      # unit design
+      - "docs/verification/canvas-net/drawing/tile-paint.md"  # unit verification
+      - "src/DemaConsulting.CanvasNet/Drawing/TilePaint.cs"           # public tile paint source
+      - "src/DemaConsulting.CanvasNet/Drawing/TilePaintEvaluator.cs"  # internal helper source
+      - "src/DemaConsulting.CanvasNet/Drawing/PathFiller.cs"      # tile Fill overload
+      - "src/DemaConsulting.CanvasNet/Drawing/ScanlineRasterizer.cs"  # tile-aware rasterization
+      - "test/DemaConsulting.CanvasNet.Tests/Drawing/TilePaintTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Drawing/TilePaintEvaluatorTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Drawing/PathFillerTests.cs"  # tile Fill overload tests
+      - "test/DemaConsulting.CanvasNet.Tests/Drawing/ScanlineRasterizerTests.cs"  # tile rasterization tests
+
   # CanvasNet-Fonts Review (one per subsystem)
   - id: CanvasNet-Fonts
     title: Review that CanvasNet Fonts Subsystem Implementation is Correct
@@ -727,6 +752,9 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Fonts.Type1.cs"  # phase B unit source (Type 1 simple fonts)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Fonts.ToUnicode.cs"  # phase 10 unit source (ToUnicode CMap)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Functions.cs"  # pattern phase 1 (sampled function)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Patterns.cs"         # pattern phase (shared /Pattern dispatch)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Patterns.Shading.cs"  # pattern phase (shading patterns)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Patterns.Tiling.cs"   # pattern phase (tiling patterns)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.FontFallback.cs"  # phase 6 unit source (font fallback)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Text.cs"          # phase 4 unit source (text rendering)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfPageInfo.cs"              # phase 1 unit source (supporting record struct)

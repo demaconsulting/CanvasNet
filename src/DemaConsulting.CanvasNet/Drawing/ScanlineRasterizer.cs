@@ -208,6 +208,54 @@ internal static class ScanlineRasterizer
     }
 
     /// <summary>
+    ///     Rasterizes <paramref name="polygons"/> onto <paramref name="surface"/>, evaluating
+    ///     <paramref name="paint"/> once per pixel via <see cref="TilePaintEvaluator.EvaluateRow"/>
+    ///     and compositing the resulting per-pixel colors scaled by each pixel's analytically
+    ///     computed fill coverage, restricted to <paramref name="clipBounds"/>.
+    /// </summary>
+    /// <param name="surface">The surface to composite into. Must not be null.</param>
+    /// <param name="polygons">
+    ///     The closed polygons to fill (typically produced by <see cref="EdgeFlattener.Flatten"/>).
+    /// </param>
+    /// <param name="paint">The tile paint to evaluate per pixel. Must not be null.</param>
+    /// <param name="fillRule">The rule used to resolve overlapping/self-intersecting geometry.</param>
+    /// <param name="clipBounds">
+    ///     The region to rasterize, in the same path-space coordinates as <paramref name="polygons"/>.
+    /// </param>
+    /// <remarks>
+    ///     Shares its whole row-coverage computation with the constant-color and
+    ///     <see cref="Fill(Surface, IReadOnlyList{List{Vector2}}, Gradient, FillRule, Rect)"/>
+    ///     overloads via the shared <see cref="CoverageSweep"/> helper - the only difference here
+    ///     is that the final per-row compositing call first evaluates a per-pixel color row via
+    ///     <see cref="TilePaintEvaluator.EvaluateRow"/>, against a <see cref="TilePaint"/> plan
+    ///     built exactly once for the whole fill operation (via
+    ///     <see cref="TilePaintEvaluator.CreatePlan"/>), not rebuilt on every row.
+    /// </remarks>
+    internal static void Fill(Surface surface, IReadOnlyList<List<Vector2>> polygons, TilePaint paint, FillRule fillRule, Rect clipBounds)
+    {
+        ArgumentNullException.ThrowIfNull(paint);
+
+        var sweep = new CoverageSweep(polygons, fillRule, clipBounds);
+        if (sweep.IsEmpty)
+        {
+            return;
+        }
+
+        using var compositeWorkspace = new Surface.CompositeSpanWorkspace(sweep.Width);
+        var rowColors = new Rgba32[sweep.Width];
+
+        // Built once per fill operation, not once per row - see TilePaintEvaluator's "Per-fill
+        // precomputation" remarks.
+        var plan = TilePaintEvaluator.CreatePlan(paint);
+
+        while (sweep.MoveNext(out var y, out var rowCoverage))
+        {
+            TilePaintEvaluator.EvaluateRow(in plan, y, sweep.ClipMinX, sweep.Width, rowColors);
+            surface.CompositeOverSpan(y, sweep.ClipMinX, rowCoverage, rowColors, compositeWorkspace);
+        }
+    }
+
+    /// <summary>
     ///     Encapsulates the row-coverage computation shared by every <c>Fill</c> overload:
     ///     the edge table build, active-edge tracking, and per-row <c>cover</c>/<c>area</c>
     ///     accumulation/resolution described in this class's type-level remarks. A caller

@@ -1091,9 +1091,12 @@ package - see the Installation section of the project README.
 The `PdfDocument` sealed class opens a PDF document, parses its cross-reference table/stream and
 page tree, and reports each page's displayed (rotation-adjusted) size and its page count.
 `Render` interprets a page's content stream, painting real path geometry, device color (`rg`/
-`g`/`k`/`cs`/`sc` and related operators), placed image XObjects (`Do`), and text shown with a
-simple TrueType font (`Tf`/`Td`/`Tj` and the other `BT`/`ET` text operators) onto the returned
-`Surface`. A font with an embedded `/FontDescriptor/FontFile2` stream is always used directly;
+`g`/`k`/`cs`/`sc` and related operators, including `/Pattern`-color-space shading and tiling
+pattern fills/strokes - axial/radial (`/ShadingType 2`/`3`) shading patterns driven by
+`/FunctionType 0`/`2`/`3` functions, and colored/uncolored (`/PaintType 1`/`2`) tiling patterns
+rendering a repeating tile), placed image XObjects (`Do`), and text shown with a simple TrueType
+font (`Tf`/`Td`/`Tj` and the other `BT`/`ET` text operators) onto the returned `Surface`. A font
+with an embedded `/FontDescriptor/FontFile2` stream is always used directly;
 a font with no embedded font data is instead automatically substituted, fully silently (no new
 API, no "fallback occurred" indicator): first with the closest-matching font actually installed
 on the host operating system (matched by family name and bold/italic/serif/fixed-pitch style),
@@ -1115,10 +1118,14 @@ Any other font whose `/FontDescriptor` marks it as a symbolic, non-Latin-text gl
 never substituted this way, since a symbol/dingbat glyph set with no bundled substitute has no
 meaningful generic-family
 equivalent - it still fails closed with `UnsupportedImageFeatureException`, exactly as a
-non-embedded font of any kind did before this fallback behavior existed. **Documented scope
-boundaries**: `/Type0` (composite), `/Type1`, `/MMType1`, `/Type3` fonts, Form XObjects,
-shading/patterns/transparency groups, and stroke/clip text-rendering modes all fail closed with
-`UnsupportedImageFeatureException` rather than being silently skipped or mis-rendered.
+non-embedded font of any kind did before this fallback behavior existed. A shading pattern's
+`/Extend` is approximated as always-padded (never fully transparent outside the defining
+geometry), a documented, narrower-than-spec simplification; the `sh` operator and generic path
+clipping (`W`/`W*`) remain unsupported and are silently skipped. **Documented scope
+boundaries**: `/MMType1` fonts, mesh shadings (`/ShadingType 1`/`4`-`7`), `/FunctionType 4`
+(PostScript calculator) functions, the `sh` operator, generic path clipping, transparency groups,
+and stroke/clip text-rendering modes all fail closed with `UnsupportedImageFeatureException`
+rather than being silently skipped or mis-rendered.
 
 ```csharp
 using var doc = PdfDocument.Open("file.pdf");

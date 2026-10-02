@@ -1314,6 +1314,106 @@ their raw sample values correctly (16-bit via 2-byte big-endian packing). A `[Th
 `/Domain`), asserting `Codecs.UnsupportedImageFeatureException` (feature
 `pdf-function-multiinput`).
 
+#### CanvasNetPdf-PdfDocument-FunctionType2And3: /FunctionType 2/3 Evaluate Correctly, /FunctionType 4 Fails Closed
+
+**Tests**: `PdfDocument_Functions_Type2_Exponential_EvaluatesExpectedInterpolatedOutput`,
+`PdfDocument_Functions_Type3_Stitching_EvaluatesExpectedSubFunctionOutput`,
+`PdfDocument_Functions_Type4_PostScriptCalculator_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Functions_Type3_Stitching_NestingDepthExceeded_ThrowsInvalidDataException`
+
+Every test resolves a hand-built function stream via the new `ResolveFunctionGeneric` entry point
+(through a new `ResolveTestFunctionGeneric` helper mirroring `ResolveTestFunction`'s own "build a
+minimal document, open it, resolve a reference into it" convention), then calls `Evaluate`
+directly. A `[Theory]` resolves a `/FunctionType 2` function with `C0=[0]`/`C1=[1]` at both a
+linear (`N=1`) and a quadratic (`N=2`) exponent, asserting the literal spec formula's expected
+interpolated output at a known input. A `[Theory]` resolves a `/FunctionType 3` stitching
+function with 2 `/FunctionType 2` sub-functions split at a single `/Bounds` partition point,
+asserting the correct sub-function is selected (and its own `/Encode` remap applied) for inputs
+falling in each of the 2 partitions. A final test resolves a `/FunctionType 4` function through
+`ResolveFunctionGeneric`, asserting `Codecs.UnsupportedImageFeatureException` (feature
+`pdf-functiontype-4`) is still thrown (regression guard - `/FunctionType 4` remains unsupported
+even through the new generic resolver). A final regression test resolves a self-referencing
+`/FunctionType 3` object (its own `/Functions` array references itself) through
+`ResolveFunctionGeneric`, asserting `InvalidDataException` is thrown once the new
+`MaxFunctionRecursionDepth` (32) bound is reached, rather than the process' call stack being
+exhausted.
+
+#### CanvasNetPdf-PdfDocument-PatternColorSpace: /Pattern Color Space and scn/SCN Operands, Fail Closed Otherwise
+
+**Tests**: `PdfDocument_Color_PatternColorSpace_Cs_ResolvesToPatternFamily`,
+`PdfDocument_Color_PatternColorSpace_ArrayWithBase_ResolvesPatternBase`,
+`PdfDocument_Color_PatternColorSpace_TooManyArrayElements_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Color_Scn_ColoredPatternOperand_NameAlone_ResolvesPattern`,
+`PdfDocument_Color_Scn_UncoloredPatternOperand_WrongComponentCount_ThrowsInvalidDataException`,
+`PdfDocument_Color_Scn_PatternOperand_MissingTrailingName_ThrowsInvalidDataException`,
+`PdfDocument_Color_Scn_PatternOperand_UndeclaredPatternName_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Color_Scn_PatternOperand_UnsupportedPatternType_ThrowsUnsupportedImageFeatureException`
+
+Every test builds a minimal single-page PDF (via `BuildSinglePagePdfWithResources`) with a
+content stream selecting the `/Pattern` color space (`cs`, or a named `/CS0` resource entry for
+the 2-element array form, since `cs`/`CS` only accept a single `Name` operand - an inline array
+is not legal content-stream syntax), then calls `scn` and renders. Asserts bare `/Pattern cs`
+resolves without throwing. Asserts a declared `/DeviceRGB` base space accepts exactly 3 leading
+numeric operands before the pattern name and resolves successfully. Asserts a 3-element array
+color space throws `Codecs.UnsupportedImageFeatureException` (feature `pdf-colorspace-Pattern`).
+Asserts a bare pattern name (no base space, 0 leading numeric operands) resolves successfully.
+Asserts a declared base space with the wrong leading numeric operand count throws
+`InvalidDataException`. Asserts an all-numeric-operand `scn` call (no trailing pattern name)
+throws `InvalidDataException`. Asserts an undeclared pattern name throws
+`Codecs.UnsupportedImageFeatureException` (feature `pdf-pattern-not-declared`). Asserts a
+`/PatternType 3` pattern throws `Codecs.UnsupportedImageFeatureException` (feature
+`pdf-pattern-type-3`, a regression guard against any future `/PatternType` other than 1/2).
+
+#### CanvasNetPdf-PdfDocument-ShadingPatternFill: Axial/Radial Shading Patterns Paint a Gradient, Fail Closed Otherwise
+
+**Tests**: `PdfDocument_Patterns_ShadingPattern_AxialFunctionType2_FillsVisiblyVaryingGradient`,
+`PdfDocument_Patterns_ShadingPattern_RadialFunctionType2_FillsVisiblyVaryingGradient`,
+`PdfDocument_Patterns_ShadingPattern_UnsupportedShadingType_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Patterns_ShadingPattern_UnsupportedFunctionType4_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Patterns_ShadingPattern_FunctionArrayForm_ThreeOneOutputFunctions_BuildsRgbGradient`,
+`CanvasNetPdf_SystemIntegration_AxialShadingPatternFill_PaintsVisiblyVaryingColors`
+
+Every unit test builds a minimal single-page PDF with a declared `/Pattern` resource
+(`/PatternType 2`) and renders a filled rectangle. Asserts an axial (`/ShadingType 2`) pattern
+driven by a single `/FunctionType 2` black-to-white function paints near-black at one axis
+endpoint and near-white at the other. Asserts a radial (`/ShadingType 3`) pattern with the same
+function shape paints a visibly different color at the center versus the edge. A `[Theory]`
+asserts `/ShadingType 1`/`4` both throw `Codecs.UnsupportedImageFeatureException` (feature
+`pdf-shading-type-{n}`). Asserts a `/Function` entry resolving to a `/FunctionType 4` function
+still throws `Codecs.UnsupportedImageFeatureException` (feature `pdf-functiontype-4`) when
+reached through a shading pattern, not only through a direct function-resolution call. Asserts
+the `/Function [fn0 fn1 fn2]` array-of-1-output-functions form builds a correct RGB gradient. The
+system-integration test additionally proves the same axial-gradient fill end-to-end through the
+public `Render` API using a fully synthetic, in-memory PDF (no binary fixture), asserting
+near-black/near-white at the expected device pixel positions.
+
+#### CanvasNetPdf-PdfDocument-TilingPatternFill: Colored/Uncolored Tiling Patterns Paint a Tile, Fail Closed Otherwise
+
+**Tests**: `PdfDocument_Patterns_TilingPattern_ColoredPaintType1_FillsRepeatingTile`,
+`PdfDocument_Patterns_TilingPattern_UncoloredPaintType2_AppliesSuppliedTintPreservingAlpha`,
+`PdfDocument_Patterns_TilingPattern_OversizedTileDimensions_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Patterns_TilingPattern_ZeroXStep_ThrowsInvalidDataException`,
+`PdfDocument_Patterns_TilingPattern_NestingDepthExceeded_ThrowsInvalidDataException`,
+`CanvasNetPdf_SystemIntegration_ColoredTilingPatternFill_PaintsRepeatingTileColors`
+
+Every unit test builds a minimal single-page PDF with a declared `/Pattern` resource
+(`/PatternType 1`) and renders a filled rectangle spanning multiple tile repetitions. Asserts a
+`/PaintType 1` (colored) 2-color tile paints both of its own colors at multiple, correctly offset
+sample points (proving actual repetition, not merely 1 painted color). Asserts a `/PaintType 2`
+(uncolored) tile whose own content paints partial-coverage ink takes the `scn`-supplied tint's
+RGB on painted pixels while unpainted/transparent cell regions remain untouched (proving alpha is
+preserved, not merely overwritten). Asserts a pathological `/XStep`/`/YStep` combined with an
+extreme CTM scale that would allocate a tile surface exceeding `MaxTileSurfaceDimension` throws
+`Codecs.UnsupportedImageFeatureException` (feature `pdf-pattern-tile-too-large`). Asserts a zero
+`/XStep` throws `InvalidDataException` (malformed, not merely unsupported). Asserts a tiling
+pattern whose own content stream nests tiling-pattern cell rendering deeply enough to exceed the
+existing (reused, not duplicated) `MaxFormNestingDepth` guard throws `InvalidDataException` (no
+dedicated correctness test of deep nested rendering itself - only that the guard still fires
+through this new call path). The system-integration test additionally proves the same colored
+tiling-pattern fill end-to-end through the public `Render` API using a fully synthetic, in-memory
+PDF (no binary fixture), asserting both tile colors appear at multiple expected-offset device
+pixel positions.
+
 ## Acceptance Criteria
 
 A unit-level test run passes when all scenarios above pass without error or exception beyond

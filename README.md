@@ -35,9 +35,10 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
   weight/style-aware font matching, to a surface (ships as the separate
   `DemaConsulting.CanvasNet.Svg` package)
 - 📄 **PDF Document** - Open a PDF, inspect its page count/size/rotation, and rasterize a page's
-  path geometry, device color, image XObjects, and TrueType text to a surface, automatically
-  substituting a matching system font (or a bundled Liberation Sans/Serif/Mono font) for text
-  using a non-embedded font (ships as the separate `DemaConsulting.CanvasNet.Pdf` package)
+  path geometry, device color (including shading and tiling pattern fills), image XObjects, and
+  TrueType text to a surface, automatically substituting a matching system font (or a bundled
+  Liberation Sans/Serif/Mono font) for text using a non-embedded font (ships as the separate
+  `DemaConsulting.CanvasNet.Pdf` package)
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines

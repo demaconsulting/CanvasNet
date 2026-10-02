@@ -1174,6 +1174,40 @@ sections:
           - PathFiller_Fill_Gradient_NonPositiveFlattenTolerance_ThrowsArgumentOutOfRangeException
           - PathFiller_Fill_Gradient_UndefinedFillRule_ThrowsArgumentOutOfRangeException
 
+      - id: CanvasNet-Lib-DrawingTilePaint
+        title: >-
+          The library shall fill a closed Path with a repeating pre-rendered tile bitmap,
+          sampling the tile at each pixel according to a caller-supplied transform and
+          horizontal/vertical repeat pitch.
+        tags: [system]
+        justification: |
+          Repeating a pre-rendered tile bitmap across a filled area is standard tiling-pattern 2D
+          vector graphics paint functionality alongside solid-color and gradient fill - in
+          particular, the rendering primitive needed by CanvasNetPdf's PDF `/Pattern` PatternType
+          1 (tiling pattern) support; callers need it available directly without hand-rolling
+          per-pixel tile sampling themselves.
+        children:
+          - CanvasNet-Drawing-TilePaint
+        tests:
+          - PathFiller_Fill_TilePaint_CheckerboardTile_FillsWithBothTileColors
+          - EvaluateRow_WrapAroundBeyondOneTile_MatchesFirstTileRepetition
+
+      - id: CanvasNet-Lib-DrawingTilePaintValidation
+        title: >-
+          The library shall reject a null surface, path, or tile paint argument to the tile fill
+          operation with ArgumentNullException.
+        tags: [system]
+        justification: |
+          Tile fill validation must fail exactly as consistently and predictably as solid-color
+          and gradient fill validation, so callers do not need to learn a third set of
+          invalid-input rules for the tile-paint overload.
+        children:
+          - CanvasNet-Drawing-TilePaintValidation
+        tests:
+          - PathFiller_Fill_TilePaint_NullSurface_ThrowsArgumentNullException
+          - PathFiller_Fill_TilePaint_NullPath_ThrowsArgumentNullException
+          - PathFiller_Fill_TilePaint_NullPaint_ThrowsArgumentNullException
+
   - title: Fonts API
     requirements:
       - id: CanvasNet-Lib-FontsLoad

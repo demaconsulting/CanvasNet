@@ -7,7 +7,7 @@ using DemaConsulting.CanvasNet.Tests.TestSupport;
 // cspell:ignore endcodespacerange findresource defineresource currentdict begincmap endcmap
 // cspell:ignore bfchar bfrange nendbfchar nendbfrange tounicode usecmap cidrange cidchar codepoints
 // cspell:ignore OTTO rmoveto rlineto endchar notdef charstring charstrings cidfonttype
-// cspell:ignore functiontype multiinput fitz
+// cspell:ignore functiontype multiinput fitz uncatchable
 // cspell:ignore Noto
 // cspell:ignore hsbw closepath fontfile lenIV quoteright Quoteright hival
 
@@ -2182,15 +2182,163 @@ public class PdfDocumentTests
         Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[50, 50]);
     }
 
-    /// <summary>Proves that <c>scn</c> with a trailing pattern name throws <see cref="UnsupportedImageFeatureException"/>.</summary>
+    /// <summary>
+    ///     Proves that <c>/Pattern cs</c> alone (no base color space) resolves without throwing -
+    ///     a smoke test against the new <c>cs</c> <c>/Pattern</c> handling.
+    /// </summary>
     [Fact]
-    public void PdfDocument_Color_ScnWithPatternName_ThrowsUnsupportedImageFeatureException()
+    public void PdfDocument_Color_PatternColorSpace_Cs_ResolvesToPatternFamily()
     {
         // Arrange
-        const string content = "/P0 scn";
+        const string content = "/Pattern cs";
+
+        // Act & Assert: no exception.
+        using var surface = RenderContent(content);
+        Assert.NotNull(surface);
+    }
+
+    /// <summary>
+    ///     Proves that <c>/CS0 cs</c> naming a <c>[/Pattern /DeviceRGB]</c> array form declared in
+    ///     <c>/Resources/ColorSpace</c> (an array form declaring an underlying tint base) parses,
+    ///     and that a declared shading pattern selected afterward via <c>scn</c> (with the 3
+    ///     leading numeric operands this implementation's <c>ResolvePatternOperand</c> requires
+    ///     whenever the color space declares an underlying base - regardless of whether the
+    ///     resolved pattern turns out to be a shading or tiling pattern) paints its own
+    ///     tint-independent shading color. (An inline array is not itself a legal <c>cs</c>
+    ///     operand - PDF content streams only allow a <c>Name</c> operand there, resolved against
+    ///     <c>/Resources/ColorSpace</c>.)
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Color_PatternColorSpace_ArrayWithBase_ResolvesPatternBase()
+    {
+        // Arrange: a flat (single-color) axial shading pattern (identical Coords endpoints'
+        // colors) selected against a /Pattern color space with an underlying /DeviceRGB base.
+        // Object numbering: 5 = patternDict, 6 = shadingDict, 7 = functionStream.
+        var patternDict = "<< /PatternType 2 /Shading 6 0 R >>"u8.ToArray();
+        var shadingDict = "<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Function 7 0 R >>"u8.ToArray();
+        var functionStream = BuildStreamObjectBody(
+            "/FunctionType 2 /Domain [0 1] /C0 [0 1 0] /C1 [0 1 0] /N 1", []);
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/CS0 cs 0 0 0 /P1 scn 10 10 80 80 re f",
+            "/ColorSpace << /CS0 [/Pattern /DeviceRGB] >> /Pattern << /P1 5 0 R >>",
+            [patternDict, shadingDict, functionStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the flat shading pattern paints solid green everywhere it fills.
+        Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that <c>/CS0 cs</c> naming a <c>[/Pattern /DeviceRGB /DeviceGray]</c> array
+    ///     (3 array elements) declared in <c>/Resources/ColorSpace</c> throws
+    ///     <see cref="UnsupportedImageFeatureException"/> with feature <c>pdf-colorspace-Pattern</c>.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Color_PatternColorSpace_TooManyArrayElements_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/CS0 cs",
+            "/ColorSpace << /CS0 [/Pattern /DeviceRGB /DeviceGray] >>",
+            []);
 
         // Act & Assert
-        Assert.Throws<UnsupportedImageFeatureException>(() => RenderContent(content));
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+        Assert.Equal("pdf-colorspace-Pattern", exception.Feature);
+    }
+
+    /// <summary>Proves that <c>/P1 scn</c> (colored pattern operand, name alone, no base space) resolves a declared pattern successfully.</summary>
+    [Fact]
+    public void PdfDocument_Color_Scn_ColoredPatternOperand_NameAlone_ResolvesPattern()
+    {
+        // Arrange: a flat shading pattern selected with no leading numeric operands (/Pattern cs
+        // declares no underlying base, so 0 numeric operands are expected before the name).
+        // Object numbering: 5 = patternDict, 6 = shadingDict, 7 = functionStream.
+        var patternDict = "<< /PatternType 2 /Shading 6 0 R >>"u8.ToArray();
+        var shadingDict = "<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Function 7 0 R >>"u8.ToArray();
+        var functionStream = BuildStreamObjectBody(
+            "/FunctionType 2 /Domain [0 1] /C0 [1 0 0] /C1 [1 0 0] /N 1", []);
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Pattern cs /P1 scn 10 10 80 80 re f",
+            "/Pattern << /P1 5 0 R >>",
+            [patternDict, shadingDict, functionStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>Proves that an uncolored-pattern <c>scn</c> operand with the wrong leading numeric-operand count throws <see cref="InvalidDataException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Color_Scn_UncoloredPatternOperand_WrongComponentCount_ThrowsInvalidDataException()
+    {
+        // Arrange: base space /DeviceRGB requires 3 numeric operands before the pattern name,
+        // but only 2 are supplied. The base is declared via a named /CS0 color-space resource
+        // (an inline array is not itself a legal 'cs' operand).
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/CS0 cs 0.5 0.5 /P1 scn",
+            "/ColorSpace << /CS0 [/Pattern /DeviceRGB] >> /Pattern << /P1 5 0 R >>",
+            [BuildStreamObjectBody("/PatternType 1 /PaintType 2 /BBox [0 0 10 10] /XStep 10 /YStep 10", [])]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that a <c>scn</c> operand against a <c>/Pattern</c> color space with no trailing <c>Name</c> operand throws <see cref="InvalidDataException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Color_Scn_PatternOperand_MissingTrailingName_ThrowsInvalidDataException()
+    {
+        // Arrange
+        const string content = "/Pattern cs 1 scn";
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderContent(content));
+    }
+
+    /// <summary>Proves that selecting an undeclared pattern name via <c>scn</c> throws <see cref="UnsupportedImageFeatureException"/> with feature <c>pdf-pattern-not-declared</c>.</summary>
+    [Fact]
+    public void PdfDocument_Color_Scn_PatternOperand_UndeclaredPatternName_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange: /Pattern resource dictionary exists but does not declare /P0.
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Pattern cs /P0 scn",
+            "/Pattern << >>",
+            []);
+
+        // Act & Assert
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+        Assert.Equal("pdf-pattern-not-declared", exception.Feature);
+    }
+
+    /// <summary>Proves that an unsupported <c>/PatternType</c> (regression guard: only 1/2 are supported) throws <see cref="UnsupportedImageFeatureException"/> with feature <c>pdf-pattern-type-{n}</c>.</summary>
+    [Fact]
+    public void PdfDocument_Color_Scn_PatternOperand_UnsupportedPatternType_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Pattern cs /P1 scn",
+            "/Pattern << /P1 5 0 R >>",
+            ["<< /PatternType 3 >>"u8.ToArray()]);
+
+        // Act & Assert
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+        Assert.Equal("pdf-pattern-type-3", exception.Feature);
     }
 
     /// <summary>Proves that an unsupported named color space (resolved via <c>/Resources/ColorSpace</c>) throws <see cref="UnsupportedImageFeatureException"/> when selected with <c>cs</c>.</summary>
@@ -6137,6 +6285,263 @@ public class PdfDocumentTests
 
     #endregion
 
+    #region Patterns
+
+    /// <summary>Proves that an axial (<c>/ShadingType 2</c>) shading pattern driven by a <c>/FunctionType 2</c> function fills with a visibly varying gradient (near-black at the start coordinate, near-white at the end coordinate).</summary>
+    [Fact]
+    public void PdfDocument_Patterns_ShadingPattern_AxialFunctionType2_FillsVisiblyVaryingGradient()
+    {
+        // Arrange: axis from (0,0) to (100,0), black -> white. Object numbering (via
+        // BuildSinglePagePdfWithResources's extraObjectBodies, starting at 5): 5 = patternDict,
+        // 6 = shadingDict, 7 = functionStream.
+        var patternDict = "<< /PatternType 2 /Shading 6 0 R >>"u8.ToArray();
+        var shadingDict = "<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Function 7 0 R >>"u8.ToArray();
+        var functionStream = BuildStreamObjectBody(
+            "/FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [1 1 1] /N 1", []);
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Pattern cs /P1 scn 0 0 100 100 re f",
+            "/Pattern << /P1 5 0 R >>",
+            [patternDict, shadingDict, functionStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: at least 2 distinct colors across the fill, plus specific endpoint colors.
+        var distinctColors = new HashSet<Canvas.Rgba32>();
+        for (var x = 0; x < 100; x += 10)
+        {
+            distinctColors.Add(surface[x, 50]);
+        }
+
+        Assert.True(distinctColors.Count >= 2);
+        Assert.True(surface[2, 50].R < 50);
+        Assert.True(surface[97, 50].R > 200);
+    }
+
+    /// <summary>Proves that a radial (<c>/ShadingType 3</c>) shading pattern driven by a <c>/FunctionType 2</c> function fills with a visibly varying gradient (center color differs from edge color).</summary>
+    [Fact]
+    public void PdfDocument_Patterns_ShadingPattern_RadialFunctionType2_FillsVisiblyVaryingGradient()
+    {
+        // Arrange: two concentric circles centered at (50,50), inner radius 0, outer radius 50,
+        // black -> white.
+        var patternDict = "<< /PatternType 2 /Shading 6 0 R >>"u8.ToArray();
+        var shadingDict = "<< /ShadingType 3 /ColorSpace /DeviceRGB /Coords [50 50 0 50 50 50] /Function 7 0 R >>"u8.ToArray();
+        var functionStream = BuildStreamObjectBody(
+            "/FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [1 1 1] /N 1", []);
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Pattern cs /P1 scn 0 0 100 100 re f",
+            "/Pattern << /P1 5 0 R >>",
+            [patternDict, shadingDict, functionStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the center is darker than near the outer edge.
+        Assert.True(surface[50, 50].R < surface[95, 50].R);
+    }
+
+    /// <summary>Proves that an unsupported <c>/ShadingType</c> (<c>1</c> or <c>4</c>) throws <see cref="UnsupportedImageFeatureException"/> with feature <c>pdf-shading-type-{n}</c>.</summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4)]
+    public void PdfDocument_Patterns_ShadingPattern_UnsupportedShadingType_ThrowsUnsupportedImageFeatureException(int shadingType)
+    {
+        // Arrange: 5 = patternDict, 6 = shadingDict.
+        var patternDict = "<< /PatternType 2 /Shading 6 0 R >>"u8.ToArray();
+        var shadingDict = System.Text.Encoding.ASCII.GetBytes($"<< /ShadingType {shadingType} >>");
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Pattern cs /P1 scn 0 0 100 100 re f",
+            "/Pattern << /P1 5 0 R >>",
+            [patternDict, shadingDict]);
+
+        // Act & Assert
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+        Assert.Equal($"pdf-shading-type-{shadingType}", exception.Feature);
+    }
+
+    /// <summary>Proves that a shading pattern whose <c>/Function</c> is <c>/FunctionType 4</c> throws <see cref="UnsupportedImageFeatureException"/> with feature <c>pdf-functiontype-4</c> (regression guard: still rejected even when reached through a shading pattern).</summary>
+    [Fact]
+    public void PdfDocument_Patterns_ShadingPattern_UnsupportedFunctionType4_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange: 5 = patternDict, 6 = shadingDict, 7 = functionStream.
+        var patternDict = "<< /PatternType 2 /Shading 6 0 R >>"u8.ToArray();
+        var shadingDict = "<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Function 7 0 R >>"u8.ToArray();
+        var functionStream = BuildStreamObjectBody("/FunctionType 4", "{ }"u8.ToArray());
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Pattern cs /P1 scn 0 0 100 100 re f",
+            "/Pattern << /P1 5 0 R >>",
+            [patternDict, shadingDict, functionStream]);
+
+        // Act & Assert
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+        Assert.Equal("pdf-functiontype-4", exception.Feature);
+    }
+
+    /// <summary>Proves that a shading pattern's <c>/Function</c> array-of-1-output-functions form (3 separate <c>/FunctionType 2</c> functions, one per RGB component) builds a working gradient.</summary>
+    [Fact]
+    public void PdfDocument_Patterns_ShadingPattern_FunctionArrayForm_ThreeOneOutputFunctions_BuildsRgbGradient()
+    {
+        // Arrange: red ramps 0->1, green stays 0, blue stays 0 - a pure red gradient. Object
+        // numbering: 5 = patternDict, 6 = shadingDict, 7/8/9 = fnR/fnG/fnB.
+        var patternDict = "<< /PatternType 2 /Shading 6 0 R >>"u8.ToArray();
+        var shadingDict = "<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Function [7 0 R 8 0 R 9 0 R] >>"u8.ToArray();
+        var fnR = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [0] /C1 [1] /N 1", []);
+        var fnG = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [0] /C1 [0] /N 1", []);
+        var fnB = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [0] /C1 [0] /N 1", []);
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Pattern cs /P1 scn 0 0 100 100 re f",
+            "/Pattern << /P1 5 0 R >>",
+            [patternDict, shadingDict, fnR, fnG, fnB]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert
+        Assert.True(surface[2, 50].R < 50);
+        Assert.Equal(0, surface[2, 50].G);
+        Assert.Equal(0, surface[2, 50].B);
+        Assert.True(surface[97, 50].R > 200);
+    }
+
+    /// <summary>Builds a simple colored (<c>/PaintType 1</c>) tiling pattern stream: a 10x10 cell whose left half is red and whose right half is blue.</summary>
+    private static byte[] BuildCheckerboardTilingPatternStream(string extraEntries = "")
+    {
+        const string cellContent = "1 0 0 rg 0 0 5 10 re f 0 0 1 rg 5 0 5 10 re f";
+        return BuildStreamObjectBody(
+            $"/PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 10 10] /XStep 10 /YStep 10 {extraEntries}",
+            System.Text.Encoding.ASCII.GetBytes(cellContent));
+    }
+
+    /// <summary>Proves that a colored (<c>/PaintType 1</c>) tiling pattern fill paints a repeating tile, with both tile colors appearing at multiple correctly offset sample points.</summary>
+    [Fact]
+    public void PdfDocument_Patterns_TilingPattern_ColoredPaintType1_FillsRepeatingTile()
+    {
+        // Arrange: 10x10 pattern-space cell, left half red / right half blue, tiled across a
+        // 100x100 fill - at 1:1 scale, device pixel columns repeat identically to pattern-space
+        // columns (device y is flipped, but the tile content is uniform along y).
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Pattern cs /P1 scn 0 0 100 100 re f",
+            "/Pattern << /P1 5 0 R >>",
+            [BuildCheckerboardTilingPatternStream()]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: both colors appear, at multiple repeated tile offsets (every 10 device pixels).
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[2, 50]);
+        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[7, 50]);
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[12, 50]);
+        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[17, 50]);
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[92, 50]);
+        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[97, 50]);
+    }
+
+    /// <summary>Proves that an uncolored (<c>/PaintType 2</c>) tiling pattern applies the <c>scn</c>-supplied tint to painted pixels while preserving alpha, leaving unpainted (transparent) cell regions untouched.</summary>
+    [Fact]
+    public void PdfDocument_Patterns_TilingPattern_UncoloredPaintType2_AppliesSuppliedTintPreservingAlpha()
+    {
+        // Arrange: a /PaintType 2 cell that paints only a small centered 4x4 square (leaving the
+        // rest of the 10x10 cell transparent); 'scn' supplies a green tint via a /CS0 named
+        // color space resolving to [/Pattern /DeviceRGB] (an inline array is not itself a legal
+        // 'cs' operand - PDF content streams only allow a Name operand there, resolved against
+        // /Resources/ColorSpace). Object numbering: 5 = patternStream.
+        var cellContent = "0 0 0 rg 3 3 4 4 re f";
+        var patternStream = BuildStreamObjectBody(
+            "/PatternType 1 /PaintType 2 /TilingType 1 /BBox [0 0 10 10] /XStep 10 /YStep 10",
+            System.Text.Encoding.ASCII.GetBytes(cellContent));
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/CS0 cs 0 1 0 /P1 scn 0 0 10 10 re f",
+            "/ColorSpace << /CS0 [/Pattern /DeviceRGB] >> /Pattern << /P1 5 0 R >>",
+            [patternStream]);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: the painted 4x4 square (pattern-space x in [3,7), y in [3,7), device y flipped
+        // to [93,97)) takes the green tint; the untouched corner of the cell stays transparent.
+        Assert.Equal(new Canvas.Rgba32(0, 255, 0, 255), surface[5, 95]);
+        Assert.Equal(default, surface[1, 99]);
+    }
+
+    /// <summary>Proves that a pathological <c>/XStep</c>/<c>/YStep</c> combined with an extreme CTM scale (that would otherwise allocate a tile surface exceeding <c>MaxTileSurfaceDimension</c>) throws <see cref="UnsupportedImageFeatureException"/> with feature <c>pdf-pattern-tile-too-large</c>.</summary>
+    [Fact]
+    public void PdfDocument_Patterns_TilingPattern_OversizedTileDimensions_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange: a tiny 0.01x0.01 pattern-space cell, but the pattern's own /Matrix scales it
+        // up 1,000,000x - the resulting tile would need a 10,000x10,000 device-pixel surface,
+        // far exceeding MaxTileSurfaceDimension (2048).
+        var patternStream = BuildStreamObjectBody(
+            "/PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 0.01 0.01] /XStep 0.01 /YStep 0.01 " +
+            "/Matrix [1000000 0 0 1000000 0 0]",
+            "1 0 0 rg 0 0 0.01 0.01 re f"u8.ToArray());
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Pattern cs /P1 scn 0 0 100 100 re f",
+            "/Pattern << /P1 5 0 R >>",
+            [patternStream]);
+
+        // Act & Assert
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+        Assert.Equal("pdf-pattern-tile-too-large", exception.Feature);
+    }
+
+    /// <summary>Proves that a malformed (zero) <c>/XStep</c> throws <see cref="InvalidDataException"/> rather than being treated merely as unsupported.</summary>
+    [Fact]
+    public void PdfDocument_Patterns_TilingPattern_ZeroXStep_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var patternStream = BuildStreamObjectBody(
+            "/PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 10 10] /XStep 0 /YStep 10",
+            "1 0 0 rg 0 0 10 10 re f"u8.ToArray());
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Pattern cs /P1 scn 0 0 100 100 re f",
+            "/Pattern << /P1 5 0 R >>",
+            [patternStream]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    /// <summary>Proves that a tiling pattern whose own content stream selects/paints with another tiling pattern, nested deeply enough, still triggers the existing <c>MaxFormNestingDepth</c> guard (shared, not a new counter) - confirming the guard fires through this new call path, without any dedicated correctness test of deep nested rendering itself (out of scope).</summary>
+    [Fact]
+    public void PdfDocument_Patterns_TilingPattern_NestingDepthExceeded_ThrowsInvalidDataException()
+    {
+        // Arrange: pattern /P1's own content stream fills using itself (/P1) again, recursing
+        // indefinitely until the shared Form/tiling-pattern nesting-depth guard fires.
+        var patternStream = BuildStreamObjectBody(
+            "/PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 10 10] /XStep 10 /YStep 10 " +
+            "/Resources << /Pattern << /P1 5 0 R >> >>",
+            "/Pattern cs /P1 scn 0 0 10 10 re f"u8.ToArray());
+        var bytes = BuildSinglePagePdfWithResources(
+            100,
+            100,
+            "/Pattern cs /P1 scn 0 0 100 100 re f",
+            "/Pattern << /P1 5 0 R >>",
+            [patternStream]);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
+    }
+
+    #endregion
+
     #region Functions
 
     /// <summary>
@@ -6319,6 +6724,88 @@ public class PdfDocumentTests
         var exception = Assert.Throws<UnsupportedImageFeatureException>(
             () => ResolveTestFunction("/FunctionType 0 /Domain [0 1 0 1]", []));
         Assert.Equal("pdf-function-multiinput", exception.Feature);
+    }
+
+    /// <summary>
+    ///     Resolves a <c>/Function</c> entry (any of the 3 supported <c>/FunctionType</c>s) whose
+    ///     dictionary is a new indirect object (number 5, matching
+    ///     <see cref="BuildSinglePagePdfWithResources"/>'s own extra-object numbering) via
+    ///     <see cref="PdfDocument.ResolveFunctionGeneric"/>.
+    /// </summary>
+    private static PdfDocument.IPdfFunction ResolveTestFunctionGeneric(string dictionaryEntries, byte[] streamBytes)
+    {
+        var functionStream = BuildStreamObjectBody(dictionaryEntries, streamBytes);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [functionStream]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        return document.ResolveFunctionGeneric(PdfDocument.PdfObject.FromReference(5, 0));
+    }
+
+    /// <summary>Proves that <c>ExponentialFunction.Evaluate</c> computes the expected interpolated output at known input/output points, for both a linear (<c>N=1</c>) and a quadratic (<c>N=2</c>) exponent.</summary>
+    [Theory]
+    [InlineData(1, 0.5, 0.5)]
+    [InlineData(2, 0.5, 0.25)]
+    public void PdfDocument_Functions_Type2_Exponential_EvaluatesExpectedInterpolatedOutput(double n, double input, double expected)
+    {
+        // Arrange: C0=0, C1=1 -> output = input^N.
+        var function = ResolveTestFunctionGeneric($"/FunctionType 2 /Domain [0 1] /C0 [0] /C1 [1] /N {n}", []);
+
+        // Act
+        var result = function.Evaluate(input);
+
+        // Assert
+        Assert.Equal(1, function.OutputCount);
+        Assert.Equal(expected, result[0], 5);
+    }
+
+    /// <summary>Proves that <c>StitchingFunction.Evaluate</c> selects the correct sub-function for inputs falling in each of 2 partitions, applying each sub-function's own <c>/Encode</c> remap.</summary>
+    [Theory]
+    [InlineData(0.25, 0.0)]
+    [InlineData(0.75, 1.0)]
+    public void PdfDocument_Functions_Type3_Stitching_EvaluatesExpectedSubFunctionOutput(double input, double expected)
+    {
+        // Arrange: Domain [0, 1], Bounds [0.5] splits into 2 sub-domains; sub-function 0 (flat 0)
+        // covers [0, 0.5), sub-function 1 (flat 1) covers [0.5, 1]; /Encode [0 1 0 1] is an
+        // identity remap for each sub-domain.
+        var fn0 = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [0] /C1 [0] /N 1", []);
+        var fn1 = BuildStreamObjectBody("/FunctionType 2 /Domain [0 1] /C0 [1] /C1 [1] /N 1", []);
+        var stitchingStream = BuildStreamObjectBody(
+            "/FunctionType 3 /Domain [0 1] /Functions [6 0 R 7 0 R] /Bounds [0.5] /Encode [0 1 0 1]", []);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [stitchingStream, fn0, fn1]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        var function = document.ResolveFunctionGeneric(PdfDocument.PdfObject.FromReference(5, 0));
+
+        // Act
+        var result = function.Evaluate(input);
+
+        // Assert
+        Assert.Equal(expected, result[0], 5);
+    }
+
+    /// <summary>Proves that <c>/FunctionType 4</c> (PostScript calculator) still throws <see cref="UnsupportedImageFeatureException"/> with feature <c>pdf-functiontype-4</c> through the generic resolver (regression guard, updated message content).</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type4_PostScriptCalculator_ThrowsUnsupportedImageFeatureException()
+    {
+        // Act & Assert
+        var exception = Assert.Throws<UnsupportedImageFeatureException>(
+            () => ResolveTestFunctionGeneric("/FunctionType 4", "{ }"u8.ToArray()));
+        Assert.Equal("pdf-functiontype-4", exception.Feature);
+    }
+
+    /// <summary>Proves that a <c>/FunctionType 3</c> stitching function whose own <c>/Functions</c> array references itself triggers the new <c>MaxFunctionRecursionDepth</c> guard with <see cref="InvalidDataException"/>, rather than exhausting the process' call stack with an uncatchable <see cref="StackOverflowException"/>.</summary>
+    [Fact]
+    public void PdfDocument_Functions_Type3_Stitching_NestingDepthExceeded_ThrowsInvalidDataException()
+    {
+        // Arrange: object 5's own /Functions array references itself (5 0 R), recursing
+        // indefinitely until the new function-resolution nesting-depth guard fires. A single
+        // sub-function (k = 1) requires 0 /Bounds elements and 2 /Encode elements.
+        var stitchingStream = BuildStreamObjectBody(
+            "/FunctionType 3 /Domain [0 1] /Functions [5 0 R] /Bounds [] /Encode [0 1]", []);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [stitchingStream]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(
+            () => document.ResolveFunctionGeneric(PdfDocument.PdfObject.FromReference(5, 0)));
     }
 
     #endregion

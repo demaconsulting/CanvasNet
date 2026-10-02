@@ -78,11 +78,11 @@ only the `/WinAnsiEncoding` and `/MacRomanEncoding` base encodings (plus `/Diffe
 supported (an unrecognized base encoding also fails closed); only text-rendering modes `0` (fill)
 and `3` (invisible) are supported (stroke/clip modes `1`/`2`/`4`-`7` fail closed); and no
 additional stream filters were added for any of these phases.
-**Phase 3 limitations** (narrowed by Phase 7/13, see below): no shading/pattern fills or
-transparency groups (a `/FunctionType 0` sampled-function evaluator was added as unconsumed
-groundwork in Phase 1 of the `/Pattern` color-space roadmap - see _Sampled Function Evaluation_
-below - but is not yet wired into rendering: `scn`/`SCN` with a pattern name still throws
-`UnsupportedImageFeatureException`), no `JPX` filter decoding (fails closed;
+**Phase 3 limitations** (narrowed by Phase 7/13 and the `/Pattern` color-space phase, see below):
+no transparency groups; shading/tiling pattern fills were added (`/ShadingType 2`/`3`,
+`/PatternType 1`/`2` — see _`/Pattern` Color Space (Shading and Tiling Patterns)_ below, reusing
+the `/FunctionType 0` sampled-function evaluator originally landed as Phase 1 groundwork,
+alongside new `/FunctionType 2`/`3` support), no `JPX` filter decoding (fails closed;
 `LZWDecode`/`ASCII85Decode`/`ASCIIHexDecode`/`RunLengthDecode` are supported as of Phase 7, and
 `CCITTFaxDecode` - Group 4 (T.6 MMR) only - is supported as of Phase 15, see below), and no
 `/SMask`/alpha compositing (every decoded image is treated as fully opaque) — these
@@ -515,12 +515,14 @@ its own distinguishable `Feature` token.
   `ResolveColorSpaceValue` to `ResolveIccBasedColorSpace` (`/ICCBased`) or
   `ResolveIndexedColorSpace` (`/Indexed`, Phase 14 — see below); any other resolved color space
   (`Separation`/`DeviceN`/`CalRGB`/`CalGray`/`Lab`, or an undeclared name) throws
-  `Codecs.UnsupportedImageFeatureException`, naming the unsupported space. `OpSetColorFill`/
-  `OpSetColorStroke` (`sc`/`SC`/`scn`/`SCN`) require exactly `ComponentCount` numeric operands for
-  the current color space; a trailing `Name` operand (the `/Pattern` form) throws
-  `Codecs.UnsupportedImageFeatureException` rather than being interpreted as a component. Every
-  malformed operand count/type throws `InvalidDataException`, matching every other operator in
-  this class.
+  `Codecs.UnsupportedImageFeatureException`, naming the unsupported space; a `/Pattern` array
+  form is dispatched instead to `PdfColorSpace.Pattern` (see _`/Pattern` Color Space (Shading and
+  Tiling Patterns)_ below). `OpSetColorFill`/`OpSetColorStroke` (`sc`/`SC`/`scn`/`SCN`) require
+  exactly `ComponentCount` numeric operands for the current color space when it is not
+  `/Pattern`; a `/Pattern` color space instead dispatches `scn`/`SCN` (never `sc`/`SC`, which the
+  specification never pairs with a pattern name) to the dedicated pattern-operand path described
+  below. Every malformed operand count/type throws `InvalidDataException`, matching every other
+  operator in this class.
   - **`/ICCBased`/`/Indexed` color-space resolution (`PdfDocument.Color.cs`, Phase 14 — this
     phase)** — `ResolveIccBasedColorSpace` validates a 2-element `[/ICCBased streamRef]` array
     whose 2nd element resolves to a stream (else `Codecs.UnsupportedImageFeatureException` — a
@@ -1032,12 +1034,128 @@ its own distinguishable `Feature` token.
   tint-transform shape, itself already out of scope, see _Content-Stream Interpreter_'s color-space
   discussion above) throws the same exception type (feature `pdf-function-multiinput`); a
   `/BitsPerSample` other than `8`/`16` likewise throws (feature `pdf-function-bitspersample-{n}`).
-  **This is deliberately resolved-but-unconsumed groundwork this phase** — no caller wires
-  `Evaluate` into the content-stream interpreter yet (`scn`/`SCN` with a pattern name still throws
-  `UnsupportedImageFeatureException`, per _Error Handling_ below): a later phase of the `/Pattern`
-  color-space roadmap is expected to sample this evaluator's output into gradient stops for
-  axial/radial shading-pattern fills, mirroring `PdfDocument.Fonts.ToUnicode.cs`'s own precedent of
-  landing a narrowly-scoped parser ahead of the feature that consumes it.
+  This was originally landed as resolved-but-unconsumed groundwork (Phase 1 of the `/Pattern`
+  color-space roadmap); it is now consumed directly by shading-pattern gradient construction (see
+  _`/Pattern` Color Space (Shading and Tiling Patterns)_ below), mirroring
+  `PdfDocument.Fonts.ToUnicode.cs`'s own precedent of landing a narrowly-scoped parser ahead of
+  the feature that consumes it.
+- **Exponential and Stitching Function Evaluation (`PdfDocument.Functions.cs`, added alongside
+  `/Pattern` color-space support)** — `ResolveFunctionGeneric` is the new, uniform entry point
+  every pattern/shading caller uses (`ResolveFunction` itself remains, unchanged, as the
+  `/FunctionType 0`-only path every pre-existing caller still uses): it dispatches `/FunctionType`
+  `0` to the existing `SampledFunction` (through a shared `IPdfFunction` interface exposing
+  `Evaluate(double)`/`OutputCount`), `2` to a new `ExponentialFunction` (`/Domain`, `/C0`/`/C1`
+  defaulting to `[0.0]`/`[1.0]` per spec when absent, and `/N` — always a plain PDF number, never
+  an array — computing the literal spec formula
+  `C0[i] + (Math.Pow(clampedInput, N) * (C1[i] - C0[i]))` component-wise), and `3` to a new
+  `StitchingFunction` (`/Domain`, `/Functions` — each sub-function independently resolved,
+  recursively, through the same `ResolveFunctionGeneric` dispatcher, so a stitching function
+  nesting another stitching function is supported automatically rather than specially — bounded by
+  a new `MaxFunctionRecursionDepth` (`32`) guard on `ResolveFunctionGeneric` itself (checked/
+  incremented/decremented exactly like `MaxColorSpaceRecursionDepth`), throwing
+  `InvalidDataException` when a self-referencing or excessively deep `/Functions` chain would
+  otherwise recurse until the process' call stack is exhausted — `/Bounds`
+  — the `k - 1` partition points for `k` sub-functions — and `/Encode` — `2k` elements remapping
+  each selected sub-domain into its own sub-function's `/Domain` before delegating). `/FunctionType
+  4` (PostScript calculator functions) continues to throw
+  `Codecs.UnsupportedImageFeatureException` (feature `pdf-functiontype-4`) — the exception
+  message now reads "only /FunctionType 0, 2, and 3 are supported".
+
+### `/Pattern` Color Space (Shading and Tiling Patterns)
+
+- **`/Pattern` color-space resolution and `scn`/`SCN` pattern operands (`PdfDocument.Color.cs`,
+  added alongside `/Pattern` color-space support)** — `PdfColorSpace.Family` gains a `Pattern`
+  case, with an internal `PatternBase` property holding the optional underlying color space from
+  the 2-element `[/Pattern baseSpace]` array form (`null` for the bare `/Pattern` name form).
+  `cs`/`CS` resolve `/Pattern` as a fixed device-style identifier (never looked up as a
+  `/Resources/ColorSpace` name, matching `/DeviceGray`/`/DeviceRGB`/`/DeviceCMYK`'s own
+  resolution precedent); an array form with any element count other than 1 or 2 throws
+  `Codecs.UnsupportedImageFeatureException` (feature `pdf-colorspace-Pattern`).
+  `OpSetColorFill`/`OpSetColorStroke` (`scn`/`SCN` — the plain `sc`/`SC` operators never carry a
+  pattern name per spec) branch on the active color space's `Kind == Family.Pattern` _before_
+  reaching the existing numeric-component path: the trailing operand must be a `Name` (else
+  `InvalidDataException`); every operand before it must be numeric, with a count driven _solely_
+  by whether the active color space declared a `PatternBase` — exactly `ComponentCount
+  (PatternBase)` numbers when one was declared (regardless of whether the pattern the name
+  resolves to actually turns out to be a shading or a tiling pattern), or exactly `0` numbers
+  otherwise (either shape violated throws `InvalidDataException`). The leading numeric operands,
+  when present, convert via the existing `ColorFromComponents(PatternBase, ...)` helper into an
+  "uncolored tint" color, stored alongside the resolved pattern. The resolved pattern name is
+  looked up in the current page's `/Resources/Pattern` dictionary (`ResolvePattern`, mirroring
+  `ResolveColorSpaceByName`'s own `/Resources/ColorSpace` lookup precedent exactly), throwing
+  `Codecs.UnsupportedImageFeatureException` (feature `pdf-pattern-not-declared`) when absent, and
+  dispatching on `/PatternType` to a tiling-pattern builder (`1`) or shading-pattern builder
+  (`2`, per PDF-spec numbering), any other value throwing
+  `Codecs.UnsupportedImageFeatureException` (feature `pdf-pattern-type-{n}`).
+  `GraphicsState.FillPattern`/`StrokePattern` (new, nullable, shared-not-deep-copied on `Clone()`
+  exactly like the existing `Font` field) carry the resolved pattern; `FillColor`/`StrokeColor`
+  are set to an opaque-black placeholder that is documented as never actually painted with, since
+  `PaintCurrentPath` always branches on `FillColorSpace.Kind == Family.Pattern` before reading
+  either color field.
+- **Shading patterns (`PdfDocument.Patterns.cs`/`PdfDocument.Patterns.Shading.cs`, added
+  alongside `/Pattern` color-space support)** — a `/PatternType 2` dictionary's `/Shading`
+  resolves `/ShadingType 2` (axial) or `3` (radial); any other `/ShadingType` throws
+  `Codecs.UnsupportedImageFeatureException` (feature `pdf-shading-type-{n}`). `/ColorSpace` must
+  resolve to `DeviceGray`/`DeviceRGB`/`DeviceCMYK` (else feature
+  `pdf-shading-colorspace-{family}`); `/Function` accepts either a single function or an array of
+  1-output-component functions (`ResolveFunctionOrFunctionArray`), each resolved through
+  `ResolveFunctionGeneric` above. The resolved shading samples its function(s) at 32 evenly spaced
+  points across `/Domain` (a fixed constant balancing visual smoothness against per-fill
+  allocation/compute cost — no caller needs more precision than this, mirroring
+  `SampledFunction`'s own posture), converts each sample through `ColorFromComponents`, and builds
+  one `Drawing.GradientStop` per sample to construct a `Drawing.LinearGradient` (`ShadingType 2`)
+  or `Drawing.RadialGradient` (`ShadingType 3`) whose `Transform` is the pattern's own `/Matrix`
+  composed with the page's initial (pre-`cm`) CTM (`_pageInitialCtm`, captured once per
+  `ExecuteContentStream` call, per PDF 32000-1 §8.7.3.1's default-coordinate-system rule — this is
+  the one documented limitation when a pattern is resolved from inside a nested Form XObject's own
+  `/Resources/Pattern`: it still composes against the page's own initial CTM, not the Form's own
+  default space). **`/Extend` is approximated as `Drawing.GradientSpread.Pad`** regardless of its
+  actual `[false false]`/`[true true]`/mixed value — a documented, narrower-than-spec
+  simplification: no existing `GradientSpread` value expresses the spec's true
+  "paint nothing outside the defining geometry" default, and implementing that exactly would
+  require a general clipping mechanism (`W`/`W*`) this phase does not add.
+- **Tiling patterns (`PdfDocument.Patterns.cs`/`PdfDocument.Patterns.Tiling.cs`, added alongside
+  `/Pattern` color-space support)** — a `/PatternType 1` stream's `/BBox` (4 numbers), `/XStep`/
+  `/YStep` (each required finite and non-zero — `InvalidDataException` otherwise, a malformed, not
+  merely unsupported, value per spec), optional `/Matrix`, required `/PaintType` (`1` colored /
+  `2` uncolored — any other value is `InvalidDataException`), own `/Resources` (falling back to
+  the invoking stream's resources, exactly like `OpDrawFormXObject`), and decoded content bytes
+  are all resolved up front. Rendering one pattern cell (`RenderTilingPatternCell`) computes the
+  device-pixel tile-surface size from `|XStep|`/`|YStep|` scaled by the pattern-to-device
+  transform's own determinant-derived scale factor (`MatrixScale`, the same
+  `sqrt(|det(matrix.Linear)|)` formula `DeviceScale()` already uses for stroke width, extracted to
+  a shared static helper so both call sites share one implementation), rejecting a resulting
+  surface wider or taller than `MaxTileSurfaceDimension` (2048 device pixels) with
+  `Codecs.UnsupportedImageFeatureException` (feature `pdf-pattern-tile-too-large` — a fail-closed
+  guard against a pathological/adversarial `/XStep`/`/YStep` combined with an extreme CTM scale).
+  The cell then renders through the exact same "swap `_surface`/`_resources`/`_gs`/`_gsStack`,
+  increment `_formNestingDepth` (reusing the existing `MaxFormNestingDepth` guard — not a new,
+  parallel counter, so combined Form-XObject and tiling-pattern-cell nesting is bounded by the one
+  existing limit), `ExecuteOperators`, restore everything in a `finally` block" shape
+  `OpDrawFormXObject` already established — with one necessary addition: the cell's own nested
+  content-stream execution also saves, resets to a fresh value, and restores the path-building
+  scalar fields (`_pathBuilder`/`_currentPoint`/`_subpathStart`/`_hasOpenSubpath`), since (unlike
+  `Do`, which is never invoked mid-path-paint) a tiling-pattern cell can be rendered _from inside_
+  an in-progress fill/stroke paint operation, after the host's own path has already been captured
+  but before it has been cleared — without this extra save/reset/restore, the cell's own path data
+  would silently accumulate onto the host's still-live path and corrupt both. For `/PaintType 2`
+  (uncolored) patterns, every color the cell's content stream itself sets is overridden by the
+  caller-supplied tint before compositing, preserving each pixel's own painted alpha exactly (so a
+  partially transparent cell stays partially transparent, just recolored). The rendered cell
+  becomes a `Drawing.TilePaint` (new `Drawing` subsystem unit — see _Introduction_ and
+  `Drawing/TilePaint.cs`/`Drawing/TilePaintEvaluator.cs`), sampled nearest-neighbor per destination
+  pixel by `Drawing.PathFiller`'s new `TilePaint` fill overload, mirroring the existing `Gradient`
+  overload's structure exactly.
+- **Scope boundaries (deliberately not implemented this phase)** — `ShadingType` `1`/`4`-`7`
+  (function-based and mesh shadings), `/FunctionType 4` (PostScript calculator functions), the
+  `sh` operator, and generic path clipping (`W`/`W*`) all remain unsupported/unchanged (the `sh`
+  operator and `W`/`W*` both remain silently skipped by `DispatchOperator`'s existing lenient
+  default case, unchanged by this feature); a `/Pattern` color space nested inside another
+  `/Pattern`'s own `PatternBase` is out of scope (the `ComponentCount` arm for `Family.Pattern`
+  throws `InvalidOperationException` as a fail-closed backstop, since no caller is expected to
+  reach it); deep nested-tiling-pattern recursion is bounded only by the shared, reused
+  `MaxFormNestingDepth` guard (no dedicated correctness test of deep nested rendering itself, only
+  that the guard still fires through this new call path).
 
 ### Error Handling
 
@@ -1076,14 +1194,27 @@ its own distinguishable `Feature` token.
 - **An unsupported color space** (`cs`/`CS`, or an image XObject's `/ColorSpace`:
   `Separation`/`DeviceN`/`CalRGB`/`CalGray`/`Lab`, an undeclared `/Resources/ColorSpace` name, an
   `/ICCBased` stream whose `/N` is not `1`/`3`/`4` with no usable `/Alternate`, an `/Indexed` color
-  space whose base color space is itself unsupported, or any other unrecognized value) —
+  space whose base color space is itself unsupported, a `/Pattern` array form with an element
+  count other than 1 or 2 (feature `pdf-colorspace-Pattern`), or any other unrecognized value) —
   `Codecs.UnsupportedImageFeatureException`.
-- **`scn`/`SCN` with a trailing pattern name** — `Codecs.UnsupportedImageFeatureException`
-  (`/Pattern` color is out of this phase's scope).
-- **`ResolveFunction`'s `/Function` entry** — a `/FunctionType` other than `0`, a multi-input
-  `/FunctionType 0` function (a `/Domain` with more than 2 elements), or a `/BitsPerSample` other
-  than `8`/`16` — `Codecs.UnsupportedImageFeatureException`; a `/Function` that does not resolve
-  to a stream, or a missing/malformed `/Domain`/`/Range`/`/Size`/`/Encode`/`/Decode` entry —
+- **`scn`/`SCN` pattern operands** — a missing trailing `Name` operand, or a leading numeric
+  operand count that does not exactly match the active color space's declared `PatternBase`
+  component count (`0` when none was declared) — `InvalidDataException`; an undeclared pattern
+  name (feature `pdf-pattern-not-declared`) or an unsupported `/PatternType` (anything other than
+  `1`/`2`, feature `pdf-pattern-type-{n}`) — `Codecs.UnsupportedImageFeatureException`.
+- **An unsupported shading pattern** — a `/ShadingType` other than `2`/`3` (feature
+  `pdf-shading-type-{n}`), or a `/ColorSpace` other than `DeviceGray`/`DeviceRGB`/`DeviceCMYK`
+  (feature `pdf-shading-colorspace-{family}`) — `Codecs.UnsupportedImageFeatureException`.
+- **A pathological tiling pattern** — a `/XStep`/`/YStep` that is zero or non-finite, or a
+  `/PaintType` other than `1`/`2` — `InvalidDataException`; a resolved device-pixel tile surface
+  exceeding `MaxTileSurfaceDimension` — `Codecs.UnsupportedImageFeatureException` (feature
+  `pdf-pattern-tile-too-large`).
+- **`ResolveFunction`/`ResolveFunctionGeneric`'s `/Function` entry** — a `/FunctionType` other
+  than `0`/`2`/`3`, a multi-input `/FunctionType 0` function (a `/Domain` with more than 2
+  elements), a `/BitsPerSample` other than `8`/`16`, or a `/FunctionType 4` (PostScript
+  calculator) function (feature `pdf-functiontype-4`) — `Codecs.UnsupportedImageFeatureException`;
+  a `/Function` that does not resolve to a stream/dictionary, or a missing/malformed
+  `/Domain`/`/Range`/`/Size`/`/Encode`/`/Decode`/`/C0`/`/C1`/`/N`/`/Functions`/`/Bounds` entry —
   `InvalidDataException` instead (malformed, not merely unsupported).
 - **An unsupported stream filter** (anything other than `FlateDecode`, `LZWDecode`,
   `ASCII85Decode`, `ASCIIHexDecode`, `RunLengthDecode`, or `DCTDecode`/`CCITTFaxDecode` combined

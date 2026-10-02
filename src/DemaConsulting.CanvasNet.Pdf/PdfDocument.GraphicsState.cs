@@ -105,6 +105,21 @@ public sealed partial class PdfDocument
         internal PdfColorSpace StrokeColorSpace { get; set; } = PdfColorSpace.DeviceGray;
 
         /// <summary>
+        ///     Gets or sets the currently selected fill pattern, resolved by the most recent
+        ///     <c>scn</c> operator against a <c>/Pattern</c> <see cref="FillColorSpace"/>, or
+        ///     <see langword="null"/> when <see cref="FillColorSpace"/>'s <see cref="PdfColorSpace.Kind"/>
+        ///     is not <see cref="PdfColorSpace.Family.Pattern"/> (set back to <see langword="null"/>
+        ///     by <c>cs</c>/<c>g</c>/<c>rg</c>/<c>k</c> and their fill counterparts).
+        /// </summary>
+        internal ResolvedPattern? FillPattern { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the currently selected stroke pattern - see <see cref="FillPattern"/>'s
+        ///     remarks, which apply identically here against <see cref="StrokeColorSpace"/>.
+        /// </summary>
+        internal ResolvedPattern? StrokePattern { get; set; }
+
+        /// <summary>
         ///     Gets or sets the currently selected font, resolved by the most recent <c>Tf</c>
         ///     operator, or <see langword="null"/> when no <c>Tf</c> has been issued yet (in
         ///     which case a text-showing operator fails closed - see
@@ -168,6 +183,8 @@ public sealed partial class PdfDocument
             StrokeColor = StrokeColor,
             FillColorSpace = FillColorSpace,
             StrokeColorSpace = StrokeColorSpace,
+            FillPattern = FillPattern,
+            StrokePattern = StrokePattern,
             Font = Font,
             FontSize = FontSize,
             CharSpacing = CharSpacing,

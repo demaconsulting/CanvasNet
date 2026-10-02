@@ -24,7 +24,7 @@ public sealed partial class PdfDocument
     ///     usable <c>/Alternate</c>, and an <c>/Indexed</c> color space whose base color space is
     ///     itself unsupported.
     /// </remarks>
-    private sealed class PdfColorSpace
+    internal sealed class PdfColorSpace
     {
         /// <summary>The distinct families of color space this phase recognizes.</summary>
         internal enum Family
@@ -44,6 +44,15 @@ public sealed partial class PdfDocument
             ///     <see cref="IndexedPalette"/> and converted via <see cref="IndexedBase"/>.
             /// </summary>
             Indexed,
+
+            /// <summary>
+            ///     The <c>/Pattern</c> color space (PDF 32000-1 §8.7.3.3): selects a named
+            ///     <c>/Pattern</c> resource via <c>scn</c>/<c>SCN</c>'s trailing name operand,
+            ///     optionally with an underlying tint color space (<see cref="PatternBase"/>) for
+            ///     an uncolored (<c>/PaintType 2</c>) tiling pattern. <see cref="ComponentCount"/>
+            ///     is deliberately undefined for this family - see that method's remarks.
+            /// </summary>
+            Pattern,
         }
 
         /// <summary>Gets the family of color space this instance represents.</summary>
@@ -67,6 +76,14 @@ public sealed partial class PdfDocument
         /// </summary>
         internal byte[] IndexedPalette { get; private init; } = [];
 
+        /// <summary>
+        ///     Gets the underlying tint color space, when <see cref="Kind"/> is
+        ///     <see cref="Family.Pattern"/> and the pattern color space was declared with a base
+        ///     (<c>[/Pattern baseSpace]</c>, for an uncolored tiling pattern); <see langword="null"/>
+        ///     for a colored-only pattern color space (<c>/Pattern</c> alone).
+        /// </summary>
+        internal PdfColorSpace? PatternBase { get; private init; }
+
         /// <summary>The shared <c>DeviceGray</c> color-space instance.</summary>
         internal static readonly PdfColorSpace DeviceGray = new() { Kind = Family.DeviceGray };
 
@@ -83,6 +100,17 @@ public sealed partial class PdfDocument
             IndexedBase = baseSpace,
             IndexedHival = hival,
             IndexedPalette = palette,
+        };
+
+        /// <summary>
+        ///     Creates a <c>/Pattern</c> color-space instance, optionally with an underlying tint
+        ///     color space (<paramref name="baseSpace"/>, <see langword="null"/> for a
+        ///     colored-only pattern color space).
+        /// </summary>
+        internal static PdfColorSpace Pattern(PdfColorSpace? baseSpace) => new()
+        {
+            Kind = Family.Pattern,
+            PatternBase = baseSpace,
         };
     }
 
@@ -143,6 +171,7 @@ public sealed partial class PdfDocument
     {
         _gs.FillColorSpace = ResolveColorSpaceOperand(operands, "cs");
         _gs.FillColor = new Rgba32(0, 0, 0, 255);
+        _gs.FillPattern = null;
     }
 
     /// <summary>
@@ -160,55 +189,147 @@ public sealed partial class PdfDocument
     {
         _gs.StrokeColorSpace = ResolveColorSpaceOperand(operands, "CS");
         _gs.StrokeColor = new Rgba32(0, 0, 0, 255);
+        _gs.StrokePattern = null;
     }
 
     /// <summary>
     ///     Handles the <c>sc</c>/<c>scn</c> operators: sets the fill color from its current color
-    ///     space's required component count.
+    ///     space's required component count, or - when the current fill color space is
+    ///     <see cref="PdfColorSpace.Family.Pattern"/> - resolves and sets the fill pattern via
+    ///     <see cref="SetFillPattern"/> instead.
     /// </summary>
     /// <param name="operands">The operator's accumulated operand stack.</param>
     /// <param name="operatorName">The operator name (<c>sc</c> or <c>scn</c>), for exception messages.</param>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="operands"/> does not contain exactly
-    ///     <c>ComponentCount(_gs.FillColorSpace)</c> numbers.
+    ///     <c>ComponentCount(_gs.FillColorSpace)</c> numbers, or propagated from
+    ///     <see cref="ResolvePatternOperand"/> for a malformed pattern operand shape.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when the last operand is a pattern name (<c>scn</c>'s <c>/Pattern</c> form).
+    ///     Propagated from <see cref="ResolvePattern"/> for an undeclared or unsupported pattern.
     /// </exception>
-    private void OpSetColorFill(IReadOnlyList<PdfObject> operands, string operatorName) =>
+    private void OpSetColorFill(IReadOnlyList<PdfObject> operands, string operatorName)
+    {
+        if (_gs.FillColorSpace.Kind == PdfColorSpace.Family.Pattern)
+        {
+            SetFillPattern(_gs.FillColorSpace, ResolvePatternOperand(operands, operatorName, _gs.FillColorSpace));
+            return;
+        }
+
         SetFillColor(_gs.FillColorSpace, RequireColorComponents(operands, operatorName, _gs.FillColorSpace));
+    }
 
     /// <summary>
     ///     Handles the <c>SC</c>/<c>SCN</c> operators: sets the stroke color from its current
-    ///     color space's required component count.
+    ///     color space's required component count, or - when the current stroke color space is
+    ///     <see cref="PdfColorSpace.Family.Pattern"/> - resolves and sets the stroke pattern via
+    ///     <see cref="SetStrokePattern"/> instead.
     /// </summary>
     /// <param name="operands">The operator's accumulated operand stack.</param>
     /// <param name="operatorName">The operator name (<c>SC</c> or <c>SCN</c>), for exception messages.</param>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="operands"/> does not contain exactly
-    ///     <c>ComponentCount(_gs.StrokeColorSpace)</c> numbers.
+    ///     <c>ComponentCount(_gs.StrokeColorSpace)</c> numbers, or propagated from
+    ///     <see cref="ResolvePatternOperand"/> for a malformed pattern operand shape.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when the last operand is a pattern name (<c>SCN</c>'s <c>/Pattern</c> form).
+    ///     Propagated from <see cref="ResolvePattern"/> for an undeclared or unsupported pattern.
     /// </exception>
-    private void OpSetColorStroke(IReadOnlyList<PdfObject> operands, string operatorName) =>
-        SetStrokeColor(_gs.StrokeColorSpace, RequireColorComponents(operands, operatorName, _gs.StrokeColorSpace));
-
-    /// <summary>
-    ///     Validates a <c>sc</c>/<c>SC</c>/<c>scn</c>/<c>SCN</c> operand list, rejecting a
-    ///     trailing pattern-name operand and requiring exactly the current color space's own
-    ///     component count of numeric operands.
-    /// </summary>
-    private static double[] RequireColorComponents(IReadOnlyList<PdfObject> operands, string operatorName, PdfColorSpace colorSpace)
+    private void OpSetColorStroke(IReadOnlyList<PdfObject> operands, string operatorName)
     {
-        if (operands.Count > 0 && operands[^1].Kind == PdfKind.Name)
+        if (_gs.StrokeColorSpace.Kind == PdfColorSpace.Family.Pattern)
         {
-            throw new UnsupportedImageFeatureException(
-                "pdf-pattern-color",
-                $"Operator '{operatorName}' with a /Pattern color space name is not supported.");
+            SetStrokePattern(_gs.StrokeColorSpace, ResolvePatternOperand(operands, operatorName, _gs.StrokeColorSpace));
+            return;
         }
 
-        return RequireNumbers(operands, operatorName, ComponentCount(colorSpace));
+        SetStrokeColor(_gs.StrokeColorSpace, RequireColorComponents(operands, operatorName, _gs.StrokeColorSpace));
+    }
+
+    /// <summary>
+    ///     Validates a <c>sc</c>/<c>SC</c>/<c>scn</c>/<c>SCN</c> operand list against a
+    ///     non-<c>Pattern</c> color space, requiring exactly that color space's own component
+    ///     count of numeric operands.
+    /// </summary>
+    private static double[] RequireColorComponents(IReadOnlyList<PdfObject> operands, string operatorName, PdfColorSpace colorSpace) =>
+        RequireNumbers(operands, operatorName, ComponentCount(colorSpace));
+
+    /// <summary>
+    ///     A resolved <c>scn</c>/<c>SCN</c> pattern operand: the resolved pattern itself, plus -
+    ///     for an uncolored (<c>/PaintType 2</c>) tiling pattern whose color space declared an
+    ///     underlying tint base - the tint color converted from the operand's leading numeric
+    ///     components.
+    /// </summary>
+    private readonly record struct PatternOperand(ResolvedPattern Pattern, Rgba32? UnderlyingTint);
+
+    /// <summary>
+    ///     Validates and resolves a <c>scn</c>/<c>SCN</c> pattern-color-space operand list: the
+    ///     trailing operand must be a pattern <c>Name</c>; every operand before it must be
+    ///     numeric, with count exactly <c>ComponentCount(colorSpace.PatternBase)</c> when
+    ///     <paramref name="colorSpace"/> declared an underlying tint base, or exactly <c>0</c>
+    ///     otherwise.
+    /// </summary>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the last operand is not a <c>Name</c>, or when the leading numeric operand
+    ///     count does not match the expected shape above.
+    /// </exception>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Propagated from <see cref="ResolvePattern"/> for an undeclared or unsupported pattern.
+    /// </exception>
+    private PatternOperand ResolvePatternOperand(IReadOnlyList<PdfObject> operands, string operatorName, PdfColorSpace colorSpace)
+    {
+        if (operands.Count == 0 || operands[^1].Kind != PdfKind.Name)
+        {
+            throw new InvalidDataException(
+                $"Operator '{operatorName}' against a /Pattern color space requires a trailing pattern name operand.");
+        }
+
+        var expectedComponentCount = colorSpace.PatternBase is null ? 0 : ComponentCount(colorSpace.PatternBase);
+        var componentOperands = operands.Take(operands.Count - 1).ToArray();
+        if (componentOperands.Length != expectedComponentCount)
+        {
+            throw new InvalidDataException(
+                $"Operator '{operatorName}' against this /Pattern color space requires exactly " +
+                $"{expectedComponentCount} numeric operand(s) before the pattern name; got {componentOperands.Length}.");
+        }
+
+        var components = RequireNumbers(componentOperands, operatorName, expectedComponentCount);
+        var tint = colorSpace.PatternBase is null ? (Rgba32?)null : ColorFromComponents(colorSpace.PatternBase, components);
+
+        var pattern = ResolvePattern(operands[^1].Text);
+        return new PatternOperand(pattern, tint);
+    }
+
+    /// <summary>
+    ///     Handles setting the fill pattern (the Pattern-color-space branch of
+    ///     <see cref="OpSetColorFill"/>): sets <see cref="GraphicsState.FillColorSpace"/>/
+    ///     <see cref="GraphicsState.FillPattern"/>, and <see cref="GraphicsState.FillColor"/> to
+    ///     <paramref name="operand"/>'s own resolved tint when present (consulted later by
+    ///     <c>PaintPatternFill</c> as the tint to recolor an uncolored <c>/PaintType 2</c> tiling
+    ///     pattern's cell with) or a documented opaque-black placeholder otherwise - never
+    ///     actually painted with directly in that case, since <see cref="PaintCurrentPath"/>
+    ///     branches on <see cref="GraphicsState.FillColorSpace"/>'s <see cref="PdfColorSpace.Kind"/>
+    ///     being <see cref="PdfColorSpace.Family.Pattern"/> before ever reading
+    ///     <see cref="GraphicsState.FillColor"/> for anything other than this tint purpose.
+    /// </summary>
+    private void SetFillPattern(PdfColorSpace colorSpace, PatternOperand operand)
+    {
+        _gs.FillColorSpace = colorSpace;
+        _gs.FillPattern = operand.Pattern;
+        _gs.FillColor = operand.UnderlyingTint ?? new Rgba32(0, 0, 0, 255);
+    }
+
+    /// <summary>
+    ///     Handles setting the stroke pattern (the Pattern-color-space branch of
+    ///     <see cref="OpSetColorStroke"/>) - see <see cref="SetFillPattern"/>'s remarks, which
+    ///     apply identically here against <see cref="GraphicsState.StrokeColorSpace"/>/
+    ///     <see cref="GraphicsState.StrokePattern"/>/<see cref="GraphicsState.StrokeColor"/>.
+    /// </summary>
+    private void SetStrokePattern(PdfColorSpace colorSpace, PatternOperand operand)
+    {
+        _gs.StrokeColorSpace = colorSpace;
+        _gs.StrokePattern = operand.Pattern;
+        _gs.StrokeColor = operand.UnderlyingTint ?? new Rgba32(0, 0, 0, 255);
     }
 
     /// <summary>Sets the current fill color/space from raw color-component values.</summary>
@@ -216,6 +337,7 @@ public sealed partial class PdfDocument
     {
         _gs.FillColorSpace = colorSpace;
         _gs.FillColor = ColorFromComponents(colorSpace, components);
+        _gs.FillPattern = null;
     }
 
     /// <summary>Sets the current stroke color/space from raw color-component values.</summary>
@@ -223,6 +345,7 @@ public sealed partial class PdfDocument
     {
         _gs.StrokeColorSpace = colorSpace;
         _gs.StrokeColor = ColorFromComponents(colorSpace, components);
+        _gs.StrokePattern = null;
     }
 
     /// <summary>
@@ -287,6 +410,8 @@ public sealed partial class PdfDocument
                 return PdfColorSpace.DeviceRGB;
             case "DeviceCMYK":
                 return PdfColorSpace.DeviceCMYK;
+            case "Pattern":
+                return PdfColorSpace.Pattern(null);
         }
 
         if (_colorSpaceRecursionDepth >= MaxColorSpaceRecursionDepth)
@@ -351,6 +476,8 @@ public sealed partial class PdfDocument
                     return ResolveIccBasedColorSpace(value);
                 case "Indexed":
                     return ResolveIndexedColorSpace(value);
+                case "Pattern":
+                    return ResolvePatternColorSpace(value);
             }
 
             throw new UnsupportedImageFeatureException(
@@ -359,6 +486,54 @@ public sealed partial class PdfDocument
         }
 
         throw new InvalidDataException("Color space value must be a name or an array.");
+    }
+
+    /// <summary>
+    ///     Resolves a <c>[/Pattern]</c> or <c>[/Pattern baseSpace]</c> color-space array
+    ///     (PDF 32000-1 §8.7.3.3): a 1-element array is a colored-only pattern color space
+    ///     (<see cref="PdfColorSpace.PatternBase"/> is <see langword="null"/>); a 2-element array
+    ///     resolves its 2nd element (recursively, via <see cref="ResolveColorSpaceValue"/>, under
+    ///     the same <see cref="_colorSpaceRecursionDepth"/> guard <see cref="ResolveColorSpaceByName"/>
+    ///     already uses) as the underlying tint color space for an uncolored tiling pattern.
+    /// </summary>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the recursion depth already equals <see cref="MaxColorSpaceRecursionDepth"/>.
+    /// </exception>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     Thrown when <paramref name="array"/> does not have exactly 1 or 2 elements (feature
+    ///     <c>pdf-colorspace-Pattern</c>), or propagated from <see cref="ResolveColorSpaceValue"/>
+    ///     when the base color space is itself unsupported.
+    /// </exception>
+    private PdfColorSpace ResolvePatternColorSpace(PdfObject array)
+    {
+        if (array.Items.Count is not (1 or 2))
+        {
+            throw new UnsupportedImageFeatureException(
+                "pdf-colorspace-Pattern",
+                "Color space '/Pattern' array must have exactly 1 or 2 elements.");
+        }
+
+        if (array.Items.Count == 1)
+        {
+            return PdfColorSpace.Pattern(null);
+        }
+
+        if (_colorSpaceRecursionDepth >= MaxColorSpaceRecursionDepth)
+        {
+            throw new InvalidDataException(
+                $"Color space 'Pattern' base resolution exceeds the maximum supported nesting depth of {MaxColorSpaceRecursionDepth}.");
+        }
+
+        _colorSpaceRecursionDepth++;
+        try
+        {
+            var baseSpace = ResolveColorSpaceValue(Resolve(array.Items[1]));
+            return PdfColorSpace.Pattern(baseSpace);
+        }
+        finally
+        {
+            _colorSpaceRecursionDepth--;
+        }
     }
 
     /// <summary>
@@ -477,12 +652,23 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>Gets the number of numeric color components a color space requires.</summary>
+    /// <exception cref="InvalidOperationException">
+    ///     Thrown when <paramref name="colorSpace"/>'s family is <see cref="PdfColorSpace.Family.Pattern"/>
+    ///     - <c>/Pattern</c> has no fixed numeric-component count of its own; the dedicated
+    ///     <c>scn</c>/<c>SCN</c> pattern-operand path (<see cref="ResolvePatternOperand"/>) must
+    ///     be used instead, which only ever calls this method against
+    ///     <c>colorSpace.PatternBase</c> (never against a <see cref="PdfColorSpace.Family.Pattern"/>
+    ///     space itself) - this throw is therefore a fail-closed backstop for an unreachable
+    ///     call path, not a documented, reachable behavior.
+    /// </exception>
     private static int ComponentCount(PdfColorSpace colorSpace) => colorSpace.Kind switch
     {
         PdfColorSpace.Family.DeviceGray => 1,
         PdfColorSpace.Family.DeviceRGB => 3,
         PdfColorSpace.Family.DeviceCMYK => 4,
         PdfColorSpace.Family.Indexed => 1,
+        PdfColorSpace.Family.Pattern => throw new InvalidOperationException(
+            "ComponentCount is not defined for the Pattern color space; use the dedicated scn/SCN pattern-operand path instead."),
         _ => throw new InvalidOperationException($"Unreachable: unrecognized color space {colorSpace.Kind}."),
     };
 

@@ -221,7 +221,14 @@ public sealed partial class PdfDocument
 
         if (fill)
         {
-            PathFiller.Fill(_surface, path, _gs.FillColor, fillRule);
+            if (_gs.FillColorSpace.Kind == PdfColorSpace.Family.Pattern && _gs.FillPattern is not null)
+            {
+                PaintPatternFill(path, fillRule, _gs.FillPattern, _gs.FillColor);
+            }
+            else
+            {
+                PathFiller.Fill(_surface, path, _gs.FillColor, fillRule);
+            }
         }
 
         if (stroke)
@@ -234,13 +241,60 @@ public sealed partial class PdfDocument
                 ScaledDashArray(),
                 ScaledDashPhase());
             var outline = PathStroker.Stroke(path, style);
-            PathFiller.Fill(_surface, outline, _gs.StrokeColor, FillRule.NonZero);
+            if (_gs.StrokeColorSpace.Kind == PdfColorSpace.Family.Pattern && _gs.StrokePattern is not null)
+            {
+                PaintPatternFill(outline, FillRule.NonZero, _gs.StrokePattern, _gs.StrokeColor);
+            }
+            else
+            {
+                PathFiller.Fill(_surface, outline, _gs.StrokeColor, FillRule.NonZero);
+            }
         }
 
         // Per spec, every path-painting operator (including 'n') always clears the current
         // path. The surrounding graphics state is entirely unaffected by this clear.
         _pathBuilder.Clear();
         _hasOpenSubpath = false;
+    }
+
+    /// <summary>
+    ///     Paints <paramref name="path"/> with a resolved <c>/Pattern</c> (the Pattern-color-space
+    ///     branch of <see cref="PaintCurrentPath"/>, shared identically by both the fill and
+    ///     stroke paint paths - <paramref name="path"/> is the stroke outline, not the original
+    ///     path geometry, when called from the stroke branch).
+    /// </summary>
+    /// <param name="path">The already device-space-baked path (or stroke outline) to paint.</param>
+    /// <param name="fillRule">The fill rule to apply when rasterizing <paramref name="path"/>.</param>
+    /// <param name="pattern">The resolved pattern to paint with.</param>
+    /// <param name="currentColor">
+    ///     The current graphics state's own <see cref="GraphicsState.FillColor"/>/
+    ///     <see cref="GraphicsState.StrokeColor"/> - for an uncolored (<c>/PaintType 2</c>)
+    ///     tiling pattern, this is the tint color set by <see cref="SetFillPattern"/>/
+    ///     <see cref="SetStrokePattern"/> from the <c>scn</c>/<c>SCN</c> operand's own leading
+    ///     numeric components; unused for a colored (<c>/PaintType 1</c>) tiling pattern or a
+    ///     shading pattern.
+    /// </param>
+    private void PaintPatternFill(Geometry.Path path, FillRule fillRule, ResolvedPattern pattern, Rgba32 currentColor)
+    {
+        var patternToDevice = PatternToDeviceTransform(pattern);
+
+        if (pattern.Kind == ResolvedPattern.PatternKind.Shading)
+        {
+            var gradient = BuildShadingGradient(pattern, patternToDevice);
+            PathFiller.Fill(_surface, path, gradient, fillRule);
+            return;
+        }
+
+        var tint = pattern.PaintType == 2 ? currentColor : (Rgba32?)null;
+        var tilePaint = RenderTilingPatternCell(pattern, patternToDevice, tint);
+        try
+        {
+            PathFiller.Fill(_surface, path, tilePaint, fillRule);
+        }
+        finally
+        {
+            tilePaint.Surface.Dispose();
+        }
     }
 
     /// <summary>
@@ -255,9 +309,19 @@ public sealed partial class PdfDocument
     ///     renderers use), a documented Phase 2 simplification rather than an exactly anisotropic
     ///     stroke.
     /// </remarks>
-    private float DeviceScale()
+    private float DeviceScale() => MatrixScale(_gs.CurrentTransform);
+
+    /// <summary>
+    ///     Computes <paramref name="m"/>'s own geometric-mean scale factor (<c>sqrt(|det(m)|)</c>),
+    ///     generically for an arbitrary matrix - not necessarily the current CTM. Extracted from
+    ///     <see cref="DeviceScale"/> (which now simply forwards <see cref="GraphicsState.CurrentTransform"/>
+    ///     to this method) so <c>PdfDocument.Patterns.Tiling.cs</c> can reuse the exact same
+    ///     formula against a pattern-to-device transform, which is not generally equal to the
+    ///     current CTM (see <c>PatternToDeviceTransform</c>'s own remarks), without duplicating
+    ///     the determinant/sqrt computation.
+    /// </summary>
+    private static float MatrixScale(Matrix3x2 m)
     {
-        var m = _gs.CurrentTransform;
         var determinant = (m.M11 * m.M22) - (m.M12 * m.M21);
         return MathF.Sqrt(MathF.Abs(determinant));
     }

@@ -753,4 +753,118 @@ public class PdfSystemIntegrationTests
             $"trailer\n<< /Size {bodies.Count + 1} /Root 1 0 R >>\nstartxref\n{xrefOffset}\n%%EOF\n"));
         return [.. buffer];
     }
+
+    /// <summary>
+    ///     Proves <see cref="PdfDocument.Render"/> paints an axial (<c>/ShadingType 2</c>) shading
+    ///     pattern fill end-to-end through the public API: a synthetic, in-memory single-page PDF
+    ///     (no binary fixture) declaring a <c>/Pattern</c>-color-space fill driven by a
+    ///     <c>/FunctionType 2</c> function, proving the painted gradient visibly varies from
+    ///     near-black at one end to near-white at the other.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_AxialShadingPatternFill_PaintsVisiblyVaryingColors()
+    {
+        // Arrange: axis from (0,0) to (100,0), black -> white, filling the whole 100x100 page.
+        var bytes = BuildSyntheticPatternPdf(
+            "/Pattern cs /P1 scn 0 0 100 100 re f",
+            "/Pattern << /P1 5 0 R >>",
+            [
+                "<< /PatternType 2 /Shading 6 0 R >>"u8.ToArray(),
+                "<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Function 7 0 R >>"u8.ToArray(),
+                BuildPatternFunctionStreamBody("/FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [1 1 1] /N 1"),
+            ]);
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var surface = document.Render(0, 100, 100);
+
+        // Assert: near-black at the start coordinate, near-white at the end coordinate.
+        Assert.True(surface[2, 50].R < 50);
+        Assert.True(surface[97, 50].R > 200);
+    }
+
+    /// <summary>
+    ///     Proves <see cref="PdfDocument.Render"/> paints a colored (<c>/PaintType 1</c>) tiling
+    ///     pattern fill end-to-end through the public API: a synthetic, in-memory single-page PDF
+    ///     (no binary fixture) declaring a <c>/Pattern</c>-color-space fill driven by a 10x10
+    ///     pattern cell (left half red, right half blue), proving the painted result repeats both
+    ///     tile colors at the correctly offset device pixel columns.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPdf_SystemIntegration_ColoredTilingPatternFill_PaintsRepeatingTileColors()
+    {
+        // Arrange: 10x10 pattern-space cell, left half red / right half blue, tiled across a
+        // 100x100 fill.
+        const string cellContent = "1 0 0 rg 0 0 5 10 re f 0 0 1 rg 5 0 5 10 re f";
+        var patternStreamBytes = System.Text.Encoding.ASCII.GetBytes(cellContent);
+        var patternStreamBody = System.Text.Encoding.ASCII.GetBytes(
+            $"<< /PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 10 10] /XStep 10 /YStep 10 /Length {patternStreamBytes.Length} >>\nstream\n{cellContent}\nendstream");
+
+        var bytes = BuildSyntheticPatternPdf(
+            "/Pattern cs /P1 scn 0 0 100 100 re f",
+            "/Pattern << /P1 5 0 R >>",
+            [patternStreamBody]);
+
+        // Act
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        using var surface = document.Render(0, 100, 100);
+
+        // Assert: both tile colors appear, at multiple repeated tile offsets.
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[2, 50]);
+        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[7, 50]);
+        Assert.Equal(new Canvas.Rgba32(255, 0, 0, 255), surface[92, 50]);
+        Assert.Equal(new Canvas.Rgba32(0, 0, 255, 255), surface[97, 50]);
+    }
+
+    /// <summary>Builds a <c>/FunctionType 2</c> stream object body (no sample data - exponential functions carry no <c>/FunctionType 0</c> sample bytes) for <see cref="BuildSyntheticPatternPdf"/>'s own <paramref name="dictionaryEntries"/>-driven extra objects.</summary>
+    private static byte[] BuildPatternFunctionStreamBody(string dictionaryEntries) =>
+        System.Text.Encoding.ASCII.GetBytes($"<< {dictionaryEntries} /Length 0 >>\nstream\n\nendstream");
+
+    /// <summary>
+    ///     Builds a minimal, synthetic, in-memory single-page PDF (100x100 <c>/MediaBox</c>)
+    ///     declaring the given content stream and <c>/Resources</c> body (object 4's own page
+    ///     dictionary references object 5, 6, 7, ... in <paramref name="extraObjectBodies"/>
+    ///     order), mirroring <see cref="BuildSyntheticFontFallbackPdf"/>'s own "hand-rolled
+    ///     classic-xref PDF, no binary fixture" shape - used by the Pattern system-integration
+    ///     tests so no new binary PDF fixture file is needed for them.
+    /// </summary>
+    private static byte[] BuildSyntheticPatternPdf(string content, string resourcesBody, IReadOnlyList<byte[]> extraObjectBodies)
+    {
+        var contentBytes = System.Text.Encoding.ASCII.GetBytes(content);
+        var streamBody = System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Length {contentBytes.Length} >>\nstream\n{content}\nendstream");
+
+        var bodies = new List<byte[]>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>"u8.ToArray(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 100] >>"u8.ToArray(),
+            System.Text.Encoding.ASCII.GetBytes(
+                $"<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Resources << {resourcesBody} >> >>"),
+            streamBody,
+        };
+        bodies.AddRange(extraObjectBodies);
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+        var offsets = new List<int>();
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            offsets.Add(buffer.Count);
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{i + 1} 0 obj\n"));
+            buffer.AddRange(bodies[i]);
+            buffer.AddRange("\nendobj\n"u8.ToArray());
+        }
+
+        var xrefOffset = buffer.Count;
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"xref\n0 {bodies.Count + 1}\n"));
+        buffer.AddRange("0000000000 65535 f \n"u8.ToArray());
+        foreach (var offset in offsets)
+        {
+            buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"{offset:D10} 00000 n \n"));
+        }
+
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes(
+            $"trailer\n<< /Size {bodies.Count + 1} /Root 1 0 R >>\nstartxref\n{xrefOffset}\n%%EOF\n"));
+        return [.. buffer];
+    }
 }

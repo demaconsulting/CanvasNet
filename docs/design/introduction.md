@@ -39,13 +39,17 @@ software items, specifically:
   inline), the `BezierFlattening` unit (adaptive Bezier curve flattening), and the
   `SvgArcConverter` unit (SVG-style elliptical arc to Bezier conversion)
 - **Drawing (Subsystem)** — An antialiased scanline-coverage fill rasterizer for closed
-  `Geometry.Path` geometry with solid-color or gradient paint: the `PathFiller` unit (a public
-  static `Fill` entry point, covering the supporting `FillRule` enum and the internal
-  `EdgeFlattener`/`ScanlineRasterizer` helpers inline), the `PathStroker` unit (a public static
-  `Stroke` entry point, covering the supporting `LineCap`/`LineJoin`/`StrokeStyle` types and the
-  internal `StrokePathFlattener`/`DashSplitter`/`StrokeOutliner` helpers inline), and the
+  `Geometry.Path` geometry with solid-color, gradient, or tiled-pattern paint: the `PathFiller`
+  unit (a public static `Fill` entry point, covering the supporting `FillRule` enum and the
+  internal `EdgeFlattener`/`ScanlineRasterizer` helpers inline), the `PathStroker` unit (a public
+  static `Stroke` entry point, covering the supporting `LineCap`/`LineJoin`/`StrokeStyle` types
+  and the internal `StrokePathFlattener`/`DashSplitter`/`StrokeOutliner` helpers inline), the
   `GradientPaint` unit (the public `Gradient`/`LinearGradient`/`RadialGradient`/`GradientStop`/
-  `GradientSpread` types and the internal `GradientEvaluator` helper)
+  `GradientSpread` types and the internal `GradientEvaluator` helper), and (added alongside
+  `CanvasNetPdf`'s `/Pattern` color-space support) the `TilePaint` unit (the public `TilePaint`
+  type — a pre-rendered tile `Surface` plus a device-space `Transform` and pattern-space
+  `XStep`/`YStep` pitch — and the internal `TilePaintEvaluator` helper, mirroring
+  `GradientPaint`'s own public-type-plus-internal-evaluator shape)
 - **Fonts (Subsystem)** — TrueType (`glyf`-based) SFNT font support: the `TrueTypeFont` unit and
   its internal `SfntContainer`/`CmapTable`/`GlyfLocaReader`/`HmtxHheaReader`/`KernTable` helpers,
   producing `Geometry.Path` glyph outlines plus metrics and kerning; and (added Phase 6 of the
@@ -116,9 +120,11 @@ namespace `DemaConsulting.CanvasNet.Codecs`, flat — no further nesting), the
 `PathFiller` unit, covering the supporting `FillRule` enum and the internal
 `EdgeFlattener`/`ScanlineRasterizer` helpers inline, the `PathStroker` unit, covering the
 supporting `LineCap`/`LineJoin`/`StrokeStyle` types and the internal
-`StrokePathFlattener`/`DashSplitter`/`StrokeOutliner` helpers inline, and the `GradientPaint`
+`StrokePathFlattener`/`DashSplitter`/`StrokeOutliner` helpers inline, the `GradientPaint`
 unit, covering the public `Gradient`/`LinearGradient`/`RadialGradient`/`GradientStop`/
-`GradientSpread` types and the internal `GradientEvaluator` helper inline, namespace
+`GradientSpread` types and the internal `GradientEvaluator` helper inline, and the `TilePaint`
+unit, added alongside `CanvasNetPdf`'s `/Pattern` color-space support, covering the public
+`TilePaint` type and the internal `TilePaintEvaluator` helper inline, namespace
 `DemaConsulting.CanvasNet.Drawing`, flat — no further nesting), the `Fonts` subsystem (the
 `TrueTypeFont` unit, covering the internal `SfntContainer`/`CmapTable`/`GlyfLocaReader`/
 `HmtxHheaReader`/`KernTable` helpers inline, and the `SystemFontCatalog` unit, added Phase 6 of
@@ -196,6 +202,8 @@ src/DemaConsulting.CanvasNet/
 │   ├── LinearGradient.cs          — Gradient paint that varies along a straight axis
 │   ├── RadialGradient.cs          — Gradient paint that varies radially from a center point
 │   ├── GradientEvaluator.cs       — Resolves a gradient definition to a color at a point
+│   ├── TilePaint.cs               — Public tiled-pattern paint: a pre-rendered tile plus transform
+│   ├── TilePaintEvaluator.cs      — Resolves a tile-paint definition to a color at a point
 │   └── NamespaceDoc.cs            — Namespace-level XML documentation
 ├── Fonts/
 │   ├── TrueTypeFont.cs            — Public TrueType font loader/query entry point

@@ -9,6 +9,7 @@
 # cspell:ignore charsets
 # cspell:ignore SASLprep
 # cspell:ignore Noto
+# cspell:ignore functiontype
 #
 # These requirements describe the design-level behavior of the PdfDocument unit.
 #
@@ -1244,19 +1245,20 @@ sections:
               through /Decode (defaulting to /Range when /Decode is absent), clipped to /Range;
               8-bit and 16-bit /BitsPerSample sample widths shall both be supported, decoding the
               function stream's bytes via the existing filter-aware stream-decoding helper. A
-              /FunctionType other than 0 (2/3/4), and a multi-input /FunctionType 0 function (a
-              /Domain with more than 2 elements) shall both throw
+              /FunctionType other than 0, 2, or 3 (e.g. 4), and a multi-input /FunctionType 0
+              function (a /Domain with more than 2 elements) shall both throw
               UnsupportedImageFeatureException.
             justification: |
               Axial/radial (/ShadingType 2/3) shading patterns in real-world PDFs sample a
               /FunctionType 0 function to derive a gradient's per-position color, and resolving
-              this evaluator as unconsumed groundwork this phase (it is not yet wired into
-              rendering) unblocks the shading-pattern-fill phase of the /Pattern color-space
-              roadmap without re-deriving sampled-function evaluation later; /FunctionType 2
-              (exponential interpolation), 3 (stitching), 4 (PostScript calculator), and a
-              multi-input /FunctionType 0 function (the /DeviceN/Separation tint-transform shape,
-              itself already out of scope) remain explicitly out of this phase's scope and must
-              fail closed with a distinguishable exception rather than being silently
+              this evaluator unblocks the shading-pattern-fill phase of the /Pattern color-space
+              roadmap (see CanvasNetPdf-PdfDocument-ShadingPatternFill) without re-deriving
+              sampled-function evaluation later; /FunctionType 2 (exponential interpolation) and
+              3 (stitching) are now also supported (see
+              CanvasNetPdf-PdfDocument-FunctionType2And3); /FunctionType 4 (PostScript
+              calculator) and a multi-input /FunctionType 0 function (the /DeviceN/Separation
+              tint-transform shape, itself already out of scope) remain explicitly out of scope
+              and must fail closed with a distinguishable exception rather than being silently
               mis-evaluated.
             tests:
               - PdfDocument_Functions_Type0_InputOutsideDomain_ClampsToBoundary
@@ -1268,3 +1270,110 @@ sections:
               - PdfDocument_Functions_Type0_SixteenBitSamples_EvaluatesCorrectly
               - PdfDocument_Functions_Type0_UnsupportedFunctionType_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Functions_Type0_MultiInputDomain_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-FunctionType2And3
+            title: >-
+              The PdfDocument class shall evaluate /FunctionType 2 (exponential interpolation:
+              Domain, C0/C1 defaulting to [0.0]/[1.0] when absent, and N, computing
+              C0[i] + (input^N * (C1[i] - C0[i])) component-wise after clamping input to Domain)
+              and /FunctionType 3 (stitching: Domain, Functions - an array of independently
+              resolved sub-functions of any supported type, including a nested /FunctionType 3 -
+              Bounds, and Encode) functions through a single, uniform ResolveFunctionGeneric
+              entry point also used by shading-pattern function resolution; resolution is bounded
+              by a MaxFunctionRecursionDepth (32) guard, throwing InvalidDataException when a
+              self-referencing or excessively deep /Functions chain would otherwise recurse
+              without bound. /FunctionType 4 (PostScript calculator functions) shall continue to
+              throw UnsupportedImageFeatureException with feature pdf-functiontype-4.
+            justification: |
+              Axial/radial shading patterns commonly drive their color ramp with a /FunctionType
+              2 exponential function (optionally combined via a /FunctionType 3 stitching
+              function for multi-segment gradients); without evaluating these function types,
+              the majority of real-world shading patterns could not be rendered at all.
+            tests:
+              - PdfDocument_Functions_Type2_Exponential_EvaluatesExpectedInterpolatedOutput
+              - PdfDocument_Functions_Type3_Stitching_EvaluatesExpectedSubFunctionOutput
+              - PdfDocument_Functions_Type4_PostScriptCalculator_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Functions_Type3_Stitching_NestingDepthExceeded_ThrowsInvalidDataException
+
+          - id: CanvasNetPdf-PdfDocument-PatternColorSpace
+            title: >-
+              The PdfDocument class shall recognize /Pattern (bare name, or a 2-element
+              [/Pattern baseSpace] array form carrying an underlying color space) as a selectable
+              cs/CS color space, and shall parse scn/SCN operands against an active /Pattern
+              color space as zero or more leading numeric components (exactly matching the
+              declared base color space's component count, or zero when no base space was
+              declared) followed by a trailing pattern Name operand, resolving the named pattern
+              from the current page's /Resources/Pattern dictionary. A malformed operand shape
+              (wrong leading numeric count, or a missing trailing Name) shall throw
+              InvalidDataException; an undeclared pattern name shall throw
+              UnsupportedImageFeatureException with feature pdf-pattern-not-declared; an
+              unsupported /PatternType (other than 1 or 2) shall throw
+              UnsupportedImageFeatureException with feature pdf-pattern-type-{n}; an array color
+              space with an element count other than 1 or 2 shall throw
+              UnsupportedImageFeatureException with feature pdf-colorspace-Pattern.
+            justification: |
+              Real-world PDFs commonly use the /Pattern color space to select shading or tiling
+              pattern fills for backgrounds and vector art; today every such document throws
+              UnsupportedImageFeatureException (feature pdf-pattern-color) and cannot be rendered
+              at all.
+            tests:
+              - PdfDocument_Color_PatternColorSpace_Cs_ResolvesToPatternFamily
+              - PdfDocument_Color_PatternColorSpace_ArrayWithBase_ResolvesPatternBase
+              - PdfDocument_Color_PatternColorSpace_TooManyArrayElements_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Color_Scn_ColoredPatternOperand_NameAlone_ResolvesPattern
+              - PdfDocument_Color_Scn_UncoloredPatternOperand_WrongComponentCount_ThrowsInvalidDataException
+              - PdfDocument_Color_Scn_PatternOperand_MissingTrailingName_ThrowsInvalidDataException
+              - PdfDocument_Color_Scn_PatternOperand_UndeclaredPatternName_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Color_Scn_PatternOperand_UnsupportedPatternType_ThrowsUnsupportedImageFeatureException
+
+          - id: CanvasNetPdf-PdfDocument-ShadingPatternFill
+            title: >-
+              The PdfDocument class shall fill or stroke a path using a /PatternType 2 (shading)
+              pattern whose /ShadingType is 2 (axial) or 3 (radial), sampling the shading's
+              /Function (or array of 1-output-component functions) at evenly spaced points across
+              /Domain, converting each sample through the shading's own /ColorSpace (restricted to
+              DeviceGray/DeviceRGB/DeviceCMYK), and painting a smoothly varying color gradient
+              whose geometry is positioned by the pattern's own /Matrix composed with the page's
+              initial (pre-cm) coordinate transform. An unsupported /ShadingType (other than 2 or
+              3) shall throw UnsupportedImageFeatureException with feature
+              pdf-shading-type-{n}; an unsupported shading /ColorSpace shall throw
+              UnsupportedImageFeatureException with feature pdf-shading-colorspace-{family}.
+              /Extend is approximated as an always-padded (never fully transparent) gradient
+              extent, a documented, narrower-than-spec simplification.
+            justification: |
+              Axial and radial shading-pattern fills are a common way real-world PDFs render
+              smooth-color backgrounds and vector-art gradients; today every such fill throws and
+              the document cannot be rendered at all.
+            tests:
+              - PdfDocument_Patterns_ShadingPattern_AxialFunctionType2_FillsVisiblyVaryingGradient
+              - PdfDocument_Patterns_ShadingPattern_RadialFunctionType2_FillsVisiblyVaryingGradient
+              - PdfDocument_Patterns_ShadingPattern_UnsupportedShadingType_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Patterns_ShadingPattern_UnsupportedFunctionType4_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Patterns_ShadingPattern_FunctionArrayForm_ThreeOneOutputFunctions_BuildsRgbGradient
+              - CanvasNetPdf_SystemIntegration_AxialShadingPatternFill_PaintsVisiblyVaryingColors
+
+          - id: CanvasNetPdf-PdfDocument-TilingPatternFill
+            title: >-
+              The PdfDocument class shall fill or stroke a path using a /PatternType 1 (tiling)
+              pattern, rendering the pattern's own content stream once into an offscreen tile
+              surface (sized from /XStep/YStep scaled by the pattern-to-device transform) and
+              repeating that tile across the painted region, nearest-neighbor sampled. A
+              /PaintType 1 (colored) pattern paints its own content stream's colors unmodified; a
+              /PaintType 2 (uncolored) pattern recolors every painted pixel to the scn/SCN-supplied
+              tint while preserving each pixel's own painted alpha. A zero or non-finite
+              /XStep/YStep, or a /PaintType other than 1 or 2, shall throw InvalidDataException;
+              a device-pixel tile surface that would exceed the safety bound shall throw
+              UnsupportedImageFeatureException with feature pdf-pattern-tile-too-large; nested
+              tiling-pattern-cell rendering shares the existing Form-XObject nesting-depth guard
+              and shall throw InvalidDataException when that bound is exceeded.
+            justification: |
+              Tiling pattern fills are a common way real-world PDFs render repeating textures,
+              hatching, and decorative backgrounds; today every such fill throws and the document
+              cannot be rendered at all.
+            tests:
+              - PdfDocument_Patterns_TilingPattern_ColoredPaintType1_FillsRepeatingTile
+              - PdfDocument_Patterns_TilingPattern_UncoloredPaintType2_AppliesSuppliedTintPreservingAlpha
+              - PdfDocument_Patterns_TilingPattern_OversizedTileDimensions_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Patterns_TilingPattern_ZeroXStep_ThrowsInvalidDataException
+              - PdfDocument_Patterns_TilingPattern_NestingDepthExceeded_ThrowsInvalidDataException
+              - CanvasNetPdf_SystemIntegration_ColoredTilingPatternFill_PaintsRepeatingTileColors
