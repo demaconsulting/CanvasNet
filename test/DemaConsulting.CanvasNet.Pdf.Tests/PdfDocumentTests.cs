@@ -1497,6 +1497,17 @@ public class PdfDocumentTests
         Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
     }
 
+    /// <summary>Proves that a cross-reference stream's <c>/W</c> entry whose three widths are all zero (which would otherwise produce a zero-length per-entry stride and never advance the decode position, allowing a crafted large <c>/Size</c> or <c>/Index</c> to spin indefinitely) throws <see cref="InvalidDataException"/> instead of looping.</summary>
+    [Fact]
+    public void PdfDocument_Open_XrefStream_AllZeroWidths_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var pdfBytes = BuildXrefStreamPdfWithWidths("[0 0 0]");
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+    }
+
     /// <summary>
     ///     Builds an in-memory, <c>/Type /XRef</c> cross-reference-stream-only PDF (no classic
     ///     table, no explicit <c>trailer</c> keyword) whose object 1 - the trailer's intended

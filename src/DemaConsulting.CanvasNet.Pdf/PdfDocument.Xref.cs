@@ -234,6 +234,14 @@ public sealed partial class PdfDocument
             throw new InvalidDataException("Cross-reference stream /W entries must be between 0 and 8.");
         }
 
+        // A zero total entry width would never advance the read position, so a crafted large
+        // /Size or /Index range could spin the decode loop below indefinitely without making
+        // progress. Reject the table up front instead of looping.
+        if (widths[0] + widths[1] + widths[2] == 0)
+        {
+            throw new InvalidDataException("Cross-reference stream /W entries must not all be zero.");
+        }
+
         var size = streamObject.Get("Size") is { Kind: PdfKind.Number } sizeObject
             ? (int)sizeObject.Number
             : throw new InvalidDataException("Cross-reference stream is missing /Size.");
