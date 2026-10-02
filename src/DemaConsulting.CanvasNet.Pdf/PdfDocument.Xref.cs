@@ -122,8 +122,32 @@ public sealed partial class PdfDocument
 
     private readonly record struct XrefSection(Dictionary<int, XrefEntry> Xref, PdfObject Trailer, int? Prev, int? XRefStm);
 
+    /// <summary>
+    ///     Validates that a byte offset parsed from untrusted PDF input (a <c>startxref</c>
+    ///     value, a trailer's <c>/Prev</c>/<c>/XRefStm</c> entry, a classic cross-reference
+    ///     entry's direct offset, or an object stream's <c>/First</c> + per-entry relative
+    ///     offset) is actually within <paramref name="bufferLength"/> before it is assigned to a
+    ///     <see cref="PdfTokenizer"/>'s <see cref="PdfTokenizer.Position"/>. <c>Position</c> is a
+    ///     plain, unchecked property, so a negative value would index the underlying buffer
+    ///     negatively on the very next <see cref="PdfTokenizer.NextToken"/> call, leaking an
+    ///     uncatchable-by-callers <see cref="IndexOutOfRangeException"/> instead of the
+    ///     <see cref="InvalidDataException"/> this library otherwise consistently uses to signal
+    ///     malformed input.
+    /// </summary>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when <paramref name="offset"/> is negative or beyond the end of the buffer.
+    /// </exception>
+    private static void ValidateBufferOffset(long offset, int bufferLength, string description)
+    {
+        if (offset < 0 || offset > bufferLength)
+        {
+            throw new InvalidDataException($"{description} offset {offset} is outside the bounds of the document.");
+        }
+    }
+
     private XrefSection ParseCrossReferenceSection(int offset)
     {
+        ValidateBufferOffset(offset, _buffer.Length, "Cross-reference section");
         var tokenizer = new PdfTokenizer(_buffer) { Position = offset };
         var savedPosition = tokenizer.Position;
         var first = tokenizer.NextToken();
@@ -566,6 +590,7 @@ public sealed partial class PdfDocument
 
     private PdfObject ParseIndirectObjectAt(int offset, int expectedNumber)
     {
+        ValidateBufferOffset(offset, _buffer.Length, $"Indirect object {expectedNumber}");
         var tokenizer = new PdfTokenizer(_buffer) { Position = offset };
         var numberToken = tokenizer.NextToken();
         var generationToken = tokenizer.NextToken();
@@ -671,8 +696,22 @@ public sealed partial class PdfDocument
             throw new InvalidDataException("Malformed object stream header.");
         }
 
-        var bodyTokenizer = new PdfTokenizer(decoded) { Position = first + relativeOffset };
+        var bodyTokenizer = new PdfTokenizer(decoded) { Position = ValidatedCompressedObjectOffset(first, relativeOffset, decoded.Length, streamNumber) };
         return ParseValue(bodyTokenizer);
+    }
+
+    /// <summary>
+    ///     Combines an object stream's <c>/First</c> and a compressed object's relative offset
+    ///     using <see langword="long"/> arithmetic (both are attacker-controlled, so their sum
+    ///     could otherwise overflow <see langword="int"/> and wrap to a negative/incorrect value)
+    ///     and validates the result against the decompressed container's actual length before it
+    ///     is used as a <see cref="PdfTokenizer"/> position.
+    /// </summary>
+    private static int ValidatedCompressedObjectOffset(int first, int relativeOffset, int decodedLength, int streamNumber)
+    {
+        var combined = (long)first + relativeOffset;
+        ValidateBufferOffset(combined, decodedLength, $"Object stream {streamNumber} compressed object");
+        return (int)combined;
     }
 
     /// <summary>
