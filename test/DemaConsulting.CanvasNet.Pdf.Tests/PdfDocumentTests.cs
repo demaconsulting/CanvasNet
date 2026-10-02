@@ -1646,6 +1646,70 @@ public class PdfDocumentTests
         Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
     }
 
+    /// <summary>
+    ///     Builds an in-memory, <c>/Type /XRef</c> cross-reference-stream-only PDF whose object 1
+    ///     - an object-stream (<c>/Type /ObjStm</c>) container - declares a wildly inflated
+    ///     <c>/N</c> (one million) while its actual decoded content holds only a single, tiny
+    ///     header entry. Without an upfront bound check relating <c>/N</c> to the decoded byte
+    ///     length, the object-stream header-reading loop would keep calling <c>NextToken</c> for
+    ///     up to <c>/N</c> iterations even after the header's real content is exhausted, burning
+    ///     CPU time proportional to the attacker's chosen <c>/N</c> rather than the stream's
+    ///     actual size.
+    /// </summary>
+    private static byte[] BuildObjectStreamDeclaredCountExceedsDecodedLengthPdf()
+    {
+        var objStmHeader = "2 0\n"u8.ToArray();
+        var objStmContent = new List<byte>();
+        objStmContent.AddRange(objStmHeader);
+        objStmContent.AddRange("<< /Type /Catalog >>"u8.ToArray());
+        var compressedObjStm = ZlibCompress([.. objStmContent]);
+
+        var buffer = new List<byte>();
+        buffer.AddRange("%PDF-1.7\n"u8.ToArray());
+
+        var object1Offset = buffer.Count;
+        buffer.AddRange("1 0 obj\n"u8.ToArray());
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Type /ObjStm /N 1000000 /First {objStmHeader.Length} /Filter /FlateDecode /Length {compressedObjStm.Length} >>\nstream\n"));
+        buffer.AddRange(compressedObjStm);
+        buffer.AddRange("\nendstream\nendobj\n"u8.ToArray());
+
+        var xrefStreamOffset = buffer.Count;
+
+        static byte[] Entry(byte type, int field2, byte field3) =>
+        [
+            type,
+            (byte)(field2 >> 24), (byte)(field2 >> 16), (byte)(field2 >> 8), (byte)field2,
+            field3,
+        ];
+
+        var entryBytes = new List<byte>();
+        entryBytes.AddRange(Entry(0, 0, 0));
+        entryBytes.AddRange(Entry(1, object1Offset, 0));
+        entryBytes.AddRange(Entry(2, 1, 0));
+        entryBytes.AddRange(Entry(1, xrefStreamOffset, 0));
+
+        buffer.AddRange("3 0 obj\n"u8.ToArray());
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes(
+            $"<< /Type /XRef /Size 4 /W [1 4 1] /Root 2 0 R /Length {entryBytes.Count} >>\nstream\n"));
+        buffer.AddRange(entryBytes);
+        buffer.AddRange("\nendstream\nendobj\n"u8.ToArray());
+
+        buffer.AddRange(System.Text.Encoding.ASCII.GetBytes($"startxref\n{xrefStreamOffset}\n%%EOF\n"));
+        return [.. buffer];
+    }
+
+    /// <summary>Proves that an object stream declaring an <c>/N</c> far larger than its decoded byte length is rejected up front instead of spinning through a huge declared entry count.</summary>
+    [Fact]
+    public void PdfDocument_Open_ObjectStream_DeclaredCountExceedsDecodedLength_ThrowsInvalidDataException()
+    {
+        // Arrange
+        var pdfBytes = BuildObjectStreamDeclaredCountExceedsDecodedLengthPdf();
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PdfDocument.Open(new MemoryStream(pdfBytes)));
+    }
+
     /// <summary>Proves that a page object compressed inside a <c>/Type /ObjStm</c> object stream is decompressed and resolved correctly.</summary>
     [Fact]
     public void PdfDocument_Open_ObjectStream_DecompressesAndResolvesCompressedPage()

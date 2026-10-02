@@ -605,10 +605,30 @@ public sealed partial class PdfDocument
                 $"Compressed object index {indexInStream} is out of range for object stream {streamNumber}.");
         }
 
+        // Each header entry needs at least one byte (a single-digit object number, whitespace,
+        // and a single-digit offset collapse to a minimum of 3 bytes, but 1 byte/entry is used
+        // here as a conservative lower bound that never rejects a legitimate stream). Without
+        // this check, a crafted /N far larger than the actual decoded stream would make the loop
+        // below keep calling NextToken() long after the header's real content has been exhausted,
+        // reading nothing but zero-cost EndOfFile tokens for up to int.MaxValue iterations.
+        if (count > decoded.Length)
+        {
+            throw new InvalidDataException(
+                $"Object stream {streamNumber} declares /N {count}, which exceeds its decoded byte length.");
+        }
+
         var headerTokenizer = new PdfTokenizer(decoded);
         var relativeOffset = -1;
         for (var i = 0; i < count; i++)
         {
+            // Stop as soon as the header tokenizer has no bytes left, rather than relying on the
+            // token-kind check below to eventually notice an EndOfFile token: this fails fast on
+            // a malformed header with a declared /N that overruns its own content.
+            if (headerTokenizer.Position >= decoded.Length)
+            {
+                throw new InvalidDataException("Object stream header ended before all declared /N entries were read.");
+            }
+
             var numberToken = headerTokenizer.NextToken();
             var offsetToken = headerTokenizer.NextToken();
             if (numberToken.Kind != PdfTokenKind.Number || offsetToken.Kind != PdfTokenKind.Number)
