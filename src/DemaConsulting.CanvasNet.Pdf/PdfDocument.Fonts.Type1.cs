@@ -72,46 +72,56 @@ public sealed partial class PdfDocument
     }
 
     /// <summary>
-    ///     Loads a simple font's embedded <c>/FontDescriptor/FontFile3</c> bare Type1C (CFF, no
-    ///     SFNT/OpenType wrapper) font program: requires the stream itself to declare its own
-    ///     <c>/Subtype</c> as the name <c>Type1C</c>, decodes the stream via
-    ///     <see cref="GetStreamDecodedBytes"/>, and loads it via
-    ///     <see cref="Fonts.TrueTypeFont.LoadType1C"/>, passing
-    ///     <see cref="CodepointToStandardGlyphName"/> as the codepoint-to-glyph-name encoding -
-    ///     exactly as <see cref="LoadType1Font"/> does for the classic <c>/FontFile</c> path (see
-    ///     that method's own remarks for why no font-dict-specific <c>/Encoding</c> resolution is
-    ///     needed here either).
+    ///     Loads a simple font's embedded <c>/FontDescriptor/FontFile3</c> font program -
+    ///     either a bare Type1C (standalone, non-SFNT-wrapped CFF) program or an SFNT-wrapped
+    ///     (<c>'OTTO'</c>) CFF program: decodes the stream via <see cref="GetStreamDecodedBytes"/>,
+    ///     sniffs its actual byte container shape via <see cref="SniffFontFile3Shape"/> (rather
+    ///     than trusting the stream's own declared <c>/Subtype</c> name - see this method's own
+    ///     remarks), and dispatches to <see cref="Fonts.TrueTypeFont.LoadType1C"/> (bare CFF) or
+    ///     <see cref="Fonts.TrueTypeFont.Load(Stream)"/> (SFNT-wrapped) accordingly, passing
+    ///     <see cref="CodepointToStandardGlyphName"/> as the bare-CFF codepoint-to-glyph-name
+    ///     encoding - exactly as <see cref="LoadType1Font"/> does for the classic <c>/FontFile</c>
+    ///     path (see that method's own remarks for why no font-dict-specific <c>/Encoding</c>
+    ///     resolution is needed here either).
     /// </summary>
     /// <remarks>
     ///     <para>
-    ///     Mirrors <c>LoadCidFontType0Font</c>'s own <c>/FontFile3</c> <c>/Subtype</c> validation
-    ///     precedent (<c>PdfDocument.Fonts.Type0.cs</c>) exactly, but for the opposite expected
-    ///     value: a simple <c>/Type1</c> font's <c>/FontFile3</c> must declare <c>/Subtype
-    ///     /Type1C</c> (a bare CFF stream), never <c>/OpenType</c> (an SFNT-wrapped CFF stream,
-    ///     which <see cref="LoadCidFontType0Font"/> requires instead, for composite fonts only).
-    ///     Any other <c>/Subtype</c> value, or an absent one, is rejected with
+    ///     Per PDF 32000-1 &#xA7;9.6.2.2/Table 126, a simple <c>/Type1</c> font's
+    ///     <c>/FontFile3</c> stream is supposed to declare its own <c>/Subtype</c> as
+    ///     <c>Type1C</c> (a bare CFF stream) or <c>OpenType</c> (an SFNT-wrapped CFF stream) - but
+    ///     the specification does not actually require that declared name to match the stream's
+    ///     real byte container shape, and real-world producers sometimes emit exactly that
+    ///     mismatch (for example declaring <c>OpenType</c> while writing a bare CFF stream, or
+    ///     vice versa). This method therefore never consults the stream's own <c>/Subtype</c> at
+    ///     all for dispatch - it sniffs the actual bytes instead, mirroring
+    ///     <see cref="LoadCidFontType0Font"/>'s own identical shape-sniffing precedent
+    ///     (<c>PdfDocument.Fonts.Type0.cs</c>) for a composite font's <c>CIDFontType0</c>
+    ///     descendant. Bytes matching neither a recognized SFNT container nor a structurally
+    ///     plausible bare CFF header are rejected with
     ///     <see cref="UnsupportedImageFeatureException"/> rather than guessed at.
     ///     </para>
     ///     <para>
-    ///     A CID-keyed (<c>ROS</c>-bearing) Type1C program is rejected transitively: this method
-    ///     never itself inspects the CFF Top DICT for <c>ROS</c>, but
-    ///     <see cref="Fonts.CffTable.Parse"/> (invoked by <see cref="Fonts.TrueTypeFont.LoadType1C"/>)
-    ///     already does, throwing <see cref="InvalidDataException"/>, which is allowed to
-    ///     propagate uncaught here - the same "embedded fonts fail closed on any embedded-font
-    ///     problem, no fallback" convention <see cref="LoadType1Font"/> documents for its own
-    ///     <c>/FontFile</c> path.
+    ///     A CID-keyed (<c>ROS</c>-bearing) CFF program - bare or SFNT-wrapped - is rejected
+    ///     transitively: this method never itself inspects the CFF Top DICT for <c>ROS</c>, but
+    ///     <see cref="Fonts.CffTable.Parse"/> (invoked by both
+    ///     <see cref="Fonts.TrueTypeFont.LoadType1C"/> and <see cref="Fonts.TrueTypeFont.Load(Stream)"/>'s
+    ///     own CFF-outline branch) already does, throwing <see cref="InvalidDataException"/>,
+    ///     which is allowed to propagate uncaught here - the same "embedded fonts fail closed on
+    ///     any embedded-font problem, no fallback" convention <see cref="LoadType1Font"/>
+    ///     documents for its own <c>/FontFile</c> path.
     ///     </para>
     /// </remarks>
     /// <param name="descriptor">The resolved <c>/FontDescriptor</c> dictionary.</param>
     /// <returns>The loaded <see cref="Fonts.TrueTypeFont"/>.</returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <c>/FontDescriptor/FontFile3</c> is missing or does not resolve to a
-    ///     stream, or propagated from <see cref="Fonts.TrueTypeFont.LoadType1C"/> for a malformed
-    ///     or CID-keyed embedded CFF program.
+    ///     stream, or propagated from <see cref="Fonts.TrueTypeFont.LoadType1C"/>/
+    ///     <see cref="Fonts.TrueTypeFont.Load(Stream)"/> for a malformed or CID-keyed embedded CFF
+    ///     program, or any other malformed embedded SFNT font.
     /// </exception>
     /// <exception cref="UnsupportedImageFeatureException">
-    ///     Thrown when the <c>/FontFile3</c> stream's own <c>/Subtype</c> is not the name
-    ///     <c>Type1C</c> (for example <c>OpenType</c>, or when the key is absent entirely).
+    ///     Thrown when the <c>/FontFile3</c> stream's decoded bytes match neither a recognized
+    ///     SFNT container nor a structurally plausible bare CFF header.
     /// </exception>
     private TrueTypeFont LoadType1CFont(PdfObject descriptor)
     {
@@ -123,17 +133,16 @@ public sealed partial class PdfDocument
             throw new InvalidDataException("/FontDescriptor/FontFile3 does not resolve to a stream.");
         }
 
-        var fontFileSubtype = GetNameValue(fontFileStream, "Subtype");
-        if (fontFileSubtype != "Type1C")
-        {
-            throw new UnsupportedImageFeatureException(
-                $"pdf-font-fontfile3-subtype-{fontFileSubtype ?? "missing"}",
-                $"/FontFile3 /Subtype '{fontFileSubtype ?? "(missing)"}' is not supported; only " +
-                "/Type1C is supported for a simple /Type1 font's /FontFile3 (an SFNT-wrapped " +
-                "/OpenType CFF stream is not supported here).");
-        }
-
         var fontBytes = GetStreamDecodedBytes(fontFileStream);
-        return TrueTypeFont.LoadType1C(new MemoryStream(fontBytes), CodepointToStandardGlyphName);
+        return SniffFontFile3Shape(fontBytes) switch
+        {
+            FontFile3Shape.Sfnt => TrueTypeFont.Load(new MemoryStream(fontBytes)),
+            FontFile3Shape.BareCff => TrueTypeFont.LoadType1C(new MemoryStream(fontBytes), CodepointToStandardGlyphName),
+            _ => throw new UnsupportedImageFeatureException(
+                "pdf-font-fontfile3-unrecognized-shape",
+                "/FontFile3 stream's decoded bytes are neither a recognized SFNT container " +
+                "(TrueType/OpenType/CFF) nor a structurally plausible bare Type1C/CFF program " +
+                $"(declared /Subtype '{GetNameValue(fontFileStream, "Subtype") ?? "(missing)"}')."),
+        };
     }
 }

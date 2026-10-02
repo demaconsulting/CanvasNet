@@ -788,8 +788,9 @@ below for its own resolution and glyph-painting tests.
 `PdfDocument_Fonts_Type0_CidFontType0_OpenTypeCff_ResolvesEmbeddedFont`,
 `PdfDocument_Fonts_Type0_CidFontType0_NonStandardCidToGidMap_IsIgnored`,
 `PdfDocument_Fonts_Type0_CidFontType0_Widths_WArrayIndividualForm_DeterminesAdvance`,
-`PdfDocument_Fonts_Type0_CidFontType0_NonOpenTypeFontFile3Subtype_ThrowsUnsupportedImageFeatureException`,
-`PdfDocument_Fonts_Type0_CidFontType0_MissingFontFile3Subtype_ThrowsUnsupportedImageFeatureException`,
+`PdfDocument_Fonts_Type0_CidFontType0_MismatchedSubtype_SfntBytes_ResolvesEmbeddedFont`,
+`PdfDocument_Fonts_Type0_CidFontType0_MissingFontFile3Subtype_ResolvesEmbeddedFont`,
+`PdfDocument_Fonts_Type0_CidFontType0_UnrecognizedFontFile3Bytes_ThrowsUnsupportedImageFeatureException`,
 `PdfDocument_Fonts_Type0_CidFontType0_CidKeyedCff_ThrowsInvalidDataException`,
 `PdfDocument_Fonts_Type0_MissingDescendantFonts_ThrowsInvalidDataException`,
 `PdfDocument_Fonts_Type0_DescendantFontsNotSingleElement_ThrowsInvalidDataException`,
@@ -819,11 +820,20 @@ on a `/CIDFontType0` descendant, asserting resolution succeeds and real glyph in
 identity CID-to-glyph-index (Phase 12); separately declares a non-standard `/CIDToGIDMap
 /Identity` entry on such a descendant, asserting it is ignored (the identity map is used
 regardless); separately proves the same `/DW`/`/W` width-resolution logic applies identically to
-a `/CIDFontType0` descendant. A `[Theory]` declares the `/FontFile3` stream's own `/Subtype` as
-`/Type1C` and, separately, `/CIDFontType0C` (a bare CFF stream, no SFNT wrapper), asserting
-`Codecs.UnsupportedImageFeatureException` in both cases; a further test omits the `/Subtype` key
-from the `/FontFile3` stream entirely, asserting the same exception (a missing `/Subtype` is not
-guessed as `/OpenType`). Builds an `/OpenType`-wrapped `/FontFile3` whose embedded CFF program's
+a `/CIDFontType0` descendant. As of Phase 18, `LoadCidFontType0Font` sniffs the `/FontFile3`
+stream's own decoded bytes for a recognized SFNT container or a structurally plausible bare CFF
+header rather than gating on the stream's declared `/Subtype`: a `[Theory]` builds a
+well-formed, SFNT-wrapped (`'OTTO'`) CFF program and declares the `/FontFile3` stream's own
+`/Subtype` as `/Type1C` and, separately, `/CIDFontType0C` - a deliberate mismatch between the
+declared name and the stream's actual SFNT-wrapped shape - asserting resolution still succeeds
+and real glyph ink paints; a further test omits the `/Subtype` key from the `/FontFile3` stream
+entirely (same SFNT-wrapped bytes), asserting the same successful resolution (a missing
+`/Subtype` is no longer treated any differently than a mismatched one, since the declared name is
+never consulted for dispatch). A separate test supplies decoded bytes that are neither a
+recognized SFNT container nor a structurally plausible bare CFF header (a short synthetic literal
+byte sequence, not derived from any real-world font), asserting
+`Codecs.UnsupportedImageFeatureException` - the one shape genuinely still rejected. Builds an
+`/OpenType`-wrapped `/FontFile3` whose embedded CFF program's
 Top DICT declares `ROS` (CID-keyed CFF, via `SyntheticFontBuilder.Cff(..., includeRos: true)`),
 asserting `InvalidDataException` (surfaced uncaught from `Fonts.CffTable.Parse`'s own existing
 CID-keyed rejection, with no new translation code in the `Pdf` subsystem). Declares a Type0 font
@@ -891,11 +901,12 @@ hand-designed square glyph (matching `CanvasNetPdf-PdfDocument-CompositeFontReso
 `CIDFontType0` system-integration test's pixel-assertion convention exactly, since both fixtures
 share the identical glyph design/placement), plus fully-transparent canvas corners.
 
-#### CanvasNetPdf-PdfDocument-Type1CFontResolution: Embedded Bare Type1C/CFF FontFile3 Resolves, Fails Closed Otherwise
+#### CanvasNetPdf-PdfDocument-Type1CFontResolution: Type1C/CFF FontFile3 Resolves via Shape Sniffing, Fails Closed
 
 **Tests**: `PdfDocument_Fonts_Type1_FontFile3Type1C_ResolvesEmbeddedFont_PaintsGlyphInk`,
-`PdfDocument_Fonts_Type1_FontFile3NonType1CSubtype_ThrowsUnsupportedImageFeatureException`,
-`PdfDocument_Fonts_Type1_FontFile3MissingSubtype_ThrowsUnsupportedImageFeatureException`
+`PdfDocument_Fonts_Type1_MismatchedSubtype_BareCffBytes_ResolvesEmbeddedFont`,
+`PdfDocument_Fonts_Type1_MissingFontFile3Subtype_ResolvesEmbeddedFont`,
+`PdfDocument_Fonts_Type1_UnrecognizedFontFile3Bytes_ThrowsUnsupportedImageFeatureException`
 
 Builds a `/Subtype /Type1` font dictionary with an embedded, entirely synthetic, bare Type1C/CFF
 `/FontDescriptor/FontFile3` stream (via `SyntheticFontBuilder.Cff`, declaring a `/Subtype
@@ -904,16 +915,23 @@ OpenType wrapper of any kind), asserting the embedded font's own square glyph pa
 position its font-design-space coordinates and text-space placement determine - proving
 `LoadType1CFont`'s decode/`Fonts.TrueTypeFont.LoadType1C`/`ResolveEncoding`-via-
 `CodepointToStandardGlyphName` pipeline resolves end to end, reached only because `/FontFile` is
-absent (`LoadType1Font`'s own loader never runs). A `[Theory]` declares the `/FontFile3` stream's
-own `/Subtype` as `/OpenType` and, separately, `/CIDFontType0C`, asserting
+absent (`LoadType1Font`'s own loader never runs). As of Phase 18, `LoadType1CFont` sniffs the
+`/FontFile3` stream's own decoded bytes for a recognized SFNT container or a structurally
+plausible bare CFF header rather than gating on the stream's declared `/Subtype`: a `[Theory]`
+builds the same well-formed, bare (non-SFNT-wrapped) CFF program and declares the `/FontFile3`
+stream's own `/Subtype` as `/OpenType` and, separately, `/CIDFontType0C` - a deliberate mismatch
+between the declared name and the stream's actual bare-CFF shape - asserting resolution still
+succeeds and the embedded square glyph's own ink paints, exactly like the matching-subtype case
+above; a further test omits `/Subtype` from the `/FontFile3` stream entirely (same bare-CFF
+bytes), asserting the same successful resolution (a missing `/Subtype` is no longer treated any
+differently than a mismatched one, since the declared name is never consulted for dispatch) -
+mirroring `CanvasNetPdf-PdfDocument-CompositeFontResolution`'s own shape-sniffing tests for
+`/CIDFontType0`. A separate test supplies decoded bytes that are neither a recognized SFNT
+container nor a structurally plausible bare CFF header (a short synthetic literal byte sequence,
+not derived from any real-world font), asserting
 `Codecs.UnsupportedImageFeatureException` with `Feature ==
-"pdf-font-fontfile3-subtype-{subtype}"` in both cases - an SFNT-wrapped CFF stream is rejected
-here exactly as firmly as any other non-`Type1C` value, since this simple-font path never
-attempts to unwrap an SFNT container the way the composite `CIDFontType0` path does. A further
-test omits `/Subtype` from the `/FontFile3` stream entirely, asserting the same exception with
-`Feature == "pdf-font-fontfile3-subtype-missing"` (a missing `/Subtype` is not guessed as
-`Type1C`), mirroring `CanvasNetPdf-PdfDocument-CompositeFontResolution`'s own `/FontFile3`-
-`/Subtype`-validation precedent for `/CIDFontType0`.
+"pdf-font-fontfile3-unrecognized-shape"` - the one shape genuinely still rejected, regardless of
+the stream's declared `/Subtype`.
 
 #### CanvasNetPdf-PdfDocument-Type3FontResolution: Type3 Fonts Resolve Required Fields, Fail Closed on Malformed Ones
 

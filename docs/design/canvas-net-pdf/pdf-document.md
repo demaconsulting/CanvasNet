@@ -66,11 +66,21 @@ rendered transparently, with every indirect object's strings and every stream's 
 decrypted before any other parsing logic observes them (see _Encryption (Standard Security
 Handler)_ below); every other encrypted-document shape (a non-`/Standard` security handler,
 `/R 6`'s "hardened hash" key derivation, a non-`/StdCF` crypt filter, or a document that genuinely
-requires a non-empty password) still fails closed exactly as before.
-**Phase 4 limitations (narrowed by Phase 6/9/12/B/C/D, see
-above)**: a bare/naked `/CIDFontType0C` CFF `/FontFile3` stream on a _composite_ `/Type0` font (no
-SFNT wrapper - distinct from the now-supported bare Type1C `/FontFile3` on a _simple_ `/Type1`
-font), CID-keyed CFF (`ROS`/`FDArray`/`FDSelect`), non-`/Identity-H` composite `/Encoding`s
+requires a non-empty password) still fails closed exactly as before. As of Phase 18 (this phase),
+both `LoadType1CFont` (simple `/Type1` fonts) and `LoadCidFontType0Font` (composite `CIDFontType0`
+descendant fonts) resolve a `/FontFile3` stream by sniffing the stream's own decoded bytes for a
+recognized SFNT container (`'OTTO'`/`'true'`/`1.0`/`'ttcf'`) or a structurally plausible bare CFF
+header, rather than gating on the stream's declared `/Subtype` name: a bare, non-SFNT-wrapped CFF
+program is now accepted on a _composite_ `/Type0` font regardless of whether its `/Subtype` reads
+`/CIDFontType0C`, `/Type1C`, `/OpenType`, or is absent entirely, and an SFNT-wrapped (`'OTTO'`) CFF
+program is likewise now accepted on a _simple_ `/Type1` font regardless of its declared `/Subtype`
+— matching PDF 32000-1's own leniency around `/Subtype` versus the stream's actual byte container
+shape, and real-world producers that emit one without exactly matching the other. Only a stream
+whose bytes match neither recognized shape still fails closed with
+`Codecs.UnsupportedImageFeatureException` (see _Type 1C Font Resolution_/_Composite Font
+Resolution_ below).
+**Phase 4 limitations (narrowed by Phase 6/9/12/B/C/D/18, see
+above)**: CID-keyed CFF (`ROS`/`FDArray`/`FDSelect`), non-`/Identity-H` composite `/Encoding`s
 (including `/Identity-V` and predefined CJK encodings), and `/MMType1` fonts remain
 entirely unsupported and fail closed with `Codecs.UnsupportedImageFeatureException` (CID-keyed CFF
 instead surfaces as `InvalidDataException` via `Fonts.CffTable.Parse`'s own existing rejection);
@@ -748,20 +758,28 @@ its own distinguishable `Feature` token.
   Type 1 program's own built-in `/Encoding` array (if any) embedded in the font program itself is
   never consulted - only the PDF font dictionary's own `/Encoding` entry, resolved via
   `ResolveEncoding` above, determines which glyph a shown code selects.
-- **Type 1C font resolution (`PdfDocument.Fonts.Type1.cs`, added in Phase C)** —
-  `LoadType1CFont(PdfObject descriptor)` is `BuildResolvedSimpleFont`'s `/FontFile3` loader
-  counterpart (reached only when `/FontFile` is absent, per the priority order above), mirroring
-  `LoadCidFontType0Font`'s own `/FontFile3`-`/Subtype`-validation precedent (see _Composite Font
-  Resolution_ below): it requires `/FontDescriptor/FontFile3` to resolve to a stream
-  (`InvalidDataException` otherwise), then requires that stream's own `/Subtype` to be the name
-  `Type1C`, rejecting any other value (including a missing `/Subtype`) with
-  `Codecs.UnsupportedImageFeatureException` rather than guessing the format from the stream's own
-  bare-CFF magic bytes. The stream is decoded via the same `GetStreamDecodedBytes` every other
-  embedded font stream in this class uses, then loaded via
+- **Type 1C font resolution (`PdfDocument.Fonts.Type1.cs`, added in Phase C; shape-sniffing
+  dispatch added in Phase 18)** — `LoadType1CFont(PdfObject descriptor)` is
+  `BuildResolvedSimpleFont`'s `/FontFile3` loader counterpart (reached only when `/FontFile` is
+  absent, per the priority order above), mirroring `LoadCidFontType0Font`'s own shape-sniffing
+  precedent (see _Composite Font Resolution_ below): it requires `/FontDescriptor/FontFile3` to
+  resolve to a stream (`InvalidDataException` otherwise), decodes it via the same
+  `GetStreamDecodedBytes` every other embedded font stream in this class uses, then sniffs the
+  decoded bytes themselves - via the shared `SniffFontFile3Shape` helper
+  (`PdfDocument.Fonts.cs`) - for a recognized SFNT container or a structurally plausible bare CFF
+  header, never consulting the stream's own declared `/Subtype` name for this decision at all (it
+  is read only for inclusion in the exception message below). An SFNT-wrapped (for example
+  `'OTTO'`) CFF program is loaded via `Fonts.TrueTypeFont.Load(new MemoryStream(decodedBytes))`; a
+  bare, non-SFNT-wrapped CFF program is loaded via
   `Fonts.TrueTypeFont.LoadType1C(new MemoryStream(decodedBytes), CodepointToStandardGlyphName)` -
-  any exception the core `Fonts` layer itself throws for malformed CFF table data, including a
-  CID-keyed (`ROS`-declaring) CFF program, propagates uncaught, consistent with this class's
-  "embedded fonts fail closed on any embedded-font problem, no fallback" convention. **Non-Goals**:
+  either way, a declared `/Subtype` of `Type1C`, `OpenType`, some other name, or no `/Subtype` key
+  at all is accepted identically, as long as the bytes themselves match one of the two recognized
+  shapes. Only bytes matching neither shape are rejected, with
+  `Codecs.UnsupportedImageFeatureException` naming the stream's declared `/Subtype` (or "none") in
+  its message. Any exception the core `Fonts` layer itself throws for malformed CFF table data,
+  including a CID-keyed (`ROS`-declaring) CFF program, propagates uncaught, consistent with this
+  class's "embedded fonts fail closed on any embedded-font problem, no fallback" convention.
+  **Non-Goals**:
   unlike `LoadType1Font`'s classic Type 1 `seac` operator (still rejected, see above), the CFF/Type
   2 charstring format's own deprecated seac-style 4-operand `endchar` composition form (`adx ady
   bchar achar endchar`) _is_ supported by the core `Fonts` layer (`Fonts.CffCharstringInterpreter`)
@@ -838,7 +856,8 @@ its own distinguishable `Feature` token.
   procedure's own `rg`/`g`/`k`/`sc`/`scn` operators are honored normally, exactly as they would be
   inside any other content stream, rather than suppressed.
 - **Composite font resolution (`PdfDocument.Fonts.Type0.cs`, added in Phase 9, extended in
-  Phase 12)** — `BuildResolvedCompositeFont` is `BuildResolvedFont`'s `/Type0` dispatch target. It
+  Phase 12, shape-sniffing dispatch added in Phase 18)** — `BuildResolvedCompositeFont` is
+  `BuildResolvedFont`'s `/Type0` dispatch target. It
   requires `/Encoding` to resolve to the name `Identity-H`; any other name (including
   `Identity-V`) or non-name kind throws `Codecs.UnsupportedImageFeatureException` (feature
   `pdf-font-type0-encoding-{name}`) - no CMap-based or vertical-writing encoding is supported.
@@ -856,20 +875,33 @@ its own distinguishable `Feature` token.
     `/FontDescriptor/FontFile2` (`InvalidDataException` if missing or non-stream), decodes it via
     `GetStreamDecodedBytes`, loads it via `Fonts.TrueTypeFont.Load`, and pairs it with
     `ResolveCidToGidMap`'s resolved `/CIDToGIDMap` function (see below).
-  - `LoadCidFontType0Font` (new in Phase 12): requires `/FontDescriptor/FontFile3`
-    (`InvalidDataException` if missing or non-stream); the `FontFile3` stream's own `/Subtype`
-    must be the name `OpenType` (`Codecs.UnsupportedImageFeatureException`, feature
-    `pdf-font-fontfile3-subtype-{subtype}`, for any other value or a missing `/Subtype` - this is
-    the bare/naked `/CIDFontType0C` rejection point: such a stream has no SFNT wrapper and
-    `Fonts.TrueTypeFont.Load` requires one). On a supported `/OpenType` stream, decodes it via
-    `GetStreamDecodedBytes` and loads it via `Fonts.TrueTypeFont.Load`, exactly like the
-    `CIDFontType2` path - the same `TrueTypeFont` type, no new `Fonts`-subsystem code. Per PDF
-    32000-1 §9.7.4.2, a non-CID-keyed CFF program uses identity CID-to-glyph-index, so this path
+  - `LoadCidFontType0Font` (new in Phase 12; shape-sniffing dispatch added in Phase 18): requires
+    `/FontDescriptor/FontFile3` (`InvalidDataException` if missing or non-stream); decodes it via
+    the same `GetStreamDecodedBytes` every other embedded font stream in this class uses, then
+    sniffs the decoded bytes themselves - via the shared `SniffFontFile3Shape` helper
+    (`PdfDocument.Fonts.cs`) - for a recognized SFNT container or a structurally plausible bare
+    CFF header, never consulting the stream's own declared `/Subtype` name for this decision at
+    all (it is read only for inclusion in the exception message below). An SFNT-wrapped (for
+    example `'OTTO'`) CFF program is loaded via
+    `Fonts.TrueTypeFont.Load(new MemoryStream(decodedBytes))`, exactly like the `CIDFontType2`
+    path - the same `TrueTypeFont` type, no new `Fonts`-subsystem code; a bare, non-SFNT-wrapped
+    CFF program (for example a `/CIDFontType0C`-declared stream with no SFNT wrapper) is loaded
+    via `Fonts.TrueTypeFont.LoadType1C(new MemoryStream(decodedBytes),
+    EmptyCodepointToGlyphName)` (an empty, never-populated codepoint-to-glyph-name map, since a
+    composite font's CID-to-glyph-index mapping below never consults the font's own cmap or
+    charset-derived glyph names at all). Either way, a declared `/Subtype` of `CIDFontType0C`,
+    `OpenType`, `Type1C`, some other name, or no `/Subtype` key at all is accepted identically, as
+    long as the bytes themselves match one of the two recognized shapes; only bytes matching
+    neither shape are rejected, with `Codecs.UnsupportedImageFeatureException` (feature
+    `pdf-font-fontfile3-unrecognized-shape`) naming the stream's declared `/Subtype` (or "none")
+    in its message. Per PDF 32000-1 §9.7.4.2, a non-CID-keyed CFF program uses identity
+    CID-to-glyph-index, so this path
     is paired with `cid => cid` directly (not `ResolveCidToGidMap` - `/CIDToGIDMap` is a
     `CIDFontType2`-only key per the specification, and any non-standard occurrence on a
     `CIDFontType0` descendant is deliberately ignored, never consulted). If the embedded CFF
     program is CID-keyed (`ROS` present in its Top DICT), `Fonts.CffTable.Parse` (invoked
-    transitively by `TrueTypeFont.Load`) already rejects it with `InvalidDataException`, which
+    transitively by both `TrueTypeFont.Load` and `TrueTypeFont.LoadType1C`, regardless of
+    container shape) already rejects it with `InvalidDataException`, which
     propagates uncaught here - no new translation code, consistent with this class's "composite
     fonts fail closed on any embedded-font problem" convention. CID-keyed CFF support itself
     (`FDArray`/`FDSelect`-aware charstring dispatch, a CID-keyed `charset` parser) is a
@@ -1259,19 +1291,21 @@ its own distinguishable `Feature` token.
   meaningful generic-family
   equivalent and is never substituted with an unrelated system or bundled font. As of Phase C, a
   `/Subtype /Type1` descriptor declaring only `/FontFile3` (neither `/FontFile` nor `/FontFile2`)
-  is resolved by `LoadType1CFont`: the `/FontFile3` stream's own `/Subtype`, when not the name
-  `Type1C` (for example `OpenType`, or when the key is absent entirely), is
-  `Codecs.UnsupportedImageFeatureException` (feature `pdf-font-fontfile3-subtype-{subtype}`,
-  reusing the exact feature-key pattern `LoadCidFontType0Font`'s own `/FontFile3`-`/Subtype`
-  validation below already establishes) - an SFNT-wrapped `/OpenType` CFF stream on a simple
-  `/Type1` font is not supported here, distinct from the already-supported composite
-  `CIDFontType0`/`/OpenType`-wrapped-`/FontFile3` path. A `/FontFile` stream's own
+  is resolved by `LoadType1CFont`: as of Phase 18, the stream's declared `/Subtype` is never
+  consulted for dispatch at all - only the decoded bytes' own shape is sniffed (an SFNT container
+  or a bare CFF header, via the shared `SniffFontFile3Shape` helper); only bytes matching neither
+  recognized shape are rejected with `Codecs.UnsupportedImageFeatureException` (feature
+  `pdf-font-fontfile3-unrecognized-shape`, reusing the exact feature-key pattern
+  `LoadCidFontType0Font`'s own shape-sniffing dispatch below already establishes) - an
+  SFNT-wrapped (`/OpenType`-shaped) CFF stream on a simple `/Type1` font is now supported here,
+  exactly like the composite `CIDFontType0` path below. A `/FontFile` stream's own
   missing or non-numeric `/Length1`/`/Length2` entry, or any exception `Fonts.TrueTypeFont.LoadType1`
   itself throws for a malformed embedded Type 1 program, is `InvalidDataException` (no fallback
   substitution is ever attempted once an embedded Type 1 program is present, matching the
   `CIDFontType2`/`CIDFontType0` "embedded fonts fail closed" precedent); likewise, any exception
-  `Fonts.TrueTypeFont.LoadType1C` itself throws for a malformed or CID-keyed (`ROS`-bearing)
-  embedded CFF program is `InvalidDataException`, propagated uncaught under the same convention.
+  `Fonts.TrueTypeFont.Load`/`Fonts.TrueTypeFont.LoadType1C` itself throws for a malformed or
+  CID-keyed (`ROS`-bearing) embedded CFF program is `InvalidDataException`, propagated uncaught
+  under the same convention.
 - **A `/Subtype /Type3` font dictionary missing (or non-array-of-6-numbers) `/FontMatrix`, or
   missing (or non-dictionary) `/CharProcs`** — `InvalidDataException` (added in Phase D; a
   malformed/missing required field, not merely unsupported - unlike every other resolved font
@@ -1293,12 +1327,15 @@ its own distinguishable `Feature` token.
   `CIDFontType2` descendant font's missing/non-embedded `/FontDescriptor/FontFile2`, or a
   `CIDFontType0` descendant font's missing/non-embedded `/FontDescriptor/FontFile3`, is
   `InvalidDataException` (no fallback substitution is ever attempted for a composite font - a
-  deliberate Phase 9 Non-Goal, unchanged by Phase 12). As of Phase 12, a `CIDFontType0`
-  descendant's `/FontFile3` stream whose own `/Subtype` is not the name `OpenType` (for example
-  `Type1C`, `CIDFontType0C`, or a missing `/Subtype`) is instead
-  `Codecs.UnsupportedImageFeatureException` (feature `pdf-font-fontfile3-subtype-{subtype}`); an
-  `/OpenType`-wrapped `/FontFile3` whose embedded CFF program is CID-keyed (`ROS` present) is
-  `InvalidDataException`, surfaced uncaught from `Fonts.CffTable.Parse`'s own existing rejection.
+  deliberate Phase 9 Non-Goal, unchanged by Phase 12/18). As of Phase 18, a `CIDFontType0`
+  descendant's `/FontFile3` stream's declared `/Subtype` is never consulted for dispatch at all -
+  only the decoded bytes' own shape is sniffed (an SFNT container or a bare CFF header, via the
+  shared `SniffFontFile3Shape` helper); only bytes matching neither recognized shape are rejected
+  with `Codecs.UnsupportedImageFeatureException` (feature
+  `pdf-font-fontfile3-unrecognized-shape`); a bare, non-SFNT-wrapped CFF stream (for example
+  declared `/CIDFontType0C`) whose embedded CFF program is CID-keyed (`ROS` present) is
+  `InvalidDataException`, surfaced uncaught from `Fonts.CffTable.Parse`'s own existing rejection -
+  the same rejection an SFNT-wrapped CID-keyed CFF program already triggered before Phase 18.
   A `CIDFontType2` descendant font's `/CIDToGIDMap`, when resolving to anything other than the
   name `Identity` or a stream (or a stream with an odd byte count), is `InvalidDataException`
   (this key is never consulted, and any non-standard occurrence never validated, for a

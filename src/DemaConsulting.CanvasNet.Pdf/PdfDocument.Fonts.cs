@@ -1154,4 +1154,76 @@ public sealed partial class PdfDocument
 
         return result;
     }
+
+    /// <summary>
+    ///     An empty codepoint-to-glyph-name map, reused wherever a <c>/FontFile3</c> loader must
+    ///     supply <see cref="Fonts.TrueTypeFont.LoadType1C"/>'s required
+    ///     <c>codepointToGlyphName</c> argument but the resulting font's own synthesized
+    ///     <c>cmap</c>-equivalent lookup is never actually consulted - specifically, a composite
+    ///     <c>/Type0</c> font's <c>CIDFontType0</c> descendant (see
+    ///     <c>PdfDocument.Fonts.Type0.cs</c>'s <c>LoadCidFontType0Font</c>), whose CID-to-glyph-
+    ///     index resolution is always the identity function, bypassing
+    ///     <see cref="Fonts.TrueTypeFont.GetGlyphIndex"/> (and therefore this map) entirely -
+    ///     unlike <see cref="LoadType1CFont"/>'s own simple-font <c>/FontFile3</c> path (see
+    ///     <c>PdfDocument.Fonts.Type1.cs</c>), which passes <see cref="CodepointToStandardGlyphName"/>
+    ///     instead, since a simple font's codes are resolved to glyphs by codepoint.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<int, string> EmptyCodepointToGlyphName =
+        new Dictionary<int, string>();
+
+    /// <summary>
+    ///     The actual byte-level container shape of an embedded <c>/FontFile3</c> font program,
+    ///     sniffed from the stream's own decoded bytes (see <see cref="SniffFontFile3Shape"/>)
+    ///     rather than trusted from its declared <c>/Subtype</c> name - the PDF specification
+    ///     permits, and real-world producers sometimes emit, a mismatch between the two.
+    /// </summary>
+    private enum FontFile3Shape
+    {
+        /// <summary>
+        ///     An SFNT-wrapped font program (TrueType, classic Mac <c>'true'</c>, CFF/OpenType
+        ///     <c>'OTTO'</c>, or a <c>'ttcf'</c> collection) - see
+        ///     <see cref="Fonts.SfntContainer.LooksLikeSfnt"/>. Loaded via
+        ///     <see cref="Fonts.TrueTypeFont.Load(Stream)"/>.
+        /// </summary>
+        Sfnt,
+
+        /// <summary>
+        ///     A bare (standalone, non-SFNT-wrapped) CFF font program - see
+        ///     <see cref="Fonts.CffTable.LooksLikeCffHeader"/>. Loaded via
+        ///     <see cref="Fonts.TrueTypeFont.LoadType1C"/>.
+        /// </summary>
+        BareCff,
+    }
+
+    /// <summary>
+    ///     Sniffs an already-decoded <c>/FontFile3</c> stream's bytes for their actual container
+    ///     shape - an SFNT wrapper (<see cref="Fonts.SfntContainer.LooksLikeSfnt"/>) or a bare CFF
+    ///     header (<see cref="Fonts.CffTable.LooksLikeCffHeader"/>) - used by both
+    ///     <see cref="LoadType1CFont"/> (<c>PdfDocument.Fonts.Type1.cs</c>) and
+    ///     <see cref="LoadCidFontType0Font"/> (<c>PdfDocument.Fonts.Type0.cs</c>) to dispatch to
+    ///     the matching <c>Fonts.TrueTypeFont</c> loader regardless of the stream's own declared
+    ///     <c>/Subtype</c> name, since the PDF specification permits (and real-world producers
+    ///     sometimes emit) a mismatch between that declared name and the font program's actual
+    ///     byte container shape.
+    /// </summary>
+    /// <param name="fontBytes">The <c>/FontFile3</c> stream's already-decoded bytes.</param>
+    /// <returns>
+    ///     The sniffed <see cref="FontFile3Shape"/>, or <see langword="null"/> when
+    ///     <paramref name="fontBytes"/> matches neither a recognized SFNT container nor a
+    ///     structurally plausible bare CFF header.
+    /// </returns>
+    private static FontFile3Shape? SniffFontFile3Shape(byte[] fontBytes)
+    {
+        if (SfntContainer.LooksLikeSfnt(fontBytes))
+        {
+            return FontFile3Shape.Sfnt;
+        }
+
+        if (CffTable.LooksLikeCffHeader(fontBytes))
+        {
+            return FontFile3Shape.BareCff;
+        }
+
+        return null;
+    }
 }

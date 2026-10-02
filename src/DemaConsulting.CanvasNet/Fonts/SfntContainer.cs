@@ -171,6 +171,30 @@ internal sealed class SfntContainer
     }
 
     /// <summary>
+    ///     Reports whether <paramref name="data"/>'s leading 4 bytes match one of the recognized
+    ///     SFNT <c>sfntVersion</c>/<c>ttcTag</c> values (<see cref="TrueTypeVersion"/>,
+    ///     <see cref="MacTrueVersion"/>, <see cref="OttoVersion"/>, or <see cref="TtcTag"/>) - a
+    ///     lightweight, non-throwing shape sniff distinguishing an SFNT-wrapped font program from
+    ///     a bare (standalone) CFF program (see <see cref="CffTable.LooksLikeCffHeader"/>). Used
+    ///     by <c>Pdf.PdfDocument</c>'s own <c>/FontFile3</c> shape-sniffing dispatch, since the
+    ///     PDF specification permits (and real-world producers sometimes emit) a mismatch
+    ///     between a <c>/FontFile3</c> stream's declared <c>/Subtype</c> name and its actual byte
+    ///     container shape.
+    /// </summary>
+    /// <param name="data">The candidate font program bytes.</param>
+    /// <returns>
+    ///     <see langword="true"/> if <paramref name="data"/> is at least 4 bytes long and its
+    ///     leading 4 bytes match a recognized SFNT version or collection tag; otherwise,
+    ///     <see langword="false"/>. Deliberately shallow - this method does not otherwise
+    ///     validate the table directory or any table's own structure, unlike
+    ///     <see cref="Parse(byte[], int)"/>: a value recognized here can still fail that
+    ///     method's own, stricter validation.
+    /// </returns>
+    public static bool LooksLikeSfnt(byte[] data) =>
+        data.Length >= 4 &&
+        ReadUInt32(data, 0) is TrueTypeVersion or MacTrueVersion or OttoVersion or TtcTag;
+
+    /// <summary>
     ///     Attempts to parse a leading <c>ttcf</c> TrueType Collection header from
     ///     <paramref name="data"/>, returning every face's SFNT offset table start position.
     /// </summary>

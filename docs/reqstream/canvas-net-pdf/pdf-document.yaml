@@ -740,8 +740,10 @@ sections:
               /DescendantFonts is a single-element array naming either a /Subtype /CIDFontType2
               descendant font with an embedded /FontDescriptor/FontFile2 stream, or a /Subtype
               /CIDFontType0 descendant font with an embedded, non-CID-keyed-CFF,
-              /FontDescriptor/FontFile3 stream whose own /Subtype is the name /OpenType:
-              decoding each shown 2-byte code directly as a CID, mapping it to a glyph index -
+              /FontDescriptor/FontFile3 stream whose decoded bytes form either a recognized SFNT
+              container or a structurally plausible bare CFF header, regardless of the stream's
+              own declared /Subtype name: decoding each shown 2-byte code directly as a CID,
+              mapping it to a glyph index -
               for a /CIDFontType2 descendant, via the descendant's /CIDToGIDMap (the identity map
               when absent or the name /Identity, or an explicit big-endian uint16-per-CID lookup
               table for a stream, with an out-of-range CID mapping to glyph 0/.notdef); for a
@@ -754,8 +756,8 @@ sections:
               subtype; any other /Encoding (including /Identity-V and predefined CJK encodings)
               or descendant /Subtype (other than /CIDFontType2 or /CIDFontType0) shall throw
               UnsupportedImageFeatureException, as shall a /CIDFontType0 descendant's /FontFile3
-              stream whose own /Subtype is not the name /OpenType (for example a bare
-              /CIDFontType0C CFF stream with no SFNT wrapper, or a missing /Subtype key), and a
+              stream whose decoded bytes match neither a recognized SFNT container nor a
+              structurally plausible bare CFF header, and a
               missing/malformed /DescendantFonts, /CIDToGIDMap, /W array, missing/non-embedded
               descendant /FontFile2 or /FontFile3, an unparsable embedded font program (for
               example a CID-keyed CFF program), or an odd-byte-length shown string shall throw
@@ -765,11 +767,18 @@ sections:
               (Microsoft Word, LibreOffice, and browser print-to-PDF among them) overwhelmingly
               emit for embedded subsetted text, so continuing to reject every /Type0 font
               unconditionally is a significant real-world compatibility gap; both the
-              /CIDFontType2 (TrueType-outline) and the /CIDFontType0 (non-CID-keyed-CFF-outline,
-              /OpenType-wrapped /FontFile3) shapes are now supported, since real-world PDF
-              producers emit both interchangeably depending on the source font's own outline
-              flavor. A bare/naked /CIDFontType0C CFF stream (no SFNT wrapper), CID-keyed CFF
-              (ROS/FDArray/FDSelect - a larger, separately-scoped future phase), vertical writing
+              /CIDFontType2 (TrueType-outline) and the /CIDFontType0 (non-CID-keyed-CFF-outline)
+              shapes are now supported, since real-world PDF producers emit both interchangeably
+              depending on the source font's own outline flavor. A /CIDFontType0 descendant's
+              /FontFile3 stream is resolved by sniffing its own decoded bytes for a recognized
+              SFNT container or a structurally plausible bare CFF header, rather than requiring
+              the stream's declared /Subtype to be exactly /OpenType: PDF 32000-1 permits (and
+              real-world producers sometimes emit) a mismatch between the declared /Subtype name
+              and the font program's actual byte container shape, so both a bare, non-SFNT-wrapped
+              CFF program (however its /Subtype is declared, or when /Subtype is absent entirely)
+              and an SFNT-wrapped CFF program are now accepted identically, as long as the bytes
+              themselves are well-formed. CID-keyed CFF (ROS/FDArray/FDSelect - a larger,
+              separately-scoped future phase), vertical writing
               (/Identity-V), predefined CJK encodings, and custom CMap-based /Encoding streams
               remain explicitly out of this phase's scope and must fail closed with a
               distinguishable exception rather than being silently mis-rendered, and a composite
@@ -786,8 +795,9 @@ sections:
               - PdfDocument_Fonts_Type0_CidFontType0_OpenTypeCff_ResolvesEmbeddedFont
               - PdfDocument_Fonts_Type0_CidFontType0_NonStandardCidToGidMap_IsIgnored
               - PdfDocument_Fonts_Type0_CidFontType0_Widths_WArrayIndividualForm_DeterminesAdvance
-              - PdfDocument_Fonts_Type0_CidFontType0_NonOpenTypeFontFile3Subtype_ThrowsUnsupportedImageFeatureException
-              - PdfDocument_Fonts_Type0_CidFontType0_MissingFontFile3Subtype_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Fonts_Type0_CidFontType0_MismatchedSubtype_SfntBytes_ResolvesEmbeddedFont
+              - PdfDocument_Fonts_Type0_CidFontType0_MissingFontFile3Subtype_ResolvesEmbeddedFont
+              - PdfDocument_Fonts_Type0_CidFontType0_UnrecognizedFontFile3Bytes_ThrowsUnsupportedImageFeatureException
               - PdfDocument_Fonts_Type0_CidFontType0_CidKeyedCff_ThrowsInvalidDataException
               - PdfDocument_Fonts_Type0_MissingDescendantFonts_ThrowsInvalidDataException
               - PdfDocument_Fonts_Type0_DescendantFontsNotSingleElement_ThrowsInvalidDataException
@@ -844,13 +854,17 @@ sections:
           - id: CanvasNetPdf-PdfDocument-Type1CFontResolution
             title: >-
               The PdfDocument class shall resolve a /Subtype /Type1 simple font's embedded
-              /FontDescriptor/FontFile3 stream (present whenever /FontFile is absent) as a bare
-              Type1C/CFF font program (a raw CFF table with no SFNT/OpenType wrapper of its own),
-              requiring the /FontFile3 stream's own /Subtype to be the name /Type1C (rejecting any
-              other value, including a missing /Subtype, with UnsupportedImageFeatureException),
-              decoding the stream, and loading it via Fonts.TrueTypeFont.LoadType1C, passing the
-              same Unicode-codepoint-to-Adobe-glyph-name reverse map
-              CanvasNetPdf-PdfDocument-Type1FontResolution's classic /FontFile path already uses.
+              /FontDescriptor/FontFile3 stream (present whenever /FontFile is absent) as either a
+              bare Type1C/CFF font program (a raw CFF table with no SFNT/OpenType wrapper of its
+              own) or an SFNT-wrapped (/OpenType) CFF program, by sniffing the stream's own
+              decoded bytes for a recognized SFNT container or a structurally plausible bare CFF
+              header rather than requiring the stream's declared /Subtype to be exactly
+              /Type1C: a bare CFF program is loaded via Fonts.TrueTypeFont.LoadType1C, passing
+              the same Unicode-codepoint-to-Adobe-glyph-name reverse map
+              CanvasNetPdf-PdfDocument-Type1FontResolution's classic /FontFile path already uses;
+              an SFNT-wrapped CFF program is loaded via Fonts.TrueTypeFont.Load; bytes matching
+              neither recognized shape shall throw UnsupportedImageFeatureException, regardless
+              of the stream's own declared /Subtype (including a missing /Subtype).
             justification: |
               An embedded Type1C/CFF simple font (/FontFile3 on a /Subtype /Type1 descriptor, a
               fundamentally different format from the classic /FontFile program
@@ -859,16 +873,25 @@ sections:
               to save space) that rejecting it unconditionally (this phase's immediately-preceding
               behavior) is a real-world compatibility gap comparable to the one
               CanvasNetPdf-PdfDocument-CompositeFontResolution already closed for the composite
-              /CIDFontType0 CFF-outline path; this phase's scope is deliberately narrower than the
-              full CFF specification - the predefined Expert and ExpertSubset charsets are
+              /CIDFontType0 CFF-outline path. PDF 32000-1 permits (and real-world producers
+              sometimes emit) a mismatch between a /FontFile3 stream's declared /Subtype name and
+              the font program's actual byte container shape - for example an SFNT-wrapped
+              (/OpenType) CFF program declared on a simple font, or a bare CFF program declared
+              /OpenType or /CIDFontType0C - so the declared /Subtype is no longer consulted for
+              dispatch at all; only the stream's own decoded bytes determine which loader runs,
+              mirroring the shape-sniffing dispatch CanvasNetPdf-PdfDocument-CompositeFontResolution
+              already establishes for the composite /CIDFontType0 path. This phase's scope is
+              deliberately narrower than the full CFF specification - the predefined Expert and
+              ExpertSubset charsets are
               recognized but not resolved to glyph names (Fonts.CffTable's own documented scope
               boundary, not re-implemented here), and a CID-keyed (ROS-declaring) Type1C/CFF
               program is rejected (Fonts.CffTable.Parse's existing CID-keyed rejection surfaces
-              uncaught through this new path, with no new translation code).
+              uncaught through this path, with no new translation code).
             tests:
               - PdfDocument_Fonts_Type1_FontFile3Type1C_ResolvesEmbeddedFont_PaintsGlyphInk
-              - PdfDocument_Fonts_Type1_FontFile3NonType1CSubtype_ThrowsUnsupportedImageFeatureException
-              - PdfDocument_Fonts_Type1_FontFile3MissingSubtype_ThrowsUnsupportedImageFeatureException
+              - PdfDocument_Fonts_Type1_MismatchedSubtype_BareCffBytes_ResolvesEmbeddedFont
+              - PdfDocument_Fonts_Type1_MissingFontFile3Subtype_ResolvesEmbeddedFont
+              - PdfDocument_Fonts_Type1_UnrecognizedFontFile3Bytes_ThrowsUnsupportedImageFeatureException
 
           - id: CanvasNetPdf-PdfDocument-Type3FontResolution
             title: >-

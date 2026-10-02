@@ -276,6 +276,31 @@ internal sealed class CffTable : IGlyphOutlineSource
     }
 
     /// <summary>
+    ///     Reports whether <paramref name="data"/> begins with a structurally plausible bare CFF
+    ///     header - exactly the same bounds checks <see cref="Parse(byte[], int, int)"/> itself
+    ///     applies to its own leading header bytes (major version <c>1</c>, and a declared
+    ///     <c>headerSize</c> not exceeding the data's own length), but without parsing any
+    ///     further INDEX/DICT structure. A lightweight, non-throwing shape sniff distinguishing a
+    ///     bare (standalone) CFF program from an SFNT-wrapped one (see
+    ///     <see cref="SfntContainer.LooksLikeSfnt"/>), used by <c>Pdf.PdfDocument</c>'s own
+    ///     <c>/FontFile3</c> shape-sniffing dispatch.
+    /// </summary>
+    /// <param name="data">
+    ///     The candidate font program bytes (the complete bare-CFF stream, not an SFNT table
+    ///     directory entry's own sliced-out range).
+    /// </param>
+    /// <returns>
+    ///     <see langword="true"/> if <paramref name="data"/> is at least 4 bytes long, its first
+    ///     byte (the CFF header's major version) is <c>1</c>, and its third byte (the header's
+    ///     own declared <c>headerSize</c>) does not exceed <paramref name="data"/>'s length;
+    ///     otherwise, <see langword="false"/>. Deliberately shallow - a value recognized here can
+    ///     still fail <see cref="Parse(byte[], int, int)"/>'s own, stricter validation (for
+    ///     example a malformed INDEX/DICT, or a CID-keyed Top DICT).
+    /// </returns>
+    public static bool LooksLikeCffHeader(byte[] data) =>
+        data.Length >= 4 && data[0] == 1 && data[2] <= data.Length;
+
+    /// <summary>
     ///     Parses a font's <c>CFF </c> table.
     /// </summary>
     /// <param name="data">The complete font file contents.</param>

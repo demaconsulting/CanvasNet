@@ -932,6 +932,23 @@ public class PdfDocumentTests
     ///     codepoint 65 ('A') resolves to the square glyph exactly like
     ///     <see cref="BuildEmbeddedType1FontResources"/>'s classic <c>/FontFile</c> counterpart.
     /// </summary>
+    /// <param name="fontFileSubtype">
+    ///     The declared <c>/FontFile3</c> stream <c>/Subtype</c> name (empty to omit the key
+    ///     entirely). As of the shape-sniffing dispatch in <c>PdfDocument.Fonts.Type1.cs</c>'s
+    ///     <c>LoadType1CFont</c>, this value is never consulted for dispatch - only
+    ///     <paramref name="fontFileBytes"/>'s own byte container shape is - so a caller can
+    ///     deliberately declare a mismatched or missing name here to prove that leniency.
+    /// </param>
+    /// <param name="fontDictExtra">Extra entries appended verbatim to the font dictionary.</param>
+    /// <param name="descriptorExtra">Extra entries appended verbatim to the <c>/FontDescriptor</c>.</param>
+    /// <param name="fontResourceName">The font resource's key within <c>/Resources/Font</c>.</param>
+    /// <param name="fontFileBytes">
+    ///     The <c>/FontFile3</c> stream's raw bytes, overriding the default synthetic bare
+    ///     Type1C/CFF program described above - used by a caller proving the "genuinely
+    ///     unrecognized bytes" rejection path with bytes that are neither a valid SFNT container
+    ///     nor a valid bare CFF header. When <see langword="null"/> (the default), the usual
+    ///     synthetic bare CFF program is built and used instead.
+    /// </param>
     /// <remarks>
     ///     Numbered identically to <see cref="BuildSimpleTrueTypeFontResources"/>/
     ///     <see cref="BuildEmbeddedType1FontResources"/> (font-file object <c>7</c>, descriptor
@@ -941,15 +958,24 @@ public class PdfDocumentTests
         string fontFileSubtype = "/Type1C",
         string fontDictExtra = "/FirstChar 65 /LastChar 65 /Widths [600]",
         string descriptorExtra = "",
-        string fontResourceName = "F1")
+        string fontResourceName = "F1",
+        byte[]? fontFileBytes = null)
     {
-        var notdefCharstring = new List<byte>();
-        SyntheticFontBuilder.WriteCharstringOperator(notdefCharstring, 14); // endchar
+        byte[] cff;
+        if (fontFileBytes is not null)
+        {
+            cff = fontFileBytes;
+        }
+        else
+        {
+            var notdefCharstring = new List<byte>();
+            SyntheticFontBuilder.WriteCharstringOperator(notdefCharstring, 14); // endchar
 
-        byte[] charsetTable = [0, 0, 34]; // format 0: glyph 1 -> SID 34 (A)
-        var cff = SyntheticFontBuilder.Cff(
-            [[.. notdefCharstring], BuildSquareCffCharstring()],
-            charsetTable: charsetTable);
+            byte[] charsetTable = [0, 0, 34]; // format 0: glyph 1 -> SID 34 (A)
+            cff = SyntheticFontBuilder.Cff(
+                [[.. notdefCharstring], BuildSquareCffCharstring()],
+                charsetTable: charsetTable);
+        }
 
         var fontFileDictEntries = string.IsNullOrEmpty(fontFileSubtype) ? string.Empty : $"/Subtype {fontFileSubtype}";
         var fontFileObj = BuildStreamObjectBody(fontFileDictEntries, cff);
@@ -4667,30 +4693,75 @@ public class PdfDocumentTests
         Assert.NotEqual(default, surface[21, 89]);
     }
 
-    /// <summary>Proves that a <c>CIDFontType0</c> descendant's <c>/FontFile3</c> stream declaring any <c>/Subtype</c> other than <c>/OpenType</c> (for example a bare <c>/CIDFontType0C</c> or <c>/Type1C</c> CFF stream with no SFNT wrapper) throws <see cref="UnsupportedImageFeatureException"/>.</summary>
+    /// <summary>
+    ///     Proves that a <c>CIDFontType0</c> descendant's <c>/FontFile3</c> stream whose declared
+    ///     <c>/Subtype</c> does not match its actual byte container shape - an SFNT-wrapped
+    ///     (<c>'OTTO'</c>) CFF program declared as the bare <c>/Type1C</c> or <c>/CIDFontType0C</c>
+    ///     names - still resolves and paints real glyph ink, per PDF 32000-1's leniency around
+    ///     the declared <c>/Subtype</c> name versus the stream's actual byte container shape: as
+    ///     of the shape-sniffing dispatch in <c>LoadCidFontType0Font</c>
+    ///     (<c>PdfDocument.Fonts.Type0.cs</c>), the stream's own decoded bytes - not its declared
+    ///     <c>/Subtype</c> - determine which loader runs.
+    /// </summary>
     [Theory]
     [InlineData("/Type1C")]
     [InlineData("/CIDFontType0C")]
-    public void PdfDocument_Fonts_Type0_CidFontType0_NonOpenTypeFontFile3Subtype_ThrowsUnsupportedImageFeatureException(string fontFileSubtype)
+    public void PdfDocument_Fonts_Type0_CidFontType0_MismatchedSubtype_SfntBytes_ResolvesEmbeddedFont(string fontFileSubtype)
     {
-        // Arrange
+        // Arrange: the bytes are a well-formed SFNT-wrapped ('OTTO') CFF program (the same shape
+        // PdfDocument_Fonts_Type0_CidFontType0_OpenTypeCff_ResolvesEmbeddedFont uses), but the
+        // stream's own declared /Subtype deliberately mismatches that shape.
         var fontBytes = BuildEmbeddedCffFontBytes(glyphCount: 3);
         var (resourcesBody, extraObjects) = BuildCidFontType0FontResources(fontBytes, fontFileSubtype: fontFileSubtype);
 
         var bytes = BuildSinglePagePdfWithResources(
-            100, 100, $"BT /F1 20 Tf {BuildIdentityHHexString(1)} Tj ET", resourcesBody, extraObjects);
+            100, 100, $"BT /F1 20 Tf 5 5 Td {BuildIdentityHHexString(1)} Tj ET", resourcesBody, extraObjects);
 
-        // Act & Assert
-        Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: text x [7, 15) holds the painted square glyph.
+        Assert.NotEqual(default, surface[11, 89]);
     }
 
-    /// <summary>Proves that a <c>CIDFontType0</c> descendant's <c>/FontFile3</c> stream with no <c>/Subtype</c> key at all also throws <see cref="UnsupportedImageFeatureException"/> (a missing <c>/Subtype</c> is treated the same as any other unsupported value, not guessed as <c>/OpenType</c> from the stream's own magic bytes).</summary>
+    /// <summary>
+    ///     Proves that a <c>CIDFontType0</c> descendant's <c>/FontFile3</c> stream with no
+    ///     <c>/Subtype</c> key at all still resolves and paints real glyph ink when its bytes are
+    ///     a well-formed SFNT-wrapped CFF program - the shape-sniffing dispatch in
+    ///     <c>LoadCidFontType0Font</c> never consults the declared <c>/Subtype</c> at all, so a
+    ///     missing key is no different from any other (mismatched or absent) declared name.
+    /// </summary>
     [Fact]
-    public void PdfDocument_Fonts_Type0_CidFontType0_MissingFontFile3Subtype_ThrowsUnsupportedImageFeatureException()
+    public void PdfDocument_Fonts_Type0_CidFontType0_MissingFontFile3Subtype_ResolvesEmbeddedFont()
     {
         // Arrange
         var fontBytes = BuildEmbeddedCffFontBytes(glyphCount: 3);
         var (resourcesBody, extraObjects) = BuildCidFontType0FontResources(fontBytes, fontFileSubtype: "");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf 5 5 Td {BuildIdentityHHexString(1)} Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: text x [7, 15) holds the painted square glyph.
+        Assert.NotEqual(default, surface[11, 89]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>CIDFontType0</c> descendant's <c>/FontFile3</c> stream whose decoded
+    ///     bytes match neither a recognized SFNT container nor a structurally plausible bare CFF
+    ///     header still throws <see cref="UnsupportedImageFeatureException"/> - the
+    ///     shape-sniffing dispatch in <c>LoadCidFontType0Font</c> is lenient about the declared
+    ///     <c>/Subtype</c> name, never about the bytes themselves.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type0_CidFontType0_UnrecognizedFontFile3Bytes_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange: a short, synthetic, non-corpus byte array that is neither a recognized SFNT
+        // version/collection tag nor a plausible bare-CFF header (major version byte != 1).
+        byte[] garbageBytes = "NOTAFONT"u8.ToArray();
+        var (resourcesBody, extraObjects) = BuildCidFontType0FontResources(garbageBytes, fontFileSubtype: "/OpenType");
 
         var bytes = BuildSinglePagePdfWithResources(
             100, 100, $"BT /F1 20 Tf {BuildIdentityHHexString(1)} Tj ET", resourcesBody, extraObjects);
@@ -5200,38 +5271,74 @@ public class PdfDocumentTests
     }
 
     /// <summary>
-    ///     Proves that a <c>/Subtype /Type1</c> descriptor's <c>/FontFile3</c> stream declaring any
-    ///     <c>/Subtype</c> other than <c>/Type1C</c> (for example <c>/OpenType</c> or
-    ///     <c>/CIDFontType0C</c>) throws <see cref="UnsupportedImageFeatureException"/> rather than
-    ///     silently falling back - the simple-font counterpart of
-    ///     <see cref="PdfDocument_Fonts_Type0_CidFontType0_NonOpenTypeFontFile3Subtype_ThrowsUnsupportedImageFeatureException"/>.
+    ///     Proves that a <c>/Subtype /Type1</c> descriptor's <c>/FontFile3</c> stream whose
+    ///     declared <c>/Subtype</c> does not match its actual byte container shape - a bare,
+    ///     standalone CFF program declared as <c>/OpenType</c> or <c>/CIDFontType0C</c> - still
+    ///     resolves and paints real glyph ink, rather than throwing, per PDF 32000-1's leniency
+    ///     around the declared <c>/Subtype</c> name versus the stream's actual byte container
+    ///     shape: as of the shape-sniffing dispatch in <c>LoadType1CFont</c>
+    ///     (<c>PdfDocument.Fonts.Type1.cs</c>), the stream's own decoded bytes - not its declared
+    ///     <c>/Subtype</c> - determine which loader runs - the simple-font counterpart of
+    ///     <see cref="PdfDocument_Fonts_Type0_CidFontType0_MismatchedSubtype_SfntBytes_ResolvesEmbeddedFont"/>.
     /// </summary>
     [Theory]
     [InlineData("/OpenType")]
     [InlineData("/CIDFontType0C")]
-    public void PdfDocument_Fonts_Type1_FontFile3NonType1CSubtype_ThrowsUnsupportedImageFeatureException(string fontFileSubtype)
+    public void PdfDocument_Fonts_Type1_MismatchedSubtype_BareCffBytes_ResolvesEmbeddedFont(string fontFileSubtype)
     {
-        // Arrange
+        // Arrange: the bytes are a well-formed bare (standalone, non-SFNT-wrapped) CFF program
+        // (the same shape PdfDocument_Fonts_Type1_FontFile3Type1C_ResolvesEmbeddedFont_PaintsGlyphInk
+        // uses), but the stream's own declared /Subtype deliberately mismatches that shape.
         var (resourcesBody, extraObjects) = BuildEmbeddedType1CFontResources(fontFileSubtype: fontFileSubtype);
 
         var bytes = BuildSinglePagePdfWithResources(
-            100, 100, "BT /F1 20 Tf (A) Tj ET", resourcesBody, extraObjects);
+            100, 100, "BT /F1 20 Tf 5 5 Td (A) Tj ET", resourcesBody, extraObjects);
 
-        // Act & Assert
-        Assert.Throws<UnsupportedImageFeatureException>(() => RenderPdfBytes(bytes));
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: text x [7, 15) holds the painted square glyph.
+        Assert.NotEqual(default, surface[11, 89]);
     }
 
     /// <summary>
     ///     Proves that a <c>/Subtype /Type1</c> descriptor's <c>/FontFile3</c> stream with no
-    ///     <c>/Subtype</c> key at all also throws <see cref="UnsupportedImageFeatureException"/> -
-    ///     a missing <c>/Subtype</c> is treated the same as any other unsupported value, not
-    ///     guessed as <c>/Type1C</c> from the stream's own bare-CFF content.
+    ///     <c>/Subtype</c> key at all still resolves and paints real glyph ink when its bytes are
+    ///     a well-formed bare CFF program - the shape-sniffing dispatch in
+    ///     <c>LoadType1CFont</c> never consults the declared <c>/Subtype</c> at all, so a missing
+    ///     key is no different from any other (mismatched or absent) declared name.
     /// </summary>
     [Fact]
-    public void PdfDocument_Fonts_Type1_FontFile3MissingSubtype_ThrowsUnsupportedImageFeatureException()
+    public void PdfDocument_Fonts_Type1_MissingFontFile3Subtype_ResolvesEmbeddedFont()
     {
         // Arrange
         var (resourcesBody, extraObjects) = BuildEmbeddedType1CFontResources(fontFileSubtype: "");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, "BT /F1 20 Tf 5 5 Td (A) Tj ET", resourcesBody, extraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+
+        // Assert: text x [7, 15) holds the painted square glyph.
+        Assert.NotEqual(default, surface[11, 89]);
+    }
+
+    /// <summary>
+    ///     Proves that a <c>/Subtype /Type1</c> descriptor's <c>/FontFile3</c> stream whose
+    ///     decoded bytes match neither a recognized SFNT container nor a structurally plausible
+    ///     bare CFF header still throws <see cref="UnsupportedImageFeatureException"/> - the
+    ///     shape-sniffing dispatch in <c>LoadType1CFont</c> is lenient about the declared
+    ///     <c>/Subtype</c> name, never about the bytes themselves - the simple-font counterpart
+    ///     of <see cref="PdfDocument_Fonts_Type0_CidFontType0_UnrecognizedFontFile3Bytes_ThrowsUnsupportedImageFeatureException"/>.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_Type1_UnrecognizedFontFile3Bytes_ThrowsUnsupportedImageFeatureException()
+    {
+        // Arrange: a short, synthetic, non-corpus byte array that is neither a recognized SFNT
+        // version/collection tag nor a plausible bare-CFF header (major version byte != 1).
+        byte[] garbageBytes = "NOTAFONT"u8.ToArray();
+        var (resourcesBody, extraObjects) = BuildEmbeddedType1CFontResources(fontFileBytes: garbageBytes);
 
         var bytes = BuildSinglePagePdfWithResources(
             100, 100, "BT /F1 20 Tf (A) Tj ET", resourcesBody, extraObjects);
