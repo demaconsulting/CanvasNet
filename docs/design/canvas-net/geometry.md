@@ -14,10 +14,11 @@ The `Geometry` subsystem groups the software units responsible for describing sh
 paths made of lines, curves, and arcs, and the bounding boxes and flattened polylines derived
 from them - with no notion of pixels, color, or rasterization. It has no dependency on any other
 subsystem: the `Canvas` and `Codecs` subsystems have no dependency on `Geometry`, and `Geometry`
-has no dependency on either of them. `Geometry` is deliberately distinct from the reserved
-`Drawing` subsystem: `Geometry` is where shape geometry is described and measured; the future
-`Drawing` subsystem will be where that geometry is turned into pixels on a `Canvas.Surface`
-(rasterization, brushes, pens, and stroke/fill styling).
+has no dependency on either of them. `Geometry` is deliberately distinct from the `Drawing`
+subsystem: `Geometry` is where shape geometry is described and measured; `Drawing` is where that
+geometry is turned into pixels on a `Canvas.Surface` (rasterization and solid/gradient/tile-paint
+fill, and stroke-to-fill conversion) by consuming `Geometry`'s `Path`/`PathBuilder`,
+`BezierFlattening`, and `SvgArcConverter` units - see _Drawing Subsystem Design_ (`drawing.md`).
 
 ### Units
 
@@ -54,9 +55,10 @@ used throughout.
 ### Callers
 
 `Rect`, `PathBuilder`/`Path`, `BezierFlattening`, and `SvgArcConverter` are all public API entry
-points, invoked externally by consumers of the CanvasNet package. `Geometry` has no runnable
-end-to-end example yet within this library, since no rasterizer (the reserved `Drawing`
-subsystem) exists yet to consume a `Path` and turn it into pixels on a `Canvas.Surface`; it is
-exercised end to end only by this subsystem's own unit and system-integration tests. The
-`Geometry` subsystem itself has no dependency on `Canvas`, `Codecs`, or the reserved `Drawing`
-subsystem.
+points, invoked externally by consumers of the CanvasNet package. The `Drawing` subsystem is the
+primary internal caller of this subsystem's output: `Drawing.PathFiller` and `Drawing.PathStroker`
+consume `Path`/`PathBuilder` (and, via `Path.GetBounds`, `BezierFlattening` and
+`SvgArcConverter` indirectly) to rasterize and stroke-to-fill vector geometry onto a
+`Canvas.Surface`; `Geometry.CornerRoundEffect` is in turn consumed by `Drawing.PathFiller` and
+`Drawing.PathStroker` callers that want rounded polyline corners before filling or stroking a
+path. The `Geometry` subsystem itself has no dependency on `Canvas`, `Codecs`, or `Drawing`.

@@ -283,6 +283,35 @@ non-positive/non-finite `flattenTolerance` and with an undefined `fillRule` valu
 `ArgumentOutOfRangeException` in each case - matching the solid-color overload's own validation
 behavior exactly.
 
+#### CanvasNet-Drawing-PathFiller-TileFill: Tile Fill Shares Flattening/Clipping/Fill-Rule Behavior
+
+**Tests**: `PathFiller_Fill_TilePaint_CheckerboardTile_FillsWithBothTileColors`,
+`PathFiller_Fill_TilePaint_EmptyPath_NoOpLeavesSurfaceUnchanged`,
+`ScanlineRasterizer_Fill_TilePaint_FullCoverageRow_RepeatsAcrossWidth`,
+`ScanlineRasterizer_Fill_TilePaint_NoPolygons_NoOp`
+
+Fills a shape with a 2x2 checkerboard tile and asserts both tile colors appear in the filled
+output, proving the tile overload samples a genuinely repeating pattern per pixel rather than a
+single constant color. Separately, at the internal `ScanlineRasterizer` level, asserts a
+fully-covered row repeats the tile pattern across its width exactly as many times as the row is
+wide divided by the tile's pattern-space pitch, and that a polygon list with no polygons is a
+no-op. Separately, repeats the empty-path no-op scenario already covered for the solid-color
+overload (see _CanvasNet-Drawing-PathFiller-EmptyOrOutOfBoundsNoOp_ above) against the tile
+overload, confirming that shared behavior is genuinely shared rather than coincidentally similar.
+
+#### CanvasNet-Drawing-PathFiller-TileFillValidation: Tile Fill Validates Its Arguments
+
+**Tests**: `PathFiller_Fill_TilePaint_NullSurface_ThrowsArgumentNullException`,
+`PathFiller_Fill_TilePaint_NullPath_ThrowsArgumentNullException`,
+`PathFiller_Fill_TilePaint_NullPaint_ThrowsArgumentNullException`,
+`ScanlineRasterizer_Fill_TilePaint_NullPaint_ThrowsArgumentNullException`
+
+Calls the tile `Fill` overload with a `null` surface, a `null` path, and a `null` tile paint in
+turn, asserting `ArgumentNullException` in each case, and separately asserts the internal
+`ScanlineRasterizer` tile-paint entry point itself also rejects a `null` tile paint with
+`ArgumentNullException` - matching the solid-color and gradient overloads' own validation
+behavior.
+
 ### Floating-Point Tolerance
 
 Every hand-computed coverage value used in most of these tests (`0.25`, `0.5`, `0.75`, and `1.0`

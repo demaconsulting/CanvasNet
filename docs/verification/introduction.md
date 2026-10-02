@@ -28,14 +28,14 @@ constituent software items, specifically:
 - **CanvasNet (System)** — The complete .NET library system
 - **Canvas (Subsystem)** — Pixel-buffer primitives: the `Surface` unit (mutable, in-memory
   32-bit RGBA pixel buffer with span-based row access) and the `Rgba32` unit
-- **Codecs (Subsystem)** — Image format codecs: `BmpCodec`, `PngCodec`, `TiffCodec`, and
-  `JpegCodec`, each converting to and from a `Surface` pixel buffer
-- **Geometry (Subsystem)** — Vector-geometry primitives: `Rect`, `Path`, `BezierFlattening`, and
-  `SvgArcConverter`
+- **Codecs (Subsystem)** — Image format codecs: `BmpCodec`, `PngCodec`, `TiffCodec`,
+  `JpegCodec`, and `GifCodec`, each converting to and from a `Surface` pixel buffer
+- **Geometry (Subsystem)** — Vector-geometry primitives: `Rect`, `Path`, `BezierFlattening`,
+  `SvgArcConverter`, and `CornerRoundEffect`
 - **Drawing (Subsystem)** — Vector rasterization and stroke conversion: `PathFiller`,
-  `PathStroker`, and `GradientPaint`
+  `PathStroker`, `GradientPaint`, and `TilePaint`
 - **Fonts (Subsystem)** — TrueType (`glyf`-based) SFNT font loading and glyph-outline extraction:
-  `TrueTypeFont`
+  `TrueTypeFont` and `SystemFontCatalog`
 - **CanvasNetSvg (System)** — A separate, independently-distributed software system providing
   SVG (Scalable Vector Graphics) rasterization, containing a single unit, `SvgCodec` — see
   _CanvasNetSvg System Verification_ (`canvas-net-svg.md`)
@@ -52,6 +52,8 @@ The following OTS items are also covered:
 - **ReviewMark** — file review enforcement tool
 - **SarifMark** — SARIF report conversion tool
 - **SonarMark** — SonarCloud quality report tool
+- **SysML2Tools** — SysML v2 model-to-documentation tool
+- **System.Numerics.Tensors** — vectorized bulk pixel-arithmetic runtime library
 - **VersionMark** — tool-version documentation tool
 - **WeasyPrint** — HTML-to-PDF conversion tool
 - **xUnit** — unit-testing framework

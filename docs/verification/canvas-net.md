@@ -85,6 +85,18 @@ per-channel tolerance rather than exact equality because JPEG is lossy; passing 
 channel of the reloaded pixel to remain within the documented tolerance bound while alpha remains
 opaque.
 
+### Integration: GIF Load Returns Expected Pixel
+
+**Test**: `CanvasNet_SystemIntegration_GifLoad_ReturnsExpectedPixel`
+
+Exercises end-to-end system behavior across the `Surface` and `GifCodec` units: decodes a
+hand-built, minimal 1x1 GIF89a stream (a Global Color Table, a single literal-code LZW-compressed
+Image Descriptor, and the Trailer) via `GifCodec.Load` into a `Surface`. Unlike the BMP/PNG/TIFF/
+JPEG scenarios above, there is no "Save" half to this round-trip, since `GifCodec` is decode-only.
+Asserts the decoded `Surface`'s dimensions and single pixel match the color selected by the
+stream's Global Color Table index, confirming the system's public GIF load API integrates
+correctly with `Surface`.
+
 ### Integration: Composite Color Over Surface Returns Expected Pixel
 
 **Test**: `CanvasNet_SystemIntegration_CompositeColorOverSurface_ReturnsExpectedPixel`
@@ -156,6 +168,19 @@ mode) and asserts the result is non-empty with positive width and height. Assert
 single-unit scenario, because it exercises the collaboration between `PathBuilder`, `Path`
 (including its internal use of `SvgArcConverter` to convert the `ArcTo` command), and
 `BezierFlattening` together, rather than any one of the four `Geometry` units in isolation.
+
+### Integration: Line-To and Compute Tangents Returns Normalized Direction
+
+**Test**: `CanvasNet_SystemIntegration_LineToAndComputeTangents_ReturnsNormalizedDirection`
+
+Exercises end-to-end system behavior of `PathCommand`'s public `LineTo` factory together with its
+public `ComputeTangents` method: synthesizes a standalone horizontal line-segment command directly
+via `PathCommand.LineTo` (rather than via `PathBuilder`), then computes its outgoing/incoming
+tangent directions from a given start point via `PathCommand.ComputeTangents`. Asserts both
+tangents equal the same sane, unit-length direction of travel. This scenario proves the shared
+building block an external format-codec package (such as a marker/arrowhead renderer) needs to
+orient a decoration at a path segment's end, independent of this package's internal `Path`/
+`PathBuilder` construction.
 
 ### Integration: Fill Empty or Out-of-Bounds Path No-Ops, Leaving the Surface Unchanged
 
@@ -328,6 +353,19 @@ charstring bytecode, scales and flips it into canvas coordinates, and fills it t
 far corners remain fully transparent, confirming the system integrates CFF outline decoding with
 vector rasterization end to end, not merely glyf-flavored TrueType outlines.
 
+### Integration: Load a Type 1 Font and Fill a Glyph Outline Returns Expected Pixels
+
+**Test**: `CanvasNet_SystemIntegration_LoadType1FontAndFillGlyphOutline_ReturnsExpectedPixels`
+
+Exercises end-to-end system behavior across the `Fonts`, `Geometry`, `Drawing`, and `Canvas`
+subsystems for a classic PostScript Type 1 font program: loads a hand-authored synthetic Type 1
+font (a required `.notdef` glyph plus a single triangular glyph, built from the
+`hsbw`/`rmoveto`/`rlineto`/`closepath`/`endchar` Type 1 charstring operator subset this library
+supports) through the public `TrueTypeFont.LoadType1` API, decodes the triangular glyph from Type
+1 charstring bytecode, and fills it through `PathFiller` onto a `Surface`. Asserts real,
+non-transparent ink is painted, confirming the system integrates Type 1 outline decoding with
+vector rasterization end to end, alongside the glyf and CFF outline flavors.
+
 ### Integration: Load a Face from a TTC Container by Index Returns Expected Face
 
 **Test**: `CanvasNet_SystemIntegration_LoadFaceFromTtcContainerByIndex_ReturnsExpectedFace`
@@ -364,6 +402,13 @@ environment with zero discoverable OS fonts.
 
 ## Acceptance Criteria
 
-A system-level test run passes when all twenty-nine scenarios above pass without error or
+A system-level test run passes when all thirty-two scenarios above pass without error or
 exception beyond those explicitly asserted. Any unexpected exception, wrong exception type, or
 wrong return value constitutes a failure.
+
+> **Known coverage gap (not fixed by this documentation pass):** unlike the solid-color
+> `PathFiller.Fill` overload, neither the `GradientPaint`-paint nor the `TilePaint`-paint
+> `PathFiller.Fill` overloads currently have a dedicated system-level integration test scenario
+> in `CanvasNetTests.cs` above, even though both are exercised by this repository's unit tests.
+> Closing this gap requires writing new tests and is out of scope for a documentation-only
+> change; it is recorded here as a backlog item for a future test-authoring pass.

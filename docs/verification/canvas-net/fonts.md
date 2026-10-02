@@ -59,8 +59,10 @@ collaboration between `Fonts`, `Geometry`, `Drawing`, and `Canvas`.
 
 The `Fonts` subsystem's verification passes when every `Fonts` unit test named in the
 `TrueTypeFont` and `SystemFontCatalog` unit verification designs passes, when all seven
-real-fixture integration tests in `TrueTypeFontRealFontIntegrationTests.cs` pass, when both
-`CanvasNet_SystemIntegration_*` font scenarios pass without error or unexpected exception, and
+real-fixture integration tests in `TrueTypeFontRealFontIntegrationTests.cs` pass, when all three
+`CanvasNet_SystemIntegration_*` font scenarios (`LoadFontAndQueryMetrics`,
+`LoadFontAndFillGlyphOutline`, and `LoadType1FontAndFillGlyphOutline`) pass without error or
+unexpected exception, and
 when the `SystemFontCatalog`-specific test files (`SystemFontCatalogTests.cs`,
 `SystemFontCatalogRealDiscoveryIntegrationTests.cs`, `BundledLiberationFontsTests.cs`) pass on
 every operating system in this repository's CI matrix.
@@ -104,6 +106,22 @@ Loads the real "Source Sans 3" CFF/OpenType production font fixture, resolves a 
 glyph (capital `H`), decodes its outline through the CFF/Type 2 charstring backend, and fills it
 through `PathFiller` onto a `Surface`, confirming actual visible ink is produced from real-world
 CFF outline data end to end (not merely that structural parsing succeeded without exception).
+
+#### CanvasNet-Fonts-Type1OutlineDecoding: Classic PostScript Type 1 Font Programs Decode Through the Same Public API
+
+**Test**: `CanvasNet_SystemIntegration_LoadType1FontAndFillGlyphOutline_ReturnsExpectedPixels`
+
+Loads a hand-authored synthetic classic PostScript Type 1 font program through
+`TrueTypeFont.LoadType1`, decodes one of its glyphs from Type 1 charstring bytecode, and fills it
+through `PathFiller` onto a `Surface`, confirming the subsystem integrates Type 1 outline decoding
+with vector rasterization end to end, alongside the glyf and CFF outline flavors. The full
+unit-level Type 1/Type1C charstring-interpretation behavior - including caller-supplied
+byte-segment loading, standalone `.pfb`/`.pfa` file auto-detection through `Load`, and the
+dedicated bare-Type1C/CFF loading entry point - is verified by the `TrueTypeFont` unit's own
+verification design (`fonts/true-type-font.md`, requirement IDs
+`CanvasNet-Fonts-TrueTypeFont-LoadType1FromSegments`,
+`CanvasNet-Fonts-TrueTypeFont-LoadType1Outlines`, and
+`CanvasNet-Fonts-TrueTypeFont-LoadType1C`).
 
 #### CanvasNet-Fonts-TtcSupport: TrueType Collection Faces Are Independently Selectable and Renderable
 

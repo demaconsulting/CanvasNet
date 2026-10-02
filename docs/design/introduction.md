@@ -36,8 +36,10 @@ software items, specifically:
   subsystem (which covers rasterization built on top of these primitives): the `Rect` unit
   (axis-aligned bounding rectangle), the `Path` unit (immutable vector path and its
   `PathBuilder`, covering the supporting `Subpath`, `PathCommand`, and `PathCommandType` types
-  inline), the `BezierFlattening` unit (adaptive Bezier curve flattening), and the
-  `SvgArcConverter` unit (SVG-style elliptical arc to Bezier conversion)
+  inline), the `BezierFlattening` unit (adaptive Bezier curve flattening), the
+  `SvgArcConverter` unit (SVG-style elliptical arc to Bezier conversion), and the
+  `CornerRoundEffect` unit (path-level pre-processing that replaces polyline corners with
+  tangent-radius circular arcs)
 - **Drawing (Subsystem)** — An antialiased scanline-coverage fill rasterizer for closed
   `Geometry.Path` geometry with solid-color, gradient, or tiled-pattern paint: the `PathFiller`
   unit (a public static `Fill` entry point, covering the supporting `FillRule` enum and the
@@ -50,8 +52,11 @@ software items, specifically:
   type — a pre-rendered tile `Surface` plus a device-space `Transform` and pattern-space
   `XStep`/`YStep` pitch — and the internal `TilePaintEvaluator` helper, mirroring
   `GradientPaint`'s own public-type-plus-internal-evaluator shape)
-- **Fonts (Subsystem)** — TrueType (`glyf`-based) SFNT font support: the `TrueTypeFont` unit and
-  its internal `SfntContainer`/`CmapTable`/`GlyfLocaReader`/`HmtxHheaReader`/`KernTable` helpers,
+- **Fonts (Subsystem)** — TrueType (`glyf`-based) and CFF/OpenType (`OTTO`-flavored, Type 2
+  charstring-based) SFNT font support, including Type 1/Type 1C font-program loading: the
+  `TrueTypeFont` unit and
+  its internal `SfntContainer`/`CmapTable`/`GlyfLocaReader`/`CffTable`/
+  `CffCharstringInterpreter`/`HmtxHheaReader`/`KernTable` helpers,
   producing `Geometry.Path` glyph outlines plus metrics and kerning; and (added Phase 6 of the
   `CanvasNetPdf` roadmap) the `SystemFontCatalog` unit, providing directory-scan-only discovery
   of fonts installed on the host operating system, best-effort family-name/style matching against
@@ -87,6 +92,7 @@ The following OTS items are also covered:
 - **SarifMark** — SARIF report conversion tool
 - **SonarMark** — SonarCloud quality report tool
 - **SysML2Tools** — architecture model lint and diagram rendering tool
+- **System.Numerics.Tensors** — vectorized bulk pixel-arithmetic runtime library
 - **VersionMark** — tool-version documentation tool
 - **WeasyPrint** — HTML-to-PDF conversion tool
 - **xUnit** — unit-testing framework

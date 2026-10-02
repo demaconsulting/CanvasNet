@@ -43,6 +43,8 @@ image operations using `Span<T>`, and supports independent-copy cropping for loa
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
 - 🌅 **Gradient Paint** - Linear or radial gradient fills with spread
+- 🧱 **Tile Paint** - Fill a path by repeating a pre-rendered tile bitmap at a configurable
+  pattern-space pitch and transform
 - 🔤 **TrueType/CFF Fonts** - Load TrueType (`glyf`) or CFF/OpenType (`.otf`) fonts and individual
   faces of a TrueType Collection (`.ttc`), map codepoints, extract glyph outlines, and query
   name/style metadata (family/subfamily/full/PostScript name, bold/italic/fixed-pitch)

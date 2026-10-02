@@ -3,8 +3,11 @@
 ![Drawing Structure](DrawingView.svg)
 
 The `PathFiller` class is the sole software unit in the `Drawing` subsystem. It provides a
-single public entry point, `Fill(Surface, Path, Rgba32, FillRule, float)`, that rasterizes a
-closed `Geometry.Path` onto a `Canvas.Surface` with a solid color, using an antialiased
+single public entry point family, `Fill(Surface, Path, Rgba32, FillRule, float)`,
+`Fill(Surface, Path, Gradient, FillRule, float)`, and
+`Fill(Surface, Path, TilePaint, FillRule, float)`, that rasterizes a
+closed `Geometry.Path` onto a `Canvas.Surface` with a solid color, a linear/radial gradient, or a
+repeating tiled pattern, using an antialiased
 signed-area/coverage-accumulation scanline algorithm. The supporting `FillRule` enum and the
 internal `EdgeFlattener`/`ScanlineRasterizer` helpers are documented inline here, because none of
 them has any independent behavior beyond supporting `PathFiller.Fill`.
@@ -21,7 +24,10 @@ every subpath as implicitly closed regardless of whether the path explicitly cal
 Alongside the original solid-color `Fill` overload, `PathFiller` also exposes a gradient-paint
 `Fill(Surface, Path, Gradient, FillRule, float)` overload that shares every bit of this unit's
 flattening, clip-bounds, and validation logic - see _GradientPaint Unit Design_
-(`gradient-paint.md`) for the gradient-specific evaluation algorithm it delegates to. Font parsing
+(`gradient-paint.md`) for the gradient-specific evaluation algorithm it delegates to - and a
+tile-paint `Fill(Surface, Path, TilePaint, FillRule, float)` overload that shares the same
+flattening, clip-bounds, and validation logic again - see _TilePaint Unit Design_
+(`tile-paint.md`) for the tile-specific evaluation algorithm it delegates to. Font parsing
 remains outside this unit: callers supply ordinary `Geometry.Path` instances whether they came
 from handwritten geometry or from `Fonts.TrueTypeFont`.
 
@@ -111,6 +117,18 @@ solid-color overload via the private `TryFlattenForFill`/`ValidateFillArgs` help
 difference is that `ScanlineRasterizer.Fill`'s gradient-aware overload is invoked instead of its
 solid-color overload, and it additionally rejects a `null` `paint` argument with
 `ArgumentNullException`.
+
+#### PathFiller.Fill(Surface surface, Path path, TilePaint paint, FillRule fillRule, float flattenTolerance)
+
+Fills `path` onto `surface` with a repeating tiled pattern supplied by a `TilePaint` (see
+_TilePaint Unit Design_, `tile-paint.md`) instead of a solid color or gradient, evaluated once per
+pixel and scaled by that pixel's antialiased fill coverage exactly like the other two overloads.
+It shares the same private `TryFlattenForFill`/`ValidateFillArgs` helpers as the solid-color and
+gradient overloads for flattening, clip-bounds computation, and `fillRule`/`flattenTolerance`
+validation - the only difference is that `ScanlineRasterizer.Fill`'s tile-paint-aware overload is
+invoked instead, and it additionally rejects a `null` `paint` argument with
+`ArgumentNullException`. `TilePaint` itself does not own the lifetime of the `Surface` it wraps;
+this overload neither disposes nor otherwise mutates that `Surface` - it only samples it.
 
 #### EdgeFlattener.Flatten(Path path, float tolerance) (internal)
 
@@ -277,13 +295,15 @@ method, before any bounds computation or rasterization begins (see above). `Edge
 `Canvas` subsystem's `Surface`, `Rgba32`, and `Surface.CompositeOverSpan` (via
 `ScanlineRasterizer`; see _Surface Unit Design_, `../canvas/surface.md`, for that method's own
 documentation). The gradient-paint overload additionally depends on the `Gradient` public type and
-the internal `GradientEvaluator` helper (see _GradientPaint Unit Design_, `gradient-paint.md`). No
+the internal `GradientEvaluator` helper (see _GradientPaint Unit Design_, `gradient-paint.md`).
+The tile-paint overload additionally depends on the `TilePaint` public type and the internal
+`TilePaintEvaluator` helper (see _TilePaint Unit Design_, `tile-paint.md`). No
 new runtime NuGet package is introduced.
 
 ### Callers
 
 `PathFiller.Fill` is a public API entry point, invoked externally by consumers of the CanvasNet
 package. It is exercised end to end by this unit's own tests (`PathFillerTests`,
-`EdgeFlattenerTests`, `ScanlineRasterizerTests`) and by a system-integration test that builds a
-`Path` via `PathBuilder` and fills it onto a `Surface` (see `CanvasNetTests.cs`). `PathFiller` has
+`EdgeFlattenerTests`, `ScanlineRasterizerTests`) and by system-integration tests that build a
+`Path` via `PathBuilder` and fill it onto a `Surface` (see `CanvasNetTests.cs`). `PathFiller` has
 no dependency on any consumer, and no other unit in this library depends on `PathFiller`.

@@ -41,10 +41,11 @@ as unmodified, bundled test fixtures (and their locally-assembled `ttcf` combina
 paragraph above).
 
 `SourceSans3-Regular.otf`'s real-font integration test deliberately selects a single,
-straight-line-only glyph (capital `H`) rather than every Latin letter: this library's CFF Type 2
-charstring interpreter supports a fixed operator set (see `CffCharstringInterpreter`'s own
-documentation) that deliberately excludes the two-byte flex escape operators and the `rcurveline`/
-`rlinecurve` operators (24/25), all of which this actual production font's more rounded/complex
-glyphs (for example capital `A` and `V`) do use. `H`, like several other straight-sided capitals
-(`I`, `L`, `T`, `F`) and the digit `1`, was verified to decode successfully with this
-implementation's supported operator set.
+straight-line-only glyph (capital `H`) rather than every Latin letter: this choice predates this
+library's CFF Type 2 charstring interpreter gaining support for the two-byte flex escape
+operators and the `rcurveline`/`rlinecurve` operators (24/25) - all of which are now implemented
+and covered by dedicated tests in `CffCharstringInterpreterTests.cs` (see
+`CffCharstringInterpreter`'s own documentation) - and the glyph selection was simply never
+revisited afterward. `H`, like several other straight-sided capitals (`I`, `L`, `T`, `F`) and the
+digit `1`, remains a reliable, intentionally simple fixture glyph for this integration test
+regardless.

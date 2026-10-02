@@ -30,6 +30,30 @@ establishes composition with `Drawing.PathFiller` and `Drawing.PathStroker`.
 - **Shapes**: fill and stroke output, radius clamping in `FillRoundRect`, and Canvas
   current-transform propagation are covered in `ShapesTests`.
 
+### Acceptance Criteria
+
+The `Rendering` subsystem's verification passes when every requirement-tagged test named in the
+`Canvas`, `Shapes`, and `TextRenderer` unit verification designs (`rendering/canvas.md`,
+`rendering/shapes.md`, `rendering/text-renderer.md`) passes without error or unexpected exception,
+on every target framework in this repository's CI matrix.
+
+### Test Scenarios
+
+This subsystem has no dedicated subsystem-level test scenarios of its own beyond the unit-level
+scenarios it is composed from; subsystem-level requirements reuse the `Canvas`, `TextRenderer`,
+and `Shapes` unit tests directly:
+
+- **Canvas** — transform-stack semantics (Save/Restore/RotateDegrees/Translate), transform-
+  independent `Clear`, byte-identical no-transform output against direct `Drawing.PathFiller`/
+  `Drawing.PathStroker` calls, and observable output under a non-identity transform; see
+  `rendering/canvas.md` for the complete named-scenario list
+- **TextRenderer** — measurement (advance-plus-kerning summation, ascent/descent from font
+  metrics), all three text alignments, and transform composition under a translated or rotated
+  canvas; see `rendering/text-renderer.md` for the complete named-scenario list
+- **Shapes** — `Rect`/`RoundRect`/`Circle` fill and stroke helpers, radius clamping, and
+  `Canvas` current-transform propagation; see `rendering/shapes.md` for the complete
+  named-scenario list
+
 ### Traceability
 
 Every requirement in `docs/reqstream/canvas-net/rendering.yaml` and in the three unit

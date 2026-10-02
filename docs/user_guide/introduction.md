@@ -1296,12 +1296,32 @@ public sealed class TrueTypeFont
     public int Descender { get; }
     public int LineGap { get; }
     public int GlyphCount { get; }
+    public bool IsBold { get; }
+    public bool IsItalic { get; }
+    public bool IsFixedPitch { get; }
 
     public int GetGlyphIndex(int codepoint);
     public Path GetGlyphOutline(int glyphIndex);
     public int GetAdvanceWidth(int glyphIndex);
     public int GetKerning(int leftGlyphIndex, int rightGlyphIndex);
+    public FontNameInfo GetNameInfo();
 }
+```
+
+`IsBold`/`IsItalic`/`IsFixedPitch` report the font's derived bold/italic/fixed-pitch
+classification, resolved from the `OS/2` table's `fsSelection`/`usWeightClass`, the `head` table's
+`macStyle`, and the `post` table's `isFixedPitch` flag (whichever of these tables the font
+provides). `GetNameInfo` resolves the font's `name`-table strings into a `FontNameInfo` - the
+typographic (or, failing that, standard) family and subfamily names, the full name, and the
+PostScript name - returning `null` for any field the font's `name` table does not provide, rather
+than throwing:
+
+```csharp
+public readonly record struct FontNameInfo(
+    string? FamilyName,
+    string? SubfamilyName,
+    string? FullName,
+    string? PostScriptName);
 ```
 
 `GetGlyphOutline` returns `Geometry.Path` in raw font-design-unit coordinates with Y increasing
@@ -1342,6 +1362,64 @@ work unchanged against the first face of a collection.
 - `ArgumentOutOfRangeException`: Thrown when `GetGlyphOutline` or `GetAdvanceWidth` receives an
   out-of-range glyph index, or when `Load(Stream, int)`/`Load(string, int)` receives a `faceIndex`
   that is negative or not less than the file's own face count.
+
+### SystemFontCatalog
+
+The `SystemFontCatalog` static class discovers fonts installed on the host operating system,
+best-effort matches a requested family-name hint and style (bold/italic/serif/fixed-pitch) against
+that discovered catalog, and - when no suitable system font can be found - provides a bundled
+Liberation Sans/Serif/Mono `TrueTypeFont` as a last-resort fallback.
+
+```csharp
+public static class SystemFontCatalog
+{
+    public static IReadOnlyList<SystemFontInfo> Fonts { get; }
+
+    public static SystemFontInfo? FindBestMatch(
+        string familyNameHint,
+        bool bold,
+        bool italic,
+        bool serif,
+        bool fixedPitch);
+
+    public static TrueTypeFont LoadBundledFallback(bool serif, bool fixedPitch, bool bold, bool italic);
+}
+```
+
+`Fonts` lazily enumerates the host operating system's installed fonts (platform-specific font
+directories/registries) on first access, caching the result for the process lifetime; each entry
+is a `SystemFontInfo` describing the font's family/subfamily name, derived bold/italic/fixed-pitch
+style, and the file path/face index needed to load it via `TrueTypeFont.Load`:
+
+```csharp
+public readonly record struct SystemFontInfo(
+    string FamilyName,
+    string SubfamilyName,
+    bool Bold,
+    bool Italic,
+    bool FixedPitch,
+    string FilePath,
+    int FaceIndex);
+```
+
+`FindBestMatch` follows a two-tier strategy: it first looks for an exact (case-insensitive)
+family-name match against `Fonts`; if none exists, it falls back to searching a small,
+hand-maintained list of well-known generic family names (sans-serif, serif, or monospace,
+selected by the `serif`/`fixedPitch` hints) for the first one actually present on the host system.
+It returns `null` when neither tier finds a match.
+
+`LoadBundledFallback` selects one of the library's twelve embedded Liberation Sans/Serif/Mono
+TrueType fonts (by the requested `serif`/`fixedPitch`/`bold`/`italic` combination) and loads it via
+`TrueTypeFont.Load`, guaranteeing a usable font is always available even when the host system has
+no suitable installed font (or no accessible font directory at all):
+
+```csharp
+// Best-effort match against installed system fonts, falling back to a bundled font
+var match = SystemFontCatalog.FindBestMatch("Helvetica", bold: false, italic: false, serif: false, fixedPitch: false);
+var font = match is { } info
+    ? TrueTypeFont.Load(info.FilePath, info.FaceIndex)
+    : SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+```
 
 ### PathFiller
 
