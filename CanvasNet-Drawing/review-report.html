@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   <meta name="dcterms.date" content="2026-10-02" />
   <meta name="keywords" content="id=CanvasNet-Drawing
-fingerprint=5d671b27755d69066b2ce3d64ab02712c034cf141921ecc1e43a44b58017e1ba
-date=2026-10-02 result=fail" />
+fingerprint=5635014228adbd423691e019d839e522c2c86af2b7aae26cb7496a67c4624104
+date=2026-10-02 result=pass" />
   <title>Review that CanvasNet Drawing Subsystem Implementation is Correct</title>
   <style>
 /* 
@@ -390,15 +390,22 @@ completely describe what its constituent units provide, and that the
 subsystem requirements are satisfied — per the hierarchical-scope
 principle, unit-level implementation detail (source code, tests, and
 unit design/verification/requirements documents) is explicitly excluded
-and relied upon only through the subsystem’s own description of it. This
-effort added a new unit, <code>TilePaint</code>, to the
-<code>Drawing</code> subsystem (reviewed separately in its own
-<code>CanvasNet-Drawing-TilePaint</code> unit-level review-set) and
-updated <code>docs/reqstream/canvas-net/drawing.yaml</code> to add the
-corresponding subsystem-level requirement/cross-reference. This is the
-first formal review ever conducted for this review-set in this
-repository (the <code>reviews</code> branch <code>index.json</code> was
-empty prior to this review).</p>
+and relied upon only through the subsystem’s own description of it.</p>
+<p>This is a <strong>re-review</strong> of this review-set, performed
+from scratch against <code>feature/pdf-document-support</code> commit
+<code>bc86abc</code> following a consolidated documentation-sync pass
+that addressed every finding from the prior review (dated 2026-10-02,
+fingerprint
+<code>5d671b27755d69066b2ce3d64ab02712c034cf141921ecc1e43a44b58017e1ba</code>,
+Overall Outcome: Fail). The prior review found that
+<code>docs/reqstream/canvas-net/drawing.yaml</code> had been correctly
+updated to add the new <code>TilePaint</code> unit’s requirements, but
+that the subsystem design document
+(<code>docs/design/canvas-net/drawing.md</code>) and verification design
+document (<code>docs/verification/canvas-net/drawing.md</code>) had not
+been updated to mention <code>TilePaint</code> at all. All three files
+under review, plus the context files, were re-read in full for this
+re-review; no conclusions were carried over from the prior run.</p>
 <h3 data-number="1.1.3" id="outcomes"><span
 class="header-section-number">1.1.3</span> 1.3 Outcomes</h3>
 <p>Each check must be recorded with one of the following outcomes:</p>
@@ -457,11 +464,23 @@ Implementation is Correct</td>
 <tr>
 <td style="text-align: left;">Fingerprint</td>
 <td
-style="text-align: left;"><code>5d671b27755d69066b2ce3d64ab02712c034cf141921ecc1e43a44b58017e1ba</code></td>
+style="text-align: left;"><code>5635014228adbd423691e019d839e522c2c86af2b7aae26cb7496a67c4624104</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Commit Reviewed</td>
+<td
+style="text-align: left;"><code>bc86abc1560df73aa141dde47fba8ccbd0f9a2b7</code>
+(branch <code>feature/pdf-document-support</code>)</td>
 </tr>
 <tr>
 <td style="text-align: left;">Review Date</td>
 <td style="text-align: left;">2026-10-02</td>
+</tr>
+<tr>
+<td style="text-align: left;">Prior Review</td>
+<td style="text-align: left;">Fail (fingerprint
+<code>5d671b27755d69066b2ce3d64ab02712c034cf141921ecc1e43a44b58017e1ba</code>,
+2026-10-02) — superseded by this re-review</td>
 </tr>
 </tbody>
 </table>
@@ -549,10 +568,10 @@ class="header-section-number">1.2.1</span> 2.1 Requirements Checks</h3>
 <td style="text-align: left;">All requirements have a unique
 identifier</td>
 <td style="text-align: left;">Pass</td>
-<td style="text-align: left;">All IDs in <code>drawing.yaml</code>
-(e.g. <code>CanvasNet-Drawing-TilePaint</code>,
-<code>CanvasNet-Drawing-TilePaintValidation</code>) are unique within
-the file.</td>
+<td style="text-align: left;">All IDs in <code>drawing.yaml</code> are
+unique within the file, including
+<code>CanvasNet-Drawing-TilePaint</code> and
+<code>CanvasNet-Drawing-TilePaintValidation</code>.</td>
 </tr>
 <tr>
 <td style="text-align: left;">REQ-02</td>
@@ -566,8 +585,10 @@ clearly worded sentence.</td>
 <td style="text-align: left;">All requirements are testable</td>
 <td style="text-align: left;">Pass</td>
 <td style="text-align: left;">Each requirement lists concrete
-<code>tests:</code> entries
-(e.g. <code>PathFiller_Fill_TilePaint_CheckerboardTile_FillsWithBothTileColors</code>).</td>
+<code>tests:</code> entries; all named tests were confirmed to exist in
+<code>test/DemaConsulting.CanvasNet.Tests/Drawing/</code>
+(e.g. <code>PathFillerTests.cs</code>,
+<code>TilePaintEvaluatorTests.cs</code>).</td>
 </tr>
 <tr>
 <td style="text-align: left;">REQ-04</td>
@@ -576,8 +597,8 @@ clearly worded sentence.</td>
 <td style="text-align: left;">No contradictions found between
 <code>TilePaint</code>/<code>TilePaintValidation</code> and the
 pre-existing
-<code>GradientPaint</code>/<code>GradientPaintValidation</code>
-requirements they were modeled after.</td>
+<code>GradientPaint</code>/<code>GradientPaintValidation</code>/<code>PathFill</code>/<code>PathStroke</code>
+requirements.</td>
 </tr>
 <tr>
 <td style="text-align: left;">REQ-05</td>
@@ -597,24 +618,25 @@ observable rendering/validation outcomes.</td>
 <td style="text-align: left;">REQ-07</td>
 <td style="text-align: left;">No compound requirements are present</td>
 <td style="text-align: left;">Pass</td>
-<td style="text-align: left;"><code>CanvasNet-Drawing-TilePaint</code>
-and <code>CanvasNet-Drawing-TilePaintValidation</code> each express one
-coherent testable criterion (the validation requirement groups three
-argument-null checks sharing one mechanism, consistent with the existing
-<code>GradientPaintValidation</code>/<code>PathFillValidation</code>
-pattern in this same file).</td>
+<td style="text-align: left;">Each requirement expresses one coherent
+testable criterion (validation requirements group related
+argument-null/range checks sharing one mechanism, consistent with the
+file’s established pattern).</td>
 </tr>
 <tr>
 <td style="text-align: left;">REQ-08</td>
 <td style="text-align: left;">No requirements are missing</td>
-<td style="text-align: left;">Fail</td>
-<td style="text-align: left;">The file’s top comment and requirement set
-correctly describe the <code>TilePaint</code> unit’s addition, but the
-subsystem’s own design and verification documents (the other two files
-in this review-set) do not reflect the new requirements at all — see
-DES-02, REQDOC-01, and the Summary of Findings. This is a
-documentation-completeness gap triggered by, not located in, the
-requirements file; see 3.1.</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;"><code>CanvasNet-Drawing-TilePaint</code>
+and <code>CanvasNet-Drawing-TilePaintValidation</code> are present and
+are now fully reflected in both the design and verification documents
+(see DES-01/02/03 and REQDOC-01 below).
+<code>docs/reqstream/canvas-net.yaml</code> (parent context) links down
+to both of these requirement IDs (lines ~1198, ~1213), confirming upward
+traceability is intact.
+<code>dotnet reqstream --lint --requirements requirements.yaml</code>
+ran clean (exit code 0, no orphaned/unsatisfied requirements reported
+anywhere in the repository).</td>
 </tr>
 </tbody>
 </table>
@@ -642,47 +664,57 @@ Checks</h3>
 <td style="text-align: left;">DES-01</td>
 <td style="text-align: left;">Design documentation clearly describes the
 purpose of the component or feature</td>
-<td style="text-align: left;">Fail</td>
+<td style="text-align: left;">Pass</td>
 <td style="text-align: left;"><code>drawing.md</code>’s Purpose section
-states the subsystem “currently contains three sibling units” and
-enumerates only <code>PathFiller</code>, <code>PathStroker</code>, and
-<code>GradientPaint</code>; it omits <code>TilePaint</code> entirely, so
-the stated purpose no longer matches the subsystem’s actual unit
-composition.</td>
+now states the subsystem “currently contains four sibling units” and
+describes all four (<code>PathFiller</code>, <code>PathStroker</code>,
+<code>GradientPaint</code>, <code>TilePaint</code>) in the same
+descriptive style, including <code>TilePaint</code>’s pre-rendered tile
+<code>Surface</code>, pattern-space transform, and
+<code>XStep</code>/<code>YStep</code> pitch. The subsystem-overview
+header paragraph was also updated (“three public entry points… backed by
+two paint-description sibling units (<code>GradientPaint</code> and
+<code>TilePaint</code>)”).</td>
 </tr>
 <tr>
 <td style="text-align: left;">DES-02</td>
 <td style="text-align: left;">Design documentation covers the necessary
 implementation details</td>
-<td style="text-align: left;">Fail</td>
-<td style="text-align: left;">The Units section lists only three units;
-there is no <code>TilePaint</code> bullet (compare the existing
-<code>GradientPaint</code> bullet, which correctly cross-references
-<code>_GradientPaint Unit Design_ (drawing/gradient-paint.md)</code> —
-no equivalent exists for
-<code>_TilePaint Unit Design_ (drawing/tile-paint.md)</code>, even
-though that unit design document exists on disk).</td>
+<td style="text-align: left;">Pass</td>
+<td style="text-align: left;">The Units section now includes a
+<code>TilePaint</code> bullet, parallel in structure and detail to the
+<code>GradientPaint</code> bullet, cross-referencing
+<code>_TilePaint Unit Design_ (drawing/tile-paint.md)</code> and naming
+the internal <code>TilePaintEvaluator</code> helper and the
+non-ownership-of-<code>Surface</code>-lifetime caveat.</td>
 </tr>
 <tr>
 <td style="text-align: left;">DES-03</td>
 <td style="text-align: left;">Design documentation describes how the
 code is interfaced (APIs, inputs, outputs)</td>
-<td style="text-align: left;">Fail</td>
+<td style="text-align: left;">Pass</td>
 <td style="text-align: left;"><code>TilePaint</code>’s public surface
-and its consumption via <code>PathFiller</code>’s tile-paint
-<code>Fill</code> overload are not described anywhere in this document,
-unlike the equivalent description given for <code>GradientPaint</code>’s
-gradient <code>Fill</code> overload.</td>
+(constructor inputs: tile <code>Surface</code>, <code>Transform</code>,
+<code>XStep</code>/<code>YStep</code>) and its consumption via
+<code>PathFiller</code>’s tile overload are now described, consistent
+with the equivalent description already given for
+<code>GradientPaint</code>. The Dependencies section explicitly states
+<code>TilePaint</code> depends only on <code>Canvas.Surface</code> and
+<code>System.Numerics.Matrix3x2</code>, with no dependency on
+<code>PathFiller</code>/<code>PathStroker</code>/<code>GradientPaint</code>.
+The Callers section describes <code>TilePaint</code>’s constructor as a
+public entry point and its consumption by <code>PathFiller</code>’s tile
+overload, exercised by <code>PathFiller</code>’s own unit tests.</td>
 </tr>
 <tr>
 <td style="text-align: left;">DES-04</td>
 <td style="text-align: left;">Design documentation describes the
 expected normal operation</td>
 <td style="text-align: left;">Pass</td>
-<td style="text-align: left;">For the three units it does describe
-(<code>PathFiller</code>, <code>PathStroker</code>,
-<code>GradientPaint</code>), normal-operation collaboration is clearly
-described.</td>
+<td style="text-align: left;">Normal-operation collaboration is clearly
+described for all four units, including <code>TilePaint</code>’s
+per-pixel wrapped-around sampling via <code>TilePaintEvaluator</code>,
+analogous to <code>GradientEvaluator</code>.</td>
 </tr>
 <tr>
 <td style="text-align: left;">DES-05</td>
@@ -691,10 +723,10 @@ expected error handling</td>
 <td style="text-align: left;">N/A</td>
 <td style="text-align: left;">Subsystem-level design intentionally
 defers error-handling detail to unit design documents per
-<code>design-documentation.md</code>; the existing text does not
-describe error handling for any unit (including the three it does
-cover), so this is a pre-existing, uniform omission rather than a
-<code>TilePaint</code>-specific regression.</td>
+<code>design-documentation.md</code>; the document does not describe
+error handling for any of the four units uniformly, which is consistent
+with the established subsystem-level documentation convention (not a
+<code>TilePaint</code>-specific gap).</td>
 </tr>
 </tbody>
 </table>
@@ -748,18 +780,18 @@ this review-set’s file list.</em></p>
 <td style="text-align: left;">REQDOC-01</td>
 <td style="text-align: left;">All reviewed requirements are addressed in
 the general technical documentation</td>
-<td style="text-align: left;">Fail</td>
+<td style="text-align: left;">Pass</td>
 <td style="text-align: left;"><code>drawing.yaml</code>’s
 <code>CanvasNet-Drawing-TilePaint</code> and
-<code>CanvasNet-Drawing-TilePaintValidation</code> requirements have no
-corresponding coverage in <code>docs/design/canvas-net/drawing.md</code>
-(Purpose/Units/Dependencies/Callers all omit <code>TilePaint</code>) or
-in <code>docs/verification/canvas-net/drawing.md</code> (Verification
-Approach and Acceptance Criteria both omit
+<code>CanvasNet-Drawing-TilePaintValidation</code> requirements are now
+fully addressed in <code>docs/design/canvas-net/drawing.md</code>
+(Purpose/Units/Dependencies/Callers all describe <code>TilePaint</code>)
+and in <code>docs/verification/canvas-net/drawing.md</code> (intro,
+Verification Approach, and Acceptance Criteria all cite
 <code>_TilePaint Unit Verification Design_</code>). All other
 requirements in the file (<code>PathFill</code>,
 <code>PathStroke</code>, <code>GradientPaint</code>, and their
-validation/no-op variants) are correctly addressed in both
+validation/no-op variants) remain correctly addressed in both
 documents.</td>
 </tr>
 <tr>
@@ -767,9 +799,8 @@ documents.</td>
 <td style="text-align: left;">No reviewed requirement is contradicted by
 the general technical documentation</td>
 <td style="text-align: left;">Pass</td>
-<td style="text-align: left;">For the requirements that are addressed,
-no contradictions were found; the gap is one of omission (REQDOC-01),
-not contradiction.</td>
+<td style="text-align: left;">No contradictions found between the
+requirements file and either document.</td>
 </tr>
 </tbody>
 </table>
@@ -807,10 +838,12 @@ links to
 and
 <code>EvaluateRow_WrapAroundBeyondOneTile_MatchesFirstTileRepetition</code>;
 <code>CanvasNet-Drawing-TilePaintValidation</code> links to three named
-null-argument tests. Every other requirement in the file also has a
-non-empty <code>tests:</code> list. Actual test pass/fail status is
-unit-level verification evidence, outside this subsystem review-set’s
-scope.</td>
+null-argument tests. All named tests were confirmed present in
+<code>test/DemaConsulting.CanvasNet.Tests/Drawing/PathFillerTests.cs</code>
+and <code>TilePaintEvaluatorTests.cs</code>. Every other requirement in
+the file also has a non-empty <code>tests:</code> list. Actual test
+pass/fail status is unit-level verification evidence, outside this
+subsystem review-set’s scope.</td>
 </tr>
 <tr>
 <td style="text-align: left;">REQTEST-02</td>
@@ -819,7 +852,8 @@ each requirement</td>
 <td style="text-align: left;">Pass</td>
 <td style="text-align: left;">Test names read as direct paraphrases of
 their requirement’s stated behavior (e.g. <code>TilePaint</code>
-sampling/wrap-around behavior, null-argument rejection).</td>
+checkerboard sampling and wrap-around behavior, null-argument
+rejection).</td>
 </tr>
 </tbody>
 </table>
@@ -836,155 +870,90 @@ Documentation Checks</h3>
 class="header-section-number">1.3</span> 3. Conclusion</h2>
 <h3 data-number="1.3.1" id="summary-of-findings"><span
 class="header-section-number">1.3.1</span> 3.1 Summary of Findings</h3>
+<p>No outstanding findings. All checklist items applicable to this
+review-set are Pass or appropriately N/A.</p>
 <table>
 <colgroup>
-<col style="width: 20%" />
-<col style="width: 33%" />
-<col style="width: 46%" />
+<col style="width: 21%" />
+<col style="width: 78%" />
 </colgroup>
 <thead>
 <tr>
 <th style="text-align: left;">#</th>
-<th style="text-align: left;">Check</th>
-<th style="text-align: left;">Finding</th>
+<th style="text-align: left;">Observation</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td style="text-align: left;">REQ-08</td>
-<td style="text-align: left;">No requirements are missing</td>
-<td style="text-align: left;">Symptom of the same gap as DES-01/02/03
-and REQDOC-01: the requirements file is itself complete and correctly
-updated for <code>TilePaint</code>, but the subsystem
-design/verification documents were not updated to match, leaving the
-requirement set effectively undocumented at the subsystem level.</td>
-</tr>
-<tr>
-<td style="text-align: left;">DES-01</td>
-<td style="text-align: left;">Purpose describes the component</td>
-<td
-style="text-align: left;"><code>docs/design/canvas-net/drawing.md</code>’s
-Purpose section states the subsystem “currently contains three sibling
-units” (<code>PathFiller</code>, <code>PathStroker</code>,
-<code>GradientPaint</code>) with no mention of <code>TilePaint</code>,
-even though <code>TilePaint</code> is a fourth sibling unit added
-alongside this change.</td>
-</tr>
-<tr>
-<td style="text-align: left;">DES-02 / DES-03</td>
-<td style="text-align: left;">Design covers necessary implementation
-detail / interfaces</td>
-<td style="text-align: left;">The Units section of the same document has
-no <code>TilePaint</code> bullet (unlike the parallel
-<code>GradientPaint</code> bullet), so it does not cross-reference
-<code>_TilePaint Unit Design_ (drawing/tile-paint.md)</code>, does not
-describe <code>TilePaint</code>’s public surface, and the
-Dependencies/Callers sections likewise never mention
-<code>TilePaint</code> or its internal <code>TilePaintEvaluator</code>
-helper.</td>
-</tr>
-<tr>
-<td style="text-align: left;">REQDOC-01</td>
-<td style="text-align: left;">Requirements vs documentation</td>
-<td
-style="text-align: left;"><code>docs/verification/canvas-net/drawing.md</code>
-has the identical gap on the verification side: its intro, Verification
-Approach, and Acceptance Criteria sections list <code>PathFiller</code>,
-<code>PathStroker</code>, and <code>GradientPaint</code> unit
-verification designs only —
-<code>_TilePaint Unit Verification Design_ (drawing/tile-paint.md)</code>
-is never cited, so the subsystem’s stated acceptance criteria do not
-include <code>TilePaint</code>’s test scenarios passing.</td>
-</tr>
-<tr>
-<td style="text-align: left;">Observation (informational, out of this
-review-set’s scope)</td>
-<td style="text-align: left;">Cross-file consistency</td>
-<td style="text-align: left;">The parent system design document
-<code>docs/design/canvas-net.md</code> (global context, not a file under
-review here) has the same staleness one level up: its
-<code>Drawing subsystem</code> bullet enumerates “three public entry
-points” / three units and its later collaboration narrative says “The
-<code>Drawing</code> subsystem’s two units collaborate as follows” —
-both predate <code>GradientPaint</code> as well as
-<code>TilePaint</code> and are unaffected by this review’s pass/fail
-determination, but should be corrected in the
-<code>CanvasNet-Design</code>/<code>CanvasNet-Architecture</code>
-review-sets, which do include <code>canvas-net.md</code> as a file under
-review.</td>
-</tr>
-<tr>
-<td style="text-align: left;">Positive finding</td>
-<td style="text-align: left;">Requirements completeness</td>
+<td style="text-align: left;">Confirmation</td>
 <td
 style="text-align: left;"><code>docs/reqstream/canvas-net/drawing.yaml</code>
-was itself correctly and completely updated: its top-of-file comment
-names <code>TilePaint</code> as a covered unit, and it adds two
-well-formed, testable, non-contradictory requirements
-(<code>CanvasNet-Drawing-TilePaint</code>,
-<code>CanvasNet-Drawing-TilePaintValidation</code>) with correct
-downward links to unit-level requirement IDs and named tests.</td>
+remains correctly and completely updated (unchanged conclusion from the
+prior review): well-formed, testable, non-contradictory
+<code>CanvasNet-Drawing-TilePaint</code>/<code>CanvasNet-Drawing-TilePaintValidation</code>
+requirements with correct links, now also mirrored in both design and
+verification documentation.</td>
 </tr>
 <tr>
-<td style="text-align: left;">Positive finding</td>
-<td style="text-align: left;">SysML2 cross-check</td>
-<td style="text-align: left;">The authoritative SysML2 model
-(<code>docs/sysml2/model/canvas-net/drawing.sysml</code>, consulted as
-orientation context) already declares
-<code>part tilePaint : TilePaint;</code> under the <code>Drawing</code>
-part def and describes <code>TilePaint</code> in the part def’s
-<code>doc</code> comment — confirming the structural model and the
-unit’s own artifacts
-(<code>docs/design/canvas-net/drawing/tile-paint.md</code>,
-<code>docs/verification/canvas-net/drawing/tile-paint.md</code>,
-<code>docs/reqstream/canvas-net/drawing/tile-paint.yaml</code>, and the
-<code>TilePaint.cs</code>/<code>TilePaintEvaluator.cs</code> source) all
-exist and are complete. The sole gap is that the two subsystem-level
-roll-up documents under review here were never updated to reflect
-them.</td>
+<td style="text-align: left;">Confirmation</td>
+<td
+style="text-align: left;"><code>docs/design/canvas-net/drawing.md</code>
+now fully describes four sibling units (<code>PathFiller</code>,
+<code>PathStroker</code>, <code>GradientPaint</code>,
+<code>TilePaint</code>) across Purpose, Units, Dependencies, and
+Callers, resolving the prior review’s DES-01/DES-02/DES-03
+findings.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Confirmation</td>
+<td
+style="text-align: left;"><code>docs/verification/canvas-net/drawing.md</code>
+now cites
+<code>_TilePaint Unit Verification Design_ (drawing/tile-paint.md)</code>
+alongside the pre-existing three unit verification designs in its intro,
+Verification Approach, and Acceptance Criteria sections, resolving the
+prior review’s REQDOC-01 finding.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Confirmation</td>
+<td style="text-align: left;">Context file
+<code>docs/design/canvas-net.md</code> (not under review here, but
+checked for cross-file consistency/orientation) now correctly states
+“The <code>Drawing</code> subsystem’s four units collaborate as follows”
+(line 119) — the stale “two units”/“three public entry points” language
+flagged as an out-of-scope observation in the prior review has also been
+corrected.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Tooling confirmation</td>
+<td
+style="text-align: left;"><code>dotnet reqstream --lint --requirements requirements.yaml</code>
+and <code>dotnet reviewmark --lint</code> both ran clean (exit code 0,
+no issues reported). <code>npx cspell</code> and
+<code>npx markdownlint-cli2</code> against all three files under review
+reported zero issues.</td>
 </tr>
 </tbody>
 </table>
 <h3 data-number="1.3.2" id="overall-outcome"><span
 class="header-section-number">1.3.2</span> 3.2 Overall Outcome</h3>
-<p><strong>Overall Outcome:</strong> Fail</p>
-<p>The <code>Drawing</code> subsystem’s requirements
-(<code>docs/reqstream/canvas-net/drawing.yaml</code>) were correctly and
-completely updated to add the new <code>TilePaint</code> unit. However,
-both of the subsystem’s other mandatory top-level documents under review
-— the design document (<code>docs/design/canvas-net/drawing.md</code>)
-and the verification design document
-(<code>docs/verification/canvas-net/drawing.md</code>) — were
-<strong>not</strong> updated: both still describe the
-<code>Drawing</code> subsystem as containing exactly three sibling units
-(<code>PathFiller</code>, <code>PathStroker</code>,
-<code>GradientPaint</code>) and omit every mention of
-<code>TilePaint</code>, its unit design document, its unit verification
-document, and its role in the subsystem’s
-dependency/caller/acceptance-criteria narrative. This fails the specific
-compliance question this review-set exists to prove: whether the
-<code>Drawing</code> subsystem’s top-level design and verification
-documentation still accurately and completely describe what its units
-provide and that its own subsystem requirements are satisfied.</p>
-<p><strong>Required follow-up before this review can be considered
-approved:</strong></p>
-<ol type="1">
-<li>Update <code>docs/design/canvas-net/drawing.md</code>’s Purpose
-section to state four sibling units (not three) and add a
-<code>TilePaint</code> bullet to the Units section, following the
-existing <code>GradientPaint</code> bullet’s pattern, cross-referencing
-<code>_TilePaint Unit Design_ (drawing/tile-paint.md)</code>.</li>
-<li>Update the same document’s Dependencies and Callers sections to
-describe <code>TilePaint</code>’s dependency on
-<code>PathFiller</code>’s tile-paint <code>Fill</code> overload and its
-internal <code>TilePaintEvaluator</code> helper, consistent with how
-<code>GradientPaint</code>/<code>GradientEvaluator</code> are already
-described.</li>
-<li>Update <code>docs/verification/canvas-net/drawing.md</code>’s intro,
-Verification Approach, and Acceptance Criteria sections to cite
-<code>_TilePaint Unit Verification Design_ (drawing/tile-paint.md)</code>
-alongside the existing three unit verification design references.</li>
-<li>Re-run this review after the above corrections are made.</li>
-</ol>
+<p><strong>Overall Outcome:</strong> Pass</p>
+<p>The <code>Drawing</code> subsystem’s requirements, design, and
+verification documentation are now mutually consistent and complete with
+respect to the <code>TilePaint</code> unit addition.
+<code>docs/reqstream/canvas-net/drawing.yaml</code> correctly defines
+<code>TilePaint</code>’s requirements;
+<code>docs/design/canvas-net/drawing.md</code> and
+<code>docs/verification/canvas-net/drawing.md</code> both now fully
+describe <code>TilePaint</code> alongside the subsystem’s three
+pre-existing units, with no omissions found in Purpose, Units,
+Dependencies, Callers, Verification Approach, or Acceptance Criteria.
+This satisfies the specific compliance question this review-set exists
+to prove: the <code>Drawing</code> subsystem’s top-level design and
+verification documentation accurately and completely describe what its
+units (including the new <code>TilePaint</code> unit) provide,
+satisfying its own subsystem requirements, excluding unit implementation
+detail per the hierarchical-scope principle.</p>
+<p>No follow-up actions are required for this review-set.</p>
 </body>
 </html>
