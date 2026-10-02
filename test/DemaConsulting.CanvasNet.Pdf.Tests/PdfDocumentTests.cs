@@ -5697,6 +5697,34 @@ public class PdfDocumentTests
         Assert.Throws<InvalidDataException>(() => RenderPdfBytes(bytes));
     }
 
+    /// <summary>
+    ///     Proves that a <c>/W</c> array's <c>cFirst cLast w</c> range-form entry whose
+    ///     <c>cLast</c> is exactly <see cref="int.MaxValue"/> (a small, in-bounds span) still
+    ///     terminates, rather than hanging forever: an <see cref="int"/>-typed loop counter would
+    ///     overflow to <see cref="int.MinValue"/> on the final iteration and never satisfy its own
+    ///     exit condition.
+    /// </summary>
+    [Fact]
+    public async Task PdfDocument_Fonts_Type0_Widths_WArrayRangeFormCLastAtInt32MaxValue_Terminates()
+    {
+        // Arrange: a small, in-bounds span [int.MaxValue - 2, int.MaxValue].
+        var fontBytes = BuildEmbeddedFontBytes([], glyphCount: 3);
+        var (resourcesBody, extraObjects) = BuildCompositeFontResources(
+            fontBytes, cidFontExtra: "/W [2147483645 2147483647 777]");
+
+        var bytes = BuildSinglePagePdfWithResources(
+            100, 100, $"BT /F1 20 Tf {BuildIdentityHHexString(1)} Tj ET", resourcesBody, extraObjects);
+
+        // Act: run on a background thread with a generous bounded timeout - if the loop-termination
+        // fix regresses, this fails fast with a TimeoutException instead of hanging the test run
+        // forever.
+        using var surface = await Task.Run(() => RenderPdfBytes(bytes))
+            .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(surface);
+    }
+
     /// <summary>Proves that <c>ResolveToUnicodeMap</c> returns <see langword="null"/> when the font dictionary has no <c>/ToUnicode</c> entry at all.</summary>
     [Fact]
     public void PdfDocument_Fonts_ToUnicode_Absent_ResolvesNull()
@@ -5782,6 +5810,64 @@ public class PdfDocumentTests
 
         // Act & Assert
         Assert.Throws<InvalidDataException>(() => document.ResolveToUnicodeMap(fontDict));
+    }
+
+    /// <summary>
+    ///     Proves that a <c>beginbfrange</c>/<c>endbfrange</c> entry whose <c>[srcLo, srcHi]</c>
+    ///     span would overflow ordinary 32-bit arithmetic (a 4-byte <c>srcLo</c> with its top bit
+    ///     set decodes to a negative <see cref="int"/>, so <c>srcHi - srcLo + 1</c> computed purely
+    ///     in <see cref="int"/> wraps around instead of producing the span's true, enormous size)
+    ///     still throws <see cref="InvalidDataException"/> rather than silently passing the span
+    ///     check and expanding an effectively unbounded map.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Fonts_ToUnicode_BfRangeHexForm_SpanArithmeticWouldOverflowInt32_ThrowsInvalidDataException()
+    {
+        // Arrange: srcLo=0x80000000 decodes to int.MinValue; srcHi=0x00000001. The true span
+        // (2147483650) vastly exceeds the decoder's cap, but `srcHi - srcLo + 1` computed in
+        // `int` would wrap around to a small/negative value and incorrectly pass a naive check.
+        var cmapBytes = BuildToUnicodeCMapStreamBytes("1 beginbfrange\n<80000000> <00000001> <0048>\nendbfrange");
+        var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
+        {
+            ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
+        });
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => document.ResolveToUnicodeMap(fontDict));
+    }
+
+    /// <summary>
+    ///     Proves that a <c>beginbfrange</c>/<c>endbfrange</c> entry whose <c>srcLo</c> and
+    ///     <c>srcHi</c> are both <c>int.MaxValue</c> (a single-code, in-bounds span) still
+    ///     terminates and maps that one code, rather than hanging forever: an <see cref="int"/>-typed
+    ///     loop counter would overflow to <see cref="int.MinValue"/> after the single iteration and
+    ///     never satisfy its own exit condition.
+    /// </summary>
+    [Fact]
+    public async Task PdfDocument_Fonts_ToUnicode_BfRangeHexForm_SrcAtInt32MaxValue_TerminatesAndMapsSingleCode()
+    {
+        // Arrange
+        var cmapBytes = BuildToUnicodeCMapStreamBytes("1 beginbfrange\n<7FFFFFFF> <7FFFFFFF> <0048>\nendbfrange");
+        var streamObj = BuildStreamObjectBody(string.Empty, cmapBytes);
+        var bytes = BuildSinglePagePdfWithResources(100, 100, "BT ET", string.Empty, [streamObj]);
+        using var document = PdfDocument.Open(new MemoryStream(bytes));
+        var fontDict = PdfDocument.PdfObject.FromDictionary(new Dictionary<string, PdfDocument.PdfObject>
+        {
+            ["ToUnicode"] = PdfDocument.PdfObject.FromReference(5, 0),
+        });
+
+        // Act: run on a background thread with a generous bounded timeout - if the loop-termination
+        // fix regresses, this fails fast with a TimeoutException instead of hanging the test run
+        // forever.
+        var result = await Task.Run(() => document.ResolveToUnicodeMap(fontDict))
+            .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(0x0048, result[int.MaxValue]);
     }
 
     /// <summary>Proves that a <c>beginbfrange</c>/<c>endbfrange</c> entry with an array-of-hex-strings destination maps each code in the range to its own corresponding array element.</summary>

@@ -62,6 +62,16 @@ namespace DemaConsulting.CanvasNet.Fonts;
 /// </remarks>
 internal sealed class Type1Table : IGlyphOutlineSource
 {
+    /// <summary>
+    ///     The maximum <c>/Subrs</c> index this parser will accept. A legitimate Type 1 font's
+    ///     subroutine index is small (classic Type 1 fonts rarely declare more than a few hundred
+    ///     subroutines); this cap matches the 16-bit subroutine-index space used by the CFF/Type 2
+    ///     charstring format and rejects a crafted font declaring a sparse, enormous index before
+    ///     <see cref="Parse"/> sizes the dense <see cref="_subrs"/> array from it (which would
+    ///     otherwise risk an out-of-memory allocation driven entirely by untrusted font data).
+    /// </summary>
+    private const int MaxSubrIndex = 65535;
+
     private readonly byte[] _data;
     private readonly (int Offset, int Length)[] _charStrings;
     private readonly (int Offset, int Length)[] _subrs;
@@ -158,6 +168,12 @@ internal sealed class Type1Table : IGlyphOutlineSource
         var combined = new List<byte>();
 
         var maxSubrIndex = rawSubrs.Count == 0 ? -1 : rawSubrs.Keys.Max();
+        if (maxSubrIndex > MaxSubrIndex)
+        {
+            throw new InvalidDataException(
+                $"Type 1 font program's '/Subrs' index {maxSubrIndex} exceeds the maximum supported index of {MaxSubrIndex}.");
+        }
+
         var subrs = new (int Offset, int Length)[maxSubrIndex + 1];
         foreach (var (index, entry) in rawSubrs)
         {

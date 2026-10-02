@@ -415,9 +415,13 @@ public sealed partial class PdfDocument
                             $"/W array's cFirst-cLast-w range form spans more than {MaxCompositeWidthRangeSpan} CIDs.");
                     }
 
-                    for (var cid = firstCid; cid <= cLast; cid++)
+                    // Iterate with a long counter rather than an int one: even with a small,
+                    // already-validated span, a cLast at or near int.MaxValue would make an
+                    // int-typed increment overflow to int.MinValue on the final iteration, which
+                    // would still satisfy the loop's exit condition and hang indefinitely.
+                    for (var cid = (long)firstCid; cid <= cLast; cid++)
                     {
-                        cidWidths[cid] = wValue.Number;
+                        cidWidths[(int)cid] = wValue.Number;
                     }
 
                     i += 3;

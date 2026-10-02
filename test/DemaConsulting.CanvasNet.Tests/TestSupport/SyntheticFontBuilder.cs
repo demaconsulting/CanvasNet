@@ -1166,6 +1166,13 @@ internal sealed class SyntheticFontBuilder
     ///     simulate a crafted malicious font, while the actual appended encrypted bytes remain
     ///     unaffected. Defaults to <c>null</c>, so every existing call site is unaffected.
     /// </param>
+    /// <param name="subrIndices">
+    ///     Optional per-entry <c>dup &lt;index&gt;</c> override, positionally paired with
+    ///     <paramref name="subrs"/> - lets a test fixture declare a crafted, sparse subroutine
+    ///     index (for example near <see cref="int.MaxValue"/>) instead of the default sequential
+    ///     <c>0, 1, 2, ...</c> numbering, to simulate a malicious font. Defaults to
+    ///     <see langword="null"/>, so every existing call site is unaffected.
+    /// </param>
     /// <returns>The assembled font program bytes, and its cleartext/encrypted region lengths.</returns>
     public static (byte[] FontFileBytes, int Length1, int Length2) Type1(
         IReadOnlyList<(string Name, byte[] Charstring)> charStrings,
@@ -1174,7 +1181,8 @@ internal sealed class SyntheticFontBuilder
         string readToken = "RD",
         string defToken = "ND",
         string trailer = "",
-        IReadOnlyDictionary<string, int>? charStringLengthOverrides = null)
+        IReadOnlyDictionary<string, int>? charStringLengthOverrides = null,
+        IReadOnlyList<int>? subrIndices = null)
     {
         subrs ??= [];
 
@@ -1195,8 +1203,9 @@ internal sealed class SyntheticFontBuilder
             AppendAscii($"/Subrs {subrs.Count} array\n");
             for (var i = 0; i < subrs.Count; i++)
             {
+                var index = subrIndices != null && i < subrIndices.Count ? subrIndices[i] : i;
                 var encrypted = EncryptType1Entry(subrs[i], lenIv);
-                AppendAscii($"dup {i} {encrypted.Length} {readToken} ");
+                AppendAscii($"dup {index} {encrypted.Length} {readToken} ");
                 plaintext.AddRange(encrypted);
                 AppendAscii($" {defToken}\n");
             }

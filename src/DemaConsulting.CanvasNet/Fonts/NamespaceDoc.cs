@@ -12,10 +12,13 @@ namespace DemaConsulting.CanvasNet.Fonts;
 ///     <c>OTTO</c>-tagged) Type 2 charstring outlines, <c>hmtx</c>/<c>hhea</c> horizontal metrics,
 ///     and basic (<c>kern</c> format 0) pairwise kerning. TrueType Collection (<c>ttcf</c>)
 ///     containers holding one or more faces are also supported, with explicit face selection and
-///     face-count querying. CID-keyed CFF fonts, and any Type 2 charstring operator outside the
-///     supported set (including flex and the deprecated <c>seac</c>-style <c>endchar</c> form),
-///     are out of scope and are rejected with a clear <see cref="System.IO.InvalidDataException"/>
-///     rather than silently mis-parsed. <see cref="TrueTypeFont"/> depends only on the
+///     face-count querying, including the flex shortcuts (<c>hflex</c>/<c>flex</c>/
+///     <c>hflex1</c>/<c>flex1</c>) and the deprecated 4-operand <c>seac</c>-style accent
+///     composition form of <c>endchar</c>. CID-keyed CFF fonts (a Top DICT declaring the
+///     <c>ROS</c> operator), a doubly-nested <c>seac</c>-style composition, and any Type 2
+///     charstring operator outside the supported set are out of scope and are rejected with a
+///     clear <see cref="System.IO.InvalidDataException"/> rather than silently mis-parsed.
+///     <see cref="TrueTypeFont"/> depends only on the
 ///     <see cref="DemaConsulting.CanvasNet.Geometry"/> namespace: it produces vector geometry and
 ///     metrics, and has no notion of pixels, surfaces, or rasterization - callers combine its
 ///     output with their own point size and orientation before feeding it to

@@ -316,6 +316,27 @@ public class Type1TableTests
     }
 
     /// <summary>
+    ///     Proves that Type1Table Parse SubrIndexExceedsMaximum ThrowsInvalidDataException.
+    /// </summary>
+    /// <remarks>
+    ///     A crafted font's '/Subrs' dictionary can declare a single entry with a huge, sparse
+    ///     <c>dup &lt;index&gt;</c> (for example near <see cref="int.MaxValue"/>); naively sizing a
+    ///     dense array from that index as its length would risk an out-of-memory allocation driven
+    ///     entirely by untrusted font data. The parser must reject an index beyond its supported
+    ///     bound instead.
+    /// </remarks>
+    [Fact]
+    public void Type1Table_Parse_SubrIndexExceedsMaximum_ThrowsInvalidDataException()
+    {
+        var program = SyntheticFontBuilder.Type1(
+            [(".notdef", SimpleCharstring())],
+            subrs: [SimpleCharstring()],
+            subrIndices: [1_000_000_000]);
+
+        Assert.Throws<InvalidDataException>(() => Parse(program));
+    }
+
+    /// <summary>
     ///     Proves that Type1Table Parse TrailingBoilerplateAfterCharStringsEnd DoesNotMisparse.
     /// </summary>
     /// <remarks>

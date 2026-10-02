@@ -265,6 +265,7 @@ words:
   - vstem
   - vstemhm
   - vvcurveto
+  - hflex
   - eexec
   - Eexec
   - hsbw

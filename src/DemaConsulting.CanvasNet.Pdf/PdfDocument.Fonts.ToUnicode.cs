@@ -237,8 +237,13 @@ public sealed partial class PdfDocument
                 //
                 // Reject an oversized span before expanding it - a crafted tiny srcLo/srcHi pair
                 // declaring an enormous span could otherwise allocate an enormous map even though
-                // the CMap stream itself is tiny (a decompression-bomb-style attack).
-                if (srcHi - srcLo + 1 > ToUnicodeMaxBfRangeSpan)
+                // the CMap stream itself is tiny (a decompression-bomb-style attack). The span and
+                // loop counter are computed in `long` (rather than `int`) because srcLo/srcHi may
+                // be decoded from up to 4-byte codes - an `int`-only computation could overflow for
+                // a crafted endpoint near `int.MaxValue`/`int.MinValue`, which would either corrupt
+                // the span check or make the loop counter wrap and never terminate.
+                var spanLong = (long)srcHi - srcLo + 1;
+                if (spanLong is <= 0 or > ToUnicodeMaxBfRangeSpan)
                 {
                     throw new InvalidDataException(
                         $"A bfrange entry's span exceeds the maximum supported size of {ToUnicodeMaxBfRangeSpan} codes.");
@@ -246,9 +251,9 @@ public sealed partial class PdfDocument
 
                 if (TryDecodeFirstUtf16CodePoint(destinationToken.Bytes ?? [], out var startCodepoint))
                 {
-                    for (var code = srcLo; code <= srcHi; code++)
+                    for (var code = (long)srcLo; code <= srcHi; code++)
                     {
-                        map[code] = startCodepoint + (code - srcLo);
+                        map[(int)code] = startCodepoint + (int)(code - srcLo);
                     }
                 }
 
