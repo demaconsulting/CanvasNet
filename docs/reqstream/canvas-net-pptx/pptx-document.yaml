@@ -1,0 +1,140 @@
+---
+# Software Unit Requirements for PptxDocument
+#
+# cspell:ignore ooxml pptx
+#
+# These requirements describe the design-level behavior of the PptxDocument unit.
+#
+# Packaging note: PptxDocument is distributed as the separate DemaConsulting.CanvasNet.Pptx NuGet
+# package (namespace DemaConsulting.CanvasNet.Pptx), which references the core
+# DemaConsulting.CanvasNet package. PptxDocument is the sole unit of the CanvasNetPptx system.
+
+sections:
+  - title: CanvasNetPptx Requirements
+    sections:
+      - title: PptxDocument Requirements
+        requirements:
+          - id: CanvasNetPptx-PptxDocument-OpenStream
+            title: >-
+              The PptxDocument class shall expose a static Open(Stream) method that buffers the
+              entire supplied stream into memory (without disposing or requiring it to remain
+              seekable afterward), constructs the OOXML package layer from the buffered bytes,
+              and rejects a null stream with ArgumentNullException.
+            justification: |
+              Callers need to open a package from any stream source (file, network, in-memory)
+              without CanvasNetPptx retaining a dependency on the caller's stream lifetime.
+            tests:
+              - PptxDocument_Open_WellFormedMinimalPackage_Succeeds
+              - PptxDocument_Open_NullStream_ThrowsArgumentNullException
+
+          - id: CanvasNetPptx-PptxDocument-OpenPath
+            title: >-
+              The PptxDocument class shall expose a static Open(string) method that validates the
+              path is neither null nor empty/whitespace-only (throwing ArgumentNullException or
+              ArgumentException respectively), then opens and delegates to Open(Stream).
+            justification: |
+              Callers most commonly have a file path rather than an already-open stream, and must
+              receive argument-validation errors distinguishable from a missing-file error.
+            tests:
+              - PptxDocument_Open_NullPath_ThrowsArgumentNullException
+              - PptxDocument_Open_WhitespacePath_ThrowsArgumentException
+
+          - id: CanvasNetPptx-PptxDocument-ZipValidation
+            title: >-
+              The PptxDocument class shall open the buffered bytes as a read-only ZipArchive and
+              reject an unreadable or corrupt (non-ZIP) stream with InvalidDataException.
+            justification: |
+              A .pptx file is fundamentally a ZIP archive; a corrupt or non-ZIP input must fail
+              closed with a clear, documented exception type rather than an unrelated BCL
+              exception leaking through.
+            tests:
+              - PptxDocument_Open_CorruptNonZipStream_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-ContentTypesValidation
+            title: >-
+              The PptxDocument class shall require the package to contain a well-formed
+              [Content_Types].xml part, parsing its Default (extension-to-content-type) and
+              Override (part-specific) entries, and reject a package missing this part with
+              InvalidDataException.
+            justification: |
+              Every valid OPC package must declare [Content_Types].xml; its absence means the
+              package is fundamentally malformed and must be rejected before any later phase
+              attempts to interpret any part's content.
+            tests:
+              - PptxDocument_Open_MissingContentTypes_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-PackageRelationshipsValidation
+            title: >-
+              The PptxDocument class shall require the package to contain a well-formed
+              package-level _rels/.rels relationships part, parsing it eagerly at Open() time, and
+              reject a package missing this part with InvalidDataException.
+            justification: |
+              The package-level relationships part is the sole entry point for discovering the
+              presentation's root part in later phases; its absence means the package cannot be
+              navigated at all.
+            tests:
+              - PptxDocument_Open_MissingPackageRelationships_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-ContentTypeOverride
+            title: >-
+              The PptxDocument class shall resolve a part's content type using its
+              [Content_Types].xml Override entry (keyed by exact part path) when one is declared
+              for that part, in preference to any Default extension-based mapping.
+            justification: |
+              OPC's own content-type resolution rules require an Override to take precedence over
+              a Default mapping for the same part; getting this precedence wrong would
+              misidentify a part's real content type.
+            tests:
+              - PptxDocument_ResolvePart_OverrideContentType_TakesPrecedenceOverDefaultExtension
+
+          - id: CanvasNetPptx-PptxDocument-ContentTypeDefault
+            title: >-
+              The PptxDocument class shall resolve a part with no Override entry via
+              [Content_Types].xml's Default extension-based mapping, and reject a request to
+              resolve a part the package does not contain, or whose content type cannot be
+              resolved by either mapping, with InvalidDataException.
+            justification: |
+              Most parts in a real .pptx package (nearly every slide, layout, and master) rely
+              solely on the Default extension mapping rather than an individual Override entry.
+            tests:
+              - PptxDocument_ResolvePart_NoOverride_ResolvesDefaultExtensionContentType
+              - PptxDocument_ResolvePart_UnknownPart_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-RelationshipResolution
+            title: >-
+              The PptxDocument class shall resolve a named relationship ID from a given source
+              part's own relationships part (or, for the empty source part path, the package-level
+              _rels/.rels), reject an unknown relationship ID, and reject a relationship whose
+              TargetMode is External, all with InvalidDataException.
+            justification: |
+              Relationship resolution is the sole navigation mechanism for discovering a package's
+              part graph; an unknown ID or an unsupported external target must fail closed rather
+              than silently returning an incorrect or unusable path.
+            tests:
+              - PptxDocument_Open_WellFormedMinimalPackage_Succeeds
+              - PptxDocument_ResolveRelationship_UnknownRelationshipId_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-RelativeTargetTraversal
+            title: >-
+              The PptxDocument class shall resolve a relationship's relative Target value relative
+              to the source part's own directory (not the package root), correctly applying a
+              leading "../" parent-directory traversal segment, and reject a target that would
+              traverse past the package root with InvalidDataException.
+            justification: |
+              Real-world .pptx packages universally reference sibling parts (for example a slide
+              referencing its layout) using a relative, parent-traversing Target value; incorrect
+              resolution would misidentify the target part entirely.
+            tests:
+              - PptxDocument_ResolveRelationship_RelativeTargetWithParentTraversal_ResolvesCorrectTarget
+              - PptxDocument_ResolveRelationship_TargetEscapesPackageRoot_ThrowsInvalidDataException
+
+          - id: CanvasNetPptx-PptxDocument-Dispose
+            title: >-
+              The PptxDocument class shall make Dispose idempotent (safe to call more than once),
+              releasing the underlying ZipArchive and its backing buffer.
+            justification: |
+              Standard, predictable IDisposable behavior matches every other disposable type in
+              CanvasNet, so double-disposing (a common pattern with using declarations and manual
+              disposal both present) never throws.
+            tests:
+              - PptxDocument_Dispose_CalledTwice_DoesNotThrow

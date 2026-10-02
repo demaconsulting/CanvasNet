@@ -769,6 +769,67 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfSystemIntegrationTests.cs"  # integration tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfFixtureTests.cs"   # fixture conformance tests
 
+  # CanvasNetPptx-Architecture Review (one per system)
+  - id: CanvasNetPptx-Architecture
+    title: Review that CanvasNetPptx Architecture Satisfies Requirements
+    context:
+      - "README.md"
+      - "docs/user_guide/**/*.md"
+    paths:
+      - "docs/reqstream/canvas-net-pptx.yaml"                          # system requirements
+      - "docs/design/introduction.md"                                 # design introduction
+      - "docs/design/canvas-net-pptx.md"                              # system design
+      - "docs/verification/introduction.md"                           # verification introduction
+      - "docs/verification/canvas-net-pptx.md"                        # system verification
+      - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxSystemIntegrationTests.cs"  # integration tests
+
+  # CanvasNetPptx-Design Review (one per system)
+  - id: CanvasNetPptx-Design
+    title: Review that CanvasNetPptx Design is Consistent and Complete
+    context:
+      - "docs/reqstream/canvas-net-pptx.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-pptx/platform-requirements.yaml"    # platform requirements
+      - "docs/design/introduction.md"                                 # design introduction
+      - "docs/design/canvas-net-pptx.md"                              # system design
+      - "docs/design/canvas-net-pptx/**/*.md"                         # all system design documents
+
+  # CanvasNetPptx-Verification Review (one per system)
+  - id: CanvasNetPptx-Verification
+    title: Review that CanvasNetPptx Verification is Consistent and Complete
+    context:
+      - "docs/reqstream/canvas-net-pptx.yaml"
+    paths:
+      - "docs/verification/introduction.md"                           # verification introduction
+      - "docs/verification/canvas-net-pptx.md"                        # system verification
+      - "docs/verification/canvas-net-pptx/**/*.md"                   # all verification documents
+
+  # CanvasNetPptx-AllRequirements Review (one per system)
+  - id: CanvasNetPptx-AllRequirements
+    title: Review that All CanvasNetPptx Requirements are Complete
+    context:
+      - "docs/design/canvas-net-pptx.md"
+      - "docs/reqstream/canvas-net-pptx.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-pptx/**/*.yaml"                    # all requirements files
+
+  # CanvasNetPptx-PptxDocument Review (one per direct unit)
+  - id: CanvasNetPptx-PptxDocument
+    title: Review that CanvasNetPptx PptxDocument Implementation is Correct
+    context:
+      - "docs/design/canvas-net-pptx.md"
+      - "docs/reqstream/canvas-net-pptx.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-pptx/pptx-document.yaml"           # unit requirements
+      - "docs/design/canvas-net-pptx/pptx-document.md"                # unit design
+      - "docs/verification/canvas-net-pptx/pptx-document.md"          # unit verification
+      - "docs/sysml2/model/canvas-net-pptx/pptx-document.sysml"       # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.cs"            # phase 1a unit source (public API)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Package.cs"    # phase 1a unit source (OOXML package layer)
+      - "src/DemaConsulting.CanvasNet.Pptx/NamespaceDoc.cs"            # Pptx namespace documentation
+      - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxDocumentTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxSystemIntegrationTests.cs"  # integration tests
+
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark
     title: Review that BuildMark Provides Required Functionality
