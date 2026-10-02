@@ -296,6 +296,26 @@ public class Type1TableTests
     }
 
     /// <summary>
+    ///     Proves that Type1Table Parse CharStringsLengthNearIntMaxValue ThrowsInvalidDataException.
+    /// </summary>
+    /// <remarks>
+    ///     A crafted font can declare a '/CharStrings' entry length near int.MaxValue; 'pos' (the
+    ///     plaintext scan cursor) plus that length overflows ordinary 32-bit arithmetic. The scanner
+    ///     must widen to long before adding (see HmtxHheaReader's and this file's own Length1+Length2
+    ///     check for the established convention) so this is reported as the documented
+    ///     InvalidDataException rather than an unhandled OverflowException.
+    /// </remarks>
+    [Fact]
+    public void Type1Table_Parse_CharStringsLengthNearIntMaxValue_ThrowsInvalidDataException()
+    {
+        var program = SyntheticFontBuilder.Type1(
+            [(".notdef", SimpleCharstring())],
+            charStringLengthOverrides: new Dictionary<string, int> { [".notdef"] = int.MaxValue - 16 });
+
+        Assert.Throws<InvalidDataException>(() => Parse(program));
+    }
+
+    /// <summary>
     ///     Proves that Type1Table Parse TrailingBoilerplateAfterCharStringsEnd DoesNotMisparse.
     /// </summary>
     /// <remarks>

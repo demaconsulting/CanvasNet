@@ -1159,6 +1159,13 @@ internal sealed class SyntheticFontBuilder
     ///     /FontName get exch definefont pop\nmark currentfile closefile\n</c>) that some
     ///     real-world Type 1 producers emit after the <c>/CharStrings</c> dictionary closes.
     /// </param>
+    /// <param name="charStringLengthOverrides">
+    ///     Optional per-glyph overrides for the declared <c>/CharStrings</c> entry length token,
+    ///     keyed by glyph name - lets a test fixture declare a length that diverges from the
+    ///     entry's real encrypted byte count (for example near <see cref="int.MaxValue"/>), to
+    ///     simulate a crafted malicious font, while the actual appended encrypted bytes remain
+    ///     unaffected. Defaults to <c>null</c>, so every existing call site is unaffected.
+    /// </param>
     /// <returns>The assembled font program bytes, and its cleartext/encrypted region lengths.</returns>
     public static (byte[] FontFileBytes, int Length1, int Length2) Type1(
         IReadOnlyList<(string Name, byte[] Charstring)> charStrings,
@@ -1166,7 +1173,8 @@ internal sealed class SyntheticFontBuilder
         int lenIv = 4,
         string readToken = "RD",
         string defToken = "ND",
-        string trailer = "")
+        string trailer = "",
+        IReadOnlyDictionary<string, int>? charStringLengthOverrides = null)
     {
         subrs ??= [];
 
@@ -1198,7 +1206,11 @@ internal sealed class SyntheticFontBuilder
         foreach (var (name, charstring) in charStrings)
         {
             var encrypted = EncryptType1Entry(charstring, lenIv);
-            AppendAscii($"/{name} {encrypted.Length} {readToken} ");
+            var declaredLength = charStringLengthOverrides != null
+                && charStringLengthOverrides.TryGetValue(name, out var overrideLength)
+                ? overrideLength
+                : encrypted.Length;
+            AppendAscii($"/{name} {declaredLength} {readToken} ");
             plaintext.AddRange(encrypted);
             AppendAscii($" {defToken}\n");
         }

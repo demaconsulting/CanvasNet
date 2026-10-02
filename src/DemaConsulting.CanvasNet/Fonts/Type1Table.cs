@@ -313,7 +313,7 @@ internal sealed class Type1Table : IGlyphOutlineSource
 
             pos++;
 
-            if (checked(pos + length) > end)
+            if (checked((long)pos + length) > end)
             {
                 throw new InvalidDataException("Type 1 font program's '/Subrs' raw charstring data is truncated.");
             }
@@ -388,7 +388,7 @@ internal sealed class Type1Table : IGlyphOutlineSource
 
             pos++;
 
-            if (checked(pos + length) > end)
+            if (checked((long)pos + length) > end)
             {
                 throw new InvalidDataException("Type 1 font program's '/CharStrings' raw charstring data is truncated.");
             }

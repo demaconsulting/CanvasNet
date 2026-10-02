@@ -960,6 +960,7 @@ sections:
                   - Type1Table_Parse_NegativeLength_ThrowsInvalidDataException
                   - Type1Table_Parse_LengthsExceedFileBounds_ThrowsInvalidDataException
                   - Type1Table_Parse_EmptyCharStrings_ThrowsInvalidDataException
+                  - Type1Table_Parse_CharStringsLengthNearIntMaxValue_ThrowsInvalidDataException
                   - Type1Table_Parse_TrailingBoilerplateAfterCharStringsEnd_DoesNotMisparse
                   - Type1CharstringInterpreter_EmptyCharstring_ProducesEmptyPathAndZeroWidth
                   - Type1CharstringInterpreter_Hsbw_CapturesWidthAndSideBearing

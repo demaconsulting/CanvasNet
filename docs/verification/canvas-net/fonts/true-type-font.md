@@ -666,6 +666,7 @@ without throwing.
 `Type1Table_Parse_NegativeLength_ThrowsInvalidDataException`,
 `Type1Table_Parse_LengthsExceedFileBounds_ThrowsInvalidDataException`,
 `Type1Table_Parse_EmptyCharStrings_ThrowsInvalidDataException`,
+`Type1Table_Parse_CharStringsLengthNearIntMaxValue_ThrowsInvalidDataException`,
 `Type1Table_Parse_TrailingBoilerplateAfterCharStringsEnd_DoesNotMisparse`,
 `Type1CharstringInterpreter_EmptyCharstring_ProducesEmptyPathAndZeroWidth`,
 `Type1CharstringInterpreter_Hsbw_CapturesWidthAndSideBearing`,
@@ -695,7 +696,9 @@ program (via `SyntheticFontBuilder.Type1`), asserting `GetGlyphIndex`/`GetGlyphO
 `length1`/`length2` values and null arguments are rejected as documented. Separately verifies
 `Type1Table`'s own `/Subrs`/`/CharStrings` scanner - including its procedure-name-agnostic
 behavior across varied `RD`/`ND`/`NP`/`-|`/`|-` token fixtures, `.notdef`-reindexing,
-custom-`lenIV` handling, and its fail-closed structural-malformation paths - and
+custom-`lenIV` handling, and its fail-closed structural-malformation paths - including a
+`/CharStrings` entry declaring a length near `int.MaxValue`, which must be reported as
+`InvalidDataException` rather than an unhandled arithmetic overflow - and
 `Type1CharstringInterpreter`'s full opcode set in isolation, including a geometry-asserting
 end-to-end flex test that checks actual `Path` point data (not merely the absence of an
 exception), a hint-replacement pass-through test, `seac` rejection, and subroutine call-depth
