@@ -1721,7 +1721,7 @@ public class PdfDocumentTests
 
     #region Render
 
-    /// <summary>Proves that <see cref="PdfDocument.Render"/> returns a fully transparent surface of the caller-requested size (Phase 1 renders no content).</summary>
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, int, int)"/> returns a fully transparent surface of the caller-requested size (Phase 1 renders no content).</summary>
     [Fact]
     public void PdfDocument_Render_ValidPageIndex_ReturnsCorrectlySizedBlankSurface()
     {
@@ -1743,7 +1743,7 @@ public class PdfDocumentTests
         }
     }
 
-    /// <summary>Proves that <see cref="PdfDocument.Render"/> rejects an out-of-range page index the same way <see cref="PdfDocument.GetPageInfo"/> does.</summary>
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, int, int)"/> rejects an out-of-range page index the same way <see cref="PdfDocument.GetPageInfo"/> does.</summary>
     [Fact]
     public void PdfDocument_Render_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException()
     {
@@ -1754,7 +1754,7 @@ public class PdfDocumentTests
         Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(5, 10, 10));
     }
 
-    /// <summary>Proves that <see cref="PdfDocument.Render"/> lets <see cref="Canvas.Surface"/>'s own constructor validate width/height rather than duplicating that check.</summary>
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, int, int)"/> lets <see cref="Canvas.Surface"/>'s own constructor validate width/height rather than duplicating that check.</summary>
     [Fact]
     public void PdfDocument_Render_InvalidWidth_PropagatesSurfaceArgumentOutOfRangeException()
     {
@@ -1763,6 +1763,63 @@ public class PdfDocumentTests
 
         // Act & Assert
         Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(0, 0, 10));
+    }
+
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, float)"/> scales the page's own point-space size by DPI/72, preserving aspect ratio.</summary>
+    [Theory]
+    [InlineData(72f, 200, 300)]
+    [InlineData(36f, 100, 150)]
+    [InlineData(144f, 400, 600)]
+    public void PdfDocument_RenderWithDpi_ScalesPageSizeByDpiOver72(float dpi, int expectedWidth, int expectedHeight)
+    {
+        // Arrange
+        using var document = PdfDocument.Open(Fixture("classic-xref-single-page.pdf"));
+
+        // Act
+        using var surface = document.Render(0, dpi);
+
+        // Assert
+        Assert.Equal(expectedWidth, surface.Width);
+        Assert.Equal(expectedHeight, surface.Height);
+    }
+
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, float)"/> rejects a non-positive or non-finite DPI.</summary>
+    /// <param name="dpi">The invalid DPI value under test.</param>
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(-72f)]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    public void PdfDocument_RenderWithDpi_InvalidDpi_ThrowsArgumentOutOfRangeException(float dpi)
+    {
+        // Arrange
+        using var document = PdfDocument.Open(Fixture("classic-xref-single-page.pdf"));
+
+        // Act & Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(0, dpi));
+    }
+
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, float)"/> rejects an out-of-range page index the same way <see cref="PdfDocument.GetPageInfo"/> does.</summary>
+    [Fact]
+    public void PdfDocument_RenderWithDpi_OutOfRangePageIndex_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange
+        using var document = PdfDocument.Open(Fixture("classic-xref-single-page.pdf"));
+
+        // Act & Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(5, 72f));
+    }
+
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, float)"/> throws <see cref="ObjectDisposedException"/> once the document is disposed.</summary>
+    [Fact]
+    public void PdfDocument_RenderWithDpi_AfterDispose_ThrowsObjectDisposedException()
+    {
+        // Arrange
+        var document = PdfDocument.Open(Fixture("classic-xref-single-page.pdf"));
+        document.Dispose();
+
+        // Act & Assert
+        Assert.Throws<ObjectDisposedException>(() => document.Render(0, 72f));
     }
 
     #endregion
@@ -1811,7 +1868,7 @@ public class PdfDocumentTests
         Assert.Throws<ObjectDisposedException>(() => document.GetPageInfo(0));
     }
 
-    /// <summary>Proves that <see cref="PdfDocument.Render"/> throws <see cref="ObjectDisposedException"/> once the document is disposed.</summary>
+    /// <summary>Proves that <see cref="PdfDocument.Render(int, int, int)"/> throws <see cref="ObjectDisposedException"/> once the document is disposed.</summary>
     [Fact]
     public void PdfDocument_Render_AfterDispose_ThrowsObjectDisposedException()
     {

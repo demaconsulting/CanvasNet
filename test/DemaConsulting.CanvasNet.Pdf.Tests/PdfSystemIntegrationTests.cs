@@ -29,7 +29,7 @@ public class PdfSystemIntegrationTests
     /// <summary>
     ///     Opens a multi-page fixture once, asserts <see cref="PdfDocument.PageCount"/>, then calls
     ///     <see cref="PdfDocument.GetPageInfo"/> for two different pages and
-    ///     <see cref="PdfDocument.Render"/> for two different pages against the <em>same</em>
+    ///     <see cref="PdfDocument.Render(int, int, int)"/> for two different pages against the <em>same</em>
     ///     opened instance - demonstrating the "parse once, reused across calls" property that no
     ///     stateless design could express. This is also the shared platform-proof test referenced
     ///     by every <c>CanvasNetPdf-Platform-*</c> requirement.
@@ -73,7 +73,7 @@ public class PdfSystemIntegrationTests
         Assert.Equal(90, info.Rotation);
     }
 
-    /// <summary>Proves <see cref="PdfDocument.Render"/> returns a blank, correctly sized surface (Phase 1).</summary>
+    /// <summary>Proves <see cref="PdfDocument.Render(int, int, int)"/> returns a blank, correctly sized surface (Phase 1).</summary>
     [Fact]
     public void CanvasNetPdf_SystemIntegration_PdfRender_ReturnsBlankSizedSurface()
     {
@@ -91,7 +91,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render"/> rasterizes real path geometry end-to-end: a
+    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> rasterizes real path geometry end-to-end: a
     ///     hand-authored fixture containing a filled rectangle and a stroked vertical line,
     ///     asserting specific opaque-black/transparent pixels at specific coordinates (not merely
     ///     "the surface is not blank").
@@ -160,7 +160,7 @@ public class PdfSystemIntegrationTests
     ///     Proves a well-formed document/xref/page-tree whose <c>/Contents</c> stream is itself
     ///     lexically malformed (a <c>re</c> operator given only 2 of its 4 required operands) is
     ///     rejected with <see cref="InvalidDataException"/> end-to-end through
-    ///     <see cref="PdfDocument.Render"/>, distinct from the structural malformations
+    ///     <see cref="PdfDocument.Render(int, int, int)"/>, distinct from the structural malformations
     ///     (<c>malformed-startxref.pdf</c>/<c>cyclic-page-tree.pdf</c>) already covered elsewhere.
     /// </summary>
     [Fact]
@@ -212,7 +212,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render"/> paints real device color end-to-end (Phase 3):
+    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> paints real device color end-to-end (Phase 3):
     ///     a hand-authored fixture using <c>rg</c> to fill a rectangle red, asserting a specific
     ///     interior pixel is opaque red and an exterior pixel remains transparent.
     /// </summary>
@@ -232,7 +232,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render"/> decodes and composites an image XObject
+    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> decodes and composites an image XObject
     ///     end-to-end (Phase 3): a hand-authored fixture placing a 2x2 <c>DeviceRGB</c>
     ///     <c>FlateDecode</c> image via <c>cm</c>/<c>Do</c>, asserting specific composited pixel
     ///     colors matching the fixture's known source pixels, and a pixel outside the placed
@@ -261,7 +261,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render"/> decodes an <c>LZWDecode</c>-compressed page
+    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> decodes an <c>LZWDecode</c>-compressed page
     ///     content stream end-to-end (Phase 7): a hand-authored fixture whose <c>/Contents</c>
     ///     stream is the PDF-variant-LZW-compressed bytes of <c>"1 0 0 rg 10 10 80 80 re f"</c>
     ///     (an 80x80 rectangle filled opaque red), proving the decoded operator text is parsed
@@ -282,7 +282,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render"/> decodes an <c>ASCII85Decode</c>-armored page
+    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> decodes an <c>ASCII85Decode</c>-armored page
     ///     content stream end-to-end (Phase 7): a hand-authored fixture whose <c>/Contents</c>
     ///     stream is the base-85 encoding (terminated by <c>~&gt;</c>) of the same
     ///     <c>"1 0 0 rg 10 10 80 80 re f"</c> content-stream text.
@@ -302,7 +302,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render"/> decodes an <c>ASCIIHexDecode</c>-armored page
+    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> decodes an <c>ASCIIHexDecode</c>-armored page
     ///     content stream end-to-end (Phase 7): a hand-authored fixture whose <c>/Contents</c>
     ///     stream is the hex-digit-pair encoding (terminated by <c>&gt;</c>) of the same
     ///     <c>"1 0 0 rg 10 10 80 80 re f"</c> content-stream text.
@@ -322,7 +322,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render"/> decodes a <c>RunLengthDecode</c>-compressed
+    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> decodes a <c>RunLengthDecode</c>-compressed
     ///     page content stream end-to-end (Phase 7): a hand-authored fixture whose
     ///     <c>/Contents</c> stream is a single PackBits-style literal run (length byte, the
     ///     literal bytes, then the <c>128</c> EOD marker) wrapping the same
@@ -343,7 +343,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render"/> resolves an embedded simple TrueType font end
+    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> resolves an embedded simple TrueType font end
     ///     to end (Phase 4): a hand-authored fixture with a real, embedded (via
     ///     <c>/FontDescriptor/FontFile2</c>) copy of the shared <c>OpenSans-Regular.ttf</c>
     ///     production font (see <c>PdfFixtures\README.md</c> for provenance and the
@@ -421,7 +421,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render"/> resolves a <c>/Type0</c>/<c>/Identity-H</c>
+    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> resolves a <c>/Type0</c>/<c>/Identity-H</c>
     ///     <c>CIDFontType2</c> composite font end to end (Phase 9): a hand-authored fixture with a
     ///     real, embedded (via the descendant font's <c>/FontDescriptor/FontFile2</c>) copy of the
     ///     shared <c>OpenSans-Regular.ttf</c> production font (see <c>PdfFixtures\README.md</c> for
@@ -509,7 +509,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render"/> resolves a <c>/Type0</c>/<c>/Identity-H</c>
+    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> resolves a <c>/Type0</c>/<c>/Identity-H</c>
     ///     <c>CIDFontType0</c> composite font end to end (Phase 12): a hand-authored, entirely
     ///     synthetic fixture (see <c>PdfFixtures\README.md</c>) whose descendant font's
     ///     <c>/FontDescriptor/FontFile3</c> is a synthetic, non-CID-keyed, <c>/OpenType</c>-
@@ -545,7 +545,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render"/> resolves a <c>/Subtype /Type1</c> simple font
+    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> resolves a <c>/Subtype /Type1</c> simple font
     ///     with an embedded classic PostScript <c>/FontDescriptor/FontFile</c> program end to end
     ///     (Phase B): a hand-authored, entirely synthetic fixture (see
     ///     <c>PdfFixtures\README.md</c>) built via <c>SyntheticFontBuilder.Type1</c> (no
@@ -577,7 +577,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render"/> resolves a Standard-14 simple TrueType font
+    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> resolves a Standard-14 simple TrueType font
     ///     (<c>/BaseFont /Helvetica</c>) with no embedded <c>/FontFile2</c> end to end (Phase 6):
     ///     a synthetic, in-memory single-page document (no new binary fixture needed) drawing a
     ///     single glyph. Since the actual substitute font (a matching system font, or the bundled
@@ -618,7 +618,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render"/> resolves a <c>/BaseFont /Symbol</c> font with
+    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> resolves a <c>/BaseFont /Symbol</c> font with
     ///     no embedded <c>/FontFile2</c> and no <c>/FontDescriptor</c> entries at all (PDF
     ///     32000-1 §9.6.2.2 permits an entirely absent/empty descriptor) end to end (Phase 6):
     ///     Symbol/ZapfDingbats no longer fail closed, instead resolving via the bundled Noto
@@ -684,7 +684,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Regression guard: proves <see cref="PdfDocument.Render"/> still fails closed end to
+    ///     Regression guard: proves <see cref="PdfDocument.Render(int, int, int)"/> still fails closed end to
     ///     end (Phase 6) for a non-Symbol/ZapfDingbats font whose <c>/FontDescriptor/Flags</c>
     ///     declares the <c>Symbolic</c> bit without also declaring <c>Nonsymbolic</c>, and has no
     ///     embedded <c>/FontFile2</c> - proving the new Symbol/ZapfDingbats Noto-substitution
@@ -755,7 +755,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render"/> paints an axial (<c>/ShadingType 2</c>) shading
+    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> paints an axial (<c>/ShadingType 2</c>) shading
     ///     pattern fill end-to-end through the public API: a synthetic, in-memory single-page PDF
     ///     (no binary fixture) declaring a <c>/Pattern</c>-color-space fill driven by a
     ///     <c>/FunctionType 2</c> function, proving the painted gradient visibly varies from
@@ -784,7 +784,7 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves <see cref="PdfDocument.Render"/> paints a colored (<c>/PaintType 1</c>) tiling
+    ///     Proves <see cref="PdfDocument.Render(int, int, int)"/> paints a colored (<c>/PaintType 1</c>) tiling
     ///     pattern fill end-to-end through the public API: a synthetic, in-memory single-page PDF
     ///     (no binary fixture) declaring a <c>/Pattern</c>-color-space fill driven by a 10x10
     ///     pattern cell (left half red, right half blue), proving the painted result repeats both

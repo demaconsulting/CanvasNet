@@ -1245,6 +1245,26 @@ is not clamped or derived from the page's own `/MediaBox` size.
   text-rendering mode.
 - `ObjectDisposedException`: Thrown when called after `Dispose()` has been called.
 
+##### PdfDocument.Render(int pageIndex, float dpi)
+
+```csharp
+public Surface Render(int pageIndex, float dpi)
+```
+
+Convenience overload of `Render(int, int, int)` for the common "render at a given resolution"
+case: reads `GetPageInfo(pageIndex)`'s rotation-adjusted width/height (in points, 1/72 inch),
+scales both by `dpi / 72`, rounds to the nearest pixel, and renders at that size - preserving the
+page's own aspect ratio, unlike the three-argument overload. Use `Render(int, int, int)` directly
+instead when independent X/Y scaling (non-square pixels, or an exact pixel size regardless of
+aspect ratio) is needed.
+
+**Exceptions:**
+
+- `ArgumentOutOfRangeException`: Thrown when `pageIndex` is negative or `>= PageCount`, when
+  `dpi` is not a positive, finite number, or when the computed pixel width/height is not a valid
+  `Surface` size.
+- Also throws every exception `Render(int, int, int)` itself can throw.
+
 ##### PdfDocument.Dispose()
 
 ```csharp

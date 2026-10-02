@@ -120,6 +120,11 @@ The system exposes the following public API to external consumers, all on the se
   recognized operator, throws `Codecs.UnsupportedImageFeatureException` for a well-formed but
   unsupported color space/stream filter/Form XObject/font subtype/encoding/text-rendering
   mode/symbolic-font-without-embedded-data, and throws `ObjectDisposedException` once disposed.
+- **PdfDocument.Render(int pageIndex, float dpi)**: Convenience overload preserving the page's
+  own aspect ratio: reads `GetPageInfo(pageIndex)`'s rotation-adjusted point-space width/height,
+  scales both by `dpi / 72`, rounds to the nearest pixel, and delegates to
+  `Render(int, int, int)`. Throws `ArgumentOutOfRangeException` for a non-positive/non-finite
+  `dpi`, in addition to every exception `Render(int, int, int)` itself can throw.
 - **PdfDocument.Dispose()**: Idempotent; releases the buffered/parsed document state. No other
   public member may be called afterward without throwing `ObjectDisposedException`.
 
@@ -130,6 +135,7 @@ The system exposes the following public API to external consumers, all on the se
 | `PdfDocument.PageCount` | Outbound | Property read / `int` return | Not disposed |
 | `PdfDocument.GetPageInfo(...)` | Inbound/Outbound | Method call / `PdfPageInfo` return | `0 <= pageIndex < PageCount`; not disposed |
 | `PdfDocument.Render(...)` | Inbound/Outbound | Method call / `Surface` return | `0 <= pageIndex < PageCount`; `0 < width, height <= 8192`; not disposed |
+| `PdfDocument.Render(int, float)` | Inbound/Outbound | Method call / `Surface` return | `0 <= pageIndex < PageCount`; `dpi` positive and finite; not disposed |
 <!-- markdownlint-enable MD013 -->
 
 See _PdfDocument Unit Design_ (`canvas-net-pdf/pdf-document.md`) for the complete parsing

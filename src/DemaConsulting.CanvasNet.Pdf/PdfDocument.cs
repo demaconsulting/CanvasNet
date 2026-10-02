@@ -389,6 +389,55 @@ public sealed partial class PdfDocument : IDisposable
     }
 
     /// <summary>
+    ///     Renders the specified page at a given resolution, preserving the page's own aspect
+    ///     ratio.
+    /// </summary>
+    /// <remarks>
+    ///     A convenience wrapper over <see cref="Render(int, int, int)"/> for the common case of
+    ///     wanting undistorted, uniformly-scaled output: this overload reads the page's
+    ///     rotation-adjusted <see cref="PdfPageInfo.Width"/>/<see cref="PdfPageInfo.Height"/> (in
+    ///     points, 1/72 inch) via <see cref="GetPageInfo"/>, scales both by <paramref name="dpi"/>
+    ///     / 72, and rounds to the nearest pixel before delegating to
+    ///     <see cref="Render(int, int, int)"/>. Callers needing independent X/Y scaling (for
+    ///     example, non-square pixels, or a specific pixel size regardless of aspect ratio) should
+    ///     call <see cref="Render(int, int, int)"/> directly instead.
+    /// </remarks>
+    /// <param name="pageIndex">The zero-based index of the page to render.</param>
+    /// <param name="dpi">The resolution to render at, in dots (pixels) per inch.</param>
+    /// <returns>
+    ///     A new <see cref="Surface"/> sized to the page's aspect ratio at <paramref name="dpi"/>,
+    ///     painted with the page's interpreted content-stream geometry.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <paramref name="pageIndex"/> is negative or greater than or equal to
+    ///     <see cref="PageCount"/>, when <paramref name="dpi"/> is not a positive, finite number,
+    ///     or when the computed pixel width/height is outside <see cref="Surface"/>'s own valid
+    ///     dimension range (propagated, unwrapped, from the <see cref="Surface(int, int)"/>
+    ///     constructor).
+    /// </exception>
+    /// <exception cref="System.IO.InvalidDataException">
+    ///     See <see cref="Render(int, int, int)"/>.
+    /// </exception>
+    /// <exception cref="UnsupportedImageFeatureException">
+    ///     See <see cref="Render(int, int, int)"/>.
+    /// </exception>
+    /// <exception cref="ObjectDisposedException">Thrown when this document has been disposed.</exception>
+    public Surface Render(int pageIndex, float dpi)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (!float.IsFinite(dpi) || dpi <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(dpi), dpi, "DPI must be a positive, finite number.");
+        }
+
+        var info = GetPageInfo(pageIndex);
+        var scale = dpi / 72.0;
+        var width = (int)Math.Round(info.Width * scale, MidpointRounding.AwayFromZero);
+        var height = (int)Math.Round(info.Height * scale, MidpointRounding.AwayFromZero);
+        return Render(pageIndex, width, height);
+    }
+
+    /// <summary>
     ///     Releases the resources held by this <see cref="PdfDocument"/>.
     /// </summary>
     /// <remarks>
